@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0"
+     width="760" height="180" viewBox="0 0 760 180">
+
+  <!--
+    BDD — UAV::Propulsion
+    Three PartDef classifiers with feature compartments.
+    Composition: RotorAssembly ◆─▷ Motor  (motor : Motor [1])
+    Markers sourced from _diagram-symbols.svg at model root.
+  -->
+
+  <!-- ── PropulsionSystem ──────────────────────────────────── -->
+  <g id="s-propulsion" class="block PartDef" sysml:ref="UAV::Propulsion::PropulsionSystem">
+    <rect x="10" y="20" width="230" height="140" fill="white" stroke="#444" stroke-width="1.5"/>
+    <!-- Stereotype + name header -->
+    <text x="125" y="37" text-anchor="middle" font-size="9" font-family="sans-serif" fill="#666">«part def»</text>
+    <text x="125" y="52" text-anchor="middle" font-size="12" font-weight="bold" font-style="italic" font-family="sans-serif">PropulsionSystem</text>
+    <text x="125" y="64" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#888">{abstract}</text>
+    <!-- Compartment divider -->
+    <line x1="10" y1="70" x2="240" y2="70" stroke="#444" stroke-width="1"/>
+    <!-- Features -->
+    <text x="20" y="86"  font-size="9" font-family="monospace" fill="#333">/ totalThrustN : ForceValue</text>
+    <text x="20" y="101" font-size="9" font-family="monospace" fill="#555">  [isDerived]</text>
+    <text x="20" y="117" font-size="9" font-family="monospace" fill="#333">  powerIn : PowerPortReceiverDef</text>
+    <text x="20" y="130" font-size="9" font-family="monospace" fill="#555">  [Port, in, 1]</text>
+  </g>
+
+  <!-- ── Motor ─────────────────────────────────────────────── -->
+  <g id="s-motor" class="block PartDef" sysml:ref="UAV::Propulsion::Motor">
+    <rect x="260" y="20" width="215" height="140" fill="white" stroke="#444" stroke-width="1.5"/>
+    <!-- Header -->
+    <text x="367" y="37" text-anchor="middle" font-size="9" font-family="sans-serif" fill="#666">«part def»</text>
+    <text x="367" y="52" text-anchor="middle" font-size="12" font-weight="bold" font-family="sans-serif">Motor</text>
+    <!-- Compartment divider -->
+    <line x1="260" y1="58" x2="475" y2="58" stroke="#444" stroke-width="1"/>
+    <!-- Features -->
+    <text x="270" y="74"  font-size="9" font-family="monospace" fill="#333">kvRating : Real</text>
+    <text x="270" y="88"  font-size="9" font-family="monospace" fill="#555">  [isReadonly]</text>
+    <text x="270" y="104" font-size="9" font-family="monospace" fill="#333">maxPowerW : Real</text>
+    <text x="270" y="118" font-size="9" font-family="monospace" fill="#555">  [unit=W, isReadonly]</text>
+    <text x="270" y="133" font-size="9" font-family="monospace" fill="#333">  powerIn : PowerPortReceiverDef</text>
+    <text x="270" y="146" font-size="9" font-family="monospace" fill="#555">  [Port, in]</text>
+  </g>
+
+  <!-- ── RotorAssembly ─────────────────────────────────────── -->
+  <g id="s-rotor" class="block PartDef" sysml:ref="UAV::Propulsion::RotorAssembly">
+    <rect x="520" y="20" width="230" height="140" fill="white" stroke="#444" stroke-width="1.5"/>
+    <!-- Header -->
+    <text x="635" y="37" text-anchor="middle" font-size="9" font-family="sans-serif" fill="#666">«part def»</text>
+    <text x="635" y="52" text-anchor="middle" font-size="12" font-weight="bold" font-family="sans-serif">RotorAssembly</text>
+    <!-- Compartment divider -->
+    <line x1="520" y1="58" x2="750" y2="58" stroke="#444" stroke-width="1"/>
+    <!-- Features -->
+    <text x="530" y="74"  font-size="9" font-family="monospace" fill="#333">motor : Motor [1]</text>
+    <text x="530" y="90"  font-size="9" font-family="monospace" fill="#333">diameterM : Real</text>
+    <text x="530" y="104" font-size="9" font-family="monospace" fill="#555">  [unit=m, isReadonly]</text>
+    <text x="530" y="120" font-size="9" font-family="monospace" fill="#333">  powerIn : PowerPortReceiverDef</text>
+    <text x="530" y="133" font-size="9" font-family="monospace" fill="#555">  [Port, in]</text>
+  </g>
+
+  <!-- ── Composition: RotorAssembly ◆─▷ Motor ─────────────── -->
+  <!--   Diamond (◆) at RotorAssembly left edge (x=520)        -->
+  <!--   Open arrow (▷) at Motor right edge (x=475)            -->
+  <g id="e-motor-comp" class="edge composition" sysml:ref="UAV::Propulsion::RotorAssembly::motor">
+    <line x1="520" y1="90" x2="475" y2="90"
+          stroke="#444" stroke-width="1.5"
+          marker-start="url(#arrow-diamond)"
+          marker-end="url(#arrow-open)"/>
+    <text x="497" y="84" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#555">motor [1]</text>
+  </g>
+
+</svg>
