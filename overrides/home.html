@@ -40,7 +40,7 @@
     color: #484F58; font-size: 11px; letter-spacing: 0.08em;
     font-family: "JetBrains Mono", ui-monospace, monospace;
   }
-  .sml-hero__caption .accent { color: #0EA5E9; }
+  .sml-hero__caption .accent { color: #58A6FF; }
 
   .sml-hero__headline {
     font-size: clamp(48px, 6.4vw, 88px);
@@ -58,7 +58,7 @@
     display: flex; gap: 12px; align-items: center; margin-bottom: 72px; flex-wrap: wrap;
   }
   .sml-btn-primary {
-    background: #0EA5E9; color: #0D1117; border: none;
+    background: #58A6FF; color: #0D1117; border: none;
     padding: 13px 22px; border-radius: 4px; text-decoration: none;
     font-family: "Inter", sans-serif; font-size: 14px; font-weight: 600;
     letter-spacing: -0.005em; display: inline-flex; align-items: center; gap: 8px;
@@ -100,7 +100,7 @@
     font-size: 18px; font-weight: 500; letter-spacing: -0.01em;
     margin-bottom: 4px; color: #E6EDF3;
   }
-  .sml-spec-row__value--accent { color: #0EA5E9; }
+  .sml-spec-row__value--accent { color: #58A6FF; }
   .sml-spec-row__sub { font-size: 13px; color: #8B949E; line-height: 1.5; }
 
   /* ── Two-column why ───────────────────────────────────── */
@@ -116,7 +116,7 @@
   }
   .sml-section-tag {
     font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 11px; color: #0EA5E9; letter-spacing: 0.12em;
+    font-size: 11px; color: #58A6FF; letter-spacing: 0.12em;
   }
   .sml-section-h {
     font-size: clamp(28px, 2.8vw, 40px); font-weight: 500;
@@ -146,7 +146,7 @@
   .sml-metric__val {
     font-size: 22px; font-weight: 500; margin-top: 6px; color: #E6EDF3;
   }
-  .sml-metric__val--accent { color: #0EA5E9; }
+  .sml-metric__val--accent { color: #58A6FF; }
 
   /* ── Code block ───────────────────────────────────────── */
   .sml-code-block {
@@ -188,7 +188,7 @@
   }
   .sml-code-block__result {
     font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 11px; color: #0EA5E9; margin-left: auto;
+    font-size: 11px; color: #58A6FF; margin-left: auto;
   }
 
   /* ── Comparison ───────────────────────────────────────── */
@@ -217,7 +217,7 @@
     font-size: 11px; letter-spacing: 0.08em; color: #484F58; font-weight: 400;
     text-transform: uppercase;
   }
-  .sml-compare__head--sml { color: #0EA5E9; }
+  .sml-compare__head--sml { color: #58A6FF; }
   .sml-compare__footnote {
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px; color: #484F58; margin-top: 16px; display: block;
@@ -243,7 +243,7 @@
   .sml-feature:nth-last-child(-n+3) { border-bottom: none; }
   .sml-feature__icon {
     font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 11px; color: #0EA5E9; letter-spacing: 0.1em;
+    font-size: 11px; color: #58A6FF; letter-spacing: 0.1em;
     margin-bottom: 14px;
   }
   .sml-feature__title {
@@ -418,7 +418,7 @@
             ("The flight controller **shall** detect any",  "body"),
             ("single sensor failure within 50 ms and",      "body"),
             ("transition to the fault state.",              "body"),
-          ] %}{% for (line, kind) in lines %}<span class="sml-code-line"><span class="sml-code-line__num">{{ loop.index }}</span><span style="color:{% if kind == 'accent' %}#0EA5E9{% elif kind == 'key' %}#7EE787{% elif kind == 'str' %}#A5D6FF{% elif kind == 'ref' %}#79C0FF{% elif kind == 'num' %}#F2CC60{% elif kind == 'punct' %}#8B949E{% else %}#C9D1D9{% endif %}">{{ line if line else "&nbsp;" }}</span></span>
+          ] %}{% for (line, kind) in lines %}<span class="sml-code-line"><span class="sml-code-line__num">{{ loop.index }}</span><span style="color:{% if kind == 'accent' or kind == 'key' or kind == 'ref' %}#58A6FF{% elif kind == 'punct' %}#6E7680{% else %}#C9D1D9{% endif %}">{{ line if line else "&nbsp;" }}</span></span>
 {% endfor %}</pre>
           <div class="sml-code-block__footer">
             <span class="sml-code-block__cmd">$ cargo run --package syscribe -- model</span>
