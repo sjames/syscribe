@@ -411,27 +411,27 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
         }
 
         // E402: companion SVG file must exist on disk
+        // All paths are resolved relative to the .md file's parent directory.
+        let md_dir = std::path::Path::new(&file)
+            .parent()
+            .unwrap_or(std::path::Path::new("."));
         if fm.svg_mode.as_deref() == Some("companion") {
             let companion_path = if let Some(ref sf) = fm.svg_file {
-                // Explicit svgFile: honour it as-is
-                sf.clone()
+                md_dir.join(sf)
             } else {
-                // Default: replace .md extension with .svg
-                let p = std::path::Path::new(&file);
-                p.with_extension("svg")
-                    .to_string_lossy()
-                    .into_owned()
+                // Default: same stem as the .md file, .svg extension
+                std::path::Path::new(&file).with_extension("svg")
             };
-            if !std::path::Path::new(&companion_path).exists() {
+            if !companion_path.exists() {
                 findings.push(error(
                     "E402",
                     &file,
-                    &format!("companion SVG file '{}' does not exist on disk", companion_path),
+                    &format!("companion SVG file '{}' does not exist on disk", companion_path.display()),
                 ));
             }
         } else if let Some(ref svg_file) = fm.svg_file {
             // svgFile set without svgMode: companion — still validate existence
-            if !std::path::Path::new(svg_file).exists() {
+            if !md_dir.join(svg_file).exists() {
                 findings.push(error(
                     "E402",
                     &file,
