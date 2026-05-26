@@ -1,6 +1,5 @@
 /* ============================================================
    Syscribe · MkDocs Material theme overrides
-   Design: github-dark + sky-blue accent, Inter + JetBrains Mono
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -13,24 +12,24 @@
   --md-default-bg-color--lightest: #21262D;
 
   --md-default-fg-color:        #E6EDF3;
-  --md-default-fg-color--light: #8B949E;
-  --md-default-fg-color--lighter: #6E7680;
+  --md-default-fg-color--light: #C9D1D9;
+  --md-default-fg-color--lighter: #8B949E;
   --md-default-fg-color--lightest: #484F58;
 
-  --md-primary-fg-color:        #0EA5E9;
-  --md-primary-fg-color--light: rgba(14, 165, 233, 0.12);
+  --md-primary-fg-color:        #58A6FF;
+  --md-primary-fg-color--light: rgba(88, 166, 255, 0.12);
   --md-primary-bg-color:        #0D1117;
   --md-primary-bg-color--light: #161B22;
 
-  --md-accent-fg-color:         #0EA5E9;
-  --md-accent-fg-color--transparent: rgba(14, 165, 233, 0.1);
+  --md-accent-fg-color:         #58A6FF;
+  --md-accent-fg-color--transparent: rgba(88, 166, 255, 0.1);
   --md-accent-bg-color:         #0D1117;
 
   --md-code-bg-color:           #0A0D12;
   --md-code-fg-color:           #C9D1D9;
 
-  --md-typeset-color:           #E6EDF3;
-  --md-typeset-a-color:         #0EA5E9;
+  --md-typeset-color:           #C9D1D9;
+  --md-typeset-a-color:         #58A6FF;
 
   --md-footer-bg-color:         #090C11;
   --md-footer-bg-color--dark:   #060810;
@@ -44,21 +43,21 @@
   --sml-border:         #30363D;
   --sml-surface:        #161B22;
   --sml-surface-raised: #0D1117;
-  --sml-sky:            #0EA5E9;
-  --sml-sky-dim:        rgba(14, 165, 233, 0.08);
+  --sml-blue:           #58A6FF;
+  --sml-blue-dim:       rgba(88, 166, 255, 0.08);
 }
 
 /* ── Palette: light scheme ────────────────────────────────── */
 [data-md-color-scheme="default"] {
-  --md-primary-fg-color:        #0284C7;
+  --md-primary-fg-color:        #0969DA;
   --md-primary-bg-color:        #ffffff;
-  --md-accent-fg-color:         #0369A1;
+  --md-accent-fg-color:         #0969DA;
 
   --sml-border:         #D0D7DE;
   --sml-surface:        #F6F8FA;
   --sml-surface-raised: #FFFFFF;
-  --sml-sky:            #0284C7;
-  --sml-sky-dim:        rgba(2, 132, 199, 0.06);
+  --sml-blue:           #0969DA;
+  --sml-blue-dim:       rgba(9, 105, 218, 0.06);
 }
 
 /* ── Typography ───────────────────────────────────────────── */
@@ -106,7 +105,7 @@ body {
 }
 
 .md-tabs__link--active::after {
-  background-color: var(--sml-sky);
+  background-color: var(--sml-blue);
   height: 2px;
 }
 
@@ -126,7 +125,7 @@ body {
 
 .md-nav__link {
   font-size: 0.84rem;
-  color: #6E7680;
+  color: #8B949E;
   border-left: 2px solid transparent;
   padding-left: 0.6rem;
 }
@@ -137,9 +136,9 @@ body {
 }
 
 .md-nav__link--active {
-  border-left-color: var(--sml-sky);
-  color: var(--sml-sky);
-  background-color: rgba(14, 165, 233, 0.06);
+  border-left-color: var(--sml-blue);
+  color: var(--sml-blue);
+  background-color: var(--sml-blue-dim);
   font-weight: 500;
 }
 
@@ -153,7 +152,7 @@ body {
   font-weight: 500;
   letter-spacing: -0.025em;
   line-height: 1.1;
-  color: var(--md-default-fg-color);
+  color: #E6EDF3;
   margin-bottom: 0.5rem;
 }
 
@@ -161,7 +160,7 @@ body {
   font-size: 1.5rem;
   font-weight: 500;
   letter-spacing: -0.02em;
-  color: var(--md-default-fg-color);
+  color: #E6EDF3;
   border-bottom: 1px solid var(--sml-border);
   padding-bottom: 0.4rem;
 }
@@ -170,10 +169,11 @@ body {
   font-size: 1.1rem;
   font-weight: 600;
   letter-spacing: -0.01em;
+  color: #E6EDF3;
 }
 
 .md-typeset p {
-  color: #8B949E;
+  color: #C9D1D9;
   line-height: 1.65;
 }
 
@@ -182,7 +182,7 @@ body {
   background-color: var(--md-code-bg-color);
   border: 1px solid var(--sml-border);
   border-radius: 3px;
-  color: #E6EDF3;
+  color: #C9D1D9;
   font-size: 0.82em;
   padding: 0.05em 0.35em;
 }
@@ -219,7 +219,7 @@ body {
 }
 
 .md-clipboard:hover {
-  color: var(--sml-sky);
+  color: var(--sml-blue);
 }
 
 /* ── Admonitions ─────────────────────────────────────────── */
@@ -246,23 +246,23 @@ body {
 .md-typeset .admonition.note,
 .md-typeset .admonition.info,
 .md-typeset details.note {
-  border-left-color: var(--sml-sky);
+  border-left-color: var(--sml-blue);
 }
 .md-typeset .note > .admonition-title,
 .md-typeset .info > .admonition-title {
-  color: var(--sml-sky);
+  color: var(--sml-blue);
 }
 .md-typeset .note > .admonition-title::before,
 .md-typeset .info > .admonition-title::before {
-  background-color: var(--sml-sky);
+  background-color: var(--sml-blue);
 }
 
 .md-typeset .admonition.warning {
-  border-left-color: #F59E0B;
+  border-left-color: #D29922;
 }
 
 .md-typeset .admonition.danger {
-  border-left-color: #EF4444;
+  border-left-color: #DA3633;
 }
 
 /* ── Tables ──────────────────────────────────────────────── */
@@ -280,24 +280,13 @@ body {
   font-size: 0.65rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--md-default-fg-color--lighter);
+  color: #8B949E;
   font-weight: 400;
 }
 
 .md-typeset table:not([class]) td {
   border-color: var(--sml-border);
-  color: #8B949E;
-}
-
-.md-typeset table:not([class]) td:first-child {
   color: #C9D1D9;
-}
-
-/* Highlight first data column */
-.md-typeset table:not([class]) td:nth-child(2),
-.md-typeset table:not([class]) th:nth-child(2) {
-  color: #E6EDF3;
-  background-color: var(--sml-sky-dim);
 }
 
 /* ── TOC (right sidebar) ─────────────────────────────────── */
@@ -313,8 +302,8 @@ body {
 }
 
 .md-nav--secondary .md-nav__link--active {
-  color: var(--sml-sky);
-  border-left-color: var(--sml-sky);
+  color: var(--sml-blue);
+  border-left-color: var(--sml-blue);
 }
 
 /* ── Footer ──────────────────────────────────────────────── */

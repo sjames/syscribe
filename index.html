@@ -34,7 +34,7 @@
     color: #484F58; font-size: 11px; letter-spacing: 0.08em;
     font-family: "JetBrains Mono", ui-monospace, monospace;
   }
-  .sml-hero__caption .accent { color: #0EA5E9; }
+  .sml-hero__caption .accent { color: #58A6FF; }
 
   .sml-hero__headline {
     font-size: clamp(48px, 6.4vw, 88px);
@@ -52,7 +52,7 @@
     display: flex; gap: 12px; align-items: center; margin-bottom: 72px; flex-wrap: wrap;
   }
   .sml-btn-primary {
-    background: #0EA5E9; color: #0D1117; border: none;
+    background: #58A6FF; color: #0D1117; border: none;
     padding: 13px 22px; border-radius: 4px; text-decoration: none;
     font-family: "Inter", sans-serif; font-size: 14px; font-weight: 600;
     letter-spacing: -0.005em; display: inline-flex; align-items: center; gap: 8px;
@@ -94,7 +94,7 @@
     font-size: 18px; font-weight: 500; letter-spacing: -0.01em;
     margin-bottom: 4px; color: #E6EDF3;
   }
-  .sml-spec-row__value--accent { color: #0EA5E9; }
+  .sml-spec-row__value--accent { color: #58A6FF; }
   .sml-spec-row__sub { font-size: 13px; color: #8B949E; line-height: 1.5; }
 
   /* ── Two-column why ───────────────────────────────────── */
@@ -110,7 +110,7 @@
   }
   .sml-section-tag {
     font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 11px; color: #0EA5E9; letter-spacing: 0.12em;
+    font-size: 11px; color: #58A6FF; letter-spacing: 0.12em;
   }
   .sml-section-h {
     font-size: clamp(28px, 2.8vw, 40px); font-weight: 500;
@@ -140,7 +140,7 @@
   .sml-metric__val {
     font-size: 22px; font-weight: 500; margin-top: 6px; color: #E6EDF3;
   }
-  .sml-metric__val--accent { color: #0EA5E9; }
+  .sml-metric__val--accent { color: #58A6FF; }
 
   /* ── Code block ───────────────────────────────────────── */
   .sml-code-block {
@@ -182,7 +182,7 @@
   }
   .sml-code-block__result {
     font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 11px; color: #0EA5E9; margin-left: auto;
+    font-size: 11px; color: #58A6FF; margin-left: auto;
   }
 
   /* ── Comparison ───────────────────────────────────────── */
@@ -211,7 +211,7 @@
     font-size: 11px; letter-spacing: 0.08em; color: #484F58; font-weight: 400;
     text-transform: uppercase;
   }
-  .sml-compare__head--sml { color: #0EA5E9; }
+  .sml-compare__head--sml { color: #58A6FF; }
   .sml-compare__footnote {
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 11px; color: #484F58; margin-top: 16px; display: block;
@@ -237,7 +237,7 @@
   .sml-feature:nth-last-child(-n+3) { border-bottom: none; }
   .sml-feature__icon {
     font-family: "JetBrains Mono", ui-monospace, monospace;
-    font-size: 11px; color: #0EA5E9; letter-spacing: 0.1em;
+    font-size: 11px; color: #58A6FF; letter-spacing: 0.1em;
     margin-bottom: 14px;
   }
   .sml-feature__title {
@@ -247,18 +247,18 @@
   .sml-feature__body {
     font-size: 13px; color: #6E7680; line-height: 1.6;
   }
-</style> <div class=sml-home> <!-- HERO --> <section class=sml-hero> <div class=sml-hero__grid></div> <div class="sml-hero__reg sml-hero__reg--tl"></div> <div class="sml-hero__reg sml-hero__reg--tr"></div> <div class="sml-hero__reg sml-hero__reg--bl"></div> <div class="sml-hero__reg sml-hero__reg--br"></div> <div class=sml-hero__inner> <div class=sml-hero__caption> <span class=sml-mono>REV · 0.1.0</span> <span class=sml-mono>2026-05-26</span> <span class=sml-mono>DOC-SML-001</span> <span style=flex:1></span> <span class="sml-mono accent">● ACTIVE DEVELOPMENT</span> </div> <div class=sml-hero__headline> Models that<br> engineers<br> <span class=muted>actually read.</span> </div> <p class=sml-hero__sub> Syscribe is a plain-text modeling format that maps SysMLv2 semantics onto Markdown files with YAML frontmatter. Version-controlled, diff-friendly, LLM-readable — with a built-in validation engine and web browser. </p> <div class=sml-hero__ctas> <a href=format/ class=sml-btn-primary> Read the format spec <svg width=14 height=14 viewbox="0 0 24 24" fill=none stroke=currentColor stroke-width=2.4><path d="M5 12h14M13 5l7 7-7 7"/></svg> </a> <a href=model-guide/ class=sml-btn-secondary>Start modeling</a> <span class="sml-hero__clone sml-mono">git clone github.com/sjames/llm-arch-model</span> </div> <div class=sml-spec-table> <div class=sml-spec-row> <span class=sml-spec-row__code>01</span> <span class=sml-spec-row__label>FORMAT BASIS</span> <div> <div class="sml-spec-row__value sml-spec-row__value--accent">Markdown + YAML frontmatter</div> <div class=sml-spec-row__sub>Each element is a .md file; directory path encodes namespace; body is documentation</div> </div> </div> <div class=sml-spec-row> <span class=sml-spec-row__code>02</span> <span class=sml-spec-row__label>SEMANTICS</span> <div> <div class="sml-spec-row__value sml-spec-row__value--accent">SysMLv2-aligned</div> <div class=sml-spec-row__sub>PartDef, PortDef, InterfaceDef, Requirement, TestCase, ADR, Allocation, Diagram — 40+ element types</div> </div> </div> <div class=sml-spec-row> <span class=sml-spec-row__code>03</span> <span class=sml-spec-row__label>TRACEABILITY</span> <div> <div class=sml-spec-row__value>§12 — six enforced rules</div> <div class=sml-spec-row__sub>OSLC link direction · breakdown ADR · leaf assignment · domain classification · HW/SW independence</div> </div> </div> <div class=sml-spec-row> <span class=sml-spec-row__code>04</span> <span class=sml-spec-row__label>VALIDATION</span> <div> <div class=sml-spec-row__value>E001–E503 · W001–W601</div> <div class=sml-spec-row__sub>Cross-reference resolution, diagram consistency, allocation integrity, documentation completeness</div> </div> </div> <div class=sml-spec-row> <span class=sml-spec-row__code>05</span> <span class=sml-spec-row__label>WEB BROWSER</span> <div> <div class=sml-spec-row__value>Axum + Askama + HTMX</div> <div class=sml-spec-row__sub>Server-rendered tree browser, element detail, BDD/IBD/StateMachine/Mermaid diagrams</div> </div> </div> <div class=sml-spec-row style=border-bottom:none> <span class=sml-spec-row__code>06</span> <span class=sml-spec-row__label>TOOLCHAIN</span> <div> <div class=sml-spec-row__value>Rust · cargo run · zero config</div> <div class=sml-spec-row__sub>Parse, validate, and browse any model directory: <code style="background:#161B22;border:1px solid #30363D;padding:2px 6px;border-radius:3px;">cargo run --package syscribe-server -- model/</code></div> </div> </div> </div> </div> </section> <!-- WHY --> <section class=sml-why> <div class=sml-why__inner> <div> <span class=sml-section-tag>§ 01 — WHY</span> <div class=sml-section-h>Systems models that live in your repository.</div> <p class=sml-why__body> Traditional MBSE tools keep models in proprietary binary formats: opaque to diff, hostile to code review, and invisible to the LLMs that increasingly assist engineering work. Syscribe puts the model in plain text where it belongs — readable in any editor, diffable in any VCS, and parseable by any tool. </p> <p class=sml-why__body> The format enforces SysMLv2 semantics through YAML frontmatter schema validation and cross-reference resolution, so you get modeling rigour without a heavyweight IDE. Requirements carry stable REQ-* IDs that survive renames. TestCases carry TC-* IDs traceable back to requirements. ADRs carry ADR-* IDs that justify every decomposition decision. </p> <div class=sml-metrics> <div class=sml-metric> <span class=sml-metric__key>Element types</span> <div class=sml-metric__val>40+</div> </div> <div class=sml-metric> <span class=sml-metric__key>Validation rules</span> <div class="sml-metric__val sml-metric__val--accent">80+</div> </div> <div class=sml-metric> <span class=sml-metric__key>Diagram kinds</span> <div class=sml-metric__val>BDD · IBD · SM</div> </div> <div class=sml-metric> <span class=sml-metric__key>Demo model</span> <div class="sml-metric__val sml-metric__val--accent">111 elements</div> </div> <div class=sml-metric> <span class=sml-metric__key>Backend</span> <div class=sml-metric__val>Rust</div> </div> <div class=sml-metric> <span class=sml-metric__key>Config required</span> <div class=sml-metric__val>Zero</div> </div> </div> </div> <div> <div class=sml-code-block> <div class=sml-code-block__header> <span class=sml-code-block__filename>model/Requirements/FaultTolerantFCReq.md</span> <span class=sml-code-block__badge>yaml · Requirement</span> </div> <pre class=sml-code-block__pre><span class=sml-code-line><span class=sml-code-line__num>1</span><span style=color:#8B949E>---</span></span>
-<span class=sml-code-line><span class=sml-code-line__num>2</span><span style=color:#7EE787>type: Requirement</span></span>
-<span class=sml-code-line><span class=sml-code-line__num>3</span><span style=color:#0EA5E9>id: REQ-UAV-FC-001</span></span>
-<span class=sml-code-line><span class=sml-code-line__num>4</span><span style=color:#A5D6FF>title: FC fault detection ≤ 50 ms</span></span>
-<span class=sml-code-line><span class=sml-code-line__num>5</span><span style=color:#7EE787>status: approved</span></span>
-<span class=sml-code-line><span class=sml-code-line__num>6</span><span style=color:#7EE787>reqDomain: software</span></span>
-<span class=sml-code-line><span class=sml-code-line__num>7</span><span style=color:#F2CC60>silLevel: 3</span></span>
-<span class=sml-code-line><span class=sml-code-line__num>8</span><span style=color:#F2CC60>asilLevel: C</span></span>
-<span class=sml-code-line><span class=sml-code-line__num>9</span><span style=color:#7EE787>derivedFrom:</span></span>
-<span class=sml-code-line><span class=sml-code-line__num>10</span><span style=color:#79C0FF>  - REQ-UAV-SAFE-000</span></span>
-<span class=sml-code-line><span class=sml-code-line__num>11</span><span style=color:#79C0FF>breakdownAdr: Decisions::SafetyADR</span></span>
-<span class=sml-code-line><span class=sml-code-line__num>12</span><span style=color:#8B949E>---</span></span>
+</style> <div class=sml-home> <!-- HERO --> <section class=sml-hero> <div class=sml-hero__grid></div> <div class="sml-hero__reg sml-hero__reg--tl"></div> <div class="sml-hero__reg sml-hero__reg--tr"></div> <div class="sml-hero__reg sml-hero__reg--bl"></div> <div class="sml-hero__reg sml-hero__reg--br"></div> <div class=sml-hero__inner> <div class=sml-hero__caption> <span class=sml-mono>REV · 0.1.0</span> <span class=sml-mono>2026-05-26</span> <span class=sml-mono>DOC-SML-001</span> <span style=flex:1></span> <span class="sml-mono accent">● ACTIVE DEVELOPMENT</span> </div> <div class=sml-hero__headline> Models that<br> engineers<br> <span class=muted>actually read.</span> </div> <p class=sml-hero__sub> Syscribe is a plain-text modeling format that maps SysMLv2 semantics onto Markdown files with YAML frontmatter. Version-controlled, diff-friendly, LLM-readable — with a built-in validation engine and web browser. </p> <div class=sml-hero__ctas> <a href=format/ class=sml-btn-primary> Read the format spec <svg width=14 height=14 viewbox="0 0 24 24" fill=none stroke=currentColor stroke-width=2.4><path d="M5 12h14M13 5l7 7-7 7"/></svg> </a> <a href=model-guide/ class=sml-btn-secondary>Start modeling</a> <span class="sml-hero__clone sml-mono">git clone github.com/sjames/llm-arch-model</span> </div> <div class=sml-spec-table> <div class=sml-spec-row> <span class=sml-spec-row__code>01</span> <span class=sml-spec-row__label>FORMAT BASIS</span> <div> <div class="sml-spec-row__value sml-spec-row__value--accent">Markdown + YAML frontmatter</div> <div class=sml-spec-row__sub>Each element is a .md file; directory path encodes namespace; body is documentation</div> </div> </div> <div class=sml-spec-row> <span class=sml-spec-row__code>02</span> <span class=sml-spec-row__label>SEMANTICS</span> <div> <div class="sml-spec-row__value sml-spec-row__value--accent">SysMLv2-aligned</div> <div class=sml-spec-row__sub>PartDef, PortDef, InterfaceDef, Requirement, TestCase, ADR, Allocation, Diagram — 40+ element types</div> </div> </div> <div class=sml-spec-row> <span class=sml-spec-row__code>03</span> <span class=sml-spec-row__label>TRACEABILITY</span> <div> <div class=sml-spec-row__value>§12 — six enforced rules</div> <div class=sml-spec-row__sub>OSLC link direction · breakdown ADR · leaf assignment · domain classification · HW/SW independence</div> </div> </div> <div class=sml-spec-row> <span class=sml-spec-row__code>04</span> <span class=sml-spec-row__label>VALIDATION</span> <div> <div class=sml-spec-row__value>E001–E503 · W001–W601</div> <div class=sml-spec-row__sub>Cross-reference resolution, diagram consistency, allocation integrity, documentation completeness</div> </div> </div> <div class=sml-spec-row> <span class=sml-spec-row__code>05</span> <span class=sml-spec-row__label>WEB BROWSER</span> <div> <div class=sml-spec-row__value>Axum + Askama + HTMX</div> <div class=sml-spec-row__sub>Server-rendered tree browser, element detail, BDD/IBD/StateMachine/Mermaid diagrams</div> </div> </div> <div class=sml-spec-row style=border-bottom:none> <span class=sml-spec-row__code>06</span> <span class=sml-spec-row__label>TOOLCHAIN</span> <div> <div class=sml-spec-row__value>Rust · cargo run · zero config</div> <div class=sml-spec-row__sub>Parse, validate, and browse any model directory: <code style="background:#161B22;border:1px solid #30363D;padding:2px 6px;border-radius:3px;">cargo run --package syscribe-server -- model/</code></div> </div> </div> </div> </div> </section> <!-- WHY --> <section class=sml-why> <div class=sml-why__inner> <div> <span class=sml-section-tag>§ 01 — WHY</span> <div class=sml-section-h>Systems models that live in your repository.</div> <p class=sml-why__body> Traditional MBSE tools keep models in proprietary binary formats: opaque to diff, hostile to code review, and invisible to the LLMs that increasingly assist engineering work. Syscribe puts the model in plain text where it belongs — readable in any editor, diffable in any VCS, and parseable by any tool. </p> <p class=sml-why__body> The format enforces SysMLv2 semantics through YAML frontmatter schema validation and cross-reference resolution, so you get modeling rigour without a heavyweight IDE. Requirements carry stable REQ-* IDs that survive renames. TestCases carry TC-* IDs traceable back to requirements. ADRs carry ADR-* IDs that justify every decomposition decision. </p> <div class=sml-metrics> <div class=sml-metric> <span class=sml-metric__key>Element types</span> <div class=sml-metric__val>40+</div> </div> <div class=sml-metric> <span class=sml-metric__key>Validation rules</span> <div class="sml-metric__val sml-metric__val--accent">80+</div> </div> <div class=sml-metric> <span class=sml-metric__key>Diagram kinds</span> <div class=sml-metric__val>BDD · IBD · SM</div> </div> <div class=sml-metric> <span class=sml-metric__key>Demo model</span> <div class="sml-metric__val sml-metric__val--accent">111 elements</div> </div> <div class=sml-metric> <span class=sml-metric__key>Backend</span> <div class=sml-metric__val>Rust</div> </div> <div class=sml-metric> <span class=sml-metric__key>Config required</span> <div class=sml-metric__val>Zero</div> </div> </div> </div> <div> <div class=sml-code-block> <div class=sml-code-block__header> <span class=sml-code-block__filename>model/Requirements/FaultTolerantFCReq.md</span> <span class=sml-code-block__badge>yaml · Requirement</span> </div> <pre class=sml-code-block__pre><span class=sml-code-line><span class=sml-code-line__num>1</span><span style=color:#6E7680>---</span></span>
+<span class=sml-code-line><span class=sml-code-line__num>2</span><span style=color:#58A6FF>type: Requirement</span></span>
+<span class=sml-code-line><span class=sml-code-line__num>3</span><span style=color:#58A6FF>id: REQ-UAV-FC-001</span></span>
+<span class=sml-code-line><span class=sml-code-line__num>4</span><span style=color:#C9D1D9>title: FC fault detection ≤ 50 ms</span></span>
+<span class=sml-code-line><span class=sml-code-line__num>5</span><span style=color:#58A6FF>status: approved</span></span>
+<span class=sml-code-line><span class=sml-code-line__num>6</span><span style=color:#58A6FF>reqDomain: software</span></span>
+<span class=sml-code-line><span class=sml-code-line__num>7</span><span style=color:#C9D1D9>silLevel: 3</span></span>
+<span class=sml-code-line><span class=sml-code-line__num>8</span><span style=color:#C9D1D9>asilLevel: C</span></span>
+<span class=sml-code-line><span class=sml-code-line__num>9</span><span style=color:#58A6FF>derivedFrom:</span></span>
+<span class=sml-code-line><span class=sml-code-line__num>10</span><span style=color:#58A6FF>  - REQ-UAV-SAFE-000</span></span>
+<span class=sml-code-line><span class=sml-code-line__num>11</span><span style=color:#58A6FF>breakdownAdr: Decisions::SafetyADR</span></span>
+<span class=sml-code-line><span class=sml-code-line__num>12</span><span style=color:#6E7680>---</span></span>
 <span class=sml-code-line><span class=sml-code-line__num>13</span><span style=color:#C9D1D9>&nbsp;</span></span>
 <span class=sml-code-line><span class=sml-code-line__num>14</span><span style=color:#C9D1D9>The flight controller **shall** detect any</span></span>
 <span class=sml-code-line><span class=sml-code-line__num>15</span><span style=color:#C9D1D9>single sensor failure within 50 ms and</span></span>
