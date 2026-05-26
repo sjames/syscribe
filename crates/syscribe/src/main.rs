@@ -1,7 +1,9 @@
+mod query;
+
 use std::collections::{BTreeMap, HashMap};
 use syscribe_model::{
     element::{ElementType, RawElement},
-    resolver::{is_adr_id, is_req_id, is_tc_id},
+    resolver::{is_adr_id, is_req_id, is_tc_id, Resolver},
     validator,
     walker,
 };
@@ -57,59 +59,6 @@ fn top_level_package(file_path: &str, model_root: &str) -> String {
     }
 }
 
-/// Pluralise element type for compact display in the inventory table.
-fn type_label(et: &ElementType) -> &'static str {
-    match et {
-        ElementType::PartDef => "PartDef",
-        ElementType::Part => "Part",
-        ElementType::ItemDef => "ItemDef",
-        ElementType::Item => "Item",
-        ElementType::PortDef => "PortDef",
-        ElementType::Port => "Port",
-        ElementType::ConnectionDef => "ConnectionDef",
-        ElementType::Connection => "Connection",
-        ElementType::InterfaceDef => "InterfaceDef",
-        ElementType::Interface => "Interface",
-        ElementType::ActionDef => "ActionDef",
-        ElementType::Action => "Action",
-        ElementType::Requirement => "Requirement",
-        ElementType::RequirementDef => "RequirementDef",
-        ElementType::TestCase => "TestCase",
-        ElementType::ADR => "ADR",
-        ElementType::Package => "Package",
-        ElementType::Allocation => "Allocation",
-        ElementType::AllocationDef => "AllocationDef",
-        ElementType::FlowDef => "FlowDef",
-        ElementType::EnumerationDef => "EnumerationDef",
-        ElementType::AttributeDef => "AttributeDef",
-        ElementType::FeatureDef => "FeatureDef",
-        ElementType::Configuration => "Configuration",
-        ElementType::StateDef => "StateDef",
-        ElementType::UseCaseDef => "UseCaseDef",
-        ElementType::ViewDef => "ViewDef",
-        ElementType::ViewpointDef => "ViewpointDef",
-        ElementType::MetadataDef => "MetadataDef",
-        ElementType::ConstraintDef => "ConstraintDef",
-        ElementType::CalculationDef => "CalculationDef",
-        ElementType::VerificationCaseDef => "VerificationCaseDef",
-        ElementType::AnalysisCaseDef => "AnalysisCaseDef",
-        ElementType::VerificationCase => "VerificationCase",
-        ElementType::AnalysisCase => "AnalysisCase",
-        ElementType::Diagram => "Diagram",
-        ElementType::View => "View",
-        ElementType::Metadata => "Metadata",
-        ElementType::Calculation => "Calculation",
-        ElementType::Constraint => "Constraint",
-        ElementType::LibraryPackage => "LibraryPackage",
-        ElementType::Namespace => "Namespace",
-        ElementType::Dependency => "Dependency",
-        ElementType::UseCase => "UseCase",
-        ElementType::State => "State",
-        ElementType::Enumeration => "Enumeration",
-        _ => "Other",
-    }
-}
-
 const AGENT_INSTRUCTIONS: &str = include_str!("../../../prompts/create-model.md");
 
 fn main() {
@@ -117,6 +66,11 @@ fn main() {
 
     if args.iter().any(|a| a == "--agent-instructions") {
         print!("{}", AGENT_INSTRUCTIONS);
+        return;
+    }
+
+    if args.iter().any(|a| a == "--help" || a == "-h") || args.len() == 1 {
+        query::print_help();
         return;
     }
 
@@ -131,6 +85,51 @@ fn main() {
             std::process::exit(1);
         }
     };
+
+    // ── Subcommand dispatch ───────────────────────────────────────────────────
+    if let Some(subcmd) = args.get(2).map(|s| s.as_str()) {
+        let resolver = Resolver::new(&elems);
+        let key = args.get(3).map(|s| s.as_str()).unwrap_or("");
+        match subcmd {
+            "show" => {
+                query::cmd_show(&elems, &resolver, key);
+            }
+            "ls" => {
+                query::cmd_ls(&elems, key);
+            }
+            "tree" => {
+                query::cmd_tree(&elems, key);
+            }
+            "find" => {
+                if key.is_empty() {
+                    eprintln!("Usage: syscribe <model_root> find <pattern>");
+                    std::process::exit(1);
+                }
+                query::cmd_find(&elems, key);
+            }
+            "links" => {
+                query::cmd_links(&elems, &resolver, key);
+            }
+            "refs" => {
+                query::cmd_refs(&elems, &resolver, key);
+            }
+            "trace" | "why" | "who-verifies" => {
+                let result = validator::validate(&elems);
+                match subcmd {
+                    "trace" => query::cmd_trace(&elems, &resolver, &result, key),
+                    "why" => query::cmd_why(&elems, &resolver, &result, key),
+                    "who-verifies" => query::cmd_who_verifies(&elems, &resolver, &result, key),
+                    _ => unreachable!(),
+                }
+            }
+            other => {
+                eprintln!("Unknown command: {other}");
+                eprintln!("Run `syscribe --help` for usage.");
+                std::process::exit(1);
+            }
+        }
+        return;
+    }
 
     let result = validator::validate(&elems);
 
@@ -749,7 +748,7 @@ leaf hardware parts (Motor, Rotor, IMU, etc.) that are not directly allocated a 
             .frontmatter
             .element_type
             .as_ref()
-            .map(type_label)
+            .map(query::type_label)
             .unwrap_or("Unknown")
             .to_string();
         *pkg_map.entry(pkg).or_default().entry(type_str).or_insert(0) += 1;
