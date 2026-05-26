@@ -21,8 +21,8 @@
   /* Indigo accent */
   --md-primary-fg-color:           #8B82F5;
   --md-primary-fg-color--light:    rgba(139, 130, 245, 0.15);
-  --md-primary-bg-color:           #0D0D16;
-  --md-primary-bg-color--light:    #14141F;
+  --md-primary-bg-color:           #E4E4F0;
+  --md-primary-bg-color--light:    rgba(228, 228, 240, 0.7);
 
   --md-accent-fg-color:            #8B82F5;
   --md-accent-fg-color--transparent: rgba(139, 130, 245, 0.12);
@@ -51,8 +51,9 @@
   --sml-text:     #E4E4F0;
   --sml-text-2:   #7878A0;
   --sml-text-3:   #40405A;
-  --sml-accent:   #8B82F5;
-  --sml-accent-d: rgba(139, 130, 245, 0.1);
+  --sml-accent:    #8B82F5;
+  --sml-accent-d:  rgba(139, 130, 245, 0.1);
+  --sml-on-accent: #0D0D16;
   /* legacy aliases */
   --sml-surface:        #14141F;
   --sml-surface-raised: #0D0D16;
@@ -73,8 +74,9 @@
   --sml-text:     #111120;
   --sml-text-2:   #4A4A6A;
   --sml-text-3:   #8888AA;
-  --sml-accent:   #5248C8;
-  --sml-accent-d: rgba(82, 72, 200, 0.07);
+  --sml-accent:    #5248C8;
+  --sml-accent-d:  rgba(82, 72, 200, 0.07);
+  --sml-on-accent: #FFFFFF;
   /* legacy aliases */
   --sml-surface:        #F3F3FA;
   --sml-surface-raised: #FFFFFF;
