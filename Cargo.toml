@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/syscribe-model", "crates/syscribe-server"]
+members = ["crates/syscribe", "crates/syscribe-model", "crates/syscribe-server"]
 
 [workspace.dependencies]
 askama = { version = "0.12" }

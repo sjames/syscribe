@@ -39,13 +39,13 @@ System requirements for the XYZ project.
 ## Running the validator
 
 ```bash
-cargo run --example validate_model -- model/
+cargo run --package syscribe -- model/
 ```
 
 This prints a full Markdown report to stdout with all errors, warnings, and a traceability matrix. Pipe it to a file for review:
 
 ```bash
-cargo run --example validate_model -- model/ > reports/validation.md
+cargo run --package syscribe -- model/ > reports/validation.md
 ```
 
 ## Running the web browser

@@ -18,7 +18,7 @@ Initial public release.
 
 - 80+ validation rules across 12 groups (E001–E503, W001–W601)
 - Computed reverse indices: `verified_by`, `derived_children`
-- CLI report tool: `cargo run --example validate_model -- model/` — 10-section Markdown output
+- CLI report tool: `cargo run --package syscribe -- model/` — 10-section Markdown output
 
 ### Web browser
 

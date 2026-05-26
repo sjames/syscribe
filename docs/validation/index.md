@@ -8,7 +8,7 @@ The validation engine is a Rust library (`syscribe-model`) that runs every parse
 
 ```bash
 # Markdown report to stdout
-cargo run --example validate_model -- model/
+cargo run --package syscribe -- model/
 
 # JSON via the web API (server must be running)
 curl http://localhost:3000/api/validation

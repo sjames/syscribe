@@ -421,7 +421,7 @@
           ] %}{% for (line, kind) in lines %}<span class="sml-code-line"><span class="sml-code-line__num">{{ loop.index }}</span><span style="color:{% if kind == 'accent' %}#0EA5E9{% elif kind == 'key' %}#7EE787{% elif kind == 'str' %}#A5D6FF{% elif kind == 'ref' %}#79C0FF{% elif kind == 'num' %}#F2CC60{% elif kind == 'punct' %}#8B949E{% else %}#C9D1D9{% endif %}">{{ line if line else "&nbsp;" }}</span></span>
 {% endfor %}</pre>
           <div class="sml-code-block__footer">
-            <span class="sml-code-block__cmd">$ cargo run --example validate_model -- model</span>
+            <span class="sml-code-block__cmd">$ cargo run --package syscribe -- model</span>
             <span class="sml-code-block__result">✓ 0 errors · 0 warnings</span>
           </div>
         </div>

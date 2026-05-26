@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 - **Working directory**: `/home/sjames/playground/syscribe`
-- **Rust crates**: `syscribe-model` (library), `syscribe-server` (web server)
+- **Rust crates**: `syscribe` (CLI binary), `syscribe-model` (library), `syscribe-server` (web server)
 
 ## Project Overview
 
@@ -17,17 +17,18 @@ Reference material: `temp/sysml2_spec.pdf` (SysMLv2 language spec) and `temp/for
 ## Common Commands
 
 ```bash
+# Build everything (produces syscribe and syscribe-server binaries)
+cargo build --workspace
+
 # Validate the demo model (prints Markdown report to stdout)
-cargo run --example validate_model -- model/
+cargo run --package syscribe -- model/
+# or after build: ./target/debug/syscribe model/
 
 # Print the LLM model generation prompt
-cargo run --example validate_model -- --agent-instructions
+cargo run --package syscribe -- --agent-instructions
 
 # Start the web server
 cargo run --package syscribe-server -- model/
-
-# Build everything
-cargo build --workspace
 ```
 
 ---

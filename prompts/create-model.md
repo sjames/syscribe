@@ -90,7 +90,7 @@ Existing model summary (paste the output of the validator summary or list manual
 ### The validator command
 
 ```bash
-cargo run --example validate_model -- model/
+syscribe model/
 ```
 
 The report prints to stdout. The relevant lines are in **Section 2 — Validation Findings**:
@@ -204,7 +204,7 @@ No other changes.
 After each batch of files, show the validator command and its output before continuing:
 
 ```
-Running: cargo run --example validate_model -- model/
+Running: syscribe model/
 
 [paste Section 2 of the report here]
 

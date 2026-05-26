@@ -1,0 +1,12 @@
+[package]
+name = "syscribe"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "syscribe"
+path = "src/main.rs"
+
+[dependencies]
+syscribe-model = { path = "../syscribe-model" }
+serde_yaml = { workspace = true }

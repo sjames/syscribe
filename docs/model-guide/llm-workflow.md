@@ -13,17 +13,17 @@ This page explains the full workflow, from loading the prompt to generating diag
 The prompt is embedded directly in the validator binary. An LLM with shell access can load it without any additional setup:
 
 ```bash
-cargo run --example validate_model -- --agent-instructions
+syscribe --agent-instructions
 ```
 
 This prints the complete generation prompt to stdout — all instructions, schemas, examples, and checklists. Pipe it wherever you need it:
 
 ```bash
 # Into a file for editing before pasting
-cargo run --example validate_model -- --agent-instructions > prompt.md
+syscribe --agent-instructions > prompt.md
 
 # Or read it directly into a Claude Code session
-cargo run --example validate_model -- --agent-instructions | pbcopy
+syscribe --agent-instructions | pbcopy
 ```
 
 The prompt and the validator are always in sync: `--agent-instructions` is embedded at compile time from `prompts/create-model.md`.
@@ -95,7 +95,7 @@ Elements affected by this change:
 Get the existing IDs from the validator output:
 
 ```bash
-cargo run --example validate_model -- model/ 2>/dev/null | grep -E 'REQ-|TC-|ADR-'
+syscribe model/ 2>/dev/null | grep -E 'REQ-|TC-|ADR-'
 ```
 
 ---
@@ -133,7 +133,7 @@ status: accepted
 ---
 ...
 
-Running: cargo run --example validate_model -- model/
+Running: syscribe model/
 
 ## 2. Validation Findings
 > All validation rules pass — 0 errors, 0 warnings.
