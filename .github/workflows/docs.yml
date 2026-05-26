@@ -25,9 +25,10 @@ jobs:
         with:
           python-version: "3.x"
           cache: pip
+          cache-dependency-path: docs/requirements.txt
 
       - name: Install MkDocs and plugins
-        run: pip install mkdocs-material mkdocs-minify-plugin
+        run: pip install -r docs/requirements.txt
 
       - name: Deploy
         run: mkdocs gh-deploy --force
