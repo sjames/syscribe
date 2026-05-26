@@ -60,6 +60,8 @@ nav:
   - Validation:
       - validation/index.md
       - Rule Reference: validation/rules.md
+  - Demo Model:
+      - demo-model/index.md
   - Web Browser:
       - browser/index.md
   - Releases: releases/index.md
