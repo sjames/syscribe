@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Model browser sidebar -->
+<div class="sidebar">
+  <div class="sidebar-header">Model Browser</div>
+  <div id="tree-root"
+       hx-get="/ui/tree"
+       hx-trigger="load"
+       hx-swap="innerHTML">
+    <span style="color:#ccc;font-style:italic;padding:10px;display:block">Loading&#x2026;</span>
+  </div>
+</div>
+
+<!-- Canvas area: tab bar + viewport -->
+<div id="canvas-area">
+
+  <div id="canvas-tabs">
+    <div id="canvas-tabs-inner"></div>
+  </div>
+
+  <div id="canvas-viewport">
+    <div id="canvas-world">
+      <div id="canvas-diagram"></div>
+    </div>
+
+    <!-- Shown when no diagram is open -->
+    <div id="canvas-hint">
+      <div class="hint-main">No diagram open</div>
+      <div class="hint-sub">Select a diagram &#x25C8; from the model browser</div>
+    </div>
+
+    <!-- Zoom controls -->
+    <div class="canvas-controls">
+      <button class="canvas-btn" onclick="zoomIn()" title="Zoom in (scroll up)">+</button>
+      <button class="canvas-btn" onclick="zoomOut()" title="Zoom out (scroll down)">&minus;</button>
+      <button class="canvas-btn separator" onclick="fitDiagramToCanvas()" title="Fit to window (F)" style="font-size:13px">&#x25A1;</button>
+      <button class="canvas-btn" onclick="resetView()" title="Reset view" style="font-size:13px">&#x21BA;</button>
+    </div>
+
+    <div id="zoom-label">100%</div>
+  </div>
+
+</div>
+
+{% endblock %}

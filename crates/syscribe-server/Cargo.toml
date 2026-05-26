@@ -1,0 +1,24 @@
+[package]
+name = "syscribe-server"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "syscribe-server"
+path = "src/main.rs"
+
+[dependencies]
+askama = { workspace = true }
+syscribe-model = { path = "../syscribe-model" }
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
+axum = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow = { workspace = true }
+petgraph = { workspace = true }
+notify = { workspace = true }
+futures-util = { workspace = true }

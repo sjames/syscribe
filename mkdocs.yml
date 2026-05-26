@@ -1,0 +1,106 @@
+site_name: Syscribe
+site_description: >-
+  A Markdown-native SysMLv2 modeling format for systems engineers.
+  Human-readable, LLM-friendly, version-controlled, fully traceable.
+site_url: https://sjames.github.io/syscribe
+repo_url: https://github.com/sjames/syscribe
+repo_name: sjames/syscribe
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  custom_dir: overrides
+  palette:
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+    logo: fontawesome/solid/diagram-project
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+
+nav:
+  - Home: index.md
+  - Format:
+      - format/index.md
+      - Element Types: format/elements.md
+      - Frontmatter Reference: format/frontmatter.md
+      - Diagrams: format/diagrams.md
+      - Operations: format/operations.md
+  - Modeling Guide:
+      - model-guide/index.md
+      - Requirements & Test Cases: model-guide/requirements.md
+      - Traceability: model-guide/traceability.md
+      - Architecture Decisions: model-guide/adrs.md
+      - LLM-Assisted Modeling: model-guide/llm-workflow.md
+  - Validation:
+      - validation/index.md
+      - Rule Reference: validation/rules.md
+  - Web Browser:
+      - browser/index.md
+  - Releases: releases/index.md
+
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/sjames/llm-arch-model
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+      use_pygments: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - tables
+  - attr_list
+  - md_in_html
+  - def_list
+  - footnotes
+  - toc:
+      permalink: true
+      title: On this page
+
+plugins:
+  - search:
+      lang: en
+  - minify:
+      minify_html: true

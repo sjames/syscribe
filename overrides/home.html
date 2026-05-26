@@ -1,0 +1,532 @@
+{% extends "main.html" %}
+
+{% block tabs %}{{ super() }}{% endblock %}
+{% block hero %}{% endblock %}
+
+{% block content %}
+<style>
+  /* Landing page — scoped to .sml-home */
+  .sml-home { width: 100%; font-family: "Inter", sans-serif; color: #E6EDF3; }
+  .sml-mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+  /* ── Hero ─────────────────────────────────────────────── */
+  .sml-hero {
+    position: relative;
+    padding: 72px 40px 64px;
+    border-bottom: 1px solid #30363D;
+    overflow: hidden;
+  }
+  .sml-hero__grid {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(#21262D 1px, transparent 1px);
+    background-size: 24px 24px;
+    -webkit-mask-image: linear-gradient(180deg, black 0%, black 65%, transparent 100%);
+    mask-image: linear-gradient(180deg, black 0%, black 65%, transparent 100%);
+    pointer-events: none;
+  }
+  .sml-hero__reg {
+    position: absolute; width: 14px; height: 14px;
+    border-color: #30363D; border-style: solid;
+  }
+  .sml-hero__reg--tl { top: 24px; left: 24px; border-width: 1px 0 0 1px; }
+  .sml-hero__reg--tr { top: 24px; right: 24px; border-width: 1px 1px 0 0; }
+  .sml-hero__reg--bl { bottom: 24px; left: 24px; border-width: 0 0 1px 1px; }
+  .sml-hero__reg--br { bottom: 24px; right: 24px; border-width: 0 1px 1px 0; }
+
+  .sml-hero__inner { position: relative; max-width: 1200px; margin: 0 auto; }
+
+  .sml-hero__caption {
+    display: flex; gap: 24px; margin-bottom: 56px;
+    color: #484F58; font-size: 11px; letter-spacing: 0.08em;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+  }
+  .sml-hero__caption .accent { color: #0EA5E9; }
+
+  .sml-hero__headline {
+    font-size: clamp(48px, 6.4vw, 88px);
+    line-height: 0.98; letter-spacing: -0.035em; font-weight: 500;
+    margin-bottom: 28px;
+  }
+  .sml-hero__headline .muted { color: #6E7680; }
+
+  .sml-hero__sub {
+    font-size: 18px; color: #8B949E; line-height: 1.55;
+    max-width: 680px; margin-bottom: 44px;
+  }
+
+  .sml-hero__ctas {
+    display: flex; gap: 12px; align-items: center; margin-bottom: 72px; flex-wrap: wrap;
+  }
+  .sml-btn-primary {
+    background: #0EA5E9; color: #0D1117; border: none;
+    padding: 13px 22px; border-radius: 4px; text-decoration: none;
+    font-family: "Inter", sans-serif; font-size: 14px; font-weight: 600;
+    letter-spacing: -0.005em; display: inline-flex; align-items: center; gap: 8px;
+    transition: opacity 0.15s;
+  }
+  .sml-btn-primary:hover { opacity: 0.88; color: #0D1117; }
+  .sml-btn-secondary {
+    background: transparent; color: #E6EDF3; border: 1px solid #30363D;
+    padding: 13px 22px; border-radius: 4px; text-decoration: none;
+    font-family: "Inter", sans-serif; font-size: 14px; font-weight: 500;
+    display: inline-flex; align-items: center; gap: 8px; transition: border-color 0.15s;
+  }
+  .sml-btn-secondary:hover { border-color: #6E7680; color: #E6EDF3; }
+  .sml-hero__clone {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12px; color: #484F58; margin-left: auto;
+  }
+
+  /* ── Spec rows ────────────────────────────────────────── */
+  .sml-spec-table {
+    border: 1px solid #30363D; border-radius: 4px; background: #0D1117;
+  }
+  .sml-spec-row {
+    display: grid; grid-template-columns: 60px 260px 1fr;
+    align-items: baseline; padding: 20px 24px;
+    border-bottom: 1px solid #30363D;
+  }
+  .sml-spec-row:last-child { border-bottom: none; }
+  .sml-spec-row__code {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px; color: #484F58; letter-spacing: 0.06em;
+  }
+  .sml-spec-row__label {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px; color: #6E7680; letter-spacing: 0.08em;
+  }
+  .sml-spec-row__value {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 18px; font-weight: 500; letter-spacing: -0.01em;
+    margin-bottom: 4px; color: #E6EDF3;
+  }
+  .sml-spec-row__value--accent { color: #0EA5E9; }
+  .sml-spec-row__sub { font-size: 13px; color: #8B949E; line-height: 1.5; }
+
+  /* ── Two-column why ───────────────────────────────────── */
+  .sml-why {
+    padding: 96px 40px; border-bottom: 1px solid #30363D;
+  }
+  .sml-why__inner {
+    max-width: 1200px; margin: 0 auto;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 80px;
+  }
+  @media (max-width: 900px) {
+    .sml-why__inner { grid-template-columns: 1fr; gap: 48px; }
+  }
+  .sml-section-tag {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px; color: #0EA5E9; letter-spacing: 0.12em;
+  }
+  .sml-section-h {
+    font-size: clamp(28px, 2.8vw, 40px); font-weight: 500;
+    line-height: 1.05; letter-spacing: -0.025em;
+    margin-top: 14px; margin-bottom: 22px; color: #E6EDF3;
+  }
+  .sml-why__body {
+    color: #8B949E; font-size: 15px; line-height: 1.65; margin-bottom: 18px;
+  }
+
+  .sml-metrics {
+    margin-top: 36px;
+    display: grid; grid-template-columns: 1fr 1fr;
+    border: 1px solid #30363D;
+  }
+  .sml-metric {
+    padding: 16px 18px;
+    border-right: 1px solid #30363D;
+    border-bottom: 1px solid #30363D;
+  }
+  .sml-metric:nth-child(even)       { border-right: none; }
+  .sml-metric:nth-last-child(-n+2)  { border-bottom: none; }
+  .sml-metric__key {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10px; color: #484F58; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .sml-metric__val {
+    font-size: 22px; font-weight: 500; margin-top: 6px; color: #E6EDF3;
+  }
+  .sml-metric__val--accent { color: #0EA5E9; }
+
+  /* ── Code block ───────────────────────────────────────── */
+  .sml-code-block {
+    background: #0A0D12; border: 1px solid #30363D; border-radius: 6px; overflow: hidden;
+  }
+  .sml-code-block__header {
+    display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    border-bottom: 1px solid #30363D; background: #0D1117;
+  }
+  .sml-code-block__filename {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11.5px; color: #8B949E;
+  }
+  .sml-code-block__badge {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10.5px; color: #6E7680;
+    border: 1px solid #30363D; padding: 1px 6px; border-radius: 3px;
+    margin-left: auto;
+  }
+  .sml-code-block__pre {
+    margin: 0; padding: 18px 0; overflow-x: auto;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12.5px; line-height: 1.75; color: #C9D1D9;
+  }
+  .sml-code-line {
+    display: flex; padding: 0 14px;
+  }
+  .sml-code-line__num {
+    display: inline-block; width: 28px; color: #484F58;
+    text-align: right; margin-right: 18px; user-select: none; flex-shrink: 0;
+  }
+  .sml-code-block__footer {
+    border-top: 1px solid #30363D; padding: 10px 14px;
+    display: flex; align-items: center; gap: 16px; background: #0D1117;
+  }
+  .sml-code-block__cmd {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px; color: #6E7680;
+  }
+  .sml-code-block__result {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px; color: #0EA5E9; margin-left: auto;
+  }
+
+  /* ── Comparison ───────────────────────────────────────── */
+  .sml-compare { padding: 96px 40px; border-bottom: 1px solid #30363D; }
+  .sml-compare__inner { max-width: 1200px; margin: 0 auto; }
+  .sml-compare__table {
+    border: 1px solid #30363D; background: #0D1117; margin-top: 36px;
+  }
+  .sml-compare__row {
+    display: grid; grid-template-columns: 1.4fr 1fr 1fr 1fr 1fr;
+    border-bottom: 1px solid #30363D;
+  }
+  .sml-compare__row:last-child { border-bottom: none; }
+  .sml-compare__cell {
+    padding: 14px 18px; font-size: 13px;
+    border-left: 1px solid #30363D; color: #6E7680;
+  }
+  .sml-compare__cell:first-child { border-left: none; color: #8B949E; font-size: 13.5px; }
+  .sml-compare__cell--sml {
+    color: #E6EDF3; font-weight: 500;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 12.5px; background: rgba(14, 165, 233, 0.04);
+  }
+  .sml-compare__head {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 0.08em; color: #484F58; font-weight: 400;
+    text-transform: uppercase;
+  }
+  .sml-compare__head--sml { color: #0EA5E9; }
+  .sml-compare__footnote {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px; color: #484F58; margin-top: 16px; display: block;
+  }
+
+  /* ── Features grid ────────────────────────────────────── */
+  .sml-features { padding: 96px 40px; border-bottom: 1px solid #30363D; }
+  .sml-features__inner { max-width: 1200px; margin: 0 auto; }
+  .sml-features__grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+    border: 1px solid #30363D; margin-top: 36px;
+  }
+  @media (max-width: 900px) {
+    .sml-features__grid { grid-template-columns: 1fr 1fr; }
+  }
+  .sml-feature {
+    padding: 28px 24px;
+    border-right: 1px solid #30363D;
+    border-bottom: 1px solid #30363D;
+    background: #0D1117;
+  }
+  .sml-feature:nth-child(3n) { border-right: none; }
+  .sml-feature:nth-last-child(-n+3) { border-bottom: none; }
+  .sml-feature__icon {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11px; color: #0EA5E9; letter-spacing: 0.1em;
+    margin-bottom: 14px;
+  }
+  .sml-feature__title {
+    font-size: 15px; font-weight: 600; color: #E6EDF3;
+    margin-bottom: 8px; letter-spacing: -0.01em;
+  }
+  .sml-feature__body {
+    font-size: 13px; color: #6E7680; line-height: 1.6;
+  }
+</style>
+
+<div class="sml-home">
+
+  <!-- HERO -->
+  <section class="sml-hero">
+    <div class="sml-hero__grid"></div>
+    <div class="sml-hero__reg sml-hero__reg--tl"></div>
+    <div class="sml-hero__reg sml-hero__reg--tr"></div>
+    <div class="sml-hero__reg sml-hero__reg--bl"></div>
+    <div class="sml-hero__reg sml-hero__reg--br"></div>
+
+    <div class="sml-hero__inner">
+      <div class="sml-hero__caption">
+        <span class="sml-mono">REV · 0.1.0</span>
+        <span class="sml-mono">2026-05-26</span>
+        <span class="sml-mono">DOC-SML-001</span>
+        <span style="flex:1"></span>
+        <span class="sml-mono accent">● ACTIVE DEVELOPMENT</span>
+      </div>
+
+      <div class="sml-hero__headline">
+        Models that<br>
+        engineers<br>
+        <span class="muted">actually read.</span>
+      </div>
+
+      <p class="sml-hero__sub">
+        Syscribe is a plain-text modeling format that maps SysMLv2 semantics onto
+        Markdown files with YAML frontmatter. Version-controlled, diff-friendly,
+        LLM-readable — with a built-in validation engine and web browser.
+      </p>
+
+      <div class="sml-hero__ctas">
+        <a href="format/" class="sml-btn-primary">
+          Read the format spec
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+        </a>
+        <a href="model-guide/" class="sml-btn-secondary">Start modeling</a>
+        <span class="sml-hero__clone sml-mono">git clone github.com/sjames/llm-arch-model</span>
+      </div>
+
+      <div class="sml-spec-table">
+        <div class="sml-spec-row">
+          <span class="sml-spec-row__code">01</span>
+          <span class="sml-spec-row__label">FORMAT BASIS</span>
+          <div>
+            <div class="sml-spec-row__value sml-spec-row__value--accent">Markdown + YAML frontmatter</div>
+            <div class="sml-spec-row__sub">Each element is a .md file; directory path encodes namespace; body is documentation</div>
+          </div>
+        </div>
+        <div class="sml-spec-row">
+          <span class="sml-spec-row__code">02</span>
+          <span class="sml-spec-row__label">SEMANTICS</span>
+          <div>
+            <div class="sml-spec-row__value sml-spec-row__value--accent">SysMLv2-aligned</div>
+            <div class="sml-spec-row__sub">PartDef, PortDef, InterfaceDef, Requirement, TestCase, ADR, Allocation, Diagram — 40+ element types</div>
+          </div>
+        </div>
+        <div class="sml-spec-row">
+          <span class="sml-spec-row__code">03</span>
+          <span class="sml-spec-row__label">TRACEABILITY</span>
+          <div>
+            <div class="sml-spec-row__value">§12 — six enforced rules</div>
+            <div class="sml-spec-row__sub">OSLC link direction · breakdown ADR · leaf assignment · domain classification · HW/SW independence</div>
+          </div>
+        </div>
+        <div class="sml-spec-row">
+          <span class="sml-spec-row__code">04</span>
+          <span class="sml-spec-row__label">VALIDATION</span>
+          <div>
+            <div class="sml-spec-row__value">E001–E503 · W001–W601</div>
+            <div class="sml-spec-row__sub">Cross-reference resolution, diagram consistency, allocation integrity, documentation completeness</div>
+          </div>
+        </div>
+        <div class="sml-spec-row">
+          <span class="sml-spec-row__code">05</span>
+          <span class="sml-spec-row__label">WEB BROWSER</span>
+          <div>
+            <div class="sml-spec-row__value">Axum + Askama + HTMX</div>
+            <div class="sml-spec-row__sub">Server-rendered tree browser, element detail, BDD/IBD/StateMachine/Mermaid diagrams</div>
+          </div>
+        </div>
+        <div class="sml-spec-row" style="border-bottom:none">
+          <span class="sml-spec-row__code">06</span>
+          <span class="sml-spec-row__label">TOOLCHAIN</span>
+          <div>
+            <div class="sml-spec-row__value">Rust · cargo run · zero config</div>
+            <div class="sml-spec-row__sub">Parse, validate, and browse any model directory: <code style="background:#161B22;border:1px solid #30363D;padding:2px 6px;border-radius:3px;">cargo run --package syscribe-server -- model/</code></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY -->
+  <section class="sml-why">
+    <div class="sml-why__inner">
+      <div>
+        <span class="sml-section-tag">§ 01 — WHY</span>
+        <div class="sml-section-h">Systems models that live in your repository.</div>
+        <p class="sml-why__body">
+          Traditional MBSE tools keep models in proprietary binary formats: opaque to diff,
+          hostile to code review, and invisible to the LLMs that increasingly assist
+          engineering work. Syscribe puts the model in plain text where it belongs —
+          readable in any editor, diffable in any VCS, and parseable by any tool.
+        </p>
+        <p class="sml-why__body">
+          The format enforces SysMLv2 semantics through YAML frontmatter schema validation
+          and cross-reference resolution, so you get modeling rigour without a heavyweight
+          IDE. Requirements carry stable REQ-* IDs that survive renames. TestCases carry
+          TC-* IDs traceable back to requirements. ADRs carry ADR-* IDs that justify
+          every decomposition decision.
+        </p>
+        <div class="sml-metrics">
+          <div class="sml-metric">
+            <span class="sml-metric__key">Element types</span>
+            <div class="sml-metric__val">40+</div>
+          </div>
+          <div class="sml-metric">
+            <span class="sml-metric__key">Validation rules</span>
+            <div class="sml-metric__val sml-metric__val--accent">80+</div>
+          </div>
+          <div class="sml-metric">
+            <span class="sml-metric__key">Diagram kinds</span>
+            <div class="sml-metric__val">BDD · IBD · SM</div>
+          </div>
+          <div class="sml-metric">
+            <span class="sml-metric__key">Demo model</span>
+            <div class="sml-metric__val sml-metric__val--accent">111 elements</div>
+          </div>
+          <div class="sml-metric">
+            <span class="sml-metric__key">Backend</span>
+            <div class="sml-metric__val">Rust</div>
+          </div>
+          <div class="sml-metric">
+            <span class="sml-metric__key">Config required</span>
+            <div class="sml-metric__val">Zero</div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="sml-code-block">
+          <div class="sml-code-block__header">
+            <span class="sml-code-block__filename">model/Requirements/FaultTolerantFCReq.md</span>
+            <span class="sml-code-block__badge">yaml · Requirement</span>
+          </div>
+          <pre class="sml-code-block__pre">{% set lines = [
+            ("---",                                          "punct"),
+            ("type: Requirement",                           "key"),
+            ("id: REQ-UAV-FC-001",                         "accent"),
+            ("title: FC fault detection ≤ 50 ms",          "str"),
+            ("status: approved",                            "key"),
+            ("reqDomain: software",                        "key"),
+            ("silLevel: 3",                                 "num"),
+            ("asilLevel: C",                                "num"),
+            ("derivedFrom:",                               "key"),
+            ("  - REQ-UAV-SAFE-000",                       "ref"),
+            ("breakdownAdr: Decisions::SafetyADR",         "ref"),
+            ("---",                                         "punct"),
+            ("",                                            ""),
+            ("The flight controller **shall** detect any",  "body"),
+            ("single sensor failure within 50 ms and",      "body"),
+            ("transition to the fault state.",              "body"),
+          ] %}{% for (line, kind) in lines %}<span class="sml-code-line"><span class="sml-code-line__num">{{ loop.index }}</span><span style="color:{% if kind == 'accent' %}#0EA5E9{% elif kind == 'key' %}#7EE787{% elif kind == 'str' %}#A5D6FF{% elif kind == 'ref' %}#79C0FF{% elif kind == 'num' %}#F2CC60{% elif kind == 'punct' %}#8B949E{% else %}#C9D1D9{% endif %}">{{ line if line else "&nbsp;" }}</span></span>
+{% endfor %}</pre>
+          <div class="sml-code-block__footer">
+            <span class="sml-code-block__cmd">$ cargo run --example validate_model -- model</span>
+            <span class="sml-code-block__result">✓ 0 errors · 0 warnings</span>
+          </div>
+        </div>
+        <p style="margin-top:18px; font-size:13px; color:#484F58; line-height:1.6;">
+          Stable <code style="background:#0D1117;border:1px solid #30363D;padding:1px 5px;border-radius:3px;font-size:11px;color:#8B949E;">REQ-*</code> IDs survive file renames. Derivation and domain
+          are enforced cross-model by the validation engine.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="sml-features">
+    <div class="sml-features__inner">
+      <span class="sml-section-tag">§ 02 — CAPABILITIES</span>
+      <div class="sml-section-h">Everything a systems model needs.</div>
+
+      <div class="sml-features__grid">
+        <div class="sml-feature">
+          <div class="sml-feature__icon">STRUCT</div>
+          <div class="sml-feature__title">Structural hierarchy</div>
+          <div class="sml-feature__body">PartDef, ItemDef, PortDef, InterfaceDef, ConnectionDef — full SysMLv2 structural decomposition in plain files.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">REQ</div>
+          <div class="sml-feature__title">Native requirements</div>
+          <div class="sml-feature__body">Stable REQ-* IDs, lifecycle status, SIL/ASIL fields, normative text, derivation trees, domain classification.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">TC</div>
+          <div class="sml-feature__title">Test cases</div>
+          <div class="sml-feature__body">TC-* IDs, L1–L5 test levels, Gherkin scenarios, testFunctions cross-reference, active/retired lifecycle.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">ADR</div>
+          <div class="sml-feature__title">Architecture decisions</div>
+          <div class="sml-feature__body">ADR-* IDs with proposed/accepted/deprecated/superseded status. Every requirement decomposition cites an accepted ADR.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">DIAG</div>
+          <div class="sml-feature__title">Multiple diagram kinds</div>
+          <div class="sml-feature__body">BDD, IBD, StateMachine, Requirement diagrams via structured frontmatter. Mermaid diagrams via fenced code blocks.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">OP</div>
+          <div class="sml-feature__title">Interface operations</div>
+          <div class="sml-feature__body">Synchronous operations and async receptions on PortDef and InterfaceDef — typed parameters, return types, isQuery flag.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">ALLOC</div>
+          <div class="sml-feature__title">Allocations</div>
+          <div class="sml-feature__body">Function-to-component and requirement-to-component allocation with cross-reference validation and domain checks.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">PLE</div>
+          <div class="sml-feature__title">Product-line engineering</div>
+          <div class="sml-feature__body">FeatureDef/Configuration elements with appliesWhen conditioning — variant modeling without a separate tool.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">LIVE</div>
+          <div class="sml-feature__title">Live browser</div>
+          <div class="sml-feature__body">Axum server with file-system watcher. HTMX partial updates — tree navigation, element detail, and diagrams without a page reload.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMPARISON -->
+  <section class="sml-compare">
+    <div class="sml-compare__inner">
+      <span class="sml-section-tag">§ 03 — POSITIONING</span>
+      <div class="sml-section-h">Compared to existing modeling approaches.</div>
+
+      <div class="sml-compare__table">
+        <div class="sml-compare__row">
+          <div class="sml-compare__cell sml-compare__head"></div>
+          <div class="sml-compare__cell sml-compare__head sml-compare__head--sml">SYSML-MD</div>
+          <div class="sml-compare__cell sml-compare__head">CAPELLA</div>
+          <div class="sml-compare__cell sml-compare__head">PAPYRUS</div>
+          <div class="sml-compare__cell sml-compare__head">CAMEO</div>
+        </div>
+        {% set rows = [
+          ("Model format",       "Plain Markdown + YAML",   "Proprietary XMI", "UML2/XMI",       "Proprietary"),
+          ("VCS-friendly diff",  "Yes — line-level",        "Binary / XML",    "XML (partial)",   "Binary"),
+          ("LLM-readable",       "Yes — native text",       "No",              "No",              "No"),
+          ("Validation engine",  "Built-in (Rust, CI-able)","GUI warnings",    "OCL constraints", "Built-in"),
+          ("Web browser",        "Included",                "No",              "No",              "No"),
+          ("Cost",               "Open source",             "Free (Eclipse)",  "Free (Eclipse)",  "Commercial"),
+          ("SysMLv2 alignment",  "Semantic subset",         "SysML 1.x",       "SysML 1.x",       "SysML 1.x / 2"),
+        ] %}{% for row in rows %}
+        <div class="sml-compare__row">
+          <div class="sml-compare__cell">{{ row[0] }}</div>
+          <div class="sml-compare__cell sml-compare__cell--sml">{{ row[1] }}</div>
+          <div class="sml-compare__cell">{{ row[2] }}</div>
+          <div class="sml-compare__cell">{{ row[3] }}</div>
+          <div class="sml-compare__cell">{{ row[4] }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <span class="sml-compare__footnote">
+        Feature comparison based on public documentation, 2026-05.
+        Sysml-md is a semantic <em>subset</em> of SysMLv2 — not a full implementation.
+      </span>
+    </div>
+  </section>
+
+</div>
+{% endblock %}

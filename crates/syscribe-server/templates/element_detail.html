@@ -1,0 +1,32 @@
+<!-- View mode -->
+<div id="detail-view-mode">
+  <div class="detail-name">{{ name }}</div>
+  <div class="detail-type">
+    <span class="badge {{ badge_class }}">{{ element_type }}</span>
+  </div>
+  <div class="detail-qname">{{ qualified_name }}</div>
+  {% if doc != "" %}
+  <div class="detail-doc">{{ doc }}</div>
+  {% else %}
+  <p class="detail-empty">No documentation.</p>
+  {% endif %}
+  <div class="detail-actions">
+    <button class="btn-edit" onclick="showEditForm()">Edit</button>
+  </div>
+</div>
+
+<!-- Edit mode (hidden by default) -->
+<div id="detail-edit-mode" style="display:none" data-qname="{{ qualified_name }}">
+  <div class="edit-field">
+    <label>Name</label>
+    <input type="text" id="edit-name" value="{{ name }}"/>
+  </div>
+  <div class="edit-field">
+    <label>Documentation</label>
+    <textarea id="edit-doc" rows="7">{{ doc }}</textarea>
+  </div>
+  <div class="edit-actions">
+    <button class="btn-primary" onclick="saveElement()">Save</button>
+    <button class="btn-cancel" onclick="hideEditForm()">Cancel</button>
+  </div>
+</div>

@@ -1,0 +1,56 @@
+{% for item in items %}
+{% if item.is_package %}
+<div class="tree-package">
+  <div class="tree-pkg-row">
+    <span class="tree-toggle"
+          hx-get="/ui/tree?parent={{ item.qualified_name }}"
+          hx-target="next .tree-children"
+          hx-swap="innerHTML"
+          hx-trigger="click[this.dataset.open!=='true']"
+          onclick="
+            var ch = this.parentElement.nextElementSibling;
+            if (this.dataset.open !== 'true') {
+              this.dataset.open = 'true';
+              this.textContent = '▼';
+            } else {
+              this.dataset.open = 'false';
+              this.textContent = '▶';
+              ch.innerHTML = '';
+            }
+          ">&#x25B6;</span>
+    <a class="tree-item tree-pkg-name"
+       href="#"
+       hx-get="/ui/detail/{{ item.qualified_name }}"
+       hx-target="#modal-content"
+       hx-swap="innerHTML"
+       onclick="setActiveTreeItem(this); return false;">
+      {{ item.display_name }}
+      <span class="type-badge">{{ item.element_type }}</span>
+    </a>
+  </div>
+  <div class="tree-children tree-group"></div>
+</div>
+{% else %}
+{% if item.is_diagram %}
+<a class="tree-item diagram-item"
+   href="#"
+   data-diagram-id="{{ item.url_path }}"
+   data-diagram-name="{{ item.display_name }}"
+   onclick="openDiagram(this.dataset.diagramId, this.dataset.diagramName); setActiveTreeItem(this); return false;">
+  <span class="tree-item-icon">&#x25C8;</span>
+  {{ item.display_name }}
+  <span class="type-badge">{{ item.element_type }}</span>
+</a>
+{% else %}
+<a class="tree-item"
+   href="#"
+   hx-get="/ui/detail/{{ item.qualified_name }}"
+   hx-target="#modal-content"
+   hx-swap="innerHTML"
+   onclick="setActiveTreeItem(this); return false;">
+  {{ item.display_name }}
+  <span class="type-badge">{{ item.element_type }}</span>
+</a>
+{% endif %}
+{% endif %}
+{% endfor %}

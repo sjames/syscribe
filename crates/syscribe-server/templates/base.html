@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SysML Model Browser</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js" defer></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      if (window.mermaid) {
+        mermaid.initialize({ startOnLoad: false, theme: 'neutral', securityLevel: 'loose' });
+      }
+    });
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      height: 100vh;
+      display: grid;
+      grid-template-rows: 44px 1fr;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    header {
+      background: #1a1a2e;
+      color: #e0e0e0;
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      user-select: none;
+    }
+    header .subtitle {
+      font-size: 11px;
+      font-weight: 400;
+      color: #9090b0;
+    }
+
+    /* ── Two-panel workspace ── */
+    .workspace {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #dde1ea;
+      background: #f7f8fa;
+      overflow: hidden;
+    }
+    .sidebar-header {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: #555;
+      padding: 9px 12px 8px;
+      border-bottom: 1px solid #e4e7ed;
+      background: #eef0f5;
+      flex-shrink: 0;
+    }
+    #tree-root {
+      overflow-y: auto;
+      flex: 1;
+      padding: 4px 2px;
+    }
+
+    /* ── Tree ── */
+    .tree-item {
+      display: flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 3px;
+      cursor: pointer;
+      text-decoration: none;
+      color: #1a1a2e;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      gap: 4px;
+    }
+    .tree-item:hover { background: #e8ecf8; }
+    .tree-item.active { background: #dbeafe; color: #1d4ed8; font-weight: 500; }
+
+    .tree-item .type-badge {
+      font-size: 10px;
+      color: #aaa;
+      font-style: italic;
+      flex-shrink: 0;
+      margin-left: auto;
+      padding-left: 4px;
+    }
+
+    .tree-item.diagram-item { color: #5b21b6; }
+    .tree-item.diagram-item:hover { background: #f0ecff; }
+    .tree-item.diagram-item.active { background: #ede9fe; color: #4c1d95; }
+    .tree-item.diagram-item .tree-item-icon { font-size: 10px; opacity: 0.7; }
+
+    .tree-package { display: flex; flex-direction: column; }
+    .tree-pkg-row { display: flex; align-items: center; }
+    .tree-toggle {
+      cursor: pointer;
+      font-size: 9px;
+      color: #bbb;
+      padding: 0 4px 0 6px;
+      user-select: none;
+      flex-shrink: 0;
+      line-height: 24px;
+    }
+    .tree-toggle:hover { color: #555; }
+    .tree-pkg-name { flex: 1; min-width: 0; }
+    .tree-children { padding-left: 14px; }
+
+    /* ── Canvas area ── */
+    #canvas-area {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Tab bar ── */
+    #canvas-tabs {
+      display: none; /* shown when tabs exist */
+      flex-shrink: 0;
+      background: #eef0f5;
+      border-bottom: 1px solid #dde1ea;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+    }
+    #canvas-tabs-inner {
+      display: flex;
+      height: 34px;
+      align-items: stretch;
+      min-width: max-content;
+    }
+    .canvas-tab {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 10px 0 12px;
+      border-right: 1px solid #dde1ea;
+      cursor: pointer;
+      color: #555;
+      font-size: 12px;
+      white-space: nowrap;
+      user-select: none;
+      background: transparent;
+      transition: background 80ms;
+      min-width: 0;
+      max-width: 200px;
+    }
+    .canvas-tab:hover { background: #e4e8f5; }
+    .canvas-tab.active {
+      background: white;
+      color: #1a1a2e;
+      font-weight: 500;
+      border-bottom: 2px solid #4c1d95;
+    }
+    .canvas-tab .tab-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .canvas-tab .tab-icon { font-size: 10px; color: #7c3aed; flex-shrink: 0; }
+    .tab-close {
+      background: none;
+      border: none;
+      color: #aaa;
+      cursor: pointer;
+      font-size: 14px;
+      line-height: 1;
+      padding: 0 2px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+    }
+    .tab-close:hover { color: #333; background: rgba(0,0,0,0.08); }
+
+    /* ── Canvas viewport ── */
+    #canvas-viewport {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      background-color: #f0f2f5;
+      background-image: radial-gradient(circle, #c4c8d0 1px, transparent 1px);
+      background-size: 20px 20px;
+      cursor: grab;
+    }
+    #canvas-viewport.dragging { cursor: grabbing; }
+
+    #canvas-world {
+      position: absolute;
+      top: 0; left: 0;
+      transform-origin: 0 0;
+    }
+
+    #canvas-diagram svg {
+      display: block;
+      overflow: visible;
+    }
+
+    /* Draggable shapes on canvas */
+    #canvas-diagram g[sysml\:ref] { cursor: grab; }
+    #canvas-diagram g[sysml\:ref]:active { cursor: grabbing; }
+
+    /* ── Canvas hint ── */
+    #canvas-hint {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: #b8bec8;
+      font-size: 13px;
+      pointer-events: none;
+      text-align: center;
+      line-height: 2;
+    }
+    #canvas-hint .hint-main { font-size: 14px; font-weight: 500; }
+    #canvas-hint .hint-sub { font-size: 11px; }
+
+    /* ── Canvas controls ── */
+    .canvas-controls {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      z-index: 10;
+    }
+    .canvas-btn {
+      width: 30px; height: 30px;
+      border: 1px solid #d0d4db;
+      border-radius: 6px;
+      background: white;
+      color: #444;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+      line-height: 1;
+    }
+    .canvas-btn:hover { background: #f0f4ff; border-color: #6366f1; color: #4338ca; }
+    .canvas-btn:active { background: #e8edff; }
+    .canvas-btn.separator { margin-top: 4px; }
+
+    #zoom-label {
+      position: absolute;
+      bottom: 16px;
+      left: 12px;
+      font-size: 11px;
+      color: #9aa0ab;
+      pointer-events: none;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Modal ── */
+    #modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    #modal-overlay.visible { display: flex; }
+
+    #modal-box {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+      width: min(580px, 92vw);
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 24px 24px 20px;
+      position: relative;
+      animation: modal-in 120ms ease-out;
+    }
+    @keyframes modal-in {
+      from { opacity: 0; transform: scale(0.96) translateY(-8px); }
+      to   { opacity: 1; transform: none; }
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 10px; right: 10px;
+      background: none;
+      border: none;
+      font-size: 20px;
+      color: #aaa;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+    .modal-close:hover { background: #f3f4f6; color: #333; }
+
+    /* ── Element detail (inside modal) ── */
+    .detail-name {
+      font-size: 19px;
+      font-weight: 700;
+      color: #111;
+      margin-bottom: 6px;
+      padding-right: 36px;
+    }
+    .detail-type { font-size: 12px; margin-bottom: 10px; }
+    .detail-qname {
+      font-size: 11px;
+      font-family: ui-monospace, monospace;
+      color: #3a6ea5;
+      background: #f0f6ff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-bottom: 16px;
+      word-break: break-all;
+    }
+    .detail-doc { line-height: 1.65; color: #333; white-space: pre-wrap; }
+    .detail-empty { color: #bbb; font-style: italic; padding: 8px 0; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+      margin-right: 4px;
+    }
+    .badge-def  { background: #dbeafe; color: #1e40af; }
+    .badge-req  { background: #fce7f3; color: #9d174d; }
+    .badge-act  { background: #d1fae5; color: #065f46; }
+    .badge-pkg  { background: #f3f4f6; color: #374151; }
+
+    /* ── Edit form (inside modal) ── */
+    .detail-actions { margin-top: 16px; }
+    .btn-edit {
+      font-size: 12px; padding: 5px 12px; border-radius: 4px;
+      border: 1px solid #d0d5dd; background: #f9fafb; color: #444; cursor: pointer;
+    }
+    .btn-edit:hover { background: #f0f4ff; border-color: #6366f1; color: #4338ca; }
+    .edit-field { margin-bottom: 12px; }
+    .edit-field label {
+      display: block; font-size: 11px; font-weight: 600;
+      color: #555; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .edit-field input, .edit-field textarea {
+      width: 100%; border: 1px solid #d0d5dd; border-radius: 4px;
+      padding: 6px 8px; font-size: 13px; font-family: inherit; color: #111;
+    }
+    .edit-field input:focus, .edit-field textarea:focus {
+      outline: none; border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.15);
+    }
+    .edit-field textarea { resize: vertical; line-height: 1.55; min-height: 100px; }
+    .edit-actions { display: flex; gap: 8px; margin-top: 4px; }
+    .btn-primary {
+      background: #4338ca; color: white; border: none;
+      padding: 6px 18px; border-radius: 4px; font-size: 13px; cursor: pointer;
+    }
+    .btn-primary:hover { background: #3730a3; }
+    .btn-cancel {
+      background: #f3f4f6; color: #444; border: 1px solid #e0e0e0;
+      padding: 6px 14px; border-radius: 4px; font-size: 13px; cursor: pointer;
+    }
+    .btn-cancel:hover { background: #e5e7eb; }
+
+    .htmx-indicator { opacity: 0; transition: opacity 200ms; }
+    .htmx-request .htmx-indicator { opacity: 1; }
+
+    /* ── Mermaid diagram wrapper ── */
+    .diagram-mermaid-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: white;
+      border-radius: 8px;
+      min-width: 400px;
+      min-height: 200px;
+    }
+    .diagram-mermaid-wrapper .mermaid {
+      font-size: 13px;
+    }
+
+    /* ── Kroki / PlantUML diagram wrapper ── */
+    .diagram-kroki-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      background: white;
+      border-radius: 8px;
+    }
+    .diagram-kroki-wrapper svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* ── Diagram error notice ── */
+    .diagram-error {
+      padding: 24px;
+      color: #b91c1c;
+      background: #fef2f2;
+      border: 1px solid #fca5a5;
+      border-radius: 6px;
+      font-size: 13px;
+      max-width: 500px;
+      margin: auto;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <span>SysML Model Browser</span>
+    <span class="subtitle">Syscribe · Axum + HTMX</span>
+  </header>
+  <div class="workspace">
+    {% block content %}{% endblock %}
+  </div>
+
+  <!-- ── Modal overlay ── -->
+  <div id="modal-overlay" onclick="handleOverlayClick(event)">
+    <div id="modal-box" onclick="event.stopPropagation()">
+      <button class="modal-close" onclick="closeModal()">&#x2715;</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <script>
+    // ═══════════════════════════════════════════════════════════════
+    //  Tab management
+    // ═══════════════════════════════════════════════════════════════
+    const tabState = new Map(); // id -> { name, html, tx, ty, zoom, fitted }
+    let activeTabId = null;
+
+    async function openDiagram(id, name) {
+      if (tabState.has(id)) {
+        activateTab(id);
+        return;
+      }
+      try {
+        const resp = await fetch('/ui/diagram/' + id);
+        const html = await resp.text();
+        tabState.set(id, { name, html, tx: 0, ty: 0, zoom: 1, fitted: false });
+        renderTabBar();
+        activateTab(id);
+      } catch (err) {
+        console.error('Failed to load diagram', id, err);
+      }
+    }
+
+    function activateTab(id) {
+      // Persist current canvas state into the previously active tab
+      if (activeTabId && tabState.has(activeTabId)) {
+        const cur = tabState.get(activeTabId);
+        cur.tx = tx; cur.ty = ty; cur.zoom = zoom;
+      }
+      activeTabId = id;
+      const tab = tabState.get(id);
+
+      const diagramEl = document.getElementById('canvas-diagram');
+      diagramEl.innerHTML = tab.html;
+
+      // Trigger Mermaid rendering for any mermaid blocks in the new content
+      if (window.mermaid) {
+        const nodes = diagramEl.querySelectorAll('pre.mermaid');
+        if (nodes.length > 0) {
+          mermaid.run({ nodes: Array.from(nodes) });
+        }
+      }
+
+      const hint = document.getElementById('canvas-hint');
+      if (hint) hint.style.display = 'none';
+
+      if (!tab.fitted) {
+        requestAnimationFrame(() => {
+          fitDiagramToCanvas();
+          tab.fitted = true;
+        });
+      } else {
+        tx = tab.tx; ty = tab.ty; zoom = tab.zoom;
+        applyTransform();
+      }
+      renderTabBar();
+    }
+
+    function closeTab(id, e) {
+      if (e) { e.stopPropagation(); }
+      tabState.delete(id);
+      if (activeTabId === id) {
+        const remaining = [...tabState.keys()];
+        if (remaining.length > 0) {
+          activateTab(remaining[remaining.length - 1]);
+        } else {
+          activeTabId = null;
+          document.getElementById('canvas-diagram').innerHTML = '';
+          const hint = document.getElementById('canvas-hint');
+          if (hint) hint.style.display = '';
+        }
+      }
+      renderTabBar();
+    }
+
+    function renderTabBar() {
+      const bar = document.getElementById('canvas-tabs');
+      const inner = document.getElementById('canvas-tabs-inner');
+      if (!bar || !inner) return;
+      if (tabState.size === 0) {
+        bar.style.display = 'none';
+        return;
+      }
+      bar.style.display = '';
+      inner.innerHTML = [...tabState.entries()].map(([id, { name }]) => {
+        const isActive = id === activeTabId;
+        return `<div class="canvas-tab${isActive ? ' active' : ''}" onclick="activateTab(${JSON.stringify(id)})">
+          <span class="tab-icon">&#x25C8;</span>
+          <span class="tab-name">${escHtml(name)}</span>
+          <button class="tab-close" title="Close" onclick="closeTab(${JSON.stringify(id)}, event)">&#x2715;</button>
+        </div>`;
+      }).join('');
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  Infinite canvas — pan & zoom
+    // ═══════════════════════════════════════════════════════════════
+    let tx = 40, ty = 40, zoom = 1;
+
+    // Canvas pan state
+    let canvasPan = { active: false, lastX: 0, lastY: 0, downX: 0, downY: 0, moved: false };
+
+    // Shape drag state: null when idle
+    let shapeDrag = null; // { el, id, origX, origY, startX, startY }
+
+    function applyTransform() {
+      const world    = document.getElementById('canvas-world');
+      const viewport = document.getElementById('canvas-viewport');
+      const label    = document.getElementById('zoom-label');
+      if (world)    world.style.transform = `translate(${tx}px,${ty}px) scale(${zoom})`;
+      if (viewport) {
+        viewport.style.backgroundPosition = `${tx}px ${ty}px`;
+        viewport.style.backgroundSize     = `${20 * zoom}px ${20 * zoom}px`;
+      }
+      if (label) label.textContent = Math.round(zoom * 100) + '%';
+    }
+
+    function fitDiagramToCanvas() {
+      const viewport = document.getElementById('canvas-viewport');
+      const svg      = document.querySelector('#canvas-diagram svg');
+      if (!svg || !viewport) return;
+      const vw = viewport.clientWidth, vh = viewport.clientHeight;
+      const vb = svg.viewBox && svg.viewBox.baseVal;
+      const sw = (vb && vb.width > 0) ? vb.width  : (parseFloat(svg.getAttribute('width'))  || 800);
+      const sh = (vb && vb.width > 0) ? vb.height : (parseFloat(svg.getAttribute('height')) || 600);
+      zoom = Math.min((vw * 0.88) / sw, (vh * 0.88) / sh);
+      tx   = (vw - sw * zoom) / 2;
+      ty   = (vh - sh * zoom) / 2;
+      applyTransform();
+    }
+
+    function zoomIn()    { zoom = Math.min(8, zoom * 1.2);  applyTransform(); }
+    function zoomOut()   { zoom = Math.max(0.05, zoom / 1.2); applyTransform(); }
+    function resetView() { tx = 40; ty = 40; zoom = 1; applyTransform(); }
+
+    // Walk up from `target` to find the nearest <g sysml:ref id="..."> inside #canvas-diagram
+    function findShapeEl(target) {
+      const diagram = document.getElementById('canvas-diagram');
+      if (!diagram) return null;
+      let el = target;
+      while (el && el !== diagram) {
+        if (el.tagName && el.tagName.toLowerCase() === 'g' &&
+            el.hasAttribute('sysml:ref') && el.id) return el;
+        el = el.parentElement;
+      }
+      return null;
+    }
+
+    function parseTranslate(el) {
+      const t = el.getAttribute('transform') || '';
+      const m = t.match(/translate\(\s*(-?[\d.]+)[,\s]+(-?[\d.]+)\s*\)/);
+      return m ? { x: parseFloat(m[1]), y: parseFloat(m[2]) } : { x: 0, y: 0 };
+    }
+
+    async function reloadDiagramContent(tabId) {
+      if (!tabState.has(tabId)) return;
+      const tab  = tabState.get(tabId);
+      const resp = await fetch('/ui/diagram/' + tabId);
+      tab.html   = await resp.text();
+      if (tabId === activeTabId)
+        document.getElementById('canvas-diagram').innerHTML = tab.html;
+    }
+
+    // Wire up canvas events after DOM is ready
+    document.addEventListener('DOMContentLoaded', () => {
+      const viewport = document.getElementById('canvas-viewport');
+      if (!viewport) return;
+
+      // Scroll → zoom toward cursor
+      viewport.addEventListener('wheel', e => {
+        e.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+        const factor = e.deltaY < 0 ? 1.1 : (1 / 1.1);
+        const nz = Math.max(0.05, Math.min(8, zoom * factor));
+        tx = mx - (mx - tx) * (nz / zoom);
+        ty = my - (my - ty) * (nz / zoom);
+        zoom = nz;
+        applyTransform();
+      }, { passive: false });
+
+      viewport.addEventListener('mousedown', e => {
+        if (e.button !== 0) return;
+
+        // Shape drag takes priority over canvas pan
+        const shapeEl = activeTabId ? findShapeEl(e.target) : null;
+        if (shapeEl) {
+          const orig = parseTranslate(shapeEl);
+          shapeDrag = { el: shapeEl, id: shapeEl.id,
+                        origX: orig.x, origY: orig.y,
+                        startX: e.clientX, startY: e.clientY };
+          viewport.classList.add('dragging');
+          e.preventDefault();
+          return;
+        }
+
+        // Canvas pan
+        canvasPan.active = true;
+        canvasPan.moved  = false;
+        canvasPan.downX  = canvasPan.lastX = e.clientX;
+        canvasPan.downY  = canvasPan.lastY = e.clientY;
+        viewport.classList.add('dragging');
+      });
+
+      window.addEventListener('mousemove', e => {
+        if (shapeDrag) {
+          const mdx = (e.clientX - shapeDrag.startX) / zoom;
+          const mdy = (e.clientY - shapeDrag.startY) / zoom;
+          shapeDrag.el.setAttribute('transform',
+            `translate(${shapeDrag.origX + mdx},${shapeDrag.origY + mdy})`);
+          return;
+        }
+        if (!canvasPan.active) return;
+        const dx = e.clientX - canvasPan.downX, dy = e.clientY - canvasPan.downY;
+        if (!canvasPan.moved && (Math.abs(dx) > 4 || Math.abs(dy) > 4)) canvasPan.moved = true;
+        if (canvasPan.moved) {
+          tx += e.clientX - canvasPan.lastX;
+          ty += e.clientY - canvasPan.lastY;
+          applyTransform();
+        }
+        canvasPan.lastX = e.clientX;
+        canvasPan.lastY = e.clientY;
+      });
+
+      window.addEventListener('mouseup', async e => {
+        if (viewport) viewport.classList.remove('dragging');
+
+        if (shapeDrag) {
+          const dx = e.clientX - shapeDrag.startX, dy = e.clientY - shapeDrag.startY;
+          const dist = Math.hypot(dx, dy);
+          const sd = shapeDrag;
+          shapeDrag = null;
+
+          if (dist < 5) {
+            // Click on shape → open detail modal
+            const ref = sd.el.getAttribute('sysml:ref');
+            if (ref) htmx.ajax('GET', '/ui/detail/' + ref.replace(/::/g, '/'),
+                               { target: '#modal-content', swap: 'innerHTML' });
+          } else {
+            // Commit drag → persist layout to server, then reload SVG
+            const newX = Math.round(sd.origX + dx / zoom);
+            const newY = Math.round(sd.origY + dy / zoom);
+            try {
+              await fetch('/api/diagrams/layout/' + activeTabId, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ [sd.id]: { x: newX, y: newY } }),
+              });
+              await reloadDiagramContent(activeTabId);
+            } catch (err) { console.error('Layout update failed', err); }
+          }
+          return;
+        }
+
+        canvasPan.active = false;
+      });
+    });
+
+    // Open modal whenever #modal-content receives new content via HTMX
+    document.body.addEventListener('htmx:afterSwap', e => {
+      if (e.detail.target && e.detail.target.id === 'modal-content')
+        document.getElementById('modal-overlay').classList.add('visible');
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    //  Modal
+    // ═══════════════════════════════════════════════════════════════
+    function closeModal() {
+      document.getElementById('modal-overlay').classList.remove('visible');
+    }
+    function handleOverlayClick(e) {
+      if (e.target === document.getElementById('modal-overlay')) closeModal();
+    }
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeModal();
+      if ((e.key === 'f' || e.key === 'F') && !e.target.closest('input,textarea'))
+        { if (activeTabId) fitDiagramToCanvas(); }
+    });
+
+    // ═══════════════════════════════════════════════════════════════
+    //  Element property editing (Layer 1)
+    // ═══════════════════════════════════════════════════════════════
+    function showEditForm() {
+      document.getElementById('detail-view-mode').style.display = 'none';
+      document.getElementById('detail-edit-mode').style.display = 'block';
+      document.getElementById('edit-name').focus();
+    }
+    function hideEditForm() {
+      document.getElementById('detail-edit-mode').style.display = 'none';
+      document.getElementById('detail-view-mode').style.display = '';
+    }
+    async function saveElement() {
+      const editEl = document.getElementById('detail-edit-mode');
+      const qname  = editEl.dataset.qname;
+      const name   = document.getElementById('edit-name').value.trim();
+      const doc    = document.getElementById('edit-doc').value;
+      const btn    = editEl.querySelector('.btn-primary');
+      btn.textContent = 'Saving…'; btn.disabled = true;
+      try {
+        const resp = await fetch('/api/elements/' + qname.replace(/::/g, '/'), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, doc }),
+        });
+        if (resp.ok) {
+          htmx.ajax('GET', '/ui/detail/' + qname.replace(/::/g, '/'),
+                    { target: '#modal-content', swap: 'innerHTML' });
+        } else {
+          alert('Save failed (' + resp.status + ')');
+          btn.textContent = 'Save'; btn.disabled = false;
+        }
+      } catch (err) {
+        alert('Save failed: ' + err.message);
+        btn.textContent = 'Save'; btn.disabled = false;
+      }
+    }
+
+    // Tree: highlight selected item
+    function setActiveTreeItem(el) {
+      document.querySelectorAll('.tree-item').forEach(i => i.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    applyTransform();
+  </script>
+</body>
+</html>
