@@ -2,14 +2,33 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+- **Working directory**: `/home/sjames/playground/syscribe`
+- **Rust crates**: `syscribe-model` (library), `syscribe-server` (web server)
+
 ## Project Overview
 
 This repository has two components:
 
-1. **Syscribe Specification** — a human- and LLM-friendly format for systems models that replicates the semantics of SysMLv2, using Markdown files with YAML frontmatter and directory hierarchy as structural elements of the model.
-2. **Web Service + Frontend** — a REST/GraphQL API that parses and serves the model, and a browser-based visualization UI.
+1. **Syscribe Format** — a human- and LLM-friendly format for systems models that replicates the semantics of SysMLv2, using Markdown files with YAML frontmatter and directory hierarchy as structural elements of the model.
+2. **Web Browser + Validator** — a Rust/Axum server that parses and serves the model with a browser-based UI, and a CLI validation tool.
 
 Reference material: `temp/sysml2_spec.pdf` (SysMLv2 language spec) and `temp/formal-26-03-04.pdf`.
+
+## Common Commands
+
+```bash
+# Validate the demo model (prints Markdown report to stdout)
+cargo run --example validate_model -- model/
+
+# Print the LLM model generation prompt
+cargo run --example validate_model -- --agent-instructions
+
+# Start the web server
+cargo run --package syscribe-server -- model/
+
+# Build everything
+cargo build --workspace
+```
 
 ---
 
@@ -109,7 +128,7 @@ Both the `id` field and the qualified name (path-derived) are valid cross-refere
 
 ## Part 1B — Native Requirement and TestCase Elements
 
-The native `Requirement` and `TestCase` types are first-class elements for safety-critical engineering. Full specifications are in `spec/markdown-sysml-format.md`:
+The native `Requirement` and `TestCase` types are first-class elements for safety-critical engineering. Full specifications are in `spec/markdown-sysml-format.md` (the canonical format spec):
 
 - **§8.11.6** — Native `Requirement`: stable `REQ-*` IDs, lifecycle status, SIL/ASIL fields, normative body text.
 - **§8.12.5** — Native `TestCase`: stable `TC-*` IDs, `testLevel` (L1–L5), Gherkin scenario blocks, `testFunctions` cross-reference.
@@ -134,39 +153,52 @@ Six enforced traceability rules govern how model elements relate to each other:
 
 ## Part 2 — Web Service Architecture
 
-### Stack (planned)
+### Stack
 
-- **Backend**: Rust (Axum) — parses the model directory tree, builds an in-memory graph, exposes REST + WebSocket endpoints, and serves HTML.
+- **Backend**: Rust (`syscribe-server`) — Axum parses the model directory tree, builds an in-memory graph, exposes REST + WebSocket endpoints, and serves HTML via Askama templates.
 - **Frontend**: Askama templates (server-side HTML rendering) + HTMX for dynamic interactions. No JavaScript framework.
+- **Diagrams**: SVG built server-side by `syscribe-model::renderer`; Mermaid rendered client-side from CDN.
+- **Live reload**: `notify` crate watches the model directory; changes are pushed to connected clients over WebSocket.
 
-### Backend Responsibilities
+### Crate layout
 
-- **Parser**: walk the model directory, parse YAML frontmatter from each `.md` file, build a typed element graph with resolved cross-references.
-- **API**: serve elements by qualified name, query by type, return containment trees, return connection graphs.
-- **Watch mode**: file-system watcher that pushes diffs to connected clients over WebSocket.
+| Crate | Path | Role |
+|---|---|---|
+| `syscribe-model` | `crates/syscribe-model/` | Parser, validator, graph builder, renderer, resolver |
+| `syscribe-server` | `crates/syscribe-server/` | Axum routes, Askama templates, WebSocket watch mode |
 
-### Frontend Responsibilities
-
-- Askama templates render all HTML server-side; HTMX drives partial-page updates (tree expansion, diagram switching, element detail loading) without full-page reloads.
-- Model tree browser (namespace/package hierarchy).
-- Block Definition Diagram (BDD) and Internal Block Diagram (IBD) views.
-- Markdown body rendered as documentation panel.
-
-### Key API Endpoints (planned)
+### API Endpoints
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/elements` | List all elements (with optional `?type=` filter) |
-| `GET` | `/api/elements/{qualifiedName}` | Fetch single element |
-| `GET` | `/api/elements/{qualifiedName}/children` | Containment tree |
-| `GET` | `/api/diagrams/bdd/{qualifiedName}` | BDD layout for a package |
-| `GET` | `/api/diagrams/ibd/{qualifiedName}` | IBD layout for a part def |
-| `WS`  | `/ws` | Live model-change events |
+| `GET` | `/api/elements` | List all elements (optional `?type=` filter) |
+| `GET` | `/api/elements/<qname>` | Single element JSON |
+| `PUT` | `/api/elements/<qname>` | Write element YAML frontmatter |
+| `GET` | `/api/children?qname=<qname>` | Containment tree |
+| `GET` | `/api/connections?qname=<qname>` | Connection graph |
+| `PATCH` | `/api/diagrams/layout/<qname>` | Persist drag-adjusted layout coordinates |
+| `GET` | `/api/validation` | Validation findings JSON |
+| `WS` | `/ws` | Live model-change events |
+
+### UI Routes
+
+| Path | Description |
+|---|---|
+| `GET /` | Root — model tree browser |
+| `GET /ui/tree?parent=<qname>` | HTMX — tree items for a namespace |
+| `GET /ui/detail/<qname>` | HTMX — element detail panel |
+| `GET /ui/diagram/<qname>` | HTMX — diagram panel (SVG or Mermaid) |
 
 ---
 
 ## Development Notes
 
-- The `temp/` directory contains reference PDFs only — not tracked artifacts.
-- Qualified name resolution must handle circular references gracefully (report, don't panic).
-- The Syscribe format is the source of truth; the web service is read-only over that format.
+- The `temp/` directory contains reference PDFs only — not tracked by git.
+- `site/` is MkDocs build output — not tracked by git.
+- Qualified name resolution handles circular references gracefully (reports, does not panic).
+- The Syscribe format is the source of truth; the web service is read-only over the model files.
+- The LLM generation prompt lives at `prompts/create-model.md` and is embedded in the validator binary via `include_str!` — edit the `.md` file, not the Rust source.
+
+## LLM Workflow
+
+The project is designed for LLM-assisted model authoring. The prompt at `prompts/create-model.md` gives an LLM everything it needs to produce valid Syscribe models. See `docs/model-guide/llm-workflow.md` for the full workflow.
