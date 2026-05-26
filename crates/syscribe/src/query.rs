@@ -91,9 +91,35 @@ fn gherkin_count(doc: &str) -> usize {
         .count()
 }
 
-/// Resolve by qname first, then by stable ID.
+/// Resolve by exact qname, then exact stable ID, then fuzzy best-match.
 fn resolve<'a>(elements: &'a [RawElement], resolver: &Resolver, key: &str) -> Option<&'a RawElement> {
-    resolver.get(elements, key).or_else(|| resolver.get_by_id(elements, key))
+    if let Some(e) = resolver.get(elements, key).or_else(|| resolver.get_by_id(elements, key)) {
+        return Some(e);
+    }
+    // Fuzzy fallback: pick the single highest-scoring candidate.
+    let mut best_score = 0u32;
+    let mut best: Option<&RawElement> = None;
+    let mut ambiguous = false;
+    for elem in elements {
+        let s = fuzzy_score(elem, key);
+        if s > best_score {
+            best_score = s;
+            best = Some(elem);
+            ambiguous = false;
+        } else if s == best_score && s > 0 {
+            ambiguous = true;
+        }
+    }
+    if best_score == 0 {
+        return None;
+    }
+    if ambiguous {
+        eprintln!("Ambiguous match for `{key}` — use `find` to see all candidates.");
+        return None;
+    }
+    let matched = best.unwrap();
+    eprintln!("(matched: {})", matched.qualified_name);
+    Some(matched)
 }
 
 // ── Namespace tree helpers ────────────────────────────────────────────────────
