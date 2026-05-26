@@ -2,6 +2,8 @@
 
 > An experiment in LLM-native systems modeling — full SysMLv2 semantics expressed as Markdown + YAML.
 
+**[Documentation →](https://sjames.github.io/syscribe)**
+
 ---
 
 ## The Idea
