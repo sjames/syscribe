@@ -34,11 +34,13 @@ const SECTION_PAD_BOT: f64 = 8.0;
 const SECTION_TITLE_H: f64 = 14.0;
 const ROW_H: f64 = 18.0;
 const STATUS_PAD_V: f64 = 6.0;
-const STATUS_ROW_H: f64 = 22.0;
 const BADGE_H: f64 = 18.0;
 const BADGE_PAD_H: f64 = 8.0;
 const BADGE_R: f64 = 4.0;
 const BADGE_GAP: f64 = 6.0;
+
+/// x offset where all text content starts (accent strip + left pad)
+const CONTENT_X: f64 = ACCENT_STRIP_W + PAD_H;
 
 /// Compute all content text widths and return the required minimum box width.
 fn required_width(node: &ElementNode, m: &dyn TextMetrics) -> f64 {
@@ -56,35 +58,35 @@ fn required_width(node: &ElementNode, m: &dyn TextMetrics) -> f64 {
                 }).sum::<f64>()
                     + if badges.is_empty() { 0.0 } else { BADGE_GAP * (badges.len() - 1) as f64 };
                 let row_w = stereo_w.max(name_w) + if badge_w > 0.0 { badge_w + PAD_H } else { 0.0 };
-                max_w = max_w.max(row_w + PAD_H * 2.0);
+                max_w = max_w.max(row_w + ACCENT_STRIP_W + PAD_H * 2.0);
             }
             Compartment::StatusRow { badges } => {
                 let total: f64 = badges.iter().map(|b| {
                     m.advance_width(&b.text, FS_BADGE, b.mono) + BADGE_PAD_H * 2.0
                 }).sum::<f64>()
                     + if badges.is_empty() { 0.0 } else { BADGE_GAP * (badges.len() - 1) as f64 };
-                max_w = max_w.max(total + PAD_H * 2.0);
+                max_w = max_w.max(total + ACCENT_STRIP_W + PAD_H * 2.0);
             }
             Compartment::PortsList { items } => {
                 for row in items {
                     let text = port_row_text(row);
-                    max_w = max_w.max(m.advance_width(&text, FS_ROW, false) + PAD_H * 2.0);
+                    max_w = max_w.max(m.advance_width(&text, FS_ROW, false) + ACCENT_STRIP_W + PAD_H * 2.0);
                 }
             }
             Compartment::Features { items } => {
                 for row in items {
                     let text = feature_row_text(row);
-                    max_w = max_w.max(m.advance_width(&text, FS_ROW, false) + PAD_H * 2.0);
+                    max_w = max_w.max(m.advance_width(&text, FS_ROW, false) + ACCENT_STRIP_W + PAD_H * 2.0);
                 }
             }
             Compartment::DocPreview { lines } => {
                 for line in lines {
-                    max_w = max_w.max(m.advance_width(line, FS_DOC, false) + PAD_H * 2.0);
+                    max_w = max_w.max(m.advance_width(line, FS_DOC, false) + ACCENT_STRIP_W + PAD_H * 2.0);
                 }
             }
             Compartment::GherkinPreview { given, when, then } => {
                 for line in [given, when, then].iter().filter_map(|l| l.as_deref()) {
-                    max_w = max_w.max(m.advance_width(line, FS_DOC, false) + PAD_H * 2.0);
+                    max_w = max_w.max(m.advance_width(line, FS_DOC, false) + ACCENT_STRIP_W + PAD_H * 2.0);
                 }
             }
         }
@@ -95,9 +97,6 @@ fn required_width(node: &ElementNode, m: &dyn TextMetrics) -> f64 {
 }
 
 // ── Taffy layout for header (flex row: left | right) ─────────────────────────
-// We use Taffy for the header because it's a bidirectional flex layout:
-// [stereotype+name grows] [badges shrink to fit].
-// All other compartments are simple vertical stacks (manual accumulation).
 
 struct HeaderLayout {
     total_height: f64,
@@ -181,7 +180,7 @@ fn layout_header(
                     height: auto(),
                 },
                 padding: Rect {
-                    left: length(PAD_H as f32),
+                    left: length(CONTENT_X as f32),
                     right: length(PAD_H as f32),
                     top: length(HEADER_PAD_TOP as f32),
                     bottom: length(HEADER_PAD_BOT as f32),
@@ -212,12 +211,24 @@ fn layout_header(
 
     let badge_x = if !badge_nodes.is_empty() {
         let right_layout = taffy.layout(right_col).unwrap();
-        right_layout.location.x as f64 + PAD_H
+        right_layout.location.x as f64 + CONTENT_X
     } else {
         box_width
     };
 
     HeaderLayout { total_height, badge_x_start: badge_x }
+}
+
+// ── IBD port label helper ─────────────────────────────────────────────────────
+
+fn port_name_label(row: &PortRow) -> String {
+    match &row.type_ref {
+        Some(t) => {
+            let short = t.split("::").last().unwrap_or(t.as_str());
+            format!("{} : {}", row.name, short)
+        }
+        None => row.name.clone(),
+    }
 }
 
 // ── SVG emission ─────────────────────────────────────────────────────────────
@@ -226,39 +237,20 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
     let box_width = required_width(node, m);
     let theme = &node.theme;
 
-    let id_slug: String = node.qualified_name
-        .chars()
-        .map(|c| if c.is_alphanumeric() { c } else { '_' })
-        .collect();
-    let shadow_id = format!("e{}", id_slug);
-    let filter_ref = if theme.shadow.is_some() {
-        format!(" filter=\"url(#{}s)\"", shadow_id)
-    } else {
-        String::new()
-    };
-
     let mut svg_parts: Vec<String> = Vec::new();
     let mut port_anchors: Vec<PortAnchor> = Vec::new();
 
     // ── Defs ─────────────────────────────────────────────────────────────────
-    let mut defs = format!("<defs>{}", font_face_style());
-    if let Some(sh) = &theme.shadow {
-        defs.push_str(&format!(
-            "<filter id=\"{}s\" x=\"-20%\" y=\"-20%\" width=\"140%\" height=\"140%\">\
-             <feDropShadow dx=\"{:.1}\" dy=\"{:.1}\" stdDeviation=\"{:.1}\" \
-             flood-color=\"{}\"/></filter>",
-            shadow_id, sh.dx, sh.dy, sh.blur, sh.color
-        ));
-    }
-    defs.push_str("</defs>");
+    let defs = format!("<defs>{}</defs>", font_face_style());
     svg_parts.push(defs);
 
     let mut y: f64 = 0.0;
+    let mut header_bottom: f64 = 0.0;
+    let mut ibd_left_ports: Vec<PortRow> = Vec::new();
+    let mut ibd_right_ports: Vec<PortRow> = Vec::new();
 
     // ── Per-compartment SVG ───────────────────────────────────────────────────
     for (ci, compartment) in node.compartments.iter().enumerate() {
-        let _is_first = ci == 0;
-
         match compartment {
             Compartment::Header { stereotype, name, is_abstract, badges } => {
                 let hl = layout_header(
@@ -271,18 +263,10 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
                 );
                 let h = hl.total_height;
 
-                // Header background
-                // Use a clipping approach: draw rounded rect for the whole header area
-                let clip_id = format!("hc{}", shadow_id);
+                // Header background — plain rect (no clip, no rounded corners needed)
                 svg_parts.push(format!(
-                    "<clipPath id=\"{clip}\"><rect x=\"0\" y=\"{y:.1}\" \
-                     width=\"{w:.1}\" height=\"{h:.1}\" rx=\"{r}\" ry=\"{r}\"/></clipPath>",
-                    clip = clip_id, y = y, w = box_width, h = h + CORNER_R, r = CORNER_R
-                ));
-                svg_parts.push(format!(
-                    "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" \
-                     fill=\"{fill}\" clip-path=\"url(#{clip})\"/>",
-                    y = y, w = box_width, h = h, fill = theme.header_bg, clip = clip_id
+                    "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"{fill}\"/>",
+                    y = y, w = box_width, h = h, fill = theme.header_bg
                 ));
 
                 // Stereotype label
@@ -294,7 +278,7 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
                     svg_parts.push(format!(
                         "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
                          fill=\"{fg}\" font-style=\"italic\">{text}</text>",
-                        x = PAD_H, ty = text_y, fs = FS_STEREOTYPE,
+                        x = CONTENT_X, ty = text_y, fs = FS_STEREOTYPE,
                         fg = theme.stereotype_fg, text = esc(&stereo_text)
                     ));
                     text_y += lh - m.cap_height(FS_STEREOTYPE) + GAP;
@@ -306,7 +290,7 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
                 svg_parts.push(format!(
                     "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
                      font-weight=\"700\" fill=\"{fg}\"{style}>{text}</text>",
-                    x = PAD_H, ty = text_y, fs = FS_NAME,
+                    x = CONTENT_X, ty = text_y, fs = FS_NAME,
                     fg = theme.header_fg, style = name_style, text = esc(name)
                 ));
 
@@ -316,12 +300,12 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
                     svg_parts.push(format!(
                         "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
                          fill=\"{fg}\" font-style=\"italic\">{{abstract}}</text>",
-                        x = PAD_H, ty = text_y + m.cap_height(FS_STEREOTYPE),
+                        x = CONTENT_X, ty = text_y + m.cap_height(FS_STEREOTYPE),
                         fs = FS_STEREOTYPE, fg = theme.stereotype_fg
                     ));
                 }
 
-                // Header badges
+                // Header badges (right-aligned)
                 if !badges.is_empty() {
                     let badge_center_y = y + h / 2.0;
                     let total_badge_w: f64 = badges.iter().map(|b| {
@@ -355,21 +339,24 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
                 }
 
                 y += h;
+                header_bottom = y;
             }
 
             Compartment::StatusRow { badges } => {
+                // Draw divider before this compartment (ci==1 uses accent color, others use divider color)
                 if ci > 0 {
-                    svg_parts.push(divider_line(y, box_width, theme.divider));
+                    let divider_color = if ci == 1 { theme.accent } else { theme.divider };
+                    svg_parts.push(divider_line(y, box_width, divider_color));
                     y += DIVIDER_H;
                 }
 
-                let h = STATUS_PAD_V * 2.0 + STATUS_ROW_H;
+                let h = STATUS_PAD_V * 2.0 + BADGE_H;
                 svg_parts.push(format!(
                     "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"{fill}\"/>",
                     y = y, w = box_width, h = h, fill = theme.body_bg
                 ));
 
-                let mut bx = PAD_H;
+                let mut bx = CONTENT_X;
                 let center_y = y + h / 2.0;
                 for badge in badges {
                     let bw = m.advance_width(&badge.text, FS_BADGE, badge.mono) + BADGE_PAD_H * 2.0;
@@ -390,59 +377,72 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
             }
 
             Compartment::PortsList { items } => {
-                if ci > 0 {
-                    svg_parts.push(divider_line(y, box_width, theme.divider));
-                    y += DIVIDER_H;
-                }
-                svg_parts.push(format!(
-                    "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"{fill}\"/>",
-                    y = y,
-                    w = box_width,
-                    h = SECTION_PAD_TOP + SECTION_TITLE_H + items.len() as f64 * ROW_H + SECTION_PAD_BOT,
-                    fill = theme.body_bg
-                ));
-
-                y += SECTION_PAD_TOP;
-                svg_parts.push(section_title("PORTS", y, theme.muted_fg, m));
-                y += SECTION_TITLE_H;
-
-                for row in items {
-                    let text = port_row_text(row);
-                    let anchor_y = y + ROW_H / 2.0;
-                    let side = PortSide::from(&row.direction);
-                    let anchor_x = match &side {
-                        PortSide::Left => 0.0,
-                        PortSide::Right => box_width,
-                    };
-
+                if node.ibd {
+                    // In IBD mode: collect ports into left/right lists, do not render as text
+                    for row in items {
+                        match row.direction {
+                            PortDirection::Out => ibd_right_ports.push(row.clone()),
+                            _ => ibd_left_ports.push(row.clone()),
+                        }
+                    }
+                    // No y advance, no divider
+                } else {
+                    if ci > 0 {
+                        let divider_color = if ci == 1 { theme.accent } else { theme.divider };
+                        svg_parts.push(divider_line(y, box_width, divider_color));
+                        y += DIVIDER_H;
+                    }
                     svg_parts.push(format!(
-                        "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
-                         fill=\"{fg}\">{text}</text>",
-                        x = PAD_H,
-                        ty = y + m.cap_height(FS_ROW),
-                        fs = FS_ROW, fg = theme.body_fg,
-                        text = esc(&text)
+                        "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"{fill}\"/>",
+                        y = y,
+                        w = box_width,
+                        h = SECTION_PAD_TOP + SECTION_TITLE_H + items.len() as f64 * ROW_H + SECTION_PAD_BOT,
+                        fill = theme.body_bg
                     ));
 
-                    port_anchors.push(PortAnchor {
-                        name: row.name.clone(),
-                        x: anchor_x,
-                        y: anchor_y,
-                        side: match side {
-                            PortSide::Left => "left".to_string(),
-                            PortSide::Right => "right".to_string(),
-                        },
-                        direction: format!("{:?}", row.direction).to_lowercase(),
-                    });
+                    y += SECTION_PAD_TOP;
+                    svg_parts.push(section_title("ports", y, theme.muted_fg, m));
+                    y += SECTION_TITLE_H;
 
-                    y += ROW_H;
+                    for row in items {
+                        let text = port_row_text(row);
+                        let anchor_y = y + ROW_H / 2.0;
+                        let side = PortSide::from(&row.direction);
+                        let anchor_x = match &side {
+                            PortSide::Left => 0.0,
+                            PortSide::Right => box_width,
+                        };
+
+                        svg_parts.push(format!(
+                            "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
+                             fill=\"{fg}\">{text}</text>",
+                            x = CONTENT_X,
+                            ty = y + m.cap_height(FS_ROW),
+                            fs = FS_ROW, fg = theme.body_fg,
+                            text = esc(&text)
+                        ));
+
+                        port_anchors.push(PortAnchor {
+                            name: row.name.clone(),
+                            x: anchor_x,
+                            y: anchor_y,
+                            side: match side {
+                                PortSide::Left => "left".to_string(),
+                                PortSide::Right => "right".to_string(),
+                            },
+                            direction: format!("{:?}", row.direction).to_lowercase(),
+                        });
+
+                        y += ROW_H;
+                    }
+                    y += SECTION_PAD_BOT;
                 }
-                y += SECTION_PAD_BOT;
             }
 
             Compartment::Features { items } => {
                 if ci > 0 {
-                    svg_parts.push(divider_line(y, box_width, theme.divider));
+                    let divider_color = if ci == 1 { theme.accent } else { theme.divider };
+                    svg_parts.push(divider_line(y, box_width, divider_color));
                     y += DIVIDER_H;
                 }
                 svg_parts.push(format!(
@@ -454,14 +454,14 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
                 ));
 
                 y += SECTION_PAD_TOP;
-                svg_parts.push(section_title("FEATURES", y, theme.muted_fg, m));
+                svg_parts.push(section_title("features", y, theme.muted_fg, m));
                 y += SECTION_TITLE_H;
 
                 for row in items {
                     let text = feature_row_text(row);
                     svg_parts.push(format!(
                         "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" fill=\"{fg}\">{text}</text>",
-                        x = PAD_H,
+                        x = CONTENT_X,
                         ty = y + m.cap_height(FS_ROW),
                         fs = FS_ROW, fg = theme.body_fg,
                         text = esc(&text)
@@ -473,7 +473,8 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
 
             Compartment::DocPreview { lines } => {
                 if ci > 0 {
-                    svg_parts.push(divider_line(y, box_width, theme.divider));
+                    let divider_color = if ci == 1 { theme.accent } else { theme.divider };
+                    svg_parts.push(divider_line(y, box_width, divider_color));
                     y += DIVIDER_H;
                 }
                 svg_parts.push(format!(
@@ -488,7 +489,7 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
                     svg_parts.push(format!(
                         "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
                          fill=\"{fg}\" font-style=\"italic\">{text}</text>",
-                        x = PAD_H,
+                        x = CONTENT_X,
                         ty = y + m.cap_height(FS_DOC),
                         fs = FS_DOC, fg = theme.muted_fg,
                         text = esc(line)
@@ -500,7 +501,8 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
 
             Compartment::GherkinPreview { given, when, then } => {
                 if ci > 0 {
-                    svg_parts.push(divider_line(y, box_width, theme.divider));
+                    let divider_color = if ci == 1 { theme.accent } else { theme.divider };
+                    svg_parts.push(divider_line(y, box_width, divider_color));
                     y += DIVIDER_H;
                 }
                 let lines: Vec<&str> = [given, when, then]
@@ -527,7 +529,7 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
                         "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" font-style=\"italic\">\
                          <tspan font-weight=\"700\" fill=\"{kc}\">{kw} </tspan>\
                          <tspan fill=\"{fg}\">{rest}</tspan></text>",
-                        x = PAD_H,
+                        x = CONTENT_X,
                         ty = y + m.cap_height(FS_DOC),
                         fs = FS_DOC,
                         kc = keyword_color,
@@ -542,21 +544,93 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
         }
     }
 
+    // ── IBD port area: extend body height and render port squares ────────────
+    if node.ibd {
+        let n_left = ibd_left_ports.len();
+        let n_right = ibd_right_ports.len();
+        let port_area_h = (n_left.max(n_right) as f64) * IBD_PORT_ROW_H + IBD_PORT_PAD_V * 2.0;
+        let min_h = header_bottom + port_area_h;
+        if y < min_h {
+            y = min_h;
+        }
+
+        let body_h = y - header_bottom;
+
+        // Body background
+        svg_parts.push(format!(
+            "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"{fill}\"/>",
+            y = header_bottom, w = box_width, h = body_h, fill = theme.body_bg
+        ));
+
+        // Left border ports (In / InOut / Undirected)
+        for (i, row) in ibd_left_ports.iter().enumerate() {
+            let cy = header_bottom + IBD_PORT_PAD_V + i as f64 * IBD_PORT_ROW_H + IBD_PORT_ROW_H / 2.0;
+            let sq_x = -PORT_SQ / 2.0;
+            let sq_y = cy - PORT_SQ / 2.0;
+            svg_parts.push(format!(
+                "<rect x=\"{sx:.1}\" y=\"{sy:.1}\" width=\"{sz:.0}\" height=\"{sz:.0}\" \
+                 fill=\"#ffffff\" stroke=\"{stroke}\" stroke-width=\"1.2\"/>",
+                sx = sq_x, sy = sq_y, sz = PORT_SQ, stroke = theme.border
+            ));
+            let label = port_name_label(row);
+            svg_parts.push(format!(
+                "<text x=\"{tx:.1}\" y=\"{ty:.1}\" font-size=\"9\" fill=\"{fg}\">{text}</text>",
+                tx = PORT_SQ / 2.0 + 3.0, ty = cy + 3.5, fg = theme.muted_fg, text = esc(&label)
+            ));
+            port_anchors.push(PortAnchor {
+                name: row.name.clone(),
+                x: 0.0,
+                y: cy,
+                side: "left".to_string(),
+                direction: format!("{:?}", row.direction).to_lowercase(),
+            });
+        }
+
+        // Right border ports (Out)
+        for (i, row) in ibd_right_ports.iter().enumerate() {
+            let cy = header_bottom + IBD_PORT_PAD_V + i as f64 * IBD_PORT_ROW_H + IBD_PORT_ROW_H / 2.0;
+            let sq_x = box_width - PORT_SQ / 2.0;
+            let sq_y = cy - PORT_SQ / 2.0;
+            svg_parts.push(format!(
+                "<rect x=\"{sx:.1}\" y=\"{sy:.1}\" width=\"{sz:.0}\" height=\"{sz:.0}\" \
+                 fill=\"#ffffff\" stroke=\"{stroke}\" stroke-width=\"1.2\"/>",
+                sx = sq_x, sy = sq_y, sz = PORT_SQ, stroke = theme.border
+            ));
+            let label = port_name_label(row);
+            svg_parts.push(format!(
+                "<text x=\"{tx:.1}\" y=\"{ty:.1}\" font-size=\"9\" fill=\"{fg}\" \
+                 text-anchor=\"end\">{text}</text>",
+                tx = box_width - PORT_SQ / 2.0 - 3.0, ty = cy + 3.5,
+                fg = theme.muted_fg, text = esc(&label)
+            ));
+            port_anchors.push(PortAnchor {
+                name: row.name.clone(),
+                x: box_width,
+                y: cy,
+                side: "right".to_string(),
+                direction: format!("{:?}", row.direction).to_lowercase(),
+            });
+        }
+    }
+
     let box_height = y;
 
+    // ── Accent strip (left edge, full height) — drawn before border ──────────
+    let accent_strip = format!(
+        "<rect x=\"0\" y=\"0\" width=\"{w:.0}\" height=\"{h:.1}\" fill=\"{fill}\"/>",
+        w = ACCENT_STRIP_W as u32, h = box_height, fill = theme.accent
+    );
+
     // ── Outer border ─────────────────────────────────────────────────────────
-    // Inserted at the front (drawn over everything as a border-only rect)
     let border_rect = format!(
         "<rect x=\"{bw:.1}\" y=\"{bw:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" \
-         rx=\"{r}\" ry=\"{r}\" fill=\"none\" stroke=\"{stroke}\" \
-         stroke-width=\"{bw2}\"{filter}/>",
+         rx=\"{r}\" ry=\"{r}\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"{bw2}\"/>",
         bw = BORDER_W / 2.0,
         w = box_width - BORDER_W,
         h = box_height - BORDER_W,
         r = CORNER_R,
         stroke = theme.border,
         bw2 = BORDER_W,
-        filter = filter_ref
     );
 
     // ── Assemble SVG ─────────────────────────────────────────────────────────
@@ -565,10 +639,13 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
         "<svg xmlns=\"http://www.w3.org/2000/svg\" \
          viewBox=\"0 0 {w:.0} {h:.0}\" width=\"{w:.0}\" height=\"{h:.0}\">\n\
          {inner}\n\
+         {accent}\n\
          {border}\n\
          </svg>",
         w = box_width, h = box_height,
-        inner = inner, border = border_rect
+        inner = inner,
+        accent = accent_strip,
+        border = border_rect
     );
 
     RenderedElement {
@@ -591,8 +668,8 @@ fn divider_line(y: f64, width: f64, color: &str) -> String {
 fn section_title(title: &str, y: f64, muted_fg: &str, m: &dyn TextMetrics) -> String {
     format!(
         "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" fill=\"{fg}\" \
-         letter-spacing=\"1\" font-weight=\"700\">{text}</text>",
-        x = PAD_H,
+         font-style=\"italic\">{text}</text>",
+        x = CONTENT_X,
         ty = y + m.cap_height(FS_SECTION_TITLE),
         fs = FS_SECTION_TITLE,
         fg = muted_fg,

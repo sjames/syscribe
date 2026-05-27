@@ -61,6 +61,7 @@ impl ViewSpec {
                     preset: ViewPreset::from_str(preset_str),
                     include: inc,
                     min_width,
+                    ibd: false,
                 }
             }
         }
@@ -93,7 +94,7 @@ struct PlacedElement {
     port_anchors: Vec<(String, f64, f64)>,
 }
 
-pub fn cmd_diagram_compose(elements: &[RawElement], layout_file: &str, output_file: Option<&str>) {
+pub fn cmd_diagram_compose(elements: &[RawElement], layout_file: &str, output_file: Option<&str>, ibd: bool) {
     let content = match std::fs::read_to_string(layout_file) {
         Ok(c) => c,
         Err(e) => {
@@ -131,11 +132,12 @@ pub fn cmd_diagram_compose(elements: &[RawElement], layout_file: &str, output_fi
             }
         };
 
-        let view = placement
+        let mut view = placement
             .view
             .as_ref()
             .map(|v| v.clone().into_view_config())
             .unwrap_or_default();
+        view.ibd = ibd;
 
         let node = build_element_node(elem, &view);
         let rendered = render_element(&node, metrics.as_ref());

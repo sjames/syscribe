@@ -111,11 +111,18 @@ pub struct ViewConfig {
     pub preset: ViewPreset,
     pub include: IncludeFilter,
     pub min_width: Option<f64>,
+    /// When true, ports are rendered as border squares (IBD mode) instead of a text list.
+    pub ibd: bool,
 }
 
 impl Default for ViewConfig {
     fn default() -> Self {
-        Self { preset: ViewPreset::Full, include: IncludeFilter::default(), min_width: None }
+        Self {
+            preset: ViewPreset::Full,
+            include: IncludeFilter::default(),
+            min_width: None,
+            ibd: false,
+        }
     }
 }
 
@@ -132,8 +139,17 @@ pub const PAD_V: f64 = 8.0;
 pub const GAP: f64 = 4.0;
 pub const SECTION_GAP: f64 = 6.0;
 pub const DIVIDER_H: f64 = 1.0;
-pub const CORNER_R: f64 = 6.0;
-pub const BORDER_W: f64 = 1.5;
+pub const CORNER_R: f64 = 1.0;
+pub const BORDER_W: f64 = 1.2;
+
+/// Left accent strip width (px)
+pub const ACCENT_STRIP_W: f64 = 4.0;
+/// IBD port square size (px)
+pub const PORT_SQ: f64 = 10.0;
+/// Vertical spacing between IBD port squares (center-to-center)
+pub const IBD_PORT_ROW_H: f64 = 22.0;
+/// Vertical padding above/below the IBD port area
+pub const IBD_PORT_PAD_V: f64 = 10.0;
 
 // Font sizes
 pub const FS_STEREOTYPE: f64 = 9.0;
@@ -154,14 +170,6 @@ impl Color {
 }
 
 #[derive(Debug, Clone)]
-pub struct DropShadow {
-    pub dx: f64,
-    pub dy: f64,
-    pub blur: f64,
-    pub color: &'static str,
-}
-
-#[derive(Debug, Clone)]
 pub struct ElementTheme {
     pub header_bg: &'static str,
     pub header_fg: &'static str,
@@ -171,8 +179,8 @@ pub struct ElementTheme {
     pub muted_fg: &'static str,
     pub border: &'static str,
     pub divider: &'static str,
+    /// Accent strip color (left border strip)
     pub accent: &'static str,
-    pub shadow: Option<DropShadow>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -281,6 +289,8 @@ pub struct ElementNode {
     pub compartments: Vec<Compartment>,
     pub theme: ElementTheme,
     pub min_width: f64,
+    /// When true, ports are rendered as border squares instead of a text compartment.
+    pub ibd: bool,
 }
 
 /// Output of the layout pass — SVG fragment + metadata for assembly

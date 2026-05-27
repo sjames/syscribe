@@ -43,7 +43,9 @@ pub fn cmd_diagram(
         Some(("compose", m)) => {
             let layout_file = m.get_one::<String>("layout-file").unwrap();
             let output = m.get_one::<String>("output").map(|s| s.as_str());
-            compose::cmd_diagram_compose(elements, layout_file, output);
+            let kind = m.get_one::<String>("kind").map(|s| s.as_str()).unwrap_or("arch");
+            let ibd = kind == "ibd";
+            compose::cmd_diagram_compose(elements, layout_file, output, ibd);
         }
         _ => {
             build_cli().print_help().unwrap();
@@ -117,6 +119,13 @@ fn build_cli() -> Command {
                         .short('o')
                         .help("Write SVG to FILE (default: stdout)")
                         .value_name("FILE"),
+                )
+                .arg(
+                    Arg::new("kind")
+                        .long("kind")
+                        .value_name("KIND")
+                        .help("Diagram kind: bdd | ibd | arch (default: arch)")
+                        .required(false),
                 ),
         )
 }
@@ -162,5 +171,6 @@ fn view_from_matches(m: &clap::ArgMatches) -> ViewConfig {
         preset: ViewPreset::from_str(preset_str),
         include: IncludeFilter { ports: include_ports, features: include_features },
         min_width,
+        ibd: false,
     }
 }

@@ -231,6 +231,7 @@ pub fn build_element_node(element: &RawElement, view: &ViewConfig) -> ElementNod
         compartments,
         theme,
         min_width: view.min_width.unwrap_or(MIN_WIDTH),
+        ibd: view.ibd,
     }
 }
 
