@@ -300,6 +300,29 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
             if fm.diagram_kind.as_deref() == Some("PlantUML") && !elem.doc.contains("```plantuml") {
                 findings.push(error("E401", &file, "`diagramKind: PlantUML` but body has no ```plantuml fenced block"));
             }
+            // W408: %% ref: annotations inside a Mermaid block must resolve to known elements.
+            // Convention: `%% ref: QualifiedName` on any line within the ```mermaid block.
+            if fm.diagram_kind.as_deref() == Some("Mermaid") {
+                let mermaid_block = elem.doc.find("```mermaid").and_then(|start| {
+                    let after_fence = start + "```mermaid".len();
+                    elem.doc[after_fence..].find("```").map(|end| &elem.doc[after_fence..after_fence + end])
+                });
+                if let Some(block) = mermaid_block {
+                    for line in block.lines() {
+                        let trimmed = line.trim();
+                        if let Some(ref_str) = trimmed.strip_prefix("%% ref:") {
+                            let ref_str = ref_str.trim();
+                            if !ref_str.is_empty() && resolver.resolve_ref(elements, ref_str).is_none() {
+                                findings.push(warning(
+                                    "W408",
+                                    &file,
+                                    &format!("Mermaid `%% ref:` annotation '{}' does not resolve to a known element", ref_str),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
             // W401: subject must resolve to a known element
             if let Some(ref subj) = fm.subject {
                 if resolver.resolve_ref(elements, subj).is_none() {
@@ -875,8 +898,13 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
             })
             .unwrap_or_default();
 
+        let is_parent = derived_children.get(req_id).map_or(false, |v| !v.is_empty());
         match status {
-            "approved" | "implemented" if active_tcs.is_empty() => {
+            // W002: leaf requirements at approved/implemented need an active TestCase.
+            // Parent requirements (those with derivedChildren) are verified by
+            // decomposition — all their leaf descendants carry the test coverage —
+            // so W002 is suppressed for them.
+            "approved" | "implemented" if active_tcs.is_empty() && !is_parent => {
                 findings.push(warning(
                     "W002",
                     &elem.file_path,
