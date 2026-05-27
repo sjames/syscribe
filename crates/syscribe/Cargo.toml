@@ -18,3 +18,4 @@ serde_json.workspace = true
 serde = { workspace = true, features = ["derive"] }
 clap = "4"
 cassowary = "0.3.0"
+svg = "0.18.0"

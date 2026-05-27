@@ -411,7 +411,10 @@ fn build_req_diagram(elements: &[RawElement], opts: &ReqDiagramOptions) -> Strin
         if let Some((x, y)) = positions.get(qn) {
             if let Some((_, _, svg)) = req_rendered.get(qn) {
                 parts.push(format!(
-                    "<g transform=\"translate({x:.1} {y:.1})\">\n{inner}\n</g>",
+                    "<a href=\"/ui/detail/{qname}\" data-qname=\"{qname}\">\
+                     <g transform=\"translate({x:.1} {y:.1})\">\n{inner}\n</g>\
+                     </a>",
+                    qname = esc(qn),
                     x = x + ox,
                     y = y + oy,
                     inner = strip_svg_wrapper(svg)
@@ -425,7 +428,10 @@ fn build_req_diagram(elements: &[RawElement], opts: &ReqDiagramOptions) -> Strin
         if let Some((x, y)) = tc_positions.get(tc_qn) {
             if let Some((_, _, svg)) = tc_rendered.get(tc_qn) {
                 parts.push(format!(
-                    "<g transform=\"translate({x:.1} {y:.1})\">\n{inner}\n</g>",
+                    "<a href=\"/ui/detail/{qname}\" data-qname=\"{qname}\">\
+                     <g transform=\"translate({x:.1} {y:.1})\">\n{inner}\n</g>\
+                     </a>",
+                    qname = esc(tc_qn),
                     x = x + ox,
                     y = y + oy,
                     inner = strip_svg_wrapper(svg)
@@ -439,7 +445,10 @@ fn build_req_diagram(elements: &[RawElement], opts: &ReqDiagramOptions) -> Strin
         if let Some((x, y)) = arch_positions.get(arch_qn) {
             if let Some((_, _, svg)) = arch_rendered.get(arch_qn) {
                 parts.push(format!(
-                    "<g transform=\"translate({x:.1} {y:.1})\">\n{inner}\n</g>",
+                    "<a href=\"/ui/detail/{qname}\" data-qname=\"{qname}\">\
+                     <g transform=\"translate({x:.1} {y:.1})\">\n{inner}\n</g>\
+                     </a>",
+                    qname = esc(arch_qn),
                     x = x + ox,
                     y = y + oy,
                     inner = strip_svg_wrapper(svg)

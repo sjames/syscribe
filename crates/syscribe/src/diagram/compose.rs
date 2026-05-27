@@ -227,7 +227,10 @@ pub fn cmd_diagram_compose(elements: &[RawElement], layout_file: &str, output_fi
     for p in &placed {
         let inner = strip_svg_wrapper(&p.svg);
         svg_parts.push(format!(
-            "<g transform=\"translate({x:.1} {y:.1})\">\n{inner}\n</g>",
+            "<a href=\"/ui/detail/{qname}\" data-qname=\"{qname}\">\
+             <g transform=\"translate({x:.1} {y:.1})\">\n{inner}\n</g>\
+             </a>",
+            qname = esc(&p.qname),
             x = p.x + padding,
             y = p.y + padding,
             inner = inner

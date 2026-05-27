@@ -1,246 +1,133 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0"
-     width="820" height="760" viewBox="0 0 820 760">
-
-  <defs>
-    <!-- Filled arrowhead for sync messages -->
-    <marker id="arrow-filled" markerWidth="9" markerHeight="7"
-            refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 9 3.5, 0 7" fill="#333"/>
-    </marker>
-    <!-- Open arrowhead for return/async messages -->
-    <marker id="arrow-open" markerWidth="9" markerHeight="7"
-            refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 9 3.5, 0 7" fill="none" stroke="#555" stroke-width="1"/>
-    </marker>
-    <!-- Filled red arrowhead for abort -->
-    <marker id="arrow-abort" markerWidth="9" markerHeight="7"
-            refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 9 3.5, 0 7" fill="#c0392b"/>
-    </marker>
-  </defs>
-
-  <!-- ═══════════════════════════════════════════════════════════ -->
-  <!--  LIFELINE HEADERS                                          -->
-  <!-- ═══════════════════════════════════════════════════════════ -->
-
-  <!-- GCS (actor) — center x=90 -->
-  <g id="ll-gcs" sysml:ref="GroundStation::GroundControlStation">
-    <rect x="30" y="10" width="120" height="52" rx="3"
-          fill="white" stroke="#444" stroke-width="2"/>
-    <text x="90" y="29" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#666">«actor»</text>
-    <text x="90" y="46" text-anchor="middle" font-size="10" font-weight="bold" font-family="sans-serif">GCS</text>
-    <line x1="90" y1="62" x2="90" y2="750"
-          stroke="#aaa" stroke-width="1" stroke-dasharray="5 4"/>
-  </g>
-
-  <!-- FlightController — center x=270 -->
-  <g id="ll-fc" sysml:ref="UAV::Avionics::FlightController">
-    <rect x="205" y="10" width="130" height="52" rx="3"
-          fill="white" stroke="#444" stroke-width="1.5"/>
-    <text x="270" y="29" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#666">«part»</text>
-    <text x="270" y="46" text-anchor="middle" font-size="9" font-weight="bold" font-family="sans-serif">FlightController</text>
-    <line x1="270" y1="62" x2="270" y2="750"
-          stroke="#aaa" stroke-width="1" stroke-dasharray="5 4"/>
-  </g>
-
-  <!-- PropulsionSystem — center x=480 -->
-  <g id="ll-prop" sysml:ref="UAV::Propulsion::PropulsionSystem">
-    <rect x="418" y="10" width="124" height="52" rx="3"
-          fill="white" stroke="#444" stroke-width="1.5"/>
-    <text x="480" y="29" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#666">«part»</text>
-    <text x="480" y="46" text-anchor="middle" font-size="9" font-weight="bold" font-family="sans-serif">PropulsionSystem</text>
-    <line x1="480" y1="62" x2="480" y2="750"
-          stroke="#aaa" stroke-width="1" stroke-dasharray="5 4"/>
-  </g>
-
-  <!-- GPSReceiver — center x=690 -->
-  <g id="ll-gps" sysml:ref="UAV::Avionics::GPSReceiver">
-    <rect x="628" y="10" width="124" height="52" rx="3"
-          fill="white" stroke="#444" stroke-width="1.5"/>
-    <text x="690" y="29" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#666">«part»</text>
-    <text x="690" y="46" text-anchor="middle" font-size="9" font-weight="bold" font-family="sans-serif">GPSReceiver</text>
-    <line x1="690" y1="62" x2="690" y2="750"
-          stroke="#aaa" stroke-width="1" stroke-dasharray="5 4"/>
-  </g>
-
-  <!-- ═══════════════════════════════════════════════════════════ -->
-  <!--  ACTIVATION BARS                                           -->
-  <!-- ═══════════════════════════════════════════════════════════ -->
-
-  <!-- FC activation: full mission duration -->
-  <rect id="act-fc" sysml:ref="UAV::Avionics::FlightController"
-        x="263" y="78" width="14" height="666"
-        fill="#8B82F5" fill-opacity="0.35" stroke="#5248C8" stroke-width="1"/>
-
-  <!-- Prop activation: takeoff phase -->
-  <rect id="act-prop-takeoff" sysml:ref="UAV::Propulsion::PropulsionSystem"
-        x="473" y="140" width="14" height="82"
-        fill="#43A047" fill-opacity="0.3" stroke="#2E7D32" stroke-width="1"/>
-
-  <!-- Prop activation: landing phase -->
-  <rect id="act-prop-land" sysml:ref="UAV::Propulsion::PropulsionSystem"
-        x="473" y="539" width="14" height="175"
-        fill="#43A047" fill-opacity="0.3" stroke="#2E7D32" stroke-width="1"/>
-
-  <!-- ═══════════════════════════════════════════════════════════ -->
-  <!--  COMBINED FRAGMENTS                                        -->
-  <!-- ═══════════════════════════════════════════════════════════ -->
-
-  <!-- frag-takeoff: loop [altitude < targetAlt]  y=122..240 -->
-  <g id="frag-takeoff" sysml:ref="Behavior::TakeoffAction">
-    <rect x="82" y="122" width="418" height="118"
-          fill="none" stroke="#3a6ea5" stroke-width="1.2" stroke-dasharray="6 3"/>
-    <polygon points="82,122 82,136 118,136 124,129 124,122"
-             fill="#dceeff" stroke="#3a6ea5" stroke-width="1"/>
-    <text x="85" y="133" font-size="8" font-weight="bold" font-family="sans-serif" fill="#1e4d8c">loop</text>
-    <text x="175" y="133" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#3a6ea5">[altitude &lt; targetAlt]</text>
-  </g>
-
-  <!-- frag-weather: alt [wind > 12 m/s]  y=300..398 -->
-  <g id="frag-weather" sysml:ref="Behavior::MissionExecution">
-    <rect x="22" y="300" width="270" height="98"
-          fill="none" stroke="#c0730a" stroke-width="1.2" stroke-dasharray="6 3"/>
-    <polygon points="22,300 22,314 53,314 58,307 58,300"
-             fill="#fce8c3" stroke="#c0730a" stroke-width="1"/>
-    <text x="25" y="311" font-size="8" font-weight="bold" font-family="sans-serif" fill="#7d4a00">alt</text>
-    <text x="138" y="311" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#c0730a">[wind &gt; 12 m/s]</text>
-    <!-- divider between branches -->
-    <line x1="22" y1="358" x2="292" y2="358"
-          stroke="#c0730a" stroke-width="0.8" stroke-dasharray="4 4"/>
-    <text x="25" y="370" font-size="8" font-family="sans-serif" fill="#c0730a">[else]</text>
-  </g>
-
-  <!-- frag-nav: loop [for each waypoint]  y=415..510 -->
-  <g id="frag-nav" sysml:ref="Behavior::WaypointNavAction">
-    <rect x="82" y="415" width="630" height="95"
-          fill="none" stroke="#3a6ea5" stroke-width="1.2" stroke-dasharray="6 3"/>
-    <polygon points="82,415 82,429 118,429 124,422 124,415"
-             fill="#dceeff" stroke="#3a6ea5" stroke-width="1"/>
-    <text x="85" y="426" font-size="8" font-weight="bold" font-family="sans-serif" fill="#1e4d8c">loop</text>
-    <text x="200" y="426" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#3a6ea5">[for each waypoint]</text>
-  </g>
-
-  <!-- frag-land: loop [altitude > 0 m]  y=525..714 -->
-  <g id="frag-land" sysml:ref="Behavior::LandingAction">
-    <rect x="82" y="525" width="418" height="189"
-          fill="none" stroke="#3a6ea5" stroke-width="1.2" stroke-dasharray="6 3"/>
-    <polygon points="82,525 82,539 118,539 124,532 124,525"
-             fill="#dceeff" stroke="#3a6ea5" stroke-width="1"/>
-    <text x="85" y="536" font-size="8" font-weight="bold" font-family="sans-serif" fill="#1e4d8c">loop</text>
-    <text x="185" y="536" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#3a6ea5">[altitude &gt; 0 m]</text>
-  </g>
-
-  <!-- ═══════════════════════════════════════════════════════════ -->
-  <!--  MESSAGES                                                  -->
-  <!-- ═══════════════════════════════════════════════════════════ -->
-
-  <!-- e-start: startMission  GCS ──► FC  y=82 -->
-  <g id="e-start" sysml:ref="Behavior::MissionExecution">
-    <line x1="90" y1="82" x2="262" y2="82"
-          stroke="#333" stroke-width="1.5" marker-end="url(#arrow-filled)"/>
-    <text x="176" y="77" text-anchor="middle" font-size="9" font-family="sans-serif">startMission()</text>
-  </g>
-
-  <!-- e-throttle: setThrottle  FC ──► Prop  y=143 -->
-  <g id="e-throttle" sysml:ref="Behavior::TakeoffAction::setThrottle">
-    <line x1="277" y1="143" x2="472" y2="143"
-          stroke="#333" stroke-width="1.5" marker-end="url(#arrow-filled)"/>
-    <text x="374" y="138" text-anchor="middle" font-size="9" font-family="sans-serif">setThrottle(pwm)</text>
-  </g>
-
-  <!-- e-alt-telem-1: altitudeTelemetry  Prop ··► FC  y=200 (return, loop) -->
-  <g id="e-alt-telem-1" sysml:ref="Behavior::TakeoffAction::waitForAltitude">
-    <line x1="473" y1="200" x2="278" y2="200"
-          stroke="#555" stroke-width="1.2" stroke-dasharray="5 3"
-          marker-end="url(#arrow-open)"/>
-    <text x="374" y="195" text-anchor="middle" font-size="9" font-family="sans-serif" fill="#555">altitudeTelemetry</text>
-  </g>
-
-  <!-- Section divider label -->
-  <text x="200" y="255" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#aaa">──── initial GPS check ────</text>
-
-  <!-- e-req-fix-1: requestFix  FC ──► GPS  y=268 -->
-  <g id="e-req-fix-1" sysml:ref="Behavior::WaypointNavAction">
-    <line x1="277" y1="268" x2="689" y2="268"
-          stroke="#333" stroke-width="1.5" marker-end="url(#arrow-filled)"/>
-    <text x="483" y="263" text-anchor="middle" font-size="9" font-family="sans-serif">requestFix()</text>
-  </g>
-
-  <!-- e-gps-fix-1: gpsFix  GPS ··► FC  y=286 (return) -->
-  <g id="e-gps-fix-1" sysml:ref="Behavior::WaypointNavAction::navigateWaypoints">
-    <line x1="689" y1="286" x2="278" y2="286"
-          stroke="#555" stroke-width="1.2" stroke-dasharray="5 3"
-          marker-end="url(#arrow-open)"/>
-    <text x="483" y="281" text-anchor="middle" font-size="9" font-family="sans-serif" fill="#555">gpsFix</text>
-  </g>
-
-  <!-- e-abort: abortMission  FC ──► GCS  y=340 (inside alt [wind > 12]) -->
-  <g id="e-abort" sysml:ref="Behavior::MissionExecution::abortMission">
-    <line x1="263" y1="340" x2="91" y2="340"
-          stroke="#c0392b" stroke-width="1.5" marker-end="url(#arrow-abort)"/>
-    <text x="176" y="335" text-anchor="middle" font-size="9" font-family="sans-serif" fill="#c0392b">abortMission()</text>
-  </g>
-
-  <!-- else branch: continue label -->
-  <text x="156" y="383" text-anchor="middle" font-size="9" font-family="sans-serif" fill="#888">(proceed to navigation)</text>
-
-  <!-- Section divider label -->
-  <text x="350" y="408" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#aaa">──── waypoint navigation ────</text>
-
-  <!-- e-req-fix-2: requestFix  FC ──► GPS  y=453 (loop) -->
-  <g id="e-req-fix-2" sysml:ref="Behavior::WaypointNavAction::navigateWaypoints">
-    <line x1="277" y1="453" x2="689" y2="453"
-          stroke="#333" stroke-width="1.5" marker-end="url(#arrow-filled)"/>
-    <text x="483" y="448" text-anchor="middle" font-size="9" font-family="sans-serif">requestFix()</text>
-  </g>
-
-  <!-- e-gps-fix-2: gpsFix  GPS ··► FC  y=473 (return, loop) -->
-  <g id="e-gps-fix-2" sysml:ref="Behavior::WaypointNavAction::awaitArrival">
-    <line x1="689" y1="473" x2="278" y2="473"
-          stroke="#555" stroke-width="1.2" stroke-dasharray="5 3"
-          marker-end="url(#arrow-open)"/>
-    <text x="483" y="468" text-anchor="middle" font-size="9" font-family="sans-serif" fill="#555">gpsFix</text>
-  </g>
-
-  <!-- Section divider label -->
-  <text x="280" y="518" text-anchor="middle" font-size="8" font-family="sans-serif" fill="#aaa">──── landing sequence ────</text>
-
-  <!-- e-descent: commandDescent  FC ──► Prop  y=542 -->
-  <g id="e-descent" sysml:ref="Behavior::LandingAction::commandDescent">
-    <line x1="277" y1="542" x2="472" y2="542"
-          stroke="#333" stroke-width="1.5" marker-end="url(#arrow-filled)"/>
-    <text x="374" y="537" text-anchor="middle" font-size="9" font-family="sans-serif">commandDescent()</text>
-  </g>
-
-  <!-- e-alt-telem-2: altitudeTelemetry  Prop ··► FC  y=600 (return, loop) -->
-  <g id="e-alt-telem-2" sysml:ref="Behavior::LandingAction::waitForGround">
-    <line x1="473" y1="600" x2="278" y2="600"
-          stroke="#555" stroke-width="1.2" stroke-dasharray="5 3"
-          marker-end="url(#arrow-open)"/>
-    <text x="374" y="595" text-anchor="middle" font-size="9" font-family="sans-serif" fill="#555">altitudeTelemetry</text>
-  </g>
-
-  <!-- e-disarm: disarm  FC ──► Prop  y=662 -->
-  <g id="e-disarm" sysml:ref="Behavior::LandingAction::disarm">
-    <line x1="277" y1="662" x2="472" y2="662"
-          stroke="#333" stroke-width="1.5" marker-end="url(#arrow-filled)"/>
-    <text x="374" y="657" text-anchor="middle" font-size="9" font-family="sans-serif">disarm()</text>
-  </g>
-
-  <!-- e-disarmed: disarmed  Prop ··► FC  y=682 (return) -->
-  <g id="e-disarmed" sysml:ref="Behavior::LandingAction">
-    <line x1="473" y1="682" x2="278" y2="682"
-          stroke="#555" stroke-width="1.2" stroke-dasharray="5 3"
-          marker-end="url(#arrow-open)"/>
-    <text x="374" y="677" text-anchor="middle" font-size="9" font-family="sans-serif" fill="#555">disarmed</text>
-  </g>
-
-  <!-- e-complete: missionComplete  FC ··► GCS  y=738 (return) -->
-  <g id="e-complete" sysml:ref="Behavior::MissionExecution">
-    <line x1="263" y1="738" x2="91" y2="738"
-          stroke="#555" stroke-width="1.2" stroke-dasharray="5 3"
-          marker-end="url(#arrow-open)"/>
-    <text x="176" y="733" text-anchor="middle" font-size="9" font-family="sans-serif" fill="#555">missionComplete</text>
-  </g>
-
+<svg font-family="&apos;Segoe UI&apos;, system-ui, sans-serif" font-size="12" height="652" viewBox="0 0 804 652" width="804" xmlns="http://www.w3.org/2000/svg">
+<title>MissionExecutionSeq</title>
+<rect fill="#ffffff" height="652" width="804" x="0" y="0"/>
+<defs>
+<marker id="arr-msg" markerHeight="6" markerWidth="8" orient="auto" refX="8" refY="3">
+<polygon fill="#3a6ea5" points="0 0, 8 3, 0 6"/>
+</marker>
+<marker id="arr-return" markerHeight="6" markerWidth="8" orient="auto" refX="8" refY="3">
+<path d="M 0 0 L 8 3 L 0 6" fill="none" stroke="#7a8aaa" stroke-width="1.5"/>
+</marker>
+</defs>
+<a data-qname="GroundStation::GroundControlStation" href="/ui/detail/GroundStation::GroundControlStation">
+<g>
+<rect fill="#eef3fa" height="44" rx="1" stroke="#a8bcd4" stroke-width="1" width="140" x="32" y="32"/>
+<rect fill="#3a6ea5" height="44" rx="1" width="4" x="32" y="32"/>
+<text fill="#3a6ea5" font-size="9" font-style="italic" text-anchor="middle" x="102" y="46">
+«actor»
+</text>
+<text fill="#1a2540" font-size="11" font-weight="600" text-anchor="middle" x="102" y="62">
+GroundControlStation
+</text>
+<line stroke="#a0b0c8" stroke-dasharray="6 4" stroke-width="1" x1="102" x2="102" y1="76" y2="620"/>
+</g>
+</a>
+<a data-qname="UAV::Avionics::FlightController" href="/ui/detail/UAV::Avionics::FlightController">
+<g>
+<rect fill="#eef3fa" height="44" rx="1" stroke="#a8bcd4" stroke-width="1" width="140" x="232" y="32"/>
+<rect fill="#3a6ea5" height="44" rx="1" width="4" x="232" y="32"/>
+<text fill="#1a2540" font-size="11" font-weight="600" text-anchor="middle" x="302" y="58">
+FlightController
+</text>
+<line stroke="#a0b0c8" stroke-dasharray="6 4" stroke-width="1" x1="302" x2="302" y1="76" y2="620"/>
+</g>
+</a>
+<a data-qname="UAV::Propulsion::PropulsionSystem" href="/ui/detail/UAV::Propulsion::PropulsionSystem">
+<g>
+<rect fill="#eef3fa" height="44" rx="1" stroke="#a8bcd4" stroke-width="1" width="140" x="432" y="32"/>
+<rect fill="#3a6ea5" height="44" rx="1" width="4" x="432" y="32"/>
+<text fill="#1a2540" font-size="11" font-weight="600" text-anchor="middle" x="502" y="58">
+PropulsionSystem
+</text>
+<line stroke="#a0b0c8" stroke-dasharray="6 4" stroke-width="1" x1="502" x2="502" y1="76" y2="620"/>
+</g>
+</a>
+<a data-qname="UAV::Avionics::GPSReceiver" href="/ui/detail/UAV::Avionics::GPSReceiver">
+<g>
+<rect fill="#eef3fa" height="44" rx="1" stroke="#a8bcd4" stroke-width="1" width="140" x="632" y="32"/>
+<rect fill="#3a6ea5" height="44" rx="1" width="4" x="632" y="32"/>
+<text fill="#1a2540" font-size="11" font-weight="600" text-anchor="middle" x="702" y="58">
+GPSReceiver
+</text>
+<line stroke="#a0b0c8" stroke-dasharray="6 4" stroke-width="1" x1="702" x2="702" y1="76" y2="620"/>
+</g>
+</a>
+<g>
+<path d="M 102.0 132.0 L 302.0 132.0" fill="none" marker-end="url(#arr-msg)" stroke="#3a6ea5" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="202" y="127">
+MissionExecution
+</text>
+</g>
+<g>
+<path d="M 302.0 168.0 L 502.0 168.0" fill="none" marker-end="url(#arr-msg)" stroke="#3a6ea5" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="402" y="163">
+setThrottle
+</text>
+</g>
+<g>
+<path d="M 502.0 204.0 L 302.0 204.0" fill="none" marker-end="url(#arr-msg)" stroke="#3a6ea5" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="402" y="199">
+waitForAltitude
+</text>
+</g>
+<g>
+<path d="M 302.0 240.0 L 702.0 240.0" fill="none" marker-end="url(#arr-msg)" stroke="#3a6ea5" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="502" y="235">
+WaypointNavAction
+</text>
+</g>
+<g>
+<path d="M 702.0 276.0 L 302.0 276.0" fill="none" marker-end="url(#arr-return)" stroke="#7a8aaa" stroke-dasharray="6 3" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="502" y="271">
+navigateWaypoints
+</text>
+</g>
+<g>
+<path d="M 302.0 312.0 L 102.0 312.0" fill="none" marker-end="url(#arr-msg)" stroke="#3a6ea5" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="202" y="307">
+abortMission
+</text>
+</g>
+<g>
+<path d="M 302.0 348.0 L 702.0 348.0" fill="none" marker-end="url(#arr-msg)" stroke="#3a6ea5" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="502" y="343">
+navigateWaypoints
+</text>
+</g>
+<g>
+<path d="M 702.0 384.0 L 302.0 384.0" fill="none" marker-end="url(#arr-return)" stroke="#7a8aaa" stroke-dasharray="6 3" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="502" y="379">
+awaitArrival
+</text>
+</g>
+<g>
+<path d="M 302.0 420.0 L 502.0 420.0" fill="none" marker-end="url(#arr-msg)" stroke="#3a6ea5" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="402" y="415">
+commandDescent
+</text>
+</g>
+<g>
+<path d="M 502.0 456.0 L 302.0 456.0" fill="none" marker-end="url(#arr-msg)" stroke="#3a6ea5" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="402" y="451">
+waitForGround
+</text>
+</g>
+<g>
+<path d="M 302.0 492.0 L 502.0 492.0" fill="none" marker-end="url(#arr-msg)" stroke="#3a6ea5" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="402" y="487">
+disarm
+</text>
+</g>
+<g>
+<path d="M 502.0 528.0 L 302.0 528.0" fill="none" marker-end="url(#arr-return)" stroke="#7a8aaa" stroke-dasharray="6 3" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="402" y="523">
+LandingAction
+</text>
+</g>
+<g>
+<path d="M 302.0 564.0 L 102.0 564.0" fill="none" marker-end="url(#arr-return)" stroke="#7a8aaa" stroke-dasharray="6 3" stroke-width="1.5"/>
+<text fill="#2a3a5a" font-family="ui-monospace, &apos;Cascadia Code&apos;, &apos;Fira Code&apos;, monospace" font-size="10" text-anchor="middle" x="202" y="559">
+MissionExecution
+</text>
+</g>
 </svg>

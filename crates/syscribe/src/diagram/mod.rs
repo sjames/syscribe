@@ -3,6 +3,7 @@ mod layout;
 mod list;
 mod measure;
 mod req;
+mod seq;
 mod solver;
 
 use clap::{Arg, Command};
@@ -56,6 +57,11 @@ pub fn cmd_diagram(
             let kind = m.get_one::<String>("kind").map(|s| s.as_str());
             let svg_output = m.get_one::<String>("svg").map(|s| s.as_str());
             solver::cmd_diagram_layout(elements, placement_file, output, compose_after, kind, svg_output);
+        }
+        Some(("seq", m)) => {
+            let qname = m.get_one::<String>("qname").unwrap();
+            let output = m.get_one::<String>("output").map(|s| s.as_str());
+            seq::cmd_diagram_seq(elements, qname, output);
         }
         Some(("req", m)) => {
             let root = m.get_one::<String>("root").unwrap();
@@ -157,6 +163,23 @@ fn build_cli() -> Command {
                     Arg::new("svg")
                         .long("svg")
                         .help("SVG output path when --compose is set (default: stdout)")
+                        .value_name("FILE"),
+                ),
+        )
+        .subcommand(
+            Command::new("seq")
+                .about("Render a sequence diagram from a Diagram element with diagramKind: Sequence")
+                .arg(
+                    Arg::new("qname")
+                        .help("Qualified name of the Diagram element")
+                        .required(true)
+                        .value_name("QNAME"),
+                )
+                .arg(
+                    Arg::new("output")
+                        .long("output")
+                        .short('o')
+                        .help("Write SVG to FILE (default: stdout)")
                         .value_name("FILE"),
                 ),
         )

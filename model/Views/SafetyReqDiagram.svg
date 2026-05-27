@@ -9,7 +9,7 @@
 <path d="M 976.0 417.0 L 952.0 417.0 L 952.0 312.0 L 928.0 312.0" fill="none" stroke="#3a6ea5" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#arr-verify)"/><text x="952.0" y="360.5" font-size="9" fill="#3a6ea5" text-anchor="middle" font-style="italic">«verify»</text>
 <path d="M 976.0 136.0 L 728.0 136.0" fill="none" stroke="#3a6ea5" stroke-width="1.4" stroke-dasharray="5,3" marker-end="url(#arr-verify)"/><text x="852.0" y="132.0" font-size="9" fill="#3a6ea5" text-anchor="middle" font-style="italic">«verify»</text>
 <path d="M 1532.0 312.0 L 472.0 312.0" fill="none" stroke="#1a6b30" stroke-width="1.4" stroke-dasharray="4,2" marker-end="url(#arr-satisfy)"/><text x="1002.0" y="308.0" font-size="9" fill="#1a6b30" text-anchor="middle" font-style="italic">«satisfy»</text>
-<g transform="translate(240.0 68.0)">
+<a href="/ui/detail/Requirements::SafetyParentReq" data-qname="Requirements::SafetyParentReq"><g transform="translate(240.0 68.0)">
 <defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
 <rect x="0" y="0.0" width="488.0" height="54.0" fill="#f4effe"/>
 <text x="16.0" y="16.5" font-size="9" fill="#7040c0" font-style="italic">«requirement»</text>
@@ -26,8 +26,8 @@
 <text x="16.0" y="117.2" font-size="10" fill="#8a70b0" font-style="italic">Stakeholder-level safety goal derived from regul…</text>
 <rect x="0" y="0" width="4" height="136.0" fill="#7040c0"/>
 <rect x="0.6" y="0.6" width="486.8" height="134.8" rx="1" ry="1" fill="none" stroke="#c0a0e0" stroke-width="1.2"/>
-</g>
-<g transform="translate(40.0 244.0)">
+</g></a>
+<a href="/ui/detail/Requirements::FaultTolerantFCReq" data-qname="Requirements::FaultTolerantFCReq"><g transform="translate(40.0 244.0)">
 <defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
 <rect x="0" y="0.0" width="432.0" height="54.0" fill="#f4effe"/>
 <text x="16.0" y="16.5" font-size="9" fill="#7040c0" font-style="italic">«requirement»</text>
@@ -45,8 +45,8 @@
 <text x="16.0" y="117.2" font-size="10" fill="#8a70b0" font-style="italic">DO-178C DAL A requires bounded fault detection a…</text>
 <rect x="0" y="0" width="4" height="136.0" fill="#7040c0"/>
 <rect x="0.6" y="0.6" width="430.8" height="134.8" rx="1" ry="1" fill="none" stroke="#c0a0e0" stroke-width="1.2"/>
-</g>
-<g transform="translate(492.0 244.0)">
+</g></a>
+<a href="/ui/detail/Requirements::SafeLandingReq" data-qname="Requirements::SafeLandingReq"><g transform="translate(492.0 244.0)">
 <defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
 <rect x="0" y="0.0" width="436.0" height="54.0" fill="#f4effe"/>
 <text x="16.0" y="16.5" font-size="9" fill="#7040c0" font-style="italic">«requirement»</text>
@@ -64,8 +64,8 @@
 <text x="16.0" y="117.2" font-size="10" fill="#8a70b0" font-style="italic">An uncontrolled descent following loss of link o…</text>
 <rect x="0" y="0" width="4" height="136.0" fill="#7040c0"/>
 <rect x="0.6" y="0.6" width="434.8" height="134.8" rx="1" ry="1" fill="none" stroke="#c0a0e0" stroke-width="1.2"/>
-</g>
-<g transform="translate(976.0 269.5)">
+</g></a>
+<a href="/ui/detail/Verification::FCFaultInjectionTest" data-qname="Verification::FCFaultInjectionTest"><g transform="translate(976.0 269.5)">
 <defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
 <rect x="0" y="0.0" width="416.0" height="54.0" fill="#edfbf2"/>
 <text x="16.0" y="16.5" font-size="9" fill="#2a7a44" font-style="italic">«test case»</text>
@@ -77,8 +77,8 @@
 <rect x="58.4" y="61.0" width="24.5" height="18" rx="4" fill="#7c3aed"/><text x="70.6" y="73.2" font-size="9" fill="#ffffff" text-anchor="middle">L5</text>
 <rect x="0" y="0" width="4" height="85.0" fill="#2a7a44"/>
 <rect x="0.6" y="0.6" width="414.8" height="83.8" rx="1" ry="1" fill="none" stroke="#90c8a4" stroke-width="1.2"/>
-</g>
-<g transform="translate(976.0 374.5)">
+</g></a>
+<a href="/ui/detail/Verification::SafeLandingTest" data-qname="Verification::SafeLandingTest"><g transform="translate(976.0 374.5)">
 <defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
 <rect x="0" y="0.0" width="460.0" height="54.0" fill="#edfbf2"/>
 <text x="16.0" y="16.5" font-size="9" fill="#2a7a44" font-style="italic">«test case»</text>
@@ -90,8 +90,8 @@
 <rect x="58.4" y="61.0" width="24.5" height="18" rx="4" fill="#7c3aed"/><text x="70.6" y="73.2" font-size="9" fill="#ffffff" text-anchor="middle">L5</text>
 <rect x="0" y="0" width="4" height="85.0" fill="#2a7a44"/>
 <rect x="0.6" y="0.6" width="458.8" height="83.8" rx="1" ry="1" fill="none" stroke="#90c8a4" stroke-width="1.2"/>
-</g>
-<g transform="translate(976.0 93.5)">
+</g></a>
+<a href="/ui/detail/Verification::SafetyCaseReview" data-qname="Verification::SafetyCaseReview"><g transform="translate(976.0 93.5)">
 <defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
 <rect x="0" y="0.0" width="532.0" height="54.0" fill="#edfbf2"/>
 <text x="16.0" y="16.5" font-size="9" fill="#2a7a44" font-style="italic">«test case»</text>
@@ -103,8 +103,8 @@
 <rect x="58.4" y="61.0" width="24.5" height="18" rx="4" fill="#bfdbfe"/><text x="70.6" y="73.2" font-size="9" fill="#1e40af" text-anchor="middle">L2</text>
 <rect x="0" y="0" width="4" height="85.0" fill="#2a7a44"/>
 <rect x="0.6" y="0.6" width="530.8" height="83.8" rx="1" ry="1" fill="none" stroke="#90c8a4" stroke-width="1.2"/>
-</g>
-<g transform="translate(1532.0 269.5)">
+</g></a>
+<a href="/ui/detail/UAV::Avionics::FlightController" data-qname="UAV::Avionics::FlightController"><g transform="translate(1532.0 269.5)">
 <defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
 <rect x="0" y="0.0" width="180.0" height="54.0" fill="#eef3fa"/>
 <text x="16.0" y="16.5" font-size="9" fill="#4a6ea5" font-style="italic">«part def»</text>
@@ -114,5 +114,5 @@
 <rect x="16.0" y="61.0" width="46.1" height="18" rx="4" fill="#3b82f6"/><text x="39.1" y="73.2" font-size="9" fill="#ffffff" text-anchor="middle">software</text>
 <rect x="0" y="0" width="4" height="85.0" fill="#3a6ea5"/>
 <rect x="0.6" y="0.6" width="178.8" height="83.8" rx="1" ry="1" fill="none" stroke="#a8bcd4" stroke-width="1.2"/>
-</g>
+</g></a>
 </svg>

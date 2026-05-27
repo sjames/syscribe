@@ -2,10 +2,23 @@
 
 use anyhow::Result;
 use axum::{routing::{get, patch}, Router};
+use clap::Parser;
 use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
+
+#[derive(Parser)]
+#[command(about = "Syscribe model browser")]
+struct Cli {
+    /// Path to the model root directory
+    #[arg(default_value = "model")]
+    model: PathBuf,
+
+    /// Address to listen on
+    #[arg(long, default_value = "0.0.0.0:3000")]
+    bind: String,
+}
 
 mod routes;
 mod state;
@@ -25,11 +38,12 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env().add_directive("sysml=debug".parse()?))
         .init();
 
-    // Resolve model root: sibling `model/` directory relative to the binary's
-    // working directory, falling back to the current directory.
-    let model_root = std::env::var("MODEL_ROOT")
+    // Resolve model root: CLI arg > MODEL_ROOT env var > default "model/".
+    let model_root = std::env::args()
+        .nth(1)
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("model"));
+        .or_else(|| std::env::var("MODEL_ROOT").ok().map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from("model"));
 
     info!("Loading model from {:?}", model_root);
     let elements = walk_model(&model_root)?;
