@@ -300,26 +300,39 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
             if fm.diagram_kind.as_deref() == Some("PlantUML") && !elem.doc.contains("```plantuml") {
                 findings.push(error("E401", &file, "`diagramKind: PlantUML` but body has no ```plantuml fenced block"));
             }
-            // W408: %% ref: annotations inside a Mermaid block must resolve to known elements.
+            // W408 / W409: validate %% ref: annotations inside Mermaid blocks.
             // Convention: `%% ref: QualifiedName` on any line within the ```mermaid block.
+            // W408 fires for each annotation that doesn't resolve.
+            // W409 fires when no annotations are present at all.
             if fm.diagram_kind.as_deref() == Some("Mermaid") {
                 let mermaid_block = elem.doc.find("```mermaid").and_then(|start| {
                     let after_fence = start + "```mermaid".len();
                     elem.doc[after_fence..].find("```").map(|end| &elem.doc[after_fence..after_fence + end])
                 });
                 if let Some(block) = mermaid_block {
+                    let mut ref_count = 0usize;
                     for line in block.lines() {
                         let trimmed = line.trim();
                         if let Some(ref_str) = trimmed.strip_prefix("%% ref:") {
                             let ref_str = ref_str.trim();
-                            if !ref_str.is_empty() && resolver.resolve_ref(elements, ref_str).is_none() {
-                                findings.push(warning(
-                                    "W408",
-                                    &file,
-                                    &format!("Mermaid `%% ref:` annotation '{}' does not resolve to a known element", ref_str),
-                                ));
+                            if !ref_str.is_empty() {
+                                ref_count += 1;
+                                if resolver.resolve_ref(elements, ref_str).is_none() {
+                                    findings.push(warning(
+                                        "W408",
+                                        &file,
+                                        &format!("Mermaid `%% ref:` annotation '{}' does not resolve to a known element", ref_str),
+                                    ));
+                                }
                             }
                         }
+                    }
+                    if ref_count == 0 {
+                        findings.push(warning(
+                            "W409",
+                            &file,
+                            "Mermaid diagram has no `%% ref:` annotations — add at least one to link diagram nodes to model elements",
+                        ));
                     }
                 }
             }

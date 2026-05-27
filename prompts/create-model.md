@@ -142,7 +142,7 @@ Add `satisfies:` to architecture elements. Validate and fix any E312 (parent in 
 Write `Allocation` elements. Validate: fix E502/E503 (unresolved `allocatedFrom`/`allocatedTo`).
 
 **Batch 8 — Diagrams**
-Write `Diagram` elements after all model elements are in place (shapes and edges reference them). Validate: fix E400 (missing mermaid block), W402 (unresolved shape ref), W403 (undefined edge endpoint), W408 (unresolved `%% ref:` annotation in Mermaid block).
+Write `Diagram` elements after all model elements are in place (shapes and edges reference them). Validate: fix E400 (missing mermaid block), W402 (unresolved shape ref), W403 (undefined edge endpoint), W408 (unresolved `%% ref:` annotation in Mermaid block), W409 (Mermaid diagram has no `%% ref:` annotations at all).
 
 After all batches pass with 0 errors, review the warnings section and fix any that indicate genuine gaps (W300 — leaf requirement has no satisfying element; W002 — approved requirement has no active TestCase).
 
@@ -729,7 +729,7 @@ Place `%% ref: QualifiedName` on the line **immediately before** the node or edg
 | `%% ref: Requirements::Scheduler::Bitmap` | `Requirement` element by qualified name |
 | `%% ref: Decisions::ADR-SYSRT-004` | `ADR` element |
 
-W408 fires once per unresolved `%% ref:` annotation. Use these annotations on every significant node in architecture diagrams so the model validator catches renamed or deleted elements.
+W408 fires once per unresolved `%% ref:` annotation. W409 fires when a Mermaid diagram has **no** `%% ref:` annotations at all. Use these annotations on every significant node in architecture diagrams so the model validator catches renamed or deleted elements.
 
 ---
 
