@@ -4,7 +4,8 @@ use std::path::Path;
 use serde::Deserialize;
 use syscribe_model::element::RawElement;
 
-use crate::diagram::layout::router::{arrowhead_defs, route_edge};
+use crate::diagram::layout::astar::RoutingGrid;
+use crate::diagram::layout::router::{arrowhead_defs, edge_style, route_edge_routed};
 use crate::diagram::layout::{build_element_node, load_metrics, render_element, IncludeFilter, ViewConfig, ViewPreset};
 use crate::diagram::solver::{
     solve_layout, PlacementCanvas, PlacementFile,
@@ -169,8 +170,21 @@ pub fn cmd_diagram_compose(elements: &[RawElement], layout_file: &str, output_fi
     // Canvas size
     let max_x = placed.iter().map(|p| p.x + p.width).fold(0.0_f64, f64::max);
     let max_y = placed.iter().map(|p| p.y + p.height).fold(0.0_f64, f64::max);
-    let canvas_w = max_x + padding * 2.0;
-    let canvas_h = max_y + padding * 2.0;
+    let canvas_w = max_x + 2.0 * padding + 80.0;
+    let canvas_h = max_y + 2.0 * padding + 80.0;
+
+    // Build routing grid
+    let mut grid = RoutingGrid::new(canvas_w, canvas_h);
+    for p in &placed {
+        grid.mark_obstacle(p.x + padding, p.y + padding, p.width, p.height);
+    }
+    for p in &placed {
+        for &(_, ax, ay) in &p.port_anchors {
+            grid.unblock(ax + padding, ay + padding);
+        }
+        grid.unblock(p.x + padding + p.width, p.y + padding + p.height / 2.0);
+        grid.unblock(p.x + padding, p.y + padding + p.height / 2.0);
+    }
 
     let mut svg_parts: Vec<String> = Vec::new();
 
@@ -210,22 +224,18 @@ pub fn cmd_diagram_compose(elements: &[RawElement], layout_file: &str, output_fi
                     .unwrap_or((0.0, 0.0))
             });
 
-            let mut edge_svg = route_edge(
-                x1 + padding, y1 + padding,
-                x2 + padding, y2 + padding,
-                kind,
-            );
+            let x1_padded = x1 + padding;
+            let y1_padded = y1 + padding;
+            let x2_padded = x2 + padding;
+            let y2_padded = y2 + padding;
 
-            if let Some(label) = &edge.label {
-                let lx = (x1 + x2) / 2.0 + padding;
-                let ly = (y1 + y2) / 2.0 + padding - 6.0;
-                edge_svg.push_str(&format!(
-                    "<text x=\"{lx:.1}\" y=\"{ly:.1}\" font-size=\"9\" fill=\"#555\" \
-                     text-anchor=\"middle\" font-style=\"italic\">{lbl}</text>",
-                    lx = lx, ly = ly, lbl = esc(label)
-                ));
-            }
+            grid.unblock(x1_padded, y1_padded);
+            grid.unblock(x2_padded, y2_padded);
 
+            let waypoints = grid.route(x1_padded, y1_padded, x2_padded, y2_padded);
+            let style = edge_style(kind);
+            let user_label = edge.label.as_deref();
+            let edge_svg = route_edge_routed(&waypoints, &style, user_label);
             svg_parts.push(edge_svg);
         }
     }

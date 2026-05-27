@@ -1,3 +1,4 @@
+pub mod astar;
 pub mod builder;
 pub mod engine;
 pub mod metrics;
