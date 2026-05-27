@@ -1,7 +1,6 @@
 name: Validate Syscribe Model
 description: >
-  Validate a Syscribe systems model — checks element schema, resolves
-  cross-references, and enforces SysMLv2 traceability rules. Fails the
+  Validate a Syscribe systems model checks element schema, and enforces traceability rules. Fails the
   job when validation errors are found.
 author: Sojan James
 
