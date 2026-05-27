@@ -1,4 +1,5 @@
 mod query;
+mod render;
 
 use std::collections::{BTreeMap, HashMap};
 use syscribe_model::{
@@ -112,6 +113,13 @@ fn main() {
             }
             "refs" => {
                 query::cmd_refs(&elems, &resolver, key);
+            }
+            "render" => {
+                if key.is_empty() {
+                    eprintln!("Usage: syscribe <model_root> render <diagram_path>");
+                    std::process::exit(1);
+                }
+                render::cmd_render(&elems, &resolver, key);
             }
             "trace" | "why" | "who-verifies" => {
                 let result = validator::validate(&elems);

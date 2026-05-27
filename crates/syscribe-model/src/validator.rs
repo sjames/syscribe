@@ -44,6 +44,24 @@ impl ValidationResult {
     }
 }
 
+/// Resolve a relative `href` path against a base directory into a normalised path string.
+/// Handles `..` and `.` segments without touching the filesystem.
+fn normalize_relative_path(base_dir: &str, href: &str) -> String {
+    use std::path::Component;
+    let combined = std::path::Path::new(base_dir).join(href);
+    let mut parts: Vec<String> = Vec::new();
+    for component in combined.components() {
+        match component {
+            Component::ParentDir => { parts.pop(); }
+            Component::CurDir => {}
+            Component::Normal(s) => parts.push(s.to_string_lossy().into_owned()),
+            Component::RootDir => parts.clear(),
+            Component::Prefix(_) => {}
+        }
+    }
+    parts.join("/")
+}
+
 /// Extract qualified name strings from a field that may be a YAML String or Sequence.
 fn yaml_strings(v: &serde_yaml::Value) -> Vec<&str> {
     match v {
@@ -300,10 +318,10 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
             if fm.diagram_kind.as_deref() == Some("PlantUML") && !elem.doc.contains("```plantuml") {
                 findings.push(error("E401", &file, "`diagramKind: PlantUML` but body has no ```plantuml fenced block"));
             }
-            // W408 / W409: validate %% ref: annotations inside Mermaid blocks.
-            // Convention: `%% ref: QualifiedName` on any line within the ```mermaid block.
-            // W408 fires for each annotation that doesn't resolve.
-            // W409 fires when no annotations are present at all.
+            // W408–W410: validate %% annotations inside Mermaid blocks.
+            //   W408: `%% ref: QN` — QN doesn't resolve
+            //   W409: no `%% ref:` annotations at all
+            //   W410: `%% link: NodeId QN` — QN doesn't resolve
             if fm.diagram_kind.as_deref() == Some("Mermaid") {
                 let mermaid_block = elem.doc.find("```mermaid").and_then(|start| {
                     let after_fence = start + "```mermaid".len();
@@ -325,6 +343,16 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                                     ));
                                 }
                             }
+                        } else if let Some(rest) = trimmed.strip_prefix("%% link:") {
+                            // Format: %% link: NodeId QualifiedName
+                            let qn = rest.trim().splitn(2, ' ').nth(1).map(|s| s.trim()).unwrap_or("");
+                            if !qn.is_empty() && resolver.resolve_ref(elements, qn).is_none() {
+                                findings.push(warning(
+                                    "W410",
+                                    &file,
+                                    &format!("Mermaid `%% link:` '{}' does not resolve to a known element", qn),
+                                ));
+                            }
                         }
                     }
                     if ref_count == 0 {
@@ -336,6 +364,10 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                     }
                 }
             }
+            // W411: shapes `link:` must resolve to a known element.
+            // Accepts `link: QualifiedName` (string) or `link: true` (reuses the shape's ref: value).
+            // W412: href="..." attributes found directly in an SVG body must resolve to model elements.
+            // Both prevent links rotting silently when elements are renamed or deleted.
             // W401: subject must resolve to a known element
             if let Some(ref subj) = fm.subject {
                 if resolver.resolve_ref(elements, subj).is_none() {
@@ -372,6 +404,24 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                     ));
                 }
             };
+            let validate_shape_link = |attrs: &serde_yaml::Mapping, findings: &mut Vec<Finding>| {
+                let link_qn: Option<&str> = match attrs.get(&serde_yaml::Value::String("link".into())) {
+                    Some(serde_yaml::Value::String(s)) if !s.is_empty() => Some(s.as_str()),
+                    Some(serde_yaml::Value::Bool(true)) => attrs
+                        .get(&serde_yaml::Value::String("ref".into()))
+                        .and_then(|v| v.as_str()),
+                    _ => None,
+                };
+                if let Some(qn) = link_qn {
+                    if resolver.resolve_ref(elements, qn).is_none() {
+                        findings.push(warning(
+                            "W411",
+                            &file,
+                            &format!("shapes `link` '{}' does not resolve to a known element", qn),
+                        ));
+                    }
+                }
+            };
             match fm.shapes.as_ref() {
                 Some(serde_yaml::Value::Mapping(shapes_map)) => {
                     for shape_val in shapes_map.values() {
@@ -381,6 +431,7 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                             {
                                 validate_shape_ref(ref_str, &mut findings);
                             }
+                            validate_shape_link(attrs, &mut findings);
                         }
                     }
                 }
@@ -392,10 +443,46 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                             {
                                 validate_shape_ref(ref_str, &mut findings);
                             }
+                            validate_shape_link(attrs, &mut findings);
                         }
                     }
                 }
                 _ => {}
+            }
+            // W412: href="..." in the SVG fenced block must resolve to a known model element.
+            // Only relative paths (not http/https/# anchors) are checked.
+            if elem.doc.contains("```svg") {
+                let svg_block = elem.doc.find("```svg").and_then(|start| {
+                    let after = start + "```svg".len();
+                    elem.doc[after..].find("```").map(|end| &elem.doc[after..after + end])
+                });
+                if let Some(svg) = svg_block {
+                    let diagram_dir = std::path::Path::new(&file)
+                        .parent()
+                        .unwrap_or(std::path::Path::new("."))
+                        .to_string_lossy()
+                        .into_owned();
+                    let href_re = regex::Regex::new(r#"href="([^"]+)""#).unwrap();
+                    for cap in href_re.captures_iter(svg) {
+                        let href = &cap[1];
+                        // Skip external and anchor-only links
+                        if href.starts_with("http://")
+                            || href.starts_with("https://")
+                            || href.starts_with('#')
+                            || href.starts_with('/')
+                        {
+                            continue;
+                        }
+                        let resolved = normalize_relative_path(&diagram_dir, href);
+                        if !elements.iter().any(|e| e.file_path == resolved) {
+                            findings.push(warning(
+                                "W412",
+                                &file,
+                                &format!("SVG `href` '{}' (resolved: '{}') does not match any model element file", href, resolved),
+                            ));
+                        }
+                    }
+                }
             }
             // W403: edge source/target must reference a shape id defined in this diagram's shapes
             let shape_ids: HashSet<String> = match fm.shapes.as_ref() {

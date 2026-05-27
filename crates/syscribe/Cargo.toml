@@ -10,3 +10,4 @@ path = "src/main.rs"
 [dependencies]
 syscribe-model = { path = "../syscribe-model" }
 serde_yaml = { workspace = true }
+quick-xml = { workspace = true }
