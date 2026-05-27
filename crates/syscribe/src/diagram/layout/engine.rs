@@ -68,10 +68,13 @@ fn required_width(node: &ElementNode, m: &dyn TextMetrics) -> f64 {
                 max_w = max_w.max(total + ACCENT_STRIP_W + PAD_H * 2.0);
             }
             Compartment::PortsList { items } => {
-                for row in items {
-                    let text = port_row_text(row);
-                    max_w = max_w.max(m.advance_width(&text, FS_ROW, false) + ACCENT_STRIP_W + PAD_H * 2.0);
+                if !node.ibd {
+                    for row in items {
+                        let text = port_row_text(row);
+                        max_w = max_w.max(m.advance_width(&text, FS_ROW, false) + ACCENT_STRIP_W + PAD_H * 2.0);
+                    }
                 }
+                // IBD mode: ports are border squares, not text — don't affect width
             }
             Compartment::Features { items } => {
                 for row in items {

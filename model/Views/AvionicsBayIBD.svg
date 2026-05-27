@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 556" width="780" height="556">
+<style>text{font-family:'Inter','Roboto',system-ui,sans-serif}@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}</style>
+<rect width="780" height="556" fill="#ffffff"/>
+<text x="40.0" y="32.0" font-size="16" font-weight="700" fill="#1a1a2e">AvionicsBay — Internal Block Diagram</text>
+<defs><marker id="arr-open" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0,0 9,3.5 0,7" fill="none" stroke="#888" stroke-width="1.2"/></marker><marker id="arr-flow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0,0 9,3.5 0,7" fill="none" stroke="#3a6ea5" stroke-width="1.2"/></marker><marker id="arr-verify" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0,0 9,3.5 0,7" fill="none" stroke="#3a6ea5" stroke-width="1.2"/></marker><marker id="arr-alloc" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0,0 9,3.5 0,7" fill="none" stroke="#7a3ea5" stroke-width="1.2"/></marker><marker id="arr-satisfy" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0,0 9,3.5 0,7" fill="none" stroke="#1a6b30" stroke-width="1.2"/></marker><marker id="arr-generalize" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0,0 12,5 0,10" fill="white" stroke="#3a3a5c" stroke-width="1.2"/></marker></defs>
+<path d="M 220.0 315.0 L 260.0 315.0 L 260.0 195.0 L 300.0 195.0" fill="none" stroke="#3a6ea5" stroke-width="1.4" marker-end="url(#arr-flow)"/>
+<path d="M 220.0 315.0 L 260.0 315.0 L 260.0 435.0 L 300.0 435.0" fill="none" stroke="#3a6ea5" stroke-width="1.4" marker-end="url(#arr-flow)"/>
+<path d="M 220.0 315.0 L 400.0 315.0 L 400.0 335.0 L 580.0 335.0" fill="none" stroke="#3a6ea5" stroke-width="1.4" marker-end="url(#arr-flow)"/>
+<path d="M 460.0 195.0 L 520.0 195.0 L 520.0 147.0 L 580.0 147.0" fill="none" stroke="#3a6ea5" stroke-width="1.4" marker-end="url(#arr-flow)"/><text x="520.0" y="165.0" font-size="9" fill="#555" text-anchor="middle" font-style="italic">control</text>
+<path d="M 460.0 217.0 L 520.0 217.0 L 520.0 495.0 L 580.0 495.0" fill="none" stroke="#3a6ea5" stroke-width="1.4" marker-end="url(#arr-flow)"/><text x="520.0" y="350.0" font-size="9" fill="#555" text-anchor="middle" font-style="italic">telemetry</text>
+<g transform="translate(60.0 240.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
+<rect x="0" y="0.0" width="160.0" height="54.0" fill="#eef3fa"/>
+<text x="16.0" y="16.5" font-size="9" fill="#4a6ea5" font-style="italic">«part def»</text>
+<text x="16.0" y="35.5" font-size="13" font-weight="700" fill="#1a2540">PowerDistributionUnit</text>
+<rect x="0" y="54.0" width="160.0" height="42.0" fill="#ffffff"/>
+<rect x="-5.0" y="70.0" width="10" height="10" fill="#ffffff" stroke="#a8bcd4" stroke-width="1.2"/>
+<text x="8.0" y="78.5" font-size="9" fill="#7a8aaa">powerIn : Port</text>
+<rect x="155.0" y="70.0" width="10" height="10" fill="#ffffff" stroke="#a8bcd4" stroke-width="1.2"/>
+<text x="152.0" y="78.5" font-size="9" fill="#7a8aaa" text-anchor="end">powerOut : Port</text>
+<rect x="0" y="0" width="4" height="96.0" fill="#3a6ea5"/>
+<rect x="0.6" y="0.6" width="158.8" height="94.8" rx="1" ry="1" fill="none" stroke="#a8bcd4" stroke-width="1.2"/>
+</g>
+<g transform="translate(300.0 120.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
+<rect x="0" y="0.0" width="160.0" height="54.0" fill="#eef3fa"/>
+<text x="16.0" y="16.5" font-size="9" fill="#4a6ea5" font-style="italic">«part def»</text>
+<text x="16.0" y="35.5" font-size="13" font-weight="700" fill="#1a2540">FlightController</text>
+<rect x="0" y="54.0" width="160.0" height="64.0" fill="#ffffff"/>
+<rect x="-5.0" y="70.0" width="10" height="10" fill="#ffffff" stroke="#a8bcd4" stroke-width="1.2"/>
+<text x="8.0" y="78.5" font-size="9" fill="#7a8aaa">powerIn : Port</text>
+<rect x="155.0" y="70.0" width="10" height="10" fill="#ffffff" stroke="#a8bcd4" stroke-width="1.2"/>
+<text x="152.0" y="78.5" font-size="9" fill="#7a8aaa" text-anchor="end">controlOut : Port</text>
+<rect x="155.0" y="92.0" width="10" height="10" fill="#ffffff" stroke="#a8bcd4" stroke-width="1.2"/>
+<text x="152.0" y="100.5" font-size="9" fill="#7a8aaa" text-anchor="end">telemetryOut : Port</text>
+<rect x="0" y="0" width="4" height="118.0" fill="#3a6ea5"/>
+<rect x="0.6" y="0.6" width="158.8" height="116.8" rx="1" ry="1" fill="none" stroke="#a8bcd4" stroke-width="1.2"/>
+</g>
+<g transform="translate(580.0 60.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
+<rect x="0" y="0.0" width="160.0" height="66.0" fill="#eef3fa"/>
+<text x="16.0" y="16.5" font-size="9" fill="#4a6ea5" font-style="italic">«part def»</text>
+<text x="16.0" y="35.5" font-size="13" font-weight="700" fill="#1a2540" font-style="italic">PropulsionSystem</text>
+<text x="16.0" y="54.1" font-size="9" fill="#4a6ea5" font-style="italic">{abstract}</text>
+<rect x="0" y="66.0" width="160.0" height="42.0" fill="#ffffff"/>
+<rect x="-5.0" y="82.0" width="10" height="10" fill="#ffffff" stroke="#a8bcd4" stroke-width="1.2"/>
+<text x="8.0" y="90.5" font-size="9" fill="#7a8aaa">powerIn : Port</text>
+<rect x="0" y="0" width="4" height="108.0" fill="#3a6ea5"/>
+<rect x="0.6" y="0.6" width="158.8" height="106.8" rx="1" ry="1" fill="none" stroke="#a8bcd4" stroke-width="1.2"/>
+</g>
+<g transform="translate(300.0 360.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
+<rect x="0" y="0.0" width="160.0" height="54.0" fill="#eef3fa"/>
+<text x="16.0" y="16.5" font-size="9" fill="#4a6ea5" font-style="italic">«part def»</text>
+<text x="16.0" y="35.5" font-size="13" font-weight="700" fill="#1a2540">IMU</text>
+<rect x="0" y="54.0" width="160.0" height="42.0" fill="#ffffff"/>
+<rect x="-5.0" y="70.0" width="10" height="10" fill="#ffffff" stroke="#a8bcd4" stroke-width="1.2"/>
+<text x="8.0" y="78.5" font-size="9" fill="#7a8aaa">powerIn : Port</text>
+<rect x="0" y="0" width="4" height="96.0" fill="#3a6ea5"/>
+<rect x="0.6" y="0.6" width="158.8" height="94.8" rx="1" ry="1" fill="none" stroke="#a8bcd4" stroke-width="1.2"/>
+</g>
+<g transform="translate(580.0 260.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
+<rect x="0" y="0.0" width="160.0" height="54.0" fill="#eef3fa"/>
+<text x="16.0" y="16.5" font-size="9" fill="#4a6ea5" font-style="italic">«part def»</text>
+<text x="16.0" y="35.5" font-size="13" font-weight="700" fill="#1a2540">GPSReceiver</text>
+<rect x="0" y="54.0" width="160.0" height="42.0" fill="#ffffff"/>
+<rect x="-5.0" y="70.0" width="10" height="10" fill="#ffffff" stroke="#a8bcd4" stroke-width="1.2"/>
+<text x="8.0" y="78.5" font-size="9" fill="#7a8aaa">powerIn : Port</text>
+<rect x="0" y="0" width="4" height="96.0" fill="#3a6ea5"/>
+<rect x="0.6" y="0.6" width="158.8" height="94.8" rx="1" ry="1" fill="none" stroke="#a8bcd4" stroke-width="1.2"/>
+</g>
+<g transform="translate(580.0 420.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style></defs>
+<rect x="0" y="0.0" width="160.0" height="54.0" fill="#eef3fa"/>
+<text x="16.0" y="16.5" font-size="9" fill="#4a6ea5" font-style="italic">«part def»</text>
+<text x="16.0" y="35.5" font-size="13" font-weight="700" fill="#1a2540">GroundControlStation</text>
+<rect x="0" y="54.0" width="160.0" height="42.0" fill="#ffffff"/>
+<rect x="-5.0" y="70.0" width="10" height="10" fill="#ffffff" stroke="#a8bcd4" stroke-width="1.2"/>
+<text x="8.0" y="78.5" font-size="9" fill="#7a8aaa">telemetryIn : Port</text>
+<rect x="0" y="0" width="4" height="96.0" fill="#3a6ea5"/>
+<rect x="0.6" y="0.6" width="158.8" height="94.8" rx="1" ry="1" fill="none" stroke="#a8bcd4" stroke-width="1.2"/>
+</g>
+</svg>

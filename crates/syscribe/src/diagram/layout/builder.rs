@@ -248,7 +248,14 @@ fn compartment_kind(c: &Compartment) -> CompartmentKind {
 fn filter_compartments(compartments: Vec<Compartment>, view: &ViewConfig) -> Vec<Compartment> {
     compartments
         .into_iter()
-        .filter(|c| view.preset.allows(compartment_kind(c)))
+        .filter(|c| {
+            // In IBD mode, always pass PortsList through so the engine can render border squares,
+            // even if the view preset (e.g. "name") would otherwise hide the ports compartment.
+            if view.ibd && matches!(c, Compartment::PortsList { .. }) {
+                return true;
+            }
+            view.preset.allows(compartment_kind(c))
+        })
         .filter_map(|c| apply_include_filter(c, &view.include))
         .collect()
 }
