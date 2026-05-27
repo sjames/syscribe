@@ -2,6 +2,7 @@ mod compose;
 mod layout;
 mod list;
 mod measure;
+mod req;
 
 use clap::{Arg, Command};
 
@@ -46,6 +47,17 @@ pub fn cmd_diagram(
             let kind = m.get_one::<String>("kind").map(|s| s.as_str()).unwrap_or("arch");
             let ibd = kind == "ibd";
             compose::cmd_diagram_compose(elements, layout_file, output, ibd);
+        }
+        Some(("req", m)) => {
+            let root = m.get_one::<String>("root").unwrap();
+            let depth = m.get_one::<String>("depth").and_then(|s| s.parse().ok());
+            let show_verify = m.get_flag("show-verify");
+            let show_satisfy = m.get_flag("show-satisfy");
+            let output = m.get_one::<String>("output").map(|s| s.as_str());
+            req::cmd_diagram_req(
+                elements,
+                req::ReqDiagramOptions { root, depth, show_verify, show_satisfy, output },
+            );
         }
         _ => {
             build_cli().print_help().unwrap();
@@ -96,6 +108,41 @@ fn build_cli() -> Command {
                         .value_name("QNAME"),
                 )
                 .args(view_args())
+                .arg(
+                    Arg::new("output")
+                        .long("output")
+                        .short('o')
+                        .help("Write SVG to FILE (default: stdout)")
+                        .value_name("FILE"),
+                ),
+        )
+        .subcommand(
+            Command::new("req")
+                .about("Auto-layout requirement tree diagram (derive/verify/satisfy edges)")
+                .arg(
+                    Arg::new("root")
+                        .help("Root requirement REQ-* ID or qualified name")
+                        .required(true)
+                        .value_name("ROOT"),
+                )
+                .arg(
+                    Arg::new("depth")
+                        .long("depth")
+                        .help("Maximum tree depth to show (default: all)")
+                        .value_name("N"),
+                )
+                .arg(
+                    Arg::new("show-verify")
+                        .long("show-verify")
+                        .help("Include test cases with «verify» edges")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("show-satisfy")
+                        .long("show-satisfy")
+                        .help("Include architecture elements with «satisfy» edges")
+                        .action(clap::ArgAction::SetTrue),
+                )
                 .arg(
                     Arg::new("output")
                         .long("output")

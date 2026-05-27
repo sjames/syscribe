@@ -1,3 +1,47 @@
+/// V-H-V routing for tree-style edges (top/bottom anchor connections).
+/// Used in REQ diagrams where edges connect bottom of parent to top of child.
+pub fn route_edge_vert(
+    x1: f64, y1: f64,
+    x2: f64, y2: f64,
+    kind: &str,
+) -> String {
+    let (stroke, dash, marker_id) = edge_style(kind);
+    let dash_attr = if dash.is_empty() {
+        String::new()
+    } else {
+        format!(" stroke-dasharray=\"{}\"", dash)
+    };
+
+    let mid_y = (y1 + y2) / 2.0;
+    let d = if (x1 - x2).abs() < 2.0 {
+        format!("M {x1:.1} {y1:.1} L {x2:.1} {y2:.1}")
+    } else {
+        format!(
+            "M {x1:.1} {y1:.1} L {x1:.1} {my:.1} L {x2:.1} {my:.1} L {x2:.1} {y2:.1}",
+            my = mid_y
+        )
+    };
+
+    let label = edge_label(kind);
+    let label_x = (x1 + x2) / 2.0;
+    let label_y = mid_y - 4.0;
+    let label_svg = if label.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<text x=\"{lx:.1}\" y=\"{ly:.1}\" font-size=\"9\" fill=\"{stroke}\" \
+             text-anchor=\"middle\" font-style=\"italic\">«{label}»</text>",
+            lx = label_x, ly = label_y, stroke = stroke, label = label
+        )
+    };
+
+    format!(
+        "<path d=\"{d}\" fill=\"none\" stroke=\"{stroke}\" stroke-width=\"1.4\"\
+         {dash} marker-end=\"url(#{marker})\"/>{label}",
+        d = d, stroke = stroke, dash = dash_attr, marker = marker_id, label = label_svg
+    )
+}
+
 /// Route an edge between two absolute port anchor points.
 /// Returns an SVG `<path>` element string.
 /// For MVP: 3-segment orthogonal routing (horizontal → vertical → horizontal).
