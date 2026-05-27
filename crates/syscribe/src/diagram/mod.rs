@@ -3,6 +3,7 @@ mod layout;
 mod list;
 mod measure;
 mod req;
+mod solver;
 
 use clap::{Arg, Command};
 
@@ -47,6 +48,14 @@ pub fn cmd_diagram(
             let kind = m.get_one::<String>("kind").map(|s| s.as_str()).unwrap_or("arch");
             let ibd = kind == "ibd";
             compose::cmd_diagram_compose(elements, layout_file, output, ibd);
+        }
+        Some(("layout", m)) => {
+            let placement_file = m.get_one::<String>("placement-file").unwrap();
+            let output = m.get_one::<String>("output").map(|s| s.as_str());
+            let compose_after = m.get_flag("compose");
+            let kind = m.get_one::<String>("kind").map(|s| s.as_str());
+            let svg_output = m.get_one::<String>("svg").map(|s| s.as_str());
+            solver::cmd_diagram_layout(elements, placement_file, output, compose_after, kind, svg_output);
         }
         Some(("req", m)) => {
             let root = m.get_one::<String>("root").unwrap();
@@ -113,6 +122,41 @@ fn build_cli() -> Command {
                         .long("output")
                         .short('o')
                         .help("Write SVG to FILE (default: stdout)")
+                        .value_name("FILE"),
+                ),
+        )
+        .subcommand(
+            Command::new("layout")
+                .about("Solve element positions from col/row placement using Cassowary constraints")
+                .arg(
+                    Arg::new("placement-file")
+                        .help("JSON placement file with col/row positions")
+                        .required(true)
+                        .value_name("PLACEMENT.JSON"),
+                )
+                .arg(
+                    Arg::new("output")
+                        .long("output")
+                        .short('o')
+                        .help("Write resolved layout JSON to FILE (default: stdout)")
+                        .value_name("FILE"),
+                )
+                .arg(
+                    Arg::new("compose")
+                        .long("compose")
+                        .help("Pipe resolved layout directly into compose and emit SVG")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("kind")
+                        .long("kind")
+                        .help("Diagram kind for compose: bdd | ibd | arch (default: from placement file)")
+                        .value_name("KIND"),
+                )
+                .arg(
+                    Arg::new("svg")
+                        .long("svg")
+                        .help("SVG output path when --compose is set (default: stdout)")
                         .value_name("FILE"),
                 ),
         )
