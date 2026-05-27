@@ -1,7 +1,6 @@
 name: Validate Syscribe Model
 description: >
-  Validate a Syscribe model checks element schema, and enforces traceability rules. Fails the
-  job when validation errors are found.
+  Validate a Syscribe model checks element schema, and enforces traceability rules.
 author: Sojan James
 
 branding:
