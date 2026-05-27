@@ -129,17 +129,19 @@ pub fn arrowhead_defs() -> String {
     for (id, color, hollow) in entries {
         if *hollow {
             out.push_str(&format!(
-                "<marker id=\"{id}\" markerWidth=\"12\" markerHeight=\"10\" \
-                 refX=\"11\" refY=\"5\" orient=\"auto\">\
-                 <polygon points=\"0,0 12,5 0,10\" fill=\"white\" \
+                "<marker id=\"{id}\" markerUnits=\"userSpaceOnUse\" \
+                 markerWidth=\"10\" markerHeight=\"8\" \
+                 refX=\"9\" refY=\"4\" orient=\"auto\">\
+                 <polygon points=\"0,0 9,4 0,8\" fill=\"white\" \
                  stroke=\"{c}\" stroke-width=\"1.2\"/></marker>",
                 id = id, c = color
             ));
         } else {
             out.push_str(&format!(
-                "<marker id=\"{id}\" markerWidth=\"10\" markerHeight=\"7\" \
-                 refX=\"9\" refY=\"3.5\" orient=\"auto\">\
-                 <polyline points=\"0,0 9,3.5 0,7\" fill=\"none\" \
+                "<marker id=\"{id}\" markerUnits=\"userSpaceOnUse\" \
+                 markerWidth=\"8\" markerHeight=\"6\" \
+                 refX=\"7\" refY=\"3\" orient=\"auto\">\
+                 <polyline points=\"0,0 7,3 0,6\" fill=\"none\" \
                  stroke=\"{c}\" stroke-width=\"1.2\"/></marker>",
                 id = id, c = color
             ));

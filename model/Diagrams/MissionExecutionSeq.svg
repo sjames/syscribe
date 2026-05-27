@@ -2,11 +2,11 @@
 <title>MissionExecutionSeq</title>
 <rect fill="#ffffff" height="652" width="804" x="0" y="0"/>
 <defs>
-<marker id="arr-msg" markerHeight="6" markerWidth="8" orient="auto" refX="8" refY="3">
-<polygon fill="#3a6ea5" points="0 0, 8 3, 0 6"/>
+<marker id="arr-msg" markerHeight="6" markerUnits="userSpaceOnUse" markerWidth="8" orient="auto" refX="7" refY="3">
+<polygon fill="#3a6ea5" points="0 0, 7 3, 0 6"/>
 </marker>
-<marker id="arr-return" markerHeight="6" markerWidth="8" orient="auto" refX="8" refY="3">
-<path d="M 0 0 L 8 3 L 0 6" fill="none" stroke="#7a8aaa" stroke-width="1.5"/>
+<marker id="arr-return" markerHeight="6" markerUnits="userSpaceOnUse" markerWidth="8" orient="auto" refX="7" refY="3">
+<path d="M 0 0 L 7 3 L 0 6" fill="none" stroke="#7a8aaa" stroke-width="1.2"/>
 </marker>
 </defs>
 <a data-qname="GroundStation::GroundControlStation" href="/ui/detail/GroundStation::GroundControlStation">

@@ -370,26 +370,28 @@ fn self_message_group(ll: usize, y: f64, label: &str, is_return: bool) -> Group 
 fn arrowhead_defs() -> Definitions {
     let arr_msg = Marker::new()
         .set("id", "arr-msg")
+        .set("markerUnits", "userSpaceOnUse")
         .set("markerWidth", 8)
         .set("markerHeight", 6)
-        .set("refX", 8)
+        .set("refX", 7)
         .set("refY", 3)
         .set("orient", "auto")
-        .add(Polygon::new().set("points", "0 0, 8 3, 0 6").set("fill", MSG_SOLID));
+        .add(Polygon::new().set("points", "0 0, 7 3, 0 6").set("fill", MSG_SOLID));
 
     let arr_return = Marker::new()
         .set("id", "arr-return")
+        .set("markerUnits", "userSpaceOnUse")
         .set("markerWidth", 8)
         .set("markerHeight", 6)
-        .set("refX", 8)
+        .set("refX", 7)
         .set("refY", 3)
         .set("orient", "auto")
         .add(
             Path::new()
-                .set("d", "M 0 0 L 8 3 L 0 6")
+                .set("d", "M 0 0 L 7 3 L 0 6")
                 .set("fill", "none")
                 .set("stroke", MSG_RETURN)
-                .set("stroke-width", 1.5),
+                .set("stroke-width", 1.2),
         );
 
     Definitions::new().add(arr_msg).add(arr_return)
