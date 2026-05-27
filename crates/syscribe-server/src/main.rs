@@ -38,12 +38,8 @@ async fn main() -> Result<()> {
         .with_env_filter(EnvFilter::from_default_env().add_directive("sysml=debug".parse()?))
         .init();
 
-    // Resolve model root: CLI arg > MODEL_ROOT env var > default "model/".
-    let model_root = std::env::args()
-        .nth(1)
-        .map(PathBuf::from)
-        .or_else(|| std::env::var("MODEL_ROOT").ok().map(PathBuf::from))
-        .unwrap_or_else(|| PathBuf::from("model"));
+    let cli = Cli::parse();
+    let model_root = cli.model;
 
     info!("Loading model from {:?}", model_root);
     let elements = walk_model(&model_root)?;
@@ -70,9 +66,8 @@ async fn main() -> Result<()> {
         .layer(CorsLayer::permissive())
         .with_state(shared);
 
-    let addr = "0.0.0.0:3000";
-    info!("Listening on http://{}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    info!("Listening on http://{}", cli.bind);
+    let listener = tokio::net::TcpListener::bind(&cli.bind).await?;
     axum::serve(listener, app).await?;
     Ok(())
 }

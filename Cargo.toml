@@ -19,3 +19,4 @@ notify = "6"
 futures-util = "0.3"
 regex = "1"
 quick-xml = "0.36"
+clap = { version = "4", features = ["derive"] }

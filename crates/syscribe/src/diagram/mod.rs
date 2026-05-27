@@ -44,11 +44,17 @@ pub fn cmd_diagram(
             compose::cmd_diagram_render(elements, qname, output, view);
         }
         Some(("compose", m)) => {
-            let layout_file = m.get_one::<String>("layout-file").unwrap();
+            let arg = m.get_one::<String>("layout-file").unwrap();
             let output = m.get_one::<String>("output").map(|s| s.as_str());
-            let kind = m.get_one::<String>("kind").map(|s| s.as_str()).unwrap_or("arch");
-            let ibd = kind == "ibd";
-            compose::cmd_diagram_compose(elements, layout_file, output, ibd);
+            // If the argument exists as a file on disk, use file-based compose.
+            // Otherwise treat it as a Diagram element qualified name.
+            if std::path::Path::new(arg).exists() {
+                let kind = m.get_one::<String>("kind").map(|s| s.as_str()).unwrap_or("arch");
+                let ibd = kind == "ibd";
+                compose::cmd_diagram_compose(elements, arg, output, ibd);
+            } else {
+                compose::cmd_diagram_compose_from_model(elements, arg, output);
+            }
         }
         Some(("layout", m)) => {
             let placement_file = m.get_one::<String>("placement-file").unwrap();

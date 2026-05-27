@@ -22,3 +22,4 @@ anyhow = { workspace = true }
 petgraph = { workspace = true }
 notify = { workspace = true }
 futures-util = { workspace = true }
+clap = { workspace = true }

@@ -137,7 +137,7 @@ pub fn cmd_diagram_layout(
 
 // ── Solver ────────────────────────────────────────────────────────────────────
 
-fn solve_layout(elements: &[RawElement], placement: &PlacementFile) -> ResolvedLayout {
+pub fn solve_layout(elements: &[RawElement], placement: &PlacementFile) -> ResolvedLayout {
     let padding = placement.canvas.as_ref().and_then(|c| c.padding).unwrap_or(40.0);
     let bg = placement
         .canvas

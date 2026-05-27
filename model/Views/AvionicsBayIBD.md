@@ -10,6 +10,22 @@ expose:
   - UAV::Avionics::IMU
   - UAV::Avionics::GPSReceiver
   - GroundStation::GroundControlStation
+edges:
+  - from: {qname: "UAV::Power::PowerDistributionUnit", port: powerOut}
+    to:   {qname: "UAV::Avionics::FlightController",   port: powerIn}
+    kind: flow
+  - from: {qname: "UAV::Power::PowerDistributionUnit", port: powerOut}
+    to:   {qname: "UAV::Avionics::IMU",                port: powerIn}
+    kind: flow
+  - from: {qname: "UAV::Power::PowerDistributionUnit", port: powerOut}
+    to:   {qname: "UAV::Avionics::GPSReceiver",        port: powerIn}
+    kind: flow
+  - from: {qname: "UAV::Avionics::FlightController",   port: controlOut}
+    to:   {qname: "UAV::Propulsion::PropulsionSystem",  port: powerIn}
+    kind: flow
+  - from: {qname: "UAV::Avionics::FlightController",   port: telemetryOut}
+    to:   {qname: "GroundStation::GroundControlStation", port: telemetryIn}
+    kind: flow
 ---
 
 <img src="AvionicsBayIBD.svg" alt="Avionics Bay Internal Block Diagram" width="100%">

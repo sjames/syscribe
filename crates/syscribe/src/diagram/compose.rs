@@ -1,8 +1,15 @@
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::path::Path;
+
 use serde::Deserialize;
 use syscribe_model::element::RawElement;
 
 use crate::diagram::layout::router::{arrowhead_defs, route_edge};
 use crate::diagram::layout::{build_element_node, load_metrics, render_element, IncludeFilter, ViewConfig, ViewPreset};
+use crate::diagram::solver::{
+    solve_layout, PlacementCanvas, PlacementFile,
+    ElementPlacement as SolverElementPlacement,
+};
 
 #[derive(Debug, Deserialize)]
 struct LayoutFile {
@@ -289,6 +296,209 @@ pub fn cmd_diagram_render(elements: &[RawElement], qname: &str, output_file: Opt
         }
         None => println!("{}", rendered.svg),
     }
+}
+
+// ── Model-driven compose ──────────────────────────────────────────────────────
+
+/// Compose a diagram SVG directly from a `Diagram` model element.
+///
+/// Reads `expose:` for the element list, `edges:` (array format) for connections,
+/// assigns col/row positions via topology sort, runs the Cassowary solver, then
+/// pipes through the compose pipeline.  Output path is resolved from `svgFile` or
+/// companion convention (replace `.md` with `.svg` in the element's file path).
+pub fn cmd_diagram_compose_from_model(
+    elements: &[RawElement],
+    diagram_qname: &str,
+    output_override: Option<&str>,
+) {
+    let diagram = match elements.iter().find(|e| e.qualified_name == diagram_qname) {
+        Some(e) => e,
+        None => {
+            eprintln!("error: diagram element '{}' not found", diagram_qname);
+            std::process::exit(1);
+        }
+    };
+
+    if !matches!(
+        diagram.frontmatter.element_type.as_ref(),
+        Some(syscribe_model::element::ElementType::Diagram) | None
+    ) {
+        // Allow if kind field implies diagram, but warn otherwise
+    }
+
+    let fm = &diagram.frontmatter;
+
+    // Exposed element qnames
+    let expose: Vec<String> = fm
+        .expose
+        .as_ref()
+        .map(|v| v.iter().filter_map(|e| e.as_str().map(str::to_string)).collect())
+        .unwrap_or_default();
+
+    if expose.is_empty() {
+        eprintln!("error: '{}' has no expose: list", diagram_qname);
+        std::process::exit(1);
+    }
+
+    let kind = fm.diagram_kind.clone().unwrap_or_else(|| "arch".to_string());
+    let ibd = kind == "ibd";
+
+    // Edges from frontmatter (array format, same schema as compose layout JSON)
+    let edges_json: Option<serde_json::Value> = fm
+        .edges
+        .as_ref()
+        .and_then(|v| if v.is_sequence() { yaml_to_json(v) } else { None });
+
+    // Assign col/row using topology sort on edges
+    let col_row = topology_col_row(&expose, edges_json.as_ref());
+
+    // Default view per diagram kind
+    let default_view = if ibd {
+        serde_json::Value::String("name".to_string())
+    } else {
+        serde_json::Value::String("full".to_string())
+    };
+
+    let placement = PlacementFile {
+        title: fm.name.clone().or_else(|| fm.title.clone()),
+        kind: Some(kind.clone()),
+        canvas: Some(PlacementCanvas { padding: Some(40.0), bg: Some("#ffffff".to_string()) }),
+        elements: expose
+            .iter()
+            .map(|qn| {
+                let (col, row) = col_row.get(qn.as_str()).copied().unwrap_or((0, 0));
+                SolverElementPlacement {
+                    qname: qn.clone(),
+                    col,
+                    row,
+                    view: Some(default_view.clone()),
+                    pin_x: None,
+                    pin_y: None,
+                }
+            })
+            .collect(),
+        edges: edges_json.clone(),
+    };
+
+    let resolved = solve_layout(elements, &placement);
+    let layout_json = serde_json::to_string_pretty(&resolved).unwrap();
+
+    // Write to temp file and pipe through compose
+    let tmp = "/tmp/_syscribe_diagram_auto.json";
+    if let Err(e) = std::fs::write(tmp, &layout_json) {
+        eprintln!("error writing temp layout: {}", e);
+        std::process::exit(1);
+    }
+
+    let svg_path = output_override
+        .map(str::to_string)
+        .unwrap_or_else(|| companion_svg_path(diagram));
+
+    cmd_diagram_compose(elements, tmp, Some(&svg_path), ibd);
+    eprintln!("wrote {}", svg_path);
+}
+
+/// Assign col/row positions using topological longest-path sort on the edge graph.
+/// Elements with no incoming edges get col=0.  Row is assigned by order within each col.
+/// Falls back to a square grid when there are no edges.
+fn topology_col_row(expose: &[String], edges: Option<&serde_json::Value>) -> HashMap<String, (u32, u32)> {
+    let expose_set: HashSet<&str> = expose.iter().map(String::as_str).collect();
+
+    // Extract (src_qname, tgt_qname) pairs from edges JSON array
+    let edge_pairs: Vec<(&str, &str)> = edges
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|e| {
+                    let src = e.get("from")?.get("qname")?.as_str()?;
+                    let tgt = e.get("to")?.get("qname")?.as_str()?;
+                    if expose_set.contains(src) && expose_set.contains(tgt) {
+                        Some((src, tgt))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    if edge_pairs.is_empty() {
+        // Grid layout: ceil(sqrt(N)) columns
+        let n = expose.len();
+        let n_cols = (n as f64).sqrt().ceil() as u32;
+        return expose
+            .iter()
+            .enumerate()
+            .map(|(i, qn)| (qn.clone(), (i as u32 % n_cols, i as u32 / n_cols)))
+            .collect();
+    }
+
+    // Kahn's algorithm: assign col = longest path from any source
+    let mut col: HashMap<&str, u32> = expose.iter().map(|q| (q.as_str(), 0)).collect();
+    let mut in_deg: HashMap<&str, u32> = expose.iter().map(|q| (q.as_str(), 0)).collect();
+    let mut adj: HashMap<&str, Vec<&str>> = HashMap::new();
+
+    for (src, tgt) in &edge_pairs {
+        adj.entry(src).or_default().push(tgt);
+        *in_deg.entry(tgt).or_insert(0) += 1;
+    }
+
+    let mut queue: VecDeque<&str> = in_deg
+        .iter()
+        .filter(|(_, &d)| d == 0)
+        .map(|(&q, _)| q)
+        .collect();
+
+    while let Some(u) = queue.pop_front() {
+        let u_col = *col.get(u).unwrap_or(&0);
+        for &v in adj.get(u).map(Vec::as_slice).unwrap_or(&[]) {
+            let v_col = col.entry(v).or_insert(0);
+            if u_col + 1 > *v_col {
+                *v_col = u_col + 1;
+            }
+            let deg = in_deg.entry(v).or_insert(1);
+            *deg = deg.saturating_sub(1);
+            if *deg == 0 {
+                queue.push_back(v);
+            }
+        }
+    }
+
+    // Rows: order within each column by expose list order
+    let mut row_counter: HashMap<u32, u32> = HashMap::new();
+    expose
+        .iter()
+        .map(|qn| {
+            let c = *col.get(qn.as_str()).unwrap_or(&0);
+            let r = *row_counter.entry(c).or_insert(0);
+            row_counter.insert(c, r + 1);
+            (qn.clone(), (c, r))
+        })
+        .collect()
+}
+
+/// Derive the companion SVG path from the diagram element's file path.
+fn companion_svg_path(diagram: &RawElement) -> String {
+    if let Some(svg_file) = &diagram.frontmatter.svg_file {
+        let dir = Path::new(&diagram.file_path)
+            .parent()
+            .unwrap_or(Path::new("."));
+        dir.join(svg_file.trim_start_matches("./"))
+            .to_string_lossy()
+            .into_owned()
+    } else {
+        // Replace .md extension with .svg
+        if diagram.file_path.ends_with(".md") {
+            format!("{}svg", &diagram.file_path[..diagram.file_path.len() - 2])
+        } else {
+            format!("{}.svg", diagram.file_path)
+        }
+    }
+}
+
+/// Convert a `serde_yaml::Value` to `serde_json::Value` by round-tripping through JSON.
+fn yaml_to_json(v: &serde_yaml::Value) -> Option<serde_json::Value> {
+    serde_json::to_value(v).ok()
 }
 
 fn find_anchor(placed: &[PlacedElement], qname: &str, port_name: Option<&str>) -> Option<(f64, f64)> {
