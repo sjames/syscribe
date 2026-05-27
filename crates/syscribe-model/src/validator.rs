@@ -1041,17 +1041,45 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
         }
     }
 
-    // W007: *Def element never used as supertype: or typedBy: anywhere in the model
+    // W007: *Def element never used as supertype: or typedBy: anywhere in the model.
+    // Scans top-level fields AND typedBy inside features/connections/performs sub-objects
+    // and exhibitsStates lists, so that elements referenced only in those positions are
+    // not incorrectly flagged.
     {
         let mut referenced_defs: HashSet<String> = HashSet::new();
         for elem in elements.iter() {
             let fm = &elem.frontmatter;
+
+            // Top-level supertype and typedBy
             for field in [fm.supertype.as_ref(), fm.typed_by.as_ref()].into_iter().flatten() {
                 for s in yaml_strings(field) {
                     if let Some(target) = resolver.resolve_ref(elements, s) {
                         referenced_defs.insert(target.qualified_name.clone());
                     }
                 }
+            }
+
+            // exhibitsStates: Vec<String> — direct qualified name references
+            for s in fm.exhibits_states.iter().flatten() {
+                if let Some(target) = resolver.resolve_ref(elements, s) {
+                    referenced_defs.insert(target.qualified_name.clone());
+                }
+            }
+
+            // features, connections, performs, flow_connections, etc. —
+            // scan typedBy inside each mapping entry (and nested ports sub-key)
+            for list in [
+                fm.features.as_deref(),
+                fm.connections.as_deref(),
+                fm.flow_connections.as_deref(),
+                fm.binding_connections.as_deref(),
+                fm.succession_connections.as_deref(),
+                fm.performs.as_deref(),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                collect_typed_by_refs(list, elements, &resolver, &mut referenced_defs);
             }
         }
         for elem in elements {
@@ -1368,6 +1396,33 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
         findings,
         verified_by,
         derived_children,
+    }
+}
+
+/// Recursively scan a list of YAML mappings for `typedBy:` string values and resolve them
+/// into qualified names added to `out`. Also descends into `ports:` sub-lists.
+fn collect_typed_by_refs(
+    list: &[serde_yaml::Value],
+    elements: &[RawElement],
+    resolver: &Resolver,
+    out: &mut HashSet<String>,
+) {
+    let key_typed_by = serde_yaml::Value::String("typedBy".into());
+    let key_ports = serde_yaml::Value::String("ports".into());
+    for item in list {
+        if let serde_yaml::Value::Mapping(map) = item {
+            if let Some(v) = map.get(&key_typed_by) {
+                for s in yaml_strings(v) {
+                    if let Some(target) = resolver.resolve_ref(elements, s) {
+                        out.insert(target.qualified_name.clone());
+                    }
+                }
+            }
+            // Recurse into nested ports: sub-key
+            if let Some(serde_yaml::Value::Sequence(ports)) = map.get(&key_ports) {
+                collect_typed_by_refs(ports, elements, resolver, out);
+            }
+        }
     }
 }
 
