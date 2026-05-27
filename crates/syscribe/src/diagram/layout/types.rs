@@ -144,9 +144,15 @@ pub const BORDER_W: f64 = 1.2;
 
 /// Left accent strip width (px)
 pub const ACCENT_STRIP_W: f64 = 4.0;
-/// IBD port square size (px)
+/// IBD port square size (px) — flat (non-nested) ports
 pub const PORT_SQ: f64 = 10.0;
-/// Vertical spacing between IBD port squares (center-to-center)
+/// Outer frame width for nested ports (px)
+pub const PORT_SQ_OUTER_W: f64 = 14.0;
+/// Inner sub-port square size inside a nested port frame (px)
+pub const PORT_SQ_INNER: f64 = 6.0;
+/// Padding inside the outer nested port frame (px)
+pub const PORT_INNER_PAD: f64 = 1.0;
+/// Vertical spacing between IBD port squares (center-to-center) for flat ports
 pub const IBD_PORT_ROW_H: f64 = 22.0;
 /// Vertical padding above/below the IBD port area
 pub const IBD_PORT_PAD_V: f64 = 10.0;
@@ -242,6 +248,8 @@ pub struct PortRow {
     pub type_ref: Option<String>,
     pub direction: PortDirection,
     pub multiplicity: Option<String>,
+    /// Sub-ports (nested port structure). Empty for flat ports.
+    pub sub_ports: Vec<PortRow>,
 }
 
 #[derive(Debug, Clone)]

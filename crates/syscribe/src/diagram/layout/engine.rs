@@ -6,6 +6,28 @@ use super::{
     types::*,
 };
 
+// ── Nested port geometry helpers ──────────────────────────────────────────────
+
+/// Height of the port frame (outer rect) for a port, flat or nested.
+fn port_frame_h(row: &PortRow) -> f64 {
+    if row.sub_ports.is_empty() {
+        PORT_SQ
+    } else {
+        // Stack inner squares vertically inside the frame
+        row.sub_ports.len() as f64 * (PORT_SQ_INNER + PORT_INNER_PAD) + PORT_INNER_PAD
+    }
+}
+
+/// Total row height (center-to-center spacing) consumed by this port.
+fn port_row_h(row: &PortRow) -> f64 {
+    if row.sub_ports.is_empty() {
+        IBD_PORT_ROW_H
+    } else {
+        // Scale the gap around the frame the same as flat ports
+        port_frame_h(row) + (IBD_PORT_ROW_H - PORT_SQ)
+    }
+}
+
 // ── SVG helpers ───────────────────────────────────────────────────────────────
 
 fn esc(s: &str) -> String {
@@ -549,9 +571,9 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
 
     // ── IBD port area: extend body height and render port squares ────────────
     if node.ibd {
-        let n_left = ibd_left_ports.len();
-        let n_right = ibd_right_ports.len();
-        let port_area_h = (n_left.max(n_right) as f64) * IBD_PORT_ROW_H + IBD_PORT_PAD_V * 2.0;
+        let left_area_h: f64 = ibd_left_ports.iter().map(port_row_h).sum::<f64>();
+        let right_area_h: f64 = ibd_right_ports.iter().map(port_row_h).sum::<f64>();
+        let port_area_h = left_area_h.max(right_area_h) + IBD_PORT_PAD_V * 2.0;
         let min_h = header_bottom + port_area_h;
         if y < min_h {
             y = min_h;
@@ -566,53 +588,37 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
         ));
 
         // Left border ports (In / InOut / Undirected)
-        for (i, row) in ibd_left_ports.iter().enumerate() {
-            let cy = header_bottom + IBD_PORT_PAD_V + i as f64 * IBD_PORT_ROW_H + IBD_PORT_ROW_H / 2.0;
-            let sq_x = -PORT_SQ / 2.0;
-            let sq_y = cy - PORT_SQ / 2.0;
-            svg_parts.push(format!(
-                "<rect x=\"{sx:.1}\" y=\"{sy:.1}\" width=\"{sz:.0}\" height=\"{sz:.0}\" \
-                 fill=\"#ffffff\" stroke=\"{stroke}\" stroke-width=\"1.2\"/>",
-                sx = sq_x, sy = sq_y, sz = PORT_SQ, stroke = theme.border
-            ));
-            let label = port_name_label(row);
-            svg_parts.push(format!(
-                "<text x=\"{tx:.1}\" y=\"{ty:.1}\" font-size=\"9\" fill=\"{fg}\">{text}</text>",
-                tx = PORT_SQ / 2.0 + 3.0, ty = cy + 3.5, fg = theme.muted_fg, text = esc(&label)
-            ));
-            port_anchors.push(PortAnchor {
-                name: row.name.clone(),
-                x: 0.0,
-                y: cy,
-                side: "left".to_string(),
-                direction: format!("{:?}", row.direction).to_lowercase(),
-            });
+        let mut ly = header_bottom + IBD_PORT_PAD_V;
+        for row in &ibd_left_ports {
+            let rh = port_row_h(row);
+            let cy = ly + rh / 2.0;
+            render_ibd_port(
+                &mut svg_parts,
+                &mut port_anchors,
+                row,
+                cy,
+                box_width,
+                theme,
+                true, // left side
+            );
+            ly += rh;
         }
 
         // Right border ports (Out)
-        for (i, row) in ibd_right_ports.iter().enumerate() {
-            let cy = header_bottom + IBD_PORT_PAD_V + i as f64 * IBD_PORT_ROW_H + IBD_PORT_ROW_H / 2.0;
-            let sq_x = box_width - PORT_SQ / 2.0;
-            let sq_y = cy - PORT_SQ / 2.0;
-            svg_parts.push(format!(
-                "<rect x=\"{sx:.1}\" y=\"{sy:.1}\" width=\"{sz:.0}\" height=\"{sz:.0}\" \
-                 fill=\"#ffffff\" stroke=\"{stroke}\" stroke-width=\"1.2\"/>",
-                sx = sq_x, sy = sq_y, sz = PORT_SQ, stroke = theme.border
-            ));
-            let label = port_name_label(row);
-            svg_parts.push(format!(
-                "<text x=\"{tx:.1}\" y=\"{ty:.1}\" font-size=\"9\" fill=\"{fg}\" \
-                 text-anchor=\"end\">{text}</text>",
-                tx = box_width - PORT_SQ / 2.0 - 3.0, ty = cy + 3.5,
-                fg = theme.muted_fg, text = esc(&label)
-            ));
-            port_anchors.push(PortAnchor {
-                name: row.name.clone(),
-                x: box_width,
-                y: cy,
-                side: "right".to_string(),
-                direction: format!("{:?}", row.direction).to_lowercase(),
-            });
+        let mut ry = header_bottom + IBD_PORT_PAD_V;
+        for row in &ibd_right_ports {
+            let rh = port_row_h(row);
+            let cy = ry + rh / 2.0;
+            render_ibd_port(
+                &mut svg_parts,
+                &mut port_anchors,
+                row,
+                cy,
+                box_width,
+                theme,
+                false, // right side
+            );
+            ry += rh;
         }
     }
 
@@ -657,6 +663,135 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
         width: box_width,
         height: box_height,
         port_anchors,
+    }
+}
+
+/// Render one IBD port (flat or nested) and push its anchor(s).
+///
+/// `cy` is the vertical center of this port's row (in element-local coords).
+/// `is_left` true → port on left border (In/InOut), false → right border (Out).
+///
+/// Anchor x for a left port:  `-PORT_SQ/2`   (outer edge of port square, to the left of the block)
+/// Anchor x for a right port: `box_width + PORT_SQ/2` (outer edge, to the right)
+fn render_ibd_port(
+    svg_parts: &mut Vec<String>,
+    port_anchors: &mut Vec<PortAnchor>,
+    row: &PortRow,
+    cy: f64,
+    box_width: f64,
+    theme: &ElementTheme,
+    is_left: bool,
+) {
+    let fh = port_frame_h(row);
+
+    if row.sub_ports.is_empty() {
+        // ── Flat port ───────────────────────────────────────────────────────
+        let sq_x = if is_left {
+            -PORT_SQ / 2.0
+        } else {
+            box_width - PORT_SQ / 2.0
+        };
+        let sq_y = cy - PORT_SQ / 2.0;
+
+        svg_parts.push(format!(
+            "<rect x=\"{sx:.1}\" y=\"{sy:.1}\" width=\"{sz:.0}\" height=\"{sz:.0}\" \
+             fill=\"#ffffff\" stroke=\"{stroke}\" stroke-width=\"1.2\"/>",
+            sx = sq_x, sy = sq_y, sz = PORT_SQ, stroke = theme.border
+        ));
+
+        let label = port_name_label(row);
+        if is_left {
+            svg_parts.push(format!(
+                "<text x=\"{tx:.1}\" y=\"{ty:.1}\" font-size=\"9\" fill=\"{fg}\">{text}</text>",
+                tx = PORT_SQ / 2.0 + 3.0, ty = cy + 3.5,
+                fg = theme.muted_fg, text = esc(&label)
+            ));
+        } else {
+            svg_parts.push(format!(
+                "<text x=\"{tx:.1}\" y=\"{ty:.1}\" font-size=\"9\" fill=\"{fg}\" \
+                 text-anchor=\"end\">{text}</text>",
+                tx = box_width - PORT_SQ / 2.0 - 3.0, ty = cy + 3.5,
+                fg = theme.muted_fg, text = esc(&label)
+            ));
+        }
+
+        // Anchor at the outer edge of the port square
+        let anchor_x = if is_left { -PORT_SQ / 2.0 } else { box_width + PORT_SQ / 2.0 };
+        port_anchors.push(PortAnchor {
+            name: row.name.clone(),
+            x: anchor_x,
+            y: cy,
+            side: if is_left { "left" } else { "right" }.to_string(),
+            direction: format!("{:?}", row.direction).to_lowercase(),
+        });
+    } else {
+        // ── Nested port ─────────────────────────────────────────────────────
+        // Outer frame: hollow rect straddling the block border
+        let fw = PORT_SQ_OUTER_W;
+        let frame_x = if is_left { -fw / 2.0 } else { box_width - fw / 2.0 };
+        let frame_y = cy - fh / 2.0;
+
+        svg_parts.push(format!(
+            "<rect x=\"{fx:.1}\" y=\"{fy:.1}\" width=\"{fw:.0}\" height=\"{fh:.1}\" \
+             fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.2\"/>",
+            fx = frame_x, fy = frame_y, fw = fw, fh = fh,
+            fill = theme.body_bg, stroke = theme.border
+        ));
+
+        // Outer port name label
+        let label = port_name_label(row);
+        if is_left {
+            svg_parts.push(format!(
+                "<text x=\"{tx:.1}\" y=\"{ty:.1}\" font-size=\"9\" fill=\"{fg}\">{text}</text>",
+                tx = fw / 2.0 + 3.0, ty = cy + 3.5,
+                fg = theme.muted_fg, text = esc(&label)
+            ));
+        } else {
+            svg_parts.push(format!(
+                "<text x=\"{tx:.1}\" y=\"{ty:.1}\" font-size=\"9\" fill=\"{fg}\" \
+                 text-anchor=\"end\">{text}</text>",
+                tx = box_width - fw / 2.0 - 3.0, ty = cy + 3.5,
+                fg = theme.muted_fg, text = esc(&label)
+            ));
+        }
+
+        // Inner sub-port squares, stacked inside the outer frame
+        for (i, sub) in row.sub_ports.iter().enumerate() {
+            let inner_y = frame_y + PORT_INNER_PAD + i as f64 * (PORT_SQ_INNER + PORT_INNER_PAD);
+            let inner_x = if is_left {
+                frame_x + (fw - PORT_SQ_INNER) / 2.0
+            } else {
+                frame_x + (fw - PORT_SQ_INNER) / 2.0
+            };
+            let inner_color = sub.direction.color();
+            svg_parts.push(format!(
+                "<rect x=\"{ix:.1}\" y=\"{iy:.1}\" width=\"{sz:.0}\" height=\"{sz:.0}\" \
+                 fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1\"/>",
+                ix = inner_x, iy = inner_y, sz = PORT_SQ_INNER,
+                fill = inner_color, stroke = theme.border
+            ));
+
+            // Sub-port anchor: same outer edge as parent, at sub-port's vertical centre
+            let sub_cy = inner_y + PORT_SQ_INNER / 2.0;
+            let anchor_x = if is_left { -fw / 2.0 } else { box_width + fw / 2.0 };
+            port_anchors.push(PortAnchor {
+                name: format!("{}.{}", row.name, sub.name),
+                x: anchor_x,
+                y: sub_cy,
+                side: if is_left { "left" } else { "right" }.to_string(),
+                direction: format!("{:?}", sub.direction).to_lowercase(),
+            });
+        }
+
+        // Outer port anchor: mid-height of the entire frame, at outer edge
+        let anchor_x = if is_left { -fw / 2.0 } else { box_width + fw / 2.0 };
+        port_anchors.push(PortAnchor {
+            name: row.name.clone(),
+            x: anchor_x,
+            y: cy,
+            side: if is_left { "left" } else { "right" }.to_string(),
+            direction: format!("{:?}", row.direction).to_lowercase(),
+        });
     }
 }
 

@@ -31,6 +31,13 @@ features:
     type: Port
     typedBy: Interfaces::ControlPortDef
     direction: out
+    ports:
+      - name: throttle
+        direction: out
+      - name: attitude
+        direction: out
+      - name: yaw
+        direction: out
   - name: telemetryOut
     type: Port
     typedBy: Interfaces::TelemetryPortDef

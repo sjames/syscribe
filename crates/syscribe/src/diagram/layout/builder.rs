@@ -108,9 +108,22 @@ pub fn build_element_node(element: &RawElement, view: &ViewConfig) -> ElementNod
                     (name_val, dir_val)
                 {
                     let direction = parse_direction(d);
-                    let type_ref =
-                        type_val.and_then(|v| v.as_str()).map(|s| s.to_string());
-                    ports.push(PortRow { name: n.clone(), type_ref, direction, multiplicity: None });
+                    let type_ref = type_val.and_then(|v| v.as_str()).map(|s| s.to_string());
+
+                    // Parse nested sub-ports from an optional `ports:` sub-key
+                    let sub_ports = map
+                        .get(&serde_yaml::Value::String("ports".into()))
+                        .and_then(|v| v.as_sequence())
+                        .map(|seq| parse_sub_ports(seq))
+                        .unwrap_or_default();
+
+                    ports.push(PortRow {
+                        name: n.clone(),
+                        type_ref,
+                        direction,
+                        multiplicity: None,
+                        sub_ports,
+                    });
                 }
             }
         }
@@ -124,6 +137,7 @@ pub fn build_element_node(element: &RawElement, view: &ViewConfig) -> ElementNod
                 type_ref: fm.typed_by.as_ref().and_then(|v| v.as_str()).map(|s| s.to_string()),
                 direction: parse_direction(dir),
                 multiplicity: fm.multiplicity.clone(),
+                sub_ports: vec![],
             });
         }
     }
@@ -280,6 +294,35 @@ fn apply_include_filter(compartment: Compartment, include: &super::types::Includ
         }
         other => Some(other),
     }
+}
+
+/// Parse a `ports:` sequence into a flat list of `PortRow`s (one level deep).
+fn parse_sub_ports(seq: &[serde_yaml::Value]) -> Vec<PortRow> {
+    seq.iter()
+        .filter_map(|v| {
+            let map = v.as_mapping()?;
+            let name = map
+                .get(&serde_yaml::Value::String("name".into()))?
+                .as_str()?
+                .to_string();
+            let dir_str = map
+                .get(&serde_yaml::Value::String("direction".into()))
+                .and_then(|v| v.as_str())
+                .unwrap_or("undirected");
+            let type_ref = map
+                .get(&serde_yaml::Value::String("type".into()))
+                .or_else(|| map.get(&serde_yaml::Value::String("typedBy".into())))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            Some(PortRow {
+                name,
+                type_ref,
+                direction: parse_direction(dir_str),
+                multiplicity: None,
+                sub_ports: vec![],
+            })
+        })
+        .collect()
 }
 
 fn parse_direction(s: &str) -> PortDirection {
