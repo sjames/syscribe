@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 580" width="940" height="580">
+<style>text{font-family:'Inter','Roboto',system-ui,sans-serif}@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}</style>
+<rect width="940" height="580" fill="#f8f9fc"/>
+<text x="50.0" y="37.0" font-size="16" font-weight="700" fill="#1a1a2e">UAV System Architecture</text>
+<defs><marker id="arr-open" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0,0 9,3.5 0,7" fill="none" stroke="#888" stroke-width="1.2"/></marker><marker id="arr-flow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0,0 9,3.5 0,7" fill="none" stroke="#3a6ea5" stroke-width="1.2"/></marker><marker id="arr-verify" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0,0 9,3.5 0,7" fill="none" stroke="#3a6ea5" stroke-width="1.2"/></marker><marker id="arr-alloc" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0,0 9,3.5 0,7" fill="none" stroke="#7a3ea5" stroke-width="1.2"/></marker><marker id="arr-satisfy" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polyline points="0,0 9,3.5 0,7" fill="none" stroke="#1a6b30" stroke-width="1.2"/></marker><marker id="arr-generalize" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto"><polygon points="0,0 12,5 0,10" fill="white" stroke="#3a3a5c" stroke-width="1.2"/></marker></defs>
+<path d="M 210.0 134.0 L 270.0 134.0" fill="none" stroke="#3a6ea5" stroke-width="1.4" marker-end="url(#arr-flow)"/>
+<path d="M 430.0 152.0 L 460.0 152.0 L 460.0 134.0 L 490.0 134.0" fill="none" stroke="#3a6ea5" stroke-width="1.4" marker-end="url(#arr-flow)"/>
+<path d="M 430.0 152.0 L 240.0 152.0 L 240.0 306.0 L 50.0 306.0" fill="none" stroke="#3a6ea5" stroke-width="1.4" marker-end="url(#arr-flow)"/>
+<path d="M 650.0 152.0 L 690.0 152.0 L 690.0 134.0 L 730.0 134.0" fill="none" stroke="#3a6ea5" stroke-width="1.4" marker-end="url(#arr-flow)"/>
+<path d="M 210.0 100.5 L 130.0 100.5 L 130.0 460.0 L 50.0 460.0" fill="none" stroke="#1a6b30" stroke-width="1.4" stroke-dasharray="4,2" marker-end="url(#arr-satisfy)"/><text x="130.0" y="276.2" font-size="9" fill="#1a6b30" text-anchor="middle" font-style="italic">«satisfy»</text>
+<path d="M 650.0 109.5 L 580.0 109.5 L 580.0 460.0 L 510.0 460.0" fill="none" stroke="#1a6b30" stroke-width="1.4" stroke-dasharray="4,2" marker-end="url(#arr-satisfy)"/><text x="580.0" y="280.8" font-size="9" fill="#1a6b30" text-anchor="middle" font-style="italic">«satisfy»</text>
+<g transform="translate(50.0 50.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style><filter id="eUAV__Power__BatteryPacks" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0.0" dy="2.0" stdDeviation="6.0" flood-color="rgba(0,0,0,0.10)"/></filter></defs>
+<clipPath id="hceUAV__Power__BatteryPack"><rect x="0" y="0.0" width="160.0" height="60.0" rx="6" ry="6"/></clipPath>
+<rect x="0" y="0.0" width="160.0" height="54.0" fill="#dde2f0" clip-path="url(#hceUAV__Power__BatteryPack)"/>
+<text x="12.0" y="16.5" font-size="9" fill="#555" font-style="italic">«part def»</text>
+<text x="12.0" y="35.5" font-size="13" font-weight="700" fill="#1a1a2e">BatteryPack</text>
+<line x1="0" y1="54.0" x2="160.0" y2="54.0" stroke="#d0d0e0" stroke-width="1"/>
+<rect x="0" y="55.0" width="160.0" height="46.0" fill="#f8f9fc"/>
+<text x="12.0" y="67.5" font-size="9" fill="#888" letter-spacing="1" font-weight="700">PORTS</text>
+<text x="12.0" y="82.9" font-size="11" fill="#1a1a2e">◀ powerOut : Port</text>
+<rect x="0.8" y="0.8" width="158.5" height="99.5" rx="6" ry="6" fill="none" stroke="#3a3a5c" stroke-width="1.5" filter="url(#eUAV__Power__BatteryPacks)"/>
+</g>
+<g transform="translate(270.0 50.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style><filter id="eUAV__Power__PowerDistributionUnits" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0.0" dy="2.0" stdDeviation="6.0" flood-color="rgba(0,0,0,0.10)"/></filter></defs>
+<clipPath id="hceUAV__Power__PowerDistributionUnit"><rect x="0" y="0.0" width="160.0" height="60.0" rx="6" ry="6"/></clipPath>
+<rect x="0" y="0.0" width="160.0" height="54.0" fill="#dde2f0" clip-path="url(#hceUAV__Power__PowerDistributionUnit)"/>
+<text x="12.0" y="16.5" font-size="9" fill="#555" font-style="italic">«part def»</text>
+<text x="12.0" y="35.5" font-size="13" font-weight="700" fill="#1a1a2e">PowerDistributionUnit</text>
+<line x1="0" y1="54.0" x2="160.0" y2="54.0" stroke="#d0d0e0" stroke-width="1"/>
+<rect x="0" y="55.0" width="160.0" height="64.0" fill="#f8f9fc"/>
+<text x="12.0" y="67.5" font-size="9" fill="#888" letter-spacing="1" font-weight="700">PORTS</text>
+<text x="12.0" y="82.9" font-size="11" fill="#1a1a2e">▶ powerIn : Port</text>
+<text x="12.0" y="100.9" font-size="11" fill="#1a1a2e">◀ powerOut : Port</text>
+<rect x="0.8" y="0.8" width="158.5" height="117.5" rx="6" ry="6" fill="none" stroke="#3a3a5c" stroke-width="1.5" filter="url(#eUAV__Power__PowerDistributionUnits)"/>
+</g>
+<g transform="translate(490.0 50.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style><filter id="eUAV__Avionics__AvionicsBays" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0.0" dy="2.0" stdDeviation="6.0" flood-color="rgba(0,0,0,0.10)"/></filter></defs>
+<clipPath id="hceUAV__Avionics__AvionicsBay"><rect x="0" y="0.0" width="160.0" height="60.0" rx="6" ry="6"/></clipPath>
+<rect x="0" y="0.0" width="160.0" height="54.0" fill="#dde2f0" clip-path="url(#hceUAV__Avionics__AvionicsBay)"/>
+<text x="12.0" y="16.5" font-size="9" fill="#555" font-style="italic">«part def»</text>
+<text x="12.0" y="35.5" font-size="13" font-weight="700" fill="#1a1a2e">AvionicsBay</text>
+<line x1="0" y1="54.0" x2="160.0" y2="54.0" stroke="#d0d0e0" stroke-width="1"/>
+<rect x="0" y="55.0" width="160.0" height="64.0" fill="#f8f9fc"/>
+<text x="12.0" y="67.5" font-size="9" fill="#888" letter-spacing="1" font-weight="700">PORTS</text>
+<text x="12.0" y="82.9" font-size="11" fill="#1a1a2e">▶ powerIn : Port</text>
+<text x="12.0" y="100.9" font-size="11" fill="#1a1a2e">◀ telemetryOut : Port</text>
+<rect x="0.8" y="0.8" width="158.5" height="117.5" rx="6" ry="6" fill="none" stroke="#3a3a5c" stroke-width="1.5" filter="url(#eUAV__Avionics__AvionicsBays)"/>
+</g>
+<g transform="translate(730.0 50.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style><filter id="eGroundStation__GroundControlStations" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0.0" dy="2.0" stdDeviation="6.0" flood-color="rgba(0,0,0,0.10)"/></filter></defs>
+<clipPath id="hceGroundStation__GroundControlStation"><rect x="0" y="0.0" width="160.0" height="60.0" rx="6" ry="6"/></clipPath>
+<rect x="0" y="0.0" width="160.0" height="54.0" fill="#dde2f0" clip-path="url(#hceGroundStation__GroundControlStation)"/>
+<text x="12.0" y="16.5" font-size="9" fill="#555" font-style="italic">«part def»</text>
+<text x="12.0" y="35.5" font-size="13" font-weight="700" fill="#1a1a2e">GroundControlStation</text>
+<line x1="0" y1="54.0" x2="160.0" y2="54.0" stroke="#d0d0e0" stroke-width="1"/>
+<rect x="0" y="55.0" width="160.0" height="46.0" fill="#f8f9fc"/>
+<text x="12.0" y="67.5" font-size="9" fill="#888" letter-spacing="1" font-weight="700">PORTS</text>
+<text x="12.0" y="82.9" font-size="11" fill="#1a1a2e">▶ telemetryIn : Port</text>
+<rect x="0.8" y="0.8" width="158.5" height="99.5" rx="6" ry="6" fill="none" stroke="#3a3a5c" stroke-width="1.5" filter="url(#eGroundStation__GroundControlStations)"/>
+</g>
+<g transform="translate(50.0 210.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style><filter id="eUAV__Propulsion__PropulsionSystems" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0.0" dy="2.0" stdDeviation="6.0" flood-color="rgba(0,0,0,0.10)"/></filter></defs>
+<clipPath id="hceUAV__Propulsion__PropulsionSystem"><rect x="0" y="0.0" width="160.0" height="72.0" rx="6" ry="6"/></clipPath>
+<rect x="0" y="0.0" width="160.0" height="66.0" fill="#dde2f0" clip-path="url(#hceUAV__Propulsion__PropulsionSystem)"/>
+<text x="12.0" y="16.5" font-size="9" fill="#555" font-style="italic">«part def»</text>
+<text x="12.0" y="35.5" font-size="13" font-weight="700" fill="#1a1a2e" font-style="italic">PropulsionSystem</text>
+<text x="12.0" y="54.1" font-size="9" fill="#555" font-style="italic">{abstract}</text>
+<line x1="0" y1="66.0" x2="160.0" y2="66.0" stroke="#d0d0e0" stroke-width="1"/>
+<rect x="0" y="67.0" width="160.0" height="46.0" fill="#f8f9fc"/>
+<text x="12.0" y="79.5" font-size="9" fill="#888" letter-spacing="1" font-weight="700">PORTS</text>
+<text x="12.0" y="94.9" font-size="11" fill="#1a1a2e">▶ powerIn : Port</text>
+<rect x="0.8" y="0.8" width="158.5" height="111.5" rx="6" ry="6" fill="none" stroke="#3a3a5c" stroke-width="1.5" filter="url(#eUAV__Propulsion__PropulsionSystems)"/>
+</g>
+<g transform="translate(490.0 210.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style><filter id="eUAV__Avionics__FlightControllers" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0.0" dy="2.0" stdDeviation="6.0" flood-color="rgba(0,0,0,0.10)"/></filter></defs>
+<clipPath id="hceUAV__Avionics__FlightController"><rect x="0" y="0.0" width="160.0" height="60.0" rx="6" ry="6"/></clipPath>
+<rect x="0" y="0.0" width="160.0" height="54.0" fill="#dde2f0" clip-path="url(#hceUAV__Avionics__FlightController)"/>
+<text x="12.0" y="16.5" font-size="9" fill="#555" font-style="italic">«part def»</text>
+<text x="12.0" y="35.5" font-size="13" font-weight="700" fill="#1a1a2e">FlightController</text>
+<line x1="0" y1="54.0" x2="160.0" y2="54.0" stroke="#d0d0e0" stroke-width="1"/>
+<rect x="0" y="55.0" width="160.0" height="82.0" fill="#f8f9fc"/>
+<text x="12.0" y="67.5" font-size="9" fill="#888" letter-spacing="1" font-weight="700">PORTS</text>
+<text x="12.0" y="82.9" font-size="11" fill="#1a1a2e">▶ powerIn : Port</text>
+<text x="12.0" y="100.9" font-size="11" fill="#1a1a2e">◀ controlOut : Port</text>
+<text x="12.0" y="118.9" font-size="11" fill="#1a1a2e">◀ telemetryOut : Port</text>
+<rect x="0.8" y="0.8" width="158.5" height="135.5" rx="6" ry="6" fill="none" stroke="#3a3a5c" stroke-width="1.5" filter="url(#eUAV__Avionics__FlightControllers)"/>
+</g>
+<g transform="translate(50.0 390.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style><filter id="eRequirements__FlightDurationReqs" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0.0" dy="2.0" stdDeviation="6.0" flood-color="rgba(0,0,0,0.10)"/></filter></defs>
+<clipPath id="hceRequirements__FlightDurationReq"><rect x="0" y="0.0" width="448.0" height="60.0" rx="6" ry="6"/></clipPath>
+<rect x="0" y="0.0" width="448.0" height="54.0" fill="#2d1b54" clip-path="url(#hceRequirements__FlightDurationReq)"/>
+<text x="12.0" y="16.5" font-size="9" fill="#c8b0e8" font-style="italic">«requirement»</text>
+<text x="12.0" y="35.5" font-size="13" font-weight="700" fill="#ffffff">Minimum 25-minute flight endurance under nominal conditions</text>
+<rect x="343.4" y="18.0" width="92.6" height="18" rx="4" fill="#7a3ea5"/><text x="389.7" y="30.2" font-size="9" font-weight="400" fill="#ffffff" text-anchor="middle" font-family="'JetBrains Mono','Roboto Mono',monospace">REQ-UAV-ENDUR-001</text>
+<line x1="0" y1="54.0" x2="448.0" y2="54.0" stroke="#e0d0f8" stroke-width="1"/>
+<rect x="0" y="55.0" width="448.0" height="34.0" fill="#faf7ff"/>
+<rect x="12.0" y="63.0" width="47.9" height="18" rx="4" fill="#22c55e"/><text x="36.0" y="75.2" font-size="9" fill="#ffffff" text-anchor="middle">approved</text>
+<rect x="65.9" y="63.0" width="48.0" height="18" rx="4" fill="#f97316"/><text x="89.9" y="75.2" font-size="9" fill="#ffffff" text-anchor="middle">hardware</text>
+<line x1="0" y1="89.0" x2="448.0" y2="89.0" stroke="#e0d0f8" stroke-width="1"/>
+<rect x="0" y="90.0" width="448.0" height="50.0" fill="#faf7ff"/>
+<text x="12.0" y="103.2" font-size="10" fill="#888" font-style="italic">The UAV shall maintain continuous flight for a m…</text>
+<text x="12.0" y="121.2" font-size="10" fill="#888" font-style="italic">Mission planning analysis requires a minimum end…</text>
+<rect x="0.8" y="0.8" width="446.5" height="138.5" rx="6" ry="6" fill="none" stroke="#4a0a8e" stroke-width="1.5" filter="url(#eRequirements__FlightDurationReqs)"/>
+</g>
+<g transform="translate(510.0 390.0)">
+<defs><style>@font-face{font-family:'Inter';font-weight:400;src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}@font-face{font-family:'Inter';font-weight:700;src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}text{font-family:'Inter','Roboto',system-ui,sans-serif}</style><filter id="eRequirements__DataLinkReqs" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0.0" dy="2.0" stdDeviation="6.0" flood-color="rgba(0,0,0,0.10)"/></filter></defs>
+<clipPath id="hceRequirements__DataLinkReq"><rect x="0" y="0.0" width="356.0" height="60.0" rx="6" ry="6"/></clipPath>
+<rect x="0" y="0.0" width="356.0" height="54.0" fill="#2d1b54" clip-path="url(#hceRequirements__DataLinkReq)"/>
+<text x="12.0" y="16.5" font-size="9" fill="#c8b0e8" font-style="italic">«requirement»</text>
+<text x="12.0" y="35.5" font-size="13" font-weight="700" fill="#ffffff">Telemetry data link range ≥ 5 km line of sight</text>
+<rect x="252.3" y="18.0" width="91.7" height="18" rx="4" fill="#7a3ea5"/><text x="298.1" y="30.2" font-size="9" font-weight="400" fill="#ffffff" text-anchor="middle" font-family="'JetBrains Mono','Roboto Mono',monospace">REQ-UAV-COMM-001</text>
+<line x1="0" y1="54.0" x2="356.0" y2="54.0" stroke="#e0d0f8" stroke-width="1"/>
+<rect x="0" y="55.0" width="356.0" height="34.0" fill="#faf7ff"/>
+<rect x="12.0" y="63.0" width="47.9" height="18" rx="4" fill="#22c55e"/><text x="36.0" y="75.2" font-size="9" fill="#ffffff" text-anchor="middle">approved</text>
+<rect x="65.9" y="63.0" width="46.1" height="18" rx="4" fill="#3b82f6"/><text x="89.0" y="75.2" font-size="9" fill="#ffffff" text-anchor="middle">software</text>
+<line x1="0" y1="89.0" x2="356.0" y2="89.0" stroke="#e0d0f8" stroke-width="1"/>
+<rect x="0" y="90.0" width="356.0" height="50.0" fill="#faf7ff"/>
+<text x="12.0" y="103.2" font-size="10" fill="#888" font-style="italic">The command and telemetry data link shall mainta…</text>
+<text x="12.0" y="121.2" font-size="10" fill="#888" font-style="italic">Mission radius is constrained by the data link r…</text>
+<rect x="0.8" y="0.8" width="354.5" height="138.5" rx="6" ry="6" fill="none" stroke="#4a0a8e" stroke-width="1.5" filter="url(#eRequirements__DataLinkReqs)"/>
+</g>
+</svg>

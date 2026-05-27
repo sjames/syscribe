@@ -1,3 +1,6 @@
+#![deny(warnings)]
+
+mod diagram;
 mod query;
 mod render;
 
@@ -70,7 +73,8 @@ fn main() {
         return;
     }
 
-    if args.iter().any(|a| a == "--help" || a == "-h") || args.len() == 1 {
+    let top_help = args.get(1).map(|a| a == "--help" || a == "-h").unwrap_or(false);
+    if top_help || args.len() == 1 {
         query::print_help();
         return;
     }
@@ -120,6 +124,11 @@ fn main() {
                     std::process::exit(1);
                 }
                 render::cmd_render(&elems, &resolver, key);
+            }
+            "diagram" => {
+                let subcmd = args.get(3).map(|s| s.as_str()).unwrap_or("");
+                let rest: Vec<String> = args.get(4..).unwrap_or(&[]).to_vec();
+                diagram::cmd_diagram(&elems, &resolver, subcmd, &rest);
             }
             "trace" | "why" | "who-verifies" => {
                 let result = validator::validate(&elems);

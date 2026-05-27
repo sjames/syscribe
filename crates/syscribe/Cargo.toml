@@ -11,3 +11,9 @@ path = "src/main.rs"
 syscribe-model = { path = "../syscribe-model" }
 serde_yaml = { workspace = true }
 quick-xml = { workspace = true }
+taffy = "0.10.1"
+ab_glyph = "0.2.32"
+fontdb = "0.23.0"
+serde_json.workspace = true
+serde = { workspace = true, features = ["derive"] }
+clap = "4"

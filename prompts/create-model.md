@@ -142,7 +142,7 @@ Add `satisfies:` to architecture elements. Validate and fix any E312 (parent in 
 Write `Allocation` elements. Validate: fix E502/E503 (unresolved `allocatedFrom`/`allocatedTo`).
 
 **Batch 8 — Diagrams**
-Write `Diagram` elements after all model elements are in place (shapes and edges reference them). Validate: fix E400 (missing mermaid block), W402 (unresolved shape ref), W403 (undefined edge endpoint), W408 (unresolved `%% ref:` annotation in Mermaid block), W409 (Mermaid diagram has no `%% ref:` annotations at all).
+Write `Diagram` elements after all model elements are in place. For Mermaid or embedded SVG diagrams, write the `.md` file directly. For `svgMode: companion` diagrams, use the 4-step CLI workflow: `diagram list` → `diagram measure` → author `*.layout.json` → `diagram compose --output <path>`, then commit both the `.md` and the generated `.svg`. Validate: fix E400 (missing mermaid block), W402 (unresolved shape ref), W403 (undefined edge endpoint), W408 (unresolved `%% ref:` annotation in Mermaid block), W409 (Mermaid diagram has no `%% ref:` annotations at all).
 
 After all batches pass with 0 errors, review the warnings section and fix any that indicate genuine gaps (W300 — leaf requirement has no satisfying element; W002 — approved requirement has no active TestCase).
 
@@ -579,7 +579,11 @@ Rules:
 
 ## Part 9 — Diagrams
 
-Every diagram is a `type: Diagram` element in `Diagrams/`. Prefer **Mermaid** for traceability and flow diagrams; prefer **embedded SVG** for structural SysML diagrams (BDD, IBD, StateMachine, Requirement).
+Every diagram is a `type: Diagram` element in `Diagrams/`. Three authoring approaches are available:
+
+- **Mermaid** — for traceability trees, flow diagrams, sequence diagrams, and simple state machines. Fast to write; rendered client-side.
+- **Composed SVG** (`syscribe diagram` CLI) — for element-card architecture diagrams where card content is generated from live model data and edges route between named port anchors. Preferred for structural architecture overviews. Commit the generated SVG as a companion file.
+- **Embedded SVG** — hand-coded SVG using the symbol library, for precise SysML notation (BDD, IBD, StateMachine, Requirement diagrams). Maximum control; highest effort.
 
 ### Diagram element frontmatter
 
@@ -967,6 +971,137 @@ State machine for flight operations.
 
 ---
 
+### Composed SVG diagrams (syscribe diagram CLI)
+
+Use for: element-card architecture overviews and block-and-connector diagrams where cards are generated from live model data. The CLI renders each element as a styled card (ports, features, doc preview), routes edges between named port anchors, and writes a single SVG file. Commit the SVG as a companion file alongside the Diagram element.
+
+#### Step 1 — Inventory elements
+
+```bash
+syscribe diagram list model/
+# filter by type or namespace:
+syscribe diagram list model/ --type PartDef,Part --ns UAV
+```
+
+Output: one line per element — qualified name, type, domain.
+
+#### Step 2 — Measure elements
+
+Get rendered card dimensions and port anchor positions for the elements you plan to place:
+
+```bash
+syscribe diagram measure model/ \
+  "UAV::Power::BatteryPack,UAV::Power::PowerDistributionUnit,UAV::Avionics::AvionicsBay" \
+  --view ports
+```
+
+Output is JSON — for each element: `width`, `height`, `effective_view`, `port_anchors` (name, x, y, side, direction relative to card origin), and `peers` (connections declared in `connections:` frontmatter).
+
+Use `width`/`height` to plan non-overlapping positions, and `port_anchors` to pick exact edge endpoints. Ports with `"side": "right"` are edge sources; `"side": "left"` are edge targets.
+
+**`--view` presets:**
+
+| Preset | Shows |
+|---|---|
+| `full` | Header + badges + ports + features + doc preview |
+| `ports` | Header + ports compartment only |
+| `features` | Header + features compartment only |
+| `compact` | Header + status badges only |
+| `name` | Header only (stereotype + name) |
+| `requirement` | Header + badges + doc text preview |
+
+#### Step 3 — Author the layout JSON
+
+Name the file `<anything>.layout.json` — this suffix is gitignored. **Never commit layout files.**
+
+```json
+{
+  "title": "UAV Power Architecture",
+  "canvas": { "padding": 40, "bg": "#fafafa" },
+  "elements": [
+    { "qname": "UAV::Power::BatteryPack",           "x": 20,  "y": 80,  "view": "ports" },
+    { "qname": "UAV::Power::PowerDistributionUnit", "x": 240, "y": 80,  "view": "ports" },
+    { "qname": "UAV::Avionics::AvionicsBay",        "x": 460, "y": 20,  "view": "ports" },
+    { "qname": "UAV::Propulsion::PropulsionSystem", "x": 460, "y": 160, "view": "compact" },
+    { "qname": "Requirements::FlightDurationReq",   "x": 20,  "y": 280, "view": "requirement" }
+  ],
+  "edges": [
+    {
+      "from": { "qname": "UAV::Power::BatteryPack",           "port": "powerOut" },
+      "to":   { "qname": "UAV::Power::PowerDistributionUnit", "port": "powerIn" },
+      "kind": "flow"
+    },
+    {
+      "from": { "qname": "UAV::Avionics::AvionicsBay" },
+      "to":   { "qname": "Requirements::FlightDurationReq" },
+      "kind": "satisfy"
+    }
+  ]
+}
+```
+
+**Layout JSON field reference:**
+
+| Field | Required | Notes |
+|---|---|---|
+| `elements[].qname` | Yes | Qualified name — must resolve in the model |
+| `elements[].x`, `y` | Yes | Top-left corner of the card, in SVG units |
+| `elements[].view` | No | Preset string (`"ports"`) or object `{"preset":"ports","include":{"ports":["powerOut"]}}` |
+| `canvas.padding` | No | Margin around all elements (default 40) |
+| `canvas.bg` | No | Background fill (default `#fafafa`) |
+| `edges[].from`, `to` | Yes | `{"qname": "...", "port": "portName"}` — omit `port` to use element midpoints |
+| `edges[].kind` | No | Edge style (default `flow`) |
+| `edges[].label` | No | Custom label text; overrides the auto-label |
+
+**Edge kinds:**
+
+| `kind` | Color | Dash | Auto-label |
+|---|---|---|---|
+| `flow` | blue | solid | — |
+| `derive` | gray | dashed | «derive» |
+| `verify` | blue | dashed | «verify» |
+| `allocate` | purple | dashed | «allocate» |
+| `satisfy` | green | dashed | «satisfy» |
+| `generalize` | dark navy | solid | — |
+
+Edges route as 3-segment H-V-H paths (exit horizontally → jog to midpoint → enter target horizontally). Specifying `"port"` routes to an exact anchor; omitting `"port"` uses element bounding-box midpoints.
+
+#### Step 4 — Compose the SVG
+
+```bash
+syscribe diagram compose model/ my-arch.layout.json \
+  --output model/Views/MyDiagram.svg
+```
+
+Commit the generated SVG — it is a first-class model artifact.
+
+#### Diagram element for a composed SVG
+
+```yaml
+---
+type: Diagram
+name: UAVArchitectureDiagram
+svgMode: companion
+expose:
+  - UAV::Power::BatteryPack
+  - UAV::Power::PowerDistributionUnit
+  - UAV::Avionics::AvionicsBay
+  - UAV::Propulsion::PropulsionSystem
+---
+
+<img src="UAVArchitectureDiagram.svg" alt="UAV Architecture" width="100%">
+
+Power and data flow across the UAV's main subsystems. The battery pack supplies the
+power distribution unit, which fans out to the avionics bay and propulsion system.
+```
+
+- `svgMode: companion` — the browser renders the `<img>` tag in the body. Commit both the `.md` and the `.svg` file.
+- `expose:` — qualified names of elements shown in the diagram. Not validated; used for cross-reference display.
+- No `diagramKind:` is required — W400 is suppressed for `svgMode: companion`.
+- Do not use `shapes:` or `edges:` frontmatter for companion SVGs — the structure lives in the layout JSON, not in the model file.
+
+---
+
 ### Diagram validation rules
 
 | Code | Condition | Fix |
@@ -1267,12 +1402,17 @@ Run through this before producing any output.
 
 ### For every Diagram
 
+**Mermaid and embedded SVG diagrams:**
 - [ ] `diagramKind:` is set (`BDD` · `IBD` · `StateMachine` · `Requirement` · `Mermaid`)
 - [ ] `subject:` resolves to a known element
-- [ ] Mermaid diagrams have a ` ```mermaid ` block in the body with valid Mermaid syntax
-- [ ] SVG diagrams have `svgMode: inline` and a ` ```svg ` block; shape `id` attributes match `shapes:` keys; `sysml:ref` attributes match `ref:` values
-- [ ] All shape `ref:` values resolve (or are sub-features of a known element)
-- [ ] All edge `source`/`target` values are defined shape-ids in the same diagram
+- [ ] Mermaid: body has a ` ```mermaid ` block; every significant node has a `%% ref:` annotation above it
+- [ ] Embedded SVG: `svgMode: inline`; body has a ` ```svg ` block; shape `id` attributes match `shapes:` keys; `sysml:ref` attributes match `ref:` values; all shape `ref:` values resolve; all edge `source`/`target` values are defined shape-ids
+
+**Composed SVG (companion) diagrams:**
+- [ ] `svgMode: companion` is set; no `diagramKind:` needed
+- [ ] `expose:` lists the qualified names of all elements shown
+- [ ] The SVG file is committed alongside the `.md` (same directory, same stem)
+- [ ] The layout JSON used to generate the SVG is named `*.layout.json` and is **not** committed
 
 ### All elements
 

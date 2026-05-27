@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 pub mod element;
 pub mod frontmatter;
 pub mod graph;

@@ -199,6 +199,7 @@ Six enforced traceability rules govern how model elements relate to each other:
 - Qualified name resolution handles circular references gracefully (reports, does not panic).
 - The Syscribe format is the source of truth; the web service is read-only over the model files.
 - The LLM generation prompt lives at `prompts/create-model.md` and is embedded in the validator binary via `include_str!` — edit the `.md` file, not the Rust source.
+- **Diagram layout files** (`*.layout.json`) are ephemeral workspace inputs to `diagram compose` — they are not part of the Syscribe schema and must never be committed. Name them `<anything>.layout.json` so the `.gitignore` pattern excludes them automatically.
 
 ## LLM Workflow
 

@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 use anyhow::Result;
 use axum::{routing::{get, patch}, Router};
 use std::path::PathBuf;

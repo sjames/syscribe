@@ -307,7 +307,8 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
 
         if matches!(fm.element_type, Some(ElementType::Diagram)) {
             // W400: no diagramKind — rendering mode is ambiguous
-            if fm.diagram_kind.is_none() {
+            // Suppressed for companion SVGs: svgMode: companion already specifies how to display the diagram.
+            if fm.diagram_kind.is_none() && fm.svg_mode.as_deref() != Some("companion") {
                 findings.push(warning("W400", &file, "Diagram element has no `diagramKind` — rendering mode ambiguous"));
             }
             // E400: Mermaid diagrams require a ```mermaid fenced block in the body

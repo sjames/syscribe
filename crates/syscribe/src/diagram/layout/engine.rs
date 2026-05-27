@@ -1,0 +1,601 @@
+use taffy::prelude::*;
+
+use super::{
+    builder::{feature_row_text, port_row_text},
+    metrics::TextMetrics,
+    types::*,
+};
+
+// ── SVG helpers ───────────────────────────────────────────────────────────────
+
+fn esc(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+fn font_face_style() -> &'static str {
+    "<style>\
+     @font-face{font-family:'Inter';font-weight:400;\
+     src:url('https://fonts.bunny.net/inter/files/inter-latin-400-normal.woff2') format('woff2')}\
+     @font-face{font-family:'Inter';font-weight:700;\
+     src:url('https://fonts.bunny.net/inter/files/inter-latin-700-normal.woff2') format('woff2')}\
+     text{font-family:'Inter','Roboto',system-ui,sans-serif}\
+     </style>"
+}
+
+// ── Measured compartment heights ─────────────────────────────────────────────
+
+const HEADER_PAD_TOP: f64 = 10.0;
+const HEADER_PAD_BOT: f64 = 10.0;
+const SECTION_PAD_TOP: f64 = 6.0;
+const SECTION_PAD_BOT: f64 = 8.0;
+const SECTION_TITLE_H: f64 = 14.0;
+const ROW_H: f64 = 18.0;
+const STATUS_PAD_V: f64 = 6.0;
+const STATUS_ROW_H: f64 = 22.0;
+const BADGE_H: f64 = 18.0;
+const BADGE_PAD_H: f64 = 8.0;
+const BADGE_R: f64 = 4.0;
+const BADGE_GAP: f64 = 6.0;
+
+/// Compute all content text widths and return the required minimum box width.
+fn required_width(node: &ElementNode, m: &dyn TextMetrics) -> f64 {
+    let mut max_w: f64 = node.min_width;
+
+    for c in &node.compartments {
+        match c {
+            Compartment::Header { stereotype, name, badges, .. } => {
+                let stereo_w = stereotype.as_deref().map_or(0.0, |s| {
+                    m.advance_width(&format!("«{}»", s), FS_STEREOTYPE, false)
+                });
+                let name_w = m.advance_width(name, FS_NAME, true);
+                let badge_w: f64 = badges.iter().map(|b| {
+                    m.advance_width(&b.text, FS_BADGE, b.mono) + BADGE_PAD_H * 2.0
+                }).sum::<f64>()
+                    + if badges.is_empty() { 0.0 } else { BADGE_GAP * (badges.len() - 1) as f64 };
+                let row_w = stereo_w.max(name_w) + if badge_w > 0.0 { badge_w + PAD_H } else { 0.0 };
+                max_w = max_w.max(row_w + PAD_H * 2.0);
+            }
+            Compartment::StatusRow { badges } => {
+                let total: f64 = badges.iter().map(|b| {
+                    m.advance_width(&b.text, FS_BADGE, b.mono) + BADGE_PAD_H * 2.0
+                }).sum::<f64>()
+                    + if badges.is_empty() { 0.0 } else { BADGE_GAP * (badges.len() - 1) as f64 };
+                max_w = max_w.max(total + PAD_H * 2.0);
+            }
+            Compartment::PortsList { items } => {
+                for row in items {
+                    let text = port_row_text(row);
+                    max_w = max_w.max(m.advance_width(&text, FS_ROW, false) + PAD_H * 2.0);
+                }
+            }
+            Compartment::Features { items } => {
+                for row in items {
+                    let text = feature_row_text(row);
+                    max_w = max_w.max(m.advance_width(&text, FS_ROW, false) + PAD_H * 2.0);
+                }
+            }
+            Compartment::DocPreview { lines } => {
+                for line in lines {
+                    max_w = max_w.max(m.advance_width(line, FS_DOC, false) + PAD_H * 2.0);
+                }
+            }
+            Compartment::GherkinPreview { given, when, then } => {
+                for line in [given, when, then].iter().filter_map(|l| l.as_deref()) {
+                    max_w = max_w.max(m.advance_width(line, FS_DOC, false) + PAD_H * 2.0);
+                }
+            }
+        }
+    }
+
+    // Round up to nearest 4px
+    (max_w / 4.0).ceil() * 4.0
+}
+
+// ── Taffy layout for header (flex row: left | right) ─────────────────────────
+// We use Taffy for the header because it's a bidirectional flex layout:
+// [stereotype+name grows] [badges shrink to fit].
+// All other compartments are simple vertical stacks (manual accumulation).
+
+struct HeaderLayout {
+    total_height: f64,
+    #[allow(dead_code)]
+    badge_x_start: f64,
+}
+
+fn layout_header(
+    stereotype: Option<&str>,
+    _name: &str,
+    is_abstract: bool,
+    badges: &[Badge],
+    box_width: f64,
+    m: &dyn TextMetrics,
+) -> HeaderLayout {
+    let mut taffy = TaffyTree::<()>::new();
+
+    let stereo_h = if stereotype.is_some() || is_abstract {
+        m.line_height(FS_STEREOTYPE)
+    } else {
+        0.0
+    };
+    let name_h = m.line_height(FS_NAME);
+    let abstract_h = if is_abstract && stereotype.is_some() {
+        m.line_height(FS_STEREOTYPE)
+    } else {
+        0.0
+    };
+    let left_h = stereo_h + name_h + abstract_h + GAP * (if stereo_h > 0.0 { 1.0 } else { 0.0 });
+
+    let left_col = taffy
+        .new_leaf(Style {
+            size: Size {
+                width: auto(),
+                height: length(left_h as f32),
+            },
+            flex_grow: 1.0,
+            ..Default::default()
+        })
+        .unwrap();
+
+    let mut badge_nodes = Vec::new();
+    for b in badges {
+        let bw = m.advance_width(&b.text, FS_BADGE, b.mono) + BADGE_PAD_H * 2.0;
+        let node = taffy
+            .new_leaf(Style {
+                size: Size {
+                    width: length(bw as f32),
+                    height: length(BADGE_H as f32),
+                },
+                ..Default::default()
+            })
+            .unwrap();
+        badge_nodes.push(node);
+    }
+
+    let right_col = taffy
+        .new_with_children(
+            Style {
+                display: Display::Flex,
+                flex_direction: FlexDirection::Row,
+                gap: Size {
+                    width: length(BADGE_GAP as f32),
+                    height: length(0.0),
+                },
+                align_items: Some(AlignItems::Center),
+                flex_shrink: 1.0,
+                ..Default::default()
+            },
+            &badge_nodes,
+        )
+        .unwrap();
+
+    let root = taffy
+        .new_with_children(
+            Style {
+                display: Display::Flex,
+                flex_direction: FlexDirection::Row,
+                size: Size {
+                    width: length(box_width as f32),
+                    height: auto(),
+                },
+                padding: Rect {
+                    left: length(PAD_H as f32),
+                    right: length(PAD_H as f32),
+                    top: length(HEADER_PAD_TOP as f32),
+                    bottom: length(HEADER_PAD_BOT as f32),
+                },
+                gap: Size {
+                    width: length(PAD_H as f32),
+                    height: length(0.0),
+                },
+                align_items: Some(AlignItems::Center),
+                ..Default::default()
+            },
+            &[left_col, right_col],
+        )
+        .unwrap();
+
+    taffy
+        .compute_layout(
+            root,
+            Size {
+                width: AvailableSpace::Definite(box_width as f32),
+                height: AvailableSpace::MaxContent,
+            },
+        )
+        .unwrap();
+
+    let root_layout = taffy.layout(root).unwrap();
+    let total_height = root_layout.size.height as f64;
+
+    let badge_x = if !badge_nodes.is_empty() {
+        let right_layout = taffy.layout(right_col).unwrap();
+        right_layout.location.x as f64 + PAD_H
+    } else {
+        box_width
+    };
+
+    HeaderLayout { total_height, badge_x_start: badge_x }
+}
+
+// ── SVG emission ─────────────────────────────────────────────────────────────
+
+pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElement {
+    let box_width = required_width(node, m);
+    let theme = &node.theme;
+
+    let id_slug: String = node.qualified_name
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+        .collect();
+    let shadow_id = format!("e{}", id_slug);
+    let filter_ref = if theme.shadow.is_some() {
+        format!(" filter=\"url(#{}s)\"", shadow_id)
+    } else {
+        String::new()
+    };
+
+    let mut svg_parts: Vec<String> = Vec::new();
+    let mut port_anchors: Vec<PortAnchor> = Vec::new();
+
+    // ── Defs ─────────────────────────────────────────────────────────────────
+    let mut defs = format!("<defs>{}", font_face_style());
+    if let Some(sh) = &theme.shadow {
+        defs.push_str(&format!(
+            "<filter id=\"{}s\" x=\"-20%\" y=\"-20%\" width=\"140%\" height=\"140%\">\
+             <feDropShadow dx=\"{:.1}\" dy=\"{:.1}\" stdDeviation=\"{:.1}\" \
+             flood-color=\"{}\"/></filter>",
+            shadow_id, sh.dx, sh.dy, sh.blur, sh.color
+        ));
+    }
+    defs.push_str("</defs>");
+    svg_parts.push(defs);
+
+    let mut y: f64 = 0.0;
+
+    // ── Per-compartment SVG ───────────────────────────────────────────────────
+    for (ci, compartment) in node.compartments.iter().enumerate() {
+        let _is_first = ci == 0;
+
+        match compartment {
+            Compartment::Header { stereotype, name, is_abstract, badges } => {
+                let hl = layout_header(
+                    stereotype.as_deref(),
+                    name,
+                    *is_abstract,
+                    badges,
+                    box_width,
+                    m,
+                );
+                let h = hl.total_height;
+
+                // Header background
+                // Use a clipping approach: draw rounded rect for the whole header area
+                let clip_id = format!("hc{}", shadow_id);
+                svg_parts.push(format!(
+                    "<clipPath id=\"{clip}\"><rect x=\"0\" y=\"{y:.1}\" \
+                     width=\"{w:.1}\" height=\"{h:.1}\" rx=\"{r}\" ry=\"{r}\"/></clipPath>",
+                    clip = clip_id, y = y, w = box_width, h = h + CORNER_R, r = CORNER_R
+                ));
+                svg_parts.push(format!(
+                    "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" \
+                     fill=\"{fill}\" clip-path=\"url(#{clip})\"/>",
+                    y = y, w = box_width, h = h, fill = theme.header_bg, clip = clip_id
+                ));
+
+                // Stereotype label
+                let mut text_y = y + HEADER_PAD_TOP;
+                if let Some(stereo) = stereotype {
+                    let stereo_text = format!("«{}»", stereo);
+                    let lh = m.line_height(FS_STEREOTYPE);
+                    text_y += m.cap_height(FS_STEREOTYPE);
+                    svg_parts.push(format!(
+                        "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
+                         fill=\"{fg}\" font-style=\"italic\">{text}</text>",
+                        x = PAD_H, ty = text_y, fs = FS_STEREOTYPE,
+                        fg = theme.stereotype_fg, text = esc(&stereo_text)
+                    ));
+                    text_y += lh - m.cap_height(FS_STEREOTYPE) + GAP;
+                }
+
+                // Name
+                let name_style = if *is_abstract { " font-style=\"italic\"" } else { "" };
+                text_y += m.cap_height(FS_NAME);
+                svg_parts.push(format!(
+                    "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
+                     font-weight=\"700\" fill=\"{fg}\"{style}>{text}</text>",
+                    x = PAD_H, ty = text_y, fs = FS_NAME,
+                    fg = theme.header_fg, style = name_style, text = esc(name)
+                ));
+
+                // Abstract sub-label
+                if *is_abstract {
+                    text_y += m.line_height(FS_STEREOTYPE);
+                    svg_parts.push(format!(
+                        "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
+                         fill=\"{fg}\" font-style=\"italic\">{{abstract}}</text>",
+                        x = PAD_H, ty = text_y + m.cap_height(FS_STEREOTYPE),
+                        fs = FS_STEREOTYPE, fg = theme.stereotype_fg
+                    ));
+                }
+
+                // Header badges
+                if !badges.is_empty() {
+                    let badge_center_y = y + h / 2.0;
+                    let total_badge_w: f64 = badges.iter().map(|b| {
+                        m.advance_width(&b.text, FS_BADGE, b.mono) + BADGE_PAD_H * 2.0
+                    }).sum::<f64>()
+                        + BADGE_GAP * (badges.len() - 1) as f64;
+                    let mut bx = box_width - PAD_H - total_badge_w;
+                    for badge in badges {
+                        let bw = m.advance_width(&badge.text, FS_BADGE, badge.mono) + BADGE_PAD_H * 2.0;
+                        let font_weight = if badge.mono { " font-weight=\"400\"" } else { "" };
+                        let mono_family = if badge.mono {
+                            " font-family=\"'JetBrains Mono','Roboto Mono',monospace\""
+                        } else {
+                            ""
+                        };
+                        svg_parts.push(format!(
+                            "<rect x=\"{bx:.1}\" y=\"{by:.1}\" width=\"{bw:.1}\" \
+                             height=\"{bh}\" rx=\"{r}\" fill=\"{bg}\"/>\
+                             <text x=\"{tx:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\"{fw} \
+                             fill=\"{fg}\" text-anchor=\"middle\"{mf}>{text}</text>",
+                            bx = bx, by = badge_center_y - BADGE_H / 2.0,
+                            bw = bw, bh = BADGE_H, r = BADGE_R,
+                            bg = badge.bg,
+                            tx = bx + bw / 2.0,
+                            ty = badge_center_y + m.cap_height(FS_BADGE) / 2.0,
+                            fs = FS_BADGE, fw = font_weight, fg = badge.fg,
+                            mf = mono_family, text = esc(&badge.text)
+                        ));
+                        bx += bw + BADGE_GAP;
+                    }
+                }
+
+                y += h;
+            }
+
+            Compartment::StatusRow { badges } => {
+                if ci > 0 {
+                    svg_parts.push(divider_line(y, box_width, theme.divider));
+                    y += DIVIDER_H;
+                }
+
+                let h = STATUS_PAD_V * 2.0 + STATUS_ROW_H;
+                svg_parts.push(format!(
+                    "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"{fill}\"/>",
+                    y = y, w = box_width, h = h, fill = theme.body_bg
+                ));
+
+                let mut bx = PAD_H;
+                let center_y = y + h / 2.0;
+                for badge in badges {
+                    let bw = m.advance_width(&badge.text, FS_BADGE, badge.mono) + BADGE_PAD_H * 2.0;
+                    svg_parts.push(format!(
+                        "<rect x=\"{bx:.1}\" y=\"{by:.1}\" width=\"{bw:.1}\" \
+                         height=\"{bh}\" rx=\"{r}\" fill=\"{bg}\"/>\
+                         <text x=\"{tx:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
+                         fill=\"{fg}\" text-anchor=\"middle\">{text}</text>",
+                        bx = bx, by = center_y - BADGE_H / 2.0,
+                        bw = bw, bh = BADGE_H, r = BADGE_R, bg = badge.bg,
+                        tx = bx + bw / 2.0,
+                        ty = center_y + m.cap_height(FS_BADGE) / 2.0,
+                        fs = FS_BADGE, fg = badge.fg, text = esc(&badge.text)
+                    ));
+                    bx += bw + BADGE_GAP;
+                }
+                y += h;
+            }
+
+            Compartment::PortsList { items } => {
+                if ci > 0 {
+                    svg_parts.push(divider_line(y, box_width, theme.divider));
+                    y += DIVIDER_H;
+                }
+                svg_parts.push(format!(
+                    "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"{fill}\"/>",
+                    y = y,
+                    w = box_width,
+                    h = SECTION_PAD_TOP + SECTION_TITLE_H + items.len() as f64 * ROW_H + SECTION_PAD_BOT,
+                    fill = theme.body_bg
+                ));
+
+                y += SECTION_PAD_TOP;
+                svg_parts.push(section_title("PORTS", y, theme.muted_fg, m));
+                y += SECTION_TITLE_H;
+
+                for row in items {
+                    let text = port_row_text(row);
+                    let anchor_y = y + ROW_H / 2.0;
+                    let side = PortSide::from(&row.direction);
+                    let anchor_x = match &side {
+                        PortSide::Left => 0.0,
+                        PortSide::Right => box_width,
+                    };
+
+                    svg_parts.push(format!(
+                        "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
+                         fill=\"{fg}\">{text}</text>",
+                        x = PAD_H,
+                        ty = y + m.cap_height(FS_ROW),
+                        fs = FS_ROW, fg = theme.body_fg,
+                        text = esc(&text)
+                    ));
+
+                    port_anchors.push(PortAnchor {
+                        name: row.name.clone(),
+                        x: anchor_x,
+                        y: anchor_y,
+                        side: match side {
+                            PortSide::Left => "left".to_string(),
+                            PortSide::Right => "right".to_string(),
+                        },
+                        direction: format!("{:?}", row.direction).to_lowercase(),
+                    });
+
+                    y += ROW_H;
+                }
+                y += SECTION_PAD_BOT;
+            }
+
+            Compartment::Features { items } => {
+                if ci > 0 {
+                    svg_parts.push(divider_line(y, box_width, theme.divider));
+                    y += DIVIDER_H;
+                }
+                svg_parts.push(format!(
+                    "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"{fill}\"/>",
+                    y = y,
+                    w = box_width,
+                    h = SECTION_PAD_TOP + SECTION_TITLE_H + items.len() as f64 * ROW_H + SECTION_PAD_BOT,
+                    fill = theme.body_bg
+                ));
+
+                y += SECTION_PAD_TOP;
+                svg_parts.push(section_title("FEATURES", y, theme.muted_fg, m));
+                y += SECTION_TITLE_H;
+
+                for row in items {
+                    let text = feature_row_text(row);
+                    svg_parts.push(format!(
+                        "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" fill=\"{fg}\">{text}</text>",
+                        x = PAD_H,
+                        ty = y + m.cap_height(FS_ROW),
+                        fs = FS_ROW, fg = theme.body_fg,
+                        text = esc(&text)
+                    ));
+                    y += ROW_H;
+                }
+                y += SECTION_PAD_BOT;
+            }
+
+            Compartment::DocPreview { lines } => {
+                if ci > 0 {
+                    svg_parts.push(divider_line(y, box_width, theme.divider));
+                    y += DIVIDER_H;
+                }
+                svg_parts.push(format!(
+                    "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"{fill}\"/>",
+                    y = y,
+                    w = box_width,
+                    h = SECTION_PAD_TOP + lines.len() as f64 * ROW_H + SECTION_PAD_BOT,
+                    fill = theme.body_bg
+                ));
+                y += SECTION_PAD_TOP;
+                for line in lines {
+                    svg_parts.push(format!(
+                        "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
+                         fill=\"{fg}\" font-style=\"italic\">{text}</text>",
+                        x = PAD_H,
+                        ty = y + m.cap_height(FS_DOC),
+                        fs = FS_DOC, fg = theme.muted_fg,
+                        text = esc(line)
+                    ));
+                    y += ROW_H;
+                }
+                y += SECTION_PAD_BOT;
+            }
+
+            Compartment::GherkinPreview { given, when, then } => {
+                if ci > 0 {
+                    svg_parts.push(divider_line(y, box_width, theme.divider));
+                    y += DIVIDER_H;
+                }
+                let lines: Vec<&str> = [given, when, then]
+                    .iter()
+                    .filter_map(|l| l.as_deref())
+                    .collect();
+                svg_parts.push(format!(
+                    "<rect x=\"0\" y=\"{y:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" fill=\"{fill}\"/>",
+                    y = y, w = box_width,
+                    h = SECTION_PAD_TOP + lines.len() as f64 * ROW_H + SECTION_PAD_BOT,
+                    fill = theme.body_bg
+                ));
+                y += SECTION_PAD_TOP;
+                for line in lines {
+                    let keyword = line.split_whitespace().next().unwrap_or("");
+                    let keyword_color = match keyword {
+                        "Given" => "#7a3ea5",
+                        "When" => "#c47a1e",
+                        "Then" => "#1a6b30",
+                        _ => theme.muted_fg,
+                    };
+                    let rest = line[keyword.len()..].trim();
+                    svg_parts.push(format!(
+                        "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" font-style=\"italic\">\
+                         <tspan font-weight=\"700\" fill=\"{kc}\">{kw} </tspan>\
+                         <tspan fill=\"{fg}\">{rest}</tspan></text>",
+                        x = PAD_H,
+                        ty = y + m.cap_height(FS_DOC),
+                        fs = FS_DOC,
+                        kc = keyword_color,
+                        kw = esc(keyword),
+                        fg = theme.muted_fg,
+                        rest = esc(rest)
+                    ));
+                    y += ROW_H;
+                }
+                y += SECTION_PAD_BOT;
+            }
+        }
+    }
+
+    let box_height = y;
+
+    // ── Outer border ─────────────────────────────────────────────────────────
+    // Inserted at the front (drawn over everything as a border-only rect)
+    let border_rect = format!(
+        "<rect x=\"{bw:.1}\" y=\"{bw:.1}\" width=\"{w:.1}\" height=\"{h:.1}\" \
+         rx=\"{r}\" ry=\"{r}\" fill=\"none\" stroke=\"{stroke}\" \
+         stroke-width=\"{bw2}\"{filter}/>",
+        bw = BORDER_W / 2.0,
+        w = box_width - BORDER_W,
+        h = box_height - BORDER_W,
+        r = CORNER_R,
+        stroke = theme.border,
+        bw2 = BORDER_W,
+        filter = filter_ref
+    );
+
+    // ── Assemble SVG ─────────────────────────────────────────────────────────
+    let inner = svg_parts.join("\n");
+    let svg = format!(
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" \
+         viewBox=\"0 0 {w:.0} {h:.0}\" width=\"{w:.0}\" height=\"{h:.0}\">\n\
+         {inner}\n\
+         {border}\n\
+         </svg>",
+        w = box_width, h = box_height,
+        inner = inner, border = border_rect
+    );
+
+    RenderedElement {
+        qualified_name: node.qualified_name.clone(),
+        svg,
+        width: box_width,
+        height: box_height,
+        port_anchors,
+    }
+}
+
+fn divider_line(y: f64, width: f64, color: &str) -> String {
+    format!(
+        "<line x1=\"0\" y1=\"{y:.1}\" x2=\"{w:.1}\" y2=\"{y:.1}\" \
+         stroke=\"{c}\" stroke-width=\"{dh}\"/>",
+        y = y, w = width, c = color, dh = DIVIDER_H
+    )
+}
+
+fn section_title(title: &str, y: f64, muted_fg: &str, m: &dyn TextMetrics) -> String {
+    format!(
+        "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" fill=\"{fg}\" \
+         letter-spacing=\"1\" font-weight=\"700\">{text}</text>",
+        x = PAD_H,
+        ty = y + m.cap_height(FS_SECTION_TITLE),
+        fs = FS_SECTION_TITLE,
+        fg = muted_fg,
+        text = esc(title)
+    )
+}
