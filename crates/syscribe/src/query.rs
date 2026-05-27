@@ -440,6 +440,77 @@ fn print_tree_level(elements: &[RawElement], parent: &str, prefix: &str, _is_roo
 
 // ── cmd: find ────────────────────────────────────────────────────────────────
 
+pub fn cmd_untyped(elements: &[RawElement]) {
+    let mut matches: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| e.frontmatter.element_type.is_none())
+        .collect();
+
+    if matches.is_empty() {
+        println!("All elements have a type.");
+        return;
+    }
+
+    matches.sort_by_key(|e| e.qualified_name.as_str());
+
+    println!("| Qualified Name | File |");
+    println!("|---|---|");
+    for e in &matches {
+        println!("| {} | {} |", e.qualified_name, e.file_path);
+    }
+    println!();
+    println!("{} untyped element(s)", matches.len());
+}
+
+pub fn cmd_types(elements: &[RawElement]) {
+    use std::collections::BTreeMap;
+    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    for e in elements {
+        let label = tl(e.frontmatter.element_type.as_ref());
+        *counts.entry(label).or_insert(0) += 1;
+    }
+    println!("| Type | Count |");
+    println!("|---|---|");
+    for (label, count) in &counts {
+        println!("| {} | {} |", label, count);
+    }
+}
+
+pub fn cmd_list(elements: &[RawElement], type_filter: &str, scope: &str) {
+    let type_filter_lc = type_filter.to_lowercase();
+    let mut matches: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| {
+            let label = tl(e.frontmatter.element_type.as_ref()).to_lowercase();
+            label == type_filter_lc
+        })
+        .filter(|e| scope.is_empty() || e.qualified_name.starts_with(scope))
+        .collect();
+
+    if matches.is_empty() {
+        let scope_note = if scope.is_empty() { String::new() } else { format!(" in `{scope}`") };
+        println!("No `{type_filter}` elements found{scope_note}.");
+        return;
+    }
+
+    matches.sort_by_key(|e| e.qualified_name.as_str());
+
+    let scope_note = if scope.is_empty() { String::new() } else { format!(" in `{scope}`") };
+    println!("# {} elements{} ({})", type_filter, scope_note, matches.len());
+    println!();
+    println!("| Qualified Name | Name / ID | File |");
+    println!("|---|---|---|");
+    for e in &matches {
+        let label = e.frontmatter.title
+            .as_deref()
+            .or_else(|| e.frontmatter.id.as_deref())
+            .or_else(|| e.frontmatter.name.as_deref())
+            .unwrap_or("—");
+        println!("| {} | {} | {} |", e.qualified_name, label, e.file_path);
+    }
+    println!();
+}
+
 pub fn cmd_find(elements: &[RawElement], pattern: &str) {
     let mut scored: Vec<(u32, &RawElement)> = elements
         .iter()
@@ -864,11 +935,54 @@ pub fn cmd_refs(elements: &[RawElement], resolver: &Resolver, key: &str) {
 
 // ── help ─────────────────────────────────────────────────────────────────────
 
+pub fn cmd_validate(elements: &[RawElement]) {
+    use syscribe_model::validator;
+
+    let result = validator::validate(elements);
+    let errors: Vec<_> = result.errors().collect();
+    let warnings: Vec<_> = result.warnings().collect();
+
+    if errors.is_empty() && warnings.is_empty() {
+        println!("0 errors, 0 warnings — model is valid.");
+        return;
+    }
+
+    if !errors.is_empty() {
+        println!("Errors ({}):", errors.len());
+        println!();
+        println!("| Code | File | Message |");
+        println!("|---|---|---|");
+        for f in &errors {
+            println!("| {} | {} | {} |", f.code, f.file, f.message);
+        }
+        println!();
+    }
+
+    if !warnings.is_empty() {
+        println!("Warnings ({}):", warnings.len());
+        println!();
+        println!("| Code | File | Message |");
+        println!("|---|---|---|");
+        for f in &warnings {
+            println!("| {} | {} | {} |", f.code, f.file, f.message);
+        }
+        println!();
+    }
+
+    if !errors.is_empty() {
+        std::process::exit(1);
+    }
+}
+
 pub fn print_help() {
     println!("Usage: syscribe <model_root> [command] [args...]");
     println!();
     println!("Commands:");
     println!("  (none)                    Full validation report (default)");
+    println!("  validate                  Validation findings only (errors + warnings)");
+    println!("  types                     List all element types present in the model with counts");
+    println!("  untyped                   List elements with no type: field set");
+    println!("  list <type> [scope]       List all elements of a given type (optional namespace scope)");
     println!("  show <qname|id>           Show element details and documentation");
     println!("  ls [qname]                List namespace children (default: root)");
     println!("  tree [qname]              Recursive namespace tree (default: root)");
@@ -884,6 +998,9 @@ pub fn print_help() {
     println!("  --help, -h                Show this help");
     println!();
     println!("Examples:");
+    println!("  syscribe model/ validate");
+    println!("  syscribe model/ list PartDef");
+    println!("  syscribe model/ list PortDef UAV::Avionics");
     println!("  syscribe model/ find FlightController");
     println!("  syscribe model/ show UAV::Avionics::FlightController");
     println!("  syscribe model/ ls UAV::Avionics");

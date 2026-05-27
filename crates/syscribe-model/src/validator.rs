@@ -1,5 +1,9 @@
 use std::collections::{HashMap, HashSet};
+use petgraph::algo::toposort;
+use petgraph::graph::DiGraph;
+use petgraph::visit::EdgeRef;
 use crate::element::{ElementType, RawElement};
+use crate::graph::EdgeKind;
 use crate::resolver::{is_adr_id, is_conf_id, is_req_id, is_tc_id, Resolver};
 
 /// A single validation finding.
@@ -1037,6 +1041,35 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
         }
     }
 
+    // W007: *Def element never used as supertype: or typedBy: anywhere in the model
+    {
+        let mut referenced_defs: HashSet<String> = HashSet::new();
+        for elem in elements.iter() {
+            let fm = &elem.frontmatter;
+            for field in [fm.supertype.as_ref(), fm.typed_by.as_ref()].into_iter().flatten() {
+                for s in yaml_strings(field) {
+                    if let Some(target) = resolver.resolve_ref(elements, s) {
+                        referenced_defs.insert(target.qualified_name.clone());
+                    }
+                }
+            }
+        }
+        for elem in elements {
+            if is_type_def(elem) {
+                if !referenced_defs.contains(&elem.qualified_name) {
+                    findings.push(warning(
+                        "W007",
+                        &elem.file_path,
+                        &format!(
+                            "'{}' is defined but never used as a supertype or type",
+                            elem.qualified_name
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+
     // E209: appliesWhen references must resolve to FeatureDef
     for elem in elements {
         if let Some(ref aw) = elem.frontmatter.applies_when {
@@ -1266,11 +1299,90 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
         }
     }
 
+    // E016/E017/E018: cycle detection in supertype, derivedFrom, and subsets graphs
+    {
+        let (full_graph, node_idx) = crate::graph::build_graph(elements);
+        // Map NodeIndex back to file path for error reporting.
+        let idx_to_file: HashMap<petgraph::graph::NodeIndex, &str> = node_idx
+            .iter()
+            .map(|(qn, &ni)| {
+                let file = elements
+                    .iter()
+                    .find(|e| &e.qualified_name == qn)
+                    .map(|e| e.file_path.as_str())
+                    .unwrap_or(qn.as_str());
+                (ni, file)
+            })
+            .collect();
+
+        let checks: &[(&str, EdgeKind, &str)] = &[
+            ("E016", EdgeKind::Supertype, "supertype cycle detected"),
+            ("E017", EdgeKind::DerivedFrom, "derivedFrom cycle detected"),
+            ("E018", EdgeKind::Subsets, "subsets cycle detected"),
+        ];
+
+        for (code, kind, label) in checks {
+            let mut sub: DiGraph<petgraph::graph::NodeIndex, ()> = DiGraph::new();
+            let mut sub_nodes: HashMap<petgraph::graph::NodeIndex, petgraph::graph::NodeIndex> =
+                HashMap::new();
+
+            for edge in full_graph.edge_references() {
+                if edge.weight() == kind {
+                    let src_orig = edge.source();
+                    let dst_orig = edge.target();
+                    let src = *sub_nodes
+                        .entry(src_orig)
+                        .or_insert_with(|| sub.add_node(src_orig));
+                    let dst = *sub_nodes
+                        .entry(dst_orig)
+                        .or_insert_with(|| sub.add_node(dst_orig));
+                    sub.add_edge(src, dst, ());
+                }
+            }
+
+            if let Err(cycle) = toposort(&sub, None) {
+                let orig_ni = sub[cycle.node_id()];
+                let file = idx_to_file.get(&orig_ni).copied().unwrap_or("unknown");
+                let qname = &full_graph[orig_ni];
+                findings.push(error(
+                    code,
+                    file,
+                    &format!("{} involving '{}'", label, qname),
+                ));
+            }
+        }
+    }
+
     ValidationResult {
         findings,
         verified_by,
         derived_children,
     }
+}
+
+/// Returns true for element types that are definitions and must be used by at least one usage.
+fn is_type_def(elem: &RawElement) -> bool {
+    matches!(
+        elem.frontmatter.element_type,
+        Some(
+            ElementType::PartDef
+            | ElementType::ItemDef
+            | ElementType::AttributeDef
+            | ElementType::PortDef
+            | ElementType::ConnectionDef
+            | ElementType::InterfaceDef
+            | ElementType::ActionDef
+            | ElementType::ConstraintDef
+            | ElementType::RequirementDef
+            | ElementType::CalculationDef
+            | ElementType::StateDef
+            | ElementType::FlowDef
+            | ElementType::UseCaseDef
+            | ElementType::ViewpointDef
+            | ElementType::ViewDef
+            | ElementType::AllocationDef
+        )
+    )
 }
 
 fn error(code: &'static str, file: &str, msg: &str) -> Finding {

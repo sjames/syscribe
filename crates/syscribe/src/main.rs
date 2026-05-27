@@ -130,6 +130,23 @@ fn main() {
                 let rest: Vec<String> = args.get(4..).unwrap_or(&[]).to_vec();
                 diagram::cmd_diagram(&elems, &resolver, subcmd, &rest);
             }
+            "validate" => {
+                query::cmd_validate(&elems);
+            }
+            "types" => {
+                query::cmd_types(&elems);
+            }
+            "untyped" => {
+                query::cmd_untyped(&elems);
+            }
+            "list" => {
+                if key.is_empty() {
+                    eprintln!("Usage: syscribe <model_root> list <type> [scope]");
+                    std::process::exit(1);
+                }
+                let scope = args.get(4).map(|s| s.as_str()).unwrap_or("");
+                query::cmd_list(&elems, key, scope);
+            }
             "trace" | "why" | "who-verifies" => {
                 let result = validator::validate(&elems);
                 match subcmd {
