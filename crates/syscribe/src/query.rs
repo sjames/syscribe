@@ -134,6 +134,9 @@ fn ns_children<'a>(elements: &'a [RawElement], parent_qname: &str) -> Vec<&'a Ra
     let mut children: Vec<&RawElement> = elements
         .iter()
         .filter(|e| {
+            if e.qualified_name.is_empty() {
+                return false; // root _index.md — not a tree node
+            }
             if prefix.is_empty() {
                 !e.qualified_name.contains("::")
             } else {
