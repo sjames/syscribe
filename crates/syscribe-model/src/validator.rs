@@ -1070,6 +1070,17 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
         }
     }
 
+    // W008: element has no type: field (untyped)
+    for elem in elements {
+        if elem.frontmatter.element_type.is_none() {
+            findings.push(warning(
+                "W008",
+                &elem.file_path,
+                &format!("'{}' has no type: field — element will be ignored by most commands", elem.qualified_name),
+            ));
+        }
+    }
+
     // E209: appliesWhen references must resolve to FeatureDef
     for elem in elements {
         if let Some(ref aw) = elem.frontmatter.applies_when {

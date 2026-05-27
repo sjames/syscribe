@@ -131,7 +131,12 @@ fn main() {
                 diagram::cmd_diagram(&elems, &resolver, subcmd, &rest);
             }
             "validate" => {
-                query::cmd_validate(&elems);
+                let rest = &args[3..];
+                let json = rest.iter().any(|a| a == "--json");
+                let file_filter = rest.windows(2)
+                    .find(|w| w[0] == "--file")
+                    .map(|w| w[1].as_str());
+                query::cmd_validate(&elems, file_filter, json);
             }
             "types" => {
                 query::cmd_types(&elems);
@@ -146,6 +151,34 @@ fn main() {
                 }
                 let scope = args.get(4).map(|s| s.as_str()).unwrap_or("");
                 query::cmd_list(&elems, key, scope);
+            }
+            "path-for" => {
+                if key.is_empty() {
+                    eprintln!("Usage: syscribe <model_root> path-for <qname|id>");
+                    std::process::exit(1);
+                }
+                query::cmd_path_for(&elems, &resolver, key);
+            }
+            "check-ref" => {
+                if key.is_empty() {
+                    eprintln!("Usage: syscribe <model_root> check-ref <qname|id>");
+                    std::process::exit(1);
+                }
+                query::cmd_check_ref(&elems, &resolver, key);
+            }
+            "next-id" => {
+                if key.is_empty() {
+                    eprintln!("Usage: syscribe <model_root> next-id <id-prefix>");
+                    std::process::exit(1);
+                }
+                query::cmd_next_id(&elems, key);
+            }
+            "template" => {
+                if key.is_empty() {
+                    eprintln!("Usage: syscribe <model_root> template <type>");
+                    std::process::exit(1);
+                }
+                query::cmd_template(key);
             }
             "trace" | "why" | "who-verifies" => {
                 let result = validator::validate(&elems);

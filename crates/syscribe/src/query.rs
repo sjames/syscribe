@@ -58,6 +58,14 @@ pub fn type_label(et: &ElementType) -> &'static str {
     }
 }
 
+fn yaml_first_string(v: Option<&serde_yaml::Value>) -> Option<&str> {
+    match v? {
+        serde_yaml::Value::String(s) => Some(s.as_str()),
+        serde_yaml::Value::Sequence(seq) => seq.first()?.as_str(),
+        _ => None,
+    }
+}
+
 fn tl(et: Option<&ElementType>) -> &'static str {
     et.map(type_label).unwrap_or("?")
 }
@@ -463,15 +471,17 @@ pub fn cmd_untyped(elements: &[RawElement]) {
 }
 
 pub fn cmd_types(elements: &[RawElement]) {
-    use std::collections::BTreeMap;
-    let mut counts: BTreeMap<&str, usize> = BTreeMap::new();
+    use std::collections::HashMap;
+    let mut counts: HashMap<&str, usize> = HashMap::new();
     for e in elements {
         let label = tl(e.frontmatter.element_type.as_ref());
         *counts.entry(label).or_insert(0) += 1;
     }
+    let mut rows: Vec<(&str, usize)> = counts.into_iter().collect();
+    rows.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
     println!("| Type | Count |");
     println!("|---|---|");
-    for (label, count) in &counts {
+    for (label, count) in &rows {
         println!("| {} | {} |", label, count);
     }
 }
@@ -498,15 +508,18 @@ pub fn cmd_list(elements: &[RawElement], type_filter: &str, scope: &str) {
     let scope_note = if scope.is_empty() { String::new() } else { format!(" in `{scope}`") };
     println!("# {} elements{} ({})", type_filter, scope_note, matches.len());
     println!();
-    println!("| Qualified Name | Name / ID | File |");
-    println!("|---|---|---|");
+    println!("| Qualified Name | Name / ID | Supertype / TypedBy | File |");
+    println!("|---|---|---|---|");
     for e in &matches {
         let label = e.frontmatter.title
             .as_deref()
             .or_else(|| e.frontmatter.id.as_deref())
             .or_else(|| e.frontmatter.name.as_deref())
             .unwrap_or("—");
-        println!("| {} | {} | {} |", e.qualified_name, label, e.file_path);
+        let classifier = yaml_first_string(e.frontmatter.supertype.as_ref())
+            .or_else(|| yaml_first_string(e.frontmatter.typed_by.as_ref()))
+            .unwrap_or("—");
+        println!("| {} | {} | {} | {} |", e.qualified_name, label, classifier, e.file_path);
     }
     println!();
 }
@@ -935,14 +948,34 @@ pub fn cmd_refs(elements: &[RawElement], resolver: &Resolver, key: &str) {
 
 // ── help ─────────────────────────────────────────────────────────────────────
 
-pub fn cmd_validate(elements: &[RawElement]) {
+pub fn cmd_validate(elements: &[RawElement], file_filter: Option<&str>, json: bool) {
     use syscribe_model::validator;
+    use syscribe_model::validator::Severity;
 
     let result = validator::validate(elements);
-    let errors: Vec<_> = result.errors().collect();
-    let warnings: Vec<_> = result.warnings().collect();
 
-    if errors.is_empty() && warnings.is_empty() {
+    let findings: Vec<_> = result.findings.iter()
+        .filter(|f| file_filter.map_or(true, |ff| f.file.contains(ff)))
+        .collect();
+
+    let errors: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Error).collect();
+    let warnings: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Warning).collect();
+
+    if json {
+        let items: Vec<serde_json::Value> = findings.iter().map(|f| {
+            serde_json::json!({
+                "code": f.code,
+                "severity": match f.severity { Severity::Error => "error", Severity::Warning => "warning" },
+                "file": f.file,
+                "message": f.message,
+            })
+        }).collect();
+        println!("{}", serde_json::to_string_pretty(&items).unwrap());
+        if !errors.is_empty() { std::process::exit(1); }
+        return;
+    }
+
+    if findings.is_empty() {
         println!("0 errors, 0 warnings — model is valid.");
         return;
     }
@@ -974,33 +1007,422 @@ pub fn cmd_validate(elements: &[RawElement]) {
     }
 }
 
+pub fn cmd_path_for(elements: &[RawElement], resolver: &Resolver, key: &str) {
+    match resolve(elements, resolver, key) {
+        Some(e) => println!("{}", e.file_path),
+        None => {
+            eprintln!("Element not found: {key}");
+            std::process::exit(1);
+        }
+    }
+}
+
+pub fn cmd_check_ref(elements: &[RawElement], resolver: &Resolver, key: &str) {
+    match resolver.resolve_ref(elements, key) {
+        Some(e) => {
+            let type_str = tl(e.frontmatter.element_type.as_ref());
+            println!("resolved  {}", e.qualified_name);
+            println!("type      {}", type_str);
+            println!("file      {}", e.file_path);
+        }
+        None => {
+            println!("unresolved: '{}' does not match any element qname or stable ID", key);
+            std::process::exit(1);
+        }
+    }
+}
+
+pub fn cmd_next_id(elements: &[RawElement], prefix: &str) {
+    let prefix_with_dash = format!("{}-", prefix.trim_end_matches('-'));
+    let mut max_n: u32 = 0;
+    let mut found_any = false;
+
+    for e in elements {
+        if let Some(id) = e.frontmatter.id.as_deref() {
+            if let Some(suffix) = id.strip_prefix(&prefix_with_dash) {
+                if let Ok(n) = suffix.parse::<u32>() {
+                    found_any = true;
+                    if n > max_n { max_n = n; }
+                }
+            }
+        }
+    }
+
+    let next = max_n + 1;
+    println!("{}{:03}", prefix_with_dash, next);
+
+    if !found_any {
+        eprintln!("(no existing IDs with prefix '{}' — starting from 001)", prefix_with_dash);
+    }
+}
+
+pub fn cmd_template(type_name: &str) {
+    let out = match type_name.to_lowercase().as_str() {
+        "requirement" => r#"---
+type: Requirement
+id: REQ-PREFIX-001
+title: "The system shall ..."
+status: draft
+reqDomain: system
+# silLevel: 1
+# asilLevel: A
+# derivedFrom:
+#   - REQ-PARENT-001
+# breakdownAdr: ADR-XXX-001
+---
+
+The system shall ...
+
+## Rationale
+
+Why this requirement exists.
+"#,
+        "testcase" => r#"---
+type: TestCase
+id: TC-PREFIX-001
+title: "Verify that ..."
+status: draft
+testLevel: L5
+verifies:
+  - REQ-PREFIX-001
+---
+
+## Test Procedure
+
+```gherkin
+Feature: ...
+
+  Scenario: Normal case
+    Given ...
+    When ...
+    Then ...
+```
+"#,
+        "adr" => r#"---
+type: ADR
+id: ADR-PREFIX-001
+title: "Decision title"
+status: proposed
+---
+
+## Context
+
+What is the issue that motivates this decision?
+
+## Decision
+
+What was decided.
+
+## Consequences
+
+What are the results of this decision?
+"#,
+        "partdef" => r#"---
+type: PartDef
+name: MyPartDef
+# supertype: SomePackage::SomeParent
+# domain: system
+# isAbstract: false
+# features:
+#   - name: myPort
+#     type: Port
+#     typedBy: Interfaces::MyPortDef
+#     direction: in
+#   - name: subPart
+#     type: Part
+#     typedBy: SomePackage::SomePartDef
+---
+
+Description of this part definition.
+"#,
+        "part" => r#"---
+type: Part
+name: myPart
+typedBy: SomePackage::SomePartDef
+# multiplicity: "1"
+# domain: system
+# satisfies:
+#   - REQ-PREFIX-001
+---
+
+Description of this part usage.
+"#,
+        "portdef" => r#"---
+type: PortDef
+name: MyPortDef
+# direction: in
+# conjugates: Interfaces::MyPortDef
+# features:
+#   - name: signal
+#     type: Attribute
+#     typedBy: ScalarValues::Real
+#     direction: in
+# operations:
+#   - name: read
+#     returnType: ScalarValues::Boolean
+---
+
+Description of this port definition.
+"#,
+        "port" => r#"---
+type: Port
+name: myPort
+typedBy: Interfaces::MyPortDef
+# direction: in
+# isConjugated: false
+# multiplicity: "1"
+---
+
+Description of this port usage.
+"#,
+        "connectiondef" => r#"---
+type: ConnectionDef
+name: MyConnectionDef
+# supertype: Interfaces::SomeConnectionDef
+# ends:
+#   - typedBy: Interfaces::MyPortDef
+#     direction: in
+#   - typedBy: Interfaces::MyPortDef
+#     direction: out
+---
+
+Description of this connection definition.
+"#,
+        "connection" => r#"---
+type: Connection
+name: myConnection
+typedBy: Interfaces::MyConnectionDef
+connections:
+  - from: partA::outPort
+    to: partB::inPort
+---
+"#,
+        "interfacedef" => r#"---
+type: InterfaceDef
+name: MyInterfaceDef
+# features:
+#   - name: dataIn
+#     type: Port
+#     typedBy: Interfaces::MyPortDef
+#     direction: in
+---
+
+Description of this interface definition.
+"#,
+        "actiondef" => r#"---
+type: ActionDef
+name: MyActionDef
+# supertype: Actions::SomeActionDef
+# parameters:
+#   - name: input
+#     typedBy: ScalarValues::Real
+#     direction: in
+# returnType: ScalarValues::Real
+---
+
+Description of this action definition.
+"#,
+        "constraintdef" => r#"---
+type: ConstraintDef
+name: MyConstraintDef
+# parameters:
+#   - name: value
+#     typedBy: ScalarValues::Real
+# expression: "value > 0.0"
+---
+
+Description of this constraint definition.
+"#,
+        "calculationdef" => r#"---
+type: CalculationDef
+name: MyCalculationDef
+# returnType: ScalarValues::Real
+# parameters:
+#   - name: input
+#     typedBy: ScalarValues::Real
+#     direction: in
+---
+
+Description of this calculation definition.
+"#,
+        "statedef" => r#"---
+type: StateDef
+name: MyStateDef
+subStates:
+  - name: Idle
+  - name: Active
+  - name: Fault
+transitions:
+  - from: Idle
+    to: Active
+    trigger: start
+  - from: Active
+    to: Fault
+    trigger: error
+  - from: Fault
+    to: Idle
+    trigger: reset
+---
+
+Description of this state machine.
+"#,
+        "flowdef" => r#"---
+type: FlowDef
+name: MyFlowDef
+itemType: Items::MyItemDef
+---
+
+Description of this flow definition.
+"#,
+        "enumerationdef" => r#"---
+type: EnumerationDef
+name: MyEnumerationDef
+values:
+  - VALUE_ONE
+  - VALUE_TWO
+  - VALUE_THREE
+---
+
+Description of this enumeration.
+"#,
+        "usecasedef" => r#"---
+type: UseCaseDef
+name: MyUseCaseDef
+actors:
+  - Operator
+# includes:
+#   - UseCases::SomeOtherUseCase
+---
+
+Description of this use case.
+"#,
+        "requirementdef" => r#"---
+type: RequirementDef
+name: MyRequirementDef
+# supertype: Requirements::SomeRequirementDef
+---
+
+Description of this requirement definition.
+"#,
+        "allocationdef" => r#"---
+type: AllocationDef
+name: MyAllocationDef
+---
+
+Description of this allocation definition.
+"#,
+        "allocation" => r#"---
+type: Allocation
+name: MyAllocation
+allocatedFrom: Software::MySwComponent
+allocatedTo: Hardware::MyHwComponent
+---
+"#,
+        "viewdef" => r#"---
+type: ViewDef
+name: MyViewDef
+# viewpoint: Viewpoints::SystemsEngineerViewpoint
+# expose:
+#   - SomePackage::SomeElement
+---
+
+Description of this view.
+"#,
+        "viewpointdef" => r#"---
+type: ViewpointDef
+name: MyViewpointDef
+stakeholders:
+  - Systems Engineer
+concerns:
+  - System structure
+  - Interface definition
+---
+
+Description of this viewpoint.
+"#,
+        "metadatadef" => r#"---
+type: MetadataDef
+name: MyMetadataDef
+annotates:
+  - PartDef
+# features:
+#   - name: value
+#     typedBy: ScalarValues::String
+---
+
+Description of this metadata definition.
+"#,
+        "package" => r#"---
+type: Package
+name: MyPackage
+---
+
+Description of this package.
+"#,
+        "featuredef" => r#"---
+type: FeatureDef
+name: MyFeatureDef
+groupKind: optional
+# cardinality: "1"
+# parentFeature: Features::ParentFeatureDef
+# excludes:
+#   - Features::ConflictingFeatureDef
+---
+
+Description of this feature definition.
+"#,
+        other => {
+            eprintln!("Unknown type '{}'. Known types:", other);
+            eprintln!("  Requirement, TestCase, ADR");
+            eprintln!("  PartDef, Part, PortDef, Port, ConnectionDef, Connection");
+            eprintln!("  InterfaceDef, ActionDef, ConstraintDef, CalculationDef");
+            eprintln!("  StateDef, FlowDef, EnumerationDef, UseCaseDef");
+            eprintln!("  RequirementDef, AllocationDef, Allocation");
+            eprintln!("  ViewDef, ViewpointDef, MetadataDef, Package, FeatureDef");
+            std::process::exit(1);
+        }
+    };
+    print!("{}", out);
+}
+
 pub fn print_help() {
     println!("Usage: syscribe <model_root> [command] [args...]");
     println!();
     println!("Commands:");
-    println!("  (none)                    Full validation report (default)");
-    println!("  validate                  Validation findings only (errors + warnings)");
-    println!("  types                     List all element types present in the model with counts");
-    println!("  untyped                   List elements with no type: field set");
-    println!("  list <type> [scope]       List all elements of a given type (optional namespace scope)");
-    println!("  show <qname|id>           Show element details and documentation");
-    println!("  ls [qname]                List namespace children (default: root)");
-    println!("  tree [qname]              Recursive namespace tree (default: root)");
-    println!("  find <pattern>            Fuzzy search by name / ID / content");
-    println!("  trace <qname|req-id>      Full traceability slice for a requirement");
-    println!("  links <qname|id>          All outbound and inbound relationships");
-    println!("  why <qname>               What requirements this element satisfies");
-    println!("  who-verifies <req-id>     Which test cases cover a requirement");
-    println!("  refs <qname|id>           What elements reference this element");
+    println!("  (none)                         Full validation report (default)");
+    println!("  validate [--json] [--file <f>] Validation findings only (errors + warnings)");
+    println!("  types                          List all element types present in the model with counts");
+    println!("  untyped                        List elements with no type: field set");
+    println!("  list <type> [scope]            List all elements of a given type (optional namespace scope)");
+    println!("  show <qname|id>                Show element details and documentation");
+    println!("  ls [qname]                     List namespace children (default: root)");
+    println!("  tree [qname]                   Recursive namespace tree (default: root)");
+    println!("  find <pattern>                 Fuzzy search by name / ID / content");
+    println!("  path-for <qname|id>            Print the file path for an element");
+    println!("  check-ref <qname|id>           Verify a cross-reference resolves and show its type");
+    println!("  next-id <id-prefix>            Print the next available stable ID for a prefix");
+    println!("  template <type>                Print a ready-to-fill frontmatter skeleton for a type");
+    println!("  trace <qname|req-id>           Full traceability slice for a requirement");
+    println!("  links <qname|id>               All outbound and inbound relationships");
+    println!("  why <qname>                    What requirements this element satisfies");
+    println!("  who-verifies <req-id>          Which test cases cover a requirement");
+    println!("  refs <qname|id>                What elements reference this element");
     println!();
     println!("Options:");
-    println!("  --agent-instructions      Print the LLM authoring prompt");
-    println!("  --help, -h                Show this help");
+    println!("  --agent-instructions           Print the LLM authoring prompt");
+    println!("  --help, -h                     Show this help");
     println!();
     println!("Examples:");
     println!("  syscribe model/ validate");
+    println!("  syscribe model/ validate --json");
+    println!("  syscribe model/ validate --file model/UAV/Avionics/FlightController.md");
     println!("  syscribe model/ list PartDef");
     println!("  syscribe model/ list PortDef UAV::Avionics");
+    println!("  syscribe model/ path-for UAV::Avionics::FlightController");
+    println!("  syscribe model/ check-ref Interfaces::TelemetryPortDef");
+    println!("  syscribe model/ next-id REQ-UAV-FC");
+    println!("  syscribe model/ template PartDef");
+    println!("  syscribe model/ template Requirement");
     println!("  syscribe model/ find FlightController");
     println!("  syscribe model/ show UAV::Avionics::FlightController");
     println!("  syscribe model/ ls UAV::Avionics");
