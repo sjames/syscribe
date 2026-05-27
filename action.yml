@@ -1,0 +1,124 @@
+name: Validate Syscribe Model
+description: >
+  Validate a Syscribe systems model — checks element schema, resolves
+  cross-references, and enforces SysMLv2 traceability rules. Fails the
+  job when validation errors are found.
+author: Sojan James
+
+branding:
+  icon: check-circle
+  color: blue
+
+inputs:
+  model-path:
+    description: Path to the model directory, relative to the workspace root.
+    required: false
+    default: model/
+  version:
+    description: >
+      syscribe release tag to download (e.g. v0.2.0).
+      Omit or set to 'latest' to always use the newest release.
+    required: false
+    default: latest
+  fail-on-warnings:
+    description: Exit with code 1 when any warnings are present.
+    required: false
+    default: 'false'
+  upload-report:
+    description: Upload the Markdown validation report as a workflow artifact.
+    required: false
+    default: 'true'
+
+outputs:
+  errors:
+    description: Number of validation errors found.
+    value: ${{ steps.validate.outputs.errors }}
+  warnings:
+    description: Number of validation warnings found.
+    value: ${{ steps.validate.outputs.warnings }}
+
+runs:
+  using: composite
+  steps:
+    - name: Download syscribe
+      shell: bash
+      run: |
+        OS="${{ runner.os }}"
+        ARCH="${{ runner.arch }}"
+        VERSION="${{ inputs.version }}"
+        REPO="sjames/syscribe"
+
+        case "$OS" in
+          Linux)
+            case "$ARCH" in
+              X64)   TARGET="x86_64-unknown-linux-gnu" ;;
+              ARM64) TARGET="aarch64-unknown-linux-gnu" ;;
+              *) echo "::error::Unsupported architecture: $ARCH" && exit 1 ;;
+            esac
+            EXT=""
+            ;;
+          macOS)
+            case "$ARCH" in
+              X64)   TARGET="x86_64-apple-darwin" ;;
+              ARM64) TARGET="aarch64-apple-darwin" ;;
+              *) echo "::error::Unsupported architecture: $ARCH" && exit 1 ;;
+            esac
+            EXT=""
+            ;;
+          Windows)
+            TARGET="x86_64-pc-windows-msvc"
+            EXT=".exe"
+            ;;
+          *) echo "::error::Unsupported OS: $OS" && exit 1 ;;
+        esac
+
+        BIN_DIR="$RUNNER_TOOL_CACHE/syscribe"
+        mkdir -p "$BIN_DIR"
+
+        if [ "$VERSION" = "latest" ]; then
+          URL="https://github.com/${REPO}/releases/latest/download/syscribe-${TARGET}${EXT}"
+        else
+          URL="https://github.com/${REPO}/releases/download/${VERSION}/syscribe-${TARGET}${EXT}"
+        fi
+
+        echo "Downloading $URL"
+        curl -fsSL "$URL" -o "${BIN_DIR}/syscribe${EXT}"
+        chmod +x "${BIN_DIR}/syscribe${EXT}"
+        echo "$BIN_DIR" >> "$GITHUB_PATH"
+
+    - name: Validate model
+      id: validate
+      shell: bash
+      run: |
+        set +e
+        syscribe "${{ inputs.model-path }}" > syscribe-validation-report.md 2>&1
+        EXIT_CODE=$?
+        set -e
+
+        cat syscribe-validation-report.md
+
+        ERRORS=$(awk -F'|' '/\| Errors \|/{ gsub(/ /, "", $3); print $3 }' syscribe-validation-report.md)
+        WARNINGS=$(awk -F'|' '/\| Warnings \|/{ gsub(/ /, "", $3); print $3 }' syscribe-validation-report.md)
+        ERRORS="${ERRORS:-0}"
+        WARNINGS="${WARNINGS:-0}"
+
+        echo "errors=$ERRORS" >> "$GITHUB_OUTPUT"
+        echo "warnings=$WARNINGS" >> "$GITHUB_OUTPUT"
+
+        if [ "$EXIT_CODE" -ne 0 ]; then
+          echo "::error::Syscribe validation failed with $ERRORS error(s). See the validation report for details."
+        fi
+
+        if [ "${{ inputs.fail-on-warnings }}" = "true" ] && [ "$WARNINGS" -gt "0" ]; then
+          echo "::error::Syscribe validation found $WARNINGS warning(s) (fail-on-warnings is enabled)."
+          exit 1
+        fi
+
+        exit $EXIT_CODE
+
+    - name: Upload validation report
+      if: always() && inputs.upload-report == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: syscribe-validation-report
+        path: syscribe-validation-report.md

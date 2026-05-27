@@ -736,7 +736,7 @@ leaf hardware parts (Motor, Rotor, IMU, etc.) that are not directly allocated a 
     println!("---");
     println!();
 
-    // ── Section 10: Element Inventory by Package ───────────────────────────────
+    // ── Section 10: Element Inventory by Package ──────────────────────────────
     println!("## 10. Element Inventory by Package");
     println!();
 
@@ -769,4 +769,8 @@ leaf hardware parts (Motor, Rotor, IMU, etc.) that are not directly allocated a 
         println!("| {} | {} | {} |", pkg, total, top3.join(", "));
     }
     println!();
+
+    if error_count > 0 {
+        std::process::exit(1);
+    }
 }
