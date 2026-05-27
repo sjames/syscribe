@@ -310,6 +310,7 @@ pub fn cmd_diagram_compose_from_model(
     elements: &[RawElement],
     diagram_qname: &str,
     output_override: Option<&str>,
+    emit_placement: bool,
 ) {
     let diagram = match elements.iter().find(|e| e.qualified_name == diagram_qname) {
         Some(e) => e,
@@ -379,6 +380,23 @@ pub fn cmd_diagram_compose_from_model(
             .collect(),
         edges: edges_json.clone(),
     };
+
+    // --emit-placement: print the placement JSON and stop here.
+    // The caller can feed this to an LLM, tweak col/row/pin_x/pin_y,
+    // then pipe the result through `diagram layout - --compose --svg <out>`.
+    if emit_placement {
+        let json = serde_json::to_string_pretty(&placement).unwrap();
+        match output_override {
+            Some(path) => {
+                if let Err(e) = std::fs::write(path, &json) {
+                    eprintln!("error writing placement to '{}': {}", path, e);
+                    std::process::exit(1);
+                }
+            }
+            None => println!("{}", json),
+        }
+        return;
+    }
 
     let resolved = solve_layout(elements, &placement);
     let layout_json = serde_json::to_string_pretty(&resolved).unwrap();

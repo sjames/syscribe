@@ -53,7 +53,8 @@ pub fn cmd_diagram(
                 let ibd = kind == "ibd";
                 compose::cmd_diagram_compose(elements, arg, output, ibd);
             } else {
-                compose::cmd_diagram_compose_from_model(elements, arg, output);
+                let emit = m.get_flag("emit-placement");
+                compose::cmd_diagram_compose_from_model(elements, arg, output, emit);
             }
         }
         Some(("layout", m)) => {
@@ -142,9 +143,9 @@ fn build_cli() -> Command {
                 .about("Solve element positions from col/row placement using Cassowary constraints")
                 .arg(
                     Arg::new("placement-file")
-                        .help("JSON placement file with col/row positions")
+                        .help("JSON placement file with col/row positions, or - to read from stdin")
                         .required(true)
-                        .value_name("PLACEMENT.JSON"),
+                        .value_name("PLACEMENT.JSON|-"),
                 )
                 .arg(
                     Arg::new("output")
@@ -226,18 +227,18 @@ fn build_cli() -> Command {
         )
         .subcommand(
             Command::new("compose")
-                .about("Assemble elements + edges into a full diagram SVG")
+                .about("Assemble elements + edges into a full diagram SVG, or compose from a Diagram element qname")
                 .arg(
                     Arg::new("layout-file")
-                        .help("JSON layout file specifying element placements and edges")
+                        .help("JSON layout file, or qualified name of a Diagram element")
                         .required(true)
-                        .value_name("LAYOUT.JSON"),
+                        .value_name("LAYOUT.JSON|QNAME"),
                 )
                 .arg(
                     Arg::new("output")
                         .long("output")
                         .short('o')
-                        .help("Write SVG to FILE (default: stdout)")
+                        .help("Write SVG (or placement JSON with --emit-placement) to FILE")
                         .value_name("FILE"),
                 )
                 .arg(
@@ -246,6 +247,12 @@ fn build_cli() -> Command {
                         .value_name("KIND")
                         .help("Diagram kind: bdd | ibd | arch (default: arch)")
                         .required(false),
+                )
+                .arg(
+                    Arg::new("emit-placement")
+                        .long("emit-placement")
+                        .help("Emit the auto-generated placement JSON instead of rendering SVG (for LLM refinement)")
+                        .action(clap::ArgAction::SetTrue),
                 ),
         )
 }

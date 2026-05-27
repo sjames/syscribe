@@ -28,7 +28,7 @@ const ROW_GAP: f64 = 24.0;
 
 // ── Input schema ──────────────────────────────────────────────────────────────
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PlacementFile {
     pub title: Option<String>,
     /// Diagram kind forwarded to compose: "ibd" | "bdd" | "arch"
@@ -39,21 +39,22 @@ pub struct PlacementFile {
     pub edges: Option<serde_json::Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct PlacementCanvas {
     pub padding: Option<f64>,
     pub bg: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ElementPlacement {
     pub qname: String,
     pub col: u32,
     pub row: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub view: Option<serde_json::Value>,
-    /// Override: pin this element's column to an exact x (STRONG).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub pin_x: Option<f64>,
-    /// Override: pin this element's row to an exact y (STRONG).
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub pin_y: Option<f64>,
 }
 
@@ -94,11 +95,21 @@ pub fn cmd_diagram_layout(
     compose_kind: Option<&str>,
     compose_output: Option<&str>,
 ) {
-    let content = match std::fs::read_to_string(placement_file) {
-        Ok(c) => c,
-        Err(e) => {
-            eprintln!("error reading placement file '{}': {}", placement_file, e);
+    let content = if placement_file == "-" {
+        use std::io::Read;
+        let mut buf = String::new();
+        if let Err(e) = std::io::stdin().read_to_string(&mut buf) {
+            eprintln!("error reading placement from stdin: {}", e);
             std::process::exit(1);
+        }
+        buf
+    } else {
+        match std::fs::read_to_string(placement_file) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("error reading placement file '{}': {}", placement_file, e);
+                std::process::exit(1);
+            }
         }
     };
     let placement: PlacementFile = match serde_json::from_str(&content) {
