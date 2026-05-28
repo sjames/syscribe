@@ -192,6 +192,50 @@
     font-size: 11px; color: var(--sml-accent); margin-left: auto;
   }
 
+  /* ── Quick start ─────────────────────────────────────── */
+  .sml-qs { padding: 96px 40px; border-bottom: 1px solid var(--sml-border); }
+  .sml-qs__inner { max-width: 1200px; margin: 0 auto; }
+  .sml-qs__steps {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    border: 1px solid var(--sml-border); margin-top: 36px;
+    background: var(--sml-border);
+  }
+  @media (max-width: 960px) {
+    .sml-qs__steps { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 560px) {
+    .sml-qs__steps { grid-template-columns: 1fr; }
+  }
+  .sml-qs__step {
+    padding: 28px 24px; background: var(--sml-bg-1);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .sml-qs__num {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10px; color: var(--sml-accent); letter-spacing: 0.14em;
+  }
+  .sml-qs__title {
+    font-size: 14px; font-weight: 600; color: var(--sml-text);
+    letter-spacing: -0.01em; line-height: 1.3;
+  }
+  .sml-qs__body {
+    font-size: 13px; color: var(--sml-text-2); line-height: 1.6; flex: 1;
+  }
+  .sml-qs__cmd {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 11.5px; color: var(--sml-text);
+    background: var(--sml-bg); border: 1px solid var(--sml-border);
+    border-radius: 3px; padding: 10px 12px; line-height: 1.7;
+    white-space: pre; overflow-x: auto;
+  }
+  .sml-qs__cmd .qs-comment { color: var(--sml-text-3); }
+  .sml-qs__cmd .qs-accent  { color: var(--sml-accent); }
+  .sml-qs__link {
+    font-size: 12px; color: var(--sml-accent); text-decoration: none;
+    display: inline-flex; align-items: center; gap: 4px; margin-top: 4px;
+  }
+  .sml-qs__link:hover { text-decoration: underline; color: var(--sml-accent); }
+
   /* ── Comparison ───────────────────────────────────────── */
   .sml-compare { padding: 96px 40px; border-bottom: 1px solid var(--sml-border); }
   .sml-compare__inner { max-width: 1200px; margin: 0 auto; }
@@ -265,8 +309,8 @@
 
     <div class="sml-hero__inner">
       <div class="sml-hero__caption">
-        <span class="sml-mono">REV · 0.1.0</span>
-        <span class="sml-mono">2026-05-26</span>
+        <span class="sml-mono">REV · 0.2.0</span>
+        <span class="sml-mono">2026-05-28</span>
         <span class="sml-mono">DOC-SML-001</span>
         <span style="flex:1"></span>
         <span class="sml-mono accent">● ACTIVE DEVELOPMENT</span>
@@ -419,7 +463,7 @@
           ] %}{% for (line, kind) in lines %}<span class="sml-code-line"><span class="sml-code-line__num">{{ loop.index }}</span><span style="color:{% if kind == 'accent' %}var(--sml-accent){% elif kind == 'key' or kind == 'str' %}var(--sml-text){% elif kind == 'punct' %}var(--sml-text-2){% else %}var(--sml-text-2){% endif %}">{{ line if line else "&nbsp;" }}</span></span>
 {% endfor %}</pre>
           <div class="sml-code-block__footer">
-            <span class="sml-code-block__cmd">$ cargo run --package syscribe -- model</span>
+            <span class="sml-code-block__cmd">$ syscribe -m model/</span>
             <span class="sml-code-block__result">✓ 0 errors · 0 warnings</span>
           </div>
         </div>
@@ -487,10 +531,100 @@
     </div>
   </section>
 
+  <!-- QUICK START -->
+  <section class="sml-qs">
+    <div class="sml-qs__inner">
+      <span class="sml-section-tag">§ 03 — QUICK START</span>
+      <div class="sml-section-h">Up and running in four steps.</div>
+
+      <div class="sml-qs__steps">
+
+        <div class="sml-qs__step">
+          <span class="sml-qs__num">STEP 01 — CLONE &amp; BUILD</span>
+          <div class="sml-qs__title">Build the toolchain</div>
+          <p class="sml-qs__body">
+            Requires Rust stable. One command builds the validator CLI and the web server.
+          </p>
+          <div class="sml-qs__cmd"><span class="qs-comment"># clone the repo</span>
+git clone github.com/sjames/syscribe
+cd syscribe
+
+<span class="qs-comment"># build both binaries</span>
+cargo build --workspace</div>
+        </div>
+
+        <div class="sml-qs__step">
+          <span class="sml-qs__num">STEP 02 — VALIDATE</span>
+          <div class="sml-qs__title">Run the validator</div>
+          <p class="sml-qs__body">
+            Point it at any of the three demo models. The full report covers
+            element inventory, requirements traceability, and all findings.
+          </p>
+          <div class="sml-qs__cmd"><span class="qs-comment"># Engine ECU (ISO 26262 / 21434)</span>
+syscribe <span class="qs-accent">-m model_auto/</span>
+
+<span class="qs-comment"># SIL 4 railway interlocking</span>
+syscribe <span class="qs-accent">-m model_sil/</span>
+
+<span class="qs-comment"># findings only</span>
+syscribe -m model_auto/ validate</div>
+          <a class="sml-qs__link" href="cli/">
+            CLI reference
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+
+        <div class="sml-qs__step">
+          <span class="sml-qs__num">STEP 03 — BROWSE</span>
+          <div class="sml-qs__title">Open the web browser</div>
+          <p class="sml-qs__body">
+            The server watches for file-system changes and reloads automatically.
+            The canvas gives an interactive graph view of the whole model.
+          </p>
+          <div class="sml-qs__cmd"><span class="qs-comment"># start the server</span>
+syscribe-server <span class="qs-accent">-m model_auto/</span>
+
+<span class="qs-comment"># open in browser</span>
+http://localhost:3000/
+http://localhost:3000/canvas</div>
+          <a class="sml-qs__link" href="browser/">
+            Browser docs
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+
+        <div class="sml-qs__step">
+          <span class="sml-qs__num">STEP 04 — QUERY</span>
+          <div class="sml-qs__title">Explore with queries</div>
+          <p class="sml-qs__body">
+            Trace a requirement end-to-end, find what a component satisfies,
+            or get the next available ID before adding a new element.
+          </p>
+          <div class="sml-qs__cmd"><span class="qs-comment"># full trace for a requirement</span>
+syscribe -m model_auto/ \
+  trace <span class="qs-accent">REQ-ENG-SAFE-001</span>
+
+<span class="qs-comment"># what does this component satisfy?</span>
+syscribe -m model_auto/ \
+  why System::Software::SafetyMonitor
+
+<span class="qs-comment"># next available ID</span>
+syscribe -m model_auto/ \
+  next-id <span class="qs-accent">REQ-ENG-SAFE</span></div>
+          <a class="sml-qs__link" href="demo-model/engine-ecu/">
+            Engine ECU demo
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
   <!-- COMPARISON -->
   <section class="sml-compare">
     <div class="sml-compare__inner">
-      <span class="sml-section-tag">§ 03 — POSITIONING</span>
+      <span class="sml-section-tag">§ 04 — POSITIONING</span>
       <div class="sml-section-h">Compared to existing modeling approaches.</div>
 
       <div class="sml-compare__table">
