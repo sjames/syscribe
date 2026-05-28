@@ -70,6 +70,34 @@ fn normalize_relative_path(base_dir: &str, href: &str) -> String {
     parts.join("/")
 }
 
+/// Map ASIL level string to a numeric rank for comparison (A=1, B=2, C=3, D=4).
+fn asil_rank(level: &str) -> Option<u8> {
+    match level.to_ascii_uppercase().as_str() {
+        "A" => Some(1),
+        "B" => Some(2),
+        "C" => Some(3),
+        "D" => Some(4),
+        _ => None,
+    }
+}
+
+/// Returns true when the child's integrity level is strictly lower than the source's.
+/// Only comparable when both use the same standard; returns false for mixed standards.
+fn integrity_is_lower(
+    child_asil: Option<&str>, child_sil: Option<u8>,
+    src_asil: Option<&str>,   src_sil:   Option<u8>,
+) -> bool {
+    if let (Some(ce), Some(se)) = (child_asil, src_asil) {
+        let cr = asil_rank(ce).unwrap_or(0);
+        let sr = asil_rank(se).unwrap_or(0);
+        return cr < sr;
+    }
+    if let (Some(ce), Some(se)) = (child_sil, src_sil) {
+        return ce < se;
+    }
+    false
+}
+
 /// Extract qualified name strings from a field that may be a YAML String or Sequence.
 fn yaml_strings(v: &serde_yaml::Value) -> Vec<&str> {
     match v {
@@ -1925,6 +1953,112 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                                 ),
                             ));
                         }
+                    }
+                }
+            }
+        }
+
+        // E841 / W808: derivedFromSafetyGoal — integrity level must propagate downstream
+        if let Some(ref goal_ref) = fm.derived_from_safety_goal {
+            if let Some(goal) = resolver.resolve_ref(elements, goal_ref) {
+                let gfm = &goal.frontmatter;
+                let child_has = fm.asil_level.is_some() || fm.sil_level.is_some();
+                let src_has   = gfm.asil_level.is_some() || gfm.sil_level.is_some();
+                if src_has && !child_has {
+                    findings.push(error(
+                        "E841",
+                        &elem.file_path,
+                        &format!(
+                            "SafetyGoal '{}' carries an integrity level — this element must also set asilLevel or silLevel",
+                            goal_ref
+                        ),
+                    ));
+                } else if src_has && child_has
+                    && integrity_is_lower(
+                        fm.asil_level.as_deref(), fm.sil_level,
+                        gfm.asil_level.as_deref(), gfm.sil_level,
+                    )
+                    && fm.breakdown_adr.is_none()
+                {
+                    findings.push(warning(
+                        "W808",
+                        &elem.file_path,
+                        &format!(
+                            "integrity level is lower than SafetyGoal '{}' — add `breakdownAdr` to justify the ASIL/SIL decomposition",
+                            goal_ref
+                        ),
+                    ));
+                }
+            }
+        }
+
+        // E842 / W808: derivedFrom — integrity level must propagate through requirement chains
+        if let Some(ref dfs) = fm.derived_from {
+            for df in dfs {
+                if let Some(parent) = resolver.resolve_ref(elements, df) {
+                    let pfm = &parent.frontmatter;
+                    let child_has = fm.asil_level.is_some() || fm.sil_level.is_some();
+                    let src_has   = pfm.asil_level.is_some() || pfm.sil_level.is_some();
+                    if src_has && !child_has {
+                        findings.push(error(
+                            "E842",
+                            &elem.file_path,
+                            &format!(
+                                "parent element '{}' carries an integrity level — derived element must also set asilLevel or silLevel",
+                                df
+                            ),
+                        ));
+                    } else if src_has && child_has
+                        && integrity_is_lower(
+                            fm.asil_level.as_deref(), fm.sil_level,
+                            pfm.asil_level.as_deref(), pfm.sil_level,
+                        )
+                        && fm.breakdown_adr.is_none()
+                    {
+                        findings.push(warning(
+                            "W808",
+                            &elem.file_path,
+                            &format!(
+                                "integrity level is lower than parent '{}' — add `breakdownAdr` to justify the ASIL/SIL decomposition",
+                                df
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+
+        // E843 / W808: satisfies — architecture element must inherit integrity level
+        if let Some(ref sat) = fm.satisfies {
+            for s in sat {
+                if let Some(target) = resolver.resolve_ref(elements, s) {
+                    let tfm = &target.frontmatter;
+                    let child_has = fm.asil_level.is_some() || fm.sil_level.is_some();
+                    let src_has   = tfm.asil_level.is_some() || tfm.sil_level.is_some();
+                    if src_has && !child_has {
+                        findings.push(error(
+                            "E843",
+                            &elem.file_path,
+                            &format!(
+                                "requirement '{}' carries an integrity level — satisfying element must also set asilLevel or silLevel",
+                                s
+                            ),
+                        ));
+                    } else if src_has && child_has
+                        && integrity_is_lower(
+                            fm.asil_level.as_deref(), fm.sil_level,
+                            tfm.asil_level.as_deref(), tfm.sil_level,
+                        )
+                        && fm.breakdown_adr.is_none()
+                    {
+                        findings.push(warning(
+                            "W808",
+                            &elem.file_path,
+                            &format!(
+                                "integrity level is lower than satisfied requirement '{}' — add `breakdownAdr` to justify the ASIL/SIL decomposition",
+                                s
+                            ),
+                        ));
                     }
                 }
             }

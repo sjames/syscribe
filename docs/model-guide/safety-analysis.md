@@ -278,7 +278,23 @@ breakdownAdr: ADR-BRAKE-001
 ```
 
 - **E832** — `derivedFromSafetyGoal` must resolve to a `SafetyGoal` element.
+- **E841** — the `SafetyGoal` carries an `asilLevel`/`silLevel`; the requirement must set the same field (same or lower level).
+- **W808** — if the requirement's level is lower than the goal's, a `breakdownAdr` is required to justify the ASIL/SIL decomposition.
 - **W805** — fires on a `SafetyGoal` that has no `Requirement` pointing back to it, indicating the goal has not yet been elaborated into a traceable requirement.
+
+### Integrity level propagation
+
+Once a `SafetyGoal` carries an integrity level (`asilLevel`, `silLevel`, or `plLevel`), that level must flow through every downstream element in the traceability chain:
+
+| Link direction | Rule |
+|---|---|
+| SafetyGoal → Requirement (`derivedFromSafetyGoal`) | E841 if missing; W808 if lower without ADR |
+| Requirement → child Requirement (`derivedFrom`) | E842 if missing; W808 if lower without ADR |
+| Requirement → architecture element (`satisfies`) | E843 if missing; W808 if lower without ADR |
+
+**Same level** — no additional action required beyond the normal `breakdownAdr` (E310).
+
+**Lower level** — valid only when the architecture applies redundancy or independence arguments (ASIL decomposition per ISO 26262-9 or SIL decomposition per IEC 61508-2 §7.4.9). Set `breakdownAdr:` to an `accepted` ADR that documents the decomposition rationale.
 
 ### Security requirements — `derivedFromSecurityGoal`
 
@@ -371,9 +387,14 @@ syscribe model/ refs CSG-SYS-001
 | E825 | Error | `hazardousEvents` ref does not resolve to a HazardousEvent |
 | E831 | Error | `derivedFromSecurityGoal` does not resolve to a CybersecurityGoal |
 | E832 | Error | `derivedFromSafetyGoal` does not resolve to a SafetyGoal |
+| E841 | Error | Element linked via `derivedFromSafetyGoal` is missing `asilLevel`/`silLevel` when the SafetyGoal has one |
+| E842 | Error | Element linked via `derivedFrom` is missing `asilLevel`/`silLevel` when the parent carries one |
+| E843 | Error | Element linked via `satisfies` is missing `asilLevel`/`silLevel` when the requirement carries one |
 | E902 | Error | `FaultTree.topEvent` does not resolve to a SafetyGoal |
 | E906 | Error | `FaultTreeGate.inputs` ref is not a gate or event |
+| W006 | Warning | `silLevel` and `asilLevel` both set on the same element — incompatible standards |
 | W800 | Warning | HazardousEvent not referenced by any SafetyGoal |
 | W801 | Warning | SafetyGoal has no integrity level (`asilLevel`, `silLevel`, or `plLevel`) |
 | W804 | Warning | CybersecurityGoal has no `Requirement` with `derivedFromSecurityGoal` |
 | W805 | Warning | SafetyGoal has no `Requirement` with `derivedFromSafetyGoal` |
+| W808 | Warning | Element's integrity level is lower than its source (`derivedFromSafetyGoal`, `derivedFrom`, or `satisfies`) but no `breakdownAdr` is set |
