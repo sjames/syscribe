@@ -34,6 +34,7 @@
    - 8.14 [View, Viewpoint, and Rendering Elements](#814-view-viewpoint-and-rendering-elements)
    - 8.15 [Metadata Elements](#815-metadata-elements)
    - 8.17 [Architecture Decision Records (ADR)](#817-architecture-decision-records-adr)
+   - 8.18 [Safety and Security Analysis Elements](#818-safety-and-security-analysis-elements)
 9. [Variability and Product Line Engineering](#9-variability-and-product-line-engineering)
    - 9.1–9.4 [Structural Variation (isVariation / isVariant)](#91-variation-definitions)
    - 9.5 [Product Line Engineering Overview](#95-product-line-engineering-overview)
@@ -56,6 +57,7 @@
     - 12.4 [Parent Requirements Cannot Be Assigned](#124-parent-requirements-cannot-be-assigned)
     - 12.5 [Requirement Domain Classification](#125-requirement-domain-classification)
     - 12.6 [Hardware/Software Architecture Independence](#126-hardwaresoftware-architecture-independence)
+    - 12.7 [Safety/Security Integrity Level Propagation](#127-safetysecurity-integrity-level-propagation)
 
 ---
 
@@ -2183,12 +2185,16 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `title` | string | **Required** | One-line summary. Max 120 chars. No newlines. |
 | `status` | enum | **Required** | Lifecycle state: `draft`, `review`, `approved`, `implemented`, `verified`. |
 | `derivedFrom` | list of id-or-qualname | optional | IDs (`REQ-*`) or qualified names of parent Requirements. Absent = stakeholder-level requirement. |
-| `silLevel` | integer 1–4 | optional | IEC 61508 SIL level. |
-| `asilLevel` | enum A\|B\|C\|D | optional | ISO 26262 ASIL level. |
+| `silLevel` | integer 1–4 | optional | IEC 61508 SIL level. Mutually exclusive with `asilLevel` — do not set both (W006). |
+| `asilLevel` | enum A\|B\|C\|D | optional | ISO 26262 ASIL level. Mutually exclusive with `silLevel` — do not set both (W006). |
+| `plLevel` | enum a\|b\|c\|d\|e | optional | ISO 13849-1 Performance Level. Mutually exclusive with `asilLevel`/`silLevel`. |
+| `derivedFromSafetyGoal` | string | optional | ID or qualified name of the `SafetyGoal` that motivated this requirement (§8.18.2). When set the SafetyGoal's integrity level must also appear on this element (E841). |
+| `derivedFromSecurityGoal` | string | optional | ID or qualified name of the `CybersecurityGoal` that motivated this requirement (§8.18.4). Implies `verificationMethod:` should be set (W807). |
+| `verificationMethod` | enum | optional | How this requirement will be verified: `test`, `inspection`, `analysis`, or `demonstration`. Required for ASIL B/C/D requirements (W701). |
 | `wcet` | string | optional | WCET claim (opaque). E.g. `"O(1)"`, `"≤ 200 cycles @ 72 MHz"`. |
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
-| `reqDomain` | enum | optional | `system` | Engineering domain of this requirement: `system`, `hardware`, or `software`. Leaf requirements at `implemented`/`verified` status should be refined to `hardware` or `software` (warning `W302`). |
-| `breakdownAdr` | string | optional | absent | `ADR-*` id or qualified name of the ADR documenting the rationale for this requirement's derivation from its parent(s). Required when `derivedFrom:` is non-empty (error `E310`). |
+| `reqDomain` | enum | optional | Engineering domain of this requirement: `system`, `hardware`, or `software`. Leaf requirements at `implemented`/`verified` status should be refined to `hardware` or `software` (warning `W302`). |
+| `breakdownAdr` | string | optional | `ADR-*` id or qualified name of the ADR documenting the rationale for this requirement's derivation from its parent(s). Required when `derivedFrom:` is non-empty (error `E310`). Also required when the requirement's integrity level is lower than its source's (W808; see §12.7). |
 
 **Status values:**
 
@@ -2231,9 +2237,10 @@ id: REQ-SCHED-BITMAP-001
 title: "Bitmap-based O(1) priority selection"
 status: approved
 silLevel: 4
-asilLevel: D
 derivedFrom:
   - REQ-SCHED-001
+breakdownAdr: ADR-SW-SCHED-001
+verificationMethod: test
 wcet: "O(1)"
 tags:
   - scheduler
@@ -3707,6 +3714,65 @@ Both child requirements carry `derivedFrom: [REQ-UAV-SCHED-001]` and
 
 ---
 
+### 8.18 Safety and Security Analysis Elements
+
+This section defines element types used in functional safety (ISO 26262, IEC 61508, ISO 13849-1) and cybersecurity analysis (ISO/SAE 21434). These are **native** element types — like `Requirement` and `TestCase` they carry stable opaque IDs and are dispatched by the parser on `type:` field.
+
+#### 8.18.1 Tier 2 — HARA Elements
+
+Used in Hazard Analysis and Risk Assessment (HARA) per ISO 26262-3 or IEC 61508.
+
+| Element type | ID pattern | Description |
+|---|---|---|
+| `HazardousEvent` | `HE-*` | A combination of a hazard and an operational situation; carries ISO 26262 risk parameters (`severity`, `exposure`, `controllability`) or IEC 61508 risk graph parameters (`consequence`, `freqExposure`, `avoidance`, `demandRate`). |
+| `SafetyGoal` | `SG-*` | A top-level safety requirement derived from the HARA; carries `asilLevel:` (ISO 26262), `silLevel:` (IEC 61508), or `plLevel:` (ISO 13849-1), and `hazardousEvents:` referencing the events it addresses. |
+
+**Integrity level rules (W801, W806, E841, W808):** A `SafetyGoal` must carry an integrity level (W801). It must reference at least one `HazardousEvent` via `hazardousEvents:` (W806). Any `Requirement` derived from a `SafetyGoal` via `derivedFromSafetyGoal:` must carry the same integrity level field (E841), and may carry a lower level only when `breakdownAdr:` is set (W808; see §12.7).
+
+#### 8.18.2 Tier 2 — TARA Elements
+
+Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
+
+| Element type | ID pattern | Description |
+|---|---|---|
+| `DamageScenario` | `DS-*` | An adverse consequence to a stakeholder; carries `damageSeverity:` and `impactCategories:`. |
+| `ThreatScenario` | `TS-*` | A potential attack scenario; carries `attackFeasibility:` and `attackVector:`. References `damageScenarios:`. |
+| `CybersecurityGoal` | `CSG-*` | A high-level security requirement; carries `securityProperty:` (`confidentiality`, `integrity`, `availability`, `authenticity`) and `calLevel:` (`CAL1`–`CAL4`). |
+| `SecurityControl` | `SC-*` | A concrete countermeasure; carries `controlType:` and `implementsGoals:`. |
+| `VulnerabilityReport` | `VR-*` | A tracked vulnerability; carries `cvssScore:`, `mitigatedBy:`, and `affectedElements:`. |
+| `TARASheet` | `TARA-*` | An Option-B container: a single file whose `damageTable:`, `threatTable:`, `goalTable:`, and `controlTable:` sections are exploded at parse time into the individual Tier 2 element types above. |
+
+**Cross-reference rules:** A `Requirement` motivated by a cybersecurity goal should set `derivedFromSecurityGoal:` to the `CSG-*` ID, and must set `verificationMethod:` (W807). The OSLC link direction applies: the downstream element holds the reference.
+
+**Binding SecurityControls to architecture:** Architecture elements (e.g. `PartDef`) that realise a `SecurityControl` should set `allocatedFrom:` to the control's `SC-*` ID. Both `allocatedFrom:` and `allocatedTo:` accept a single string or a list of strings to support multiple controls per element.
+
+#### 8.18.3 Tier 4 — Fault Tree Analysis (FTA)
+
+| Element type | ID pattern | Description |
+|---|---|---|
+| `FaultTree` | `FT-*` | Root of a fault tree; references a `SafetyGoal` via `topEvent:`. |
+| `FaultTreeGate` | `FTG-*` | Logic gate; `gateType:` is one of `AND`, `OR`, `XOR`, `NOT`, `inhibit`; `inputs:` lists child gate/event IDs. |
+| `FaultTreeEvent` | `FTE-*` | Leaf event; `eventKind:` is `basic`, `undeveloped`, or `house`; optional `failureRate:`. |
+
+**Nesting rule (W900):** `FaultTreeGate` and `FaultTreeEvent` elements must be placed in a subdirectory named after the `FaultTree` file so their qualified names are prefixed by the tree's qualified name:
+
+```
+Safety/FTA/FT-BRAKE-001.md          →  Safety::FTA::FT-BRAKE-001
+Safety/FTA/FT-BRAKE-001/
+  FTG-BRAKE-001.md                  →  Safety::FTA::FT-BRAKE-001::FTG-BRAKE-001
+  FTE-BRAKE-001.md                  →  Safety::FTA::FT-BRAKE-001::FTE-BRAKE-001
+```
+
+#### 8.18.4 Tier 4 — FMEA
+
+| Element type | ID pattern | Description |
+|---|---|---|
+| `FMEASheet` | `FMEA-*` | Container with an `entries:` list; each entry is a failure mode row with `fmeaSeverity:`, `occurrence:`, `detection:` (1–10 each) and optional `rpn:` (auto-computed when absent). |
+
+Each row is synthesised at parse time into a virtual `FMEAEntry` element (`FM-*` ID) for cross-reference and validation purposes.
+
+---
+
 ## 9 Variability and Variation Points
 
 ### 9.1 Variation Definitions
@@ -4896,7 +4962,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W003` | Native `Requirement` with `status: verified` but `verifiedBy` is empty or all entries have `status: retired` |
 | `W004` | `sourceFile:` path does not exist on disk relative to the model root |
 | `W005` | Native `Requirement` has neither `derivedFrom:` entries nor `derivedChildren` (possible orphan not connected to any requirement hierarchy) |
-| `W006` | `silLevel:` is present without `asilLevel:`, or vice versa |
+| `W006` | Both `silLevel:` (IEC 61508) and `asilLevel:` (ISO 26262) are set on the same element — incompatible standards; use only one |
 | `W007` | Frontmatter contains an unrecognised key (lenient mode; key is preserved in the element's extra-fields map) |
 | `W300` | Leaf `Requirement` at `status: approved` or `status: implemented` has no satisfying architecture element (no element has `satisfies:` pointing to it) |
 | `W301` | Leaf `Requirement` is satisfied by more than one architecture element — only one expected at leaf level |
@@ -4904,6 +4970,37 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W303` | `breakdownAdr:` references an ADR with `status: proposed`, but the `Requirement` itself has `status: approved` or higher |
 | `W304` | `isDeploymentPackage: true` combined with `domain: hardware` — deployment packages must be software |
 | `W305` | Parent `Requirement` (has `derivedFrom` children) at `status: approved`, `implemented`, or `verified` has no active `TestCase` at `testLevel: L3`, `L4`, or `L5` — leaf-level tests on derived requirements are insufficient to verify emergent composed behaviour |
+
+#### Integrity-level propagation errors (E841–E843)
+
+Once any element in the traceability chain carries `asilLevel:`, `silLevel:`, or `plLevel:`, all downstream elements reachable via `derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:` must also carry the same field. See §12.7.
+
+| Code | Condition |
+|---|---|
+| `E841` | Element with `derivedFromSafetyGoal:` is missing `asilLevel`/`silLevel` when the referenced `SafetyGoal` carries one |
+| `E842` | Element with `derivedFrom:` is missing `asilLevel`/`silLevel` when the parent element carries one |
+| `E843` | Element with `satisfies:` is missing `asilLevel`/`silLevel` when the satisfied `Requirement` carries one |
+
+#### Integrity-level propagation warnings
+
+| Code | Condition |
+|---|---|
+| `W808` | Element's integrity level is strictly lower than its source (`derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:`) but no `breakdownAdr:` is set — add an ADR documenting the ASIL/SIL decomposition rationale |
+
+#### Safety / security analysis warnings (W800–W808)
+
+| Code | Condition |
+|---|---|
+| `W800` | `HazardousEvent` is not referenced by any `SafetyGoal.hazardousEvents` |
+| `W801` | `SafetyGoal` has no integrity level — set `asilLevel` (ISO 26262), `silLevel` (IEC 61508), or `plLevel` (ISO 13849-1) |
+| `W802` | `CybersecurityGoal` is not implemented by any `SecurityControl.implementsGoals` |
+| `W803` | `VulnerabilityReport` has `status: open` |
+| `W804` | `CybersecurityGoal` has no `Requirement` with `derivedFromSecurityGoal:` pointing to it |
+| `W805` | `SafetyGoal` has no `Requirement` with `derivedFromSafetyGoal:` pointing to it |
+| `W806` | `SafetyGoal` has no `hazardousEvents:` — not grounded in any hazard analysis |
+| `W807` | `Requirement` with `derivedFromSecurityGoal:` has no `verificationMethod:` |
+
+The full set of Tier 2 (E800–E843) and Tier 4 (E900–E941, W900–W905) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
 
 ---
 
@@ -5008,7 +5105,13 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `testLevel` | native TestCase | string | — (required) | 8.12.5 |
 | `silLevel` | native Requirement | integer | absent | 8.11.6 |
 | `asilLevel` | native Requirement | string | absent | 8.11.6 |
+| `plLevel` | native Requirement / SafetyGoal | string | absent | 8.11.6, 8.18.1 |
+| `derivedFromSafetyGoal` | native Requirement | string | absent | 8.11.6, 8.18.1 |
+| `derivedFromSecurityGoal` | native Requirement | string | absent | 8.11.6, 8.18.2 |
+| `verificationMethod` | native Requirement | string | absent | 8.11.6 |
 | `wcet` | native Requirement | string | absent | 8.11.6 |
+| `allocatedFrom` | Any element | string or list | absent | 8.18.2 |
+| `allocatedTo` | Any element | string or list | absent | 8.18.2 |
 | `sourceFile` | native TestCase | string | absent | 8.12.5 |
 | `testFunctions` | native TestCase | list | absent | 8.12.5 |
 | `tags` | native Requirement/TestCase | list of strings | absent | 8.11.6, 8.12.5 |
@@ -5091,7 +5194,7 @@ All traceability links in Markdown-SysML follow OSLC (Open Services for Lifecycl
 | `derivedFrom:` | child → parent | This requirement was broken down from the parent |
 | `verifies:` | test → requirement | This test case verifies the requirement |
 | `satisfies:` | architecture element → requirement | This element implements the requirement |
-| `allocateTo:` | logical/source → physical/target | This element is deployed to or mapped onto the target |
+| `allocatedTo:` / `allocatedFrom:` | downstream → upstream | The architecture element (downstream, realising party) holds `allocatedFrom:` referencing the upstream logical or security artifact; `allocatedTo:` is used on `Allocation` elements |
 | `breakdownAdr:` | requirement → ADR | This requirement's breakdown is documented in the ADR |
 
 No reverse links are stored in model files. Reverse indices (`verifiedBy`, `derivedChildren`, `satisfiedBy`) are computed by the parser at load time and never written to disk.
@@ -5218,5 +5321,51 @@ allocateTo: Hardware::FlightComputer
 metadata:
   - type: ModelingMetadata::Rationale
     text: "See ADR-HW-DEPLOY-001 for platform selection rationale"
+---
+```
+
+---
+
+### 12.7 Safety/Security Integrity Level Propagation
+
+**Rule R-007:** Once any element in the traceability chain carries a safety or security integrity level (`asilLevel:`, `silLevel:`, or `plLevel:`), **all downstream elements** reached via `derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:` links must also carry the same field. An element that omits the field when its upstream source has one is an error (E841, E842, or E843 depending on the link kind).
+
+**Level constraint:** The downstream element's level may be the same as or lower than the upstream element's. A lower level indicates an ASIL/SIL decomposition (ISO 26262-9, IEC 61508-2 §7.4.9): the model asserts that the downstream component achieves the weaker target through architectural independence or redundancy arguments.
+
+**ADR requirement for decomposition:** When a downstream element carries a lower level than its source, `breakdownAdr:` must reference an `accepted` ADR documenting the decomposition rationale (W808 if absent).
+
+| Link | Enforced by | Missing field | Lower level without ADR |
+|---|---|---|---|
+| `derivedFromSafetyGoal:` → `SafetyGoal` | R-007 | E841 | W808 |
+| `derivedFrom:` → parent Requirement | R-007 | E842 | W808 |
+| `satisfies:` → Requirement | R-007 | E843 | W808 |
+
+**Level comparison rules:**
+
+- `asilLevel:` ranks A < B < C < D.
+- `silLevel:` ranks 1 < 2 < 3 < 4.
+- `plLevel:` (ISO 13849-1) has values `a`–`e` but is not numerically compared with ASIL or SIL.
+- Mixing `asilLevel:` on one element with `silLevel:` on another is architecturally unusual and not validated cross-element; W006 flags the case where both appear on the *same* element.
+
+**Example — ASIL D requirement decomposed to ASIL B:**
+
+```yaml
+# Parent SafetyGoal
+---
+type: SafetyGoal
+id: SG-BRAKE-001
+title: "Prevent unintended brake release"
+asilLevel: D
+hazardousEvents: [HE-BRAKE-001]
+---
+
+# Derived requirement — decomposed to ASIL B via redundancy argument
+---
+type: Requirement
+id: REQ-BRAKE-HYD-001
+title: "Maintain hydraulic pressure within 50 ms"
+asilLevel: B
+derivedFromSafetyGoal: SG-BRAKE-001
+breakdownAdr: ADR-BRAKE-DECOMP-001    # documents the decomposition rationale
 ---
 ```
