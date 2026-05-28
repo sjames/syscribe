@@ -983,25 +983,23 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
             }
         }
 
-        // E502/E503: top-level allocatedFrom/allocatedTo on Allocation elements must resolve
-        if matches!(fm.element_type, Some(ElementType::Allocation)) {
-            if let Some(ref af) = fm.allocated_from {
-                if resolver.resolve_ref(elements, af).is_none() {
-                    findings.push(error(
-                        "E502",
-                        &file,
-                        &format!("`allocatedFrom` '{}' does not resolve to a known element", af),
-                    ));
-                }
+        // E502/E503: allocatedFrom/allocatedTo must resolve on any element that sets them
+        if let Some(ref af) = fm.allocated_from {
+            if resolver.resolve_ref(elements, af).is_none() {
+                findings.push(error(
+                    "E502",
+                    &file,
+                    &format!("`allocatedFrom` '{}' does not resolve to a known element", af),
+                ));
             }
-            if let Some(ref at_ref) = fm.allocated_to {
-                if resolver.resolve_ref(elements, at_ref).is_none() {
-                    findings.push(error(
-                        "E503",
-                        &file,
-                        &format!("`allocatedTo` '{}' does not resolve to a known element", at_ref),
-                    ));
-                }
+        }
+        if let Some(ref at_ref) = fm.allocated_to {
+            if resolver.resolve_ref(elements, at_ref).is_none() {
+                findings.push(error(
+                    "E503",
+                    &file,
+                    &format!("`allocatedTo` '{}' does not resolve to a known element", at_ref),
+                ));
             }
         }
 

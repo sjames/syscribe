@@ -1708,12 +1708,14 @@ Describe the security control mechanism, its scope, and how it implements the re
 
 ## Architecture allocation
 
-To bind this control to a specific architecture element, create an Allocation:
+Record which component implements this control by adding `allocatedFrom:` to
+the implementing `Part` or `PartDef` (the architecture element holds the
+reference, keeping the link OSLC-compliant):
 
 ```yaml
-type: Allocation
-allocatedFrom: SC-PREFIX-001       # the security control
-allocatedTo: Package::Component    # the Part or PartDef that implements it
+# In Package/Component.md
+type: PartDef
+allocatedFrom: SC-PREFIX-001   # this component implements this security control
 ```
 "#,
         "vulnerabilityreport" => r#"---
