@@ -1043,6 +1043,10 @@ function enterFocusMode(node) {
   if (!cy) return;
   if (inFocusMode) exitFocusMode();
 
+  // Snapshot positions before we move anything so exitFocusMode can restore them.
+  savedPositions = {};
+  cy.nodes().forEach(n => { savedPositions[n.id()] = { ...n.position() }; });
+
   const type = node.data('type') || '';
 
   // Collect the nodes to keep visible
