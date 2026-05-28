@@ -58,6 +58,8 @@ nav:
       - Architecture Decisions: model-guide/adrs.md
       - Safety & Security Analysis: model-guide/safety-analysis.md
       - LLM-Assisted Modeling: model-guide/llm-workflow.md
+  - CLI:
+      - cli/index.md
   - Validation:
       - validation/index.md
       - Rule Reference: validation/rules.md
