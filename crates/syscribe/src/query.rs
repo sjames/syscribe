@@ -1504,6 +1504,190 @@ groupKind: optional
 
 Description of this feature definition.
 "#,
+        "itemdef" => r#"---
+type: ItemDef
+name: MyItemDef
+# supertype: Items::SomeItemDef
+# features:
+#   - name: mass
+#     typedBy: ScalarValues::Real
+---
+
+Description of this item definition.
+"#,
+        "item" => r#"---
+type: Item
+name: myItem
+typedBy: Items::MyItemDef
+# multiplicity: "1"
+---
+
+Description of this item usage.
+"#,
+        "interface" => r#"---
+type: Interface
+name: myInterface
+typedBy: Interfaces::MyInterfaceDef
+---
+
+Description of this interface usage.
+"#,
+        "action" => r#"---
+type: Action
+name: myAction
+typedBy: Actions::MyActionDef
+# subActions:
+#   - name: step1
+#     typedBy: Actions::Step1
+---
+
+Description of this action usage.
+"#,
+        "attributedef" => r#"---
+type: AttributeDef
+name: MyAttributeDef
+# supertype: ScalarValues::Real
+---
+
+Description of this attribute definition.
+"#,
+        "configuration" => r#"---
+type: Configuration
+id: CONF-PREFIX-001
+title: "My variant configuration"
+status: draft
+featureModel: Features::MyFeatureDef
+selections:
+  - feature: Features::FeatureA
+    value: true
+  - feature: Features::FeatureB
+    value: false
+---
+
+Description of this configuration.
+"#,
+        "verificationcasedef" => r#"---
+type: VerificationCaseDef
+name: MyVerificationCaseDef
+# subject: SomePackage::SomeElement
+# returnType: ScalarValues::Boolean
+---
+
+Description of this verification case definition.
+"#,
+        "verificationcase" => r#"---
+type: VerificationCase
+name: myVerificationCase
+typedBy: Verification::MyVerificationCaseDef
+# verifies:
+#   - REQ-PREFIX-001
+---
+
+Description of this verification case.
+"#,
+        "analysiscasedef" => r#"---
+type: AnalysisCaseDef
+name: MyAnalysisCaseDef
+# subject: SomePackage::SomeElement
+# returnType: ScalarValues::Real
+---
+
+Description of this analysis case definition.
+"#,
+        "analysiscase" => r#"---
+type: AnalysisCase
+name: myAnalysisCase
+typedBy: Analysis::MyAnalysisCaseDef
+---
+
+Description of this analysis case usage.
+"#,
+        "diagram" => r#"---
+type: Diagram
+name: MyDiagram
+diagramKind: IBD
+subject: SomePackage::SomeElement
+shapes:
+  - id: shape-a
+    ref: SomePackage::PartA
+edges: []
+---
+
+Describe the purpose and scope of this diagram.
+"#,
+        "view" => r#"---
+type: View
+name: myView
+typedBy: Views::MyViewDef
+expose:
+  - SomePackage::SomeElement
+---
+
+Description of this view.
+"#,
+        "metadata" => r#"---
+type: Metadata
+name: myMetadata
+typedBy: MetadataTypes::MyMetadataDef
+# value: "..."
+---
+"#,
+        "calculation" => r#"---
+type: Calculation
+name: myCalculation
+typedBy: Calculations::MyCalculationDef
+---
+
+Description of this calculation usage.
+"#,
+        "constraint" => r#"---
+type: Constraint
+name: myConstraint
+typedBy: Constraints::MyConstraintDef
+---
+"#,
+        "librarypackage" => r#"---
+type: LibraryPackage
+name: MyLibraryPackage
+---
+
+Description of this library package.
+"#,
+        "namespace" => r#"---
+type: Namespace
+name: MyNamespace
+---
+
+Description of this namespace.
+"#,
+        "dependency" => r#"---
+type: Dependency
+name: myDependency
+# dependsOn: SomePackage::SomeElement
+---
+"#,
+        "usecase" => r#"---
+type: UseCase
+name: myUseCase
+typedBy: UseCases::MyUseCaseDef
+actors:
+  - Operator
+---
+
+Description of this use case usage.
+"#,
+        "state" => r#"---
+type: State
+name: myState
+typedBy: States::MyStateDef
+---
+"#,
+        "enumeration" => r#"---
+type: Enumeration
+name: myEnumeration
+typedBy: Enumerations::MyEnumerationDef
+---
+"#,
         "faulttree" => r#"---
 type: FaultTree
 id: FT-PREFIX-001
@@ -1767,15 +1951,31 @@ How the vulnerability is being addressed.
 "#,
         other => {
             eprintln!("Unknown type '{}'. Known types:", other);
-            eprintln!("  Requirement, TestCase, ADR");
-            eprintln!("  PartDef, Part, PortDef, Port, ConnectionDef, Connection");
-            eprintln!("  InterfaceDef, ActionDef, ConstraintDef, CalculationDef");
-            eprintln!("  StateDef, FlowDef, EnumerationDef, UseCaseDef");
-            eprintln!("  RequirementDef, AllocationDef, Allocation");
-            eprintln!("  ViewDef, ViewpointDef, MetadataDef, Package, FeatureDef");
-            eprintln!("  HazardousEvent, SafetyGoal");
-            eprintln!("  DamageScenario, ThreatScenario, CybersecurityGoal, SecurityControl, VulnerabilityReport");
-            eprintln!("  FaultTree, FaultTreeGate, FaultTreeEvent, FMEASheet, TARASheet");
+            eprintln!("  Native elements:  Requirement, TestCase, ADR");
+            eprintln!("  Structural:       PartDef, Part, ItemDef, Item");
+            eprintln!("  Interfaces:       PortDef, Port, InterfaceDef, Interface");
+            eprintln!("  Connections:      ConnectionDef, Connection");
+            eprintln!("  Actions:          ActionDef, Action");
+            eprintln!("  Attributes:       AttributeDef, EnumerationDef, Enumeration");
+            eprintln!("  Calculations:     CalculationDef, Calculation");
+            eprintln!("  Constraints:      ConstraintDef, Constraint");
+            eprintln!("  States:           StateDef, State");
+            eprintln!("  Use cases:        UseCaseDef, UseCase");
+            eprintln!("  Flows:            FlowDef");
+            eprintln!("  Requirements:     RequirementDef");
+            eprintln!("  Verification:     VerificationCaseDef, VerificationCase");
+            eprintln!("  Analysis:         AnalysisCaseDef, AnalysisCase");
+            eprintln!("  Allocation:       AllocationDef, Allocation");
+            eprintln!("  Views:            ViewDef, View, ViewpointDef, Diagram");
+            eprintln!("  Metadata:         MetadataDef, Metadata");
+            eprintln!("  Packages:         Package, LibraryPackage, Namespace");
+            eprintln!("  PLE:              FeatureDef, Configuration");
+            eprintln!("  Misc:             Dependency");
+            eprintln!("  Safety (HARA):    HazardousEvent, SafetyGoal");
+            eprintln!("  Security (TARA):  DamageScenario, ThreatScenario, CybersecurityGoal,");
+            eprintln!("                    SecurityControl, VulnerabilityReport, TARASheet");
+            eprintln!("  FTA:              FaultTree, FaultTreeGate, FaultTreeEvent");
+            eprintln!("  FMEA:             FMEASheet");
             std::process::exit(1);
         }
     };
