@@ -59,12 +59,13 @@ Parent requirements have `derivedChildren`; leaf requirements have `derivedFrom`
 - A parent requirement must not appear in any `satisfies:` list — only leaves are assigned (E312)
 - Every `derivedFrom:` must cite an accepted `breakdownAdr:` (E310, E311)
 - Leaves at `approved` or `implemented` status with no satisfying element fire W300
+- **Parent requirements need an integration-level TestCase** — derived children's unit/integration tests (L1/L2) are not sufficient to verify the emergent composed behaviour expressed by the parent. A parent requirement at `approved`, `implemented`, or `verified` status must have at least one active TestCase at `testLevel: L3`, `L4`, or `L5` (W305).
 
 ```
-REQ-UAV-PERF-000  (parent)
-  ├── REQ-UAV-COMM-001  (leaf — reqDomain: software)
-  ├── REQ-UAV-ENDUR-001 (leaf — reqDomain: hardware)
-  └── REQ-UAV-NAV-001   (leaf — reqDomain: hardware)
+REQ-UAV-PERF-000  (parent — needs L3/L4/L5 TestCase)
+  ├── REQ-UAV-COMM-001  (leaf — reqDomain: software, needs L1–L5 TestCase)
+  ├── REQ-UAV-ENDUR-001 (leaf — reqDomain: hardware, needs L1–L5 TestCase)
+  └── REQ-UAV-NAV-001   (leaf — reqDomain: hardware, needs L1–L5 TestCase)
 ```
 
 ## Native TestCase

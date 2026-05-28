@@ -2,7 +2,7 @@
 
 `VALIDATION · RULES`
 
-## Parse-time errors (E001–E015)
+## Parse-time errors (E001–E022)
 
 | Code | Element | Condition |
 |---|---|---|
@@ -20,14 +20,20 @@
 | E013 | TestCase | `verifies:` is absent or empty |
 | E014 | TestCase | `Scenario Outline:` block has no `Examples:` table |
 | E015 | TestCase | First ` ```gherkin ` block has no `Feature:` line |
+| E019 | Any | `dalLevel` is not one of `A · B · C · D · E` (DO-178C) |
+| E020 | Any | `verificationMethod` is not one of `test · inspection · analysis · demonstration` |
+| E021 | Any | `coverageTarget` is not one of `statement · branch · MCDC` |
+| E022 | Any | `requirementKind` is not one of `stakeholder · system · software · hardware` |
 
-## Parse-time warnings (W001–W006)
+## Parse-time warnings (W001–W008)
 
 | Code | Condition |
 |---|---|
 | W001 | Requirement normative text contains no `shall` |
 | W004 | `sourceFile:` path does not exist on disk |
 | W006 | `silLevel` present without `asilLevel`, or vice versa |
+| W007 | Type definition (e.g. `PartDef`) is never referenced as a supertype or type |
+| W008 | Element has no `type:` field — will be ignored by most commands |
 
 ## Cross-reference errors (E101–E106)
 
@@ -48,6 +54,14 @@
 | W003 | Requirement at `verified` has no active TestCase covering it |
 | W005 | Requirement has no `derivedFrom` and no `derivedChildren` — possible orphan |
 
+## Cycle detection errors (E016–E018)
+
+| Code | Condition |
+|---|---|
+| E016 | Cycle detected in `supertype:` graph |
+| E017 | Cycle detected in `derivedFrom:` graph |
+| E018 | Cycle detected in `subsets:` graph |
+
 ## PLE errors (E200–E209)
 
 | Code | Condition |
@@ -66,7 +80,7 @@
 | E303 | `domain` value is not `system · hardware · software` |
 | E304 | ADR `status` is not `proposed · accepted · deprecated · superseded` |
 
-## Traceability warnings (W300–W304)
+## Traceability warnings (W300–W305)
 
 | Code | Condition |
 |---|---|
@@ -75,6 +89,7 @@
 | W302 | Leaf Requirement at `implemented` or `verified` still has `reqDomain: system` |
 | W303 | `breakdownAdr:` references a `proposed` ADR but Requirement is `approved` or higher |
 | W304 | `isDeploymentPackage: true` combined with `domain: hardware` |
+| W305 | Parent Requirement (has `derivedFrom` children) at `approved`, `implemented`, or `verified` has no active TestCase at `testLevel: L3`, `L4`, or `L5` — leaf-level tests on derived requirements are not sufficient to verify emergent composed behaviour |
 
 ## §12 Traceability errors (E310–E315)
 
@@ -95,7 +110,7 @@
 | E401 | `diagramKind: PlantUML` but body has no ` ```plantuml ` block |
 | E402 | `svgFile:` path does not exist on disk |
 
-## Diagram warnings (W400–W403)
+## Diagram warnings (W400–W412)
 
 | Code | Condition |
 |---|---|
@@ -103,6 +118,15 @@
 | W401 | `subject:` does not resolve to a known element |
 | W402 | Shape `ref:` does not resolve (and is not a sub-feature of a known element) |
 | W403 | Edge `source` or `target` is not a defined shape id in this diagram |
+| W404 | Operation `typedBy` (parameter) or `returnType` does not resolve to a known element |
+| W405 | SVG companion file is referenced by both inline and companion modes simultaneously |
+| W406 | Companion SVG file reference is inconsistent across shapes |
+| W407 | Companion SVG file is referenced in shapes but `svgFile:` is not set |
+| W408 | Mermaid `%% ref:` annotation does not resolve to a known element |
+| W409 | Mermaid diagram has no `%% ref:` annotations — add at least one to link nodes to model elements |
+| W410 | Mermaid `%% link:` annotation does not resolve to a known element |
+| W411 | Shape `link:` value does not resolve to a known element |
+| W412 | SVG `href="..."` attribute does not resolve to any model element file |
 
 ## Allocation errors (E500–E503)
 
@@ -128,8 +152,96 @@
 | W600 | PartDef or Part has an empty documentation body |
 | W601 | ActionDef or Action has an empty documentation body |
 
-## Operations warning (W404)
+## Safety / ASPICE warnings (W701–W703)
+
+These warnings apply to requirements carrying safety integrity level fields (`asilLevel`, `silLevel`, `dalLevel`).
 
 | Code | Condition |
 |---|---|
-| W404 | Operation `typedBy` (parameter) or `returnType` does not resolve to a known element |
+| W701 | Requirement with `asilLevel: B`, `C`, or `D` has no `verificationMethod` — add `test`, `inspection`, `analysis`, or `demonstration` |
+| W702 | Requirement with `asilLevel: D` has no active TestCase at `testLevel: L5` (HIL) — ISO 26262-6 §9 requires hardware-in-the-loop testing for ASIL D |
+| W703 | Both `asilLevel` (ISO 26262) and `dalLevel` (DO-178C) are set on the same element — these are different standards; pick one or document the mapping |
+
+## Tier 2 safety element errors (E800–E830)
+
+Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Each type carries a stable opaque ID and required fields validated at parse time.
+
+### HazardousEvent (E800–E804)
+
+| Code | Condition |
+|---|---|
+| E800 | `id`, `title`, or `status` is absent |
+| E801 | `severity` is not one of `S0 · S1 · S2 · S3` |
+| E802 | `exposure` is not one of `E0 · E1 · E2 · E3 · E4` |
+| E803 | `controllability` is not one of `C0 · C1 · C2 · C3` |
+| E804 | `id` does not match `HE-*` pattern |
+
+### SafetyGoal (E805–E806, W801)
+
+| Code | Condition |
+|---|---|
+| E805 | `id`, `title`, or `status` is absent |
+| E806 | `id` does not match `SG-*` pattern |
+| W801 | SafetyGoal has no `asilLevel` — every safety goal requires an ASIL assignment (ISO 26262-3 §6.4) |
+
+### DamageScenario (E807–E810)
+
+| Code | Condition |
+|---|---|
+| E807 | `id`, `title`, or `status` is absent |
+| E808 | `id` does not match `DS-*` pattern |
+| E809 | `damageSeverity` is not one of `severe · major · moderate · negligible` |
+| E810 | `impactCategories` entry is not one of `safety · financial · operational · privacy` |
+
+### ThreatScenario (E811–E814)
+
+| Code | Condition |
+|---|---|
+| E811 | `id`, `title`, or `status` is absent |
+| E812 | `id` does not match `TS-*` pattern |
+| E813 | `attackFeasibility` is not one of `high · medium · low · very_low` |
+| E814 | `attackVector` is not one of `network · adjacent · local · physical` |
+
+### CybersecurityGoal (E815–E818)
+
+| Code | Condition |
+|---|---|
+| E815 | `id`, `title`, or `status` is absent |
+| E816 | `id` does not match `CSG-*` pattern |
+| E817 | `securityProperty` is not one of `confidentiality · integrity · availability · authenticity` |
+| E818 | `calLevel` is not one of `CAL1 · CAL2 · CAL3 · CAL4` |
+
+### SecurityControl (E819–E821)
+
+| Code | Condition |
+|---|---|
+| E819 | `id`, `title`, or `status` is absent |
+| E820 | `id` does not match `SC-*` pattern |
+| E821 | `controlType` is not one of `prevention · detection · response · recovery` |
+
+### VulnerabilityReport (E822–E824, W803)
+
+| Code | Condition |
+|---|---|
+| E822 | `id`, `title`, or `status` is absent |
+| E823 | `id` does not match `VR-*` pattern |
+| E824 | `cvssScore` is outside range 0.0–10.0 |
+| W803 | VulnerabilityReport has `status: open` — ensure it is being tracked and mitigated |
+
+## Tier 2 cross-reference errors (E825–E830)
+
+| Code | Condition |
+|---|---|
+| E825 | `SafetyGoal.hazardousEvents` entry does not resolve to a HazardousEvent |
+| E826 | `ThreatScenario.damageScenarios` entry does not resolve to a DamageScenario |
+| E827 | `CybersecurityGoal.threatScenarios` entry does not resolve to a ThreatScenario |
+| E828 | `SecurityControl.implementsGoals` entry does not resolve to a CybersecurityGoal |
+| E829 | `VulnerabilityReport.mitigatedBy` entry does not resolve to a SecurityControl |
+| E830 | `VulnerabilityReport.affectedElements` entry does not resolve to any known element |
+
+## Tier 2 coverage warnings (W800–W803)
+
+| Code | Condition |
+|---|---|
+| W800 | HazardousEvent is not referenced by any `SafetyGoal.hazardousEvents` |
+| W802 | CybersecurityGoal is not implemented by any `SecurityControl.implementsGoals` |

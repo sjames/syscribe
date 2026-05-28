@@ -31,19 +31,22 @@ Errors block a clean build. Warnings are advisory.
 
 | Range | Group | Description |
 |---|---|---|
-| E001–E015 | Parse-time | Required fields, ID patterns, status enums, Gherkin structure |
-| W001–W006 | Parse-time warnings | Normative text, SIL/ASIL pairing, sourceFile presence |
+| E001–E022 | Parse-time | Required fields, ID patterns, status enums, Gherkin structure, ASPICE fields |
+| W001–W008 | Parse-time warnings | Normative text, SIL/ASIL pairing, sourceFile presence, unused type defs |
 | E101–E106 | Cross-reference | Duplicate IDs, unresolved `verifies`/`derivedFrom`, scenario names |
+| E016–E018 | Cycle detection | Cycles in supertype, derivedFrom, or subsets graphs |
 | E200–E209 | PLE | Configuration required fields, featureModel resolution, appliesWhen |
 | E300–E304 | ADR | ID pattern, required fields, status enum, reqDomain/domain enums |
-| W300–W304 | Traceability | Leaf coverage, multiple satisfiers, domain refinement, deployment package |
+| W300–W305 | Traceability | Leaf coverage, multiple satisfiers, domain refinement, integration test on parent reqs |
 | E310–E315 | §12 Traceability | breakdownAdr, parent in satisfies, domain mismatch, HW/SW independence |
 | E400–E402 | Diagram | Mermaid/PlantUML body blocks, svgFile on disk |
-| W400–W403 | Diagram | diagramKind absent, subject resolution, shape/edge refs |
+| W400–W412 | Diagram | diagramKind, subject/shape/edge resolution, Mermaid annotations, SVG hrefs |
 | E500–E503 | Allocation | allocatedFrom/allocatedTo resolution |
 | W500–W502 | Structural | viewpoint, exhibitsStates, expose resolution |
 | W600–W601 | Documentation | Empty PartDef/Part or ActionDef/Action doc body |
-| W404 | Operations | Operation parameter or return type unresolved |
+| W701–W703 | Safety / ASPICE | verificationMethod on high-ASIL reqs, L5 test for ASIL D, mixed standards |
+| E800–E830 | Tier 2 Safety/Security | HazardousEvent, SafetyGoal, DamageScenario, ThreatScenario, CybersecurityGoal, SecurityControl, VulnerabilityReport required fields and cross-references |
+| W800–W803 | Tier 2 coverage | Unreferenced HazardousEvents, unimplemented CybersecurityGoals, open VulnerabilityReports |
 
 See [Rule Reference](rules.md) for every code.
 

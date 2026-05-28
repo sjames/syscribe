@@ -73,6 +73,25 @@ Elements with `domain: software` and `domain: hardware` must not share a direct 
 - **E314** — element with `isDeploymentPackage: true` has no `Allocation` to a hardware element
 - **W304** — `isDeploymentPackage: true` combined with `domain: hardware`
 
+## Integration test coverage for parent requirements (W305)
+
+Leaf-level TestCases (L1/L2) verify individual derived requirements but do not cover the emergent, composed behaviour expressed by the parent. A parent requirement at `approved`, `implemented`, or `verified` status must have at least one active TestCase at `testLevel: L3` (system), `L4` (system integration), or `L5` (hardware-in-the-loop).
+
+```yaml
+# TC-UAV-PERF-001.md — system test covering the parent requirement
+type: TestCase
+id: TC-UAV-PERF-001
+title: Full performance envelope system test
+status: active
+testLevel: L3
+verifies:
+  - REQ-UAV-PERF-000   # the parent requirement
+```
+
+This is distinct from ASIL D tests: W702 specifically requires an L5 test for ASIL D requirements, while W305 applies to all parent requirements regardless of safety level.
+
+- **W305** — parent requirement at `approved` or higher has no active L3/L4/L5 TestCase
+
 ## Traceability matrix
 
 The validation report (section 4) prints a matrix of all leaf requirements against all active TestCases, with `✓` where `verifies:` covers the requirement.
