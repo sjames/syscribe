@@ -21,14 +21,14 @@ Reference material: `temp/sysml2_spec.pdf` (SysMLv2 language spec) and `temp/for
 cargo build --workspace
 
 # Validate the demo model (prints Markdown report to stdout)
-cargo run --package syscribe -- model/
-# or after build: ./target/debug/syscribe model/
+cargo run --package syscribe -- -m model/
+# or after build: ./target/debug/syscribe -m model/
 
 # Print the LLM model generation prompt
 cargo run --package syscribe -- --agent-instructions
 
 # Start the web server
-cargo run --package syscribe-server -- model/
+cargo run --package syscribe-server -- -m model/
 ```
 
 ---
