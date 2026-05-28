@@ -20,10 +20,12 @@
   --md-default-fg-color--lightest: #3D5878;   /* labels / tertiary */
 
   /* Engineering blue accent — authoritative, precise */
+  /* NOTE: --md-primary-bg-color is the TEXT colour rendered ON the primary
+     background (header, tabs).  Must be light so icons/labels are visible. */
   --md-primary-fg-color:           #2B74D8;
   --md-primary-fg-color--light:    rgba(43, 116, 216, 0.18);
-  --md-primary-bg-color:           #0E1520;
-  --md-primary-bg-color--light:    rgba(14, 21, 32, 0.85);
+  --md-primary-bg-color:           #D8E4F2;
+  --md-primary-bg-color--light:    rgba(216, 228, 242, 0.70);
 
   --md-accent-fg-color:            #2B74D8;
   --md-accent-fg-color--transparent: rgba(43, 116, 216, 0.12);
@@ -101,13 +103,26 @@ body {
   background-color: var(--sml-bg-1);
   border-bottom: 1px solid var(--sml-border);
   box-shadow: var(--md-shadow-z1);
+  color: var(--sml-text);
+}
+
+/* Material uses --md-primary-bg-color for header icons/text.
+   Override directly so icons, search, and breadcrumbs are always visible. */
+.md-header__button,
+.md-header__button.md-icon,
+.md-header__topic,
+.md-header__title {
+  color: var(--sml-text);
+}
+
+.md-header__button:hover {
+  color: var(--sml-accent-hi);
 }
 
 .md-header__title {
   font-weight: 700;
   letter-spacing: -0.02em;
   font-size: 0.94rem;
-  color: var(--sml-text);
 }
 
 /* ── Navigation tabs ──────────────────────────────────────── */
