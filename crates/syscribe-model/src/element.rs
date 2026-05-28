@@ -64,7 +64,16 @@ pub enum ElementType {
     Configuration, // PLE type (§9.8)
     // Native elements (not SysML usages — own schema)
     TestCase,
-    ADR,           // Architecture Decision Record (§8.17)
+    ADR,              // Architecture Decision Record (§8.17)
+    // Safety analysis (ISO 26262 HARA)
+    HazardousEvent,
+    SafetyGoal,
+    // Security analysis (ISO/SAE 21434 TARA)
+    DamageScenario,
+    ThreatScenario,
+    CybersecurityGoal,
+    SecurityControl,
+    VulnerabilityReport,
     // Namespace
     Package,
     LibraryPackage,
@@ -274,6 +283,41 @@ pub struct RawFrontmatter {
     // §3.14 — domain classification
     pub domain: Option<String>,
     pub is_deployment_package: Option<bool>,
+
+    // §T2 — HazardousEvent (ISO 26262 §7 HARA)
+    pub severity: Option<String>,               // S0-S3
+    pub exposure: Option<String>,               // E0-E4
+    pub controllability: Option<String>,        // C0-C3
+    pub operational_situation: Option<String>,  // free-text operating scenario
+
+    // §T2 — SafetyGoal (ISO 26262 §7)
+    pub safe_state: Option<String>,             // description of the safe state
+    pub ftti: Option<String>,                   // Fault Tolerant Time Interval (e.g. "20ms")
+    pub hazardous_events: Option<Vec<String>>,  // HazardousEvent id/qname refs
+
+    // §T2 — DamageScenario (ISO/SAE 21434 §15)
+    pub damage_severity: Option<String>,        // severe|major|moderate|negligible
+    pub impact_categories: Option<Vec<String>>, // safety|financial|operational|privacy
+
+    // §T2 — ThreatScenario (ISO/SAE 21434 §15)
+    pub attack_feasibility: Option<String>,     // high|medium|low|very_low
+    pub attack_vector: Option<String>,          // network|adjacent|local|physical
+    pub damage_scenarios: Option<Vec<String>>,  // DamageScenario id/qname refs
+
+    // §T2 — CybersecurityGoal (ISO/SAE 21434 §15)
+    pub cal_level: Option<String>,              // CAL1-CAL4
+    pub security_property: Option<String>,      // confidentiality|integrity|availability|authenticity
+    pub threat_scenarios: Option<Vec<String>>,  // ThreatScenario id/qname refs
+
+    // §T2 — SecurityControl (ISO/SAE 21434)
+    pub control_type: Option<String>,           // prevention|detection|response|recovery
+    pub implements_goals: Option<Vec<String>>,  // CybersecurityGoal id/qname refs
+
+    // §T2 — VulnerabilityReport
+    pub cvss_score: Option<f64>,                // 0.0-10.0
+    pub cve_id: Option<String>,                 // CVE-YYYY-NNNNN
+    pub affected_elements: Option<Vec<String>>, // qualified names of affected model elements
+    pub mitigated_by: Option<Vec<String>>,      // SecurityControl id/qname refs
 
     // Catch-all for unknown fields
     #[serde(flatten)]

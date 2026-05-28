@@ -54,6 +54,14 @@ pub fn type_label(et: &ElementType) -> &'static str {
         ElementType::UseCase => "UseCase",
         ElementType::State => "State",
         ElementType::Enumeration => "Enumeration",
+        // Tier 2
+        ElementType::HazardousEvent => "HazardousEvent",
+        ElementType::SafetyGoal => "SafetyGoal",
+        ElementType::DamageScenario => "DamageScenario",
+        ElementType::ThreatScenario => "ThreatScenario",
+        ElementType::CybersecurityGoal => "CybersecurityGoal",
+        ElementType::SecurityControl => "SecurityControl",
+        ElementType::VulnerabilityReport => "VulnerabilityReport",
         _ => "Other",
     }
 }
@@ -350,6 +358,45 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
     }
     if let Some(ref dk) = fm.diagram_kind { println!("| **diagramKind** | {} |", dk); }
     if let Some(ref sub) = fm.subject { println!("| **subject** | {} |", sub); }
+
+    // ── Tier 2: HARA fields ───────────────────────────────────────────────
+    if let Some(ref s) = fm.severity { println!("| **severity** | {} |", s); }
+    if let Some(ref e) = fm.exposure { println!("| **exposure** | {} |", e); }
+    if let Some(ref c) = fm.controllability { println!("| **controllability** | {} |", c); }
+    if let Some(ref os) = fm.operational_situation { println!("| **operationalSituation** | {} |", os); }
+    if let Some(ref ss) = fm.safe_state { println!("| **safeState** | {} |", ss); }
+    if let Some(ref ft) = fm.ftti { println!("| **ftti** | {} |", ft); }
+    if let Some(ref hes) = fm.hazardous_events {
+        if !hes.is_empty() { println!("| **hazardousEvents** | {} |", hes.join(", ")); }
+    }
+
+    // ── Tier 2: TARA fields ───────────────────────────────────────────────
+    if let Some(ref ds) = fm.damage_severity { println!("| **damageSeverity** | {} |", ds); }
+    if let Some(ref ic) = fm.impact_categories {
+        if !ic.is_empty() { println!("| **impactCategories** | {} |", ic.join(", ")); }
+    }
+    if let Some(ref af) = fm.attack_feasibility { println!("| **attackFeasibility** | {} |", af); }
+    if let Some(ref av) = fm.attack_vector { println!("| **attackVector** | {} |", av); }
+    if let Some(ref dsc) = fm.damage_scenarios {
+        if !dsc.is_empty() { println!("| **damageScenarios** | {} |", dsc.join(", ")); }
+    }
+    if let Some(ref cl) = fm.cal_level { println!("| **calLevel** | {} |", cl); }
+    if let Some(ref sp) = fm.security_property { println!("| **securityProperty** | {} |", sp); }
+    if let Some(ref ts) = fm.threat_scenarios {
+        if !ts.is_empty() { println!("| **threatScenarios** | {} |", ts.join(", ")); }
+    }
+    if let Some(ref ct) = fm.control_type { println!("| **controlType** | {} |", ct); }
+    if let Some(ref ig) = fm.implements_goals {
+        if !ig.is_empty() { println!("| **implementsGoals** | {} |", ig.join(", ")); }
+    }
+    if let Some(score) = fm.cvss_score { println!("| **cvssScore** | {} |", score); }
+    if let Some(ref cve) = fm.cve_id { println!("| **cveId** | {} |", cve); }
+    if let Some(ref ae) = fm.affected_elements {
+        if !ae.is_empty() { println!("| **affectedElements** | {} |", ae.join(", ")); }
+    }
+    if let Some(ref mb) = fm.mitigated_by {
+        if !mb.is_empty() { println!("| **mitigatedBy** | {} |", mb.join(", ")); }
+    }
 
     // Features table
     if let Some(ref feats) = fm.features {
@@ -1379,6 +1426,119 @@ groupKind: optional
 
 Description of this feature definition.
 "#,
+        "hazardousevent" => r#"---
+type: HazardousEvent
+id: HE-PREFIX-001
+title: "Loss of [function] during [operating scenario]"
+status: draft
+# severity: S3       # S0 no injury | S1 light | S2 severe | S3 life-threatening
+# exposure: E4       # E0 incredibly unlikely … E4 high probability
+# controllability: C2 # C0 controllable | C1 simply | C2 normally | C3 uncontrollable
+# asilLevel: D       # derived from S×E×C; can also be set directly
+# operationalSituation: "Vehicle traveling >80 km/h on curved road"
+---
+
+Describe the hazardous situation: what goes wrong, under what conditions, and what harm could result.
+
+## Rationale
+
+Why this event was identified in the HARA.
+"#,
+        "safetygoal" => r#"---
+type: SafetyGoal
+id: SG-PREFIX-001
+title: "Prevent [hazard] to avoid [harm]"
+status: draft
+asilLevel: D
+# safeState: "Controlled stop with residual braking"
+# ftti: "100ms"
+hazardousEvents:
+  - HE-PREFIX-001
+# satisfies:
+#   - REQ-SYS-001
+---
+
+The system shall avoid [hazard] in all driving situations.
+
+## Rationale
+
+Why this safety goal derives from the listed hazardous events.
+"#,
+        "damagescenario" => r#"---
+type: DamageScenario
+id: DS-PREFIX-001
+title: "Unauthorized [action] enables [damage]"
+status: draft
+damageSeverity: severe    # severe | major | moderate | negligible
+impactCategories:
+  - safety                # safety | financial | operational | privacy
+---
+
+Describe what damage could occur and to whom.
+"#,
+        "threatscenario" => r#"---
+type: ThreatScenario
+id: TS-PREFIX-001
+title: "Attacker [action] via [attack surface]"
+status: draft
+attackFeasibility: medium  # high | medium | low | very_low
+attackVector: network      # network | adjacent | local | physical
+damageScenarios:
+  - DS-PREFIX-001
+---
+
+Describe how the threat could be realized and which damage scenarios it enables.
+"#,
+        "cybersecuritygoal" => r#"---
+type: CybersecurityGoal
+id: CSG-PREFIX-001
+title: "Ensure [security property] of [asset]"
+status: draft
+calLevel: CAL3            # CAL1 | CAL2 | CAL3 | CAL4
+securityProperty: integrity # confidentiality | integrity | availability | authenticity
+threatScenarios:
+  - TS-PREFIX-001
+---
+
+The [asset] shall maintain [security property] against the identified threat scenarios.
+"#,
+        "securitycontrol" => r#"---
+type: SecurityControl
+id: SC-PREFIX-001
+title: "Implement [control mechanism]"
+status: draft
+controlType: prevention   # prevention | detection | response | recovery
+implementsGoals:
+  - CSG-PREFIX-001
+---
+
+Describe the security control mechanism, its scope, and how it implements the referenced cybersecurity goals.
+"#,
+        "vulnerabilityreport" => r#"---
+type: VulnerabilityReport
+id: VR-PREFIX-001
+title: "Stack buffer overflow in [component]"
+status: open              # open | mitigated | accepted | resolved
+# cvssScore: 8.1
+# cveId: CVE-2024-12345
+affectedElements:
+  - Package::Component
+mitigatedBy:
+  - SC-PREFIX-001
+---
+
+## Summary
+
+Describe the vulnerability, its root cause, and potential impact.
+
+## Reproduction
+
+Steps to reproduce (if applicable).
+
+## Mitigation
+
+How the vulnerability is being addressed.
+"#,
         other => {
             eprintln!("Unknown type '{}'. Known types:", other);
             eprintln!("  Requirement, TestCase, ADR");
@@ -1387,6 +1547,8 @@ Description of this feature definition.
             eprintln!("  StateDef, FlowDef, EnumerationDef, UseCaseDef");
             eprintln!("  RequirementDef, AllocationDef, Allocation");
             eprintln!("  ViewDef, ViewpointDef, MetadataDef, Package, FeatureDef");
+            eprintln!("  HazardousEvent, SafetyGoal");
+            eprintln!("  DamageScenario, ThreatScenario, CybersecurityGoal, SecurityControl, VulnerabilityReport");
             std::process::exit(1);
         }
     };

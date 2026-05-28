@@ -4,7 +4,10 @@ use petgraph::graph::DiGraph;
 use petgraph::visit::EdgeRef;
 use crate::element::{ElementType, RawElement};
 use crate::graph::EdgeKind;
-use crate::resolver::{is_adr_id, is_conf_id, is_req_id, is_tc_id, Resolver};
+use crate::resolver::{
+    is_adr_id, is_conf_id, is_csg_id, is_ds_id, is_he_id, is_req_id, is_sc_id, is_sg_id,
+    is_tc_id, is_ts_id, is_vr_id, Resolver,
+};
 
 /// A single validation finding.
 #[derive(Debug, Clone)]
@@ -226,6 +229,168 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                 &file,
                 "both asilLevel (ISO 26262) and dalLevel (DO-178C) are set — these are different standards; validate under one or document the mapping",
             ));
+        }
+
+        // ── Tier 2: HazardousEvent (E800-E804) ───────────────────────────────
+        if matches!(fm.element_type, Some(ElementType::HazardousEvent)) {
+            // E800: required fields
+            if fm.id.is_none() { findings.push(error("E800", &file, "`id` is required on HazardousEvent")); }
+            if fm.title.is_none() { findings.push(error("E800", &file, "`title` is required on HazardousEvent")); }
+            if fm.status.is_none() { findings.push(error("E800", &file, "`status` is required on HazardousEvent")); }
+            // E804: id pattern
+            if let Some(ref id) = fm.id {
+                if !is_he_id(id) {
+                    findings.push(error("E804", &file, &format!("`id` '{}' does not match HE-* pattern", id)));
+                }
+            }
+            // E801: severity S0-S3
+            if let Some(ref s) = fm.severity {
+                if !["S0","S1","S2","S3"].contains(&s.as_str()) {
+                    findings.push(error("E801", &file, &format!("HazardousEvent.severity '{}' must be S0, S1, S2, or S3", s)));
+                }
+            }
+            // E802: exposure E0-E4
+            if let Some(ref e) = fm.exposure {
+                if !["E0","E1","E2","E3","E4"].contains(&e.as_str()) {
+                    findings.push(error("E802", &file, &format!("HazardousEvent.exposure '{}' must be E0–E4", e)));
+                }
+            }
+            // E803: controllability C0-C3
+            if let Some(ref c) = fm.controllability {
+                if !["C0","C1","C2","C3"].contains(&c.as_str()) {
+                    findings.push(error("E803", &file, &format!("HazardousEvent.controllability '{}' must be C0, C1, C2, or C3", c)));
+                }
+            }
+        }
+
+        // ── Tier 2: SafetyGoal (E805-E806) ───────────────────────────────────
+        if matches!(fm.element_type, Some(ElementType::SafetyGoal)) {
+            if fm.id.is_none() { findings.push(error("E805", &file, "`id` is required on SafetyGoal")); }
+            if fm.title.is_none() { findings.push(error("E805", &file, "`title` is required on SafetyGoal")); }
+            if fm.status.is_none() { findings.push(error("E805", &file, "`status` is required on SafetyGoal")); }
+            if let Some(ref id) = fm.id {
+                if !is_sg_id(id) {
+                    findings.push(error("E806", &file, &format!("`id` '{}' does not match SG-* pattern", id)));
+                }
+            }
+            // W801: SafetyGoal should carry an asilLevel
+            if fm.asil_level.is_none() {
+                findings.push(warning("W801", &file, "SafetyGoal has no asilLevel — every safety goal requires an ASIL assignment (ISO 26262-3 §6.4)"));
+            }
+        }
+
+        // ── Tier 2: DamageScenario (E807-E810) ───────────────────────────────
+        if matches!(fm.element_type, Some(ElementType::DamageScenario)) {
+            if fm.id.is_none() { findings.push(error("E807", &file, "`id` is required on DamageScenario")); }
+            if fm.title.is_none() { findings.push(error("E807", &file, "`title` is required on DamageScenario")); }
+            if fm.status.is_none() { findings.push(error("E807", &file, "`status` is required on DamageScenario")); }
+            if let Some(ref id) = fm.id {
+                if !is_ds_id(id) {
+                    findings.push(error("E808", &file, &format!("`id` '{}' does not match DS-* pattern", id)));
+                }
+            }
+            // E809: damageSeverity enum
+            if let Some(ref s) = fm.damage_severity {
+                if !["severe","major","moderate","negligible"].contains(&s.as_str()) {
+                    findings.push(error("E809", &file, &format!("DamageScenario.damageSeverity '{}' must be severe, major, moderate, or negligible", s)));
+                }
+            }
+            // E810: impactCategories enum
+            if let Some(ref cats) = fm.impact_categories {
+                for cat in cats {
+                    if !["safety","financial","operational","privacy"].contains(&cat.as_str()) {
+                        findings.push(error("E810", &file, &format!("DamageScenario.impactCategories '{}' must be safety, financial, operational, or privacy", cat)));
+                    }
+                }
+            }
+        }
+
+        // ── Tier 2: ThreatScenario (E811-E814) ───────────────────────────────
+        if matches!(fm.element_type, Some(ElementType::ThreatScenario)) {
+            if fm.id.is_none() { findings.push(error("E811", &file, "`id` is required on ThreatScenario")); }
+            if fm.title.is_none() { findings.push(error("E811", &file, "`title` is required on ThreatScenario")); }
+            if fm.status.is_none() { findings.push(error("E811", &file, "`status` is required on ThreatScenario")); }
+            if let Some(ref id) = fm.id {
+                if !is_ts_id(id) {
+                    findings.push(error("E812", &file, &format!("`id` '{}' does not match TS-* pattern", id)));
+                }
+            }
+            // E813: attackFeasibility enum
+            if let Some(ref f) = fm.attack_feasibility {
+                if !["high","medium","low","very_low"].contains(&f.as_str()) {
+                    findings.push(error("E813", &file, &format!("ThreatScenario.attackFeasibility '{}' must be high, medium, low, or very_low", f)));
+                }
+            }
+            // E814: attackVector enum
+            if let Some(ref v) = fm.attack_vector {
+                if !["network","adjacent","local","physical"].contains(&v.as_str()) {
+                    findings.push(error("E814", &file, &format!("ThreatScenario.attackVector '{}' must be network, adjacent, local, or physical", v)));
+                }
+            }
+        }
+
+        // ── Tier 2: CybersecurityGoal (E815-E818) ────────────────────────────
+        if matches!(fm.element_type, Some(ElementType::CybersecurityGoal)) {
+            if fm.id.is_none() { findings.push(error("E815", &file, "`id` is required on CybersecurityGoal")); }
+            if fm.title.is_none() { findings.push(error("E815", &file, "`title` is required on CybersecurityGoal")); }
+            if fm.status.is_none() { findings.push(error("E815", &file, "`status` is required on CybersecurityGoal")); }
+            if let Some(ref id) = fm.id {
+                if !is_csg_id(id) {
+                    findings.push(error("E816", &file, &format!("`id` '{}' does not match CSG-* pattern", id)));
+                }
+            }
+            // E817: securityProperty enum
+            if let Some(ref sp) = fm.security_property {
+                if !["confidentiality","integrity","availability","authenticity"].contains(&sp.as_str()) {
+                    findings.push(error("E817", &file, &format!("CybersecurityGoal.securityProperty '{}' must be confidentiality, integrity, availability, or authenticity", sp)));
+                }
+            }
+            // E818: calLevel enum
+            if let Some(ref cl) = fm.cal_level {
+                if !["CAL1","CAL2","CAL3","CAL4"].contains(&cl.as_str()) {
+                    findings.push(error("E818", &file, &format!("CybersecurityGoal.calLevel '{}' must be CAL1, CAL2, CAL3, or CAL4", cl)));
+                }
+            }
+        }
+
+        // ── Tier 2: SecurityControl (E819-E821) ──────────────────────────────
+        if matches!(fm.element_type, Some(ElementType::SecurityControl)) {
+            if fm.id.is_none() { findings.push(error("E819", &file, "`id` is required on SecurityControl")); }
+            if fm.title.is_none() { findings.push(error("E819", &file, "`title` is required on SecurityControl")); }
+            if fm.status.is_none() { findings.push(error("E819", &file, "`status` is required on SecurityControl")); }
+            if let Some(ref id) = fm.id {
+                if !is_sc_id(id) {
+                    findings.push(error("E820", &file, &format!("`id` '{}' does not match SC-* pattern", id)));
+                }
+            }
+            // E821: controlType enum
+            if let Some(ref ct) = fm.control_type {
+                if !["prevention","detection","response","recovery"].contains(&ct.as_str()) {
+                    findings.push(error("E821", &file, &format!("SecurityControl.controlType '{}' must be prevention, detection, response, or recovery", ct)));
+                }
+            }
+        }
+
+        // ── Tier 2: VulnerabilityReport (E822-E824) ──────────────────────────
+        if matches!(fm.element_type, Some(ElementType::VulnerabilityReport)) {
+            if fm.id.is_none() { findings.push(error("E822", &file, "`id` is required on VulnerabilityReport")); }
+            if fm.title.is_none() { findings.push(error("E822", &file, "`title` is required on VulnerabilityReport")); }
+            if fm.status.is_none() { findings.push(error("E822", &file, "`status` is required on VulnerabilityReport")); }
+            if let Some(ref id) = fm.id {
+                if !is_vr_id(id) {
+                    findings.push(error("E823", &file, &format!("`id` '{}' does not match VR-* pattern", id)));
+                }
+            }
+            // E824: cvssScore 0.0-10.0
+            if let Some(score) = fm.cvss_score {
+                if !(0.0..=10.0).contains(&score) {
+                    findings.push(error("E824", &file, &format!("VulnerabilityReport.cvssScore {} is out of range 0.0–10.0", score)));
+                }
+            }
+            // W803: open vulnerability reports draw attention
+            if fm.status.as_deref() == Some("open") {
+                findings.push(warning("W803", &file, "VulnerabilityReport has status: open — ensure it is being tracked and mitigated"));
+            }
         }
 
         // E011: TestCase must have a gherkin block
@@ -1200,6 +1365,143 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                     }
                     _ => {}
                 }
+            }
+        }
+    }
+
+    // ── Tier 2 cross-reference checks (E825-E830) ────────────────────────────
+
+    // Build reverse index: csg_implemented_by[csg_id_or_qn] — used for W802
+    let mut csg_implemented: HashSet<String> = HashSet::new();
+    // Build reverse index: he_referenced_by[he_id_or_qn] — used for W800
+    let mut he_referenced: HashSet<String> = HashSet::new();
+
+    for elem in elements {
+        let fm = &elem.frontmatter;
+
+        // E825: SafetyGoal.hazardousEvents must each resolve to a HazardousEvent
+        if matches!(fm.element_type, Some(ElementType::SafetyGoal)) {
+            if let Some(ref refs) = fm.hazardous_events {
+                for r in refs {
+                    match resolver.resolve_ref(elements, r) {
+                        None => findings.push(error("E825", &elem.file_path,
+                            &format!("`hazardousEvents` '{}' does not resolve to any element", r))),
+                        Some(target) if !Resolver::is_hazardous_event(target) => {
+                            findings.push(error("E825", &elem.file_path,
+                                &format!("`hazardousEvents` '{}' does not resolve to a HazardousEvent", r)));
+                        }
+                        Some(target) => {
+                            he_referenced.insert(target.qualified_name.clone());
+                            if let Some(ref id) = target.frontmatter.id { he_referenced.insert(id.clone()); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // E826: ThreatScenario.damageScenarios must each resolve to a DamageScenario
+        if matches!(fm.element_type, Some(ElementType::ThreatScenario)) {
+            if let Some(ref refs) = fm.damage_scenarios {
+                for r in refs {
+                    match resolver.resolve_ref(elements, r) {
+                        None => findings.push(error("E826", &elem.file_path,
+                            &format!("`damageScenarios` '{}' does not resolve to any element", r))),
+                        Some(target) if !Resolver::is_damage_scenario(target) => {
+                            findings.push(error("E826", &elem.file_path,
+                                &format!("`damageScenarios` '{}' does not resolve to a DamageScenario", r)));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // E827: CybersecurityGoal.threatScenarios must each resolve to a ThreatScenario
+        if matches!(fm.element_type, Some(ElementType::CybersecurityGoal)) {
+            if let Some(ref refs) = fm.threat_scenarios {
+                for r in refs {
+                    match resolver.resolve_ref(elements, r) {
+                        None => findings.push(error("E827", &elem.file_path,
+                            &format!("`threatScenarios` '{}' does not resolve to any element", r))),
+                        Some(target) if !Resolver::is_threat_scenario(target) => {
+                            findings.push(error("E827", &elem.file_path,
+                                &format!("`threatScenarios` '{}' does not resolve to a ThreatScenario", r)));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // E828: SecurityControl.implementsGoals must each resolve to a CybersecurityGoal
+        if matches!(fm.element_type, Some(ElementType::SecurityControl)) {
+            if let Some(ref refs) = fm.implements_goals {
+                for r in refs {
+                    match resolver.resolve_ref(elements, r) {
+                        None => findings.push(error("E828", &elem.file_path,
+                            &format!("`implementsGoals` '{}' does not resolve to any element", r))),
+                        Some(target) if !Resolver::is_cybersecurity_goal(target) => {
+                            findings.push(error("E828", &elem.file_path,
+                                &format!("`implementsGoals` '{}' does not resolve to a CybersecurityGoal", r)));
+                        }
+                        Some(target) => {
+                            csg_implemented.insert(target.qualified_name.clone());
+                            if let Some(ref id) = target.frontmatter.id { csg_implemented.insert(id.clone()); }
+                        }
+                    }
+                }
+            }
+        }
+
+        // E829: VulnerabilityReport.mitigatedBy must each resolve to a SecurityControl
+        if matches!(fm.element_type, Some(ElementType::VulnerabilityReport)) {
+            if let Some(ref refs) = fm.mitigated_by {
+                for r in refs {
+                    match resolver.resolve_ref(elements, r) {
+                        None => findings.push(error("E829", &elem.file_path,
+                            &format!("`mitigatedBy` '{}' does not resolve to any element", r))),
+                        Some(target) if !Resolver::is_security_control(target) => {
+                            findings.push(error("E829", &elem.file_path,
+                                &format!("`mitigatedBy` '{}' does not resolve to a SecurityControl", r)));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            // E830: affectedElements must resolve to known model elements
+            if let Some(ref refs) = fm.affected_elements {
+                for r in refs {
+                    if resolver.resolve_ref(elements, r).is_none() {
+                        findings.push(error("E830", &elem.file_path,
+                            &format!("`affectedElements` '{}' does not resolve to any element", r)));
+                    }
+                }
+            }
+        }
+    }
+
+    // W800: HazardousEvent not referenced by any SafetyGoal
+    for elem in elements {
+        if Resolver::is_hazardous_event(elem) {
+            let referenced = he_referenced.contains(&elem.qualified_name)
+                || elem.frontmatter.id.as_ref().map_or(false, |id| he_referenced.contains(id));
+            if !referenced {
+                let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
+                findings.push(warning("W800", &elem.file_path,
+                    &format!("HazardousEvent '{}' is not referenced by any SafetyGoal.hazardousEvents", id)));
+            }
+        }
+    }
+
+    // W802: CybersecurityGoal not implemented by any SecurityControl
+    for elem in elements {
+        if Resolver::is_cybersecurity_goal(elem) {
+            let implemented = csg_implemented.contains(&elem.qualified_name)
+                || elem.frontmatter.id.as_ref().map_or(false, |id| csg_implemented.contains(id));
+            if !implemented {
+                let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
+                findings.push(warning("W802", &elem.file_path,
+                    &format!("CybersecurityGoal '{}' is not implemented by any SecurityControl.implementsGoals", id)));
             }
         }
     }

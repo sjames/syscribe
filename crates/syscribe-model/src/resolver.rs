@@ -5,6 +5,14 @@ static REQ_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static TC_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static CONF_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static ADR_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+// Tier 2 safety/security stable-ID patterns
+static HE_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static SG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static DS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static TS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static CSG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static SC_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static VR_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
 fn req_re() -> &'static regex::Regex {
     REQ_RE.get_or_init(|| regex::Regex::new(r"^REQ(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
@@ -22,10 +30,63 @@ fn adr_re() -> &'static regex::Regex {
     ADR_RE.get_or_init(|| regex::Regex::new(r"^ADR(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
 }
 
-/// Returns true when `s` matches the REQ-*, TC-*, CONF-*, or ADR-* stable-ID patterns.
-pub fn is_stable_id(s: &str) -> bool {
-    req_re().is_match(s) || tc_re().is_match(s) || conf_re().is_match(s) || adr_re().is_match(s)
+fn he_re() -> &'static regex::Regex {
+    HE_RE.get_or_init(|| regex::Regex::new(r"^HE(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
 }
+
+fn sg_re() -> &'static regex::Regex {
+    SG_RE.get_or_init(|| regex::Regex::new(r"^SG(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+
+fn ds_re() -> &'static regex::Regex {
+    DS_RE.get_or_init(|| regex::Regex::new(r"^DS(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+
+fn ts_re() -> &'static regex::Regex {
+    TS_RE.get_or_init(|| regex::Regex::new(r"^TS(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+
+fn csg_re() -> &'static regex::Regex {
+    CSG_RE.get_or_init(|| regex::Regex::new(r"^CSG(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+
+fn sc_re() -> &'static regex::Regex {
+    SC_RE.get_or_init(|| regex::Regex::new(r"^SC(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+
+fn vr_re() -> &'static regex::Regex {
+    VR_RE.get_or_init(|| regex::Regex::new(r"^VR(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+
+/// Returns true when `s` matches any known stable-ID pattern.
+pub fn is_stable_id(s: &str) -> bool {
+    req_re().is_match(s)
+        || tc_re().is_match(s)
+        || conf_re().is_match(s)
+        || adr_re().is_match(s)
+        || he_re().is_match(s)
+        || sg_re().is_match(s)
+        || ds_re().is_match(s)
+        || ts_re().is_match(s)
+        || csg_re().is_match(s)
+        || sc_re().is_match(s)
+        || vr_re().is_match(s)
+}
+
+/// Returns true for HE-* IDs (HazardousEvent).
+pub fn is_he_id(s: &str) -> bool { he_re().is_match(s) }
+/// Returns true for SG-* IDs (SafetyGoal).
+pub fn is_sg_id(s: &str) -> bool { sg_re().is_match(s) }
+/// Returns true for DS-* IDs (DamageScenario).
+pub fn is_ds_id(s: &str) -> bool { ds_re().is_match(s) }
+/// Returns true for TS-* IDs (ThreatScenario).
+pub fn is_ts_id(s: &str) -> bool { ts_re().is_match(s) }
+/// Returns true for CSG-* IDs (CybersecurityGoal).
+pub fn is_csg_id(s: &str) -> bool { csg_re().is_match(s) }
+/// Returns true for SC-* IDs (SecurityControl).
+pub fn is_sc_id(s: &str) -> bool { sc_re().is_match(s) }
+/// Returns true for VR-* IDs (VulnerabilityReport).
+pub fn is_vr_id(s: &str) -> bool { vr_re().is_match(s) }
 
 /// Returns true for ADR-* IDs.
 pub fn is_adr_id(s: &str) -> bool {
@@ -125,5 +186,33 @@ impl Resolver {
     /// True if `elem` is an ADR.
     pub fn is_adr(elem: &RawElement) -> bool {
         matches!(elem.frontmatter.element_type, Some(ElementType::ADR))
+    }
+
+    pub fn is_hazardous_event(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::HazardousEvent))
+    }
+
+    pub fn is_safety_goal(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::SafetyGoal))
+    }
+
+    pub fn is_damage_scenario(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::DamageScenario))
+    }
+
+    pub fn is_threat_scenario(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::ThreatScenario))
+    }
+
+    pub fn is_cybersecurity_goal(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::CybersecurityGoal))
+    }
+
+    pub fn is_security_control(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::SecurityControl))
+    }
+
+    pub fn is_vulnerability_report(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::VulnerabilityReport))
     }
 }
