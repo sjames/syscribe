@@ -60,6 +60,12 @@ pub struct ElementDetailTemplate {
     pub badge_class: String,
 }
 
+#[derive(Template)]
+#[template(path = "canvas.html")]
+pub struct CanvasTemplate {
+    pub title: String,
+}
+
 #[derive(Deserialize)]
 pub struct TreeQuery {
     pub parent: Option<String>,
@@ -84,6 +90,13 @@ fn badge_class_for(element_type: &str) -> String {
 
 pub async fn index() -> Html<String> {
     let tmpl = IndexTemplate {};
+    Html(tmpl.render().unwrap_or_default())
+}
+
+pub async fn canvas() -> Html<String> {
+    let tmpl = CanvasTemplate {
+        title: "Model Graph Canvas".to_string(),
+    };
     Html(tmpl.render().unwrap_or_default())
 }
 

@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<!--
+  canvas.html — Cytoscape.js infinite canvas for the full model graph.
+
+  Axum handler must provide a CanvasTemplate struct with:
+    pub struct CanvasTemplate {
+        pub title: String,   // page title, e.g. "Model Graph — Syscribe"
+    }
+  Route: GET /canvas
+  Depends on: GET /api/graph (returns { nodes: [...], edges: [...] } in Cytoscape.js format)
+  Side panel loads: GET /ui/detail/{qname}  (already exists; returns element_detail.html fragment)
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }}</title>
+
+  <!-- Cytoscape.js core -->
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.2/dist/cytoscape.min.js"></script>
+  <!-- Dagre layout engine -->
+  <script src="https://cdn.jsdelivr.net/npm/dagre@0.8.5/dist/dagre.min.js"></script>
+  <!-- Cytoscape-dagre bridge -->
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  <!-- Popper.js (required by cytoscape-popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"></script>
+  <!-- Cytoscape popper extension -->
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape-popper@2.0.0/cytoscape-popper.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-dark:    #0f172a;
+      --bg-toolbar: #1e293b;
+      --bg-panel:   #1e293b;
+      --border:     #334155;
+      --text:       #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent:     #6366f1;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg-dark);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    /* ── Page structure ── */
+    #page {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* ── Toolbar ── */
+    #toolbar {
+      flex-shrink: 0;
+      height: 48px;
+      background: var(--bg-toolbar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      z-index: 20;
+    }
+
+    #toolbar a.back-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 12px;
+      white-space: nowrap;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: color 150ms, background 150ms;
+    }
+    #toolbar a.back-link:hover { color: var(--text); background: rgba(255,255,255,0.07); }
+
+    #toolbar .separator {
+      width: 1px;
+      height: 24px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    #toolbar .toolbar-title {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      color: var(--text);
+    }
+
+    /* Generic toolbar button */
+    .tb-btn {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 5px;
+      padding: 5px 11px;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 120ms, border-color 120ms;
+      user-select: none;
+    }
+    .tb-btn:hover  { background: rgba(255,255,255,0.12); border-color: #475569; }
+    .tb-btn:active { background: rgba(255,255,255,0.18); }
+    .tb-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+    /* Search box */
+    #search-box {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      color: var(--text);
+      font-size: 12px;
+      padding: 5px 10px;
+      width: 180px;
+      outline: none;
+      transition: border-color 150ms;
+    }
+    #search-box::placeholder { color: var(--text-muted); }
+    #search-box:focus { border-color: var(--accent); }
+
+    /* Filter chips row */
+    #filter-chips {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #filter-chips::-webkit-scrollbar { display: none; }
+
+    .chip {
+      padding: 3px 9px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1.5px solid rgba(255,255,255,0.0);
+      opacity: 0.50;
+      transition: opacity 120ms, border-color 120ms;
+      white-space: nowrap;
+      user-select: none;
+    }
+    .chip.on  { opacity: 1; border-color: rgba(255,255,255,0.30); }
+    .chip:hover { opacity: 0.80; }
+
+    .spacer { flex: 1; }
+
+    /* ── Main workspace: canvas + panel ── */
+    #workspace {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* ── Lane labels (pinned visual guides, don't move with pan) ── */
+    .lane-label {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 5;
+      writing-mode: vertical-rl;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      user-select: none;
+    }
+    #lane-left {
+      left: 0;
+      background: linear-gradient(to right, rgba(180,83,9,0.18), transparent);
+      color: #fbbf24;
+      border-right: 1px solid rgba(245,158,11,0.18);
+      text-orientation: mixed;
+      transform: rotate(180deg);
+    }
+    #lane-right {
+      right: 0;
+      background: linear-gradient(to left, rgba(15,118,110,0.18), transparent);
+      color: #5eead4;
+      border-left: 1px solid rgba(20,184,166,0.18);
+    }
+
+    /* ── Back button (shown only in focus mode) ── */
+    #back-btn {
+      display: none;
+      position: absolute;
+      top: 10px;
+      left: 38px;
+      z-index: 15;
+      background: rgba(30,41,59,0.92);
+      border: 1px solid #475569;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      backdrop-filter: blur(4px);
+      transition: background 120ms, border-color 120ms;
+    }
+    #back-btn:hover { background: rgba(51,65,85,0.95); border-color: #64748b; }
+
+    /* ── Cytoscape container ── */
+    #cy {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      background: var(--bg-dark);
+      background-image: radial-gradient(circle, rgba(148,163,184,0.10) 1px, transparent 1px);
+      background-size: 24px 24px;
+      touch-action: none;
+    }
+
+    /* ── Loading overlay ── */
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15,23,42,0.88);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      z-index: 50;
+      font-size: 14px;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(99,102,241,0.25);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Error overlay ── */
+    #error-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15,23,42,0.92);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 50;
+      color: #f87171;
+      font-size: 14px;
+      text-align: center;
+      padding: 32px;
+    }
+    #error-overlay.visible { display: flex; }
+
+    /* ── Doc panel ── */
+    #doc-panel {
+      width: 320px;
+      flex-shrink: 0;
+      background: var(--bg-panel);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 220ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      overflow: hidden;
+      position: relative;
+      z-index: 10;
+    }
+    #doc-panel.open { transform: translateX(0); }
+
+    #doc-panel-header {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      gap: 8px;
+      flex-shrink: 0;
+      min-height: 44px;
+    }
+    #doc-panel-title {
+      flex: 1;
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #doc-panel-type {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      background: rgba(99,102,241,0.2);
+      color: #a5b4fc;
+      flex-shrink: 0;
+      white-space: nowrap;
+    }
+    #doc-panel-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 2px 6px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    #doc-panel-close:hover { color: var(--text); background: rgba(255,255,255,0.08); }
+
+    #doc-panel-loading {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      color: var(--text-muted);
+      gap: 10px;
+    }
+    #doc-panel-loading.visible { display: flex; }
+    #doc-panel-loading .spinner { width: 20px; height: 20px; border-width: 2px; }
+
+    #doc-panel-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      scrollbar-width: thin;
+      scrollbar-color: #334155 transparent;
+    }
+    #doc-panel-content::-webkit-scrollbar { width: 5px; }
+    #doc-panel-content::-webkit-scrollbar-thumb { background: #334155; border-radius: 99px; }
+
+    /* Re-skin the element_detail.html fragment for the dark panel */
+    #doc-panel-content .detail-name {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+      padding-right: 0;
+    }
+    #doc-panel-content .detail-type  { font-size: 12px; margin-bottom: 8px; }
+    #doc-panel-content .detail-qname {
+      font-size: 11px;
+      font-family: ui-monospace, monospace;
+      color: #7dd3fc;
+      background: rgba(14,165,233,0.10);
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin-bottom: 14px;
+      word-break: break-all;
+    }
+    #doc-panel-content .detail-doc {
+      line-height: 1.65;
+      color: #cbd5e1;
+      white-space: pre-wrap;
+      font-size: 12px;
+    }
+    #doc-panel-content .detail-empty { color: #64748b; font-style: italic; }
+    #doc-panel-content .badge {
+      display: inline-block; font-size: 10px; padding: 2px 6px;
+      border-radius: 4px; font-weight: 500; margin-right: 4px;
+    }
+    #doc-panel-content .badge-def  { background: rgba(59,130,246,0.2);  color: #93c5fd; }
+    #doc-panel-content .badge-req  { background: rgba(245,158,11,0.2);  color: #fcd34d; }
+    #doc-panel-content .badge-act  { background: rgba(20,184,166,0.2);  color: #5eead4; }
+    #doc-panel-content .badge-pkg  { background: rgba(100,116,139,0.2); color: #94a3b8; }
+    /* Hide edit button inside the side panel */
+    #doc-panel-content .detail-actions { display: none; }
+
+    /* ── Tooltip ── */
+    .cy-tooltip {
+      position: fixed;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #e2e8f0;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 11px;
+      line-height: 1.6;
+      pointer-events: none;
+      z-index: 9999;
+      max-width: 260px;
+      box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+    }
+    .cy-tooltip strong  { color: #f1f5f9; display: block; margin-bottom: 2px; }
+    .cy-tooltip .tt-sub { color: #94a3b8; font-size: 10px; }
+    .cy-tooltip .tt-qname {
+      font-family: ui-monospace, monospace;
+      color: #7dd3fc;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+<div id="page">
+
+  <!-- ── Toolbar ── -->
+  <div id="toolbar">
+    <a href="/" class="back-link">&#x2190; Model Browser</a>
+    <div class="separator"></div>
+    <span class="toolbar-title">Model Graph</span>
+    <div class="separator"></div>
+
+    <div class="separator"></div>
+
+    <!-- Search -->
+    <input id="search-box" type="search" placeholder="Search nodes&#x2026;"
+           autocomplete="off" oninput="handleSearch(this.value)">
+
+    <!-- Filter chips -->
+    <div id="filter-chips">
+      <span class="chip on" style="background:#3b82f6;color:#fff"
+            data-types="PartDef,Part"         onclick="toggleChip(this)">Parts</span>
+      <span class="chip on" style="background:#6366f1;color:#fff"
+            data-types="ItemDef,Item"         onclick="toggleChip(this)">Items</span>
+      <span class="chip on" style="background:#f59e0b;color:#000"
+            data-types="Requirement,RequirementDef" onclick="toggleChip(this)">Requirements</span>
+      <span class="chip on" style="background:#14b8a6;color:#fff"
+            data-types="TestCase"             onclick="toggleChip(this)">TestCase</span>
+      <span class="chip on" style="background:#f43f5e;color:#fff"
+            data-types="ADR"                  onclick="toggleChip(this)">ADR</span>
+      <span class="chip on" style="background:#a855f7;color:#fff"
+            data-types="ConnectionDef,Connection" onclick="toggleChip(this)">Connections</span>
+      <span class="chip on" style="background:#475569;color:#e2e8f0;border:1px solid #64748b"
+            data-types="Package,LibraryPackage,Namespace" onclick="toggleChip(this)">Packages</span>
+    </div>
+
+    <div class="spacer"></div>
+
+    <!-- Hide packages toggle -->
+    <button class="tb-btn" id="btn-hide-pkg" onclick="toggleHidePackages()">Hide Packages</button>
+
+    <!-- Zoom buttons -->
+    <button class="tb-btn" onclick="zoomBy(1.3)" title="Zoom in (+)">+</button>
+    <button class="tb-btn" onclick="zoomBy(0.77)" title="Zoom out (−)">−</button>
+
+    <!-- Fit button -->
+    <button class="tb-btn" onclick="fitGraph()" title="Fit all nodes (F)">Fit</button>
+  </div>
+
+  <!-- ── Main workspace ── -->
+  <div id="workspace">
+
+    <!-- Lane guides (static overlays, don't pan with graph) -->
+    <div class="lane-label" id="lane-left">Requirements</div>
+    <div class="lane-label" id="lane-right">Test Cases</div>
+
+    <!-- Back button (shown only in focus/neighborhood mode) -->
+    <button id="back-btn" onclick="exitFocusMode()">&#x2190; Full graph</button>
+
+    <!-- Cytoscape container -->
+    <div id="cy"></div>
+
+    <!-- Loading overlay -->
+    <div id="loading-overlay">
+      <div class="spinner"></div>
+      <span>Loading model graph&#x2026;</span>
+    </div>
+
+    <!-- Error overlay -->
+    <div id="error-overlay">
+      <div style="font-size:30px">&#x26A0;</div>
+      <div id="error-msg">Failed to load graph data.</div>
+      <button class="tb-btn" onclick="location.reload()">Retry</button>
+    </div>
+
+    <!-- Doc panel: slides in from the right -->
+    <div id="doc-panel">
+      <div id="doc-panel-header">
+        <span id="doc-panel-title">Element</span>
+        <span id="doc-panel-type"></span>
+        <button id="doc-panel-close" onclick="closeDocPanel()" title="Close">&#x2715;</button>
+      </div>
+      <div id="doc-panel-loading">
+        <div class="spinner"></div>
+        <span>Loading&#x2026;</span>
+      </div>
+      <div id="doc-panel-content"></div>
+    </div>
+
+  </div><!-- #workspace -->
+</div><!-- #page -->
+
+<!-- Shared floating tooltip (positioned by JS) -->
+<div class="cy-tooltip" id="cy-tooltip" style="display:none"></div>
+
+<script>
+'use strict';
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Constants: element type → node color
+// ───────────────────────────────────────────────────────────────────────────
+const TYPE_COLORS = {
+  Package:          '#0f2744',
+  LibraryPackage:   '#0f2744',
+  Namespace:        '#0f2744',
+  PartDef:          '#1d4ed8',
+  Part:             '#2563eb',
+  ItemDef:          '#4338ca',
+  Item:             '#4f46e5',
+  PortDef:          '#0e7490',
+  Port:             '#0891b2',
+  ConnectionDef:    '#7e22ce',
+  Connection:       '#9333ea',
+  Requirement:      '#b45309',
+  RequirementDef:   '#d97706',
+  TestCase:         '#0f766e',
+  ADR:              '#be123c',
+  Action:           '#0369a1',
+  ActionDef:        '#0284c7',
+  Interface:        '#6d28d9',
+  InterfaceDef:     '#7c3aed',
+  Allocation:       '#9d174d',
+  AllocationDef:    '#be185d',
+  ViewDef:          '#3f6212',
+  View:             '#4d7c0f',
+  HazardousEvent:   '#c2410c',
+  SafetyGoal:       '#a16207',
+  DamageScenario:   '#991b1b',
+  ThreatScenario:   '#7f1d1d',
+  CybersecurityGoal:'#5b21b6',
+  SecurityControl:  '#075985',
+};
+
+function typeColor(t) {
+  return TYPE_COLORS[t] || '#475569';
+}
+
+/** Lighten a hex color for use as a border accent. */
+function lighten(hex) {
+  const c = hex.replace('#', '');
+  if (c.length < 6) return '#94a3b8';
+  const r = Math.min(255, parseInt(c.substring(0, 2), 16) + 70);
+  const g = Math.min(255, parseInt(c.substring(2, 4), 16) + 70);
+  const b = Math.min(255, parseInt(c.substring(4, 6), 16) + 70);
+  return '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
+}
+
+/** Darken a hex color for the SysML header band. */
+function darken(hex) {
+  const c = hex.replace('#', '');
+  if (c.length < 6) return '#0f172a';
+  const r = Math.max(0, parseInt(c.substring(0, 2), 16) - 40);
+  const g = Math.max(0, parseInt(c.substring(2, 4), 16) - 40);
+  const b = Math.max(0, parseInt(c.substring(4, 6), 16) - 40);
+  return '#' + [r,g,b].map(x => x.toString(16).padStart(2,'0')).join('');
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Cytoscape stylesheet
+// ───────────────────────────────────────────────────────────────────────────
+function buildStylesheet() {
+  return [
+    // ── Default node — SysML compartment box ──
+    // Top band = darker shade of the node colour (stereotype row).
+    // A 1px horizontal rule separates the stereotype from the name.
+    // Achieved with a CSS linear-gradient background on the node body
+    // overlaid behind the label text.
+    {
+      selector: 'node',
+      style: {
+        'shape':                   'rectangle',
+        'background-color':        (ele) => typeColor(ele.data('type') || ''),
+        'background-opacity':      1,
+        'border-width':            2,
+        'border-color':            (ele) => lighten(typeColor(ele.data('type') || '')),
+        'border-opacity':          1,
+        // Top ~36% is a darkened header band for the stereotype row
+        'background-fill':         'linear-gradient',
+        'background-gradient-stop-colors': (ele) =>
+          `${darken(typeColor(ele.data('type') || ''))} ${typeColor(ele.data('type') || '')}`,
+        'background-gradient-stop-positions': '36% 36%',
+        'background-gradient-direction':      'to-bottom',
+        'label':              (ele) => stereoLabel(ele),
+        'color':              '#f1f5f9',
+        'font-size':          10,
+        'font-weight':        500,
+        'font-family':        'ui-monospace, "Cascadia Code", monospace',
+        'text-valign':        'center',
+        'text-halign':        'center',
+        'text-outline-color': 'rgba(0,0,0,0.65)',
+        'text-outline-width': 1,
+        'width':              'label',
+        'height':             'label',
+        'padding':            '10px 14px',
+        'text-wrap':          'wrap',
+        'text-max-width':     140,
+        'z-index':            2,
+        'transition-property':'opacity',
+        'transition-duration':'200ms',
+      },
+    },
+    // ── Package compound node ──
+    {
+      selector: 'node[type = "Package"], node[type = "LibraryPackage"], node[type = "Namespace"]',
+      style: {
+        'shape':              'round-rectangle',
+        'background-color':   '#0f2744',
+        'background-opacity': 0.55,
+        'border-width':       1.5,
+        'border-color':       '#3b82f6',
+        'border-style':       'dashed',
+        'border-opacity':     0.6,
+        'padding':            20,
+        'font-weight':        700,
+        'font-size':          12,
+        'text-valign':        'top',
+        'text-halign':        'center',
+        'text-margin-y':      8,
+        'color':              '#93c5fd',
+        'text-outline-width': 0,
+        'z-index':            1,
+      },
+    },
+    // ── Default edge ──
+    {
+      selector: 'edge',
+      style: {
+        'width':               1.5,
+        'line-color':          '#334155',
+        'target-arrow-color':  '#334155',
+        'target-arrow-shape':  'triangle-backcurve',
+        'curve-style':         'bezier',
+        'opacity':             0.65,
+        'transition-property': 'opacity, line-color, width',
+        'transition-duration': '180ms',
+      },
+    },
+    // ── Contains edges: very subtle ──
+    {
+      selector: 'edge[kind="contains"]',
+      style: {
+        'line-color':         '#1e3a5f',
+        'target-arrow-shape': 'none',
+        'line-style':         'solid',
+        'width':              1,
+        'opacity':            0.25,
+      },
+    },
+    // ── Typed relationship edges ──
+    {
+      selector: 'edge[kind="supertype"]',
+      style: { 'line-color': '#64748b', 'target-arrow-color': '#64748b', 'line-style': 'dashed',  'target-arrow-shape': 'triangle-backcurve' },
+    },
+    {
+      selector: 'edge[kind="connection"]',
+      style: { 'line-color': '#a855f7', 'target-arrow-color': '#a855f7', 'line-style': 'solid',   'target-arrow-shape': 'triangle', 'width': 2 },
+    },
+    {
+      selector: 'edge[kind="satisfies"]',
+      style: { 'line-color': '#22c55e', 'target-arrow-color': '#22c55e', 'line-style': 'dotted',  'target-arrow-shape': 'triangle-backcurve' },
+    },
+    {
+      selector: 'edge[kind="verifies"]',
+      style: { 'line-color': '#14b8a6', 'target-arrow-color': '#14b8a6', 'line-style': 'dotted',  'target-arrow-shape': 'triangle-backcurve' },
+    },
+    {
+      selector: 'edge[kind="derivedFrom"]',
+      style: { 'line-color': '#f59e0b', 'target-arrow-color': '#f59e0b', 'line-style': 'dashed',  'target-arrow-shape': 'triangle-backcurve' },
+    },
+    {
+      selector: 'edge[kind="allocatedTo"]',
+      style: { 'line-color': '#ec4899', 'target-arrow-color': '#ec4899', 'line-style': 'dashed',  'target-arrow-shape': 'triangle-backcurve' },
+    },
+    {
+      selector: 'edge[kind="subsets"]',
+      style: { 'line-color': '#6366f1', 'target-arrow-color': '#6366f1', 'line-style': 'dotted',  'target-arrow-shape': 'triangle-backcurve' },
+    },
+    {
+      selector: 'edge[kind="redefines"]',
+      style: { 'line-color': '#ef4444', 'target-arrow-color': '#ef4444', 'line-style': 'dashed',  'target-arrow-shape': 'triangle-backcurve' },
+    },
+    {
+      selector: 'edge[kind="typedBy"]',
+      style: { 'line-color': '#94a3b8', 'target-arrow-color': '#94a3b8', 'line-style': 'dotted',  'target-arrow-shape': 'triangle-backcurve' },
+    },
+    // ── Dim/highlight/focus classes ──
+    { selector: 'node.dimmed', style: { 'opacity': 0.12 } },
+    { selector: 'edge.dimmed', style: { 'opacity': 0.06 } },
+    {
+      selector: 'node.focused',
+      style: { 'border-width': 3, 'border-color': '#f8fafc', 'border-opacity': 1, 'opacity': 1 },
+    },
+    { selector: 'node.search-dim', style: { 'opacity': 0.10 } },
+    { selector: 'edge.search-dim', style: { 'opacity': 0.05 } },
+    { selector: 'node.type-hidden', style: { 'display': 'none' } },
+    { selector: 'edge.type-hidden', style: { 'display': 'none' } },
+    { selector: 'node.focus-hidden', style: { 'display': 'none' } },
+    { selector: 'edge.focus-hidden', style: { 'display': 'none' } },
+  ];
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  App state
+// ───────────────────────────────────────────────────────────────────────────
+let cy            = null;
+let currentLayout = 'dagre';
+let packagesHidden = false;
+let inFocusMode   = false;
+let savedPositions = null;   // {id: {x,y}} snapshot before focus mode
+const hiddenTypes = new Set();
+
+const REQ_TYPES = new Set(['Requirement', 'RequirementDef']);
+const TC_TYPES  = new Set(['TestCase']);
+const PKG_TYPES = new Set(['Package', 'LibraryPackage', 'Namespace']);
+
+// ───────────────────────────────────────────────────────────────────────────
+//  SysML stereotype label  («Type»\nName)
+// ───────────────────────────────────────────────────────────────────────────
+function stereoLabel(ele) {
+  const type  = ele.data('type')  || '';
+  const label = ele.data('label') || ele.id();
+  if (PKG_TYPES.has(type)) return label;
+  // Strip trailing "Def" for cleaner stereotype: PartDef → Part
+  const stereo = type.replace(/Def$/, '') || type;
+  return `«${stereo}»\n${label}`;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Requirement hierarchy layout
+//
+//  Left-to-right columns:
+//    depth-0 Reqs | depth-1 Reqs + ADRs | depth-2 Reqs + ADRs | … | TestCases
+//  Architecture elements stay where the force layout put them (centre).
+// ───────────────────────────────────────────────────────────────────────────
+function snapRails() {
+  if (!cy) return;
+  const visible = cy.nodes(':visible').not(':parent');
+  if (visible.length === 0) return;
+
+  // ── 1. Build derivation depths from derivedFrom edges ──
+  // derivedFrom edge: source = child requirement, target = parent requirement
+  const parentOf = {};
+  cy.edges('[kind = "derivedFrom"]').forEach(e => {
+    parentOf[e.source().id()] = e.target().id();
+  });
+
+  // breakdownAdr edge: source = requirement, target = ADR
+  const reqOfAdr = {};
+  cy.edges('[kind = "breakdownAdr"]').forEach(e => {
+    reqOfAdr[e.target().id()] = e.source().id();
+  });
+
+  const reqNodes = visible.filter(n => REQ_TYPES.has(n.data('type') || ''));
+  const depths   = {};
+
+  // Seed roots (no parent in derivation tree)
+  reqNodes.forEach(n => { if (!parentOf[n.id()]) depths[n.id()] = 0; });
+
+  // Iterative depth assignment (handles arbitrary tree depth)
+  let changed = true;
+  while (changed) {
+    changed = false;
+    reqNodes.forEach(n => {
+      if (depths[n.id()] === undefined) {
+        const pd = depths[parentOf[n.id()]];
+        if (pd !== undefined) { depths[n.id()] = pd + 1; changed = true; }
+      }
+    });
+  }
+  // Any requirement not reachable via derivedFrom chain → treat as root
+  reqNodes.forEach(n => { if (depths[n.id()] === undefined) depths[n.id()] = 0; });
+
+  // ── 2. Group by depth, find max ──
+  const byDepth = {};
+  let maxDepth  = 0;
+  reqNodes.forEach(n => {
+    const d = depths[n.id()];
+    maxDepth = Math.max(maxDepth, d);
+    (byDepth[d] = byDepth[d] || []).push(n);
+  });
+
+  // ── 3. Reference bounding box from centre elements ──
+  const bb     = visible.boundingBox();
+  const height = Math.max(bb.y2 - bb.y1, 120);
+  const yTop   = bb.y1;
+
+  // Column geometry
+  const COL_W    = 160;  // horizontal gap between requirement levels
+  const ADR_OFFX =  90;  // ADR sits this far right of its requirement's x
+  const ADR_OFFY =  30;  // and this far below (avoids perfect overlap)
+  const leftBase = bb.x1 - (maxDepth + 1) * COL_W - 80;
+  const rightX   = bb.x2 + 120;
+
+  // ── 4. Position requirements column by column ──
+  Object.entries(byDepth).forEach(([depthStr, nodes]) => {
+    const d  = parseInt(depthStr, 10);
+    const x  = leftBase + d * COL_W;
+    const n  = nodes.length;
+    const step = n > 1 ? height / (n - 1) : 0;
+    nodes
+      .sort((a, b) => a.position('y') - b.position('y'))
+      .forEach((node, i) => node.position({ x, y: yTop + i * step }));
+  });
+
+  // ── 5. Position ADRs beside their derived requirement ──
+  visible.filter(n => n.data('type') === 'ADR').forEach(adrNode => {
+    const reqId = reqOfAdr[adrNode.id()];
+    if (!reqId) return;
+    const reqNode = cy.getElementById(reqId);
+    if (!reqNode.length) return;
+    const reqPos = reqNode.position();
+    const d      = depths[reqId] ?? 0;
+    adrNode.position({ x: leftBase + d * COL_W + ADR_OFFX, y: reqPos.y + ADR_OFFY });
+  });
+
+  // ── 6. TestCases on the far right ──
+  const tcArr = visible
+    .filter(n => TC_TYPES.has(n.data('type') || ''))
+    .toArray()
+    .sort((a, b) => a.position('y') - b.position('y'));
+  tcArr.forEach((node, i) => {
+    node.position({ x: rightX, y: yTop + (tcArr.length > 1 ? i * height / (tcArr.length - 1) : height / 2) });
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Cytoscape init
+// ───────────────────────────────────────────────────────────────────────────
+function initCytoscape(graphData) {
+  if (window.cytoscapeDagre)  cytoscape.use(cytoscapeDagre);
+  if (window.cytoscapePopper) cytoscape.use(cytoscapePopper);
+
+  cy = cytoscape({
+    container:        document.getElementById('cy'),
+    elements:         graphData,
+    style:            buildStylesheet(),
+    layout:           { name: 'preset' }, // layout run manually below
+    wheelSensitivity: 0.3,
+    minZoom:          0.04,
+    maxZoom:          4,
+    selectionType:    'single',
+  });
+
+  // Register handler BEFORE running layout — dagre fires layoutstop
+  // synchronously (animate:false), so order matters.
+  cy.one('layoutstop', () => {
+    snapRails();
+    cy.fit(undefined, 40);
+    document.getElementById('loading-overlay').style.display = 'none';
+  });
+
+  cy.layout({ name: 'dagre', rankDir: 'LR', nodeSep: 25, rankSep: 80, padding: 20, animate: false }).run();
+
+  // Node tap — enter neighborhood focus, open doc panel
+  cy.on('tap', 'node', function(evt) {
+    const node = evt.target;
+    const t = node.data('type') || '';
+    if (PKG_TYPES.has(t)) return;
+    enterFocusMode(node);
+    openDocPanel(node.data('qname'), node.data('label'), t);
+  });
+
+  // Background tap — exit focus
+  cy.on('tap', function(evt) {
+    if (evt.target === cy) {
+      exitFocusMode();
+      closeDocPanel();
+    }
+  });
+
+  // Tooltips
+  cy.on('mouseover', 'node', evt => showTooltip(evt.originalEvent, buildNodeTooltip(evt.target)));
+  cy.on('mouseout',  'node', hideTooltip);
+  cy.on('drag',      'node', hideTooltip);
+  cy.on('mouseover', 'edge', evt => showTooltip(evt.originalEvent, buildEdgeTooltip(evt.target)));
+  cy.on('mouseout',  'edge', hideTooltip);
+  cy.on('mousemove', evt => {
+    const tt = document.getElementById('cy-tooltip');
+    if (tt.style.display !== 'none') positionTooltip(evt.originalEvent);
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Tooltip helpers
+// ───────────────────────────────────────────────────────────────────────────
+function buildNodeTooltip(node) {
+  const lbl  = esc(node.data('label') || node.id());
+  const type = esc(node.data('type')  || 'Unknown');
+  const qn   = esc(node.data('qname') || node.id());
+  return `<strong>${lbl}</strong><span class="tt-sub">${type}</span><br><span class="tt-qname">${qn}</span>`;
+}
+
+function buildEdgeTooltip(edge) {
+  const kind = esc(edge.data('kind') || 'relates');
+  const src  = esc(edge.source().data('label') || '?');
+  const tgt  = esc(edge.target().data('label') || '?');
+  return `<strong>${kind}</strong><span class="tt-sub">${src} &#x2192; ${tgt}</span>`;
+}
+
+function showTooltip(mouseEvt, html) {
+  const tt = document.getElementById('cy-tooltip');
+  tt.innerHTML = html;
+  tt.style.display = 'block';
+  positionTooltip(mouseEvt);
+}
+
+function positionTooltip(mouseEvt) {
+  const tt   = document.getElementById('cy-tooltip');
+  const offX = 14, offY = 14;
+  let x = mouseEvt.clientX + offX;
+  let y = mouseEvt.clientY + offY;
+  const maxX = window.innerWidth  - tt.offsetWidth  - 8;
+  const maxY = window.innerHeight - tt.offsetHeight - 8;
+  tt.style.left = Math.min(x, maxX) + 'px';
+  tt.style.top  = Math.min(y, maxY) + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('cy-tooltip').style.display = 'none';
+}
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Focus mode
+// ───────────────────────────────────────────────────────────────────────────
+function enterFocusMode(node) {
+  if (!cy) return;
+  if (inFocusMode) exitFocusMode();
+
+  const type = node.data('type') || '';
+
+  // Collect the nodes to keep visible
+  let keep = cy.collection().add(node);
+
+  if (REQ_TYPES.has(type)) {
+    // Requirement: subtree + elements that satisfy any req in subtree + ADRs + test cases
+    const subtree = collectReqSubtree(node);
+    keep = keep.add(subtree);
+    subtree.forEach(rn => {
+      keep = keep.add(edgesTo(rn,   'satisfies').sources());
+      keep = keep.add(edgesFrom(rn, 'breakdownAdr').targets());
+      keep = keep.add(edgesTo(rn,   'verifies').sources());
+    });
+    // Also test cases verifying the satisfying model elements
+    keep.nodes().forEach(el => {
+      keep = keep.add(edgesTo(el, 'verifies').sources());
+    });
+  } else {
+    // Non-requirement: 2-hop neighbourhood
+    const direct = node.closedNeighborhood();
+    keep = keep.add(direct).add(direct.nodes().neighborhood());
+  }
+
+  // CRITICAL: include ancestor compound (package) nodes — if a package is
+  // hidden Cytoscape also hides all its children, even if those children
+  // were added to 'keep'.
+  keep = keep.add(keep.nodes().ancestors());
+
+  // Edges that run between kept nodes
+  const keepEdges = keep.edgesWith(keep);
+  const visible   = keep.add(keepEdges);
+
+  cy.elements().difference(visible).addClass('focus-hidden');
+  node.addClass('focused');
+  inFocusMode = true;
+  document.getElementById('back-btn').style.display = 'block';
+
+  // Zoom to the non-compound kept nodes (exclude package containers)
+  const focalNodes = keep.filter('node').not(':parent');
+  cy.fit(focalNodes.length ? focalNodes : keep, 60);
+}
+
+// ── Edge traversal helpers (avoid invalid CSS attribute selectors on
+//    structural source/target properties — use JS filter instead) ──
+
+/** Edges whose .data('kind') === kind AND whose target is node. */
+function edgesTo(node, kind) {
+  return node.connectedEdges('[kind = "' + kind + '"]')
+             .filter(e => e.target().id() === node.id());
+}
+
+/** Edges whose .data('kind') === kind AND whose source is node. */
+function edgesFrom(node, kind) {
+  return node.connectedEdges('[kind = "' + kind + '"]')
+             .filter(e => e.source().id() === node.id());
+}
+
+
+// Collect a requirement node plus all its derived descendants (BFS).
+// derivedFrom edge: source = child req, target = parent req
+function collectReqSubtree(root) {
+  const result = cy.collection();
+  const queue  = [root];
+  const seen   = new Set();
+  while (queue.length) {
+    const node = queue.shift();
+    if (seen.has(node.id())) continue;
+    seen.add(node.id());
+    result.merge(node);
+    // children are sources of derivedFrom edges whose target is this node
+    edgesTo(node, 'derivedFrom').forEach(e => queue.push(e.source()));
+  }
+  return result;
+}
+
+
+function exitFocusMode() {
+  if (!cy) return;
+  cy.elements().removeClass('focus-hidden focused');
+  if (savedPositions) {
+    cy.nodes().forEach(n => { if (savedPositions[n.id()]) n.position(savedPositions[n.id()]); });
+    savedPositions = null;
+  }
+  inFocusMode = false;
+  document.getElementById('back-btn').style.display = 'none';
+  cy.fit(undefined, 40);
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Layout (dagre only)
+// ───────────────────────────────────────────────────────────────────────────
+function runLayout() {
+  if (!cy) return;
+  const layout = cy.layout({ name: 'dagre', rankDir: 'LR', nodeSep: 25, rankSep: 80, padding: 20, animate: false });
+  layout.one('layoutstop', () => { snapRails(); cy.fit(undefined, 40); });
+  layout.run();
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Search
+// ───────────────────────────────────────────────────────────────────────────
+function handleSearch(query) {
+  if (!cy) return;
+  cy.elements().removeClass('search-dim');
+  if (!query || !query.trim()) return;
+
+  const q = query.toLowerCase().trim();
+  cy.nodes().forEach(node => {
+    const label = (node.data('label') || '').toLowerCase();
+    const qname = (node.data('qname') || '').toLowerCase();
+    if (!label.includes(q) && !qname.includes(q)) {
+      node.addClass('search-dim');
+    }
+  });
+  cy.edges().forEach(edge => {
+    if (edge.source().hasClass('search-dim') && edge.target().hasClass('search-dim')) {
+      edge.addClass('search-dim');
+    }
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Filter chips
+// ───────────────────────────────────────────────────────────────────────────
+function chipTypes(chip) {
+  return chip.dataset.types.split(',').map(s => s.trim());
+}
+
+function toggleChip(chip) {
+  const types = chipTypes(chip);
+  const isOn  = chip.classList.contains('on');
+  if (isOn) {
+    chip.classList.remove('on');
+    types.forEach(t => hiddenTypes.add(t));
+  } else {
+    chip.classList.add('on');
+    types.forEach(t => hiddenTypes.delete(t));
+  }
+  applyTypeFilter();
+}
+
+function applyTypeFilter() {
+  if (!cy) return;
+  cy.nodes().forEach(node => {
+    const t = node.data('type') || '';
+    if (hiddenTypes.has(t)) {
+      node.addClass('type-hidden');
+    } else {
+      node.removeClass('type-hidden');
+    }
+  });
+  cy.edges().forEach(edge => {
+    const hide = edge.source().hasClass('type-hidden') || edge.target().hasClass('type-hidden');
+    if (hide) { edge.addClass('type-hidden'); }
+    else      { edge.removeClass('type-hidden'); }
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Hide / show packages
+// ───────────────────────────────────────────────────────────────────────────
+function isPackageNode(node) {
+  return PKG_TYPES.has(node.data('type') || '');
+}
+
+function toggleHidePackages() {
+  if (!cy) return;
+  packagesHidden = !packagesHidden;
+  const btn = document.getElementById('btn-hide-pkg');
+  btn.classList.toggle('active', packagesHidden);
+  btn.textContent = packagesHidden ? 'Show Packages' : 'Hide Packages';
+
+  cy.nodes().forEach(node => {
+    if (isPackageNode(node)) {
+      if (packagesHidden) { node.addClass('type-hidden'); }
+      else                { node.removeClass('type-hidden'); }
+    }
+  });
+  applyTypeFilter(); // re-evaluate edge visibility
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Fit
+// ───────────────────────────────────────────────────────────────────────────
+function fitGraph() {
+  if (cy) cy.fit(undefined, 40);
+}
+
+function zoomBy(factor) {
+  if (!cy) return;
+  cy.zoom({
+    level: Math.min(cy.maxZoom(), Math.max(cy.minZoom(), cy.zoom() * factor)),
+    renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+  });
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Doc panel
+// ───────────────────────────────────────────────────────────────────────────
+function openDocPanel(qname, label, type) {
+  const panel    = document.getElementById('doc-panel');
+  const titleEl  = document.getElementById('doc-panel-title');
+  const typeEl   = document.getElementById('doc-panel-type');
+  const content  = document.getElementById('doc-panel-content');
+  const loading  = document.getElementById('doc-panel-loading');
+
+  titleEl.textContent = label || qname || 'Element';
+  typeEl.textContent  = type  || '';
+
+  // Show loading state
+  content.innerHTML = '';
+  loading.classList.add('visible');
+  panel.classList.add('open');
+
+  // Fetch the existing /ui/detail/{qname} fragment
+  const urlQname = (qname || '').replace(/::/g, '/');
+  fetch('/ui/detail/' + urlQname)
+    .then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    })
+    .then(html => {
+      loading.classList.remove('visible');
+      content.innerHTML = html;
+    })
+    .catch(err => {
+      loading.classList.remove('visible');
+      content.innerHTML =
+        `<p class="detail-empty">Could not load detail: ${esc(err.message)}</p>`;
+    });
+}
+
+function closeDocPanel() {
+  document.getElementById('doc-panel').classList.remove('open');
+  exitFocusMode();
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Keyboard shortcuts
+// ───────────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeDocPanel();
+    exitFocusMode();
+    const sb = document.getElementById('search-box');
+    if (sb && sb.value) { sb.value = ''; handleSearch(''); }
+  }
+  if ((e.key === 'f' || e.key === 'F') && !e.target.closest('input, textarea')) {
+    fitGraph();
+  }
+  if ((e.key === '+' || e.key === '=') && !e.target.closest('input, textarea')) {
+    zoomBy(1.3);
+  }
+  if (e.key === '-' && !e.target.closest('input, textarea')) {
+    zoomBy(0.77);
+  }
+});
+
+// ───────────────────────────────────────────────────────────────────────────
+//  Bootstrap: fetch /api/graph and init Cytoscape
+// ───────────────────────────────────────────────────────────────────────────
+fetch('/api/graph')
+  .then(r => {
+    if (!r.ok) throw new Error('Server returned HTTP ' + r.status);
+    return r.json();
+  })
+  .then(data => {
+    initCytoscape(data);
+  })
+  .catch(err => {
+    document.getElementById('loading-overlay').style.display = 'none';
+    const overlay = document.getElementById('error-overlay');
+    document.getElementById('error-msg').textContent =
+      'Failed to load graph data: ' + err.message;
+    overlay.classList.add('visible');
+  });
+</script>
+</body>
+</html>

@@ -25,7 +25,8 @@ mod state;
 
 use routes::api_graph::{get_children, get_connections};
 use routes::elements::{get_element, list_elements};
-use routes::ui::{diagram, element_detail, index, tree_items};
+use routes::graph_cytoscape::get_graph;
+use routes::ui::{canvas, diagram, element_detail, index, tree_items};
 use routes::validation::get_validation;
 use routes::write::{patch_layout, put_element};
 use routes::ws::ws_handler;
@@ -52,6 +53,7 @@ async fn main() -> Result<()> {
 
     let app = Router::new()
         .route("/", get(index))
+        .route("/canvas", get(canvas))
         .route("/ui/tree", get(tree_items))
         .route("/ui/detail/{*qname}", get(element_detail))
         .route("/ui/diagram/{*qname}", get(diagram))
@@ -60,6 +62,7 @@ async fn main() -> Result<()> {
         .route("/api/children", get(get_children))
         .route("/api/connections", get(get_connections))
         .route("/api/diagrams/layout/{*qname}", patch(patch_layout))
+        .route("/api/graph", get(get_graph))
         .route("/api/validation", get(get_validation))
         .route("/ws", get(ws_handler))
         .layer(axum::Extension(reload_tx))
@@ -67,6 +70,8 @@ async fn main() -> Result<()> {
         .with_state(shared);
 
     info!("Listening on http://{}", cli.bind);
+    println!("\n  Model browser: http://{}/", cli.bind);
+    println!("  Canvas:        http://{}/canvas\n", cli.bind);
     let listener = tokio::net::TcpListener::bind(&cli.bind).await?;
     axum::serve(listener, app).await?;
     Ok(())

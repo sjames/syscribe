@@ -1,5 +1,6 @@
 pub mod api_graph;
 pub mod elements;
+pub mod graph_cytoscape;
 pub mod ui;
 pub mod validation;
 pub mod write;
