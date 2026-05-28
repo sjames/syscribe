@@ -6,6 +6,14 @@
 
 ---
 
+> **Disclaimer:** Syscribe is a modeling and documentation tool provided **"as-is" without warranty of any kind**. The authors and contributors accept no responsibility or liability for the use of this tool in safety-critical, life-critical, or mission-critical applications.
+>
+> Output from Syscribe — including validation results, generated templates, traceability reports, and analysis artifacts — **must be independently reviewed and verified by qualified engineers** before use in any certification, regulatory submission, or safety case. Compliance with standards such as ISO 26262, IEC 61508, ISO 13849-1, ISO/SAE 21434, IEC 61025, DO-178C, or any other functional safety or cybersecurity standard remains the **sole responsibility of the user and their organisation**.
+>
+> This tool does not replace a certified safety process, a qualified safety engineer, or a formal assessment body.
+
+---
+
 ## Table of Contents
 
 1. [Overview and Design Principles](#1-overview-and-design-principles)

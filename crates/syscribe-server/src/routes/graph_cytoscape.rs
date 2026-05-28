@@ -281,6 +281,15 @@ pub async fn get_graph(State(state): State<SharedState>) -> Json<GraphResponse> 
             }
         }
 
+        // allocatedFrom
+        if let Some(ref afs) = fm.allocated_from {
+            for af in afs {
+                if let Some(tgt) = resolve_to_qname(resolver, elements, af) {
+                    add_edge(&mut edges, &mut seen_edges, src, &tgt, "allocatedFrom");
+                }
+            }
+        }
+
         // allocatedTo
         if let Some(ref ats) = fm.allocated_to {
             for at_ in ats {
@@ -294,6 +303,85 @@ pub async fn get_graph(State(state): State<SharedState>) -> Json<GraphResponse> 
         if let Some(ref adr_ref) = fm.breakdown_adr {
             if let Some(tgt) = resolve_to_qname(resolver, elements, adr_ref) {
                 add_edge(&mut edges, &mut seen_edges, src, &tgt, "breakdownAdr");
+            }
+        }
+
+        // ── Safety analysis ──────────────────────────────────────────────────
+
+        // topEvent: FaultTree → SafetyGoal
+        if let Some(ref te) = fm.top_event {
+            if let Some(tgt) = resolve_to_qname(resolver, elements, te) {
+                add_edge(&mut edges, &mut seen_edges, src, &tgt, "topEvent");
+            }
+        }
+
+        // inputs: FaultTreeGate → input gates/events
+        if let Some(ref ins) = fm.inputs {
+            for i in ins {
+                if let Some(tgt) = resolve_to_qname(resolver, elements, i) {
+                    add_edge(&mut edges, &mut seen_edges, src, &tgt, "faultTreeInput");
+                }
+            }
+        }
+
+        // hazardousEvents: SafetyGoal → HazardousEvent refs
+        if let Some(ref hes) = fm.hazardous_events {
+            for he in hes {
+                if let Some(tgt) = resolve_to_qname(resolver, elements, he) {
+                    add_edge(&mut edges, &mut seen_edges, src, &tgt, "hazardousEvent");
+                }
+            }
+        }
+
+        // derivedFromSafetyGoal: Requirement → SafetyGoal
+        if let Some(ref sg) = fm.derived_from_safety_goal {
+            if let Some(tgt) = resolve_to_qname(resolver, elements, sg) {
+                add_edge(&mut edges, &mut seen_edges, src, &tgt, "derivedFromSafetyGoal");
+            }
+        }
+
+        // ── Security analysis ────────────────────────────────────────────────
+
+        // damageScenarios: ThreatScenario → DamageScenario refs
+        if let Some(ref ds) = fm.damage_scenarios {
+            for d in ds {
+                if let Some(tgt) = resolve_to_qname(resolver, elements, d) {
+                    add_edge(&mut edges, &mut seen_edges, src, &tgt, "damageScenario");
+                }
+            }
+        }
+
+        // threatScenarios: CybersecurityGoal → ThreatScenario refs
+        if let Some(ref ts) = fm.threat_scenarios {
+            for t in ts {
+                if let Some(tgt) = resolve_to_qname(resolver, elements, t) {
+                    add_edge(&mut edges, &mut seen_edges, src, &tgt, "threatScenario");
+                }
+            }
+        }
+
+        // implementsGoals: SecurityControl → CybersecurityGoal refs
+        if let Some(ref ig) = fm.implements_goals {
+            for g in ig {
+                if let Some(tgt) = resolve_to_qname(resolver, elements, g) {
+                    add_edge(&mut edges, &mut seen_edges, src, &tgt, "implementsGoal");
+                }
+            }
+        }
+
+        // mitigatedBy: VulnerabilityReport → SecurityControl refs
+        if let Some(ref mbs) = fm.mitigated_by {
+            for mb in mbs {
+                if let Some(tgt) = resolve_to_qname(resolver, elements, mb) {
+                    add_edge(&mut edges, &mut seen_edges, src, &tgt, "mitigatedBy");
+                }
+            }
+        }
+
+        // derivedFromSecurityGoal: Requirement → CybersecurityGoal
+        if let Some(ref csg) = fm.derived_from_security_goal {
+            if let Some(tgt) = resolve_to_qname(resolver, elements, csg) {
+                add_edge(&mut edges, &mut seen_edges, src, &tgt, "derivedFromSecurityGoal");
             }
         }
 

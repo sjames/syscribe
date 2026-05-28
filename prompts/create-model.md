@@ -1,10 +1,6 @@
-# Syscribe Model Generation Prompt
-
-Copy everything from the horizontal rule below into your LLM session. Fill in the context block at the top for your chosen mode.
+**DISCLAIMER:** Syscribe is provided "as-is" without warranty of any kind. The authors accept no responsibility or liability for the use of this tool in safety-critical, life-critical, or mission-critical applications. Output from Syscribe must be independently reviewed and verified by qualified engineers before use in any certification, regulatory submission, or safety case. Compliance with applicable standards (ISO 26262, IEC 61508, DO-178C, ISO/SAE 21434, etc.) remains the sole responsibility of the user and their organisation.
 
 ---
-
-## How to Use This Prompt
 
 This prompt supports two modes. Choose one and fill in the corresponding context block.
 

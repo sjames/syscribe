@@ -16,17 +16,28 @@ fn yaml_strings(v: &serde_yaml::Value) -> Vec<&str> {
 /// Edge kinds in the model graph.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EdgeKind {
-    Contains,      // parent package → child element
-    Supertype,     // element → its supertype definition
-    TypedBy,       // usage → its type definition
-    Subsets,       // feature → subsetted feature
-    Redefines,     // feature → redefined feature
-    Verifies,      // test case → requirement (native or SysML)
-    DerivedFrom,   // child requirement → parent requirement
-    AllocatedFrom, // allocation source
-    AllocatedTo,   // allocation target
-    ConditionalOn, // element → FeatureDef (appliesWhen:)
-    Satisfies,     // Part/Config → Requirement/FeatureDef (satisfies:)
+    Contains,              // parent package → child element
+    Supertype,             // element → its supertype definition
+    TypedBy,               // usage → its type definition
+    Subsets,               // feature → subsetted feature
+    Redefines,             // feature → redefined feature
+    Verifies,              // test case → requirement (native or SysML)
+    DerivedFrom,           // child requirement → parent requirement
+    AllocatedFrom,         // allocation → source element
+    AllocatedTo,           // allocation → target element
+    ConditionalOn,         // element → FeatureDef (appliesWhen:)
+    Satisfies,             // Part/Config → Requirement/FeatureDef (satisfies:)
+    // Safety analysis (ISO 26262 / IEC 61508)
+    TopEvent,              // FaultTree → SafetyGoal
+    FaultTreeInput,        // FaultTreeGate → input gate/event
+    HazardousEventRef,     // SafetyGoal → HazardousEvent
+    DerivedFromSafetyGoal, // Requirement → SafetyGoal
+    // Security analysis (ISO/SAE 21434)
+    DamageScenarioRef,       // ThreatScenario → DamageScenario
+    ThreatScenarioRef,       // CybersecurityGoal → ThreatScenario
+    ImplementsGoal,          // SecurityControl → CybersecurityGoal
+    MitigatedBy,             // VulnerabilityReport → SecurityControl
+    DerivedFromSecurityGoal, // Requirement → CybersecurityGoal
 }
 
 pub type ModelGraph = DiGraph<String, EdgeKind>;
@@ -151,6 +162,85 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
                 if let Some(dst) = idx.get(s).copied() {
                     graph.add_edge(src, dst, EdgeKind::ConditionalOn);
                 }
+            }
+        }
+
+        // ── Safety analysis ──────────────────────────────────────────────────
+
+        // topEvent: FaultTree → SafetyGoal
+        if let Some(ref te) = fm.top_event {
+            if let Some(dst) = resolve_to_idx(te) {
+                graph.add_edge(src, dst, EdgeKind::TopEvent);
+            }
+        }
+
+        // inputs: FaultTreeGate → input gates/events
+        if let Some(ref ins) = fm.inputs {
+            for i in ins {
+                if let Some(dst) = resolve_to_idx(i) {
+                    graph.add_edge(src, dst, EdgeKind::FaultTreeInput);
+                }
+            }
+        }
+
+        // hazardousEvents: SafetyGoal → HazardousEvent refs
+        if let Some(ref hes) = fm.hazardous_events {
+            for he in hes {
+                if let Some(dst) = resolve_to_idx(he) {
+                    graph.add_edge(src, dst, EdgeKind::HazardousEventRef);
+                }
+            }
+        }
+
+        // derivedFromSafetyGoal: Requirement → SafetyGoal
+        if let Some(ref sg) = fm.derived_from_safety_goal {
+            if let Some(dst) = resolve_to_idx(sg) {
+                graph.add_edge(src, dst, EdgeKind::DerivedFromSafetyGoal);
+            }
+        }
+
+        // ── Security analysis ────────────────────────────────────────────────
+
+        // damageScenarios: ThreatScenario → DamageScenario refs
+        if let Some(ref ds) = fm.damage_scenarios {
+            for d in ds {
+                if let Some(dst) = resolve_to_idx(d) {
+                    graph.add_edge(src, dst, EdgeKind::DamageScenarioRef);
+                }
+            }
+        }
+
+        // threatScenarios: CybersecurityGoal → ThreatScenario refs
+        if let Some(ref ts) = fm.threat_scenarios {
+            for t in ts {
+                if let Some(dst) = resolve_to_idx(t) {
+                    graph.add_edge(src, dst, EdgeKind::ThreatScenarioRef);
+                }
+            }
+        }
+
+        // implementsGoals: SecurityControl → CybersecurityGoal refs
+        if let Some(ref ig) = fm.implements_goals {
+            for g in ig {
+                if let Some(dst) = resolve_to_idx(g) {
+                    graph.add_edge(src, dst, EdgeKind::ImplementsGoal);
+                }
+            }
+        }
+
+        // mitigatedBy: VulnerabilityReport → SecurityControl refs
+        if let Some(ref mbs) = fm.mitigated_by {
+            for mb in mbs {
+                if let Some(dst) = resolve_to_idx(mb) {
+                    graph.add_edge(src, dst, EdgeKind::MitigatedBy);
+                }
+            }
+        }
+
+        // derivedFromSecurityGoal: Requirement → CybersecurityGoal
+        if let Some(ref csg) = fm.derived_from_security_goal {
+            if let Some(dst) = resolve_to_idx(csg) {
+                graph.add_edge(src, dst, EdgeKind::DerivedFromSecurityGoal);
             }
         }
     }
