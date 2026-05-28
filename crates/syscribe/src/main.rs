@@ -3,6 +3,7 @@
 mod diagram;
 mod query;
 mod render;
+mod spec;
 
 use std::collections::{BTreeMap, HashMap};
 use syscribe_model::{
@@ -70,6 +71,12 @@ fn main() {
 
     if args.iter().any(|a| a == "--agent-instructions") {
         print!("{}", AGENT_INSTRUCTIONS);
+        return;
+    }
+
+    if args.get(1).map(|a| a == "spec").unwrap_or(false) {
+        let section = args.get(2).map(|s| s.as_str()).unwrap_or("toc");
+        spec::cmd_spec(section);
         return;
     }
 

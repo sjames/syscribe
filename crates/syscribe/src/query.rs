@@ -2005,6 +2005,15 @@ pub fn print_help() {
     println!("  who-verifies <req-id>          Which test cases cover a requirement");
     println!("  refs <qname|id>                What elements reference this element");
     println!();
+    println!("Spec browser (no model root required):");
+    println!("  spec                           Table of contents for the format spec");
+    println!("  spec types                     Element type inventory and native type schemas");
+    println!("  spec fields                    Complete frontmatter field reference");
+    println!("  spec namespace                 Directory conventions, cross-refs, multiplicity");
+    println!("  spec validation                All validation rule codes");
+    println!("  spec traceability              Traceability rules R-001–R-007");
+    println!("  spec safety                    Safety/security analysis elements (HARA/TARA/FTA/FMEA)");
+    println!();
     println!("Options:");
     println!("  --agent-instructions           Print the LLM authoring prompt");
     println!("  --help, -h                     Show this help");
