@@ -167,6 +167,12 @@ syscribe --agent-instructions | llm "Create a brake-by-wire model for ISO 26262 
 
 The prompt and the validator are always in sync — `--agent-instructions` is embedded at compile time from `prompts/create-model.md`. See the [LLM Workflow guide](https://sjames.github.io/syscribe/model-guide/llm-workflow/) for the full incremental authoring workflow.
 
+## Prior Work
+
+Syscribe is an evolution of [assemblyline](https://github.com/sjames/assemblyline), an earlier experiment in structured systems modeling that used [Typst](https://typst.app) as the modeling language. Typst worked well for rendering and was extensible, but the language was unnecessarily complex for the authoring use case — requiring toolchain knowledge just to read or write a model element.
+
+Markdown + YAML removes that barrier entirely. No special tools are needed to write or read the content. If you host the model on GitHub, the files render as-is. The ideas from assemblyline are reimplemented here in a format that any editor, any diff viewer, and any LLM can handle natively.
+
 ---
 
 If you use Syscribe in a project or find it useful, feel free to tag [@sojan_james](https://twitter.com/sojan_james) on Twitter/X.
