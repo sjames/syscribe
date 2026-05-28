@@ -52,6 +52,8 @@ The safety monitor shall perform a complete supervision cycle within 100 ms...
 
 **For teams** — the model lives in a git repository alongside the code. Pull requests, blame, branches, and merges all work as expected.
 
+**For external tools** — because every element is a separate file, it has a stable URL in any git host. A GitHub permalink to `model_auto/Requirements/Safety/REQ-ENG-SAFE-001.md` points to that exact requirement at that exact commit forever. JIRA tickets, Confluence pages, code review comments, and CI reports can all link directly to a specific requirement, test case, or architecture decision — at the branch tip, at a release tag, or pinned to a specific commit hash.
+
 ## What It Supports
 
 - **40+ element types** covering SysMLv2 structural, behavioral, and requirements constructs
