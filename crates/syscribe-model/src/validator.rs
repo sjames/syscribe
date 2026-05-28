@@ -174,6 +174,60 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
             }
         }
 
+        // E019: dalLevel A–E
+        if let Some(ref dal) = fm.dal_level {
+            const DAL: &[&str] = &["A", "B", "C", "D", "E"];
+            if !DAL.contains(&dal.as_str()) {
+                findings.push(error("E019", &file, &format!("unknown dalLevel '{}' — must be A, B, C, D, or E", dal)));
+            }
+        }
+
+        // E020: verificationMethod enum
+        if let Some(ref vm) = fm.verification_method {
+            const METHODS: &[&str] = &["test", "inspection", "analysis", "demonstration"];
+            if !METHODS.contains(&vm.as_str()) {
+                findings.push(error("E020", &file, &format!("unknown verificationMethod '{}' — must be test, inspection, analysis, or demonstration", vm)));
+            }
+        }
+
+        // E021: coverageTarget enum
+        if let Some(ref ct) = fm.coverage_target {
+            const TARGETS: &[&str] = &["statement", "branch", "MCDC"];
+            if !TARGETS.contains(&ct.as_str()) {
+                findings.push(error("E021", &file, &format!("unknown coverageTarget '{}' — must be statement, branch, or MCDC", ct)));
+            }
+        }
+
+        // E022: requirementKind enum
+        if let Some(ref rk) = fm.requirement_kind {
+            const KINDS: &[&str] = &["stakeholder", "system", "software", "hardware"];
+            if !KINDS.contains(&rk.as_str()) {
+                findings.push(error("E022", &file, &format!("unknown requirementKind '{}' — must be stakeholder, system, software, or hardware", rk)));
+            }
+        }
+
+        // W701: Requirement with asilLevel B/C/D should have verificationMethod
+        if let Some(ElementType::Requirement) = &fm.element_type {
+            if let Some(ref asil) = fm.asil_level {
+                if matches!(asil.as_str(), "B" | "C" | "D") && fm.verification_method.is_none() {
+                    findings.push(warning(
+                        "W701",
+                        &file,
+                        &format!("Requirement with asilLevel: {} has no verificationMethod — add test, inspection, analysis, or demonstration", asil),
+                    ));
+                }
+            }
+        }
+
+        // W703: asilLevel and dalLevel both present — these are different standards
+        if fm.asil_level.is_some() && fm.dal_level.is_some() {
+            findings.push(warning(
+                "W703",
+                &file,
+                "both asilLevel (ISO 26262) and dalLevel (DO-178C) are set — these are different standards; validate under one or document the mapping",
+            ));
+        }
+
         // E011: TestCase must have a gherkin block
         if matches!(fm.element_type, Some(ElementType::TestCase)) {
             if !elem.doc.contains("```gherkin") {
@@ -1024,6 +1078,23 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                 ));
             }
             _ => {}
+        }
+
+        // W702: asilLevel: D requirement must have at least one active L5 (HIL) TestCase
+        if elem.frontmatter.asil_level.as_deref() == Some("D") && !active_tcs.is_empty() {
+            let has_l5 = active_tcs.iter().any(|tc_id| {
+                resolver
+                    .get_by_id(elements, tc_id)
+                    .and_then(|e| e.frontmatter.test_level.as_deref())
+                    == Some("L5")
+            });
+            if !has_l5 {
+                findings.push(warning(
+                    "W702",
+                    &elem.file_path,
+                    &format!("Requirement '{}' has asilLevel: D but no active TestCase at testLevel: L5 (HIL) — ISO 26262-6 §9 requires hardware-in-the-loop testing for ASIL D", req_id),
+                ));
+            }
         }
 
         // W005: orphan (no derivedFrom and no derivedChildren)

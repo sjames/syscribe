@@ -312,10 +312,14 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
     if let Some(ref s) = fm.status { println!("| **status** | {} |", s); }
     if fm.is_abstract == Some(true) { println!("| **abstract** | true |"); }
     if let Some(ref d) = fm.domain { println!("| **domain** | {} |", d); }
+    if let Some(ref rk) = fm.requirement_kind { println!("| **requirementKind** | {} |", rk); }
     if let Some(ref rd) = fm.req_domain { println!("| **reqDomain** | {} |", rd); }
     if let Some(sil) = fm.sil_level { println!("| **SIL** | {} |", sil); }
     if let Some(ref asil) = fm.asil_level { println!("| **ASIL** | {} |", asil); }
+    if let Some(ref dal) = fm.dal_level { println!("| **DAL** | {} |", dal); }
+    if let Some(ref vm) = fm.verification_method { println!("| **verificationMethod** | {} |", vm); }
     if let Some(ref tl_) = fm.test_level { println!("| **testLevel** | {} |", tl_); }
+    if let Some(ref ct) = fm.coverage_target { println!("| **coverageTarget** | {} |", ct); }
     if let Some(ref mul) = fm.multiplicity { println!("| **multiplicity** | {} |", mul); }
     if let Some(ref dir) = fm.direction { println!("| **direction** | {} |", dir); }
     if let Some(ref s) = fm.breakdown_adr { println!("| **breakdownAdr** | {} |", s); }
@@ -1063,9 +1067,12 @@ type: Requirement
 id: REQ-PREFIX-001
 title: "The system shall ..."
 status: draft
+requirementKind: system
 reqDomain: system
+verificationMethod: test
 # silLevel: 1
 # asilLevel: A
+# dalLevel: B
 # derivedFrom:
 #   - REQ-PARENT-001
 # breakdownAdr: ADR-XXX-001
@@ -1083,6 +1090,7 @@ id: TC-PREFIX-001
 title: "Verify that ..."
 status: draft
 testLevel: L5
+coverageTarget: statement
 verifies:
   - REQ-PREFIX-001
 ---

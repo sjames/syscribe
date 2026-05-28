@@ -157,10 +157,14 @@ pub struct RawFrontmatter {
     pub status: Option<String>,
     pub sil_level: Option<u8>,
     pub asil_level: Option<String>,
+    pub dal_level: Option<String>,
     pub wcet: Option<String>,
     pub tags: Option<Vec<String>>,
+    pub verification_method: Option<String>,
+    pub requirement_kind: Option<String>,
     // Native TestCase fields (§8.12.5)
     pub test_level: Option<String>,
+    pub coverage_target: Option<String>,
     pub source_file: Option<String>,
     pub test_functions: Option<Vec<serde_yaml::Value>>,
 
