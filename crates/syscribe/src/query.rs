@@ -426,6 +426,7 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
     if let Some(ref ig) = fm.implements_goals {
         if !ig.is_empty() { println!("| **implementsGoals** | {} |", ig.join(", ")); }
     }
+    if let Some(ref at_) = fm.allocated_to { println!("| **allocatedTo** | {} |", at_); }
     if let Some(score) = fm.cvss_score { println!("| **cvssScore** | {} |", score); }
     if let Some(ref cve) = fm.cve_id { println!("| **cveId** | {} |", cve); }
     if let Some(ref ae) = fm.affected_elements {
@@ -731,6 +732,22 @@ pub fn cmd_trace(
             println!("- **{}** — {} (`{}`)", sg_id, sg_title, level);
         } else {
             println!("- {} (not found)", sg_ref);
+        }
+        println!();
+    }
+
+    // ── Security Goal (derivedFromSecurityGoal) ──────────────────────────
+    if let Some(ref csg_ref) = fm.derived_from_security_goal {
+        println!("## Security Goal (`derivedFromSecurityGoal`)");
+        println!();
+        if let Some(csg) = resolve(elements, resolver, csg_ref) {
+            let csg_id = csg.frontmatter.id.as_deref().unwrap_or(&csg.qualified_name);
+            let csg_title = csg.frontmatter.title.as_deref().unwrap_or("—");
+            let cal = csg.frontmatter.cal_level.as_deref().unwrap_or("—");
+            let prop = csg.frontmatter.security_property.as_deref().unwrap_or("—");
+            println!("- **{}** — {} (`{}` · {})", csg_id, csg_title, cal, prop);
+        } else {
+            println!("- {} (not found)", csg_ref);
         }
         println!();
     }
@@ -1685,6 +1702,8 @@ status: draft
 controlType: prevention   # prevention | detection | response | recovery
 implementsGoals:
   - CSG-PREFIX-001
+allocatedTo: Package::Component   # architecture element responsible for this control
+# satisfies: REQ-SEC-PREFIX-001
 ---
 
 Describe the security control mechanism, its scope, and how it implements the referenced cybersecurity goals.

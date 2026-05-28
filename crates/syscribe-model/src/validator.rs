@@ -223,6 +223,18 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
             }
         }
 
+        // W807: security requirement (derivedFromSecurityGoal set) should have verificationMethod
+        if matches!(fm.element_type, Some(ElementType::Requirement))
+            && fm.derived_from_security_goal.is_some()
+            && fm.verification_method.is_none()
+        {
+            findings.push(warning(
+                "W807",
+                &file,
+                "security Requirement (derivedFromSecurityGoal set) has no verificationMethod — add test, inspection, analysis, or demonstration",
+            ));
+        }
+
         // W703: asilLevel and dalLevel both present — these are different standards
         if fm.asil_level.is_some() && fm.dal_level.is_some() {
             findings.push(warning(
@@ -399,6 +411,10 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                 if !["prevention","detection","response","recovery"].contains(&ct.as_str()) {
                     findings.push(error("E821", &file, &format!("SecurityControl.controlType '{}' must be prevention, detection, response, or recovery", ct)));
                 }
+            }
+            // W806: SecurityControl with no allocatedTo — architecture allocation not recorded
+            if fm.allocated_to.is_none() {
+                findings.push(warning("W806", &file, "SecurityControl has no `allocatedTo` — record which architecture element implements this control"));
             }
         }
 
@@ -1681,6 +1697,16 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                 Some(target) => {
                     sg_derived_reqs.insert(target.qualified_name.clone());
                     if let Some(ref id) = target.frontmatter.id { sg_derived_reqs.insert(id.clone()); }
+                }
+            }
+        }
+
+        // E838: SecurityControl.allocatedTo must resolve to a known element
+        if matches!(fm.element_type, Some(ElementType::SecurityControl)) {
+            if let Some(ref at_ref) = fm.allocated_to {
+                if resolver.resolve_ref(elements, at_ref).is_none() {
+                    findings.push(error("E838", &elem.file_path,
+                        &format!("`allocatedTo` '{}' does not resolve to a known element", at_ref)));
                 }
             }
         }
