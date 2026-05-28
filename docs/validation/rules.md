@@ -31,7 +31,7 @@
 |---|---|
 | W001 | Requirement normative text contains no `shall` |
 | W004 | `sourceFile:` path does not exist on disk |
-| W006 | `silLevel` present without `asilLevel`, or vice versa |
+| W006 | Both `silLevel` (IEC 61508) and `asilLevel` (ISO 26262) are set on the same element — incompatible standards; use only one |
 | W007 | Type definition (e.g. `PartDef`) is never referenced as a supertype or type |
 | W008 | Element has no `type:` field — will be ignored by most commands |
 
@@ -120,8 +120,8 @@
 | W403 | Edge `source` or `target` is not a defined shape id in this diagram |
 | W404 | Operation `typedBy` (parameter) or `returnType` does not resolve to a known element |
 | W405 | SVG companion file is referenced by both inline and companion modes simultaneously |
-| W406 | Companion SVG file reference is inconsistent across shapes |
-| W407 | Companion SVG file is referenced in shapes but `svgFile:` is not set |
+| W406 | Frontmatter `shapes`/`edges` id has no matching `id="..."` attribute in the inline SVG block |
+| W407 | SVG element `id` has no matching entry in frontmatter `shapes`/`edges` (SVG-internal ids used via `url(#...)` are excluded) |
 | W408 | Mermaid `%% ref:` annotation does not resolve to a known element |
 | W409 | Mermaid diagram has no `%% ref:` annotations — add at least one to link nodes to model elements |
 | W410 | Mermaid `%% link:` annotation does not resolve to a known element |
@@ -134,8 +134,8 @@
 |---|---|
 | E500 | Feature with `type: Allocation` has `allocatedFrom:` that does not resolve |
 | E501 | Feature with `type: Allocation` has `allocatedTo:` that does not resolve |
-| E502 | Top-level `allocatedFrom:` on Allocation element does not resolve |
-| E503 | Top-level `allocatedTo:` on Allocation element does not resolve |
+| E502 | `allocatedFrom:` entry (on any element) does not resolve to a known element |
+| E503 | `allocatedTo:` entry (on any element) does not resolve to a known element |
 
 ## Structural warnings (W500–W502)
 
@@ -152,7 +152,7 @@
 | W600 | PartDef or Part has an empty documentation body |
 | W601 | ActionDef or Action has an empty documentation body |
 
-## Safety / ASPICE warnings (W701–W703)
+## Safety / ASPICE warnings (W701–W703, W807)
 
 These warnings apply to requirements carrying safety integrity level fields (`asilLevel`, `silLevel`, `dalLevel`).
 
@@ -161,28 +161,35 @@ These warnings apply to requirements carrying safety integrity level fields (`as
 | W701 | Requirement with `asilLevel: B`, `C`, or `D` has no `verificationMethod` — add `test`, `inspection`, `analysis`, or `demonstration` |
 | W702 | Requirement with `asilLevel: D` has no active TestCase at `testLevel: L5` (HIL) — ISO 26262-6 §9 requires hardware-in-the-loop testing for ASIL D |
 | W703 | Both `asilLevel` (ISO 26262) and `dalLevel` (DO-178C) are set on the same element — these are different standards; pick one or document the mapping |
+| W807 | `Requirement` with `derivedFromSecurityGoal` has no `verificationMethod` — security-derived requirements must specify how they will be tested or inspected |
 
 ## Tier 2 safety element errors (E800–E830)
 
 Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Each type carries a stable opaque ID and required fields validated at parse time.
 
-### HazardousEvent (E800–E804)
+### HazardousEvent (E800–E804, E833–E836)
 
 | Code | Condition |
 |---|---|
 | E800 | `id`, `title`, or `status` is absent |
-| E801 | `severity` is not one of `S0 · S1 · S2 · S3` |
-| E802 | `exposure` is not one of `E0 · E1 · E2 · E3 · E4` |
-| E803 | `controllability` is not one of `C0 · C1 · C2 · C3` |
+| E801 | `severity` is not one of `S0 · S1 · S2 · S3` (ISO 26262 HARA) |
+| E802 | `exposure` is not one of `E0 · E1 · E2 · E3 · E4` (ISO 26262 HARA) |
+| E803 | `controllability` is not one of `C0 · C1 · C2 · C3` (ISO 26262 HARA) |
 | E804 | `id` does not match `HE-*` pattern |
+| E833 | `consequence` is not one of `Ca · Cb · Cc · Cd` (IEC 61508 risk graph) |
+| E834 | `freqExposure` is not one of `Fa · Fb` (IEC 61508 risk graph) |
+| E835 | `avoidance` is not one of `Pa · Pb` (IEC 61508 risk graph) |
+| E836 | `demandRate` is not one of `W1 · W2 · W3` (IEC 61508 risk graph) |
 
-### SafetyGoal (E805–E806, W801)
+### SafetyGoal (E805–E806, E837, W801, W806)
 
 | Code | Condition |
 |---|---|
 | E805 | `id`, `title`, or `status` is absent |
 | E806 | `id` does not match `SG-*` pattern |
-| W801 | SafetyGoal has no `asilLevel` — every safety goal requires an ASIL assignment (ISO 26262-3 §6.4) |
+| E837 | `plLevel` is not one of `a · b · c · d · e` (ISO 13849-1) |
+| W801 | SafetyGoal has no integrity level — set `asilLevel` (ISO 26262), `silLevel` (IEC 61508), or `plLevel` (ISO 13849-1) |
+| W806 | SafetyGoal has no `hazardousEvents` — it is not grounded in any hazard analysis |
 
 ### DamageScenario (E807–E810)
 
@@ -226,9 +233,8 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 | E822 | `id`, `title`, or `status` is absent |
 | E823 | `id` does not match `VR-*` pattern |
 | E824 | `cvssScore` is outside range 0.0–10.0 |
-| W803 | VulnerabilityReport has `status: open` — ensure it is being tracked and mitigated |
 
-## Tier 2 cross-reference errors (E825–E830)
+## Tier 2 cross-reference errors (E825–E832)
 
 | Code | Condition |
 |---|---|
@@ -238,13 +244,31 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 | E828 | `SecurityControl.implementsGoals` entry does not resolve to a CybersecurityGoal |
 | E829 | `VulnerabilityReport.mitigatedBy` entry does not resolve to a SecurityControl |
 | E830 | `VulnerabilityReport.affectedElements` entry does not resolve to any known element |
+| E831 | `derivedFromSecurityGoal` does not resolve, or does not resolve to a `CybersecurityGoal` |
+| E832 | `derivedFromSafetyGoal` does not resolve, or does not resolve to a `SafetyGoal` |
 
-## Tier 2 coverage warnings (W800–W803)
+## Tier 2 coverage and traceability warnings (W800–W808)
 
 | Code | Condition |
 |---|---|
 | W800 | HazardousEvent is not referenced by any `SafetyGoal.hazardousEvents` |
 | W802 | CybersecurityGoal is not implemented by any `SecurityControl.implementsGoals` |
+| W803 | VulnerabilityReport has `status: open` — ensure it is being tracked and mitigated |
+| W804 | CybersecurityGoal has no `Requirement` with `derivedFromSecurityGoal` pointing to it |
+| W805 | SafetyGoal has no `Requirement` with `derivedFromSafetyGoal` pointing to it |
+| W806 | SafetyGoal has no `hazardousEvents` — not grounded in any hazard analysis |
+| W807 | `Requirement` with `derivedFromSecurityGoal` has no `verificationMethod` |
+
+## Integrity level propagation errors and warnings (E841–E843, W808)
+
+Once any element in the traceability chain carries `asilLevel` or `silLevel`, all downstream elements must inherit the same field. A lower level is permitted only when accompanied by a `breakdownAdr` documenting the ASIL/SIL decomposition rationale (ISO 26262-9 / IEC 61508-2 §7.4.9).
+
+| Code | Severity | Condition |
+|---|---|---|
+| E841 | Error | Element with `derivedFromSafetyGoal` is missing `asilLevel`/`silLevel` when the referenced SafetyGoal carries one |
+| E842 | Error | Element with `derivedFrom` is missing `asilLevel`/`silLevel` when the parent element carries one |
+| E843 | Error | Element with `satisfies` is missing `asilLevel`/`silLevel` when the satisfied requirement carries one |
+| W808 | Warning | Element's integrity level is strictly lower than its source (`derivedFromSafetyGoal`, `derivedFrom`, or `satisfies`) but no `breakdownAdr` is set |
 
 ## Tier 4 — Fault Tree Analysis (E900–E910, W900–W901)
 
