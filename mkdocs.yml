@@ -61,8 +61,11 @@ nav:
   - Validation:
       - validation/index.md
       - Rule Reference: validation/rules.md
-  - Demo Model:
+  - Demo Models:
       - demo-model/index.md
+      - Engine ECU (ISO 26262): demo-model/engine-ecu.md
+      - SIL 4 Interlocking: demo-model/interlocking.md
+      - UAV Autonomous Flight: demo-model/uav.md
   - Web Browser:
       - browser/index.md
   - Releases: releases/index.md
