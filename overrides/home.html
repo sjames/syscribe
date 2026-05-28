@@ -409,6 +409,14 @@
           TC-* IDs traceable back to requirements. ADRs carry ADR-* IDs that justify
           every decomposition decision.
         </p>
+        <p class="sml-why__body">
+          Because every element is a separate file, it has a stable URL in any git host.
+          A GitHub permalink to <code style="font-size:11px;">Requirements/Safety/REQ-ENG-SAFE-001.md</code>
+          points to that exact requirement at that exact commit — forever. JIRA tickets,
+          Confluence pages, code review comments, and CI reports can all link directly
+          to a specific requirement, test case, or architecture decision, pinned to a
+          branch tip, release tag, or commit hash.
+        </p>
         <div class="sml-metrics">
           <div class="sml-metric">
             <span class="sml-metric__key">Element types</span>
