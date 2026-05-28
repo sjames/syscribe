@@ -1,5 +1,37 @@
 use serde::{Deserialize, Serialize};
 
+/// Serde helper: accept either a plain YAML string or a sequence of strings.
+/// Allows `allocatedFrom: SC-001` and `allocatedFrom: [SC-001, SC-002]` both to
+/// deserialize into `Option<Vec<String>>`.
+mod string_or_vec {
+    use serde::{Deserialize, Deserializer};
+    pub fn deserialize<'de, D>(d: D) -> Result<Option<Vec<String>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v: Option<serde_yaml::Value> = Option::deserialize(d)?;
+        match v {
+            None | Some(serde_yaml::Value::Null) => Ok(None),
+            Some(serde_yaml::Value::String(s)) => Ok(Some(vec![s])),
+            Some(serde_yaml::Value::Sequence(seq)) => {
+                let mut out = Vec::with_capacity(seq.len());
+                for item in seq {
+                    match item {
+                        serde_yaml::Value::String(s) => out.push(s),
+                        other => return Err(serde::de::Error::custom(
+                            format!("expected string in sequence, got {:?}", other)
+                        )),
+                    }
+                }
+                Ok(Some(out))
+            }
+            other => Err(serde::de::Error::custom(
+                format!("expected string or list for allocatedFrom/allocatedTo, got {:?}", other)
+            )),
+        }
+    }
+}
+
 /// All recognized SysML element types.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ElementType {
@@ -142,8 +174,10 @@ pub struct RawFrontmatter {
     pub text: Option<String>,
     pub verifies: Option<Vec<String>>,
     pub objective: Option<String>,
-    pub allocated_from: Option<String>,
-    pub allocated_to: Option<String>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub allocated_from: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub allocated_to: Option<Vec<String>>,
     pub expose: Option<Vec<serde_yaml::Value>>,
     pub viewpoint: Option<String>,
     pub stakeholders: Option<Vec<String>>,

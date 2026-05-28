@@ -250,8 +250,12 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     if let Some(ref s) = fm.breakdown_adr { out.push(("breakdownAdr".into(), s.clone())); }
     if let Some(ref g) = fm.derived_from_security_goal { out.push(("derivedFromSecurityGoal".into(), g.clone())); }
     if let Some(ref g) = fm.derived_from_safety_goal { out.push(("derivedFromSafetyGoal".into(), g.clone())); }
-    if let Some(ref s) = fm.allocated_from { out.push(("allocatedFrom".into(), s.clone())); }
-    if let Some(ref s) = fm.allocated_to { out.push(("allocatedTo".into(), s.clone())); }
+    if let Some(ref afs) = fm.allocated_from {
+        for s in afs { out.push(("allocatedFrom".into(), s.clone())); }
+    }
+    if let Some(ref ats) = fm.allocated_to {
+        for s in ats { out.push(("allocatedTo".into(), s.clone())); }
+    }
     if let Some(ref es) = fm.exhibits_states {
         for s in es { out.push(("exhibitsStates".into(), s.clone())); }
     }

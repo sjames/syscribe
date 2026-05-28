@@ -983,23 +983,27 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
             }
         }
 
-        // E502/E503: allocatedFrom/allocatedTo must resolve on any element that sets them
-        if let Some(ref af) = fm.allocated_from {
-            if resolver.resolve_ref(elements, af).is_none() {
-                findings.push(error(
-                    "E502",
-                    &file,
-                    &format!("`allocatedFrom` '{}' does not resolve to a known element", af),
-                ));
+        // E502/E503: allocatedFrom/allocatedTo must each resolve on any element that sets them
+        if let Some(ref afs) = fm.allocated_from {
+            for af in afs {
+                if resolver.resolve_ref(elements, af).is_none() {
+                    findings.push(error(
+                        "E502",
+                        &file,
+                        &format!("`allocatedFrom` '{}' does not resolve to a known element", af),
+                    ));
+                }
             }
         }
-        if let Some(ref at_ref) = fm.allocated_to {
-            if resolver.resolve_ref(elements, at_ref).is_none() {
-                findings.push(error(
-                    "E503",
-                    &file,
-                    &format!("`allocatedTo` '{}' does not resolve to a known element", at_ref),
-                ));
+        if let Some(ref ats) = fm.allocated_to {
+            for at_ref in ats {
+                if resolver.resolve_ref(elements, at_ref).is_none() {
+                    findings.push(error(
+                        "E503",
+                        &file,
+                        &format!("`allocatedTo` '{}' does not resolve to a known element", at_ref),
+                    ));
+                }
             }
         }
 
@@ -1959,11 +1963,15 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                 continue;
             }
             // allocated_from is the software side; allocated_to is the hardware side
-            if let Some(ref to_ref) = elem.frontmatter.allocated_to {
-                if let Some(target) = resolver.get(elements, to_ref) {
-                    if target.frontmatter.domain.as_deref() == Some("hardware") {
-                        if let Some(ref from_ref) = elem.frontmatter.allocated_from {
-                            hw_alloc_targets.insert(from_ref.clone());
+            if let Some(ref to_refs) = elem.frontmatter.allocated_to {
+                for to_ref in to_refs {
+                    if let Some(target) = resolver.get(elements, to_ref) {
+                        if target.frontmatter.domain.as_deref() == Some("hardware") {
+                            if let Some(ref from_refs) = elem.frontmatter.allocated_from {
+                                for from_ref in from_refs {
+                                    hw_alloc_targets.insert(from_ref.clone());
+                                }
+                            }
                         }
                     }
                 }

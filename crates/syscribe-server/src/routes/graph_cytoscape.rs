@@ -282,9 +282,11 @@ pub async fn get_graph(State(state): State<SharedState>) -> Json<GraphResponse> 
         }
 
         // allocatedTo
-        if let Some(ref at_) = fm.allocated_to {
-            if let Some(tgt) = resolve_to_qname(resolver, elements, at_) {
-                add_edge(&mut edges, &mut seen_edges, src, &tgt, "allocatedTo");
+        if let Some(ref ats) = fm.allocated_to {
+            for at_ in ats {
+                if let Some(tgt) = resolve_to_qname(resolver, elements, at_) {
+                    add_edge(&mut edges, &mut seen_edges, src, &tgt, "allocatedTo");
+                }
             }
         }
 

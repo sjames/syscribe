@@ -121,14 +121,18 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
         }
 
         // allocatedFrom / allocatedTo
-        if let Some(ref af) = fm.allocated_from {
-            if let Some(dst) = idx.get(af.as_str()).copied() {
-                graph.add_edge(src, dst, EdgeKind::AllocatedFrom);
+        if let Some(ref afs) = fm.allocated_from {
+            for af in afs {
+                if let Some(dst) = idx.get(af.as_str()).copied() {
+                    graph.add_edge(src, dst, EdgeKind::AllocatedFrom);
+                }
             }
         }
-        if let Some(ref at_) = fm.allocated_to {
-            if let Some(dst) = idx.get(at_.as_str()).copied() {
-                graph.add_edge(src, dst, EdgeKind::AllocatedTo);
+        if let Some(ref ats) = fm.allocated_to {
+            for at_ in ats {
+                if let Some(dst) = idx.get(at_.as_str()).copied() {
+                    graph.add_edge(src, dst, EdgeKind::AllocatedTo);
+                }
             }
         }
 

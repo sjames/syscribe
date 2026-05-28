@@ -691,8 +691,10 @@ leaf hardware parts (Motor, Rotor, IMU, etc.) that are not directly allocated a 
 
             // Prefer top-level allocated_from / allocated_to
             if alloc.frontmatter.allocated_from.is_some() || alloc.frontmatter.allocated_to.is_some() {
-                let from = alloc.frontmatter.allocated_from.as_deref().unwrap_or("—").to_string();
-                let to = alloc.frontmatter.allocated_to.as_deref().unwrap_or("—").to_string();
+                let from = alloc.frontmatter.allocated_from.as_ref()
+                    .map(|v| v.join(", ")).unwrap_or_else(|| "—".into());
+                let to = alloc.frontmatter.allocated_to.as_ref()
+                    .map(|v| v.join(", ")).unwrap_or_else(|| "—".into());
                 rows.push((group_name, from, to));
             } else if let Some(ref features) = alloc.frontmatter.features {
                 // Look for allocatedFrom / allocatedTo in inline feature maps
