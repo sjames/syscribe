@@ -419,6 +419,42 @@
     /* Hide edit button inside the side panel */
     #doc-panel-content .detail-actions { display: none; }
 
+    /* ── Validation findings in doc panel ── */
+    .panel-findings {
+      margin-top: 16px;
+      border-top: 1px solid #334155;
+      padding-top: 12px;
+    }
+    .panel-findings-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+    .panel-finding {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+      padding: 5px 8px;
+      border-radius: 5px;
+      margin-bottom: 4px;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .panel-finding.pf-error   { background: rgba(239,68,68,0.12);  border-left: 3px solid #ef4444; }
+    .panel-finding.pf-warning { background: rgba(245,158,11,0.10); border-left: 3px solid #f59e0b; }
+    .panel-finding-code {
+      font-family: ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .pf-error   .panel-finding-code { color: #fca5a5; }
+    .pf-warning .panel-finding-code { color: #fcd34d; }
+    .panel-finding-msg { color: #cbd5e1; }
+
     /* ── Tooltip ── */
     .cy-tooltip {
       position: fixed;
@@ -770,10 +806,11 @@ function buildStylesheet() {
 let cy            = null;
 let currentLayout = 'dagre';
 let packagesHidden = false;
-let inFocusMode   = false;
+let inFocusMode    = false;
 let savedPositions = null;   // {id: {x,y}} snapshot before focus mode
-const hiddenTypes = new Set();
-let issuesOnly = false;
+const hiddenTypes  = new Set();
+let issuesOnly     = false;
+let allFindings    = [];     // full validation findings, populated after fetch
 
 const REQ_TYPES = new Set(['Requirement', 'RequirementDef']);
 const TC_TYPES  = new Set(['TestCase']);
@@ -1269,6 +1306,21 @@ function openDocPanel(qname, label, type) {
     .then(html => {
       loading.classList.remove('visible');
       content.innerHTML = html;
+      // Append validation findings for this element
+      const elemFindings = allFindings.filter(f => f.qname === qname);
+      if (elemFindings.length) {
+        const div = document.createElement('div');
+        div.className = 'panel-findings';
+        div.innerHTML = '<div class="panel-findings-title">Validation findings</div>' +
+          elemFindings.map(f => {
+            const cls = f.severity === 'error' ? 'pf-error' : 'pf-warning';
+            return `<div class="panel-finding ${cls}">` +
+              `<span class="panel-finding-code">${esc(f.code)}</span>` +
+              `<span class="panel-finding-msg">${esc(f.message)}</span>` +
+              `</div>`;
+          }).join('');
+        content.appendChild(div);
+      }
       // Re-run Mermaid on any diagrams in the injected fragment
       if (window.mermaid) {
         mermaid.run({ nodes: content.querySelectorAll('pre.mermaid') });
@@ -1333,6 +1385,7 @@ Promise.all([
 
 function applyValidationData(valData) {
   if (!cy || !valData || !valData.findings) return;
+  allFindings = valData.findings;
   // Build qname → { hasError, hasWarning, codes[] }
   const issueMap = {};
   for (const f of valData.findings) {
