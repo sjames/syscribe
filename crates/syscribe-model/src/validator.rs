@@ -412,10 +412,6 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                     findings.push(error("E821", &file, &format!("SecurityControl.controlType '{}' must be prevention, detection, response, or recovery", ct)));
                 }
             }
-            // W806: SecurityControl with no allocatedTo — architecture allocation not recorded
-            if fm.allocated_to.is_none() {
-                findings.push(warning("W806", &file, "SecurityControl has no `allocatedTo` — record which architecture element implements this control"));
-            }
         }
 
         // ── Tier 2: VulnerabilityReport (E822-E824) ──────────────────────────
@@ -1701,15 +1697,6 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
             }
         }
 
-        // E838: SecurityControl.allocatedTo must resolve to a known element
-        if matches!(fm.element_type, Some(ElementType::SecurityControl)) {
-            if let Some(ref at_ref) = fm.allocated_to {
-                if resolver.resolve_ref(elements, at_ref).is_none() {
-                    findings.push(error("E838", &elem.file_path,
-                        &format!("`allocatedTo` '{}' does not resolve to a known element", at_ref)));
-                }
-            }
-        }
     }
 
     // ── Tier 4 cross-reference checks ────────────────────────────────────────

@@ -426,7 +426,6 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
     if let Some(ref ig) = fm.implements_goals {
         if !ig.is_empty() { println!("| **implementsGoals** | {} |", ig.join(", ")); }
     }
-    if let Some(ref at_) = fm.allocated_to { println!("| **allocatedTo** | {} |", at_); }
     if let Some(score) = fm.cvss_score { println!("| **cvssScore** | {} |", score); }
     if let Some(ref cve) = fm.cve_id { println!("| **cveId** | {} |", cve); }
     if let Some(ref ae) = fm.affected_elements {
@@ -1702,11 +1701,20 @@ status: draft
 controlType: prevention   # prevention | detection | response | recovery
 implementsGoals:
   - CSG-PREFIX-001
-allocatedTo: Package::Component   # architecture element responsible for this control
 # satisfies: REQ-SEC-PREFIX-001
 ---
 
 Describe the security control mechanism, its scope, and how it implements the referenced cybersecurity goals.
+
+## Architecture allocation
+
+To bind this control to a specific architecture element, create an Allocation:
+
+```yaml
+type: Allocation
+allocatedFrom: SC-PREFIX-001       # the security control
+allocatedTo: Package::Component    # the Part or PartDef that implements it
+```
 "#,
         "vulnerabilityreport" => r#"---
 type: VulnerabilityReport
