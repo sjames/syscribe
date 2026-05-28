@@ -3,8 +3,8 @@ type: Requirement
 id: REQ-UAV-SAFE-001
 title: "Autonomous safe landing on battery-critical or link-loss event"
 status: approved
-silLevel: 2
 asilLevel: B
+verificationMethod: test
 reqDomain: software
 derivedFrom:
   - REQ-UAV-SAFE-000

@@ -3,8 +3,8 @@ type: Requirement
 id: REQ-UAV-FC-001
 title: "Flight controller shall detect single sensor failure within 50 ms"
 status: approved
-silLevel: 3
 asilLevel: C
+verificationMethod: test
 reqDomain: software
 derivedFrom:
   - REQ-UAV-SAFE-000

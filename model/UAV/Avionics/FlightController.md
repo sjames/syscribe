@@ -3,6 +3,7 @@ type: PartDef
 name: FlightController
 supertype: Parts::Part
 domain: software
+asilLevel: C
 satisfies:
   - REQ-UAV-FC-001
   - REQ-UAV-SAFE-001

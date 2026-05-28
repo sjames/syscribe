@@ -3,8 +3,8 @@ type: Requirement
 id: REQ-UAV-SAFE-000
 title: "UAV shall not cause injury to persons or property during any flight phase"
 status: approved
-silLevel: 2
 asilLevel: B
+verificationMethod: analysis
 tags:
   - safety
   - stakeholder
