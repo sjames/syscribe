@@ -60,68 +60,96 @@ Change type (pick all that apply):
   [ ] Supersede an existing ADR with a revised decision
   [ ] Other: ...
 
-Existing model summary (paste the output of the validator summary or list manually):
+Elements affected by this change (qualified names):
+  - Requirements::SomeReq          (status: approved, reqDomain: software)
+  - Decisions::SomeADR             (status: accepted)
+  - AID::Avionics::FlightController (domain: software, satisfies: [REQ-XXX-001])
+  - ...
 
-  Existing Requirement IDs in use:
-    REQ-XXX-001, REQ-XXX-002, ...   ← list all so new IDs don't collide
-
-  Existing ADR IDs in use:
-    ADR-XXX-001, ...
-
-  Existing TestCase IDs in use:
-    TC-XXX-001, ...
-
-  Elements affected by this change (qualified names):
-    - Requirements::SomeReq          (status: approved, reqDomain: software)
-    - Decisions::SomeADR             (status: accepted)
-    - AID::Avionics::FlightController (domain: software, satisfies: [REQ-XXX-001])
-    - ...
-
-  Elements that must NOT change:
-    - ...
+Elements that must NOT change:
+  - ...
 ```
+
+---
+
+## CLI Tools
+
+Use these commands throughout the workflow. Run them in the project root.
+
+**Discovery and navigation:**
+
+| Command | Purpose |
+|---|---|
+| `syscribe model/ show <qname\|id>` | Show element details and all fields |
+| `syscribe model/ ls [qname]` | List namespace children (default: root) |
+| `syscribe model/ tree [qname]` | Recursive namespace tree |
+| `syscribe model/ find <pattern>` | Fuzzy search by name / ID / content |
+| `syscribe model/ list <type> [scope]` | List all elements of a given type, optionally scoped |
+| `syscribe model/ types` | All element types present in the model with counts |
+| `syscribe model/ untyped` | List elements with no `type:` field set |
+| `syscribe model/ links <qname\|id>` | All outbound and inbound relationships |
+| `syscribe model/ refs <qname\|id>` | What elements reference this element |
+
+**Traceability:**
+
+| Command | Purpose |
+|---|---|
+| `syscribe model/ trace <qname\|req-id>` | Full traceability slice for a requirement |
+| `syscribe model/ why <qname>` | What requirements this element satisfies |
+| `syscribe model/ who-verifies <req-id>` | Which test cases cover a requirement |
+
+**Authoring helpers:**
+
+| Command | Purpose |
+|---|---|
+| `syscribe model/ validate` | Validation findings only — errors and warnings |
+| `syscribe model/ validate --json` | Same, machine-readable JSON |
+| `syscribe model/ validate --file <path>` | Findings for a single file only |
+| `syscribe model/ template <type>` | Print a ready-to-fill frontmatter skeleton |
+| `syscribe model/ next-id <prefix>` | Print the next available stable ID (e.g. `REQ-AID-FC-002`) |
+| `syscribe model/ check-ref <qname\|id>` | Verify a cross-reference resolves before writing it |
+| `syscribe model/ path-for <qname\|id>` | Print the file path for an element |
+
+**Before writing a new element:**
+1. `template <type>` — get the frontmatter skeleton
+2. `next-id <prefix>` — get the next non-colliding ID (for Requirement / TestCase / ADR)
+3. `check-ref <qname>` — verify every cross-reference resolves before committing it to a file
 
 ---
 
 ## Validation Workflow
 
-**You must validate the model with the CLI tool as you work.** Do not output all files at once and then validate at the end. Write a batch, validate, fix errors, then continue to the next batch.
+**Validate as you work.** Do not output all files at once and validate at the end. Write a batch, validate, fix errors, then continue.
 
 ### The validator command
 
 ```bash
-syscribe model/
-```
-
-The report prints to stdout. The relevant lines are in **Section 2 — Validation Findings**:
-
-```
-## 2. Validation Findings
-
-### Errors
-
-| Code | File | Message |
-|---|---|---|
-| E310 | model/Requirements/FaultDetectionReq.md | derivedFrom is set but breakdownAdr is absent |
-
-### Warnings
-
-| Code | File | Message |
-|---|---|---|
-| W001 | model/Requirements/DataLinkReq.md | normative text contains no 'shall' |
+syscribe model/ validate
 ```
 
 - **Errors** (`E___`) block a correct model. Fix every error before continuing.
 - **Warnings** (`W___`) are advisory. Aim to fix them, but they do not block progress.
 
-The target is **0 errors**. Two W404 warnings for `ScalarValues::*` types are expected and acceptable — standard library types are not registered in the model tree.
+The target is **0 errors**. Two W404 warnings for `ScalarValues::*` types are expected and acceptable.
+
+For single-file feedback during iterative authoring:
+
+```bash
+syscribe model/ validate --file model/Requirements/MyNewReq.md
+```
+
+For structured output (useful when parsing findings programmatically):
+
+```bash
+syscribe model/ validate --json
+```
 
 ### Validation batches
 
 Work in this order, validating after each batch:
 
 **Batch 1 — Skeleton**
-Write all `_index.md` package files. Validate. There should be 0 errors at this point.
+Write all `_index.md` package files. Validate. There should be 0 errors.
 
 **Batch 2 — Architecture elements**
 Write PartDef / ItemDef / PortDef / InterfaceDef / ActionDef elements, then Part / Port / Connection instances. Validate and fix before continuing.
@@ -142,13 +170,13 @@ Add `satisfies:` to architecture elements. Validate and fix any E312 (parent in 
 Write `Allocation` elements. Validate: fix E502/E503 (unresolved `allocatedFrom`/`allocatedTo`).
 
 **Batch 8 — Diagrams**
-Write `Diagram` elements after all model elements are in place. For Mermaid or embedded SVG diagrams, write the `.md` file directly. For `svgMode: companion` diagrams, use the 4-step CLI workflow: `diagram list` → `diagram measure` → author `*.layout.json` → `diagram compose --output <path>`, then commit both the `.md` and the generated `.svg`. Validate: fix E400 (missing mermaid block), W402 (unresolved shape ref), W403 (undefined edge endpoint), W408 (unresolved `%% ref:` annotation in Mermaid block), W409 (Mermaid diagram has no `%% ref:` annotations at all).
+Write `Diagram` elements after all model elements are in place. For Mermaid or embedded SVG diagrams, write the `.md` file directly. For `svgMode: companion` diagrams, use the 4-step CLI workflow: `diagram list` → `diagram measure` → author `*.layout.json` → `diagram compose --output <path>`, then commit both the `.md` and the generated `.svg`. Validate: fix E400, W402, W403, W408, W409.
 
-After all batches pass with 0 errors, review the warnings section and fix any that indicate genuine gaps (W300 — leaf requirement has no satisfying element; W002 — approved requirement has no active TestCase).
+After all batches pass with 0 errors, review warnings and fix any that indicate genuine gaps (W300 — leaf requirement has no satisfying element; W002 — approved requirement has no active TestCase).
 
 ### Fixing errors
 
-When the validator reports errors, fix them before writing new files. Paste the error table to yourself as a checklist:
+When the validator reports errors, fix them before writing new files. Paste the error table as a checklist:
 
 ```
 Errors to fix:
@@ -156,7 +184,7 @@ Errors to fix:
 [ ] E102  model/Verification/FCTest.md             — verifies: REQ-AID-FC-999 does not resolve
 ```
 
-Check off each one, then re-run the validator to confirm 0 errors before proceeding.
+Check off each one, then re-run `validate` to confirm 0 errors before proceeding.
 
 ---
 
@@ -204,14 +232,12 @@ No other changes.
 After each batch of files, show the validator command and its output before continuing:
 
 ```
-Running: syscribe model/
+Running: syscribe model/ validate
 
-[paste Section 2 of the report here]
+[paste output here]
 
 ✓ 0 errors — continuing to next batch.
 ```
-
-If there are errors, fix them in the same response before declaring the batch done.
 
 ---
 
@@ -284,34 +310,30 @@ One-line description of this package.
 | `Allocation` | `allocation` | `Allocations/` |
 | `Diagram` | diagram | `Diagrams/` |
 
+For a ready-to-fill frontmatter skeleton for any type, run:
+
+```bash
+syscribe model/ template <type>
+```
+
 ---
 
 ## Part 3 — Common Frontmatter Fields
 
-These fields apply to most element types:
+Key fields that apply to most element types:
 
-```yaml
----
-type: PartDef                     # required — one of the types above
-name: MyElement                   # display name; defaults to filename stem if omitted
-supertype: OtherPkg::OtherElement # specialisation link ('>' in SysML)
-isAbstract: false                 # true for abstract element definitions
-multiplicity: "1"                 # cardinality; default "1"
-domain: system                    # system | hardware | software  (required on Part/PartDef)
-features:                         # inline attributes or ports
-  - name: mass
-    type: ScalarValues::Real
-    unit: kg
-connections:                      # port bindings (on Part files)
-  - from: subpartA::outPort
-    to: subpartB::inPort
-tags:
-  - myTag
----
-
-Markdown body — documentation text goes here. Leave non-empty for PartDef and Part
-(empty body triggers warning W600).
-```
+| Field | Notes |
+|---|---|
+| `type` | Required — one of the types in Part 2 |
+| `name` | Display name; defaults to filename stem if omitted |
+| `supertype` | Specialisation link (`>` in SysML) |
+| `typedBy` | Type of a usage element (port, part, action, etc.) |
+| `isAbstract` | `true` for abstract definitions |
+| `multiplicity` | Cardinality; default `"1"` |
+| `domain` | `system` \| `hardware` \| `software` — required on Part/PartDef |
+| `features` | Inline attributes or ports |
+| `connections` | Port bindings (on Part files) |
+| `satisfies` | List of `REQ-*` IDs this element satisfies |
 
 ### `domain:` field rules
 
@@ -336,17 +358,15 @@ Markdown body — documentation text goes here. Leave non-empty for PartDef and 
 | Field | Notes |
 |---|---|
 | `reqDomain` | `system` · `hardware` · `software` — required on leaf requirements |
-| `silLevel` | Integer 1–4; must accompany `asilLevel` (W006 if one is present without the other) |
+| `silLevel` | Integer 1–4; must accompany `asilLevel` |
 | `asilLevel` | `A` · `B` · `C` · `D`; must accompany `silLevel` |
 | `derivedFrom` | List of parent Requirement `id`s — triggers §12 rules |
 | `breakdownAdr` | Qualified name of an `accepted` ADR — **required whenever `derivedFrom` is set** (E310) |
-| `tags` | Free list |
 
 ### Normative body rules
 
 - The Markdown body **before the first `##` heading** is the normative text.
-- It must be **non-empty** (error E012).
-- It must contain the word **`shall`** (warning W001 if absent — aim to satisfy this).
+- It must be **non-empty** (error E012) and contain the word **`shall`** (warning W001).
 
 ### Requirement hierarchy
 
@@ -356,33 +376,11 @@ REQ-SYS-000  (parent — stakeholder goal, no derivedFrom, no reqDomain needed)
   └── REQ-SW-001   (leaf, derivedFrom: [REQ-SYS-000], breakdownAdr: Decisions::MyADR, reqDomain: software)
 ```
 
-**Parent requirements** (those that have children deriving from them) must **never** appear in any element's `satisfies:` list (error E312). Only leaf requirements may be satisfied.
+**Parent requirements** must **never** appear in any element's `satisfies:` list (error E312). Only leaf requirements may be satisfied.
 
-### Full example
+**Getting the next ID:** `syscribe model/ next-id REQ-AID-FC` → prints e.g. `REQ-AID-FC-002`
 
-```yaml
----
-type: Requirement
-id: REQ-AID-FC-001
-title: "Flight controller shall detect sensor failure within 50 ms"
-status: approved
-silLevel: 3
-asilLevel: C
-reqDomain: software
-derivedFrom:
-  - REQ-AID-SAFE-000
-breakdownAdr: Decisions::SafetyDecompositionADR
-tags:
-  - safety
-  - fault-detection
----
-
-The flight controller shall detect and isolate any single sensor failure within 50 ms of failure onset and emit a fault telemetry event.
-
-## Rationale
-
-A 50 ms detection window ensures the autopilot can initiate corrective action before attitude error exceeds recoverable bounds.
-```
+**Template:** `syscribe model/ template Requirement`
 
 ---
 
@@ -392,55 +390,17 @@ A 50 ms detection window ensures the autopilot can initiate corrective action be
 
 | Field | Rule |
 |---|---|
-| `id` | Must match `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3}$` — e.g. `ADR-SYS-001`, `ADR-SW-SCHED-001` |
+| `id` | Must match `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3}$` |
 | `title` | Short description of the decision |
 | `status` | `proposed` · `accepted` · `deprecated` · `superseded` |
 
 **ADR must be `accepted` before any Requirement can cite it in `breakdownAdr:`** (warning W303 if still `proposed`).
 
-### Body structure (conventional — not validated beyond being non-empty)
+Body structure: `## Context`, `## Decision`, `## Consequences` (conventional — not validated beyond being non-empty).
 
-```markdown
-## Context
+**Getting the next ID:** `syscribe model/ next-id ADR-AID-SAFE`
 
-Why was this decision needed?
-
-## Decision
-
-What was decided and why.
-
-## Consequences
-
-What changes as a result.
-```
-
-### Full example
-
-```yaml
----
-type: ADR
-id: ADR-AID-SAFE-001
-title: "Decompose safety goal into fault-detection and safe-landing sub-requirements"
-status: accepted
-tags:
-  - safety
-  - decomposition
----
-
-## Context
-
-The top-level safety requirement REQ-AID-SAFE-000 is too broad to assign to a single element.
-
-## Decision
-
-Decompose REQ-AID-SAFE-000 into:
-- REQ-AID-FC-001 — sensor fault detection ≤ 50 ms (software, ASIL-C)
-- REQ-AID-LAND-001 — autonomous safe landing on battery-critical event (software, ASIL-B)
-
-## Consequences
-
-The flight controller becomes the primary safety-relevant software element.
-```
+**Template:** `syscribe model/ template ADR`
 
 ---
 
@@ -450,80 +410,21 @@ The flight controller becomes the primary safety-relevant software element.
 
 | Field | Rule |
 |---|---|
-| `id` | Must match `^TC(-[A-Z0-9]{2,12})+-[0-9]{3}$` — e.g. `TC-AID-FC-001` |
+| `id` | Must match `^TC(-[A-Z0-9]{2,12})+-[0-9]{3}$` |
 | `title` | Short description |
 | `status` | `draft` · `review` · `approved` · `active` · `retired` |
 | `testLevel` | `L1` · `L2` · `L3` · `L4` · `L5` |
-| `verifies` | List of Requirement `id`s — **must not be empty** (error E013); targets must be native `Requirement` elements (error E104) |
+| `verifies` | List of Requirement `id`s — **must not be empty** (error E013) |
 
 ### Body rules
 
-- The body **must contain a fenced ` ```gherkin ` block** (error E011).
-- The first ` ```gherkin ` block **must begin with a `Feature:` line** (error E015).
-- Every `Scenario Outline:` block must have an `Examples:` table (error E014).
+- Must contain a fenced ` ```gherkin ` block (error E011).
+- First ` ```gherkin ` block must begin with `Feature:` (error E015).
+- Every `Scenario Outline:` must have an `Examples:` table (error E014).
 
-### Gherkin structure
+**Getting the next ID:** `syscribe model/ next-id TC-AID-FC`
 
-````markdown
-```gherkin
-Feature: <Feature name>
-
-  Background:
-    Given <precondition>
-    And <precondition>
-
-  Scenario: <Scenario name>
-    When <action>
-    Then <expected result>
-    And <expected result>
-
-  Scenario Outline: <Parameterised scenario>
-    When <action with <param>>
-    Then <result with <param>>
-
-    Examples:
-      | param |
-      | value |
-```
-````
-
-### Full example
-
-````markdown
-```yaml
----
-type: TestCase
-id: TC-AID-FC-001
-title: "FC detects injected sensor failure within 50 ms on HIL bench"
-status: active
-testLevel: L5
-verifies:
-  - REQ-AID-FC-001
-tags:
-  - safety
-  - fault-detection
----
-
-Hardware-in-the-loop test using the fault injection bench.
-```
-
-```gherkin
-Feature: Flight controller sensor fault detection
-
-  Background:
-    Given the HIL bench is configured with the flight controller under test
-    And CAN bus monitoring is active at 1 kHz sample rate
-
-  Scenario: IMU failure is detected within 50 ms
-    When a simulated IMU sensor failure is injected
-    Then the flight controller shall assert FAULT_DETECTED within 50 ms
-    And the FC shall transition to degraded mode
-
-  Scenario: GPS failure is detected within 50 ms
-    When a simulated GPS loss-of-fix condition is injected
-    Then the flight controller shall assert FAULT_DETECTED within 50 ms
-```
-````
+**Template:** `syscribe model/ template TestCase`
 
 ---
 
@@ -531,540 +432,111 @@ Feature: Flight controller sensor fault detection
 
 Allocations link a `software` or `system` element to a `hardware` element. Use them for cross-domain integration; never use `supertype:` across domain boundaries.
 
-```yaml
----
-type: Allocation
-name: FCAllocation
-allocatedFrom: AID::Avionics::FlightController   # software element (qualified name)
-allocatedTo:   AID::Hardware::ProcessorBoard     # hardware element (qualified name)
----
-```
-
 Required: `allocatedFrom` and `allocatedTo` must both resolve to known elements (errors E502, E503).
+
+**Template:** `syscribe model/ template Allocation`
 
 ---
 
 ## Part 8 — PortDef with Operations (`type: PortDef`)
 
-```yaml
----
-type: PortDef
-name: ControlPortDef
-operations:
-  - name: arm
-    doc: "Arm the system."
-    isQuery: false
-    isAsync: false
-    parameters:
-      - name: safetyCode
-        typedBy: ScalarValues::Integer
-        direction: in
-        multiplicity: "1"
-    returnType: ScalarValues::Boolean
-  - name: emergencyStop
-    doc: "Signal immediate abort — fire-and-forget."
-    isAsync: true          # async receptions have no returnType
-    parameters: []
----
-
-Control port definition for arming and emergency-stop signalling.
-```
-
-Rules:
+Operations on a PortDef:
 - `isAsync: true` and `returnType:` are mutually exclusive.
 - `direction:` values: `in` · `out` · `inout`.
-- `typedBy:` and `returnType:` trigger W404 if they don't resolve — standard-library types like `ScalarValues::*` are acceptable W404 warnings.
+- `typedBy:` and `returnType:` trigger W404 if they don't resolve — `ScalarValues::*` warnings are acceptable.
+
+**Template:** `syscribe model/ template PortDef`
 
 ---
 
 ## Part 9 — Diagrams
 
-Every diagram is a `type: Diagram` element in `Diagrams/`. Three authoring approaches are available:
+Every diagram is a `type: Diagram` element in `Diagrams/`. Three authoring approaches:
 
-- **Mermaid** — for traceability trees, flow diagrams, sequence diagrams, and simple state machines. Fast to write; rendered client-side.
-- **Composed SVG** (`syscribe diagram` CLI) — for element-card architecture diagrams where card content is generated from live model data and edges route between named port anchors. Preferred for structural architecture overviews. Commit the generated SVG as a companion file.
-- **Embedded SVG** — hand-coded SVG using the symbol library, for precise SysML notation (BDD, IBD, StateMachine, Requirement diagrams). Maximum control; highest effort.
+- **Mermaid** — for traceability trees, flow diagrams, sequence diagrams, simple state machines. Set `diagramKind: Mermaid`. Include a fenced ` ```mermaid ` block (error E400 if absent).
+- **Composed SVG** (`syscribe diagram` CLI) — element-card architecture diagrams. Cards generated from live model data. Commit the generated SVG as a companion file.
+- **Embedded SVG** — hand-coded SVG using the symbol library, for precise SysML notation (BDD, IBD, StateMachine, Requirement).
 
 ### Diagram element frontmatter
 
 ```yaml
 ---
 type: Diagram
-name: UAVSystemBDD          # becomes the qualified name Diagrams::UAVSystemBDD
+name: UAVSystemBDD
 diagramKind: BDD            # BDD | IBD | StateMachine | Requirement | Mermaid
 subject: UAV::UAVSystem     # element this diagram depicts (W401 if it doesn't resolve)
 svgMode: inline             # required when embedding SVG in the body
-shapes:                     # shape-id → descriptor (for structured diagrams)
+shapes:                     # shape-id → descriptor
   s-uav: {ref: "UAV::UAVSystem", kind: PartDef}
   s-fc:  {ref: "UAV::Avionics::FlightController", kind: Part, parent: s-uav}
-edges:                      # edge-id → descriptor
+edges:
   e-comp: {source: s-uav, target: s-fc, kind: composition}
 ---
 ```
 
-Shape descriptor fields:
+Shape `ref:` triggers W402 if it doesn't resolve. Edge `source`/`target` trigger W403 if they don't match a defined shape-id.
 
-| Field | Values |
-|---|---|
-| `ref` | Qualified name of the element — W402 if it doesn't resolve (sub-features like `Foo::portName` are suppressed) |
-| `kind` | `PartDef` · `Part` · `Port` · `boundary` · `state` · `initial` · `Requirement` · `RequirementDef` · `TestCaseDef` |
-| `parent` | Shape-id of the enclosing boundary (IBD nesting only) |
+### Annotating Mermaid nodes with model element references (`%% ref:`)
 
-Edge descriptor fields:
-
-| Field | Values |
-|---|---|
-| `source` / `target` | Shape-ids — W403 if they don't match a defined shape |
-| `kind` | `composition` · `flowConnection` · `derivedFrom` · `verifies` · `allocatedTo` · `transition` |
-| `ref` | Optional: qualified name of the element this edge represents |
-
----
-
-### Mermaid diagrams
-
-Use for: requirement derivation trees, architecture overviews, sequence interactions, anything not requiring precise SysML block notation.
-
-Set `diagramKind: Mermaid`. Include a fenced ` ```mermaid ` block in the body (error E400 if absent). No `svgMode:`, no `shapes:`, no `edges:`.
-
-**Requirement derivation tree:**
-
-````markdown
-```new: model/Diagrams/RequirementTrace.md
----
-type: Diagram
-name: RequirementTrace
-diagramKind: Mermaid
-subject: Requirements
----
-
-Requirement derivation showing how stakeholder goals break down into leaf requirements.
-
-```mermaid
-graph TD
-  SAFE["REQ-AID-SAFE-000<br/>Safety Goal"]
-  FC["REQ-AID-FC-001<br/>Fault Detection ≤ 50 ms"]
-  LAND["REQ-AID-LAND-001<br/>Safe Landing"]
-
-  SAFE --> FC
-  SAFE --> LAND
-
-  style SAFE fill:#fce7f3,stroke:#ec4899
-  style FC   fill:#fef3c7,stroke:#f59e0b
-  style LAND fill:#fef3c7,stroke:#f59e0b
-```
-```
-````
-
-**Architecture overview (flowchart):**
-
-````markdown
-```mermaid
-flowchart LR
-  GCS["GroundControlStation"]
-  FC["FlightController\n(software)"]
-  IMU["IMU\n(hardware)"]
-  GPS["GPSReceiver\n(hardware)"]
-  BAT["BatteryPack\n(hardware)"]
-
-  GCS -- "cmd uplink / telem downlink" --> FC
-  IMU -- "attitude data" --> FC
-  GPS -- "position fix" --> FC
-  BAT -- "power bus" --> FC
-```
-````
-
-**Sequence diagram:**
-
-````markdown
-```mermaid
-sequenceDiagram
-  participant GCS as Ground Station
-  participant FC as FlightController
-  participant IMU as IMU
-
-  GCS->>FC: arm(safetyCode)
-  FC->>IMU: requestAttitude()
-  IMU-->>FC: AttitudePacket
-  FC-->>GCS: armAck(status=OK)
-```
-````
-
-**State machine (alternative to embedded SVG for simple machines):**
-
-````markdown
-```mermaid
-stateDiagram-v2
-  [*] --> disarmed
-  disarmed --> armed    : ControlCommand [disarmed]
-  armed --> takingOff   : ControlCommand [armed]
-  takingOff --> flying  : [altitude >= target]
-  flying --> landing    : ControlCommand [RTH]
-  landing --> disarmed  : [altitude <= 0.1]
-
-  armed --> fault       : [imu.accel > 30]
-  takingOff --> fault   : [altitude stall]
-  flying --> fault      : [battery < 10%]
-  fault --> disarmed    : ControlCommand [cleared]
-```
-````
-
-**Annotating Mermaid nodes with model element references (`%% ref:`):**
-
-Mermaid's native comment syntax (`%%`) can be used to annotate any line in a diagram with a qualified model element reference. The validator checks these and emits **W408** if the reference doesn't resolve.
+Place `%% ref: QualifiedName` immediately before the node or edge it annotates. W408 fires on an unresolved annotation; W409 fires when a Mermaid diagram has no annotations at all.
 
 ````markdown
 ```mermaid
 graph TD
-  %% ref: SabatonRt::Software::Scheduler
-  SCHED["Scheduler\n(O(1) CLZ dispatch)"]
+  %% ref: AID::Avionics::FlightController
+  FC["FlightController"]
 
-  %% ref: SabatonRt::Software::SyncPrimitives
-  SYNC["SyncPrimitives\n(semaphore, mutex, event flags)"]
+  %% ref: Requirements::FaultDetection::REQ-AID-FC-001
+  REQ["REQ-AID-FC-001"]
 
-  SCHED --> SYNC
+  FC --> REQ
 ```
 ````
-
-Place `%% ref: QualifiedName` on the line **immediately before** the node or edge it annotates. The convention:
-
-| Annotation | Resolves against |
-|---|---|
-| `%% ref: SabatonRt::Software::Scheduler` | `PartDef` element named `Scheduler` in `SabatonRt::Software` |
-| `%% ref: Requirements::Scheduler::Bitmap` | `Requirement` element by qualified name |
-| `%% ref: Decisions::ADR-SYSRT-004` | `ADR` element |
-
-W408 fires once per unresolved `%% ref:` annotation. W409 fires when a Mermaid diagram has **no** `%% ref:` annotations at all. Use these annotations on every significant node in architecture diagrams so the model validator catches renamed or deleted elements.
-
----
-
-### Embedded SVG diagrams
-
-Use for: BDD (block decomposition), IBD (internal structure with ports), StateMachine (when guard conditions are important), Requirement (requirements with derivation and verification).
-
-Set `svgMode: inline`. Declare `shapes:` and `edges:` in frontmatter (for traceability metadata). Place the SVG in the body inside a fenced ` ```svg ` block.
-
-The symbol library `_diagram-symbols.svg` is always loaded by the browser. Use these symbols:
-
-#### Available symbols
-
-| Symbol id | ViewBox | Use for |
-|---|---|---|
-| `#sym-PartDef` | 160×80 | PartDef or Part blocks |
-| `#sym-ItemDef` | 160×80 | ItemDef blocks |
-| `#sym-ActionDef` | 160×80 | ActionDef blocks (rounded corners) |
-| `#sym-RequirementDef` | 180×100 | RequirementDef blocks (3 compartments) |
-| `#sym-requirement` | 180×100 | Native Requirement blocks |
-| `#sym-testcase` | 160×80 | TestCase blocks |
-| `#sym-InterfaceDef` | 160×80 | InterfaceDef blocks |
-| `#sym-boundary` | 300×200 | IBD system boundary frame |
-| `#sym-port` | 14×14 | Port squares on block borders |
-| `#sym-state` | 140×60 | State nodes (rounded rect) |
-| `#sym-initial` | 24×24 | Initial pseudostate (filled circle) |
-| `#sym-final` | 28×28 | Final state (bullseye) |
-| `#sym-actor` | 40×80 | Actor (stick figure) |
-| `#sym-usecase` | 160×70 | Use-case ellipse |
-
-#### Available arrow markers
-
-| Marker id | Use for |
-|---|---|
-| `#arrow-open` | General directed edges, transitions |
-| `#arrow-filled` | Navigable associations, messages |
-| `#arrow-inherit` | Generalization / inheritance |
-| `#arrow-composition` | Composition (filled diamond) |
-| `#arrow-aggregation` | Aggregation (hollow diamond) |
-| `#arrow-flow` | Item flow (blue filled arrowhead) |
-
-#### SVG conventions
-
-- Root element: `<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0" width="W" height="H" viewBox="0 0 W H">`
-- Each shape is a `<g id="<shape-id>" sysml:ref="<qualified-name>" transform="translate(x,y)">` containing a `<use href="#sym-...">` and text elements.
-- Shape `id` must match the shape-id key in the `shapes:` frontmatter.
-- `sysml:ref` must match the `ref:` value in the `shapes:` frontmatter.
-- Text labels: `<text class="stereotype">«part def»</text>` and `<text class="label">ElementName</text>`.
-- Edges: `<line>` or `<path>` with `id="<edge-id>"` and `marker-end="url(#arrow-...)"`. Coordinates are absolute within the SVG viewport.
-- Composition edges use `marker-start="url(#arrow-composition)"` at the parent end and no marker at the child end (or `marker-end="url(#arrow-open)"`).
-
-#### BDD example (abridged)
-
-````markdown
-```new: model/Diagrams/SystemBDD.md
----
-type: Diagram
-name: SystemBDD
-diagramKind: BDD
-svgMode: inline
-subject: AID::AIDSystem
-shapes:
-  s-root:    {ref: "AID::AIDSystem",            kind: PartDef}
-  s-hw:      {ref: "AID::Hardware::Chassis",     kind: PartDef}
-  s-sw:      {ref: "AID::Software::FlightStack", kind: PartDef}
-edges:
-  e-hw: {source: s-root, target: s-hw, kind: composition}
-  e-sw: {source: s-root, target: s-sw, kind: composition}
----
-
-Block Definition Diagram: top-level decomposition of AIDSystem.
-
-```svg
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0"
-     width="520" height="280" viewBox="0 0 520 280">
-
-  <!-- Root block -->
-  <g id="s-root" sysml:ref="AID::AIDSystem" transform="translate(160,20)">
-    <use href="#sym-PartDef" width="200" height="60"/>
-    <text class="stereotype" x="100" y="14" text-anchor="middle">«part def»</text>
-    <text class="label"      x="100" y="42" text-anchor="middle">AIDSystem</text>
-  </g>
-
-  <!-- Hardware block -->
-  <g id="s-hw" sysml:ref="AID::Hardware::Chassis" transform="translate(60,180)">
-    <use href="#sym-PartDef" width="160" height="56"/>
-    <text class="stereotype" x="80" y="14" text-anchor="middle">«part def»</text>
-    <text class="label"      x="80" y="38" text-anchor="middle">Chassis</text>
-  </g>
-
-  <!-- Software block -->
-  <g id="s-sw" sysml:ref="AID::Software::FlightStack" transform="translate(300,180)">
-    <use href="#sym-PartDef" width="160" height="56"/>
-    <text class="stereotype" x="80" y="14" text-anchor="middle">«part def»</text>
-    <text class="label"      x="80" y="38" text-anchor="middle">FlightStack</text>
-  </g>
-
-  <!-- Composition: root → Chassis -->
-  <line x1="260" y1="80" x2="140" y2="180"
-        stroke="#333" stroke-width="1.5"
-        marker-start="url(#arrow-composition)"/>
-
-  <!-- Composition: root → FlightStack -->
-  <line x1="260" y1="80" x2="380" y2="180"
-        stroke="#333" stroke-width="1.5"
-        marker-start="url(#arrow-composition)"/>
-</svg>
-```
-```
-````
-
-#### IBD example (abridged)
-
-````markdown
-```new: model/Diagrams/AvionicsBayIBD.md
----
-type: Diagram
-name: AvionicsBayIBD
-diagramKind: IBD
-svgMode: inline
-subject: AID::Avionics::AvionicsBay
-shapes:
-  s-boundary: {ref: "AID::Avionics::AvionicsBay",          kind: boundary}
-  s-fc:       {ref: "AID::Avionics::FlightController",      kind: Part, parent: s-boundary}
-  s-imu:      {ref: "AID::Avionics::IMU",                   kind: Part, parent: s-boundary}
-  s-pwr-port: {ref: "AID::Avionics::FlightController::powerIn", kind: Port}
-edges:
-  e-pwr: {source: s-pwr-port, target: s-imu, kind: flowConnection}
----
-
-Internal structure of the AvionicsBay showing FlightController and IMU with power port.
-
-```svg
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0"
-     width="600" height="320" viewBox="0 0 600 320">
-
-  <!-- Boundary frame -->
-  <g id="s-boundary" sysml:ref="AID::Avionics::AvionicsBay">
-    <use href="#sym-boundary" x="20" y="20" width="560" height="280"/>
-    <text font-size="11" fill="#4a6a9a" x="30" y="38">«block» AvionicsBay</text>
-  </g>
-
-  <!-- FlightController part -->
-  <g id="s-fc" sysml:ref="AID::Avionics::FlightController" transform="translate(60,80)">
-    <use href="#sym-PartDef" width="160" height="60"/>
-    <text class="stereotype" x="80" y="14" text-anchor="middle">«part»</text>
-    <text class="label"      x="80" y="38" text-anchor="middle">FlightController</text>
-  </g>
-
-  <!-- IMU part -->
-  <g id="s-imu" sysml:ref="AID::Avionics::IMU" transform="translate(360,80)">
-    <use href="#sym-PartDef" width="120" height="60"/>
-    <text class="stereotype" x="60" y="14" text-anchor="middle">«part»</text>
-    <text class="label"      x="60" y="38" text-anchor="middle">IMU</text>
-  </g>
-
-  <!-- Port on FlightController left border -->
-  <g id="s-pwr-port" sysml:ref="AID::Avionics::FlightController::powerIn">
-    <use href="#sym-port" x="53" y="140" width="14" height="14"/>
-    <text font-size="9" x="53" y="164" text-anchor="middle">powerIn</text>
-  </g>
-
-  <!-- Flow: powerIn → IMU -->
-  <line id="e-pwr" x1="220" y1="110" x2="360" y2="110"
-        stroke="#4a90d9" stroke-width="1.5"
-        marker-end="url(#arrow-flow)"/>
-</svg>
-```
-```
-````
-
-#### StateMachine example (abridged)
-
-````markdown
-```new: model/Diagrams/FlightStatesMachineD.md
----
-type: Diagram
-name: FlightStatesMachineD
-diagramKind: StateMachine
-svgMode: inline
-subject: Behavior::FlightStates
-shapes:
-  s-initial:  {ref: "Behavior::FlightStates", kind: initial}
-  s-disarmed: {ref: "Behavior::FlightStates::disarmed", kind: state}
-  s-armed:    {ref: "Behavior::FlightStates::armed",    kind: state}
-  s-fault:    {ref: "Behavior::FlightStates::fault",    kind: state}
-edges:
-  e-init: {source: s-initial,  target: s-disarmed, kind: transition}
-  e-arm:  {source: s-disarmed, target: s-armed,    kind: transition}
-  e-fail: {source: s-armed,    target: s-fault,    kind: transition}
----
-
-State machine for flight operations.
-
-```svg
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0"
-     width="400" height="360" viewBox="0 0 400 360">
-
-  <g id="s-initial" sysml:ref="Behavior::FlightStates">
-    <use href="#sym-initial" x="89" y="20" width="22" height="22"/>
-  </g>
-
-  <g id="s-disarmed" sysml:ref="Behavior::FlightStates::disarmed">
-    <use href="#sym-state" x="30" y="70" width="140" height="48"/>
-    <text x="100" y="99" text-anchor="middle" font-size="12">disarmed</text>
-  </g>
-
-  <g id="s-armed" sysml:ref="Behavior::FlightStates::armed">
-    <use href="#sym-state" x="30" y="170" width="140" height="48"/>
-    <text x="100" y="199" text-anchor="middle" font-size="12">armed</text>
-  </g>
-
-  <g id="s-fault" sysml:ref="Behavior::FlightStates::fault">
-    <use href="#sym-state" x="240" y="170" width="140" height="48"/>
-    <text x="310" y="199" text-anchor="middle" font-size="12">fault</text>
-  </g>
-
-  <!-- initial → disarmed -->
-  <line id="e-init" x1="100" y1="42" x2="100" y2="70"
-        stroke="#333" stroke-width="1.5" marker-end="url(#arrow-open)"/>
-
-  <!-- disarmed → armed -->
-  <line id="e-arm" x1="100" y1="118" x2="100" y2="170"
-        stroke="#333" stroke-width="1.5" marker-end="url(#arrow-open)"/>
-  <text x="106" y="148" font-size="9" fill="#555">ControlCommand</text>
-
-  <!-- armed → fault -->
-  <line id="e-fail" x1="170" y1="194" x2="240" y2="194"
-        stroke="#c0392b" stroke-width="1.5" marker-end="url(#arrow-open)"/>
-  <text x="192" y="188" font-size="9" fill="#c0392b">[imu.fail]</text>
-</svg>
-```
-```
-````
-
----
 
 ### Composed SVG diagrams (syscribe diagram CLI)
-
-Use for: element-card architecture overviews and block-and-connector diagrams where cards are generated from live model data. The CLI renders each element as a styled card (ports, features, doc preview), routes edges between named port anchors, and writes a single SVG file. Commit the SVG as a companion file alongside the Diagram element.
 
 #### Step 1 — Inventory elements
 
 ```bash
 syscribe diagram list model/
-# filter by type or namespace:
 syscribe diagram list model/ --type PartDef,Part --ns UAV
 ```
 
-Output: one line per element — qualified name, type, domain.
-
 #### Step 2 — Measure elements
-
-Get rendered card dimensions and port anchor positions for the elements you plan to place:
 
 ```bash
 syscribe diagram measure model/ \
-  "UAV::Power::BatteryPack,UAV::Power::PowerDistributionUnit,UAV::Avionics::AvionicsBay" \
+  "UAV::Power::BatteryPack,UAV::Power::PowerDistributionUnit" \
   --view ports
 ```
 
-Output is JSON — for each element: `width`, `height`, `effective_view`, `port_anchors` (name, x, y, side, direction relative to card origin), and `peers` (connections declared in `connections:` frontmatter).
+Output JSON: `width`, `height`, `port_anchors`, `peers`.
 
-Use `width`/`height` to plan non-overlapping positions, and `port_anchors` to pick exact edge endpoints. Ports with `"side": "right"` are edge sources; `"side": "left"` are edge targets.
-
-**`--view` presets:**
-
-| Preset | Shows |
-|---|---|
-| `full` | Header + badges + ports + features + doc preview |
-| `ports` | Header + ports compartment only |
-| `features` | Header + features compartment only |
-| `compact` | Header + status badges only |
-| `name` | Header only (stereotype + name) |
-| `requirement` | Header + badges + doc text preview |
+**`--view` presets:** `full` · `ports` · `features` · `compact` · `name` · `requirement`
 
 #### Step 3 — Author the layout JSON
 
-Name the file `<anything>.layout.json` — this suffix is gitignored. **Never commit layout files.**
+Name it `<anything>.layout.json` — gitignored. **Never commit layout files.**
 
 ```json
 {
   "title": "UAV Power Architecture",
   "canvas": { "padding": 40, "bg": "#fafafa" },
   "elements": [
-    { "qname": "UAV::Power::BatteryPack",           "x": 20,  "y": 80,  "view": "ports" },
-    { "qname": "UAV::Power::PowerDistributionUnit", "x": 240, "y": 80,  "view": "ports" },
-    { "qname": "UAV::Avionics::AvionicsBay",        "x": 460, "y": 20,  "view": "ports" },
-    { "qname": "UAV::Propulsion::PropulsionSystem", "x": 460, "y": 160, "view": "compact" },
-    { "qname": "Requirements::FlightDurationReq",   "x": 20,  "y": 280, "view": "requirement" }
+    { "qname": "UAV::Power::BatteryPack",           "x": 20,  "y": 80, "view": "ports" },
+    { "qname": "UAV::Power::PowerDistributionUnit", "x": 240, "y": 80, "view": "ports" }
   ],
   "edges": [
     {
       "from": { "qname": "UAV::Power::BatteryPack",           "port": "powerOut" },
       "to":   { "qname": "UAV::Power::PowerDistributionUnit", "port": "powerIn" },
       "kind": "flow"
-    },
-    {
-      "from": { "qname": "UAV::Avionics::AvionicsBay" },
-      "to":   { "qname": "Requirements::FlightDurationReq" },
-      "kind": "satisfy"
     }
   ]
 }
 ```
 
-**Layout JSON field reference:**
-
-| Field | Required | Notes |
-|---|---|---|
-| `elements[].qname` | Yes | Qualified name — must resolve in the model |
-| `elements[].x`, `y` | Yes | Top-left corner of the card, in SVG units |
-| `elements[].view` | No | Preset string (`"ports"`) or object `{"preset":"ports","include":{"ports":["powerOut"]}}` |
-| `canvas.padding` | No | Margin around all elements (default 40) |
-| `canvas.bg` | No | Background fill (default `#fafafa`) |
-| `edges[].from`, `to` | Yes | `{"qname": "...", "port": "portName"}` — omit `port` to use element midpoints |
-| `edges[].kind` | No | Edge style (default `flow`) |
-| `edges[].label` | No | Custom label text; overrides the auto-label |
-
-**Edge kinds:**
-
-| `kind` | Color | Dash | Auto-label |
-|---|---|---|---|
-| `flow` | blue | solid | — |
-| `derive` | gray | dashed | «derive» |
-| `verify` | blue | dashed | «verify» |
-| `allocate` | purple | dashed | «allocate» |
-| `satisfy` | green | dashed | «satisfy» |
-| `generalize` | dark navy | solid | — |
-
-Edges route as 3-segment H-V-H paths (exit horizontally → jog to midpoint → enter target horizontally). Specifying `"port"` routes to an exact anchor; omitting `"port"` uses element bounding-box midpoints.
+**Edge kinds:** `flow` · `derive` · `verify` · `allocate` · `satisfy` · `generalize`
 
 #### Step 4 — Compose the SVG
 
@@ -1073,83 +545,59 @@ syscribe diagram compose model/ my-arch.layout.json \
   --output model/Views/MyDiagram.svg
 ```
 
-Commit the generated SVG — it is a first-class model artifact.
+Commit the generated SVG. For the Diagram element, use `svgMode: companion` and `expose:` listing the qualified names shown.
 
-#### Diagram element for a composed SVG
+### Embedded SVG — available symbols
 
-```yaml
----
-type: Diagram
-name: UAVArchitectureDiagram
-svgMode: companion
-expose:
-  - UAV::Power::BatteryPack
-  - UAV::Power::PowerDistributionUnit
-  - UAV::Avionics::AvionicsBay
-  - UAV::Propulsion::PropulsionSystem
----
+| Symbol id | Use for |
+|---|---|
+| `#sym-PartDef` | PartDef or Part blocks |
+| `#sym-ItemDef` | ItemDef blocks |
+| `#sym-ActionDef` | ActionDef blocks |
+| `#sym-RequirementDef` | RequirementDef blocks |
+| `#sym-requirement` | Native Requirement blocks |
+| `#sym-testcase` | TestCase blocks |
+| `#sym-boundary` | IBD system boundary frame |
+| `#sym-port` | Port squares on block borders |
+| `#sym-state` | State nodes |
+| `#sym-initial` | Initial pseudostate |
+| `#sym-actor` | Actor (stick figure) |
+| `#sym-usecase` | Use-case ellipse |
 
-<img src="UAVArchitectureDiagram.svg" alt="UAV Architecture" width="100%">
+**Arrow markers:** `#arrow-open` · `#arrow-filled` · `#arrow-inherit` · `#arrow-composition` · `#arrow-aggregation` · `#arrow-flow`
 
-Power and data flow across the UAV's main subsystems. The battery pack supplies the
-power distribution unit, which fans out to the avionics bay and propulsion system.
-```
-
-- `svgMode: companion` — the browser renders the `<img>` tag in the body. Commit both the `.md` and the `.svg` file.
-- `expose:` — qualified names of elements shown in the diagram. Not validated; used for cross-reference display.
-- No `diagramKind:` is required — W400 is suppressed for `svgMode: companion`.
-- Do not use `shapes:` or `edges:` frontmatter for companion SVGs — the structure lives in the layout JSON, not in the model file.
-
----
+SVG conventions: root `<svg>` uses `xmlns:sysml="urn:syscribe:1.0"`. Each shape is a `<g id="<shape-id>" sysml:ref="<qname>" transform="translate(x,y)">`. Shape `id` must match the `shapes:` frontmatter key; `sysml:ref` must match the `ref:` value.
 
 ### Diagram validation rules
 
-| Code | Condition | Fix |
-|---|---|---|
-| E400 | `diagramKind: Mermaid` but body has no ` ```mermaid ` block | Add the fenced block |
-| W400 | Diagram element has no `diagramKind` | Set `diagramKind:` |
-| W401 | `subject:` does not resolve to a known element | Use the correct qualified name |
-| W402 | A shape `ref:` does not resolve | Fix the qualified name; sub-feature refs (e.g. `Foo::portName`) are suppressed |
-| W403 | An edge `source` or `target` is not a defined shape-id | Check the shape-id spelling in `shapes:` |
-
-Diagrams are validated in Batch 8 — add them after all other elements are in place and the model is clean.
+| Code | Condition |
+|---|---|
+| E400 | `diagramKind: Mermaid` but no ` ```mermaid ` block |
+| W400 | Diagram has no `diagramKind` |
+| W401 | `subject:` does not resolve |
+| W402 | Shape `ref:` does not resolve |
+| W403 | Edge `source`/`target` is not a defined shape-id |
+| W408 | Mermaid `%% ref:` annotation doesn't resolve |
+| W409 | Mermaid diagram has no `%% ref:` annotations |
 
 ---
 
 ## Part 10 — §12 Traceability Rules
 
-Work through this checklist for every `Requirement` you create or modify:
-
 ### §12.1 — Link direction
-Links always point **upstream**. The child holds `derivedFrom:` pointing to its parent. The TestCase holds `verifies:` pointing to the Requirement. Architecture elements hold `satisfies:` pointing to the Requirement. Never put backward links on a parent.
+Links always point **upstream**. The child holds `derivedFrom:`, the TestCase holds `verifies:`, architecture elements hold `satisfies:`. Never put backward links on a parent.
 
 ### §12.2 — Breakdown ADR required
-Every Requirement that has `derivedFrom:` **must also have `breakdownAdr:`** pointing to an `accepted` ADR (error E310 if absent; E311 if the reference does not resolve; W303 if the ADR is `proposed`).
-
-Create the ADR file *before* the child requirement files.
+Every Requirement with `derivedFrom:` **must also have `breakdownAdr:`** pointing to an `accepted` ADR (error E310). Create the ADR *before* the child requirements.
 
 ### §12.3 — Leaf assignment
-Every leaf Requirement (no children) at `status: approved` or `implemented` should be assigned to exactly one architecture element via that element's `satisfies:` field (warning W300 if none).
-
-```yaml
-satisfies:
-  - REQ-AID-FC-001
-```
+Every leaf Requirement at `status: approved` or `implemented` should be assigned to exactly one architecture element via `satisfies:` (warning W300 if none).
 
 ### §12.4 — No parent assignment
-A Requirement from which other Requirements derive must **never** appear in any `satisfies:` list (error E312). Only leaf requirement IDs may appear in `satisfies:`.
+A Requirement from which others derive must **never** appear in any `satisfies:` list (error E312).
 
 ### §12.5 — Domain match
 The `reqDomain:` of the leaf Requirement must match the `domain:` of the element that satisfies it, unless either is `system` (error E313).
-
-| `reqDomain:` | Element `domain:` | Allowed? |
-|---|---|---|
-| `software` | `software` | Yes |
-| `hardware` | `hardware` | Yes |
-| `system` | anything | Yes |
-| anything | `system` | Yes |
-| `software` | `hardware` | **No — E313** |
-| `hardware` | `software` | **No — E313** |
 
 ### §12.6 — HW/SW independence
 Do not use `supertype:` or `typedBy:` across the `hardware`/`software` boundary (error E315). Use `Allocation` elements for cross-domain binding.
@@ -1158,67 +606,19 @@ Do not use `supertype:` or `typedBy:` across the `hardware`/`software` boundary 
 
 ## Part 11 — Change Request Patterns
 
-Use these patterns when operating in **Mode B**. Each pattern lists what to create, what to update, and what side-effects to check.
-
 ### Pattern A — Add a new stakeholder goal
-
-A top-level requirement with no parent. No `derivedFrom:`, no `breakdownAdr:`, no `reqDomain:` required.
-
-**Create:**
-- One new `Requirement` file (`status: draft` or `review`)
-
-**No updates required** until children are derived from it.
-
-**When to use:** a new stakeholder has a new need, or a regulatory change introduces a new top-level obligation.
-
----
+Top-level requirement, no `derivedFrom:`, no `breakdownAdr:`, no `reqDomain:` required. **Create:** one new `Requirement` file.
 
 ### Pattern B — Add derived requirements under an existing parent
-
-The parent requirement already exists. You are splitting it into verifiable leaf requirements.
-
-**Create (in this order):**
-1. One new `ADR` (`status: accepted`) explaining why this decomposition is correct
-2. One or more new child `Requirement` files, each with:
-   - `derivedFrom: [<parent-id>]`
-   - `breakdownAdr: Decisions::<NewADR>`
-   - `reqDomain: hardware | software | system`
-3. One new `TestCase` per leaf child (with gherkin block)
-
-**Update:**
-- The architecture element(s) that satisfy the new leaves: add the new `REQ-*` IDs to their `satisfies:` lists
-
-**Check:**
-- The parent must NOT appear in any `satisfies:` list (it is now a parent)
-- If the parent was previously a leaf with a `satisfies:` entry somewhere, remove it (E312)
-- If the parent had a TestCase, set that TestCase's `status: retired`
-
----
+**Create (in order):** 1) accepted ADR, 2) child Requirements with `derivedFrom:` and `breakdownAdr:`, 3) one TestCase per leaf.
+**Update:** architecture elements — add new IDs to `satisfies:`.
+**Check:** parent must NOT appear in any `satisfies:`; if it had a TestCase, set it `retired`.
 
 ### Pattern C — Decompose an existing leaf requirement
-
-An existing leaf requirement becomes a parent. This is the most impactful change type.
-
-**Create (in this order):**
-1. One new `ADR` (`status: accepted`) for the decomposition decision
-2. New child `Requirement` files with `derivedFrom:` and `breakdownAdr:`
-3. New `TestCase` files for each new leaf child
-
-**Update:**
-- The former leaf `Requirement`: no frontmatter change needed (the validator derives parent status from children's `derivedFrom:`)
-- Every architecture element that had the former leaf in its `satisfies:` list: **remove** that ID (E312 fires if a parent is in a satisfies list)
-- Every `TestCase` that had `verifies: [<former-leaf-id>]`: set `status: retired` (a parent requirement should not be directly verified)
-- Add the new leaf IDs to the appropriate architecture elements' `satisfies:` lists
-
-**Check:**
-- `reqDomain:` on the former leaf may no longer be valid if children span multiple domains — consider removing it from the parent
-- Domain match (E313) must hold for each new child and its satisfying element
-
----
+**Create (in order):** 1) accepted ADR, 2) child Requirements, 3) new TestCases for each leaf.
+**Update:** remove former leaf ID from all `satisfies:` lists; retire its TestCase; add new leaf IDs to appropriate elements.
 
 ### Pattern D — Status progression
-
-Requirements move through a defined lifecycle. Each transition may require other changes.
 
 ```
 draft → review → approved → implemented → verified
@@ -1226,102 +626,53 @@ draft → review → approved → implemented → verified
 
 | Transition | What else to check |
 |---|---|
-| `draft` → `review` | Normative text contains `shall`; `reqDomain:` set if it is a leaf |
-| `review` → `approved` | A TestCase exists and is `active` (W002 fires otherwise) |
-| `approved` → `implemented` | A satisfying architecture element exists with this ID in `satisfies:` (W300) |
-| `implemented` → `verified` | At least one `active` TestCase with `verifies:` pointing here (W003) |
-
-**Update:**
-- The `Requirement` file: change `status:` field only
-- If moving to `approved`, ensure a TestCase exists; create one if not
-
----
+| `draft` → `review` | Normative text contains `shall`; `reqDomain:` set on leaf |
+| `review` → `approved` | An active TestCase exists (W002) |
+| `approved` → `implemented` | A satisfying element has this ID in `satisfies:` (W300) |
+| `implemented` → `verified` | At least one `active` TestCase verifies it (W003) |
 
 ### Pattern E — Replace a requirement
-
-A requirement's scope or text changes significantly — rather than editing in place, you supersede it with a new one to preserve traceability history.
-
-**Create:**
-1. New `Requirement` with a new `REQ-*` ID (never reuse the old ID)
-2. New `TestCase` verifying the new requirement
-
-**Update:**
-- The old `Requirement`: change `status:` to the highest reached state — leave the file; do not delete it
-- Architecture elements: replace the old `REQ-*` ID in `satisfies:` with the new one
-- Old `TestCase`: set `status: retired`
-
-**Do not:**
-- Reuse the old requirement's ID on the new requirement (E101 — duplicate ID)
-- Delete the old requirement file (history is preserved by leaving it)
-
----
+**Create:** new `Requirement` with a new ID; new TestCase.
+**Update:** old Requirement — leave the file, do not change the ID; update `satisfies:` in architecture elements; retire old TestCase.
 
 ### Pattern F — Supersede an ADR
-
-A prior architectural decision is replaced by a newer one.
-
-**Create:**
-1. New `ADR` with a new `ADR-*` ID and `status: accepted`
-2. In the new ADR body, reference the old ADR in a `## Supersedes` section
-
-**Deprecate:**
-- Old `ADR`: set `status: superseded`; optionally add `supersededBy: Decisions::<NewADR>`
-
-**Update:**
-- Any `Requirement` with `breakdownAdr: Decisions::<OldADR>`: update to `breakdownAdr: Decisions::<NewADR>`
-  - Only update requirements where the decomposition decision itself changed; leave unchanged if the old decision still applies to other requirements
-
-**Check:**
-- W303: no `approved` or higher Requirement may still cite the old ADR now that it is `superseded`
-
----
+**Create:** new ADR (`status: accepted`). **Deprecate:** old ADR (`status: superseded`). **Update:** any Requirement with `breakdownAdr:` pointing to the old ADR — update to the new one.
 
 ### Pattern G — Add a new architecture element
-
-A new hardware or software element is introduced to satisfy one or more existing leaf requirements.
-
-**Create:**
-1. New `PartDef` or `Part` file with correct `domain:` and `satisfies:` list
-
-**Check:**
-- `domain:` on the new element matches `reqDomain:` on every requirement in its `satisfies:` list (E313)
-- If `domain: software` and it runs on hardware, add an `Allocation` to the appropriate hardware element
-- The requirements being satisfied are leaves (not parents) — E312 if not
-
-**Update (if applicable):**
-- Remove those requirement IDs from any other element's `satisfies:` list — W301 warns when a leaf is satisfied by more than one element
+**Create:** new PartDef/Part with correct `domain:` and `satisfies:`. **Check:** domain matches `reqDomain:` on satisfied requirements; add `Allocation` if it's software running on hardware.
 
 ---
 
 ## Part 12 — Validation Error Quick Reference
 
-These errors block a clean build.
-
 | Code | Cause | Fix |
 |---|---|---|
-| E004 | `TestCase` missing `id`, `title`, `status`, or `testLevel` | Add all four fields |
-| E004 | `Requirement` missing `title` or `status` | Add both fields |
+| E004 | TestCase missing `id`, `title`, `status`, or `testLevel` | Add all four fields |
+| E004 | Requirement missing `title` or `status` | Add both fields |
 | E006 | `id` does not match the pattern for its type | Check regex: `REQ(-[A-Z0-9]{2,12})+-[0-9]{3}` |
 | E007 | `status` value not in allowed enum | Check status table for each type |
-| E008 | `testLevel` not `L1`–`L5` | Use exactly `L1`, `L2`, `L3`, `L4`, or `L5` |
-| E009 | `silLevel` outside 1–4 | Use integer 1, 2, 3, or 4 |
-| E010 | `asilLevel` not `A`–`D` | Use exactly `A`, `B`, `C`, or `D` |
+| E008 | `testLevel` not `L1`–`L5` | Use exactly `L1`–`L5` |
+| E009 | `silLevel` outside 1–4 | Use integer 1–4 |
+| E010 | `asilLevel` not `A`–`D` | Use exactly `A`–`D` |
 | E011 | TestCase body has no ` ```gherkin ` block | Add a gherkin fenced block |
 | E012 | Requirement normative text is empty | Write the `shall` statement before any `##` heading |
 | E013 | `verifies:` absent or empty on TestCase | Add at least one `REQ-*` ID |
-| E014 | `Scenario Outline:` has no `Examples:` table | Add `Examples:` table under the outline |
+| E014 | `Scenario Outline:` has no `Examples:` table | Add `Examples:` table |
 | E015 | First gherkin block has no `Feature:` line | Start the block with `Feature: <name>` |
-| E101 | Duplicate `id` across two elements | Each `REQ-*`, `TC-*`, `ADR-*` must be globally unique |
-| E102 | `verifies:` ID does not resolve | Check the ID matches a `Requirement` file exactly |
+| E016 | Supertype cycle | Break the inheritance loop |
+| E017 | DerivedFrom cycle | Break the requirement hierarchy loop |
+| E018 | Subsets cycle | Break the subsetting loop |
+| E101 | Duplicate `id` | Each `REQ-*`, `TC-*`, `ADR-*` must be globally unique — use `next-id` |
+| E102 | `verifies:` ID does not resolve | Check the ID matches a Requirement file |
 | E103 | `derivedFrom:` ID does not resolve | Check parent Requirement ID |
-| E104 | `verifies:` target is not a native `Requirement` | Only point `verifies:` at `type: Requirement` elements |
-| E105 | `derivedFrom:` target is not a native `Requirement` | Only point `derivedFrom:` at `type: Requirement` elements |
+| E104 | `verifies:` target is not a native Requirement | Only point `verifies:` at `type: Requirement` |
+| E105 | `derivedFrom:` target is not a native Requirement | Only point `derivedFrom:` at `type: Requirement` |
 | E300 | ADR `id` does not match `ADR-*` pattern | Fix the ID |
 | E301 | ADR missing `id`, `title`, or `status` | Add all three fields |
-| E302 | `reqDomain` not `system`/`hardware`/`software` | Use one of the three values exactly |
-| E303 | `domain` not `system`/`hardware`/`software` | Use one of the three values exactly |
+| E302 | `reqDomain` not `system`/`hardware`/`software` | Use one of the three values |
+| E303 | `domain` not `system`/`hardware`/`software` | Use one of the three values |
 | E304 | ADR `status` not valid | Use `proposed`, `accepted`, `deprecated`, or `superseded` |
-| E310 | `derivedFrom:` present but `breakdownAdr:` absent | Add `breakdownAdr:` pointing to an accepted ADR |
+| E310 | `derivedFrom:` present but `breakdownAdr:` absent | Add `breakdownAdr:` |
 | E311 | `breakdownAdr:` does not resolve or is not an ADR | Use the qualified name of an `ADR` element |
 | E312 | Parent requirement in a `satisfies:` list | Only leaf requirements may be satisfied |
 | E313 | Domain mismatch between element and requirement | Match `domain:` to `reqDomain:` |
@@ -1366,11 +717,9 @@ model/
 
 ## Part 14 — Final Checklist
 
-Run through this before producing any output.
-
 ### For every Requirement (new or updated)
 
-- [ ] `id:` is globally unique and matches `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3}$`
+- [ ] `id:` is globally unique (verified with `next-id`) and matches `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3}$`
 - [ ] `title:` and `status:` are present
 - [ ] Normative body is non-empty and contains `shall`
 - [ ] If `derivedFrom:` is set → `breakdownAdr:` is also set, pointing to an `accepted` ADR
@@ -1382,7 +731,7 @@ Run through this before producing any output.
 
 - [ ] `id:` is globally unique and matches `^TC(-[A-Z0-9]{2,12})+-[0-9]{3}$`
 - [ ] `title:`, `status:`, `testLevel:` are present
-- [ ] `verifies:` is non-empty and every ID resolves to a `type: Requirement` element
+- [ ] `verifies:` is non-empty and every ID resolves to a `type: Requirement` element (use `check-ref`)
 - [ ] Body contains a ` ```gherkin ` block whose first line is `Feature:`
 - [ ] Every `Scenario Outline:` has an `Examples:` table
 
@@ -1394,28 +743,15 @@ Run through this before producing any output.
 
 ### Cross-cutting (Mode B only)
 
-- [ ] No new ID collides with any existing `REQ-*`, `TC-*`, or `ADR-*` listed in the context block
+- [ ] No new ID collides with existing ones — use `next-id <prefix>` to generate IDs
 - [ ] Any requirement promoted to a parent has been removed from all `satisfies:` lists
 - [ ] Any retired TestCase has `status: retired` — do not delete it
 - [ ] Any superseded ADR has `status: superseded` — do not delete it
-- [ ] All `breakdownAdr:` references on child requirements point to the current (non-superseded) ADR
+- [ ] All `breakdownAdr:` references on child requirements point to the current ADR
 
-### For every Diagram
+### Cross-references
 
-**Mermaid and embedded SVG diagrams:**
-- [ ] `diagramKind:` is set (`BDD` · `IBD` · `StateMachine` · `Requirement` · `Mermaid`)
-- [ ] `subject:` resolves to a known element
-- [ ] Mermaid: body has a ` ```mermaid ` block; every significant node has a `%% ref:` annotation above it
-- [ ] Embedded SVG: `svgMode: inline`; body has a ` ```svg ` block; shape `id` attributes match `shapes:` keys; `sysml:ref` attributes match `ref:` values; all shape `ref:` values resolve; all edge `source`/`target` values are defined shape-ids
-
-**Composed SVG (companion) diagrams:**
-- [ ] `svgMode: companion` is set; no `diagramKind:` needed
-- [ ] `expose:` lists the qualified names of all elements shown
-- [ ] The SVG file is committed alongside the `.md` (same directory, same stem)
-- [ ] The layout JSON used to generate the SVG is named `*.layout.json` and is **not** committed
-
-### All elements
-
+- [ ] Every cross-reference verified with `check-ref <qname>` before writing the file
 - [ ] Every directory referenced by a new file has an `_index.md`
 - [ ] All qualified name cross-references use `::` and resolve to actual files
 - [ ] No `supertype:` or `typedBy:` crosses the `hardware`/`software` domain boundary
