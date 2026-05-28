@@ -1514,6 +1514,18 @@ topEvent: SG-PREFIX-001     # SafetyGoal this tree analyses
 ---
 
 Describe the analysis scope and methodology.
+
+# Directory layout — gates and events must be nested UNDER the FaultTree:
+#
+#   Safety/FTA/
+#     FT-PREFIX-001.md              ← this file
+#     FT-PREFIX-001/
+#       FTG-PREFIX-001.md           ← top gate
+#       FTG-PREFIX-002.md
+#       FTE-PREFIX-001.md
+#
+# W900 fires if no FaultTreeGate or FaultTreeEvent are found as children
+# (i.e. qualified names starting with Safety::FTA::FT-PREFIX-001::).
 "#,
         "faulttreegate" => r#"---
 type: FaultTreeGate
@@ -1521,10 +1533,13 @@ id: FTG-PREFIX-001
 title: "OR gate — [description]"
 gateType: OR                # AND | OR | XOR | NOT | inhibit
 inputs:
-  - FTG-PREFIX-002          # child gate
-  - FTE-PREFIX-001          # or leaf event
+  - FTG-PREFIX-002          # child gate (id or qname)
+  - FTE-PREFIX-001          # or leaf event (id or qname)
 # probability: 1.2e-7       # optional; computed from inputs
 ---
+
+# Place this file inside the FaultTree's subdirectory:
+#   Safety/FTA/FT-PREFIX-001/FTG-PREFIX-001.md
 "#,
         "faulttreeevent" => r#"---
 type: FaultTreeEvent
@@ -1535,6 +1550,9 @@ eventKind: basic            # basic | undeveloped | house
 # failureRate: 1.0e-9       # failures per hour (basic events)
 # probability: 1.0e-6
 ---
+
+# Place this file inside the FaultTree's subdirectory:
+#   Safety/FTA/FT-PREFIX-001/FTE-PREFIX-001.md
 "#,
         "fmeasheet" => r#"---
 type: FMEASheet

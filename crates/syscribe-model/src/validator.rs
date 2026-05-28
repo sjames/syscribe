@@ -475,11 +475,10 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
             }
         }
 
-        // W006: silLevel without asilLevel or vice versa
-        match (&fm.sil_level, &fm.asil_level) {
-            (Some(_), None) => findings.push(warning("W006", &file, "silLevel present without asilLevel")),
-            (None, Some(_)) => findings.push(warning("W006", &file, "asilLevel present without silLevel")),
-            _ => {}
+        // W006: silLevel and asilLevel both set — incompatible standards
+        if fm.sil_level.is_some() && fm.asil_level.is_some() {
+            findings.push(warning("W006", &file,
+                "both silLevel (IEC 61508) and asilLevel (ISO 26262) are set — these are incompatible standards; use only one"));
         }
 
         // W004: sourceFile must exist

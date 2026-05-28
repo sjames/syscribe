@@ -147,6 +147,30 @@ syscribe model/ template TARASheet > Safety/TARA-SYS-001.md
 
 FTA uses the **file-per-element** (Option A) pattern. Each node is its own `.md` file. The three element types map directly to standard FTA constructs.
 
+### Directory layout
+
+Gates and events must be **nested inside a subdirectory named after the FaultTree file**. The validator checks for children by qualified-name prefix (W900), so a flat layout where all files share the same parent directory will not satisfy the check.
+
+```
+Safety/FTA/
+  FT-BRAKE-001.md               ← FaultTree
+  FT-BRAKE-001/
+    FTG-BRAKE-001.md            ← top-level OR gate
+    FTG-BRAKE-002.md            ← sub-gate
+    FTE-BRAKE-001.md            ← basic event
+    FTE-BRAKE-002.md
+```
+
+This produces qualified names:
+
+| File | Qualified name |
+|---|---|
+| `FT-BRAKE-001.md` | `Safety::FTA::FT-BRAKE-001` |
+| `FT-BRAKE-001/FTG-BRAKE-001.md` | `Safety::FTA::FT-BRAKE-001::FTG-BRAKE-001` |
+| `FT-BRAKE-001/FTE-BRAKE-001.md` | `Safety::FTA::FT-BRAKE-001::FTE-BRAKE-001` |
+
+W900 fires if no `FaultTreeGate` or `FaultTreeEvent` element has a qualified name prefixed by the `FaultTree`'s own qname.
+
 ### FaultTree
 
 ```yaml
@@ -195,8 +219,9 @@ failureRate: 1.0e-9       # failures per hour
 
 ```bash
 syscribe model/ template FaultTree      > Safety/FTA/FT-BRAKE-001.md
-syscribe model/ template FaultTreeGate  > Safety/FTA/FTG-BRAKE-001.md
-syscribe model/ template FaultTreeEvent > Safety/FTA/FTE-BRAKE-001.md
+mkdir -p Safety/FTA/FT-BRAKE-001
+syscribe model/ template FaultTreeGate  > Safety/FTA/FT-BRAKE-001/FTG-BRAKE-001.md
+syscribe model/ template FaultTreeEvent > Safety/FTA/FT-BRAKE-001/FTE-BRAKE-001.md
 ```
 
 ---
