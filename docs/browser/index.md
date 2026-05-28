@@ -89,9 +89,11 @@ The **Issues** toolbar button hides all clean nodes so you can focus only on ele
 
 Clicking a node opens a side panel that shows:
 
-1. **Element metadata** — name, type badge, qualified name
+1. **Element metadata** — name, type badge, qualified name, and stable ID (for `Requirement`, `TestCase`, `ADR`, and all safety analysis types)
 2. **Documentation** — full rendered Markdown, including tables, code blocks, and embedded Mermaid diagrams
 3. **Validation findings** — any errors (red) or warnings (amber) for that element, showing the code and full message text
+
+The stable ID (e.g. `REQ-FC-001`) is shown in a monospace chip below the qualified name whenever it is set. It is also included in the hover tooltip on the canvas graph.
 
 ### Toolbar controls
 

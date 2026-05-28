@@ -245,3 +245,67 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 |---|---|
 | W800 | HazardousEvent is not referenced by any `SafetyGoal.hazardousEvents` |
 | W802 | CybersecurityGoal is not implemented by any `SecurityControl.implementsGoals` |
+
+## Tier 4 — Fault Tree Analysis (E900–E910, W900–W901)
+
+### FaultTree (E900–E902, W900)
+
+| Code | Condition |
+|---|---|
+| E900 | `id`, `title`, `status`, or `topEvent` is absent |
+| E901 | `id` does not match `FT-*` pattern |
+| E902 | `topEvent` does not resolve, or resolves to an element that is not a `SafetyGoal` |
+| W900 | FaultTree has no gates or events — the tree is empty |
+
+### FaultTreeGate (E903–E906, W901)
+
+| Code | Condition |
+|---|---|
+| E903 | `id`, `title`, or `gateType` is absent |
+| E904 | `id` does not match `FTG-*` pattern |
+| E905 | `gateType` is not one of `AND · OR · XOR · NOT · inhibit` |
+| E906 | An entry in `inputs` does not resolve, or resolves to an element that is not a `FaultTreeGate` or `FaultTreeEvent` |
+| W901 | FaultTreeGate has no `inputs` — it contributes nothing to the fault tree |
+
+### FaultTreeEvent (E907–E909)
+
+| Code | Condition |
+|---|---|
+| E907 | `id`, `title`, or `eventKind` is absent |
+| E908 | `id` does not match `FTE-*` pattern |
+| E909 | `eventKind` is not one of `basic · undeveloped · house` |
+
+## Tier 4 — FMEA (E911–E914, W902–W904)
+
+### FMEASheet (E911–E912, W902)
+
+| Code | Condition |
+|---|---|
+| E911 | `id`, `title`, or `status` is absent |
+| E912 | `id` does not match `FMEA-*` pattern |
+| W902 | FMEASheet has no `entries` — add at least one failure mode row |
+
+### FMEAEntry (E913–E914, W903–W904)
+
+FMEAEntry elements are synthesised at parse time from each row in a `FMEASheet.entries:` list. They are not authored as standalone files.
+
+| Code | Condition |
+|---|---|
+| E913 | Entry `id` does not match `FM-*` pattern |
+| E914 | `fmeaSeverity`, `occurrence`, or `detection` is outside the range 1–10 |
+| W903 | Computed RPN (severity × occurrence × detection) exceeds 100 and no `recommendedAction` is set |
+| W904 | Entry `ref` field does not resolve to a known model element |
+
+RPN is computed automatically when all three of `fmeaSeverity`, `occurrence`, and `detection` are present. An explicit `rpn:` field is accepted and used as-is.
+
+## Tier 4 — TARA container (E940–E941, W905)
+
+`TARASheet` is an Option-B container whose four section tables (`damageTable`, `threatTable`, `goalTable`, `controlTable`) are each exploded at parse time into the corresponding Tier 2 element types.
+
+| Code | Condition |
+|---|---|
+| E940 | `id`, `title`, or `status` is absent |
+| E941 | `id` does not match `TARA-*` pattern |
+| W905 | TARASheet has no rows in any section table |
+
+Once rows are exploded, all existing Tier 2 validation rules (E807–E821, E825–E830, W800–W803) apply to the synthesised elements exactly as they would to hand-authored files.
