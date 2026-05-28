@@ -175,6 +175,9 @@ Write `Allocation` elements. Validate: fix E502/E503 (unresolved `allocatedFrom`
 **Batch 8 — Diagrams**
 Write `Diagram` elements after all model elements are in place. For Mermaid or embedded SVG diagrams, write the `.md` file directly. For `svgMode: companion` diagrams, use the 4-step CLI workflow: `diagram list` → `diagram measure` → author `*.layout.json` → `diagram compose --output <path>`, then commit both the `.md` and the generated `.svg`. Validate: fix E400, W402, W403, W408, W409.
 
+**Batch 9 — Resolve leaf PartDefs (closure pass)**
+After all architecture and requirement elements exist, verify that every leaf `PartDef`/`Part` is properly closed. See Part 7b for the full procedure. Validate: resolve all W300 (unassigned leaf requirements) and W301 (over-assigned leaf requirements).
+
 After all batches pass with 0 errors, review warnings and fix any that indicate genuine gaps (W300 — leaf requirement has no satisfying element; W002 — approved requirement has no active TestCase).
 
 ### Fixing errors
@@ -454,6 +457,85 @@ Allocations link a `software` or `system` element to a `hardware` element. Use t
 Required: `allocatedFrom` and `allocatedTo` must both resolve to known elements (errors E502, E503).
 
 **Template:** `syscribe model/ template Allocation`
+
+---
+
+## Part 7b — Closing the Architecture: Resolving Leaf PartDefs
+
+A **leaf PartDef** is a `PartDef` or `Part` that has no sub-part children in the model — it represents the lowest-level component that actually implements requirements. The closure pass ensures every leaf PartDef is assigned to at least one leaf requirement, and every leaf requirement at `approved` or higher is assigned to exactly one element.
+
+### Step 1 — Find unassigned leaf requirements
+
+```bash
+syscribe model/ validate 2>&1 | grep W300
+```
+
+W300 fires for every leaf `Requirement` at `status: approved` or `implemented` that has no element with `satisfies:` pointing to it. This is your work list.
+
+### Step 2 — Find under-specified PartDefs
+
+```bash
+syscribe model/ list PartDef
+```
+
+For each PartDef, check what requirements it already covers:
+
+```bash
+syscribe model/ why <qname>          # requirements this element satisfies
+syscribe model/ links <qname>        # all outbound and inbound relationships
+```
+
+### Step 3 — Assign requirements
+
+For each unassigned leaf requirement:
+1. Identify the PartDef responsible for implementing it.
+2. Add the requirement `id` to that PartDef's `satisfies:` list.
+3. Verify domain compatibility: `domain:` on the PartDef must match `reqDomain:` on the requirement (or one of them is `system`). Error E313 if they differ.
+4. Verify the requirement is truly a leaf (no `derivedChildren`). Error E312 if you try to satisfy a parent requirement.
+
+```yaml
+# example update to a PartDef
+satisfies:
+  - REQ-AID-FC-001    # existing
+  - REQ-AID-FC-002    # newly assigned
+```
+
+### Step 4 — Handle over-assigned requirements (W301)
+
+A leaf requirement with more than one satisfying element fires W301. This is almost always a modelling mistake — decide which single element owns the requirement and remove it from the others. Legitimate split ownership (redundancy architectures) should be documented in the breakdown ADR and the requirement should be decomposed into two child requirements, one per element.
+
+### Step 5 — Handle deployment packages
+
+Any `PartDef` with `isDeploymentPackage: true` must have at least one `Allocation` linking it to a `hardware` element (error E314). Create an `Allocation` element or add `allocatedTo:` directly:
+
+```yaml
+# In Allocations/SWtoHW.md
+type: Allocation
+allocatedFrom: Software::MyModule
+allocatedTo: Hardware::TargetBoard
+```
+
+### Step 6 — Final validation
+
+```bash
+syscribe model/ validate
+```
+
+Target state at end of closure pass:
+- **0 errors**
+- **0 × W300** — every leaf requirement at `approved`/`implemented` has a satisfying element
+- **0 × W301** — no leaf requirement is satisfied by more than one element
+- **0 × E314** — every deployment package has an allocation to hardware
+
+Remaining acceptable warnings after closure: W404 (`ScalarValues::*` stdlib), W007 (unused definition types), W305 (parent requirement without system-integration TestCase), W008 (README file).
+
+### Summary checklist for each leaf PartDef
+
+- [ ] `domain:` is set (`system`, `hardware`, or `software`)
+- [ ] `satisfies:` lists only leaf requirement IDs (no parents — E312)
+- [ ] Every listed requirement's `reqDomain:` is compatible with this element's `domain:` (E313)
+- [ ] If `isDeploymentPackage: true` → at least one `Allocation` to a `hardware` element exists (E314)
+- [ ] If `asilLevel:`/`silLevel:` is set on any satisfied requirement → the same field is set on this PartDef (E843)
 
 ---
 
