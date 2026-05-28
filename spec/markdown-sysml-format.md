@@ -4903,6 +4903,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W302` | Leaf `Requirement` at `status: implemented` or `status: verified` still has `reqDomain: system` — refine to `hardware` or `software` |
 | `W303` | `breakdownAdr:` references an ADR with `status: proposed`, but the `Requirement` itself has `status: approved` or higher |
 | `W304` | `isDeploymentPackage: true` combined with `domain: hardware` — deployment packages must be software |
+| `W305` | Parent `Requirement` (has `derivedFrom` children) at `status: approved`, `implemented`, or `verified` has no active `TestCase` at `testLevel: L3`, `L4`, or `L5` — leaf-level tests on derived requirements are insufficient to verify emergent composed behaviour |
 
 ---
 

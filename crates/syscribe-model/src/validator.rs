@@ -1262,6 +1262,29 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
             }
         }
 
+        // W305: parent requirement must have at least one active integration-level TestCase
+        // (L3 system test, L4 system integration test, or L5 HIL/acceptance).
+        // Leaf-level test cases (L1/L2) on derived requirements are not sufficient to
+        // verify the emergent, composed behaviour expressed by the parent.
+        if is_parent && matches!(status, "approved" | "implemented" | "verified") {
+            let has_integration_tc = active_tcs.iter().any(|tc_id| {
+                resolver
+                    .get_by_id(elements, tc_id)
+                    .and_then(|e| e.frontmatter.test_level.as_deref())
+                    .map_or(false, |lvl| matches!(lvl, "L3" | "L4" | "L5"))
+            });
+            if !has_integration_tc {
+                findings.push(warning(
+                    "W305",
+                    &elem.file_path,
+                    &format!(
+                        "parent Requirement '{}' (status: {}) has no active system integration TestCase (testLevel: L3, L4, or L5)",
+                        req_id, status
+                    ),
+                ));
+            }
+        }
+
         // W005: orphan (no derivedFrom and no derivedChildren)
         let has_parent = elem.frontmatter.derived_from.as_ref().map_or(false, |v| !v.is_empty());
         let has_children = derived_children.get(req_id).map_or(false, |v| !v.is_empty());
