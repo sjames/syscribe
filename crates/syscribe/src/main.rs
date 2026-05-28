@@ -92,7 +92,7 @@ fn main() {
     {
         let mut iter = args[1..].iter();
         while let Some(a) = iter.next() {
-            if a == "--model" {
+            if a == "--model" || a == "-m" {
                 model_flag = iter.next().cloned();
             } else if let Some(val) = a.strip_prefix("--model=") {
                 model_flag = Some(val.to_string());
@@ -102,18 +102,12 @@ fn main() {
         }
     }
 
-    // Priority: --model flag > SYSCRIBE_MODEL env var > positional arg > "model" default.
-    let had_explicit_model = model_flag.is_some() || std::env::var("SYSCRIBE_MODEL").is_ok();
+    // Priority: --model flag > SYSCRIBE_MODEL env var > "model" default.
     let model_root_arg = model_flag
         .or_else(|| std::env::var("SYSCRIBE_MODEL").ok())
-        .unwrap_or_else(|| remaining.first().cloned().unwrap_or_else(|| "model".to_string()));
+        .unwrap_or_else(|| "model".to_string());
 
-    // When model root came from a positional arg, the first remaining arg is consumed as the root.
-    let subcommand_args: &[String] = if !had_explicit_model && !remaining.is_empty() {
-        &remaining[1..] // first positional was the model root
-    } else {
-        &remaining[..] // model came from flag or env; remaining starts at subcommand
-    };
+    let subcommand_args: &[String] = &remaining;
 
     let model_root = std::path::Path::new(&model_root_arg);
     let model_root_str = model_root.to_string_lossy().into_owned();
