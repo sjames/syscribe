@@ -248,6 +248,7 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
         for s in sat { out.push(("satisfies".into(), s.clone())); }
     }
     if let Some(ref s) = fm.breakdown_adr { out.push(("breakdownAdr".into(), s.clone())); }
+    if let Some(ref g) = fm.derived_from_security_goal { out.push(("derivedFromSecurityGoal".into(), g.clone())); }
     if let Some(ref s) = fm.allocated_from { out.push(("allocatedFrom".into(), s.clone())); }
     if let Some(ref s) = fm.allocated_to { out.push(("allocatedTo".into(), s.clone())); }
     if let Some(ref es) = fm.exhibits_states {
@@ -339,6 +340,7 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
     if let Some(ref mul) = fm.multiplicity { println!("| **multiplicity** | {} |", mul); }
     if let Some(ref dir) = fm.direction { println!("| **direction** | {} |", dir); }
     if let Some(ref s) = fm.breakdown_adr { println!("| **breakdownAdr** | {} |", s); }
+    if let Some(ref g) = fm.derived_from_security_goal { println!("| **derivedFromSecurityGoal** | {} |", g); }
 
     // Supertype / typedBy
     if let Some(ref v) = fm.supertype {
@@ -1150,6 +1152,7 @@ verificationMethod: test
 # derivedFrom:
 #   - REQ-PARENT-001
 # breakdownAdr: ADR-XXX-001
+# derivedFromSecurityGoal: CSG-PREFIX-001
 ---
 
 The system shall ...

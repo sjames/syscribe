@@ -1515,6 +1515,8 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
     let mut csg_implemented: HashSet<String> = HashSet::new();
     // Build reverse index: he_referenced_by[he_id_or_qn] — used for W800
     let mut he_referenced: HashSet<String> = HashSet::new();
+    // Build reverse index: csg_derived_reqs[csg_id_or_qn] — used for W804
+    let mut csg_derived_reqs: HashSet<String> = HashSet::new();
 
     for elem in elements {
         let fm = &elem.frontmatter;
@@ -1618,6 +1620,22 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                 }
             }
         }
+
+        // E831: derivedFromSecurityGoal must resolve to a CybersecurityGoal
+        if let Some(ref goal_ref) = fm.derived_from_security_goal {
+            match resolver.resolve_ref(elements, goal_ref) {
+                None => findings.push(error("E831", &elem.file_path,
+                    &format!("`derivedFromSecurityGoal` '{}' does not resolve to any element", goal_ref))),
+                Some(target) if !Resolver::is_cybersecurity_goal(target) => {
+                    findings.push(error("E831", &elem.file_path,
+                        &format!("`derivedFromSecurityGoal` '{}' does not resolve to a CybersecurityGoal", goal_ref)));
+                }
+                Some(target) => {
+                    csg_derived_reqs.insert(target.qualified_name.clone());
+                    if let Some(ref id) = target.frontmatter.id { csg_derived_reqs.insert(id.clone()); }
+                }
+            }
+        }
     }
 
     // ── Tier 4 cross-reference checks ────────────────────────────────────────
@@ -1713,6 +1731,19 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W802", &elem.file_path,
                     &format!("CybersecurityGoal '{}' is not implemented by any SecurityControl.implementsGoals", id)));
+            }
+        }
+    }
+
+    // W804: CybersecurityGoal not referenced by any Requirement via derivedFromSecurityGoal
+    for elem in elements {
+        if Resolver::is_cybersecurity_goal(elem) {
+            let has_req = csg_derived_reqs.contains(&elem.qualified_name)
+                || elem.frontmatter.id.as_ref().map_or(false, |id| csg_derived_reqs.contains(id));
+            if !has_req {
+                let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
+                findings.push(warning("W804", &elem.file_path,
+                    &format!("CybersecurityGoal '{}' has no Requirement with `derivedFromSecurityGoal` pointing to it", id)));
             }
         }
     }

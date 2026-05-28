@@ -355,6 +355,9 @@ pub struct RawFrontmatter {
     pub affected_elements: Option<Vec<String>>, // qualified names of affected model elements
     pub mitigated_by: Option<Vec<String>>,      // SecurityControl id/qname refs
 
+    // §T2 — upstream goal link for native Requirement
+    pub derived_from_security_goal: Option<String>, // CSG-* that generated this requirement (YAML: derivedFromSecurityGoal)
+
     // Catch-all for unknown fields
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_yaml::Value>,
