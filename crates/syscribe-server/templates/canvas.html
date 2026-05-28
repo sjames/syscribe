@@ -1013,9 +1013,22 @@ function enterFocusMode(node) {
   inFocusMode = true;
   document.getElementById('back-btn').style.display = 'block';
 
-  // Zoom to the non-compound kept nodes (exclude package containers)
+  // Compact: pull all focal nodes toward their shared centroid so the
+  // focus view is dense.  Pure position arithmetic — no layout engine,
+  // no async events, nothing that could abort the tap handler before
+  // openDocPanel() is called.
   const focalNodes = keep.filter('node').not(':parent');
-  cy.fit(focalNodes.length ? focalNodes : keep, 60);
+  if (focalNodes.length > 1) {
+    const bb  = focalNodes.boundingBox();
+    const cx  = (bb.x1 + bb.x2) / 2;
+    const cY  = (bb.y1 + bb.y2) / 2;
+    focalNodes.forEach(n => {
+      const p = n.position();
+      n.position({ x: cx + (p.x - cx) * 0.35, y: cY + (p.y - cY) * 0.35 });
+    });
+  }
+  const target = focalNodes.length ? focalNodes : keep.filter('node');
+  cy.fit(target, 30);
 }
 
 // ── Edge traversal helpers (avoid invalid CSS attribute selectors on
