@@ -949,6 +949,23 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                     ids
                 };
 
+                // Remove SVG-internal ids (markers, gradients, filters, symbols)
+                // that are referenced via url(#id) — they are never model element shapes.
+                let svg_ids: HashSet<String> = {
+                    let mut url_refs: HashSet<String> = HashSet::new();
+                    let mut rem = elem.doc.as_str();
+                    while let Some(pos) = rem.find("url(#") {
+                        rem = &rem[pos + 5..];
+                        if let Some(end) = rem.find(')') {
+                            url_refs.insert(rem[..end].to_string());
+                            rem = &rem[end + 1..];
+                        } else {
+                            break;
+                        }
+                    }
+                    svg_ids.into_iter().filter(|id| !url_refs.contains(id.as_str())).collect()
+                };
+
                 // W406: frontmatter id with no matching SVG element
                 for id in &fm_ids {
                     if !svg_ids.contains(id.as_str()) {
