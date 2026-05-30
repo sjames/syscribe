@@ -1,5 +1,8 @@
 tc_TRS_VAL_004() {
     local F="$1"
+    run_scenario "E841: derivedFromSafetyGoal element missing integrity level" "$F/TC-TRS-VAL-004/E841"
+    assert_has_code "E841"
+
     run_scenario "E842: derivedFrom element missing integrity level" "$F/TC-TRS-VAL-004/E842"
     assert_has_code "E842"
 

@@ -14,7 +14,6 @@ The tool **shall** enforce every parse-time error rule in the following table, a
 |---|---|
 | `E001` | File does not begin with `---` |
 | `E002` | Frontmatter is not valid YAML 1.2 |
-| `E003` | Frontmatter contains an unrecognised key (strict mode) |
 | `E004` | A required field is absent |
 | `E005` | `type:` value is not in the element type inventory |
 | `E006` | `id:` present but does not match the required pattern |
