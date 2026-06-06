@@ -70,13 +70,14 @@
 | E201 | Configuration missing `id`, `title`, `status`, or `featureModel` |
 | E209 | `appliesWhen:` is malformed, or an operand does not resolve to a FeatureDef. `appliesWhen:` accepts a bare QName, a list (AND), or a boolean expression (`and`/`or`/`not`/parentheses); every operand is checked. |
 
-## PLE warnings (W015)
+## PLE warnings (W015–W016)
 
 The variability dimension is **opt-in**: it is dormant — and these checks do not fire — unless the model has at least one `FeatureDef` and something linking to it (a `Configuration`, or any element/`TestCase` with `appliesWhen:`).
 
 | Code | Condition |
 |---|---|
 | W015 | A requirement is **active** in a `Configuration` (its `appliesWhen:` holds for that configuration's selections) but no non-draft `TestCase` that runs in that `Configuration` verifies it. Draft requirements and draft tests are suppressed. Gate it in CI with `--deny W015`. |
+| W016 | A `Configuration` parsed **zero** feature selections while a feature model exists — e.g. it used a legacy/unrecognized `selections:` key instead of the `features:` map (§9.8). Without this warning the block is silently ignored and every cell in `matrix` comes back N/A. Not emitted when no `FeatureDef` is present. |
 
 A `TestCase` *runs in* a `Configuration` iff its `appliesWhen:` is satisfied by that configuration's `features:` selections; a `TestCase` with no `appliesWhen:` runs in every configuration. The same relationship powers `syscribe matrix`.
 

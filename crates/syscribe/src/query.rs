@@ -354,6 +354,14 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
     if let Some(ref s) = fm.breakdown_adr { println!("| **breakdownAdr** | {} |", s); }
     if let Some(ref g) = fm.derived_from_security_goal { println!("| **derivedFromSecurityGoal** | {} |", g); }
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
+    if let Some(ref f) = fm.feature_model { println!("| **featureModel** | {} |", f); }
+    if let Some(ref aw) = fm.applies_when {
+        let aw_str = match aw {
+            serde_yaml::Value::String(s) => s.clone(),
+            other => yaml_strings(other).join(", "),
+        };
+        println!("| **appliesWhen** | {} |", aw_str);
+    }
 
     // Supertype / typedBy
     if let Some(ref v) = fm.supertype {
@@ -446,7 +454,26 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
         if !mb.is_empty() { println!("| **mitigatedBy** | {} |", mb.join(", ")); }
     }
 
-    // Features table
+    // Feature selections (Configuration §9.8) — show the parsed `features:` map so
+    // a mis-authored configuration (e.g. legacy `selections:`) is visibly empty.
+    if fm.element_type.as_ref() == Some(&ElementType::Configuration) {
+        let sel = fm.feature_selections();
+        println!();
+        println!("## Feature selections");
+        println!();
+        if sel.is_empty() {
+            println!("_(none parsed — selections must be a `features:` map of `<FeatureDef>: true/false`)_");
+        } else {
+            println!("| Feature | Selected |");
+            println!("|---|---|");
+            for (feat, on) in &sel {
+                println!("| {} | {} |", feat, on);
+            }
+        }
+    }
+
+    // Features table (inline feature declarations — not Configuration selections)
+    if fm.element_type.as_ref() != Some(&ElementType::Configuration) {
     if let Some(ref feats) = fm.features {
         if !feats.is_empty() {
             println!();
@@ -465,6 +492,7 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
                 println!("| {} | {} | {} | {} | {} |", name, ftype, typed, mult, dir);
             }
         }
+    }
     }
 
     // Doc
@@ -1743,11 +1771,11 @@ id: CONF-PREFIX-001
 title: "My variant configuration"
 status: draft
 featureModel: Features::MyFeatureDef
-selections:
-  - feature: Features::FeatureA
-    value: true
-  - feature: Features::FeatureB
-    value: false
+# features: a map of <FeatureDef qualified name>: true/false (§9.8).
+# This is the only selection syntax honored by `matrix` and appliesWhen eval.
+features:
+  Features::FeatureA: true
+  Features::FeatureB: false
 ---
 
 Description of this configuration.

@@ -1781,6 +1781,31 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // W016: a Configuration that parsed no feature selections while a feature
+    // model exists. Catches the legacy `selections:` footgun (issue #12) — an
+    // ignored selection block silently yields an all-N/A matrix — by surfacing
+    // it as a local warning instead of a confusing downstream symptom.
+    {
+        let has_feature_def = elements
+            .iter()
+            .any(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef)));
+        if has_feature_def {
+            for cfg in elements
+                .iter()
+                .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
+            {
+                if cfg.frontmatter.feature_selections().is_empty() {
+                    let msg = if cfg.frontmatter.extra.contains_key("selections") {
+                        "Configuration declares a `selections:` key, which is ignored — feature selections must be a `features:` map of `<FeatureDef>: true/false` (§9.8); this configuration currently selects no features"
+                    } else {
+                        "Configuration parsed no feature selections — add a `features:` map of `<FeatureDef>: true/false` (§9.8), otherwise its appliesWhen-conditioned elements all evaluate N/A"
+                    };
+                    findings.push(warning("W016", &cfg.file_path, msg));
+                }
+            }
+        }
+    }
+
     // W015: per-Configuration coverage (variant-aware uncovered requirement).
     // Only active when the variability dimension is on (REQ-TRS-VAR-001). For
     // each Configuration C and each non-draft requirement R that is *active* in
