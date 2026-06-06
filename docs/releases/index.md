@@ -2,6 +2,30 @@
 
 `RELEASES`
 
+## 0.4.0 — 2026-06-06
+
+### Product-line variability (opt-in)
+
+The variability dimension stays dormant — and changes nothing — unless the model declares a `FeatureDef` and links something to it.
+
+- **Boolean `appliesWhen:`** — conditions any element (including a `TestCase`) on an expression over `FeatureDef` qualified names: `and` / `or` / `not` / parentheses. Bare QName and list (AND) forms remain valid. `E209` now checks every operand.
+- **`TestCase` variant membership** is derived from `appliesWhen:` — a test runs in a `Configuration` iff its condition holds for that configuration's selections (no `runsIn` field).
+- **`syscribe matrix [--json] [--tag]`** — Requirement × Configuration coverage grid (covered / gap / N-A); falls back to a flat view when no feature model is present.
+- **W015** — per-`Configuration` coverage rule: a requirement active in a configuration with no covering in-config `TestCase`. Honours draft suppression; gate with `--deny W015`.
+- **`list --tag` / generic tags** — free-text `tags:` filtering across `list` and `matrix`, orthogonal to the feature model.
+- `Configuration.features:` selection maps now parse; `refs <CONF>` lists the TestCases that run in a configuration.
+
+Documented in format spec §9.10–9.11, `syscribe spec validation`/`spec fields`, the CLI help, and the LLM authoring prompt (Part 9b).
+
+## 0.3.0 — 2026-06-06
+
+- CI severity gating for `validate` (`--deny`, `--max-warnings`, `--warnings-as-errors`; exit codes 0/1/2)
+- Function-level traceability (`W009`) and structured model-graph `export` (JSON / NDJSON)
+- Gherkin scaffolding (`scaffold-gherkin`) and test-result ingestion (`ingest-results`, `W010`)
+- Atomic `move` with reference rewriting
+- `sourceFile` location semantics (model/repo-relative, absolute, `file://`, remote) with an opt-in `--fetch-remote` download hook
+- Active-only source-drift scoping with informational `I010`
+
 ## 0.2.0 — 2026-05-28
 
 ### Demo models
