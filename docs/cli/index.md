@@ -255,6 +255,17 @@ With no feature model present, `matrix` prints a notice and falls back to a flat
 
 `refs <CONF-id>` additionally lists the `TestCase`s that run in a given configuration.
 
+### Feature-model check
+
+`feature-check` runs holistic feature-model validation that is deliberately kept out of the per-element `validate` pass — `requires`/`excludes` resolution and satisfaction, dead/always-on optional features, `derivedFrom:` cycles, `bindTo:` propagation ranges, and `parameterConstraints` paths (see the [validation rules](../validation/rules.md)):
+
+```
+$ syscribe -m model/ feature-check
+$ syscribe -m model/ feature-check --json
+```
+
+Exit code is `0` when there are no errors and `1` otherwise; with no `FeatureDef` present it prints a notice and exits `0`.
+
 ---
 
 ## Traceability

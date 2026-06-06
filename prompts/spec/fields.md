@@ -198,6 +198,7 @@ All frontmatter fields. Optional unless marked **required**.
 | `features` | Configuration | map | Feature selections: `<FeatureDef QName>: true/false` (§9.8) |
 | `parameters` | FeatureDef | list | Typed parameters (§9.7): each `{name, type, range, enumValues, default, isFixed, isRequired, value}` |
 | `parameterBindings` | Configuration | map | Bind feature parameters: `<FeatureDef QName>::<param>: <value>` (validated: E203–E206, E222, W017) |
+| `parameterConstraints` | Package `_index.md` | list | Cross-feature constraints `{id, expression, severity, appliesWhen}` — checked by `feature-check` (E213/W014) |
 | `groupKind` | FeatureDef | string | `mandatory` · `optional` · `alternative` · `or` |
 | `cardinality` | FeatureDef | string | For `or` groups: `"1..*"` etc. |
 | `isFixed` | FeatureDef parameter | bool | Prohibits binding override |

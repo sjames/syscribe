@@ -87,6 +87,24 @@ The variability dimension is **opt-in**: it is dormant — and these checks do n
 
 A `TestCase` *runs in* a `Configuration` iff its `appliesWhen:` is satisfied by that configuration's `features:` selections; a `TestCase` with no `appliesWhen:` runs in every configuration. The same relationship powers `syscribe matrix`.
 
+## Feature-model check (`feature-check` command)
+
+These holistic feature-model rules are **not** run by `validate` — they are emitted only by the explicit `syscribe feature-check` command (exit `0` if no errors, `1` otherwise; dormant with a notice when no `FeatureDef` is present).
+
+| Code | Condition |
+|---|---|
+| E212 | A `FeatureDef.requires:`/`excludes:` entry does not resolve to a `FeatureDef` |
+| E219 | In some `Configuration`, a selected feature's `requires:` target is not selected |
+| E220 | In some `Configuration`, a selected feature's `excludes:` target is also selected |
+| E207 | Circular `derivedFrom:` dependency among parameters of the same `FeatureDef` |
+| E202 | A value propagated via `bindTo:` falls outside the component parameter's narrowing `range:` |
+| E213 | A `parameterConstraints` expression references an unresolved parameter path |
+| W011 | An `optional` `FeatureDef` is selected in zero `Configuration` files (possible dead feature) |
+| W012 | An `optional` `FeatureDef` is selected in every `Configuration` (consider `mandatory`) |
+| W014 | A `parameterConstraints` `appliesWhen:` references a feature selected in no `Configuration` |
+
+Not yet implemented (specified): group-cardinality rules (`E216`/`E217`/`E218`), two-level satisfies completeness (`E210`/`E211`), and constraint-expression evaluation (`E221`).
+
 ## ADR errors (E300–E304)
 
 | Code | Condition |

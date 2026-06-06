@@ -2,6 +2,7 @@
 
 pub mod config;
 pub mod element;
+pub mod feature_model;
 pub mod frontmatter;
 pub mod graph;
 pub mod matchers;

@@ -332,6 +332,11 @@ fn main() {
                     .map(|w| w[1].as_str());
                 matrix::cmd_matrix(&elems, json, tag);
             }
+            "feature-check" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                query::cmd_feature_check(&elems, json);
+            }
             "path-for" => {
                 if key.is_empty() {
                     eprintln!("Usage: syscribe --model <root> path-for <qname|id>");

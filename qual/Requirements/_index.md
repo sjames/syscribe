@@ -17,6 +17,7 @@ Normative requirements for the Syscribe tool. Grouped by functional area:
 | `REQ-TRS-CONF` | Configuration / `appliesWhen` validation (§9, §11.12) |
 | `REQ-TRS-VAR` | Variability: opt-in dormancy, `appliesWhen`, matrix, per-config coverage (§9) |
 | `REQ-TRS-PARAM` | FeatureDef parameter binding validation (§9.7) |
+| `REQ-TRS-FM` | Explicit feature-model validation command (`feature-check`, §9) |
 | `REQ-TRS-TAG` | Generic tag filtering (orthogonal to variability) |
 | `REQ-TRS-OUT` | Output and reporting |
 | `REQ-TRS-CLI` | CLI interface |

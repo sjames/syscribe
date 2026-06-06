@@ -1196,6 +1196,63 @@ impl GateOptions {
     }
 }
 
+/// `feature-check`: holistic feature-model validation (§9), separate from the
+/// per-element `validate` pass. Exit `0` when there are no error-severity
+/// findings, `1` otherwise. Dormant (exit 0 with a notice) when no FeatureDef.
+pub fn cmd_feature_check(elements: &[RawElement], json: bool) {
+    use syscribe_model::feature_model;
+    use syscribe_model::validator::Severity;
+
+    if !feature_model::has_feature_model(elements) {
+        if json {
+            println!("[]");
+        } else {
+            println!("No feature model present — nothing to check.");
+        }
+        return;
+    }
+
+    let findings = feature_model::check_feature_model(elements);
+    let has_error = findings.iter().any(|f| f.severity == Severity::Error);
+
+    if json {
+        let items: Vec<serde_json::Value> = findings
+            .iter()
+            .map(|f| {
+                serde_json::json!({
+                    "code": f.code,
+                    "severity": match f.severity {
+                        Severity::Error => "error",
+                        Severity::Warning => "warning",
+                        Severity::Info => "info",
+                    },
+                    "file": f.file,
+                    "message": f.message,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&items).unwrap());
+    } else if findings.is_empty() {
+        println!("Feature model OK — 0 findings.");
+    } else {
+        println!("# Feature Model Check");
+        println!();
+        println!("| Code | File | Message |");
+        println!("|---|---|---|");
+        for f in &findings {
+            println!("| {} | {} | {} |", f.code, f.file, f.message);
+        }
+        println!();
+        let errs = findings.iter().filter(|f| f.severity == Severity::Error).count();
+        let warns = findings.iter().filter(|f| f.severity == Severity::Warning).count();
+        println!("{} error(s), {} warning(s)", errs, warns);
+    }
+
+    if has_error {
+        std::process::exit(1);
+    }
+}
+
 /// Exit-code contract for `validate` (issue #3):
 /// `0` clean · `1` Error-severity findings · `2` warnings tripped a gate.
 pub fn cmd_validate(
@@ -2221,6 +2278,9 @@ pub fn print_help() {
     println!("  matrix [--json] [--tag <t>]    Requirement × Configuration coverage matrix (cells: covered/gap/N-A)");
     println!("                                 Columns are Configuration elements; --json emits the grid; --tag filters rows.");
     println!("                                 With no feature model, falls back to a flat requirement/testcase view.");
+    println!("  feature-check [--json]         Holistic feature-model validation (requires/excludes, dead features,");
+    println!("                                 derivedFrom cycles, bindTo ranges, parameterConstraints). Separate from");
+    println!("                                 `validate`; exit 0 if no errors, 1 otherwise; dormant with no feature model.");
     println!("  show <qname|id>                Show element details and documentation");
     println!("  ls [qname]                     List namespace children (default: root)");
     println!("  tree [qname]                   Recursive namespace tree (default: root)");

@@ -4415,7 +4415,11 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W016` | A `Configuration` parsed **zero** feature selections while a `FeatureDef` exists in the model — e.g. it used an unrecognized `selections:` key instead of the `features:` map (§9.8). Surfaces the otherwise-silent failure that yields an all-N/A coverage matrix. |
 | `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does not bind. (This is §9.7's nominal `W010`; the validator uses `W017` because `W010` is taken by test-result ingestion.) |
 
-> **Implementation note.** The single-level binding rules `E203`–`E206`, the unresolved-path error `E222`, and `W017` are enforced. Two-level `bindTo:` propagation (`E202`), circular `derivedFrom:` detection (`E207`), and cross-feature `parameterConstraints` (`E213`/`W014`) are specified but not yet implemented. `E222` is an implementation code for a binding path that resolves to no declared parameter.
+> **Implementation note.** Rules split across two commands:
+> - **`validate`** (per-element, always on) enforces the single-level parameter binding rules `E203`–`E206`, the unresolved-path error `E222`, and `W017`.
+> - **`feature-check`** (explicit, holistic — not run by `validate`) enforces the feature-model-wide rules: `E212` (requires/excludes resolution), `E219`/`E220` (requires/excludes satisfaction), `E207` (circular `derivedFrom:`), `E202` (`bindTo:` propagation range), `E213` (unresolved `parameterConstraints` path), and `W011`/`W012`/`W014`.
+>
+> Not yet implemented: group-cardinality rules (`E216`/`E217`/`E218`), two-level satisfies completeness (`E210`/`E211`), and constraint-expression evaluation (`E221`). `E222` is an implementation code beyond the spec table.
 
 ---
 
