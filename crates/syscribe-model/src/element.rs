@@ -32,6 +32,33 @@ mod string_or_vec {
     }
 }
 
+/// Serde helper for the `features:` key, which is overloaded:
+///   * a **sequence** of inline feature declarations (§3.6), or
+///   * a **map** of `FeatureDef qname: bool` selections on a `Configuration` (§9.8).
+///
+/// Both shapes are stored as `Option<Vec<serde_yaml::Value>>`; a map is wrapped
+/// as a single-element vector holding the mapping, so existing call sites that
+/// iterate inline declarations are unaffected. Read selections back via
+/// [`RawFrontmatter::feature_selections`].
+mod features_de {
+    use serde::{Deserialize, Deserializer};
+    pub fn deserialize<'de, D>(d: D) -> Result<Option<Vec<serde_yaml::Value>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v: Option<serde_yaml::Value> = Option::deserialize(d)?;
+        match v {
+            None | Some(serde_yaml::Value::Null) => Ok(None),
+            Some(serde_yaml::Value::Sequence(seq)) => Ok(Some(seq)),
+            Some(m @ serde_yaml::Value::Mapping(_)) => Ok(Some(vec![m])),
+            other => Err(serde::de::Error::custom(format!(
+                "expected a sequence or mapping for `features`, got {:?}",
+                other
+            ))),
+        }
+    }
+}
+
 /// All recognized SysML element types.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ElementType {
@@ -158,6 +185,7 @@ pub struct RawFrontmatter {
     pub value: Option<serde_yaml::Value>,
     pub value_kind: Option<String>,
     pub expression: Option<String>,
+    #[serde(default, deserialize_with = "features_de::deserialize")]
     pub features: Option<Vec<serde_yaml::Value>>,
     pub metadata: Option<Vec<serde_yaml::Value>>,
     pub connections: Option<Vec<serde_yaml::Value>>,
@@ -402,6 +430,28 @@ pub struct RawFrontmatter {
     // Catch-all for unknown fields
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_yaml::Value>,
+}
+
+impl RawFrontmatter {
+    /// Feature selections declared on a `Configuration` (§9.8): the `features:`
+    /// map of `FeatureDef qualified name -> bool`. Returns an empty map for
+    /// elements that are not configurations or that declare no selections.
+    ///
+    /// The `features:` key is stored as a one-element vector wrapping the YAML
+    /// mapping (see `features_de`); this unwraps it.
+    pub fn feature_selections(&self) -> std::collections::BTreeMap<String, bool> {
+        let mut out = std::collections::BTreeMap::new();
+        if let Some(list) = &self.features {
+            if let Some(serde_yaml::Value::Mapping(m)) = list.first() {
+                for (k, v) in m {
+                    if let (Some(k), Some(b)) = (k.as_str(), v.as_bool()) {
+                        out.insert(k.to_string(), b);
+                    }
+                }
+            }
+        }
+        out
+    }
 }
 
 /// A parse-time error recorded on a `RawElement` when frontmatter could not be

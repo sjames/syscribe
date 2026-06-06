@@ -247,6 +247,13 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     if let Some(ref sat) = fm.satisfies {
         for s in sat { out.push(("satisfies".into(), s.clone())); }
     }
+    if let Some(ref aw) = fm.applies_when {
+        if let Ok(Some(expr)) = syscribe_model::variability::applies_when_expr(aw) {
+            for op in expr.operands() {
+                out.push(("appliesWhen".into(), op));
+            }
+        }
+    }
     if let Some(ref s) = fm.breakdown_adr { out.push(("breakdownAdr".into(), s.clone())); }
     if let Some(ref g) = fm.derived_from_security_goal { out.push(("derivedFromSecurityGoal".into(), g.clone())); }
     if let Some(ref g) = fm.derived_from_safety_goal { out.push(("derivedFromSafetyGoal".into(), g.clone())); }
@@ -578,7 +585,7 @@ pub fn cmd_types(elements: &[RawElement]) {
     }
 }
 
-pub fn cmd_list(elements: &[RawElement], type_filter: &str, scope: &str) {
+pub fn cmd_list(elements: &[RawElement], type_filter: &str, scope: &str, tag: Option<&str>) {
     let type_filter_lc = type_filter.to_lowercase();
     let mut matches: Vec<&RawElement> = elements
         .iter()
@@ -587,6 +594,14 @@ pub fn cmd_list(elements: &[RawElement], type_filter: &str, scope: &str) {
             label == type_filter_lc
         })
         .filter(|e| scope.is_empty() || e.qualified_name.starts_with(scope))
+        .filter(|e| {
+            tag.is_none_or(|t| {
+                e.frontmatter
+                    .tags
+                    .as_ref()
+                    .is_some_and(|ts| ts.iter().any(|x| x == t))
+            })
+        })
         .collect();
 
     if matches.is_empty() {
@@ -1059,18 +1074,63 @@ pub fn cmd_refs(elements: &[RawElement], resolver: &Resolver, key: &str) {
     rows.sort();
     rows.dedup();
 
-    if rows.is_empty() {
+    // Computed inbound for a Configuration target: the TestCases that run in it,
+    // i.e. whose appliesWhen is satisfied by this configuration's selections
+    // (configuration-agnostic TestCases — no appliesWhen — run in every config).
+    let mut runs_in: Vec<String> = Vec::new();
+    if elem.frontmatter.element_type.as_ref() == Some(&ElementType::Configuration) {
+        let sel = elem.frontmatter.feature_selections();
+        let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
+        for other in elements {
+            if other.frontmatter.element_type.as_ref() != Some(&ElementType::TestCase) {
+                continue;
+            }
+            let runs = match other
+                .frontmatter
+                .applies_when
+                .as_ref()
+                .and_then(|aw| syscribe_model::variability::applies_when_expr(aw).ok().flatten())
+            {
+                None => true,
+                Some(expr) => expr.eval(&selected),
+            };
+            if runs {
+                runs_in.push(
+                    other
+                        .frontmatter
+                        .id
+                        .clone()
+                        .unwrap_or_else(|| other.qualified_name.clone()),
+                );
+            }
+        }
+        runs_in.sort();
+    }
+
+    if rows.is_empty() && runs_in.is_empty() {
         println!("No elements reference `{}`.", target_qn);
         return;
     }
 
-    println!("| Source | Relationship | Type |");
-    println!("|---|---|---|");
-    for (src, rel, stype) in &rows {
-        println!("| {} | {} | {} |", src, rel, stype);
+    if !rows.is_empty() {
+        println!("| Source | Relationship | Type |");
+        println!("|---|---|---|");
+        for (src, rel, stype) in &rows {
+            println!("| {} | {} | {} |", src, rel, stype);
+        }
+        println!();
+        println!("{} reference(s)", rows.len());
+        println!();
     }
-    println!();
-    println!("{} reference(s)", rows.len());
+
+    if !runs_in.is_empty() {
+        println!("## TestCases running in this configuration");
+        println!();
+        for id in &runs_in {
+            println!("- {}", id);
+        }
+        println!();
+    }
 }
 
 // ── help ─────────────────────────────────────────────────────────────────────

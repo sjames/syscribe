@@ -3,6 +3,7 @@
 mod diagram;
 mod export;
 mod ingest;
+mod matrix;
 mod mv;
 mod query;
 mod render;
@@ -297,11 +298,39 @@ fn main() {
             }
             "list" => {
                 if key.is_empty() {
-                    eprintln!("Usage: syscribe --model <root> list <type> [scope]");
+                    eprintln!("Usage: syscribe --model <root> list <type> [scope] [--tag <tag>]");
                     std::process::exit(1);
                 }
-                let scope = subcommand_args.get(2).map(|s| s.as_str()).unwrap_or("");
-                query::cmd_list(&elems, key, scope);
+                let rest = subcommand_args.get(2..).unwrap_or(&[]);
+                let tag = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--tag")
+                    .map(|w| w[1].as_str());
+                // scope = first positional argument that is not a flag or flag value
+                let mut scope = "";
+                let mut i = 0;
+                while i < rest.len() {
+                    if rest[i] == "--tag" {
+                        i += 2;
+                        continue;
+                    }
+                    if rest[i].starts_with("--") {
+                        i += 1;
+                        continue;
+                    }
+                    scope = rest[i].as_str();
+                    break;
+                }
+                query::cmd_list(&elems, key, scope, tag);
+            }
+            "matrix" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let tag = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--tag")
+                    .map(|w| w[1].as_str());
+                matrix::cmd_matrix(&elems, json, tag);
             }
             "path-for" => {
                 if key.is_empty() {

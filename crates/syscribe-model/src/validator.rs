@@ -1746,25 +1746,114 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
-    // E209: appliesWhen references must resolve to FeatureDef
+    // E209: appliesWhen must parse as a boolean expression over FeatureDefs and
+    // every operand must resolve to a FeatureDef. A bare QName or a list (legacy
+    // AND) are the trivial cases; `and`/`or`/`not`/parentheses are also accepted.
     for elem in elements {
         if let Some(ref aw) = elem.frontmatter.applies_when {
-            let refs = yaml_strings(aw);
-            for r in refs {
-                match resolver.resolve_ref(elements, r) {
-                    None => findings.push(error(
-                        "E209",
-                        &elem.file_path,
-                        &format!("unresolved appliesWhen reference '{}'", r),
-                    )),
-                    Some(target) if !Resolver::is_feature_def(target) => {
-                        findings.push(error(
-                            "E209",
-                            &elem.file_path,
-                            &format!("'{}' does not resolve to a FeatureDef", r),
-                        ));
+            match crate::variability::applies_when_expr(aw) {
+                Err(msg) => findings.push(error(
+                    "E209",
+                    &elem.file_path,
+                    &format!("invalid appliesWhen expression: {}", msg),
+                )),
+                Ok(None) => {}
+                Ok(Some(expr)) => {
+                    for r in expr.operands() {
+                        match resolver.resolve_ref(elements, &r) {
+                            None => findings.push(error(
+                                "E209",
+                                &elem.file_path,
+                                &format!("unresolved appliesWhen reference '{}'", r),
+                            )),
+                            Some(target) if !Resolver::is_feature_def(target) => {
+                                findings.push(error(
+                                    "E209",
+                                    &elem.file_path,
+                                    &format!("'{}' does not resolve to a FeatureDef", r),
+                                ));
+                            }
+                            _ => {}
+                        }
                     }
-                    _ => {}
+                }
+            }
+        }
+    }
+
+    // W015: per-Configuration coverage (variant-aware uncovered requirement).
+    // Only active when the variability dimension is on (REQ-TRS-VAR-001). For
+    // each Configuration C and each non-draft requirement R that is *active* in
+    // C, require a non-draft TestCase that runs in C and verifies R; otherwise
+    // emit W015 on C's file. Dormant models keep the flat uncovered check.
+    if crate::variability::is_active(elements) {
+        use crate::variability::FeatureExpr;
+        let parse_aw = |elem: &RawElement| -> Option<FeatureExpr> {
+            elem.frontmatter
+                .applies_when
+                .as_ref()
+                .and_then(|aw| crate::variability::applies_when_expr(aw).ok().flatten())
+        };
+        let is_draft = |elem: &RawElement| elem.frontmatter.status.as_deref() == Some("draft");
+
+        // Non-draft requirements: (display id, applies_when, identity keys).
+        let reqs: Vec<(String, Option<FeatureExpr>, Vec<String>)> = elements
+            .iter()
+            .filter(|e| {
+                matches!(e.frontmatter.element_type, Some(ElementType::Requirement)) && !is_draft(e)
+            })
+            .map(|e| {
+                let id = e
+                    .frontmatter
+                    .id
+                    .clone()
+                    .unwrap_or_else(|| e.qualified_name.clone());
+                let mut keys = vec![e.qualified_name.clone()];
+                if let Some(i) = &e.frontmatter.id {
+                    keys.push(i.clone());
+                }
+                (id, parse_aw(e), keys)
+            })
+            .collect();
+
+        // Non-draft TestCases: (applies_when, verifies entries).
+        let tcs: Vec<(Option<FeatureExpr>, Vec<String>)> = elements
+            .iter()
+            .filter(|e| {
+                matches!(e.frontmatter.element_type, Some(ElementType::TestCase)) && !is_draft(e)
+            })
+            .map(|e| (parse_aw(e), e.frontmatter.verifies.clone().unwrap_or_default()))
+            .collect();
+
+        for cfg in elements
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
+        {
+            let sel = cfg.frontmatter.feature_selections();
+            let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
+            let cfg_id = cfg
+                .frontmatter
+                .id
+                .clone()
+                .unwrap_or_else(|| cfg.qualified_name.clone());
+            for (rid, rexpr, rkeys) in &reqs {
+                let active = rexpr.as_ref().map_or(true, |e| e.eval(&selected));
+                if !active {
+                    continue;
+                }
+                let covered = tcs.iter().any(|(texpr, verifies)| {
+                    let runs = texpr.as_ref().map_or(true, |e| e.eval(&selected));
+                    runs && verifies.iter().any(|v| rkeys.iter().any(|k| k == v))
+                });
+                if !covered {
+                    findings.push(warning(
+                        "W015",
+                        &cfg.file_path,
+                        &format!(
+                            "requirement '{}' is active in configuration '{}' but no TestCase covering it runs in {}",
+                            rid, cfg_id, cfg_id
+                        ),
+                    ));
                 }
             }
         }

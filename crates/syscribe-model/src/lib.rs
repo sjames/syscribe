@@ -10,4 +10,5 @@ pub mod renderer;
 pub mod resolver;
 pub mod results;
 pub mod validator;
+pub mod variability;
 pub mod walker;
