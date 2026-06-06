@@ -2189,7 +2189,10 @@ pub fn print_help() {
     println!("  export [--ndjson]              Structured model graph as JSON (default) or NDJSON");
     println!("  types                          List all element types present in the model with counts");
     println!("  untyped                        List elements with no type: field set");
-    println!("  list <type> [scope]            List all elements of a given type (optional namespace scope)");
+    println!("  list <type> [scope] [--tag <t>] List elements of a type (optional namespace scope; --tag filters by tags:)");
+    println!("  matrix [--json] [--tag <t>]    Requirement × Configuration coverage matrix (cells: covered/gap/N-A)");
+    println!("                                 Columns are Configuration elements; --json emits the grid; --tag filters rows.");
+    println!("                                 With no feature model, falls back to a flat requirement/testcase view.");
     println!("  show <qname|id>                Show element details and documentation");
     println!("  ls [qname]                     List namespace children (default: root)");
     println!("  tree [qname]                   Recursive namespace tree (default: root)");
@@ -2205,6 +2208,13 @@ pub fn print_help() {
     println!("  why <qname>                    What requirements this element satisfies");
     println!("  who-verifies <req-id>          Which test cases cover a requirement");
     println!("  refs <qname|id>                What elements reference this element");
+    println!("                                 (for a Configuration: also the TestCases that run in it)");
+    println!();
+    println!("Variability (§9, opt-in — dormant unless a FeatureDef is linked):");
+    println!("  appliesWhen: <expr>            On any element/TestCase: a boolean expression over FeatureDef QNames");
+    println!("                                 (and / or / not / parentheses; a bare QName or list[AND] also work).");
+    println!("                                 A TestCase runs in a Configuration iff its appliesWhen holds there.");
+    println!("                                 'matrix' and the W015 per-config coverage rule build on this.");
     println!();
     println!("Spec browser (no model root required):");
     println!("  spec                           Table of contents for the format spec");
@@ -2231,6 +2241,9 @@ pub fn print_help() {
     println!("  syscribe -m model/ validate --file model/UAV/Avionics/FlightController.md");
     println!("  syscribe -m model/ list PartDef");
     println!("  syscribe -m model/ list PortDef UAV::Avionics");
+    println!("  syscribe -m model/ list Requirement --tag smoke");
+    println!("  syscribe -m model/ matrix");
+    println!("  syscribe -m model/ matrix --json --tag safety");
     println!("  syscribe -m model/ path-for UAV::Avionics::FlightController");
     println!("  syscribe -m model/ check-ref Interfaces::TelemetryPortDef");
     println!("  syscribe -m model/ next-id REQ-UAV-FC");

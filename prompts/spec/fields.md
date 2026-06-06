@@ -193,8 +193,9 @@ All frontmatter fields. Optional unless marked **required**.
 
 | Field | Applies to | Type |
 |---|---|---|
-| `appliesWhen` | Any element | string | QName of FeatureDef; element is conditional |
-| `featureModel` | FeatureDef | string | QName of the system FeatureDef model root |
+| `appliesWhen` | Any element (incl. TestCase) | string/list | Boolean expression over FeatureDef QNames: `and`/`or`/`not`/parentheses; a bare QName or a list (AND) also work. Element/TestCase is included only in variants where it holds. A TestCase with no `appliesWhen` runs in every Configuration. |
+| `featureModel` | FeatureDef/Configuration | string | QName of the system FeatureDef model root |
+| `features` | Configuration | map | Feature selections: `<FeatureDef QName>: true/false` (§9.8) |
 | `groupKind` | FeatureDef | string | `mandatory` · `optional` · `alternative` · `or` |
 | `cardinality` | FeatureDef | string | For `or` groups: `"1..*"` etc. |
 | `isFixed` | FeatureDef parameter | bool | Prohibits binding override |

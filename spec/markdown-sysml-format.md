@@ -4273,30 +4273,56 @@ from the system-level configuration.
 
 `appliesWhen:` is a universal field (§3.13) that conditions any model element on one or more feature selections. It is the mechanism by which the full model is **projected** onto a specific `Configuration`.
 
+### Value forms
+
+`appliesWhen:` accepts any of the following; all reduce to a boolean expression over `FeatureDef` qualified names:
+
+1. **absent** — the element is unconditional (always active).
+2. **bare qualified name** — `appliesWhen: Features::Wdt`. Active iff that feature is selected.
+3. **list of qualified names** — `appliesWhen: [Features::A, Features::B]`. AND semantics (all selected). *(Legacy form; kept for back-compatibility.)*
+4. **boolean expression** — `and`, `or`, `not`, and parentheses over qualified names:
+
+```yaml
+appliesWhen: "Features::CortexM and Features::Mpu"
+appliesWhen: "Features::Async or Features::Bus"
+appliesWhen: "not Features::Smp"
+appliesWhen: "(Features::A or Features::B) and not Features::A"
+```
+
+Operator precedence is `not` > `and` > `or`; parentheses override. Every operand qualified name must resolve to a `FeatureDef` — an unresolved/non-`FeatureDef` operand, or a malformed expression, is error `E209`.
+
 ### Evaluation
 
-Given a resolved `Configuration` (system features selected + component configurations determined):
-
-1. For each model element, read its `appliesWhen:` field.
-2. If absent: the element is unconditionally included.
-3. If a single string: resolve the `FeatureDef` reference. Include the element iff that feature is selected in the resolved configuration.
-4. If a list of strings: resolve all `FeatureDef` references. Include the element iff **all** listed features are selected (AND semantics).
-5. If a referenced `FeatureDef` cannot be resolved: validation error `E212`.
-
-### Projection algorithm
+Given a resolved `Configuration`, an element's `appliesWhen:` expression is evaluated against the configuration's `features:` selections (a feature absent from `features:` takes its `FeatureDef` default). The element is **included** iff the expression evaluates true (or is absent).
 
 ```
 project(configuration, allElements) →
   for each element in allElements:
-    if element.appliesWhen is absent:
-      include
-    elif all features in element.appliesWhen are selected in configuration:
-      include
-    else:
-      exclude
+    include  if  element.appliesWhen is absent
+             or  eval(element.appliesWhen, configuration.features) == true
+    else exclude
 ```
 
 The projected model is the input to all downstream tools (diagram generators, requirement coverage reports, integration test selection).
+
+### `TestCase` variant membership — no `runsIn` field
+
+`appliesWhen:` is also the sole mechanism that ties a `TestCase` to the variants it runs in: **a `TestCase` runs in a `Configuration` iff its `appliesWhen:` is satisfied by that configuration's `features:`.** A `TestCase` with no `appliesWhen:` is *configuration-agnostic* and runs in every `Configuration`. There is deliberately no separate `runsIn` field — membership is computed, not stored. (Where two configurations would otherwise have identical selections — e.g. an emulator vs a physical rig — model the distinguishing axis as a feature, such as an `ExecEnv` alternative group.)
+
+This drives two downstream capabilities (both dormant unless the variability dimension is active — §9.10.1):
+
+- the **`syscribe matrix`** command — a Requirement × Configuration coverage grid whose columns are the model's `Configuration` elements and whose cells are *N/A* (requirement not active in that variant), *covered*, or *gap*;
+- the per-`Configuration` coverage rule **`W015`** (§9.11) — a requirement active in a configuration with no covering in-configuration `TestCase`.
+
+### 9.10.1 Opt-in (the variability dimension is dormant by default)
+
+The variability dimension is **active** only when both (a) at least one `FeatureDef` exists, and (b) at least one element links to it (a `Configuration`, or any element/`TestCase` carrying `appliesWhen:`). When it is dormant:
+
+- validation output is identical to a model with no PLE elements (no `W015`, no projection);
+- an `appliesWhen:` with no feature model present is inert — *except* that an unresolved reference is still `E209`;
+- `syscribe matrix` prints a "no feature model present" notice and falls back to a flat requirement↔testcase view.
+
+This lets a project adopt variability incrementally without disturbing existing validation.
 
 ### Usage across layers
 
@@ -4385,6 +4411,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W012` | A `FeatureDef` with `groupKind: optional` is selected in every `Configuration` (should be `mandatory`) |
 | `W013` | A component `FeatureDef` has no `contributesTo:` and no `excludes:` referencing any system feature — internal feature not visible from system level (informational) |
 | `W014` | A `parameterConstraint` has `appliesWhen:` that references a feature not in any `Configuration` |
+| `W015` | A requirement is **active** in a `Configuration` (its `appliesWhen:` holds for that configuration's `features:`) but no non-draft `TestCase` that runs in that `Configuration` (§9.10) verifies it. Emitted only when the variability dimension is active (§9.10.1); draft requirements/tests are suppressed; gate with `--deny W015`. |
 
 ---
 

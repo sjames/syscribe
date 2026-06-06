@@ -220,6 +220,41 @@ $ syscribe -m model_auto/ list PartDef System::Software
 | ...
 ```
 
+Filter by free-text `tags:` with `--tag` (repeatable; orthogonal to the feature model):
+
+```
+$ syscribe -m model/ list Requirement --tag smoke
+```
+
+---
+
+## Variability (product lines)
+
+The variability dimension is **opt-in**: it stays dormant unless the model declares a `FeatureDef` and links something to it. See the [validation rules](../validation/rules.md) (E209, W015) and §9 of the format spec.
+
+`appliesWhen:` conditions any element (including a `TestCase`) on a boolean expression over `FeatureDef` qualified names — `and` / `or` / `not` / parentheses, with a bare QName or a list (AND) also accepted:
+
+```yaml
+appliesWhen: "Features::CortexM and Features::Mpu"
+appliesWhen: "not Features::Smp"
+```
+
+A `TestCase` *runs in* a `Configuration` iff its `appliesWhen:` is satisfied by that configuration's `features:` selections (no `appliesWhen:` ⇒ runs everywhere). There is no `runsIn` field.
+
+### Coverage matrix
+
+`matrix` emits a Requirement × Configuration grid. Columns are the model's `Configuration` elements; cells are covered (`✓`), gap (`✗`), or N/A (`—`, requirement not active in that variant):
+
+```
+$ syscribe -m model/ matrix
+$ syscribe -m model/ matrix --json            # structured grid (schemaVersion, columns, rows)
+$ syscribe -m model/ matrix --tag safety      # filter rows by tag
+```
+
+With no feature model present, `matrix` prints a notice and falls back to a flat requirement/testcase view (exit 0).
+
+`refs <CONF-id>` additionally lists the `TestCase`s that run in a given configuration.
+
 ---
 
 ## Traceability

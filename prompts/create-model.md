@@ -83,11 +83,12 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe model/ ls [qname]` | List namespace children (default: root) |
 | `syscribe model/ tree [qname]` | Recursive namespace tree |
 | `syscribe model/ find <pattern>` | Fuzzy search by name / ID / content |
-| `syscribe model/ list <type> [scope]` | List all elements of a given type, optionally scoped |
+| `syscribe model/ list <type> [scope] [--tag <t>]` | List elements of a type, optionally scoped; `--tag` filters by `tags:` |
 | `syscribe model/ types` | All element types present in the model with counts |
 | `syscribe model/ untyped` | List elements with no `type:` field set |
 | `syscribe model/ links <qname\|id>` | All outbound and inbound relationships |
-| `syscribe model/ refs <qname\|id>` | What elements reference this element |
+| `syscribe model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it) |
+| `syscribe model/ matrix [--json] [--tag <t>]` | Requirement × Configuration coverage grid (variant-aware; see Part 9b) |
 
 **Traceability:**
 
@@ -679,6 +680,37 @@ SVG conventions: root `<svg>` uses `xmlns:sysml="urn:syscribe:1.0"`. Each shape 
 
 ---
 
+## Part 9b — Variability (Product Lines, §9)
+
+**Opt-in.** Skip this entirely for single-product models. The variability dimension is dormant — and changes nothing about validation — unless the model has at least one `FeatureDef` *and* something links to it. Add it only when modelling a product line.
+
+Three building blocks:
+
+| Element / field | Role |
+|---|---|
+| `type: FeatureDef` | A node in the feature model (a selectable characteristic). `groupKind:` is `optional`/`mandatory`/`alternative`/`or`. |
+| `type: Configuration` | A named product variant. `id:` matches `CONF-*`; `featureModel:` names the feature package; `features:` is a **map** of `<FeatureDef QName>: true/false`. |
+| `appliesWhen:` | On *any* element (including a `TestCase`): conditions it on a boolean expression over `FeatureDef` QNames. |
+
+**`appliesWhen:` forms** — a bare QName, a list (AND), or an expression with `and`/`or`/`not`/parentheses:
+
+```yaml
+appliesWhen: Features::Wdt
+appliesWhen: "Features::CortexM and Features::Mpu"
+appliesWhen: "(Features::A or Features::B) and not Features::A"
+```
+
+Every operand must resolve to a `FeatureDef` (else `E209`).
+
+**Test coverage is variant-aware — there is no `runsIn` field.** A `TestCase` *runs in* a `Configuration` iff its `appliesWhen:` is satisfied by that configuration's `features:` selections; a `TestCase` with no `appliesWhen:` runs in every configuration. To check coverage per variant:
+
+- `syscribe model/ matrix` — Requirement × Configuration grid (cells: covered / gap / N-A). Use `--json` for structured output, `--tag` to filter rows.
+- Validation emits **W015** when a requirement is active in a `Configuration` but no non-draft `TestCase` running there verifies it. Gate it with `validate --deny W015`.
+
+If two configurations would have identical `features:` (e.g. emulator vs physical rig), model the distinguishing axis as its own feature (e.g. an `ExecEnv` alternative group) rather than reaching for a separate field.
+
+---
+
 ## Part 10 — §12 Traceability Rules
 
 ### §12.1 — Link direction
@@ -879,6 +911,8 @@ draft → review → approved → implemented → verified
 | W006 | Both `silLevel` and `asilLevel` set on the same element | Use only one — they are incompatible standards |
 | W806 | `SafetyGoal` has no `hazardousEvents:` | Add `hazardousEvents:` referencing the relevant `HE-*` IDs |
 | W808 | Integrity level is lower than source but no `breakdownAdr:` | Add `breakdownAdr:` documenting the ASIL/SIL decomposition |
+| E209 | `appliesWhen:` malformed or an operand is not a `FeatureDef` | Fix the expression; every operand must be a `FeatureDef` QName |
+| W015 | Requirement active in a `Configuration` with no covering in-config TestCase | Add a `TestCase` whose `appliesWhen:` holds in that config and `verifies:` the requirement (see Part 9b) |
 
 ---
 

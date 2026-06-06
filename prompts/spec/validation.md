@@ -199,7 +199,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E206` | Bound parameter value not in `enumValues:` |
 | `E207` | Circular `derivedFrom:` dependency between parameters of the same `FeatureDef` |
 | `E208` | Duplicate `Configuration.id` |
-| `E209` | `appliesWhen:` does not resolve to a `FeatureDef` |
+| `E209` | `appliesWhen:` is malformed, or an operand does not resolve to a `FeatureDef` (operands of `and`/`or`/`not` expressions are each checked) |
 | `E210` | Selected system feature has no component `Configuration` satisfying it |
 | `E211` | Selected system feature satisfied by more than one component `Configuration` in same package |
 | `E212` | `FeatureDef.requires:` or `excludes:` does not resolve to a `FeatureDef` |
@@ -213,7 +213,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E220` | `FeatureDef.excludes:` constraint violated by selected features |
 | `E221` | Cross-feature `parameterConstraint` evaluates to `false` |
 
-## Product Line Engineering warnings (W010–W014)
+## Product Line Engineering warnings (W010–W015)
 
 | Code | Condition |
 |---|---|
@@ -222,3 +222,4 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W012` | `FeatureDef` with `groupKind: optional` selected in every `Configuration` |
 | `W013` | Component `FeatureDef` has no `contributesTo:` or `excludes:` visible from system level |
 | `W014` | `parameterConstraint` has `appliesWhen:` referencing a feature not in any `Configuration` |
+| `W015` | A requirement is active in a `Configuration` (its `appliesWhen` holds) but no non-draft `TestCase` that runs in that `Configuration` verifies it. Only emitted when the variability dimension is active; honours draft suppression; gate with `--deny W015`. |
