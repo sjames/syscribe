@@ -3,6 +3,7 @@
 mod diagram;
 mod export;
 mod ingest;
+mod mv;
 mod query;
 mod render;
 mod scaffold;
@@ -321,6 +322,15 @@ fn main() {
                     std::process::exit(1);
                 }
                 query::cmd_template(key);
+            }
+            "move" => {
+                let dest = subcommand_args.get(2).map(|s| s.as_str()).unwrap_or("");
+                if key.is_empty() || dest.is_empty() {
+                    eprintln!("Usage: syscribe --model <root> move <source-qname|id> <dest-qname> [--dry-run]");
+                    std::process::exit(1);
+                }
+                let dry_run = subcommand_args.iter().any(|a| a == "--dry-run");
+                mv::cmd_move(model_root, &elems, &resolver, key, dest, dry_run);
             }
             "scaffold-gherkin" => {
                 if key.is_empty() {

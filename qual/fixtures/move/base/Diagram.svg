@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <g id="s-widget" sysml:ref="Pkg::Sub::Widget">
+    <a href="/ui/detail/Pkg::Sub::Widget" data-qname="Pkg::Sub::Widget"/>
+  </g>
+  <g id="s-widget-port" sysml:ref="Pkg::Sub::Widget::port"/>
+  <g id="s-widgetext" sysml:ref="Pkg::Sub::WidgetExtended"/>
+</svg>

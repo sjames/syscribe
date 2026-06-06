@@ -1543,12 +1543,14 @@ dependencies = [
  "fontdb",
  "pathfinding",
  "quick-xml",
+ "regex",
  "serde",
  "serde_json",
  "serde_yaml",
  "svg",
  "syscribe-model",
  "taffy",
+ "walkdir",
 ]
 
 [[package]]

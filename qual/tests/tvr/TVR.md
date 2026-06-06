@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 65 |
-| Passed | 65 |
+| Total test cases | 69 |
+| Passed | 69 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -213,6 +213,50 @@
 |---|---|
 | two elements with the same id produce E101 | ✓ PASS |
 | unique ids produce no E101 | ✓ PASS |
+
+---
+
+### TC-TRS-MOVE-001 — Verify move relocates an element and a package (with subtree) and rejects invalid destinations.
+
+**Verifies:** REQ-TRS-MOVE-001  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| reject move into own subtree | ✓ PASS |
+
+---
+
+### TC-TRS-MOVE-002 — Verify move updates all qualified-name references, including nested ones, without false matches.
+
+**Verifies:** REQ-TRS-MOVE-002  
+**Result:** ✓ PASS (10 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| descendant endpoint follows package move | ✓ PASS |
+
+---
+
+### TC-TRS-MOVE-003 — Verify move is atomic — a failing precondition leaves the model unchanged.
+
+**Verifies:** REQ-TRS-MOVE-003  
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| --dry-run reports without writing | ✓ PASS |
+
+---
+
+### TC-TRS-MOVE-004 — Verify move preserves stable IDs and references made through them.
+
+**Verifies:** REQ-TRS-MOVE-004  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| id-based reference is not rewritten and still resolves | ✓ PASS |
 
 ---
 

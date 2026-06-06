@@ -2115,6 +2115,7 @@ pub fn print_help() {
     println!("  next-id <id-prefix>            Print the next available stable ID for a prefix");
     println!("  template <type>                Print a ready-to-fill frontmatter skeleton for a type");
     println!("  scaffold-gherkin <TC> [--fix]  Generate/align Gherkin Scenario blocks from testFunctions");
+    println!("  move <src> <dest> [--dry-run]  Move an element/package to a new qname, rewriting all references");
     println!("  trace <qname|req-id>           Full traceability slice for a requirement");
     println!("  links <qname|id>               All outbound and inbound relationships");
     println!("  why <qname>                    What requirements this element satisfies");

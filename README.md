@@ -131,6 +131,18 @@ syscribe -m model_auto/ next-id REQ-ENG-SAFE
 syscribe -m model_auto/ find throttle
 ```
 
+### Refactor: move an element or package
+
+`move` relocates an element (or a whole package subtree) to a new qualified name and atomically rewrites every reference to it — frontmatter (including nested `connections`/`features`), multi-segment qualified names cited in Markdown bodies, and SVG diagram references (inline and companion `.svg` files: `sysml:ref`/`data-qname`/`href`). Stable IDs (`REQ-*`, `TC-*`, `ADR-*`) and references made through them are preserved.
+
+```bash
+# Preview the file move and every reference update — writes nothing
+syscribe -m model_auto/ move System::Software::SafetyMonitor System::Safety::SafetyMonitor --dry-run
+
+# Apply it (all-or-nothing; rolls back on any error)
+syscribe -m model_auto/ move System::Software::SafetyMonitor System::Safety::SafetyMonitor
+```
+
 ### Export the model graph
 
 For CI gates, dashboards, and LLM agents that need the whole model without re-parsing Markdown:
