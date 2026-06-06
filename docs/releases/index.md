@@ -2,6 +2,20 @@
 
 `RELEASES`
 
+## 0.5.0 — 2026-06-06
+
+### Configuration selections (fixes #12)
+
+- `template Configuration` now emits the canonical `features:` map (was `selections:`, which the parser silently ignored — every cell came back N/A).
+- **W016** — a `Configuration` that parses zero feature selections while a feature model exists is now flagged instead of silently ignored.
+- `show <Configuration>` displays parsed feature selections (and `featureModel`/`appliesWhen`), so a parse failure is visible locally.
+
+### Feature parameters (§9.7, single-level)
+
+- `FeatureDef.parameters:` are now validated against a `Configuration`'s `parameterBindings:`:
+  - **E203** bind for an unselected feature · **E204** bind a fixed parameter · **E205** value out of `range:` · **E206** value not in `enumValues:` · **E222** binding path resolves to no declared parameter · **W017** selected feature's required, default-less parameter left unbound.
+- Two-level `bindTo:` propagation, derived-expression cycles, and cross-feature `parameterConstraints` remain unimplemented (documented).
+
 ## 0.4.0 — 2026-06-06
 
 ### Product-line variability (opt-in)
