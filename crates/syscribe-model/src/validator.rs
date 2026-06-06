@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
 use petgraph::visit::EdgeRef;
+use crate::config::ValidateConfig;
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
 use crate::resolver::{
@@ -108,7 +109,16 @@ fn yaml_strings(v: &serde_yaml::Value) -> Vec<&str> {
 }
 
 /// Run all parse-time and model-time validation rules against a loaded element list.
+///
+/// Uses [`ValidateConfig::default`] — on-disk references resolve relative to the
+/// current working directory. Callers that know the model root should prefer
+/// [`validate_with_config`] so paths such as `sourceFile:` resolve correctly.
 pub fn validate(elements: &[RawElement]) -> ValidationResult {
+    validate_with_config(elements, &ValidateConfig::default())
+}
+
+/// Run all parse-time and model-time validation rules with explicit [`ValidateConfig`].
+pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) -> ValidationResult {
     let mut findings: Vec<Finding> = Vec::new();
     let resolver = Resolver::new(elements);
 
@@ -245,7 +255,7 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                     findings.push(warning(
                         "W701",
                         &file,
-                        &format!("Requirement with asilLevel: {} has no verificationMethod — add test, inspection, analysis, or demonstration", asil),
+                        &format!("Requirement with asilLevel: {} has no verificationMethod — add the frontmatter line `verificationMethod: test` (or: inspection | analysis | demonstration)", asil),
                     ));
                 }
             }
@@ -509,10 +519,82 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                 "both silLevel (IEC 61508) and asilLevel (ISO 26262) are set — these are incompatible standards; use only one"));
         }
 
-        // W004: sourceFile must exist
+        // W004: sourceFile must exist (resolved relative to the model root, §11.12)
         if let Some(ref sf) = fm.source_file {
-            if !std::path::Path::new(sf).exists() {
+            if !config.resolve_on_disk(sf).exists() {
                 findings.push(warning("W004", &file, &format!("sourceFile '{}' does not exist on disk", sf)));
+            }
+        }
+
+        // W009: every testFunctions[].function must resolve to a definition in
+        // sourceFile (function-level traceability — catches renamed/deleted tests
+        // that W004's file-level check cannot see).
+        if let (Some(sf), Some(fns)) = (&fm.source_file, &fm.test_functions) {
+            let src_path = config.resolve_on_disk(sf);
+            if src_path.exists() {
+                use crate::matchers::FnResolution;
+                let func_key = serde_yaml::Value::String("function".into());
+                for tf in fns {
+                    if let serde_yaml::Value::Mapping(map) = tf {
+                        if let Some(serde_yaml::Value::String(func)) = map.get(&func_key) {
+                            match config.matchers.resolve(&src_path, func) {
+                                FnResolution::Found => {}
+                                FnResolution::NotFound => findings.push(warning(
+                                    "W009",
+                                    &file,
+                                    &format!("testFunction '{}' not found in sourceFile '{}'", func, sf),
+                                )),
+                                // File existed for resolve() but became unreadable; W004 covers absence.
+                                FnResolution::Unreadable => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // W010: ingested test results — an active/verified TestCase whose mapped
+        // test function last failed or was absent from the run (issue #4).
+        if let (Some(results), Some(ElementType::TestCase), Some(fns)) =
+            (&config.results, &fm.element_type, &fm.test_functions)
+        {
+            let tc_status = fm.status.as_deref().unwrap_or("");
+            if tc_status == "active" {
+                use crate::results::FnVerdict;
+                let func_key = serde_yaml::Value::String("function".into());
+                for tf in fns {
+                    if let serde_yaml::Value::Mapping(map) = tf {
+                        if let Some(serde_yaml::Value::String(func)) = map.get(&func_key) {
+                            match results.verdict_for(func) {
+                                FnVerdict::Pass => {}
+                                FnVerdict::Ignored => findings.push(warning(
+                                    "W010",
+                                    &file,
+                                    &format!(
+                                        "{} TestCase: test function '{}' was ignored/skipped in the ingested results",
+                                        tc_status, func
+                                    ),
+                                )),
+                                FnVerdict::Fail => findings.push(warning(
+                                    "W010",
+                                    &file,
+                                    &format!(
+                                        "{} TestCase: test function '{}' FAILED in the ingested results",
+                                        tc_status, func
+                                    ),
+                                )),
+                                FnVerdict::Missing => findings.push(warning(
+                                    "W010",
+                                    &file,
+                                    &format!(
+                                        "{} TestCase: test function '{}' was not present in the ingested results",
+                                        tc_status, func
+                                    ),
+                                )),
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -1396,7 +1478,12 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
                             findings.push(error(
                                 "E106",
                                 &elem.file_path,
-                                &format!("testFunctions scenario '{}' not found in Gherkin blocks", scenario),
+                                &format!(
+                                    "testFunctions scenario '{}' not found in Gherkin blocks — add to a ```gherkin block: `Scenario: {}` (or run `syscribe scaffold-gherkin {} --fix`)",
+                                    scenario,
+                                    scenario,
+                                    fm.id.as_deref().unwrap_or("<TC>")
+                                ),
                             ));
                         }
                     }

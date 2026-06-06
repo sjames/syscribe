@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="mutex" tests="2" failures="1">
+  <testcase classname="mutex::tests" name="acquire_ok"/>
+  <testcase classname="mutex::tests" name="release_fails"><failure message="assertion failed"/></testcase>
+</testsuite>

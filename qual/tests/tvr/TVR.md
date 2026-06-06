@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** unknown  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-05-28  
+**Date:** 2026-06-06  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 48 |
-| Passed | 48 |
+| Total test cases | 65 |
+| Passed | 65 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -54,6 +54,46 @@
 
 ---
 
+### TC-TRS-CONF-001 — Verify that E200, E201, and E209 are emitted for Configuration and appliesWhen violations.
+
+**Verifies:** REQ-TRS-CONF-001  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| trigger E200 | ✓ PASS |
+| trigger E201 | ✓ PASS |
+| trigger E209 | ✓ PASS |
+
+---
+
+### TC-TRS-DIAG-001 — Verify that E400–E402 and W400–W412 are emitted for Diagram element validation conditions.
+
+**Verifies:** REQ-TRS-DIAG-001  
+**Result:** ✓ PASS (17 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| trigger E400 | ✓ PASS |
+| trigger E401 | ✓ PASS |
+| trigger E402 | ✓ PASS |
+| trigger W400 | ✓ PASS |
+| trigger W401 | ✓ PASS |
+| trigger W402 | ✓ PASS |
+| trigger W403 | ✓ PASS |
+| trigger W404 | ✓ PASS |
+| trigger W406 | ✓ PASS |
+| trigger W407 | ✓ PASS |
+| trigger W408 | ✓ PASS |
+| trigger W409 | ✓ PASS |
+| trigger W410 | ✓ PASS |
+| trigger W411 | ✓ PASS |
+| trigger W412 | ✓ PASS |
+| trigger W405 (companion mode, no img tag) | ✓ PASS |
+| trigger W405 (inline mode, no svg block) | ✓ PASS |
+
+---
+
 ### TC-TRS-ELEM-001 — Verify that all element types defined in §2 are recognised and processed without E005.
 
 **Verifies:** REQ-TRS-ELEM-001  
@@ -85,6 +125,45 @@
 | Scenario | Result |
 |---|---|
 | PartDef with no supertype: loads without E004 | ✓ PASS |
+
+---
+
+### TC-TRS-FMEA-001 — Verify that FMEASheet and FMEAEntry validation rules E911–E914, W902–W904 are enforced.
+
+**Verifies:** REQ-TRS-FMEA-001  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| trigger E911 | ✓ PASS |
+| trigger E912 | ✓ PASS |
+| trigger E913 | ✓ PASS |
+| trigger E914 | ✓ PASS |
+| trigger W902 | ✓ PASS |
+| trigger W903 | ✓ PASS |
+| trigger W904 | ✓ PASS |
+
+---
+
+### TC-TRS-FTA-001 — Verify that FaultTree, FaultTreeGate, and FaultTreeEvent validation rules E900–E909, W900–W901 are enforced.
+
+**Verifies:** REQ-TRS-FTA-001  
+**Result:** ✓ PASS (12 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| trigger E900 | ✓ PASS |
+| trigger E901 | ✓ PASS |
+| trigger E902 | ✓ PASS |
+| trigger E903 | ✓ PASS |
+| trigger E904 | ✓ PASS |
+| trigger E905 | ✓ PASS |
+| trigger E906 | ✓ PASS |
+| trigger E907 | ✓ PASS |
+| trigger E908 | ✓ PASS |
+| trigger E909 | ✓ PASS |
+| trigger W900 | ✓ PASS |
+| trigger W901 | ✓ PASS |
 
 ---
 
@@ -191,6 +270,39 @@
 |---|---|
 | model with only warnings exits 0 | ✓ PASS |
 | clean model exits 0 | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-006 — Verify CI severity-gating flags and the 0/1/2 exit-code contract.
+
+**Verifies:** REQ-TRS-OUT-006  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| errors dominate gating flags (exit 1) | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-007 — Verify the structured model graph export (JSON + NDJSON, schemaVersion, resolved relationships).
+
+**Verifies:** REQ-TRS-OUT-007  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| ndjson emits header then elements | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-008 — Verify test-result ingestion and W010 for failing/missing tests (cargo-json + JUnit).
+
+**Verifies:** REQ-TRS-OUT-008  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| junit results supported via --results | ✓ PASS |
 
 ---
 
@@ -344,6 +456,105 @@
 
 ---
 
+### TC-TRS-SAFE-001 — Verify that HazardousEvent validation rules E800-E804, E833-E836, and W800 are enforced
+
+**Verifies:** REQ-TRS-SAFE-001  
+**Result:** ✓ PASS (10 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| trigger E800 | ✓ PASS |
+| trigger E801 | ✓ PASS |
+| trigger E802 | ✓ PASS |
+| trigger E803 | ✓ PASS |
+| trigger E804 | ✓ PASS |
+| trigger E833 | ✓ PASS |
+| trigger E834 | ✓ PASS |
+| trigger E835 | ✓ PASS |
+| trigger E836 | ✓ PASS |
+| trigger W800 | ✓ PASS |
+
+---
+
+### TC-TRS-SAFE-002 — Verify that SafetyGoal validation rules E805-E806, E825, E837, W801, W805, and W806 are enforced
+
+**Verifies:** REQ-TRS-SAFE-002  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| trigger E805 | ✓ PASS |
+| trigger E806 | ✓ PASS |
+| trigger E825 | ✓ PASS |
+| trigger E837 | ✓ PASS |
+| trigger W801 | ✓ PASS |
+| trigger W805 | ✓ PASS |
+| trigger W806 | ✓ PASS |
+
+---
+
+### TC-TRS-SAFE-003 — Verify that DamageScenario and ThreatScenario validation rules E807-E814 and E826 are enforced
+
+**Verifies:** REQ-TRS-SAFE-003  
+**Result:** ✓ PASS (9 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| trigger E807 | ✓ PASS |
+| trigger E808 | ✓ PASS |
+| trigger E809 | ✓ PASS |
+| trigger E810 | ✓ PASS |
+| trigger E811 | ✓ PASS |
+| trigger E812 | ✓ PASS |
+| trigger E813 | ✓ PASS |
+| trigger E814 | ✓ PASS |
+| trigger E826 | ✓ PASS |
+
+---
+
+### TC-TRS-SAFE-004 — Verify that CybersecurityGoal, SecurityControl, and VulnerabilityReport validation rules E815-E824, E827-E832, W802-W804, and W807 are enforced
+
+**Verifies:** REQ-TRS-SAFE-004  
+**Result:** ✓ PASS (20 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| trigger E815 | ✓ PASS |
+| trigger E816 | ✓ PASS |
+| trigger E817 | ✓ PASS |
+| trigger E818 | ✓ PASS |
+| trigger E819 | ✓ PASS |
+| trigger E820 | ✓ PASS |
+| trigger E821 | ✓ PASS |
+| trigger E822 | ✓ PASS |
+| trigger E823 | ✓ PASS |
+| trigger E824 | ✓ PASS |
+| trigger E827 | ✓ PASS |
+| trigger E828 | ✓ PASS |
+| trigger E829 | ✓ PASS |
+| trigger E830 | ✓ PASS |
+| trigger E831 | ✓ PASS |
+| trigger E832 | ✓ PASS |
+| trigger W802 | ✓ PASS |
+| trigger W803 | ✓ PASS |
+| trigger W804 | ✓ PASS |
+| trigger W807 | ✓ PASS |
+
+---
+
+### TC-TRS-TARA-001 — Verify that TARASheet validation rules E940–E941, W905 are enforced.
+
+**Verifies:** REQ-TRS-TARA-001  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| trigger E940 | ✓ PASS |
+| trigger E941 | ✓ PASS |
+| trigger W905 | ✓ PASS |
+
+---
+
 ### TC-TRS-TRACE-001 — Verify that computed reverse indices are populated from downstream link fields.
 
 **Verifies:** REQ-TRS-TRACE-001  
@@ -436,6 +647,20 @@
 
 ---
 
+### TC-TRS-TRACE-009 — Verify that E016/E017/E018 are emitted for cycles in supertype, derivedFrom, and subsets graphs.
+
+**Verifies:** REQ-TRS-TRACE-009  
+**Result:** ✓ PASS (16 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| supertype cycle produces E016 | ✓ PASS |
+| derivedFrom cycle produces E017 | ✓ PASS |
+| subsets cycle produces E018 | ✓ PASS |
+| acyclic model produces no cycle errors | ✓ PASS |
+
+---
+
 ### TC-TRS-VAL-001 — Verify that each parse-time error rule is triggered by the corresponding malformed input.
 
 **Verifies:** REQ-TRS-VAL-001  
@@ -468,7 +693,7 @@
 ### TC-TRS-VAL-002 — Verify that each model-time error rule is triggered by its cross-element condition.
 
 **Verifies:** REQ-TRS-VAL-002  
-**Result:** ✓ PASS (11 passed, 0 failed)
+**Result:** ✓ PASS (12 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
@@ -477,6 +702,7 @@
 | trigger E103 | ✓ PASS |
 | trigger E104 | ✓ PASS |
 | trigger E105 | ✓ PASS |
+| trigger E106 | ✓ PASS |
 | trigger E310 | ✓ PASS |
 | trigger E311 | ✓ PASS |
 | trigger E312 | ✓ PASS |
@@ -489,7 +715,7 @@
 ### TC-TRS-VAL-003 — Verify that each warning rule is triggered by its condition with Warning severity.
 
 **Verifies:** REQ-TRS-VAL-003  
-**Result:** ✓ PASS (11 passed, 0 failed)
+**Result:** ✓ PASS (13 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
@@ -499,21 +725,24 @@
 | trigger W004 | ✓ PASS |
 | trigger W005 | ✓ PASS |
 | trigger W006 | ✓ PASS |
+| trigger W007 | ✓ PASS |
 | trigger W300 | ✓ PASS |
 | trigger W301 | ✓ PASS |
 | trigger W302 | ✓ PASS |
 | trigger W303 | ✓ PASS |
 | trigger W304 | ✓ PASS |
+| trigger W305 | ✓ PASS |
 
 ---
 
 ### TC-TRS-VAL-004 — Verify that integrity-level propagation errors E841-E843 and W808 are enforced.
 
 **Verifies:** REQ-TRS-VAL-004  
-**Result:** ✓ PASS (3 passed, 0 failed)
+**Result:** ✓ PASS (4 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
+| E841: derivedFromSafetyGoal element missing integrity level | ✓ PASS |
 | E842: derivedFrom element missing integrity level | ✓ PASS |
 | E843: satisfies element missing integrity level | ✓ PASS |
 | W808: integrity level lower than source without breakdownAdr | ✓ PASS |
@@ -553,6 +782,66 @@
 |---|---|
 | Errors section does not contain W-codes | ✓ PASS |
 | Warnings section does not contain E-codes | ✓ PASS |
+
+---
+
+### TC-TRS-VAL-008 — Verify that safety-level, standards-compliance, and type-field validation rules are enforced.
+
+**Verifies:** REQ-TRS-VAL-008  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| trigger E019 | ✓ PASS |
+| trigger E020 | ✓ PASS |
+| trigger E021 | ✓ PASS |
+| trigger E022 | ✓ PASS |
+| trigger W703 | ✓ PASS |
+| W008: file with valid frontmatter but no type: field | ✓ PASS |
+| W701: Requirement with asilLevel B/C/D and no verificationMethod | ✓ PASS |
+| W702: ASIL-D Requirement with active TestCase but none at L5 | ✓ PASS |
+
+---
+
+### TC-TRS-VAL-009 — Verify that E500-E503, W500-W502, and W600-W601 are emitted for Allocation, View, and documentation violations.
+
+**Verifies:** REQ-TRS-VAL-009  
+**Result:** ✓ PASS (9 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| trigger E500 | ✓ PASS |
+| trigger E501 | ✓ PASS |
+| trigger E502 | ✓ PASS |
+| trigger E503 | ✓ PASS |
+| trigger W500 | ✓ PASS |
+| trigger W501 | ✓ PASS |
+| trigger W502 | ✓ PASS |
+| trigger W600 | ✓ PASS |
+| trigger W601 | ✓ PASS |
+
+---
+
+### TC-TRS-VAL-010 — Verify function-level traceability (W009) across all supported languages and generic files.
+
+**Verifies:** REQ-TRS-VAL-010  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| resolving functions across all languages produce no W009 | ✓ PASS |
+| renamed/missing tests produce W009 | ✓ PASS |
+
+---
+
+### TC-TRS-VAL-011 — Verify actionable E106 messages and scaffold-gherkin --fix alignment.
+
+**Verifies:** REQ-TRS-VAL-011  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| scaffold-gherkin --fix clears E106 | ✓ PASS |
 
 ---
 

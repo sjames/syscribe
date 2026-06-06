@@ -4972,6 +4972,8 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W005` | Native `Requirement` has neither `derivedFrom:` entries nor `derivedChildren` (possible orphan not connected to any requirement hierarchy) |
 | `W006` | Both `silLevel:` (IEC 61508) and `asilLevel:` (ISO 26262) are set on the same element — incompatible standards; use only one |
 | `W007` | Frontmatter contains an unrecognised key (lenient mode; key is preserved in the element's extra-fields map) |
+| `W009` | A `testFunctions[].function` does not resolve to a definition in its (existing) `sourceFile` — function-level traceability drift (renamed/deleted test). See *Function matchers* below. |
+| `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results. See *Test result ingestion* below. Inert unless results have been ingested. |
 | `W300` | Leaf `Requirement` at `status: approved` or `status: implemented` has no satisfying architecture element (no element has `satisfies:` pointing to it) |
 | `W301` | Leaf `Requirement` is satisfied by more than one architecture element — only one expected at leaf level |
 | `W302` | Leaf `Requirement` at `status: implemented` or `status: verified` still has `reqDomain: system` — refine to `hardware` or `software` |
@@ -5009,6 +5011,54 @@ Once any element in the traceability chain carries `asilLevel:`, `silLevel:`, or
 | `W807` | `Requirement` with `derivedFromSecurityGoal:` has no `verificationMethod:` |
 
 The full set of Tier 2 (E800–E843) and Tier 4 (E900–E941, W900–W905) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
+
+#### Function matchers (`W009`)
+
+`W004` confirms a `TestCase`'s `sourceFile:` exists; `W009` additionally confirms each `testFunctions[].function` resolves to a real test/function definition in that file. The function name is the last segment of the `function` string after splitting on `::`, `.`, `#`, or `/`.
+
+Built-in, language-aware matchers (keyed by file extension):
+
+| Language | Extensions | Recognises |
+|---|---|---|
+| Rust | `.rs` | `fn name` (incl. `#[test]`, `#[kani::proof]`) |
+| Java | `.java` | method declarations |
+| C / C++ | `.c .h .cpp .cc .cxx .hpp .hh .hxx .ino` | function definitions; GoogleTest `TEST` / `TEST_F` / `TEST_P` |
+| Kotlin | `.kt .kts` | `fun name`; backtick test names |
+| Shell | `.sh .bash .bats .zsh .ksh` | POSIX `name()`; `function name`; bats `@test "..."` |
+
+Any other file type (e.g. `.robot`, `.feature`, `.txt`, generated test manifests) uses a **generic whole-token fallback**: the test name must appear as a complete token in the file. This lets any file that represents a test participate in traceability while still catching deletions.
+
+Projects can override or add per-extension patterns via a `[matchers]` table in `<model_root>/.syscribe.toml`, where each key is an extension (no dot) and each value is a list of regexes whose **capture group 1** is the defined test name:
+
+```toml
+[matchers]
+py = ['def\s+(test_[A-Za-z0-9_]*)\s*\(']
+feature = ['Scenario:\s*(.+)']
+```
+
+An override **replaces** the built-in patterns for that extension. `W009` severity is overridable via the CI gating flags (`--deny W009`).
+
+#### Test result ingestion (`W010`)
+
+`syscribe ingest-results --format <cargo-json|junit> <file>` parses an external test report (libtest JSON or JUnit XML), reduces it to a per-test verdict keyed by the test's leaf name, and writes a sidecar at `<model_root>/.syscribe/results.json`. When that sidecar is present (or results are supplied ad-hoc with `validate --results <file>`), the validator emits `W010` for every `active` `TestCase` whose `testFunctions[].function` last **failed**, was **ignored/skipped**, or was **missing** from the run — so "verified" can mean "covered by a test that actually passed". Passing functions are silent, and `W010` is inert when no results have been ingested. Gate on it in CI with `--deny W010`.
+
+#### Exit-code contract (CI gating)
+
+The `validate` subcommand exposes a stable exit-code contract so it can be used directly as a CI gate:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | No `Error`-severity findings and no gate failure |
+| `1` | One or more `Error`-severity findings present |
+| `2` | One or more `Warning`-severity findings tripped a configured gate |
+
+Gating is opt-in via flags on `validate`:
+
+- `--deny <CODES>` — comma-separated warning codes promoted to gate failures (e.g. `--deny W004,W009`).
+- `--max-warnings <N>` — fail when the total warning count exceeds `N`.
+- `--warnings-as-errors` — promote every warning to a gate failure.
+
+`Error` findings always dominate (exit `1`) regardless of gating flags. With no gating flag, warning-only models exit `0`. This enables a phased rollout: warn during burndown, then `--deny` to enforce.
 
 ---
 

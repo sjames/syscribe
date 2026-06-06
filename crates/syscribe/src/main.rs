@@ -1,12 +1,16 @@
 #![deny(warnings)]
 
 mod diagram;
+mod export;
+mod ingest;
 mod query;
 mod render;
+mod scaffold;
 mod spec;
 
 use std::collections::{BTreeMap, HashMap};
 use syscribe_model::{
+    config::ValidateConfig,
     element::{ElementType, RawElement},
     resolver::{is_adr_id, is_req_id, is_tc_id, Resolver},
     validator,
@@ -65,6 +69,59 @@ fn top_level_package(file_path: &str, model_root: &str) -> String {
 }
 
 const AGENT_INSTRUCTIONS: &str = include_str!("../../../prompts/create-model.md");
+
+/// Parse CI severity-gating flags for the `validate` subcommand (issue #3):
+///   --deny <CODES>          comma-separated warning codes to treat as gate failures
+///   --max-warnings <N>      fail when warnings exceed N
+///   --warnings-as-errors    promote every warning to a gate failure
+fn parse_gate_options(args: &[String]) -> query::GateOptions {
+    let mut gate = query::GateOptions::default();
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        if a == "--warnings-as-errors" {
+            gate.warnings_as_errors = true;
+        } else if a == "--deny" {
+            if let Some(val) = args.get(i + 1) {
+                for code in val.split(',') {
+                    let c = code.trim();
+                    if !c.is_empty() {
+                        gate.deny.insert(c.to_string());
+                    }
+                }
+                i += 1;
+            }
+        } else if let Some(val) = a.strip_prefix("--deny=") {
+            for code in val.split(',') {
+                let c = code.trim();
+                if !c.is_empty() {
+                    gate.deny.insert(c.to_string());
+                }
+            }
+        } else if a == "--max-warnings" {
+            if let Some(val) = args.get(i + 1) {
+                match val.parse::<usize>() {
+                    Ok(n) => gate.max_warnings = Some(n),
+                    Err(_) => {
+                        eprintln!("Error: --max-warnings expects a non-negative integer, got '{}'", val);
+                        std::process::exit(1);
+                    }
+                }
+                i += 1;
+            }
+        } else if let Some(val) = a.strip_prefix("--max-warnings=") {
+            match val.parse::<usize>() {
+                Ok(n) => gate.max_warnings = Some(n),
+                Err(_) => {
+                    eprintln!("Error: --max-warnings expects a non-negative integer, got '{}'", val);
+                    std::process::exit(1);
+                }
+            }
+        }
+        i += 1;
+    }
+    gate
+}
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -129,6 +186,10 @@ fn main() {
         }
     };
 
+    // Validation config rooted at the model directory so on-disk references
+    // (e.g. `sourceFile:`) resolve correctly per spec §11.12.
+    let vcfg = ValidateConfig::with_model_root(model_root);
+
     // ── Subcommand dispatch ───────────────────────────────────────────────────
     if let Some(subcmd) = subcommand_args.first().map(|s| s.as_str()) {
         let resolver = Resolver::new(&elems);
@@ -175,7 +236,49 @@ fn main() {
                 let file_filter = rest.windows(2)
                     .find(|w| w[0] == "--file")
                     .map(|w| w[1].as_str());
-                query::cmd_validate(&elems, file_filter, json);
+                let gate = parse_gate_options(rest);
+                // Ad-hoc results ingest for this run (does not write the sidecar).
+                let results_file = rest.windows(2)
+                    .find(|w| w[0] == "--results")
+                    .map(|w| w[1].as_str());
+                let mut vcfg_run = vcfg.clone();
+                if let Some(rf) = results_file {
+                    let fmt = rest.windows(2)
+                        .find(|w| w[0] == "--format")
+                        .map(|w| w[1].as_str());
+                    let inferred = if rf.ends_with(".xml") { "junit" } else { "cargo-json" };
+                    if let Some(data) = ingest::parse_file(fmt.unwrap_or(inferred), rf) {
+                        vcfg_run.results = Some(data);
+                    }
+                }
+                query::cmd_validate(&elems, &vcfg_run, &gate, file_filter, json);
+            }
+            "ingest-results" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let format = rest.windows(2)
+                    .find(|w| w[0] == "--format")
+                    .map(|w| w[1].as_str());
+                // The results file is the first positional arg (not a flag/flag-value).
+                let mut file: Option<&str> = None;
+                let mut i = 0;
+                while i < rest.len() {
+                    if rest[i] == "--format" { i += 2; continue; }
+                    if rest[i].starts_with("--") { i += 1; continue; }
+                    file = Some(rest[i].as_str());
+                    break;
+                }
+                match file {
+                    Some(f) => ingest::cmd_ingest_results(model_root, format, f),
+                    None => {
+                        eprintln!("Usage: syscribe --model <root> ingest-results [--format cargo-json|junit] <file>");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            "export" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let ndjson = rest.iter().any(|a| a == "--ndjson");
+                export::cmd_export(&elems, &vcfg, ndjson);
             }
             "types" => {
                 query::cmd_types(&elems);
@@ -219,8 +322,16 @@ fn main() {
                 }
                 query::cmd_template(key);
             }
+            "scaffold-gherkin" => {
+                if key.is_empty() {
+                    eprintln!("Usage: syscribe --model <root> scaffold-gherkin <TC> [--fix]");
+                    std::process::exit(1);
+                }
+                let fix = subcommand_args.iter().any(|a| a == "--fix");
+                scaffold::cmd_scaffold_gherkin(&elems, &resolver, key, fix);
+            }
             "trace" | "why" | "who-verifies" => {
-                let result = validator::validate(&elems);
+                let result = validator::validate_with_config(&elems, &vcfg);
                 match subcmd {
                     "trace" => query::cmd_trace(&elems, &resolver, &result, key),
                     "why" => query::cmd_why(&elems, &resolver, &result, key),
@@ -237,7 +348,7 @@ fn main() {
         return;
     }
 
-    let result = validator::validate(&elems);
+    let result = validator::validate_with_config(&elems, &vcfg);
 
     let error_count = result.errors().count();
     let warning_count = result.warnings().count();

@@ -31,7 +31,7 @@ qual/
     REQ-TRS-PARSE-001.md
     REQ-TRS-VAL-001.md
     ...
-  TestCases/                   ← 60 TC-TRS-* test cases with Gherkin
+  TestCases/                   ← 65 TC-TRS-* test cases with Gherkin
     TC-TRS-PARSE-001.md
     TC-TRS-VAL-001.md
     ...
@@ -238,7 +238,7 @@ The qualification suite runs automatically on every push to `main` and on every 
 ```yaml
 jobs:
   qualify:
-    name: TCL2 qualification suite (60 TCs)
+    name: TCL2 qualification suite (65 TCs)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

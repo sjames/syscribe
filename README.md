@@ -102,6 +102,11 @@ syscribe -m model_auto/ validate --json
 
 # Scoped to a single file
 syscribe -m model_auto/ validate --file model_auto/System/Software/SafetyMonitor.md
+
+# CI gating — exit 0 (clean) / 1 (errors) / 2 (gated warnings)
+syscribe -m model_auto/ validate --deny W004,W009    # named warnings become fatal
+syscribe -m model_auto/ validate --max-warnings 0    # any warning fails the build
+syscribe -m model_auto/ validate --warnings-as-errors
 ```
 
 ### Query the model
@@ -125,6 +130,21 @@ syscribe -m model_auto/ next-id REQ-ENG-SAFE
 # Fuzzy search across names, IDs, and docs
 syscribe -m model_auto/ find throttle
 ```
+
+### Export the model graph
+
+For CI gates, dashboards, and LLM agents that need the whole model without re-parsing Markdown:
+
+```bash
+# Versioned JSON document (schemaVersion + elements[] with typed frontmatter
+# and resolved relationships: computed.verifiedBy / derivedChildren)
+syscribe -m model_auto/ export
+
+# Newline-delimited JSON (header line, then one element per line)
+syscribe -m model_auto/ export --ndjson
+```
+
+Each element carries `qname`, `file`, `id`, `type`, `name`, its typed `frontmatter`, and — for requirements — a `computed` block with the resolved `verifiedBy` and `derivedChildren` reverse indices.
 
 ### Browse in a web UI
 

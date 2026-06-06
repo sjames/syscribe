@@ -1075,18 +1075,66 @@ pub fn cmd_refs(elements: &[RawElement], resolver: &Resolver, key: &str) {
 
 // ── help ─────────────────────────────────────────────────────────────────────
 
-pub fn cmd_validate(elements: &[RawElement], file_filter: Option<&str>, json: bool) {
+/// CI severity-gating options for `validate` (issue #3).
+///
+/// Controls which warning conditions cause a non-zero exit, on top of the
+/// always-fatal `Error` findings.
+#[derive(Debug, Clone, Default)]
+pub struct GateOptions {
+    /// Warning codes to treat as gate failures (e.g. `W004`, `W009`).
+    pub deny: std::collections::HashSet<String>,
+    /// Fail if the number of warnings exceeds this threshold.
+    pub max_warnings: Option<usize>,
+    /// Treat every warning as a gate failure.
+    pub warnings_as_errors: bool,
+}
+
+impl GateOptions {
+    /// Returns the warnings that trip the gate, given the full warning list.
+    fn denied<'a>(&self, warnings: &[&'a syscribe_model::validator::Finding])
+        -> Vec<&'a syscribe_model::validator::Finding>
+    {
+        if self.warnings_as_errors {
+            return warnings.to_vec();
+        }
+        warnings.iter().filter(|f| self.deny.contains(f.code)).copied().collect()
+    }
+}
+
+/// Exit-code contract for `validate` (issue #3):
+/// `0` clean · `1` Error-severity findings · `2` warnings tripped a gate.
+pub fn cmd_validate(
+    elements: &[RawElement],
+    config: &syscribe_model::config::ValidateConfig,
+    gate: &GateOptions,
+    file_filter: Option<&str>,
+    json: bool,
+) {
     use syscribe_model::validator;
     use syscribe_model::validator::Severity;
 
-    let result = validator::validate(elements);
+    let result = validator::validate_with_config(elements, config);
 
     let findings: Vec<_> = result.findings.iter()
         .filter(|f| file_filter.map_or(true, |ff| f.file.contains(ff)))
         .collect();
 
-    let errors: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Error).collect();
-    let warnings: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Warning).collect();
+    let errors: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Error).copied().collect();
+    let warnings: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Warning).copied().collect();
+
+    // Gate evaluation (independent of output format).
+    let denied = gate.denied(&warnings);
+    let over_max = gate.max_warnings.map_or(false, |m| warnings.len() > m);
+    let gate_tripped = !denied.is_empty() || over_max;
+
+    // Exit code: errors dominate (1), then gated warnings (2), else clean (0).
+    let exit_code = if !errors.is_empty() {
+        1
+    } else if gate_tripped {
+        2
+    } else {
+        0
+    };
 
     if json {
         let items: Vec<serde_json::Value> = findings.iter().map(|f| {
@@ -1098,7 +1146,14 @@ pub fn cmd_validate(elements: &[RawElement], file_filter: Option<&str>, json: bo
             })
         }).collect();
         println!("{}", serde_json::to_string_pretty(&items).unwrap());
-        if !errors.is_empty() { std::process::exit(1); }
+        if exit_code == 2 {
+            for line in gate_report_lines(&denied, over_max, warnings.len(), gate) {
+                eprintln!("{}", line);
+            }
+        }
+        if exit_code != 0 {
+            std::process::exit(exit_code);
+        }
         return;
     }
 
@@ -1129,9 +1184,48 @@ pub fn cmd_validate(elements: &[RawElement], file_filter: Option<&str>, json: bo
         println!();
     }
 
-    if !errors.is_empty() {
-        std::process::exit(1);
+    if exit_code == 2 {
+        for line in gate_report_lines(&denied, over_max, warnings.len(), gate) {
+            println!("{}", line);
+        }
     }
+
+    if exit_code != 0 {
+        std::process::exit(exit_code);
+    }
+}
+
+/// Build human-readable lines explaining why the warning gate tripped.
+fn gate_report_lines(
+    denied: &[&syscribe_model::validator::Finding],
+    over_max: bool,
+    warn_total: usize,
+    gate: &GateOptions,
+) -> Vec<String> {
+    let mut lines = Vec::new();
+    if !denied.is_empty() {
+        let label = if gate.warnings_as_errors {
+            "all warnings promoted to errors (--warnings-as-errors)".to_string()
+        } else {
+            format!("denied warning codes ({})", sorted_codes(denied).join(", "))
+        };
+        lines.push(format!("Gate failure (exit 2): {} — {} finding(s).", label, denied.len()));
+    }
+    if over_max {
+        lines.push(format!(
+            "Gate failure (exit 2): warning count {} exceeds --max-warnings {}.",
+            warn_total,
+            gate.max_warnings.unwrap()
+        ));
+    }
+    lines
+}
+
+fn sorted_codes(findings: &[&syscribe_model::validator::Finding]) -> Vec<String> {
+    let mut codes: Vec<String> = findings.iter().map(|f| f.code.to_string()).collect();
+    codes.sort();
+    codes.dedup();
+    codes
 }
 
 pub fn cmd_path_for(elements: &[RawElement], resolver: &Resolver, key: &str) {
@@ -1218,6 +1312,12 @@ testLevel: L5
 coverageTarget: statement
 verifies:
   - REQ-PREFIX-001
+# Each testFunctions[].scenario MUST match a `Scenario:` title below 1:1 (E106).
+# sourceFile + function enable function-level traceability (W009).
+# testFunctions:
+#   - function: "mymod::tests::normal_case"   # last segment resolved in sourceFile
+#     scenario: "Normal case"                 # must equal a Scenario: title below
+# sourceFile: tests/my_tests.rs
 ---
 
 ## Test Procedure
@@ -1230,6 +1330,9 @@ Feature: ...
     When ...
     Then ...
 ```
+
+> Tip: run `syscribe scaffold-gherkin TC-PREFIX-001 --fix` to auto-insert any
+> `Scenario:` blocks missing for the `testFunctions[].scenario` entries above.
 "#,
         "adr" => r#"---
 type: ADR
@@ -1993,6 +2096,13 @@ pub fn print_help() {
     println!("Commands:");
     println!("  (none)                         Full validation report (default)");
     println!("  validate [--json] [--file <f>] Validation findings only (errors + warnings)");
+    println!("           [--deny <CODES>]      Treat the listed warning codes as gate failures (exit 2)");
+    println!("           [--max-warnings <N>]  Fail (exit 2) when warnings exceed N");
+    println!("           [--warnings-as-errors] Treat every warning as a gate failure (exit 2)");
+    println!("           [--results <f>]       Ingest test results for this run (W010), without writing the sidecar");
+    println!("  ingest-results [--format cargo-json|junit] <file>");
+    println!("                                 Parse test results into .syscribe/results.json (enables W010)");
+    println!("  export [--ndjson]              Structured model graph as JSON (default) or NDJSON");
     println!("  types                          List all element types present in the model with counts");
     println!("  untyped                        List elements with no type: field set");
     println!("  list <type> [scope]            List all elements of a given type (optional namespace scope)");
@@ -2004,6 +2114,7 @@ pub fn print_help() {
     println!("  check-ref <qname|id>           Verify a cross-reference resolves and show its type");
     println!("  next-id <id-prefix>            Print the next available stable ID for a prefix");
     println!("  template <type>                Print a ready-to-fill frontmatter skeleton for a type");
+    println!("  scaffold-gherkin <TC> [--fix]  Generate/align Gherkin Scenario blocks from testFunctions");
     println!("  trace <qname|req-id>           Full traceability slice for a requirement");
     println!("  links <qname|id>               All outbound and inbound relationships");
     println!("  why <qname>                    What requirements this element satisfies");
@@ -2018,6 +2129,11 @@ pub fn print_help() {
     println!("  spec validation                All validation rule codes");
     println!("  spec traceability              Traceability rules R-001–R-007");
     println!("  spec safety                    Safety/security analysis elements (HARA/TARA/FTA/FMEA)");
+    println!();
+    println!("Exit codes (validate):");
+    println!("  0                              No errors and no gate failures");
+    println!("  1                              One or more Error-severity findings");
+    println!("  2                              Warnings tripped a gate (--deny / --max-warnings / --warnings-as-errors)");
     println!();
     println!("Options:");
     println!("  -m, --model <path>             Model root directory");

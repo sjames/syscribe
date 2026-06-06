@@ -1,0 +1,5 @@
+{ "type": "suite", "event": "started", "test_count": 2 }
+{ "type": "test", "event": "started", "name": "mutex::tests::acquire_ok" }
+{ "type": "test", "name": "mutex::tests::acquire_ok", "event": "ok" }
+{ "type": "test", "name": "mutex::tests::release_fails", "event": "failed" }
+{ "type": "suite", "event": "failed", "passed": 1, "failed": 1 }
