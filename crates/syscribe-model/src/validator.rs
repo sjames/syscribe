@@ -519,33 +519,39 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 "both silLevel (IEC 61508) and asilLevel (ISO 26262) are set — these are incompatible standards; use only one"));
         }
 
-        // W004: sourceFile must exist (resolved relative to the model root, §11.12)
+        // W004: sourceFile must exist. Local paths (model-/repo-relative, absolute,
+        // or file://) are checked on disk; remote URIs are accepted as external
+        // and not verified locally (§11.12).
         if let Some(ref sf) = fm.source_file {
-            if !config.resolve_on_disk(sf).exists() {
-                findings.push(warning("W004", &file, &format!("sourceFile '{}' does not exist on disk", sf)));
+            if let crate::config::SourceLocation::Local(p) = config.classify_source(sf) {
+                if !p.exists() {
+                    findings.push(warning("W004", &file, &format!("sourceFile '{}' does not exist on disk", sf)));
+                }
             }
         }
 
         // W009: every testFunctions[].function must resolve to a definition in
         // sourceFile (function-level traceability — catches renamed/deleted tests
-        // that W004's file-level check cannot see).
+        // that W004's file-level check cannot see). Skipped for remote sourceFiles,
+        // which cannot be read locally.
         if let (Some(sf), Some(fns)) = (&fm.source_file, &fm.test_functions) {
-            let src_path = config.resolve_on_disk(sf);
-            if src_path.exists() {
-                use crate::matchers::FnResolution;
-                let func_key = serde_yaml::Value::String("function".into());
-                for tf in fns {
-                    if let serde_yaml::Value::Mapping(map) = tf {
-                        if let Some(serde_yaml::Value::String(func)) = map.get(&func_key) {
-                            match config.matchers.resolve(&src_path, func) {
-                                FnResolution::Found => {}
-                                FnResolution::NotFound => findings.push(warning(
-                                    "W009",
-                                    &file,
-                                    &format!("testFunction '{}' not found in sourceFile '{}'", func, sf),
-                                )),
-                                // File existed for resolve() but became unreadable; W004 covers absence.
-                                FnResolution::Unreadable => {}
+            if let crate::config::SourceLocation::Local(src_path) = config.classify_source(sf) {
+                if src_path.exists() {
+                    use crate::matchers::FnResolution;
+                    let func_key = serde_yaml::Value::String("function".into());
+                    for tf in fns {
+                        if let serde_yaml::Value::Mapping(map) = tf {
+                            if let Some(serde_yaml::Value::String(func)) = map.get(&func_key) {
+                                match config.matchers.resolve(&src_path, func) {
+                                    FnResolution::Found => {}
+                                    FnResolution::NotFound => findings.push(warning(
+                                        "W009",
+                                        &file,
+                                        &format!("testFunction '{}' not found in sourceFile '{}'", func, sf),
+                                    )),
+                                    // File existed for resolve() but became unreadable; W004 covers absence.
+                                    FnResolution::Unreadable => {}
+                                }
                             }
                         }
                     }

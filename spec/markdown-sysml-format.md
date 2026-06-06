@@ -4968,7 +4968,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W001` | Native `Requirement` normative text contains no `shall` |
 | `W002` | Native `Requirement` with `status: approved` or `status: implemented` has no `active` TestCase in `verifiedBy` |
 | `W003` | Native `Requirement` with `status: verified` but `verifiedBy` is empty or all entries have `status: retired` |
-| `W004` | `sourceFile:` path does not exist on disk relative to the model root |
+| `W004` | A **local** `sourceFile:` path does not exist on disk. Remote-URI sourceFiles are accepted and not checked locally (see *sourceFile location semantics*). |
 | `W005` | Native `Requirement` has neither `derivedFrom:` entries nor `derivedChildren` (possible orphan not connected to any requirement hierarchy) |
 | `W006` | Both `silLevel:` (IEC 61508) and `asilLevel:` (ISO 26262) are set on the same element — incompatible standards; use only one |
 | `W007` | Frontmatter contains an unrecognised key (lenient mode; key is preserved in the element's extra-fields map) |
@@ -5012,9 +5012,26 @@ Once any element in the traceability chain carries `asilLevel:`, `silLevel:`, or
 
 The full set of Tier 2 (E800–E843) and Tier 4 (E900–E941, W900–W905) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
 
+#### sourceFile location semantics
+
+A `sourceFile:` value is interpreted by its form, so each element can choose how its path is resolved:
+
+| Form | Resolves to |
+|---|---|
+| `path` (bare relative) | model root + `path` (default) |
+| `model:<path>` | model root + `path` (explicit) |
+| `repo:<path>` | repository root + `path` |
+| `/abs/path` | the absolute path as-is |
+| `file://…` | the local path encoded in the file URI |
+| `scheme://…` (any other scheme) | a **remote** location — not resolved or read locally |
+
+The repository root is taken from `repo_root` in `<model_root>/.syscribe.toml` (resolved against the model root when relative), or auto-detected as the nearest ancestor directory containing `.git`.
+
+Local forms are subject to `W004` (existence) and `W009` (function resolution). Remote URIs are treated as external: `W004` is not emitted and `W009` is skipped, since the file cannot be read during validation.
+
 #### Function matchers (`W009`)
 
-`W004` confirms a `TestCase`'s `sourceFile:` exists; `W009` additionally confirms each `testFunctions[].function` resolves to a real test/function definition in that file. The function name is the last segment of the `function` string after splitting on `::`, `.`, `#`, or `/`.
+`W004` confirms a local `TestCase`'s `sourceFile:` exists; `W009` additionally confirms each `testFunctions[].function` resolves to a real test/function definition in that file. The function name is the last segment of the `function` string after splitting on `::`, `.`, `#`, or `/`.
 
 Built-in, language-aware matchers (keyed by file extension):
 

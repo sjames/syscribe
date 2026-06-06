@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 69 |
-| Passed | 69 |
+| Total test cases | 70 |
+| Passed | 70 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -886,6 +886,17 @@
 | Scenario | Result |
 |---|---|
 | scaffold-gherkin --fix clears E106 | ✓ PASS |
+
+---
+
+### TC-TRS-VAL-012 — Verify sourceFile location semantics: model-relative, absolute, file URI, and remote URI.
+
+**Verifies:** REQ-TRS-VAL-012  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| absolute and file:// resolve without new W004 | ✓ PASS |
 
 ---
 
