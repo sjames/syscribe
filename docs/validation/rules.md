@@ -136,6 +136,15 @@ Not yet implemented (specified): group-cardinality rules (`E216`/`E217`/`E218`) 
 
 The lens is inert when the model declares no `FeatureDef`. Cross-reference-resolution codes (`E102`–`E106`) are suppressed under `--config` because escaping refs (`E226`/`W019`) are authoritative there.
 
+## Transitive package `appliesWhen` (§9.10, REQ-TRS-VAR-006)
+
+A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's **effective condition** is its own `appliesWhen:`, else the nearest ancestor package's. To keep that unambiguous, at most one node per root-to-leaf path may declare it. Checked by `validate` (dormant without a `FeatureDef`).
+
+| Code | Condition |
+|---|---|
+| E228 | Invalid `appliesWhen:` placement: nested under a package that already declares one; or on a `FeatureDef`/`Configuration`, a package whose subtree contains one, or the model-root package |
+| W026 | A `Package` declares `appliesWhen:` but gates no projectable element (empty subtree); gate with `--deny W026` |
+
 ## ADR errors (E300–E304)
 
 | Code | Condition |

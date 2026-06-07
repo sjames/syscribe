@@ -10,6 +10,7 @@
 //! and truth-table semantics unit-testable in isolation.
 
 use crate::element::{ElementType, RawElement};
+use std::collections::HashMap;
 
 /// A boolean expression over `FeatureDef` qualified names.
 ///
@@ -246,6 +247,72 @@ pub fn is_active(elements: &[RawElement]) -> bool {
         }
     }
     has_feature_def && has_link
+}
+
+/// Map of package qualified-name → its declared `appliesWhen:` value, for every
+/// `Package`/`LibraryPackage`/`Namespace` element that declares one. Used to
+/// resolve an element's *effective* condition (transitive package `appliesWhen`,
+/// [`REQ-TRS-VAR-006`]).
+pub fn package_conditions(elements: &[RawElement]) -> HashMap<String, serde_yaml::Value> {
+    let mut m = HashMap::new();
+    for e in elements {
+        if matches!(
+            e.frontmatter.element_type,
+            Some(ElementType::Package) | Some(ElementType::LibraryPackage) | Some(ElementType::Namespace)
+        ) {
+            if let Some(aw) = &e.frontmatter.applies_when {
+                m.insert(e.qualified_name.clone(), aw.clone());
+            }
+        }
+    }
+    m
+}
+
+/// The nearest ancestor *package* of `elem` (a proper qname prefix) that declares
+/// `appliesWhen:`, if any. Excludes the element itself.
+pub fn ancestor_package_with_aw(
+    elem: &RawElement,
+    pkg: &HashMap<String, serde_yaml::Value>,
+) -> Option<String> {
+    if pkg.is_empty() {
+        return None;
+    }
+    let segs: Vec<&str> = elem.qualified_name.split("::").filter(|s| !s.is_empty()).collect();
+    // proper prefixes, longest first
+    let mut i = segs.len().saturating_sub(1);
+    while i >= 1 {
+        let prefix = segs[..i].join("::");
+        if pkg.contains_key(&prefix) {
+            return Some(prefix);
+        }
+        i -= 1;
+    }
+    None
+}
+
+/// An element's *effective* `appliesWhen:` — its own if declared, otherwise the
+/// nearest ancestor package's (transitive package conditioning). Returns the
+/// value and the source: `None` source means the element's own declaration,
+/// `Some(pkg_qname)` means it was inherited from that package.
+pub fn effective_applies_when(
+    elem: &RawElement,
+    pkg: &HashMap<String, serde_yaml::Value>,
+) -> Option<(serde_yaml::Value, Option<String>)> {
+    if let Some(aw) = &elem.frontmatter.applies_when {
+        return Some((aw.clone(), None));
+    }
+    ancestor_package_with_aw(elem, pkg).map(|p| {
+        let v = pkg.get(&p).cloned().unwrap();
+        (v, Some(p))
+    })
+}
+
+/// The effective `appliesWhen:` parsed to a [`FeatureExpr`] (own or inherited).
+pub fn effective_expr(
+    elem: &RawElement,
+    pkg: &HashMap<String, serde_yaml::Value>,
+) -> Option<FeatureExpr> {
+    effective_applies_when(elem, pkg).and_then(|(v, _)| applies_when_expr(&v).ok().flatten())
 }
 
 #[cfg(test)]

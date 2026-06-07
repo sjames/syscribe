@@ -194,7 +194,7 @@ All frontmatter fields. Optional unless marked **required**.
 
 | Field | Applies to | Type |
 |---|---|---|
-| `appliesWhen` | Any element (incl. TestCase) | string/list | Boolean expression over FeatureDef QNames: `and`/`or`/`not`/parentheses; a bare QName or a list (AND) also work. Element/TestCase is included only in variants where it holds. A TestCase with no `appliesWhen` runs in every Configuration. |
+| `appliesWhen` | Any element (incl. TestCase), or a Package | string/list | Boolean expression over FeatureDef QNames: `and`/`or`/`not`/parentheses; a bare QName or a list (AND) also work. Element/TestCase is included only in variants where it holds. A TestCase with no `appliesWhen` runs in every Configuration. On a Package it gates the whole subtree transitively; one declaration per path (`E228`), empty gated package `W026`. |
 | `featureModel` | FeatureDef/Configuration | string | QName of the system FeatureDef model root |
 | `features` | Configuration | map | Feature selections: `<FeatureDef QName>: true/false` (§9.8) |
 | `parameters` | FeatureDef | list | Typed parameters (§9.7): each `{name, type, range, enumValues, default, isFixed, isRequired, value}` |

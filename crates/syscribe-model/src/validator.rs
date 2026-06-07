@@ -1967,6 +1967,70 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // ── E228 / W026: transitive package appliesWhen (REQ-TRS-VAR-006) ────────
+    // A package may carry appliesWhen to gate its whole subtree, with at most one
+    // declaration per root-to-leaf path. Dormant unless a FeatureDef exists.
+    if elements
+        .iter()
+        .any(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef)))
+    {
+        let pkg = crate::variability::package_conditions(elements);
+        let is_pkg = |t: &Option<ElementType>| {
+            matches!(
+                t,
+                Some(ElementType::Package) | Some(ElementType::LibraryPackage) | Some(ElementType::Namespace)
+            )
+        };
+        let kind_label = |t: &Option<ElementType>| match t {
+            Some(ElementType::FeatureDef) => "FeatureDef",
+            Some(ElementType::Configuration) => "Configuration",
+            _ => "element",
+        };
+        for e in elements {
+            let own = e.frontmatter.applies_when.is_some();
+            let et = &e.frontmatter.element_type;
+            let qn = if e.qualified_name.is_empty() { "<root>" } else { &e.qualified_name };
+            // (a) forbidden target — own appliesWhen on a FeatureDef / Configuration
+            if own && matches!(et, Some(ElementType::FeatureDef) | Some(ElementType::Configuration)) {
+                findings.push(error("E228", &e.file_path, &format!(
+                    "appliesWhen is not permitted on a {} ('{}')", kind_label(et), qn)));
+            }
+            // (b) forbidden target — own appliesWhen on the model-root package
+            if own && is_pkg(et) && e.qualified_name.is_empty() {
+                findings.push(error("E228", &e.file_path,
+                    "appliesWhen is not permitted on the model-root package (it would project the whole model to empty)"));
+            }
+            // (c) nested — own appliesWhen with an ancestor package that also declares one
+            if own {
+                if let Some(anc) = crate::variability::ancestor_package_with_aw(e, &pkg) {
+                    findings.push(error("E228", &e.file_path, &format!(
+                        "appliesWhen on '{}' is nested under package '{}', which already declares appliesWhen — at most one declaration per path", qn, anc)));
+                }
+            }
+            // (d) a gated package's subtree may not contain a FeatureDef / Configuration
+            if matches!(et, Some(ElementType::FeatureDef) | Some(ElementType::Configuration)) {
+                if let Some(anc) = crate::variability::ancestor_package_with_aw(e, &pkg) {
+                    findings.push(error("E228", &e.file_path, &format!(
+                        "package '{}' declares appliesWhen but its subtree contains a {} ('{}') — the feature model / configurations may not be gated", anc, kind_label(et), qn)));
+                }
+            }
+        }
+        // W026: a package declares appliesWhen but gates no element.
+        for pq in pkg.keys() {
+            let prefix = format!("{}::", pq);
+            let gates = elements.iter().any(|e| e.qualified_name.starts_with(&prefix));
+            if !gates {
+                let file = elements
+                    .iter()
+                    .find(|e| &e.qualified_name == pq && is_pkg(&e.frontmatter.element_type))
+                    .map(|e| e.file_path.clone())
+                    .unwrap_or_default();
+                findings.push(warning("W026", &file, &format!(
+                    "package '{}' declares appliesWhen but gates no element (empty subtree)", pq)));
+            }
+        }
+    }
+
     // W015: per-Configuration coverage (variant-aware uncovered requirement).
     // Only active when the variability dimension is on (REQ-TRS-VAR-001). For
     // each Configuration C and each non-draft requirement R that is *active* in

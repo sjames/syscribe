@@ -1014,6 +1014,10 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
         }
     }
 
+    // Effective appliesWhen honours transitive package conditioning (REQ-TRS-VAR-006).
+    let pkgcond = crate::variability::package_conditions(elements);
+    let elem_aw = |e: &RawElement| crate::variability::effective_expr(e, &pkgcond);
+
     // ── W021: dead elements (appliesWhen unsatisfiable under the feature model) ──
     for e in elements {
         let Some(aw) = elem_aw(e) else { continue }; // only elements WITH appliesWhen
@@ -1117,14 +1121,6 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
 /// Display id for an element (stable id, else qualified name).
 fn disp(e: &RawElement) -> String {
     e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())
-}
-
-/// Parse an element's `appliesWhen` into a boolean expression (None = always active).
-fn elem_aw(e: &RawElement) -> Option<FeatureExpr> {
-    e.frontmatter
-        .applies_when
-        .as_ref()
-        .and_then(|aw| crate::variability::applies_when_expr(aw).ok().flatten())
 }
 
 /// Tseitin-encode a feature expression into a literal over the feature var space,

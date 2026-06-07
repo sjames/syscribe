@@ -73,6 +73,24 @@ appliesWhen: "(Features::A or Features::B) and not Features::C"
 
 An element with no `appliesWhen:` is **always active**. Every operand must resolve to a `FeatureDef` (else `E209`). There is **no `runsIn` field** — a `TestCase` runs in a configuration iff its `appliesWhen:` is satisfied by that configuration's selections.
 
+### Gating a whole subtree — package-level `appliesWhen:`
+
+Put `appliesWhen:` on a **`Package`** (`_index.md`) to condition its entire subtree at once — ideal for enabling/disabling a cohesive variant of requirements + architecture + tests together:
+
+```yaml
+# Delivery/_index.md
+type: Package
+appliesWhen: Features::Payload::Delivery
+```
+
+Every element under `Delivery/` inherits that condition. An element's **effective condition** is its own `appliesWhen:` if it has one, else the nearest ancestor package's, else always-active — never a combination. To keep that unambiguous, **at most one** node per path may declare `appliesWhen:`:
+
+- a nested declaration (element or sub-package under a gated package) → **`E228`**;
+- `appliesWhen:` on a `FeatureDef`/`Configuration`, on a package whose subtree contains one, or on the model root → **`E228`**;
+- a gated package with an empty subtree → **`W026`**.
+
+Because the subtree moves together, references *inside* it never escape; only references from outside into the gated subtree are flagged when the condition is off. Use package-level gating for all-or-nothing subtrees; keep element-level `appliesWhen:` (with the enclosing package **not** gated) when you need a strict subset. `why-active <el> --config <C>` shows when a condition is inherited from a package.
+
 ### Quantitative variability — feature parameters
 
 A `FeatureDef` may declare typed `parameters:`; a `Configuration` binds them under `parameterBindings:`:

@@ -42,13 +42,6 @@ fn keys(e: &RawElement) -> Vec<String> {
     k
 }
 
-fn parse_aw(e: &RawElement) -> Option<FeatureExpr> {
-    e.frontmatter
-        .applies_when
-        .as_ref()
-        .and_then(|aw| variability::applies_when_expr(aw).ok().flatten())
-}
-
 fn has_tag(e: &RawElement, tag: &str) -> bool {
     e.frontmatter
         .tags
@@ -173,18 +166,21 @@ fn cmd_matrix_inner(elements: &[RawElement], json: bool, tag: Option<&str>, _fea
         .collect();
     reqs.sort_by_key(|e| disp_id(e));
 
+    // Effective conditions honour transitive package appliesWhen (REQ-TRS-VAR-006).
+    let pkg = variability::package_conditions(elements);
+
     // Non-draft TestCases that participate in coverage: (appliesWhen, verifies).
     let tcs: Vec<(Option<FeatureExpr>, Vec<String>)> = elements
         .iter()
         .filter(|e| is_type(e, ElementType::TestCase))
         .filter(|e| e.frontmatter.status.as_deref() != Some("draft"))
-        .map(|e| (parse_aw(e), e.frontmatter.verifies.clone().unwrap_or_default()))
+        .map(|e| (variability::effective_expr(e, &pkg), e.frontmatter.verifies.clone().unwrap_or_default()))
         .collect();
 
     // state(req, config selections) -> "na" | "covered" | "gap"
     let state = |r: &RawElement, sel: &BTreeMap<String, bool>| -> &'static str {
         let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
-        let rexpr = parse_aw(r);
+        let rexpr = variability::effective_expr(r, &pkg);
         let active = rexpr.as_ref().map_or(true, |e| e.eval(&selected));
         if !active {
             return "na";

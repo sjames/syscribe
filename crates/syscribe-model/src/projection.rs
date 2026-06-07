@@ -74,13 +74,18 @@ pub fn resolve_selection(elements: &[RawElement], arg: &str) -> SelectionOutcome
     ))
 }
 
-/// Is this element active under the given selection? An element with no
-/// `appliesWhen` is always active; a malformed `appliesWhen` (an E209 elsewhere)
-/// is treated as active here.
-pub fn is_active(elem: &RawElement, sel: &Selection) -> bool {
-    match &elem.frontmatter.applies_when {
+/// Is this element active under the given selection, honouring the *effective*
+/// condition (its own `appliesWhen`, else the nearest ancestor package's —
+/// [`REQ-TRS-VAR-006`])? An element with no effective condition is always active;
+/// a malformed `appliesWhen` (an E209 elsewhere) is treated as active here.
+pub fn is_active(
+    elem: &RawElement,
+    sel: &Selection,
+    pkg: &std::collections::HashMap<String, serde_yaml::Value>,
+) -> bool {
+    match variability::effective_applies_when(elem, pkg) {
         None => true,
-        Some(aw) => match variability::applies_when_expr(aw) {
+        Some((aw, _)) => match variability::applies_when_expr(&aw) {
             Ok(Some(expr)) => expr.eval(&|q: &str| sel.get(q).copied().unwrap_or(false)),
             _ => true,
         },
@@ -89,7 +94,8 @@ pub fn is_active(elem: &RawElement, sel: &Selection) -> bool {
 
 /// The projected (active) element set for a selection.
 pub fn project(elements: &[RawElement], sel: &Selection) -> Vec<RawElement> {
-    elements.iter().filter(|e| is_active(e, sel)).cloned().collect()
+    let pkg = variability::package_conditions(elements);
+    elements.iter().filter(|e| is_active(e, sel, &pkg)).cloned().collect()
 }
 
 // ── reference taxonomy ──────────────────────────────────────────────────────
@@ -146,16 +152,17 @@ pub fn outbound_refs(elem: &RawElement) -> Vec<(RefKind, String)> {
 /// traceability → W019 (warning).
 pub fn escaping_refs(full: &[RawElement], sel: &Selection) -> Vec<Finding> {
     let resolver = Resolver::new(full);
+    let pkg = variability::package_conditions(full);
     let mut findings = Vec::new();
     for x in full {
-        if !is_active(x, sel) {
+        if !is_active(x, sel, &pkg) {
             continue;
         }
         for (kind, target) in outbound_refs(x) {
             let Some(t) = resolver.resolve_ref(full, &target) else {
                 continue; // truly dangling — a 150% concern (whole-model E102 etc.)
             };
-            if is_active(t, sel) {
+            if is_active(t, sel, &pkg) {
                 continue;
             }
             match kind {

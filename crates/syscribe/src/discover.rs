@@ -59,13 +59,6 @@ fn excludes_of(fd: &RawElement) -> Vec<String> {
     fd.frontmatter.excludes.clone().unwrap_or_default()
 }
 
-fn parse_aw(e: &RawElement) -> Option<FeatureExpr> {
-    e.frontmatter
-        .applies_when
-        .as_ref()
-        .and_then(|aw| variability::applies_when_expr(aw).ok().flatten())
-}
-
 /// Configurations (by display id) that select `q` true.
 fn configs_selecting(elements: &[RawElement], q: &str) -> Vec<String> {
     let mut ids: Vec<String> = elements
@@ -168,11 +161,13 @@ pub fn cmd_feature(elements: &[RawElement], arg: &str, json: bool) {
     };
     let q = &fd.qualified_name;
 
-    // Gates: elements whose appliesWhen names this feature as an operand.
+    // Gates: elements whose effective appliesWhen (own or via an ancestor package,
+    // REQ-TRS-VAR-006) names this feature as an operand.
+    let gpkg = variability::package_conditions(elements);
     let mut gates: Vec<(&str, &str)> = elements
         .iter()
         .filter(|e| {
-            parse_aw(e)
+            variability::effective_expr(e, &gpkg)
                 .map(|expr| expr.operands().iter().any(|o| o == q))
                 .unwrap_or(false)
         })
@@ -272,7 +267,14 @@ pub fn cmd_why_active(elements: &[RawElement], key: &str, config: Option<&str>, 
         }
     };
 
-    let expr = parse_aw(elem);
+    // Effective condition: the element's own appliesWhen, else the nearest
+    // ancestor package's (transitive package conditioning, REQ-TRS-VAR-006).
+    let pkg = variability::package_conditions(elements);
+    let eff = variability::effective_applies_when(elem, &pkg);
+    let aw_source: Option<String> = eff.as_ref().and_then(|(_, src)| src.clone());
+    let expr: Option<FeatureExpr> = eff
+        .as_ref()
+        .and_then(|(v, _)| variability::applies_when_expr(v).ok().flatten());
 
     // Build the verdict.
     let (verdict, referenced): (&str, Vec<(String, bool)>) = match (&expr, &sel) {
@@ -295,11 +297,9 @@ pub fn cmd_why_active(elements: &[RawElement], key: &str, config: Option<&str>, 
         }
     };
 
-    let aw_str = elem
-        .frontmatter
-        .applies_when
+    let aw_str = eff
         .as_ref()
-        .map(render_aw)
+        .map(|(v, _)| render_aw(v))
         .unwrap_or_else(|| "(none)".to_string());
 
     if json {
@@ -310,6 +310,7 @@ pub fn cmd_why_active(elements: &[RawElement], key: &str, config: Option<&str>, 
         let doc = json!({
             "element": elem.qualified_name,
             "appliesWhen": aw_str,
+            "appliesWhenSource": aw_source.clone().map(|p| format!("package {}", p)),
             "config": cfg_arg,
             "references": refs,
             "verdict": verdict,
@@ -319,6 +320,9 @@ pub fn cmd_why_active(elements: &[RawElement], key: &str, config: Option<&str>, 
         println!("# why-active: {}", elem.qualified_name);
         println!();
         println!("- appliesWhen: {}", aw_str);
+        if let Some(src) = &aw_source {
+            println!("- inherited from: package {}", src);
+        }
         println!("- config: {}", cfg_arg);
         if !referenced.is_empty() {
             println!("- referenced feature selections:");

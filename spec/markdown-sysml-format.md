@@ -513,7 +513,7 @@ These fields may appear on **any** element, not only on `RequirementDef`/`Requir
 |---|---|---|---|---|
 | `appliesWhen` | string or list of strings | optional | absent | Qualified name of a `FeatureDef` (or AND-list of `FeatureDef` names) that must be selected in a `Configuration` for this element to be included in the projected model. Absent = unconditionally included. See §9.10. |
 
-`appliesWhen:` may appear on **any** element type, including `Requirement`, `PartDef`, `Part`, `TestCase`, `Allocation`, `ActionDef`, `Connection`, `Diagram`, and all others. It is the sole mechanism by which model elements are conditioned on feature selections. A string value is a reference to a single `FeatureDef`; a list means all listed features must be selected (AND semantics). OR semantics are expressed in the feature model itself via `groupKind: or` (see §9.6).
+`appliesWhen:` may appear on **any** element type, including `Requirement`, `PartDef`, `Part`, `TestCase`, `Allocation`, `ActionDef`, `Connection`, `Diagram`, and all others — and on a **`Package`**, where it applies transitively to the whole subtree (the *effective condition*; §9.10, error `E228` enforces one declaration per path). It is the sole mechanism by which model elements are conditioned on feature selections. A string value is a reference to a single `FeatureDef`; a list means all listed features must be selected (AND semantics). OR semantics are expressed in the feature model itself via `groupKind: or` (see §9.6).
 
 ### 3.14 Domain Classification
 
@@ -4310,6 +4310,25 @@ project(configuration, allElements) →
 
 The projected model is the input to all downstream tools (diagram generators, requirement coverage reports, integration test selection).
 
+### Transitive package `appliesWhen` (the *effective* condition)
+
+A **`Package`** (a namespace `_index.md`) may itself declare `appliesWhen:`. The condition then applies **transitively** to every element in that package's subtree — directly contained and through nested sub-packages — so a whole cohesive variant subtree (requirements + architecture + tests) can be enabled or disabled with a single declaration.
+
+Every element therefore has an **effective condition**, evaluated by every projection/coverage/escaping consumer:
+
+- the element's **own** `appliesWhen:` if it declares one; otherwise
+- the `appliesWhen:` of the **nearest ancestor package** that declares one; otherwise
+- always active.
+
+Effective conditions are never combined. To keep them unambiguous, **at most one** node on any root-to-leaf path may declare `appliesWhen:`. Violations are error **`E228`**:
+
+- a **nested** declaration — an element or sub-package `_index.md` that declares `appliesWhen:` while an ancestor package already does (even an identical restatement);
+- a **forbidden target** — because the feature model and configurations are identified by *element type* (there is no dedicated package type), `appliesWhen:` may not be declared on a `FeatureDef` or a `Configuration`, a package declaring `appliesWhen:` may not contain any `FeatureDef`/`Configuration` in its subtree, and the **model-root** package may not declare it (gating the whole model).
+
+A package that declares `appliesWhen:` but contains no projectable element gates nothing — warning **`W026`**.
+
+Because a gated subtree moves together, references *between* elements inside it never escape; only a reference from outside into the gated subtree escapes when the condition is off (`E226`/`W019`). A package with `appliesWhen:` is the all-or-nothing tool; condition individual elements (where the enclosing package does **not** declare `appliesWhen:`) when you need a strict subset.
+
 ### `TestCase` variant membership — no `runsIn` field
 
 `appliesWhen:` is also the sole mechanism that ties a `TestCase` to the variants it runs in: **a `TestCase` runs in a `Configuration` iff its `appliesWhen:` is satisfied by that configuration's `features:`.** A `TestCase` with no `appliesWhen:` is *configuration-agnostic* and runs in every `Configuration`. There is deliberately no separate `runsIn` field — membership is computed, not stored. (Where two configurations would otherwise have identical selections — e.g. an emulator vs a physical rig — model the distinguishing axis as a feature, such as an `ExecEnv` alternative group.)
@@ -4406,6 +4425,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E219` | A `FeatureDef.requires:` constraint is violated by the selected features in a `Configuration` |
 | `E220` | A `FeatureDef.excludes:` constraint is violated by the selected features in a `Configuration` |
 | `E221` | A cross-feature `parameterConstraints` expression evaluates to `false` for a `Configuration` whose `appliesWhen:` predicate holds (default severity). Emitted by `feature-check`. |
+| `E228` | Invalid `appliesWhen:` placement (§9.10): a declaration nested under a package that already declares `appliesWhen:`; or on a `FeatureDef`/`Configuration`, a package whose subtree contains one, or the model-root package. |
 
 ### Warnings
 
@@ -4421,6 +4441,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does not bind. (This is §9.7's nominal `W010`; the validator uses `W017` because `W010` is taken by test-result ingestion.) |
 | `W024` | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration`, so it gates nothing and ships in nothing. Emitted by `feature-check` only; gate with `--deny W024`. |
 | `W025` | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Emitted by `feature-check`; gate with `--deny W025`. |
+| `W026` | A `Package` declares `appliesWhen:` but its subtree contains no projectable element (it gates nothing). Gate with `--deny W026`. |
 
 > **Implementation note.** Rules split across commands/modes:
 > - **`validate`** (per-element, always on) enforces the single-level parameter binding rules `E203`–`E206`, the unresolved-path error `E222`, and `W017`.

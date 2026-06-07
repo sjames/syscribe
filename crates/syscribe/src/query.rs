@@ -636,13 +636,12 @@ pub fn cmd_list(
             std::process::exit(1);
         }
     }
+    // Effective appliesWhen honours transitive package conditioning (REQ-TRS-VAR-006).
+    let lpkg = syscribe_model::variability::package_conditions(elements);
     let gates_feature = |e: &RawElement, feat: &str| -> bool {
-        match &e.frontmatter.applies_when {
+        match syscribe_model::variability::effective_expr(e, &lpkg) {
+            Some(expr) => expr.operands().iter().any(|o| o == feat),
             None => false,
-            Some(aw) => match syscribe_model::variability::applies_when_expr(aw) {
-                Ok(Some(expr)) => expr.operands().iter().any(|o| o == feat),
-                _ => false,
-            },
         }
     };
 
