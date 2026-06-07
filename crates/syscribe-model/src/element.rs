@@ -247,6 +247,9 @@ pub struct RawFrontmatter {
     pub coverage_target: Option<String>,
     pub source_file: Option<String>,
     pub test_functions: Option<Vec<serde_yaml::Value>>,
+    /// §12.8 — implementation trace: architecture element → source artifact(s).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub implemented_by: Option<Vec<String>>,
 
     // §3.1 — identity override
     pub qualified_name: Option<String>,

@@ -165,6 +165,19 @@ The lens is inert when the model declares no `FeatureDef`. Cross-reference-resol
 | E314 | `isDeploymentPackage: true` element has no Allocation to a hardware element |
 | E315 | Cross-domain `supertype:` or `typedBy:` reference — use Allocation instead |
 
+## §12.8 Implementation trace (W023)
+
+The optional `implementedBy:` field on a `Part`/`PartDef` records the source artifact(s) that realise an architecture element — the downstream leg of the V-model (`Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test`).
+
+| Code | Condition |
+|---|---|
+| W023 | A non-`draft` `Part`/`PartDef` has an `implementedBy:` path that does not exist on disk |
+
+- **Opt-in** — the check runs only when `implementedBy:` is present; elements without it are never flagged.
+- **Draft-suppressed** — elements with `status: draft` are skipped (the implementation may not exist yet).
+- **Path resolution** is identical to `sourceFile` (`classify_source`): model-/repo-relative, `model:`/`repo:` prefixes, absolute, and `file://` paths are checked on disk; remote URIs (`scheme://`) are accepted as external pointers and not verified locally. `implementedBy:` accepts a single string or a list; each entry is checked independently.
+- **Gateable** — `validate --deny W023` exits non-zero when any W023 is present.
+
 ## Diagram errors (E400–E402)
 
 | Code | Condition |

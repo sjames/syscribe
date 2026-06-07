@@ -91,6 +91,22 @@ bindingConnections:
 | `verifies` | List of REQ-* IDs verified by this test case |
 | `testFunctions` | List of `{scenario, file, line}` mappings linking Gherkin scenarios to source |
 
+## Implementation trace (`implementedBy:`)
+
+`Part`/`PartDef` elements may link to the source artifact(s) that realise them, closing the V-model leg `Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test`.
+
+| Field | Description |
+|---|---|
+| `implementedBy` | String or list of paths to the implementing source. Resolved like a TestCase's `sourceFile` (model-/repo-relative, `model:`/`repo:` prefixes, absolute, `file://`, remote `scheme://`). A missing **local** path on a non-`draft` element emits **W023** (§12.8); remote URIs are accepted as external pointers. Opt-in, draft-suppressed, gate with `--deny W023`. |
+
+```yaml
+type: PartDef
+satisfies: [REQ-SCHED-001]
+implementedBy:
+  - src/scheduler/mod.rs
+  - repo:src/scheduler/bitmap.rs
+```
+
 ## Diagram fields
 
 | Field | Description |

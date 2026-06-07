@@ -406,6 +406,18 @@ $ syscribe -m model_auto/ refs System::Software::SafetyMonitor
 | Vehicle::PowertrainECU::softwareImage::safetyMonitor | typedBy | Part |
 ```
 
+When the argument is **not** an element qualified name but a raw reference target — such as an `implementedBy:` source path — `refs` reverse-maps it back to the declaring element(s). A directory prefix matches every file beneath it:
+
+```
+$ syscribe -m model/ refs src/scheduler/
+
+# References to: src/scheduler/
+
+| Source | Relationship | Type |
+|---|---|---|
+| System::Software::Scheduler | implementedBy | PartDef |
+```
+
 ---
 
 ## Authoring helpers

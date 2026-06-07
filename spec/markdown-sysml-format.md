@@ -66,6 +66,7 @@
     - 12.5 [Requirement Domain Classification](#125-requirement-domain-classification)
     - 12.6 [Hardware/Software Architecture Independence](#126-hardwaresoftware-architecture-independence)
     - 12.7 [Safety/Security Integrity Level Propagation](#127-safetysecurity-integrity-level-propagation)
+    - 12.8 [Implementation Trace](#128-implementation-trace)
 
 ---
 
@@ -2148,6 +2149,7 @@ Top-level satisfaction and verification fields on any element:
 | Field | YAML type | Default | Description |
 |---|---|---|---|
 | `satisfies` | list of strings | absent | Qualified names of Requirement usages this element satisfies |
+| `implementedBy` | string or list | absent | Path(s) to the source artifact(s) realising this `Part`/`PartDef`. Resolved like `sourceFile`; missing local paths emit W023 (§12.8) |
 | `verifiedBy` | list of strings | absent | Qualified names of VerificationCase usages that verify this requirement |
 
 #### 8.11.5 `ConcernDef` and `Concern`
@@ -5220,6 +5222,7 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `framedConcerns` | RequirementDef | list | absent | 8.11.1 |
 | `derivedFrom` | RequirementDef/Requirement | list | absent | 8.11.1 |
 | `satisfies` | Part/PartDef/etc. | list | absent | 8.11.4 |
+| `implementedBy` | Part/PartDef | string or list | absent | 8.11.4 / 12.8 |
 | `verifiedBy` | Requirement | list | absent | 8.11.4 |
 | `verifies` | VerificationCase | list | absent | 8.12.3 |
 | `verdictExpression` | VerificationCase | string | absent | 8.12.3 |
@@ -5514,5 +5517,38 @@ title: "Maintain hydraulic pressure within 50 ms"
 asilLevel: B
 derivedFromSafetyGoal: SG-BRAKE-001
 breakdownAdr: ADR-BRAKE-DECOMP-001    # documents the decomposition rationale
+---
+```
+
+### 12.8 Implementation Trace
+
+**Rule R-008:** A `Part` or `PartDef` may carry an optional `implementedBy:` field linking the architecture element to the source artifact(s) that realise it. This closes the downstream leg of the V-model:
+
+```
+Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test
+```
+
+`implementedBy:` accepts a single string or a list of strings. Each value is a path into the codebase, resolved with the **same rules as a TestCase's `sourceFile`** (§8.12.5, §11.12): model-root-relative (the default for bare paths), `model:`-prefixed (model-root-relative), `repo:`-prefixed (repository-root-relative), absolute, `file://`, and remote `scheme://` URIs. Local paths are checked on disk; remote URIs are accepted as external pointers and not verified locally.
+
+**Validation (W023):** When a non-`draft` `Part`/`PartDef` declares `implementedBy:` and a **local** path does not exist on disk, the tool emits **W023** (one finding per missing path) — the architecture-to-code analog of `W004` for `sourceFile`. The rule is:
+
+- **Opt-in** — an element with no `implementedBy:` is never flagged.
+- **Draft-suppressed** — elements with `status: draft` are skipped (the implementation may not exist yet).
+- **Remote-tolerant** — remote (`scheme://`) targets are not verified locally.
+- **Gateable** — `validate --deny W023` exits non-zero when any W023 is present.
+
+The link is discoverable through tooling: `syscribe links <element>` lists `implementedBy` paths as outbound relationships, and `syscribe refs <path-or-dir>` reverse-maps a source path (or directory prefix) back to the declaring architecture element(s).
+
+**Example:**
+
+```yaml
+---
+type: PartDef
+name: Scheduler
+domain: software
+satisfies: [REQ-SCHED-001]
+implementedBy:
+  - src/scheduler/mod.rs
+  - repo:src/scheduler/bitmap.rs
 ---
 ```

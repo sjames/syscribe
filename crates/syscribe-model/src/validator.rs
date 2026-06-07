@@ -573,6 +573,31 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // W023: implementedBy paths must exist (§12.7). The implementation trace
+        // links an architecture element (Part/PartDef) to its source artifact(s).
+        // Opt-in: only checked when implementedBy is present. Draft elements are
+        // suppressed (the implementation may not exist yet). Local paths
+        // (model-/repo-relative, absolute, or file://) are checked on disk; remote
+        // URIs are accepted as external and not verified locally.
+        if let Some(ref impls) = fm.implemented_by {
+            let is_arch = matches!(
+                fm.element_type,
+                Some(ElementType::Part) | Some(ElementType::PartDef)
+            );
+            let is_draft = fm.status.as_deref() == Some("draft");
+            if is_arch && !is_draft {
+                for path in impls {
+                    if let crate::config::SourceLocation::Local(p) = config.classify_source(path) {
+                        if !p.exists() {
+                            findings.push(warning("W023", &file, &format!(
+                                "implementedBy path '{}' does not exist on disk", path,
+                            )));
+                        }
+                    }
+                }
+            }
+        }
+
         // W009: every testFunctions[].function must resolve to a definition in
         // sourceFile (function-level traceability — catches renamed/deleted tests
         // that W004's file-level check cannot see). Live TestCases drift to W009;

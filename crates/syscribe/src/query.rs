@@ -266,6 +266,9 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     if let Some(ref es) = fm.exhibits_states {
         for s in es { out.push(("exhibitsStates".into(), s.clone())); }
     }
+    if let Some(ref impls) = fm.implemented_by {
+        for s in impls { out.push(("implementedBy".into(), s.clone())); }
+    }
     if let Some(ref s) = fm.subject { out.push(("subject".into(), s.clone())); }
     if let Some(ref cl) = fm.clients {
         for s in cl { out.push(("clients".into(), s.clone())); }
@@ -1080,7 +1083,36 @@ pub fn cmd_who_verifies(
 
 pub fn cmd_refs(elements: &[RawElement], resolver: &Resolver, key: &str) {
     let Some(elem) = resolve(elements, resolver, key) else {
-        eprintln!("Element not found: {key}");
+        // The key is not an element qname/id. It may be a raw reference target —
+        // e.g. an implementedBy source path or sourceFile. Report the model
+        // elements that point at it. Paths are matched by exact value and by
+        // path-prefix (a directory key matches files beneath it).
+        let needle = key.trim_end_matches('/');
+        let mut rows: Vec<(String, String, String)> = Vec::new();
+        for other in elements {
+            for (rel, tgt) in outbound_refs(other) {
+                let t = tgt.trim_end_matches('/');
+                if t == needle || t.starts_with(&format!("{needle}/")) {
+                    let stype = tl(other.frontmatter.element_type.as_ref()).to_string();
+                    rows.push((other.qualified_name.clone(), rel, stype));
+                }
+            }
+        }
+        rows.sort();
+        rows.dedup();
+        println!("# References to: {key}");
+        println!();
+        if rows.is_empty() {
+            println!("No elements reference `{key}`.");
+            return;
+        }
+        println!("| Source | Relationship | Type |");
+        println!("|---|---|---|");
+        for (src, rel, stype) in &rows {
+            println!("| {} | {} | {} |", src, rel, stype);
+        }
+        println!();
+        println!("{} reference(s)", rows.len());
         return;
     };
     let target_qn = &elem.qualified_name;

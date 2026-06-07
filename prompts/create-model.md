@@ -356,6 +356,7 @@ Key fields that apply to most element types:
 | `features` | Inline attributes or ports |
 | `connections` | Port bindings (on Part files) |
 | `satisfies` | List of `REQ-*` IDs this element satisfies |
+| `implementedBy` | Path(s) to the source code realising this Part/PartDef (string or list); missing local paths warn W023 |
 
 ### `domain:` field rules
 

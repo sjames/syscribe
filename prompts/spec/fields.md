@@ -110,6 +110,7 @@ All frontmatter fields. Optional unless marked **required**.
 | `framedConcerns` | RequirementDef | list |
 | `derivedFrom` | RequirementDef/Requirement | list |
 | `satisfies` | Part/PartDef/etc. | list |
+| `implementedBy` | Part/PartDef | string or list |
 | `verifiedBy` | Requirement | list |
 | `verifies` | VerificationCase | list |
 | `verdictExpression` | VerificationCase | string |

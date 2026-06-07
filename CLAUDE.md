@@ -152,7 +152,7 @@ The native `Requirement` and `TestCase` types are first-class elements for safet
 
 ## Part 1C — Traceability Rules (§12)
 
-Six enforced traceability rules govern how model elements relate to each other:
+Seven enforced traceability rules govern how model elements relate to each other:
 
 1. **OSLC link direction (§12.1)** — Links always point upstream: the derived/verifying/satisfying artifact holds the reference, not the artifact it traces to.
 2. **Requirement breakdown needs an ADR (§12.2)** — Every `Requirement` with `derivedFrom:` must set `breakdownAdr:` to an `accepted` ADR (`type: ADR`, `ADR-*` id). Error `E310` if absent; warning `W303` if the ADR is still `proposed`.
@@ -160,6 +160,7 @@ Six enforced traceability rules govern how model elements relate to each other:
 4. **No parent assignment (§12.4)** — A requirement with `derivedChildren` must not appear in any `satisfies:` list. Error `E312`.
 5. **Domain classification (§12.5)** — Requirements carry `reqDomain: system | hardware | software`; architecture elements carry `domain: system | hardware | software`. A leaf requirement must be satisfied only by an element whose domain matches its `reqDomain` (unless either is `system`). Error `E313` on mismatch.
 6. **HW/SW independence (§12.6)** — Elements with `domain: software` and `domain: hardware` must not share `supertype:` or `typedBy:` links (error `E315`). Cross-domain integration uses explicit `Allocation` elements. A `Part`/`PartDef` with `isDeploymentPackage: true` must have at least one `Allocation` to a `hardware` element (error `E314`).
+7. **Implementation trace (§12.8)** — A `Part`/`PartDef` may declare `implementedBy:` (string or list) linking it to the source artifact(s) that realise it, closing the V-model leg `Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test`. Paths resolve like a TestCase's `sourceFile`. A missing local path on a non-`draft` element triggers warning `W023` (opt-in, draft-suppressed, gate with `--deny W023`); remote URIs are accepted as external.
 
 ---
 

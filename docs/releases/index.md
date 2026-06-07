@@ -2,6 +2,18 @@
 
 `RELEASES`
 
+## 0.6.0 — 2026-06-07
+
+### Implementation trace (`implementedBy:`, closes #13)
+
+Closes the downstream leg of the V-model: `Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test`.
+
+- **`implementedBy:`** — a new optional field on `Part`/`PartDef` (string or list) linking an architecture element to the source artifact(s) that realise it. Paths resolve with the same rules as a TestCase's `sourceFile` (model-/repo-relative, `model:`/`repo:` prefixes, absolute, `file://`, remote `scheme://`).
+- **W023** — a non-`draft` `Part`/`PartDef` whose `implementedBy:` path is missing on disk (one finding per missing path). Opt-in (only when `implementedBy:` is present), draft-suppressed, remote-tolerant, and gateable with `validate --deny W023`.
+- **Discoverability** — `links <element>` lists `implementedBy` paths; `refs <path-or-dir>` reverse-maps a source path (or directory prefix) back to the declaring architecture element(s).
+
+Documented in format spec §12.8, `syscribe spec validation`/`spec fields`, the validation-rule reference, the traceability guide, and the LLM authoring prompt.
+
 ## 0.5.0 — 2026-06-06
 
 ### Configuration selections (fixes #12)

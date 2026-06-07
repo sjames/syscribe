@@ -14,6 +14,7 @@ Normative requirements for the Syscribe tool. Grouped by functional area:
 | `REQ-TRS-ID` | ID scheme validation (§8.11, §8.12, §8.15) |
 | `REQ-TRS-VAL` | Validation rule enforcement (§11.12) |
 | `REQ-TRS-TRACE` | Traceability rules (§12) |
+| `REQ-TRS-IMPL` | Architecture↔code implementation linkage: `implementedBy` field, `W023` path-exists, discoverability (GH #13) |
 | `REQ-TRS-CONF` | Configuration / `appliesWhen` validation (§9, §11.12) |
 | `REQ-TRS-VAR` | Variability: opt-in dormancy, `appliesWhen`, matrix, per-config coverage (§9) |
 | `REQ-TRS-PARAM` | FeatureDef parameter binding validation (§9.7) |

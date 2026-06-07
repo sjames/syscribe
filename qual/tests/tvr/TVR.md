@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** unknown  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-06-06  
+**Date:** 2026-06-07  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 73 |
-| Passed | 73 |
+| Total test cases | 102 |
+| Passed | 102 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -64,6 +64,20 @@
 | trigger E200 | ✓ PASS |
 | trigger E201 | ✓ PASS |
 | trigger E209 | ✓ PASS |
+
+---
+
+### TC-TRS-CONF-002 — Verify Configuration selection parsing: template uses features:, W016 on empty selections, show displays selections.
+
+**Verifies:** REQ-TRS-CONF-002  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| template emits features: map, not selections: | ✓ PASS |
+| legacy selections: under a feature model warns | ✓ PASS |
+| features: map configuration does not warn | ✓ PASS |
+| show displays parsed feature selections | ✓ PASS |
 
 ---
 
@@ -125,6 +139,160 @@
 | Scenario | Result |
 |---|---|
 | PartDef with no supertype: loads without E004 | ✓ PASS |
+
+---
+
+### TC-TRS-FM-001 — Verify the feature-check command: discoverable, exit codes, dormancy, --json.
+
+**Verifies:** REQ-TRS-FM-001  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| --json emits structured findings | ✓ PASS |
+
+---
+
+### TC-TRS-FM-002 — Verify feature-check structural rules E212, E219, E220, W011, W012.
+
+**Verifies:** REQ-TRS-FM-002  
+**Result:** ✓ PASS (10 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| clean feature model emits none of them | ✓ PASS |
+
+---
+
+### TC-TRS-FM-003 — Verify feature-check parameter rules E207, E202, E213, W014.
+
+**Verifies:** REQ-TRS-FM-003  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| clean feature model emits none of them | ✓ PASS |
+
+---
+
+### TC-TRS-FMA-001 — Verify the Boolean encoding via solver-observable semantics.
+
+**Verifies:** REQ-TRS-FMA-001  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| contradictory model is void | ✓ PASS |
+
+---
+
+### TC-TRS-FMA-002 — Verify feature-check --deep command surface, gating, exit codes, and --json.
+
+**Verifies:** REQ-TRS-FMA-002  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| dormant with no feature model | ✓ PASS |
+
+---
+
+### TC-TRS-FMA-003 — Verify anomaly analyses: void, dead, core, false-optional.
+
+**Verifies:** REQ-TRS-FMA-003  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| void dominates (no dead spam) | ✓ PASS |
+
+---
+
+### TC-TRS-FMA-004 — Verify full-semantics configuration validity (E225) without duplicating E219/E220.
+
+**Verifies:** REQ-TRS-FMA-004  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| requires violation stays E219, not E225 | ✓ PASS |
+
+---
+
+### TC-TRS-FMA-005 — Verify sound explanations for void models.
+
+**Verifies:** REQ-TRS-FMA-005  
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| soundness: removing the excludes un-voids the model | ✓ PASS |
+
+---
+
+### TC-TRS-FMA-006 — Verify determinism, ~500-feature scale, the size guard, and the Boolean-only scope statement.
+
+**Verifies:** REQ-TRS-FMA-006  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| scope statement: Boolean layer only | ✓ PASS |
+
+---
+
+### TC-TRS-FMA-007 — Verify minimal (MUS) unsat-core explanations exclude unrelated constraints.
+
+**Verifies:** REQ-TRS-FMA-007  
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| explanation is a minimal conflict set (excludes unrelated features) | ✓ PASS |
+
+---
+
+### TC-TRS-FMA-008 — Verify the configure command: satisfiability, forced and free features, contradictions.
+
+**Verifies:** REQ-TRS-FMA-008  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| dormant with no feature model | ✓ PASS |
+
+---
+
+### TC-TRS-FMA-009 — Verify variant-space count and enumeration.
+
+**Verifies:** REQ-TRS-FMA-009  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| enumeration lists each valid configuration | ✓ PASS |
+
+---
+
+### TC-TRS-FMA-010 — Verify diagnoses (minimal correction sets) for void models.
+
+**Verifies:** REQ-TRS-FMA-010  
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a correction set names the requires or excludes constraint | ✓ PASS |
+
+---
+
+### TC-TRS-FMA-011 — Verify opt-in proof-evidence emission (DIMACS CNF) for UNSAT findings.
+
+**Verifies:** REQ-TRS-FMA-011  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| no proof files without --prove | ✓ PASS |
 
 ---
 
@@ -213,6 +381,28 @@
 |---|---|
 | two elements with the same id produce E101 | ✓ PASS |
 | unique ids produce no E101 | ✓ PASS |
+
+---
+
+### TC-TRS-IMPL-001 — Verify implementedBy path-exists rule W023: missing path, opt-in, draft suppression, gating.
+
+**Verifies:** REQ-TRS-IMPL-001  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| W023 is gateable with --deny | ✓ PASS |
+
+---
+
+### TC-TRS-IMPL-002 — Verify implementedBy discoverability: links, refs, spec fields.
+
+**Verifies:** REQ-TRS-IMPL-002  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| spec fields lists implementedBy | ✓ PASS |
 
 ---
 
@@ -350,6 +540,18 @@
 
 ---
 
+### TC-TRS-PARAM-001 — Verify FeatureDef parameter binding rules E203–E206, E222, and W017.
+
+**Verifies:** REQ-TRS-PARAM-001  
+**Result:** ✓ PASS (12 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| parameter binding violations emit E203–E206, E222, W017 | ✓ PASS |
+| valid bindings emit no parameter findings | ✓ PASS |
+
+---
+
 ### TC-TRS-PARSE-001 — Verify that the tool accepts a model root directory path and uses it as the namespace root.
 
 **Verifies:** REQ-TRS-PARSE-001  
@@ -452,6 +654,62 @@
 |---|---|
 | file with no type: field is skipped with a warning | ✓ PASS |
 | file with type: present is processed normally | ✓ PASS |
+
+---
+
+### TC-TRS-PROJ-001 — Verify the --config projection lens: stored + ad-hoc selection, dormancy, unresolved error.
+
+**Verifies:** REQ-TRS-PROJ-001  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| unresolved configuration errors | ✓ PASS |
+
+---
+
+### TC-TRS-PROJ-002 — Verify full re-validation in the configuration lens.
+
+**Verifies:** REQ-TRS-PROJ-002  
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| whole-model validate reports no such coverage gap | ✓ PASS |
+| whole-model validate | ✓ PASS |
+
+---
+
+### TC-TRS-PROJ-003 — Verify escaping-reference detection: structural E226 (error), traceability W019 (warning).
+
+**Verifies:** REQ-TRS-PROJ-003  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| references between active elements do not escape | ✓ PASS |
+
+---
+
+### TC-TRS-PROJ-004 — Verify the global appliesWhen-implication guarantee (E227 / W020) with witness.
+
+**Verifies:** REQ-TRS-PROJ-004  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| traceability edge is a warning (W020) | ✓ PASS |
+
+---
+
+### TC-TRS-PROJ-005 — Verify family checks: all-configs gate, dead elements (W021), aggregate coverage (W022), diff.
+
+**Verifies:** REQ-TRS-PROJ-005  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| variant diff lists the symmetric difference | ✓ PASS |
 
 ---
 
@@ -583,6 +841,17 @@
 | trigger W803 | ✓ PASS |
 | trigger W804 | ✓ PASS |
 | trigger W807 | ✓ PASS |
+
+---
+
+### TC-TRS-TAG-001 — Verify the generic --tag filter selects by free-text tags without affecting variant logic.
+
+**Verifies:** REQ-TRS-TAG-001  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| matrix --tag filters rows but not columns | ✓ PASS |
 
 ---
 
@@ -930,6 +1199,64 @@
 | Scenario | Result |
 |---|---|
 | --deny I010 gates | ✓ PASS |
+
+---
+
+### TC-TRS-VAR-001 — Verify that the variability dimension is dormant unless a feature model is linked.
+
+**Verifies:** REQ-TRS-VAR-001  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| matrix on flat model falls back without error | ✓ PASS |
+| unresolved appliesWhen is E209 when dormant | ✓ PASS |
+| feature model without Configuration emits no W015 | ✓ PASS |
+
+---
+
+### TC-TRS-VAR-002 — Verify TestCase-to-Configuration membership is derived from appliesWhen.
+
+**Verifies:** REQ-TRS-VAR-002  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| refs of deselecting config excludes conditioned TestCase | ✓ PASS |
+
+---
+
+### TC-TRS-VAR-003 — Verify boolean expressions (and/or/not/parens) in appliesWhen parse and evaluate.
+
+**Verifies:** REQ-TRS-VAR-003  
+**Result:** ✓ PASS (14 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| bare QName remains back-compatible | ✓ PASS |
+
+---
+
+### TC-TRS-VAR-004 — Verify the matrix command emits a Requirement x Configuration coverage grid.
+
+**Verifies:** REQ-TRS-VAR-004  
+**Result:** ✓ PASS (10 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| text matrix renders configurations and cells | ✓ PASS |
+
+---
+
+### TC-TRS-VAR-005 — Verify per-Configuration uncovered-requirement rule W015 and its suppression/gating.
+
+**Verifies:** REQ-TRS-VAR-005  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| W015 is gateable with --deny | ✓ PASS |
+| dormant model emits no W015 | ✓ PASS |
 
 ---
 

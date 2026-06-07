@@ -19,6 +19,7 @@ Concretely:
 |---|---|---|
 | Requirement derivation | Child requirement | `derivedFrom: [REQ-PARENT-*]` |
 | Requirement satisfaction | Architecture element | `satisfies: [REQ-LEAF-*]` |
+| Implementation | Architecture element | `implementedBy: [src/...]` |
 | Test case verification | TestCase | `verifies: [REQ-*]` |
 | Function allocation | Allocation element | `allocatedFrom:` / `allocatedTo:` |
 
@@ -72,6 +73,35 @@ Elements with `domain: software` and `domain: hardware` must not share a direct 
 - **E315** — cross-domain direct reference
 - **E314** — element with `isDeploymentPackage: true` has no `Allocation` to a hardware element
 - **W304** — `isDeploymentPackage: true` combined with `domain: hardware`
+
+## Rule 7 — Implementation trace (§12.8)
+
+The optional `implementedBy:` field closes the downstream leg of the V-model, linking an architecture element to the source artifact(s) that realise it:
+
+```
+Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test
+```
+
+```yaml
+# Scheduler.md — architecture element pointing at its implementation
+type: PartDef
+domain: software
+satisfies: [REQ-SCHED-001]
+implementedBy:
+  - src/scheduler/mod.rs
+  - repo:src/scheduler/bitmap.rs
+```
+
+The field accepts a single string or a list. Path resolution is identical to a TestCase's `sourceFile`: model-/repo-relative, `model:`/`repo:` prefixes, absolute, and `file://` paths are checked on disk; remote URIs (`scheme://`) are accepted as external pointers and not verified locally.
+
+- **W023** — a non-`draft` `Part`/`PartDef` has an `implementedBy:` path that does not exist on disk
+
+The check is **opt-in** (only when `implementedBy:` is present) and **draft-suppressed** (skipped for `status: draft`, where the implementation may not exist yet). Gate it in CI with `validate --deny W023`.
+
+Discoverability:
+
+- `syscribe links <element>` lists the `implementedBy` paths as outbound relationships.
+- `syscribe refs <path-or-dir>` reverse-maps a source path (or a directory prefix) back to the architecture element(s) that declare it.
 
 ## Integration test coverage for parent requirements (W305)
 
