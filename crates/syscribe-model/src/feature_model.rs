@@ -322,7 +322,7 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
 
 /// Conservative size guard (REQ-TRS-FMA-006): above this feature count the deep
 /// analysis is skipped with a diagnostic rather than risking blow-up.
-pub const MAX_DEEP_FEATURES: usize = 64;
+pub const MAX_DEEP_FEATURES: usize = 1000;
 
 /// Structured result of the deep analysis.
 pub struct DeepReport {
