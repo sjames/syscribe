@@ -266,7 +266,7 @@ $ syscribe -m model/ feature-check --json
 
 Exit code is `0` when there are no errors and `1` otherwise; with no `FeatureDef` present it prints a notice and exits `0`.
 
-Add `--deep` for SAT-backed whole-configuration-space analysis (over a propositional encoding of the feature model — deterministic, pure-Rust, no external solver):
+Add `--deep` for SAT-backed whole-configuration-space analysis (over a propositional encoding of the feature model — deterministic; uses batsat, a pure-Rust CDCL solver, in-process):
 
 ```
 $ syscribe -m model/ feature-check --deep

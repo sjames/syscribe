@@ -16,7 +16,7 @@ Because the tool is qualification-targeted (ISO 26262-8 §11 / IEC 61508-3), the
 
 ### Reproducible builds / dependencies
 
-- The decision procedure **shall** be a **vendored pure-Rust** library: **no external solver process**, no native/system library, and no network access. (ADR-FM-001 selects a reduced-ordered BDD as the primary engine, with a pure-Rust SAT solver as the documented fallback.)
+- The decision procedure **shall** be a **vendored pure-Rust** library: **no external solver process**, no native/system library, and no network access. (ADR-FM-002 selects `batsat` — a pinned, MIT, MiniSat-derived pure-Rust CDCL solver — as the sole engine; there is no in-tree solver.)
 
 ### Bounded execution
 

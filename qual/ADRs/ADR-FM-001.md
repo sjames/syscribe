@@ -2,8 +2,12 @@
 type: ADR
 id: ADR-FM-001
 title: "Solver-backed feature-model analysis: in-tree SAT over the boolean layer, numeric/SMT deferred"
-status: accepted
+status: superseded
 ---
+
+> **Superseded by [[ADR-FM-002]].** The in-tree DPLL engine was replaced with the
+> `batsat` library before release. The analysis scope and rationale in this ADR
+> still hold; only the engine decision (point 3 / alternative B) changed.
 
 ## Context
 

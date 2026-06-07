@@ -14,7 +14,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::element::{ElementType, RawElement};
-use crate::sat::{Cnf, Lit};
+use crate::solver::{Cnf, Lit};
 use crate::validator::{Finding, Severity};
 
 fn err(code: &'static str, file: &str, msg: String) -> Finding {
@@ -396,7 +396,7 @@ impl Encoding {
         let mut keep: Vec<usize> = (0..self.cons.len()).collect();
         for i in 0..self.cons.len() {
             let trial: Vec<usize> = keep.iter().copied().filter(|&x| x != i).collect();
-            if !self.cnf_subset(&trial).is_sat(assumptions) {
+            if !crate::solver::is_sat(&self.cnf_subset(&trial), assumptions) {
                 keep = trial;
             }
         }
@@ -617,7 +617,8 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
     }
 
     let enc = build_encoding(&fdefs);
-    let cnf = enc.cnf();
+    // One batsat solver primed with the full encoding, reused across all queries.
+    let mut sat = crate::solver::Solver::from_cnf(&enc.cnf());
     let root_file = enc
         .names
         .first()
@@ -627,7 +628,7 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
     let file_of = |n: &str| enc.files.get(n).cloned().unwrap_or_else(|| root_file.clone());
 
     // Void dominates: report once and stop (every feature is trivially dead).
-    if !cnf.is_sat(&[]) {
+    if !sat.is_sat(&[]) {
         rep.void = true;
         let core = enc.unsat_core(&[]);
         rep.findings.push(err("E223", &root_file, format!(
@@ -638,13 +639,13 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
 
     // Dead / core per feature.
     for (i, name) in enc.names.iter().enumerate() {
-        if !cnf.is_sat(&[Lit::pos(i)]) {
+        if !sat.is_sat(&[Lit::pos(i)]) {
             rep.dead.push(name.clone());
             let core = enc.unsat_core(&[Lit::pos(i)]);
             rep.findings.push(err("E224", &file_of(name), format!(
                 "feature '{}' is dead — it can be selected in no valid configuration. Cause: {}",
                 name, enc.core_labels(&core))));
-        } else if !cnf.is_sat(&[Lit::neg(i)]) {
+        } else if !sat.is_sat(&[Lit::neg(i)]) {
             rep.core.push(name.clone());
         }
     }
@@ -659,7 +660,7 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
             Some(p) => vec![Lit::pos(enc.var_of[&p]), Lit::neg(i)],
             None => vec![Lit::neg(i)],
         };
-        if !cnf.is_sat(&cond) {
+        if !sat.is_sat(&cond) {
             rep.false_optional.push(name.clone());
             rep.findings.push(warn("W018", &file_of(name), format!(
                 "optional feature '{}' is false-optional — it is forced selected whenever its parent is",

@@ -105,7 +105,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 
 ### Deep analysis (`feature-check --deep`)
 
-`--deep` adds SAT-backed analysis over a propositional encoding of the feature model (Boolean layer only; deterministic, pure-Rust, no external solver — see `ADR-FM-001`). It guards against blow-up by skipping (with a notice) above a feature-count limit.
+`--deep` adds SAT-backed analysis over a propositional encoding of the feature model (Boolean layer only; deterministic; engine is batsat (pure-Rust CDCL, no external process) — see `ADR-FM-002`). It guards against blow-up by skipping (with a notice) above a feature-count limit.
 
 | Code | Condition |
 |---|---|
