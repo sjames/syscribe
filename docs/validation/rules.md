@@ -103,6 +103,19 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | W012 | An `optional` `FeatureDef` is selected in every `Configuration` (consider `mandatory`) |
 | W014 | A `parameterConstraints` `appliesWhen:` references a feature selected in no `Configuration` |
 
+### Deep analysis (`feature-check --deep`)
+
+`--deep` adds SAT-backed analysis over a propositional encoding of the feature model (Boolean layer only; deterministic, pure-Rust, no external solver — see `ADR-FM-001`). It guards against blow-up by skipping (with a notice) above a feature-count limit.
+
+| Code | Condition |
+|---|---|
+| E223 | The feature model is **void** — no valid configuration exists. Reported once with a sound conflict-set explanation; void dominates (no per-feature dead spam) |
+| E224 | A **dead feature** — selectable in no valid configuration — with an explanation of the cause |
+| E225 | An authored `Configuration` is **not a valid model** of the feature model (mandatory/group/cardinality/parent-selection violation); `requires`/`excludes` violations remain `E219`/`E220` and are not duplicated |
+| W018 | A **false-optional** feature — declared `optional` but forced selected whenever its parent is |
+
+Core features (present in every valid configuration) are reported informationally in the `--json` `coreFeatures` list and the text summary. Not implemented: configuration counting and numeric/parameter (SMT) reasoning.
+
 Not yet implemented (specified): group-cardinality rules (`E216`/`E217`/`E218`), two-level satisfies completeness (`E210`/`E211`), and constraint-expression evaluation (`E221`).
 
 ## ADR errors (E300–E304)

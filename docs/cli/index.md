@@ -266,6 +266,15 @@ $ syscribe -m model/ feature-check --json
 
 Exit code is `0` when there are no errors and `1` otherwise; with no `FeatureDef` present it prints a notice and exits `0`.
 
+Add `--deep` for SAT-backed whole-configuration-space analysis (over a propositional encoding of the feature model — deterministic, pure-Rust, no external solver):
+
+```
+$ syscribe -m model/ feature-check --deep
+$ syscribe -m model/ feature-check --deep --json
+```
+
+`--deep` detects **void** models (`E223`), **dead** features (`E224`), **false-optional** features (`W018`), and **invalid configurations** under full group/cardinality semantics (`E225`), reports **core** features, and explains each unsatisfiability with a conflict set. It covers the Boolean feature layer only (parameter satisfiability is out of scope) and skips with a notice on models above a feature-count guard.
+
 ---
 
 ## Traceability

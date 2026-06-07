@@ -90,6 +90,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it) |
 | `syscribe model/ matrix [--json] [--tag <t>]` | Requirement × Configuration coverage grid (variant-aware; see Part 9b) |
 | `syscribe model/ feature-check [--json]` | Holistic feature-model validation (requires/excludes, cycles, bindTo, constraints); separate from `validate` |
+| `syscribe model/ feature-check --deep` | SAT-backed analysis: void / dead / core / false-optional features, full-semantics config validity, with explanations |
 
 **Traceability:**
 
@@ -712,7 +713,9 @@ If two configurations would have identical `features:` (e.g. emulator vs physica
 
 **Feature parameters (quantitative variability, §9.7).** A `FeatureDef` may declare typed `parameters:` (each `{name, type, range: "min..max", enumValues, default, isFixed, isRequired}`); a `Configuration` binds them under `parameterBindings:` keyed by `<FeatureDef QName>::<param>`. Bindings are validated by `validate`: a binding for an unselected feature (`E203`), of a fixed parameter (`E204`), out of `range:` (`E205`), not in `enumValues:` (`E206`), or to an undeclared parameter (`E222`) is an error; a selected feature's required, default-less parameter left unbound warns (`W017`).
 
-**Holistic checks — run `feature-check` (not part of `validate`).** `syscribe feature-check` validates the feature model as a whole: `requires:`/`excludes:` resolution (`E212`) and satisfaction per configuration (`E219`/`E220`), dead/always-on optional features (`W011`/`W012`), circular `derivedFrom:` (`E207`), `bindTo:` propagation outside the component `range:` (`E202`), and cross-feature `parameterConstraints` declared on a package `_index.md` — unresolved paths (`E213`) and `appliesWhen:` features used in no configuration (`W014`). (Group-cardinality and constraint-expression evaluation are not yet implemented.)
+**Holistic checks — run `feature-check` (not part of `validate`).** `syscribe feature-check` validates the feature model as a whole: `requires:`/`excludes:` resolution (`E212`) and satisfaction per configuration (`E219`/`E220`), dead/always-on optional features (`W011`/`W012`), circular `derivedFrom:` (`E207`), `bindTo:` propagation outside the component `range:` (`E202`), and cross-feature `parameterConstraints` declared on a package `_index.md` — unresolved paths (`E213`) and `appliesWhen:` features used in no configuration (`W014`).
+
+**Whole-space analysis — `feature-check --deep`.** Adds SAT-backed reasoning over a propositional encoding of the feature model (Boolean layer only; deterministic, no external solver): **void** models (`E223`), **dead** features (`E224`), **false-optional** features (`W018`), **invalid configurations** under full group/cardinality semantics (`E225`), a reported set of **core** features, and a conflict-set explanation for each unsatisfiability. Use it to prove the feature model itself is sound, beyond linting the authored configurations. (Configuration counting and numeric/parameter SMT reasoning are not yet implemented.)
 
 ---
 

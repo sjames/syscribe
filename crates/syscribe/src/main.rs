@@ -335,7 +335,8 @@ fn main() {
             "feature-check" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
-                query::cmd_feature_check(&elems, json);
+                let deep = rest.iter().any(|a| a == "--deep");
+                query::cmd_feature_check(&elems, json, deep);
             }
             "path-for" => {
                 if key.is_empty() {

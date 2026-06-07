@@ -1197,9 +1197,11 @@ impl GateOptions {
 }
 
 /// `feature-check`: holistic feature-model validation (§9), separate from the
-/// per-element `validate` pass. Exit `0` when there are no error-severity
-/// findings, `1` otherwise. Dormant (exit 0 with a notice) when no FeatureDef.
-pub fn cmd_feature_check(elements: &[RawElement], json: bool) {
+/// per-element `validate` pass. With `--deep`, additionally runs the solver-backed
+/// analyses (void/dead/core/false-optional/configuration-validity). Exit `0` when
+/// there are no error-severity findings, `1` otherwise. Dormant (exit 0 with a
+/// notice) when no FeatureDef.
+pub fn cmd_feature_check(elements: &[RawElement], json: bool, deep: bool) {
     use syscribe_model::feature_model;
     use syscribe_model::validator::Severity;
 
@@ -1212,8 +1214,22 @@ pub fn cmd_feature_check(elements: &[RawElement], json: bool) {
         return;
     }
 
-    let findings = feature_model::check_feature_model(elements);
+    let mut findings = feature_model::check_feature_model(elements);
+    let deep_rep = if deep {
+        Some(feature_model::check_feature_model_deep(elements))
+    } else {
+        None
+    };
+    if let Some(r) = &deep_rep {
+        findings.extend(r.findings.iter().cloned());
+    }
     let has_error = findings.iter().any(|f| f.severity == Severity::Error);
+
+    let sev = |s: &Severity| match s {
+        Severity::Error => "error",
+        Severity::Warning => "warning",
+        Severity::Info => "info",
+    };
 
     if json {
         let items: Vec<serde_json::Value> = findings
@@ -1221,31 +1237,56 @@ pub fn cmd_feature_check(elements: &[RawElement], json: bool) {
             .map(|f| {
                 serde_json::json!({
                     "code": f.code,
-                    "severity": match f.severity {
-                        Severity::Error => "error",
-                        Severity::Warning => "warning",
-                        Severity::Info => "info",
-                    },
+                    "severity": sev(&f.severity),
                     "file": f.file,
                     "message": f.message,
                 })
             })
             .collect();
-        println!("{}", serde_json::to_string_pretty(&items).unwrap());
-    } else if findings.is_empty() {
-        println!("Feature model OK — 0 findings.");
-    } else {
-        println!("# Feature Model Check");
-        println!();
-        println!("| Code | File | Message |");
-        println!("|---|---|---|");
-        for f in &findings {
-            println!("| {} | {} | {} |", f.code, f.file, f.message);
+        let mut doc = serde_json::Map::new();
+        doc.insert("schemaVersion".into(), serde_json::json!("1.0"));
+        doc.insert("findings".into(), serde_json::json!(items));
+        if let Some(r) = &deep_rep {
+            doc.insert("void".into(), serde_json::json!(r.void));
+            doc.insert("deadFeatures".into(), serde_json::json!(r.dead));
+            doc.insert("coreFeatures".into(), serde_json::json!(r.core));
+            doc.insert("falseOptionalFeatures".into(), serde_json::json!(r.false_optional));
+            doc.insert("invalidConfigurations".into(), serde_json::json!(r.invalid_configs));
+            if let Some(reason) = &r.skipped {
+                doc.insert("deepSkipped".into(), serde_json::json!(reason));
+            }
         }
-        println!();
-        let errs = findings.iter().filter(|f| f.severity == Severity::Error).count();
-        let warns = findings.iter().filter(|f| f.severity == Severity::Warning).count();
-        println!("{} error(s), {} warning(s)", errs, warns);
+        println!("{}", serde_json::to_string_pretty(&serde_json::Value::Object(doc)).unwrap());
+    } else {
+        if findings.is_empty() {
+            println!("Feature model OK — 0 findings.");
+        } else {
+            println!("# Feature Model Check");
+            println!();
+            println!("| Code | File | Message |");
+            println!("|---|---|---|");
+            for f in &findings {
+                println!("| {} | {} | {} |", f.code, f.file, f.message);
+            }
+            println!();
+            let errs = findings.iter().filter(|f| f.severity == Severity::Error).count();
+            let warns = findings.iter().filter(|f| f.severity == Severity::Warning).count();
+            println!("{} error(s), {} warning(s)", errs, warns);
+        }
+        if let Some(r) = &deep_rep {
+            println!();
+            println!("## Deep analysis");
+            if let Some(reason) = &r.skipped {
+                println!("{}", reason);
+            } else {
+                println!("- void model: {}", r.void);
+                println!("- dead features: {}", if r.dead.is_empty() { "none".into() } else { r.dead.join(", ") });
+                println!("- core features: {}", if r.core.is_empty() { "none".into() } else { r.core.join(", ") });
+                println!("- false-optional: {}", if r.false_optional.is_empty() { "none".into() } else { r.false_optional.join(", ") });
+                println!("- invalid configurations: {}", if r.invalid_configs.is_empty() { "none".into() } else { r.invalid_configs.join(", ") });
+                println!("(deep analysis covers the Boolean feature layer only; parameter satisfiability is not checked)");
+            }
+        }
     }
 
     if has_error {
@@ -2278,9 +2319,11 @@ pub fn print_help() {
     println!("  matrix [--json] [--tag <t>]    Requirement × Configuration coverage matrix (cells: covered/gap/N-A)");
     println!("                                 Columns are Configuration elements; --json emits the grid; --tag filters rows.");
     println!("                                 With no feature model, falls back to a flat requirement/testcase view.");
-    println!("  feature-check [--json]         Holistic feature-model validation (requires/excludes, dead features,");
+    println!("  feature-check [--json] [--deep] Holistic feature-model validation (requires/excludes, dead features,");
     println!("                                 derivedFrom cycles, bindTo ranges, parameterConstraints). Separate from");
     println!("                                 `validate`; exit 0 if no errors, 1 otherwise; dormant with no feature model.");
+    println!("                                 --deep adds SAT-backed analysis: void model, dead/core/false-optional");
+    println!("                                 features, and full-semantics configuration validity (Boolean layer only).");
     println!("  show <qname|id>                Show element details and documentation");
     println!("  ls [qname]                     List namespace children (default: root)");
     println!("  tree [qname]                   Recursive namespace tree (default: root)");

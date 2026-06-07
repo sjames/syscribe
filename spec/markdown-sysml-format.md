@@ -4415,11 +4415,12 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W016` | A `Configuration` parsed **zero** feature selections while a `FeatureDef` exists in the model — e.g. it used an unrecognized `selections:` key instead of the `features:` map (§9.8). Surfaces the otherwise-silent failure that yields an all-N/A coverage matrix. |
 | `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does not bind. (This is §9.7's nominal `W010`; the validator uses `W017` because `W010` is taken by test-result ingestion.) |
 
-> **Implementation note.** Rules split across two commands:
+> **Implementation note.** Rules split across commands/modes:
 > - **`validate`** (per-element, always on) enforces the single-level parameter binding rules `E203`–`E206`, the unresolved-path error `E222`, and `W017`.
 > - **`feature-check`** (explicit, holistic — not run by `validate`) enforces the feature-model-wide rules: `E212` (requires/excludes resolution), `E219`/`E220` (requires/excludes satisfaction), `E207` (circular `derivedFrom:`), `E202` (`bindTo:` propagation range), `E213` (unresolved `parameterConstraints` path), and `W011`/`W012`/`W014`.
+> - **`feature-check --deep`** (SAT-backed, over a propositional encoding of the Boolean layer; deterministic, pure-Rust — see `ADR-FM-001`) adds whole-configuration-space analysis: `E223` void model, `E224` dead feature, `E225` invalid configuration (full group/cardinality semantics), `W018` false-optional, plus a reported set of *core* features and a conflict-set explanation for each unsatisfiability.
 >
-> Not yet implemented: group-cardinality rules (`E216`/`E217`/`E218`), two-level satisfies completeness (`E210`/`E211`), and constraint-expression evaluation (`E221`). `E222` is an implementation code beyond the spec table.
+> Not yet implemented: group-cardinality *findings* on `feature-check` without `--deep` (`E216`/`E217`/`E218` — `--deep` enforces the group semantics via `E225`), two-level satisfies completeness (`E210`/`E211`), constraint-expression evaluation (`E221`), configuration counting, and numeric/parameter (SMT) reasoning. `E222`–`E225` and `W017`/`W018` are implementation codes beyond the spec table.
 
 ---
 

@@ -14,6 +14,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::element::{ElementType, RawElement};
+use crate::sat::{Cnf, Lit};
 use crate::validator::{Finding, Severity};
 
 fn err(code: &'static str, file: &str, msg: String) -> Finding {
@@ -310,4 +311,394 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     }
 
     f
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Solver-backed deep analysis (feature-check --deep) — REQ-TRS-FMA-001..006.
+// Encodes the Boolean feature layer to CNF and runs SAT queries for void / dead
+// / core / false-optional / configuration-validity, with deletion-based unsat
+// cores for explanations. Boolean layer only (parameters are out of scope).
+// ════════════════════════════════════════════════════════════════════════════
+
+/// Conservative size guard (REQ-TRS-FMA-006): above this feature count the deep
+/// analysis is skipped with a diagnostic rather than risking blow-up.
+pub const MAX_DEEP_FEATURES: usize = 64;
+
+/// Structured result of the deep analysis.
+pub struct DeepReport {
+    pub findings: Vec<Finding>,
+    pub void: bool,
+    pub dead: Vec<String>,
+    pub core: Vec<String>,
+    pub false_optional: Vec<String>,
+    pub invalid_configs: Vec<String>,
+    /// Set (with a reason) when the deep analysis was skipped (size guard).
+    pub skipped: Option<String>,
+}
+
+impl DeepReport {
+    fn empty() -> Self {
+        DeepReport {
+            findings: Vec::new(),
+            void: false,
+            dead: Vec::new(),
+            core: Vec::new(),
+            false_optional: Vec::new(),
+            invalid_configs: Vec::new(),
+            skipped: None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum CKind {
+    ChildParent,
+    Mandatory,
+    Root,
+    GroupAtLeast,
+    GroupAtMost,
+    Requires,
+    Excludes,
+}
+
+struct Constraint {
+    kind: CKind,
+    label: String,
+    clauses: Vec<Vec<Lit>>,
+}
+
+struct Encoding {
+    var_of: HashMap<String, usize>,
+    names: Vec<String>,
+    files: HashMap<String, String>,
+    parent: HashMap<String, Option<String>>,
+    optional: Vec<String>,
+    cons: Vec<Constraint>,
+}
+
+impl Encoding {
+    fn cnf(&self) -> Cnf {
+        self.cnf_subset(&(0..self.cons.len()).collect::<Vec<_>>())
+    }
+    fn cnf_subset(&self, idx: &[usize]) -> Cnf {
+        let mut c = Cnf::new(self.names.len());
+        for &i in idx {
+            for cl in &self.cons[i].clauses {
+                c.add(cl.clone());
+            }
+        }
+        c
+    }
+    /// Deletion-based minimal unsat core: indices of a subset of constraints that
+    /// remains unsatisfiable (under `assumptions`) but where dropping any member
+    /// becomes satisfiable. Assumes the full set is already unsatisfiable.
+    fn unsat_core(&self, assumptions: &[Lit]) -> Vec<usize> {
+        let mut keep: Vec<usize> = (0..self.cons.len()).collect();
+        for i in 0..self.cons.len() {
+            let trial: Vec<usize> = keep.iter().copied().filter(|&x| x != i).collect();
+            if !self.cnf_subset(&trial).is_sat(assumptions) {
+                keep = trial;
+            }
+        }
+        keep
+    }
+    fn core_labels(&self, core: &[usize]) -> String {
+        let mut labels: Vec<String> = core.iter().map(|&i| self.cons[i].label.clone()).collect();
+        labels.sort();
+        labels.dedup();
+        labels.join("; ")
+    }
+}
+
+fn strip_last(q: &str) -> Option<&str> {
+    q.rfind("::").map(|i| &q[..i])
+}
+
+/// All r-element subsets of `items`, in input order.
+fn combinations(items: &[String], r: usize) -> Vec<Vec<String>> {
+    let n = items.len();
+    if r == 0 {
+        return vec![vec![]];
+    }
+    if r > n {
+        return vec![];
+    }
+    let mut out = Vec::new();
+    let mut idx: Vec<usize> = (0..r).collect();
+    loop {
+        out.push(idx.iter().map(|&i| items[i].clone()).collect());
+        // advance
+        let mut i = r;
+        loop {
+            if i == 0 {
+                return out;
+            }
+            i -= 1;
+            if idx[i] != i + n - r {
+                break;
+            }
+        }
+        idx[i] += 1;
+        for j in i + 1..r {
+            idx[j] = idx[j - 1] + 1;
+        }
+    }
+}
+
+/// (min, max) selected children for a group; max == None means unbounded (`*`).
+fn group_card(gk: &str, card: Option<&str>, k: usize) -> (usize, Option<usize>) {
+    if let Some(s) = card {
+        if let Some((lo, hi)) = s.split_once("..") {
+            let m = lo.trim().parse::<usize>().unwrap_or(if gk == "alternative" { 1 } else { 1 });
+            let n = if hi.trim() == "*" {
+                None
+            } else {
+                hi.trim().parse::<usize>().ok().or(Some(k))
+            };
+            return (m, n);
+        }
+    }
+    match gk {
+        "alternative" => (1, Some(1)),
+        _ => (1, None), // or
+    }
+}
+
+fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
+    let mut names: Vec<String> = fdefs.iter().map(|e| e.qualified_name.clone()).collect();
+    names.sort();
+    let var_of: HashMap<String, usize> =
+        names.iter().enumerate().map(|(i, n)| (n.clone(), i)).collect();
+    let fdef_set: HashSet<&str> = names.iter().map(|s| s.as_str()).collect();
+    let by_name: HashMap<&str, &RawElement> =
+        fdefs.iter().map(|e| (e.qualified_name.as_str(), *e)).collect();
+    let files: HashMap<String, String> =
+        fdefs.iter().map(|e| (e.qualified_name.clone(), e.file_path.clone())).collect();
+
+    let parent_of = |q: &str| -> Option<String> {
+        let e = by_name[q];
+        if let Some(pf) = e.frontmatter.parent_feature.as_deref() {
+            if fdef_set.contains(pf) {
+                return Some(pf.to_string());
+            }
+        }
+        let mut cur = strip_last(q);
+        while let Some(p) = cur {
+            if fdef_set.contains(p) {
+                return Some(p.to_string());
+            }
+            cur = strip_last(p);
+        }
+        None
+    };
+
+    let mut parent: HashMap<String, Option<String>> = HashMap::new();
+    let mut children: HashMap<String, Vec<String>> = HashMap::new();
+    for n in &names {
+        let p = parent_of(n);
+        if let Some(pp) = &p {
+            children.entry(pp.clone()).or_default().push(n.clone());
+        }
+        parent.insert(n.clone(), p);
+    }
+    for v in children.values_mut() {
+        v.sort();
+    }
+
+    let v = |q: &str| Lit::pos(var_of[q]);
+    let nv = |q: &str| Lit::neg(var_of[q]);
+    let mut cons: Vec<Constraint> = Vec::new();
+    let mut optional: Vec<String> = Vec::new();
+
+    for n in &names {
+        let e = by_name[n.as_str()];
+        let gk = e.frontmatter.group_kind.as_deref().unwrap_or("optional");
+        if gk == "optional" {
+            optional.push(n.clone());
+        }
+        let p = parent.get(n).cloned().flatten();
+        if let Some(p) = &p {
+            cons.push(Constraint {
+                kind: CKind::ChildParent,
+                label: format!("feature '{}' implies parent '{}'", n, p),
+                clauses: vec![vec![nv(n), v(p)]],
+            });
+            if gk == "mandatory" {
+                cons.push(Constraint {
+                    kind: CKind::Mandatory,
+                    label: format!("feature '{}' is mandatory under '{}'", n, p),
+                    clauses: vec![vec![nv(p), v(n)]],
+                });
+            }
+        } else if gk == "mandatory" {
+            cons.push(Constraint {
+                kind: CKind::Root,
+                label: format!("root feature '{}' is mandatory", n),
+                clauses: vec![vec![v(n)]],
+            });
+        }
+
+        if gk == "alternative" || gk == "or" {
+            let ch = children.get(n).cloned().unwrap_or_default();
+            if !ch.is_empty() {
+                let (m, nmax) = group_card(gk, e.frontmatter.cardinality.as_deref(), ch.len());
+                if m >= 1 {
+                    // at-least-m, conditioned on the group node being selected.
+                    for combo in combinations(&ch, ch.len() - m + 1) {
+                        let mut cl = vec![nv(n)];
+                        for c in &combo {
+                            cl.push(v(c));
+                        }
+                        cons.push(Constraint {
+                            kind: CKind::GroupAtLeast,
+                            label: format!("group '{}' requires at least {} selected child(ren)", n, m),
+                            clauses: vec![cl],
+                        });
+                    }
+                }
+                if let Some(nm) = nmax {
+                    if nm < ch.len() {
+                        for combo in combinations(&ch, nm + 1) {
+                            let cl: Vec<Lit> = combo.iter().map(|c| nv(c)).collect();
+                            cons.push(Constraint {
+                                kind: CKind::GroupAtMost,
+                                label: format!("group '{}' allows at most {} selected child(ren)", n, nm),
+                                clauses: vec![cl],
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        if let Some(r) = &e.frontmatter.requires {
+            for r in strings_from_seq(r) {
+                if fdef_set.contains(r.as_str()) {
+                    cons.push(Constraint {
+                        kind: CKind::Requires,
+                        label: format!("'{}' requires '{}'", n, r),
+                        clauses: vec![vec![nv(n), v(&r)]],
+                    });
+                }
+            }
+        }
+        if let Some(x) = &e.frontmatter.excludes {
+            for x in x {
+                if fdef_set.contains(x.as_str()) {
+                    cons.push(Constraint {
+                        kind: CKind::Excludes,
+                        label: format!("'{}' excludes '{}'", n, x),
+                        clauses: vec![vec![nv(n), nv(x)]],
+                    });
+                }
+            }
+        }
+    }
+
+    Encoding { var_of, names, files, parent, optional, cons }
+}
+
+/// Run the solver-backed deep analysis. Empty report when no feature model;
+/// `skipped` set when the size guard trips.
+pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
+    let mut rep = DeepReport::empty();
+    let fdefs: Vec<&RawElement> =
+        elements.iter().filter(|e| is(e, ElementType::FeatureDef)).collect();
+    if fdefs.is_empty() {
+        return rep;
+    }
+    if fdefs.len() > MAX_DEEP_FEATURES {
+        rep.skipped = Some(format!(
+            "deep analysis skipped: {} features exceeds the limit of {} (override not yet available)",
+            fdefs.len(),
+            MAX_DEEP_FEATURES
+        ));
+        return rep;
+    }
+
+    let enc = build_encoding(&fdefs);
+    let cnf = enc.cnf();
+    let root_file = enc
+        .names
+        .first()
+        .and_then(|n| enc.files.get(n))
+        .cloned()
+        .unwrap_or_default();
+    let file_of = |n: &str| enc.files.get(n).cloned().unwrap_or_else(|| root_file.clone());
+
+    // Void dominates: report once and stop (every feature is trivially dead).
+    if !cnf.is_sat(&[]) {
+        rep.void = true;
+        let core = enc.unsat_core(&[]);
+        rep.findings.push(err("E223", &root_file, format!(
+            "feature model is void (no valid configuration exists). Conflicting constraints: {}",
+            enc.core_labels(&core))));
+        return rep;
+    }
+
+    // Dead / core per feature.
+    for (i, name) in enc.names.iter().enumerate() {
+        if !cnf.is_sat(&[Lit::pos(i)]) {
+            rep.dead.push(name.clone());
+            let core = enc.unsat_core(&[Lit::pos(i)]);
+            rep.findings.push(err("E224", &file_of(name), format!(
+                "feature '{}' is dead — it can be selected in no valid configuration. Cause: {}",
+                name, enc.core_labels(&core))));
+        } else if !cnf.is_sat(&[Lit::neg(i)]) {
+            rep.core.push(name.clone());
+        }
+    }
+
+    // False-optional: declared optional but forced whenever its parent is.
+    for name in &enc.optional {
+        if rep.dead.contains(name) {
+            continue;
+        }
+        let i = enc.var_of[name];
+        let cond = match enc.parent.get(name).cloned().flatten() {
+            Some(p) => vec![Lit::pos(enc.var_of[&p]), Lit::neg(i)],
+            None => vec![Lit::neg(i)],
+        };
+        if !cnf.is_sat(&cond) {
+            rep.false_optional.push(name.clone());
+            rep.findings.push(warn("W018", &file_of(name), format!(
+                "optional feature '{}' is false-optional — it is forced selected whenever its parent is",
+                name)));
+        }
+    }
+
+    // Configuration validity under full semantics (E225), excluding the
+    // requires/excludes obligations already reported as E219/E220.
+    for cfg in elements.iter().filter(|e| is(e, ElementType::Configuration)) {
+        let sel = cfg.frontmatter.feature_selections();
+        let assign: Vec<bool> = enc.names.iter().map(|n| sel.get(n).copied().unwrap_or(false)).collect();
+        let mut violated: Vec<String> = Vec::new();
+        for c in &enc.cons {
+            if matches!(c.kind, CKind::Requires | CKind::Excludes) {
+                continue;
+            }
+            for cl in &c.clauses {
+                let ok = cl.iter().any(|l| assign[l.var] != l.neg);
+                if !ok {
+                    violated.push(c.label.clone());
+                    break;
+                }
+            }
+        }
+        if !violated.is_empty() {
+            violated.sort();
+            violated.dedup();
+            let id = cfg.frontmatter.id.clone().unwrap_or_else(|| cfg.qualified_name.clone());
+            rep.invalid_configs.push(id.clone());
+            rep.findings.push(err("E225", &cfg.file_path, format!(
+                "configuration '{}' is not a valid model of the feature model: {}",
+                id, violated.join("; "))));
+        }
+    }
+
+    rep.dead.sort();
+    rep.core.sort();
+    rep.false_optional.sort();
+    rep.invalid_configs.sort();
+    rep
 }
