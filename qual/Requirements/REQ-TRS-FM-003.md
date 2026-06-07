@@ -13,8 +13,8 @@ The `feature-check` command ([[REQ-TRS-FM-001]]) **shall** enforce the parameter
 | Code | Condition |
 |---|---|
 | `E207` | Circular `derivedFrom:` dependency between parameters of the **same** `FeatureDef` (parameter A derived from B, B derived from A, directly or transitively) |
-| `E202` | A value propagated via `bindTo:` — a component parameter bound to a system parameter that a `Configuration` sets — falls **outside** the component parameter's narrowing `range:` |
-| `E213` | A cross-feature `parameterConstraints` expression references a parameter path (`<FeatureDef>::<param>`) that does not resolve to a declared parameter |
+| `E202` | A value propagated via `bindTo:` — a component parameter bound to a system parameter (`bindTo:` target written in the canonical dotted form `<FeatureDef>.<param>`, see [[REQ-TRS-PARAM-002]]) that a `Configuration` sets — falls **outside** the component parameter's narrowing `range:` |
+| `E213` | A cross-feature `parameterConstraints` expression references a parameter path (`<FeatureDef>.<param>`, the canonical dotted form) that does not resolve to a declared parameter |
 | `W014` | A `parameterConstraints` entry has an `appliesWhen:` referencing a `FeatureDef` that is selected in **no** `Configuration` |
 
 `parameterConstraints:` are read from package `_index.md` frontmatter (the feature-model or configuration authority, §9.7). `derivedFrom:` and `expression:` are opaque strings; the tool resolves the qualified parameter paths and sibling parameter names they reference.

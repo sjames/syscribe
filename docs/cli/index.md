@@ -258,7 +258,7 @@ With no feature model present, `matrix` prints a notice and falls back to a flat
 
 ### Feature-model check
 
-`feature-check` runs holistic feature-model validation that is deliberately kept out of the per-element `validate` pass — `requires`/`excludes` resolution and satisfaction, dead/always-on optional features, `derivedFrom:` cycles, `bindTo:` propagation ranges, and `parameterConstraints` paths (see the [validation rules](../validation/rules.md)):
+`feature-check` runs holistic feature-model validation that is deliberately kept out of the per-element `validate` pass — `requires`/`excludes` resolution and satisfaction, dead/always-on optional features, `derivedFrom:` cycles, `bindTo:` propagation ranges, `parameterConstraints` path resolution **and numeric evaluation** (`E221`/`W025` — a constraint violated by a configuration whose `appliesWhen:` holds), and orphan features (`W024`) (see the [validation rules](../validation/rules.md)):
 
 ```
 $ syscribe -m model/ feature-check

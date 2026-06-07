@@ -9,6 +9,6 @@ features:
   Features::Sys: true
   Features::Comp: true
 parameterBindings:
-  Features::Sys::sysKv: 1500
+  Features::Sys.sysKv: 1500
 ---
 c.

@@ -80,13 +80,27 @@ A `FeatureDef` may declare typed `parameters:`; a `Configuration` binds them und
 ```yaml
 # FeatureDef
 parameters:
-  - { name: motorKV, type: ScalarValues::Real, range: "900..1200", isRequired: true }
+  - { name: motorKV, type: ScalarValues::Real, range: "900..=1200", isRequired: true }
 # Configuration
 parameterBindings:
-  Features::Motor::motorKV: 1050.0
+  Features::Motor.motorKV: 1050.0      # canonical reference: <Feature qname>.<param>
 ```
 
-Binding rules (run by `validate`): bind a parameter of an unselected feature (`E203`), bind a fixed parameter (`E204`), out of `range:` (`E205`), not in `enumValues:` (`E206`), unresolved path (`E222`); a required, unbound parameter warns (`W017`).
+A **parameter reference** is always the dotted form `Features::Path::Feature.param` — `::` between feature segments, a single `.` before the parameter member. The same form is used in `parameterBindings:` keys, `parameterConstraints` expressions, and `bindTo:` targets. `range:` accepts `"min..max"` and the inclusive `"min..=max"`.
+
+Binding rules (run by `validate`): bind a parameter of an unselected feature (`E203`), bind a fixed parameter (`E204`), out of `range:` (`E205`), not in `enumValues:` (`E206`), unresolved/legacy-`::` path (`E222`); a required, unbound parameter warns (`W017`).
+
+**Cross-feature constraints.** A package `_index.md` may declare `parameterConstraints:` — numeric couplings evaluated by `feature-check` against every applicable `Configuration`:
+
+```yaml
+parameterConstraints:
+  - id: PC-AMP-MIN
+    expression: "Features::Topology.maxCpus >= 2"        # comparison over dotted refs
+    appliesWhen: "Features::Cpu::CortexA and Features::Topology::Amp"   # boolean predicate
+    severity: error        # violation -> E221 (or W025 when severity: warning)
+```
+
+A violation in a configuration whose `appliesWhen:` holds is `E221` (or `W025` for `severity: warning`); an unresolved parameter path is `E213`; an `appliesWhen:` feature selected in no configuration is `W014`.
 
 ---
 
@@ -117,6 +131,7 @@ syscribe -m model/ feature-check
 | `E207` | circular `derivedFrom:` among a feature's parameters |
 | `E202` | a `bindTo:`-propagated value is outside the component parameter's `range:` |
 | `E213` / `W014` | `parameterConstraints` unresolved path / `appliesWhen` feature used in no config |
+| `E221` / `W025` | `parameterConstraints` expression evaluates false for an applicable `Configuration` (`W025` when `severity: warning`) |
 | `W024` | **orphan feature** — referenced by no `appliesWhen:` and selected by no `Configuration` (gates nothing, ships in nothing); gate with `--deny W024` |
 
 ### `feature-check --deep` — SAT-backed whole-space analysis

@@ -17,7 +17,7 @@ Normative requirements for the Syscribe tool. Grouped by functional area:
 | `REQ-TRS-IMPL` | Architecture↔code implementation linkage: `implementedBy` field, `W023` path-exists, discoverability (GH #13) |
 | `REQ-TRS-CONF` | Configuration / `appliesWhen` validation (§9, §11.12) |
 | `REQ-TRS-VAR` | Variability: opt-in dormancy, `appliesWhen`, matrix, per-config coverage (§9) |
-| `REQ-TRS-PARAM` | FeatureDef parameter binding validation (§9.7) |
+| `REQ-TRS-PARAM` | FeatureDef parameter binding validation, range syntax, and `parameterConstraints` evaluation (`E221`/`W025`, §9.7; GH #14) |
 | `REQ-TRS-FM` | Explicit feature-model validation command (`feature-check`, §9); feature-model schema fields including the `mandatory:` membership field (`ADR-FM-003`) |
 | `REQ-TRS-FMA` | Solver-backed feature-model analysis: `feature-check --deep`, cores, `configure`, variant count, diagnoses, DRAT proofs (`ADR-FM-002`) |
 | `REQ-TRS-PROJ` | Configuration projection: the `--config` lens, per-variant validation, escaping refs, global guarantee, family checks (`ADR-PROJ-001`) |

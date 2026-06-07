@@ -73,7 +73,7 @@
 | E205 | A bound parameter value is outside the parameter's `range:` |
 | E206 | A bound parameter value is not in the parameter's `enumValues:` |
 | E209 | `appliesWhen:` is malformed, or an operand does not resolve to a FeatureDef. `appliesWhen:` accepts a bare QName, a list (AND), or a boolean expression (`and`/`or`/`not`/parentheses); every operand is checked. |
-| E222 | A `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path, unknown feature, or undeclared parameter) |
+| E222 | A `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path — including the legacy all-`::` member form `Features::Feature::param`, which must be the dotted `Features::Feature.param` — unknown feature, or undeclared parameter) |
 
 ## PLE warnings (W015–W017)
 
@@ -98,11 +98,13 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | E220 | In some `Configuration`, a selected feature's `excludes:` target is also selected |
 | E207 | Circular `derivedFrom:` dependency among parameters of the same `FeatureDef` |
 | E202 | A value propagated via `bindTo:` falls outside the component parameter's narrowing `range:` |
-| E213 | A `parameterConstraints` expression references an unresolved parameter path |
+| E213 | A `parameterConstraints` expression references an unresolved parameter path (`<FeatureDef>.<param>`) |
+| E221 | A `parameterConstraints` expression evaluates to **false** for a `Configuration` whose `appliesWhen:` holds (numeric comparison/arithmetic over dotted parameter references; default severity) |
 | W011 | An `optional` `FeatureDef` is selected in zero `Configuration` files (possible dead feature) |
 | W012 | An `optional` `FeatureDef` is selected in every `Configuration` (consider `mandatory`) |
 | W014 | A `parameterConstraints` `appliesWhen:` references a feature selected in no `Configuration` |
 | W024 | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration` (it gates nothing and ships in nothing). Gate with `feature-check --deny W024` |
+| W025 | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Gate with `feature-check --deny W025` |
 
 ### Deep analysis (`feature-check --deep`)
 
@@ -117,7 +119,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 
 Core features (present in every valid configuration) are reported informationally in the `--json` `coreFeatures` list and the text summary. Not implemented: configuration counting and numeric/parameter (SMT) reasoning.
 
-Not yet implemented (specified): group-cardinality rules (`E216`/`E217`/`E218`), two-level satisfies completeness (`E210`/`E211`), and constraint-expression evaluation (`E221`).
+Not yet implemented (specified): group-cardinality rules (`E216`/`E217`/`E218`) and two-level satisfies completeness (`E210`/`E211`).
 
 ## Configuration projection (the `--config` lens, ADR-PROJ-001)
 

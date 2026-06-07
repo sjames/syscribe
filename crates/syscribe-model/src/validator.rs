@@ -1848,8 +1848,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 has_default: bool,
             }
             let parse_range = |s: &str| -> Option<(f64, f64)> {
+                // Accept both "min..max" and inclusive "min..=max".
                 let (lo, hi) = s.split_once("..")?;
-                Some((lo.trim().parse().ok()?, hi.trim().parse().ok()?))
+                let hi = hi.trim();
+                let hi = hi.strip_prefix('=').unwrap_or(hi).trim();
+                Some((lo.trim().parse().ok()?, hi.parse().ok()?))
             };
             let num = |v: &serde_yaml::Value| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64));
 
@@ -1898,9 +1901,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 {
                     for (k, val) in bindings {
                         let Some(path) = k.as_str() else { continue };
-                        let Some((feat, pname)) = path.rsplit_once("::") else {
+                        // Canonical parameter reference: <FeatureDef qname (::)>.<param>.
+                        // Split on the LAST '.' — feature qnames never contain '.'.
+                        let Some((feat, pname)) = path.rsplit_once('.') else {
                             findings.push(error("E222", file, &format!(
-                                "parameterBindings key '{}' is not a '<FeatureDef>::<param>' path", path)));
+                                "parameterBindings key '{}' is not a '<FeatureDef>.<param>' path (the parameter member is separated by '.')", path)));
                             continue;
                         };
                         bound.insert(path.to_string());
@@ -1950,7 +1955,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     }
                     for (pname, meta) in params {
                         if meta.is_required && !meta.is_fixed && !meta.has_default {
-                            let path = format!("{}::{}", feat, pname);
+                            let path = format!("{}.{}", feat, pname);
                             if !bound.contains(&path) {
                                 findings.push(warning("W017", file, &format!(
                                     "required parameter '{}' of selected feature '{}' is not bound (and has no default)", path, feat)));

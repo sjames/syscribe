@@ -203,7 +203,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E210` | Selected system feature has no component `Configuration` satisfying it |
 | `E211` | Selected system feature satisfied by more than one component `Configuration` in same package |
 | `E212` | `FeatureDef.requires:` or `excludes:` does not resolve to a `FeatureDef` |
-| `E213` | Cross-feature `parameterConstraints` references unresolved parameter path |
+| `E213` | Cross-feature `parameterConstraints` references unresolved parameter path (`<FeatureDef>.<param>`) |
 | `E214` | `FeatureDef.contributesTo:` does not resolve to a `FeatureDef` |
 | `E215` | `Configuration.derivedFrom:` base is not `approved` or `released` |
 | `E216` | `Configuration.features` omits a `mandatory` feature |
@@ -211,7 +211,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E218` | `Configuration.features` violates an `or` group's `cardinality:` |
 | `E219` | `FeatureDef.requires:` constraint violated by selected features |
 | `E220` | `FeatureDef.excludes:` constraint violated by selected features |
-| `E221` | Cross-feature `parameterConstraint` evaluates to `false` |
+| `E221` | Cross-feature `parameterConstraints` expression evaluates to `false` for a `Configuration` whose `appliesWhen:` holds (comparison/arithmetic over dotted refs; `feature-check`; default severity) |
 | `E222` | `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path / unknown feature / undeclared parameter) |
 | `E223` | (`feature-check --deep`) feature model is **void** — no valid configuration exists |
 | `E224` | (`feature-check --deep`) a **dead feature** — selectable in no valid configuration |
@@ -237,4 +237,5 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W021` | (`feature-check --deep`) a dead element — its `appliesWhen` is unsatisfiable under the feature model |
 | `W022` | (`feature-check --deep`) a requirement active in some configuration but covered in none |
 | `W024` | (`feature-check`) an orphan `FeatureDef` — referenced by no `appliesWhen:` and selected by no `Configuration` (gates nothing, ships in nothing); gate with `--deny W024` |
+| `W025` | (`feature-check`) a `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`; gate with `--deny W025` |
 | `W023` | (§12.8) a non-`draft` `Part`/`PartDef` has an `implementedBy:` path that does not exist on disk. Opt-in (only when `implementedBy:` is present); draft-suppressed; remote (`scheme://`) targets accepted as external and not checked. Path resolution matches `sourceFile`. Gate with `--deny W023`. |

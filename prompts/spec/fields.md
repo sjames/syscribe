@@ -198,8 +198,8 @@ All frontmatter fields. Optional unless marked **required**.
 | `featureModel` | FeatureDef/Configuration | string | QName of the system FeatureDef model root |
 | `features` | Configuration | map | Feature selections: `<FeatureDef QName>: true/false` (§9.8) |
 | `parameters` | FeatureDef | list | Typed parameters (§9.7): each `{name, type, range, enumValues, default, isFixed, isRequired, value}` |
-| `parameterBindings` | Configuration | map | Bind feature parameters: `<FeatureDef QName>::<param>: <value>` (validated: E203–E206, E222, W017) |
-| `parameterConstraints` | Package `_index.md` | list | Cross-feature constraints `{id, expression, severity, appliesWhen}` — checked by `feature-check` (E213/W014) |
+| `parameterBindings` | Configuration | map | Bind feature parameters: `<FeatureDef QName>.<param>: <value>` (dotted member; validated: E203–E206, E222, W017) |
+| `parameterConstraints` | Package `_index.md` | list | Cross-feature constraints `{id, expression, severity, appliesWhen}` — `expression` is a comparison over dotted refs, `appliesWhen` a boolean predicate; checked by `feature-check` (E213/W014, E221/W025) |
 | `groupKind` | FeatureDef | string | child grouping: `optional` · `alternative` · `or` · `mandatory` (legacy member shorthand) |
 | `mandatory` | FeatureDef | bool | membership vs parent (orthogonal to `groupKind`): `true` = selected whenever parent is / always at top level |
 | `cardinality` | FeatureDef | string | For `or` groups: `"1..*"` etc. |

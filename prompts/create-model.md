@@ -722,7 +722,7 @@ Every operand must resolve to a `FeatureDef` (else `E209`).
 
 If two configurations would have identical `features:` (e.g. emulator vs physical rig), model the distinguishing axis as its own feature (e.g. an `ExecEnv` alternative group) rather than reaching for a separate field.
 
-**Feature parameters (quantitative variability, §9.7).** A `FeatureDef` may declare typed `parameters:` (each `{name, type, range: "min..max", enumValues, default, isFixed, isRequired}`); a `Configuration` binds them under `parameterBindings:` keyed by `<FeatureDef QName>::<param>`. Bindings are validated by `validate`: a binding for an unselected feature (`E203`), of a fixed parameter (`E204`), out of `range:` (`E205`), not in `enumValues:` (`E206`), or to an undeclared parameter (`E222`) is an error; a selected feature's required, default-less parameter left unbound warns (`W017`).
+**Feature parameters (quantitative variability, §9.7).** A `FeatureDef` may declare typed `parameters:` (each `{name, type, range: "min..max" or "min..=max", enumValues, default, isFixed, isRequired}`); a `Configuration` binds them under `parameterBindings:` keyed by the dotted reference `<FeatureDef QName>.<param>`. Bindings are validated by `validate`: a binding for an unselected feature (`E203`), of a fixed parameter (`E204`), out of `range:` (`E205`), not in `enumValues:` (`E206`), or to an undeclared/legacy-`::` path (`E222`) is an error; a selected feature's required, default-less parameter left unbound warns (`W017`). Cross-feature `parameterConstraints` (on a package `_index.md`) are evaluated by `feature-check`: a violated comparison is `E221` (or `W025` if `severity: warning`).
 
 **Holistic checks — run `feature-check` (not part of `validate`).** `syscribe feature-check` validates the feature model as a whole: `requires:`/`excludes:` resolution (`E212`) and satisfaction per configuration (`E219`/`E220`), dead/always-on optional features (`W011`/`W012`), circular `derivedFrom:` (`E207`), `bindTo:` propagation outside the component `range:` (`E202`), and cross-feature `parameterConstraints` declared on a package `_index.md` — unresolved paths (`E213`) and `appliesWhen:` features used in no configuration (`W014`).
 
@@ -935,7 +935,7 @@ draft → review → approved → implemented → verified
 | E209 | `appliesWhen:` malformed or an operand is not a `FeatureDef` | Fix the expression; every operand must be a `FeatureDef` QName |
 | W015 | Requirement active in a `Configuration` with no covering in-config TestCase | Add a `TestCase` whose `appliesWhen:` holds in that config and `verifies:` the requirement (see Part 9b) |
 | W016 | `Configuration` parsed no feature selections (e.g. used `selections:`) | Use a `features:` map of `<FeatureDef>: true/false` (run `template Configuration`) |
-| E203–E206 / E222 | Bad `parameterBindings`: unselected feature / fixed param / out of range / not in enum / undeclared path | Bind only selected, configurable params with in-range, in-enum values keyed `<FeatureDef>::<param>` |
+| E203–E206 / E222 | Bad `parameterBindings`: unselected feature / fixed param / out of range / not in enum / undeclared (or legacy-`::`) path | Bind only selected, configurable params with in-range, in-enum values keyed `<FeatureDef>.<param>` (dotted) |
 | W017 | Selected feature's required parameter left unbound | Bind it in `parameterBindings:` or give the parameter a `default:` |
 
 ---

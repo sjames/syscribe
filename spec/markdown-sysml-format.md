@@ -3917,7 +3917,7 @@ SystemFeatures/
   Safety/
     _index.md               # FeatureDef, groupKind: or — one or more safety features
     DualIMU.md              # FeatureDef, optional
-    ASIL_D_FC.md            # FeatureDef, optional; requires: [SystemFeatures::Safety::DualIMU]
+    ASIL_D_FC.md            # FeatureDef, optional; requires: [SystemFeatures::Safety.DualIMU]
   Communication/
     StandardLink.md         # FeatureDef, mandatory
     LongRangeLink.md        # FeatureDef, optional
@@ -3932,7 +3932,7 @@ name: HexRotorPropulsion
 groupKind: optional
 requires: []
 excludes:
-  - SystemFeatures::Propulsion::QuadRotorPropulsion
+  - SystemFeatures::Propulsion.QuadRotorPropulsion
 parameters:
   - name: numMotors
     type: ScalarValues::Integer
@@ -3994,15 +3994,15 @@ Each entry in a `FeatureDef`'s `parameters:` list is a map with the following fi
 
 ### Parameter binding in `Configuration`
 
-In a `Configuration` file, parameter values are declared under `parameterBindings:` as a flat map. The key is the fully-qualified parameter path: `<FeatureDef qualified name>::<parameter name>`.
+In a `Configuration` file, parameter values are declared under `parameterBindings:` as a flat map. The key is the **canonical dotted parameter reference**: `<FeatureDef qualified name>.<parameter name>` — `::` separates the feature's namespace/qname segments, and a single `.` separates the parameter (member) from its owning feature, so the feature/parameter boundary is unambiguous. This same dotted form is used everywhere a feature parameter is referenced: `parameterBindings:` keys, `parameterConstraints` expressions, and `bindTo:` targets. A key written in the legacy all-`::` member form is malformed (`E222`).
 
 ```yaml
 parameterBindings:
-  SystemFeatures::Propulsion::HexRotorPropulsion::motorKV: 1050.0
-  SystemFeatures::Propulsion::HexRotorPropulsion::propDiameterIn: 13.0
-  SystemFeatures::Payload::SurveyCamera::resolutionMpx: 20.0
-  SystemFeatures::Communication::LongRangeLink::frequencyBandGHz: 5.8
-  SystemFeatures::Mission::Endurance::minDurationMin: 30.0
+  SystemFeatures::Propulsion::HexRotorPropulsion.motorKV: 1050.0
+  SystemFeatures::Propulsion::HexRotorPropulsion.propDiameterIn: 13.0
+  SystemFeatures::Payload::SurveyCamera.resolutionMpx: 20.0
+  SystemFeatures::Communication::LongRangeLink.frequencyBandGHz: 5.8
+  SystemFeatures::Mission::Endurance.minDurationMin: 30.0
 ```
 
 Rules:
@@ -4020,15 +4020,15 @@ Parameter constraints that involve parameters from more than one feature are dec
 parameterConstraints:
   - id: PC-ENERGY-001
     expression: >
-      SystemFeatures::Power::Battery::capacityWh
-      >= (SystemFeatures::Mission::Endurance::minDurationMin / 60.0)
-         * SystemFeatures::Power::AveragePower::averagePowerW
+      SystemFeatures::Power::Battery.capacityWh
+      >= (SystemFeatures::Mission::Endurance.minDurationMin / 60.0)
+         * SystemFeatures::Power::AveragePower.averagePowerW
     severity: error
     rationale: "Battery capacity must cover the minimum mission duration at nominal power draw."
   - id: PC-THRUST-001
     expression: >
-      SystemFeatures::Propulsion::HexRotorPropulsion::totalThrustN
-      >= 2.0 * (SystemFeatures::Mass::MaxPayload::maxMassKg + 2.5) * 9.81
+      SystemFeatures::Propulsion::HexRotorPropulsion.totalThrustN
+      >= 2.0 * (SystemFeatures::Mass::MaxPayload.maxMassKg + 2.5) * 9.81
     severity: error
     appliesWhen:
       - SystemFeatures::Propulsion::HexRotorPropulsion
@@ -4040,9 +4040,9 @@ parameterConstraints:
 | Field | YAML type | Required | Description |
 |---|---|---|---|
 | `id` | string | **Required** | Stable constraint ID, e.g. `PC-ENERGY-001`. Unique within the feature model. |
-| `expression` | string | **Required** | Opaque boolean expression over qualified parameter paths. Evaluated at configuration-validation time. |
-| `severity` | enum | optional | `error` (default) or `warning`. |
-| `appliesWhen` | list of strings | optional | `FeatureDef` qualified names; constraint is only checked when all listed features are selected. Absent = always checked. |
+| `expression` | string | **Required** | A comparison `LHS <op> RHS` (`== != >= <= > <`) over arithmetic (`+ - * /`, parentheses) of numeric literals and dotted parameter references. Evaluated by `feature-check` against every applicable `Configuration`; a violation is `E221` (or `W025` when `severity: warning`). |
+| `severity` | enum | optional | `error` (default → `E221`) or `warning` (→ `W025`). |
+| `appliesWhen` | string or list | optional | Boolean predicate over `FeatureDef` qualified names (`and` / `or` / `not` / parentheses; a bare name or list = AND). The constraint is evaluated only against configurations whose selections satisfy it. Absent = always checked. |
 | `rationale` | string | optional | Human-readable explanation. |
 
 ### Two-level parameter propagation
@@ -4054,13 +4054,13 @@ A component-level `FeatureDef` parameter may declare `bindTo:` to receive its va
 ---
 type: FeatureDef
 name: SixMotorLayout
-contributesTo: SystemFeatures::Propulsion::HexRotorPropulsion
+contributesTo: SystemFeatures::Propulsion.HexRotorPropulsion
 parameters:
   - name: motorKV
     type: ScalarValues::Real
     unit: SI::rpm_per_volt
     range: "900..1200"
-    bindTo: SystemFeatures::Propulsion::HexRotorPropulsion::motorKV
+    bindTo: SystemFeatures::Propulsion::HexRotorPropulsion.motorKV
     # When the product-line configuration sets motorKV: 1050.0,
     # this component parameter is automatically resolved to 1050.0.
     # The range here is a narrowing constraint — validation error if the
@@ -4113,7 +4113,7 @@ Configuration IDs follow the pattern `^CONF(-[A-Z0-9]{2,12})+-[0-9]{3}$`:
 | `status` | enum | **Required** | — | `draft`, `review`, `approved`, `released`, `retired`. |
 | `featureModel` | string | **Required** | — | Qualified name of the feature model package this configuration selects from. |
 | `features` | map | **Required** | — | Feature selection: `FeatureDef qualified name: true/false`. All features in the model must appear; defaults apply for absent entries (see §9.6). |
-| `parameterBindings` | map | optional | absent | Parameter value assignments: `<FeatureDef qname>::<paramName>: <value>`. |
+| `parameterBindings` | map | optional | absent | Parameter value assignments keyed by the canonical dotted reference: `<FeatureDef qname>.<paramName>: <value>`. |
 | `satisfies` | list of strings | optional | absent | For component `Configuration` only: qualified names of system-level `FeatureDef` elements this configuration realises. This is the sole top-down binding in the two-level model. |
 | `derivedFrom` | string | optional | absent | Qualified name of a base `Configuration` this one extends. Inherits all `features:` and `parameterBindings:` of the base; entries in this file override the base. |
 | `baselineRef` | string | optional | absent | Opaque external baseline reference (e.g., a Git tag, CM baseline ID). |
@@ -4139,20 +4139,20 @@ title: "Heavy-lift survey UAV — hex-rotor, dual-IMU, long-range link"
 status: approved
 featureModel: SystemFeatures
 features:
-  SystemFeatures::Propulsion::QuadRotorPropulsion: false
-  SystemFeatures::Propulsion::HexRotorPropulsion: true
-  SystemFeatures::Safety::DualIMU: true
-  SystemFeatures::Safety::ASIL_D_FC: false
-  SystemFeatures::Communication::StandardLink: true
-  SystemFeatures::Communication::LongRangeLink: true
-  SystemFeatures::Payload::SurveyCamera: true
-  SystemFeatures::Payload::MultispectralCamera: false
+  SystemFeatures::Propulsion.QuadRotorPropulsion: false
+  SystemFeatures::Propulsion.HexRotorPropulsion: true
+  SystemFeatures::Safety.DualIMU: true
+  SystemFeatures::Safety.ASIL_D_FC: false
+  SystemFeatures::Communication.StandardLink: true
+  SystemFeatures::Communication.LongRangeLink: true
+  SystemFeatures::Payload.SurveyCamera: true
+  SystemFeatures::Payload.MultispectralCamera: false
 parameterBindings:
-  SystemFeatures::Propulsion::HexRotorPropulsion::motorKV: 1050.0
-  SystemFeatures::Propulsion::HexRotorPropulsion::propDiameterIn: 13.0
-  SystemFeatures::Payload::SurveyCamera::resolutionMpx: 20.0
-  SystemFeatures::Communication::LongRangeLink::frequencyBandGHz: 5.8
-  SystemFeatures::Mission::Endurance::minDurationMin: 25.0
+  SystemFeatures::Propulsion::HexRotorPropulsion.motorKV: 1050.0
+  SystemFeatures::Propulsion::HexRotorPropulsion.propDiameterIn: 13.0
+  SystemFeatures::Payload::SurveyCamera.resolutionMpx: 20.0
+  SystemFeatures::Communication::LongRangeLink.frequencyBandGHz: 5.8
+  SystemFeatures::Mission::Endurance.minDurationMin: 25.0
 baselineRef: "UAV-HEAVY-LIFT-v2.1-RC3"
 ---
 
@@ -4173,10 +4173,10 @@ featureModel: SystemFeatures
 derivedFrom: Configurations::HeavyLiftUAV   # inherits all from CONF-UAV-HVY-001
 features:
   # Only overrides differ from the base
-  SystemFeatures::Communication::LongRangeLink: true  # already true — no change
+  SystemFeatures::Communication.LongRangeLink: true  # already true — no change
 parameterBindings:
   # Override a single parameter; all others inherited from base
-  SystemFeatures::Communication::LongRangeLink::frequencyBandGHz: 2.4
+  SystemFeatures::Communication::LongRangeLink.frequencyBandGHz: 2.4
 ---
 
 Long-range variant using 2.4 GHz band for better penetration in forested areas.
@@ -4216,15 +4216,15 @@ model/
     Propulsion/
       Features/            # Level 2 — one per contributing package
         _index.md          # type: Package
-        SixMotorLayout.md  # type: FeatureDef, contributesTo: SystemFeatures::Propulsion::HexRotorPropulsion
-        FourMotorLayout.md # type: FeatureDef, contributesTo: SystemFeatures::Propulsion::QuadRotorPropulsion
+        SixMotorLayout.md  # type: FeatureDef, contributesTo: SystemFeatures::Propulsion.HexRotorPropulsion
+        FourMotorLayout.md # type: FeatureDef, contributesTo: SystemFeatures::Propulsion.QuadRotorPropulsion
         ESCProtocol/
           DSHOT.md         # type: FeatureDef, groupKind: alternative (internal — no contributesTo)
           PWM.md           # type: FeatureDef, groupKind: alternative (internal)
       Configurations/      # Component-level configurations
         _index.md          # type: Package
-        HexConfig.md       # type: Configuration, satisfies: [SystemFeatures::Propulsion::HexRotorPropulsion]
-        QuadConfig.md      # type: Configuration, satisfies: [SystemFeatures::Propulsion::QuadRotorPropulsion]
+        HexConfig.md       # type: Configuration, satisfies: [SystemFeatures::Propulsion.HexRotorPropulsion]
+        QuadConfig.md      # type: Configuration, satisfies: [SystemFeatures::Propulsion.QuadRotorPropulsion]
 ```
 
 ### Binding rules
@@ -4259,13 +4259,13 @@ featureModel: UAV::Propulsion::Features
 features:
   UAV::Propulsion::Features::SixMotorLayout: true
   UAV::Propulsion::Features::FourMotorLayout: false
-  UAV::Propulsion::Features::ESCProtocol::DSHOT: true
-  UAV::Propulsion::Features::ESCProtocol::PWM: false
-# motorKV is NOT bound here — it is propagated from SystemFeatures::Propulsion::HexRotorPropulsion::motorKV
+  UAV::Propulsion::Features::ESCProtocol.DSHOT: true
+  UAV::Propulsion::Features::ESCProtocol.PWM: false
+# motorKV is NOT bound here — it is propagated from SystemFeatures::Propulsion::HexRotorPropulsion.motorKV
 # via SixMotorLayout.motorKV.bindTo
 parameterBindings: {}
 satisfies:
-  - SystemFeatures::Propulsion::HexRotorPropulsion
+  - SystemFeatures::Propulsion.HexRotorPropulsion
 ---
 
 Hex-rotor configuration using DSHOT ESC protocol. Motor KV is propagated
@@ -4335,19 +4335,19 @@ This lets a project adopt variability incrementally without disturbing existing 
 # Requirement — only applies to hex-rotor products
 type: Requirement
 id: REQ-UAV-THRUST-002
-appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
+appliesWhen: SystemFeatures::Propulsion.HexRotorPropulsion
 
 # Architecture variant
 type: PartDef
 name: HexRotorConfig
 isVariant: true
 variantOf: UAV::Propulsion::PropulsionSystem
-appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
+appliesWhen: SystemFeatures::Propulsion.HexRotorPropulsion
 
 # Test case — only run for hex-rotor products
 type: TestCase
 id: TC-UAV-THRUST-002
-appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
+appliesWhen: SystemFeatures::Propulsion.HexRotorPropulsion
 verifies:
   - REQ-UAV-THRUST-002
 
@@ -4355,8 +4355,8 @@ verifies:
 type: Allocation
 name: HexMixingAlgorithmAlloc
 appliesWhen:
-  - SystemFeatures::Propulsion::HexRotorPropulsion
-  - SystemFeatures::Safety::DualIMU
+  - SystemFeatures::Propulsion.HexRotorPropulsion
+  - SystemFeatures::Safety.DualIMU
 ```
 
 ### `appliesWhen:` at Level 2
@@ -4405,7 +4405,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E218` | A `Configuration.features` map violates an `or` group's `cardinality:` constraint |
 | `E219` | A `FeatureDef.requires:` constraint is violated by the selected features in a `Configuration` |
 | `E220` | A `FeatureDef.excludes:` constraint is violated by the selected features in a `Configuration` |
-| `E221` | A cross-feature `parameterConstraint` expression evaluates to `false` for a `Configuration` |
+| `E221` | A cross-feature `parameterConstraints` expression evaluates to `false` for a `Configuration` whose `appliesWhen:` predicate holds (default severity). Emitted by `feature-check`. |
 
 ### Warnings
 
@@ -4420,13 +4420,14 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W016` | A `Configuration` parsed **zero** feature selections while a `FeatureDef` exists in the model — e.g. it used an unrecognized `selections:` key instead of the `features:` map (§9.8). Surfaces the otherwise-silent failure that yields an all-N/A coverage matrix. |
 | `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does not bind. (This is §9.7's nominal `W010`; the validator uses `W017` because `W010` is taken by test-result ingestion.) |
 | `W024` | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration`, so it gates nothing and ships in nothing. Emitted by `feature-check` only; gate with `--deny W024`. |
+| `W025` | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Emitted by `feature-check`; gate with `--deny W025`. |
 
 > **Implementation note.** Rules split across commands/modes:
 > - **`validate`** (per-element, always on) enforces the single-level parameter binding rules `E203`–`E206`, the unresolved-path error `E222`, and `W017`.
-> - **`feature-check`** (explicit, holistic — not run by `validate`) enforces the feature-model-wide rules: `E212` (requires/excludes resolution), `E219`/`E220` (requires/excludes satisfaction), `E207` (circular `derivedFrom:`), `E202` (`bindTo:` propagation range), `E213` (unresolved `parameterConstraints` path), `W011`/`W012`/`W014`, and `W024` (orphan feature).
+> - **`feature-check`** (explicit, holistic — not run by `validate`) enforces the feature-model-wide rules: `E212` (requires/excludes resolution), `E219`/`E220` (requires/excludes satisfaction), `E207` (circular `derivedFrom:`), `E202` (`bindTo:` propagation range), `E213` (unresolved `parameterConstraints` path), `E221`/`W025` (`parameterConstraints` expression evaluation), `W011`/`W012`/`W014`, and `W024` (orphan feature).
 > - **`feature-check --deep`** (SAT-backed, over a propositional encoding of the Boolean layer; deterministic; engine is batsat (pure-Rust CDCL) — see `ADR-FM-002`) adds whole-configuration-space analysis: `E223` void model, `E224` dead feature, `E225` invalid configuration (full group/cardinality semantics), `W018` false-optional, plus a reported set of *core* features and a conflict-set explanation for each unsatisfiability.
 >
-> Not yet implemented: group-cardinality *findings* on `feature-check` without `--deep` (`E216`/`E217`/`E218` — `--deep` enforces the group semantics via `E225`), two-level satisfies completeness (`E210`/`E211`), constraint-expression evaluation (`E221`), configuration counting, and numeric/parameter (SMT) reasoning. `E222`–`E225` and `W017`/`W018` are implementation codes beyond the spec table.
+> Not yet implemented: group-cardinality *findings* on `feature-check` without `--deep` (`E216`/`E217`/`E218` — `--deep` enforces the group semantics via `E225`), two-level satisfies completeness (`E210`/`E211`), and general numeric/parameter (SMT) reasoning beyond the comparison/arithmetic grammar `E221` evaluates. `E222`–`E225` and `W017`/`W018`/`W024`/`W025` are implementation codes beyond the spec table.
 
 ---
 

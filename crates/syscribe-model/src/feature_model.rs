@@ -33,21 +33,17 @@ fn strings_from_seq(v: &[serde_yaml::Value]) -> Vec<String> {
     v.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect()
 }
 
-fn strings_from_value(v: &serde_yaml::Value) -> Vec<String> {
-    match v {
-        serde_yaml::Value::String(s) => vec![s.clone()],
-        serde_yaml::Value::Sequence(seq) => strings_from_seq(seq),
-        _ => vec![],
-    }
-}
 
 fn num(v: &serde_yaml::Value) -> Option<f64> {
     v.as_f64().or_else(|| v.as_i64().map(|i| i as f64))
 }
 
 fn parse_range(s: &str) -> Option<(f64, f64)> {
+    // Accept both "min..max" and the inclusive "min..=max"; identical [min,max] semantics.
     let (lo, hi) = s.split_once("..")?;
-    Some((lo.trim().parse().ok()?, hi.trim().parse().ok()?))
+    let hi = hi.trim();
+    let hi = hi.strip_prefix('=').unwrap_or(hi).trim();
+    Some((lo.trim().parse().ok()?, hi.parse().ok()?))
 }
 
 struct Param {
@@ -55,6 +51,9 @@ struct Param {
     range: Option<(f64, f64)>,
     derived_from: Option<String>,
     bind_to: Option<String>,
+    /// Fixed `value:` or `default:` as a number, used as the fallback value when a
+    /// parameter reference is not bound by a `Configuration` (E221 evaluation).
+    fallback: Option<f64>,
 }
 
 fn parse_params(fd: &RawElement) -> Vec<Param> {
@@ -69,6 +68,7 @@ fn parse_params(fd: &RawElement) -> Vec<Param> {
                 range: get("range").and_then(|v| v.as_str()).and_then(parse_range),
                 derived_from: get("derivedFrom").and_then(|v| v.as_str()).map(|s| s.to_string()),
                 bind_to: get("bindTo").and_then(|v| v.as_str()).map(|s| s.to_string()),
+                fallback: get("value").and_then(num).or_else(|| get("default").and_then(num)),
             });
         }
     }
@@ -80,24 +80,179 @@ fn token_present(expr: &str, name: &str) -> bool {
     expr.split(|c: char| !(c.is_alphanumeric() || c == '_')).any(|t| t == name)
 }
 
-/// Extract qualified parameter paths (tokens containing `::`) from an expression.
+/// A token is a parameter reference iff it carries a feature path (`::`) and a
+/// dotted member (`.`), e.g. `Features::Topology.maxCpus`. Numeric literals like
+/// `3.0` (a `.` but no `::`) and bare feature names (`::` but no `.`) are excluded.
+fn is_param_ref(tok: &str) -> bool {
+    tok.contains("::") && tok.contains('.')
+}
+
+/// Extract canonical dotted parameter references from an expression.
 fn extract_param_paths(expr: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
     for c in expr.chars() {
-        if c.is_alphanumeric() || c == '_' || c == ':' {
+        if c.is_alphanumeric() || c == '_' || c == ':' || c == '.' {
             cur.push(c);
         } else {
-            if cur.contains("::") {
+            if is_param_ref(&cur) {
                 out.push(cur.clone());
             }
             cur.clear();
         }
     }
-    if cur.contains("::") {
+    if is_param_ref(&cur) {
         out.push(cur);
     }
     out
+}
+
+/// Evaluate a `parameterConstraints` expression `LHS <cmp> RHS` over numeric
+/// literals and parameter references, resolving each reference via `resolve`.
+/// Returns `Some(true/false)` when fully evaluable, `None` when a referenced
+/// parameter is unresolved or the expression cannot be parsed.
+fn eval_constraint(expr: &str, resolve: &dyn Fn(&str) -> Option<f64>) -> Option<bool> {
+    const OPS: [&str; 6] = [">=", "<=", "==", "!=", ">", "<"];
+    // Find the comparison operator at paren depth 0 (two-char operators first).
+    let bytes = expr.as_bytes();
+    let mut depth = 0i32;
+    let mut split: Option<(usize, &str)> = None;
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'(' => depth += 1,
+            b')' => depth -= 1,
+            _ if depth == 0 => {
+                for op in OPS {
+                    if expr[i..].starts_with(op) {
+                        split = Some((i, op));
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
+        if split.is_some() {
+            break;
+        }
+        i += 1;
+    }
+    let (pos, op) = split?;
+    let lhs = eval_arith(&expr[..pos], resolve)?;
+    let rhs = eval_arith(&expr[pos + op.len()..], resolve)?;
+    Some(match op {
+        ">=" => lhs >= rhs,
+        "<=" => lhs <= rhs,
+        ">" => lhs > rhs,
+        "<" => lhs < rhs,
+        "==" => (lhs - rhs).abs() < f64::EPSILON,
+        "!=" => (lhs - rhs).abs() >= f64::EPSILON,
+        _ => return None,
+    })
+}
+
+/// Recursive-descent arithmetic over `+ - * /`, parentheses, numeric literals and
+/// parameter references. Returns `None` if any reference is unresolved.
+fn eval_arith(s: &str, resolve: &dyn Fn(&str) -> Option<f64>) -> Option<f64> {
+    let toks = tokenize_arith(s);
+    let mut p = ArithParser { toks: &toks, pos: 0, resolve };
+    let v = p.expr()?;
+    if p.pos == p.toks.len() { Some(v) } else { None }
+}
+
+#[derive(Debug, PartialEq)]
+enum AtomTok {
+    Num(f64),
+    Ref(String),
+    Op(char), // + - * / ( )
+}
+
+fn tokenize_arith(s: &str) -> Vec<AtomTok> {
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    let flush = |cur: &mut String, out: &mut Vec<AtomTok>| {
+        if cur.is_empty() {
+            return;
+        }
+        if let Ok(n) = cur.parse::<f64>() {
+            out.push(AtomTok::Num(n));
+        } else {
+            out.push(AtomTok::Ref(std::mem::take(cur)));
+        }
+        cur.clear();
+    };
+    for c in s.chars() {
+        match c {
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | ':' | '.' => cur.push(c),
+            '+' | '-' | '*' | '/' | '(' | ')' => {
+                flush(&mut cur, &mut out);
+                out.push(AtomTok::Op(c));
+            }
+            _ => flush(&mut cur, &mut out), // whitespace etc.
+        }
+    }
+    flush(&mut cur, &mut out);
+    out
+}
+
+struct ArithParser<'a> {
+    toks: &'a [AtomTok],
+    pos: usize,
+    resolve: &'a dyn Fn(&str) -> Option<f64>,
+}
+
+impl ArithParser<'_> {
+    fn peek(&self) -> Option<&AtomTok> {
+        self.toks.get(self.pos)
+    }
+    fn expr(&mut self) -> Option<f64> {
+        let mut v = self.term()?;
+        while let Some(AtomTok::Op(c @ ('+' | '-'))) = self.peek() {
+            let c = *c;
+            self.pos += 1;
+            let r = self.term()?;
+            v = if c == '+' { v + r } else { v - r };
+        }
+        Some(v)
+    }
+    fn term(&mut self) -> Option<f64> {
+        let mut v = self.factor()?;
+        while let Some(AtomTok::Op(c @ ('*' | '/'))) = self.peek() {
+            let c = *c;
+            self.pos += 1;
+            let r = self.factor()?;
+            v = if c == '*' { v * r } else { v / r };
+        }
+        Some(v)
+    }
+    fn factor(&mut self) -> Option<f64> {
+        match self.peek()? {
+            AtomTok::Num(n) => {
+                let n = *n;
+                self.pos += 1;
+                Some(n)
+            }
+            AtomTok::Ref(r) => {
+                let v = (self.resolve)(r)?;
+                self.pos += 1;
+                Some(v)
+            }
+            AtomTok::Op('-') => {
+                self.pos += 1;
+                Some(-self.factor()?)
+            }
+            AtomTok::Op('(') => {
+                self.pos += 1;
+                let v = self.expr()?;
+                matches!(self.peek(), Some(AtomTok::Op(')')))
+                    .then(|| {
+                        self.pos += 1;
+                        v
+                    })
+            }
+            _ => None,
+        }
+    }
 }
 
 /// DFS cycle detection over a param-name dependency graph.
@@ -254,18 +409,24 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
                 let (lo, hi) = bp.range;
                 if n < lo || n > hi {
                     f.push(err("E202", &cfg.file_path, format!(
-                        "value {} bound to '{}' propagates to component parameter '{}::{}', outside its range {}..{}",
+                        "value {} bound to '{}' propagates to component parameter '{}.{}', outside its range {}..{}",
                         n, bp.bind_to, bp.feature, bp.name, lo, hi)));
                 }
             }
         }
     }
 
-    // ── E213/W014: cross-feature parameterConstraints (package _index.md) ────
+    // ── E213/W014/E221/W025: cross-feature parameterConstraints (package _index.md) ──
+    // Canonical parameter reference is the dotted form `<FeatureDef qname>.<param>`.
     let mut param_paths: HashSet<String> = HashSet::new();
+    let mut param_fallback: HashMap<String, f64> = HashMap::new();
     for fd in &fdefs {
         for p in parse_params(fd) {
-            param_paths.insert(format!("{}::{}", fd.qualified_name, p.name));
+            let key = format!("{}.{}", fd.qualified_name, p.name);
+            if let Some(v) = p.fallback {
+                param_fallback.insert(key.clone(), v);
+            }
+            param_paths.insert(key);
         }
     }
     let mut selected_anywhere: HashSet<String> = HashSet::new();
@@ -289,22 +450,85 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
         };
         for c in cons {
             let serde_yaml::Value::Mapping(m) = c else { continue };
-            if let Some(expr) = m
-                .get(serde_yaml::Value::String("expression".into()))
+            let cid = m
+                .get(serde_yaml::Value::String("id".into()))
                 .and_then(|v| v.as_str())
-            {
+                .unwrap_or("(unnamed)");
+            let expr = m
+                .get(serde_yaml::Value::String("expression".into()))
+                .and_then(|v| v.as_str());
+
+            // E213: every referenced parameter path must resolve to a declared parameter.
+            let mut all_resolvable = true;
+            if let Some(expr) = expr {
                 for path in extract_param_paths(expr) {
                     if !param_paths.contains(&path) {
+                        all_resolvable = false;
                         f.push(err("E213", &pkg.file_path, format!(
-                            "parameterConstraints expression references unresolved parameter path '{}'", path)));
+                            "parameterConstraints '{}' references unresolved parameter path '{}'", cid, path)));
                     }
                 }
             }
-            if let Some(aw) = m.get(serde_yaml::Value::String("appliesWhen".into())) {
-                for feat in strings_from_value(aw) {
+
+            // appliesWhen: parse with the boolean grammar (and/or/not), not as a literal.
+            let aw_expr = m
+                .get(serde_yaml::Value::String("appliesWhen".into()))
+                .and_then(|aw| crate::variability::applies_when_expr(aw).ok().flatten());
+            // W014: each operand feature must be selected in some Configuration.
+            if let Some(e) = &aw_expr {
+                for feat in e.operands() {
                     if !selected_anywhere.contains(&feat) {
                         f.push(warn("W014", &pkg.file_path, format!(
-                            "parameterConstraints appliesWhen references feature '{}' not selected in any Configuration", feat)));
+                            "parameterConstraints '{}' appliesWhen references feature '{}' not selected in any Configuration", cid, feat)));
+                    }
+                }
+            }
+
+            // E221/W025: evaluate the expression against every Configuration whose
+            // appliesWhen predicate holds. severity: warning -> W025, else E221.
+            let Some(expr) = expr else { continue };
+            if !all_resolvable {
+                continue;
+            }
+            let warn_sev = m
+                .get(serde_yaml::Value::String("severity".into()))
+                .and_then(|v| v.as_str())
+                == Some("warning");
+            for cfg in &configs {
+                let sel = cfg.frontmatter.feature_selections();
+                let holds = match &aw_expr {
+                    None => true,
+                    Some(e) => e.eval(&|q| sel.get(q).copied().unwrap_or(false)),
+                };
+                if !holds {
+                    continue;
+                }
+                let resolve = |r: &str| -> Option<f64> {
+                    if let Some(serde_yaml::Value::Mapping(b)) = &cfg.frontmatter.parameter_bindings {
+                        if let Some(v) = b.get(serde_yaml::Value::String(r.to_string())) {
+                            if let Some(n) = num(v) {
+                                return Some(n);
+                            }
+                        }
+                    }
+                    param_fallback.get(r).copied()
+                };
+                // Skip when a referenced parameter has no value in this configuration
+                // (unbound, no default) — W017 already covers required-unbound.
+                if let Some(false) = eval_constraint(expr, &resolve) {
+                    let cfg_id = cfg
+                        .frontmatter
+                        .id
+                        .clone()
+                        .unwrap_or_else(|| cfg.qualified_name.clone());
+                    let msg = format!(
+                        "configuration '{}' violates parameterConstraints '{}': {}",
+                        cfg_id, cid, expr
+                    );
+                    if warn_sev {
+                        f.push(warn("W025", &cfg.file_path, msg));
+                    } else {
+                        f.push(err("E221", &cfg.file_path, msg));
                     }
                 }
             }

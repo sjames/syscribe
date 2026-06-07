@@ -11,7 +11,7 @@ the element's documentation. Directory path encodes namespace ownership.
 | `syscribe spec types` | Element type inventory, SysML keyword mapping, native type schemas |
 | `syscribe spec fields` | Complete frontmatter field reference (all ~90 fields) |
 | `syscribe spec namespace` | Directory conventions, cross-reference syntax, multiplicity rules |
-| `syscribe spec validation` | All validation rule codes (E001–E941, W001–W905; PLE E2xx + projection E226/E227, W010–W024) |
+| `syscribe spec validation` | All validation rule codes (E001–E941, W001–W905; PLE E2xx + projection E226/E227, W010–W025) |
 | `syscribe spec traceability` | Traceability rules R-001–R-007 |
 | `syscribe spec safety` | Safety/security analysis elements: HARA, TARA, FTA, FMEA |
 

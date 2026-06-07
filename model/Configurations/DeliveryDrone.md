@@ -18,7 +18,7 @@ features:
   Features::DataLink::Satcom: true
   Features::DualFlightController: true
 parameterBindings:
-  Features::Payload::Delivery::payloadCapacityKg: 3.0
+  Features::Payload::Delivery.payloadCapacityKg: 3.0
 ---
 
 Logistics delivery product: a redundant hexacopter carrying a 3 kg-capacity cargo

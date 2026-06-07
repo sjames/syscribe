@@ -7,7 +7,7 @@ featureModel: Features
 features:
   Features::Motor: false
 parameterBindings:
-  Features::Motor::kv: 1000
+  Features::Motor.kv: 1000
 ---
 
 Config CONF-PRM-UNSEL-001.
