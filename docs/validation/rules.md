@@ -102,6 +102,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | W011 | An `optional` `FeatureDef` is selected in zero `Configuration` files (possible dead feature) |
 | W012 | An `optional` `FeatureDef` is selected in every `Configuration` (consider `mandatory`) |
 | W014 | A `parameterConstraints` `appliesWhen:` references a feature selected in no `Configuration` |
+| W024 | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration` (it gates nothing and ships in nothing). Gate with `feature-check --deny W024` |
 
 ### Deep analysis (`feature-check --deep`)
 

@@ -133,7 +133,8 @@ Opt-in: ignored when the model declares no `FeatureDef`. See the [Variability gu
 | Field | Applies to | Description |
 |---|---|---|
 | `appliesWhen` | any element (incl. `TestCase`) | Boolean expression over `FeatureDef` qualified names (`and`/`or`/`not`/parens; bare QName or list = AND). The element is active only in variants where it holds. |
-| `groupKind` | `FeatureDef` | `mandatory` · `optional` · `alternative` (XOR) · `or` |
+| `groupKind` | `FeatureDef` | How this feature's **children** are grouped: `optional` · `alternative` (XOR) · `or` · `mandatory` (legacy shorthand for a mandatory member) |
+| `mandatory` | `FeatureDef` | Boolean **membership** vs the parent, orthogonal to `groupKind`: `true` = selected whenever the parent is (or always, if top-level). Lets a node be both `mandatory: true` and `groupKind: alternative` (a mandatory XOR group). |
 | `cardinality` | `FeatureDef` (or/alternative) | Selected-children bound, e.g. `"1..*"` |
 | `parentFeature` | `FeatureDef` | Explicit parent (else inferred from directory nesting) |
 | `requires` | `FeatureDef` | Qualified names of features that must also be selected |

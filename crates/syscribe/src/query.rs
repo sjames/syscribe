@@ -616,7 +616,36 @@ pub fn cmd_types(elements: &[RawElement]) {
     }
 }
 
-pub fn cmd_list(elements: &[RawElement], type_filter: &str, scope: &str, tag: Option<&str>) {
+pub fn cmd_list(
+    elements: &[RawElement],
+    type_filter: &str,
+    scope: &str,
+    tag: Option<&str>,
+    feature: Option<&str>,
+) {
+    // `--feature <F>`: keep only elements whose `appliesWhen:` names F as an
+    // operand. The feature must resolve to a known FeatureDef.
+    if let Some(feat) = feature {
+        let known = elements.iter().any(|e| {
+            e.frontmatter.element_type.as_ref()
+                == Some(&syscribe_model::element::ElementType::FeatureDef)
+                && e.qualified_name == feat
+        });
+        if !known {
+            eprintln!("Error: unknown feature '{}' (no matching FeatureDef)", feat);
+            std::process::exit(1);
+        }
+    }
+    let gates_feature = |e: &RawElement, feat: &str| -> bool {
+        match &e.frontmatter.applies_when {
+            None => false,
+            Some(aw) => match syscribe_model::variability::applies_when_expr(aw) {
+                Ok(Some(expr)) => expr.operands().iter().any(|o| o == feat),
+                _ => false,
+            },
+        }
+    };
+
     let type_filter_lc = type_filter.to_lowercase();
     let mut matches: Vec<&RawElement> = elements
         .iter()
@@ -633,6 +662,7 @@ pub fn cmd_list(elements: &[RawElement], type_filter: &str, scope: &str, tag: Op
                     .is_some_and(|ts| ts.iter().any(|x| x == t))
             })
         })
+        .filter(|e| feature.is_none_or(|feat| gates_feature(e, feat)))
         .collect();
 
     if matches.is_empty() {
@@ -1256,6 +1286,7 @@ pub fn cmd_feature_check(
     count: bool,
     enumerate: bool,
     prove: Option<&str>,
+    gate: &GateOptions,
 ) {
     use syscribe_model::feature_model;
     use syscribe_model::feature_model::EnumOutcome;
@@ -1289,6 +1320,13 @@ pub fn cmd_feature_check(
         findings.extend(r.findings.iter().cloned());
     }
     let has_error = findings.iter().any(|f| f.severity == Severity::Error);
+
+    // Gate evaluation (REQ-TRS-DISC-006): warnings (e.g. W024) gateable via --deny.
+    let warn_refs: Vec<&syscribe_model::validator::Finding> = findings.iter().filter(|f| f.severity == Severity::Warning).collect();
+    let info_refs: Vec<&syscribe_model::validator::Finding> = findings.iter().filter(|f| f.severity == Severity::Info).collect();
+    let denied = gate.denied(&warn_refs, &info_refs);
+    let over_max = gate.max_warnings.map_or(false, |m| warn_refs.len() > m);
+    let gate_tripped = !denied.is_empty() || over_max;
 
     let sev = |s: &Severity| match s {
         Severity::Error => "error",
@@ -1409,6 +1447,14 @@ pub fn cmd_feature_check(
 
     if has_error {
         std::process::exit(1);
+    }
+    if gate_tripped {
+        if !json {
+            for line in gate_report_lines(&denied, over_max, warn_refs.len(), gate) {
+                println!("{}", line);
+            }
+        }
+        std::process::exit(2);
     }
 }
 
@@ -2667,10 +2713,20 @@ pub fn print_help() {
     println!("  types                          List all element types present in the model with counts");
     println!("  untyped                        List elements with no type: field set");
     println!("  list <type> [scope] [--tag <t>] List elements of a type (optional namespace scope; --tag filters by tags:)");
+    println!("       [--feature <F>]           Keep only elements whose appliesWhen names FeatureDef F as an operand");
     println!("  matrix [--json] [--tag <t>]    Requirement × Configuration coverage matrix (cells: covered/gap/N-A)");
     println!("                                 Columns are Configuration elements; --json emits the grid; --tag filters rows.");
     println!("                                 With no feature model, falls back to a flat requirement/testcase view.");
+    println!("  matrix --features [--json]     Feature × Configuration selection grid (cell ✓ where selected true)");
+    println!("  features [--json]              Feature-model overview: every FeatureDef with groupKind, requires/excludes,");
+    println!("                                 parameters and a 'selected in N/M' rollup. Notice + exit 0 with no feature model.");
+    println!("  feature <qname|name> [--json]  Single-feature card: Gates (elements gating on it), Selected in (configs),");
+    println!("                                 groupKind, requires/excludes, parameters. Errors on a non-FeatureDef arg.");
+    println!("  why-active <qname|id> --config <CONF|features> [--json]");
+    println!("                                 Explain an element's activation under a configuration: appliesWhen, the");
+    println!("                                 referenced feature selections, and Verdict: active|inactive|always active.");
     println!("  feature-check [--json] [--deep] Holistic feature-model validation (requires/excludes, dead features,");
+    println!("                                 orphan features W024, ...). [--deny <CODES>] gates warnings (exit 2).");
     println!("                                 derivedFrom cycles, bindTo ranges, parameterConstraints). Separate from");
     println!("                                 `validate`; exit 0 if no errors, 1 otherwise; dormant with no feature model.");
     println!("                                 --deep adds SAT-backed analysis: void model, dead/core/false-optional");

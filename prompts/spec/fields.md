@@ -200,7 +200,8 @@ All frontmatter fields. Optional unless marked **required**.
 | `parameters` | FeatureDef | list | Typed parameters (§9.7): each `{name, type, range, enumValues, default, isFixed, isRequired, value}` |
 | `parameterBindings` | Configuration | map | Bind feature parameters: `<FeatureDef QName>::<param>: <value>` (validated: E203–E206, E222, W017) |
 | `parameterConstraints` | Package `_index.md` | list | Cross-feature constraints `{id, expression, severity, appliesWhen}` — checked by `feature-check` (E213/W014) |
-| `groupKind` | FeatureDef | string | `mandatory` · `optional` · `alternative` · `or` |
+| `groupKind` | FeatureDef | string | child grouping: `optional` · `alternative` · `or` · `mandatory` (legacy member shorthand) |
+| `mandatory` | FeatureDef | bool | membership vs parent (orthogonal to `groupKind`): `true` = selected whenever parent is / always at top level |
 | `cardinality` | FeatureDef | string | For `or` groups: `"1..*"` etc. |
 | `isFixed` | FeatureDef parameter | bool | Prohibits binding override |
 | `isRequired` | FeatureDef parameter | bool | W010 if unbound in Configuration |

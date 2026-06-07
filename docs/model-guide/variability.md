@@ -18,11 +18,12 @@ The capability has four layers, each building on the last:
 A **`FeatureDef`** is one node of the feature tree — a selectable characteristic. Nesting (directory or `parentFeature:`) forms the tree; `groupKind:` gives the variability type.
 
 ```yaml
-# Features/Platform/_index.md        (an XOR group)
+# Features/Platform/_index.md        (a mandatory XOR group)
 ---
 type: FeatureDef
 name: Platform
-groupKind: alternative      # mandatory | optional | alternative (XOR) | or
+mandatory: true             # membership: every product has a platform...
+groupKind: alternative      # ...and picks exactly one child (XOR)
 ---
 # Features/Platform/CortexM.md
 ---
@@ -31,6 +32,11 @@ name: CortexM
 groupKind: optional
 ---
 ```
+
+Two orthogonal axes (`ADR-FM-003`):
+
+- **`groupKind`** describes how a feature's **children** are grouped: `optional` · `alternative` (XOR) · `or`.
+- **`mandatory: true`** describes the feature's **membership** relative to its parent — selected whenever the parent is (or always, at top level). It is independent of `groupKind`, so a node can be a *mandatory XOR group* as above. (The legacy `groupKind: mandatory` is a shorthand for `mandatory: true` on a leaf.)
 
 Cross-tree constraints use `requires:` / `excludes:` (qualified names of other features). Quantitative variability uses typed `parameters:` (see below).
 
@@ -111,6 +117,7 @@ syscribe -m model/ feature-check
 | `E207` | circular `derivedFrom:` among a feature's parameters |
 | `E202` | a `bindTo:`-propagated value is outside the component parameter's `range:` |
 | `E213` / `W014` | `parameterConstraints` unresolved path / `appliesWhen` feature used in no config |
+| `W024` | **orphan feature** — referenced by no `appliesWhen:` and selected by no `Configuration` (gates nothing, ships in nothing); gate with `--deny W024` |
 
 ### `feature-check --deep` — SAT-backed whole-space analysis
 
@@ -134,6 +141,24 @@ syscribe -m model/ feature-check --enumerate    # list them
 syscribe -m model/ feature-check --deep --prove <dir>   # DIMACS CNF of each UNSAT finding
 syscribe -m model/ configure <Configuration>    # partial selection → forced/free features
 ```
+
+### Discoverability
+
+Four read-only commands answer "what can vary, what does each feature gate, and why is this element in this product?"
+
+```bash
+syscribe -m model/ features                              # the feature model as a tree
+syscribe -m model/ feature Features::Payload::Delivery   # one feature's card
+syscribe -m model/ matrix --features                     # Feature × Configuration grid (the product map)
+syscribe -m model/ list PartDef --feature Features::DualFlightController   # elements a feature gates
+syscribe -m model/ why-active <element> --config CONF-X  # is this element active here, and why?
+```
+
+- **`features`** — the feature tree: each node's `groupKind`, `requires`/`excludes`, parameters, and a *selected in N/M configs* rollup.
+- **`feature <qname>`** — one feature's card: its doc, group, constraints, parameters, the configurations that select it, and every element it **gates** (whose `appliesWhen:` names it).
+- **`matrix --features`** — which feature ships in which product.
+- **`list <type> --feature <F>`** — the elements gated by `F` (orthogonal to `--tag` and `--config`).
+- **`why-active <element> --config <C>`** — prints the element's `appliesWhen:`, the config's relevant selections, and a `Verdict:` of `active` / `inactive` / `always active`.
 
 ---
 

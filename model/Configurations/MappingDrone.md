@@ -5,7 +5,6 @@ title: "Mapping drone — redundant hex with LiDAR and cellular link"
 status: approved
 featureModel: Features
 features:
-  Features::Base: true
   Features::Propulsion: true
   Features::Propulsion::Quad: false
   Features::Propulsion::Hex: true

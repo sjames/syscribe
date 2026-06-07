@@ -1,6 +1,7 @@
 #![deny(warnings)]
 
 mod diagram;
+mod discover;
 mod export;
 mod ingest;
 mod matrix;
@@ -360,11 +361,15 @@ fn main() {
                     .windows(2)
                     .find(|w| w[0] == "--config")
                     .map(|w| w[1].as_str());
+                let feature = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--feature")
+                    .map(|w| w[1].as_str());
                 // scope = first positional argument that is not a flag or flag value
                 let mut scope = "";
                 let mut i = 0;
                 while i < rest.len() {
-                    if rest[i] == "--tag" || rest[i] == "--config" {
+                    if rest[i] == "--tag" || rest[i] == "--config" || rest[i] == "--feature" {
                         i += 2;
                         continue;
                     }
@@ -376,14 +381,14 @@ fn main() {
                     break;
                 }
                 match config {
-                    None => query::cmd_list(&elems, key, scope, tag),
+                    None => query::cmd_list(&elems, key, scope, tag, feature),
                     Some(c) => match syscribe_model::projection::resolve_selection(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
-                            query::cmd_list(&elems, key, scope, tag)
+                            query::cmd_list(&elems, key, scope, tag, feature)
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
                             let view = syscribe_model::projection::project(&elems, &sel);
-                            query::cmd_list(&view, key, scope, tag);
+                            query::cmd_list(&view, key, scope, tag, feature);
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
                             eprintln!("{m}");
@@ -399,7 +404,11 @@ fn main() {
                     .windows(2)
                     .find(|w| w[0] == "--tag")
                     .map(|w| w[1].as_str());
-                matrix::cmd_matrix(&elems, json, tag);
+                if rest.iter().any(|a| a == "--features") {
+                    matrix::cmd_matrix_features(&elems, json);
+                } else {
+                    matrix::cmd_matrix(&elems, json, tag);
+                }
             }
             "feature-check" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
@@ -411,7 +420,35 @@ fn main() {
                     .windows(2)
                     .find(|w| w[0] == "--prove")
                     .map(|w| w[1].as_str());
-                query::cmd_feature_check(&elems, json, deep, count, enumerate, prove);
+                let gate = parse_gate_options(rest);
+                query::cmd_feature_check(&elems, json, deep, count, enumerate, prove, &gate);
+            }
+            "features" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                discover::cmd_features(&elems, json);
+            }
+            "feature" => {
+                let rest = subcommand_args.get(2..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                if key.is_empty() || key.starts_with("--") {
+                    eprintln!("Usage: syscribe --model <root> feature <qname|name> [--json]");
+                    std::process::exit(1);
+                }
+                discover::cmd_feature(&elems, key, json);
+            }
+            "why-active" => {
+                let rest = subcommand_args.get(2..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let config = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--config")
+                    .map(|w| w[1].as_str());
+                if key.is_empty() || key.starts_with("--") {
+                    eprintln!("Usage: syscribe --model <root> why-active <qname|id> --config <Configuration|features> [--json]");
+                    std::process::exit(1);
+                }
+                discover::cmd_why_active(&elems, key, config, json);
             }
             "configure" => {
                 let conf = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");

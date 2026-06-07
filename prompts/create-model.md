@@ -89,7 +89,12 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe model/ links <qname\|id>` | All outbound and inbound relationships |
 | `syscribe model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it) |
 | `syscribe model/ matrix [--json] [--tag <t>]` | Requirement × Configuration coverage grid (variant-aware; see Part 9b) |
-| `syscribe model/ feature-check [--json]` | Holistic feature-model validation (requires/excludes, cycles, bindTo, constraints); separate from `validate` |
+| `syscribe model/ feature-check [--json]` | Holistic feature-model validation (requires/excludes, cycles, bindTo, constraints, orphan-feature W024); separate from `validate` |
+| `syscribe model/ features [--json]` | The feature model as a tree (groupKind, constraints, params, per-feature config rollup) |
+| `syscribe model/ feature <qname>` | One feature's card: constraints, params, configs that select it, elements it gates |
+| `syscribe model/ matrix --features` | Feature × Configuration grid (which feature ships in which product) |
+| `syscribe model/ list <type> --feature <F>` | Elements gated by feature `F` (via `appliesWhen:`) |
+| `syscribe model/ why-active <qname\|id> --config <C>` | Whether an element is active in a product, and why |
 | `syscribe model/ feature-check --deep` | SAT-backed analysis: void / dead / core / false-optional features, full-semantics config validity, explanations + diagnoses |
 | `syscribe model/ feature-check --count` / `--enumerate` | Count / list the valid configurations the feature model permits |
 | `syscribe model/ configure <Configuration>` | Assisted configuration: from a partial selection, report satisfiability + forced/free features |
@@ -696,7 +701,7 @@ Three building blocks:
 
 | Element / field | Role |
 |---|---|
-| `type: FeatureDef` | A node in the feature model (a selectable characteristic). `groupKind:` is `optional`/`mandatory`/`alternative`/`or`. |
+| `type: FeatureDef` | A node in the feature model (a selectable characteristic). `groupKind:` (`optional`/`alternative`/`or`) groups its children; `mandatory: true` makes it a mandatory member of its parent (combine with `groupKind: alternative` for a mandatory XOR group). |
 | `type: Configuration` | A named product variant. `id:` matches `CONF-*`; `featureModel:` names the feature package; `features:` is a **map** of `<FeatureDef QName>: true/false`. |
 | `appliesWhen:` | On *any* element (including a `TestCase`): conditions it on a boolean expression over `FeatureDef` QNames. |
 

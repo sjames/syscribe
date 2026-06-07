@@ -5,7 +5,6 @@ title: "Delivery drone — redundant hex with cargo module and satcom"
 status: approved
 featureModel: Features
 features:
-  Features::Base: true
   Features::Propulsion: true
   Features::Propulsion::Quad: false
   Features::Propulsion::Hex: true

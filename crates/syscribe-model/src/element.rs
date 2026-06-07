@@ -341,6 +341,10 @@ pub struct RawFrontmatter {
     pub parent_feature: Option<String>,
     pub excludes: Option<Vec<String>>,
     pub contributes_to: Option<String>,
+    /// Membership flag (REQ-TRS-FM-004): when `true`, the feature is mandatory
+    /// (forced on with its parent, or root-selected when top-level) independently
+    /// of `groupKind`. Legacy `groupKind: mandatory` remains a shorthand.
+    pub mandatory: Option<bool>,
 
     // §9.7 — FeatureDef parameters (also used by ActionDef/CalculationDef as a
     // generic typed-parameter list; only FeatureDef parameters are validated).

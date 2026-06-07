@@ -3881,7 +3881,8 @@ A `FeatureDef` represents one node in a feature model tree. It may be a leaf fea
 |---|---|---|---|---|
 | `type` | literal `FeatureDef` | **Required** | — | Discriminator. |
 | `name` | string | optional | filename stem | Display name of the feature. |
-| `groupKind` | enum | optional | `optional` | Variability type of this node (see table below). |
+| `groupKind` | enum | optional | `optional` | How this feature's **children** are grouped (see table below). |
+| `mandatory` | bool | optional | `false` | **Membership** of this feature relative to its parent, orthogonal to `groupKind`: `true` means the feature is selected whenever its parent is (parent ⇒ feature), or always selected when top-level. A node may be both `mandatory: true` and `groupKind: alternative` — a mandatory XOR group (every product selects exactly one child). The legacy `groupKind: mandatory` is a shorthand for `mandatory: true` on a feature that sets no `mandatory:` field. |
 | `cardinality` | string | optional | see groupKind | For `or` and `alternative` groups: how many children may be selected simultaneously, as a multiplicity string (§6). |
 | `parentFeature` | string | optional | derived from directory | Qualified name of the parent `FeatureDef`. Normally inferred from the directory hierarchy; set explicitly only when the file cannot be placed at the canonical path. |
 | `requires` | list of strings | optional | absent | Qualified names of other `FeatureDef` elements that must also be selected when this feature is selected (cross-tree implication). |
@@ -3893,12 +3894,14 @@ A `FeatureDef` represents one node in a feature model tree. It may be a leaf fea
 
 ### `groupKind` values
 
+`groupKind` describes how a feature's **children** are grouped. Membership of the feature itself (mandatory vs optional relative to its parent) is the separate `mandatory:` field above — the two are orthogonal (`ADR-FM-003`).
+
 | Value | Meaning | Default cardinality | Default for children |
 |---|---|---|---|
-| `mandatory` | This feature is always selected; not user-configurable | `"1"` | n/a (leaf or container) |
-| `optional` | May or may not be selected independently of siblings | `"0..1"` | independent |
+| `optional` | Children may be selected independently of each other | `"0..1"` | independent |
 | `alternative` | Exactly one child must be selected (XOR group) | `"1"` | `"0..1"` each |
 | `or` | One or more children may be selected | `"1..*"` | `"0..1"` each |
+| `mandatory` | **Legacy shorthand** for `mandatory: true` membership (a leaf that is always selected when its parent is); prefer the `mandatory:` field, especially on group nodes | `"1"` | n/a |
 
 The `cardinality:` field overrides the default. For example, an `or` group requiring at least two children: `cardinality: "2..*"`.
 
@@ -3908,7 +3911,7 @@ The `cardinality:` field overrides the default. For example, an `or` group requi
 SystemFeatures/
   _index.md                 # Package for the feature model root
   Propulsion/
-    _index.md               # FeatureDef, groupKind: alternative — exactly one propulsion type
+    _index.md               # FeatureDef, mandatory: true + groupKind: alternative — every product picks exactly one
     QuadRotor.md            # FeatureDef, optional
     HexRotor.md             # FeatureDef, optional
   Safety/
@@ -4416,10 +4419,11 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W015` | A requirement is **active** in a `Configuration` (its `appliesWhen:` holds for that configuration's `features:`) but no non-draft `TestCase` that runs in that `Configuration` (§9.10) verifies it. Emitted only when the variability dimension is active (§9.10.1); draft requirements/tests are suppressed; gate with `--deny W015`. |
 | `W016` | A `Configuration` parsed **zero** feature selections while a `FeatureDef` exists in the model — e.g. it used an unrecognized `selections:` key instead of the `features:` map (§9.8). Surfaces the otherwise-silent failure that yields an all-N/A coverage matrix. |
 | `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does not bind. (This is §9.7's nominal `W010`; the validator uses `W017` because `W010` is taken by test-result ingestion.) |
+| `W024` | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration`, so it gates nothing and ships in nothing. Emitted by `feature-check` only; gate with `--deny W024`. |
 
 > **Implementation note.** Rules split across commands/modes:
 > - **`validate`** (per-element, always on) enforces the single-level parameter binding rules `E203`–`E206`, the unresolved-path error `E222`, and `W017`.
-> - **`feature-check`** (explicit, holistic — not run by `validate`) enforces the feature-model-wide rules: `E212` (requires/excludes resolution), `E219`/`E220` (requires/excludes satisfaction), `E207` (circular `derivedFrom:`), `E202` (`bindTo:` propagation range), `E213` (unresolved `parameterConstraints` path), and `W011`/`W012`/`W014`.
+> - **`feature-check`** (explicit, holistic — not run by `validate`) enforces the feature-model-wide rules: `E212` (requires/excludes resolution), `E219`/`E220` (requires/excludes satisfaction), `E207` (circular `derivedFrom:`), `E202` (`bindTo:` propagation range), `E213` (unresolved `parameterConstraints` path), `W011`/`W012`/`W014`, and `W024` (orphan feature).
 > - **`feature-check --deep`** (SAT-backed, over a propositional encoding of the Boolean layer; deterministic; engine is batsat (pure-Rust CDCL) — see `ADR-FM-002`) adds whole-configuration-space analysis: `E223` void model, `E224` dead feature, `E225` invalid configuration (full group/cardinality semantics), `W018` false-optional, plus a reported set of *core* features and a conflict-set explanation for each unsatisfiability.
 >
 > Not yet implemented: group-cardinality *findings* on `feature-check` without `--deep` (`E216`/`E217`/`E218` — `--deep` enforces the group semantics via `E225`), two-level satisfies completeness (`E210`/`E211`), constraint-expression evaluation (`E221`), configuration counting, and numeric/parameter (SMT) reasoning. `E222`–`E225` and `W017`/`W018` are implementation codes beyond the spec table.

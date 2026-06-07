@@ -311,6 +311,29 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
         }
     }
 
+    // ── W024: orphan FeatureDef ──────────────────────────────────────────────
+    // A FeatureDef is an orphan when it is referenced by NO element's
+    // `appliesWhen:` AND selected `true` by NO Configuration. feature-check-only.
+    let mut referenced_by_applies_when: HashSet<String> = HashSet::new();
+    for e in elements {
+        if let Some(aw) = &e.frontmatter.applies_when {
+            if let Ok(Some(expr)) = crate::variability::applies_when_expr(aw) {
+                for op in expr.operands() {
+                    referenced_by_applies_when.insert(op);
+                }
+            }
+        }
+    }
+    for fd in &fdefs {
+        let q = fd.qualified_name.as_str();
+        let referenced = referenced_by_applies_when.contains(q);
+        let selected = sel_count.get(q).copied().unwrap_or(0) > 0;
+        if !referenced && !selected {
+            f.push(warn("W024", &fd.file_path, format!(
+                "orphan feature '{}' is referenced by no appliesWhen and selected true by no Configuration", q)));
+        }
+    }
+
     f
 }
 
@@ -568,6 +591,13 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
         if gk == "optional" {
             optional.push(n.clone());
         }
+        // Membership is orthogonal to grouping (REQ-TRS-FM-004): the explicit
+        // `mandatory: true` flag, or the legacy `groupKind: mandatory` shorthand,
+        // both make a feature a mandatory member.
+        let is_mandatory = match e.frontmatter.mandatory {
+            Some(m) => m,
+            None => gk == "mandatory",
+        };
         let p = parent.get(n).cloned().flatten();
         if let Some(p) = &p {
             cons.push(Constraint {
@@ -575,14 +605,14 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
                 label: format!("feature '{}' implies parent '{}'", n, p),
                 clauses: vec![vec![nv(n), v(p)]],
             });
-            if gk == "mandatory" {
+            if is_mandatory {
                 cons.push(Constraint {
                     kind: CKind::Mandatory,
                     label: format!("feature '{}' is mandatory under '{}'", n, p),
                     clauses: vec![vec![nv(p), v(n)]],
                 });
             }
-        } else if gk == "mandatory" {
+        } else if is_mandatory {
             cons.push(Constraint {
                 kind: CKind::Root,
                 label: format!("root feature '{}' is mandatory", n),

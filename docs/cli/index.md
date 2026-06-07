@@ -249,9 +249,10 @@ A `TestCase` *runs in* a `Configuration` iff its `appliesWhen:` is satisfied by 
 $ syscribe -m model/ matrix
 $ syscribe -m model/ matrix --json            # structured grid (schemaVersion, columns, rows)
 $ syscribe -m model/ matrix --tag safety      # filter rows by tag
+$ syscribe -m model/ matrix --features        # Feature × Configuration grid (which feature ships in which product)
 ```
 
-With no feature model present, `matrix` prints a notice and falls back to a flat requirement/testcase view (exit 0).
+With no feature model present, `matrix` prints a notice and falls back to a flat requirement/testcase view (exit 0). `matrix --features` swaps the rows for `FeatureDef`s and the cells for selected (`✓`) / not-selected — the product map complementing the Requirement × Configuration view.
 
 `refs <CONF-id>` additionally lists the `TestCase`s that run in a given configuration.
 
@@ -264,7 +265,7 @@ $ syscribe -m model/ feature-check
 $ syscribe -m model/ feature-check --json
 ```
 
-Exit code is `0` when there are no errors and `1` otherwise; with no `FeatureDef` present it prints a notice and exits `0`.
+Exit code is `0` when there are no errors and `1` otherwise; with no `FeatureDef` present it prints a notice and exits `0`. `feature-check` also flags **orphan features** (`W024` — a `FeatureDef` referenced by no `appliesWhen:` and selected by no `Configuration`, so it gates nothing and ships in nothing); gate it with `feature-check --deny W024`.
 
 Add `--deep` for SAT-backed whole-configuration-space analysis (over a propositional encoding of the feature model — deterministic; uses batsat, a pure-Rust CDCL solver, in-process):
 
@@ -285,6 +286,23 @@ $ syscribe -m model/ configure <Configuration>      # from a partial selection: 
 ```
 
 `configure` treats a `Configuration`'s `features:` as a *partial* selection (set features fixed, absent open) and reports whether it can be completed plus which features are **forced** or still **free** — a feature configurator. (`--prove` emits the externally-checkable DIMACS CNF; a DRAT refutation proof is deferred — batsat does not expose one.)
+
+### Feature discoverability
+
+Four commands answer "what features exist, what does each gate, and why is this element in this product?"
+
+```
+$ syscribe -m model/ features                              # the whole feature model as a tree
+$ syscribe -m model/ features --json
+$ syscribe -m model/ feature Features::Payload::Delivery   # one feature's card
+$ syscribe -m model/ list PartDef --feature Features::DualFlightController   # elements gated by a feature
+$ syscribe -m model/ why-active <element> --config <CONF>  # is this element active in this product, and why?
+```
+
+- **`features`** prints the feature tree (indented by namespace), each node showing its `groupKind`, `requires`/`excludes`, parameters, and a *selected in N/M configs* rollup. Dormant (notice, exit 0) when no `FeatureDef` is present.
+- **`feature <qname>`** is a single feature's "card": its doc, group, constraints, parameters, the `Configuration`s that select it, and every element it **gates** (whose `appliesWhen:` names it). Unknown/non-feature argument → non-zero.
+- **`list <type> --feature <F>`** restricts the listing to elements whose `appliesWhen:` names `F` — orthogonal to `--tag` and `--config`.
+- **`why-active <element> --config <C>`** explains a projection: it prints the element's `appliesWhen:`, the config's selections of the referenced features, and a `Verdict:` line (`active` / `inactive` / `always active`). `--config` is required.
 
 ### Configuration lens (`--config`)
 
@@ -581,6 +599,11 @@ See the [LLM Workflow guide](../model-guide/llm-workflow.md) for the full eight-
 | `links <qname>` | All outbound and inbound relationships | Impact analysis before changing an element |
 | `path-for <qname\|id>` | Absolute file path | To open or overwrite the file for an element |
 | `list <type> [scope]` | All elements of a type, optionally scoped | To enumerate IDs in use before authoring |
+| `features` | The feature model as a tree (groupKind, constraints, params, config rollup) | To survey a product line's variation points |
+| `feature <qname>` | One feature's card: constraints, params, configs, gated elements | To see what a feature means and gates |
+| `matrix --features` | Feature × Configuration grid | To see which feature ships in which product |
+| `list <type> --feature <F>` | Elements gated by feature `F` (via `appliesWhen:`) | To find what a feature controls |
+| `why-active <el> --config <C>` | Whether an element is active in a product, and why | To debug a projection |
 | `--agent-instructions` | Full generation prompt | System prompt for a model-authoring session |
 
 ### Exposing syscribe as an MCP tool

@@ -5,7 +5,6 @@ title: "Survey drone — compact quad with EO camera and LoRa link"
 status: approved
 featureModel: Features
 features:
-  Features::Base: true
   Features::Propulsion: true
   Features::Propulsion::Quad: true
   Features::Propulsion::Hex: false

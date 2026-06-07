@@ -236,4 +236,5 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W020` | (`feature-check --deep`) a traceability reference is provably violable across some valid configuration |
 | `W021` | (`feature-check --deep`) a dead element — its `appliesWhen` is unsatisfiable under the feature model |
 | `W022` | (`feature-check --deep`) a requirement active in some configuration but covered in none |
+| `W024` | (`feature-check`) an orphan `FeatureDef` — referenced by no `appliesWhen:` and selected by no `Configuration` (gates nothing, ships in nothing); gate with `--deny W024` |
 | `W023` | (§12.8) a non-`draft` `Part`/`PartDef` has an `implementedBy:` path that does not exist on disk. Opt-in (only when `implementedBy:` is present); draft-suppressed; remote (`scheme://`) targets accepted as external and not checked. Path resolution matches `sourceFile`. Gate with `--deny W023`. |

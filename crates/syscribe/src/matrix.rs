@@ -57,6 +57,98 @@ fn has_tag(e: &RawElement, tag: &str) -> bool {
 }
 
 pub fn cmd_matrix(elements: &[RawElement], json: bool, tag: Option<&str>) {
+    cmd_matrix_inner(elements, json, tag, false)
+}
+
+/// `matrix --features`: Feature × Configuration selection grid. Rows are
+/// `FeatureDef`s, columns are `Configuration`s; a cell is `✓` where the feature
+/// is selected `true` in that configuration.
+pub fn cmd_matrix_features(elements: &[RawElement], json: bool) {
+    if !variability::is_active(elements) {
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "schemaVersion": SCHEMA_VERSION,
+                    "note": "no feature model present",
+                    "columns": Vec::<String>::new(),
+                    "rows": Vec::<serde_json::Value>::new(),
+                }))
+                .unwrap()
+            );
+        } else {
+            println!("No feature model present — no feature × configuration matrix.");
+        }
+        return;
+    }
+
+    let mut configs: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| is_type(e, ElementType::Configuration))
+        .collect();
+    configs.sort_by_key(|e| disp_id(e));
+    let cfg_sel: Vec<(String, BTreeMap<String, bool>)> = configs
+        .iter()
+        .map(|c| (disp_id(c), c.frontmatter.feature_selections()))
+        .collect();
+
+    let mut feats: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| is_type(e, ElementType::FeatureDef))
+        .collect();
+    feats.sort_by_key(|e| e.qualified_name.clone());
+
+    let selected = |sel: &BTreeMap<String, bool>, q: &str| sel.get(q).copied().unwrap_or(false);
+
+    if json {
+        let columns: Vec<String> = cfg_sel.iter().map(|(c, _)| c.clone()).collect();
+        let rows: Vec<_> = feats
+            .iter()
+            .map(|fd| {
+                let mut cells = serde_json::Map::new();
+                for (cid, sel) in &cfg_sel {
+                    cells.insert(cid.clone(), json!(selected(sel, &fd.qualified_name)));
+                }
+                json!({ "feature": fd.qualified_name, "cells": cells })
+            })
+            .collect();
+        let doc = json!({
+            "schemaVersion": SCHEMA_VERSION,
+            "columns": columns,
+            "rows": rows,
+        });
+        println!("{}", serde_json::to_string_pretty(&doc).unwrap());
+        return;
+    }
+
+    println!(
+        "# Feature Matrix ({} features × {} configurations)",
+        feats.len(),
+        cfg_sel.len()
+    );
+    println!();
+    print!("| Feature |");
+    for (cid, _) in &cfg_sel {
+        print!(" {} |", cid);
+    }
+    println!();
+    print!("|---|");
+    for _ in &cfg_sel {
+        print!("---|");
+    }
+    println!();
+    for fd in &feats {
+        print!("| {} |", fd.qualified_name);
+        for (_, sel) in &cfg_sel {
+            print!(" {} |", if selected(sel, &fd.qualified_name) { "✓" } else { "" });
+        }
+        println!();
+    }
+    println!();
+    println!("Legend: ✓ selected");
+}
+
+fn cmd_matrix_inner(elements: &[RawElement], json: bool, tag: Option<&str>, _features: bool) {
     if !variability::is_active(elements) {
         cmd_matrix_dormant(elements, json);
         return;
