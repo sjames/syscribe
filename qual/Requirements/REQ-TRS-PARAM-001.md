@@ -19,7 +19,7 @@ A `FeatureDef` may declare typed `parameters:` (§9.7) — quantitative variabil
 | `E222` | A `parameterBindings` key does not resolve to a declared parameter — malformed path (including the legacy all-`::` member form `Features::Feature::param`, which lacks the required `.`), unknown `FeatureDef`, or undeclared parameter name |
 | `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does **not** bind |
 
-These checks are emitted only when at least one `FeatureDef` exists (variability is opt-in). `W017` uses a fresh code because §9.11's nominal `W010` is already taken by test-result ingestion in this tool.
+These checks are emitted only when at least one `FeatureDef` exists (variability is opt-in), and by **both** `validate` and `feature-check` (so a product line checked holistically also gets range/binding enforcement — GH #14). `W017` uses a fresh code because §9.11's nominal `W010` is already taken by test-result ingestion in this tool.
 
 **Related (separate requirements):** two-level `bindTo:` parameter propagation (`E202`), circular `derivedFrom:` expression detection (`E207`), and cross-feature `parameterConstraints` path resolution (`E213`/`W014`) are enforced by `feature-check`. Numeric **evaluation** of `parameterConstraints` expressions (`E221`/`W025`) is specified by [[REQ-TRS-PARAM-002]]; inclusive `range:` syntax (`"min..=max"`) by [[REQ-TRS-PARAM-003]].
 

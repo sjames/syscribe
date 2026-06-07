@@ -64,6 +64,8 @@
 
 ## PLE errors (E200–E209)
 
+> The parameter-binding rules below (`E203`–`E206`, `E222`, `W017`) are enforced by **both** `validate` and `feature-check`, so a product line checked holistically also gets range/binding enforcement (GH #14).
+
 | Code | Condition |
 |---|---|
 | E200 | Configuration `id` does not match `CONF-*` pattern |
@@ -98,7 +100,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | E220 | In some `Configuration`, a selected feature's `excludes:` target is also selected |
 | E207 | Circular `derivedFrom:` dependency among parameters of the same `FeatureDef` |
 | E202 | A value propagated via `bindTo:` falls outside the component parameter's narrowing `range:` |
-| E213 | A `parameterConstraints` expression references an unresolved parameter path (`<FeatureDef>.<param>`) |
+| E213 | A `parameterConstraints` expression references an unresolved parameter path, **or** uses the legacy `::`-member form (`Features::F::param`) instead of the canonical dotted `Features::F.param` — the constraint is flagged, never silently dropped |
 | E221 | A `parameterConstraints` expression evaluates to **false** for a `Configuration` whose `appliesWhen:` holds (numeric comparison/arithmetic over dotted parameter references; default severity) |
 | W011 | An `optional` `FeatureDef` is selected in zero `Configuration` files (possible dead feature) |
 | W012 | An `optional` `FeatureDef` is selected in every `Configuration` (consider `mandatory`) |

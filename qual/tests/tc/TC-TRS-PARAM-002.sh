@@ -9,6 +9,13 @@ tc_TRS_PARAM_002() {
     assert_no_code  "W014"          # compound "A and B" must NOT be a bogus unknown feature
     printf '%s' "$SCENARIO_OUTPUT" | grep -F "| E221 |" | grep -qF "CONF-PC-VIOL-001" \
         && pass "E221 names the violating configuration" || fail "E221 does not name CONF-PC-VIOL-001"
+    # GH #14 reopen: a ::-form param path in an expression must be flagged (E213), not silently dropped.
+    if printf '%s' "$SCENARIO_OUTPUT" | grep -F "| E213 |" | grep -qF "PC-COLON" \
+        && printf '%s' "$SCENARIO_OUTPUT" | grep -F "| E213 |" | grep -qiF "dotted form"; then
+        pass "E213 flags the ::-form expression path with a dotted-form hint"
+    else
+        fail "::-form expression path not flagged with E213/dotted-form hint"
+    fi
 
     SCENARIO_NAME="clean: satisfying + non-applicable configs are silent"; printf "  ▶ %s\n" "$SCENARIO_NAME"
     SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$B/clean" feature-check 2>/dev/null || true)

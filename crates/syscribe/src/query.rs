@@ -1301,6 +1301,9 @@ pub fn cmd_feature_check(
     }
 
     let mut findings = feature_model::check_feature_model(elements);
+    // Parameter-binding validation (E203–E206/E222/W017) is shared with `validate`
+    // so a product line checked holistically also gets range/binding enforcement (GH #14).
+    findings.extend(syscribe_model::validator::parameter_binding_findings(elements));
     let deep_rep = if deep {
         Some(feature_model::check_feature_model_deep(elements))
     } else {

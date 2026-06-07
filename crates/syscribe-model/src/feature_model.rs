@@ -81,13 +81,18 @@ fn token_present(expr: &str, name: &str) -> bool {
 }
 
 /// A token is a parameter reference iff it carries a feature path (`::`) and a
-/// dotted member (`.`), e.g. `Features::Topology.maxCpus`. Numeric literals like
-/// `3.0` (a `.` but no `::`) and bare feature names (`::` but no `.`) are excluded.
-fn is_param_ref(tok: &str) -> bool {
-    tok.contains("::") && tok.contains('.')
+/// A token is a *parameter-reference candidate* if it carries a feature path
+/// (`::`). The canonical valid form additionally has a dotted member
+/// (`Features::Topology.maxCpus`); a `::`-only candidate
+/// (`Features::Topology::maxCpus`) is a malformed reference, flagged `E213`
+/// rather than silently dropped. Numeric literals like `3.0` (a `.` but no `::`)
+/// are not candidates.
+fn is_ref_candidate(tok: &str) -> bool {
+    tok.contains("::")
 }
 
-/// Extract canonical dotted parameter references from an expression.
+/// Extract parameter-reference candidate tokens from an expression (any token
+/// containing `::`), for classification by the constraint checker.
 fn extract_param_paths(expr: &str) -> Vec<String> {
     let mut out = Vec::new();
     let mut cur = String::new();
@@ -95,13 +100,13 @@ fn extract_param_paths(expr: &str) -> Vec<String> {
         if c.is_alphanumeric() || c == '_' || c == ':' || c == '.' {
             cur.push(c);
         } else {
-            if is_param_ref(&cur) {
+            if is_ref_candidate(&cur) {
                 out.push(cur.clone());
             }
             cur.clear();
         }
     }
-    if is_param_ref(&cur) {
+    if is_ref_candidate(&cur) {
         out.push(cur);
     }
     out
@@ -188,7 +193,13 @@ fn tokenize_arith(s: &str) -> Vec<AtomTok> {
                 flush(&mut cur, &mut out);
                 out.push(AtomTok::Op(c));
             }
-            _ => flush(&mut cur, &mut out), // whitespace etc.
+            c if c.is_whitespace() => flush(&mut cur, &mut out),
+            // Any other character is unexpected: emit it as an Op so the parser
+            // rejects the expression (returns None) rather than silently dropping it.
+            other => {
+                flush(&mut cur, &mut out);
+                out.push(AtomTok::Op(other));
+            }
         }
     }
     flush(&mut cur, &mut out);
@@ -458,12 +469,26 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
                 .get(serde_yaml::Value::String("expression".into()))
                 .and_then(|v| v.as_str());
 
-            // E213: every referenced parameter path must resolve to a declared parameter.
+            // E213: every referenced parameter path must resolve to a declared
+            // parameter and use the canonical dotted form. A `::`-only path that
+            // would resolve if dotted is flagged explicitly (never silently dropped).
             let mut all_resolvable = true;
             if let Some(expr) = expr {
                 for path in extract_param_paths(expr) {
-                    if !param_paths.contains(&path) {
-                        all_resolvable = false;
+                    if param_paths.contains(&path) {
+                        continue; // valid dotted reference
+                    }
+                    all_resolvable = false;
+                    // A `::`-only candidate whose last-`::` → `.` reinterpretation
+                    // names a declared parameter is the wrong separator, not unknown.
+                    let dotted = path.rsplit_once("::").map(|(a, b)| format!("{}.{}", a, b));
+                    if !path.contains('.')
+                        && dotted.as_deref().is_some_and(|d| param_paths.contains(d))
+                    {
+                        f.push(err("E213", &pkg.file_path, format!(
+                            "parameterConstraints '{}' references parameter '{}' with '::' before the parameter member; use the canonical dotted form '{}'",
+                            cid, path, dotted.unwrap())));
+                    } else {
                         f.push(err("E213", &pkg.file_path, format!(
                             "parameterConstraints '{}' references unresolved parameter path '{}'", cid, path)));
                     }
@@ -1352,4 +1377,97 @@ pub fn write_proofs(elements: &[RawElement], dir: &std::path::Path) -> std::io::
         }
     }
     Ok(written)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{eval_arith, eval_constraint, parse_range};
+
+    // Resolver: A=4, B=2, C=1.5; anything else unresolved.
+    fn r(q: &str) -> Option<f64> {
+        match q {
+            "F::T.A" => Some(4.0),
+            "F::T.B" => Some(2.0),
+            "F::T.C" => Some(1.5),
+            _ => None,
+        }
+    }
+
+    fn ec(expr: &str) -> Option<bool> {
+        eval_constraint(expr, &r)
+    }
+    fn ea(expr: &str) -> Option<f64> {
+        eval_arith(expr, &r)
+    }
+
+    #[test]
+    fn range_inclusive_and_plain() {
+        assert_eq!(parse_range("1..8"), Some((1.0, 8.0)));
+        assert_eq!(parse_range("1..=8"), Some((1.0, 8.0)));
+        assert_eq!(parse_range(" 1 ..= 8 "), Some((1.0, 8.0)));
+        assert_eq!(parse_range("0.5..5.0"), Some((0.5, 5.0)));
+        assert_eq!(parse_range("garbage"), None);
+    }
+
+    #[test]
+    fn all_comparison_operators() {
+        // A=4, B=2
+        assert_eq!(ec("F::T.A >= 2"), Some(true));
+        assert_eq!(ec("F::T.A >= 4"), Some(true));
+        assert_eq!(ec("F::T.A >= 5"), Some(false));
+        assert_eq!(ec("F::T.B <= 2"), Some(true));
+        assert_eq!(ec("F::T.A <= 2"), Some(false));
+        assert_eq!(ec("F::T.A > 4"), Some(false));
+        assert_eq!(ec("F::T.A > 3"), Some(true));
+        assert_eq!(ec("F::T.B < 3"), Some(true));
+        assert_eq!(ec("F::T.B < 2"), Some(false));
+        assert_eq!(ec("F::T.B == 2"), Some(true));
+        assert_eq!(ec("F::T.A == 2"), Some(false));
+        assert_eq!(ec("F::T.A != 2"), Some(true));
+        assert_eq!(ec("F::T.B != 2"), Some(false));
+    }
+
+    #[test]
+    fn ref_vs_ref_and_whitespace() {
+        assert_eq!(ec("F::T.A >= F::T.B"), Some(true)); // 4 >= 2
+        assert_eq!(ec("F::T.B>=F::T.A"), Some(false)); // 2 >= 4, no spaces
+        assert_eq!(ec("  F::T.A  ==  F::T.A  "), Some(true));
+    }
+
+    #[test]
+    fn arithmetic_precedence_and_parens() {
+        assert_eq!(ea("2 + 3 * 4"), Some(14.0)); // * before +
+        assert_eq!(ea("(2 + 3) * 4"), Some(20.0));
+        assert_eq!(ea("F::T.A / 2.0 * 3.0"), Some(6.0)); // (4/2)*3
+        assert_eq!(ea("F::T.A - F::T.B - 1"), Some(1.0)); // left-assoc: (4-2)-1
+        assert_eq!(ea("-F::T.B + 5"), Some(3.0)); // unary minus
+        assert_eq!(ea("(F::T.A + F::T.B) / 3"), Some(2.0));
+    }
+
+    #[test]
+    fn constraint_with_arithmetic_rhs() {
+        // budget A=4 >= (B/2)*3 = 3  → true ; >= (A/2)*3 = 6 → false
+        assert_eq!(ec("F::T.A >= (F::T.B / 2.0) * 3.0"), Some(true));
+        assert_eq!(ec("F::T.A >= (F::T.A / 2.0) * 3.0"), Some(false));
+    }
+
+    #[test]
+    fn unresolved_and_malformed_yield_none() {
+        assert_eq!(ec("F::T.A >= F::T.MISSING"), None); // unresolved ref
+        assert_eq!(ec("F::T.MISSING > 0"), None);
+        assert_eq!(ec("F::T.A"), None); // no comparison operator
+        assert_eq!(ec("F::T.A >"), None); // empty rhs
+        assert_eq!(ec("F::T.A > > 1"), None); // malformed
+        assert_eq!(ea("F::T.A +"), None); // dangling operator
+        assert_eq!(ea("(F::T.A"), None); // unbalanced paren
+    }
+
+    #[test]
+    fn comparison_operator_chosen_at_depth_zero() {
+        // The comparison split must ignore operators inside parentheses.
+        // (A < 9) is arithmetic-nonsense but the top-level op is the second '>='.
+        assert_eq!(ec("F::T.A >= 2"), Some(true));
+        // two-char operator preferred over one-char prefix
+        assert_eq!(ec("F::T.A <= 4"), Some(true));
+    }
 }
