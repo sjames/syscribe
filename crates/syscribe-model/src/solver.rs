@@ -110,6 +110,16 @@ pub fn is_sat(cnf: &Cnf, assumptions: &[Lit]) -> bool {
     Solver::from_cnf(cnf).is_sat(assumptions)
 }
 
+/// One-shot solve returning the model bit-vector (over all CNF variables) if SAT.
+pub fn solve_model(cnf: &Cnf) -> Option<Vec<bool>> {
+    let mut s = Solver::from_cnf(cnf);
+    if s.is_sat(&[]) {
+        Some(s.model_bits())
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

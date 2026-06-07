@@ -6,6 +6,7 @@ pub mod feature_model;
 pub mod frontmatter;
 pub mod graph;
 pub mod matchers;
+pub mod projection;
 pub mod remote;
 pub mod renderer;
 pub mod resolver;

@@ -93,6 +93,9 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe model/ feature-check --deep` | SAT-backed analysis: void / dead / core / false-optional features, full-semantics config validity, explanations + diagnoses |
 | `syscribe model/ feature-check --count` / `--enumerate` | Count / list the valid configurations the feature model permits |
 | `syscribe model/ configure <Configuration>` | Assisted configuration: from a partial selection, report satisfiability + forced/free features |
+| `syscribe model/ validate --config <C>` | Project onto a configuration and validate that variant (escaping refs: E226/W019) |
+| `syscribe model/ validate --all-configs` | Validate every stored Configuration (CI gate) |
+| `syscribe model/ diff --config <A> --config <B>` | Elements active in one variant but not the other |
 
 **Traceability:**
 
@@ -718,6 +721,8 @@ If two configurations would have identical `features:` (e.g. emulator vs physica
 **Holistic checks — run `feature-check` (not part of `validate`).** `syscribe feature-check` validates the feature model as a whole: `requires:`/`excludes:` resolution (`E212`) and satisfaction per configuration (`E219`/`E220`), dead/always-on optional features (`W011`/`W012`), circular `derivedFrom:` (`E207`), `bindTo:` propagation outside the component `range:` (`E202`), and cross-feature `parameterConstraints` declared on a package `_index.md` — unresolved paths (`E213`) and `appliesWhen:` features used in no configuration (`W014`).
 
 **Whole-space analysis — `feature-check --deep`.** Adds SAT-backed reasoning over a propositional encoding of the feature model (Boolean layer only; deterministic, no external solver; comfortably ~500 features): **void** models (`E223`), **dead** features (`E224`), **false-optional** features (`W018`), **invalid configurations** under full group/cardinality semantics (`E225`), **core** features, a minimal conflict-set explanation, and **diagnoses** (minimal correction sets) for void models. Companion commands: `--count`/`--enumerate` report the valid-configuration space, and `configure <Configuration>` completes a partial selection (forced/free features). Use these to prove the feature model itself is sound and to drive configuration, beyond linting authored configs. (Numeric/parameter SMT reasoning and DRAT proofs are not yet implemented.)
+
+**Configuration lens (`--config`).** The model is a 150% superset; `--config <CONF|features>` projects it onto one variant and runs `validate`/`list`/`export` over the active elements only. `validate --config` certifies a variant and flags **escaping references** (an active element pointing at one inactive in that variant: structural `E226` / traceability `W019`); `feature-check --deep` additionally proves no structural reference can escape in *any* valid configuration (`E227`). `validate --all-configs` gates every stored variant; `diff --config A --config B` shows what differs. All inert when no feature model is present.
 
 ---
 

@@ -118,6 +118,21 @@ Core features (present in every valid configuration) are reported informationall
 
 Not yet implemented (specified): group-cardinality rules (`E216`/`E217`/`E218`), two-level satisfies completeness (`E210`/`E211`), and constraint-expression evaluation (`E221`).
 
+## Configuration projection (the `--config` lens, ADR-PROJ-001)
+
+`validate --config <C>` projects the 150% model onto a configuration (or ad-hoc feature set) and re-validates that variant; `feature-check --deep` proves variability integrity across all variants; `validate --all-configs` gates every stored configuration.
+
+| Code | Condition |
+|---|---|
+| E226 | (`--config`) an **active** element's **structural** reference (typedBy/supertype/subsets/redefines/allocation) escapes the variant — the target is inactive in this configuration |
+| W019 | (`--config`) an **active** element's **traceability** reference (verifies/satisfies/derivedFrom/breakdownAdr) escapes the variant |
+| E227 | (`feature-check --deep`) a **structural** edge is provably violable: a valid configuration activates the source without its target (`appliesWhen(X) ⇒ appliesWhen(Y)` fails); includes a witness |
+| W020 | (`feature-check --deep`) a **traceability** edge is provably violable across some valid configuration |
+| W021 | (`feature-check --deep`) a **dead element** — its `appliesWhen` is unsatisfiable under the feature model (active in no valid configuration) |
+| W022 | (`feature-check --deep`) a requirement **active in some configuration but covered in none** (family-wide coverage gap) |
+
+The lens is inert when the model declares no `FeatureDef`. Cross-reference-resolution codes (`E102`–`E106`) are suppressed under `--config` because escaping refs (`E226`/`W019`) are authoritative there.
+
 ## ADR errors (E300–E304)
 
 | Code | Condition |

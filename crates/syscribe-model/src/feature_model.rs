@@ -16,6 +16,7 @@ use std::collections::{HashMap, HashSet};
 use crate::element::{ElementType, RawElement};
 use crate::solver::{Cnf, Lit};
 use crate::validator::{Finding, Severity};
+use crate::variability::FeatureExpr;
 
 fn err(code: &'static str, file: &str, msg: String) -> Finding {
     Finding { code, file: file.to_string(), message: msg, severity: Severity::Error }
@@ -759,11 +760,165 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
         }
     }
 
+    // ── W021: dead elements (appliesWhen unsatisfiable under the feature model) ──
+    for e in elements {
+        let Some(aw) = elem_aw(e) else { continue }; // only elements WITH appliesWhen
+        let mut cnf = enc.cnf();
+        let Some(lit) = tseitin(&aw, &enc.var_of, &mut cnf) else { continue };
+        cnf.add(vec![lit]); // assert appliesWhen true
+        if !crate::solver::is_sat(&cnf, &[]) {
+            rep.findings.push(warn("W021", &e.file_path, format!(
+                "element '{}' is dead — its appliesWhen is unsatisfiable under the feature model (active in no valid configuration)",
+                disp(e))));
+        }
+    }
+
+    // ── E227/W020: global appliesWhen-implication along reference edges ──
+    let resolver = crate::resolver::Resolver::new(elements);
+    let base_vars = enc.names.len();
+    for x in elements {
+        let aw_x = elem_aw(x); // None ⇒ always active (true)
+        for (kind, target) in crate::projection::outbound_refs(x) {
+            let Some(y) = resolver.resolve_ref(elements, &target) else { continue };
+            let Some(aw_y) = elem_aw(y) else { continue }; // Y always active ⇒ implication holds
+            let mut cnf = enc.cnf();
+            if let Some(ax) = &aw_x {
+                let Some(lx) = tseitin(ax, &enc.var_of, &mut cnf) else { continue };
+                cnf.add(vec![lx]); // aw(X) true
+            }
+            let Some(ly) = tseitin(&aw_y, &enc.var_of, &mut cnf) else { continue };
+            cnf.add(vec![Lit { var: ly.var, neg: !ly.neg }]); // ¬aw(Y)
+            if crate::solver::is_sat(&cnf, &[]) {
+                let witness = crate::solver::solve_model(&cnf)
+                    .map(|m| witness_str(&enc.names, base_vars, &m))
+                    .unwrap_or_default();
+                match kind {
+                    crate::projection::RefKind::Structural => rep.findings.push(err("E227", &x.file_path, format!(
+                        "structural reference '{}' → '{}' can escape: a valid configuration activates the source without the target. Witness: {}",
+                        disp(x), target, witness))),
+                    crate::projection::RefKind::Traceability => rep.findings.push(warn("W020", &x.file_path, format!(
+                        "traceability reference '{}' → '{}' can escape: a valid configuration activates the source without the target. Witness: {}",
+                        disp(x), target, witness))),
+                }
+            }
+        }
+    }
+
+    // ── W022: aggregate coverage (active in ≥1 configuration, covered in none) ──
+    let configs: Vec<&RawElement> =
+        elements.iter().filter(|e| is(e, ElementType::Configuration)).collect();
+    if !configs.is_empty() {
+        let is_draft = |e: &RawElement| e.frontmatter.status.as_deref() == Some("draft");
+        let reqs: Vec<(&RawElement, Option<FeatureExpr>, Vec<String>)> = elements
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Requirement)) && !is_draft(e))
+            .map(|e| {
+                let mut keys = vec![e.qualified_name.clone()];
+                if let Some(id) = &e.frontmatter.id {
+                    keys.push(id.clone());
+                }
+                (e, elem_aw(e), keys)
+            })
+            .collect();
+        let tcs: Vec<(Option<FeatureExpr>, Vec<String>)> = elements
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::TestCase)) && !is_draft(e))
+            .map(|e| (elem_aw(e), e.frontmatter.verifies.clone().unwrap_or_default()))
+            .collect();
+        for (re, rexpr, rkeys) in &reqs {
+            let mut active_somewhere = false;
+            let mut covered_somewhere = false;
+            for cfg in &configs {
+                let sel = cfg.frontmatter.feature_selections();
+                let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
+                let active = rexpr.as_ref().map_or(true, |e| e.eval(&selected));
+                if !active {
+                    continue;
+                }
+                active_somewhere = true;
+                let covered = tcs.iter().any(|(texpr, ver)| {
+                    let runs = texpr.as_ref().map_or(true, |e| e.eval(&selected));
+                    runs && ver.iter().any(|v| rkeys.iter().any(|k| k == v))
+                });
+                if covered {
+                    covered_somewhere = true;
+                    break;
+                }
+            }
+            if active_somewhere && !covered_somewhere {
+                rep.findings.push(warn("W022", &re.file_path, format!(
+                    "requirement '{}' is active in some configuration but covered in none",
+                    disp(re))));
+            }
+        }
+    }
+
     rep.dead.sort();
     rep.core.sort();
     rep.false_optional.sort();
     rep.invalid_configs.sort();
     rep
+}
+
+/// Display id for an element (stable id, else qualified name).
+fn disp(e: &RawElement) -> String {
+    e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())
+}
+
+/// Parse an element's `appliesWhen` into a boolean expression (None = always active).
+fn elem_aw(e: &RawElement) -> Option<FeatureExpr> {
+    e.frontmatter
+        .applies_when
+        .as_ref()
+        .and_then(|aw| crate::variability::applies_when_expr(aw).ok().flatten())
+}
+
+/// Tseitin-encode a feature expression into a literal over the feature var space,
+/// allocating fresh variables and adding defining clauses. `None` if an operand
+/// is not a known feature variable.
+fn tseitin(expr: &FeatureExpr, var_of: &HashMap<String, usize>, cnf: &mut Cnf) -> Option<Lit> {
+    use FeatureExpr::*;
+    let nl = |l: Lit| Lit { var: l.var, neg: !l.neg };
+    match expr {
+        Feat(q) => var_of.get(q).map(|&v| Lit::pos(v)),
+        Not(e) => tseitin(e, var_of, cnf).map(nl),
+        And(a, b) => {
+            let la = tseitin(a, var_of, cnf)?;
+            let lb = tseitin(b, var_of, cnf)?;
+            let c = cnf.num_vars;
+            cnf.num_vars += 1;
+            let lc = Lit::pos(c);
+            cnf.add(vec![nl(lc), la]);
+            cnf.add(vec![nl(lc), lb]);
+            cnf.add(vec![lc, nl(la), nl(lb)]);
+            Some(lc)
+        }
+        Or(a, b) => {
+            let la = tseitin(a, var_of, cnf)?;
+            let lb = tseitin(b, var_of, cnf)?;
+            let c = cnf.num_vars;
+            cnf.num_vars += 1;
+            let lc = Lit::pos(c);
+            cnf.add(vec![nl(la), lc]);
+            cnf.add(vec![nl(lb), lc]);
+            cnf.add(vec![nl(lc), la, lb]);
+            Some(lc)
+        }
+    }
+}
+
+/// Human-readable witness: the features selected (true) in a model, over the
+/// feature variables only (indices `0..base`).
+fn witness_str(names: &[String], base: usize, model: &[bool]) -> String {
+    let on: Vec<&str> = (0..base.min(model.len()))
+        .filter(|&i| model[i])
+        .map(|i| names[i].as_str())
+        .collect();
+    if on.is_empty() {
+        "(no features selected)".to_string()
+    } else {
+        on.join(", ")
+    }
 }
 
 // ── Assisted configuration (REQ-TRS-FMA-008) ────────────────────────────────

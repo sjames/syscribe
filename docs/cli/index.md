@@ -286,6 +286,20 @@ $ syscribe -m model/ configure <Configuration>      # from a partial selection: 
 
 `configure` treats a `Configuration`'s `features:` as a *partial* selection (set features fixed, absent open) and reports whether it can be completed plus which features are **forced** or still **free** — a feature configurator. (`--prove` emits the externally-checkable DIMACS CNF; a DRAT refutation proof is deferred — batsat does not expose one.)
 
+### Configuration lens (`--config`)
+
+The repository is a **150% model** of the product line; `--config` projects it onto one variant (the **100% model**) and runs the command over only the active elements. The argument is a stored `Configuration` (id/qname) or an ad-hoc feature set; the lens is inert when the model has no feature model.
+
+```
+$ syscribe -m model/ list Requirement --config CONF-MPS2-WDT
+$ syscribe -m model/ export --config 'Features::Mps2,Features::Wdt' --json
+$ syscribe -m model/ validate --config CONF-MPS2-WDT     # certify THIS variant
+$ syscribe -m model/ validate --all-configs              # gate every stored variant (CI)
+$ syscribe -m model/ diff --config CONF-MPS2-WDT --config CONF-M0-BASE
+```
+
+`validate --config` re-runs the full validation in the lens (coverage, traceability, safety) **and** flags **escaping references** — an active element pointing at one inactive in the variant: structural → `E226` (error), traceability → `W019` (warning). The complementary `feature-check --deep` rules prove this can't happen in *any* valid configuration (`E227`/`W020`), and report dead elements (`W021`) and family-wide coverage gaps (`W022`).
+
 ---
 
 ## Traceability

@@ -1523,6 +1523,190 @@ pub fn cmd_validate(
     }
 }
 
+/// Stable display id for an element: `id:` when present, else qualified name.
+fn cfg_id(e: &RawElement) -> String {
+    e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())
+}
+
+/// Print a finding list (text or json) under the gate, returning the exit code
+/// (0 clean · 1 errors · 2 gated warnings) WITHOUT exiting. Shared by the
+/// configuration-lens validators.
+fn print_findings_report(
+    findings: &[syscribe_model::validator::Finding],
+    gate: &GateOptions,
+    json: bool,
+) -> i32 {
+    use syscribe_model::validator::Severity;
+    let errors: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Error).collect();
+    let warnings: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Warning).collect();
+    let infos: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Info).collect();
+    let denied = gate.denied(&warnings, &infos);
+    let over_max = gate.max_warnings.map_or(false, |m| warnings.len() > m);
+    let exit_code = if !errors.is_empty() {
+        1
+    } else if !denied.is_empty() || over_max {
+        2
+    } else {
+        0
+    };
+    if json {
+        let items: Vec<serde_json::Value> = findings
+            .iter()
+            .map(|f| {
+                serde_json::json!({
+                    "code": f.code,
+                    "severity": match f.severity {
+                        Severity::Error => "error",
+                        Severity::Warning => "warning",
+                        Severity::Info => "info",
+                    },
+                    "file": f.file,
+                    "message": f.message,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&items).unwrap());
+        return exit_code;
+    }
+    if findings.is_empty() {
+        println!("0 errors, 0 warnings — variant is valid.");
+        return exit_code;
+    }
+    let table = |label: &str, fs: &[&syscribe_model::validator::Finding]| {
+        if fs.is_empty() {
+            return;
+        }
+        println!("{} ({}):", label, fs.len());
+        println!();
+        println!("| Code | File | Message |");
+        println!("|---|---|---|");
+        for f in fs {
+            println!("| {} | {} | {} |", f.code, f.file, f.message);
+        }
+        println!();
+    };
+    table("Errors", &errors);
+    table("Warnings", &warnings);
+    table("Informational", &infos);
+    exit_code
+}
+
+/// `validate --config <C>`: full re-validation in the configuration lens.
+pub fn cmd_validate_projected(
+    elements: &[RawElement],
+    config: &syscribe_model::config::ValidateConfig,
+    gate: &GateOptions,
+    json: bool,
+    sel: &syscribe_model::projection::Selection,
+) {
+    let findings = syscribe_model::projection::validate_projected(elements, config, sel);
+    let code = print_findings_report(&findings, gate, json);
+    if code != 0 {
+        std::process::exit(code);
+    }
+}
+
+/// `validate --all-configs`: run the lens validation for every stored
+/// Configuration and summarise per-variant; exit non-zero if any has errors.
+pub fn cmd_validate_all_configs(
+    elements: &[RawElement],
+    config: &syscribe_model::config::ValidateConfig,
+    json: bool,
+) {
+    use syscribe_model::validator::Severity;
+    let mut configs: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| e.frontmatter.element_type.as_ref() == Some(&ElementType::Configuration))
+        .collect();
+    configs.sort_by(|a, b| cfg_id(a).cmp(&cfg_id(b)));
+
+    let mut any_error = false;
+    let mut rows: Vec<(String, usize, usize)> = Vec::new();
+    for cfg in &configs {
+        let sel = cfg.frontmatter.feature_selections();
+        let findings = syscribe_model::projection::validate_projected(elements, config, &sel);
+        let errs = findings.iter().filter(|f| f.severity == Severity::Error).count();
+        let warns = findings.iter().filter(|f| f.severity == Severity::Warning).count();
+        if errs > 0 {
+            any_error = true;
+        }
+        rows.push((cfg_id(cfg), errs, warns));
+    }
+
+    if json {
+        let items: Vec<serde_json::Value> = rows
+            .iter()
+            .map(|(id, e, w)| serde_json::json!({ "configuration": id, "errors": e, "warnings": w }))
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&items).unwrap());
+    } else if rows.is_empty() {
+        println!("No configurations to validate.");
+    } else {
+        println!("# Validate all configurations");
+        println!();
+        println!("| Configuration | Errors | Warnings |");
+        println!("|---|---|---|");
+        for (id, e, w) in &rows {
+            println!("| {} | {} | {} |", id, e, w);
+        }
+    }
+    if any_error {
+        std::process::exit(1);
+    }
+}
+
+/// `diff --config A --config B`: elements active in one variant but not the other.
+pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
+    use std::collections::BTreeSet;
+    use syscribe_model::projection::{project, resolve_selection, SelectionOutcome};
+
+    let sel_of = |arg: &str| -> syscribe_model::projection::Selection {
+        match resolve_selection(elements, arg) {
+            SelectionOutcome::Resolved(s) => s,
+            SelectionOutcome::Dormant => {
+                eprintln!("No feature model present — nothing to diff.");
+                std::process::exit(0);
+            }
+            SelectionOutcome::Error(m) => {
+                eprintln!("{m}");
+                std::process::exit(1);
+            }
+        }
+    };
+    let id_or_qn =
+        |e: &RawElement| e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone());
+    let set = |arg: &str| -> BTreeSet<String> {
+        project(elements, &sel_of(arg)).iter().map(&id_or_qn).collect()
+    };
+    let sa = set(a);
+    let sb = set(b);
+    let only_a: Vec<&String> = sa.difference(&sb).collect();
+    let only_b: Vec<&String> = sb.difference(&sa).collect();
+
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "onlyInA": only_a,
+                "onlyInB": only_b,
+            }))
+            .unwrap()
+        );
+    } else {
+        println!("# Variant diff: {} vs {}", a, b);
+        println!();
+        println!("Only in {} ({}):", a, only_a.len());
+        for x in &only_a {
+            println!("  + {}", x);
+        }
+        println!();
+        println!("Only in {} ({}):", b, only_b.len());
+        for x in &only_b {
+            println!("  - {}", x);
+        }
+    }
+}
+
 /// Build human-readable lines explaining why the warning gate tripped.
 fn gate_report_lines(
     denied: &[&syscribe_model::validator::Finding],
@@ -2446,6 +2630,13 @@ pub fn print_help() {
     println!("                                 --count / --enumerate report the number of valid configurations.");
     println!("  configure <Configuration> [--json]  Assisted configuration: from a partial selection, report");
     println!("                                 satisfiability + forced/free features (exit 1 if contradictory).");
+    println!("  diff --config <A> --config <B> Elements active in one configuration but not the other");
+    println!();
+    println!("Configuration lens (§9 projection; inert when no feature model):");
+    println!("  --config <CONF|features>       On validate/list/export: project onto a configuration (stored id/qname");
+    println!("                                 or ad-hoc 'Features::A,Features::B'). validate --config certifies the");
+    println!("                                 variant and flags escaping refs (E226 structural / W019 traceability).");
+    println!("  validate --all-configs         Validate every stored Configuration; exit non-zero if any has errors.");
     println!("  show <qname|id>                Show element details and documentation");
     println!("  ls [qname]                     List namespace children (default: root)");
     println!("  tree [qname]                   Recursive namespace tree (default: root)");

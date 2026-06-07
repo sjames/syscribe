@@ -261,7 +261,41 @@ fn main() {
                         eprintln!("--fetch-remote: no [remote] download hook configured in .syscribe.toml");
                     }
                 }
-                query::cmd_validate(&elems, &vcfg_run, &gate, file_filter, json);
+                // Configuration lens: --all-configs gate, or --config <C> projection.
+                let all_configs = rest.iter().any(|a| a == "--all-configs");
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                if all_configs {
+                    query::cmd_validate_all_configs(&elems, &vcfg_run, json);
+                } else if let Some(c) = config {
+                    match syscribe_model::projection::resolve_selection(&elems, c) {
+                        syscribe_model::projection::SelectionOutcome::Dormant => {
+                            query::cmd_validate(&elems, &vcfg_run, &gate, file_filter, json)
+                        }
+                        syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
+                            query::cmd_validate_projected(&elems, &vcfg_run, &gate, json, &sel)
+                        }
+                        syscribe_model::projection::SelectionOutcome::Error(m) => {
+                            eprintln!("{m}");
+                            std::process::exit(2);
+                        }
+                    }
+                } else {
+                    query::cmd_validate(&elems, &vcfg_run, &gate, file_filter, json);
+                }
+            }
+            "diff" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let cfgs: Vec<&str> = rest
+                    .windows(2)
+                    .filter(|w| w[0] == "--config")
+                    .map(|w| w[1].as_str())
+                    .collect();
+                if cfgs.len() != 2 {
+                    eprintln!("Usage: syscribe --model <root> diff --config <A> --config <B> [--json]");
+                    std::process::exit(1);
+                }
+                query::cmd_diff(&elems, cfgs[0], cfgs[1], json);
             }
             "ingest-results" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
@@ -288,7 +322,23 @@ fn main() {
             "export" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let ndjson = rest.iter().any(|a| a == "--ndjson");
-                export::cmd_export(&elems, &vcfg, ndjson);
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                match config {
+                    None => export::cmd_export(&elems, &vcfg, ndjson),
+                    Some(c) => match syscribe_model::projection::resolve_selection(&elems, c) {
+                        syscribe_model::projection::SelectionOutcome::Dormant => {
+                            export::cmd_export(&elems, &vcfg, ndjson)
+                        }
+                        syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
+                            let view = syscribe_model::projection::project(&elems, &sel);
+                            export::cmd_export(&view, &vcfg, ndjson);
+                        }
+                        syscribe_model::projection::SelectionOutcome::Error(m) => {
+                            eprintln!("{m}");
+                            std::process::exit(1);
+                        }
+                    },
+                }
             }
             "types" => {
                 query::cmd_types(&elems);
@@ -306,11 +356,15 @@ fn main() {
                     .windows(2)
                     .find(|w| w[0] == "--tag")
                     .map(|w| w[1].as_str());
+                let config = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--config")
+                    .map(|w| w[1].as_str());
                 // scope = first positional argument that is not a flag or flag value
                 let mut scope = "";
                 let mut i = 0;
                 while i < rest.len() {
-                    if rest[i] == "--tag" {
+                    if rest[i] == "--tag" || rest[i] == "--config" {
                         i += 2;
                         continue;
                     }
@@ -321,7 +375,22 @@ fn main() {
                     scope = rest[i].as_str();
                     break;
                 }
-                query::cmd_list(&elems, key, scope, tag);
+                match config {
+                    None => query::cmd_list(&elems, key, scope, tag),
+                    Some(c) => match syscribe_model::projection::resolve_selection(&elems, c) {
+                        syscribe_model::projection::SelectionOutcome::Dormant => {
+                            query::cmd_list(&elems, key, scope, tag)
+                        }
+                        syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
+                            let view = syscribe_model::projection::project(&elems, &sel);
+                            query::cmd_list(&view, key, scope, tag);
+                        }
+                        syscribe_model::projection::SelectionOutcome::Error(m) => {
+                            eprintln!("{m}");
+                            std::process::exit(1);
+                        }
+                    },
+                }
             }
             "matrix" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
