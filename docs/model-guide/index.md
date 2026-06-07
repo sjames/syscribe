@@ -73,3 +73,4 @@ The server watches the model directory for changes and reloads automatically.
 - [Requirements & Test Cases](requirements.md) — stable IDs, lifecycle, Gherkin
 - [Traceability](traceability.md) — the six §12 rules
 - [Architecture Decisions](adrs.md) — ADR lifecycle and breakdown rules
+- [Variability & Product Lines](variability.md) — feature models, `appliesWhen`, `matrix`, `feature-check`, the `--config` lens

@@ -29,7 +29,18 @@ cargo run --package syscribe -- --agent-instructions
 
 # Start the web server
 cargo run --package syscribe-server -- -m model/
+
+# Variability / product-line commands (opt-in; see docs/model-guide/variability.md)
+./target/debug/syscribe -m model/ matrix                 # Requirement × Configuration coverage grid
+./target/debug/syscribe -m model/ feature-check          # holistic feature-model validation
+./target/debug/syscribe -m model/ feature-check --deep   # SAT-backed: void/dead/core/false-optional, config validity, diagnoses
+./target/debug/syscribe -m model/ configure CONF-X       # assisted configuration (forced/free features)
+./target/debug/syscribe -m model/ validate --config CONF-X     # validate one projected variant
+./target/debug/syscribe -m model/ validate --all-configs       # CI gate over every Configuration
+./target/debug/syscribe -m model/ diff --config CONF-A --config CONF-B
 ```
+
+The feature-model SAT engine is `batsat` (vendored, MIT, pure Rust — `ADR-FM-002`); the in-tree clause IR + brute-force oracle live in `crates/syscribe-model/src/{solver,projection,feature_model}.rs`.
 
 ---
 

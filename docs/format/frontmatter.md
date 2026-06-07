@@ -109,3 +109,24 @@ See [Diagrams](diagrams.md) for full shape and edge schemas.
 Callable operations and async receptions on PortDef, InterfaceDef, ConnectionDef.
 
 See [Operations](operations.md) for the full schema.
+
+## Variability / product-line fields (§9)
+
+Opt-in: ignored when the model declares no `FeatureDef`. See the [Variability guide](../model-guide/variability.md).
+
+| Field | Applies to | Description |
+|---|---|---|
+| `appliesWhen` | any element (incl. `TestCase`) | Boolean expression over `FeatureDef` qualified names (`and`/`or`/`not`/parens; bare QName or list = AND). The element is active only in variants where it holds. |
+| `groupKind` | `FeatureDef` | `mandatory` · `optional` · `alternative` (XOR) · `or` |
+| `cardinality` | `FeatureDef` (or/alternative) | Selected-children bound, e.g. `"1..*"` |
+| `parentFeature` | `FeatureDef` | Explicit parent (else inferred from directory nesting) |
+| `requires` | `FeatureDef` | Qualified names of features that must also be selected |
+| `excludes` | `FeatureDef` | Qualified names of features that must not be co-selected |
+| `parameters` | `FeatureDef` | Typed parameters: each `{name, type, range:"min..max", enumValues, default, isFixed, isRequired, value}` (§9.7) |
+| `featureModel` | `Configuration`, `FeatureDef` | Qualified name of the feature-model package |
+| `features` | `Configuration` | **Map** of `<FeatureDef qname>: true/false` (the selection; absent = deselected) |
+| `parameterBindings` | `Configuration` | Map of `<FeatureDef qname>::<param>: <value>` |
+| `parameterConstraints` | package `_index.md` | List of cross-feature constraints `{id, expression, severity, appliesWhen}` |
+| `tags` | any element | Free-text labels; filter with `--tag` (orthogonal to the feature model) |
+
+A `Configuration` requires `id` (`CONF-*`), `title`, `status`, and `featureModel`. Validation codes for these fields are in the [Rule Reference](../validation/rules.md) (PLE errors `E2xx`, projection `E226`/`E227`, warnings `W01x`–`W022`).

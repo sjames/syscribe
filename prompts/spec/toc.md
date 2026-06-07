@@ -11,9 +11,11 @@ the element's documentation. Directory path encodes namespace ownership.
 | `syscribe spec types` | Element type inventory, SysML keyword mapping, native type schemas |
 | `syscribe spec fields` | Complete frontmatter field reference (all ~90 fields) |
 | `syscribe spec namespace` | Directory conventions, cross-reference syntax, multiplicity rules |
-| `syscribe spec validation` | All validation rule codes (E001–E941, W001–W905, PLE) |
+| `syscribe spec validation` | All validation rule codes (E001–E941, W001–W905; PLE E2xx + projection E226/E227, W010–W022) |
 | `syscribe spec traceability` | Traceability rules R-001–R-007 |
 | `syscribe spec safety` | Safety/security analysis elements: HARA, TARA, FTA, FMEA |
+
+**Variability / product lines (§9, opt-in).** `FeatureDef` + `Configuration` + `appliesWhen:` model a product line (the 150% model). Tools: `matrix` (Requirement × Configuration coverage), `feature-check` / `feature-check --deep` (holistic + SAT-backed analysis), `configure` (assisted configuration), and the `--config` projection lens (`validate`/`list`/`export --config`, `validate --all-configs`, `diff`). Dormant — and unchanged — when no `FeatureDef` is present. See `spec fields` and `spec validation`.
 
 ## Core rules (memorise these)
 

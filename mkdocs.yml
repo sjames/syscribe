@@ -57,6 +57,7 @@ nav:
       - Traceability: model-guide/traceability.md
       - Architecture Decisions: model-guide/adrs.md
       - Safety & Security Analysis: model-guide/safety-analysis.md
+      - Variability & Product Lines: model-guide/variability.md
       - LLM-Assisted Modeling: model-guide/llm-workflow.md
   - CLI:
       - cli/index.md
