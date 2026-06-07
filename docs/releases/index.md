@@ -2,6 +2,25 @@
 
 `RELEASES`
 
+## 0.8.0 — 2026-06-07
+
+### Typed feature-parameter constraints enforced (closes #14)
+
+- **`E221`** — `feature-check` now evaluates `parameterConstraints` expressions (numeric comparison `== != >= <= > <` over `+ - * /` arithmetic of literals and parameter references) against every `Configuration` whose `appliesWhen:` predicate holds; a violation is an error. **`W025`** — the same violation when the constraint declares `severity: warning`. Both gateable with `--deny`.
+- Compound `appliesWhen:` on `parameterConstraints` is now boolean-parsed (`and`/`or`/`not`), fixing a spurious `W014`.
+- `range:` now accepts the inclusive form `"min..=max"` as well as `"min..max"`, so `E205`/`E202` actually fire (a `1..=8` range was previously dropped silently).
+- **Schema:** a feature-parameter reference is now the canonical **dotted** form `Features::Feature.param` (a single `.` before the parameter member) everywhere — `parameterBindings:` keys, `parameterConstraints` expressions, and `bindTo:` targets. The legacy all-`::` member form is rejected (`E222`). Existing fixtures and the demo model were migrated.
+
+### Transitive package `appliesWhen` (REQ-TRS-VAR-006)
+
+- A **`Package`** (`_index.md`) may declare `appliesWhen:` to gate its **whole subtree** — enabling/disabling a cohesive variant of requirements + architecture + tests with one declaration. An element's *effective condition* is its own `appliesWhen:`, else the nearest ancestor package's, else always-active; conditions are never combined.
+- **`E228`** — invalid placement (at most one declaration per root-to-leaf path): a nested declaration, or `appliesWhen:` on a `FeatureDef`/`Configuration`, a package whose subtree contains one, or the model root. **`W026`** — a gated package with an empty subtree.
+- All consumers honour the effective condition: `--config` projection, escaping refs (`E226`/`W019`), `matrix`, `why-active` (now shows "inherited from package"), feature-card gates, `list --feature`, and `feature-check --deep` edges.
+
+### Tests
+
+- The `appliesWhen` boolean grammar is now covered by an exhaustive oracle (3000 random expression ASTs evaluated across all assignments), precedence-vs-parentheses checks, and operator-substring/whitespace/double-negation edge cases.
+
 ## 0.7.0 — 2026-06-07
 
 ### Feature discoverability commands
