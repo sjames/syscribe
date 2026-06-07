@@ -2,6 +2,18 @@
 
 `RELEASES`
 
+## 0.8.1 — 2026-06-08
+
+### Fixes (GH #14 re-open)
+
+- **Parameter `range:` is now enforced by `feature-check`, not only `validate`.** The binding rules (`E203`–`E206`/`E222`/`W017`) were extracted into a shared check so a product line validated holistically (`feature-check`) gets the same range/binding enforcement — an out-of-range binding (e.g. `99` against `range: "1..=8"`) now fires `E205` under `feature-check`.
+- **A `parameterConstraints` expression that used the legacy `::`-member form (`Features::F::param`) was silently dropped** (no error, no evaluation). It now raises `E213` with a hint to use the canonical dotted form `Features::F.param` — a declared constraint can never silently no-op.
+- **Hardened the constraint arithmetic tokenizer** to reject unexpected characters (previously swallowed, so a stray operator could yield a spurious value).
+
+### Tests
+
+- New `feature_model` unit tests for the constraint evaluator: all comparison operators, arithmetic precedence/parentheses/unary-minus, unresolved/malformed → no-match, and `range:` parsing (incl. `..=`). Model unit tests 33 → 40.
+
 ## 0.8.0 — 2026-06-07
 
 ### Typed feature-parameter constraints enforced (closes #14)
