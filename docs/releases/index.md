@@ -2,6 +2,29 @@
 
 `RELEASES`
 
+## 0.7.0 — 2026-06-07
+
+### Feature discoverability commands
+
+Five read-only commands for navigating a product line, plus an orphan-feature check:
+
+- **`features [--json]`** — the feature model as a tree: each `FeatureDef`'s `groupKind`, `requires`/`excludes`, parameters, and a "selected in N/M configs" rollup.
+- **`feature <qname> [--json]`** — one feature's card: doc, group, constraints, parameters, the `Configuration`s that select it, and every element it **gates** (whose `appliesWhen:` names it).
+- **`matrix --features`** — a Feature × Configuration grid (which feature ships in which product), complementing the Requirement × Configuration view.
+- **`list <type> --feature <F>`** — restrict a listing to elements whose `appliesWhen:` names `F` (orthogonal to `--tag`/`--config`).
+- **`why-active <element> --config <C>`** — explain a projection: the element's `appliesWhen:`, the config's relevant selections, and a `Verdict:` of `active` / `inactive` / `always active`.
+- **`W024`** — `feature-check` now flags an **orphan feature** (referenced by no `appliesWhen:` and selected by no `Configuration`); gate with `feature-check --deny W024`. Never emitted by base `validate`.
+
+### Feature-model schema: `mandatory:` membership (ADR-FM-003)
+
+A new optional boolean **`mandatory:`** on `FeatureDef` separates *membership* (relative to the parent) from *grouping* (`groupKind`, which now governs child layout only). A node can be both `mandatory: true` and `groupKind: alternative` — a **mandatory XOR group** (every product selects exactly one child). Backward compatible: the legacy `groupKind: mandatory` remains a shorthand for `mandatory: true` on a leaf.
+
+### UAV model is now a full product line
+
+The bundled `model/` is a runnable 150% UAV product line: a feature model (`Features/`) with three mandatory XOR groups (Propulsion/Payload/DataLink), an optional `DualFlightController`, cross-tree `requires`, and a typed parameter; three products (`Configurations/CONF-UAV-*`); variant-conditioned architecture, requirements, and tests under `ADR-SYS-PLE-001`; and `implementedBy:` traces into `firmware/`. Every variability command runs against it cleanly (`feature-check --deep`, `matrix`, `validate --all-configs`). With the new `mandatory:` field the earlier synthetic `Base` workaround feature was removed.
+
+Documented in the [variability guide](../model-guide/variability.md), [modeling guide](../model-guide/index.md), [CLI reference](../cli/index.md), format spec §9, and `syscribe spec` prompts.
+
 ## 0.6.0 — 2026-06-07
 
 ### Implementation trace (`implementedBy:`, closes #13)
