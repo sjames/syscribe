@@ -12,7 +12,9 @@ model/
 │   ├── Avionics/      — FlightController, GPSReceiver, IMU, AvionicsBay
 │   ├── Power/         — BatteryPack, PowerDistributionUnit, PowerSystem
 │   ├── Propulsion/    — Motor, RotorAssembly, PropulsionSystem, rotor configs
-│   └── Payload/       — Camera, PayloadBay
+│   └── Payload/       — Camera, LidarScanner, PayloadBay, payload variants
+├── Features/          — feature model (FeatureDef) — product-line variation points
+├── Configurations/    — product configurations (CONF-*) of the 150% model
 ├── GroundStation/     — GroundControlStation, OperatorConsole
 ├── Behavior/          — MissionExecution, TakeoffAction, WaypointNavAction,
 │                        LandingAction, FlightStates
@@ -48,6 +50,39 @@ model/
 | Airframe | `UAV` | `Airframe` |
 
 The ground segment is defined under `GroundStation::GroundControlStation` and interacts with the UAV via the `TelemetryConnectionDef` interface.
+
+---
+
+## Product line (150% model)
+
+This model is a **product line**: one repository describing a family of UAVs, projected onto individual products on demand. The variability is opt-in — the common core above is shared by every product.
+
+**Feature model** (`Features/`): three mandatory XOR groups plus an optional feature.
+
+| Group | Feature qnames | Kind |
+|---|---|---|
+| Propulsion | `Features::Propulsion::{Quad, Hex}` | XOR (exactly one) |
+| Payload | `Features::Payload::{Survey, Mapping, Delivery}` | XOR (exactly one) |
+| DataLink | `Features::DataLink::{LoRa, Cellular, Satcom}` | XOR (exactly one) |
+| Redundancy | `Features::DualFlightController` | optional |
+
+Cross-tree constraints: `Delivery` and `DualFlightController` both `requires` `Hex`. The `Delivery` feature carries a typed parameter `payloadCapacityKg` (range `0.5..5.0`), bound per product.
+
+**Products** (`Configurations/`):
+
+| Configuration | Propulsion | Payload | DataLink | Dual FC |
+|---|---|---|---|---|
+| `CONF-UAV-SURVEY-001` | Quad | Survey (EO camera) | LoRa | — |
+| `CONF-UAV-MAPPING-001` | Hex | Mapping (LiDAR) | Cellular | ✓ |
+| `CONF-UAV-DELIVERY-001` | Hex | Delivery (cargo) | Satcom | ✓ |
+
+Variant-specific architecture, requirements, and test cases carry `appliesWhen:` over feature qnames and are decomposed under `ADR-SYS-PLE-001`. Architecture elements link to their implementation with `implementedBy:` (`repo:firmware/...`).
+
+```bash
+syscribe -m model/ feature-check --deep        # the feature model is sound
+syscribe -m model/ matrix                       # Requirement × Configuration coverage
+syscribe -m model/ validate --all-configs       # certify every product
+```
 
 ---
 

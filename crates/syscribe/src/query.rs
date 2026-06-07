@@ -1086,12 +1086,28 @@ pub fn cmd_refs(elements: &[RawElement], resolver: &Resolver, key: &str) {
         // The key is not an element qname/id. It may be a raw reference target —
         // e.g. an implementedBy source path or sourceFile. Report the model
         // elements that point at it. Paths are matched by exact value and by
-        // path-prefix (a directory key matches files beneath it).
-        let needle = key.trim_end_matches('/');
+        // path-prefix (a directory key matches files beneath it). Location
+        // prefixes/schemes (`repo:`, `model:`, `file://`, `scheme://`) are
+        // stripped on both sides so `refs firmware/x` finds `repo:firmware/x`.
+        let bare = |s: &str| -> String {
+            let s = s.trim();
+            let s = if let Some(end) = s.find("://") {
+                // file://path or scheme://host/path — keep the part after "://"
+                &s[end + 3..]
+            } else if let Some(rest) = s.strip_prefix("repo:") {
+                rest
+            } else if let Some(rest) = s.strip_prefix("model:") {
+                rest
+            } else {
+                s
+            };
+            s.trim_start_matches('/').trim_end_matches('/').to_string()
+        };
+        let needle = bare(key);
         let mut rows: Vec<(String, String, String)> = Vec::new();
         for other in elements {
             for (rel, tgt) in outbound_refs(other) {
-                let t = tgt.trim_end_matches('/');
+                let t = bare(&tgt);
                 if t == needle || t.starts_with(&format!("{needle}/")) {
                     let stype = tl(other.frontmatter.element_type.as_ref()).to_string();
                     rows.push((other.qualified_name.clone(), rel, stype));

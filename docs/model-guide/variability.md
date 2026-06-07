@@ -142,12 +142,15 @@ syscribe -m model/ configure <Configuration>    # partial selection → forced/f
 The repository is the 150% superset; `--config` projects it onto one variant and runs the command over only the **active** elements. The argument is a stored `Configuration` (id/qname) or an ad-hoc feature set (`'Features::A,Features::B'`).
 
 ```bash
-syscribe -m model/ list Requirement --config CONF-MPS2-WDT-001
-syscribe -m model/ export --config 'Features::CortexM,Features::Wdt' --json
-syscribe -m model/ validate --config CONF-MPS2-WDT-001    # certify THIS variant
-syscribe -m model/ validate --all-configs                 # CI gate over every variant
-syscribe -m model/ diff --config CONF-A --config CONF-B   # what differs between variants
+syscribe -m model/ list Requirement --config CONF-UAV-MAPPING-001
+syscribe -m model/ export --config 'Features::Propulsion::Hex,Features::Payload::Delivery' --json
+syscribe -m model/ validate --config CONF-UAV-DELIVERY-001    # certify THIS product
+syscribe -m model/ validate --all-configs                     # CI gate over every product
+syscribe -m model/ diff --config CONF-UAV-SURVEY-001 \
+                        --config CONF-UAV-DELIVERY-001         # what differs between products
 ```
+
+> The bundled `model/` is a runnable UAV product line — every command on this page works against it. See the [worked example](index.md#worked-example-the-uav-product-line) for its shape.
 
 `validate --config` re-runs the full validation in the lens (coverage, §12 traceability, safety) **and** flags **escaping references** — an active element pointing at one inactive in the variant:
 

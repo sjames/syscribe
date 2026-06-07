@@ -5,6 +5,8 @@ supertype: Parts::Part
 domain: hardware
 satisfies:
   - REQ-UAV-NAV-001
+implementedBy:
+  - repo:firmware/drivers/gnss.rs
 features:
   - name: currentFix
     typedBy: Items::GPSFix

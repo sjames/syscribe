@@ -8,6 +8,8 @@ satisfies:
   - REQ-UAV-FC-001
   - REQ-UAV-SAFE-001
   - REQ-UAV-COMM-001
+implementedBy:
+  - repo:firmware/flight_control/mod.rs
 metadata:
   - type: Metadata::DALAnnotation
     level: 1
