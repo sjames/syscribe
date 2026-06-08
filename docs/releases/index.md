@@ -2,6 +2,18 @@
 
 `RELEASES`
 
+## 0.10.0 — 2026-06-08
+
+### Model-root auto-discovery (REQ-TRS-CLI-004)
+
+- With **no** `-m`/`--model` flag and **no** `SYSCRIBE_MODEL`, the tool now walks up from the current working directory to the nearest ancestor containing a **`.syscribe.toml`** and uses that directory as the model root — run any command from anywhere inside the model tree (the `git`/`cargo` ergonomics). Full resolution order: `--model` → `SYSCRIBE_MODEL` → walk-up to `.syscribe.toml` → the literal `model/` default.
+- The marker is the existing config file (`repo_root` / `[matchers]` / `[remote]`); an **empty** `.syscribe.toml` is a valid root marker. It is a tooling locator only — it never affects qualified-name resolution or the implicit root namespace.
+- **Fully backward-compatible**: the flag, env var, and `model/` default behave exactly as before; a tree with no marker falls straight through to the default.
+
+### Tests
+
+- `REQ-TRS-CLI-004` + `TC-TRS-CLI-004` (discovery from a subdirectory, explicit `-m` override, explicit `-m` on a model with no marker, and fallback-with-miss). Tool-qualification suite 115 → **116** test cases, all passing.
+
 ## 0.9.0 — 2026-06-08
 
 ### Feature-parameter binding time (REQ-TRS-PARAM-004)
