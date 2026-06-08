@@ -484,6 +484,34 @@ Lower integrity levels are documented as future tightening and are not gated.
 
 See `docs/model-guide/safety-analysis.md`.
 
+## GSN safety-argument layer (E852–E858, W040)
+
+The Goal Structuring Notation (GSN) argument layer (issue #20). `Argument` (`ARG-*`)
+nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
+(`Requirement` / `TestCase` / sub-`Argument` / `AssumptionOfUse`). `AssumptionOfUse`
+(`AOU-*`) records a safety-related application condition (SRAC). Render the tree with
+`syscribe safety-case`.
+
+### Argument (E852–E855, W040)
+
+| Code | Severity | Condition |
+|---|---|---|
+| E852 | Error | `Argument` is missing `id`, `title`, or `status` |
+| E853 | Error | `Argument.id` does not match the `ARG-*` pattern |
+| E854 | Error | `Argument.argumentType` is not one of `claim · strategy · solution` (absent → treated as `claim`) |
+| E855 | Error | an `Argument.supports` or `Argument.evidence` ref does not resolve to any model element |
+| W040 | Warning | a `claim`/`strategy` `Argument` has **both** an empty `supports` and an empty `evidence` (an orphan GSN node arguing nothing) |
+
+### AssumptionOfUse (E856–E858)
+
+| Code | Severity | Condition |
+|---|---|---|
+| E856 | Error | `AssumptionOfUse` is missing `id`, `title`, or `status` |
+| E857 | Error | `AssumptionOfUse.id` does not match the `AOU-*` pattern |
+| E858 | Error | an `AssumptionOfUse.appliesTo` ref does not resolve to any model element |
+
+See `docs/model-guide/safety-analysis.md`.
+
 ## Integrity level propagation errors and warnings (E841–E843, W808)
 
 Once any element in the traceability chain carries `asilLevel` or `silLevel`, all downstream elements must inherit the same field. A lower level is permitted only when accompanied by a `breakdownAdr` documenting the ASIL/SIL decomposition rationale (ISO 26262-9 / IEC 61508-2 §7.4.9).

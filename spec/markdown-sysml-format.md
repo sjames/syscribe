@@ -3840,6 +3840,24 @@ Security/Attacks/AT-TORQUE-001/
 
 **Feasibility roll-up (weakest-link):** rank `very_low`=0, `low`=1, `medium`=2, `high`=3. An `AttackStep` is its `attackFeasibility` rank; an `AND` gate (sequential path) is the **MIN** of its children; an `OR` gate (alternatives) is the **MAX** of its children; the `AttackTree`'s feasibility is the value of its single root child, mapped back to a label. When the computed feasibility differs from the linked `ThreatScenario.attackFeasibility`, the validator emits **W035** (computed vs declared).
 
+#### 8.18.6 GSN safety-argument layer (`Argument`, `AssumptionOfUse`)
+
+The Goal Structuring Notation (GSN) argument layer makes the safety **argument** a
+first-class, validated part of the model. It builds on the Tier-2 hazard/goal layer
+(`HazardousEvent`, `SafetyGoal`).
+
+| Element type | ID pattern | Description |
+|---|---|---|
+| `Argument` | `ARG-*` | A GSN node. `argumentType:` is `claim`, `strategy`, or `solution` (absent → `claim`; invalid → E854). `supports:` (string or list) names the `SafetyGoal` or parent `Argument` argued for; `evidence:` (string or list) names the supporting `Requirement` / `TestCase` / sub-`Argument` / `AssumptionOfUse`. Each `supports`/`evidence` ref resolves via the resolver (unresolved → E855). Missing `id`/`title`/`status` → E852; an `id` not matching `ARG-*` → E853. A `claim`/`strategy` Argument with empty `supports` **and** empty `evidence` is an orphan node → **W040**. |
+| `AssumptionOfUse` | `AOU-*` | A safety-related application condition (SRAC). `appliesTo:` (string or list) names the `SafetyGoal` / `Argument` / `Requirement` it constrains (each resolves; unresolved → E858). Missing `id`/`title`/`status` → E856; an `id` not matching `AOU-*` → E857. |
+
+The `safety-case [<SG-id>] [--json]` view renders, for each `SafetyGoal`, the
+supporting `Argument` tree (recursing into sub-Arguments), each Argument's evidence
+(with the TestCase's ingested verdict when a results sidecar is present), and the
+`AssumptionOfUse` nodes. It also folds in the implicit chain
+`SafetyGoal ← Requirement (derivedFromSafetyGoal) ← TestCase (verifies)` so it is useful
+on models that have goals + requirements + tests but no explicit `Argument` nodes.
+
 ---
 
 ## 9 Variability and Variation Points
@@ -5215,7 +5233,25 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 | `W038` | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. Opt-in; gateable with `--deny W038`; promotable |
 | `W039` | Warning | An `asilLevel: D` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
 
-The full set of Tier 2 (E800–E851) and Tier 4 (E900–E941, W900–W905; attack path analysis E915–E921, W035–W037) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
+#### GSN safety-argument layer (E852–E858, W040)
+
+The Goal Structuring Notation (GSN) argument layer (§8.18.6). `Argument` (`ARG-*`) nodes
+argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `AssumptionOfUse`
+(`AOU-*`) records a safety-related application condition (SRAC). Render the tree with
+`syscribe safety-case`.
+
+| Code | Severity | Condition |
+|---|---|---|
+| `E852` | Error | `Argument` is missing `id`, `title`, or `status` |
+| `E853` | Error | `Argument.id` does not match the `ARG-*` pattern |
+| `E854` | Error | `Argument.argumentType` is not `claim`/`strategy`/`solution` |
+| `E855` | Error | an `Argument.supports` or `Argument.evidence` ref does not resolve to any model element |
+| `E856` | Error | `AssumptionOfUse` is missing `id`, `title`, or `status` |
+| `E857` | Error | `AssumptionOfUse.id` does not match the `AOU-*` pattern |
+| `E858` | Error | an `AssumptionOfUse.appliesTo` ref does not resolve to any model element |
+| `W040` | Warning | a `claim`/`strategy` `Argument` has empty `supports` **and** empty `evidence` (an orphan GSN node) |
+
+The full set of Tier 2 (E800–E858) and Tier 4 (E900–E941, W900–W905; attack path analysis E915–E921, W035–W037) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
 
 #### sourceFile location semantics
 
@@ -5453,6 +5489,10 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `measureType` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E849) — confirmation_review / functional_safety_audit / functional_safety_assessment / cybersecurity_assessment |
 | `independenceLevel` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E850) — I1 / I2 / I3 |
 | `confirms` | ConfirmationMeasure | string or list | absent | 8.18.2, 11.12 (E851) — confirmed work-product ref(s) |
+| `argumentType` | Argument | enum (`claim`/`strategy`/`solution`) | `claim` | 8.18.6, 11.12 (E854) |
+| `supports` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — SafetyGoal/parent Argument argued for |
+| `evidence` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — Requirement/TestCase/sub-Argument/AssumptionOfUse refs |
+| `appliesTo` | AssumptionOfUse | string or list | absent | 8.18.6, 11.12 (E858) — SafetyGoal/Argument/Requirement constrained |
 | `hazardRef` | DamageScenario / ThreatScenario | string or list | absent | 8.18.2 |
 | `riskTreatment` | ThreatScenario | enum (`avoid`/`reduce`/`share`/`retain`) | absent | 8.18.2 |
 | `residualRisk` | ThreatScenario | string | absent | 8.18.2 |

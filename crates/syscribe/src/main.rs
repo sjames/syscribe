@@ -13,6 +13,7 @@ mod metrics_cmd;
 mod mv;
 mod query;
 mod render;
+mod safety_case;
 mod scaffold;
 mod vdepth;
 mod spec;
@@ -553,6 +554,16 @@ fn main() {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
                 cyberrisk::cmd_cyber_risk(&elems, json);
+            }
+            "safety-case" => {
+                // GSN safety-argument tree (issue #20). Read-only; reuses Resolver
+                // and the issue-#21 results sidecar for TestCase verdicts.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                // optional positional <SG-id> = first non-flag arg.
+                let goal = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str()).unwrap_or("");
+                let results = ResultsData::load_sidecar(model_root);
+                safety_case::cmd_safety_case(&elems, &resolver, goal, results.as_ref(), json);
             }
             "feature-check" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

@@ -290,6 +290,45 @@ levels are future tightening, not gated.) **Opt-in:** dormant unless at least on
 
 ---
 
+## GSN safety-argument layer (§8.18)
+
+The Goal Structuring Notation (GSN) argument layer. Render the tree with
+`syscribe safety-case [<SG-id>] [--json]` — it also folds in the implicit
+`SafetyGoal ← Requirement (derivedFromSafetyGoal) ← TestCase (verifies)` chain.
+
+### Argument — `ARG-*`
+
+```yaml
+type: Argument
+id: ARG-BRK-001
+title: "Argue over independent torque monitoring"
+status: approved
+argumentType: strategy   # claim | strategy | solution   (absent → claim; else E854)
+supports: SG-BRK-001     # SafetyGoal or parent Argument argued for (string or list; else E855)
+evidence:                # Requirement / TestCase / sub-Argument / AssumptionOfUse (string or list; else E855)
+  - REQ-BRK-001
+  - TC-BRK-001
+```
+
+`id`/`title`/`status` required (else E852); id must match `ARG-*` (else E853).
+**W040** — a `claim`/`strategy` Argument with empty `supports` AND empty `evidence`
+(an orphan GSN node).
+
+### AssumptionOfUse — `AOU-*`
+
+```yaml
+type: AssumptionOfUse
+id: AOU-BRK-001
+title: "Integrator provides a redundant torque sensor"
+status: approved
+appliesTo: SG-BRK-001    # SafetyGoal / Argument / Requirement it constrains (string or list; else E858)
+```
+
+`id`/`title`/`status` required (else E856); id must match `AOU-*` (else E857). A
+safety-related application condition (SRAC).
+
+---
+
 ## Tier 4 — FMEA
 
 ### FMEASheet — `FMEA-*`

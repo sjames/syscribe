@@ -20,6 +20,9 @@ static FM_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static AT_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static ATG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static ATS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+// GSN argument-layer stable-ID patterns (issue #20)
+static ARG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static AOU_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static SG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static DS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static TS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
@@ -98,6 +101,8 @@ pub fn is_stable_id(s: &str) -> bool {
         || at_re().is_match(s)
         || atg_re().is_match(s)
         || ats_re().is_match(s)
+        || arg_re().is_match(s)
+        || aou_re().is_match(s)
 }
 
 /// Returns true for HE-* IDs (HazardousEvent).
@@ -158,6 +163,18 @@ fn atg_re() -> &'static regex::Regex {
 fn ats_re() -> &'static regex::Regex {
     ATS_RE.get_or_init(|| regex::Regex::new(r"^ATS(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
 }
+
+fn arg_re() -> &'static regex::Regex {
+    ARG_RE.get_or_init(|| regex::Regex::new(r"^ARG(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+fn aou_re() -> &'static regex::Regex {
+    AOU_RE.get_or_init(|| regex::Regex::new(r"^AOU(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+
+/// Returns true for ARG-* IDs (Argument).
+pub fn is_arg_id(s: &str) -> bool { arg_re().is_match(s) }
+/// Returns true for AOU-* IDs (AssumptionOfUse).
+pub fn is_aou_id(s: &str) -> bool { aou_re().is_match(s) }
 
 /// Returns true for AT-* IDs (AttackTree).
 pub fn is_at_id(s: &str) -> bool { at_re().is_match(s) }
@@ -291,6 +308,14 @@ impl Resolver {
 
     pub fn is_safety_goal(elem: &RawElement) -> bool {
         matches!(elem.frontmatter.element_type, Some(ElementType::SafetyGoal))
+    }
+
+    pub fn is_argument(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::Argument))
+    }
+
+    pub fn is_assumption_of_use(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::AssumptionOfUse))
     }
 
     pub fn is_damage_scenario(elem: &RawElement) -> bool {

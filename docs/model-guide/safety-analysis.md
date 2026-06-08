@@ -514,6 +514,82 @@ syscribe -m model/ template ConfirmationMeasure   # ready-to-fill skeleton
 
 ---
 
+## Safety case — GSN argument layer (`Argument`, `AssumptionOfUse`) and the `safety-case` view
+
+The Goal Structuring Notation (GSN) argument layer makes the safety **argument** — not
+just the hazards and goals — a first-class, validated part of the model (issue #20).
+It complements the pre-existing hazard/goal layer (`HazardousEvent`, `SafetyGoal`) and
+the FMEA failure layer.
+
+### `Argument` (`ARG-*`) — a GSN node
+
+```yaml
+---
+type: Argument
+id: ARG-BRK-001
+title: "Argue over independent torque monitoring"
+status: approved
+argumentType: strategy   # claim | strategy | solution   (absent → claim; else E854)
+supports: SG-BRK-001     # the SafetyGoal or parent Argument argued for (string or list; else E855)
+evidence:                # Requirement / TestCase / sub-Argument / AssumptionOfUse refs (else E855)
+  - ARG-BRK-002
+  - REQ-BRK-001
+---
+```
+
+`id`/`title`/`status` are required (else E852); the id must match `ARG-*` (else E853).
+A `claim`/`strategy` Argument with **both** empty `supports` and empty `evidence` is an
+orphan GSN node → **W040**.
+
+### `AssumptionOfUse` (`AOU-*`) — a safety-related application condition (SRAC)
+
+```yaml
+---
+type: AssumptionOfUse
+id: AOU-BRK-001
+title: "Integrator provides a redundant torque sensor"
+status: approved
+appliesTo: SG-BRK-001    # the SafetyGoal / Argument / Requirement it constrains (string or list; else E858)
+---
+```
+
+`id`/`title`/`status` are required (else E856); the id must match `AOU-*` (else E857).
+
+### The `safety-case` view
+
+```bash
+syscribe -m model/ safety-case              # all top SafetyGoals
+syscribe -m model/ safety-case SG-BRK-001   # only the named goal
+syscribe -m model/ safety-case --json       # machine-readable tree
+```
+
+For each `SafetyGoal` the view renders the GSN tree: the goal → the `Argument`s whose
+`supports` names it (recursing into sub-Arguments) → each Argument's `evidence`
+(Requirements and TestCases as leaves, with the TestCase's ingested verdict when a
+results sidecar is present) → any `AssumptionOfUse` that `appliesTo` the goal/argument.
+
+It **also folds in the implicit chain** that already exists without explicit Argument
+nodes: `SafetyGoal ← Requirement` (`derivedFromSafetyGoal`) `← TestCase` (`verifies`).
+That makes the view immediately useful on models that have goals + requirements + tests
+but no `Argument` nodes yet. The view is read-only and exits 0 (a notice when there is
+no `SafetyGoal`).
+
+```
+[SafetyGoal] SG-BRK-001 — Prevent unintended acceleration
+├── [strategy] ARG-BRK-001 — Argue over independent torque monitoring
+│   ├── [solution] ARG-BRK-002 — Torque monitor is verified by test
+│   │   └── [evidence:TestCase] TC-BRK-001 — ... [pass]
+│   └── [evidence:Requirement] REQ-BRK-001 — ...
+└── [AoU] AOU-BRK-001 — Integrator provides a redundant torque sensor
+```
+
+```bash
+syscribe -m model/ template Argument          # ready-to-fill skeletons
+syscribe -m model/ template AssumptionOfUse
+```
+
+---
+
 ## Failure Mode and Effects Analysis (FMEA)
 
 FMEA uses the same **exploded container** pattern as TARA. One `FMEASheet` file; the parser synthesises a first-class `FMEAEntry` for each row.

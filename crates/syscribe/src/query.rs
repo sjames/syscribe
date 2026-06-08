@@ -123,6 +123,9 @@ pub fn type_label(et: &ElementType) -> &'static str {
         ElementType::AttackStep => "AttackStep",
         ElementType::FMEASheet => "FMEASheet",
         ElementType::FMEAEntry => "FMEAEntry",
+        // GSN argument layer (issue #20)
+        ElementType::Argument => "Argument",
+        ElementType::AssumptionOfUse => "AssumptionOfUse",
         // TARA container
         ElementType::TARASheet => "TARASheet",
         // Tier 2
@@ -321,6 +324,15 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     if let Some(ref s) = fm.breakdown_adr { out.push(("breakdownAdr".into(), s.clone())); }
     if let Some(ref g) = fm.derived_from_security_goal { out.push(("derivedFromSecurityGoal".into(), g.clone())); }
     if let Some(ref g) = fm.derived_from_safety_goal { out.push(("derivedFromSafetyGoal".into(), g.clone())); }
+    if let Some(ref ss) = fm.supports {
+        for s in ss { out.push(("supports".into(), s.clone())); }
+    }
+    if let Some(ref ev) = fm.evidence {
+        for s in ev { out.push(("evidence".into(), s.clone())); }
+    }
+    if let Some(ref at) = fm.applies_to {
+        for s in at { out.push(("appliesTo".into(), s.clone())); }
+    }
     if let Some(ref afs) = fm.allocated_from {
         for s in afs { out.push(("allocatedFrom".into(), s.clone())); }
     }
@@ -422,6 +434,10 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
     if let Some(ref s) = fm.breakdown_adr { println!("| **breakdownAdr** | {} |", s); }
     if let Some(ref g) = fm.derived_from_security_goal { println!("| **derivedFromSecurityGoal** | {} |", g); }
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
+    if let Some(ref at) = fm.argument_type { println!("| **argumentType** | {} |", at); }
+    if let Some(ref ss) = fm.supports { if !ss.is_empty() { println!("| **supports** | {} |", ss.join(", ")); } }
+    if let Some(ref ev) = fm.evidence { if !ev.is_empty() { println!("| **evidence** | {} |", ev.join(", ")); } }
+    if let Some(ref at) = fm.applies_to { if !at.is_empty() { println!("| **appliesTo** | {} |", at.join(", ")); } }
     if let Some(ref f) = fm.feature_model { println!("| **featureModel** | {} |", f); }
     if let Some(ref aw) = fm.applies_when {
         let aw_str = match aw {
@@ -2966,6 +2982,32 @@ Steps to reproduce (if applicable).
 
 How the vulnerability is being addressed.
 "#,
+        "argument" => r#"---
+type: Argument
+id: ARG-PREFIX-001
+title: "Argue that [claim]"
+status: draft
+argumentType: strategy   # claim | strategy | solution
+supports: SG-PREFIX-001  # the SafetyGoal or parent Argument this argues for
+evidence:                # Requirement / TestCase / sub-Argument / AssumptionOfUse refs
+  - REQ-PREFIX-001
+  - TC-PREFIX-001
+---
+
+A GSN node in the safety case. Describe the claim/strategy and how the listed
+evidence discharges it. Render the full tree with `syscribe safety-case`.
+"#,
+        "assumptionofuse" => r#"---
+type: AssumptionOfUse
+id: AOU-PREFIX-001
+title: "Integrator provides [application condition]"
+status: draft
+appliesTo: SG-PREFIX-001  # the SafetyGoal / Argument / Requirement this SRAC constrains
+---
+
+A safety-related application condition (SRAC): a constraint the integrator must
+honour for the referenced goal/argument/requirement to hold.
+"#,
         other => {
             eprintln!("Unknown type '{}'. Known types:", other);
             eprintln!("  Native elements:  Requirement, TestCase, ADR");
@@ -2995,6 +3037,7 @@ How the vulnerability is being addressed.
             eprintln!("  FMEA:             FMEASheet");
             eprintln!("  APA:              AttackTree, AttackTreeGate, AttackStep");
             eprintln!("  Confirmation:     ConfirmationMeasure");
+            eprintln!("  Safety case (GSN): Argument, AssumptionOfUse");
             std::process::exit(1);
         }
     };
@@ -3105,6 +3148,10 @@ pub fn print_help() {
     println!("                                 computed SPFM / LFM / PMHF from FaultTreeEvent failureRate +");
     println!("                                 diagnosticCoverage, with pass/fail vs ASIL/SIL target. Opt-in:");
     println!("                                 goals without diagnosticCoverage show n/a (gate via --deny W033).");
+    println!("  safety-case [<SG-id>] [--json] GSN safety-argument tree: per SafetyGoal, the Arguments (claim/strategy/");
+    println!("                                 solution) that support it, their evidence (Requirements/TestCases with");
+    println!("                                 ingested verdict), the AssumptionOfUse (SRAC) nodes, plus the implicit");
+    println!("                                 SafetyGoal→Requirement→TestCase fold-in (works without Argument nodes).");
     println!();
     println!("Variability (§9, opt-in — dormant unless a FeatureDef is linked):");
     println!("  appliesWhen: <expr>            On any element/TestCase: a boolean expression over FeatureDef QNames");

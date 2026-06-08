@@ -6,9 +6,9 @@ use crate::config::ValidateConfig;
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
 use crate::resolver::{
-    is_adr_id, is_at_id, is_atg_id, is_ats_id, is_cm_id, is_conf_id, is_csg_id, is_ds_id, is_fm_id,
-    is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id, is_req_id, is_sc_id, is_sg_id,
-    is_tara_id, is_tc_id, is_ts_id, is_vr_id, Resolver,
+    is_adr_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_cm_id, is_conf_id,
+    is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
+    is_req_id, is_sc_id, is_sg_id, is_tara_id, is_tc_id, is_ts_id, is_vr_id, Resolver,
 };
 
 /// A single validation finding.
@@ -380,6 +380,72 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // W801: SafetyGoal should carry an integrity level (asilLevel, silLevel, or plLevel)
             if fm.asil_level.is_none() && fm.sil_level.is_none() && fm.pl_level.is_none() {
                 findings.push(warning("W801", &file, "SafetyGoal has no integrity level — set asilLevel (ISO 26262), silLevel (IEC 61508), or plLevel (ISO 13849-1)"));
+            }
+        }
+
+        // ── §8.18: GSN Argument (E852-E855, W040) ────────────────────────────
+        // Issue #20 safety-argument layer. An Argument is a GSN node arguing for a
+        // SafetyGoal or a parent Argument, discharged by evidence (Requirement /
+        // TestCase / sub-Argument / AssumptionOfUse).
+        if matches!(fm.element_type, Some(ElementType::Argument)) {
+            if fm.id.is_none() { findings.push(error("E852", &file, "`id` is required on Argument")); }
+            if fm.title.is_none() { findings.push(error("E852", &file, "`title` is required on Argument")); }
+            if fm.status.is_none() { findings.push(error("E852", &file, "`status` is required on Argument")); }
+            // E853: id pattern (ARG-*)
+            if let Some(ref id) = fm.id {
+                if !is_arg_id(id) {
+                    findings.push(error("E853", &file, &format!("`id` '{}' does not match ARG-* pattern", id)));
+                }
+            }
+            // E854: argumentType enum (absent → treated as claim).
+            if let Some(ref at) = fm.argument_type {
+                if !["claim","strategy","solution"].contains(&at.as_str()) {
+                    findings.push(error("E854", &file, &format!("Argument.argumentType '{}' must be claim, strategy, or solution", at)));
+                }
+            }
+            // E855: supports / evidence refs must resolve.
+            if let Some(ref refs) = fm.supports {
+                for r in refs {
+                    if resolver.resolve_ref(elements, r).is_none() {
+                        findings.push(error("E855", &file, &format!("Argument.supports '{}' does not resolve to any model element", r)));
+                    }
+                }
+            }
+            if let Some(ref refs) = fm.evidence {
+                for r in refs {
+                    if resolver.resolve_ref(elements, r).is_none() {
+                        findings.push(error("E855", &file, &format!("Argument.evidence '{}' does not resolve to any model element", r)));
+                    }
+                }
+            }
+            // W040: a claim/strategy Argument that argues nothing (empty supports AND
+            // empty evidence) is an orphan GSN node.
+            let kind = fm.argument_type.as_deref().unwrap_or("claim");
+            let no_supports = fm.supports.as_ref().map(|v| v.is_empty()).unwrap_or(true);
+            let no_evidence = fm.evidence.as_ref().map(|v| v.is_empty()).unwrap_or(true);
+            if matches!(kind, "claim" | "strategy") && no_supports && no_evidence {
+                findings.push(warning("W040", &file, "Argument has neither `supports` nor `evidence` — an orphan GSN node arguing nothing"));
+            }
+        }
+
+        // ── §8.18: GSN AssumptionOfUse / SRAC (E856-E858) ────────────────────
+        if matches!(fm.element_type, Some(ElementType::AssumptionOfUse)) {
+            if fm.id.is_none() { findings.push(error("E856", &file, "`id` is required on AssumptionOfUse")); }
+            if fm.title.is_none() { findings.push(error("E856", &file, "`title` is required on AssumptionOfUse")); }
+            if fm.status.is_none() { findings.push(error("E856", &file, "`status` is required on AssumptionOfUse")); }
+            // E857: id pattern (AOU-*)
+            if let Some(ref id) = fm.id {
+                if !is_aou_id(id) {
+                    findings.push(error("E857", &file, &format!("`id` '{}' does not match AOU-* pattern", id)));
+                }
+            }
+            // E858: appliesTo refs must resolve.
+            if let Some(ref refs) = fm.applies_to {
+                for r in refs {
+                    if resolver.resolve_ref(elements, r).is_none() {
+                        findings.push(error("E858", &file, &format!("AssumptionOfUse.appliesTo '{}' does not resolve to any model element", r)));
+                    }
+                }
             }
         }
 

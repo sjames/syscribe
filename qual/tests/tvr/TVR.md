@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 132 |
-| Passed | 132 |
+| Total test cases | 133 |
+| Passed | 133 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1096,6 +1096,19 @@
 | confirmed: I3 functional_safety_assessment present, no W039 | ✓ PASS |
 | badenum: invalid measureType/independenceLevel | ✓ PASS |
 | --deny W039 exits non-zero | ✓ PASS |
+
+---
+
+### TC-TRS-SAFE-008 — Verify the GSN argument layer (Argument ARG-*, AssumptionOfUse AOU-*), the E852–E858/W040 checks, and the safety-case (GSN) view incl. the implicit goal→req→test fold-in
+
+**Verifies:** REQ-TRS-SAFE-008  
+**Result:** ✓ PASS (23 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| main: Argument + AssumptionOfUse validate with no errors | ✓ PASS |
+| badref: unresolved Argument.supports/evidence yields E855 | ✓ PASS |
+| orphan: claim Argument with no supports/evidence yields W040 | ✓ PASS |
 
 ---
 

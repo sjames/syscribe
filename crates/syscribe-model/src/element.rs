@@ -146,6 +146,9 @@ pub enum ElementType {
     // FMEA (IEC 60812 / SAE J1739)
     FMEASheet,
     FMEAEntry,
+    // GSN safety-argument layer (issue #20)
+    Argument,         // ARG-* — a GSN node (claim/strategy/solution)
+    AssumptionOfUse,  // AOU-* — safety-related application condition (SRAC)
     // TARA container (ISO/SAE 21434) — exploded by walker into Tier-2 types
     TARASheet,
     // Namespace
@@ -489,6 +492,26 @@ pub struct RawFrontmatter {
     // §T2 — upstream goal links for native Requirement
     pub derived_from_security_goal: Option<String>, // CSG-* that generated this requirement (YAML: derivedFromSecurityGoal)
     pub derived_from_safety_goal: Option<String>,   // SG-* that generated this requirement (YAML: derivedFromSafetyGoal)
+
+    // §8.18 — GSN safety-argument layer (issue #20)
+    /// `Argument.argumentType` (YAML: argumentType) ∈ {claim, strategy, solution};
+    /// absent is treated as `claim`. Invalid → E854.
+    pub argument_type: Option<String>,
+    /// `Argument.supports` (YAML: supports) — the SafetyGoal or parent Argument this
+    /// node argues for (the GSN supported goal). String or list; each ref resolves
+    /// via the Resolver (else E855).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub supports: Option<Vec<String>>,
+    /// `Argument.evidence` (YAML: evidence) — refs to supporting Requirement /
+    /// TestCase / sub-Argument / AssumptionOfUse (the GSN children). String or list;
+    /// each ref resolves via the Resolver (else E855).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub evidence: Option<Vec<String>>,
+    /// `AssumptionOfUse.appliesTo` (YAML: appliesTo) — the SafetyGoal / Argument /
+    /// Requirement this SRAC constrains. String or list; each ref resolves via the
+    /// Resolver (else E858).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub applies_to: Option<Vec<String>>,
 
     // Catch-all for unknown fields
     #[serde(flatten)]
