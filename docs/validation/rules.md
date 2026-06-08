@@ -312,7 +312,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 | E810 | `impactCategories` entry is not one of `safety · financial · operational · privacy` |
 | E844 | `hazardRef` does not resolve, or resolves to an element that is not a `HazardousEvent`/`SafetyGoal` (safety↔security co-engineering) |
 
-### ThreatScenario (E811–E814)
+### ThreatScenario (E811–E814, E845)
 
 | Code | Condition |
 |---|---|
@@ -320,6 +320,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 | E812 | `id` does not match `TS-*` pattern |
 | E813 | `attackFeasibility` is not one of `high · medium · low · very_low` |
 | E814 | `attackVector` is not one of `network · adjacent · local · physical` |
+| E845 | `riskTreatment` is not one of `avoid · reduce · share · retain` |
 | E844 | `hazardRef` does not resolve, or resolves to an element that is not a `HazardousEvent`/`SafetyGoal` (safety↔security co-engineering) |
 
 ### CybersecurityGoal (E815–E818)
@@ -380,6 +381,23 @@ ISO 26262 ⇄ ISO/SAE 21434 cross-domain checks. A `DamageScenario`/`ThreatScena
 |---|---|---|
 | E844 | Error | A `hazardRef` value on a `DamageScenario`/`ThreatScenario` does not resolve, or resolves to an element that is not a `HazardousEvent`/`SafetyGoal` |
 | W030 | Warning | A `DamageScenario` whose `impactCategories` includes `safety` has no `hazardRef` (the cross-domain gap). Opt-in (safety-tagged only); gate with `--deny W030` |
+
+## Cybersecurity risk determination (E845, W031, W032)
+
+ISO/SAE 21434 §15.8 / §15.9 risk determination and treatment. Per `ThreatScenario`, risk is computed from severity and feasibility:
+
+- **severity rank** — `negligible`=0, `moderate`=1, `major`=2, `severe`=3 — the **max** `damageSeverity` over the threat's resolved `damageScenarios`.
+- **feasibility rank** — `very_low`=0, `low`=1, `medium`=2, `high`=3 (from `attackFeasibility`).
+- if either rank is **unknown**, the risk is **unknown** (the threat is listed but never gated).
+- else `score = severity + feasibility` (0..6) → **level**: `0–1` low, `2–3` medium, `4` high, `5–6` critical.
+
+`ThreatScenario` carries `riskTreatment:` (`avoid`/`reduce`/`share`/`retain`; invalid → E845) and a free-text `residualRisk:`. See `docs/model-guide/safety-analysis.md` and `syscribe -m <root> cyber-risk`.
+
+| Code | Severity | Condition |
+|---|---|---|
+| E845 | Error | `ThreatScenario.riskTreatment` is not one of `avoid · reduce · share · retain` |
+| W031 | Warning | A `ThreatScenario` whose computed risk is `high`/`critical` has no `riskTreatment` and is not addressed by any `CybersecurityGoal` (no `CybersecurityGoal.threatScenarios` lists it). Gate with `--deny W031`; promotable via `[profiles]` |
+| W032 | Warning | A `CybersecurityGoal`'s `calLevel` rank is below the expected minimum CAL for the max risk over its listed threats (low→CAL1, medium→CAL2, high→CAL3, critical→CAL4). Fires only when at least one linked threat has a computable risk. Gate with `--deny W032` |
 
 ## Integrity level propagation errors and warnings (E841–E843, W808)
 

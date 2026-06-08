@@ -431,6 +431,11 @@ pub struct RawFrontmatter {
     pub attack_feasibility: Option<String>,     // high|medium|low|very_low
     pub attack_vector: Option<String>,          // network|adjacent|local|physical
     pub damage_scenarios: Option<Vec<String>>,  // DamageScenario id/qname refs
+    /// §T2 risk treatment decision (ISO/SAE 21434 §9 / §15.9): avoid|reduce|share|retain.
+    /// Invalid value → E845. (YAML: riskTreatment)
+    pub risk_treatment: Option<String>,
+    /// §T2 free-text residual-risk note after treatment (no validation). (YAML: residualRisk)
+    pub residual_risk: Option<String>,
 
     // §T2 — CybersecurityGoal (ISO/SAE 21434 §15)
     pub cal_level: Option<String>,              // CAL1-CAL4

@@ -3019,6 +3019,10 @@ pub fn print_help() {
     println!("                                 each SafetyGoal/HazardousEvent with the cyber ThreatScenarios that");
     println!("                                 can violate it (via DamageScenario.hazardRef) + safety-tagged");
     println!("                                 DamageScenarios with no hazardRef (the W030 gaps).");
+    println!("  cyber-risk [--json]            ISO/SAE 21434 risk determination: each ThreatScenario with its");
+    println!("                                 damage severity, attack feasibility, computed risk level (low|medium|");
+    println!("                                 high|critical), riskTreatment, addressed-by-goal, and a flag");
+    println!("                                 (untreated = trips W031, else ok/unknown).");
     println!();
     println!("Variability (§9, opt-in — dormant unless a FeatureDef is linked):");
     println!("  appliesWhen: <expr>            On any element/TestCase: a boolean expression over FeatureDef QNames");

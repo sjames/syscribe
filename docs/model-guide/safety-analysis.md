@@ -190,6 +190,41 @@ For each `SafetyGoal`/`HazardousEvent` that is a `hazardRef` target, the view li
 
 > **Deferred (future work):** the reverse check — *a SafetyGoal whose realising architecture has an attack surface with no security consideration* — requires goal→architecture→vulnerability reachability and is not yet implemented (GH #28 check (b)).
 
+## Cybersecurity risk determination (ISO/SAE 21434 §15.8–15.9)
+
+Each `ThreatScenario` has a **computed risk level** derived from the severity of the damage it can cause and how feasible the attack is:
+
+- **severity rank** — `negligible`=0, `moderate`=1, `major`=2, `severe`=3 — the **max** `damageSeverity` over the `DamageScenario`s the threat names in `damageScenarios` (resolved by `id` / qualified name). Unknown if none resolve or none carry a severity.
+- **feasibility rank** — `very_low`=0, `low`=1, `medium`=2, `high`=3 (from `attackFeasibility`). Unknown if missing/invalid.
+- if either rank is unknown the risk is **unknown** (listed but never gated); otherwise `score = severity + feasibility` (0..6) maps to **low** (0–1), **medium** (2–3), **high** (4) or **critical** (5–6).
+
+Record the risk-treatment decision on the threat:
+
+```yaml
+type: ThreatScenario
+id: TS-SYS-001
+attackFeasibility: high
+damageScenarios:
+  - DS-SYS-001          # severe → critical risk
+riskTreatment: reduce   # avoid | reduce | share | retain  (invalid → E845)
+residualRisk: Low after message authentication on torque frames   # free text
+```
+
+Validation:
+
+- **E845** — `riskTreatment` is not one of `avoid`/`reduce`/`share`/`retain`.
+- **W031** — a `ThreatScenario` whose computed risk is `high`/`critical` has no `riskTreatment` and is not addressed by any `CybersecurityGoal` (none lists it in `threatScenarios`). A warning (exit code unchanged), gateable with `--deny W031` and promotable to error via a `[profiles]` policy. Add a `riskTreatment` or an addressing `CybersecurityGoal` to clear it.
+- **W032** — a `CybersecurityGoal`'s `calLevel` is below the expected minimum CAL for the max risk of the threats it lists (low→CAL1, medium→CAL2, high→CAL3, critical→CAL4). Warning, gateable with `--deny W032`.
+
+### `cyber-risk` — the risk-determination view
+
+```bash
+syscribe -m model/ cyber-risk            # Markdown table
+syscribe -m model/ cyber-risk --json     # JSON array
+```
+
+Lists each `ThreatScenario` with its `severity`, `feasibility`, computed `risk` level, `riskTreatment` (or `—`), addressed-by-goal (yes/no), and a `flag` (`untreated` when it trips W031, `unknown` when risk is not computable, else `ok`). The `--json` form is an array of `{id, severity, feasibility, risk, treatment, addressed, flag}`. With no `ThreatScenario`s the command prints a notice and exits 0.
+
 ---
 
 ## Fault Tree Analysis (FTA)

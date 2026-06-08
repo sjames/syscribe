@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 126 |
-| Passed | 126 |
+| Total test cases | 127 |
+| Passed | 127 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1059,6 +1059,18 @@
 |---|---|
 | linked safety damage scenario: no errors, W030 only on the unlinked one | ✓ PASS |
 | co-analysis --json carries goals and unlinkedSafetyDamage | ✓ PASS |
+
+---
+
+### TC-TRS-SEC-002 — Verify ISO/SAE 21434 risk determination: risk model, E845, W031, W032, and the cyber-risk view.
+
+**Verifies:** REQ-TRS-SEC-002  
+**Result:** ✓ PASS (17 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| untreated high-risk threat: W031 on it only; W032 on under-CAL goal; no errors | ✓ PASS |
+| cyber-risk --json carries the per-threat risk fields | ✓ PASS |
 
 ---
 

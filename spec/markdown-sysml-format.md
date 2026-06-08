@@ -3777,7 +3777,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 | Element type | ID pattern | Description |
 |---|---|---|
 | `DamageScenario` | `DS-*` | An adverse consequence to a stakeholder; carries `damageSeverity:` and `impactCategories:`. May carry `hazardRef:` (string or list) linking it to the `HazardousEvent`/`SafetyGoal` it endangers (safety↔security co-engineering). |
-| `ThreatScenario` | `TS-*` | A potential attack scenario; carries `attackFeasibility:` and `attackVector:`. References `damageScenarios:`. May carry a direct `hazardRef:` (string or list) to a `HazardousEvent`/`SafetyGoal`. |
+| `ThreatScenario` | `TS-*` | A potential attack scenario; carries `attackFeasibility:` and `attackVector:`. References `damageScenarios:`. May carry a direct `hazardRef:` (string or list) to a `HazardousEvent`/`SafetyGoal`, a `riskTreatment:` (`avoid`/`reduce`/`share`/`retain`), and a free-text `residualRisk:`. |
 | `CybersecurityGoal` | `CSG-*` | A high-level security requirement; carries `securityProperty:` (`confidentiality`, `integrity`, `availability`, `authenticity`), `calLevel:` (`CAL1`–`CAL4`), and `threatScenarios:` (the `TS-*` threats it counters). |
 | `SecurityControl` | `SC-*` | A concrete countermeasure; carries `controlType:` and `implementsGoals:`. |
 | `VulnerabilityReport` | `VR-*` | A tracked vulnerability; carries `cvssScore:`, `mitigatedBy:`, and `affectedElements:`. |
@@ -3786,6 +3786,8 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 **Cross-reference rules:** A `Requirement` motivated by a cybersecurity goal should set `derivedFromSecurityGoal:` to the `CSG-*` ID, and must set `verificationMethod:` (W807). The OSLC link direction applies: the downstream element holds the reference.
 
 **Safety↔security co-engineering (ISO 26262 ⇄ ISO/SAE 21434):** A `DamageScenario`/`ThreatScenario` may declare `hazardRef:` (string or list) pointing to the `HazardousEvent`/`SafetyGoal` it endangers, resolved by `id` or qualified name. A `hazardRef` that does not resolve, or resolves to a non-`HazardousEvent`/non-`SafetyGoal` element, is an error (E844). A `DamageScenario` whose `impactCategories:` includes `safety` but has no `hazardRef` warns W030 (opt-in, gateable with `--deny W030`). The `co-analysis` command (§ CLI) reports, per safety goal/hazard, the cyber threats that can violate it.
+
+**Cybersecurity risk determination (ISO/SAE 21434 §15.8–15.9):** Each `ThreatScenario` has a computed risk level. Severity rank = max `damageSeverity` over its resolved `damageScenarios` (`negligible`=0, `moderate`=1, `major`=2, `severe`=3); feasibility rank from `attackFeasibility` (`very_low`=0, `low`=1, `medium`=2, `high`=3). If either is unknown the risk is **unknown** (listed, not gated); otherwise `score = severity + feasibility` (0..6) → **low** (0–1), **medium** (2–3), **high** (4), **critical** (5–6). A `ThreatScenario` records its risk-treatment decision with `riskTreatment:` (`avoid`/`reduce`/`share`/`retain`; invalid → E845) and an optional free-text `residualRisk:`. A high/critical-risk threat with no `riskTreatment` that is not listed by any `CybersecurityGoal.threatScenarios` warns W031; a `CybersecurityGoal` whose `calLevel` is below the expected CAL for its threats' max risk (low→CAL1 … critical→CAL4) warns W032. Both are gateable with `--deny` and promotable via `[profiles]`. The `cyber-risk` command (§ CLI) lists every threat with its risk and treatment.
 
 **Binding SecurityControls to architecture:** Architecture elements (e.g. `PartDef`) that realise a `SecurityControl` should set `allocatedFrom:` to the control's `SC-*` ID. Both `allocatedFrom:` and `allocatedTo:` accept a single string or a list of strings to support multiple controls per element.
 
@@ -5143,7 +5145,15 @@ Once any element in the traceability chain carries `asilLevel:`, `silLevel:`, or
 | `E844` | Error | A `hazardRef:` value on a `DamageScenario`/`ThreatScenario` does not resolve, or resolves to an element that is not a `HazardousEvent`/`SafetyGoal` |
 | `W030` | Warning | A `DamageScenario` whose `impactCategories:` includes `safety` has no `hazardRef:` (the cross-domain gap). Opt-in (safety-tagged only); gateable with `--deny W030` |
 
-The full set of Tier 2 (E800–E844) and Tier 4 (E900–E941, W900–W905) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
+#### Cybersecurity risk determination (E845, W031, W032)
+
+| Code | Severity | Condition |
+|---|---|---|
+| `E845` | Error | `ThreatScenario.riskTreatment:` is not one of `avoid`/`reduce`/`share`/`retain` |
+| `W031` | Warning | A `ThreatScenario` whose computed risk is `high`/`critical` has no `riskTreatment:` and is not addressed by any `CybersecurityGoal.threatScenarios`. Gateable with `--deny W031`; promotable via `[profiles]` |
+| `W032` | Warning | A `CybersecurityGoal`'s `calLevel:` is below the expected minimum CAL for the max risk of its listed threats (low→CAL1, medium→CAL2, high→CAL3, critical→CAL4). Fires only when at least one linked threat has a computable risk; gateable with `--deny W032` |
+
+The full set of Tier 2 (E800–E845) and Tier 4 (E900–E941, W900–W905) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
 
 #### sourceFile location semantics
 
@@ -5377,6 +5387,8 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `allocatedFrom` | Any element | string or list | absent | 8.18.2 |
 | `allocatedTo` | Any element | string or list | absent | 8.18.2 |
 | `hazardRef` | DamageScenario / ThreatScenario | string or list | absent | 8.18.2 |
+| `riskTreatment` | ThreatScenario | enum (`avoid`/`reduce`/`share`/`retain`) | absent | 8.18.2 |
+| `residualRisk` | ThreatScenario | string | absent | 8.18.2 |
 | `sourceFile` | native TestCase | string | absent | 8.12.5 |
 | `testFunctions` | native TestCase | list | absent | 8.12.5 |
 | `tags` | native Requirement/TestCase | list of strings | absent | 8.11.6, 8.12.5 |

@@ -439,6 +439,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(error("E814", &file, &format!("ThreatScenario.attackVector '{}' must be network, adjacent, local, or physical", v)));
                 }
             }
+            // E845: riskTreatment enum (ISO/SAE 21434 §9 / §15.9 risk treatment).
+            if let Some(ref rt) = fm.risk_treatment {
+                if !["avoid","reduce","share","retain"].contains(&rt.as_str()) {
+                    findings.push(error("E845", &file, &format!("ThreatScenario.riskTreatment '{}' must be avoid, reduce, share, or retain", rt)));
+                }
+            }
             // E844: a ThreatScenario's own direct hazardRef must resolve to a
             // HazardousEvent or SafetyGoal (§T4 safety↔security co-engineering).
             if let Some(ref refs) = fm.hazard_ref {
@@ -2314,6 +2320,106 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W804", &elem.file_path,
                     &format!("CybersecurityGoal '{}' has no Requirement with `derivedFromSecurityGoal` pointing to it", id)));
+            }
+        }
+    }
+
+    // ── ISO/SAE 21434 risk determination (GH #30): W031 + W032 ────────────────
+    // Warnings (not errors) by codebase convention: completeness gaps are
+    // warnings (cf. W306/W029/W030) so bundled-model exit codes stay 0; both are
+    // gateable via `--deny` and promotable via [profiles].
+    {
+        use crate::risk::{self, threat_risk_level, RiskLevel};
+
+        // Set of threat keys (qname + id) addressed by some CybersecurityGoal.
+        let mut addressed: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for csg in elements.iter().filter(|e| Resolver::is_cybersecurity_goal(e)) {
+            if let Some(ref refs) = csg.frontmatter.threat_scenarios {
+                for r in refs {
+                    if let Some(ts) = resolver.resolve_ref(elements, r) {
+                        if Resolver::is_threat_scenario(ts) {
+                            addressed.insert(ts.qualified_name.clone());
+                            if let Some(ref id) = ts.frontmatter.id {
+                                addressed.insert(id.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // W031: untreated high/critical-risk ThreatScenario.
+        for ts in elements.iter().filter(|e| Resolver::is_threat_scenario(e)) {
+            let level = match threat_risk_level(ts, elements, &resolver) {
+                Some(l) => l,
+                None => continue, // unknown risk → listed, not gated
+            };
+            if level != RiskLevel::High && level != RiskLevel::Critical {
+                continue;
+            }
+            let has_treatment = ts.frontmatter.risk_treatment.is_some();
+            let is_addressed = addressed.contains(&ts.qualified_name)
+                || ts
+                    .frontmatter
+                    .id
+                    .as_ref()
+                    .map_or(false, |id| addressed.contains(id));
+            if !has_treatment && !is_addressed {
+                let id = ts.frontmatter.id.as_deref().unwrap_or(&ts.qualified_name);
+                findings.push(warning(
+                    "W031",
+                    &ts.file_path,
+                    &format!(
+                        "ThreatScenario '{}' has {} computed risk but no riskTreatment and is not addressed by any CybersecurityGoal (ISO/SAE 21434 §15.9)",
+                        id,
+                        level.as_str()
+                    ),
+                ));
+            }
+        }
+
+        // W032: CAL inconsistency — a CybersecurityGoal's calLevel is below the
+        // expected minimum CAL for the max risk over the threats it lists.
+        for csg in elements.iter().filter(|e| Resolver::is_cybersecurity_goal(e)) {
+            let Some(ref refs) = csg.frontmatter.threat_scenarios else { continue };
+            let mut max_level: Option<RiskLevel> = None;
+            for r in refs {
+                if let Some(ts) = resolver.resolve_ref(elements, r) {
+                    if Resolver::is_threat_scenario(ts) {
+                        if let Some(l) = threat_risk_level(ts, elements, &resolver) {
+                            max_level = Some(max_level.map_or(l, |m| m.max(l)));
+                        }
+                    }
+                }
+            }
+            let Some(level) = max_level else { continue }; // no computable risk
+            let expected = risk::expected_cal_rank(level);
+            // calLevel absent → rank 0, treated as below any expected rank ≥1.
+            let actual = csg
+                .frontmatter
+                .cal_level
+                .as_deref()
+                .and_then(risk::cal_rank)
+                .unwrap_or(0);
+            if actual < expected {
+                let id = csg.frontmatter.id.as_deref().unwrap_or(&csg.qualified_name);
+                let actual_label = csg
+                    .frontmatter
+                    .cal_level
+                    .as_deref()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "(none)".to_string());
+                findings.push(warning(
+                    "W032",
+                    &csg.file_path,
+                    &format!(
+                        "CybersecurityGoal '{}' declares calLevel {} but its {}-risk threats require at least {} (ISO/SAE 21434 §15.8)",
+                        id,
+                        actual_label,
+                        level.as_str(),
+                        risk::cal_label(expected)
+                    ),
+                ));
             }
         }
     }

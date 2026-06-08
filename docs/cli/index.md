@@ -236,6 +236,21 @@ Add `hazardRef:` (string or list) to a `DamageScenario`/`ThreatScenario` to decl
 
 ---
 
+## Cybersecurity risk determination
+
+`cyber-risk` lists every `ThreatScenario` with its ISO/SAE 21434 §15.8 risk (severity × feasibility), treatment decision and treatment status. It answers the central 21434 question: *which threats are above the risk-acceptance line and how were they treated?*
+
+```bash
+$ syscribe -m model/ cyber-risk            # Markdown table
+$ syscribe -m model/ cyber-risk --json     # JSON array
+```
+
+Severity = the max `damageSeverity` over the threat's `damageScenarios` (`negligible`=0 … `severe`=3); feasibility from `attackFeasibility` (`very_low`=0 … `high`=3); `score = severity + feasibility` → **low** (0–1), **medium** (2–3), **high** (4), **critical** (5–6), or **unknown** if either input is missing. Each row shows `severity`, `feasibility`, computed `risk`, `riskTreatment` (or `—`), whether a `CybersecurityGoal` addresses it, and a `flag` (`untreated` when it trips W031, `unknown`, or `ok`). `--json` emits an array of `{id, severity, feasibility, risk, treatment, addressed, flag}`. With no `ThreatScenario`s it prints a notice and exits 0.
+
+Set `riskTreatment:` (`avoid`/`reduce`/`share`/`retain`; invalid → **E845**) and an optional free-text `residualRisk:` on the threat. A high/critical-risk threat with no treatment and no addressing `CybersecurityGoal` warns **W031** (gate with `validate --deny W031`); a `CybersecurityGoal` whose `calLevel` is below the expected CAL for its threats' max risk warns **W032**. See the [safety-analysis guide](../model-guide/safety-analysis.md).
+
+---
+
 ## Connectivity
 
 `connectivity` exports the **connected slice of the model reachable from a chosen element** — the elements plus the connections between them — as a focused subgraph. It walks outward from the root over the part-to-part wiring and structure edges, then renders the reachable nodes and edges as a text tree, a JSON document, or styled Graphviz DOT. Running it on the **model-root element dumps the whole model**.

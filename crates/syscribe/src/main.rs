@@ -1,6 +1,7 @@
 #![deny(warnings)]
 
 mod coanalysis;
+mod cyberrisk;
 mod connectivity;
 mod diagram;
 mod discover;
@@ -508,6 +509,11 @@ fn main() {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
                 coanalysis::cmd_coanalysis(&elems, json);
+            }
+            "cyber-risk" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                cyberrisk::cmd_cyber_risk(&elems, json);
             }
             "feature-check" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

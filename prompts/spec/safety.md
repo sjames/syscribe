@@ -85,7 +85,11 @@ attackFeasibility: medium   # high · medium · low · very_low
 attackVector: local         # network · adjacent · local · physical
 damageScenarios: [DS-001]
 hazardRef: SG-001           # optional: direct HazardousEvent/SafetyGoal link (string or list)
+riskTreatment: reduce       # optional: avoid · reduce · share · retain (invalid → E845)
+residualRisk: "Low after MAC on torque frames"   # optional free text
 ```
+
+**Risk (ISO/SAE 21434 §15.8):** severity = max `damageSeverity` over `damageScenarios` (negligible=0…severe=3); feasibility from `attackFeasibility` (very_low=0…high=3); `score = severity + feasibility` → low (0–1), medium (2–3), high (4), critical (5–6); unknown if either is missing. A high/critical-risk threat with no `riskTreatment` and not listed by any `CybersecurityGoal.threatScenarios` warns **W031** (gateable `--deny W031`). View per-threat risk with `syscribe -m <root> cyber-risk`.
 
 ### CybersecurityGoal — `CSG-*`
 
@@ -99,7 +103,7 @@ calLevel: CAL3              # CAL1 · CAL2 · CAL3 · CAL4
 threatScenarios: [TS-001]
 ```
 
-Validation: W802 (no implementing SecurityControl), W804 (no derived Requirement).
+Validation: W802 (no implementing SecurityControl), W804 (no derived Requirement), W032 (`calLevel` below the expected minimum CAL for the max risk of its listed threats: low→CAL1, medium→CAL2, high→CAL3, critical→CAL4).
 
 ### SecurityControl — `SC-*`
 
