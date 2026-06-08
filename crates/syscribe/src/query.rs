@@ -625,6 +625,7 @@ pub fn cmd_list(
     feature: Option<&str>,
     status: Option<&str>,
     sil: Option<&str>,
+    has_wcet: bool,
     json: bool,
 ) {
     // `--feature <F>`: keep only elements whose `appliesWhen:` names F as an
@@ -676,6 +677,8 @@ pub fn cmd_list(
                     || e.frontmatter.asil_level.as_deref() == Some(v)
             })
         })
+        // `--has-wcet`: keep only elements that declare a non-empty `wcet:`.
+        .filter(|e| !has_wcet || e.frontmatter.wcet.as_deref().is_some_and(|w| !w.trim().is_empty()))
         .collect();
 
     matches.sort_by_key(|e| e.qualified_name.as_str());
@@ -694,6 +697,7 @@ pub fn cmd_list(
                     "status": e.frontmatter.status,
                     "silLevel": e.frontmatter.sil_level,
                     "asilLevel": e.frontmatter.asil_level,
+                    "wcet": e.frontmatter.wcet,
                 })
             })
             .collect();
@@ -2806,7 +2810,8 @@ pub fn print_help() {
     println!("       [--feature <F>]           Keep only elements whose appliesWhen names FeatureDef F as an operand");
     println!("       [--status <s>]            Keep only elements whose status: equals s");
     println!("       [--sil <v>]               Keep only elements whose silLevel stringifies to v OR asilLevel equals v");
-    println!("       [--json]                  Emit a JSON array (qualifiedName,type,name,id,status,silLevel,asilLevel)");
+    println!("       [--has-wcet]              Keep only elements that declare a non-empty wcet:");
+    println!("       [--json]                  Emit a JSON array (qualifiedName,type,name,id,status,silLevel,asilLevel,wcet)");
     println!("  matrix [--json] [--tag <t>]    Requirement × Configuration coverage matrix (cells: covered/gap/N-A)");
     println!("                                 Columns are Configuration elements; --json emits the grid; --tag filters rows.");
     println!("       [--status <s>]            Restrict rows to requirements whose status: equals s");

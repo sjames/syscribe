@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 119 |
-| Passed | 119 |
+| Total test cases | 120 |
+| Passed | 120 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1385,6 +1385,19 @@
 | Scenario | Result |
 |---|---|
 | --deny I010 gates | ✓ PASS |
+
+---
+
+### TC-TRS-VAL-016 — Verify wcet queryability (--has-wcet, list --json) and the W029 WCET-not-measured check.
+
+**Verifies:** REQ-TRS-VAL-016  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| list --has-wcet --json includes wcet | ✓ PASS |
+| SIL requirement with wcet, no measuring test produces W029 | ✓ PASS |
+| W029 is gateable with --deny | ✓ PASS |
 
 ---
 

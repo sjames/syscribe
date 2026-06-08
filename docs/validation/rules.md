@@ -259,7 +259,7 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W600 | PartDef or Part has an empty documentation body |
 | W601 | ActionDef or Action has an empty documentation body |
 
-## Safety / ASPICE warnings (W701–W703, W807)
+## Safety / ASPICE warnings (W701–W703, W807, W029)
 
 These warnings apply to requirements carrying safety integrity level fields (`asilLevel`, `silLevel`, `dalLevel`).
 
@@ -269,6 +269,7 @@ These warnings apply to requirements carrying safety integrity level fields (`as
 | W702 | Requirement with `asilLevel: D` has no active TestCase at `testLevel: L5` (HIL) — ISO 26262-6 §9 requires hardware-in-the-loop testing for ASIL D |
 | W703 | Both `asilLevel` (ISO 26262) and `dalLevel` (DO-178C) are set on the same element — these are different standards; pick one or document the mapping |
 | W807 | `Requirement` with `derivedFromSecurityGoal` has no `verificationMethod` — security-derived requirements must specify how they will be tested or inspected |
+| W029 | Non-draft requirement with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no **active measuring** TestCase verifies it (testLevel `L5`, or tagged `timing`/`wcet`). The timing-evidence analog of `W702`. Gate with `--deny W029`. Query timing claims with `list --has-wcet`. |
 
 ## Tier 2 safety element errors (E800–E830)
 

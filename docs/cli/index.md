@@ -257,12 +257,14 @@ Filter by lifecycle status and safety integrity level, and emit machine-readable
 $ syscribe -m model/ list Requirement --status approved   # keep only status: approved
 $ syscribe -m model/ list Requirement --sil 4             # silLevel: 4 (integer, stringified)
 $ syscribe -m model/ list Requirement --sil D             # asilLevel: D — one flag covers SIL and ASIL
+$ syscribe -m model/ list Requirement --has-wcet          # only requirements with a wcet: timing claim
 $ syscribe -m model/ list Requirement --status draft --json
 ```
 
 - **`--status <s>`** keeps only elements whose `status:` equals `<s>` exactly.
 - **`--sil <v>`** keeps only elements whose `silLevel:` (integer) stringifies to `<v>` **or** whose `asilLevel:` equals `<v>`. A single flag covers both IEC 61508 SIL and ISO 26262 ASIL.
-- **`--json`** emits a JSON array of the (filtered) elements — each object carries `qualifiedName`, `type`, `name`, `id`, `status`, `silLevel`, `asilLevel` (absent fields are `null`). All filters above apply to the JSON output too, and compose (AND) with `--tag`, `--feature` and the `--config` lens.
+- **`--has-wcet`** keeps only elements that declare a non-empty `wcet:` timing claim — pair it with the `W029` check ("WCET claimed but not measured", see [validation rules](../validation/rules.md)) to audit which timing claims are backed by an `L5`/timing-tagged test.
+- **`--json`** emits a JSON array of the (filtered) elements — each object carries `qualifiedName`, `type`, `name`, `id`, `status`, `silLevel`, `asilLevel`, `wcet` (absent fields are `null`). All filters above apply to the JSON output too, and compose (AND) with `--tag`, `--feature` and the `--config` lens.
 
 ---
 

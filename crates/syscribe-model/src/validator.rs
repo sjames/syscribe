@@ -1633,6 +1633,33 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // W029 (REQ-TRS-VAL-016, GH #22): a non-draft requirement carrying an
+        // integrity level and a `wcet:` claim must be backed by a *measuring*
+        // test — an active TestCase verifying it at testLevel L5 (HIL) or tagged
+        // `timing`/`wcet`. Opt-in (needs both wcet and SIL/ASIL), draft-suppressed.
+        let has_integrity =
+            elem.frontmatter.sil_level.is_some() || elem.frontmatter.asil_level.is_some();
+        let wcet_claim = elem.frontmatter.wcet.as_deref().filter(|w| !w.trim().is_empty());
+        if let Some(wcet) = wcet_claim {
+            if has_integrity && status != "draft" {
+                let measured = active_tcs.iter().any(|tc_id| {
+                    resolver.get_by_id(elements, tc_id).is_some_and(|tc| {
+                        tc.frontmatter.test_level.as_deref() == Some("L5")
+                            || tc.frontmatter.tags.as_ref().is_some_and(|ts| {
+                                ts.iter().any(|t| t == "timing" || t == "wcet")
+                            })
+                    })
+                });
+                if !measured {
+                    findings.push(warning(
+                        "W029",
+                        &elem.file_path,
+                        &format!("Requirement '{}' declares wcet: '{}' but no active measuring TestCase (testLevel L5 or timing/wcet-tagged) verifies it", req_id, wcet),
+                    ));
+                }
+            }
+        }
+
         // W305: parent requirement must have at least one active integration-level TestCase
         // (L3 system test, L4 system integration test, or L5 HIL/acceptance).
         // Leaf-level test cases (L1/L2) on derived requirements are not sufficient to
