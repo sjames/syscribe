@@ -429,6 +429,33 @@ See `docs/model-guide/safety-analysis.md` and `syscribe -m <root> metrics`.
 | E846 | Error | `diagnosticCoverage` or `latentDiagnosticCoverage` is outside `0.0`–`1.0` |
 | W033 | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF below/above its ASIL/SIL target (one finding naming the metric(s) and actual vs target). Gate with `--deny W033`; promotable via `[profiles]` |
 
+## Freedom From Interference / dependent-failure analysis (W034)
+
+ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** when both are
+**allocated to the same target element**. The tool collects allocation edges `(source → target)`
+from every form — an element's `allocatedTo: [T, …]` (source = the element), an element's
+`allocatedFrom: [S, …]` (target = the element), and an `Allocation` element's
+`allocatedFrom`/`allocatedTo` (source → target) — resolving every reference via the `Resolver`,
+then inverts them into a `target → { sources }` map.
+
+Each element gets an **integrity tag**: `asilLevel` if present, else `silLevel` (→ `SIL<n>`),
+else `QM`. Two sources on the same target are **mixed-criticality** when their tags differ
+(including classified vs `QM`). A mixed pair is **excused** when the **target** OR **at least
+one** of the two sources declares a non-empty `ffiRationale:` string, OR carries a
+`breakdownAdr:` that resolves to an `accepted` ADR.
+
+**Opt-in.** The whole check is dormant unless at least one element in the model declares
+`asilLevel` or `silLevel`; a non-safety model emits zero W034 and unchanged exit codes.
+
+> Deferred: the issue's cross-domain "attack surface" bonus (reusing the shared resources for
+> the cybersecurity co-analysis view) is not implemented.
+
+| Code | Severity | Condition |
+|---|---|---|
+| W034 | Warning | For an allocation target with ≥2 sources, a mixed-criticality source pair has no freedom-from-interference argument. One finding per offending `(target, sourceA, sourceB)`, naming both sources and their integrity tags. Gate with `--deny W034`; promotable via `[profiles]` |
+
+See `docs/model-guide/safety-analysis.md`.
+
 ## Integrity level propagation errors and warnings (E841–E843, W808)
 
 Once any element in the traceability chain carries `asilLevel` or `silLevel`, all downstream elements must inherit the same field. A lower level is permitted only when accompanied by a `breakdownAdr` documenting the ASIL/SIL decomposition rationale (ISO 26262-9 / IEC 61508-2 §7.4.9).

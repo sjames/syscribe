@@ -2832,6 +2832,127 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // W034: Freedom From Interference / dependent-failure analysis (ISO 26262-9 §7,
+    // REQ-TRS-SAFE-006). Flag mixed-criticality elements that share an allocation
+    // target without a freedom-from-interference / partitioning argument.
+    //
+    // Deferred: the issue's "cross-domain bonus" (surfacing the shared resources as
+    // candidate cybersecurity attack surfaces for the co-analysis view) is NOT done here.
+    {
+        use std::collections::{BTreeMap, BTreeSet};
+
+        // Opt-in / dormant: do nothing unless at least one element carries an ASIL or
+        // SIL classification. A non-safety model emits zero W034.
+        let safety_active = elements.iter().any(|e| {
+            e.frontmatter.asil_level.is_some() || e.frontmatter.sil_level.is_some()
+        });
+
+        if safety_active {
+            // Integrity tag for an element: asilLevel, else silLevel ("SIL<n>"), else "QM".
+            let integrity_tag = |fm: &crate::element::RawFrontmatter| -> String {
+                if let Some(ref a) = fm.asil_level {
+                    a.clone()
+                } else if let Some(s) = fm.sil_level {
+                    format!("SIL{}", s)
+                } else {
+                    "QM".to_string()
+                }
+            };
+
+            // True if an element carries an FFI argument: a non-empty ffiRationale, OR a
+            // breakdownAdr resolving to an `accepted` ADR.
+            let has_ffi_arg = |elem: &RawElement| -> bool {
+                if elem
+                    .frontmatter
+                    .ffi_rationale
+                    .as_deref()
+                    .map_or(false, |s| !s.trim().is_empty())
+                {
+                    return true;
+                }
+                if let Some(ref adr_ref) = elem.frontmatter.breakdown_adr {
+                    if let Some(target) = resolver.resolve_ref(elements, adr_ref) {
+                        if Resolver::is_adr(target)
+                            && target.frontmatter.status.as_deref() == Some("accepted")
+                        {
+                            return true;
+                        }
+                    }
+                }
+                false
+            };
+
+            // Collect allocation edges source -> target from every form, resolving
+            // references via the Resolver; invert into target qname -> { source qnames }.
+            // (Allocation elements use the same allocatedFrom/allocatedTo fields.)
+            let mut targets: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+            for elem in elements {
+                let qn = &elem.qualified_name;
+                // element with allocatedTo: source = this element, target = each T
+                if let Some(ref tos) = elem.frontmatter.allocated_to {
+                    for t in tos {
+                        if let Some(target) = resolver.resolve_ref(elements, t) {
+                            targets
+                                .entry(target.qualified_name.clone())
+                                .or_default()
+                                .insert(qn.clone());
+                        }
+                    }
+                }
+                // element with allocatedFrom: target = this element, source = each S
+                if let Some(ref froms) = elem.frontmatter.allocated_from {
+                    for s in froms {
+                        if let Some(source) = resolver.resolve_ref(elements, s) {
+                            targets
+                                .entry(qn.clone())
+                                .or_default()
+                                .insert(source.qualified_name.clone());
+                        }
+                    }
+                }
+            }
+
+            for (target_qn, sources) in &targets {
+                if sources.len() < 2 {
+                    continue; // a target with <2 sources cannot host a sharing
+                }
+                let target_elem = resolver.get(elements, target_qn);
+                let target_has_ffi = target_elem.map_or(false, has_ffi_arg);
+
+                let srcs: Vec<&String> = sources.iter().collect();
+                for i in 0..srcs.len() {
+                    for j in (i + 1)..srcs.len() {
+                        let a = match resolver.get(elements, srcs[i]) {
+                            Some(e) => e,
+                            None => continue,
+                        };
+                        let b = match resolver.get(elements, srcs[j]) {
+                            Some(e) => e,
+                            None => continue,
+                        };
+                        let tag_a = integrity_tag(&a.frontmatter);
+                        let tag_b = integrity_tag(&b.frontmatter);
+                        if tag_a == tag_b {
+                            continue; // same tag → not mixed-criticality
+                        }
+                        // Excused when the target OR at least one source carries an FFI arg.
+                        if target_has_ffi || has_ffi_arg(a) || has_ffi_arg(b) {
+                            continue;
+                        }
+                        findings.push(warning(
+                            "W034",
+                            &a.file_path,
+                            &format!(
+                                "mixed-criticality sharing on allocation target '{}': '{}' ({}) and '{}' ({}) have no freedom-from-interference argument (add `ffiRationale:` or an `accepted` `breakdownAdr:`)",
+                                target_qn, srcs[i], tag_a, srcs[j], tag_b
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
     // W300/W301: leaf requirement coverage by satisfying architecture elements
     for elem in elements {
         if !Resolver::is_native_requirement(elem) {

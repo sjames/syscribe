@@ -241,6 +241,21 @@ Targets — ASIL SPFM ≥ {B .90, C .97, D .99}; LFM ≥ {B .60, C .80, D .90}; 
 
 ---
 
+## Tier 4 — Freedom From Interference (ISO 26262-9 §7)
+
+Two elements **share a resource** when both are `allocatedTo` (or, via `allocatedFrom` / an `Allocation` element, allocated to) the **same target**. Each element's integrity tag is `asilLevel`, else `silLevel` (→ `SIL<n>`), else `QM`. Two sources on one target with **differing** tags (including classified vs `QM`) are mixed-criticality and raise **W034** unless an FFI argument is present: the target **or** at least one source declares a non-empty `ffiRationale:` string, or carries a `breakdownAdr:` resolving to an `accepted` ADR.
+
+```yaml
+type: PartDef
+name: HostECU
+domain: hardware
+ffiRationale: "MPU spatial partitioning + OS timing protection isolate the ASIL D and QM partitions (ISO 26262-6 §7.4.9)."
+```
+
+**Opt-in:** dormant unless some element declares `asilLevel`/`silLevel`. W034 is gateable (`--deny W034`).
+
+---
+
 ## Tier 4 — FMEA
 
 ### FMEASheet — `FMEA-*`

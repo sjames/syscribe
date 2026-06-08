@@ -5162,6 +5162,14 @@ ISO 26262-5 §8–9 hardware architectural metrics, rolled up per `SafetyGoal` f
 | `E846` | Error | `diagnosticCoverage:` or `latentDiagnosticCoverage:` is outside `0.0`–`1.0` |
 | `W033` | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF that misses its ASIL/SIL target. Gateable with `--deny W033`; promotable via `[profiles]` |
 
+#### Freedom From Interference (W034)
+
+ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** when both are allocated to the same target element; allocation edges `(source → target)` are collected from `allocatedTo:` (source = the element), `allocatedFrom:` (target = the element), and `Allocation` elements' `allocatedFrom`/`allocatedTo`, resolved via the resolver and inverted into a `target → { sources }` map. Each element's integrity tag is `asilLevel`, else `silLevel` (→ `SIL<n>`), else `QM`; two sources on a target are mixed-criticality when their tags differ (including classified vs `QM`). A mixed pair is excused when the target **or** at least one of the two sources declares a non-empty `ffiRationale:` string, or carries a `breakdownAdr:` resolving to an `accepted` ADR. The check is **opt-in** — dormant unless some element declares `asilLevel` or `silLevel`. (The cross-domain "attack surface" co-analysis bonus from the originating issue is deferred.)
+
+| Code | Severity | Condition |
+|---|---|---|
+| `W034` | Warning | For an allocation target with ≥2 sources, a mixed-criticality source pair has no freedom-from-interference argument (one finding per `(target, sourceA, sourceB)`, naming both sources and their tags). Gateable with `--deny W034`; promotable via `[profiles]` |
+
 The full set of Tier 2 (E800–E846) and Tier 4 (E900–E941, W900–W905) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
 
 #### sourceFile location semantics
@@ -5395,6 +5403,7 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `wcet` | native Requirement | string | absent | 8.11.6 |
 | `allocatedFrom` | Any element | string or list | absent | 8.18.2 |
 | `allocatedTo` | Any element | string or list | absent | 8.18.2 |
+| `ffiRationale` | Any element | string | absent | 11.12 (W034) — freedom-from-interference / partitioning rationale; excuses a mixed-criticality shared-allocation pair |
 | `hazardRef` | DamageScenario / ThreatScenario | string or list | absent | 8.18.2 |
 | `riskTreatment` | ThreatScenario | enum (`avoid`/`reduce`/`share`/`retain`) | absent | 8.18.2 |
 | `residualRisk` | ThreatScenario | string | absent | 8.18.2 |

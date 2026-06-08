@@ -368,6 +368,11 @@ pub struct RawFrontmatter {
     pub req_domain: Option<String>,
     pub breakdown_adr: Option<String>,
 
+    /// REQ-TRS-SAFE-006 (ISO 26262-9 §7) — freedom-from-interference / partitioning
+    /// rationale (YAML: `ffiRationale`). A non-empty string on a shared allocation
+    /// target or on a source excuses a mixed-criticality sharing (clears W034).
+    pub ffi_rationale: Option<String>,
+
     // §3.14 — domain classification
     pub domain: Option<String>,
     pub is_deployment_package: Option<bool>,

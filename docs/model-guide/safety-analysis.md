@@ -340,6 +340,37 @@ syscribe model/ template FaultTreeEvent > Safety/FTA/FT-BRAKE-001/FTE-BRAKE-001.
 
 ---
 
+## Freedom From Interference (ISO 26262-9 §7) — `ffiRationale` / W034
+
+Dependent-failure analysis flags **mixed-criticality elements that share a resource** without
+a freedom-from-interference (FFI) / partitioning argument. Two elements share a resource when
+both are **allocated to the same target** — collected from `allocatedTo:`, `allocatedFrom:`,
+and `Allocation` elements alike. Each element carries an integrity tag (`asilLevel`, else
+`silLevel` → `SIL<n>`, else `QM`); two sources on one target are mixed when their tags differ
+(including classified vs `QM`).
+
+A mixed pair raises **W034** unless an FFI argument is present — either the target or at least
+one of the two sources declares a non-empty `ffiRationale:` string, or carries a `breakdownAdr:`
+that resolves to an `accepted` ADR:
+
+```yaml
+---
+type: PartDef
+name: HostECU
+domain: hardware
+# documents the partitioning argument that excuses the mixed-criticality sharing:
+ffiRationale: "MPU spatial partitioning + AUTOSAR OS timing protection isolate the ASIL D and QM partitions (ISO 26262-6 §7.4.9)."
+---
+```
+
+**Opt-in.** The check is dormant unless at least one element declares `asilLevel` or `silLevel`.
+W034 is a warning (gate with `--deny W034`, promote via `[profiles]`).
+
+> Deferred: surfacing these shared resources as candidate cybersecurity attack surfaces for the
+> co-analysis view is not yet implemented.
+
+---
+
 ## Failure Mode and Effects Analysis (FMEA)
 
 FMEA uses the same **exploded container** pattern as TARA. One `FMEASheet` file; the parser synthesises a first-class `FMEAEntry` for each row.

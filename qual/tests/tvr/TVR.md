@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 128 |
-| Passed | 128 |
+| Total test cases | 129 |
+| Passed | 129 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1059,6 +1059,20 @@
 |---|---|
 | metrics --json output | ✓ PASS |
 | --deny W033 exits non-zero | ✓ PASS |
+
+---
+
+### TC-TRS-SAFE-006 — Verify W034 freedom-from-interference detection for mixed-criticality shared resources, the FFI-argument exemptions, and the opt-in rule
+
+**Verifies:** REQ-TRS-SAFE-006  
+**Result:** ✓ PASS (11 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| flagged: mixed-criticality sharing with no FFI argument | ✓ PASS |
+| excused (ffiRationale): no W034 | ✓ PASS |
+| excused (accepted breakdownAdr): no W034 | ✓ PASS |
+| --deny W034 exits non-zero | ✓ PASS |
 
 ---
 
