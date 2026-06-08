@@ -10,6 +10,7 @@ mod mv;
 mod query;
 mod render;
 mod scaffold;
+mod vdepth;
 mod spec;
 
 use std::collections::{BTreeMap, HashMap};
@@ -595,6 +596,23 @@ fn main() {
                     "why" => query::cmd_why(&elems, &resolver, &result, key),
                     "who-verifies" => query::cmd_who_verifies(&elems, &resolver, &result, key),
                     _ => unreachable!(),
+                }
+            }
+            "verification-depth" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let sil = rest.windows(2).find(|w| w[0] == "--sil").map(|w| w[1].as_str());
+                let status = rest.windows(2).find(|w| w[0] == "--status").map(|w| w[1].as_str());
+                let json = rest.iter().any(|a| a == "--json");
+                let min_levels = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--min-levels")
+                    .and_then(|w| w[1].parse::<usize>().ok());
+                let result = validator::validate_with_config(&elems, &vcfg);
+                let ok = vdepth::cmd_verification_depth(
+                    &elems, &resolver, &result, sil, status, min_levels, json,
+                );
+                if !ok {
+                    std::process::exit(2);
                 }
             }
             other => {

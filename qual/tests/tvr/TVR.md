@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 123 |
-| Passed | 123 |
+| Total test cases | 124 |
+| Passed | 124 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -683,6 +683,17 @@
 | Scenario | Result |
 |---|---|
 | unknown root exits non-zero | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-011 — Verify the verification-depth report: per-requirement level depth, flags, filters, JSON, and --min-levels gate.
+
+**Verifies:** REQ-TRS-OUT-011  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| --min-levels 1 passes when all have >=1 level | ✓ PASS |
 
 ---
 

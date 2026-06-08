@@ -482,6 +482,29 @@ $ syscribe -m model_auto/ who-verifies REQ-ENG-SAFE-001
 | TC-ENG-SAFE-002 | L5 | 1 | active |
 ```
 
+### Verification-depth & independence report
+
+`verification-depth` gives the fleet-wide view that `trace` shows one requirement at a time: for each requirement, the **distinct** `testLevel`s among its active verifying TestCases, a count, and a depth flag — `none` (no active test), `hil-only` (only L5), `single` (one level), or `ok` (≥2 levels). Diversity/independence of verification is a core SIL-4 expectation.
+
+```
+$ syscribe -m model_sil/ verification-depth --sil 4
+
+# Verification depth (N requirements)
+
+| Requirement | SIL/ASIL | Levels | Count | Flag |
+|---|---|---|---|---|
+| REQ-SIL-SW-002 | 4 | L2,L5 | 2 | ok |
+| REQ-SIL-HW-003 | 4 | L5    | 1 | hil-only |
+```
+
+- **`--sil <v>` / `--status <s>`** filter the rows (same `--sil` semantics as `list`).
+- **`--json`** emits an array of `{id, silLevel, asilLevel, levels, count, flag}`.
+- **`--min-levels N`** turns it into a CI gate — exits non-zero when any reported requirement has fewer than `N` distinct verification levels. Combined with `--sil 4`, gates only that tier:
+
+```
+$ syscribe -m model/ verification-depth --sil 4 --min-levels 2   # fail the build if a SIL-4 req is verified at <2 levels
+```
+
 ### All relationships on an element
 
 `links` shows every outbound and inbound relationship — useful for impact analysis before editing a file.

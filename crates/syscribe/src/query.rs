@@ -2941,6 +2941,8 @@ pub fn print_help() {
     println!("                                 --depth bounds hops; --undirected walks edges both ways.");
     println!("  why <qname>                    What requirements this element satisfies");
     println!("  who-verifies <req-id>          Which test cases cover a requirement");
+    println!("  verification-depth [--sil <v>] [--status <s>] [--min-levels N] [--json]");
+    println!("                                 Per-requirement distinct verification levels + depth flag (gate with --min-levels)");
     println!("  refs <qname|id>                What elements reference this element");
     println!("                                 (for a Configuration: also the TestCases that run in it)");
     println!();
