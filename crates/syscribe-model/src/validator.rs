@@ -224,6 +224,21 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // E846: diagnosticCoverage / latentDiagnosticCoverage must be in 0.0–1.0
+        // (ISO 26262-5 §8-9, GH #29). Documented for FaultTreeEvent but checked
+        // generically wherever the fields appear.
+        for (label, val) in [
+            ("diagnosticCoverage", fm.diagnostic_coverage),
+            ("latentDiagnosticCoverage", fm.latent_diagnostic_coverage),
+        ] {
+            if let Some(v) = val {
+                if !(0.0..=1.0).contains(&v) {
+                    findings.push(error("E846", &file,
+                        &format!("`{}` {} is out of range 0.0–1.0", label, v)));
+                }
+            }
+        }
+
         // E019: dalLevel A–E
         if let Some(ref dal) = fm.dal_level {
             const DAL: &[&str] = &["A", "B", "C", "D", "E"];
@@ -2296,6 +2311,48 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     &format!("SafetyGoal '{}' has no `hazardousEvents` — it is not grounded in any hazard analysis", id)));
             }
         }
+    }
+
+    // W033: quantitative HW safety metric below ASIL/SIL target (ISO 26262-5
+    // §8-9, GH #29). Opt-in: computed and gated ONLY for SafetyGoals whose
+    // contributing FaultTreeEvents declare diagnosticCoverage — goals without DC
+    // data produce no metrics and no finding, keeping unannotated models silent.
+    // Warning (not error) by codebase convention; gateable via `--deny W033` and
+    // profile-promotable. Shares the formula module with the `metrics` command.
+    for report in crate::metrics::report_all(elements, &resolver) {
+        let (Some(_metrics), Some(gate)) = (report.metrics.as_ref(), report.gate.as_ref())
+        else {
+            continue;
+        };
+        if gate.passed() {
+            continue;
+        }
+        let detail = gate
+            .misses
+            .iter()
+            .map(|m| {
+                if m.metric == "PMHF" {
+                    format!("{} {:.3e} ≥ target {:.0e} /h", m.metric, m.actual, m.target)
+                } else {
+                    format!("{} {:.4} < target {:.2}", m.metric, m.actual, m.target)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        let level = report
+            .asil
+            .clone()
+            .map(|a| format!("ASIL {}", a))
+            .or_else(|| report.sil.map(|s| format!("SIL {}", s)))
+            .unwrap_or_else(|| "—".to_string());
+        findings.push(warning(
+            "W033",
+            &report.file_path,
+            &format!(
+                "SafetyGoal '{}' ({}) misses its hardware safety target: {} (ISO 26262-5 §8-9)",
+                report.id, level, detail
+            ),
+        ));
     }
 
     // W802: CybersecurityGoal not implemented by any SecurityControl

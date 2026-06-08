@@ -214,10 +214,30 @@ type: FaultTreeEvent
 id: FTE-BRAKE-001
 title: "Hydraulic pump failure"
 eventKind: basic            # basic · undeveloped · house
-failureRate: 1.2e-7         # optional; per-hour failure rate
+failureRate: 1.2e-7         # optional; per-hour failure rate (λ)
+diagnosticCoverage: 0.99        # optional; DC, 0.0–1.0 (E846 if out of range)
+latentDiagnosticCoverage: 0.90  # optional; DCl, 0.0–1.0 (E846 if out of range)
 ```
 
 Place in `FaultTreeName/` subdirectory.
+
+---
+
+## Tier 4 — Quantitative HW safety metrics (ISO 26262-5 §8–9)
+
+> **First-order FMEDA approximation** from your `failureRate` + diagnostic-coverage inputs — verify independently before use in a hardware safety case.
+
+Per `SafetyGoal`, over the `FaultTreeEvent`s under the `FaultTree`(s) whose `topEvent` resolves to it (events with a `failureRate` only):
+
+```
+Σλ = Σ λ_i ; λ_RF = Σ λ_i·(1−DC_i) ; SPFM = 1 − λ_RF/Σλ
+λ_MPFL = Σ λ_i·DC_i·(1−DCl_i) (events declaring DCl) ; LFM = 1 − λ_MPFL/(Σλ−λ_RF)
+PMHF = λ_RF + λ_MPFL  (/h)
+```
+
+Targets — ASIL SPFM ≥ {B .90, C .97, D .99}; LFM ≥ {B .60, C .80, D .90}; PMHF < {B/C 1e-7, D 1e-8}/h. SIL gates PMHF/PFH < {SIL2 1e-6, SIL3 1e-7, SIL4 1e-8}/h only.
+
+**Opt-in:** metrics are computed/gated only when at least one contributing event declares `diagnosticCoverage`; otherwise `n/a`. A missed target raises **W033** (gate `--deny W033`). Inspect with `syscribe -m model/ metrics [--json]`.
 
 ---
 

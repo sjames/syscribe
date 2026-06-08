@@ -293,11 +293,41 @@ id: FTE-BRAKE-001
 title: "Primary solenoid valve — total failure"
 eventKind: basic          # basic | undeveloped | house
 ref: Braking::SolenoidValve
-failureRate: 1.0e-9       # failures per hour
+failureRate: 1.0e-9       # failures per hour (λ)
+diagnosticCoverage: 0.99        # DC, 0.0–1.0 — fraction detected by a safety mechanism
+latentDiagnosticCoverage: 0.90  # DCl, 0.0–1.0 — fraction of the latent part covered
 ---
 ```
 
 `eventKind` values: `basic` (quantifiable leaf), `undeveloped` (not yet analysed), `house` (assumed event). The `ref:` field links the event to an architecture element.
+
+`diagnosticCoverage` (DC) and `latentDiagnosticCoverage` (DCl) are the FMEDA inputs to the quantitative metrics roll-up below. Both are optional and must lie in `0.0`–`1.0` (else **E846**).
+
+---
+
+## Quantitative HW safety metrics (ISO 26262-5 §8–9) — `metrics`
+
+> **First-order approximation.** This is a first-order, FMEDA-style roll-up driven entirely by your `failureRate` and diagnostic-coverage inputs. It is **not** a substitute for a full FMEDA and **must be independently verified** before use in a hardware safety case.
+
+For each `SafetyGoal`, the tool collects the contributing `FaultTreeEvent`s — the events under the `FaultTree`(s) whose `topEvent` resolves to that goal — and computes, over the events that declare a `failureRate` (λ, /h):
+
+```
+Σλ      = Σ λ_i
+λ_RF    = Σ λ_i · (1 − DC_i)              SPFM = 1 − λ_RF / Σλ
+λ_MPFL  = Σ λ_i · DC_i · (1 − DCl_i)      LFM  = 1 − λ_MPFL / (Σλ − λ_RF)
+PMHF    = λ_RF + λ_MPFL  (/h)
+```
+
+DC defaults to 0 when absent; LFM is reported only when at least one contributing event declares `latentDiagnosticCoverage`.
+
+**Targets** by ASIL: SPFM ≥ {B 0.90, C 0.97, D 0.99}; LFM ≥ {B 0.60, C 0.80, D 0.90}; PMHF < {B/C 1e-7, D 1e-8} /h (ASIL A: not gated). SIL-only goals gate PMHF/PFH < {SIL2 1e-6, SIL3 1e-7, SIL4 1e-8} /h; SPFM/LFM are reported but not gated.
+
+**Opt-in.** A goal's metrics are computed and gated **only** if at least one contributing event declares `diagnosticCoverage`. Goals without DC data are reported as `n/a` and never gated. A goal that misses its target raises **W033** (warning; gate with `--deny W033`, promote via `[profiles]`).
+
+```bash
+syscribe -m model/ metrics            # table: per-goal SPFM / LFM / PMHF + pass/fail
+syscribe -m model/ metrics --json     # [{id, asil, sil, spfm, lfm, pmhf, pass}]
+```
 
 ### Generating templates
 

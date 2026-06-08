@@ -8,6 +8,7 @@ mod discover;
 mod export;
 mod ingest;
 mod matrix;
+mod metrics_cmd;
 mod mv;
 mod query;
 mod render;
@@ -509,6 +510,11 @@ fn main() {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
                 coanalysis::cmd_coanalysis(&elems, json);
+            }
+            "metrics" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                metrics_cmd::cmd_metrics(&elems, json);
             }
             "cyber-risk" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

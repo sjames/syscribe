@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 127 |
-| Passed | 127 |
+| Total test cases | 128 |
+| Passed | 128 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1047,6 +1047,18 @@
 | trigger W803 | ✓ PASS |
 | trigger W804 | ✓ PASS |
 | trigger W807 | ✓ PASS |
+
+---
+
+### TC-TRS-SAFE-005 — Verify SPFM/LFM/PMHF computation, ASIL/SIL gating (W033), diagnosticCoverage range (E846), and the metrics command
+
+**Verifies:** REQ-TRS-SAFE-005  
+**Result:** ✓ PASS (13 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| metrics --json output | ✓ PASS |
+| --deny W033 exits non-zero | ✓ PASS |
 
 ---
 

@@ -3023,6 +3023,10 @@ pub fn print_help() {
     println!("                                 damage severity, attack feasibility, computed risk level (low|medium|");
     println!("                                 high|critical), riskTreatment, addressed-by-goal, and a flag");
     println!("                                 (untreated = trips W031, else ok/unknown).");
+    println!("  metrics [--json]               Quantitative HW safety metrics (ISO 26262-5 §8-9): per SafetyGoal,");
+    println!("                                 computed SPFM / LFM / PMHF from FaultTreeEvent failureRate +");
+    println!("                                 diagnosticCoverage, with pass/fail vs ASIL/SIL target. Opt-in:");
+    println!("                                 goals without diagnosticCoverage show n/a (gate via --deny W033).");
     println!();
     println!("Variability (§9, opt-in — dormant unless a FeatureDef is linked):");
     println!("  appliesWhen: <expr>            On any element/TestCase: a boolean expression over FeatureDef QNames");

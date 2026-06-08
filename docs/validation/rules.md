@@ -399,6 +399,36 @@ ISO/SAE 21434 §15.8 / §15.9 risk determination and treatment. Per `ThreatScena
 | W031 | Warning | A `ThreatScenario` whose computed risk is `high`/`critical` has no `riskTreatment` and is not addressed by any `CybersecurityGoal` (no `CybersecurityGoal.threatScenarios` lists it). Gate with `--deny W031`; promotable via `[profiles]` |
 | W032 | Warning | A `CybersecurityGoal`'s `calLevel` rank is below the expected minimum CAL for the max risk over its listed threats (low→CAL1, medium→CAL2, high→CAL3, critical→CAL4). Fires only when at least one linked threat has a computable risk. Gate with `--deny W032` |
 
+## Quantitative HW safety metrics (E846, W033)
+
+ISO 26262-5 §8–9 hardware architectural metrics, rolled up per `SafetyGoal` from its
+contributing `FaultTreeEvent`s — the events under the `FaultTree`(s) whose `topEvent`
+resolves to the goal. Each event may carry `diagnosticCoverage:` (DC, 0.0–1.0) and
+`latentDiagnosticCoverage:` (DCl, 0.0–1.0). Over the events that declare a `failureRate`
+(λ, /h):
+
+```
+Σλ      = Σ λ_i
+λ_RF    = Σ λ_i · (1 − DC_i)              DC_i defaults to 0 when absent
+SPFM    = 1 − λ_RF / Σλ                    (Σλ = 0 → undefined / n/a)
+λ_MPFL  = Σ λ_i · DC_i · (1 − DCl_i)       over events that DECLARE DCl
+LFM     = 1 − λ_MPFL / (Σλ − λ_RF)         (n/a unless ≥1 event sets DCl)
+PMHF    = λ_RF + λ_MPFL                     (/h)
+```
+
+**Opt-in.** A goal's metrics are computed and gated **only** if at least one contributing
+event declares `diagnosticCoverage`; otherwise they are `n/a` and never gated. This keeps
+models without coverage data silent (zero W033). Targets by ASIL: SPFM ≥ {B 0.90, C 0.97,
+D 0.99}; LFM ≥ {B 0.60, C 0.80, D 0.90}; PMHF < {B/C 1e-7, D 1e-8} /h (ASIL A: not gated).
+SIL-only goals gate PMHF/PFH < {SIL2 1e-6, SIL3 1e-7, SIL4 1e-8} /h; SPFM/LFM are reported
+but not gated for SIL. This is a **first-order FMEDA approximation** — verify independently.
+See `docs/model-guide/safety-analysis.md` and `syscribe -m <root> metrics`.
+
+| Code | Severity | Condition |
+|---|---|---|
+| E846 | Error | `diagnosticCoverage` or `latentDiagnosticCoverage` is outside `0.0`–`1.0` |
+| W033 | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF below/above its ASIL/SIL target (one finding naming the metric(s) and actual vs target). Gate with `--deny W033`; promotable via `[profiles]` |
+
 ## Integrity level propagation errors and warnings (E841–E843, W808)
 
 Once any element in the traceability chain carries `asilLevel` or `silLevel`, all downstream elements must inherit the same field. A lower level is permitted only when accompanied by a `breakdownAdr` documenting the ASIL/SIL decomposition rationale (ISO 26262-9 / IEC 61508-2 §7.4.9).

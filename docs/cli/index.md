@@ -251,6 +251,21 @@ Set `riskTreatment:` (`avoid`/`reduce`/`share`/`retain`; invalid → **E845**) a
 
 ---
 
+## Quantitative HW safety metrics
+
+`metrics` rolls up the ISO 26262-5 §8–9 hardware architectural metrics — SPFM, LFM, and PMHF — per `SafetyGoal`, from the `failureRate` and `diagnosticCoverage` of the `FaultTreeEvent`s under the `FaultTree`(s) whose `topEvent` resolves to that goal.
+
+```bash
+$ syscribe -m model/ metrics            # Markdown table: per-goal SPFM / LFM / PMHF + verdict
+$ syscribe -m model/ metrics --json     # JSON array {id, asil, sil, spfm, lfm, pmhf, pass}
+```
+
+> **First-order FMEDA approximation** from user-supplied λ and diagnostic coverage — verify independently before use in a safety case.
+
+`SPFM = 1 − λ_RF/Σλ` with `λ_RF = Σ λ_i·(1−DC_i)`; `LFM = 1 − λ_MPFL/(Σλ−λ_RF)` (only when an event sets `latentDiagnosticCoverage`); `PMHF = λ_RF + λ_MPFL` (/h). Targets by ASIL — SPFM ≥ {B 0.90, C 0.97, D 0.99}, LFM ≥ {B 0.60, C 0.80, D 0.90}, PMHF < {B/C 1e-7, D 1e-8}/h; SIL gates PMHF/PFH only. **Opt-in:** metrics are computed and gated only for goals whose contributing events declare `diagnosticCoverage` (others show `n/a`). A goal that misses its target raises **W033** (gate with `validate --deny W033`). A `diagnosticCoverage`/`latentDiagnosticCoverage` outside `0.0`–`1.0` is **E846**. See the [safety-analysis guide](../model-guide/safety-analysis.md).
+
+---
+
 ## Connectivity
 
 `connectivity` exports the **connected slice of the model reachable from a chosen element** — the elements plus the connections between them — as a focused subgraph. It walks outward from the root over the part-to-part wiring and structure edges, then renders the reachable nodes and edges as a text tree, a JSON document, or styled Graphviz DOT. Running it on the **model-root element dumps the whole model**.

@@ -3797,7 +3797,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 |---|---|---|
 | `FaultTree` | `FT-*` | Root of a fault tree; references a `SafetyGoal` via `topEvent:`. |
 | `FaultTreeGate` | `FTG-*` | Logic gate; `gateType:` is one of `AND`, `OR`, `XOR`, `NOT`, `inhibit`; `inputs:` lists child gate/event IDs. |
-| `FaultTreeEvent` | `FTE-*` | Leaf event; `eventKind:` is `basic`, `undeveloped`, or `house`; optional `failureRate:`. |
+| `FaultTreeEvent` | `FTE-*` | Leaf event; `eventKind:` is `basic`, `undeveloped`, or `house`; optional `failureRate:` (λ, /h), `diagnosticCoverage:` (DC), `latentDiagnosticCoverage:` (DCl) — DC/DCl in `0.0`–`1.0` (E846), inputs to the quantitative metrics roll-up (§ above). |
 
 **Nesting rule (W900):** `FaultTreeGate` and `FaultTreeEvent` elements must be placed in a subdirectory named after the `FaultTree` file so their qualified names are prefixed by the tree's qualified name:
 
@@ -5153,7 +5153,16 @@ Once any element in the traceability chain carries `asilLevel:`, `silLevel:`, or
 | `W031` | Warning | A `ThreatScenario` whose computed risk is `high`/`critical` has no `riskTreatment:` and is not addressed by any `CybersecurityGoal.threatScenarios`. Gateable with `--deny W031`; promotable via `[profiles]` |
 | `W032` | Warning | A `CybersecurityGoal`'s `calLevel:` is below the expected minimum CAL for the max risk of its listed threats (low→CAL1, medium→CAL2, high→CAL3, critical→CAL4). Fires only when at least one linked threat has a computable risk; gateable with `--deny W032` |
 
-The full set of Tier 2 (E800–E845) and Tier 4 (E900–E941, W900–W905) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
+#### Quantitative HW safety metrics (E846, W033)
+
+ISO 26262-5 §8–9 hardware architectural metrics, rolled up per `SafetyGoal` from the `FaultTreeEvent`s under the `FaultTree`(s) whose `topEvent` resolves to it. Each event may carry `diagnosticCoverage:` (DC) and `latentDiagnosticCoverage:` (DCl), both in `0.0`–`1.0`. Over the contributing events that declare a `failureRate:` (λ, /h): `Σλ = Σ λ_i`; `λ_RF = Σ λ_i·(1−DC_i)`; `SPFM = 1 − λ_RF/Σλ`; `λ_MPFL = Σ λ_i·DC_i·(1−DCl_i)` (events declaring DCl); `LFM = 1 − λ_MPFL/(Σλ−λ_RF)`; `PMHF = λ_RF + λ_MPFL`. Metrics are computed and gated **only** when at least one contributing event declares `diagnosticCoverage` (opt-in; otherwise `n/a`, never gated). Targets — ASIL SPFM ≥ {B 0.90, C 0.97, D 0.99}, LFM ≥ {B 0.60, C 0.80, D 0.90}, PMHF < {B/C 1e-7, D 1e-8}/h; SIL gates PMHF/PFH < {SIL2 1e-6, SIL3 1e-7, SIL4 1e-8}/h only. This is a **first-order FMEDA approximation** and must be independently verified. The `metrics` command (§ CLI) reports per-goal SPFM/LFM/PMHF and pass/fail.
+
+| Code | Severity | Condition |
+|---|---|---|
+| `E846` | Error | `diagnosticCoverage:` or `latentDiagnosticCoverage:` is outside `0.0`–`1.0` |
+| `W033` | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF that misses its ASIL/SIL target. Gateable with `--deny W033`; promotable via `[profiles]` |
+
+The full set of Tier 2 (E800–E846) and Tier 4 (E900–E941, W900–W905) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
 
 #### sourceFile location semantics
 
