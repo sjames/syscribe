@@ -86,7 +86,9 @@
 `VulnerabilityReport` (VR-*) · `TARASheet` (TARA-*) · `FaultTree` (FT-*) ·
 `FaultTreeGate` (FTG-*) · `FaultTreeEvent` (FTE-*) · `FMEASheet` (FMEA-*) ·
 `FMEAEntry` (row of an FMEASheet) · `AttackTree` (AT-*) ·
-`AttackTreeGate` (ATG-*) · `AttackStep` (ATS-*)
+`AttackTreeGate` (ATG-*) · `AttackStep` (ATS-*) ·
+`ConfirmationMeasure` (CM-*) — confirmation review / FS audit & assessment /
+cybersecurity assessment, with independence level I1–I3
 
 ## Key per-type schemas
 

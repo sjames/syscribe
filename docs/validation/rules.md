@@ -456,6 +456,34 @@ one** of the two sources declares a non-empty `ffiRationale:` string, OR carries
 
 See `docs/model-guide/safety-analysis.md`.
 
+## Confirmation measures & DIA/CIA responsibility (E847–E851, W038, W039)
+
+ISO 26262-2 §6 confirmation measures, ISO 26262-8 §5 Development Interface Agreement (DIA),
+and ISO/SAE 21434 §7 Cybersecurity Interface Agreement (CIA). Both checks are **opt-in**.
+
+**`responsibility:`** (common field, any element) — the accountable party/organisation for a
+work product (the DIA/CIA split, e.g. `OEM` / `Supplier-X`).
+
+**ConfirmationMeasure** (`type: ConfirmationMeasure`, `CM-*` id) — a confirmation review, FS
+audit, FS assessment, or cybersecurity assessment, with `measureType:`, `independenceLevel:`
+(`I1`/`I2`/`I3`), `status:`, and `confirms:` (work-product ref(s) resolved via the `Resolver`).
+
+The ASIL/CAL → independence mapping is intentionally minimal: only `asilLevel: D → I3
+functional_safety_assessment` and `calLevel: CAL4 → I3 cybersecurity_assessment` are gated.
+Lower integrity levels are documented as future tightening and are not gated.
+
+| Code | Severity | Condition |
+|---|---|---|
+| E847 | Error | `ConfirmationMeasure` is missing `id`, `title`, or `status` |
+| E848 | Error | `ConfirmationMeasure.id` does not match the `CM-*` pattern |
+| E849 | Error | `measureType` is not one of `confirmation_review · functional_safety_audit · functional_safety_assessment · cybersecurity_assessment` |
+| E850 | Error | `independenceLevel` is not one of `I1 · I2 · I3` |
+| E851 | Error | a `confirms:` ref does not resolve to any model element |
+| W038 | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. **Opt-in:** dormant unless some element declares `responsibility:`. Gate with `--deny W038`; promotable via `[profiles]` |
+| W039 | Warning | A high-integrity item lacks its required independent assessment: an `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039`; promotable via `[profiles]` |
+
+See `docs/model-guide/safety-analysis.md`.
+
 ## Integrity level propagation errors and warnings (E841–E843, W808)
 
 Once any element in the traceability chain carries `asilLevel` or `silLevel`, all downstream elements must inherit the same field. A lower level is permitted only when accompanied by a `breakdownAdr` documenting the ASIL/SIL decomposition rationale (ISO 26262-9 / IEC 61508-2 §7.4.9).

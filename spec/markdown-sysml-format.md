@@ -258,6 +258,7 @@ All fields are **optional unless marked Required**. Defaults listed apply when t
 | `qualifiedName` | string | optional | derived from path | Override the derived qualified name; use only when the file cannot be located at the canonical path |
 | `visibility` | string | optional | `public` | Membership visibility: `public`, `protected`, `private`. This is a property of the *membership* — it controls whether this element is visible to namespaces outside its owner, not a property of the element itself. `private` means visible only within the owning package; `protected` means visible within the owning package and its specializations. |
 | `extRef` | string or list of strings | optional | absent | **External reference(s)** — this element represents an artifact managed in another tool (a requirement in DOORS Next, an element in a SysML tool, a ticket, …). See *External references* below. |
+| `responsibility` | string | optional | absent | **Accountable party/organisation** for this work product (the DIA/CIA split, e.g. `OEM` / `Supplier-X`; ISO 26262-8 §5 / ISO/SAE 21434 §7). A non-draft work product with no `responsibility:` warns `W038` (opt-in; see §11.12). |
 
 **Name resolution rule:** The element's qualified name segment is the `name:` field value if present, otherwise the filename stem (filename without `.md`). The full qualified name is the `::` join of all ancestor package names and the element's own name, starting from the model root (excluding the model root's own name unless it is a named package).
 
@@ -3791,6 +3792,8 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 
 **Binding SecurityControls to architecture:** Architecture elements (e.g. `PartDef`) that realise a `SecurityControl` should set `allocatedFrom:` to the control's `SC-*` ID. Both `allocatedFrom:` and `allocatedTo:` accept a single string or a list of strings to support multiple controls per element.
 
+**Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:`, and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`title`/`status` → E847; an `id` not matching `CM-*` → E848. An `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; only ASIL D → I3 and CAL4 → I3 are gated, lower levels are future tightening).
+
 #### 8.18.3 Tier 4 — Fault Tree Analysis (FTA)
 
 | Element type | ID pattern | Description |
@@ -5191,7 +5194,28 @@ ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** wh
 |---|---|---|
 | `W034` | Warning | For an allocation target with ≥2 sources, a mixed-criticality source pair has no freedom-from-interference argument (one finding per `(target, sourceA, sourceB)`, naming both sources and their tags). Gateable with `--deny W034`; promotable via `[profiles]` |
 
-The full set of Tier 2 (E800–E846) and Tier 4 (E900–E941, W900–W905; attack path analysis E915–E921, W035–W037) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
+#### Confirmation measures & DIA/CIA responsibility (E847–E851, W038, W039)
+
+ISO 26262-2 §6 confirmation measures, ISO 26262-8 §5 DIA, ISO/SAE 21434 §7 CIA. The
+`responsibility:` common field (§3) names the accountable party for a work product. A
+`ConfirmationMeasure` (`CM-*`) records a confirmation review / FS audit / FS assessment /
+cybersecurity assessment with `measureType:`, `independenceLevel:` (`I1`–`I3`), `status:`, and
+`confirms:` (work-product ref(s)). Both warnings are **opt-in**: W038 is dormant unless some
+element declares `responsibility:`; W039 is dormant unless at least one `ConfirmationMeasure`
+exists. The ASIL/CAL → independence mapping is minimal — only ASIL D → I3 functional-safety
+assessment and CAL4 → I3 cybersecurity assessment are gated.
+
+| Code | Severity | Condition |
+|---|---|---|
+| `E847` | Error | `ConfirmationMeasure` is missing `id`, `title`, or `status` |
+| `E848` | Error | `ConfirmationMeasure.id` does not match the `CM-*` pattern |
+| `E849` | Error | `measureType` is not `confirmation_review`/`functional_safety_audit`/`functional_safety_assessment`/`cybersecurity_assessment` |
+| `E850` | Error | `independenceLevel` is not `I1`/`I2`/`I3` |
+| `E851` | Error | a `confirms:` ref does not resolve to any model element |
+| `W038` | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. Opt-in; gateable with `--deny W038`; promotable |
+| `W039` | Warning | An `asilLevel: D` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
+
+The full set of Tier 2 (E800–E851) and Tier 4 (E900–E941, W900–W905; attack path analysis E915–E921, W035–W037) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
 
 #### sourceFile location semantics
 
@@ -5425,6 +5449,10 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `allocatedFrom` | Any element | string or list | absent | 8.18.2 |
 | `allocatedTo` | Any element | string or list | absent | 8.18.2 |
 | `ffiRationale` | Any element | string | absent | 11.12 (W034) — freedom-from-interference / partitioning rationale; excuses a mixed-criticality shared-allocation pair |
+| `responsibility` | Any element | string | absent | 3, 11.12 (W038) — accountable party/organisation for a work product (DIA/CIA split) |
+| `measureType` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E849) — confirmation_review / functional_safety_audit / functional_safety_assessment / cybersecurity_assessment |
+| `independenceLevel` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E850) — I1 / I2 / I3 |
+| `confirms` | ConfirmationMeasure | string or list | absent | 8.18.2, 11.12 (E851) — confirmed work-product ref(s) |
 | `hazardRef` | DamageScenario / ThreatScenario | string or list | absent | 8.18.2 |
 | `riskTreatment` | ThreatScenario | enum (`avoid`/`reduce`/`share`/`retain`) | absent | 8.18.2 |
 | `residualRisk` | ThreatScenario | string | absent | 8.18.2 |

@@ -5,6 +5,7 @@ static REQ_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static TC_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static CONF_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static ADR_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static CM_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 // Tier 2 safety/security stable-ID patterns
 static HE_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 // Tier 4 TARA sheet stable-ID pattern
@@ -42,6 +43,10 @@ fn adr_re() -> &'static regex::Regex {
     ADR_RE.get_or_init(|| regex::Regex::new(r"^ADR(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
 }
 
+fn cm_re() -> &'static regex::Regex {
+    CM_RE.get_or_init(|| regex::Regex::new(r"^CM(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+
 fn he_re() -> &'static regex::Regex {
     HE_RE.get_or_init(|| regex::Regex::new(r"^HE(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
 }
@@ -76,6 +81,7 @@ pub fn is_stable_id(s: &str) -> bool {
         || tc_re().is_match(s)
         || conf_re().is_match(s)
         || adr_re().is_match(s)
+        || cm_re().is_match(s)
         || he_re().is_match(s)
         || sg_re().is_match(s)
         || ds_re().is_match(s)
@@ -163,6 +169,11 @@ pub fn is_ats_id(s: &str) -> bool { ats_re().is_match(s) }
 /// Returns true for ADR-* IDs.
 pub fn is_adr_id(s: &str) -> bool {
     adr_re().is_match(s)
+}
+
+/// Returns true for CM-* IDs (ConfirmationMeasure).
+pub fn is_cm_id(s: &str) -> bool {
+    cm_re().is_match(s)
 }
 
 /// Returns true for REQ-* IDs.
@@ -324,5 +335,9 @@ impl Resolver {
 
     pub fn is_tara_sheet(elem: &RawElement) -> bool {
         matches!(elem.frontmatter.element_type, Some(ElementType::TARASheet))
+    }
+
+    pub fn is_confirmation_measure(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::ConfirmationMeasure))
     }
 }

@@ -124,6 +124,8 @@ pub enum ElementType {
     // Native elements (not SysML usages — own schema)
     TestCase,
     ADR,              // Architecture Decision Record (§8.17)
+    // Confirmation measure (ISO 26262-2 §6 / ISO/SAE 21434 §7) — CM-*
+    ConfirmationMeasure,
     // Safety analysis (ISO 26262 HARA)
     HazardousEvent,
     SafetyGoal,
@@ -380,6 +382,23 @@ pub struct RawFrontmatter {
     // §3.14 — domain classification
     pub domain: Option<String>,
     pub is_deployment_package: Option<bool>,
+
+    /// REQ-TRS-SAFE-007 (ISO 26262-8 §5 DIA / ISO/SAE 21434 §7 CIA) — the
+    /// accountable party/organisation for a work product (the DIA/CIA split,
+    /// e.g. "OEM" / "Supplier-X"). Drives the opt-in W038 check. (YAML: responsibility)
+    pub responsibility: Option<String>,
+
+    /// REQ-TRS-SAFE-007 (ISO 26262-2 §6) — ConfirmationMeasure kind:
+    /// confirmation_review | functional_safety_audit | functional_safety_assessment |
+    /// cybersecurity_assessment. Invalid → E849. (YAML: measureType)
+    pub measure_type: Option<String>,
+    /// REQ-TRS-SAFE-007 — ConfirmationMeasure independence level: I1 | I2 | I3.
+    /// Invalid → E850. (YAML: independenceLevel)
+    pub independence_level: Option<String>,
+    /// REQ-TRS-SAFE-007 — the work product(s) a ConfirmationMeasure confirms.
+    /// String or list; each resolves via the Resolver (else E851). (YAML: confirms)
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub confirms: Option<Vec<String>>,
 
     // §T4-TARA — TARASheet section tables (ISO/SAE 21434)
     // Each is a list of row-mappings exploded by the walker into Tier-2 elements.

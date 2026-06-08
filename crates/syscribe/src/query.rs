@@ -133,6 +133,7 @@ pub fn type_label(et: &ElementType) -> &'static str {
         ElementType::CybersecurityGoal => "CybersecurityGoal",
         ElementType::SecurityControl => "SecurityControl",
         ElementType::VulnerabilityReport => "VulnerabilityReport",
+        ElementType::ConfirmationMeasure => "ConfirmationMeasure",
         _ => "Other",
     }
 }
@@ -2920,6 +2921,26 @@ type: PartDef
 allocatedFrom: SC-PREFIX-001   # this component implements this security control
 ```
 "#,
+        "confirmationmeasure" => r#"---
+type: ConfirmationMeasure
+id: CM-PREFIX-001
+title: "Independent functional-safety assessment of [work product]"
+status: planned          # planned | in_progress | completed
+measureType: functional_safety_assessment
+# measureType options:
+#   confirmation_review | functional_safety_audit |
+#   functional_safety_assessment | cybersecurity_assessment
+independenceLevel: I3    # I1 | I2 | I3
+confirms:
+  - SG-PREFIX-001        # the confirmed work product(s) (any model element ref)
+---
+
+Record the confirmation measure: who performs it, with what independence (I1–I3),
+and which work products it confirms (ISO 26262-2 §6 / ISO/SAE 21434 §7).
+
+An ASIL D SafetyGoal/Requirement requires an I3 `functional_safety_assessment`;
+a CAL4 CybersecurityGoal requires an I3 `cybersecurity_assessment` (else W039).
+"#,
         "vulnerabilityreport" => r#"---
 type: VulnerabilityReport
 id: VR-PREFIX-001
@@ -2973,6 +2994,7 @@ How the vulnerability is being addressed.
             eprintln!("  FTA:              FaultTree, FaultTreeGate, FaultTreeEvent");
             eprintln!("  FMEA:             FMEASheet");
             eprintln!("  APA:              AttackTree, AttackTreeGate, AttackStep");
+            eprintln!("  Confirmation:     ConfirmationMeasure");
             std::process::exit(1);
         }
     };

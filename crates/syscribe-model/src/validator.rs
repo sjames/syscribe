@@ -6,7 +6,7 @@ use crate::config::ValidateConfig;
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
 use crate::resolver::{
-    is_adr_id, is_at_id, is_atg_id, is_ats_id, is_conf_id, is_csg_id, is_ds_id, is_fm_id,
+    is_adr_id, is_at_id, is_atg_id, is_ats_id, is_cm_id, is_conf_id, is_csg_id, is_ds_id, is_fm_id,
     is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id, is_req_id, is_sc_id, is_sg_id,
     is_tara_id, is_tc_id, is_ts_id, is_vr_id, Resolver,
 };
@@ -496,6 +496,40 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if let Some(ref cl) = fm.cal_level {
                 if !["CAL1","CAL2","CAL3","CAL4"].contains(&cl.as_str()) {
                     findings.push(error("E818", &file, &format!("CybersecurityGoal.calLevel '{}' must be CAL1, CAL2, CAL3, or CAL4", cl)));
+                }
+            }
+        }
+
+        // ── ConfirmationMeasure (E847-E851) ──────────────────────────────────
+        // REQ-TRS-SAFE-007 (ISO 26262-2 §6 confirmation measures / -8 §5 DIA).
+        if matches!(fm.element_type, Some(ElementType::ConfirmationMeasure)) {
+            if fm.id.is_none() { findings.push(error("E847", &file, "`id` is required on ConfirmationMeasure")); }
+            if fm.title.is_none() { findings.push(error("E847", &file, "`title` is required on ConfirmationMeasure")); }
+            if fm.status.is_none() { findings.push(error("E847", &file, "`status` is required on ConfirmationMeasure")); }
+            // E848: id pattern (CM-*)
+            if let Some(ref id) = fm.id {
+                if !is_cm_id(id) {
+                    findings.push(error("E848", &file, &format!("`id` '{}' does not match CM-* pattern", id)));
+                }
+            }
+            // E849: measureType enum
+            if let Some(ref mt) = fm.measure_type {
+                if !["confirmation_review","functional_safety_audit","functional_safety_assessment","cybersecurity_assessment"].contains(&mt.as_str()) {
+                    findings.push(error("E849", &file, &format!("ConfirmationMeasure.measureType '{}' must be confirmation_review, functional_safety_audit, functional_safety_assessment, or cybersecurity_assessment", mt)));
+                }
+            }
+            // E850: independenceLevel enum
+            if let Some(ref il) = fm.independence_level {
+                if !["I1","I2","I3"].contains(&il.as_str()) {
+                    findings.push(error("E850", &file, &format!("ConfirmationMeasure.independenceLevel '{}' must be I1, I2, or I3", il)));
+                }
+            }
+            // E851: confirms refs must resolve
+            if let Some(ref refs) = fm.confirms {
+                for r in refs {
+                    if resolver.resolve_ref(elements, r).is_none() {
+                        findings.push(error("E851", &file, &format!("ConfirmationMeasure.confirms '{}' does not resolve to any model element", r)));
+                    }
                 }
             }
         }
@@ -2621,6 +2655,104 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W805", &elem.file_path,
                     &format!("SafetyGoal '{}' has no Requirement with `derivedFromSafetyGoal` pointing to it", id)));
+            }
+        }
+    }
+
+    // ── DIA/CIA responsibility + confirmation measures (REQ-TRS-SAFE-007) ─────
+    // W038: a non-draft work product with no `responsibility:`. Opt-in: dormant
+    // unless at least one element in the model declares `responsibility:`.
+    {
+        let responsibility_adopted = elements.iter().any(|e| {
+            e.frontmatter.responsibility.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false)
+        });
+        if responsibility_adopted {
+            for elem in elements {
+                let fm = &elem.frontmatter;
+                let is_work_product = matches!(
+                    fm.element_type,
+                    Some(ElementType::Requirement)
+                        | Some(ElementType::PartDef)
+                        | Some(ElementType::Part)
+                        | Some(ElementType::SafetyGoal)
+                        | Some(ElementType::CybersecurityGoal)
+                );
+                if !is_work_product {
+                    continue;
+                }
+                if fm.status.as_deref() == Some("draft") {
+                    continue;
+                }
+                let has_resp = fm.responsibility.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false);
+                if !has_resp {
+                    let id = fm.id.as_deref().unwrap_or(&elem.qualified_name);
+                    findings.push(warning("W038", &elem.file_path, &format!(
+                        "work product '{}' declares no `responsibility:` — assign the accountable party/organisation (ISO 26262-8 §5 DIA / ISO/SAE 21434 §7 CIA)", id)));
+                }
+            }
+        }
+    }
+
+    // W039: a high-integrity item lacking its required independent assessment.
+    // Opt-in: dormant unless at least one ConfirmationMeasure exists in the model.
+    {
+        let has_confirmation_measure = elements.iter().any(Resolver::is_confirmation_measure);
+        if has_confirmation_measure {
+            // Index the (subject qname, subject id) confirmed by an I3 measure of
+            // each required measureType.
+            let mut fs_assessed: HashSet<String> = HashSet::new();   // functional_safety_assessment @ I3
+            let mut cs_assessed: HashSet<String> = HashSet::new();   // cybersecurity_assessment @ I3
+            for cm in elements {
+                if !Resolver::is_confirmation_measure(cm) {
+                    continue;
+                }
+                let fm = &cm.frontmatter;
+                if fm.independence_level.as_deref() != Some("I3") {
+                    continue;
+                }
+                let target_set = match fm.measure_type.as_deref() {
+                    Some("functional_safety_assessment") => &mut fs_assessed,
+                    Some("cybersecurity_assessment") => &mut cs_assessed,
+                    _ => continue,
+                };
+                if let Some(refs) = &fm.confirms {
+                    for r in refs {
+                        if let Some(target) = resolver.resolve_ref(elements, r) {
+                            target_set.insert(target.qualified_name.clone());
+                            if let Some(id) = &target.frontmatter.id {
+                                target_set.insert(id.clone());
+                            }
+                        }
+                    }
+                }
+            }
+
+            let is_assessed = |elem: &RawElement, set: &HashSet<String>| -> bool {
+                set.contains(&elem.qualified_name)
+                    || elem.frontmatter.id.as_deref().map(|id| set.contains(id)).unwrap_or(false)
+            };
+
+            for elem in elements {
+                let fm = &elem.frontmatter;
+                // ASIL D SafetyGoal or native Requirement → I3 functional_safety_assessment.
+                let is_safety_item = Resolver::is_safety_goal(elem)
+                    || Resolver::is_native_requirement(elem);
+                if is_safety_item && fm.asil_level.as_deref() == Some("D")
+                    && !is_assessed(elem, &fs_assessed)
+                {
+                    let id = fm.id.as_deref().unwrap_or(&elem.qualified_name);
+                    findings.push(warning("W039", &elem.file_path, &format!(
+                        "ASIL D item '{}' has no independent (I3) functional_safety_assessment ConfirmationMeasure confirming it (ISO 26262-2 §6)", id)));
+                }
+                // CAL4 CybersecurityGoal → I3 cybersecurity_assessment.
+                if Resolver::is_cybersecurity_goal(elem)
+                    && fm.cal_level.as_deref() == Some("CAL4")
+                    && !is_assessed(elem, &cs_assessed)
+                {
+                    let id = fm.id.as_deref().unwrap_or(&elem.qualified_name);
+                    findings.push(warning("W039", &elem.file_path, &format!(
+                        "CAL4 item '{}' has no independent (I3) cybersecurity_assessment ConfirmationMeasure confirming it (ISO/SAE 21434 §7)", id)));
+                }
             }
         }
     }

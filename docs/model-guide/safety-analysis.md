@@ -460,6 +460,60 @@ W034 is a warning (gate with `--deny W034`, promote via `[profiles]`).
 
 ---
 
+## Confirmation measures & DIA/CIA responsibility (ISO 26262-2 §6 / -8 §5 / ISO/SAE 21434 §7)
+
+Assessors check two things early in a distributed-development audit: **who** is accountable for
+each work product (the DIA/CIA split), and the **confirmation measures** — confirmation reviews,
+functional-safety audit and assessment, cybersecurity assessment — with their required
+**independence level (I1–I3)**. Both are represented in the model and both checks are **opt-in**.
+
+### `responsibility:` — the DIA/CIA split (W038)
+
+Add `responsibility:` (a free-text party/organisation, e.g. `OEM` or `Supplier-X`) to any
+element. A non-draft **work product** (`Requirement`, `PartDef`, `Part`, `SafetyGoal`,
+`CybersecurityGoal`) with no `responsibility:` raises **W038** — but only once the model has
+adopted the practice (at least one element declares `responsibility:`). A model that has not
+adopted DIA/CIA tracking emits zero W038.
+
+```yaml
+type: PartDef
+name: BrakeController
+status: approved
+responsibility: OEM
+```
+
+### `ConfirmationMeasure` (`CM-*`) and required independence (W039)
+
+```yaml
+type: ConfirmationMeasure
+id: CM-BRK-001
+title: "Independent functional-safety assessment of the braking goal"
+status: completed                 # planned | in_progress | completed
+measureType: functional_safety_assessment
+#   confirmation_review | functional_safety_audit |
+#   functional_safety_assessment | cybersecurity_assessment   (else E849)
+independenceLevel: I3             # I1 | I2 | I3                (else E850)
+confirms:                         # work product ref(s), resolved via the Resolver (else E851)
+  - SG-BRK-001
+```
+
+Structural errors: E847 (missing `id`/`title`/`status`), E848 (`id` not `CM-*`), E849/E850
+(invalid enum), E851 (unresolved `confirms:`).
+
+**W039** flags a high-integrity item that lacks its required independent assessment: an
+`asilLevel: D` `SafetyGoal`/native `Requirement` with no I3 `functional_safety_assessment`
+confirming it, or a `calLevel: CAL4` `CybersecurityGoal` with no I3 `cybersecurity_assessment`.
+The mapping is minimal — only ASIL D → I3 FS assessment and CAL4 → I3 cybersecurity assessment
+are gated; lower levels are future tightening. **Opt-in:** W039 is dormant unless at least one
+`ConfirmationMeasure` exists, so bundled models stay silent. Both W038 and W039 are warnings,
+gateable (`--deny W038` / `--deny W039`) and profile-promotable.
+
+```bash
+syscribe -m model/ template ConfirmationMeasure   # ready-to-fill skeleton
+```
+
+---
+
 ## Failure Mode and Effects Analysis (FMEA)
 
 FMEA uses the same **exploded container** pattern as TARA. One `FMEASheet` file; the parser synthesises a first-class `FMEAEntry` for each row.

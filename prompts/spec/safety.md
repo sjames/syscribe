@@ -256,6 +256,40 @@ ffiRationale: "MPU spatial partitioning + OS timing protection isolate the ASIL 
 
 ---
 
+## Confirmation measures & DIA/CIA responsibility (ISO 26262-2 §6 / -8 §5 / ISO/SAE 21434 §7)
+
+**`responsibility:`** (common field, any element) — the accountable party/organisation
+for a work product (the DIA/CIA split, e.g. `"OEM"` / `"Supplier-X"`).
+
+**W038** — a **non-draft** work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`,
+`CybersecurityGoal`) with no `responsibility:`. **Opt-in:** dormant unless some element
+declares `responsibility:`. Gateable (`--deny W038`).
+
+### ConfirmationMeasure — `CM-*`
+
+```yaml
+type: ConfirmationMeasure
+id: CM-BRK-001
+title: "Independent functional-safety assessment of the braking goal"
+status: completed                 # planned | in_progress | completed
+measureType: functional_safety_assessment
+# confirmation_review | functional_safety_audit | functional_safety_assessment | cybersecurity_assessment  (else E849)
+independenceLevel: I3             # I1 | I2 | I3  (else E850)
+confirms:                         # work product ref(s); each must resolve (else E851)
+  - SG-BRK-001
+```
+
+Errors: E847 (missing `id`/`title`/`status`), E848 (`id` not `CM-*`), E849/E850 (bad enum),
+E851 (unresolved `confirms`).
+
+**W039** — a high-integrity item lacking its required independent assessment: an `asilLevel: D`
+`SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`; a
+`calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. (Lower
+levels are future tightening, not gated.) **Opt-in:** dormant unless at least one
+`ConfirmationMeasure` exists. Gateable (`--deny W039`).
+
+---
+
 ## Tier 4 — FMEA
 
 ### FMEASheet — `FMEA-*`

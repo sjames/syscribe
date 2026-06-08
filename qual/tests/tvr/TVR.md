@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 130 |
-| Passed | 130 |
+| Total test cases | 131 |
+| Passed | 131 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1073,6 +1073,22 @@
 | excused (ffiRationale): no W034 | ✓ PASS |
 | excused (accepted breakdownAdr): no W034 | ✓ PASS |
 | --deny W034 exits non-zero | ✓ PASS |
+
+---
+
+### TC-TRS-SAFE-007 — Verify W038 work-product responsibility, the ConfirmationMeasure type with W039 independent-assessment coverage, the E84x structural errors, and the opt-in rules
+
+**Verifies:** REQ-TRS-SAFE-007  
+**Result:** ✓ PASS (17 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| dia: non-draft work product with no responsibility | ✓ PASS |
+| dia_clean: every work product has responsibility, no W038 | ✓ PASS |
+| confirm: ASIL D goal without I3 functional_safety_assessment | ✓ PASS |
+| confirmed: I3 functional_safety_assessment present, no W039 | ✓ PASS |
+| badenum: invalid measureType/independenceLevel | ✓ PASS |
+| --deny W039 exits non-zero | ✓ PASS |
 
 ---
 
