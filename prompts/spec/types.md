@@ -136,6 +136,23 @@ ports:           # nested sub-ports
     direction: in
 ```
 
+### Ports & Interfaces — decision guide
+
+Mental model (SysML v2): a **`PortDef`** is a reusable *kind* of connection point carrying directed features; a **`Port`** is a usage of one on a part (in `features:`, `type: Port`, `typedBy:` the PortDef). An **`InterfaceDef` is a kind of `ConnectionDef`** — *a connection whose ends are ports* — used to package a reusable, compatible pairing; a **`ConnectionDef`** connects arbitrary features/parts.
+
+Which construct → when:
+
+| You want to… | Use |
+|---|---|
+| expose an interaction point on a part | a `Port` (in `features:`) typed by a `PortDef` |
+| define a reusable compatible pairing of two ports | `InterfaceDef` (ends typed by PortDefs) |
+| connect arbitrary features/parts (not necessarily ports) | `ConnectionDef` |
+| wire two specific ports inside a part | a connection usage: `connections:` with `from`/`to` feature chains (optionally `typedBy:` the InterfaceDef) |
+| move items between connected ports | `FlowDef` / `flowConnections:` |
+| equate two features | `bindingConnections:` |
+
+**Conjugation:** the receiving end is the **conjugate** of the sending end — every directed feature flips (`in`↔`out`; `inout` is self-conjugate). Express it with `conjugates:` on a dedicated receiver `PortDef`, or `isConjugated: true` on a `Port` usage / interface end. Connected directed features must be conjugate-compatible. (See `syscribe spec safety`-style depth in format spec §8.3.)
+
 ### Allocation
 
 ```yaml

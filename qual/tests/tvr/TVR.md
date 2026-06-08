@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 117 |
-| Passed | 117 |
+| Total test cases | 118 |
+| Passed | 118 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1003,6 +1003,17 @@
 | Scenario | Result |
 |---|---|
 | spec safety documents cveId, safeState and ftti | ✓ PASS |
+
+---
+
+### TC-TRS-SPEC-002 — Verify the discoverable spec includes a ports & interfaces decision guide.
+
+**Verifies:** REQ-TRS-SPEC-002  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| spec types distinguishes the constructs | ✓ PASS |
 
 ---
 

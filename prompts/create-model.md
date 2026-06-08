@@ -549,7 +549,13 @@ Remaining acceptable warnings after closure: W404 (`ScalarValues::*` stdlib), W0
 
 ---
 
-## Part 8 — PortDef with Operations (`type: PortDef`)
+## Part 8 — Ports & Interfaces
+
+**Decision guide (model this right).** A `PortDef` is a reusable *kind* of connection point with directed features (`in`/`out`/`inout`); a `Port` is a usage of one on a part (in `features:`, `type: Port`, `typedBy:` the PortDef). An **`InterfaceDef` is a kind of `ConnectionDef` whose ends are ports** — use it for a reusable compatible pairing; a `ConnectionDef` connects arbitrary features/parts. Pick: expose a point → `Port`; reusable port pairing → `InterfaceDef`; arbitrary connection → `ConnectionDef`; wire two ports → a connection usage (`connections:` `from`/`to` feature chains, `typedBy:` the interface); move items → `flowConnections:`; equate features → `bindingConnections:`.
+
+**Conjugation:** the receiver is the **conjugate** of the sender — directions flip (`in`↔`out`; `inout` self-conjugate). Use a conjugate `PortDef` (`conjugates:`) for reuse, or `isConjugated: true` on the usage. Full guide: `syscribe spec types` and format spec §8.3.
+
+### PortDef with Operations (`type: PortDef`)
 
 Operations on a PortDef:
 - `isAsync: true` and `returnType:` are mutually exclusive.

@@ -1009,6 +1009,27 @@ The specific vehicle with VIN 1234567890ABCDEF manufactured in 2026.
 
 ### 8.3 Port and Interface Elements
 
+#### 8.3.0 Concepts and decision guide
+
+Ports and interfaces are the most error-prone area to model. Orient first, then use the schemas below.
+
+**Mental model (SysML v2).** A **`PortDef`** is a reusable *kind* of connection point that carries **directed features** (`in`/`out`/`inout`). A **`Port`** is a *usage* of a `PortDef` on a part — it lives in the part's `features:` list with `type: Port` and `typedBy:` the PortDef. A connection wires two ports together. An **`InterfaceDef` is a kind of `ConnectionDef`** — in SysML v2, *"an interface is simply a connection all of whose ends are ports"* (§7.14) — so use it to package a reusable, compatible pairing of two ports; a plain **`ConnectionDef`** connects arbitrary features/parts, not necessarily ports.
+
+**Which construct → when:**
+
+| You want to… | Use |
+|---|---|
+| expose an interaction point on a part | a `Port` (in `features:`) typed by a `PortDef` |
+| define a reusable compatible pairing of two ports | `InterfaceDef` (ends typed by PortDefs) |
+| connect arbitrary features/parts | `ConnectionDef` |
+| wire two specific ports inside a part | a connection usage — `connections:` with `from`/`to` feature chains, optionally `typedBy:` the InterfaceDef |
+| move items between connected ports | `FlowDef` / `flowConnections:` |
+| equate two features | `bindingConnections:` |
+
+**Conjugation.** The receiving end of a connection is the **conjugate** of the sending end: every directed feature flips direction (`in`↔`out`; `inout` is self-conjugate — SysML v2 §7.12.3, *"each port definition has a conjugated port definition whose directed features are conjugate to those of the original"*). Express it either with a dedicated conjugate `PortDef` (`conjugates: <the source PortDef>`) for reuse, or with `isConjugated: true` on the `Port` usage / interface end for a one-off. Connected directed features must be conjugate-compatible — that is how a supplier's `out` lines up with a consumer's `in`.
+
+**End-to-end shape.** A supplier `PartDef` exposes a `Port` typed by a source `PortDef`; a consumer `PartDef` exposes a `Port` typed by the **conjugate** PortDef; an `InterfaceDef` ties the two PortDefs as its ends; a parent `PartDef` holds both as sub-parts and wires them in `connections:` (`from: supplier.outPort`, `to: consumer.inPort`, `typedBy:` the InterfaceDef). A `FlowDef`/`flowConnections:` may carry the items that move across.
+
 #### 8.3.1 `PortDef` — Port Definition
 
 Defines an interaction point. Ports can be conjugated.
