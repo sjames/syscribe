@@ -84,7 +84,8 @@
 `HazardousEvent` (HE-*) · `SafetyGoal` (SG-*) · `DamageScenario` (DS-*) ·
 `ThreatScenario` (TS-*) · `CybersecurityGoal` (CSG-*) · `SecurityControl` (SC-*) ·
 `VulnerabilityReport` (VR-*) · `TARASheet` (TARA-*) · `FaultTree` (FT-*) ·
-`FaultTreeGate` (FTG-*) · `FaultTreeEvent` (FTE-*) · `FMEASheet` (FMEA-*)
+`FaultTreeGate` (FTG-*) · `FaultTreeEvent` (FTE-*) · `FMEASheet` (FMEA-*) ·
+`FMEAEntry` (row of an FMEASheet)
 
 ## Key per-type schemas
 

@@ -3757,7 +3757,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 |---|---|---|
 | `DamageScenario` | `DS-*` | An adverse consequence to a stakeholder; carries `damageSeverity:` and `impactCategories:`. |
 | `ThreatScenario` | `TS-*` | A potential attack scenario; carries `attackFeasibility:` and `attackVector:`. References `damageScenarios:`. |
-| `CybersecurityGoal` | `CSG-*` | A high-level security requirement; carries `securityProperty:` (`confidentiality`, `integrity`, `availability`, `authenticity`) and `calLevel:` (`CAL1`–`CAL4`). |
+| `CybersecurityGoal` | `CSG-*` | A high-level security requirement; carries `securityProperty:` (`confidentiality`, `integrity`, `availability`, `authenticity`), `calLevel:` (`CAL1`–`CAL4`), and `threatScenarios:` (the `TS-*` threats it counters). |
 | `SecurityControl` | `SC-*` | A concrete countermeasure; carries `controlType:` and `implementsGoals:`. |
 | `VulnerabilityReport` | `VR-*` | A tracked vulnerability; carries `cvssScore:`, `mitigatedBy:`, and `affectedElements:`. |
 | `TARASheet` | `TARA-*` | An Option-B container: a single file whose `damageTable:`, `threatTable:`, `goalTable:`, and `controlTable:` sections are exploded at parse time into the individual Tier 2 element types above. |
@@ -3787,7 +3787,7 @@ Safety/FTA/FT-BRAKE-001/
 
 | Element type | ID pattern | Description |
 |---|---|---|
-| `FMEASheet` | `FMEA-*` | Container with an `entries:` list; each entry is a failure mode row with `fmeaSeverity:`, `occurrence:`, `detection:` (1–10 each) and optional `rpn:` (auto-computed when absent). |
+| `FMEASheet` | `FMEA-*` | Container with an `entries:` list; each entry is a failure mode row with `failureMode:`, `effect:`, `cause:`, `fmeaSeverity:`, `occurrence:`, `detection:` (1–10 each), optional `rpn:` (auto-computed when absent), and a `recommendedAction:` mitigation. |
 
 Each row is synthesised at parse time into a virtual `FMEAEntry` element (`FM-*` ID) for cross-reference and validation purposes.
 

@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 116 |
-| Passed | 116 |
+| Total test cases | 117 |
+| Passed | 117 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -992,6 +992,17 @@
 | trigger W803 | ✓ PASS |
 | trigger W804 | ✓ PASS |
 | trigger W807 | ✓ PASS |
+
+---
+
+### TC-TRS-SPEC-001 — Verify the discoverable syscribe spec documents the safety/security types and analysis fields.
+
+**Verifies:** REQ-TRS-SPEC-001  
+**Result:** ✓ PASS (61 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| spec safety documents cveId, safeState and ftti | ✓ PASS |
 
 ---
 

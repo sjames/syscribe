@@ -44,6 +44,8 @@ id: SG-BRAKE-001            # required; SG-*
 title: "Prevent unintended brake release"
 status: approved
 asilLevel: D                # A | B | C | D  — OR silLevel: 1–4 OR plLevel: a–e
+safeState: "Hold last commanded brake pressure"   # description of the safe state
+ftti: "20ms"                # fault-tolerant time interval (max time in a fault before the safe state)
 hazardousEvents:            # required (W806 if absent)
   - HE-BRAKE-001
 ```
@@ -116,6 +118,7 @@ id: VR-001
 title: "CVE-2024-XXXX — OBD port CAN injection"
 status: open                # open triggers W803
 cvssScore: 7.5              # 0.0–10.0
+cveId: CVE-2024-12345       # optional CVE identifier
 mitigatedBy: [SC-001]
 affectedElements:
   - UAV::Avionics::FlightController

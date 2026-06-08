@@ -209,3 +209,61 @@ All frontmatter fields. Optional unless marked **required**.
 | `contributesTo` | Component FeatureDef | string | QName of system FeatureDef |
 | `parameterBindings` | Configuration | map | Feature param bindings |
 | `features` (PLE) | Configuration | map | `{FeatureName: true/false}` |
+
+## Safety analysis fields (ISO 26262 / IEC 61508 / ISO 13849)
+
+Full narrative + rules: `syscribe spec safety`. Integrity levels (`asilLevel` A–D, `silLevel` 1–4, `plLevel` a–e) also apply to `SafetyGoal` and propagate down the trace (`E841`–`E843`, `W808`).
+
+| Field | Applies to | Type | Notes |
+|---|---|---|---|
+| `severity` | HazardousEvent | string | ISO 26262 `S0`–`S3` |
+| `exposure` | HazardousEvent | string | ISO 26262 `E0`–`E4` |
+| `controllability` | HazardousEvent | string | ISO 26262 `C0`–`C3` |
+| `operationalSituation` | HazardousEvent | string | Operating scenario (free text) |
+| `consequence` | HazardousEvent | string | IEC 61508 risk graph `Ca`–`Cd` (alt. to S/E/C) |
+| `freqExposure` | HazardousEvent | string | IEC 61508 risk graph `Fa`/`Fb` |
+| `avoidance` | HazardousEvent | string | IEC 61508 risk graph `Pa`/`Pb` |
+| `demandRate` | HazardousEvent | string | IEC 61508 risk graph `W1`–`W3` |
+| `safeState` | SafetyGoal | string | Description of the safe state |
+| `ftti` | SafetyGoal | string | Fault-tolerant time interval, e.g. `"20ms"` |
+| `hazardousEvents` | SafetyGoal | list | `HazardousEvent` id/QName refs |
+| `topEvent` | FaultTree | string | `SafetyGoal` ref (the top event) |
+| `missionTime` | FaultTree | string | e.g. `"1e9 h"` |
+| `gateType` | FaultTreeGate | string | `AND`·`OR`·`XOR`·`NOT`·`inhibit` |
+| `inputs` | FaultTreeGate | list | Input gate/event refs |
+| `eventKind` | FaultTreeEvent | string | `basic`·`undeveloped`·`house` |
+| `failureRate` | FaultTreeEvent | float | Failure rate /h |
+| `probability` | FaultTree/Gate/Event | float | Cut-set or top-event probability |
+| `entries` | FMEASheet | list | Inline `FMEAEntry` rows |
+| `failureMode` | FMEAEntry | string | What fails |
+| `effect` | FMEAEntry | string | Consequence |
+| `cause` | FMEAEntry | string | Root cause |
+| `fmeaSeverity` | FMEAEntry | int | 1–10 |
+| `occurrence` | FMEAEntry | int | 1–10 |
+| `detection` | FMEAEntry | int | 1–10 |
+| `rpn` | FMEAEntry | int | Risk priority number (S×O×D) |
+| `recommendedAction` | FMEAEntry | string | Mitigation |
+
+## Security analysis fields (ISO/SAE 21434)
+
+Full narrative + rules: `syscribe spec safety`.
+
+| Field | Applies to | Type | Notes |
+|---|---|---|---|
+| `damageTable` / `threatTable` / `goalTable` / `controlTable` | TARASheet | list | Row tables exploded into `DamageScenario`/`ThreatScenario`/`CybersecurityGoal`/`SecurityControl` |
+| `damageSeverity` | DamageScenario | string | `severe`·`major`·`moderate`·`negligible` |
+| `impactCategories` | DamageScenario | list | `safety`·`financial`·`operational`·`privacy` |
+| `attackFeasibility` | ThreatScenario | string | `high`·`medium`·`low`·`very_low` |
+| `attackVector` | ThreatScenario | string | `network`·`adjacent`·`local`·`physical` |
+| `damageScenarios` | ThreatScenario | list | `DamageScenario` id/QName refs |
+| `calLevel` | CybersecurityGoal | string | `CAL1`–`CAL4` |
+| `securityProperty` | CybersecurityGoal | string | `confidentiality`·`integrity`·`availability`·`authenticity` |
+| `threatScenarios` | CybersecurityGoal | list | `ThreatScenario` id/QName refs |
+| `controlType` | SecurityControl | string | `prevention`·`detection`·`response`·`recovery` |
+| `implementsGoals` | SecurityControl | list | `CybersecurityGoal` id/QName refs |
+| `cvssScore` | VulnerabilityReport | float | 0.0–10.0 (`E824` if out of range) |
+| `cveId` | VulnerabilityReport | string | `CVE-YYYY-NNNNN` |
+| `affectedElements` | VulnerabilityReport | list | QNames of affected model elements |
+| `mitigatedBy` | VulnerabilityReport | list | `SecurityControl` id/QName refs |
+| `derivedFromSecurityGoal` | Requirement | string | `CSG-*` that generated this requirement |
+| `derivedFromSafetyGoal` | Requirement | string | `SG-*` that generated this requirement |
