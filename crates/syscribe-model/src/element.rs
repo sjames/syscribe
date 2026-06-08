@@ -137,6 +137,10 @@ pub enum ElementType {
     FaultTree,
     FaultTreeGate,
     FaultTreeEvent,
+    // Attack path analysis (ISO/SAE 21434 §15.7)
+    AttackTree,
+    AttackTreeGate,
+    AttackStep,
     // FMEA (IEC 60812 / SAE J1739)
     FMEASheet,
     FMEAEntry,
@@ -392,6 +396,9 @@ pub struct RawFrontmatter {
     pub event_kind: Option<String>,             // FaultTreeEvent: basic|undeveloped|house (YAML: eventKind)
     pub failure_rate: Option<f64>,              // FaultTreeEvent failure rate /h (YAML: failureRate)
     pub probability: Option<f64>,               // cut-set or top-event probability (YAML: probability)
+
+    // §T4 — AttackTree (ISO/SAE 21434 §15.7 attack path analysis)
+    pub threat_ref: Option<String>,             // AttackTree → ThreatScenario ref (YAML: threatRef)
     // §T4 — FMEDA diagnostic coverage (ISO 26262-5 §8-9), documented for FaultTreeEvent.
     pub diagnostic_coverage: Option<f64>,         // DC, 0.0–1.0 (YAML: diagnosticCoverage)
     pub latent_diagnostic_coverage: Option<f64>,  // DCl, 0.0–1.0 (YAML: latentDiagnosticCoverage)

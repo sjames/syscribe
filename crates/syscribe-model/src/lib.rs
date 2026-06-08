@@ -1,5 +1,6 @@
 #![deny(warnings)]
 
+pub mod attack_tree;
 pub mod config;
 pub mod element;
 pub mod feature_model;

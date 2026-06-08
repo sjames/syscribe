@@ -186,6 +186,21 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E941` | `TARASheet.id` does not match `TARA-*` |
 | `W905` | `TARASheet` has no rows in any section table |
 
+## Tier 4 — Attack path analysis (E915–E921, W035–W037)
+
+| Code | Condition |
+|---|---|
+| `E915` | `AttackTree` missing `id`, `title`, `status`, or `threatRef` |
+| `E916` | `AttackTree.id` does not match `AT-*` |
+| `E917` | `threatRef` does not resolve, or resolves to an element that is not a `ThreatScenario` |
+| `E918` | `AttackTreeGate` missing `id`, `title`, or `gateType`, or `id` does not match `ATG-*` |
+| `E919` | `AttackTreeGate.gateType` not in `AND · OR` |
+| `E920` | `inputs` entry does not resolve to an `AttackTreeGate` or `AttackStep` |
+| `E921` | `AttackStep` missing `id`/`title`, `id` not `ATS-*`, or `attackFeasibility` not in `high · medium · low · very_low` |
+| `W035` | `AttackTree` computed (weakest-link) feasibility ≠ linked `ThreatScenario.attackFeasibility` (computed vs declared) |
+| `W036` | `AttackTree` has no gates or steps (tree is empty) |
+| `W037` | `AttackTreeGate` has no `inputs` |
+
 ## Product Line Engineering errors (E200–E221)
 
 | Code | Condition |

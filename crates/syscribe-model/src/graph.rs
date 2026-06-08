@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
-use crate::element::RawElement;
+use crate::element::{ElementType, RawElement};
 use crate::resolver::Resolver;
 
 /// Extract qualified name strings from a field that may be a YAML String or Sequence.
@@ -14,7 +14,7 @@ fn yaml_strings(v: &serde_yaml::Value) -> Vec<&str> {
 }
 
 /// Edge kinds in the model graph.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EdgeKind {
     Contains,              // parent package → child element
     Supertype,             // element → its supertype definition
@@ -48,6 +48,8 @@ pub enum EdgeKind {
     ImplementsGoal,          // SecurityControl → CybersecurityGoal
     MitigatedBy,             // VulnerabilityReport → SecurityControl
     DerivedFromSecurityGoal, // Requirement → CybersecurityGoal
+    ThreatRef,               // AttackTree → ThreatScenario
+    AttackTreeInput,         // AttackTreeGate → input gate/step
 }
 
 impl EdgeKind {
@@ -80,6 +82,8 @@ impl EdgeKind {
             EdgeKind::ImplementsGoal => "implementsGoal",
             EdgeKind::MitigatedBy => "mitigatedBy",
             EdgeKind::DerivedFromSecurityGoal => "derivedFromSecurityGoal",
+            EdgeKind::ThreatRef => "threatRef",
+            EdgeKind::AttackTreeInput => "attackTreeInput",
         }
     }
 }
@@ -344,11 +348,16 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
             }
         }
 
-        // inputs: FaultTreeGate → input gates/events
+        // inputs: FaultTreeGate / AttackTreeGate → input gates/events/steps
         if let Some(ref ins) = fm.inputs {
+            let kind = if matches!(fm.element_type, Some(ElementType::AttackTreeGate)) {
+                EdgeKind::AttackTreeInput
+            } else {
+                EdgeKind::FaultTreeInput
+            };
             for i in ins {
                 if let Some(dst) = resolve_to_idx(i) {
-                    graph.add_edge(src, dst, EdgeKind::FaultTreeInput);
+                    graph.add_edge(src, dst, kind);
                 }
             }
         }
@@ -377,6 +386,13 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
                 if let Some(dst) = resolve_to_idx(d) {
                     graph.add_edge(src, dst, EdgeKind::DamageScenarioRef);
                 }
+            }
+        }
+
+        // threatRef: AttackTree → ThreatScenario
+        if let Some(ref tr) = fm.threat_ref {
+            if let Some(dst) = resolve_to_idx(tr) {
+                graph.add_edge(src, dst, EdgeKind::ThreatRef);
             }
         }
 

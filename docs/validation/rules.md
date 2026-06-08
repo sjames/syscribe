@@ -530,3 +530,40 @@ RPN is computed automatically when all three of `fmeaSeverity`, `occurrence`, an
 | W905 | TARASheet has no rows in any section table |
 
 Once rows are exploded, all existing Tier 2 validation rules (E807–E821, E825–E830, W800–W803) apply to the synthesised elements exactly as they would to hand-authored files.
+
+## Tier 4 — Attack path analysis (E915–E921, W035–W037)
+
+ISO/SAE 21434 §15.7 attack trees, mirroring the Fault Tree Analysis family. An
+`AttackTree` (`AT-*`) substantiates a `ThreatScenario` via `threatRef` and
+decomposes it into `AttackTreeGate`s (`ATG-*`, `gateType` `AND`/`OR`) and
+`AttackStep`s (`ATS-*`, leaf with `attackFeasibility`), with the gates/steps
+nested in a subdirectory named after the tree file. Feasibility is rolled up with
+the **weakest-link** rule (rank `very_low`=0 … `high`=3): an `AttackStep` is its
+`attackFeasibility` rank; an `AND` gate (a sequential path) is the **MIN** of its
+children; an `OR` gate (alternatives) is the **MAX** of its children; the tree's
+feasibility is the value of its single root child, mapped back to a label.
+
+### AttackTree (E915–E917, W035–W036)
+
+| Code | Condition |
+|---|---|
+| E915 | `id`, `title`, `status`, or `threatRef` is absent |
+| E916 | `id` does not match `AT-*` pattern |
+| E917 | `threatRef` does not resolve, or resolves to an element that is not a `ThreatScenario` |
+| W035 | The tree's computed (weakest-link) feasibility does not match the linked `ThreatScenario.attackFeasibility` — message names computed vs declared. Gateable via `--deny W035`; promotable via `[profiles]` |
+| W036 | AttackTree has no gates or steps — the tree is empty |
+
+### AttackTreeGate (E918–E920, W037)
+
+| Code | Condition |
+|---|---|
+| E918 | `id`, `title`, or `gateType` is absent, or `id` does not match `ATG-*` pattern |
+| E919 | `gateType` is not one of `AND` (sequential path) · `OR` (alternatives) |
+| E920 | An entry in `inputs` does not resolve, or resolves to an element that is not an `AttackTreeGate` or `AttackStep` |
+| W037 | AttackTreeGate has no `inputs` — it contributes nothing to the attack tree |
+
+### AttackStep (E921)
+
+| Code | Condition |
+|---|---|
+| E921 | `id` or `title` is absent; `id` does not match `ATS-*` pattern; or `attackFeasibility` is not one of `high · medium · low · very_low` |

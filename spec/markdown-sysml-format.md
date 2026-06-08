@@ -3816,6 +3816,27 @@ Safety/FTA/FT-BRAKE-001/
 
 Each row is synthesised at parse time into a virtual `FMEAEntry` element (`FM-*` ID) for cross-reference and validation purposes.
 
+#### 8.18.5 Tier 4 — Attack path analysis (ISO/SAE 21434 §15.7)
+
+The security mirror of FTA. An `AttackTree` substantiates a `ThreatScenario` and rolls up **attack feasibility** with a weakest-link rule, deriving a threat's feasibility from its attack paths rather than asserting it as a flat rating.
+
+| Element type | ID pattern | Description |
+|---|---|---|
+| `AttackTree` | `AT-*` | Root of an attack tree; references the `ThreatScenario` it substantiates via `threatRef:` (required, must resolve to a `ThreatScenario` — E917). |
+| `AttackTreeGate` | `ATG-*` | Combinator; `gateType:` is `AND` (a sequential path — all sub-steps required) or `OR` (alternative paths); `inputs:` lists child gate/step IDs. |
+| `AttackStep` | `ATS-*` | Leaf step; `attackFeasibility:` is `high`, `medium`, `low`, or `very_low`. |
+
+**Nesting rule (W036):** like FTA, `AttackTreeGate` and `AttackStep` elements must be placed in a subdirectory named after the `AttackTree` file so their qualified names are prefixed by the tree's qualified name:
+
+```
+Security/Attacks/AT-TORQUE-001.md     →  Security::Attacks::AT-TORQUE-001
+Security/Attacks/AT-TORQUE-001/
+  ATG-TORQUE-001.md                   →  Security::Attacks::AT-TORQUE-001::ATG-TORQUE-001
+  ATS-TORQUE-001.md                   →  Security::Attacks::AT-TORQUE-001::ATS-TORQUE-001
+```
+
+**Feasibility roll-up (weakest-link):** rank `very_low`=0, `low`=1, `medium`=2, `high`=3. An `AttackStep` is its `attackFeasibility` rank; an `AND` gate (sequential path) is the **MIN** of its children; an `OR` gate (alternatives) is the **MAX** of its children; the `AttackTree`'s feasibility is the value of its single root child, mapped back to a label. When the computed feasibility differs from the linked `ThreatScenario.attackFeasibility`, the validator emits **W035** (computed vs declared).
+
 ---
 
 ## 9 Variability and Variation Points
@@ -5170,7 +5191,7 @@ ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** wh
 |---|---|---|
 | `W034` | Warning | For an allocation target with ≥2 sources, a mixed-criticality source pair has no freedom-from-interference argument (one finding per `(target, sourceA, sourceB)`, naming both sources and their tags). Gateable with `--deny W034`; promotable via `[profiles]` |
 
-The full set of Tier 2 (E800–E846) and Tier 4 (E900–E941, W900–W905) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
+The full set of Tier 2 (E800–E846) and Tier 4 (E900–E941, W900–W905; attack path analysis E915–E921, W035–W037) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
 
 #### sourceFile location semantics
 

@@ -17,6 +17,7 @@ Syscribe provides first-class support for four standard safety and security anal
 | **TARA** | ISO/SAE 21434 | `TARASheet` → `DamageScenario`, `ThreatScenario`, `CybersecurityGoal`, `SecurityControl` | `TARA-*`, `DS-*`, `TS-*`, `CSG-*`, `SC-*` |
 | **FTA** | IEC 61025 / ISO 26262-9 | `FaultTree`, `FaultTreeGate`, `FaultTreeEvent` | `FT-*`, `FTG-*`, `FTE-*` |
 | **FMEA** | IEC 60812 / SAE J1739 | `FMEASheet` → `FMEAEntry` | `FMEA-*`, `FM-*` |
+| **APA** | ISO/SAE 21434 §15.7 | `AttackTree`, `AttackTreeGate`, `AttackStep` | `AT-*`, `ATG-*`, `ATS-*` |
 
 ---
 
@@ -337,6 +338,94 @@ mkdir -p Safety/FTA/FT-BRAKE-001
 syscribe model/ template FaultTreeGate  > Safety/FTA/FT-BRAKE-001/FTG-BRAKE-001.md
 syscribe model/ template FaultTreeEvent > Safety/FTA/FT-BRAKE-001/FTE-BRAKE-001.md
 ```
+
+---
+
+## Attack path analysis (ISO/SAE 21434 §15.7) — APA
+
+Attack trees are the security mirror of FTA. An `AttackTree` substantiates a
+`ThreatScenario` (instead of a `SafetyGoal`) and rolls up **attack feasibility**
+(instead of a failure probability) using a **weakest-link** rule, so a threat's
+feasibility is *derived* from its attack paths rather than asserted as a flat
+rating.
+
+### Directory layout
+
+Like FTA, gates and steps must be **nested inside a subdirectory named after the
+AttackTree file**. The validator checks for children by qualified-name prefix
+(**W036** if empty).
+
+```
+Security/Attacks/
+  AT-TORQUE-001.md              ← AttackTree
+  AT-TORQUE-001/                ← subdir named after the tree file
+    _index.md
+    ATG-TORQUE-001.md           ← AttackTreeGate (root, OR)
+    ATG-TORQUE-002.md           ← AttackTreeGate (AND)
+    ATS-TORQUE-001.md           ← AttackStep
+    ATS-TORQUE-002.md
+    ATS-TORQUE-003.md
+```
+
+### AttackTree
+
+```yaml
+---
+type: AttackTree
+id: AT-TORQUE-001
+title: "Attack tree for TS-TORQUE-001 — forged torque request"
+status: approved
+threatRef: TS-TORQUE-001        # required; must resolve to a ThreatScenario (E917)
+---
+```
+
+### AttackTreeGate
+
+```yaml
+---
+type: AttackTreeGate
+id: ATG-TORQUE-001
+title: "OR gate — bypass auth OR replay frame"
+gateType: OR                    # AND (sequential path) | OR (alternatives) (E919)
+inputs:                         # each must resolve to an ATG-*/ATS- (E920)
+  - ATG-TORQUE-002
+  - ATS-TORQUE-003
+---
+```
+
+`gateType` must be `AND` or `OR` (E919). A gate with no inputs fires W037.
+
+### AttackStep
+
+```yaml
+---
+type: AttackStep
+id: ATS-TORQUE-001
+title: "Extract the bus authentication key"
+attackFeasibility: high         # high | medium | low | very_low (E921)
+---
+```
+
+### Feasibility roll-up (weakest-link)
+
+Feasibility rank: `very_low`=0, `low`=1, `medium`=2, `high`=3.
+
+- An `AttackStep`'s value is its `attackFeasibility` rank.
+- An `AttackTreeGate` `AND` (a sequential path — every step required) is the
+  **MIN** of its children (a chain is only as feasible as its hardest step).
+- An `AttackTreeGate` `OR` (alternatives) is the **MAX** of its children (the
+  attacker takes the easiest path).
+- The `AttackTree`'s feasibility is the value of its single root child, mapped
+  back to a label.
+
+If the computed feasibility differs from the linked
+`ThreatScenario.attackFeasibility`, the validator emits **W035** naming computed
+vs declared (gate with `--deny W035`, promote via `[profiles]`).
+
+**Worked example.** Root OR over [AND(`high`, `low`), `medium`]: the AND path is
+`min(high, low) = low`; the root OR is `max(low, medium) = medium`. A linked
+threat declaring `high` therefore raises one W035 (computed `medium` ≠ declared
+`high`).
 
 ---
 

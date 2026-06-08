@@ -118,6 +118,9 @@ pub fn type_label(et: &ElementType) -> &'static str {
         ElementType::FaultTree => "FaultTree",
         ElementType::FaultTreeGate => "FaultTreeGate",
         ElementType::FaultTreeEvent => "FaultTreeEvent",
+        ElementType::AttackTree => "AttackTree",
+        ElementType::AttackTreeGate => "AttackTreeGate",
+        ElementType::AttackStep => "AttackStep",
         ElementType::FMEASheet => "FMEASheet",
         ElementType::FMEAEntry => "FMEAEntry",
         // TARA container
@@ -454,8 +457,9 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
     if let Some(ref dk) = fm.diagram_kind { println!("| **diagramKind** | {} |", dk); }
     if let Some(ref sub) = fm.subject { println!("| **subject** | {} |", sub); }
 
-    // ── Tier 4: FTA/FMEA fields ──────────────────────────────────────────
+    // ── Tier 4: FTA/FMEA/APA fields ──────────────────────────────────────
     if let Some(ref te) = fm.top_event { println!("| **topEvent** | {} |", te); }
+    if let Some(ref tr) = fm.threat_ref { println!("| **threatRef** | {} |", tr); }
     if let Some(ref mt) = fm.mission_time { println!("| **missionTime** | {} |", mt); }
     if let Some(ref gt) = fm.gate_type { println!("| **gateType** | {} |", gt); }
     if let Some(ref inputs) = fm.inputs {
@@ -2684,6 +2688,52 @@ eventKind: basic            # basic | undeveloped | house
 # Place this file inside the FaultTree's subdirectory:
 #   Safety/FTA/FT-PREFIX-001/FTE-PREFIX-001.md
 "#,
+        "attacktree" => r#"---
+type: AttackTree
+id: AT-PREFIX-001
+title: "Attack tree for [ThreatScenario]"
+status: draft
+threatRef: TS-PREFIX-001     # ThreatScenario this tree substantiates (E917)
+---
+
+Describe the attack path analysis scope (ISO/SAE 21434 §15.7).
+
+# Directory layout — gates and steps must be nested UNDER the AttackTree:
+#
+#   Security/Attacks/
+#     AT-PREFIX-001.md              ← this file
+#     AT-PREFIX-001/
+#       ATG-PREFIX-001.md           ← root gate
+#       ATG-PREFIX-002.md
+#       ATS-PREFIX-001.md           ← leaf step
+#
+# W036 fires if no AttackTreeGate or AttackStep are found as children.
+# W035 fires if the rolled-up feasibility disagrees with the ThreatScenario.
+"#,
+        "attacktreegate" => r#"---
+type: AttackTreeGate
+id: ATG-PREFIX-001
+title: "OR gate — [description]"
+gateType: OR                # AND (sequential path) | OR (alternatives)
+inputs:
+  - ATG-PREFIX-002          # child gate (id or qname)
+  - ATS-PREFIX-001          # or leaf step (id or qname)
+---
+
+# Place this file inside the AttackTree's subdirectory:
+#   Security/Attacks/AT-PREFIX-001/ATG-PREFIX-001.md
+# Roll-up: AND = min of inputs (weakest link); OR = max of inputs (easiest path).
+"#,
+        "attackstep" => r#"---
+type: AttackStep
+id: ATS-PREFIX-001
+title: "[Attacker action / sub-goal]"
+attackFeasibility: medium   # high | medium | low | very_low
+---
+
+# Place this file inside the AttackTree's subdirectory:
+#   Security/Attacks/AT-PREFIX-001/ATS-PREFIX-001.md
+"#,
         "fmeasheet" => r#"---
 type: FMEASheet
 id: FMEA-PREFIX-001
@@ -2922,6 +2972,7 @@ How the vulnerability is being addressed.
             eprintln!("                    SecurityControl, VulnerabilityReport, TARASheet");
             eprintln!("  FTA:              FaultTree, FaultTreeGate, FaultTreeEvent");
             eprintln!("  FMEA:             FMEASheet");
+            eprintln!("  APA:              AttackTree, AttackTreeGate, AttackStep");
             std::process::exit(1);
         }
     };

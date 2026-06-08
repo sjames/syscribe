@@ -281,6 +281,70 @@ entries:
 
 ---
 
+## Tier 4 — Attack path analysis (ISO/SAE 21434 §15.7)
+
+Attack trees mirror FTA. An `AttackTree` substantiates a `ThreatScenario`
+(`threatRef`) and decomposes it into `AttackTreeGate`s (`AND`/`OR`) and
+`AttackStep` leaves. Feasibility rolls up **weakest-link**: rank
+`very_low`=0 … `high`=3; an `AttackStep` = its `attackFeasibility` rank; an `AND`
+gate (sequential path) = **MIN** of children; an `OR` gate (alternatives) =
+**MAX** of children; the tree = the value of its single root child, mapped back
+to a label. If the tree's computed feasibility differs from the linked
+`ThreatScenario.attackFeasibility`, the validator emits **W035** (computed vs
+declared).
+
+### Nesting rule (W036)
+
+Gates and steps **must** live in a subdirectory named after the AttackTree file
+(checked by qualified-name prefix; an empty tree fires W036):
+
+```
+Security/Attacks/
+  AT-TORQUE-001.md            ← AttackTree
+  AT-TORQUE-001/              ← subdir named after the tree
+    _index.md
+    ATG-TORQUE-001.md         ← AttackTreeGate (root)
+    ATG-TORQUE-002.md
+    ATS-TORQUE-001.md         ← AttackStep
+```
+
+### AttackTree — `AT-*`
+
+```yaml
+type: AttackTree
+id: AT-TORQUE-001
+title: "Attack tree for TS-TORQUE-001"
+status: approved
+threatRef: TS-TORQUE-001     # required; must resolve to a ThreatScenario (E917)
+```
+
+### AttackTreeGate — `ATG-*`
+
+```yaml
+type: AttackTreeGate
+id: ATG-TORQUE-001
+title: "OR gate — bypass auth OR replay frame"
+gateType: OR                 # AND (sequential path) | OR (alternatives) (E919)
+inputs:                      # each must resolve to an ATG-*/ATS-* (E920)
+  - ATG-TORQUE-002
+  - ATS-TORQUE-001
+```
+
+Place in the `AttackTreeName/` subdirectory.
+
+### AttackStep — `ATS-*`
+
+```yaml
+type: AttackStep
+id: ATS-TORQUE-001
+title: "Extract the bus authentication key"
+attackFeasibility: high      # high | medium | low | very_low (E921)
+```
+
+Place in the `AttackTreeName/` subdirectory.
+
+---
+
 ## Cross-domain integration rules
 
 | Rule | Details |
@@ -289,4 +353,5 @@ entries:
 | `Requirement` → `CybersecurityGoal` | `derivedFromSecurityGoal: CSG-*`; `verificationMethod:` required (W807) |
 | `PartDef`/`Part` → `SecurityControl` | `allocatedFrom: SC-*` (or list); OSLC direction: arch element holds reference |
 | `FaultTree` → `SafetyGoal` | `topEvent: SG-*` |
+| `AttackTree` → `ThreatScenario` | `threatRef: TS-*` (E917); feasibility roll-up reconciled via W035 |
 | `ASIL decomposition` | Lower level on derived element + `breakdownAdr:` (W808 without ADR) |

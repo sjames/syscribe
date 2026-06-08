@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 129 |
-| Passed | 129 |
+| Total test cases | 130 |
+| Passed | 130 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1097,6 +1097,19 @@
 |---|---|
 | untreated high-risk threat: W031 on it only; W032 on under-CAL goal; no errors | ✓ PASS |
 | cyber-risk --json carries the per-threat risk fields | ✓ PASS |
+
+---
+
+### TC-TRS-SEC-003 — Verify ISO/SAE 21434 attack tree types: AttackTree/AttackTreeGate/AttackStep, weakest-link roll-up, E915–E921, W035.
+
+**Verifies:** REQ-TRS-SEC-003  
+**Result:** ✓ PASS (21 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| worked example rolls up to medium; W035 vs declared high; no errors | ✓ PASS |
+| matched declared feasibility clears W035 | ✓ PASS |
+| types command lists the new attack-tree types | ✓ PASS |
 
 ---
 

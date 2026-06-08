@@ -328,7 +328,8 @@ fn node_style(et: &ElementType) -> NodeStyle {
         }
         // Security
         CybersecurityGoal => ("doubleoctagon", "", "#F3E8FD", "#6A1B9A"),
-        ThreatScenario | DamageScenario | SecurityControl | VulnerabilityReport | TARASheet => {
+        ThreatScenario | DamageScenario | SecurityControl | VulnerabilityReport | TARASheet
+        | AttackTree | AttackTreeGate | AttackStep => {
             ("octagon", "", "#F3E8FD", "#6A1B9A")
         }
         // Views

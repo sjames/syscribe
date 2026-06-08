@@ -15,6 +15,10 @@ static FTG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static FTE_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static FMEA_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static FM_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+// Tier 4 attack-path (ISO/SAE 21434 §15.7) stable-ID patterns
+static AT_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static ATG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static ATS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static SG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static DS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static TS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
@@ -85,6 +89,9 @@ pub fn is_stable_id(s: &str) -> bool {
         || fte_re().is_match(s)
         || fmea_re().is_match(s)
         || fm_re().is_match(s)
+        || at_re().is_match(s)
+        || atg_re().is_match(s)
+        || ats_re().is_match(s)
 }
 
 /// Returns true for HE-* IDs (HazardousEvent).
@@ -135,6 +142,23 @@ pub fn is_fte_id(s: &str) -> bool { fte_re().is_match(s) }
 pub fn is_fmea_id(s: &str) -> bool { fmea_re().is_match(s) }
 /// Returns true for FM-* IDs (FMEAEntry).
 pub fn is_fm_id(s: &str) -> bool { fm_re().is_match(s) }
+
+fn at_re() -> &'static regex::Regex {
+    AT_RE.get_or_init(|| regex::Regex::new(r"^AT(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+fn atg_re() -> &'static regex::Regex {
+    ATG_RE.get_or_init(|| regex::Regex::new(r"^ATG(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+fn ats_re() -> &'static regex::Regex {
+    ATS_RE.get_or_init(|| regex::Regex::new(r"^ATS(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+
+/// Returns true for AT-* IDs (AttackTree).
+pub fn is_at_id(s: &str) -> bool { at_re().is_match(s) }
+/// Returns true for ATG-* IDs (AttackTreeGate).
+pub fn is_atg_id(s: &str) -> bool { atg_re().is_match(s) }
+/// Returns true for ATS-* IDs (AttackStep).
+pub fn is_ats_id(s: &str) -> bool { ats_re().is_match(s) }
 
 /// Returns true for ADR-* IDs.
 pub fn is_adr_id(s: &str) -> bool {
@@ -288,6 +312,14 @@ impl Resolver {
 
     pub fn is_fmea_sheet(elem: &RawElement) -> bool {
         matches!(elem.frontmatter.element_type, Some(ElementType::FMEASheet))
+    }
+
+    pub fn is_attack_tree_gate(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::AttackTreeGate))
+    }
+
+    pub fn is_attack_step(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::AttackStep))
     }
 
     pub fn is_tara_sheet(elem: &RawElement) -> bool {

@@ -85,7 +85,8 @@
 `ThreatScenario` (TS-*) · `CybersecurityGoal` (CSG-*) · `SecurityControl` (SC-*) ·
 `VulnerabilityReport` (VR-*) · `TARASheet` (TARA-*) · `FaultTree` (FT-*) ·
 `FaultTreeGate` (FTG-*) · `FaultTreeEvent` (FTE-*) · `FMEASheet` (FMEA-*) ·
-`FMEAEntry` (row of an FMEASheet)
+`FMEAEntry` (row of an FMEASheet) · `AttackTree` (AT-*) ·
+`AttackTreeGate` (ATG-*) · `AttackStep` (ATS-*)
 
 ## Key per-type schemas
 

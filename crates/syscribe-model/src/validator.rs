@@ -6,9 +6,9 @@ use crate::config::ValidateConfig;
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
 use crate::resolver::{
-    is_adr_id, is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id,
-    is_ftg_id, is_he_id, is_req_id, is_sc_id, is_sg_id, is_tara_id, is_tc_id, is_ts_id,
-    is_vr_id, Resolver,
+    is_adr_id, is_at_id, is_atg_id, is_ats_id, is_conf_id, is_csg_id, is_ds_id, is_fm_id,
+    is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id, is_req_id, is_sc_id, is_sg_id,
+    is_tara_id, is_tc_id, is_ts_id, is_vr_id, Resolver,
 };
 
 /// A single validation finding.
@@ -1435,6 +1435,60 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // ── Tier 4: AttackTree (E915-E917) — ISO/SAE 21434 §15.7 ─────────────
+        if matches!(fm.element_type, Some(ElementType::AttackTree)) {
+            if fm.id.is_none() { findings.push(error("E915", &file, "`id` is required on AttackTree")); }
+            if fm.title.is_none() { findings.push(error("E915", &file, "`title` is required on AttackTree")); }
+            if fm.status.is_none() { findings.push(error("E915", &file, "`status` is required on AttackTree")); }
+            if fm.threat_ref.is_none() { findings.push(error("E915", &file, "`threatRef` is required on AttackTree — reference a ThreatScenario")); }
+            if let Some(ref id) = fm.id {
+                if !is_at_id(id) {
+                    findings.push(error("E916", &file, &format!("`id` '{}' does not match AT-* pattern", id)));
+                }
+            }
+        }
+
+        // ── Tier 4: AttackTreeGate (E918-E920) ───────────────────────────────
+        if matches!(fm.element_type, Some(ElementType::AttackTreeGate)) {
+            if fm.id.is_none() { findings.push(error("E918", &file, "`id` is required on AttackTreeGate")); }
+            if fm.title.is_none() { findings.push(error("E918", &file, "`title` is required on AttackTreeGate")); }
+            if fm.gate_type.is_none() { findings.push(error("E918", &file, "`gateType` is required on AttackTreeGate")); }
+            if let Some(ref id) = fm.id {
+                if !is_atg_id(id) {
+                    findings.push(error("E918", &file, &format!("`id` '{}' does not match ATG-* pattern", id)));
+                }
+            }
+            // E919: gateType enum (AND = sequential path, OR = alternatives)
+            if let Some(ref gt) = fm.gate_type {
+                if !["AND","OR"].contains(&gt.as_str()) {
+                    findings.push(error("E919", &file, &format!("AttackTreeGate.gateType '{}' must be AND (sequential path) or OR (alternatives)", gt)));
+                }
+            }
+            // W901-analog: gate with no inputs is a dead end (reuses W036 family? no —
+            // mirror FTA's W901 shape but keep W036 for the empty-tree warning). A
+            // gate with no inputs contributes nothing.
+            if fm.inputs.as_ref().map_or(true, |v| v.is_empty()) {
+                findings.push(warning("W037", &file, "AttackTreeGate has no `inputs` — it contributes nothing to the attack tree"));
+            }
+        }
+
+        // ── Tier 4: AttackStep (E921) ────────────────────────────────────────
+        if matches!(fm.element_type, Some(ElementType::AttackStep)) {
+            if fm.id.is_none() { findings.push(error("E921", &file, "`id` is required on AttackStep")); }
+            if fm.title.is_none() { findings.push(error("E921", &file, "`title` is required on AttackStep")); }
+            if let Some(ref id) = fm.id {
+                if !is_ats_id(id) {
+                    findings.push(error("E921", &file, &format!("`id` '{}' does not match ATS-* pattern", id)));
+                }
+            }
+            // attackFeasibility enum (high|medium|low|very_low)
+            if let Some(ref f) = fm.attack_feasibility {
+                if !["high","medium","low","very_low"].contains(&f.as_str()) {
+                    findings.push(error("E921", &file, &format!("AttackStep.attackFeasibility '{}' must be high, medium, low, or very_low", f)));
+                }
+            }
+        }
+
         // ── Tier 4: FMEASheet (E911-E912) ────────────────────────────────────
         if matches!(fm.element_type, Some(ElementType::FMEASheet)) {
             if fm.id.is_none() { findings.push(error("E911", &file, "`id` is required on FMEASheet")); }
@@ -2255,6 +2309,41 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // E917: AttackTree.threatRef must resolve to a ThreatScenario
+        if matches!(fm.element_type, Some(ElementType::AttackTree)) {
+            if let Some(ref tr) = fm.threat_ref {
+                match resolver.resolve_ref(elements, tr) {
+                    None => findings.push(error("E917", &elem.file_path,
+                        &format!("`threatRef` '{}' does not resolve to any element", tr))),
+                    Some(target) if !Resolver::is_threat_scenario(target) => {
+                        findings.push(error("E917", &elem.file_path,
+                            &format!("`threatRef` '{}' does not resolve to a ThreatScenario", tr)));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // E920: AttackTreeGate.inputs must each resolve to an AttackTreeGate or AttackStep
+        if matches!(fm.element_type, Some(ElementType::AttackTreeGate)) {
+            if let Some(ref inputs) = fm.inputs {
+                for r in inputs {
+                    match resolver.resolve_ref(elements, r) {
+                        None => findings.push(error("E920", &elem.file_path,
+                            &format!("`inputs` '{}' does not resolve to any element", r))),
+                        Some(target)
+                            if !Resolver::is_attack_tree_gate(target)
+                                && !Resolver::is_attack_step(target) =>
+                        {
+                            findings.push(error("E920", &elem.file_path,
+                                &format!("`inputs` '{}' is not an AttackTreeGate or AttackStep", r)));
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
         // W904: FMEAEntry.ref (subject) should resolve to a known element
         if matches!(fm.element_type, Some(ElementType::FMEAEntry)) {
             if let Some(ref r) = fm.subject {
@@ -2283,6 +2372,48 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
             findings.push(warning("W900", &elem.file_path,
                 &format!("FaultTree '{}' has no FaultTreeGate or FaultTreeEvent children", id)));
+        }
+    }
+
+    // W036: AttackTree with no AttackTreeGate or AttackStep children (ISO/SAE
+    // 21434 §15.7) — the empty-tree warning, analog of FTA's W900.
+    for elem in elements {
+        if !matches!(elem.frontmatter.element_type, Some(ElementType::AttackTree)) {
+            continue;
+        }
+        let prefix = format!("{}::", elem.qualified_name);
+        let has_children = elements.iter().any(|e| {
+            e.qualified_name.starts_with(&prefix)
+                && matches!(
+                    e.frontmatter.element_type,
+                    Some(ElementType::AttackTreeGate) | Some(ElementType::AttackStep)
+                )
+        });
+        if !has_children {
+            let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
+            findings.push(warning("W036", &elem.file_path,
+                &format!("AttackTree '{}' has no AttackTreeGate or AttackStep children", id)));
+        }
+    }
+
+    // W035: AttackTree computed feasibility (weakest-link roll-up) does not match
+    // the linked ThreatScenario.attackFeasibility (ISO/SAE 21434 §15.7
+    // reconciliation). Fires only when the threat resolves and both feasibilities
+    // are computable. Gateable via --deny W035; promotable via [profiles].
+    for elem in elements {
+        if !matches!(elem.frontmatter.element_type, Some(ElementType::AttackTree)) {
+            continue;
+        }
+        let Some(ref tr) = elem.frontmatter.threat_ref else { continue };
+        let Some(threat) = resolver.resolve_ref(elements, tr) else { continue };
+        if !Resolver::is_threat_scenario(threat) { continue; }
+        let Some(declared) = threat.frontmatter.attack_feasibility.as_deref() else { continue };
+        let Some(computed) = crate::attack_tree::tree_feasibility(elem, elements, &resolver) else { continue };
+        if computed != declared {
+            let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
+            findings.push(warning("W035", &elem.file_path,
+                &format!("AttackTree '{}' computed feasibility '{}' does not match linked ThreatScenario '{}' declared attackFeasibility '{}'",
+                    id, computed, tr, declared)));
         }
     }
 
