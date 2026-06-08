@@ -1479,7 +1479,7 @@ fn profile_scope_matches(profile: &syscribe_model::config::Profile, elem: &RawEl
 /// is unscoped, OR the element whose `file_path == finding.file` matches all the
 /// profile's scope fields). A finding whose file maps to no element is not
 /// promoted when any scope field is set.
-fn profile_promoted<'a>(
+pub fn profile_promoted<'a>(
     profile: &syscribe_model::config::Profile,
     elements: &[RawElement],
     findings: &[&'a syscribe_model::validator::Finding],
@@ -3056,6 +3056,11 @@ pub fn print_help() {
     println!("  configure <Configuration> [--json]  Assisted configuration: from a partial selection, report");
     println!("                                 satisfiability + forced/free features (exit 1 if contradictory).");
     println!("  diff --config <A> --config <B> Elements active in one configuration but not the other");
+    println!("  audit [--json] [--profile <p>] Safety-readiness dashboard: requirement status split (overall +");
+    println!("                                 per package), SIL/ASIL distribution, per-configuration coverage %,");
+    println!("                                 orphans, and a PASS/FAIL verdict. Reuses validate + matrix coverage +");
+    println!("                                 #18 profiles. Exit 0 PASS · 2 FAIL (any error, any W306, or — under");
+    println!("                                 --profile <p> — any finding that profile promotes); exit 1 if <p> undefined.");
     println!();
     println!("Configuration lens (§9 projection; inert when no feature model):");
     println!("  --config <CONF|features>       On validate/list/export: project onto a configuration (stored id/qname");

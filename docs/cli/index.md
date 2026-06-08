@@ -498,6 +498,36 @@ $ syscribe -m model/ diff --config CONF-MPS2-WDT --config CONF-M0-BASE
 
 ---
 
+## Safety-readiness audit
+
+`audit` is a read-only dashboard that aggregates existing data — it **reuses** `validate`, the `matrix` coverage computation and the [named severity profiles](#named-severity-profiles); it does not re-implement validation or coverage. It is the rollup an assessor reaches for first.
+
+```
+$ syscribe -m model/ audit
+$ syscribe -m model/ audit --json              # the whole rollup as one structured document
+$ syscribe -m model/ audit --profile safety    # add a named [profiles.<name>] gate to the verdict
+```
+
+The report (mirrored in `--json`) has five sections:
+
+1. **Requirement status split** — counts of native `Requirement`s by `status:` (`draft` / `review` / `approved` / `implemented` / `verified`), **overall** and **per top-level package** (the first `::` segment of the qualified name).
+2. **SIL / ASIL distribution** — counts by `silLevel` and by `asilLevel`, plus a `QM/none` bucket for requirements that declare neither.
+3. **Per-configuration coverage %** — `covered / applicable` (N/A excluded) per `Configuration` and overall, computed by the same engine as `matrix`. With no feature model, it falls back to the flat requirement→TestCase coverage.
+4. **Orphans** — counts and ids of: requirements with no active verifying `TestCase`; requirements that no element `satisfies:`; `TestCase`s whose `verifies:` is empty or resolves to nothing; and requirements with neither `derivedFrom` nor `derivedChildren`.
+5. **Readiness verdict** — a single **PASS/FAIL** line that names *why* it failed.
+
+### Verdict policy and exit code
+
+| Exit code | Meaning |
+|---|---|
+| `0` | **PASS** — no `Error`-severity findings, no `W306`, and (under `--profile`) nothing the profile promotes. |
+| `2` | **FAIL** — at least one `Error` finding, **or** at least one `W306` (the unsatisfied-safety-mechanism gate), **or** at least one finding promoted by `--profile <name>`. |
+| `1` | The `--profile <name>` is undefined (or no `.syscribe.toml` exists). |
+
+The default policy always fails on errors and on `W306`. Passing `--profile <name>` loads `[profiles.<name>]` from `<model_root>/.syscribe.toml` and additionally fails the audit if any finding that profile promotes is present, using the same promotion semantics as `validate --profile`. The JSON document has the shape `{ statusSplit, integrityDistribution, coverage, orphans, verdict: { pass, reasons } }`.
+
+---
+
 ## Traceability
 
 ### Full trace for a requirement

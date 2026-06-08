@@ -1,5 +1,6 @@
 #![deny(warnings)]
 
+mod audit;
 mod coanalysis;
 mod cyberrisk;
 mod connectivity;
@@ -361,6 +362,38 @@ fn main() {
                     std::process::exit(1);
                 }
                 query::cmd_diff(&elems, cfgs[0], cfgs[1], json);
+            }
+            "audit" => {
+                // Read-only safety-readiness dashboard (GH #15 / REQ-TRS-OUT-013).
+                // Reuses validate_with_config, the matrix coverage computation and
+                // the issue-#18 profile loader/promotion. Exit 0 PASS · 2 FAIL.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let profile_name = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--profile")
+                    .map(|w| w[1].as_str());
+                let profile = if let Some(name) = profile_name {
+                    let profiles = syscribe_model::config::load_profiles(model_root);
+                    match profiles.get(name) {
+                        Some(p) => Some(p.clone()),
+                        None => {
+                            eprintln!(
+                                "Error: profile '{}' is not defined in {}/.syscribe.toml",
+                                name,
+                                model_root.display()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    None
+                };
+                let code =
+                    audit::cmd_audit(&elems, &vcfg, model_root, profile.as_ref(), json);
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "ingest-results" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

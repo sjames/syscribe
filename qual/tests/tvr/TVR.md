@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 131 |
-| Passed | 131 |
+| Total test cases | 132 |
+| Passed | 132 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -705,6 +705,13 @@
 | Scenario | Result |
 |---|---|
 | --profile nonexistent is an error (exit 1) | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-013 — Verify the safety-readiness audit dashboard, its sections, JSON output and PASS/FAIL exit codes.
+
+**Verifies:** REQ-TRS-OUT-013  
+**Result:** ✓ PASS (10 passed, 0 failed)
 
 ---
 

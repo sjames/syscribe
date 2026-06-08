@@ -151,6 +151,47 @@ pub fn cmd_matrix_features(elements: &[RawElement], json: bool) {
     println!("Legend: ✓ selected");
 }
 
+/// Classify one (requirement, configuration-selection) cell as
+/// `"na" | "covered" | "passing" | "gap"`. Single definition shared by the
+/// `matrix` grid and the `audit` coverage rollup (REQ-TRS-OUT-013).
+///
+/// `pkg` is the transitive package appliesWhen map; `tcs` are the non-draft
+/// TestCases as `(effective appliesWhen, verifies, verdict)`; `evidence` is the
+/// executed-results sidecar (None ⇒ no `"passing"` upgrade).
+fn cell_state(
+    r: &RawElement,
+    sel: &BTreeMap<String, bool>,
+    pkg: &std::collections::HashMap<String, serde_yaml::Value>,
+    tcs: &[(Option<FeatureExpr>, Vec<String>, TcVerdict)],
+    evidence: Option<&ResultsData>,
+) -> &'static str {
+    let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
+    let rexpr = variability::effective_expr(r, pkg);
+    let active = rexpr.as_ref().map_or(true, |e| e.eval(&selected));
+    if !active {
+        return "na";
+    }
+    let rkeys = keys(r);
+    let mut covered = false;
+    let mut any_pass = false;
+    for (texpr, ver, verdict) in tcs {
+        let runs = texpr.as_ref().map_or(true, |e| e.eval(&selected));
+        if runs && ver.iter().any(|v| rkeys.iter().any(|k| k == v)) {
+            covered = true;
+            if *verdict == TcVerdict::Pass {
+                any_pass = true;
+            }
+        }
+    }
+    if !covered {
+        "gap"
+    } else if evidence.is_some() && any_pass {
+        "passing"
+    } else {
+        "covered"
+    }
+}
+
 fn cmd_matrix_inner(
     elements: &[RawElement],
     json: bool,
@@ -208,36 +249,10 @@ fn cmd_matrix_inner(
         })
         .collect();
 
-    // state(req, config selections) -> "na" | "covered" | "passing" | "gap".
-    // "passing" is only ever produced when executed evidence is available
-    // (`evidence` is Some); otherwise covered cells stay "covered" as today.
+    // state(req, config selections) -> "na" | "covered" | "passing" | "gap",
+    // delegating to the single `cell_state` definition shared with `audit`.
     let state = |r: &RawElement, sel: &BTreeMap<String, bool>| -> &'static str {
-        let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
-        let rexpr = variability::effective_expr(r, &pkg);
-        let active = rexpr.as_ref().map_or(true, |e| e.eval(&selected));
-        if !active {
-            return "na";
-        }
-        let rkeys = keys(r);
-        // Covering TestCases that run in this configuration.
-        let mut covered = false;
-        let mut any_pass = false;
-        for (texpr, ver, verdict) in &tcs {
-            let runs = texpr.as_ref().map_or(true, |e| e.eval(&selected));
-            if runs && ver.iter().any(|v| rkeys.iter().any(|k| k == v)) {
-                covered = true;
-                if *verdict == TcVerdict::Pass {
-                    any_pass = true;
-                }
-            }
-        }
-        if !covered {
-            "gap"
-        } else if evidence.is_some() && any_pass {
-            "passing"
-        } else {
-            "covered"
-        }
+        cell_state(r, sel, &pkg, &tcs, evidence)
     };
 
     // Materialise each retained row's cell states once: (id, [state per column]).
@@ -325,10 +340,17 @@ fn cmd_matrix_inner(
 /// Plain (unweighted) coverage rollup: per-configuration and overall
 /// `covered / applicable`, where `applicable = covered + gap` (N/A excluded).
 /// Follow-up: SIL-weighted coverage is intentionally not implemented here.
-struct Coverage {
+///
+/// This is the single coverage definition shared by `matrix` and `audit`
+/// (REQ-TRS-OUT-013): build it via [`Coverage::rollup`] rather than duplicating
+/// the covered/gap/N-A computation.
+pub struct Coverage {
     per_config: Vec<(String, u32, u32)>, // (cfg id, covered, applicable)
     overall_covered: u32,
     overall_applicable: u32,
+    /// True when no feature model is present and this is the flat
+    /// requirement→TestCase coverage view (a single synthetic column).
+    flat: bool,
 }
 
 impl Coverage {
@@ -357,7 +379,123 @@ impl Coverage {
             overall_applicable += applicable;
             per_config.push((cid.clone(), covered, applicable));
         }
-        Coverage { per_config, overall_covered, overall_applicable }
+        Coverage { per_config, overall_covered, overall_applicable, flat: false }
+    }
+
+    /// Coverage rollup for an arbitrary model, reusing the exact `matrix`
+    /// computation (REQ-TRS-OUT-013). When a feature model is active this is the
+    /// per-`Configuration` covered/gap/N-A grid; otherwise it is the flat
+    /// requirement→TestCase view (one synthetic `overall` column). `results` /
+    /// `linked_only` mirror the `matrix` evidence semantics (issue #21) but do
+    /// not affect the covered/applicable counts.
+    pub fn rollup(
+        elements: &[RawElement],
+        results: Option<&ResultsData>,
+        linked_only: bool,
+    ) -> Coverage {
+        let evidence = if linked_only { None } else { results };
+        if !variability::is_active(elements) {
+            return Self::rollup_flat(elements);
+        }
+
+        let mut configs: Vec<&RawElement> = elements
+            .iter()
+            .filter(|e| is_type(e, ElementType::Configuration))
+            .collect();
+        configs.sort_by_key(|e| disp_id(e));
+        let cfg_sel: Vec<(String, BTreeMap<String, bool>)> = configs
+            .iter()
+            .map(|c| (disp_id(c), c.frontmatter.feature_selections()))
+            .collect();
+
+        let mut reqs: Vec<&RawElement> = elements
+            .iter()
+            .filter(|e| is_type(e, ElementType::Requirement))
+            .collect();
+        reqs.sort_by_key(|e| disp_id(e));
+
+        let pkg = variability::package_conditions(elements);
+        let tcs: Vec<(Option<FeatureExpr>, Vec<String>, TcVerdict)> = elements
+            .iter()
+            .filter(|e| is_type(e, ElementType::TestCase))
+            .filter(|e| e.frontmatter.status.as_deref() != Some("draft"))
+            .map(|e| {
+                (
+                    variability::effective_expr(e, &pkg),
+                    e.frontmatter.verifies.clone().unwrap_or_default(),
+                    tc_verdict(e, evidence),
+                )
+            })
+            .collect();
+
+        let grid: Vec<(String, Vec<&'static str>)> = reqs
+            .iter()
+            .map(|r| {
+                let cells: Vec<&'static str> = cfg_sel
+                    .iter()
+                    .map(|(_, sel)| cell_state(r, sel, &pkg, &tcs, evidence))
+                    .collect();
+                (disp_id(r), cells)
+            })
+            .collect();
+
+        Self::compute(&cfg_sel, &grid)
+    }
+
+    /// Flat fallback rollup (no feature model): every requirement is applicable;
+    /// covered when a non-draft TestCase verifies it. A single synthetic column.
+    fn rollup_flat(elements: &[RawElement]) -> Coverage {
+        let reqs: Vec<&RawElement> = elements
+            .iter()
+            .filter(|e| is_type(e, ElementType::Requirement))
+            .collect();
+        let tcs: Vec<Vec<String>> = elements
+            .iter()
+            .filter(|e| is_type(e, ElementType::TestCase))
+            .filter(|e| e.frontmatter.status.as_deref() != Some("draft"))
+            .map(|e| e.frontmatter.verifies.clone().unwrap_or_default())
+            .collect();
+        let mut covered = 0u32;
+        let mut applicable = 0u32;
+        for r in &reqs {
+            applicable += 1;
+            let rkeys = keys(r);
+            if tcs.iter().any(|ver| ver.iter().any(|v| rkeys.iter().any(|k| k == v))) {
+                covered += 1;
+            }
+        }
+        Coverage {
+            per_config: Vec::new(),
+            overall_covered: covered,
+            overall_applicable: applicable,
+            flat: true,
+        }
+    }
+
+    /// True when this is the flat (no-feature-model) coverage view.
+    pub fn is_flat(&self) -> bool {
+        self.flat
+    }
+
+    /// Per-configuration rows: `(configuration id, covered, applicable)`.
+    pub fn per_config(&self) -> &[(String, u32, u32)] {
+        &self.per_config
+    }
+
+    /// Overall `(covered, applicable)` across all applicable cells.
+    pub fn overall(&self) -> (u32, u32) {
+        (self.overall_covered, self.overall_applicable)
+    }
+
+    /// Public JSON view of the rollup (shared shape with `matrix --json`).
+    pub fn json(&self) -> serde_json::Value {
+        self.to_json()
+    }
+
+    /// Percentage helper exposed for reuse: `covered*100/applicable` to one
+    /// decimal, or `None` when nothing is applicable.
+    pub fn percent(covered: u32, applicable: u32) -> Option<f64> {
+        Self::pct(covered, applicable)
     }
 
     /// pct = covered*100/applicable rounded to one decimal, or None when applicable == 0.

@@ -1,0 +1,6 @@
+# A named severity profile (issue #18 / REQ-TRS-OUT-012). `audit --profile strict`
+# additionally promotes W300 (leaf requirement with no satisfying element) to a
+# gate failure. The ready model satisfies every requirement, so W300 is absent
+# and the profile promotes nothing — the audit still PASSES.
+[profiles.strict]
+promote = ["W300"]
