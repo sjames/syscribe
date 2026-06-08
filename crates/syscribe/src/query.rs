@@ -1,8 +1,68 @@
 use syscribe_model::{
     element::{ElementType, RawElement},
     resolver::Resolver,
+    results::{FnVerdict, ResultsData},
     validator::ValidationResult,
 };
+
+// ── Executed-evidence verdict (issue #21) ──────────────────────────────────────
+
+/// Aggregated executed-evidence verdict for a single TestCase.
+///
+/// Computed over the TestCase's `testFunctions[].function` references against an
+/// ingested results sidecar:
+///   * `Unknown` — the TestCase has no `testFunctions` (or no results are loaded);
+///   * `Fail`    — any function's ingested verdict is `Fail`;
+///   * `Pass`    — every function passed;
+///   * `Unknown` — otherwise (some `Ignored`/`Missing`, none `Fail`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TcVerdict {
+    Pass,
+    Fail,
+    Unknown,
+}
+
+/// The `function` strings declared under a TestCase's `testFunctions:`.
+fn tc_function_refs(tc: &RawElement) -> Vec<String> {
+    let func_key = serde_yaml::Value::String("function".into());
+    tc.frontmatter
+        .test_functions
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(|tf| match tf {
+            serde_yaml::Value::Mapping(map) => match map.get(&func_key) {
+                Some(serde_yaml::Value::String(f)) => Some(f.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+/// Aggregate a TestCase's ingested verdict. `None` results → `Unknown`.
+pub fn tc_verdict(tc: &RawElement, results: Option<&ResultsData>) -> TcVerdict {
+    let Some(results) = results else {
+        return TcVerdict::Unknown;
+    };
+    let funcs = tc_function_refs(tc);
+    if funcs.is_empty() {
+        return TcVerdict::Unknown;
+    }
+    let mut all_pass = true;
+    for f in &funcs {
+        match results.verdict_for(f) {
+            FnVerdict::Fail => return TcVerdict::Fail,
+            FnVerdict::Pass => {}
+            FnVerdict::Ignored | FnVerdict::Missing => all_pass = false,
+        }
+    }
+    if all_pass {
+        TcVerdict::Pass
+    } else {
+        TcVerdict::Unknown
+    }
+}
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -829,7 +889,12 @@ pub fn cmd_trace(
     resolver: &Resolver,
     val: &ValidationResult,
     key: &str,
+    results: Option<&ResultsData>,
+    linked_only: bool,
 ) {
+    // Executed-evidence annotations apply only when a results sidecar is loaded
+    // and the caller did not force the linked-only view (issue #21).
+    let evidence = if linked_only { None } else { results };
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
         return;
@@ -994,7 +1059,17 @@ pub fn cmd_trace(
                     .unwrap_or_else(|| tc.qualified_name.split("::").last().unwrap_or("—"));
                 let level = tc.frontmatter.test_level.as_deref().unwrap_or("—");
                 let scenarios = gherkin_count(&tc.doc);
-                println!("| {} | {} | {} | {} |", tc_id, name, level, scenarios);
+                // Annotate the displayed id with the ingested verdict, when results
+                // are present and not linked-only (issue #21).
+                let annotated = match evidence {
+                    Some(_) => match tc_verdict(tc, evidence) {
+                        TcVerdict::Pass => format!("{tc_id} [pass]"),
+                        TcVerdict::Fail => format!("{tc_id} [fail]"),
+                        TcVerdict::Unknown => format!("{tc_id} [unknown]"),
+                    },
+                    None => tc_id.to_string(),
+                };
+                println!("| {} | {} | {} | {} |", annotated, name, level, scenarios);
             } else {
                 println!("| {} | (not found) | — | — |", tc_id);
             }
@@ -2816,6 +2891,8 @@ pub fn print_help() {
     println!("                                 Columns are Configuration elements; --json emits the grid; --tag filters rows.");
     println!("       [--status <s>]            Restrict rows to requirements whose status: equals s");
     println!("       [--gaps-only]             Drop fully-covered and all-N/A rows; keep only rows with a gap cell");
+    println!("       [--linked-only]           Ignore ingested results: covered cells stay ✓ (today's linked-only view)");
+    println!("                                 With a .syscribe/results.json sidecar (default): ✓ covered+passing, ▣ covered, not passing");
     println!("                                 A per-config + overall coverage-% footer is printed (coverage object in --json).");
     println!("                                 With no feature model, falls back to a flat requirement/testcase view.");
     println!("  matrix --features [--json]     Feature × Configuration selection grid (cell ✓ where selected true)");
@@ -2854,6 +2931,7 @@ pub fn print_help() {
     println!("  scaffold-gherkin <TC> [--fix]  Generate/align Gherkin Scenario blocks from testFunctions");
     println!("  move <src> <dest> [--dry-run]  Move an element/package to a new qname, rewriting all references");
     println!("  trace <qname|req-id>           Full traceability slice for a requirement");
+    println!("        [--linked-only]          Ignore ingested results (default annotates verifying TCs with [pass]/[fail]/[unknown])");
     println!("  links <qname|id>               All outbound and inbound relationships");
     println!("  why <qname>                    What requirements this element satisfies");
     println!("  who-verifies <req-id>          Which test cases cover a requirement");

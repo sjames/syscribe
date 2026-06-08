@@ -291,11 +291,13 @@ $ syscribe -m model/ matrix --json            # structured grid (schemaVersion, 
 $ syscribe -m model/ matrix --tag safety      # filter rows by tag
 $ syscribe -m model/ matrix --status approved # restrict rows to requirements whose status: equals approved
 $ syscribe -m model/ matrix --gaps-only       # keep only rows with at least one gap cell
+$ syscribe -m model/ matrix --linked-only     # ignore ingested results: covered cells stay ✓ (today's linked-only view)
 $ syscribe -m model/ matrix --features        # Feature × Configuration grid (which feature ships in which product)
 ```
 
 - **`--status <s>`** restricts the requirement ROWS to those whose `status:` equals `<s>` (text and `--json`).
 - **`--gaps-only`** drops rows that are fully covered or all-N/A, keeping only rows with at least one `gap` cell (text and `--json`).
+- **Executed evidence (W010 results).** When a results sidecar (`<model_root>/.syscribe/results.json`, produced by [`ingest-results`](#validation)) is present, `matrix` reflects *executed-and-passed* evidence by default. Each covering TestCase is given an aggregate verdict over its `testFunctions[].function` (`Pass` if all passed, `Fail` if any failed, `Unknown` otherwise / when it declares no functions). A covered cell then becomes `✓` when at least one covering active TestCase that runs in that configuration passed, or `▣` (**covered, not passing**) when a linked TestCase runs there but none passed. The legend gains `▣ covered, not passing` and `--json` cells report `"passing"` vs `"covered"` (in addition to `"gap"`/`"na"`). With **no sidecar**, or under **`--linked-only`**, covered cells stay `✓` and the `--json` cell value stays `"covered"` exactly as before. The coverage-% footer always counts *linked* coverage (covered = linked), unchanged.
 - Every run prints a **coverage footer**: per-configuration and overall `covered / applicable`, where `applicable = covered + gap` (N/A excluded) and the percentage is `covered*100/applicable` rounded to one decimal (`n/a` when nothing is applicable). Under `--json`, the same numbers appear in a `coverage` object: `{ "perConfig": { "<cfgId>": {"covered":N,"applicable":M,"pct":P}, ... }, "overall": {"covered":N,"applicable":M,"pct":P} }` (`pct` is `null` when `applicable == 0`). Coverage is plain/unweighted — SIL-weighted coverage is a planned follow-up.
 
 With no feature model present, `matrix` prints a notice and falls back to a flat requirement/testcase view (exit 0); `--status`, `--gaps-only` and the coverage footer still apply. `matrix --features` swaps the rows for `FeatureDef`s and the cells for selected (`✓`) / not-selected — the product map complementing the Requirement × Configuration view.
@@ -394,6 +396,12 @@ Status: approved · domain: software · ASIL: D
 
 ## Verified by
 - TC-ENG-SAFE-002 — HIL — TPS dual-track divergence triggers safe state (L5)
+```
+
+When a results sidecar (`<model_root>/.syscribe/results.json`) is present, the **Verified by** listing annotates each TestCase with its ingested verdict — `[pass]`, `[fail]`, or `[unknown]` — aggregated over its `testFunctions[].function` (same rule as the [coverage matrix](#coverage-matrix)). Pass `--linked-only` to suppress the annotations; with no sidecar the listing is unchanged.
+
+```
+$ syscribe -m model/ trace REQ-ENG-SAFE-001 --linked-only   # ignore ingested results
 ```
 
 ### What does this component satisfy?

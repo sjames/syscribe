@@ -1,0 +1,5 @@
+{ "type": "suite", "event": "started", "test_count": 2 }
+{ "type": "test", "event": "started", "name": "widget::tests::pass_ok" }
+{ "type": "test", "name": "widget::tests::pass_ok", "event": "ok" }
+{ "type": "test", "name": "widget::tests::fail_boom", "event": "failed" }
+{ "type": "suite", "event": "failed", "passed": 1, "failed": 1 }

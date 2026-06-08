@@ -16,10 +16,12 @@ use serde_json::json;
 use std::collections::BTreeMap;
 use syscribe_model::{
     element::{ElementType, RawElement},
+    results::ResultsData,
     variability::{self, FeatureExpr},
 };
 
 use crate::export::SCHEMA_VERSION;
+use crate::query::{tc_verdict, TcVerdict};
 
 fn is_type(e: &RawElement, t: ElementType) -> bool {
     e.frontmatter.element_type.as_ref() == Some(&t)
@@ -55,8 +57,10 @@ pub fn cmd_matrix(
     tag: Option<&str>,
     status: Option<&str>,
     gaps_only: bool,
+    results: Option<&ResultsData>,
+    linked_only: bool,
 ) {
-    cmd_matrix_inner(elements, json, tag, status, gaps_only, false)
+    cmd_matrix_inner(elements, json, tag, status, gaps_only, false, results, linked_only)
 }
 
 /// `matrix --features`: Feature × Configuration selection grid. Rows are
@@ -154,7 +158,12 @@ fn cmd_matrix_inner(
     status: Option<&str>,
     gaps_only: bool,
     _features: bool,
+    results: Option<&ResultsData>,
+    linked_only: bool,
 ) {
+    // Executed-evidence refinement applies only when a results sidecar is loaded
+    // and the caller did not force the linked-only view (issue #21).
+    let evidence = if linked_only { None } else { results };
     if !variability::is_active(elements) {
         cmd_matrix_dormant(elements, json, status, gaps_only);
         return;
@@ -183,15 +192,25 @@ fn cmd_matrix_inner(
     // Effective conditions honour transitive package appliesWhen (REQ-TRS-VAR-006).
     let pkg = variability::package_conditions(elements);
 
-    // Non-draft TestCases that participate in coverage: (appliesWhen, verifies).
-    let tcs: Vec<(Option<FeatureExpr>, Vec<String>)> = elements
+    // Non-draft TestCases that participate in coverage: (appliesWhen, verifies, verdict).
+    // The verdict is the executed-evidence aggregate (Unknown when no results /
+    // linked-only). Computed once per TestCase.
+    let tcs: Vec<(Option<FeatureExpr>, Vec<String>, TcVerdict)> = elements
         .iter()
         .filter(|e| is_type(e, ElementType::TestCase))
         .filter(|e| e.frontmatter.status.as_deref() != Some("draft"))
-        .map(|e| (variability::effective_expr(e, &pkg), e.frontmatter.verifies.clone().unwrap_or_default()))
+        .map(|e| {
+            (
+                variability::effective_expr(e, &pkg),
+                e.frontmatter.verifies.clone().unwrap_or_default(),
+                tc_verdict(e, evidence),
+            )
+        })
         .collect();
 
-    // state(req, config selections) -> "na" | "covered" | "gap"
+    // state(req, config selections) -> "na" | "covered" | "passing" | "gap".
+    // "passing" is only ever produced when executed evidence is available
+    // (`evidence` is Some); otherwise covered cells stay "covered" as today.
     let state = |r: &RawElement, sel: &BTreeMap<String, bool>| -> &'static str {
         let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
         let rexpr = variability::effective_expr(r, &pkg);
@@ -200,14 +219,24 @@ fn cmd_matrix_inner(
             return "na";
         }
         let rkeys = keys(r);
-        let covered = tcs.iter().any(|(texpr, ver)| {
+        // Covering TestCases that run in this configuration.
+        let mut covered = false;
+        let mut any_pass = false;
+        for (texpr, ver, verdict) in &tcs {
             let runs = texpr.as_ref().map_or(true, |e| e.eval(&selected));
-            runs && ver.iter().any(|v| rkeys.iter().any(|k| k == v))
-        });
-        if covered {
-            "covered"
-        } else {
+            if runs && ver.iter().any(|v| rkeys.iter().any(|k| k == v)) {
+                covered = true;
+                if *verdict == TcVerdict::Pass {
+                    any_pass = true;
+                }
+            }
+        }
+        if !covered {
             "gap"
+        } else if evidence.is_some() && any_pass {
+            "passing"
+        } else {
+            "covered"
         }
     };
 
@@ -250,9 +279,17 @@ fn cmd_matrix_inner(
         return;
     }
 
-    // Text grid.
+    // Text grid. "passing" → ✓ (covered + passing evidence); "covered" → ✓ when
+    // no executed evidence is in play, else ▣ (covered but not passing).
     let glyph = |s: &str| match s {
-        "covered" => "✓",
+        "passing" => "✓",
+        "covered" => {
+            if evidence.is_some() {
+                "▣"
+            } else {
+                "✓"
+            }
+        }
         "gap" => "✗",
         _ => "—",
     };
@@ -276,7 +313,11 @@ fn cmd_matrix_inner(
         println!();
     }
     println!();
-    println!("Legend: ✓ covered · ✗ gap · — N/A");
+    if evidence.is_some() {
+        println!("Legend: ✓ covered, passing · ▣ covered, not passing · ✗ gap · — N/A");
+    } else {
+        println!("Legend: ✓ covered · ✗ gap · — N/A");
+    }
     println!();
     coverage.print_footer();
 }
@@ -301,7 +342,10 @@ impl Coverage {
             let (mut covered, mut applicable) = (0u32, 0u32);
             for (_, cells) in grid {
                 match cells[col] {
-                    "covered" => {
+                    // Coverage counts linked coverage (issue #21 leaves the
+                    // footer semantics unchanged): both "covered" and "passing"
+                    // are covered/applicable.
+                    "covered" | "passing" => {
                         covered += 1;
                         applicable += 1;
                     }

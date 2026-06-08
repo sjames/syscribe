@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 121 |
-| Passed | 121 |
+| Total test cases | 122 |
+| Passed | 122 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -661,6 +661,17 @@
 | Scenario | Result |
 |---|---|
 | junit results supported via --results | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-009 — Verify executed-evidence glyphs/annotations in matrix and trace, plus --linked-only and graceful degradation.
+
+**Verifies:** REQ-TRS-OUT-009  
+**Result:** ✓ PASS (10 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| no sidecar → no ▣ glyph and no verdict annotations | ✓ PASS |
 
 ---
 

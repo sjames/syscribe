@@ -16,6 +16,7 @@ use syscribe_model::{
     config::ValidateConfig,
     element::{ElementType, RawElement},
     resolver::{is_adr_id, is_req_id, is_tc_id, Resolver},
+    results::ResultsData,
     validator,
     walker,
 };
@@ -444,6 +445,7 @@ fn main() {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
                 let gaps_only = rest.iter().any(|a| a == "--gaps-only");
+                let linked_only = rest.iter().any(|a| a == "--linked-only");
                 let tag = rest
                     .windows(2)
                     .find(|w| w[0] == "--tag")
@@ -455,7 +457,18 @@ fn main() {
                 if rest.iter().any(|a| a == "--features") {
                     matrix::cmd_matrix_features(&elems, json);
                 } else {
-                    matrix::cmd_matrix(&elems, json, tag, status, gaps_only);
+                    // Surface executed-evidence by default when a sidecar exists
+                    // (issue #21); absent results, behaves exactly as before.
+                    let results = ResultsData::load_sidecar(model_root);
+                    matrix::cmd_matrix(
+                        &elems,
+                        json,
+                        tag,
+                        status,
+                        gaps_only,
+                        results.as_ref(),
+                        linked_only,
+                    );
                 }
             }
             "feature-check" => {
@@ -556,7 +569,21 @@ fn main() {
             "trace" | "why" | "who-verifies" => {
                 let result = validator::validate_with_config(&elems, &vcfg);
                 match subcmd {
-                    "trace" => query::cmd_trace(&elems, &resolver, &result, key),
+                    "trace" => {
+                        let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                        let linked_only = rest.iter().any(|a| a == "--linked-only");
+                        // Annotate verifying TestCases with ingested verdicts when a
+                        // sidecar exists (issue #21).
+                        let results = ResultsData::load_sidecar(model_root);
+                        query::cmd_trace(
+                            &elems,
+                            &resolver,
+                            &result,
+                            key,
+                            results.as_ref(),
+                            linked_only,
+                        );
+                    }
                     "why" => query::cmd_why(&elems, &resolver, &result, key),
                     "who-verifies" => query::cmd_who_verifies(&elems, &resolver, &result, key),
                     _ => unreachable!(),

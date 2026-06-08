@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0",
+  "format": "cargo-json",
+  "source": "cargo.json",
+  "ingested_at_unix": 0,
+  "count": 2,
+  "by_leaf": {
+    "pass_ok": "pass",
+    "fail_boom": "fail"
+  }
+}
