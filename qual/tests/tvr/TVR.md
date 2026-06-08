@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 113 |
-| Passed | 113 |
+| Total test cases | 115 |
+| Passed | 115 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -206,6 +206,30 @@
 | Scenario | Result |
 |---|---|
 | PartDef with no supertype: loads without E004 | ✓ PASS |
+
+---
+
+### TC-TRS-EXTREF-001 — Verify the extRef common field parses (string or list) and duplicate detection W028.
+
+**Verifies:** REQ-TRS-EXTREF-001  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| single-string and list-valued extRef parse without error | ✓ PASS |
+| the same extRef on two elements produces W028 | ✓ PASS |
+| W028 is gateable with --deny | ✓ PASS |
+
+---
+
+### TC-TRS-EXTREF-002 — Verify extref lookup command, --json, show surfacing, and spec fields listing.
+
+**Verifies:** REQ-TRS-EXTREF-002  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| spec fields lists extRef | ✓ PASS |
 
 ---
 

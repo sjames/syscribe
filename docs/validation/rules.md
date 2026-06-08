@@ -195,6 +195,19 @@ The optional `implementedBy:` field on a `Part`/`PartDef` records the source art
 - **Path resolution** is identical to `sourceFile` (`classify_source`): model-/repo-relative, `model:`/`repo:` prefixes, absolute, and `file://` paths are checked on disk; remote URIs (`scheme://`) are accepted as external pointers and not verified locally. `implementedBy:` accepts a single string or a list; each entry is checked independently.
 - **Gateable** — `validate --deny W023` exits non-zero when any W023 is present.
 
+## §3 External references (W028)
+
+The optional common field `extRef:` (string or list) marks an element as the representation of an artifact in another tool — a requirement in DOORS Next, an element in a SysML tool, a ticket. Look up the element(s) carrying a reference with `syscribe -m <root> extref <ref>`.
+
+| Code | Condition |
+|---|---|
+| W028 | The same `extRef` value is declared by two or more elements (one finding per duplicated value) |
+
+- **Opt-in** — the check runs only when some element declares `extRef:`.
+- **Allowed but flagged** — duplicates are permitted (`extref` returns all matches), but usually signal a stray copy or bad merge.
+- **Not a cross-reference** — `extRef` is an external pointer; it is never a target for `supertype:`/`verifies:`/`derivedFrom:` etc.
+- **Gateable** — `validate --deny W028` exits non-zero when any W028 is present.
+
 ## Diagram errors (E400–E402)
 
 | Code | Condition |

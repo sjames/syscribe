@@ -251,6 +251,12 @@ pub struct RawFrontmatter {
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub implemented_by: Option<Vec<String>>,
 
+    /// §3 — external reference(s): this element represents an artifact managed in
+    /// another tool (a DNG requirement, a SysML-tool element, …). Opaque strings
+    /// (URI or tool-qualified token); string or list. Never a model cross-ref target.
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub ext_ref: Option<Vec<String>>,
+
     // §3.1 — identity override
     pub qualified_name: Option<String>,
 

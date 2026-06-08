@@ -192,6 +192,24 @@ $ syscribe -m model_auto/ find throttle
 | ...  | | | |
 ```
 
+### Look up by external reference
+
+`extref <ref>` finds elements that represent an external artifact via the optional [`extRef`](../../spec/markdown-sysml-format.md) common field — a requirement in DOORS Next, an element in a SysML tool, a ticket. Matching is exact on the whole reference value; all matches are returned (a duplicate `extRef` warns `W028`). It exits non-zero when nothing matches.
+
+```
+$ syscribe -m model/ extref "DNG:4521"
+
+# extRef: `DNG:4521`
+
+| Qualified Name | Type | id |
+|---|---|---|
+| System::Powertrain::Engine | PartDef |  |
+
+1 match(es)
+
+$ syscribe -m model/ extref "DNG:4521" --json   # machine-readable array
+```
+
 ### List elements by type
 
 ```

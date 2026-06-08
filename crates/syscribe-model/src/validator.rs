@@ -1836,6 +1836,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // the same binding/range enforcement (GH #14).
     findings.extend(parameter_binding_findings(elements));
 
+    // W028: duplicate external references (§3, REQ-TRS-EXTREF-001).
+    findings.extend(ext_ref_duplicate_findings(elements));
+
 
     // ── E228 / W026: transitive package appliesWhen (REQ-TRS-VAR-006) ────────
     // A package may carry appliesWhen to gate its whole subtree, with at most one
@@ -2838,6 +2841,45 @@ pub fn parameter_binding_findings(elements: &[RawElement]) -> Vec<Finding> {
                     }
                 }
             }
+        }
+    }
+    findings
+}
+
+/// W028 (§3, REQ-TRS-EXTREF-001): an `extRef` value declared by two or more
+/// elements. Opt-in (dormant unless some element declares `extRef`); one finding
+/// per duplicated value, naming the sharing elements. Lookup still returns all.
+pub fn ext_ref_duplicate_findings(elements: &[RawElement]) -> Vec<Finding> {
+    // Map each external reference to the elements (qnames) that declare it.
+    let mut owners: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut order: Vec<&str> = Vec::new();
+    for e in elements {
+        let Some(refs) = &e.frontmatter.ext_ref else { continue };
+        for r in refs {
+            let r = r.trim();
+            if r.is_empty() {
+                continue;
+            }
+            let entry = owners.entry(r).or_default();
+            if entry.is_empty() {
+                order.push(r);
+            }
+            entry.push(e.qualified_name.as_str());
+        }
+    }
+    let mut findings = Vec::new();
+    for r in order {
+        let owners = &owners[r];
+        if owners.len() > 1 {
+            // Anchor the finding at the first declaring element's file.
+            let file = elements
+                .iter()
+                .find(|e| e.qualified_name == owners[0])
+                .map(|e| e.file_path.as_str())
+                .unwrap_or("");
+            findings.push(warning("W028", file, &format!(
+                "extRef '{}' is declared by {} elements ({})",
+                r, owners.len(), owners.join(", "))));
         }
     }
     findings

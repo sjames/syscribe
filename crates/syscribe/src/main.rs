@@ -215,6 +215,16 @@ fn main() {
                 }
                 query::cmd_find(&elems, key);
             }
+            "extref" => {
+                if key.is_empty() {
+                    eprintln!("Usage: syscribe --model <root> extref <external-reference> [--json]");
+                    std::process::exit(1);
+                }
+                let json = subcommand_args.iter().any(|a| a == "--json");
+                if !query::cmd_extref(&elems, key, json) {
+                    std::process::exit(1);
+                }
+            }
             "links" => {
                 query::cmd_links(&elems, &resolver, key);
             }

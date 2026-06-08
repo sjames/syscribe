@@ -342,6 +342,7 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
     if let Some(ref id) = fm.id { println!("| **id** | {} |", id); }
     if let Some(ref t) = fm.title { println!("| **title** | {} |", t); }
     if let Some(ref s) = fm.status { println!("| **status** | {} |", s); }
+    if let Some(ref refs) = fm.ext_ref { println!("| **extRef** | {} |", refs.join(", ")); }
     if fm.is_abstract == Some(true) { println!("| **abstract** | true |"); }
     if let Some(ref d) = fm.domain { println!("| **domain** | {} |", d); }
     if let Some(ref rk) = fm.requirement_kind { println!("| **requirementKind** | {} |", rk); }
@@ -729,6 +730,58 @@ pub fn cmd_find(elements: &[RawElement], pattern: &str) {
     }
     println!();
     println!("{} match(es)", scored.len());
+}
+
+/// Look up elements by an exact external reference (`extRef`). Prints every
+/// element whose `extRef` contains `reference` exactly. Returns `true` when at
+/// least one element matched (so the caller can exit non-zero on a miss).
+pub fn cmd_extref(elements: &[RawElement], reference: &str, json: bool) -> bool {
+    let matches: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| {
+            e.frontmatter
+                .ext_ref
+                .as_ref()
+                .is_some_and(|refs| refs.iter().any(|r| r == reference))
+        })
+        .collect();
+
+    if json {
+        let items: Vec<_> = matches
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "qualifiedName": e.qualified_name,
+                    "type": tl(e.frontmatter.element_type.as_ref()),
+                    "id": e.frontmatter.id,
+                    "extRef": e.frontmatter.ext_ref,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&items).unwrap());
+        return !matches.is_empty();
+    }
+
+    if matches.is_empty() {
+        println!("No element declares extRef `{reference}`.");
+        return false;
+    }
+
+    println!("# extRef: `{}`", reference);
+    println!();
+    println!("| Qualified Name | Type | id |");
+    println!("|---|---|---|");
+    for e in &matches {
+        println!(
+            "| {} | {} | {} |",
+            e.qualified_name,
+            tl(e.frontmatter.element_type.as_ref()),
+            e.frontmatter.id.as_deref().unwrap_or("")
+        );
+    }
+    println!();
+    println!("{} match(es)", matches.len());
+    true
 }
 
 // ── cmd: trace ───────────────────────────────────────────────────────────────
@@ -2747,6 +2800,7 @@ pub fn print_help() {
     println!("  ls [qname]                     List namespace children (default: root)");
     println!("  tree [qname]                   Recursive namespace tree (default: root)");
     println!("  find <pattern>                 Fuzzy search by name / ID / content");
+    println!("  extref <ref> [--json]          Find elements by external reference (extRef)");
     println!("  path-for <qname|id>            Print the file path for an element");
     println!("  check-ref <qname|id>           Verify a cross-reference resolves and show its type");
     println!("  next-id <id-prefix>            Print the next available stable ID for a prefix");

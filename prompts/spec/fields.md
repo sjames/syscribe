@@ -15,6 +15,7 @@ All frontmatter fields. Optional unless marked **required**.
 | `id` | native Req/TC/ADR/safety | string | **required** | Stable opaque ID matching type pattern |
 | `title` | native Req/TC/ADR/safety | string | **required** | Human-readable title |
 | `status` | native Req/TC/ADR/safety | string | **required** | Lifecycle status |
+| `extRef` | All | string or list | absent | External reference(s) — this element represents an artifact in another tool (DNG, a SysML tool). Opaque (URI or `tool:id`). Look up with `extref <ref>`; duplicate across elements warns `W028`. Not a model cross-ref target. |
 
 ## Classification flags
 
