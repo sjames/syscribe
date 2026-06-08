@@ -2311,6 +2311,69 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // W306 (REQ-TRS-TRACE-010, GH #17): a high-integrity requirement that is not
+    // a fully integrated safety mechanism — draft, unsatisfied, or active in no
+    // configuration. Default threshold silLevel>=4 / asilLevel D (per-profile
+    // configurability rides with the severity-profile work, GH #18).
+    {
+        let var_active = crate::variability::is_active(elements);
+        let pkg = crate::variability::package_conditions(elements);
+        let configs: Vec<std::collections::BTreeMap<String, bool>> = if var_active {
+            elements
+                .iter()
+                .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
+                .map(|c| c.frontmatter.feature_selections())
+                .collect()
+        } else {
+            Vec::new()
+        };
+
+        for elem in elements {
+            if !Resolver::is_native_requirement(elem) {
+                continue;
+            }
+            let fm = &elem.frontmatter;
+            let high_integrity =
+                fm.sil_level.is_some_and(|n| n >= 4) || fm.asil_level.as_deref() == Some("D");
+            if !high_integrity {
+                continue;
+            }
+
+            let mut reasons: Vec<&str> = Vec::new();
+            if fm.status.as_deref() == Some("draft") {
+                reasons.push("status: draft");
+            }
+            if !satisfied_reqs.contains_key(&elem.qualified_name) {
+                reasons.push("no element satisfies it");
+            }
+            // all-N/A: a feature model is active, configurations exist, and the
+            // requirement's effective appliesWhen is false in every one of them.
+            if var_active && !configs.is_empty() {
+                if let Some(expr) = crate::variability::effective_expr(elem, &pkg) {
+                    let active_somewhere = configs
+                        .iter()
+                        .any(|sel| expr.eval(&|q: &str| sel.get(q).copied().unwrap_or(false)));
+                    if !active_somewhere {
+                        reasons.push("active in no configuration");
+                    }
+                }
+            }
+
+            if !reasons.is_empty() {
+                let req_id = fm.id.as_deref().unwrap_or(&elem.qualified_name);
+                findings.push(warning(
+                    "W306",
+                    &elem.file_path,
+                    &format!(
+                        "high-integrity Requirement '{}' is not a fully integrated safety mechanism: {}",
+                        req_id,
+                        reasons.join("; ")
+                    ),
+                ));
+            }
+        }
+    }
+
     for elem in elements {
         let fm = &elem.frontmatter;
 

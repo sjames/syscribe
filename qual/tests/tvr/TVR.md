@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 120 |
-| Passed | 120 |
+| Total test cases | 121 |
+| Passed | 121 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1157,6 +1157,18 @@
 | typedBy self-reference produces E107 | ✓ PASS |
 | typedBy cycle produces E107 | ✓ PASS |
 | acyclic model produces no cycle errors | ✓ PASS |
+
+---
+
+### TC-TRS-TRACE-010 — Verify the unsatisfied safety-mechanism check W306 (high-integrity + draft/unsatisfied/all-N-A).
+
+**Verifies:** REQ-TRS-TRACE-010  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| W306 message names the sub-conditions | ✓ PASS |
+| W306 is gateable with --deny | ✓ PASS |
 
 ---
 
