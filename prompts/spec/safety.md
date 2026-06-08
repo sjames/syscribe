@@ -68,7 +68,11 @@ damageSeverity: severe      # severe · major · moderate · negligible
 impactCategories:           # safety · financial · operational · privacy
   - safety
   - operational
+hazardRef: SG-001           # optional: HazardousEvent/SafetyGoal this damage endangers
+                            #   (string or list; safety↔security co-engineering)
 ```
+
+A safety-tagged DamageScenario (`impactCategories` includes `safety`) with no `hazardRef` warns **W030**; a `hazardRef` that does not resolve to a `HazardousEvent`/`SafetyGoal` errors **E844**. Run `syscribe -m <root> co-analysis` for the hazard ⇄ threat overlap.
 
 ### ThreatScenario — `TS-*`
 
@@ -80,6 +84,7 @@ status: approved
 attackFeasibility: medium   # high · medium · low · very_low
 attackVector: local         # network · adjacent · local · physical
 damageScenarios: [DS-001]
+hazardRef: SG-001           # optional: direct HazardousEvent/SafetyGoal link (string or list)
 ```
 
 ### CybersecurityGoal — `CSG-*`

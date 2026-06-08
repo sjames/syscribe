@@ -150,6 +150,48 @@ syscribe model/ template TARASheet > Safety/TARA-SYS-001.md
 
 ---
 
+## Safety ↔ Security co-engineering (ISO 26262 ⇄ ISO/SAE 21434)
+
+Syscribe holds **both** the functional-safety layer (`HazardousEvent`, `SafetyGoal`) and the cybersecurity layer (`DamageScenario`, `ThreatScenario`, …) in one model. A dual functional-safety + cybersecurity assessor's first question is *"which cyber threats can violate a safety goal, and where is that analysed?"* The `hazardRef` cross-link and the `co-analysis` view answer it.
+
+### `hazardRef` — the cross-domain link
+
+A `DamageScenario` (or a `ThreatScenario`) may declare **`hazardRef:`** pointing to the `HazardousEvent`/`SafetyGoal` it endangers. The value is a single string or a list, resolved by `id` or qualified name. It is the bridge between the two analyses:
+
+```text
+ThreatScenario --damageScenarios--> DamageScenario --hazardRef--> HazardousEvent/SafetyGoal
+```
+
+```yaml
+# standalone DamageScenario (or a damageTable row)
+type: DamageScenario
+id: DS-SYS-001
+title: "Unauthorized command injection causes vehicle manoeuvre"
+damageSeverity: severe
+impactCategories: [safety, operational]
+hazardRef: SG-SYS-001          # the SafetyGoal this damage can violate
+```
+
+A `ThreatScenario` may carry its own direct `hazardRef` when it threatens a hazard/goal without an intervening damage scenario.
+
+**Validation:**
+
+- **E844** — a `hazardRef` value that does not resolve, or resolves to an element that is **not** a `HazardousEvent`/`SafetyGoal`, is an error.
+- **W030** — a `DamageScenario` whose `impactCategories` includes `safety` but has **no** `hazardRef` is the cross-domain gap an assessor flags first. It is a warning, opt-in (only fires for safety-tagged damage scenarios) and gateable with `--deny W030`.
+
+### `co-analysis` — the cross-domain view
+
+```bash
+syscribe -m model/ co-analysis            # readable grouped report
+syscribe -m model/ co-analysis --json     # structured document
+```
+
+For each `SafetyGoal`/`HazardousEvent` that is a `hazardRef` target, the view lists the safety-relevant `DamageScenario`s linked to it and, transitively, the `ThreatScenario`s that lead to them — *which cyber threats can violate this safety goal/hazard.* A final section lists the safety-tagged `DamageScenario`s with no `hazardRef` (the W030 gaps). The `--json` form is `{ goals: [{ id, type, damageScenarios, threats }], unlinkedSafetyDamage: [...] }`. With no relevant content the command prints a notice and exits 0.
+
+> **Deferred (future work):** the reverse check — *a SafetyGoal whose realising architecture has an attack surface with no security consideration* — requires goal→architecture→vulnerability reachability and is not yet implemented (GH #28 check (b)).
+
+---
+
 ## Fault Tree Analysis (FTA)
 
 FTA uses the **file-per-element** (Option A) pattern. Each node is its own `.md` file. The three element types map directly to standard FTA constructs.

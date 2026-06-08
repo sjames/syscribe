@@ -420,6 +420,13 @@ pub struct RawFrontmatter {
     pub damage_severity: Option<String>,        // severe|major|moderate|negligible
     pub impact_categories: Option<Vec<String>>, // safety|financial|operational|privacy
 
+    /// §T4 safety↔security co-engineering (ISO 26262 ⇄ ISO/SAE 21434) — cross-link
+    /// from a `DamageScenario`/`ThreatScenario` to the `HazardousEvent`/`SafetyGoal`
+    /// it endangers. String or list. Resolved via `Resolver::resolve_ref`; target
+    /// must be a `HazardousEvent` or `SafetyGoal` (else E844). (YAML: hazardRef)
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub hazard_ref: Option<Vec<String>>,
+
     // §T2 — ThreatScenario (ISO/SAE 21434 §15)
     pub attack_feasibility: Option<String>,     // high|medium|low|very_low
     pub attack_vector: Option<String>,          // network|adjacent|local|physical

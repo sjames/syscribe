@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 125 |
-| Passed | 125 |
+| Total test cases | 126 |
+| Passed | 126 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1047,6 +1047,18 @@
 | trigger W803 | ✓ PASS |
 | trigger W804 | ✓ PASS |
 | trigger W807 | ✓ PASS |
+
+---
+
+### TC-TRS-SEC-001 — Verify safety↔security co-engineering: hazardRef, E844, W030, and the co-analysis view.
+
+**Verifies:** REQ-TRS-SEC-001  
+**Result:** ✓ PASS (14 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| linked safety damage scenario: no errors, W030 only on the unlinked one | ✓ PASS |
+| co-analysis --json carries goals and unlinkedSafetyDamage | ✓ PASS |
 
 ---
 

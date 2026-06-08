@@ -3776,14 +3776,16 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 
 | Element type | ID pattern | Description |
 |---|---|---|
-| `DamageScenario` | `DS-*` | An adverse consequence to a stakeholder; carries `damageSeverity:` and `impactCategories:`. |
-| `ThreatScenario` | `TS-*` | A potential attack scenario; carries `attackFeasibility:` and `attackVector:`. References `damageScenarios:`. |
+| `DamageScenario` | `DS-*` | An adverse consequence to a stakeholder; carries `damageSeverity:` and `impactCategories:`. May carry `hazardRef:` (string or list) linking it to the `HazardousEvent`/`SafetyGoal` it endangers (safety↔security co-engineering). |
+| `ThreatScenario` | `TS-*` | A potential attack scenario; carries `attackFeasibility:` and `attackVector:`. References `damageScenarios:`. May carry a direct `hazardRef:` (string or list) to a `HazardousEvent`/`SafetyGoal`. |
 | `CybersecurityGoal` | `CSG-*` | A high-level security requirement; carries `securityProperty:` (`confidentiality`, `integrity`, `availability`, `authenticity`), `calLevel:` (`CAL1`–`CAL4`), and `threatScenarios:` (the `TS-*` threats it counters). |
 | `SecurityControl` | `SC-*` | A concrete countermeasure; carries `controlType:` and `implementsGoals:`. |
 | `VulnerabilityReport` | `VR-*` | A tracked vulnerability; carries `cvssScore:`, `mitigatedBy:`, and `affectedElements:`. |
 | `TARASheet` | `TARA-*` | An Option-B container: a single file whose `damageTable:`, `threatTable:`, `goalTable:`, and `controlTable:` sections are exploded at parse time into the individual Tier 2 element types above. |
 
 **Cross-reference rules:** A `Requirement` motivated by a cybersecurity goal should set `derivedFromSecurityGoal:` to the `CSG-*` ID, and must set `verificationMethod:` (W807). The OSLC link direction applies: the downstream element holds the reference.
+
+**Safety↔security co-engineering (ISO 26262 ⇄ ISO/SAE 21434):** A `DamageScenario`/`ThreatScenario` may declare `hazardRef:` (string or list) pointing to the `HazardousEvent`/`SafetyGoal` it endangers, resolved by `id` or qualified name. A `hazardRef` that does not resolve, or resolves to a non-`HazardousEvent`/non-`SafetyGoal` element, is an error (E844). A `DamageScenario` whose `impactCategories:` includes `safety` but has no `hazardRef` warns W030 (opt-in, gateable with `--deny W030`). The `co-analysis` command (§ CLI) reports, per safety goal/hazard, the cyber threats that can violate it.
 
 **Binding SecurityControls to architecture:** Architecture elements (e.g. `PartDef`) that realise a `SecurityControl` should set `allocatedFrom:` to the control's `SC-*` ID. Both `allocatedFrom:` and `allocatedTo:` accept a single string or a list of strings to support multiple controls per element.
 
@@ -5134,7 +5136,14 @@ Once any element in the traceability chain carries `asilLevel:`, `silLevel:`, or
 | `W806` | `SafetyGoal` has no `hazardousEvents:` — not grounded in any hazard analysis |
 | `W807` | `Requirement` with `derivedFromSecurityGoal:` has no `verificationMethod:` |
 
-The full set of Tier 2 (E800–E843) and Tier 4 (E900–E941, W900–W905) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
+#### Safety↔security co-engineering (E844, W030)
+
+| Code | Severity | Condition |
+|---|---|---|
+| `E844` | Error | A `hazardRef:` value on a `DamageScenario`/`ThreatScenario` does not resolve, or resolves to an element that is not a `HazardousEvent`/`SafetyGoal` |
+| `W030` | Warning | A `DamageScenario` whose `impactCategories:` includes `safety` has no `hazardRef:` (the cross-domain gap). Opt-in (safety-tagged only); gateable with `--deny W030` |
+
+The full set of Tier 2 (E800–E844) and Tier 4 (E900–E941, W900–W905) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
 
 #### sourceFile location semantics
 
@@ -5367,6 +5376,7 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `wcet` | native Requirement | string | absent | 8.11.6 |
 | `allocatedFrom` | Any element | string or list | absent | 8.18.2 |
 | `allocatedTo` | Any element | string or list | absent | 8.18.2 |
+| `hazardRef` | DamageScenario / ThreatScenario | string or list | absent | 8.18.2 |
 | `sourceFile` | native TestCase | string | absent | 8.12.5 |
 | `testFunctions` | native TestCase | list | absent | 8.12.5 |
 | `tags` | native Requirement/TestCase | list of strings | absent | 8.11.6, 8.12.5 |

@@ -221,6 +221,21 @@ inputs and function outputs...
 
 ---
 
+## Safety ↔ security co-analysis
+
+`co-analysis` is the cross-domain view that links the functional-safety layer (`HazardousEvent`, `SafetyGoal`) to the cybersecurity layer (`DamageScenario`, `ThreatScenario`). It answers: *which cyber threats can violate each safety goal/hazard, and which safety-relevant damage scenarios are not yet linked?*
+
+```bash
+$ syscribe -m model/ co-analysis            # readable grouped report
+$ syscribe -m model/ co-analysis --json     # structured document
+```
+
+It builds the chain `ThreatScenario --damageScenarios--> DamageScenario --hazardRef--> HazardousEvent/SafetyGoal` (plus a `ThreatScenario`'s own direct `hazardRef`). For each safety goal/hazard that is a `hazardRef` target it lists the safety-relevant damage scenarios and the threats that lead to them; a final section lists safety-tagged damage scenarios with no `hazardRef` (the **W030** gaps). `--json` emits `{ goals: [{ id, type, damageScenarios, threats }], unlinkedSafetyDamage: [...] }`. With no relevant content it prints a notice and exits 0.
+
+Add `hazardRef:` (string or list) to a `DamageScenario`/`ThreatScenario` to declare the link. An unresolved or wrong-type `hazardRef` is error **E844**; a safety-tagged damage scenario lacking one warns **W030** (gate with `validate --deny W030`). See the [safety-analysis guide](../model-guide/safety-analysis.md).
+
+---
+
 ## Connectivity
 
 `connectivity` exports the **connected slice of the model reachable from a chosen element** — the elements plus the connections between them — as a focused subgraph. It walks outward from the root over the part-to-part wiring and structure edges, then renders the reachable nodes and edges as a text tree, a JSON document, or styled Graphviz DOT. Running it on the **model-root element dumps the whole model**.

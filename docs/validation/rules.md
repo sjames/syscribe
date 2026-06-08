@@ -310,6 +310,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 | E808 | `id` does not match `DS-*` pattern |
 | E809 | `damageSeverity` is not one of `severe · major · moderate · negligible` |
 | E810 | `impactCategories` entry is not one of `safety · financial · operational · privacy` |
+| E844 | `hazardRef` does not resolve, or resolves to an element that is not a `HazardousEvent`/`SafetyGoal` (safety↔security co-engineering) |
 
 ### ThreatScenario (E811–E814)
 
@@ -319,6 +320,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 | E812 | `id` does not match `TS-*` pattern |
 | E813 | `attackFeasibility` is not one of `high · medium · low · very_low` |
 | E814 | `attackVector` is not one of `network · adjacent · local · physical` |
+| E844 | `hazardRef` does not resolve, or resolves to an element that is not a `HazardousEvent`/`SafetyGoal` (safety↔security co-engineering) |
 
 ### CybersecurityGoal (E815–E818)
 
@@ -369,6 +371,15 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 | W805 | SafetyGoal has no `Requirement` with `derivedFromSafetyGoal` pointing to it |
 | W806 | SafetyGoal has no `hazardousEvents` — not grounded in any hazard analysis |
 | W807 | `Requirement` with `derivedFromSecurityGoal` has no `verificationMethod` |
+
+## Safety↔security co-engineering (E844, W030)
+
+ISO 26262 ⇄ ISO/SAE 21434 cross-domain checks. A `DamageScenario`/`ThreatScenario` may declare `hazardRef:` (string or list) pointing to the `HazardousEvent`/`SafetyGoal` it endangers. See `docs/model-guide/safety-analysis.md` and `syscribe -m <root> co-analysis`.
+
+| Code | Severity | Condition |
+|---|---|---|
+| E844 | Error | A `hazardRef` value on a `DamageScenario`/`ThreatScenario` does not resolve, or resolves to an element that is not a `HazardousEvent`/`SafetyGoal` |
+| W030 | Warning | A `DamageScenario` whose `impactCategories` includes `safety` has no `hazardRef` (the cross-domain gap). Opt-in (safety-tagged only); gate with `--deny W030` |
 
 ## Integrity level propagation errors and warnings (E841–E843, W808)
 

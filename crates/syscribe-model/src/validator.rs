@@ -392,6 +392,29 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     }
                 }
             }
+            // E844: hazardRef must resolve to a HazardousEvent or SafetyGoal
+            // (§T4 safety↔security co-engineering, ISO 26262 ⇄ ISO/SAE 21434).
+            if let Some(ref refs) = fm.hazard_ref {
+                for r in refs {
+                    match resolver.resolve_ref(elements, r) {
+                        None => findings.push(error("E844", &file, &format!("DamageScenario.hazardRef '{}' does not resolve to any model element", r))),
+                        Some(target) => {
+                            if !matches!(target.frontmatter.element_type, Some(ElementType::HazardousEvent) | Some(ElementType::SafetyGoal)) {
+                                findings.push(error("E844", &file, &format!("DamageScenario.hazardRef '{}' must reference a HazardousEvent or SafetyGoal", r)));
+                            }
+                        }
+                    }
+                }
+            }
+            // W030: a safety-tagged DamageScenario with no hazardRef (the
+            // cross-domain gap an FS+CS assessor looks for first). Opt-in:
+            // only fires when impactCategories includes `safety`.
+            let safety_tagged = fm.impact_categories.as_ref()
+                .map(|c| c.iter().any(|x| x == "safety")).unwrap_or(false);
+            let has_hazard_ref = fm.hazard_ref.as_ref().map(|r| !r.is_empty()).unwrap_or(false);
+            if safety_tagged && !has_hazard_ref {
+                findings.push(warning("W030", &file, "DamageScenario has impactCategories: safety but no hazardRef — link it to the HazardousEvent/SafetyGoal it endangers (ISO 26262 ⇄ ISO/SAE 21434 co-analysis)"));
+            }
         }
 
         // ── Tier 2: ThreatScenario (E811-E814) ───────────────────────────────
@@ -414,6 +437,20 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if let Some(ref v) = fm.attack_vector {
                 if !["network","adjacent","local","physical"].contains(&v.as_str()) {
                     findings.push(error("E814", &file, &format!("ThreatScenario.attackVector '{}' must be network, adjacent, local, or physical", v)));
+                }
+            }
+            // E844: a ThreatScenario's own direct hazardRef must resolve to a
+            // HazardousEvent or SafetyGoal (§T4 safety↔security co-engineering).
+            if let Some(ref refs) = fm.hazard_ref {
+                for r in refs {
+                    match resolver.resolve_ref(elements, r) {
+                        None => findings.push(error("E844", &file, &format!("ThreatScenario.hazardRef '{}' does not resolve to any model element", r))),
+                        Some(target) => {
+                            if !matches!(target.frontmatter.element_type, Some(ElementType::HazardousEvent) | Some(ElementType::SafetyGoal)) {
+                                findings.push(error("E844", &file, &format!("ThreatScenario.hazardRef '{}' must reference a HazardousEvent or SafetyGoal", r)));
+                            }
+                        }
+                    }
                 }
             }
         }

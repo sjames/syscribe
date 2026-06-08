@@ -1,5 +1,6 @@
 #![deny(warnings)]
 
+mod coanalysis;
 mod connectivity;
 mod diagram;
 mod discover;
@@ -502,6 +503,11 @@ fn main() {
                         linked_only,
                     );
                 }
+            }
+            "co-analysis" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                coanalysis::cmd_coanalysis(&elems, json);
             }
             "feature-check" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

@@ -3015,6 +3015,10 @@ pub fn print_help() {
     println!("                                 Per-requirement distinct verification levels + depth flag (gate with --min-levels)");
     println!("  refs <qname|id>                What elements reference this element");
     println!("                                 (for a Configuration: also the TestCases that run in it)");
+    println!("  co-analysis [--json]           Safety↔security co-engineering view (ISO 26262 ⇄ ISO/SAE 21434):");
+    println!("                                 each SafetyGoal/HazardousEvent with the cyber ThreatScenarios that");
+    println!("                                 can violate it (via DamageScenario.hazardRef) + safety-tagged");
+    println!("                                 DamageScenarios with no hazardRef (the W030 gaps).");
     println!();
     println!("Variability (§9, opt-in — dormant unless a FeatureDef is linked):");
     println!("  appliesWhen: <expr>            On any element/TestCase: a boolean expression over FeatureDef QNames");
