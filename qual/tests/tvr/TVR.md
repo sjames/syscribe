@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 118 |
-| Passed | 118 |
+| Total test cases | 119 |
+| Passed | 119 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -183,6 +183,17 @@
 |---|---|
 | base validate never emits W024 | ✓ PASS |
 | W024 is gateable with --deny | ✓ PASS |
+
+---
+
+### TC-TRS-DISC-007 — Verify list --status/--sil/--json filters and matrix --status/--gaps-only/coverage footer.
+
+**Verifies:** REQ-TRS-DISC-007  
+**Result:** ✓ PASS (14 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| matrix --json carries a coverage object | ✓ PASS |
 
 ---
 

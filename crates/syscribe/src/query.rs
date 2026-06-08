@@ -623,6 +623,9 @@ pub fn cmd_list(
     scope: &str,
     tag: Option<&str>,
     feature: Option<&str>,
+    status: Option<&str>,
+    sil: Option<&str>,
+    json: bool,
 ) {
     // `--feature <F>`: keep only elements whose `appliesWhen:` names F as an
     // operand. The feature must resolve to a known FeatureDef.
@@ -663,15 +666,46 @@ pub fn cmd_list(
             })
         })
         .filter(|e| feature.is_none_or(|feat| gates_feature(e, feat)))
+        // `--status <s>`: keep only elements whose `status:` equals s exactly.
+        .filter(|e| status.is_none_or(|s| e.frontmatter.status.as_deref() == Some(s)))
+        // `--sil <v>`: one flag covers SIL and ASIL — match when `silLevel`
+        // (integer) stringifies to v OR `asilLevel` equals v.
+        .filter(|e| {
+            sil.is_none_or(|v| {
+                e.frontmatter.sil_level.is_some_and(|n| n.to_string() == v)
+                    || e.frontmatter.asil_level.as_deref() == Some(v)
+            })
+        })
         .collect();
+
+    matches.sort_by_key(|e| e.qualified_name.as_str());
+
+    // `--json`: emit a JSON array of the (filtered) elements. Absent fields are
+    // emitted as null (serde skips nothing here; consumers treat null as absent).
+    if json {
+        let items: Vec<_> = matches
+            .iter()
+            .map(|e| {
+                serde_json::json!({
+                    "qualifiedName": e.qualified_name,
+                    "type": tl(e.frontmatter.element_type.as_ref()),
+                    "name": e.frontmatter.name,
+                    "id": e.frontmatter.id,
+                    "status": e.frontmatter.status,
+                    "silLevel": e.frontmatter.sil_level,
+                    "asilLevel": e.frontmatter.asil_level,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&items).unwrap());
+        return;
+    }
 
     if matches.is_empty() {
         let scope_note = if scope.is_empty() { String::new() } else { format!(" in `{scope}`") };
         println!("No `{type_filter}` elements found{scope_note}.");
         return;
     }
-
-    matches.sort_by_key(|e| e.qualified_name.as_str());
 
     let scope_note = if scope.is_empty() { String::new() } else { format!(" in `{scope}`") };
     println!("# {} elements{} ({})", type_filter, scope_note, matches.len());
@@ -2770,8 +2804,14 @@ pub fn print_help() {
     println!("  untyped                        List elements with no type: field set");
     println!("  list <type> [scope] [--tag <t>] List elements of a type (optional namespace scope; --tag filters by tags:)");
     println!("       [--feature <F>]           Keep only elements whose appliesWhen names FeatureDef F as an operand");
+    println!("       [--status <s>]            Keep only elements whose status: equals s");
+    println!("       [--sil <v>]               Keep only elements whose silLevel stringifies to v OR asilLevel equals v");
+    println!("       [--json]                  Emit a JSON array (qualifiedName,type,name,id,status,silLevel,asilLevel)");
     println!("  matrix [--json] [--tag <t>]    Requirement × Configuration coverage matrix (cells: covered/gap/N-A)");
     println!("                                 Columns are Configuration elements; --json emits the grid; --tag filters rows.");
+    println!("       [--status <s>]            Restrict rows to requirements whose status: equals s");
+    println!("       [--gaps-only]             Drop fully-covered and all-N/A rows; keep only rows with a gap cell");
+    println!("                                 A per-config + overall coverage-% footer is printed (coverage object in --json).");
     println!("                                 With no feature model, falls back to a flat requirement/testcase view.");
     println!("  matrix --features [--json]     Feature × Configuration selection grid (cell ✓ where selected true)");
     println!("  features [--json]              Feature-model overview: every FeatureDef with groupKind, requires/excludes,");

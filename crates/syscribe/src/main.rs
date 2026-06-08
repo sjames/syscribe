@@ -377,7 +377,7 @@ fn main() {
             }
             "list" => {
                 if key.is_empty() {
-                    eprintln!("Usage: syscribe --model <root> list <type> [scope] [--tag <tag>]");
+                    eprintln!("Usage: syscribe --model <root> list <type> [scope] [--tag <t>] [--feature <F>] [--status <s>] [--sil <v>] [--json]");
                     std::process::exit(1);
                 }
                 let rest = subcommand_args.get(2..).unwrap_or(&[]);
@@ -393,11 +393,25 @@ fn main() {
                     .windows(2)
                     .find(|w| w[0] == "--feature")
                     .map(|w| w[1].as_str());
-                // scope = first positional argument that is not a flag or flag value
+                let status = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--status")
+                    .map(|w| w[1].as_str());
+                let sil = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--sil")
+                    .map(|w| w[1].as_str());
+                let json = rest.iter().any(|a| a == "--json");
+                // scope = first positional argument that is not a flag or flag
+                // value. Two-arg flags consume their value so it is not mistaken
+                // for the positional scope.
                 let mut scope = "";
                 let mut i = 0;
                 while i < rest.len() {
-                    if rest[i] == "--tag" || rest[i] == "--config" || rest[i] == "--feature" {
+                    if matches!(
+                        rest[i].as_str(),
+                        "--tag" | "--config" | "--feature" | "--status" | "--sil"
+                    ) {
                         i += 2;
                         continue;
                     }
@@ -409,14 +423,14 @@ fn main() {
                     break;
                 }
                 match config {
-                    None => query::cmd_list(&elems, key, scope, tag, feature),
+                    None => query::cmd_list(&elems, key, scope, tag, feature, status, sil, json),
                     Some(c) => match syscribe_model::projection::resolve_selection(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
-                            query::cmd_list(&elems, key, scope, tag, feature)
+                            query::cmd_list(&elems, key, scope, tag, feature, status, sil, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
                             let view = syscribe_model::projection::project(&elems, &sel);
-                            query::cmd_list(&view, key, scope, tag, feature);
+                            query::cmd_list(&view, key, scope, tag, feature, status, sil, json);
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
                             eprintln!("{m}");
@@ -428,14 +442,19 @@ fn main() {
             "matrix" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
+                let gaps_only = rest.iter().any(|a| a == "--gaps-only");
                 let tag = rest
                     .windows(2)
                     .find(|w| w[0] == "--tag")
                     .map(|w| w[1].as_str());
+                let status = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--status")
+                    .map(|w| w[1].as_str());
                 if rest.iter().any(|a| a == "--features") {
                     matrix::cmd_matrix_features(&elems, json);
                 } else {
-                    matrix::cmd_matrix(&elems, json, tag);
+                    matrix::cmd_matrix(&elems, json, tag, status, gaps_only);
                 }
             }
             "feature-check" => {

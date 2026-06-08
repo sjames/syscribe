@@ -251,6 +251,19 @@ Filter by free-text `tags:` with `--tag` (repeatable; orthogonal to the feature 
 $ syscribe -m model/ list Requirement --tag smoke
 ```
 
+Filter by lifecycle status and safety integrity level, and emit machine-readable JSON:
+
+```
+$ syscribe -m model/ list Requirement --status approved   # keep only status: approved
+$ syscribe -m model/ list Requirement --sil 4             # silLevel: 4 (integer, stringified)
+$ syscribe -m model/ list Requirement --sil D             # asilLevel: D — one flag covers SIL and ASIL
+$ syscribe -m model/ list Requirement --status draft --json
+```
+
+- **`--status <s>`** keeps only elements whose `status:` equals `<s>` exactly.
+- **`--sil <v>`** keeps only elements whose `silLevel:` (integer) stringifies to `<v>` **or** whose `asilLevel:` equals `<v>`. A single flag covers both IEC 61508 SIL and ISO 26262 ASIL.
+- **`--json`** emits a JSON array of the (filtered) elements — each object carries `qualifiedName`, `type`, `name`, `id`, `status`, `silLevel`, `asilLevel` (absent fields are `null`). All filters above apply to the JSON output too, and compose (AND) with `--tag`, `--feature` and the `--config` lens.
+
 ---
 
 ## Variability (product lines)
@@ -272,12 +285,18 @@ A `TestCase` *runs in* a `Configuration` iff its `appliesWhen:` is satisfied by 
 
 ```
 $ syscribe -m model/ matrix
-$ syscribe -m model/ matrix --json            # structured grid (schemaVersion, columns, rows)
+$ syscribe -m model/ matrix --json            # structured grid (schemaVersion, columns, rows, coverage)
 $ syscribe -m model/ matrix --tag safety      # filter rows by tag
+$ syscribe -m model/ matrix --status approved # restrict rows to requirements whose status: equals approved
+$ syscribe -m model/ matrix --gaps-only       # keep only rows with at least one gap cell
 $ syscribe -m model/ matrix --features        # Feature × Configuration grid (which feature ships in which product)
 ```
 
-With no feature model present, `matrix` prints a notice and falls back to a flat requirement/testcase view (exit 0). `matrix --features` swaps the rows for `FeatureDef`s and the cells for selected (`✓`) / not-selected — the product map complementing the Requirement × Configuration view.
+- **`--status <s>`** restricts the requirement ROWS to those whose `status:` equals `<s>` (text and `--json`).
+- **`--gaps-only`** drops rows that are fully covered or all-N/A, keeping only rows with at least one `gap` cell (text and `--json`).
+- Every run prints a **coverage footer**: per-configuration and overall `covered / applicable`, where `applicable = covered + gap` (N/A excluded) and the percentage is `covered*100/applicable` rounded to one decimal (`n/a` when nothing is applicable). Under `--json`, the same numbers appear in a `coverage` object: `{ "perConfig": { "<cfgId>": {"covered":N,"applicable":M,"pct":P}, ... }, "overall": {"covered":N,"applicable":M,"pct":P} }` (`pct` is `null` when `applicable == 0`). Coverage is plain/unweighted — SIL-weighted coverage is a planned follow-up.
+
+With no feature model present, `matrix` prints a notice and falls back to a flat requirement/testcase view (exit 0); `--status`, `--gaps-only` and the coverage footer still apply. `matrix --features` swaps the rows for `FeatureDef`s and the cells for selected (`✓`) / not-selected — the product map complementing the Requirement × Configuration view.
 
 `refs <CONF-id>` additionally lists the `TestCase`s that run in a given configuration.
 

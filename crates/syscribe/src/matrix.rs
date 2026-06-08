@@ -49,8 +49,14 @@ fn has_tag(e: &RawElement, tag: &str) -> bool {
         .is_some_and(|ts| ts.iter().any(|t| t == tag))
 }
 
-pub fn cmd_matrix(elements: &[RawElement], json: bool, tag: Option<&str>) {
-    cmd_matrix_inner(elements, json, tag, false)
+pub fn cmd_matrix(
+    elements: &[RawElement],
+    json: bool,
+    tag: Option<&str>,
+    status: Option<&str>,
+    gaps_only: bool,
+) {
+    cmd_matrix_inner(elements, json, tag, status, gaps_only, false)
 }
 
 /// `matrix --features`: Feature × Configuration selection grid. Rows are
@@ -141,9 +147,16 @@ pub fn cmd_matrix_features(elements: &[RawElement], json: bool) {
     println!("Legend: ✓ selected");
 }
 
-fn cmd_matrix_inner(elements: &[RawElement], json: bool, tag: Option<&str>, _features: bool) {
+fn cmd_matrix_inner(
+    elements: &[RawElement],
+    json: bool,
+    tag: Option<&str>,
+    status: Option<&str>,
+    gaps_only: bool,
+    _features: bool,
+) {
     if !variability::is_active(elements) {
-        cmd_matrix_dormant(elements, json);
+        cmd_matrix_dormant(elements, json, status, gaps_only);
         return;
     }
 
@@ -158,11 +171,12 @@ fn cmd_matrix_inner(elements: &[RawElement], json: bool, tag: Option<&str>, _fea
         .map(|c| (disp_id(c), c.frontmatter.feature_selections()))
         .collect();
 
-    // Rows: requirements (optionally tag-filtered), sorted by id.
+    // Rows: requirements (optionally tag- and status-filtered), sorted by id.
     let mut reqs: Vec<&RawElement> = elements
         .iter()
         .filter(|e| is_type(e, ElementType::Requirement))
         .filter(|e| tag.is_none_or(|t| has_tag(e, t)))
+        .filter(|e| status.is_none_or(|s| e.frontmatter.status.as_deref() == Some(s)))
         .collect();
     reqs.sort_by_key(|e| disp_id(e));
 
@@ -197,22 +211,40 @@ fn cmd_matrix_inner(elements: &[RawElement], json: bool, tag: Option<&str>, _fea
         }
     };
 
+    // Materialise each retained row's cell states once: (id, [state per column]).
+    // `--gaps-only` keeps only rows that have at least one `gap` cell (dropping
+    // fully-covered and all-N/A rows).
+    let grid: Vec<(String, Vec<&'static str>)> = reqs
+        .iter()
+        .map(|r| {
+            let cells: Vec<&'static str> = cfg_sel.iter().map(|(_, sel)| state(r, sel)).collect();
+            (disp_id(r), cells)
+        })
+        .filter(|(_, cells)| !gaps_only || cells.iter().any(|c| *c == "gap"))
+        .collect();
+
+    // Coverage rollup: covered / applicable, applicable = covered + gap (N/A
+    // excluded). Computed over the retained rows. Plain (unweighted) coverage
+    // only — SIL-weighted coverage is a deliberate follow-up (out of scope here).
+    let coverage = Coverage::compute(&cfg_sel, &grid);
+
     if json {
         let columns: Vec<String> = cfg_sel.iter().map(|(c, _)| c.clone()).collect();
-        let rows: Vec<_> = reqs
+        let rows: Vec<_> = grid
             .iter()
-            .map(|r| {
-                let mut cells = serde_json::Map::new();
-                for (cid, sel) in &cfg_sel {
-                    cells.insert(cid.clone(), json!(state(r, sel)));
+            .map(|(id, cells)| {
+                let mut cell_map = serde_json::Map::new();
+                for ((cid, _), s) in cfg_sel.iter().zip(cells) {
+                    cell_map.insert(cid.clone(), json!(*s));
                 }
-                json!({ "id": disp_id(r), "cells": cells })
+                json!({ "id": id, "cells": cell_map })
             })
             .collect();
         let doc = json!({
             "schemaVersion": SCHEMA_VERSION,
             "columns": columns,
             "rows": rows,
+            "coverage": coverage.to_json(),
         });
         println!("{}", serde_json::to_string_pretty(&doc).unwrap());
         return;
@@ -224,7 +256,7 @@ fn cmd_matrix_inner(elements: &[RawElement], json: bool, tag: Option<&str>, _fea
         "gap" => "✗",
         _ => "—",
     };
-    println!("# Coverage Matrix ({} requirements × {} configurations)", reqs.len(), cfg_sel.len());
+    println!("# Coverage Matrix ({} requirements × {} configurations)", grid.len(), cfg_sel.len());
     println!();
     print!("| Requirement |");
     for (cid, _) in &cfg_sel {
@@ -236,23 +268,118 @@ fn cmd_matrix_inner(elements: &[RawElement], json: bool, tag: Option<&str>, _fea
         print!("---|");
     }
     println!();
-    for r in &reqs {
-        print!("| {} |", disp_id(r));
-        for (_, sel) in &cfg_sel {
-            print!(" {} |", glyph(state(r, sel)));
+    for (id, cells) in &grid {
+        print!("| {} |", id);
+        for s in cells {
+            print!(" {} |", glyph(s));
         }
         println!();
     }
     println!();
     println!("Legend: ✓ covered · ✗ gap · — N/A");
+    println!();
+    coverage.print_footer();
+}
+
+/// Plain (unweighted) coverage rollup: per-configuration and overall
+/// `covered / applicable`, where `applicable = covered + gap` (N/A excluded).
+/// Follow-up: SIL-weighted coverage is intentionally not implemented here.
+struct Coverage {
+    per_config: Vec<(String, u32, u32)>, // (cfg id, covered, applicable)
+    overall_covered: u32,
+    overall_applicable: u32,
+}
+
+impl Coverage {
+    fn compute(
+        cfg_sel: &[(String, BTreeMap<String, bool>)],
+        grid: &[(String, Vec<&'static str>)],
+    ) -> Coverage {
+        let mut per_config: Vec<(String, u32, u32)> = Vec::with_capacity(cfg_sel.len());
+        let (mut overall_covered, mut overall_applicable) = (0u32, 0u32);
+        for (col, (cid, _)) in cfg_sel.iter().enumerate() {
+            let (mut covered, mut applicable) = (0u32, 0u32);
+            for (_, cells) in grid {
+                match cells[col] {
+                    "covered" => {
+                        covered += 1;
+                        applicable += 1;
+                    }
+                    "gap" => applicable += 1,
+                    _ => {}
+                }
+            }
+            overall_covered += covered;
+            overall_applicable += applicable;
+            per_config.push((cid.clone(), covered, applicable));
+        }
+        Coverage { per_config, overall_covered, overall_applicable }
+    }
+
+    /// pct = covered*100/applicable rounded to one decimal, or None when applicable == 0.
+    fn pct(covered: u32, applicable: u32) -> Option<f64> {
+        if applicable == 0 {
+            None
+        } else {
+            Some((f64::from(covered) * 1000.0 / f64::from(applicable)).round() / 10.0)
+        }
+    }
+
+    fn to_json(&self) -> serde_json::Value {
+        let mut per = serde_json::Map::new();
+        for (cid, covered, applicable) in &self.per_config {
+            per.insert(
+                cid.clone(),
+                json!({
+                    "covered": covered,
+                    "applicable": applicable,
+                    "pct": Self::pct(*covered, *applicable),
+                }),
+            );
+        }
+        json!({
+            "perConfig": per,
+            "overall": {
+                "covered": self.overall_covered,
+                "applicable": self.overall_applicable,
+                "pct": Self::pct(self.overall_covered, self.overall_applicable),
+            },
+        })
+    }
+
+    fn fmt_pct(p: Option<f64>) -> String {
+        p.map_or_else(|| "n/a".to_string(), |v| format!("{v:.1}%"))
+    }
+
+    fn print_footer(&self) {
+        println!("Coverage (covered / applicable; N/A excluded):");
+        for (cid, covered, applicable) in &self.per_config {
+            println!(
+                "  {cid}: {covered}/{applicable} ({})",
+                Self::fmt_pct(Self::pct(*covered, *applicable))
+            );
+        }
+        println!(
+            "  Overall: {}/{} ({})",
+            self.overall_covered,
+            self.overall_applicable,
+            Self::fmt_pct(Self::pct(self.overall_covered, self.overall_applicable))
+        );
+    }
 }
 
 /// Dormant fallback: no feature model is linked, so emit the flat
 /// requirement→testcase coverage view with a clear notice.
-fn cmd_matrix_dormant(elements: &[RawElement], json: bool) {
+fn cmd_matrix_dormant(
+    elements: &[RawElement],
+    json: bool,
+    status: Option<&str>,
+    gaps_only: bool,
+) {
     let mut reqs: Vec<&RawElement> = elements
         .iter()
         .filter(|e| is_type(e, ElementType::Requirement))
+        .filter(|e| status.is_none_or(|s| e.frontmatter.status.as_deref() == Some(s)))
         .collect();
     reqs.sort_by_key(|e| disp_id(e));
 
@@ -269,16 +396,32 @@ fn cmd_matrix_dormant(elements: &[RawElement], json: bool) {
             .any(|ver| ver.iter().any(|v| rkeys.iter().any(|k| k == v)))
     };
 
+    // Flat view: every requirement is "applicable" (no N/A dimension). A row is
+    // covered or a gap; `--gaps-only` keeps only the gap rows.
+    let grid: Vec<(String, bool)> = reqs
+        .iter()
+        .map(|r| (disp_id(r), verified_by(r)))
+        .filter(|(_, cov)| !gaps_only || !*cov)
+        .collect();
+
+    let covered = grid.iter().filter(|(_, c)| *c).count() as u32;
+    let applicable = grid.len() as u32;
+    let pct = Coverage::pct(covered, applicable);
+
     if json {
-        let rows: Vec<_> = reqs
+        let rows: Vec<_> = grid
             .iter()
-            .map(|r| json!({ "id": disp_id(r), "verified": verified_by(r) }))
+            .map(|(id, cov)| json!({ "id": id, "verified": cov }))
             .collect();
         let doc = json!({
             "schemaVersion": SCHEMA_VERSION,
             "note": "no feature model present — flat coverage view",
             "columns": Vec::<String>::new(),
             "rows": rows,
+            "coverage": json!({
+                "perConfig": serde_json::Map::new(),
+                "overall": { "covered": covered, "applicable": applicable, "pct": pct },
+            }),
         });
         println!("{}", serde_json::to_string_pretty(&doc).unwrap());
         return;
@@ -288,7 +431,10 @@ fn cmd_matrix_dormant(elements: &[RawElement], json: bool) {
     println!();
     println!("| Requirement | Covered |");
     println!("|---|---|");
-    for r in &reqs {
-        println!("| {} | {} |", disp_id(r), if verified_by(r) { "✓" } else { "✗" });
+    for (id, cov) in &grid {
+        println!("| {} | {} |", id, if *cov { "✓" } else { "✗" });
     }
+    println!();
+    println!("Coverage (covered / applicable):");
+    println!("  Overall: {covered}/{applicable} ({})", Coverage::fmt_pct(pct));
 }
