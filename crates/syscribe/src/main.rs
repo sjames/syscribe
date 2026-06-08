@@ -278,6 +278,29 @@ fn main() {
                     .find(|w| w[0] == "--file")
                     .map(|w| w[1].as_str());
                 let gate = parse_gate_options(rest);
+                // Named severity profile (issue #18): load `[profiles.<name>]` from
+                // <model_root>/.syscribe.toml. An undefined name (or missing file) is
+                // a usage error → exit 1.
+                let profile_name = rest.windows(2)
+                    .find(|w| w[0] == "--profile")
+                    .map(|w| w[1].as_str());
+                let profile = if let Some(name) = profile_name {
+                    let profiles = syscribe_model::config::load_profiles(model_root);
+                    match profiles.get(name) {
+                        Some(p) => Some(p.clone()),
+                        None => {
+                            eprintln!(
+                                "Error: profile '{}' is not defined in {}/.syscribe.toml",
+                                name,
+                                model_root.display()
+                            );
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    None
+                };
+                let profile_ref = profile.as_ref();
                 // Ad-hoc results ingest for this run (does not write the sidecar).
                 let results_file = rest.windows(2)
                     .find(|w| w[0] == "--results")
@@ -308,7 +331,7 @@ fn main() {
                 } else if let Some(c) = config {
                     match syscribe_model::projection::resolve_selection(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
-                            query::cmd_validate(&elems, &vcfg_run, &gate, file_filter, json)
+                            query::cmd_validate(&elems, &vcfg_run, &gate, profile_ref, file_filter, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
                             query::cmd_validate_projected(&elems, &vcfg_run, &gate, json, &sel)
@@ -319,7 +342,7 @@ fn main() {
                         }
                     }
                 } else {
-                    query::cmd_validate(&elems, &vcfg_run, &gate, file_filter, json);
+                    query::cmd_validate(&elems, &vcfg_run, &gate, profile_ref, file_filter, json);
                 }
             }
             "diff" => {

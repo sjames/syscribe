@@ -87,6 +87,49 @@ $ syscribe -m model_auto/ validate --json
 ]
 ```
 
+### CI severity gating
+
+`validate` is a CI gate. By default a model with only warnings exits `0`; the gating flags promote chosen warnings to failures:
+
+| Flag | Effect |
+|---|---|
+| `--deny <CODES>` | Treat each comma-separated warning code as a gate failure. |
+| `--max-warnings <N>` | Fail when the warning count exceeds `N`. |
+| `--warnings-as-errors` | Treat every warning as a gate failure. |
+| `--profile <name>` | Apply a named `[profiles.<name>]` policy from `.syscribe.toml` (see below). |
+
+Exit-code contract: `0` clean · `1` one or more `Error`-severity findings (errors always dominate) · `2` warnings tripped a gate. All four flags compose additively.
+
+### Named severity profiles
+
+A **profile** is a reusable gating policy declared in `<model_root>/.syscribe.toml` and selected with `validate --profile <name>`. It promotes the listed warning codes to gating failures — optionally **scoped** to the integrity level / status / tag of the element each finding concerns.
+
+```toml
+# .syscribe.toml
+[profiles.safety]
+promote = ["W002", "W015", "W300"]   # warning codes promoted to gating failures
+# OPTIONAL scope — promotion applies only to findings on an element matching ALL fields:
+sil    = "4"          # element's silLevel stringifies to "4" OR asilLevel == "4" (as in `list --sil`)
+status = "approved"   # element's status:
+tag    = "safety"     # element's tags: contains this
+
+[profiles.strict]
+promote = ["W300"]    # no scope → every W300 is promoted
+```
+
+```
+$ syscribe -m model/ validate --profile safety   # exit 2 if any scoped, promoted finding is present
+```
+
+Semantics:
+
+- A finding trips the gate when its `code` is in `promote` **and** (the profile has no scope fields **or** the element whose `file_path` equals the finding's file matches **all** the provided scope fields).
+- A finding whose file maps to no element is **not** promoted when any scope field is set. With no scope, all findings of the listed codes are promoted.
+- `--profile` composes additively with `--deny` / `--max-warnings` / `--warnings-as-errors`.
+- An **undefined** profile name (or a missing `.syscribe.toml`) prints an error to stderr and exits `1`.
+
+Multiple profiles may be defined; the `[matchers]` / `[remote]` tables and `repo_root` key continue to work alongside `[profiles.*]`.
+
 ---
 
 ## Browsing the model

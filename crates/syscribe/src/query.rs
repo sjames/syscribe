@@ -1439,6 +1439,64 @@ impl GateOptions {
     }
 }
 
+/// Whether `elem` matches all scope fields declared on `profile` (REQ-TRS-OUT-012).
+/// `sil` uses the same matching as `list --sil` (silLevel stringified OR asilLevel);
+/// `status` is exact; `tag` is membership in `tags:`.
+fn profile_scope_matches(profile: &syscribe_model::config::Profile, elem: &RawElement) -> bool {
+    if let Some(sil) = &profile.sil {
+        let hit = elem.frontmatter.sil_level.is_some_and(|n| n.to_string() == *sil)
+            || elem.frontmatter.asil_level.as_deref() == Some(sil.as_str());
+        if !hit {
+            return false;
+        }
+    }
+    if let Some(status) = &profile.status {
+        if elem.frontmatter.status.as_deref() != Some(status.as_str()) {
+            return false;
+        }
+    }
+    if let Some(tag) = &profile.tag {
+        let hit = elem
+            .frontmatter
+            .tags
+            .as_ref()
+            .is_some_and(|ts| ts.iter().any(|t| t == tag));
+        if !hit {
+            return false;
+        }
+    }
+    true
+}
+
+/// Findings promoted to gate failures by a named `profile` (issue #18).
+///
+/// A finding is promoted when its code is in `profile.promote` AND (the profile
+/// is unscoped, OR the element whose `file_path == finding.file` matches all the
+/// profile's scope fields). A finding whose file maps to no element is not
+/// promoted when any scope field is set.
+fn profile_promoted<'a>(
+    profile: &syscribe_model::config::Profile,
+    elements: &[RawElement],
+    findings: &[&'a syscribe_model::validator::Finding],
+) -> Vec<&'a syscribe_model::validator::Finding> {
+    let promote: std::collections::HashSet<&str> =
+        profile.promote.iter().map(|s| s.as_str()).collect();
+    findings
+        .iter()
+        .filter(|f| promote.contains(f.code))
+        .filter(|f| {
+            if profile.is_unscoped() {
+                return true;
+            }
+            elements
+                .iter()
+                .find(|e| e.file_path == f.file)
+                .is_some_and(|e| profile_scope_matches(profile, e))
+        })
+        .copied()
+        .collect()
+}
+
 /// `feature-check`: holistic feature-model validation (§9), separate from the
 /// per-element `validate` pass. With `--deep`, additionally runs the solver-backed
 /// analyses (void/dead/core/false-optional/configuration-validity). Exit `0` when
@@ -1681,6 +1739,7 @@ pub fn cmd_validate(
     elements: &[RawElement],
     config: &syscribe_model::config::ValidateConfig,
     gate: &GateOptions,
+    profile: Option<&syscribe_model::config::Profile>,
     file_filter: Option<&str>,
     json: bool,
 ) {
@@ -1697,8 +1756,18 @@ pub fn cmd_validate(
     let warnings: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Warning).copied().collect();
     let infos: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Info).copied().collect();
 
-    // Gate evaluation (independent of output format).
-    let denied = gate.denied(&warnings, &infos);
+    // Gate evaluation (independent of output format). A selected `--profile`
+    // contributes its promoted findings additively with `--deny`/etc.
+    let mut denied = gate.denied(&warnings, &infos);
+    if let Some(p) = profile {
+        let mut candidates = warnings.clone();
+        candidates.extend(infos.iter().copied());
+        for f in profile_promoted(p, elements, &candidates) {
+            if !denied.iter().any(|d| std::ptr::eq(*d, f)) {
+                denied.push(f);
+            }
+        }
+    }
     let over_max = gate.max_warnings.map_or(false, |m| warnings.len() > m);
     let gate_tripped = !denied.is_empty() || over_max;
 
@@ -2874,6 +2943,7 @@ pub fn print_help() {
     println!("           [--deny <CODES>]      Treat the listed warning codes as gate failures (exit 2)");
     println!("           [--max-warnings <N>]  Fail (exit 2) when warnings exceed N");
     println!("           [--warnings-as-errors] Treat every warning as a gate failure (exit 2)");
+    println!("           [--profile <name>]    Apply a named [profiles.<name>] gate from .syscribe.toml (exit 2; exit 1 if undefined)");
     println!("           [--results <f>]       Ingest test results for this run (W010), without writing the sidecar");
     println!("           [--fetch-remote]      Run the .syscribe.toml [remote] download hook to fetch & verify remote sourceFiles");
     println!("  ingest-results [--format cargo-json|junit] <file>");
@@ -2963,8 +3033,8 @@ pub fn print_help() {
     println!();
     println!("Exit codes (validate):");
     println!("  0                              No errors and no gate failures");
-    println!("  1                              One or more Error-severity findings");
-    println!("  2                              Warnings tripped a gate (--deny / --max-warnings / --warnings-as-errors)");
+    println!("  1                              One or more Error-severity findings, or an undefined --profile name");
+    println!("  2                              Warnings tripped a gate (--deny / --max-warnings / --warnings-as-errors / --profile)");
     println!();
     println!("Options:");
     println!("  -m, --model <path>             Model root directory");

@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 124 |
-| Passed | 124 |
+| Total test cases | 125 |
+| Passed | 125 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -694,6 +694,17 @@
 | Scenario | Result |
 |---|---|
 | --min-levels 1 passes when all have >=1 level | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-012 — Verify named, SIL/ASIL-scopable validation severity profiles and their exit codes.
+
+**Verifies:** REQ-TRS-OUT-012  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| --profile nonexistent is an error (exit 1) | ✓ PASS |
 
 ---
 

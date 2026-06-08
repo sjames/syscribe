@@ -9,6 +9,7 @@
 //! [`ValidateConfig::default()`], preserving the historical behaviour for the
 //! web server and other callers that do not need on-disk resolution.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -62,6 +63,59 @@ pub struct ValidateConfig {
 struct PathsToml {
     #[serde(default, alias = "repoRoot")]
     repo_root: Option<String>,
+}
+
+/// A named validation severity profile (issue #18 / REQ-TRS-OUT-012).
+///
+/// Declared as `[profiles.<name>]` in `<model_root>/.syscribe.toml`. The
+/// `promote` list names warning codes to treat as gating failures (like
+/// `--deny`). The optional `sil`/`status`/`tag` fields scope promotion to
+/// findings whose element matches **all** of the provided fields.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Profile {
+    /// Warning codes promoted to gating failures.
+    #[serde(default)]
+    pub promote: Vec<String>,
+    /// Scope by integrity level: element's `silLevel` stringifies to this OR
+    /// `asilLevel` equals it (same matching as `list --sil`).
+    #[serde(default)]
+    pub sil: Option<String>,
+    /// Scope by exact `status:` match.
+    #[serde(default)]
+    pub status: Option<String>,
+    /// Scope by `tags:` membership (the element's tags contain this value).
+    #[serde(default)]
+    pub tag: Option<String>,
+}
+
+impl Profile {
+    /// True when this profile declares no scope fields (so every finding of a
+    /// promoted code is promoted regardless of the element it concerns).
+    pub fn is_unscoped(&self) -> bool {
+        self.sil.is_none() && self.status.is_none() && self.tag.is_none()
+    }
+}
+
+/// View of `.syscribe.toml` carrying only the `[profiles.*]` tables. Unknown
+/// keys/tables (`[matchers]`, `[remote]`, `repo_root`) are ignored so this parses
+/// alongside the existing config.
+#[derive(Debug, Default, Deserialize)]
+struct ProfilesToml {
+    #[serde(default)]
+    profiles: HashMap<String, Profile>,
+}
+
+/// Load the named severity profiles declared in `<model_root>/.syscribe.toml`.
+///
+/// Returns an empty map when the file is absent or cannot be parsed (the caller
+/// reports "unknown profile" when a requested name is missing).
+pub fn load_profiles(model_root: &Path) -> HashMap<String, Profile> {
+    match std::fs::read_to_string(model_root.join(".syscribe.toml")) {
+        Ok(text) => toml::from_str::<ProfilesToml>(&text)
+            .map(|c| c.profiles)
+            .unwrap_or_default(),
+        Err(_) => HashMap::new(),
+    }
 }
 
 impl ValidateConfig {

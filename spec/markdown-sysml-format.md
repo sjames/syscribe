@@ -5236,8 +5236,24 @@ Gating is opt-in via flags on `validate`:
 - `--deny <CODES>` — comma-separated warning codes promoted to gate failures (e.g. `--deny W004,W009`).
 - `--max-warnings <N>` — fail when the total warning count exceeds `N`.
 - `--warnings-as-errors` — promote every warning to a gate failure.
+- `--profile <name>` — apply a named, optionally integrity-level-scoped gating policy declared in `<model_root>/.syscribe.toml` (see below).
 
 `Error` findings always dominate (exit `1`) regardless of gating flags. With no gating flag, warning-only models exit `0`. This enables a phased rollout: warn during burndown, then `--deny` to enforce.
+
+##### Named severity profiles (`[profiles.*]`)
+
+Reusable gating policies are declared as `[profiles.<name>]` tables in `<model_root>/.syscribe.toml` and selected with `validate --profile <name>`. A profile promotes the warning codes in its `promote` list to gate failures, optionally **scoped** to the integrity level / status / tag of the element each finding concerns:
+
+```toml
+[profiles.safety]
+promote = ["W002", "W015", "W300"]   # warning codes promoted to gate failures
+# OPTIONAL scope — promotion applies only to findings on an element matching ALL fields:
+sil    = "4"          # element's silLevel stringifies to "4" OR asilLevel == "4"
+status = "approved"   # element's status:
+tag    = "safety"     # element's tags: contains this
+```
+
+A finding trips the gate when its `code` is listed in `promote` **and** either the profile declares no scope fields, or the element whose `file_path` equals the finding's file matches **all** of the provided scope fields (a finding mapping to no element is not promoted when a scope is set). Multiple profiles may coexist, and the `[profiles.*]` tables parse alongside the existing `[matchers]` / `[remote]` tables and the `repo_root` key. An undefined profile name (or a missing `.syscribe.toml`) is a usage error and exits `1`. `--profile` composes additively with `--deny` / `--max-warnings` / `--warnings-as-errors`.
 
 ---
 

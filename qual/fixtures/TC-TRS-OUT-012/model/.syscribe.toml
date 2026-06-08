@@ -1,0 +1,18 @@
+# Severity profiles for TC-TRS-OUT-012 (REQ-TRS-OUT-012).
+# An empty .syscribe.toml is a valid root marker; the [profiles.*] tables below
+# add named gating policies. The [remote]/[matchers] tables and repo_root key
+# continue to parse alongside profiles.
+
+# Unscoped: promote every W300 finding regardless of element.
+[profiles.all300]
+promote = ["W300"]
+
+# SIL-scoped: promote W300 only on elements whose silLevel/asilLevel is "4".
+[profiles.safety]
+promote = ["W300"]
+sil = "4"
+
+# Scope that matches no element in this model → promotes nothing.
+[profiles.none]
+promote = ["W300"]
+tag = "does-not-exist"

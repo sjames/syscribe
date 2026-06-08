@@ -2,6 +2,8 @@
 
 `VALIDATION · RULES`
 
+Warnings are advisory by default (exit `0`). Promote them to CI gate failures (exit `2`) with `validate --deny <CODES>` / `--max-warnings <N>` / `--warnings-as-errors`, or with a named, SIL/ASIL-scopable `validate --profile <name>` policy declared in `.syscribe.toml` — see [CI severity gating](../cli/index.md#ci-severity-gating). Errors always exit `1`.
+
 ## Parse-time errors (E001–E022)
 
 | Code | Element | Condition |
