@@ -4928,7 +4928,7 @@ For a reference string `R` encountered within element `E` in package `P`:
 ### 11.6 Circular Reference Handling
 
 1. The parser builds a **dependency graph** of cross-references after the first pass.
-2. Cycles in the subclassification (`supertype`) or subsetting (`subsets`/`redefines`) graphs are **semantic errors** (SysML forbids them). Report each cycle once with the full cycle path.
+2. Cycles in the subclassification (`supertype` → `E016`), typing (`typedBy` → `E107`), subsetting (`subsets` → `E018`), or requirement-derivation (`derivedFrom` → `E017`) graphs are **semantic errors** (SysML forbids them). Report each cycle once. A **self-reference** (a length-1 cycle, e.g. an element whose `typedBy:` or `supertype:` names itself) is a cycle and is reported the same way — an element cannot be its own type or supertype.
 3. Cycles in `satisfies`, `verifies`, `metadata`, or `allocations` are permitted (they are non-hierarchical) and do not produce errors.
 4. Cycles in package `imports` are permitted (packages may mutually import) but the parser must detect them and process each import exactly once to avoid infinite loops.
 

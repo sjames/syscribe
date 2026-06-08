@@ -54,13 +54,14 @@
 | W003 | Requirement at `verified` has no active TestCase covering it |
 | W005 | Requirement has no `derivedFrom` and no `derivedChildren` — possible orphan |
 
-## Cycle detection errors (E016–E018)
+## Cycle detection errors (E016–E018, E107)
 
 | Code | Condition |
 |---|---|
 | E016 | Cycle detected in `supertype:` graph |
 | E017 | Cycle detected in `derivedFrom:` graph |
 | E018 | Cycle detected in `subsets:` graph |
+| E107 | Cycle detected in `typedBy:` graph — **including a self-reference** (a usage typed by itself). Structural cycle error, not a name-resolution error, so it is **not** suppressed under `--config`. |
 
 ## PLE errors (E200–E209)
 

@@ -2602,6 +2602,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             ("E016", EdgeKind::Supertype, "supertype cycle detected"),
             ("E017", EdgeKind::DerivedFrom, "derivedFrom cycle detected"),
             ("E018", EdgeKind::Subsets, "subsets cycle detected"),
+            // E107 (GH #25): typedBy was previously excluded — a usage typed by
+            // itself (length-1 cycle) or a typedBy cycle was silently accepted.
+            ("E107", EdgeKind::TypedBy, "typedBy cycle detected (a usage cannot be typed by itself, directly or transitively)"),
         ];
 
         for (code, kind, label) in checks {

@@ -19,9 +19,21 @@ tc_TRS_TRACE_009() {
     assert_no_code "E017"
     assert_exit_nonzero
 
+    run_scenario "typedBy self-reference produces E107" "$F/TC-TRS-TRACE-009/typedby-self"
+    assert_has_code "E107"
+    assert_no_code "E016"
+    assert_no_code "E017"
+    assert_no_code "E018"
+    assert_exit_nonzero
+
+    run_scenario "typedBy cycle produces E107" "$F/TC-TRS-TRACE-009/typedby-cycle"
+    assert_has_code "E107"
+    assert_exit_nonzero
+
     run_scenario "acyclic model produces no cycle errors" "$F/TC-TRS-TRACE-009/no-cycle"
     assert_no_code "E016"
     assert_no_code "E017"
     assert_no_code "E018"
+    assert_no_code "E107"
     assert_exit_zero
 }

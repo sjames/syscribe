@@ -1114,13 +1114,15 @@
 ### TC-TRS-TRACE-009 — Verify that E016/E017/E018 are emitted for cycles in supertype, derivedFrom, and subsets graphs.
 
 **Verifies:** REQ-TRS-TRACE-009  
-**Result:** ✓ PASS (16 passed, 0 failed)
+**Result:** ✓ PASS (24 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
 | supertype cycle produces E016 | ✓ PASS |
 | derivedFrom cycle produces E017 | ✓ PASS |
 | subsets cycle produces E018 | ✓ PASS |
+| typedBy self-reference produces E107 | ✓ PASS |
+| typedBy cycle produces E107 | ✓ PASS |
 | acyclic model produces no cycle errors | ✓ PASS |
 
 ---

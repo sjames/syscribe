@@ -37,6 +37,19 @@ Feature: Cycle detection in hierarchical relationship graphs
     Then exactly one E018 finding is emitted
     And no E016 or E017 findings are emitted
 
+  Scenario: typedBy self-reference produces E107
+    Given a usage element typed by itself
+    When the tool validates the model
+    Then exactly one E107 finding is emitted
+    And no E016, E017, or E018 findings are emitted
+
+  Scenario: typedBy cycle produces E107
+    Given two usage elements A and B
+    And A has typedBy: B
+    And B has typedBy: A
+    When the tool validates the model
+    Then exactly one E107 finding is emitted
+
   Scenario: removing the cycle removes the finding
     Given a model that previously contained a derivedFrom cycle between REQ-A-001 and REQ-B-001
     And the derivedFrom link on REQ-B-001 has been removed
