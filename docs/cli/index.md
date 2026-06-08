@@ -178,6 +178,48 @@ inputs and function outputs...
 
 ---
 
+## Connectivity
+
+`connectivity` exports the **connected slice of the model reachable from a chosen element** — the elements plus the connections between them — as a focused subgraph. It walks outward from the root over the part-to-part wiring and structure edges, then renders the reachable nodes and edges as a text tree, a JSON document, or styled Graphviz DOT. Running it on the **model-root element dumps the whole model**.
+
+```
+syscribe -m <root> connectivity <element> [--depth N] [--format text|dot|json] [--kinds <csv>] [--undirected]
+```
+
+- **`<element>`** — the root of the walk (qualified name or stable id). An unknown element prints to stderr and exits non-zero.
+- **`--format text|dot|json`** (default `text`):
+  - **text** — an indented tree (`├──`/`└──`/`│  ` connectors) rooted at the element. Each node line is `<qualifiedName> [<Type>]`; each child line carries the traversed edge kind, e.g. `└── [connection] PortDemo::Motor [PartDef]`. A node already expanded elsewhere is shown but not re-expanded — marked ` (*)` — so cyclic models terminate.
+  - **json** — `{ "root": "<qname>", "nodes": [{"qualifiedName","type","id"}], "edges": [{"from","to","kind"}] }`.
+  - **dot** — Graphviz DOT styled so element families read by shape, definitions get a double border, and the wiring stands out (see the styling legend below). Pipe to Graphviz: `syscribe -m model/ connectivity UAV::Airframe --format dot | dot -Tsvg -o airframe.svg`.
+- **`--depth N`** — bound the walk to N hops (default: unbounded). `--depth 0` yields only the root; `--depth 1` adds its direct neighbours.
+- **`--kinds <csv>`** — override which edge kinds to follow (case-insensitive, comma-separated). Recognised: `connection,flow,binding,succession,featureTyped,contains,typedBy,supertype,subsets,redefines,satisfies,verifies,derivedFrom,allocatedFrom,allocatedTo,conditionalOn`. The default set is `connection,flow,binding,succession,featureTyped,contains,typedBy` — the wiring plus structure, so the model-root element reaches the whole containment tree and each part reaches its sub-part types.
+- **`--undirected`** — follow edges in both directions (default: outbound only, following the wiring direction).
+
+The wiring edges (`connection`/`flow`/`binding`/`succession`) come from the `connections:`/`flowConnections:`/`bindingConnections:`/`successionConnections:` frontmatter on `Part`/`PartDef`/`Action`/`ActionDef`; each endpoint feature chain is resolved to its owning element (a feature's `typedBy:` type, else the chain as a qualified name/id). The `featureTyped` edge links a part to the type of each inline `features:` entry, so a structural walk reaches a part's sub-part types.
+
+```
+$ syscribe -m model/ connectivity UAV::Airframe
+UAV::Airframe [PartDef]
+├── [featureTyped] UAV::Power::PowerSystem [PartDef]
+│   └── ...
+└── [featureTyped] UAV::Propulsion::PropulsionSystem [PartDef]
+    └── [connection] ... (*)
+```
+
+> Deferred (MVP): rich edge labels — the `via` ConnectionDef/InterfaceDef and `fromEnd`/`toEnd` feature chains — are out of scope; edges carry their `kind` only.
+
+### DOT styling legend
+
+The DOT output is driven by a single source-of-truth style function so all renderers stay consistent. Three orthogonal encodings keep it scannable (and colorblind-safe — shape always disambiguates, colour never stands alone):
+
+1. **Shape** encodes the element *family*: `box` (structure), `circle` (ports), `hexagon` (connections/interfaces), `cds` (flow), rounded `box` (behaviour), `note` (requirements/verification/ADR), `diamond`/`box3d` (variability), `folder` (packaging), `doubleoctagon`/`octagon` (safety/security), `tab` (views), `parallelogram` (allocation).
+2. **Definition vs usage** — a definition (`*Def`) gets `peripheries=2` (double border); the matching usage shares the shape with a single border.
+3. **Colour** encodes the domain/concern as a **pale fill + saturated border** (blue structure, cyan connections, green behaviour, purple variability, gray packaging, red/amber safety, violet security).
+
+Edges are styled per kind: containment is dashed grey, typing/supertype is solid black, the **wiring stands out at `penwidth=2`**, and traceability (`verifies`/`satisfies`/`derivedFrom`) is coloured-dashed. A `Legend` subgraph at the bottom of the DOT documents the family→shape mapping.
+
+---
+
 ## Searching
 
 ### Fuzzy search

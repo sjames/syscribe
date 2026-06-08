@@ -2933,6 +2933,12 @@ pub fn print_help() {
     println!("  trace <qname|req-id>           Full traceability slice for a requirement");
     println!("        [--linked-only]          Ignore ingested results (default annotates verifying TCs with [pass]/[fail]/[unknown])");
     println!("  links <qname|id>               All outbound and inbound relationships");
+    println!("  connectivity <qname|id>        Element-rooted transitive subgraph: reachable elements + the");
+    println!("        [--format text|dot|json]  connections between them. text (default) is an indented tree;");
+    println!("        [--depth N]               json emits {{root,nodes,edges}}; dot emits styled Graphviz.");
+    println!("        [--kinds <csv>]           Edge kinds to follow (default connection,flow,binding,succession,");
+    println!("        [--undirected]            contains,typedBy — so the model-root element dumps the whole model).");
+    println!("                                 --depth bounds hops; --undirected walks edges both ways.");
     println!("  why <qname>                    What requirements this element satisfies");
     println!("  who-verifies <req-id>          Which test cases cover a requirement");
     println!("  refs <qname|id>                What elements reference this element");

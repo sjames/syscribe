@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 122 |
-| Passed | 122 |
+| Total test cases | 123 |
+| Passed | 123 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -672,6 +672,17 @@
 | Scenario | Result |
 |---|---|
 | no sidecar → no ▣ glyph and no verdict annotations | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-010 — Verify the element-rooted connectivity subgraph export (text tree, JSON nodes/edges, styled DOT, whole-model dump, depth bound).
+
+**Verifies:** REQ-TRS-OUT-010  
+**Result:** ✓ PASS (14 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| unknown root exits non-zero | ✓ PASS |
 
 ---
 

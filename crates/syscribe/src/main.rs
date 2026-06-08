@@ -1,5 +1,6 @@
 #![deny(warnings)]
 
+mod connectivity;
 mod diagram;
 mod discover;
 mod export;
@@ -246,6 +247,13 @@ fn main() {
             }
             "links" => {
                 query::cmd_links(&elems, &resolver, key);
+            }
+            "connectivity" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = connectivity::cmd_connectivity(&elems, &resolver, rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "refs" => {
                 query::cmd_refs(&elems, &resolver, key);

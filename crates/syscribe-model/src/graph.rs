@@ -27,6 +27,16 @@ pub enum EdgeKind {
     AllocatedTo,           // allocation → target element
     ConditionalOn,         // element → FeatureDef (appliesWhen:)
     Satisfies,             // Part/Config → Requirement/FeatureDef (satisfies:)
+    // Part-to-part wiring (resolved from connection feature chains; issue #26)
+    Connection,            // connections:        (from/to or ends[].binds)
+    Flow,                  // flowConnections:    (from/to)
+    Binding,               // bindingConnections: (left/right)
+    Succession,            // successionConnections: (from/to)
+    // Feature-level typing: owner → the type of an inline `features:` entry that
+    // declares `typedBy:`. Distinct from the top-level `TypedBy` so it does NOT
+    // participate in typedBy cycle detection (E107); it exists so a structural
+    // walk (e.g. `connectivity`) can reach a part's sub-part types (issue #26).
+    FeatureTyped,
     // Safety analysis (ISO 26262 / IEC 61508)
     TopEvent,              // FaultTree → SafetyGoal
     FaultTreeInput,        // FaultTreeGate → input gate/event
@@ -38,6 +48,40 @@ pub enum EdgeKind {
     ImplementsGoal,          // SecurityControl → CybersecurityGoal
     MitigatedBy,             // VulnerabilityReport → SecurityControl
     DerivedFromSecurityGoal, // Requirement → CybersecurityGoal
+}
+
+impl EdgeKind {
+    /// Lower-camel canonical name of an edge kind. Stable: used by the
+    /// `connectivity` CLI for `--kinds` filtering and the JSON `kind` field.
+    pub fn name(&self) -> &'static str {
+        match self {
+            EdgeKind::Contains => "contains",
+            EdgeKind::Supertype => "supertype",
+            EdgeKind::TypedBy => "typedBy",
+            EdgeKind::Subsets => "subsets",
+            EdgeKind::Redefines => "redefines",
+            EdgeKind::Verifies => "verifies",
+            EdgeKind::DerivedFrom => "derivedFrom",
+            EdgeKind::AllocatedFrom => "allocatedFrom",
+            EdgeKind::AllocatedTo => "allocatedTo",
+            EdgeKind::ConditionalOn => "conditionalOn",
+            EdgeKind::Satisfies => "satisfies",
+            EdgeKind::Connection => "connection",
+            EdgeKind::Flow => "flow",
+            EdgeKind::Binding => "binding",
+            EdgeKind::Succession => "succession",
+            EdgeKind::FeatureTyped => "featureTyped",
+            EdgeKind::TopEvent => "topEvent",
+            EdgeKind::FaultTreeInput => "faultTreeInput",
+            EdgeKind::HazardousEventRef => "hazardousEventRef",
+            EdgeKind::DerivedFromSafetyGoal => "derivedFromSafetyGoal",
+            EdgeKind::DamageScenarioRef => "damageScenarioRef",
+            EdgeKind::ThreatScenarioRef => "threatScenarioRef",
+            EdgeKind::ImplementsGoal => "implementsGoal",
+            EdgeKind::MitigatedBy => "mitigatedBy",
+            EdgeKind::DerivedFromSecurityGoal => "derivedFromSecurityGoal",
+        }
+    }
 }
 
 pub type ModelGraph = DiGraph<String, EdgeKind>;
@@ -73,6 +117,15 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
             if let Some(&parent_ni) = idx.get(parent_qn) {
                 graph.add_edge(parent_ni, src, EdgeKind::Contains);
             }
+        } else if !elem.qualified_name.is_empty() {
+            // Top-level element (no "::"): contained by the model-root element
+            // (the root `_index.md`, which carries the empty qualified name), if
+            // one exists. This lets a walk from the model root reach the whole
+            // model via Contains (issue #26). No-op for models without a root
+            // `_index.md`; the root element itself is excluded by the guard.
+            if let Some(&root_ni) = idx.get("") {
+                graph.add_edge(root_ni, src, EdgeKind::Contains);
+            }
         }
 
         let fm = &elem.frontmatter;
@@ -91,6 +144,26 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
             for s in yaml_strings(tb) {
                 if let Some(dst) = idx.get(s).copied() {
                     graph.add_edge(src, dst, EdgeKind::TypedBy);
+                }
+            }
+        }
+
+        // FeatureTyped — owner → the type of each inline `features:` entry that
+        // declares `typedBy:`. Kept distinct from `TypedBy` so it is invisible to
+        // typedBy cycle detection (E107); it gives a structural walk a path from a
+        // part to its sub-part types (issue #26).
+        if let Some(ref feats) = fm.features {
+            for f in feats {
+                let serde_yaml::Value::Mapping(m) = f else { continue };
+                if let Some(tb) = m
+                    .get(serde_yaml::Value::from("typedBy"))
+                    .and_then(|v| v.as_str())
+                {
+                    if let Some(dst) = resolve_to_idx(tb) {
+                        if dst != src {
+                            graph.add_edge(src, dst, EdgeKind::FeatureTyped);
+                        }
+                    }
                 }
             }
         }
@@ -161,6 +234,103 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
             for s in yaml_strings(aw) {
                 if let Some(dst) = idx.get(s).copied() {
                     graph.add_edge(src, dst, EdgeKind::ConditionalOn);
+                }
+            }
+        }
+
+        // ── Part-to-part wiring (issue #26) ──────────────────────────────────
+        //
+        // Resolve each connection endpoint feature chain to its owning element
+        // and add an edge of the matching kind. Endpoint resolution (the crux):
+        //   * head = the chain segment before the first '.'
+        //   * if this element's `features:` has a mapping with `name == head`
+        //     carrying `typedBy: T`, the endpoint node = resolve_ref(T);
+        //   * else resolve_ref(chain) (whole chain as a qname/id);
+        //   * else the endpoint is unresolved → skip it.
+        // Binary connections add one edge between the two ends; n-ary ones add a
+        // star from the first resolved end to each other resolved end. Self-edges
+        // (head resolving to this element) are skipped.
+        //
+        // NOTE (deferred, issue #26 MVP): edges carry `kind` only — rich edge
+        // labels (the `via` ConnectionDef/InterfaceDef and the from/to feature
+        // chains) are out of scope here.
+        let resolve_endpoint = |chain: &str| -> Option<NodeIndex> {
+            let head = chain.split('.').next().unwrap_or(chain);
+            // feature-typed endpoint: look up `head` in this element's features.
+            if let Some(feats) = &fm.features {
+                for f in feats {
+                    let serde_yaml::Value::Mapping(m) = f else { continue };
+                    let name = m.get(serde_yaml::Value::from("name")).and_then(|v| v.as_str());
+                    if name != Some(head) {
+                        continue;
+                    }
+                    if let Some(tb) = m
+                        .get(serde_yaml::Value::from("typedBy"))
+                        .and_then(|v| v.as_str())
+                    {
+                        return resolve_to_idx(tb);
+                    }
+                }
+            }
+            // otherwise treat the whole chain as a qname/id.
+            resolve_to_idx(chain)
+        };
+
+        // Add wiring edges from a resolved endpoint list (binary or n-ary star).
+        let add_wiring = |ends: Vec<NodeIndex>, kind: EdgeKind, graph: &mut ModelGraph| {
+            // dedup & drop self-edges; keep first occurrence order.
+            let resolved: Vec<NodeIndex> = {
+                let mut seen = std::collections::HashSet::new();
+                ends.into_iter().filter(|n| *n != src && seen.insert(*n)).collect()
+            };
+            let Some((&first, rest)) = resolved.split_first() else { return };
+            if rest.is_empty() {
+                return; // need at least two distinct endpoints to form an edge
+            }
+            for &other in rest {
+                graph.add_edge(first, other, kind.clone());
+            }
+        };
+
+        // Collect a single connection entry's resolved endpoints, given the YAML
+        // field names that hold its endpoint chains.
+        let entry_endpoints = |entry: &serde_yaml::Value| -> Vec<NodeIndex> {
+            let serde_yaml::Value::Mapping(m) = entry else { return vec![] };
+            let mut chains: Vec<String> = Vec::new();
+            // binary forms
+            for key in ["from", "to", "left", "right"] {
+                if let Some(s) = m.get(serde_yaml::Value::from(key)).and_then(|v| v.as_str()) {
+                    chains.push(s.to_string());
+                }
+            }
+            // n-ary form: ends: [{ binds: <chain> }, …]
+            if let Some(serde_yaml::Value::Sequence(seq)) =
+                m.get(serde_yaml::Value::from("ends"))
+            {
+                for e in seq {
+                    if let serde_yaml::Value::Mapping(em) = e {
+                        if let Some(s) = em
+                            .get(serde_yaml::Value::from("binds"))
+                            .and_then(|v| v.as_str())
+                        {
+                            chains.push(s.to_string());
+                        }
+                    }
+                }
+            }
+            chains.iter().filter_map(|c| resolve_endpoint(c)).collect()
+        };
+
+        for (list, kind) in [
+            (&fm.connections, EdgeKind::Connection),
+            (&fm.flow_connections, EdgeKind::Flow),
+            (&fm.binding_connections, EdgeKind::Binding),
+            (&fm.succession_connections, EdgeKind::Succession),
+        ] {
+            if let Some(entries) = list {
+                for entry in entries {
+                    let ends = entry_endpoints(entry);
+                    add_wiring(ends, kind.clone(), &mut graph);
                 }
             }
         }
@@ -246,6 +416,94 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
     }
 
     (graph, idx)
+}
+
+/// A connectivity walk result, expressed in plain qualified names so callers
+/// outside this crate need not depend on `petgraph` (issue #26). `nodes` is in
+/// breadth-first discovery order from the root; `edges` are the deduplicated
+/// `(from, to, kind)` edges among the reachable nodes that match the followed
+/// kinds.
+pub struct Subgraph {
+    pub root: String,
+    pub nodes: Vec<String>,
+    pub edges: Vec<(String, String, EdgeKind)>,
+}
+
+/// BFS outward from `root_qname` over the graph, following only edge kinds whose
+/// [`EdgeKind::name`] is in `follow`. `depth` bounds the number of hops (`None`
+/// = unbounded). With `undirected`, edges are traversed in both directions.
+///
+/// Returns `None` if the root qname is not a graph node. The reusable backbone
+/// behind the `connectivity` command (and available to the server/diagram paths).
+pub fn connectivity_subgraph(
+    graph: &ModelGraph,
+    idx: &HashMap<String, NodeIndex>,
+    root_qname: &str,
+    follow: &std::collections::HashSet<String>,
+    depth: Option<usize>,
+    undirected: bool,
+) -> Option<Subgraph> {
+    use petgraph::Direction;
+    use std::collections::{HashSet, VecDeque};
+
+    let &root = idx.get(root_qname)?;
+    let followed = |k: &EdgeKind| follow.contains(k.name());
+
+    let mut nodes: Vec<NodeIndex> = vec![root];
+    let mut visited: HashSet<NodeIndex> = HashSet::from([root]);
+    let mut queue: VecDeque<(NodeIndex, usize)> = VecDeque::from([(root, 0usize)]);
+
+    while let Some((n, d)) = queue.pop_front() {
+        if depth.map(|max| d >= max).unwrap_or(false) {
+            continue;
+        }
+        for e in graph.edges_directed(n, Direction::Outgoing) {
+            if !followed(e.weight()) {
+                continue;
+            }
+            let t = e.target();
+            if visited.insert(t) {
+                nodes.push(t);
+                queue.push_back((t, d + 1));
+            }
+        }
+        if undirected {
+            for e in graph.edges_directed(n, Direction::Incoming) {
+                if !followed(e.weight()) {
+                    continue;
+                }
+                let s = e.source();
+                if visited.insert(s) {
+                    nodes.push(s);
+                    queue.push_back((s, d + 1));
+                }
+            }
+        }
+    }
+
+    let in_set: HashSet<NodeIndex> = nodes.iter().copied().collect();
+    let mut seen: HashSet<(NodeIndex, NodeIndex, &'static str)> = HashSet::new();
+    let mut edges: Vec<(String, String, EdgeKind)> = Vec::new();
+    for &n in &nodes {
+        for e in graph.edges_directed(n, Direction::Outgoing) {
+            if !followed(e.weight()) {
+                continue;
+            }
+            let t = e.target();
+            if !in_set.contains(&t) {
+                continue;
+            }
+            if seen.insert((e.source(), t, e.weight().name())) {
+                edges.push((graph[e.source()].clone(), graph[t].clone(), e.weight().clone()));
+            }
+        }
+    }
+
+    Some(Subgraph {
+        root: root_qname.to_string(),
+        nodes: nodes.into_iter().map(|n| graph[n].clone()).collect(),
+        edges,
+    })
 }
 
 /// Return qualified names of direct children (Contains edges from node).
