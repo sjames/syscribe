@@ -2,6 +2,12 @@
 
 `RELEASES`
 
+## 0.11.1 — 2026-06-09
+
+### Fixes
+
+- **`W306` no longer flags a satisfied-via-leaf parent requirement (GH #34).** The "unsatisfied" sub-condition demanded a *direct* satisfier, contradicting `E312` (a parent requirement may not appear in a `satisfies:` list — it is satisfied transitively through its leaves). High-integrity parents were therefore permanently flagged and `audit` could never PASS on a hierarchical model. The sub-condition now applies to **leaf** requirements only (mirroring the existing W002 parent suppression); genuine gaps still surface on the unsatisfied leaf, and `status: draft` / active-in-no-config still apply to parents. Covered by a new satisfied-via-leaf parent fixture in `TC-TRS-TRACE-010`.
+
 ## 0.11.0 — 2026-06-09
 
 A large safety/security + tooling release. Every feature is requirement-first (a `REQ-TRS-*` + `TC-TRS-*` with fixtures); the tool-qualification suite grew to **134 test cases**, all passing.
