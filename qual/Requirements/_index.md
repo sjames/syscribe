@@ -24,5 +24,6 @@ Normative requirements for the Syscribe tool. Grouped by functional area:
 | `REQ-TRS-PLAN` | Native `TestPlan` element: schema, config binding, computed membership, demonstrated goals, the `testplan` command and the `--plan` lens (GH #38) |
 | `REQ-TRS-DISC` | Product-line feature discoverability: `features`, `feature`, `matrix --features`, `list --feature`, `why-active`, orphan-feature `W024` |
 | `REQ-TRS-TAG` | Generic tag filtering (orthogonal to variability) |
+| `REQ-TRS-CFLD` | User-defined `custom_fields:` frontmatter: shape validation (`W041`), the `--where` query predicate, and read-only CLI/web rendering (GH #39) |
 | `REQ-TRS-OUT` | Output and reporting |
 | `REQ-TRS-CLI` | CLI interface |

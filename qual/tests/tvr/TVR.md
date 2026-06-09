@@ -12,14 +12,47 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 141 |
-| Passed | 141 |
+| Total test cases | 144 |
+| Passed | 144 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
 ---
 
 ## 2. Results
+
+### TC-TRS-CFLD-001 — Verify custom_fields shape validation: scalars/lists clean, nested map raises W041.
+
+**Verifies:** REQ-TRS-CFLD-001  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a nested-map custom field raises W041 | ✓ PASS |
+
+---
+
+### TC-TRS-CFLD-002 — Verify the --where custom-field query: exact, regex, list-membership, presence, and bad-predicate exit.
+
+**Verifies:** REQ-TRS-CFLD-002  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| unparseable predicate exits non-zero | ✓ PASS |
+
+---
+
+### TC-TRS-CFLD-003 — Verify show renders a custom-fields section when present and omits it when absent.
+
+**Verifies:** REQ-TRS-CFLD-003  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| show omits the section when absent | ✓ PASS |
+
+---
 
 ### TC-TRS-CLI-001 — Verify that the tool accepts the model directory via -m and --model arguments.
 

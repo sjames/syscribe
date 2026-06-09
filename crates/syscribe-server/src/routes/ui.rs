@@ -101,6 +101,33 @@ pub struct ElementDetailTemplate {
     pub doc_html: String,  // rendered HTML, emitted with |safe
     pub doc_raw: String,   // raw markdown, used in the edit textarea
     pub badge_class: String,
+    /// Custom fields (GH #39) — read-only key/value pairs for the detail panel.
+    /// Each value is pre-rendered (scalars inline, lists comma-joined). Empty when
+    /// the element declares no `custom_fields`. Not editable via the PUT editor.
+    pub custom_fields: Vec<(String, String)>,
+}
+
+/// Render a single YAML scalar (string/number/bool/null) as plain text.
+fn yaml_scalar_string(v: &serde_yaml::Value) -> String {
+    match v {
+        serde_yaml::Value::Null => "null".to_string(),
+        serde_yaml::Value::Bool(b) => b.to_string(),
+        serde_yaml::Value::Number(n) => n.to_string(),
+        serde_yaml::Value::String(s) => s.clone(),
+        other => serde_yaml::to_string(other).unwrap_or_default().trim().to_string(),
+    }
+}
+
+/// Render a custom-field value for the detail panel: scalars inline, lists joined.
+fn custom_field_display(v: &serde_yaml::Value) -> String {
+    match v {
+        serde_yaml::Value::Sequence(items) => items
+            .iter()
+            .map(yaml_scalar_string)
+            .collect::<Vec<_>>()
+            .join(", "),
+        other => yaml_scalar_string(other),
+    }
 }
 
 #[derive(Template)]
@@ -228,6 +255,12 @@ pub async fn element_detail(
                 doc_html: markdown_to_html(e.doc.trim()),
                 doc_raw: e.doc.trim().to_string(),
                 badge_class,
+                custom_fields: e
+                    .frontmatter
+                    .custom_fields
+                    .iter()
+                    .map(|(k, v)| (k.clone(), custom_field_display(v)))
+                    .collect(),
             };
             Html(tmpl.render().unwrap_or_default())
         }

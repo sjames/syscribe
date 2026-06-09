@@ -555,6 +555,21 @@ pub struct RawFrontmatter {
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub applies_to: Option<Vec<String>>,
 
+    /// §custom-fields (GH #39) — user-defined, freeform metadata attachable to any
+    /// element. A flat map of `string -> scalar | list-of-scalars`. Distinct from the
+    /// `extra` catch-all below: `custom_fields` is the *intentional, addressable* home
+    /// for custom data, whereas `extra` swallows genuinely unknown top-level keys.
+    /// `BTreeMap` gives a stable (sorted) serialization order so writes do not produce
+    /// noisy round-trip diffs. Shape-checked by the validator (`W041`): each value must
+    /// be a scalar or a list of scalars. (YAML: custom_fields — explicit snake_case,
+    /// overriding the struct-level camelCase rename.)
+    #[serde(
+        rename = "custom_fields",
+        default,
+        skip_serializing_if = "std::collections::BTreeMap::is_empty"
+    )]
+    pub custom_fields: std::collections::BTreeMap<String, serde_yaml::Value>,
+
     // Catch-all for unknown fields
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_yaml::Value>,

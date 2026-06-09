@@ -13,6 +13,16 @@
   {% else %}
   <p class="detail-empty">No documentation.</p>
   {% endif %}
+  {% if !custom_fields.is_empty() %}
+  <div class="detail-custom-fields">
+    <div class="detail-section-label">Custom Fields</div>
+    <table class="custom-fields-table">
+      {% for kv in custom_fields %}
+      <tr><th>{{ kv.0 }}</th><td>{{ kv.1 }}</td></tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endif %}
   <div class="detail-actions">
     <button class="btn-edit" onclick="showEditForm()">Edit</button>
   </div>

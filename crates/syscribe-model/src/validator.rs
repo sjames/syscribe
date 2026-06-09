@@ -137,6 +137,20 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         let file = elem.file_path.clone();
         let fm = &elem.frontmatter;
 
+        // W041 (GH #39): custom_fields shape check. Each value must be a scalar
+        // (string/number/bool/null) or a list of scalars; a nested map, or a list
+        // containing a non-scalar, is flagged. Keys are freeform — only shape is
+        // checked. Warning severity; gate with `--deny W041`.
+        for (key, value) in &fm.custom_fields {
+            if !is_custom_field_shape_ok(value) {
+                findings.push(warning(
+                    "W041",
+                    &file,
+                    &format!("custom field '{}' must be a scalar or a list of scalars", key),
+                ));
+            }
+        }
+
         // E004: required fields for native elements
         if let Some(ElementType::TestCase) = &fm.element_type {
             if fm.id.is_none() {
@@ -3980,6 +3994,28 @@ fn info(code: &'static str, file: &str, msg: &str) -> Finding {
     Finding { code, file: file.to_string(), message: msg.to_string(), severity: Severity::Info }
 }
 
+/// True when a YAML value is a *scalar* — string, number, bool, or null.
+/// Mappings and sequences are not scalars.
+fn is_yaml_scalar(v: &serde_yaml::Value) -> bool {
+    matches!(
+        v,
+        serde_yaml::Value::Null
+            | serde_yaml::Value::Bool(_)
+            | serde_yaml::Value::Number(_)
+            | serde_yaml::Value::String(_)
+    )
+}
+
+/// W041 shape predicate (GH #39): a `custom_fields` value is well-shaped when it is
+/// a scalar, or a list whose every element is a scalar. A nested map, or a list
+/// containing a map/list, is rejected.
+fn is_custom_field_shape_ok(v: &serde_yaml::Value) -> bool {
+    match v {
+        serde_yaml::Value::Sequence(items) => items.iter().all(is_yaml_scalar),
+        other => is_yaml_scalar(other),
+    }
+}
+
 /// Extract the normative text: everything before the first `##` heading.
 fn normative_text(doc: &str) -> &str {
     doc.find("\n## ")
@@ -4072,4 +4108,57 @@ fn first_gherkin_has_feature(doc: &str) -> bool {
         }
     }
     !in_first || found // if no gherkin block, E011 will fire; don't double-report
+}
+
+#[cfg(test)]
+mod custom_field_shape_tests {
+    use super::*;
+
+    fn scalar(s: &str) -> serde_yaml::Value {
+        serde_yaml::Value::String(s.to_string())
+    }
+
+    #[test]
+    fn scalars_are_ok() {
+        assert!(is_custom_field_shape_ok(&scalar("Bosch")));
+        assert!(is_custom_field_shape_ok(&serde_yaml::Value::Number(3.into())));
+        assert!(is_custom_field_shape_ok(&serde_yaml::Value::Bool(true)));
+        assert!(is_custom_field_shape_ok(&serde_yaml::Value::Null));
+    }
+
+    #[test]
+    fn list_of_scalars_is_ok() {
+        let v = serde_yaml::Value::Sequence(vec![scalar("A-1"), scalar("A-2")]);
+        assert!(is_custom_field_shape_ok(&v));
+    }
+
+    #[test]
+    fn nested_map_is_rejected() {
+        let mut m = serde_yaml::Mapping::new();
+        m.insert(scalar("k"), scalar("v"));
+        assert!(!is_custom_field_shape_ok(&serde_yaml::Value::Mapping(m)));
+    }
+
+    #[test]
+    fn list_with_nonscalar_is_rejected() {
+        let inner = serde_yaml::Value::Sequence(vec![scalar("x")]);
+        let v = serde_yaml::Value::Sequence(vec![scalar("ok"), inner]);
+        assert!(!is_custom_field_shape_ok(&v));
+    }
+}
+
+#[cfg(test)]
+mod custom_field_roundtrip_tests {
+    #[test]
+    fn custom_fields_serialize_sorted() {
+        let yaml = "type: PartDef\ncustom_fields:\n  zeta: 1\n  alpha: 2\n  middle: [c, a, b]\n";
+        let fm: crate::element::RawFrontmatter = serde_yaml::from_str(yaml).unwrap();
+        let out = serde_yaml::to_string(&fm).unwrap();
+        let a = out.find("alpha").unwrap();
+        let m = out.find("middle").unwrap();
+        let z = out.find("zeta").unwrap();
+        assert!(a < m && m < z, "custom_fields keys not sorted:\n{out}");
+        // list element order is preserved verbatim
+        assert!(out.contains("- c"));
+    }
 }

@@ -539,6 +539,51 @@ When `domain:` is not set, `system` is assumed — the element is domain-agnosti
 
 `isDeploymentPackage: true` implies `domain: software`; a parser should warn (`W304`) if `isDeploymentPackage: true` is combined with `domain: hardware`.
 
+### 3.15 Custom Fields
+
+`custom_fields:` is the **intentional, addressable home for user-defined metadata** on
+any element. Unlike unknown top-level keys (which are silently swallowed by the parser's
+catch-all), data placed under `custom_fields:` is preserved, queryable, and rendered.
+
+| Field | YAML type | Required | Default | Description |
+|---|---|---|---|---|
+| `custom_fields` | map | optional | `{}` | Flat map of `string -> scalar \| list-of-scalars`. Keys are freeform (no registration or name validation). Accepted on **every** element type. |
+
+```yaml
+custom_fields:
+  supplier: Bosch
+  costCenter: PWT-4471
+  maturity: prototype
+  reviewCycle: 3
+  partNumbers: [A-1001, A-1002]   # lists of scalars allowed
+```
+
+Rules:
+
+- Values **must** be a scalar (string/number/bool/null) or a **list of scalars**. A
+  nested map, or a list containing a non-scalar, raises warning `W041`
+  (`custom field '<key>' must be a scalar or a list of scalars`). `W041` is advisory —
+  never a hard error — and CI-gateable via `--deny W041`.
+- The map serialises in **sorted key order** so writes do not produce noisy round-trip
+  diffs.
+- An element with no `custom_fields:` is unaffected; the feature adds no findings to
+  models that do not use it.
+- Custom fields are **read-only** in the web UI and CLI `show`; they are not editable via
+  `PUT /api/elements/<qname>`.
+
+Querying (CLI `ls` / `find` / `list`) — the `--where` predicate addresses custom fields
+via the `custom.<key>` namespace:
+
+| Form | Meaning |
+|---|---|
+| `custom.<key>=<value>` | exact match (scalar equals, or any list element equals) |
+| `custom.<key>=~<pattern>` | regex match on the value's string form (falls back to substring if the pattern is not valid regex) |
+| `custom.<key>~=<value>` | list membership (list contains the value; or scalar equals it) |
+| `custom.<key>` | presence (the field is set, any value) |
+
+`--where` composes (AND) with the existing `type` / `--tag` / `--status` filters, and
+multiple `--where` predicates are ANDed. An unparseable predicate is a usage error.
+
 ---
 
 ## 4 Directory and Namespace Conventions

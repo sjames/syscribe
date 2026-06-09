@@ -191,6 +191,18 @@ All frontmatter fields. Optional unless marked **required**.
 | `annotates` | MetadataDef | list | Restricts what types this metadata may annotate |
 | `itemType` | FlowDef | string | QName of the item type flowing |
 
+## Custom fields
+
+| Field | Applies to | Type | Notes |
+|---|---|---|---|
+| `custom_fields` | All | map | Freeform user metadata: `string -> scalar \| list-of-scalars`. Keys are not validated. Values must be scalars or lists of scalars (nested map → `W041`). Serialised in sorted order. Read-only in UI/`show`. Queryable via `--where custom.<key>[=,=~,~=]<val>`. |
+
+```yaml
+custom_fields:
+  supplier: Bosch
+  partNumbers: [A-1001, A-1002]
+```
+
 ## Product Line Engineering (PLE) fields
 
 | Field | Applies to | Type |

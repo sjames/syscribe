@@ -163,6 +163,124 @@ fn yaml_strings(v: &serde_yaml::Value) -> Vec<String> {
     }
 }
 
+// ── Custom fields (GH #39) ─────────────────────────────────────────────────────
+
+/// Render a single YAML *scalar* (string/number/bool/null) as its plain string
+/// form. Non-scalars fall back to `serde_yaml`'s compact representation (used only
+/// as a defensive default — well-shaped custom fields are scalars or lists thereof).
+fn yaml_scalar_string(v: &serde_yaml::Value) -> String {
+    match v {
+        serde_yaml::Value::Null => "null".to_string(),
+        serde_yaml::Value::Bool(b) => b.to_string(),
+        serde_yaml::Value::Number(n) => n.to_string(),
+        serde_yaml::Value::String(s) => s.clone(),
+        other => serde_yaml::to_string(other)
+            .unwrap_or_default()
+            .trim()
+            .to_string(),
+    }
+}
+
+/// Render a custom-field value for display: scalars inline, lists comma-joined.
+fn custom_field_display(v: &serde_yaml::Value) -> String {
+    match v {
+        serde_yaml::Value::Sequence(items) => items
+            .iter()
+            .map(yaml_scalar_string)
+            .collect::<Vec<_>>()
+            .join(", "),
+        other => yaml_scalar_string(other),
+    }
+}
+
+/// A parsed `--where` predicate over the `custom.<key>` namespace.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CustomWhere {
+    /// `custom.<key>` — the field is present (any value).
+    Present { key: String },
+    /// `custom.<key>=<val>` — scalar equals val, or any list element equals val.
+    Eq { key: String, val: String },
+    /// `custom.<key>=~<pat>` — regex (or substring fallback) match on the value's
+    /// string form (scalar string, or the comma-joined list form).
+    Regex { key: String, pat: String },
+    /// `custom.<key>~=<val>` — list membership: the list contains val (also true
+    /// when a scalar field equals val).
+    Member { key: String, val: String },
+}
+
+/// Parse a `--where` argument. Operators are matched longest-first so the two-char
+/// spellings (`=~`, `~=`) win over the one-char `=`. Returns `Err(message)` for an
+/// unparseable predicate (missing `custom.` prefix, empty key).
+///
+/// Operator precedence (checked in this order): `=~`, then `~=`, then `=`, then the
+/// bare presence form. `=~` uses the `regex` crate; an invalid regex pattern falls
+/// back to a plain substring test (so any literal pattern still works).
+pub fn parse_custom_where(arg: &str) -> Result<CustomWhere, String> {
+    let body = arg.strip_prefix("custom.").ok_or_else(|| {
+        format!("--where predicate must address the `custom.<key>` namespace: '{arg}'")
+    })?;
+
+    let mk_key = |k: &str| -> Result<String, String> {
+        if k.is_empty() {
+            Err(format!("--where predicate has an empty custom-field key: '{arg}'"))
+        } else {
+            Ok(k.to_string())
+        }
+    };
+
+    // Longest operators first: `=~` and `~=` before `=`.
+    if let Some((k, pat)) = body.split_once("=~") {
+        return Ok(CustomWhere::Regex { key: mk_key(k)?, pat: pat.to_string() });
+    }
+    if let Some((k, val)) = body.split_once("~=") {
+        return Ok(CustomWhere::Member { key: mk_key(k)?, val: val.to_string() });
+    }
+    if let Some((k, val)) = body.split_once('=') {
+        return Ok(CustomWhere::Eq { key: mk_key(k)?, val: val.to_string() });
+    }
+    // Bare presence form.
+    Ok(CustomWhere::Present { key: mk_key(body)? })
+}
+
+/// True when `elem`'s `custom_fields` satisfy the predicate. An element without the
+/// named field never matches (including the presence form).
+pub fn custom_field_matches(elem: &RawElement, pred: &CustomWhere) -> bool {
+    let key = match pred {
+        CustomWhere::Present { key }
+        | CustomWhere::Eq { key, .. }
+        | CustomWhere::Regex { key, .. }
+        | CustomWhere::Member { key, .. } => key,
+    };
+    let Some(value) = elem.frontmatter.custom_fields.get(key) else {
+        return false;
+    };
+
+    match pred {
+        CustomWhere::Present { .. } => true,
+        CustomWhere::Eq { val, .. } => match value {
+            serde_yaml::Value::Sequence(items) => {
+                items.iter().any(|x| &yaml_scalar_string(x) == val)
+            }
+            other => &yaml_scalar_string(other) == val,
+        },
+        CustomWhere::Regex { pat, .. } => {
+            let hay = custom_field_display(value);
+            match regex::Regex::new(pat) {
+                Ok(re) => re.is_match(&hay),
+                // Invalid regex → substring fallback so literal patterns still work.
+                Err(_) => hay.contains(pat),
+            }
+        }
+        CustomWhere::Member { val, .. } => match value {
+            serde_yaml::Value::Sequence(items) => {
+                items.iter().any(|x| &yaml_scalar_string(x) == val)
+            }
+            // A scalar field "contains" val iff it equals val.
+            other => &yaml_scalar_string(other) == val,
+        },
+    }
+}
+
 fn doc_excerpt(doc: &str, max: usize) -> String {
     let trimmed = doc.trim();
     if trimmed.len() <= max {
@@ -580,6 +698,19 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
     }
     }
 
+    // Custom fields (GH #39) — read-only labelled section; scalars inline, lists
+    // comma-joined. Absent → no section. Keys render in sorted order (BTreeMap).
+    if !fm.custom_fields.is_empty() {
+        println!();
+        println!("## Custom Fields");
+        println!();
+        println!("| Field | Value |");
+        println!("|---|---|");
+        for (key, value) in &fm.custom_fields {
+            println!("| {} | {} |", key, custom_field_display(value));
+        }
+    }
+
     // Doc
     let doc = elem.doc.trim();
     if !doc.is_empty() {
@@ -592,8 +723,10 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
 
 // ── cmd: ls ──────────────────────────────────────────────────────────────────
 
-pub fn cmd_ls(elements: &[RawElement], parent: &str) {
-    let children = ns_children(elements, parent);
+pub fn cmd_ls(elements: &[RawElement], parent: &str, wheres: &[CustomWhere]) {
+    let mut children = ns_children(elements, parent);
+    // `--where` custom-field predicates (GH #39) — ANDed with each other.
+    children.retain(|c| wheres.iter().all(|w| custom_field_matches(c, w)));
     if children.is_empty() {
         if parent.is_empty() {
             eprintln!("No top-level elements found.");
@@ -707,6 +840,7 @@ pub fn cmd_list(
     status: Option<&str>,
     sil: Option<&str>,
     has_wcet: bool,
+    wheres: &[CustomWhere],
     json: bool,
 ) {
     // `--feature <F>`: keep only elements whose `appliesWhen:` names F as an
@@ -760,6 +894,8 @@ pub fn cmd_list(
         })
         // `--has-wcet`: keep only elements that declare a non-empty `wcet:`.
         .filter(|e| !has_wcet || e.frontmatter.wcet.as_deref().is_some_and(|w| !w.trim().is_empty()))
+        // `--where custom.<key>…` (GH #39): custom-field predicates, ANDed.
+        .filter(|e| wheres.iter().all(|w| custom_field_matches(e, w)))
         .collect();
 
     matches.sort_by_key(|e| e.qualified_name.as_str());
@@ -811,11 +947,13 @@ pub fn cmd_list(
     println!();
 }
 
-pub fn cmd_find(elements: &[RawElement], pattern: &str) {
+pub fn cmd_find(elements: &[RawElement], pattern: &str, wheres: &[CustomWhere]) {
     let mut scored: Vec<(u32, &RawElement)> = elements
         .iter()
         .map(|e| (fuzzy_score(e, pattern), e))
         .filter(|(s, _)| *s > 0)
+        // `--where` custom-field predicates (GH #39) — ANDed with the fuzzy match.
+        .filter(|(_, e)| wheres.iter().all(|w| custom_field_matches(e, w)))
         .collect();
 
     scored.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.qualified_name.cmp(&b.1.qualified_name)));
@@ -3204,4 +3342,110 @@ pub fn print_help() {
     println!("  SYSCRIBE_MODEL=model/ syscribe validate");
     println!();
     println!("Detailed help: `syscribe help <command>` or `syscribe <command> --help` (e.g. `syscribe help audit`).");
+}
+
+#[cfg(test)]
+mod custom_where_tests {
+    use super::*;
+
+    fn elem_with(fields: &[(&str, serde_yaml::Value)]) -> RawElement {
+        let mut fm = syscribe_model::element::RawFrontmatter::default();
+        for (k, v) in fields {
+            fm.custom_fields.insert(k.to_string(), v.clone());
+        }
+        RawElement {
+            qualified_name: "Test::Elem".to_string(),
+            file_path: "Test/Elem.md".to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None,
+        }
+    }
+
+    fn s(v: &str) -> serde_yaml::Value {
+        serde_yaml::Value::String(v.to_string())
+    }
+    fn list(vs: &[&str]) -> serde_yaml::Value {
+        serde_yaml::Value::Sequence(vs.iter().map(|x| s(x)).collect())
+    }
+
+    #[test]
+    fn parse_precedence_longest_first() {
+        // `=~` wins over `=`
+        assert_eq!(
+            parse_custom_where("custom.k=~pat").unwrap(),
+            CustomWhere::Regex { key: "k".into(), pat: "pat".into() }
+        );
+        // `~=` wins over `=`
+        assert_eq!(
+            parse_custom_where("custom.k~=v").unwrap(),
+            CustomWhere::Member { key: "k".into(), val: "v".into() }
+        );
+        // bare `=`
+        assert_eq!(
+            parse_custom_where("custom.k=v").unwrap(),
+            CustomWhere::Eq { key: "k".into(), val: "v".into() }
+        );
+        // presence
+        assert_eq!(
+            parse_custom_where("custom.k").unwrap(),
+            CustomWhere::Present { key: "k".into() }
+        );
+    }
+
+    #[test]
+    fn parse_errors_on_bad_input() {
+        assert!(parse_custom_where("supplier=Bosch").is_err()); // missing custom. prefix
+        assert!(parse_custom_where("custom.=v").is_err()); // empty key
+        assert!(parse_custom_where("custom.").is_err()); // empty key, presence
+    }
+
+    #[test]
+    fn exact_scalar_and_list() {
+        let e = elem_with(&[("supplier", s("Bosch")), ("nums", list(&["A-1", "A-2"]))]);
+        let p = parse_custom_where("custom.supplier=Bosch").unwrap();
+        assert!(custom_field_matches(&e, &p));
+        let p = parse_custom_where("custom.supplier=Conti").unwrap();
+        assert!(!custom_field_matches(&e, &p));
+        // exact on a list: any element equals
+        let p = parse_custom_where("custom.nums=A-2").unwrap();
+        assert!(custom_field_matches(&e, &p));
+    }
+
+    #[test]
+    fn regex_and_substring_fallback() {
+        let e = elem_with(&[("cc", s("PWT-4471"))]);
+        // substring via regex
+        assert!(custom_field_matches(&e, &parse_custom_where("custom.cc=~PWT").unwrap()));
+        // anchored regex
+        assert!(custom_field_matches(&e, &parse_custom_where("custom.cc=~^PWT-\\d+$").unwrap()));
+        assert!(!custom_field_matches(&e, &parse_custom_where("custom.cc=~^XXX").unwrap()));
+        // invalid regex falls back to substring — literal "(" present? no, so false
+        assert!(!custom_field_matches(&e, &parse_custom_where("custom.cc=~(").unwrap()));
+    }
+
+    #[test]
+    fn member_list_and_scalar() {
+        let e = elem_with(&[("nums", list(&["A-1001", "A-1002"])), ("one", s("solo"))]);
+        assert!(custom_field_matches(&e, &parse_custom_where("custom.nums~=A-1001").unwrap()));
+        assert!(!custom_field_matches(&e, &parse_custom_where("custom.nums~=A-9999").unwrap()));
+        // scalar membership = equality
+        assert!(custom_field_matches(&e, &parse_custom_where("custom.one~=solo").unwrap()));
+    }
+
+    #[test]
+    fn presence_and_absence() {
+        let e = elem_with(&[("supplier", s("Bosch"))]);
+        assert!(custom_field_matches(&e, &parse_custom_where("custom.supplier").unwrap()));
+        // absent field never matches, including presence
+        assert!(!custom_field_matches(&e, &parse_custom_where("custom.missing").unwrap()));
+        assert!(!custom_field_matches(&e, &parse_custom_where("custom.missing=x").unwrap()));
+    }
+
+    #[test]
+    fn number_scalar_renders_and_matches() {
+        let e = elem_with(&[("reviewCycle", serde_yaml::Value::Number(3.into()))]);
+        assert!(custom_field_matches(&e, &parse_custom_where("custom.reviewCycle=3").unwrap()));
+        assert_eq!(custom_field_display(&serde_yaml::Value::Number(3.into())), "3");
+    }
 }

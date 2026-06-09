@@ -190,6 +190,41 @@ fn parse_gate_options(args: &[String]) -> query::GateOptions {
     gate
 }
 
+/// Collect and parse every `--where <pred>` / `--where=<pred>` occurrence (GH #39).
+/// Multiple predicates are returned in order and ANDed by the caller. An unparseable
+/// predicate prints a usage error to stderr and exits non-zero.
+fn parse_where_options(args: &[String]) -> Vec<query::CustomWhere> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        let raw = if a == "--where" {
+            let v = args.get(i + 1).map(|s| s.as_str());
+            i += 1;
+            match v {
+                Some(v) => Some(v),
+                None => {
+                    eprintln!("Error: --where expects a predicate (e.g. custom.supplier=Bosch)");
+                    std::process::exit(1);
+                }
+            }
+        } else {
+            a.strip_prefix("--where=")
+        };
+        if let Some(raw) = raw {
+            match query::parse_custom_where(raw) {
+                Ok(p) => out.push(p),
+                Err(msg) => {
+                    eprintln!("Error: {msg}");
+                    std::process::exit(1);
+                }
+            }
+        }
+        i += 1;
+    }
+    out
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
@@ -285,17 +320,23 @@ fn main() {
                 query::cmd_show(&elems, &resolver, key);
             }
             "ls" => {
-                query::cmd_ls(&elems, key);
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let wheres = parse_where_options(rest);
+                // `ls` takes an optional positional parent that is not a flag/flag-value.
+                let parent = if key.starts_with("--") || key == "--where" { "" } else { key };
+                query::cmd_ls(&elems, parent, &wheres);
             }
             "tree" => {
                 query::cmd_tree(&elems, key);
             }
             "find" => {
-                if key.is_empty() {
-                    eprintln!("Usage: syscribe --model <root> find <pattern>");
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let wheres = parse_where_options(rest);
+                if key.is_empty() || key.starts_with("--") {
+                    eprintln!("Usage: syscribe --model <root> find <pattern> [--where custom.<key>[op<val>]]");
                     std::process::exit(1);
                 }
-                query::cmd_find(&elems, key);
+                query::cmd_find(&elems, key, &wheres);
             }
             "extref" => {
                 if key.is_empty() {
@@ -554,6 +595,7 @@ fn main() {
                     .map(|w| w[1].as_str());
                 let has_wcet = rest.iter().any(|a| a == "--has-wcet");
                 let json = rest.iter().any(|a| a == "--json");
+                let wheres = parse_where_options(rest);
                 // scope = first positional argument that is not a flag or flag
                 // value. Two-arg flags consume their value so it is not mistaken
                 // for the positional scope.
@@ -562,7 +604,7 @@ fn main() {
                 while i < rest.len() {
                     if matches!(
                         rest[i].as_str(),
-                        "--tag" | "--config" | "--feature" | "--status" | "--sil"
+                        "--tag" | "--config" | "--feature" | "--status" | "--sil" | "--where"
                     ) {
                         i += 2;
                         continue;
@@ -575,14 +617,14 @@ fn main() {
                     break;
                 }
                 match config {
-                    None => query::cmd_list(&elems, key, scope, tag, feature, status, sil, has_wcet, json),
+                    None => query::cmd_list(&elems, key, scope, tag, feature, status, sil, has_wcet, &wheres, json),
                     Some(c) => match syscribe_model::projection::resolve_selection(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
-                            query::cmd_list(&elems, key, scope, tag, feature, status, sil, has_wcet, json)
+                            query::cmd_list(&elems, key, scope, tag, feature, status, sil, has_wcet, &wheres, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
                             let view = syscribe_model::projection::project(&elems, &sel);
-                            query::cmd_list(&view, key, scope, tag, feature, status, sil, has_wcet, json);
+                            query::cmd_list(&view, key, scope, tag, feature, status, sil, has_wcet, &wheres, json);
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
                             eprintln!("{m}");

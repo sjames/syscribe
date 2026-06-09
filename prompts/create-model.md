@@ -84,6 +84,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe model/ tree [qname]` | Recursive namespace tree |
 | `syscribe model/ find <pattern>` | Fuzzy search by name / ID / content |
 | `syscribe model/ list <type> [scope] [--tag <t>]` | List elements of a type, optionally scoped; `--tag` filters by `tags:` |
+| `syscribe model/ ls\|find\|list … --where custom.<key>[op<val>]` | Filter by `custom_fields:` (`=` exact, `=~` regex/substring, `~=` list-membership, bare key = presence) |
 | `syscribe model/ types` | All element types present in the model with counts |
 | `syscribe model/ untyped` | List elements with no `type:` field set |
 | `syscribe model/ links <qname\|id>` | All outbound and inbound relationships |
@@ -385,6 +386,24 @@ Key fields that apply to most element types:
 | `connections` | Port bindings (on Part files) |
 | `satisfies` | List of `REQ-*` IDs this element satisfies |
 | `implementedBy` | Path(s) to the source code realising this Part/PartDef (string or list); missing local paths warn W023 |
+| `custom_fields` | Optional freeform user metadata (see below) |
+
+### `custom_fields:` — user-defined metadata
+
+Attach arbitrary metadata to any element under a `custom_fields:` map. Use this instead
+of inventing top-level keys (which are silently ignored).
+
+```yaml
+custom_fields:
+  supplier: Bosch
+  costCenter: PWT-4471
+  partNumbers: [A-1001, A-1002]   # lists of scalars allowed
+```
+
+- Keys are freeform; values must be a scalar or a list of scalars (a nested map warns `W041`).
+- Serialised in sorted order; read-only in the UI and `show`.
+- Query with `--where`: `syscribe model/ ls --where custom.supplier=Bosch` (also
+  `=~` regex/substring, `~=` list-membership, and bare `custom.key` presence).
 
 ### `domain:` field rules
 
