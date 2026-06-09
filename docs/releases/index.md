@@ -2,6 +2,34 @@
 
 `RELEASES`
 
+## 0.11.0 — 2026-06-09
+
+A large safety/security + tooling release. Every feature is requirement-first (a `REQ-TRS-*` + `TC-TRS-*` with fixtures); the tool-qualification suite grew to **134 test cases**, all passing.
+
+### Safety & security analysis (ISO 26262 / IEC 61508 / ISO/SAE 21434)
+- **Safety ↔ security co-engineering** — `hazardRef` links `DamageScenario`/`ThreatScenario` to the `HazardousEvent`/`SafetyGoal` they endanger (`E844`); `W030` flags a safety-tagged damage scenario with no link; new **`co-analysis`** command shows which cyber threats can violate each safety goal.
+- **Cybersecurity risk determination** — computed risk (severity × feasibility) per `ThreatScenario`, `riskTreatment`/`residualRisk` fields, `W031` (untreated high/critical threat) and `W032` (CAL below risk), new **`cyber-risk`** command.
+- **Quantitative HW metrics** — `diagnosticCoverage`/`latentDiagnosticCoverage`, SPFM/LFM/PMHF computed per `SafetyGoal` vs ASIL/SIL target (`W033`), new **`metrics`** command. First-order FMEDA approximation.
+- **Freedom from interference** — `W034` flags differing-integrity elements sharing an allocation target without an `ffiRationale`.
+- **Attack trees** — new `AttackTree`/`AttackTreeGate`/`AttackStep` types with weakest-link feasibility roll-up (AND=min, OR=max) reconciled against the linked threat (`W035`).
+- **Confirmation measures & DIA** — `responsibility` field (`W038`), `ConfirmationMeasure` type + `W039` (missing independent assessment for ASIL-D/CAL4).
+- **GSN safety case** — `Argument`/`AssumptionOfUse` types and a **`safety-case`** command rendering the goal → argument → evidence tree.
+- **Unsatisfied safety mechanism** `W306`; **WCET evidence** `W029` + `list --has-wcet`.
+
+### Reports, queries & CLI
+- New **`audit`** (safety-readiness dashboard with PASS/FAIL), **`verification-depth`** (independence report + `--min-levels` gate), **`connectivity`** (element-rooted subgraph as text/DOT/JSON), **`extref`** (lookup by external reference).
+- `list`/`matrix` gain `--status`/`--sil`/`--has-wcet`/`--gaps-only` filters, coverage-% footers, JSON, and executed-evidence glyphs/annotations in `matrix`/`trace` from ingested results.
+- **Named severity profiles** — `.syscribe.toml` `[profiles.*]` (SIL/ASIL-scopable code promotion) via `validate --profile` / `audit --profile`.
+- **`extRef`** common field (external-tool references) + `W028` duplicate check.
+- **Model-root auto-discovery** — `.syscribe.toml` walk-up; `-m` stays primary (backward-compatible).
+- **Detailed per-command help** — `syscribe help <command>` and `syscribe <command> --help`/`-h` (man-page style for every command), plus `syscribe help` index.
+
+### Format & correctness
+- **`bindingTime`** on feature parameters (`compile`/`load`/`runtime`) with ordering (`E229`) and value (`E230`) checks, `W027`, and `W017` suppression.
+- **`typedBy` cycle/self-reference** now detected (`E107`) — previously silently accepted.
+- **Ports & Interfaces modeling guide** (SysML v2) added to the spec, `syscribe spec types`, and the LLM prompt.
+- Discoverability: the full safety/security field & type set is now documented in `syscribe spec fields`/`types`/`safety`, and all new commands/types are in the `--agent-instructions` LLM prompt.
+
 ## 0.10.0 — 2026-06-08
 
 ### Model-root auto-discovery (REQ-TRS-CLI-004)
