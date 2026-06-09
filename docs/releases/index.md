@@ -2,6 +2,19 @@
 
 `RELEASES`
 
+## 0.13.0 — 2026-06-10
+
+### Native `TestPlan` element (GH #38)
+
+A first-class `TestPlan` (`type: TestPlan`, stable `TP-*` id) groups TestCases into the unit a team executes and reports against. TestCases stay reusable atoms; a plan is a curated, per-product artifact.
+
+- **Schema & validation** — `scope` (recommended vocab + free-form), `configurations:` (scalar/list of `Configuration`s, or absent = config-agnostic), `demonstrates:` (optional safety-case evidence link), `testCases:` + an additive `selection:` query (`testLevels`/`domains`/`tags`). New rules `E600`–`E606` and `W610`–`W616`: malformed id, unresolvable member/config/demonstrates target, bad selection levels/domains, non-recommended scope, escaping member, empty plan, pinned-draft member, demonstration gap, results-gated failing member, duplicate `(configurations, scope)`. `W614` honours **goal-closure** — demonstrating a parent goal whose leaves are tested does not false-fire (cf. GH #37).
+- **`testplan` command** — `testplan` lists every plan (scope, configs, effective-TC count, coverage %, verdict); `testplan TP-X` shows members (with escaping flags), in-scope requirements, a per-config coverage grid and a rolled-up verdict (`pass|fail|incomplete|empty`); `--json` on both. Coverage and verdict reuse the existing `matrix`/results machinery.
+- **`--plan TP-X` lens** — on `matrix` and `verification-depth`: restricts rows to the plan's in-scope requirements and the TestCase universe to its members; composes with `--config`. (`audit --plan` is deferred — GH #40.)
+- **`matrix --config`** now reduces the grid to the selected Configuration's column.
+
+Requirement-first: `REQ-TRS-PLAN-001..006`, `TC-TRS-PLAN-001..006` with fixtures covering every code. Suite at **141** test cases, all passing.
+
 ## 0.12.1 — 2026-06-09
 
 ### Fixes
