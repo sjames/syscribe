@@ -2,6 +2,12 @@
 
 `RELEASES`
 
+## 0.12.1 — 2026-06-09
+
+### Fixes
+
+- **`audit` no longer mis-lists a parent requirement as unsatisfied/unverified (GH #37).** A parent (a `Requirement` with `derivedChildren`) is satisfied and verified only *transitively* through its leaves and can never be satisfied directly (§12.4 / `E312` forbid it appearing in any `satisfies:` list). The orphan section nonetheless flagged every such parent under `unsatisfiedRequirements` (and structurally under `unverifiedRequirements`), disagreeing with `validate`, which already suppresses parents in W002/W300/W306. The orphan loop now skips parents from both sets; genuine gaps still surface on the leaf requirements. Covered by a new parent-rollup fixture under `TC-TRS-OUT-013`.
+
 ## 0.12.0 — 2026-06-09
 
 ### Configuration lens on the analysis & audit commands
