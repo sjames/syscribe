@@ -2,6 +2,19 @@
 
 `RELEASES`
 
+## 0.14.0 — 2026-06-10
+
+### User-defined custom fields (GH #39)
+
+A dedicated `custom_fields:` frontmatter map lets you attach arbitrary user data to any element — making it intentional and addressable instead of being silently swallowed by the unknown-key catch-all.
+
+- **Schema** — `custom_fields:` is a flat `string → scalar | list-of-scalars` map, accepted on every element type, serialised in stable sorted order.
+- **Validation** — `W041` shape-check: a value that is not a scalar or a list of scalars (e.g. a nested map) is flagged, naming the key. Freeform keys, no registration.
+- **Query** — `--where custom.<key>` on `ls` / `find` / `list`: exact (`=`), regex/substring (`=~`), list-membership (`~=`), and bare presence; composes (AND) with the type/tag/status filters.
+- **Rendering** — a `## Custom Fields` section in CLI `show`, and a read-only key/value table in the web detail panel (never editable via the element editor).
+
+Requirement-first: `REQ-TRS-CFLD-001..003`, `TC-TRS-CFLD-001..003` with fixtures. Suite at **144** test cases, all passing.
+
 ## 0.13.0 — 2026-06-10
 
 ### Native `TestPlan` element (GH #38)
