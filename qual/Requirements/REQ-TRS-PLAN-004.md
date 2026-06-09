@@ -23,8 +23,12 @@ optional `demonstrates:` list names the artifacts the plan stands as evidence fo
 
 - A plan whose `status` is `approved` or `active`, whose `demonstrates:` names a
   `Requirement`, but which has **no member TestCase** (per [[REQ-TRS-PLAN-003]]) that
-  `verifies:` that requirement, **shall** raise `W614` — the plan claims to demonstrate
-  a goal it carries no test for.
+  `verifies:` that requirement **or any requirement in its goal-closure** (a
+  requirement that transitively `derivedFrom:` it), **shall** raise `W614` — the plan
+  claims to demonstrate a goal it carries no test for. Demonstrating a high-level /
+  parent goal whose **leaves** are tested is the normal safety-case pattern and
+  **shall not** raise `W614` (a parent is demonstrated through its leaves, consistent
+  with the parent suppression of W002/W300/W306 and [[REQ-TRS-OUT-013]] / GH #37).
 
 ### Integrity-level scope (v1)
 

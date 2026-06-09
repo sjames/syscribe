@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 139 |
-| Passed | 139 |
+| Total test cases | 141 |
+| Passed | 141 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -917,11 +917,33 @@
 ### TC-TRS-PLAN-004 — Verify TestPlan demonstrated goals: E603 and the evidence-gap W614.
 
 **Verifies:** REQ-TRS-PLAN-004  
-**Result:** ✓ PASS (4 passed, 0 failed)
+**Result:** ✓ PASS (5 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
-| a demonstrated-and-covered plan is clean of E603/W614 | ✓ PASS |
+| demonstrating a parent goal whose leaf is tested does not raise W614 (goal-closure) | ✓ PASS |
+
+---
+
+### TC-TRS-PLAN-005 — Verify the testplan command: list, detail --json contract, goal-closure in-scope, verdict roll-up.
+
+**Verifies:** REQ-TRS-PLAN-005  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| testplan on an unknown plan exits non-zero | ✓ PASS |
+
+---
+
+### TC-TRS-PLAN-006 — Verify the --plan lens on matrix and verification-depth: row restriction, --config composition, unknown-id exit.
+
+**Verifies:** REQ-TRS-PLAN-006  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an unknown plan id exits 1 | ✓ PASS |
 
 ---
 

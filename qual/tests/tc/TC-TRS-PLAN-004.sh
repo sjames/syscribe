@@ -12,4 +12,8 @@ tc_TRS_PLAN_004() {
     SCENARIO_NAME="a demonstrated-and-covered plan is clean of E603/W614"; printf "  ▶ %s\n" "$SCENARIO_NAME"
     SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$B/valid" validate 2>/dev/null || true)
     assert_no_code "E603"; assert_no_code "W614"
+
+    SCENARIO_NAME="demonstrating a parent goal whose leaf is tested does not raise W614 (goal-closure)"; printf "  ▶ %s\n" "$SCENARIO_NAME"
+    SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$B/closure" validate 2>/dev/null || true)
+    assert_no_code "W614"
 }

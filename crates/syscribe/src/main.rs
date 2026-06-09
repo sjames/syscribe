@@ -16,6 +16,7 @@ mod query;
 mod render;
 mod safety_case;
 mod scaffold;
+mod testplan;
 mod vdepth;
 mod spec;
 
@@ -96,6 +97,25 @@ fn projected_elements(elems: &[RawElement], config: Option<&str>) -> Vec<RawElem
             }
         },
     }
+}
+
+/// Resolve the `--plan TP-X` lens (REQ-TRS-PLAN-006), composing with the
+/// `--config` projection. The plan lens restricts the element set to the plan's
+/// in-scope requirements ∪ effective TestCases ∪ their satisfying architecture
+/// elements ∪ the plan's Configurations; `--config` then projects onto the
+/// variant. Either lens may be absent. Exits 1 on an unresolvable plan id and on
+/// an unresolvable configuration. Dormant-safe.
+fn lensed_elements(
+    elems: &[RawElement],
+    plan: Option<&str>,
+    config: Option<&str>,
+) -> Vec<RawElement> {
+    // Apply the plan lens first (it is the coarser scope), then project.
+    let scoped: Vec<RawElement> = match plan {
+        None => elems.to_vec(),
+        Some(tp) => testplan::plan_lens(elems, tp),
+    };
+    projected_elements(&scoped, config)
 }
 
 /// Extract the top-level package name from `file_path`, given a model root prefix.
@@ -427,15 +447,17 @@ fn main() {
                     None
                 };
                 // Configuration lens (GH #35): project the dashboard onto a
-                // variant, exactly as `validate --config` does.
+                // variant, exactly as `validate --config` does. (The `--plan` lens
+                // is NOT offered on `audit` in v1: audit runs full cross-element
+                // validation for its verdict, which a non-ref-complete plan subset
+                // would pollute with escaping-reference findings — the GH #36
+                // problem generalised. Deferred to a follow-up; matrix and
+                // verification-depth carry `--plan`.)
                 let all_configs = rest.iter().any(|a| a == "--all-configs");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 let code = if all_configs {
                     audit::cmd_audit_all_configs(&elems, &vcfg, profile.as_ref(), json)
                 } else if let Some(c) = config {
-                    // Pass the FULL model plus the resolved selection so the
-                    // verdict / dangling-TestCase checks can see projected-out
-                    // elements (GH #35/#36); cmd_audit derives the active view.
                     match syscribe_model::projection::resolve_selection(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
                             audit::cmd_audit(&elems, &vcfg, model_root, profile.as_ref(), None, json)
@@ -582,14 +604,34 @@ fn main() {
                     .windows(2)
                     .find(|w| w[0] == "--status")
                     .map(|w| w[1].as_str());
+                let plan = rest.windows(2).find(|w| w[0] == "--plan").map(|w| w[1].as_str());
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                // --plan lens (REQ-TRS-PLAN-006), composing with --config.
+                let mut view = lensed_elements(&elems, plan, config);
+                // matrix is a Requirement × Configuration grid; when --config names
+                // a single stored Configuration, reduce the columns to just that
+                // variant (projection alone keeps every Configuration element, so
+                // the grid would otherwise still show every column — GH #38 review).
+                if let Some(c) = config {
+                    if let Some(keep) = elems.iter().find(|e| {
+                        matches!(e.frontmatter.element_type, Some(ElementType::Configuration))
+                            && (e.frontmatter.id.as_deref() == Some(c) || e.qualified_name == c)
+                    }) {
+                        let keep_qn = keep.qualified_name.clone();
+                        view.retain(|e| {
+                            !matches!(e.frontmatter.element_type, Some(ElementType::Configuration))
+                                || e.qualified_name == keep_qn
+                        });
+                    }
+                }
                 if rest.iter().any(|a| a == "--features") {
-                    matrix::cmd_matrix_features(&elems, json);
+                    matrix::cmd_matrix_features(&view, json);
                 } else {
                     // Surface executed-evidence by default when a sidecar exists
                     // (issue #21); absent results, behaves exactly as before.
                     let results = ResultsData::load_sidecar(model_root);
                     matrix::cmd_matrix(
-                        &elems,
+                        &view,
                         json,
                         tag,
                         status,
@@ -645,6 +687,24 @@ fn main() {
                 let view = projected_elements(&elems, config);
                 let view_resolver = Resolver::new(&view);
                 safety_case::cmd_safety_case(&view, &view_resolver, goal, results.as_ref(), json);
+            }
+            "testplan" => {
+                // Read-only TestPlan surface (GH #38 / REQ-TRS-PLAN-005).
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let results = ResultsData::load_sidecar(model_root);
+                // First non-flag positional = optional TP-id.
+                let tp = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
+                match tp {
+                    None => testplan::cmd_testplan_list(&elems, json, results.as_ref()),
+                    Some(id) => {
+                        let code =
+                            testplan::cmd_testplan_detail(&elems, id, json, results.as_ref());
+                        if code != 0 {
+                            std::process::exit(code);
+                        }
+                    }
+                }
             }
             "feature-check" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
@@ -774,7 +834,9 @@ fn main() {
                     .find(|w| w[0] == "--min-levels")
                     .and_then(|w| w[1].parse::<usize>().ok());
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
-                let view = projected_elements(&elems, config);
+                let plan = rest.windows(2).find(|w| w[0] == "--plan").map(|w| w[1].as_str());
+                // --plan lens (REQ-TRS-PLAN-006), composing with --config.
+                let view = lensed_elements(&elems, plan, config);
                 let view_resolver = Resolver::new(&view);
                 let result = validator::validate_with_config(&view, &vcfg);
                 let ok = vdepth::cmd_verification_depth(

@@ -564,6 +564,36 @@ The default policy always fails on errors and on `W306`. Passing `--profile <nam
 
 ---
 
+## TestPlans (`testplan`)
+
+A `TestPlan` (`type: TestPlan`, stable `TP-*` id) is a curated, per-product verification artifact: it binds a set of TestCases (the **effective set** = explicit `testCases:` ∪ `selection:` matches) to zero or more `Configuration`s at one `scope`, and is optionally offered as evidence for the goals it `demonstrates:`. The read-only `testplan` command surfaces plans, their resolved membership, their coverage and a rolled-up verdict — it **reuses** the `matrix` coverage computation and the executed-results verdict fold, not a second engine.
+
+```
+$ syscribe -m model/ testplan                                 # list every TestPlan
+$ syscribe -m model/ testplan --json
+$ syscribe -m model/ testplan TP-DELIVERY-INTEGRATION-001     # detail for one plan
+$ syscribe -m model/ testplan TP-DELIVERY-INTEGRATION-001 --json
+```
+
+- **List** — one row per plan: id, title, scope, bound configurations, effective-TestCase count, coverage %, and verdict.
+- **Detail (`testplan TP-X`)** — the resolved member TestCases (each flagged `escaping` when active in **none** of the plan's configs), the **in-scope requirements**, a per-config coverage grid, and the roll-up verdict. An unknown id (or an id that is not a `TestPlan`) exits `1`.
+
+**In-scope requirements.** With `demonstrates:` set, the scope is the **goal-closure**: each demonstrated `Requirement` plus the transitive closure of its `derivedChildren`, and for a demonstrated `SafetyGoal`/`CybersecurityGoal`, the requirements that `derivedFromSafetyGoal:`/`derivedFromSecurityGoal:` it (and their closure). Without `demonstrates:`, the scope is the union of the `verifies:` targets of the effective TestCase set.
+
+**Verdict** ∈ `pass | fail | incomplete | empty`: `empty` when the effective set is empty; `fail` when any member's ingested verdict is `Fail`; `pass` when every member passes; otherwise `incomplete` (no/partial results). Load results with `ingest-results`.
+
+### `--plan TP-X` lens
+
+`matrix` and `verification-depth` accept a `--plan TP-X` lens, symmetric to `--config`: it restricts the command's requirement rows to the plan's in-scope requirements and the TestCase universe to the plan's members. It **composes** with `--config` (apply both filters), is dormant-safe (works with no feature model), and exits `1` on an unknown plan id. (`audit --plan` is deferred — audit's verdict needs projection-aware validation over the plan scope; see issue tracker.)
+
+```
+$ syscribe -m model/ matrix --plan TP-DELIVERY-INTEGRATION-001
+$ syscribe -m model/ matrix --plan TP-DELIVERY-INTEGRATION-001 --config CONF-X
+$ syscribe -m model/ verification-depth --plan TP-DELIVERY-INTEGRATION-001 --sil 4
+```
+
+---
+
 ## Traceability
 
 ### Full trace for a requirement

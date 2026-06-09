@@ -14,11 +14,17 @@ TestPlan's scope.
 
 ### Affected commands
 
-The `--plan TP-X` lens **shall** be accepted on:
+The `--plan TP-X` lens **shall** be accepted on the row-restricting report commands:
 
 - `matrix` ([[REQ-TRS-VAR-004]]),
-- `audit` ([[REQ-TRS-OUT-013]]),
 - `verification-depth` ([[REQ-TRS-OUT-011]]).
+
+`audit` ([[REQ-TRS-OUT-013]]) is **deferred** for v1: its readiness verdict runs the
+full cross-element validation rule set, and a TestPlan subset is not
+reference-complete, so escaping references would surface as spurious findings (the
+projection-aware-validation problem of GH #36, generalised to an arbitrary subset).
+`audit --plan` requires projection-aware validation over the plan scope and is tracked
+as a follow-up; it **shall not** be offered until that lands.
 
 ### Behaviour
 
@@ -38,9 +44,8 @@ The `--plan TP-X` lens **shall** be accepted on:
 **Source:** GH #38; symmetric to ADR-PROJ-001's `--config` lens, generalised to plan
 scope.
 
-**Acceptance criteria:** `matrix --plan TP-X`, `audit --plan TP-X` and
-`verification-depth --plan TP-X` each restrict rows to the plan's in-scope requirements
-and the TestCase universe to the plan's members; `matrix --plan TP-X --config CONF-A`
-composes both lenses (plan scope intersected with the active subset of CONF-A); an
-unknown `TP-id` exits `1`; on a model with no feature model `--plan` still scopes by
-membership without error.
+**Acceptance criteria:** `matrix --plan TP-X` and `verification-depth --plan TP-X`
+each restrict rows to the plan's in-scope requirements and the TestCase universe to the
+plan's members; `matrix --plan TP-X --config CONF-A` composes both lenses (plan scope
+intersected with the active subset of CONF-A); an unknown `TP-id` exits `1`; on a model
+with no feature model `--plan` still scopes by membership without error.

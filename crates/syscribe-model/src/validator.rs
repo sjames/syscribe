@@ -415,13 +415,19 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             Some(t) if matches!(t.frontmatter.element_type, Some(ElementType::Requirement)) => t,
                             _ => continue,
                         };
+                        // Goal-closure: the demonstrated requirement is covered if a
+                        // member verifies it OR any requirement that derivesFrom it
+                        // (transitively). A plan demonstrating a high-level/parent goal
+                        // whose leaves are tested is the normal safety-case pattern —
+                        // requiring a member to verify the parent directly would be the
+                        // same parent/leaf false positive suppressed elsewhere (cf. GH
+                        // #37, E312: a parent is verified through its leaves).
                         let covered = members.iter().any(|tc| {
                             tc.frontmatter.verifies.as_ref().is_some_and(|vs| {
                                 vs.iter().any(|v| {
-                                    resolver
-                                        .resolve_ref(elements, v)
-                                        .map(|rt| rt.qualified_name == target.qualified_name)
-                                        .unwrap_or(false)
+                                    resolver.resolve_ref(elements, v).is_some_and(|rt| {
+                                        req_self_or_descendant_of(rt, target, elements, &resolver)
+                                    })
                                 })
                             })
                         });
@@ -3930,6 +3936,36 @@ pub fn ext_ref_duplicate_findings(elements: &[RawElement]) -> Vec<Finding> {
         }
     }
     findings
+}
+
+/// True if `req` is `target`, or a transitive `derivedFrom` descendant of it —
+/// i.e. `req` lies in the goal-closure of `target`. Used by the TestPlan W614
+/// check so a plan that demonstrates a parent goal whose leaves are tested is
+/// not flagged (the parent is demonstrated through its leaves). Cycle-guarded.
+fn req_self_or_descendant_of(
+    req: &RawElement,
+    target: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+) -> bool {
+    let mut stack = vec![req];
+    let mut seen: HashSet<String> = HashSet::new();
+    while let Some(cur) = stack.pop() {
+        if !seen.insert(cur.qualified_name.clone()) {
+            continue;
+        }
+        if cur.qualified_name == target.qualified_name {
+            return true;
+        }
+        if let Some(parents) = &cur.frontmatter.derived_from {
+            for p in parents {
+                if let Some(parent) = resolver.resolve_ref(elements, p) {
+                    stack.push(parent);
+                }
+            }
+        }
+    }
+    false
 }
 
 fn error(code: &'static str, file: &str, msg: &str) -> Finding {

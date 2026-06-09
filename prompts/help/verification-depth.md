@@ -2,7 +2,8 @@
 
 ## SYNOPSIS
     syscribe -m <root> verification-depth
-        [--sil <v>] [--status <s>] [--min-levels N] [--config <C>] [--json]
+        [--sil <v>] [--status <s>] [--min-levels N] [--config <C>]
+        [--plan TP-X] [--json]
 
 ## DESCRIPTION
 For each requirement, reports the distinct verification levels (testLevels of its
@@ -16,6 +17,8 @@ verification is a core SIL-4 expectation.
     --min-levels N   Gate: exit non-zero if any reported requirement has < N levels.
     --config <C>     Project onto a Configuration (id/qname or 'Features::A,…') —
                      only requirements active in that variant are reported.
+    --plan TP-X      Restrict to a TestPlan's in-scope requirements and member
+                     TestCases; composes with --config.
     --json           Emit {id, silLevel, asilLevel, levels, count, flag} array.
 
 ## EXAMPLES
