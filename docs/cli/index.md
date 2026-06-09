@@ -498,6 +498,24 @@ $ syscribe -m model/ diff --config CONF-MPS2-WDT --config CONF-M0-BASE
 
 ---
 
+## Safety case (GSN argument tree)
+
+`safety-case [<SG-id>] [--json]` renders the goal→argument→evidence tree for each `SafetyGoal` (or one given). It follows the GSN argument layer — `Argument` nodes (`claim`/`strategy`/`solution`) that `supports:` a goal and cite `evidence:` (Requirements, TestCases, sub-Arguments, `AssumptionOfUse`) — and also folds in the implicit `SafetyGoal ← Requirement (derivedFromSafetyGoal) ← TestCase (verifies)` chain, so it works even on models with no explicit `Argument` nodes. TestCase leaves show their ingested verdict when a results sidecar is present.
+
+```
+$ syscribe -m model/ safety-case SG-DEMO-001
+
+[SafetyGoal] SG-DEMO-001 — Prevent unintended acceleration
+├── [strategy] ARG-DEMO-001 — Argue over independent torque monitoring
+│   └── [solution] ARG-DEMO-002 — Torque monitor is verified by test
+│       └── [evidence:TestCase] TC-DEMO-001 — … [pass]
+└── [AoU] AOU-DEMO-001 — Integrator provides a redundant torque sensor
+```
+
+`--json` emits `{ goals: [{ id, title, arguments, requirements, assumptions }] }`. Read-only; exit 0.
+
+---
+
 ## Safety-readiness audit
 
 `audit` is a read-only dashboard that aggregates existing data — it **reuses** `validate`, the `matrix` coverage computation and the [named severity profiles](#named-severity-profiles); it does not re-implement validation or coverage. It is the rollup an assessor reaches for first.

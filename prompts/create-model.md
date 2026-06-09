@@ -110,6 +110,21 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe model/ why <qname>` | What requirements this element satisfies |
 | `syscribe model/ who-verifies <req-id>` | Which test cases cover a requirement |
 
+**Reports & analysis:**
+
+| Command | Purpose |
+|---|---|
+| `syscribe model/ audit [--json] [--profile <p>]` | Safety-readiness dashboard: status split, SIL/ASIL distribution, coverage %, orphans, PASS/FAIL verdict (exit 2 on fail) |
+| `syscribe model/ verification-depth [--sil <v>] [--status <s>] [--min-levels N] [--json]` | Per-requirement distinct verification levels + depth flag (none/hil-only/single/ok); `--min-levels` gates |
+| `syscribe model/ metrics [--json]` | Quantitative HW safety metrics SPFM/LFM/PMHF per SafetyGoal vs ASIL/SIL target (needs `diagnosticCoverage`) |
+| `syscribe model/ cyber-risk [--json]` | ISO/SAE 21434 risk per ThreatScenario (severity×feasibility) + treatment + untreated flag |
+| `syscribe model/ co-analysis [--json]` | Safety↔security: which cyber threats can violate each SafetyGoal (via `hazardRef`) |
+| `syscribe model/ safety-case [<SG>] [--json]` | GSN goal→argument→evidence tree (Argument/AssumptionOfUse + implicit goal→req→test) |
+| `syscribe model/ connectivity <element> [--depth N] [--format text\|dot\|json]` | Element-rooted subgraph of elements + connections (model root = whole model) |
+| `syscribe model/ extref <ref> [--json]` | Find elements by external reference (`extRef`) |
+| `syscribe model/ list <type> [--status <s>] [--sil <v>] [--has-wcet] [--json]` | (filters) status/integrity/WCET filters + JSON |
+| `syscribe model/ matrix [--gaps-only] [--status <s>] [--linked-only]` | (flags) drop covered rows; status filter; coverage-% footer; executed-evidence glyphs when results ingested |
+
 **Authoring helpers:**
 
 | Command | Purpose |
@@ -336,6 +351,14 @@ One-line description of this package.
 | `FaultTreeGate` | FTA logic gate | `Safety/FTA/<FT-id>/` |
 | `FaultTreeEvent` | FTA leaf event | `Safety/FTA/<FT-id>/` |
 | `FMEASheet` | FMEA container | `Safety/FMEA/` |
+| `AttackTree` | attack-path tree root (ISO/SAE 21434) | `Safety/AttackTrees/` |
+| `AttackTreeGate` | attack-tree gate (AND=path, OR=alternatives) | `Safety/AttackTrees/<AT-id>/` |
+| `AttackStep` | attack-tree leaf step (carries `attackFeasibility`) | `Safety/AttackTrees/<AT-id>/` |
+| `ConfirmationMeasure` | confirmation review / FS audit / FS or cyber assessment (I1–I3) | `Safety/Confirmation/` |
+| `Argument` | GSN safety-case node (claim/strategy/solution) | `Safety/Case/` |
+| `AssumptionOfUse` | safety-related application condition (SRAC) | `Safety/Case/` |
+
+The safety/security **analysis fields and checks** (HARA S/E/C, TARA `attackFeasibility`/`damageSeverity`, `hazardRef` safety↔security link, `riskTreatment`, `diagnosticCoverage` + SPFM/LFM/PMHF, `ffiRationale`, `responsibility`, attack-tree roll-up, GSN `Argument`) are documented in full under **`syscribe spec safety`**, with every field in **`syscribe spec fields`** and every rule code in **`syscribe spec validation`**.
 
 For a ready-to-fill frontmatter skeleton for any type, run:
 

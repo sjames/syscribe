@@ -537,7 +537,7 @@ These fields encode the engineering domain of an element and are used to enforce
 
 When `domain:` is not set, `system` is assumed — the element is domain-agnostic and can interoperate with both hardware and software elements.
 
-`isDeploymentPackage: true` implies `domain: software`; a parser should warn (`W306`) if `isDeploymentPackage: true` is combined with `domain: hardware`.
+`isDeploymentPackage: true` implies `domain: software`; a parser should warn (`W304`) if `isDeploymentPackage: true` is combined with `domain: hardware`.
 
 ---
 
@@ -5150,6 +5150,8 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W303` | `breakdownAdr:` references an ADR with `status: proposed`, but the `Requirement` itself has `status: approved` or higher |
 | `W304` | `isDeploymentPackage: true` combined with `domain: hardware` — deployment packages must be software |
 | `W305` | Parent `Requirement` (has `derivedFrom` children) at `status: approved`, `implemented`, or `verified` has no active `TestCase` at `testLevel: L3`, `L4`, or `L5` — leaf-level tests on derived requirements are insufficient to verify emergent composed behaviour |
+| `W306` | **Unsatisfied safety mechanism** — a high-integrity `Requirement` (`silLevel >= 4` or `asilLevel: D`) that is `status: draft`, satisfied by no element, or (with a feature model) active in no `Configuration`. Message names the triggering sub-condition(s). Gateable with `--deny W306`; promotable via `[profiles]` |
+| `W029` | A non-draft `Requirement` with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no active **measuring** `TestCase` (testLevel `L5`, or tagged `timing`/`wcet`) verifies it. The timing-evidence analog of `W702`. Gateable with `--deny W029`; query with `list --has-wcet` |
 
 #### Integrity-level propagation errors (E841–E843)
 
@@ -5211,6 +5213,7 @@ ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** wh
 | Code | Severity | Condition |
 |---|---|---|
 | `W034` | Warning | For an allocation target with ≥2 sources, a mixed-criticality source pair has no freedom-from-interference argument (one finding per `(target, sourceA, sourceB)`, naming both sources and their tags). Gateable with `--deny W034`; promotable via `[profiles]` |
+| `W035` | Warning | An `AttackTree`'s computed (weakest-link) feasibility does not match the `attackFeasibility` of the `ThreatScenario` it substantiates (`threatRef`). Gateable with `--deny W035`; promotable via `[profiles]` |
 
 #### Confirmation measures & DIA/CIA responsibility (E847–E851, W038, W039)
 
