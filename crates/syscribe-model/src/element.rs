@@ -123,6 +123,7 @@ pub enum ElementType {
     Configuration, // PLE type (§9.8)
     // Native elements (not SysML usages — own schema)
     TestCase,
+    TestPlan,         // TP-* — configuration-bound test campaign (GH #38)
     ADR,              // Architecture Decision Record (§8.17)
     // Confirmation measure (ISO 26262-2 §6 / ISO/SAE 21434 §7) — CM-*
     ConfirmationMeasure,
@@ -161,6 +162,28 @@ pub enum ElementType {
     // Fallback
     #[serde(other)]
     Unknown,
+}
+
+/// A TestPlan's additive `selection:` membership query (REQ-TRS-PLAN-003).
+/// An absent sub-field is *no constraint*; a block with no sub-fields at all
+/// matches *nothing* (not everything). Draft TestCases are never swept here.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TestPlanSelection {
+    /// Subset of L1–L5 (else E602).
+    pub test_levels: Option<Vec<String>>,
+    /// Subset of system|hardware|software, derived transitively from a candidate
+    /// TestCase's `verifies:` targets' `reqDomain:` (else E605).
+    pub domains: Option<Vec<String>>,
+    /// Matched against TestCase `tags`.
+    pub tags: Option<Vec<String>>,
+}
+
+impl TestPlanSelection {
+    /// True when the block carries no sub-field constraints at all (matches nothing).
+    pub fn is_empty(&self) -> bool {
+        self.test_levels.is_none() && self.domains.is_none() && self.tags.is_none()
+    }
 }
 
 /// Parsed frontmatter from a `.md` model file.
@@ -256,6 +279,25 @@ pub struct RawFrontmatter {
     pub coverage_target: Option<String>,
     pub source_file: Option<String>,
     pub test_functions: Option<Vec<serde_yaml::Value>>,
+
+    // Native TestPlan fields (GH #38; REQ-TRS-PLAN-001..004)
+    /// `scope:` — free-form, recommended vocab unit|smoke|integration|hil|
+    /// certification|security|regression (else W610).
+    pub scope: Option<String>,
+    /// `configurations:` — scalar or list of `Configuration` references. Absent
+    /// → config-agnostic (applies to every Configuration). Each must resolve to a
+    /// `Configuration` (else E606).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub configurations: Option<Vec<String>>,
+    /// `demonstrates:` — scalar or list of Requirement/SafetyGoal/
+    /// CybersecurityGoal/Argument the plan is offered as evidence for (else E603).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub demonstrates: Option<Vec<String>>,
+    /// `testCases:` — scalar or list of explicit `TestCase` members (else E601).
+    #[serde(rename = "testCases", default, deserialize_with = "string_or_vec::deserialize")]
+    pub test_cases: Option<Vec<String>>,
+    /// `selection:` — additive membership query (REQ-TRS-PLAN-003).
+    pub selection: Option<TestPlanSelection>,
     /// §12.8 — implementation trace: architecture element → source artifact(s).
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub implemented_by: Option<Vec<String>>,

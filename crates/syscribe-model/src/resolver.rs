@@ -3,6 +3,7 @@ use crate::element::{ElementType, RawElement};
 
 static REQ_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static TC_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static TP_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static CONF_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static ADR_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static CM_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
@@ -36,6 +37,10 @@ fn req_re() -> &'static regex::Regex {
 
 fn tc_re() -> &'static regex::Regex {
     TC_RE.get_or_init(|| regex::Regex::new(r"^TC(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+}
+
+fn tp_re() -> &'static regex::Regex {
+    TP_RE.get_or_init(|| regex::Regex::new(r"^TP(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
 }
 
 fn conf_re() -> &'static regex::Regex {
@@ -82,6 +87,7 @@ fn vr_re() -> &'static regex::Regex {
 pub fn is_stable_id(s: &str) -> bool {
     req_re().is_match(s)
         || tc_re().is_match(s)
+        || tp_re().is_match(s)
         || conf_re().is_match(s)
         || adr_re().is_match(s)
         || cm_re().is_match(s)
@@ -203,6 +209,11 @@ pub fn is_tc_id(s: &str) -> bool {
     tc_re().is_match(s)
 }
 
+/// Returns true for TP-* IDs (TestPlan).
+pub fn is_test_plan_id(s: &str) -> bool {
+    tp_re().is_match(s)
+}
+
 /// Returns true for CONF-* IDs.
 pub fn is_conf_id(s: &str) -> bool {
     conf_re().is_match(s)
@@ -285,6 +296,11 @@ impl Resolver {
                 .as_deref()
                 .map(is_tc_id)
                 .unwrap_or(false)
+    }
+
+    /// True if `elem` is a native TestPlan (type: TestPlan).
+    pub fn is_test_plan(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::TestPlan))
     }
 
     /// True if `elem` is a FeatureDef.

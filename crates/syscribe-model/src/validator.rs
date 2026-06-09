@@ -8,7 +8,8 @@ use crate::graph::EdgeKind;
 use crate::resolver::{
     is_adr_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_cm_id, is_conf_id,
     is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
-    is_req_id, is_sc_id, is_sg_id, is_tara_id, is_tc_id, is_ts_id, is_vr_id, Resolver,
+    is_req_id, is_sc_id, is_sg_id, is_tara_id, is_tc_id, is_test_plan_id, is_ts_id, is_vr_id,
+    Resolver,
 };
 
 /// A single validation finding.
@@ -206,6 +207,273 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             const LEVELS: &[&str] = &["L1", "L2", "L3", "L4", "L5"];
             if !LEVELS.contains(&lvl.as_str()) {
                 findings.push(error("E008", &file, &format!("unknown testLevel '{}'", lvl)));
+            }
+        }
+
+        // ── Native TestPlan schema checks (GH #38; REQ-TRS-PLAN-001..004) ────
+        if matches!(fm.element_type, Some(ElementType::TestPlan)) {
+            // E600: required id / title / status, and TP-* id pattern.
+            match &fm.id {
+                None => findings.push(error("E600", &file, "`id` is required on TestPlan")),
+                Some(id) if !is_test_plan_id(id) => findings.push(error(
+                    "E600",
+                    &file,
+                    &format!("`id` '{}' does not match TP-* pattern", id),
+                )),
+                Some(_) => {}
+            }
+            if fm.title.is_none() {
+                findings.push(error("E600", &file, "`title` is required on TestPlan"));
+            }
+            if fm.status.is_none() {
+                findings.push(error("E600", &file, "`status` is required on TestPlan"));
+            }
+
+            // E604: status enum.
+            if let Some(status) = &fm.status {
+                const TP_STATUSES: &[&str] =
+                    &["draft", "review", "approved", "active", "retired"];
+                if !TP_STATUSES.contains(&status.as_str()) {
+                    findings.push(error(
+                        "E604",
+                        &file,
+                        &format!("unknown TestPlan status '{}'", status),
+                    ));
+                }
+            }
+
+            // W610: scope outside the recommended vocabulary (free-form accepted).
+            if let Some(scope) = &fm.scope {
+                const SCOPES: &[&str] = &[
+                    "unit",
+                    "smoke",
+                    "integration",
+                    "hil",
+                    "certification",
+                    "security",
+                    "regression",
+                ];
+                if !SCOPES.contains(&scope.as_str()) {
+                    findings.push(warning(
+                        "W610",
+                        &file,
+                        &format!(
+                            "scope '{}' is not in the recommended vocabulary (unit|smoke|integration|hil|certification|security|regression)",
+                            scope
+                        ),
+                    ));
+                }
+            }
+
+            // E602: selection.testLevels ⊆ L1–L5.  E605: selection.domains ⊆ system/hardware/software.
+            if let Some(sel) = &fm.selection {
+                if let Some(levels) = &sel.test_levels {
+                    const LEVELS: &[&str] = &["L1", "L2", "L3", "L4", "L5"];
+                    for lvl in levels {
+                        if !LEVELS.contains(&lvl.as_str()) {
+                            findings.push(error(
+                                "E602",
+                                &file,
+                                &format!("selection.testLevels value '{}' is not one of L1–L5", lvl),
+                            ));
+                        }
+                    }
+                }
+                if let Some(domains) = &sel.domains {
+                    const DOMAINS: &[&str] = &["system", "hardware", "software"];
+                    for d in domains {
+                        if !DOMAINS.contains(&d.as_str()) {
+                            findings.push(error(
+                                "E605",
+                                &file,
+                                &format!(
+                                    "selection.domains value '{}' is not one of system/hardware/software",
+                                    d
+                                ),
+                            ));
+                        }
+                    }
+                }
+            }
+
+            // E601: each testCases entry must resolve to a TestCase.
+            // W613: an explicitly named TestCase whose status is draft/retired.
+            if let Some(refs) = &fm.test_cases {
+                for r in refs {
+                    match resolver.resolve_ref(elements, r) {
+                        Some(tc) if matches!(tc.frontmatter.element_type, Some(ElementType::TestCase)) => {
+                            let st = tc.frontmatter.status.as_deref().unwrap_or("");
+                            if st == "draft" || st == "retired" {
+                                findings.push(warning(
+                                    "W613",
+                                    &file,
+                                    &format!(
+                                        "testCases names '{}' whose status is '{}' (a not-ready TestCase pinned into the plan)",
+                                        r, st
+                                    ),
+                                ));
+                            }
+                        }
+                        _ => findings.push(error(
+                            "E601",
+                            &file,
+                            &format!("testCases entry '{}' does not resolve to a TestCase", r),
+                        )),
+                    }
+                }
+            }
+
+            // E603: each demonstrates entry must resolve to a
+            // Requirement/SafetyGoal/CybersecurityGoal/Argument.
+            if let Some(refs) = &fm.demonstrates {
+                for r in refs {
+                    let ok = matches!(
+                        resolver
+                            .resolve_ref(elements, r)
+                            .and_then(|t| t.frontmatter.element_type.clone()),
+                        Some(
+                            ElementType::Requirement
+                                | ElementType::SafetyGoal
+                                | ElementType::CybersecurityGoal
+                                | ElementType::Argument
+                        )
+                    );
+                    if !ok {
+                        findings.push(error(
+                            "E603",
+                            &file,
+                            &format!(
+                                "demonstrates entry '{}' does not resolve to a Requirement/SafetyGoal/CybersecurityGoal/Argument",
+                                r
+                            ),
+                        ));
+                    }
+                }
+            }
+
+            // E606: each configurations entry must resolve to a Configuration.
+            if let Some(refs) = &fm.configurations {
+                for r in refs {
+                    let ok = resolver
+                        .resolve_ref(elements, r)
+                        .map(Resolver::is_configuration)
+                        .unwrap_or(false);
+                    if !ok {
+                        findings.push(error(
+                            "E606",
+                            &file,
+                            &format!("configurations entry '{}' does not resolve to a Configuration", r),
+                        ));
+                    }
+                }
+            }
+
+            // ── computed-membership checks ───────────────────────────────────
+            let members = crate::testplan::effective_testcases(elem, elements, &resolver);
+            let configs = crate::testplan::plan_configs(elem, elements, &resolver);
+            let status = fm.status.as_deref().unwrap_or("");
+
+            // W612: empty effective TestCase set.
+            if members.is_empty() {
+                findings.push(warning(
+                    "W612",
+                    &file,
+                    "TestPlan has an empty effective TestCase set",
+                ));
+            }
+
+            // W611: a member TestCase active in NONE of the plan's configs
+            // (escaping member). Dormant when the variability dimension is
+            // inactive (no resolvable bound configs).
+            if !configs.is_empty() {
+                let pkg = crate::variability::package_conditions(elements);
+                for tc in &members {
+                    if !crate::testplan::member_active_in_any_config(tc, &configs, &pkg) {
+                        let tc_id = tc
+                            .frontmatter
+                            .id
+                            .as_deref()
+                            .unwrap_or(tc.qualified_name.as_str());
+                        findings.push(warning(
+                            "W611",
+                            &file,
+                            &format!(
+                                "member TestCase '{}' is active in none of the plan's bound configurations (escaping member)",
+                                tc_id
+                            ),
+                        ));
+                    }
+                }
+            }
+
+            // W614: an approved/active plan whose demonstrates names a Requirement
+            // that no member TestCase verifies.
+            if status == "approved" || status == "active" {
+                if let Some(refs) = &fm.demonstrates {
+                    for r in refs {
+                        let target = match resolver.resolve_ref(elements, r) {
+                            Some(t) if matches!(t.frontmatter.element_type, Some(ElementType::Requirement)) => t,
+                            _ => continue,
+                        };
+                        let covered = members.iter().any(|tc| {
+                            tc.frontmatter.verifies.as_ref().is_some_and(|vs| {
+                                vs.iter().any(|v| {
+                                    resolver
+                                        .resolve_ref(elements, v)
+                                        .map(|rt| rt.qualified_name == target.qualified_name)
+                                        .unwrap_or(false)
+                                })
+                            })
+                        });
+                        if !covered {
+                            findings.push(warning(
+                                "W614",
+                                &file,
+                                &format!(
+                                    "{} TestPlan demonstrates Requirement '{}' but no member TestCase verifies it",
+                                    status, r
+                                ),
+                            ));
+                        }
+                    }
+                }
+            }
+
+            // W615: results-gated — an approved plan with a member whose ingested
+            // verdict is Fail/Missing. Only when a results sidecar is loaded.
+            if status == "approved" {
+                if let Some(results) = &config.results {
+                    use crate::results::FnVerdict;
+                    let func_key = serde_yaml::Value::String("function".into());
+                    for tc in &members {
+                        let Some(fns) = &tc.frontmatter.test_functions else {
+                            continue;
+                        };
+                        for tf in fns {
+                            if let serde_yaml::Value::Mapping(map) = tf {
+                                if let Some(serde_yaml::Value::String(func)) = map.get(&func_key) {
+                                    let v = results.verdict_for(func);
+                                    if matches!(v, FnVerdict::Fail | FnVerdict::Missing) {
+                                        let tc_id = tc
+                                            .frontmatter
+                                            .id
+                                            .as_deref()
+                                            .unwrap_or(tc.qualified_name.as_str());
+                                        let what = if v == FnVerdict::Fail { "FAILED" } else { "was missing from" };
+                                        findings.push(warning(
+                                            "W615",
+                                            &file,
+                                            &format!(
+                                                "approved TestPlan member TestCase '{}' has test function '{}' that {} the ingested results",
+                                                tc_id, func, what
+                                            ),
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -1685,6 +1953,36 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         &format!("duplicate id '{}' (first seen in {})", id, prev_file),
                     ));
                 }
+            }
+        }
+    }
+
+    // W616: two TestPlans with an identical (configurations, scope) pair.
+    // The config set is the resolved/declared bound configurations (qualified
+    // names, order-independent); absent `configurations:` (config-agnostic) is its
+    // own distinct key so two config-agnostic plans at the same scope also collide.
+    {
+        let mut seen: HashMap<(Vec<String>, Option<String>), &str> = HashMap::new();
+        for elem in elements {
+            if !matches!(elem.frontmatter.element_type, Some(ElementType::TestPlan)) {
+                continue;
+            }
+            let mut cfgs: Vec<String> = crate::testplan::plan_configs(elem, elements, &resolver)
+                .iter()
+                .map(|c| c.qualified_name.clone())
+                .collect();
+            cfgs.sort();
+            cfgs.dedup();
+            let key = (cfgs, elem.frontmatter.scope.clone());
+            if let Some(prev) = seen.insert(key, elem.file_path.as_str()) {
+                findings.push(warning(
+                    "W616",
+                    &elem.file_path,
+                    &format!(
+                        "TestPlan shares an identical (configurations, scope) pair with {} (likely redundant or duplicated plans)",
+                        prev
+                    ),
+                ));
             }
         }
     }

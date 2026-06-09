@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 135 |
-| Passed | 135 |
+| Total test cases | 139 |
+| Passed | 139 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -878,6 +878,50 @@
 |---|---|
 | file with no type: field is skipped with a warning | ✓ PASS |
 | file with type: present is processed normally | ✓ PASS |
+
+---
+
+### TC-TRS-PLAN-001 — Verify the native TestPlan schema: TP-id pattern, status enum, scope vocabulary and duplicate-id.
+
+**Verifies:** REQ-TRS-PLAN-001  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| duplicate TestPlan id raises the generic E101 | ✓ PASS |
+
+---
+
+### TC-TRS-PLAN-002 — Verify TestPlan configuration binding: E606, escaping member W611 and duplicate-plan W616.
+
+**Verifies:** REQ-TRS-PLAN-002  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| two plans with identical (configurations, scope) raise W616 | ✓ PASS |
+
+---
+
+### TC-TRS-PLAN-003 — Verify TestPlan membership: E601, E602, E605, empty-set W612 and explicit-draft W613.
+
+**Verifies:** REQ-TRS-PLAN-003  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an explicitly named draft TestCase raises W613 | ✓ PASS |
+
+---
+
+### TC-TRS-PLAN-004 — Verify TestPlan demonstrated goals: E603 and the evidence-gap W614.
+
+**Verifies:** REQ-TRS-PLAN-004  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a demonstrated-and-covered plan is clean of E603/W614 | ✓ PASS |
 
 ---
 
