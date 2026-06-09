@@ -722,7 +722,7 @@
 ### TC-TRS-OUT-013 — Verify the safety-readiness audit dashboard, its sections, JSON output and PASS/FAIL exit codes.
 
 **Verifies:** REQ-TRS-OUT-013  
-**Result:** ✓ PASS (17 passed, 0 failed)
+**Result:** ✓ PASS (21 passed, 0 failed)
 
 ---
 

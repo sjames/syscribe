@@ -295,15 +295,23 @@ pub fn cmd_audit(
     let mut unsatisfied: Vec<String> = Vec::new();
     let mut untraced: Vec<String> = Vec::new();
     for r in &reqs {
-        if !verified(r) {
-            unverified.push(disp_id(r));
-        }
-        if !is_satisfied(r) {
-            unsatisfied.push(disp_id(r));
-        }
         let has_parent = r.frontmatter.derived_from.as_ref().is_some_and(|d| !d.is_empty());
-        let has_children = !derived_children_of(r, &reqs, &resolver, view).is_empty();
-        if !has_parent && !has_children {
+        // A requirement with derivedChildren is a parent; it is satisfied/verified
+        // transitively through its leaves and can never be satisfied directly
+        // (§12.4 / E312 forbid a parent appearing in any satisfies: list). Skip
+        // parents from the unsatisfied/unverified orphan sets, mirroring the
+        // parent suppression already applied to W002, W300 and W306 in the
+        // validator (GH #37).
+        let is_parent = !derived_children_of(r, &reqs, &resolver, view).is_empty();
+        if !is_parent {
+            if !verified(r) {
+                unverified.push(disp_id(r));
+            }
+            if !is_satisfied(r) {
+                unsatisfied.push(disp_id(r));
+            }
+        }
+        if !has_parent && !is_parent {
             untraced.push(disp_id(r));
         }
     }

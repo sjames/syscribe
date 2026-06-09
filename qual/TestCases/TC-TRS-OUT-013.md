@@ -54,4 +54,12 @@ Feature: Safety-readiness audit dashboard
     Then it is clean (exit 0)
     When audit --config <the config> is invoked
     Then danglingTestCases.count is 0 and the verdict is PASS (no phantom Error finding)
+
+  Scenario: a parent requirement is excluded from the orphan sets (GH #37)
+    Given a model with a parent requirement whose two leaves are each satisfied and verified
+    When audit --json is invoked
+    Then orphans.unsatisfiedRequirements.ids does not contain the parent id
+    And orphans.unverifiedRequirements.ids does not contain the parent id
+    And validate emits no W300 or W002 finding for the parent
+    And the audit and validate views agree (parent satisfied/verified transitively)
 ```

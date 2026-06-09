@@ -74,4 +74,32 @@ tc_TRS_OUT_013() {
     "$SYSCRIBE" -m "$VAR" audit --config NOPE-X >/dev/null 2>&1 && rc=0 || rc=$?
     [ "$rc" -ne 0 ] && pass "unresolvable --config exits non-zero" \
         || fail "bad --config did not error"
+
+    # --- Scenario: parent requirement excluded from orphan sets (GH #37) -------
+    # The parent (REQ-PR-PARENT-000) has two leaves, each satisfied by an arch
+    # element and verified by an active TestCase. The parent is satisfied/verified
+    # only transitively through its leaves and can never be satisfied directly
+    # (§12.4 / E312). audit must not list it as unsatisfied or unverified, matching
+    # validate which suppresses W002/W300 for parents.
+    printf "  ▶ %s\n" "parent requirement is excluded from the orphan sets (GH #37)"
+    local PR="$F/TC-TRS-OUT-013/parent-rollup"
+    local PARENT="REQ-PR-PARENT-000"
+    "$SYSCRIBE" -m "$PR" validate >/dev/null 2>&1 && rc=0 || rc=$?
+    [ "$rc" -eq 0 ] && pass "parent-rollup validate is clean (rc 0)" \
+        || fail "parent-rollup validate exit $rc (expected 0)"
+    local pjson
+    pjson=$("$SYSCRIBE" -m "$PR" audit --json 2>/dev/null)
+    printf '%s' "$pjson" | jq -e --arg p "$PARENT" \
+        '.orphans.unsatisfiedRequirements.ids | index($p) == null' >/dev/null \
+        && pass "parent absent from unsatisfiedRequirements" \
+        || fail "parent $PARENT mis-listed as unsatisfied (GH #37)"
+    printf '%s' "$pjson" | jq -e --arg p "$PARENT" \
+        '.orphans.unverifiedRequirements.ids | index($p) == null' >/dev/null \
+        && pass "parent absent from unverifiedRequirements" \
+        || fail "parent $PARENT mis-listed as unverified (GH #37)"
+    local pvalidate
+    pvalidate=$("$SYSCRIBE" -m "$PR" validate 2>/dev/null)
+    printf '%s' "$pvalidate" | grep "$PARENT" | grep -Eq 'W300|W002' \
+        && fail "validate emits W300/W002 for parent $PARENT" \
+        || pass "validate emits no W300/W002 for the parent (audit agrees)"
 }

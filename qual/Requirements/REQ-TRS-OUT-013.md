@@ -65,6 +65,16 @@ sections:
    - native `Requirement`s that no element `satisfies:`;
    - `TestCase`s whose `verifies:` is empty or resolves to nothing (dangling);
    - `Requirement`s with neither `derivedFrom` nor `derivedChildren`.
+
+   A **parent** `Requirement` (one that has `derivedChildren` — i.e. other
+   requirements `derivedFrom` it) **shall be excluded** from both the
+   `unsatisfiedRequirements` and the `unverifiedRequirements` orphan sets (GH
+   #37). A parent is satisfied and verified only **transitively** through its
+   leaves; §12.4 / `E312` forbid a parent from appearing in any `satisfies:`
+   list and W002/W300/W306 already suppress parents, so flagging it here would
+   always be a false positive. Genuine satisfaction/verification gaps still
+   surface on the **leaf** requirements. The `untraced` set (requirements with
+   neither `derivedFrom` nor `derivedChildren`) is unaffected.
 5. **Readiness verdict** — a single PASS/FAIL line that names **why** it failed
    (the triggering codes / counts).
 
@@ -122,3 +132,7 @@ reuses REQ-TRS-OUT-012.
 - For a variant where a `TestCase` verifies a requirement that is projected out,
   `audit --config <C>` reports `danglingTestCases.count == 0` and a `verdict.pass`
   consistent with `validate --config <C>` being clean (GH #36 — no phantom finding).
+- A **parent** requirement (one with `derivedChildren`) whose leaves are each
+  satisfied and verified is **absent** from `orphans.unsatisfiedRequirements`
+  and `orphans.unverifiedRequirements` (GH #37), consistent with `validate` not
+  emitting W002/W300 for that parent. Genuine gaps still surface on the leaves.
