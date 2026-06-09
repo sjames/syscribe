@@ -21,6 +21,7 @@ Normative requirements for the Syscribe tool. Grouped by functional area:
 | `REQ-TRS-FM` | Explicit feature-model validation command (`feature-check`, §9); feature-model schema fields including the `mandatory:` membership field (`ADR-FM-003`) |
 | `REQ-TRS-FMA` | Solver-backed feature-model analysis: `feature-check --deep`, cores, `configure`, variant count, diagnoses, DRAT proofs (`ADR-FM-002`) |
 | `REQ-TRS-PROJ` | Configuration projection: the `--config` lens, per-variant validation, escaping refs, global guarantee, family checks (`ADR-PROJ-001`) |
+| `REQ-TRS-PLAN` | Native `TestPlan` element: schema, config binding, computed membership, demonstrated goals, the `testplan` command and the `--plan` lens (GH #38) |
 | `REQ-TRS-DISC` | Product-line feature discoverability: `features`, `feature`, `matrix --features`, `list --feature`, `why-active`, orphan-feature `W024` |
 | `REQ-TRS-TAG` | Generic tag filtering (orthogonal to variability) |
 | `REQ-TRS-OUT` | Output and reporting |
