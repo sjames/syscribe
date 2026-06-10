@@ -623,3 +623,30 @@ feasibility is the value of its single root child, mapped back to a label.
 | Code | Condition |
 |---|---|
 | E921 | `id` or `title` is absent; `id` does not match `ATS-*` pattern; or `attackFeasibility` is not one of `high · medium · low · very_low` |
+
+## TestPlan (E600–E606, W610–W616)
+
+| Code | Condition |
+|---|---|
+| E600 | `TestPlan` missing `id`/`title`/`status`, or `id` does not match `TP(-[A-Z0-9]{2,12})+-[0-9]{3}` |
+| E601 | a `testCases:` entry does not resolve to a `TestCase` |
+| E602 | a `selection.testLevels` value is not one of `L1`–`L5` |
+| E603 | a `demonstrates:` target does not resolve to a Requirement/SafetyGoal/CybersecurityGoal/Argument |
+| E604 | `status` is not one of `draft · review · approved · active · retired` |
+| E605 | a `selection.domains` value is not one of `system`/`hardware`/`software` |
+| E606 | a `configurations:` entry does not resolve to a `Configuration` |
+| W610 | `scope` is not in the recommended vocabulary (`unit·smoke·integration·hil·certification·security·regression`) |
+| W611 | a member `TestCase` is active in none of the plan's bound configurations (escaping member) |
+| W612 | the effective TestCase set is empty |
+| W613 | a `TestCase` named explicitly in `testCases:` is `draft`/`retired` |
+| W614 | an `approved`/`active` plan demonstrates a `Requirement` that no member verifies (honours goal-closure) |
+| W615 | results-gated: an `approved` plan has a member whose ingested verdict is Fail/Missing |
+| W616 | two plans share an identical `(configurations, scope)` pair |
+
+A duplicate `TestPlan` `id` is the generic `E101`.
+
+## Custom fields (W041)
+
+| Code | Condition |
+|---|---|
+| W041 | a `custom_fields` value is not a scalar or a list of scalars (e.g. a nested map); names the offending key |

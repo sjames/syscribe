@@ -91,6 +91,21 @@ bindingConnections:
 | `verifies` | List of REQ-* IDs verified by this test case |
 | `testFunctions` | List of `{scenario, file, line}` mappings linking Gherkin scenarios to source |
 
+## TestPlan fields (`type: TestPlan`)
+
+A `TestPlan` (stable `TP-*` id) groups reusable TestCases by product and scope.
+
+| Field | Description |
+|---|---|
+| `title`, `status` | Required; status `draft` · `review` · `approved` · `active` · `retired` |
+| `scope` | Recommended `unit·smoke·integration·hil·certification·security·regression` (other → `W610`); discriminates plans over the same config |
+| `configurations` | A `Configuration` id or list of ids — the product variant(s) the plan is for; absent = config-agnostic. Each must resolve (`E606`) |
+| `demonstrates` | Optional list of goals/requirements the plan is evidence for (`E603` if unresolved); not required |
+| `testCases` | Explicit `TC-*` members (`E601` if not a TestCase) |
+| `selection` | Additive query: `testLevels` (L1–L5, `E602`), `domains` (system/hardware/software, `E605`), `tags` |
+
+Effective members = `testCases` ∪ `selection` matches. Surfaced by `testplan` and the `--plan TP-X` lens on `matrix`/`verification-depth`/`audit`. Codes `E600`–`E606` / `W610`–`W616` in the [Rule Reference](../validation/rules.md).
+
 ## Implementation trace (`implementedBy:`)
 
 `Part`/`PartDef` elements may link to the source artifact(s) that realise them, closing the V-model leg `Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test`.
@@ -147,3 +162,10 @@ Opt-in: ignored when the model declares no `FeatureDef`. See the [Variability gu
 | `tags` | any element | Free-text labels; filter with `--tag` (orthogonal to the feature model) |
 
 A `Configuration` requires `id` (`CONF-*`), `title`, `status`, and `featureModel`. Validation codes for these fields are in the [Rule Reference](../validation/rules.md) (PLE errors `E2xx`, projection `E226`/`E227`, warnings `W01x`–`W022`).
+
+## Custom fields (`custom_fields:`)
+
+| Field | Description |
+|---|---|
+| `custom_fields` | On any element: a flat map of `string → scalar` or `list-of-scalars` for user-defined data. Freeform keys; serialised sorted. A value that is not a scalar/list-of-scalars warns `W041`. Query with `--where custom.<key>` on `ls`/`find`/`list`; rendered read-only by `show` and the web detail panel. See [Custom Fields](../model-guide/custom-fields.md). |
+

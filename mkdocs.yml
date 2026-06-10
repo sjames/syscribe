@@ -54,6 +54,7 @@ nav:
   - Modeling Guide:
       - model-guide/index.md
       - Requirements & Test Cases: model-guide/requirements.md
+      - Test Plans: model-guide/testplans.md
       - Traceability: model-guide/traceability.md
       - Architecture Decisions: model-guide/adrs.md
       - Safety & Security Analysis: model-guide/safety-analysis.md

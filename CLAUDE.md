@@ -65,6 +65,7 @@ Each model element is a `.md` file. The **directory path** encodes namespace/own
 | `interface def` / `interface` | `.md` file, `type: InterfaceDef` / `Interface` |
 | — (native Requirement) | `.md` file, `type: Requirement` — dedicated handler, REQ-* id |
 | — (native TestCase) | `.md` file, `type: TestCase` — dedicated handler, TC-* id |
+| — (native TestPlan) | `.md` file, `type: TestPlan` — dedicated handler, TP-* id; groups TestCases by configuration/scope |
 | — (Architecture Decision Record) | `.md` file, `type: ADR` — dedicated handler, ADR-* id |
 | `allocation` | `.md` file, `type: Allocation` |
 | `view def` / `view` | `.md` file, `type: ViewDef` / `View` |

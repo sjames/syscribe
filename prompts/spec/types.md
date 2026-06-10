@@ -65,6 +65,7 @@
 | `View` | `view` | Usage of a ViewDef |
 | `Rendering` | `rendering` | Usage of a RenderingDef |
 | `TestCase` | *(native)* | Native test case — stable `TC-*` ID, Gherkin, lifecycle |
+| `TestPlan` | *(native)* | Native test plan — stable `TP-*` ID, groups TestCases by config/scope |
 | `FeatureDef` | *(PLE native)* | Feature model node (Product Line Engineering) |
 | `Configuration` | *(PLE native)* | Complete feature selection producing one product variant |
 
@@ -213,3 +214,23 @@ title: "..."                 # required
 status: accepted             # proposed | accepted | deprecated | superseded
 ```
 Body sections: `## Context`, `## Decision`, `## Consequences`.
+
+### native TestPlan
+
+```yaml
+type: TestPlan
+id: TP-DELIVERY-INTEGRATION-001   # required; TP(-[A-Z0-9]{2,12})+-[0-9]{3}
+title: "..."                      # required
+status: approved                  # draft | review | approved | active | retired
+scope: integration                # unit|smoke|integration|hil|certification|security|regression (W610 if other)
+configurations: [CONF-X-001]      # optional; product variant(s); absent = config-agnostic
+demonstrates: [SG-X-001]          # optional; goals/requirements this plan is evidence for
+testCases: [TC-X-001]             # explicit members
+selection:                        # optional additive query (unioned with testCases)
+  testLevels: [L3, L4]
+  domains: [software]
+  tags: [integration]
+```
+Effective members = `testCases` ∪ `selection` matches. Run `testplan` (list/detail/`--json`)
+and use the `--plan TP-X` lens on `matrix`/`verification-depth`/`audit`. Validation:
+`E600`–`E606`, `W610`–`W616` (duplicate id is `E101`).

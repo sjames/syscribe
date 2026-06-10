@@ -337,6 +337,7 @@ One-line description of this package.
 | `Requirement` | native requirement | `Requirements/` |
 | `RequirementDef` | `requirement def` | `Requirements/` |
 | `TestCase` | native test case | `Verification/` |
+| `TestPlan` | native test plan (groups TestCases) | `TestPlans/` |
 | `ADR` | architecture decision | `Decisions/` |
 | `Allocation` | `allocation` | `Allocations/` |
 | `Diagram` | diagram | `Diagrams/` |
@@ -499,6 +500,39 @@ Body structure: `## Context`, `## Decision`, `## Consequences` (conventional —
 **Getting the next ID:** `syscribe model/ next-id TC-AID-FC`
 
 **Template:** `syscribe model/ template TestCase`
+
+---
+
+## Part 6b — Native TestPlan (`type: TestPlan`)
+
+A `TestPlan` groups reusable `TestCase`s into the unit a team executes and reports
+against. It is a per-product artifact: typically one plan per `(configuration, scope)`.
+Place plans under `TestPlans/`.
+
+### Fields
+
+| Field | Rule |
+|---|---|
+| `id` | Required; must match `^TP(-[A-Z0-9]{2,12})+-[0-9]{3}$` |
+| `title` | Required |
+| `status` | Required; `draft` · `review` · `approved` · `active` · `retired` |
+| `scope` | Optional; `unit` · `smoke` · `integration` · `hil` · `certification` · `security` · `regression` (other values warn `W610`). Distinguishes multiple plans over the same config. |
+| `configurations` | Optional; a `Configuration` id or list. Absent = applies to every configuration. Each must resolve (`E606`). |
+| `demonstrates` | Optional; goals/requirements this plan is evidence for (`E603` if unresolved). Not required. |
+| `testCases` | Optional; explicit `TC-*` members (`E601` if not a TestCase). |
+| `selection` | Optional additive query: `testLevels` (L1–L5), `domains` (system/hardware/software), `tags`. |
+
+Effective members = `testCases` ∪ `selection` matches. Membership of a config is still
+computed from each TestCase's own `appliesWhen:` — the plan only says which products it
+is *for*.
+
+### Tooling
+
+- `syscribe model/ testplan` — list plans (scope, configs, coverage %, verdict).
+- `syscribe model/ testplan TP-X [--json]` — per-plan detail.
+- `--plan TP-X` lens on `matrix`, `verification-depth`, `audit` (composes with `--config`).
+
+**Getting the next ID:** `syscribe model/ next-id TP-DELIVERY-INTEGRATION`
 
 ---
 

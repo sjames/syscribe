@@ -2606,6 +2606,62 @@ Feature: Priority bitmap selection
 
 **Coexistence with SysML elements:** Native `TestCase` files live in the same directory tree as `VerificationCaseDef`, `AnalysisCaseDef`, and all other SysML element types. The `type: TestCase` value is not a SysML keyword — files with this type are always routed to the dedicated TestCase handler.
 
+#### 8.12.6 Native `TestPlan` Type
+
+The native `TestPlan` type groups `TestCase`s into the unit a team executes, reviews, and reports against (a smoke plan, an integration plan, a certification campaign). `TestCase`s remain reusable atoms; a `TestPlan` is a curated, per-product artifact. Plans live by convention under a `TestPlans/` area (not enforced).
+
+**Frontmatter fields:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `type` | literal `TestPlan` | **Required** | Discriminator. |
+| `id` | string | **Required** | Stable opaque ID matching `^TP(-[A-Z0-9]{2,12})+-[0-9]{3}$`. Unique across the model. |
+| `title` | string | **Required** | One-line summary. |
+| `status` | enum | **Required** | `draft`, `review`, `approved`, `active`, `retired`. |
+| `scope` | string | optional | Recommended vocabulary: `unit`, `smoke`, `integration`, `hil`, `certification`, `security`, `regression`. Free-form values are accepted but warn (`W610`). `scope` distinguishes multiple plans over the same configuration(s). |
+| `configurations` | scalar or list of `Configuration` refs | optional | The product variant(s) this plan is for. **Absent** = config-agnostic (applies to every configuration / the flat model). Each entry must resolve to a `Configuration` (`E606`). |
+| `demonstrates` | list of id-or-qualname | optional | `Requirement` / `SafetyGoal` / `CybersecurityGoal` / `Argument` elements the plan is offered as evidence for (a safety-case leg). Not mandatory. Each must resolve (`E603`). |
+| `testCases` | list of `TC-*` refs | optional | Explicit members. Each must resolve to a `TestCase` (`E601`). |
+| `selection` | object | optional | Additive membership query (see below). |
+| `tags` | list of strings | optional | Free labels (also matched by `selection.tags`). |
+
+**`selection` sub-fields** (all optional; an absent sub-field is no constraint; a `selection` with no sub-fields matches **nothing**):
+
+| Sub-field | Type | Description |
+|---|---|---|
+| `testLevels` | list of `L1`–`L5` | Match member TestCases by `testLevel` (invalid value → `E602`). |
+| `domains` | list of `system`/`hardware`/`software` | Match by the member's domain, derived transitively from its `verifies:` targets' `reqDomain:` (invalid value → `E605`). |
+| `tags` | list of strings | Match member TestCases carrying any listed tag. |
+
+**Effective TestCase set** = explicit `testCases:` ∪ `selection:` matches, deduped by id. `selection` is **additive** (never removes a named member); draft TestCases are not swept by `selection` (but an explicitly named draft/retired TestCase is kept, with `W613`). An empty effective set warns (`W612`).
+
+**ID pattern:** `^TP(-[A-Z0-9]{2,12})+-[0-9]{3}$` — e.g. `TP-DELIVERY-INTEGRATION-001`, `TP-BRAKE-CERT-001`.
+
+**Membership is computed, not stored:** a plan declares *which products it is a plan for*; which member TestCases actually run in a given configuration is still derived from each TestCase's own `appliesWhen:` (§9.10). A member active in **none** of the plan's configurations is an escaping member (`W611`).
+
+**Example:**
+
+```yaml
+---
+type: TestPlan
+id: TP-DELIVERY-INTEGRATION-001
+title: "UAV delivery — integration plan"
+status: approved
+scope: integration
+configurations: [CONF-UAV-DELIVERY-001, CONF-UAV-SURVEY-001]   # reused across two products
+demonstrates: [SG-UAV-001]                                     # optional safety-case leg
+testCases: [TC-UAV-NAV-001, TC-UAV-SAFE-003]
+selection:
+  testLevels: [L3, L4]
+  tags: [integration]
+---
+Integration plan executed before each delivery/survey release.
+```
+
+**Tooling:** the `testplan` command lists plans (scope, configurations, effective-TestCase count, coverage %, verdict) and shows per-plan detail (`testplan TP-X`, `--json`); coverage and the `pass`/`fail`/`incomplete`/`empty` verdict reuse the `matrix` coverage computation and the ingested-results fold. The `--plan TP-X` lens on `matrix`, `verification-depth`, and `audit` restricts those reports to a plan's scope (composing with `--config`). See `spec/markdown` validation rules `E600`–`E606` / `W610`–`W616` (§11.12 reference) and the CLI guide.
+
+**Validation summary:** `E600` (missing `id`/`title`/`status` or malformed `TP-*` id), `E601` (member not a TestCase), `E602` (bad `selection.testLevels`), `E603` (`demonstrates` unresolved), `E604` (bad `status`), `E605` (bad `selection.domains`), `E606` (`configurations` entry not a Configuration); `W610` (non-recommended `scope`), `W611` (escaping member), `W612` (empty plan), `W613` (pinned draft/retired member), `W614` (approved plan demonstrates a goal no member verifies, honouring goal-closure), `W615` (results-gated: approved plan with a Fail/Missing member), `W616` (duplicate `(configurations, scope)`). A duplicate `id` is the generic `E101`.
+
 ### 8.13 Allocation Elements
 
 #### 8.13.1 `AllocationDef`
