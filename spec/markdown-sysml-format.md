@@ -43,14 +43,14 @@
    - 8.15 [Metadata Elements](#815-metadata-elements)
    - 8.17 [Architecture Decision Records (ADR)](#817-architecture-decision-records-adr)
    - 8.18 [Safety and Security Analysis Elements](#818-safety-and-security-analysis-elements)
-9. [Variability and Product Line Engineering](#9-variability-and-product-line-engineering)
+9. [Variability and Variation Points](#9-variability-and-variation-points)
    - 9.1–9.4 [Structural Variation (isVariation / isVariant)](#91-variation-definitions)
    - 9.5 [Product Line Engineering Overview](#95-product-line-engineering-overview)
-   - 9.6 [`FeatureDef` — Feature Model Element](#96-featuredef--feature-model-element)
+   - 9.6 [`FeatureDef`: Feature Model Element](#96-featuredef-feature-model-element)
    - 9.7 [Feature Parametrization](#97-feature-parametrization)
-   - 9.8 [`Configuration` — Feature Selection](#98-configuration--feature-selection)
+   - 9.8 [`Configuration`: Feature Selection](#98-configuration-feature-selection)
    - 9.9 [Two-Level Feature Models](#99-two-level-feature-models)
-   - 9.10 [`appliesWhen:` — Conditional Model Elements](#910-applieswhen--conditional-model-elements)
+   - 9.10 [`appliesWhen:` Conditional Model Elements](#910-applieswhen-conditional-model-elements)
    - 9.11 [PLE Validation Rules](#911-ple-validation-rules)
    - 9.12 [PLE Graph Edges](#912-ple-graph-edges)
 10. [Worked Examples](#10-worked-examples)
@@ -4049,7 +4049,7 @@ A variant part (`isVariant: true`) is typically *selected* by a `FeatureDef` —
 
 ---
 
-## 9.6 `FeatureDef` — Feature Model Element
+## 9.6 `FeatureDef`: Feature Model Element
 
 A `FeatureDef` represents one node in a feature model tree. It may be a leaf feature (a concrete selectable characteristic) or a composite group node (organising child features). Feature models are built entirely from `FeatureDef` elements arranged in a directory hierarchy under a dedicated package (e.g., `SystemFeatures/` or `<Package>/Features/`).
 
@@ -4295,7 +4295,7 @@ the system-level feature parameter.
 
 ---
 
-## 9.8 `Configuration` — Feature Selection
+## 9.8 `Configuration`: Feature Selection
 
 A `Configuration` is a complete, named feature selection with parameter bindings. It is the unit of product definition — selecting a `Configuration` uniquely determines a projected model slice.
 
@@ -4477,7 +4477,7 @@ from the system-level configuration.
 
 ---
 
-## 9.10 `appliesWhen:` — Conditional Model Elements
+## 9.10 `appliesWhen:` Conditional Model Elements
 
 `appliesWhen:` is a universal field (§3.13) that conditions any model element on one or more feature selections. It is the mechanism by which the full model is **projected** onto a specific `Configuration`.
 
