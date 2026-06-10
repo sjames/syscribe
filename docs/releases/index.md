@@ -2,6 +2,13 @@
 
 `RELEASES`
 
+## 0.16.1 — 2026-06-10
+
+### Docs site
+
+- The canonical format specification (`spec/markdown-sysml-format.md`) is now published on the documentation site under **Format ▸ Full Specification** (a symlink — single source of truth).
+- Fixed two broken links on the CLI reference page that pointed outside the docs tree; `mkdocs build --strict` is clean again.
+
 ## 0.16.0 — 2026-06-10
 
 ### TestPlan documentation + `template TestPlan`
