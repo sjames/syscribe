@@ -52,4 +52,6 @@ carrying a **stable opaque identifier**, mirroring the existing native `TestCase
 or missing `status` raises `E600`; a `status` outside the enum raises `E604`; a `scope`
 outside the recommended vocabulary still parses but raises `W610`; two TestPlans sharing
 one id raise the existing `E101`; a TestPlan in a model with no `FeatureDef` is still a
-valid, schema-checked element.
+valid, schema-checked element. `syscribe template TestPlan` emits a `type: TestPlan`
+skeleton (TP-* id, `title`, `status`, `scope`, a `testCases` member), and `TestPlan`
+appears among the `template` command's known native types.

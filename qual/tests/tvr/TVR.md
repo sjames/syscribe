@@ -917,11 +917,11 @@
 ### TC-TRS-PLAN-001 — Verify the native TestPlan schema: TP-id pattern, status enum, scope vocabulary and duplicate-id.
 
 **Verifies:** REQ-TRS-PLAN-001  
-**Result:** ✓ PASS (8 passed, 0 failed)
+**Result:** ✓ PASS (11 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
-| duplicate TestPlan id raises the generic E101 | ✓ PASS |
+| template TestPlan emits a valid skeleton | ✓ PASS |
 
 ---
 

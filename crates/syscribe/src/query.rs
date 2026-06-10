@@ -2336,6 +2336,27 @@ Feature: ...
 > Tip: run `syscribe scaffold-gherkin TC-PREFIX-001 --fix` to auto-insert any
 > `Scenario:` blocks missing for the `testFunctions[].scenario` entries above.
 "#,
+        "testplan" => r#"---
+type: TestPlan
+id: TP-PREFIX-001
+title: "..."
+status: draft
+scope: integration   # unit|smoke|integration|hil|certification|security|regression
+# configurations: [CONF-PREFIX-001]   # the product variant(s); omit = config-agnostic
+# demonstrates:                        # optional: goals/requirements this plan evidences
+#   - SG-PREFIX-001
+testCases:                             # explicit members (TC-*)
+  - TC-PREFIX-001
+# selection:                           # optional additive query, unioned with testCases
+#   testLevels: [L3, L4]
+#   domains: [software]
+#   tags: [integration]
+---
+
+Objectives, entry/exit criteria, test environment and responsibilities.
+
+Inspect with `syscribe -m model/ testplan TP-PREFIX-001`.
+"#,
         "adr" => r#"---
 type: ADR
 id: ADR-PREFIX-001
@@ -3148,7 +3169,7 @@ honour for the referenced goal/argument/requirement to hold.
 "#,
         other => {
             eprintln!("Unknown type '{}'. Known types:", other);
-            eprintln!("  Native elements:  Requirement, TestCase, ADR");
+            eprintln!("  Native elements:  Requirement, TestCase, TestPlan, ADR");
             eprintln!("  Structural:       PartDef, Part, ItemDef, Item");
             eprintln!("  Interfaces:       PortDef, Port, InterfaceDef, Interface");
             eprintln!("  Connections:      ConnectionDef, Connection");

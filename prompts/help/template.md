@@ -10,6 +10,8 @@ writing a new element.
 
 ## EXAMPLES
     syscribe -m model/ template Requirement
+    syscribe -m model/ template TestCase
+    syscribe -m model/ template TestPlan
     syscribe -m model/ template ConfirmationMeasure
 
 ## SEE ALSO

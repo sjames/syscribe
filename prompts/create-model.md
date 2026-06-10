@@ -534,6 +534,8 @@ is *for*.
 
 **Getting the next ID:** `syscribe model/ next-id TP-DELIVERY-INTEGRATION`
 
+**Template:** `syscribe model/ template TestPlan`
+
 ---
 
 ## Part 7 — Allocation (`type: Allocation`)
