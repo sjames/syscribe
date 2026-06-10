@@ -55,7 +55,16 @@ pub struct ValidateConfig {
     /// `validate --fetch-remote` is passed, so validation never runs configured
     /// commands implicitly.
     pub remote_hook: Option<RemoteHook>,
+
+    /// Maximum number of digits allowed in a stable-ID numeric suffix (REQ-TRS-ID-005,
+    /// GH #41). `None` means the default of 8. The minimum is fixed at 3. Read from
+    /// `[ids] max_digits` in `<model_root>/.syscribe.toml`; use [`Self::id_digit_max`].
+    pub id_max_digits: Option<usize>,
 }
+
+/// Default stable-ID suffix digit cap and fixed minimum (REQ-TRS-ID-005).
+pub const ID_SUFFIX_DEFAULT_MAX: usize = 8;
+pub const ID_SUFFIX_MIN: usize = 3;
 
 /// Minimal view of `.syscribe.toml` for the path settings (matchers are loaded
 /// separately by [`MatcherConfig`]). Unknown keys/tables are ignored.
@@ -63,6 +72,15 @@ pub struct ValidateConfig {
 struct PathsToml {
     #[serde(default, alias = "repoRoot")]
     repo_root: Option<String>,
+    #[serde(default)]
+    ids: IdsToml,
+}
+
+/// The `[ids]` table of `.syscribe.toml`.
+#[derive(Debug, Default, Deserialize)]
+struct IdsToml {
+    #[serde(default, alias = "maxDigits")]
+    max_digits: Option<usize>,
 }
 
 /// A named validation severity profile (issue #18 / REQ-TRS-OUT-012).
@@ -126,6 +144,7 @@ impl ValidateConfig {
         let (matchers, _warn) = MatcherConfig::load_from_model_root(&root);
         let results = ResultsData::load_sidecar(&root);
         let repo_root = resolve_repo_root(&root);
+        let id_max_digits = resolve_id_max_digits(&root);
         Self {
             model_root: Some(root),
             repo_root,
@@ -133,7 +152,15 @@ impl ValidateConfig {
             results,
             // Remote fetching is opt-in (CLI `--fetch-remote`); never enabled here.
             remote_hook: None,
+            id_max_digits,
         }
+    }
+
+    /// The effective stable-ID suffix digit cap: the configured `[ids] max_digits`
+    /// (clamped to the fixed minimum of 3), or the default of 8 when unset
+    /// (REQ-TRS-ID-005).
+    pub fn id_digit_max(&self) -> usize {
+        self.id_max_digits.unwrap_or(ID_SUFFIX_DEFAULT_MAX).max(ID_SUFFIX_MIN)
     }
 
     /// Resolve a `sourceFile:` value to a local path for checking/reading.
@@ -229,6 +256,13 @@ fn resolve_repo_root(model_root: &Path) -> Option<PathBuf> {
         }
     }
     detect_git_root(model_root)
+}
+
+/// Read `[ids] max_digits` from `<model_root>/.syscribe.toml` (REQ-TRS-ID-005).
+/// `None` when unset; the caller applies the default of 8 and the minimum of 3.
+fn resolve_id_max_digits(model_root: &Path) -> Option<usize> {
+    let text = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok()?;
+    toml::from_str::<PathsToml>(&text).ok()?.ids.max_digits
 }
 
 /// Walk up from `start` looking for a `.git` entry; return the directory holding it.

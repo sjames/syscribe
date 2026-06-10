@@ -31,9 +31,9 @@ the element's documentation. Directory path encodes namespace ownership.
 
 | Element type | Pattern | Example |
 |---|---|---|
-| `Requirement` | `REQ(-[A-Z0-9]{2,12})+-[0-9]{3}` | `REQ-UAV-FC-001` |
-| `TestCase` | `TC(-[A-Z0-9]{2,12})+-[0-9]{3}` | `TC-SCHED-001` |
-| `ADR` | `ADR(-[A-Z0-9]{2,12})+-[0-9]{3}` | `ADR-SW-SCHED-001` |
+| `Requirement` | `REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `REQ-UAV-FC-001` |
+| `TestCase` | `TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `TC-SCHED-001` |
+| `ADR` | `ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `ADR-SW-SCHED-001` |
 | `HazardousEvent` | `HE-*` | `HE-BRAKE-001` |
 | `SafetyGoal` | `SG-*` | `SG-BRAKE-001` |
 | `DamageScenario` | `DS-*` | `DS-001` |

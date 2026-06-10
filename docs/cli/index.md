@@ -142,7 +142,19 @@ Semantics:
 - `--profile` composes additively with `--deny` / `--max-warnings` / `--warnings-as-errors`.
 - An **undefined** profile name (or a missing `.syscribe.toml`) prints an error to stderr and exits `1`.
 
-Multiple profiles may be defined; the `[matchers]` / `[remote]` tables and `repo_root` key continue to work alongside `[profiles.*]`.
+Multiple profiles may be defined; the `[matchers]` / `[remote]` / `[ids]` tables and `repo_root` key continue to work alongside `[profiles.*]`.
+
+### Stable-ID suffix width (`[ids]`)
+
+Every stable ID (REQ-*, TC-*, TP-*, ADR-*, …) ends in a numeric suffix of **3 to 8 digits** by default. Raise or lower the maximum (minimum is fixed at 3) with:
+
+```toml
+# .syscribe.toml
+[ids]
+max_digits = 8   # default 8; e.g. 12 to allow wider counters, 4 to tighten
+```
+
+A suffix longer than the cap is error `E023`; a suffix shorter than 3 is `E006`. A reference to an over-long ID still resolves (the defect surfaces on the ID-bearing element, not as a dangling reference).
 
 ---
 

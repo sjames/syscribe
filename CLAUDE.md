@@ -123,15 +123,15 @@ subsets: [Interfaces::PowerInterface]
 
 SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file path if omitted. `Requirement` and `TestCase` carry a **stable opaque identifier** that must be explicitly set and never changes.
 
-**Requirement ID pattern** — `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3}$`
-- Prefix `REQ`, one or more uppercase-alphanumeric segments (2–12 chars), three-digit suffix.
+**Requirement ID pattern** — `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
+- Prefix `REQ`, one or more uppercase-alphanumeric segments (2–12 chars), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
 - Examples: `REQ-SCHED-001`, `REQ-SCHED-BITMAP-001`, `REQ-PORT-CTX-001`
 
-**TestCase ID pattern** — `^TC(-[A-Z0-9]{2,12})+-[0-9]{3}$`
+**TestCase ID pattern** — `^TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
 - Same segment rules, prefix `TC`. Test level is not encoded in the ID (lives in `testLevel:`).
 - Examples: `TC-SCHED-BITMAP-001`, `TC-SYNC-SEM-002`
 
-**ADR ID pattern** — `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3}$`
+**ADR ID pattern** — `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
 - Same segment rules, prefix `ADR`. Statuses: `proposed | accepted | deprecated | superseded`.
 - Examples: `ADR-SYS-001`, `ADR-SW-SCHED-001`
 

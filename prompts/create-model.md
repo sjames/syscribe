@@ -420,7 +420,7 @@ custom_fields:
 
 | Field | Rule |
 |---|---|
-| `id` | Must match `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3}$` — e.g. `REQ-SYS-001`, `REQ-AID-FC-001` |
+| `id` | Must match `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` — e.g. `REQ-SYS-001`, `REQ-AID-FC-001` |
 | `title` | Short human-readable description |
 | `status` | One of: `draft` · `review` · `approved` · `implemented` · `verified` |
 
@@ -465,7 +465,7 @@ REQ-SYS-000  (parent — stakeholder goal, no derivedFrom, no reqDomain needed)
 
 | Field | Rule |
 |---|---|
-| `id` | Must match `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3}$` |
+| `id` | Must match `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` |
 | `title` | Short description of the decision |
 | `status` | `proposed` · `accepted` · `deprecated` · `superseded` |
 
@@ -485,7 +485,7 @@ Body structure: `## Context`, `## Decision`, `## Consequences` (conventional —
 
 | Field | Rule |
 |---|---|
-| `id` | Must match `^TC(-[A-Z0-9]{2,12})+-[0-9]{3}$` |
+| `id` | Must match `^TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` |
 | `title` | Short description |
 | `status` | `draft` · `review` · `approved` · `active` · `retired` |
 | `testLevel` | `L1` · `L2` · `L3` · `L4` · `L5` |
@@ -513,7 +513,7 @@ Place plans under `TestPlans/`.
 
 | Field | Rule |
 |---|---|
-| `id` | Required; must match `^TP(-[A-Z0-9]{2,12})+-[0-9]{3}$` |
+| `id` | Required; must match `^TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` |
 | `title` | Required |
 | `status` | Required; `draft` · `review` · `approved` · `active` · `retired` |
 | `scope` | Optional; `unit` · `smoke` · `integration` · `hil` · `certification` · `security` · `regression` (other values warn `W610`). Distinguishes multiple plans over the same config. |
@@ -980,7 +980,7 @@ draft → review → approved → implemented → verified
 |---|---|---|
 | E004 | TestCase missing `id`, `title`, `status`, or `testLevel` | Add all four fields |
 | E004 | Requirement missing `title` or `status` | Add both fields |
-| E006 | `id` does not match the pattern for its type | Check regex: `REQ(-[A-Z0-9]{2,12})+-[0-9]{3}` |
+| E006 | `id` does not match the pattern for its type | Check regex: `REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}` |
 | E007 | `status` value not in allowed enum | Check status table for each type |
 | E008 | `testLevel` not `L1`–`L5` | Use exactly `L1`–`L5` |
 | E009 | `silLevel` outside 1–4 | Use integer 1–4 |
@@ -1061,7 +1061,7 @@ model/
 
 ### For every Requirement (new or updated)
 
-- [ ] `id:` is globally unique (verified with `next-id`) and matches `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3}$`
+- [ ] `id:` is globally unique (verified with `next-id`) and matches `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
 - [ ] `title:` and `status:` are present
 - [ ] Normative body is non-empty and contains `shall`
 - [ ] If `derivedFrom:` is set → `breakdownAdr:` is also set, pointing to an `accepted` ADR
@@ -1071,7 +1071,7 @@ model/
 
 ### For every TestCase (new or updated)
 
-- [ ] `id:` is globally unique and matches `^TC(-[A-Z0-9]{2,12})+-[0-9]{3}$`
+- [ ] `id:` is globally unique and matches `^TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
 - [ ] `title:`, `status:`, `testLevel:` are present
 - [ ] `verifies:` is non-empty and every ID resolves to a `type: Requirement` element (use `check-ref`)
 - [ ] Body contains a ` ```gherkin ` block whose first line is `Feature:`
@@ -1079,7 +1079,7 @@ model/
 
 ### For every ADR (new or updated)
 
-- [ ] `id:` is globally unique and matches `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3}$`
+- [ ] `id:` is globally unique and matches `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
 - [ ] `title:` and `status:` are present
 - [ ] `status: accepted` before any Requirement cites it in `breakdownAdr:`
 
@@ -1093,7 +1093,7 @@ model/
 
 ### For every SafetyGoal (new or updated)
 
-- [ ] `id:` matches `^SG(-[A-Z0-9]{2,12})+-[0-9]{3}$`
+- [ ] `id:` matches `^SG(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
 - [ ] `hazardousEvents:` references at least one `HE-*` element (W806)
 - [ ] Exactly one integrity level is set: `asilLevel:`, `silLevel:`, or `plLevel:` — never more than one (W006)
 

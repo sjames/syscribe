@@ -2268,7 +2268,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `type` | literal `Requirement` | **Required** | Discriminator. |
-| `id` | string | **Required** | Stable opaque ID matching `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3}$`. Unique across the model. Never changes. |
+| `id` | string | **Required** | Stable opaque ID matching `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`. Unique across the model. Never changes. |
 | `title` | string | **Required** | One-line summary. Max 120 chars. No newlines. |
 | `status` | enum | **Required** | Lifecycle state: `draft`, `review`, `approved`, `implemented`, `verified`. |
 | `derivedFrom` | list of id-or-qualname | optional | IDs (`REQ-*`) or qualified names of parent Requirements. Absent = stakeholder-level requirement. |
@@ -2293,8 +2293,8 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `implemented` | Implementation exists. |
 | `verified` | Covered by at least one `active` TestCase. |
 
-**ID pattern:** `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3}$`
-- Prefix `REQ`, one or more uppercase-alphanumeric segments (2–12 chars each), three-digit suffix.
+**ID pattern:** `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
+- Prefix `REQ`, one or more uppercase-alphanumeric segments (2–12 chars each), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
 - Examples: `REQ-SCHED-001`, `REQ-SCHED-BITMAP-001`, `REQ-BRAKE-CTRL-003`
 
 **Body structure:**
@@ -2493,7 +2493,7 @@ The native `TestCase` type is a **first-class element** for structured, executab
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `type` | literal `TestCase` | **Required** | Discriminator. |
-| `id` | string | **Required** | Stable opaque ID matching `^TC(-[A-Z0-9]{2,12})+-[0-9]{3}$`. Unique across the model. |
+| `id` | string | **Required** | Stable opaque ID matching `^TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`. Unique across the model. |
 | `title` | string | **Required** | One-line summary. Max 120 chars. |
 | `status` | enum | **Required** | Lifecycle state: `draft`, `review`, `approved`, `active`, `retired`. |
 | `testLevel` | enum L1–L5 | **Required** | Verification layer (see table below). |
@@ -2522,7 +2522,7 @@ The native `TestCase` type is a **first-class element** for structured, executab
 | `L4` | Integration — emulator | `cargo test --target thumbvNm-none-eabi` + QEMU |
 | `L5` | Hardware-in-the-loop | HIL bench + probe-rs |
 
-**ID pattern:** `^TC(-[A-Z0-9]{2,12})+-[0-9]{3}$`
+**ID pattern:** `^TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
 - Examples: `TC-SCHED-BITMAP-001`, `TC-BRAKE-FADE-002`
 
 **`testFunctions` structure:**
@@ -2615,7 +2615,7 @@ The native `TestPlan` type groups `TestCase`s into the unit a team executes, rev
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `type` | literal `TestPlan` | **Required** | Discriminator. |
-| `id` | string | **Required** | Stable opaque ID matching `^TP(-[A-Z0-9]{2,12})+-[0-9]{3}$`. Unique across the model. |
+| `id` | string | **Required** | Stable opaque ID matching `^TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`. Unique across the model. |
 | `title` | string | **Required** | One-line summary. |
 | `status` | enum | **Required** | `draft`, `review`, `approved`, `active`, `retired`. |
 | `scope` | string | optional | Recommended vocabulary: `unit`, `smoke`, `integration`, `hil`, `certification`, `security`, `regression`. Free-form values are accepted but warn (`W610`). `scope` distinguishes multiple plans over the same configuration(s). |
@@ -2635,7 +2635,7 @@ The native `TestPlan` type groups `TestCase`s into the unit a team executes, rev
 
 **Effective TestCase set** = explicit `testCases:` ∪ `selection:` matches, deduped by id. `selection` is **additive** (never removes a named member); draft TestCases are not swept by `selection` (but an explicitly named draft/retired TestCase is kept, with `W613`). An empty effective set warns (`W612`).
 
-**ID pattern:** `^TP(-[A-Z0-9]{2,12})+-[0-9]{3}$` — e.g. `TP-DELIVERY-INTEGRATION-001`, `TP-BRAKE-CERT-001`.
+**ID pattern:** `^TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` — e.g. `TP-DELIVERY-INTEGRATION-001`, `TP-BRAKE-CERT-001`.
 
 **Membership is computed, not stored:** a plan declares *which products it is a plan for*; which member TestCases actually run in a given configuration is still derived from each TestCase's own `appliesWhen:` (§9.10). A member active in **none** of the plan's configurations is an escaping member (`W611`).
 
@@ -3761,15 +3761,15 @@ An `ADR` file is a first-class model element that documents a significant design
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `type` | literal `ADR` | **Required** | Discriminator. |
-| `id` | string | **Required** | Stable opaque ID matching `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3}$`. Unique across the model. Never changes. |
+| `id` | string | **Required** | Stable opaque ID matching `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`. Unique across the model. Never changes. |
 | `title` | string | **Required** | One-line summary. Max 120 chars. |
 | `status` | enum | **Required** | Lifecycle state: `proposed`, `accepted`, `deprecated`, `superseded`. |
 | `date` | string | optional | ISO-8601 date the decision was made (e.g., `"2026-05-26"`). |
 | `deciders` | list of strings | optional | Qualified names of stakeholder `PartDef` elements or free-text names of the decision-makers. |
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
 
-**ID pattern:** `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3}$`
-- Prefix `ADR`, one or more uppercase-alphanumeric segments (2–12 chars), three-digit suffix.
+**ID pattern:** `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
+- Prefix `ADR`, one or more uppercase-alphanumeric segments (2–12 chars), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
 - Examples: `ADR-SYS-001`, `ADR-SW-SCHED-001`, `ADR-UAV-PWR-002`
 
 **Status values:**
@@ -4301,7 +4301,7 @@ A `Configuration` is a complete, named feature selection with parameter bindings
 
 ### ID scheme
 
-Configuration IDs follow the pattern `^CONF(-[A-Z0-9]{2,12})+-[0-9]{3}$`:
+Configuration IDs follow the pattern `^CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`:
 - System-level: `CONF-UAV-STD-001`, `CONF-UAV-HVY-001`
 - Component-level: `CONF-PROP-HEX-001`, `CONF-AVI-DUAL-001`
 
@@ -5159,8 +5159,8 @@ Native `Requirement` (§8.11.6) and `TestCase` (§8.12.5) elements are reference
 
 For a reference string `R` in a `verifies:` or `derivedFrom:` list:
 
-1. If `R` matches `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3}$`, search all loaded elements for a native `Requirement` whose `id:` equals `R`. If found, bind the reference. If not found, emit model error `E102` (for `verifies:`) or `E103` (for `derivedFrom:`).
-2. If `R` matches `^TC(-[A-Z0-9]{2,12})+-[0-9]{3}$`, search all loaded elements for a native `TestCase` whose `id:` equals `R`. If found, bind the reference. If not found, emit `E102`.
+1. If `R` matches `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`, search all loaded elements for a native `Requirement` whose `id:` equals `R`. If found, bind the reference. If not found, emit model error `E102` (for `verifies:`) or `E103` (for `derivedFrom:`).
+2. If `R` matches `^TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`, search all loaded elements for a native `TestCase` whose `id:` equals `R`. If found, bind the reference. If not found, emit `E102`.
 3. If `R` matches neither ID pattern, fall through to the standard qualified-name resolution (§11.5 steps 1–4).
 
 **Additional cross-reference validation:**

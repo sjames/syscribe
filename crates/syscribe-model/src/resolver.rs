@@ -32,55 +32,55 @@ static SC_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static VR_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
 fn req_re() -> &'static regex::Regex {
-    REQ_RE.get_or_init(|| regex::Regex::new(r"^REQ(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    REQ_RE.get_or_init(|| regex::Regex::new(r"^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn tc_re() -> &'static regex::Regex {
-    TC_RE.get_or_init(|| regex::Regex::new(r"^TC(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    TC_RE.get_or_init(|| regex::Regex::new(r"^TC(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn tp_re() -> &'static regex::Regex {
-    TP_RE.get_or_init(|| regex::Regex::new(r"^TP(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    TP_RE.get_or_init(|| regex::Regex::new(r"^TP(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn conf_re() -> &'static regex::Regex {
-    CONF_RE.get_or_init(|| regex::Regex::new(r"^CONF(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    CONF_RE.get_or_init(|| regex::Regex::new(r"^CONF(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn adr_re() -> &'static regex::Regex {
-    ADR_RE.get_or_init(|| regex::Regex::new(r"^ADR(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    ADR_RE.get_or_init(|| regex::Regex::new(r"^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn cm_re() -> &'static regex::Regex {
-    CM_RE.get_or_init(|| regex::Regex::new(r"^CM(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    CM_RE.get_or_init(|| regex::Regex::new(r"^CM(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn he_re() -> &'static regex::Regex {
-    HE_RE.get_or_init(|| regex::Regex::new(r"^HE(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    HE_RE.get_or_init(|| regex::Regex::new(r"^HE(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn sg_re() -> &'static regex::Regex {
-    SG_RE.get_or_init(|| regex::Regex::new(r"^SG(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    SG_RE.get_or_init(|| regex::Regex::new(r"^SG(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn ds_re() -> &'static regex::Regex {
-    DS_RE.get_or_init(|| regex::Regex::new(r"^DS(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    DS_RE.get_or_init(|| regex::Regex::new(r"^DS(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn ts_re() -> &'static regex::Regex {
-    TS_RE.get_or_init(|| regex::Regex::new(r"^TS(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    TS_RE.get_or_init(|| regex::Regex::new(r"^TS(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn csg_re() -> &'static regex::Regex {
-    CSG_RE.get_or_init(|| regex::Regex::new(r"^CSG(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    CSG_RE.get_or_init(|| regex::Regex::new(r"^CSG(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn sc_re() -> &'static regex::Regex {
-    SC_RE.get_or_init(|| regex::Regex::new(r"^SC(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    SC_RE.get_or_init(|| regex::Regex::new(r"^SC(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn vr_re() -> &'static regex::Regex {
-    VR_RE.get_or_init(|| regex::Regex::new(r"^VR(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    VR_RE.get_or_init(|| regex::Regex::new(r"^VR(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 /// Returns true when `s` matches any known stable-ID pattern.
@@ -127,26 +127,26 @@ pub fn is_sc_id(s: &str) -> bool { sc_re().is_match(s) }
 pub fn is_vr_id(s: &str) -> bool { vr_re().is_match(s) }
 
 fn tara_re() -> &'static regex::Regex {
-    TARA_RE.get_or_init(|| regex::Regex::new(r"^TARA(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    TARA_RE.get_or_init(|| regex::Regex::new(r"^TARA(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 /// Returns true for TARA-* IDs (TARASheet).
 pub fn is_tara_id(s: &str) -> bool { tara_re().is_match(s) }
 
 fn ft_re() -> &'static regex::Regex {
-    FT_RE.get_or_init(|| regex::Regex::new(r"^FT(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    FT_RE.get_or_init(|| regex::Regex::new(r"^FT(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 fn ftg_re() -> &'static regex::Regex {
-    FTG_RE.get_or_init(|| regex::Regex::new(r"^FTG(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    FTG_RE.get_or_init(|| regex::Regex::new(r"^FTG(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 fn fte_re() -> &'static regex::Regex {
-    FTE_RE.get_or_init(|| regex::Regex::new(r"^FTE(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    FTE_RE.get_or_init(|| regex::Regex::new(r"^FTE(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 fn fmea_re() -> &'static regex::Regex {
-    FMEA_RE.get_or_init(|| regex::Regex::new(r"^FMEA(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    FMEA_RE.get_or_init(|| regex::Regex::new(r"^FMEA(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 fn fm_re() -> &'static regex::Regex {
-    FM_RE.get_or_init(|| regex::Regex::new(r"^FM(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    FM_RE.get_or_init(|| regex::Regex::new(r"^FM(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 /// Returns true for FT-* IDs (FaultTree).
@@ -161,20 +161,20 @@ pub fn is_fmea_id(s: &str) -> bool { fmea_re().is_match(s) }
 pub fn is_fm_id(s: &str) -> bool { fm_re().is_match(s) }
 
 fn at_re() -> &'static regex::Regex {
-    AT_RE.get_or_init(|| regex::Regex::new(r"^AT(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    AT_RE.get_or_init(|| regex::Regex::new(r"^AT(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 fn atg_re() -> &'static regex::Regex {
-    ATG_RE.get_or_init(|| regex::Regex::new(r"^ATG(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    ATG_RE.get_or_init(|| regex::Regex::new(r"^ATG(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 fn ats_re() -> &'static regex::Regex {
-    ATS_RE.get_or_init(|| regex::Regex::new(r"^ATS(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    ATS_RE.get_or_init(|| regex::Regex::new(r"^ATS(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn arg_re() -> &'static regex::Regex {
-    ARG_RE.get_or_init(|| regex::Regex::new(r"^ARG(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    ARG_RE.get_or_init(|| regex::Regex::new(r"^ARG(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 fn aou_re() -> &'static regex::Regex {
-    AOU_RE.get_or_init(|| regex::Regex::new(r"^AOU(-[A-Z0-9]{2,12})+-[0-9]{3}$").unwrap())
+    AOU_RE.get_or_init(|| regex::Regex::new(r"^AOU(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 /// Returns true for ARG-* IDs (Argument).

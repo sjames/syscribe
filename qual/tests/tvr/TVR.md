@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 144 |
-| Passed | 144 |
+| Total test cases | 145 |
+| Passed | 145 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -549,6 +549,17 @@
 |---|---|
 | two elements with the same id produce E101 | ✓ PASS |
 | unique ids produce no E101 | ✓ PASS |
+
+---
+
+### TC-TRS-ID-005 — Verify configurable stable-ID suffix width: 3-8 default, E023 over the cap, E006 under 3, configurable via [ids] max_digits.
+
+**Verifies:** REQ-TRS-ID-005  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| max_digits=4 tightens the cap: a 5-digit id trips E023 | ✓ PASS |
 
 ---
 

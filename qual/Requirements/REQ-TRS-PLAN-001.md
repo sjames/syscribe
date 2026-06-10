@@ -16,7 +16,7 @@ carrying a **stable opaque identifier**, mirroring the existing native `TestCase
 
 ### Identifier
 
-- The `id` **shall** match the pattern `^TP(-[A-Z0-9]{2,12})+-[0-9]{3}$` (prefix `TP`,
+- The `id` **shall** match the pattern `^TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` (prefix `TP`,
   one or more uppercase-alphanumeric segments of 2–12 chars, three-digit suffix), e.g.
   `TP-SMOKE-001`, `TP-CERT-BRAKE-001`. The id is stable and never changes.
 - The id field is required; a missing or malformed `TP-id` **shall** raise `E600`.

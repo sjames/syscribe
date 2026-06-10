@@ -8,8 +8,8 @@ use crate::graph::EdgeKind;
 use crate::resolver::{
     is_adr_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_cm_id, is_conf_id,
     is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
-    is_req_id, is_sc_id, is_sg_id, is_tara_id, is_tc_id, is_test_plan_id, is_ts_id, is_vr_id,
-    Resolver,
+    is_req_id, is_sc_id, is_sg_id, is_stable_id, is_tara_id, is_tc_id, is_test_plan_id, is_ts_id,
+    is_vr_id, Resolver,
 };
 
 /// A single validation finding.
@@ -194,6 +194,26 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
             if is_tc && !is_tc_id(id) && !id.is_empty() {
                 findings.push(error("E006", &file, &format!("`id` '{}' does not match TC pattern", id)));
+            }
+        }
+
+        // E023: a stable-ID numeric suffix wider than the configured maximum
+        // (REQ-TRS-ID-005 / GH #41). The grammar accepts 3+ digits structurally so
+        // a long id still resolves; the digit cap is enforced here as a policy.
+        if let Some(ref id) = fm.id {
+            if is_stable_id(id) {
+                let suffix_len = id.rsplit('-').next().map_or(0, str::len);
+                let max = config.id_digit_max();
+                if suffix_len > max {
+                    findings.push(error(
+                        "E023",
+                        &file,
+                        &format!(
+                            "`id` '{}' has a {}-digit suffix, exceeding the configured maximum of {} (`[ids] max_digits`)",
+                            id, suffix_len, max
+                        ),
+                    ));
+                }
             }
         }
 

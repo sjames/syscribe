@@ -48,7 +48,7 @@ unannotated models stay at exit 0), gateable via `--deny W038`, and profile-prom
 ## Part 2 — `ConfirmationMeasure` type and W039
 
 The tool **shall** recognise a new native element `type: ConfirmationMeasure`, with a
-stable opaque id matching `^CM(-[A-Z0-9]{2,12})+-[0-9]{3}$` (`CM-*`). The id is a valid
+stable opaque id matching `^CM(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` (`CM-*`). The id is a valid
 cross-reference target and is added to `is_stable_id`. Fields:
 
 - `measureType:` (string, `RawFrontmatter.measure_type`) ∈

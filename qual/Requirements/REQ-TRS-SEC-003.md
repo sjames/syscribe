@@ -22,18 +22,18 @@ of Fault Tree Analysis (#20, the "add the missing types" move for safety).
 
 The tool **shall** recognise three new element types:
 
-- **`AttackTree`** (stable id pattern `AT-*`, regex `^AT(-[A-Z0-9]{2,12})+-[0-9]{3}$`)
+- **`AttackTree`** (stable id pattern `AT-*`, regex `^AT(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`)
   — the root of an attack tree. It carries a new field **`threatRef`** that
   **shall** resolve, via the standard cross-reference resolver, to a
   `ThreatScenario` (the threat the tree substantiates — the security analog of
   `FaultTree.topEvent`→`SafetyGoal`). `threatRef` is **required**.
 - **`AttackTreeGate`** (stable id pattern `ATG-*`, regex
-  `^ATG(-[A-Z0-9]{2,12})+-[0-9]{3}$`) — a combinator. It reuses the existing
+  `^ATG(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`) — a combinator. It reuses the existing
   `gateType` and `inputs` fields. Here `gateType` **shall** be one of `AND`
   (a sequential path — all sub-steps required) or `OR` (alternative paths).
   `inputs` lists the ids of child gates/steps.
 - **`AttackStep`** (stable id pattern `ATS-*`, regex
-  `^ATS(-[A-Z0-9]{2,12})+-[0-9]{3}$`) — a leaf step. It reuses the existing
+  `^ATS(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`) — a leaf step. It reuses the existing
   `attackFeasibility` field (`high` | `medium` | `low` | `very_low`) for the
   per-step feasibility.
 

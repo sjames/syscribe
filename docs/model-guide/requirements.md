@@ -22,7 +22,7 @@ and transition to the fault state.
 
 | Field | Required | Values |
 |---|---|---|
-| `id` | Yes | `REQ(-[A-Z0-9]{2,12})+-[0-9]{3}` |
+| `id` | Yes | `REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}` |
 | `title` | Yes | Short human title |
 | `status` | Yes | `draft` · `review` · `approved` · `implemented` · `verified` |
 
@@ -100,7 +100,7 @@ Feature: Flight controller fault detection
 
 | Field | Required | Values |
 |---|---|---|
-| `id` | Yes | `TC(-[A-Z0-9]{2,12})+-[0-9]{3}` |
+| `id` | Yes | `TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}` |
 | `title` | Yes | Short human title |
 | `status` | Yes | `draft` · `review` · `approved` · `active` · `retired` |
 | `testLevel` | Yes | `L1`–`L5` |

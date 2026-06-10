@@ -1,6 +1,6 @@
 # Syscribe Validation Rule Codes
 
-## Parse-time errors — core (E001–E015, E300–E304)
+## Parse-time errors — core (E001–E015, E023, E300–E304)
 
 | Code | Condition |
 |---|---|
@@ -19,6 +19,7 @@
 | `E013` | `verifies:` list is present but empty |
 | `E014` | `Scenario Outline:` block has no `Examples:` table |
 | `E015` | First Gherkin block has no `Feature:` line |
+| `E023` | A stable-ID numeric suffix is longer than the configured maximum (`[ids] max_digits`, default 8). The minimum (3) is enforced by `E006`. |
 | `E300` | `ADR.id` does not match `ADR-*` pattern |
 | `E301` | `ADR` missing `id`, `title`, or `status` |
 | `E302` | `reqDomain:` is not `system`, `hardware`, or `software` |
@@ -261,7 +262,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Severity | Condition |
 |---|---|---|
-| `E600` | error | `TestPlan` missing `id`/`title`/`status`, or `id` does not match `^TP(-[A-Z0-9]{2,12})+-[0-9]{3}$` |
+| `E600` | error | `TestPlan` missing `id`/`title`/`status`, or `id` does not match `^TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` |
 | `E601` | error | a `testCases:` entry does not resolve to a `TestCase` |
 | `E602` | error | a `selection.testLevels` value is not one of `L1`–`L5` |
 | `E603` | error | a `demonstrates:` target does not resolve to a `Requirement`/`SafetyGoal`/`CybersecurityGoal`/`Argument` |

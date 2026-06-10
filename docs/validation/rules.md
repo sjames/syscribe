@@ -4,7 +4,7 @@
 
 Warnings are advisory by default (exit `0`). Promote them to CI gate failures (exit `2`) with `validate --deny <CODES>` / `--max-warnings <N>` / `--warnings-as-errors`, or with a named, SIL/ASIL-scopable `validate --profile <name>` policy declared in `.syscribe.toml` — see [CI severity gating](../cli/index.md#ci-severity-gating). Errors always exit `1`.
 
-## Parse-time errors (E001–E022)
+## Parse-time errors (E001–E023)
 
 | Code | Element | Condition |
 |---|---|---|
@@ -26,6 +26,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E020 | Any | `verificationMethod` is not one of `test · inspection · analysis · demonstration` |
 | E021 | Any | `coverageTarget` is not one of `statement · branch · MCDC` |
 | E022 | Any | `requirementKind` is not one of `stakeholder · system · software · hardware` |
+| E023 | Any (stable id) | The numeric suffix is longer than the configured maximum (`[ids] max_digits` in `.syscribe.toml`, default 8; minimum 3 enforced by E006) |
 
 ## Parse-time warnings (W001–W008)
 
@@ -628,7 +629,7 @@ feasibility is the value of its single root child, mapped back to a label.
 
 | Code | Condition |
 |---|---|
-| E600 | `TestPlan` missing `id`/`title`/`status`, or `id` does not match `TP(-[A-Z0-9]{2,12})+-[0-9]{3}` |
+| E600 | `TestPlan` missing `id`/`title`/`status`, or `id` does not match `TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}` |
 | E601 | a `testCases:` entry does not resolve to a `TestCase` |
 | E602 | a `selection.testLevels` value is not one of `L1`–`L5` |
 | E603 | a `demonstrates:` target does not resolve to a Requirement/SafetyGoal/CybersecurityGoal/Argument |

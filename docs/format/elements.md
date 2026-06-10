@@ -51,11 +51,11 @@ These are not standard SysML usages — they carry a stable opaque identifier an
 
 | Type | ID pattern | Required fields |
 |---|---|---|
-| `Requirement` | `REQ(-[A-Z0-9]{2,12})+-[0-9]{3}` | `id`, `title`, `status` |
-| `TestCase` | `TC(-[A-Z0-9]{2,12})+-[0-9]{3}` | `id`, `title`, `status`, `testLevel`, `verifies` |
-| `TestPlan` | `TP(-[A-Z0-9]{2,12})+-[0-9]{3}` | `id`, `title`, `status` |
-| `ADR` | `ADR(-[A-Z0-9]{2,12})+-[0-9]{3}` | `id`, `title`, `status` |
-| `Configuration` | `CONF(-[A-Z0-9]{2,12})+-[0-9]{3}` | `id`, `title`, `status`, `featureModel` |
+| `Requirement` | `REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `title`, `status` |
+| `TestCase` | `TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `title`, `status`, `testLevel`, `verifies` |
+| `TestPlan` | `TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `title`, `status` |
+| `ADR` | `ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `title`, `status` |
+| `Configuration` | `CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `title`, `status`, `featureModel` |
 
 ## Tier 2 — Safety & cybersecurity elements (own schema)
 
