@@ -2,6 +2,24 @@
 
 `RELEASES`
 
+## 0.17.0 — 2026-06-10
+
+### Configurable stable-ID suffix width (GH #41)
+
+Stable IDs (REQ-*, TC-*, TP-*, ADR-*, and all safety/security ids) previously ended in **exactly 3 digits**. They now accept a **3–8 digit** numeric suffix by default, and the maximum is **configurable**:
+
+```toml
+# .syscribe.toml
+[ids]
+max_digits = 8   # default 8; raise (e.g. 12) or lower (e.g. 4). Minimum stays 3.
+```
+
+- Existing 3-digit IDs are unchanged; up to 8 digits works out of the box.
+- A suffix longer than the cap is the new error **`E023`**; shorter than 3 is still `E006`.
+- A reference to an over-long ID still resolves — the defect surfaces on the ID-bearing element, not as a dangling reference.
+
+Requirement-first: `REQ-TRS-ID-005` + `TC-TRS-ID-005`. Suite at **145** test cases, all passing.
+
 ## 0.16.2 — 2026-06-10
 
 ### Docs site
