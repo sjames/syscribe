@@ -62,7 +62,25 @@ jobs:
           fi
 
       - name: Upload to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: syscribe-${{ matrix.target }}*
-          generate_release_notes: ${{ matrix.release_notes == true }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          # Create the release once; idempotent under the 5-way matrix race
+          # (a losing concurrent create just finds it already exists).
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --title "$tag" --generate-notes || true
+          fi
+          # Upload this target's asset with retry. The release API can flake under
+          # concurrent matrix access — softprops/action-gh-release@v2 intermittently
+          # reported "Requires authentication" on the Windows runner; gh + retry is
+          # robust (and drops the deprecated Node20 action).
+          for attempt in 1 2 3 4 5; do
+            if gh release upload "$tag" syscribe-${{ matrix.target }}* --clobber; then
+              echo "uploaded on attempt $attempt"; exit 0
+            fi
+            echo "upload attempt $attempt failed; retrying in $((attempt * 10))s"; sleep $((attempt * 10))
+          done
+          echo "upload failed after 5 attempts"; exit 1
