@@ -2,6 +2,12 @@
 
 `RELEASES`
 
+## 0.16.2 — 2026-06-10
+
+### Docs site
+
+- Aligned the §9 table-of-contents anchors in the published format specification so all TOC links resolve on the site; the fix (em-dash → colon in three headings) keeps the same anchors working on GitHub's renderer too. `mkdocs build --strict` is clean.
+
 ## 0.16.1 — 2026-06-10
 
 ### Docs site
