@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
+      - "spec/**"           # docs/format/spec.md is a symlink to spec/markdown-sysml-format.md
       - "mkdocs.yml"
       - "overrides/**"
       - ".github/workflows/docs.yml"

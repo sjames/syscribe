@@ -51,6 +51,7 @@ nav:
       - Frontmatter Reference: format/frontmatter.md
       - Diagrams: format/diagrams.md
       - Operations: format/operations.md
+      - Full Specification: format/spec.md
   - Modeling Guide:
       - model-guide/index.md
       - Requirements & Test Cases: model-guide/requirements.md
