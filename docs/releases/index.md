@@ -2,6 +2,14 @@
 
 `RELEASES`
 
+## 0.15.0 — 2026-06-10
+
+### `audit --plan` — scoped readiness verdict (GH #40)
+
+Completes the `--plan` lens (deferred from #38): `audit --plan TP-X` scopes the readiness verdict to a TestPlan. Validation runs over the **whole** model — so a reference escaping the plan subset (a requirement's `breakdownAdr` ADR, a member's out-of-scope `verifies:` target) resolves and is never mistaken for a defect — and only findings on the plan's in-scope elements (in-scope requirements ∪ member TestCases ∪ their satisfying architecture) count toward the verdict. The dashboard sections are scoped to the plan but resolve references against the full model. Composes with `--config`; exits `1` on an unknown plan id; dormant-safe.
+
+`--plan` is now available on `matrix`, `verification-depth` **and** `audit`. Suite at **144** test cases, all passing.
+
 ## 0.14.0 — 2026-06-10
 
 ### User-defined custom fields (GH #39)
