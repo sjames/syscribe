@@ -2,6 +2,15 @@
 
 `RELEASES`
 
+## 0.16.0 — 2026-06-10
+
+### TestPlan documentation + `template TestPlan`
+
+- **`syscribe template TestPlan`** — emits a ready-to-fill TestPlan frontmatter skeleton (TP-* id, title, status, scope, a `testCases` member, with `configurations`/`demonstrates`/`selection` shown as commented optional fields); `TestPlan` is now listed among the `template` command's known native types.
+- **Documentation** — the `TestPlan` element (0.13.0/0.15.0) and `custom_fields` (0.14.0) are now fully documented across the format spec (§8.12.6), the embedded `prompts/spec` and `create-model` guides, the site format/validation references, and a new *Test Plans* model-guide page.
+
+Suite at **144** test cases, all passing.
+
 ## 0.15.0 — 2026-06-10
 
 ### `audit --plan` — scoped readiness verdict (GH #40)
