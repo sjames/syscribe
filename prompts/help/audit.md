@@ -2,7 +2,7 @@
 
 ## SYNOPSIS
     syscribe -m <root> audit [--json] [--profile <name>]
-        [--config <C> | --all-configs]
+        [--config <C> | --all-configs] [--plan TP-X]
 
 ## DESCRIPTION
 Rolls up a top-level readiness picture: requirement status split (overall and
@@ -17,6 +17,9 @@ no-trace requirements), and a single PASS/FAIL verdict.
                       computed only over elements active in that variant.
     --all-configs     Audit every stored Configuration's variant; exit non-zero
                       if any fails (product-line CI gate).
+    --plan TP-X       Scope the verdict to a TestPlan: validate the full model
+                      (no escaping-ref artifacts) and count only findings on the
+                      plan's in-scope elements; sections scoped to the plan.
     --json            Emit the whole rollup as one JSON document.
 
 ## DESCRIPTION (policy)

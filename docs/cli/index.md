@@ -584,11 +584,11 @@ $ syscribe -m model/ testplan TP-DELIVERY-INTEGRATION-001 --json
 
 ### `--plan TP-X` lens
 
-`matrix` and `verification-depth` accept a `--plan TP-X` lens, symmetric to `--config`: it restricts the command's requirement rows to the plan's in-scope requirements and the TestCase universe to the plan's members. It **composes** with `--config` (apply both filters), is dormant-safe (works with no feature model), and exits `1` on an unknown plan id. (`audit --plan` is deferred — audit's verdict needs projection-aware validation over the plan scope; see issue tracker.)
+`matrix`, `verification-depth` and `audit` accept a `--plan TP-X` lens, symmetric to `--config`. On `matrix`/`verification-depth` it restricts the requirement rows to the plan's in-scope requirements and the TestCase universe to the plan's members. On `audit` it scopes the readiness verdict: validation runs over the **full** model (so no reference escaping the plan subset is mistaken for a defect) and only findings on the plan's in-scope elements count toward the verdict. It **composes** with `--config`, is dormant-safe, and exits `1` on an unknown plan id.
 
 ```
 $ syscribe -m model/ matrix --plan TP-DELIVERY-INTEGRATION-001
-$ syscribe -m model/ matrix --plan TP-DELIVERY-INTEGRATION-001 --config CONF-X
+$ syscribe -m model/ audit --plan TP-DELIVERY-INTEGRATION-001 --config CONF-X
 $ syscribe -m model/ verification-depth --plan TP-DELIVERY-INTEGRATION-001 --sil 4
 ```
 

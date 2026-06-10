@@ -120,10 +120,18 @@ pub fn audit_verdict(
     config: &ValidateConfig,
     profile: Option<&Profile>,
     sel: Option<&syscribe_model::projection::Selection>,
+    plan_scope: Option<&std::collections::HashSet<String>>,
 ) -> (bool, Vec<String>) {
-    let findings: Vec<validator::Finding> = match sel {
+    let raw: Vec<validator::Finding> = match sel {
         Some(s) => syscribe_model::projection::validate_projected(elements, config, s),
         None => validator::validate_with_config(elements, config).findings,
+    };
+    // `audit --plan` (GH #40): validate the FULL model (so every reference resolves —
+    // no escaping-reference artifacts), then count only findings whose element lies in
+    // the plan's scope. Without a plan, all findings count.
+    let findings: Vec<validator::Finding> = match plan_scope {
+        Some(scope) => raw.into_iter().filter(|f| scope.contains(&f.file)).collect(),
+        None => raw,
     };
     let errors = findings.iter().filter(|f| f.severity == Severity::Error).count();
     let w306 = findings.iter().filter(|f| f.code == "W306").count();
@@ -178,7 +186,7 @@ pub fn cmd_audit_all_configs(
             SelectionOutcome::Resolved(s) => Some(s),
             _ => None,
         };
-        let (pass, reasons) = audit_verdict(elements, config, profile, sel.as_ref());
+        let (pass, reasons) = audit_verdict(elements, config, profile, sel.as_ref(), None);
         rows.push((cid, pass, reasons));
     }
     let any_fail = rows.iter().any(|(_, pass, _)| !pass);
@@ -215,23 +223,32 @@ pub fn cmd_audit(
     model_root: &std::path::Path,
     profile: Option<&Profile>,
     sel: Option<&syscribe_model::projection::Selection>,
+    plan_scope: Option<&std::collections::HashSet<String>>,
     json: bool,
 ) -> i32 {
     // The dashboard sections are computed over the **active** element set (the
     // variant when `--config` is given); the verdict and the dangling-TestCase
     // resolution use the projection-aware path / the full model so a reference
     // into the projected-out part is not mistaken for a defect (GH #35/#36).
+    //
+    // With `--plan` (GH #40), `elements` is the FULL model and `plan_scope` is the
+    // set of file paths in the plan's scope: references resolve against the full
+    // model (so nothing escapes), while the section rows and the verdict count only
+    // in-scope elements.
     let projected: Option<Vec<RawElement>> = sel.map(|s| syscribe_model::projection::project(elements, s));
     let view: &[RawElement] = projected.as_deref().unwrap_or(elements);
     let resolver = Resolver::new(view);
     let full_resolver = Resolver::new(elements);
+    let in_scope = |e: &RawElement| -> bool {
+        plan_scope.is_none_or(|s| s.contains(&e.file_path))
+    };
 
     // ---- Readiness verdict (shared policy, projection-aware) --------------
-    let (pass, reasons) = audit_verdict(elements, config, profile, sel);
+    let (pass, reasons) = audit_verdict(elements, config, profile, sel, plan_scope);
 
     // ---- Section 1: requirement status split ------------------------------
     let reqs: Vec<&RawElement> =
-        view.iter().filter(|e| is_type(e, ElementType::Requirement)).collect();
+        view.iter().filter(|e| is_type(e, ElementType::Requirement) && in_scope(e)).collect();
     let mut overall_status = StatusCounts::default();
     let mut per_pkg_status: BTreeMap<String, StatusCounts> = BTreeMap::new();
     for r in &reqs {
@@ -261,7 +278,16 @@ pub fn cmd_audit(
     }
 
     // ---- Section 3: coverage (reused matrix computation) ------------------
-    let coverage = Coverage::rollup(view, config.results.as_ref(), false);
+    // Under `--plan`, scope the coverage rows/TC-universe to the plan slice
+    // (Coverage runs no validation, so the slice is safe here).
+    let coverage = match plan_scope {
+        Some(_) => {
+            let scoped: Vec<RawElement> =
+                view.iter().filter(|e| in_scope(e)).cloned().collect();
+            Coverage::rollup(&scoped, config.results.as_ref(), false)
+        }
+        None => Coverage::rollup(view, config.results.as_ref(), false),
+    };
 
     // ---- Section 4: orphans ----------------------------------------------
     // Satisfaction map: any element's satisfies: target (by qname or id).
@@ -321,7 +347,7 @@ pub fn cmd_audit(
     // resolved against the FULL model so a TestCase that verifies a requirement
     // projected out of this variant is not mis-counted as dangling (GH #36).
     let mut dangling_tcs: Vec<String> = Vec::new();
-    for tc in view.iter().filter(|e| is_type(e, ElementType::TestCase)) {
+    for tc in view.iter().filter(|e| is_type(e, ElementType::TestCase) && in_scope(e)) {
         let ver = tc.frontmatter.verifies.clone().unwrap_or_default();
         let resolves = ver
             .iter()

@@ -487,24 +487,31 @@ fn main() {
                 } else {
                     None
                 };
-                // Configuration lens (GH #35): project the dashboard onto a
-                // variant, exactly as `validate --config` does. (The `--plan` lens
-                // is NOT offered on `audit` in v1: audit runs full cross-element
-                // validation for its verdict, which a non-ref-complete plan subset
-                // would pollute with escaping-reference findings — the GH #36
-                // problem generalised. Deferred to a follow-up; matrix and
-                // verification-depth carry `--plan`.)
+                // Configuration lens (GH #35): project the dashboard onto a variant.
+                // Plan lens (GH #40): `--plan TP-X` validates the FULL model and counts
+                // only findings whose element is in the plan's scope (no escaping-ref
+                // artifacts); the sections are scoped to the plan but resolve refs
+                // against the full model. The two lenses compose.
                 let all_configs = rest.iter().any(|a| a == "--all-configs");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let plan = rest.windows(2).find(|w| w[0] == "--plan").map(|w| w[1].as_str());
+                let plan_scope: Option<std::collections::HashSet<String>> = plan.map(|tp| {
+                    // plan_lens exits 1 on an unknown plan id.
+                    testplan::plan_lens(&elems, tp)
+                        .iter()
+                        .map(|e| e.file_path.clone())
+                        .collect()
+                });
+                let ps = plan_scope.as_ref();
                 let code = if all_configs {
                     audit::cmd_audit_all_configs(&elems, &vcfg, profile.as_ref(), json)
                 } else if let Some(c) = config {
                     match syscribe_model::projection::resolve_selection(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
-                            audit::cmd_audit(&elems, &vcfg, model_root, profile.as_ref(), None, json)
+                            audit::cmd_audit(&elems, &vcfg, model_root, profile.as_ref(), None, ps, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
-                            audit::cmd_audit(&elems, &vcfg, model_root, profile.as_ref(), Some(&sel), json)
+                            audit::cmd_audit(&elems, &vcfg, model_root, profile.as_ref(), Some(&sel), ps, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
                             eprintln!("Error: {m}");
@@ -512,7 +519,7 @@ fn main() {
                         }
                     }
                 } else {
-                    audit::cmd_audit(&elems, &vcfg, model_root, profile.as_ref(), None, json)
+                    audit::cmd_audit(&elems, &vcfg, model_root, profile.as_ref(), None, ps, json)
                 };
                 if code != 0 {
                     std::process::exit(code);

@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** unknown  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-06-09  
+**Date:** 2026-06-10  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -969,14 +969,14 @@
 
 ---
 
-### TC-TRS-PLAN-006 — Verify the --plan lens on matrix and verification-depth: row restriction, --config composition, unknown-id exit.
+### TC-TRS-PLAN-006 — Verify the --plan lens on matrix, verification-depth and audit: row restriction, scoped verdict, composition, unknown-id exit.
 
 **Verifies:** REQ-TRS-PLAN-006  
-**Result:** ✓ PASS (6 passed, 0 failed)
+**Result:** ✓ PASS (10 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
-| an unknown plan id exits 1 | ✓ PASS |
+| audit --plan scopes the verdict to the plan (no escaping-ref artifacts) | ✓ PASS |
 
 ---
 

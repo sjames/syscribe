@@ -14,17 +14,29 @@ TestPlan's scope.
 
 ### Affected commands
 
-The `--plan TP-X` lens **shall** be accepted on the row-restricting report commands:
+The `--plan TP-X` lens **shall** be accepted on `matrix` ([[REQ-TRS-VAR-004]]),
+`verification-depth` ([[REQ-TRS-OUT-011]]), and `audit` ([[REQ-TRS-OUT-013]]).
 
-- `matrix` ([[REQ-TRS-VAR-004]]),
-- `verification-depth` ([[REQ-TRS-OUT-011]]).
+### `audit --plan` scoped verdict (GH #40)
 
-`audit` ([[REQ-TRS-OUT-013]]) is **deferred** for v1: its readiness verdict runs the
-full cross-element validation rule set, and a TestPlan subset is not
-reference-complete, so escaping references would surface as spurious findings (the
-projection-aware-validation problem of GH #36, generalised to an arbitrary subset).
-`audit --plan` requires projection-aware validation over the plan scope and is tracked
-as a follow-up; it **shall not** be offered until that lands.
+Because a TestPlan subset is **not reference-complete** (it omits referents such as a
+requirement's `breakdownAdr` ADR or `derivedFrom` parents), validating the *slice*
+directly would raise spurious escaping-reference findings (e.g. `E311`, `E102`). To
+avoid this, `audit --plan` **shall**:
+
+- compute the readiness **verdict** by running the **full** validation rule set over the
+  **whole** model (so every reference resolves — no lens artifacts), then **counting only
+  the findings whose element lies in the plan's scope** (the plan's in-scope requirements
+  ∪ member TestCases ∪ their satisfying architecture elements). Errors, `W306` and
+  profile-promoted findings **outside** the plan scope **shall not** affect the verdict;
+- compute the dashboard **sections** (status split, integrity distribution, coverage,
+  orphans) over the **plan scope**, **resolving all references against the full model**
+  (so an in-scope TestCase that verifies an out-of-scope requirement is not mis-counted
+  as dangling, and an in-scope requirement satisfied by an out-of-scope element still
+  reads as satisfied).
+
+`audit --plan` **shall compose** with `--config` and **shall** exit `1` on an unknown
+plan id.
 
 ### Behaviour
 
@@ -48,4 +60,7 @@ scope.
 each restrict rows to the plan's in-scope requirements and the TestCase universe to the
 plan's members; `matrix --plan TP-X --config CONF-A` composes both lenses (plan scope
 intersected with the active subset of CONF-A); an unknown `TP-id` exits `1`; on a model
-with no feature model `--plan` still scopes by membership without error.
+with no feature model `--plan` still scopes by membership without error. `audit --plan
+TP-X` on a model whose plan scope is internally clean audits **clean** even when an
+in-scope element references an out-of-scope element (no escaping-reference artifact in
+the verdict), and FAILs when an **in-scope** element has a real error or `W306`.
