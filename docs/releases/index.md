@@ -2,6 +2,21 @@
 
 `RELEASES`
 
+## 0.21.0 — 2026-06-11
+
+### One label field per element, fixed by identity class (E024 / E025)
+
+Every element now carries **exactly one** human-readable label field, determined by how it is identified — never both:
+
+- **Id-identified types** (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types — identity is a stable `id`) label via **`title`**. A `name:` on one of these is now error **`E024`**.
+- **Name-identified types** (all SysML structural types, `Package`, `Diagram`, `FeatureDef` — identity is the `name`/path) label via **`name`**. A `title:` on one of these is now error **`E025`**.
+
+`FeatureDef` stays name-labelled and may still carry its optional `FEAT-*` `id` — the `id` and label axes are independent. This closes the gap left by `W042` (which constrained only the *characters* of a name, not *which* label field applies); previously elements could silently drift into carrying both `name` and `title`. The bundled models and qual model were migrated to one label field each. (`REQ-TRS-NAME-002`.)
+
+**Breaking:** a model that carried both `name` and `title` (or the wrong one for its type) now fails validation. Remove the stray field — `title` for id-identified types, `name` for everything else.
+
+Suite at **164** test cases, all passing.
+
 ## 0.20.0 — 2026-06-11
 
 ### Feature stable IDs (`FEAT-*`)

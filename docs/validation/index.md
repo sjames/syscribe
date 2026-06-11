@@ -31,7 +31,7 @@ Errors block a clean build. Warnings are advisory.
 
 | Range | Group | Description |
 |---|---|---|
-| E001–E022 | Parse-time | Required fields, ID patterns, status enums, Gherkin structure, ASPICE fields |
+| E001–E025 | Parse-time | Required fields, ID patterns, status enums, Gherkin structure, ASPICE fields, ID-digit cap (E023), label-field rule `name` vs `title` (E024/E025) |
 | W001–W008 | Parse-time warnings | Normative text, SIL/ASIL pairing, sourceFile presence, unused type defs |
 | E016–E018 | Cycle detection | Cycles in supertype, derivedFrom, or subsets graphs |
 | E101–E106 | Cross-reference | Duplicate IDs, unresolved `verifies`/`derivedFrom`, scenario names |

@@ -8,12 +8,12 @@ All frontmatter fields. Optional unless marked **required**.
 | Field | Applies to | Type | Default | Notes |
 |---|---|---|---|---|
 | `type` | All | string | **required** | Element type from the type inventory |
-| `name` | All | string | filename stem | Overrides the filename stem as display name and QName segment |
+| `name` | name-identified types | string | filename stem | Label + QName segment for name-identified types (SysML structural, `Package`, `Diagram`, `FeatureDef`). **Not allowed on id-identified types** → error `E024`. |
 | `shortName` | All | string | absent | Abbreviated name for display |
 | `qualifiedName` | All | string | derived | Auto-derived from path; set to override |
 | `visibility` | All | string | `public` | `public` or `private` |
-| `id` | native Req/TC/ADR/safety | string | **required** | Stable opaque ID matching type pattern |
-| `title` | native Req/TC/ADR/safety | string | **required** | Human-readable title |
+| `id` | id-identified types | string | **required** | Stable opaque ID matching type pattern. Optional `FEAT-*` alias on `FeatureDef`. |
+| `title` | id-identified types | string | **required** | Label for id-identified types (native Req/TC/TP/Config/ADR/safety/security). **Not allowed on name-identified types** → error `E025`. Exactly one label field per element — `name` or `title`, never both. |
 | `status` | native Req/TC/ADR/safety | string | **required** | Lifecycle status |
 | `extRef` | All | string or list | absent | External reference(s) — this element represents an artifact in another tool (DNG, a SysML tool). Opaque (URI or `tool:id`). Look up with `extref <ref>`; duplicate across elements warns `W028`. Not a model cross-ref target. |
 

@@ -4069,7 +4069,8 @@ A `FeatureDef` represents one node in a feature model tree. It may be a leaf fea
 | Field | YAML type | Required | Default | Description |
 |---|---|---|---|---|
 | `type` | literal `FeatureDef` | **Required** | — | Discriminator. |
-| `name` | string | optional | filename stem | Display name of the feature. |
+| `name` | string | optional | filename stem | Label and qualified-name segment of the feature (a `FeatureDef` is name-identified). A `title:` here is error `E025`. |
+| `id` | string | optional | absent | Stable short-name alias matching `^FEAT(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` (e.g. `FEAT-ABS-001`). When present, the feature may be referenced by this id **or** its qualified name in `appliesWhen:` and `Configuration` `features:` keys (§9.8). A malformed `FEAT` id is `E006`; a duplicate is `E101`. The `id` and `name` are independent axes. |
 | `groupKind` | enum | optional | `optional` | How this feature's **children** are grouped (see table below). |
 | `mandatory` | bool | optional | `false` | **Membership** of this feature relative to its parent, orthogonal to `groupKind`: `true` means the feature is selected whenever its parent is (parent ⇒ feature), or always selected when top-level. A node may be both `mandatory: true` and `groupKind: alternative` — a mandatory XOR group (every product selects exactly one child). The legacy `groupKind: mandatory` is a shorthand for `mandatory: true` on a feature that sets no `mandatory:` field. |
 | `cardinality` | string | optional | see groupKind | For `or` and `alternative` groups: how many children may be selected simultaneously, as a multiplicity string (§6). |
@@ -4613,7 +4614,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | Code | Condition |
 |---|---|
 | `E200` | `Configuration.id` does not match `CONF-*` pattern |
-| `E201` | `FeatureDef` or `Configuration` missing a required field (`id`, `title`, `status`, `featureModel`) |
+| `E201` | `Configuration` missing a required field (`id`, `title`, `status`, `featureModel`). (A `FeatureDef` is name-identified — labelled by `name`, optional `FEAT-*` id — and is not subject to this check; a `title:` on it is `E025`.) |
 | `E202` | A propagated parameter value (via `bindTo:`) falls outside the component parameter's `range:` |
 | `E203` | `Configuration.parameterBindings` binds a parameter for a feature not selected in this configuration |
 | `E204` | `Configuration.parameterBindings` binds a parameter declared `isFixed: true` |

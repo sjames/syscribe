@@ -156,6 +156,15 @@ max_digits = 8   # default 8; e.g. 12 to allow wider counters, 4 to tighten
 
 A suffix longer than the cap is error `E023`; a suffix shorter than 3 is `E006`. A reference to an over-long ID still resolves (the defect surfaces on the ID-bearing element, not as a dangling reference).
 
+### Label field: `name` vs `title` (E024 / E025)
+
+Every element carries **exactly one** human-readable label field, fixed by its identity class — never both:
+
+- **Id-identified types** (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types — identity is a stable `id`) label via **`title`**. Declaring `name:` is error **`E024`**.
+- **Name-identified types** (all SysML structural types, `Package`, `Diagram`, `FeatureDef` — identity is the `name`/path) label via **`name`**. Declaring `title:` is error **`E025`**.
+
+`FeatureDef` may additionally carry an optional `FEAT-*` `id`; it still labels via `name`. Both errors exit `1`.
+
 ---
 
 ## Browsing the model

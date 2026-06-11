@@ -47,7 +47,7 @@ Every `.md` file in the model tree is one element. The `type:` field in YAML fro
 
 ## Native elements (own schema)
 
-These are not standard SysML usages — they carry a stable opaque identifier and their own required field sets.
+These are not standard SysML usages — they carry a stable opaque identifier and their own required field sets. They are **id-identified**: their human-readable label is **`title`**, and a `name:` on one of them is error `E024`. (Conversely, the SysML usage/definition types above are **name-identified** — labelled by `name` — and a `title:` on one of them is `E025`. See [Frontmatter → Label field](frontmatter.md#label-field-name-vs-title).)
 
 | Type | ID pattern | Required fields |
 |---|---|---|

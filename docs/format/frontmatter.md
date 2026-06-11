@@ -9,8 +9,9 @@ All fields are optional unless marked **Required**. `type:` is required on every
 | Field | YAML type | Default | Description |
 |---|---|---|---|
 | `type` | string | — | **Required.** Element type (see [Element Types](elements.md)) |
-| `name` | string | filename stem | Display name; defaults to the `.md` filename without extension |
-| `id` | string | absent | Stable opaque identifier — required on Requirement, TestCase, ADR, Configuration |
+| `name` | string | filename stem | Label for **name-identified** types (SysML structural types, `Package`, `Diagram`, `FeatureDef`); defaults to the `.md` filename without extension. **Not permitted on id-identified types** — that is error `E024` (see below) |
+| `title` | string | absent | Label for **id-identified** types (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, the safety/security types). **Not permitted on name-identified types** — that is error `E025` (see below) |
+| `id` | string | absent | Stable opaque identifier — required on the id-identified types; optional `FEAT-*` alias on `FeatureDef` |
 | `supertype` | string or list | absent | Qualified name(s) of parent definition(s) |
 | `subsets` | list of strings | absent | Features subsetted by this element |
 | `redefines` | string or list | absent | Features redefined by this element |
@@ -18,6 +19,26 @@ All fields are optional unless marked **Required**. `type:` is required on every
 | `isAbstract` | bool | `false` | Cannot be instantiated directly |
 | `domain` | string | absent | `system`, `hardware`, or `software` — used in traceability rules §12 |
 | `satisfies` | list | absent | Qualified names or REQ-* IDs of Requirements satisfied by this element |
+
+## Label field: `name` vs `title`
+
+Every element carries **exactly one** human-readable label field, fixed by how the
+element is identified — **never both**:
+
+- **Id-identified types** — identity is a stable `id` (`REQ-*`, `TC-*`, `HE-*`, …):
+  `Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `ConfirmationMeasure`,
+  and all safety/security types (`HazardousEvent`, `SafetyGoal`, `DamageScenario`,
+  `ThreatScenario`, `CybersecurityGoal`, `SecurityControl`, `VulnerabilityReport`,
+  `TARASheet`, `FaultTree`/`FaultTreeGate`/`FaultTreeEvent`, `FMEASheet`/`FMEAEntry`,
+  `AttackTree`/`AttackTreeGate`/`AttackStep`, `Argument`, `AssumptionOfUse`). Label is
+  **`title`**; a `name:` raises error **`E024`**.
+- **Name-identified types** — identity is the `name`/path: all SysML structural types,
+  `Package`, `Diagram`, and `FeatureDef`. Label is **`name`**; a `title:` raises error
+  **`E025`**.
+
+`FeatureDef` is the one name-identified type that may *also* carry an optional stable
+`id` (its `FEAT-*` shortName). The `id` axis and the label axis are independent — a
+`FeatureDef` always labels via `name`.
 
 ## Features (`features:`)
 

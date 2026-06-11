@@ -209,7 +209,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | Code | Condition |
 |---|---|
 | `E200` | `Configuration.id` does not match `CONF-*` |
-| `E201` | `FeatureDef` or `Configuration` missing `id`, `title`, `status`, or `featureModel` |
+| `E201` | `Configuration` missing `id`, `title`, `status`, or `featureModel`. (A `FeatureDef` is name-identified — `name` + optional `FEAT-*` id — and is not subject to this check; a `title:` on it is `E025`.) |
 | `E202` | Propagated parameter value outside component parameter `range:` |
 | `E203` | `Configuration.parameterBindings` binds a parameter for a feature not selected |
 | `E204` | `Configuration.parameterBindings` binds a parameter declared `isFixed: true` |
