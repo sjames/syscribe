@@ -2,6 +2,21 @@
 
 `RELEASES`
 
+## 0.18.0 — 2026-06-11
+
+### SysMLv2 basic-name validation (GH #42)
+
+Element names now follow the SysMLv2 **basic-name** grammar `[A-Za-z_][A-Za-z0-9_]*`. Previously a hyphenated name (e.g. a `FeatureDef` `Anti-Lock`) parsed as a file/qname but failed `E209` when referenced in `appliesWhen:` — because a hyphen is the subtraction operator in the expression grammar.
+
+- New warning **`W042`**: an element's own name that is not a basic name (and not a stable id, which legitimately contains `-`) — with a rename hint (`Anti-Lock` → `Anti_Lock` / `AntiLock`). Advisory and gateable, so existing models have a migration path.
+- The `appliesWhen` parse error for `-` now points at the basic-name convention.
+
+(SysMLv2 *unrestricted* quoted names are not supported; the convention is basic names.) Requirement-first: `REQ-TRS-NAME-001` + `TC-TRS-NAME-001`. Suite at **146** test cases, all passing.
+
+### Internal
+
+- The release workflow now uploads assets via the `gh` CLI with retry (replacing a Node20 action that intermittently failed the Windows upload under matrix contention).
+
 ## 0.17.0 — 2026-06-10
 
 ### Configurable stable-ID suffix width (GH #41)
