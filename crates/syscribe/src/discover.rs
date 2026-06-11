@@ -83,12 +83,19 @@ fn excludes_of(fd: &RawElement) -> Vec<String> {
     fd.frontmatter.excludes.clone().unwrap_or_default()
 }
 
-/// Configurations (by display id) that select `q` true.
+/// Configurations (by display id) that select `q` true. Selections keyed by a
+/// FeatureDef's FEAT-* id are normalized to the qname first (REQ-TRS-ID-006).
 fn configs_selecting(elements: &[RawElement], q: &str) -> Vec<String> {
+    let alias = variability::feature_id_to_qname(elements);
     let mut ids: Vec<String> = elements
         .iter()
         .filter(|e| is_type(e, ElementType::Configuration))
-        .filter(|c| c.frontmatter.feature_selections().get(q).copied().unwrap_or(false))
+        .filter(|c| {
+            variability::canon_selection(&c.frontmatter.feature_selections(), &alias)
+                .get(q)
+                .copied()
+                .unwrap_or(false)
+        })
         .map(disp_id)
         .collect();
     ids.sort();
@@ -295,11 +302,16 @@ pub fn cmd_why_active(elements: &[RawElement], key: &str, config: Option<&str>, 
     // Effective condition: the element's own appliesWhen, else the nearest
     // ancestor package's (transitive package conditioning, REQ-TRS-VAR-006).
     let pkg = variability::package_conditions(elements);
+    // Normalize both sides to the canonical (qname) feature key space so a FEAT-*
+    // id reference behaves identically to the qname (REQ-TRS-ID-006).
+    let feat_alias = variability::feature_id_to_qname(elements);
+    let sel = sel.map(|s| variability::canon_selection(&s, &feat_alias));
     let eff = variability::effective_applies_when(elem, &pkg);
     let aw_source: Option<String> = eff.as_ref().and_then(|(_, src)| src.clone());
     let expr: Option<FeatureExpr> = eff
         .as_ref()
-        .and_then(|(v, _)| variability::applies_when_expr(v).ok().flatten());
+        .and_then(|(v, _)| variability::applies_when_expr(v).ok().flatten())
+        .map(|e| e.canonicalize(&|q: &str| variability::canon_feature_ref(q, &feat_alias)));
 
     // Build the verdict.
     let (verdict, referenced): (&str, Vec<(String, bool)>) = match (&expr, &sel) {

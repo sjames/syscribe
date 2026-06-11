@@ -30,6 +30,8 @@ static TS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static CSG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static SC_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static VR_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+// FeatureDef optional stable-ID pattern (REQ-TRS-ID-006)
+static FEAT_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
 fn req_re() -> &'static regex::Regex {
     REQ_RE.get_or_init(|| regex::Regex::new(r"^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
@@ -83,6 +85,15 @@ fn vr_re() -> &'static regex::Regex {
     VR_RE.get_or_init(|| regex::Regex::new(r"^VR(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
+fn feat_re() -> &'static regex::Regex {
+    FEAT_RE.get_or_init(|| regex::Regex::new(r"^FEAT(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+}
+
+/// Returns true for FEAT-* IDs (optional FeatureDef stable id, REQ-TRS-ID-006).
+pub fn is_feat_id(s: &str) -> bool {
+    feat_re().is_match(s)
+}
+
 static BASIC_NAME_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
 /// True when `s` is a SysMLv2 **basic name**: a letter or `_`, then letters, digits
@@ -120,6 +131,7 @@ pub fn is_stable_id(s: &str) -> bool {
         || ats_re().is_match(s)
         || arg_re().is_match(s)
         || aou_re().is_match(s)
+        || feat_re().is_match(s)
 }
 
 /// Returns true for HE-* IDs (HazardousEvent).

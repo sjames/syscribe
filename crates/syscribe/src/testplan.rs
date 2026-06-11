@@ -269,12 +269,13 @@ fn plan_verdict(
     }
     let configs = lib::plan_configs(plan, elements, resolver);
     let pkg = variability::package_conditions(elements);
+    let feat_alias = variability::feature_id_to_qname(elements);
 
     let mut all_pass = true;
     for tc in &members {
         // Members active in none of the plan's configs (escaping) are not part of
         // the executed scope for this projection; skip them from the fold.
-        if !lib::member_active_in_any_config(tc, &configs, &pkg) {
+        if !lib::member_active_in_any_config(tc, &configs, &pkg, &feat_alias) {
             all_pass = false;
             continue;
         }
@@ -401,6 +402,7 @@ pub fn cmd_testplan_detail(
     let configs = lib::plan_configs(plan, elements, &resolver);
     let config_ids: Vec<String> = configs.iter().map(|c| disp_id(c)).collect();
     let pkg = variability::package_conditions(elements);
+    let feat_alias = variability::feature_id_to_qname(elements);
 
     // Resolved members, flagged escaping (active in none of the plan's configs).
     let members = lib::effective_testcases(plan, elements, &resolver);
@@ -423,7 +425,7 @@ pub fn cmd_testplan_detail(
         .map(|tc| MemberRow {
             id: disp_id(tc),
             via: if explicit.contains(&disp_id(tc)) { "explicit" } else { "selection" },
-            escaping: !lib::member_active_in_any_config(tc, &configs, &pkg),
+            escaping: !lib::member_active_in_any_config(tc, &configs, &pkg, &feat_alias),
         })
         .collect();
 

@@ -64,6 +64,25 @@ impl FeatureExpr {
             }
         }
     }
+
+    /// Rewrite every operand through `canon` so the expression is expressed in a
+    /// single canonical key space (a `FeatureDef`'s qualified name). An operand
+    /// keyed by a `FEAT-*` stable id is mapped to the owning FeatureDef's qname;
+    /// any operand `canon` does not know about is left unchanged. This lets an
+    /// `appliesWhen: FEAT-ABS-001` gate identically to `appliesWhen: F::Anti_Lock`
+    /// (REQ-TRS-ID-006).
+    pub fn canonicalize(&self, canon: &impl Fn(&str) -> String) -> FeatureExpr {
+        match self {
+            FeatureExpr::Feat(q) => FeatureExpr::Feat(canon(q)),
+            FeatureExpr::Not(e) => FeatureExpr::Not(Box::new(e.canonicalize(canon))),
+            FeatureExpr::And(a, b) => {
+                FeatureExpr::And(Box::new(a.canonicalize(canon)), Box::new(b.canonicalize(canon)))
+            }
+            FeatureExpr::Or(a, b) => {
+                FeatureExpr::Or(Box::new(a.canonicalize(canon)), Box::new(b.canonicalize(canon)))
+            }
+        }
+    }
 }
 
 // ── Tokenizer ─────────────────────────────────────────────────────────────────
@@ -95,15 +114,52 @@ fn tokenize(s: &str) -> Result<Vec<Tok>, String> {
                 toks.push(Tok::RParen);
             }
             // QName / keyword run: alphanumerics, '_', ':' (for '::'), '.'.
+            //
+            // A '-' is normally illegal (feature *names* are SysMLv2 basic names —
+            // GH #42). The single exception (REQ-TRS-ID-006) is a stable-id-shaped
+            // token such as `FEAT-ABS-001`: when we hit a '-' mid-token we only keep
+            // consuming if the accumulated run *with* the hyphen run still parses as
+            // a stable id. A hyphen that is part of a hyphenated *name*
+            // (e.g. `Features::Anti-Lock`) does not satisfy the stable-id grammar and
+            // therefore falls through to the E209 error path below.
             c if c.is_alphanumeric() || c == '_' || c == ':' || c == '.' => {
                 let mut word = String::new();
-                while let Some(&c) = chars.peek() {
-                    if c.is_alphanumeric() || c == '_' || c == ':' || c == '.' {
-                        word.push(c);
-                        chars.next();
-                    } else {
-                        break;
+                loop {
+                    while let Some(&c) = chars.peek() {
+                        if c.is_alphanumeric() || c == '_' || c == ':' || c == '.' {
+                            word.push(c);
+                            chars.next();
+                        } else {
+                            break;
+                        }
                     }
+                    // Hyphen continuation: only valid as part of a stable-id token.
+                    if chars.peek() == Some(&'-') {
+                        // Greedily collect the candidate hyphenated continuation.
+                        let mut candidate = word.clone();
+                        let mut lookahead = chars.clone();
+                        while let Some(&c) = lookahead.peek() {
+                            if c == '-' || c.is_alphanumeric() {
+                                candidate.push(c);
+                                lookahead.next();
+                            } else {
+                                break;
+                            }
+                        }
+                        if crate::resolver::is_stable_id(&candidate) {
+                            // Accept the whole stable-id token.
+                            word = candidate;
+                            chars = lookahead;
+                            continue;
+                        }
+                        return Err(
+                            "unexpected character '-' in appliesWhen — feature names must be SysMLv2 \
+                             basic names (letters/digits/_); only a stable-id-shaped reference \
+                             (e.g. FEAT-ABS-001) may contain hyphens (W042)"
+                                .to_string(),
+                        );
+                    }
+                    break;
                 }
                 match word.as_str() {
                     "and" => toks.push(Tok::And),
@@ -231,6 +287,54 @@ pub fn applies_when_expr(v: &serde_yaml::Value) -> Result<Option<FeatureExpr>, S
     }
 }
 
+// ── Feature-reference canonicalization (REQ-TRS-ID-006) ─────────────────────────
+
+/// Map of `FeatureDef` stable `id` (FEAT-*) → its qualified name, for every
+/// `FeatureDef` that declares one. Used to normalize feature references — in
+/// `appliesWhen` and in a `Configuration`'s `features:` keys — so an id alias and
+/// the qname resolve to the *same* canonical key.
+pub fn feature_id_to_qname(elements: &[RawElement]) -> HashMap<String, String> {
+    let mut m = HashMap::new();
+    for e in elements {
+        if matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef)) {
+            if let Some(id) = e.frontmatter.id.as_deref() {
+                if crate::resolver::is_feat_id(id) {
+                    m.insert(id.to_string(), e.qualified_name.clone());
+                }
+            }
+        }
+    }
+    m
+}
+
+/// Canonicalize a single feature reference: a `FEAT-*` id maps to the owning
+/// FeatureDef's qualified name; anything else is returned unchanged.
+pub fn canon_feature_ref(r: &str, alias: &HashMap<String, String>) -> String {
+    alias.get(r).cloned().unwrap_or_else(|| r.to_string())
+}
+
+/// A `Configuration`'s feature selection with every id-keyed entry rewritten to
+/// the FeatureDef's qualified name (canonical key space). When a config keys both
+/// an id and its qname (unusual), the qname-keyed entry wins.
+pub fn canon_selection(
+    sel: &std::collections::BTreeMap<String, bool>,
+    alias: &HashMap<String, String>,
+) -> std::collections::BTreeMap<String, bool> {
+    let mut out = std::collections::BTreeMap::new();
+    // id-keyed entries first, so an explicit qname entry overrides them.
+    for (k, v) in sel {
+        if let Some(q) = alias.get(k) {
+            out.insert(q.clone(), *v);
+        }
+    }
+    for (k, v) in sel {
+        if !alias.contains_key(k) {
+            out.insert(k.clone(), *v);
+        }
+    }
+    out
+}
+
 // ── Activation predicate (opt-in principle, REQ-TRS-VAR-001) ────────────────────
 
 /// The variability dimension is *active* iff at least one `FeatureDef` exists
@@ -320,6 +424,17 @@ pub fn effective_expr(
     pkg: &HashMap<String, serde_yaml::Value>,
 ) -> Option<FeatureExpr> {
     effective_applies_when(elem, pkg).and_then(|(v, _)| applies_when_expr(&v).ok().flatten())
+}
+
+/// As [`effective_expr`], but with every operand canonicalized through the feature
+/// id→qname `alias` map so a `FEAT-*` reference gates identically to the qname
+/// (REQ-TRS-ID-006). Pass [`feature_id_to_qname`] for `alias`.
+pub fn effective_expr_canon(
+    elem: &RawElement,
+    pkg: &HashMap<String, serde_yaml::Value>,
+    alias: &HashMap<String, String>,
+) -> Option<FeatureExpr> {
+    effective_expr(elem, pkg).map(|e| e.canonicalize(&|q: &str| canon_feature_ref(q, alias)))
 }
 
 #[cfg(test)]
@@ -486,6 +601,30 @@ mod tests {
         // operators require a separator: "notF::A" is a single identifier.
         assert_eq!(parse("notF::A").unwrap(), FeatureExpr::Feat("notF::A".into()));
         assert_eq!(parse("F::orange").unwrap(), FeatureExpr::Feat("F::orange".into()));
+    }
+
+    #[test]
+    fn stable_id_token_accepted_hyphen_name_rejected() {
+        // A stable-id-shaped token is one atom even though it contains hyphens.
+        let e = parse("FEAT-ABS-001").unwrap();
+        assert_eq!(e, FeatureExpr::Feat("FEAT-ABS-001".into()));
+        // …and composes in the boolean grammar.
+        let e = parse("FEAT-ABS-001 and not FEAT-ESC-002").unwrap();
+        assert_eq!(e.operands(), vec!["FEAT-ABS-001", "FEAT-ESC-002"]);
+        // A hyphenated NAME is NOT a stable id → still rejected (GH #42 / W042).
+        assert!(parse("Features::Anti-Lock").is_err());
+        assert!(parse("F::A and Features::Anti-Lock").is_err());
+        // A bare leading hyphen is still rejected.
+        assert!(parse("-F::A").is_err());
+    }
+
+    #[test]
+    fn canonicalize_maps_id_operands_to_qname() {
+        let mut alias = std::collections::HashMap::new();
+        alias.insert("FEAT-ABS-001".to_string(), "Features::Anti_Lock".to_string());
+        let e = parse("FEAT-ABS-001 and not F::X").unwrap();
+        let c = e.canonicalize(&|q: &str| canon_feature_ref(q, &alias));
+        assert_eq!(c.operands(), vec!["Features::Anti_Lock", "F::X"]);
     }
 
     #[test]

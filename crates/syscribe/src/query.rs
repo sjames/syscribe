@@ -1519,7 +1519,11 @@ pub fn cmd_refs(elements: &[RawElement], resolver: &Resolver, key: &str) {
     // (configuration-agnostic TestCases — no appliesWhen — run in every config).
     let mut runs_in: Vec<String> = Vec::new();
     if elem.frontmatter.element_type.as_ref() == Some(&ElementType::Configuration) {
-        let sel = elem.frontmatter.feature_selections();
+        let feat_alias = syscribe_model::variability::feature_id_to_qname(elements);
+        let sel = syscribe_model::variability::canon_selection(
+            &elem.frontmatter.feature_selections(),
+            &feat_alias,
+        );
         let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
         for other in elements {
             if other.frontmatter.element_type.as_ref() != Some(&ElementType::TestCase) {
@@ -1530,7 +1534,11 @@ pub fn cmd_refs(elements: &[RawElement], resolver: &Resolver, key: &str) {
                 .applies_when
                 .as_ref()
                 .and_then(|aw| syscribe_model::variability::applies_when_expr(aw).ok().flatten())
-            {
+                .map(|e| {
+                    e.canonicalize(&|q: &str| {
+                        syscribe_model::variability::canon_feature_ref(q, &feat_alias)
+                    })
+                }) {
                 None => true,
                 Some(expr) => expr.eval(&selected),
             };

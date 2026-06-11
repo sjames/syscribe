@@ -204,6 +204,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if is_tc && !is_tc_id(id) && !id.is_empty() {
                 findings.push(error("E006", &file, &format!("`id` '{}' does not match TC pattern", id)));
             }
+            // FeatureDef carries an OPTIONAL stable id; when present it must match the
+            // FEAT-* pattern (REQ-TRS-ID-006). A FeatureDef without an id is unchanged;
+            // its name remains the identity segment and is W042-checked separately.
+            let is_feature_def = matches!(ty, Some(ElementType::FeatureDef));
+            if is_feature_def && !crate::resolver::is_feat_id(id) && !id.is_empty() {
+                findings.push(error(
+                    "E006",
+                    &file,
+                    &format!("`id` '{}' does not match FEAT pattern", id),
+                ));
+            }
         }
 
         // E023: a stable-ID numeric suffix wider than the configured maximum
@@ -481,8 +492,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // inactive (no resolvable bound configs).
             if !configs.is_empty() {
                 let pkg = crate::variability::package_conditions(elements);
+                let feat_alias = crate::variability::feature_id_to_qname(elements);
                 for tc in &members {
-                    if !crate::testplan::member_active_in_any_config(tc, &configs, &pkg) {
+                    if !crate::testplan::member_active_in_any_config(tc, &configs, &pkg, &feat_alias) {
                         let tc_id = tc
                             .frontmatter
                             .id
@@ -2548,11 +2560,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // emit W015 on C's file. Dormant models keep the flat uncovered check.
     if crate::variability::is_active(elements) {
         use crate::variability::FeatureExpr;
+        // Feature id→qname alias: appliesWhen operands and Configuration selections
+        // keyed by a FeatureDef's FEAT-* id are normalized to the qname so they
+        // share one key space (REQ-TRS-ID-006).
+        let feat_alias = crate::variability::feature_id_to_qname(elements);
         let parse_aw = |elem: &RawElement| -> Option<FeatureExpr> {
             elem.frontmatter
                 .applies_when
                 .as_ref()
                 .and_then(|aw| crate::variability::applies_when_expr(aw).ok().flatten())
+                .map(|e| {
+                    e.canonicalize(&|q: &str| crate::variability::canon_feature_ref(q, &feat_alias))
+                })
         };
         let is_draft = |elem: &RawElement| elem.frontmatter.status.as_deref() == Some("draft");
 
@@ -2589,7 +2608,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             .iter()
             .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
         {
-            let sel = cfg.frontmatter.feature_selections();
+            let sel = crate::variability::canon_selection(
+                &cfg.frontmatter.feature_selections(),
+                &feat_alias,
+            );
             let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
             let cfg_id = cfg
                 .frontmatter
@@ -3245,11 +3267,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     {
         let var_active = crate::variability::is_active(elements);
         let pkg = crate::variability::package_conditions(elements);
+        let feat_alias = crate::variability::feature_id_to_qname(elements);
         let configs: Vec<std::collections::BTreeMap<String, bool>> = if var_active {
             elements
                 .iter()
                 .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
-                .map(|c| c.frontmatter.feature_selections())
+                .map(|c| {
+                    crate::variability::canon_selection(
+                        &c.frontmatter.feature_selections(),
+                        &feat_alias,
+                    )
+                })
                 .collect()
         } else {
             Vec::new()
@@ -3283,7 +3311,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // all-N/A: a feature model is active, configurations exist, and the
             // requirement's effective appliesWhen is false in every one of them.
             if var_active && !configs.is_empty() {
-                if let Some(expr) = crate::variability::effective_expr(elem, &pkg) {
+                if let Some(expr) = crate::variability::effective_expr_canon(elem, &pkg, &feat_alias) {
                     let active_somewhere = configs
                         .iter()
                         .any(|sel| expr.eval(&|q: &str| sel.get(q).copied().unwrap_or(false)));
@@ -3918,7 +3946,10 @@ pub fn parameter_binding_findings(elements: &[RawElement]) -> Vec<Finding> {
         .iter()
         .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
     {
-        let sel = cfg.frontmatter.feature_selections();
+        let sel = crate::variability::canon_selection(
+            &cfg.frontmatter.feature_selections(),
+            &crate::variability::feature_id_to_qname(elements),
+        );
         let is_selected = |feat: &str| sel.get(feat).copied().unwrap_or(false);
         let file = &cfg.file_path;
         let mut bound: HashSet<String> = HashSet::new();

@@ -323,6 +323,13 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     let configs: Vec<&RawElement> =
         elements.iter().filter(|e| is(e, ElementType::Configuration)).collect();
     let fnames: HashSet<&str> = fdefs.iter().map(|e| e.qualified_name.as_str()).collect();
+    // Feature id→qname alias map: a Configuration may key its `features:` selection
+    // (and an element its `appliesWhen:`) by a FeatureDef's FEAT-* stable id, which
+    // is normalized here to the canonical qname key space (REQ-TRS-ID-006).
+    let feat_alias = crate::variability::feature_id_to_qname(elements);
+    let sel_of = |cfg: &RawElement| {
+        crate::variability::canon_selection(&cfg.frontmatter.feature_selections(), &feat_alias)
+    };
 
     // ── E212: requires/excludes entries resolve to a FeatureDef ──────────────
     let mut req: HashMap<&str, Vec<String>> = HashMap::new();
@@ -346,7 +353,7 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     // ── E219/E220 (per Configuration) + selection counts for W011/W012 ───────
     let mut sel_count: HashMap<&str, usize> = HashMap::new();
     for cfg in &configs {
-        let sel = cfg.frontmatter.feature_selections();
+        let sel = sel_of(cfg);
         let is_sel = |q: &str| sel.get(q).copied().unwrap_or(false);
         for fd in &fdefs {
             let q = fd.qualified_name.as_str();
@@ -501,7 +508,7 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     }
     let mut selected_anywhere: HashSet<String> = HashSet::new();
     for cfg in &configs {
-        for (k, v) in cfg.frontmatter.feature_selections() {
+        for (k, v) in sel_of(cfg) {
             if v {
                 selected_anywhere.insert(k);
             }
@@ -555,9 +562,11 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
             }
 
             // appliesWhen: parse with the boolean grammar (and/or/not), not as a literal.
+            // Operands keyed by a FEAT-* id are normalized to the FeatureDef qname.
             let aw_expr = m
                 .get(serde_yaml::Value::String("appliesWhen".into()))
-                .and_then(|aw| crate::variability::applies_when_expr(aw).ok().flatten());
+                .and_then(|aw| crate::variability::applies_when_expr(aw).ok().flatten())
+                .map(|e| e.canonicalize(&|q: &str| crate::variability::canon_feature_ref(q, &feat_alias)));
             // W014: each operand feature must be selected in some Configuration.
             if let Some(e) = &aw_expr {
                 for feat in e.operands() {
@@ -579,7 +588,7 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
                 .and_then(|v| v.as_str())
                 == Some("warning");
             for cfg in &configs {
-                let sel = cfg.frontmatter.feature_selections();
+                let sel = sel_of(cfg);
                 let holds = match &aw_expr {
                     None => true,
                     Some(e) => e.eval(&|q| sel.get(q).copied().unwrap_or(false)),
@@ -1007,6 +1016,13 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
     }
 
     let enc = build_encoding(&fdefs);
+    // Feature id→qname alias map: selections and appliesWhen operands keyed by a
+    // FeatureDef's FEAT-* stable id are normalized to the qname-keyed variable
+    // space the solver uses (REQ-TRS-ID-006).
+    let feat_alias = crate::variability::feature_id_to_qname(elements);
+    let sel_of = |cfg: &RawElement| {
+        crate::variability::canon_selection(&cfg.frontmatter.feature_selections(), &feat_alias)
+    };
     // One batsat solver primed with the full encoding, reused across all queries.
     let mut sat = crate::solver::Solver::from_cnf(&enc.cnf());
     let root_file = enc
@@ -1072,7 +1088,7 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
     // Configuration validity under full semantics (E225), excluding the
     // requires/excludes obligations already reported as E219/E220.
     for cfg in elements.iter().filter(|e| is(e, ElementType::Configuration)) {
-        let sel = cfg.frontmatter.feature_selections();
+        let sel = sel_of(cfg);
         let assign: Vec<bool> = enc.names.iter().map(|n| sel.get(n).copied().unwrap_or(false)).collect();
         let mut violated: Vec<String> = Vec::new();
         for c in &enc.cons {
@@ -1099,8 +1115,13 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
     }
 
     // Effective appliesWhen honours transitive package conditioning (REQ-TRS-VAR-006).
+    // Operands keyed by a FEAT-* id are normalized to the FeatureDef qname so they
+    // share the solver's qname-keyed variable space (REQ-TRS-ID-006).
     let pkgcond = crate::variability::package_conditions(elements);
-    let elem_aw = |e: &RawElement| crate::variability::effective_expr(e, &pkgcond);
+    let elem_aw = |e: &RawElement| {
+        crate::variability::effective_expr(e, &pkgcond)
+            .map(|x| x.canonicalize(&|q: &str| crate::variability::canon_feature_ref(q, &feat_alias)))
+    };
 
     // ── W021: dead elements (appliesWhen unsatisfiable under the feature model) ──
     for e in elements {
@@ -1171,7 +1192,7 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
             let mut active_somewhere = false;
             let mut covered_somewhere = false;
             for cfg in &configs {
-                let sel = cfg.frontmatter.feature_selections();
+                let sel = sel_of(cfg);
                 let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
                 let active = rexpr.as_ref().map_or(true, |e| e.eval(&selected));
                 if !active {
@@ -1289,9 +1310,12 @@ pub fn configure(elements: &[RawElement], conf: &str) -> ConfigureOutcome {
     };
 
     let enc = build_encoding(&fdefs);
+    let feat_alias = crate::variability::feature_id_to_qname(elements);
     let mut assumptions: Vec<Lit> = Vec::new();
     let mut fixed: HashSet<usize> = HashSet::new();
-    for (feat, val) in cfg.frontmatter.feature_selections() {
+    for (feat, val) in
+        crate::variability::canon_selection(&cfg.frontmatter.feature_selections(), &feat_alias)
+    {
         if let Some(&v) = enc.var_of.get(&feat) {
             assumptions.push(if val { Lit::pos(v) } else { Lit::neg(v) });
             fixed.insert(v);

@@ -181,12 +181,16 @@ pub fn member_active_in_any_config(
     tc: &RawElement,
     configs: &[&RawElement],
     pkg: &std::collections::HashMap<String, serde_yaml::Value>,
+    alias: &std::collections::HashMap<String, String>,
 ) -> bool {
     if configs.is_empty() {
         return true;
     }
     configs.iter().any(|cfg| {
-        let sel: Selection = cfg.frontmatter.feature_selections().into_iter().collect();
-        projection::is_active(tc, &sel, pkg)
+        let sel: Selection = crate::variability::canon_selection(
+            &cfg.frontmatter.feature_selections(),
+            alias,
+        );
+        projection::is_active_canon(tc, &sel, pkg, alias)
     })
 }

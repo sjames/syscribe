@@ -90,9 +90,12 @@ pub fn cmd_matrix_features(elements: &[RawElement], json: bool) {
         .filter(|e| is_type(e, ElementType::Configuration))
         .collect();
     configs.sort_by_key(|e| disp_id(e));
+    // Selections keyed by a FeatureDef's FEAT-* id are normalized to the qname so
+    // an id-keyed config selects the same feature as a qname-keyed one (REQ-TRS-ID-006).
+    let feat_alias = variability::feature_id_to_qname(elements);
     let cfg_sel: Vec<(String, BTreeMap<String, bool>)> = configs
         .iter()
-        .map(|c| (disp_id(c), c.frontmatter.feature_selections()))
+        .map(|c| (disp_id(c), variability::canon_selection(&c.frontmatter.feature_selections(), &feat_alias)))
         .collect();
 
     let mut feats: Vec<&RawElement> = elements
@@ -162,11 +165,12 @@ fn cell_state(
     r: &RawElement,
     sel: &BTreeMap<String, bool>,
     pkg: &std::collections::HashMap<String, serde_yaml::Value>,
+    alias: &std::collections::HashMap<String, String>,
     tcs: &[(Option<FeatureExpr>, Vec<String>, TcVerdict)],
     evidence: Option<&ResultsData>,
 ) -> &'static str {
     let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
-    let rexpr = variability::effective_expr(r, pkg);
+    let rexpr = variability::effective_expr_canon(r, pkg, alias);
     let active = rexpr.as_ref().map_or(true, |e| e.eval(&selected));
     if !active {
         return "na";
@@ -216,9 +220,10 @@ fn cmd_matrix_inner(
         .filter(|e| is_type(e, ElementType::Configuration))
         .collect();
     configs.sort_by_key(|e| disp_id(e));
+    let feat_alias = variability::feature_id_to_qname(elements);
     let cfg_sel: Vec<(String, BTreeMap<String, bool>)> = configs
         .iter()
-        .map(|c| (disp_id(c), c.frontmatter.feature_selections()))
+        .map(|c| (disp_id(c), variability::canon_selection(&c.frontmatter.feature_selections(), &feat_alias)))
         .collect();
 
     // Rows: requirements (optionally tag- and status-filtered), sorted by id.
@@ -242,7 +247,7 @@ fn cmd_matrix_inner(
         .filter(|e| e.frontmatter.status.as_deref() != Some("draft"))
         .map(|e| {
             (
-                variability::effective_expr(e, &pkg),
+                variability::effective_expr_canon(e, &pkg, &feat_alias),
                 e.frontmatter.verifies.clone().unwrap_or_default(),
                 tc_verdict(e, evidence),
             )
@@ -252,7 +257,7 @@ fn cmd_matrix_inner(
     // state(req, config selections) -> "na" | "covered" | "passing" | "gap",
     // delegating to the single `cell_state` definition shared with `audit`.
     let state = |r: &RawElement, sel: &BTreeMap<String, bool>| -> &'static str {
-        cell_state(r, sel, &pkg, &tcs, evidence)
+        cell_state(r, sel, &pkg, &feat_alias, &tcs, evidence)
     };
 
     // Materialise each retained row's cell states once: (id, [state per column]).
@@ -403,9 +408,10 @@ impl Coverage {
             .filter(|e| is_type(e, ElementType::Configuration))
             .collect();
         configs.sort_by_key(|e| disp_id(e));
+        let feat_alias = variability::feature_id_to_qname(elements);
         let cfg_sel: Vec<(String, BTreeMap<String, bool>)> = configs
             .iter()
-            .map(|c| (disp_id(c), c.frontmatter.feature_selections()))
+            .map(|c| (disp_id(c), variability::canon_selection(&c.frontmatter.feature_selections(), &feat_alias)))
             .collect();
 
         let mut reqs: Vec<&RawElement> = elements
@@ -421,7 +427,7 @@ impl Coverage {
             .filter(|e| e.frontmatter.status.as_deref() != Some("draft"))
             .map(|e| {
                 (
-                    variability::effective_expr(e, &pkg),
+                    variability::effective_expr_canon(e, &pkg, &feat_alias),
                     e.frontmatter.verifies.clone().unwrap_or_default(),
                     tc_verdict(e, evidence),
                 )
@@ -433,7 +439,7 @@ impl Coverage {
             .map(|r| {
                 let cells: Vec<&'static str> = cfg_sel
                     .iter()
-                    .map(|(_, sel)| cell_state(r, sel, &pkg, &tcs, evidence))
+                    .map(|(_, sel)| cell_state(r, sel, &pkg, &feat_alias, &tcs, evidence))
                     .collect();
                 (disp_id(r), cells)
             })

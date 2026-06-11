@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 162 |
-| Passed | 162 |
+| Total test cases | 163 |
+| Passed | 163 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -560,6 +560,17 @@
 | Scenario | Result |
 |---|---|
 | max_digits=4 tightens the cap: a 5-digit id trips E023 | ✓ PASS |
+
+---
+
+### TC-TRS-ID-006 — Verify FeatureDef stable FEAT id: id-or-qname feature references in appliesWhen and Configuration features; E006/E101/E209 rules.
+
+**Verifies:** REQ-TRS-ID-006  
+**Result:** ✓ PASS (16 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a stable-id-shaped reference resolving to nothing raises E209 | ✓ PASS |
 
 ---
 

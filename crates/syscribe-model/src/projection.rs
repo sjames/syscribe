@@ -54,17 +54,20 @@ pub fn resolve_selection(elements: &[RawElement], arg: &str) -> SelectionOutcome
     }) {
         return SelectionOutcome::Resolved(cfg.frontmatter.feature_selections());
     }
-    // 2. An ad-hoc feature set.
+    // 2. An ad-hoc feature set — each token is a FeatureDef qualified name or its
+    //    FEAT-* stable id (REQ-TRS-ID-006); ids are normalized to the qname.
     let feature_defs: HashSet<&str> = elements
         .iter()
         .filter(|e| e.frontmatter.element_type.as_ref() == Some(&ElementType::FeatureDef))
         .map(|e| e.qualified_name.as_str())
         .collect();
+    let alias = variability::feature_id_to_qname(elements);
     let tokens: Vec<&str> = arg.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect();
-    if !tokens.is_empty() && tokens.iter().all(|t| feature_defs.contains(t)) {
+    let canon: Vec<String> = tokens.iter().map(|t| variability::canon_feature_ref(t, &alias)).collect();
+    if !canon.is_empty() && canon.iter().all(|t| feature_defs.contains(t.as_str())) {
         let mut sel = Selection::new();
-        for t in tokens {
-            sel.insert(t.to_string(), true);
+        for t in canon {
+            sel.insert(t, true);
         }
         return SelectionOutcome::Resolved(sel);
     }
@@ -83,19 +86,44 @@ pub fn is_active(
     sel: &Selection,
     pkg: &std::collections::HashMap<String, serde_yaml::Value>,
 ) -> bool {
+    is_active_canon(elem, sel, pkg, &std::collections::HashMap::new())
+}
+
+/// As [`is_active`], but with a feature id→qname alias map so an `appliesWhen`
+/// operand written as a `FEAT-*` id (REQ-TRS-ID-006) is normalized to the
+/// FeatureDef's qualified name before evaluation. `sel` must already be in the
+/// canonical (qname) key space — build it via [`canonical_selection`].
+pub fn is_active_canon(
+    elem: &RawElement,
+    sel: &Selection,
+    pkg: &std::collections::HashMap<String, serde_yaml::Value>,
+    alias: &std::collections::HashMap<String, String>,
+) -> bool {
     match variability::effective_applies_when(elem, pkg) {
         None => true,
         Some((aw, _)) => match variability::applies_when_expr(&aw) {
-            Ok(Some(expr)) => expr.eval(&|q: &str| sel.get(q).copied().unwrap_or(false)),
+            Ok(Some(expr)) => {
+                let expr = expr.canonicalize(&|q: &str| variability::canon_feature_ref(q, alias));
+                expr.eval(&|q: &str| sel.get(q).copied().unwrap_or(false))
+            }
             _ => true,
         },
     }
 }
 
+/// A `Configuration`'s selection canonicalized to qname keys, using the model's
+/// feature id→qname alias map (REQ-TRS-ID-006).
+pub fn canonical_selection(elements: &[RawElement], cfg: &RawElement) -> Selection {
+    let alias = variability::feature_id_to_qname(elements);
+    variability::canon_selection(&cfg.frontmatter.feature_selections(), &alias)
+}
+
 /// The projected (active) element set for a selection.
 pub fn project(elements: &[RawElement], sel: &Selection) -> Vec<RawElement> {
     let pkg = variability::package_conditions(elements);
-    elements.iter().filter(|e| is_active(e, sel, &pkg)).cloned().collect()
+    let alias = variability::feature_id_to_qname(elements);
+    let sel = variability::canon_selection(sel, &alias);
+    elements.iter().filter(|e| is_active_canon(e, &sel, &pkg, &alias)).cloned().collect()
 }
 
 // ── reference taxonomy ──────────────────────────────────────────────────────
@@ -153,16 +181,18 @@ pub fn outbound_refs(elem: &RawElement) -> Vec<(RefKind, String)> {
 pub fn escaping_refs(full: &[RawElement], sel: &Selection) -> Vec<Finding> {
     let resolver = Resolver::new(full);
     let pkg = variability::package_conditions(full);
+    let alias = variability::feature_id_to_qname(full);
+    let sel = &variability::canon_selection(sel, &alias);
     let mut findings = Vec::new();
     for x in full {
-        if !is_active(x, sel, &pkg) {
+        if !is_active_canon(x, sel, &pkg, &alias) {
             continue;
         }
         for (kind, target) in outbound_refs(x) {
             let Some(t) = resolver.resolve_ref(full, &target) else {
                 continue; // truly dangling — a 150% concern (whole-model E102 etc.)
             };
-            if is_active(t, sel, &pkg) {
+            if is_active_canon(t, sel, &pkg, &alias) {
                 continue;
             }
             match kind {
