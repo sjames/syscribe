@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TYPE-005
 type: Requirement
-name: Case Definition
 title: "Tool shall recognise and validate the CaseDef element"
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAL-010
 type: Requirement
-name: Function-Level Traceability
 title: Tool shall verify testFunctions resolve in sourceFile across languages (W009)
 status: draft
 reqDomain: software

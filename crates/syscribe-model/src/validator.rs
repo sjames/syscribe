@@ -237,6 +237,35 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // E024 / E025: exactly one human-readable label field, fixed by identity class
+        // (REQ-TRS-NAME-002). An id-identified type (REQ-*, HE-*, …) labels via `title`;
+        // declaring `name` is E024. A name-identified type (PartDef, Package, FeatureDef,
+        // …) labels via `name`; declaring `title` is E025. A typeless element is left to
+        // E001/E005.
+        if let Some(ty) = &fm.element_type {
+            if ty.is_id_identified() {
+                if fm.name.is_some() {
+                    findings.push(error(
+                        "E024",
+                        &file,
+                        &format!(
+                            "{:?} is id-identified: its label belongs in `title:`, not `name:` — remove the `name` field",
+                            ty
+                        ),
+                    ));
+                }
+            } else if fm.title.is_some() {
+                findings.push(error(
+                    "E025",
+                    &file,
+                    &format!(
+                        "{:?} is name-identified: its label belongs in `name:`, not `title:` — remove the `title` field",
+                        ty
+                    ),
+                ));
+            }
+        }
+
         // W042: an element name that is not a SysMLv2 basic name (REQ-TRS-NAME-001 /
         // GH #42). The element's own name is the last `::` segment of its qualified
         // name; stable ids (REQ-*, TC-*, …) legitimately contain '-' and are exempt.

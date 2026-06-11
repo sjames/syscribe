@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FMA-003
 type: Requirement
-name: Feature-Model Anomaly Analyses
 title: feature-check --deep shall detect void models, dead features, false-optional features, and report core features
 status: draft
 reqDomain: software

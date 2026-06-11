@@ -1,7 +1,6 @@
 ---
 id: FTG-SIL-003
 type: FaultTreeGate
-name: FTG-SIL-003
 gateType: OR
 title: OR gate — track clear falsely indicated OR points position falsely confirmed OR signal SW error
 inputs:

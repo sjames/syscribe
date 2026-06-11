@@ -123,6 +123,15 @@ subsets: [Interfaces::PowerInterface]
 
 Element **names** (the file/directory stem, which becomes the last qualified-name segment) follow the SysMLv2 **basic-name** grammar: `^[A-Za-z_][A-Za-z0-9_]*$` — letters, digits and `_`, not starting with a digit. **No hyphens or spaces** (a hyphen is the subtraction operator in `appliesWhen`/`parameterConstraints` expressions, so a hyphenated name cannot be referenced there). A non-basic name raises warning `W042`; rename using `_` or CamelCase (`Anti-Lock` → `Anti_Lock`/`AntiLock`). Stable ids (below) are exempt — they legitimately contain `-`.
 
+### Label field: `name` vs `title` (one per element, fixed by identity class)
+
+Every element has **exactly one** human-readable label field, decided by how the element is identified — **never both**:
+
+- **Id-identified types** (identity is a stable `id`: `Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `ConfirmationMeasure`, and all safety/security types — `HazardousEvent`, `SafetyGoal`, `DamageScenario`, `ThreatScenario`, `CybersecurityGoal`, `SecurityControl`, `VulnerabilityReport`, `TARASheet`, `FaultTree`/`FaultTreeGate`/`FaultTreeEvent`, `FMEASheet`/`FMEAEntry`, `AttackTree`/`AttackTreeGate`/`AttackStep`, `Argument`, `AssumptionOfUse`) → label is **`title`**. Declaring `name:` is error **`E024`**.
+- **Name-identified types** (everything else — all SysML structural types, `Package`, `Diagram`, and `FeatureDef`) → label is **`name`**. Declaring `title:` is error **`E025`**.
+
+`FeatureDef` is the one name-identified type that may *also* carry an optional stable `id` (`FEAT-*`, its shortName). The `id` axis and the label axis are independent — a `FeatureDef` uses `name` for its label regardless of whether it has a `FEAT-*` id.
+
 ### ID Scheme
 
 SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file path if omitted. `Requirement` and `TestCase` carry a **stable opaque identifier** that must be explicitly set and never changes.

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-OUT-013
 type: Requirement
-name: Safety-Readiness Audit Dashboard
 title: Tool shall provide a read-only safety-readiness audit dashboard with a configurable PASS/FAIL verdict
 status: draft
 reqDomain: software

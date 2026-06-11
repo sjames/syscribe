@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-XREF-003
 type: Requirement
-name: Unresolved Reference Non-Fatal
 title: Tool shall emit a reference error without aborting on unresolved references
 status: draft
 reqDomain: software

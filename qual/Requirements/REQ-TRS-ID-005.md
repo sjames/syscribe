@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-ID-005
 type: Requirement
-name: Configurable Stable-ID Suffix Width
 title: Tool shall accept 3-8 digit stable-ID suffixes with a configurable maximum
 status: draft
 reqDomain: software

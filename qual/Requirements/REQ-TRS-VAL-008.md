@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAL-008
 type: Requirement
-name: Safety and Standards Validation Rules
 title: Tool shall enforce safety-level, standards-compliance, and type-field validation rules E019–E022, W008, W701–W703
 status: draft
 reqDomain: software

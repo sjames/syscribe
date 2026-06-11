@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-CLI-001
 type: Requirement
-name: Model Path Argument
 title: Tool shall accept the model directory via -m / --model argument
 status: draft
 reqDomain: software

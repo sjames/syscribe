@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-PROJ-005
 type: Requirement
-name: Family-Level (Cross-Configuration) Checks
 title: Tool shall provide all-configs validation, dead-element and aggregate-coverage detection, and variant diff
 status: draft
 reqDomain: software

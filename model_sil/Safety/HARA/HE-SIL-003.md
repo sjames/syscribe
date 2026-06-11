@@ -1,7 +1,6 @@
 ---
 id: HE-SIL-003
 type: HazardousEvent
-name: Signal cleared with points not in proved position
 status: approved
 title: Signal cleared with points not in proved position — risk of derailment
 consequence: Cc

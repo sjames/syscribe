@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-XREF-004
 type: Requirement
-name: Circular Reference Detection
 title: Tool shall detect and report circular supertype chains without crashing
 status: draft
 reqDomain: software

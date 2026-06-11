@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-DISC-001
 type: Requirement
-name: features Command (Feature-Model Overview)
 title: Tool shall provide a features command that renders the whole feature model as a tree
 status: draft
 reqDomain: software

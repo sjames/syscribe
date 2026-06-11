@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TYPE-008
 type: Requirement
-name: Use Case Usage
 title: "Tool shall recognise and validate the UseCase element"
 status: draft
 reqDomain: software

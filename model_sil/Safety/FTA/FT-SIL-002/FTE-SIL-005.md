@@ -1,7 +1,6 @@
 ---
 id: FTE-SIL-005
 type: FaultTreeEvent
-name: FTE-SIL-005
 eventKind: basic
 title: Points detection false-confirm — points not at commanded position but detection reports confirmed
 ref: System::Hardware::PointsDriveModule

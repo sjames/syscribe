@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-DIAG-001
 type: Requirement
-name: Diagram Element Validation Rules
 title: Tool shall enforce all Diagram element validation rules E400–E402 and W400–W412
 status: draft
 reqDomain: software

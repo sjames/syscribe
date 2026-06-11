@@ -1,7 +1,6 @@
 ---
 id: FTE-SIL-002
 type: FaultTreeEvent
-name: FTE-SIL-002
 eventKind: basic
 title: Channel B vital software — conflict check erroneous output (diverse)
 ref: System::Software::ConflictChecker

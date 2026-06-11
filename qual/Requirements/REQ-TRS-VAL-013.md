@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAL-013
 type: Requirement
-name: Remote sourceFile Download Hook
 title: Tool shall optionally fetch and verify remote sourceFiles via a configured download hook
 status: draft
 reqDomain: software

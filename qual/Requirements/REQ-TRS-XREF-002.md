@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-XREF-002
 type: Requirement
-name: Relative Cross-Reference Resolution
 title: Tool shall resolve relative references outward from the current package
 status: draft
 reqDomain: software

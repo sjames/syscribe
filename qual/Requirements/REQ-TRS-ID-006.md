@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-ID-006
 type: Requirement
-name: FeatureDef Stable ID and Feature-by-ID References
 title: Tool shall let a FeatureDef carry a stable id and allow features to be referenced by it
 status: draft
 reqDomain: software

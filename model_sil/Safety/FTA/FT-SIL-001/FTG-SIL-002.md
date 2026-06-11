@@ -1,7 +1,6 @@
 ---
 id: FTG-SIL-002
 type: FaultTreeGate
-name: FTG-SIL-002
 gateType: AND
 title: AND gate — both diverse software channels produce the same erroneous output
 inputs:

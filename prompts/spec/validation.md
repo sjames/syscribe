@@ -1,6 +1,6 @@
 # Syscribe Validation Rule Codes
 
-## Parse-time errors — core (E001–E015, E023, E300–E304)
+## Parse-time errors — core (E001–E015, E023–E025, E300–E304)
 
 | Code | Condition |
 |---|---|
@@ -20,6 +20,8 @@
 | `E014` | `Scenario Outline:` block has no `Examples:` table |
 | `E015` | First Gherkin block has no `Feature:` line |
 | `E023` | A stable-ID numeric suffix is longer than the configured maximum (`[ids] max_digits`, default 8). The minimum (3) is enforced by `E006`. |
+| `E024` | An **id-identified** type (`Requirement`, `TestCase`, the safety/security types, …) declares a `name:` field. Its label belongs in `title:`; remove `name:`. Every element has exactly one label field, fixed by identity class. |
+| `E025` | A **name-identified** type (`PartDef`, `Package`, `FeatureDef`, all SysML structural types, …) declares a `title:` field. Its label belongs in `name:`; remove `title:`. A `FeatureDef` may still carry an optional `FEAT-*` `id` — `id` and the label field are independent axes. |
 | `E300` | `ADR.id` does not match `ADR-*` pattern |
 | `E301` | `ADR` missing `id`, `title`, or `status` |
 | `E302` | `reqDomain:` is not `system`, `hardware`, or `software` |

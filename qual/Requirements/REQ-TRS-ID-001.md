@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-ID-001
 type: Requirement
-name: Requirement ID Pattern
 title: Tool shall validate that Requirement elements carry a REQ-* id
 status: draft
 reqDomain: software

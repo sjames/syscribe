@@ -1,7 +1,6 @@
 ---
 id: ATS-BAD-001
 type: AttackStep
-name: ATS-BAD-001
 title: A single attack step so the tree has a child
 attackFeasibility: low
 ---

@@ -1,7 +1,6 @@
 ---
 id: SG-MET-002
 type: SafetyGoal
-name: SG-MET-002
 title: Demonstrate SPFM/PMHF meeting ASIL B target (passes the gate)
 status: approved
 asilLevel: B

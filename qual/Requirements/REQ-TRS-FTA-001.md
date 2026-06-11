@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FTA-001
 type: Requirement
-name: Fault Tree Analysis Validation Rules
 title: Tool shall enforce FaultTree, FaultTreeGate, and FaultTreeEvent validation rules E900–E909, W900–W901
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-PARSE-003
 type: Requirement
-name: Ignored Directories
 title: Tool shall ignore standard build and tool directories
 status: draft
 reqDomain: software

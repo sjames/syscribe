@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FMA-007
 type: Requirement
-name: Minimal Unsat-Core Explanations via Selector Variables
 title: feature-check --deep shall produce minimal (MUS) explanations using batsat assumption cores
 status: draft
 reqDomain: software

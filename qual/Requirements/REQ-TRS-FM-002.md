@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FM-002
 type: Requirement
-name: Feature Model Structural Integrity
 title: feature-check shall validate requires/excludes resolution and satisfaction, and flag dead or always-on optional features
 status: draft
 reqDomain: software

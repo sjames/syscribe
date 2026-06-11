@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-XREF-005
 type: Requirement
-name: ID-Based Cross-Reference Resolution
 title: "Tool shall resolve verifies: and derivedFrom: references by stable ID"
 status: draft
 reqDomain: software

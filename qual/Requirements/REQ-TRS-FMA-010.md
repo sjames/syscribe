@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FMA-010
 type: Requirement
-name: Diagnoses — Minimal Correction Sets for Void Models
 title: feature-check --deep shall offer minimal correction sets (how to fix) for void models
 status: draft
 reqDomain: software

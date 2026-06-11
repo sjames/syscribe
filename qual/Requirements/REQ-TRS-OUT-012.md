@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-OUT-012
 type: Requirement
-name: Named SIL/ASIL-scopable Validation Severity Profiles
 title: Tool shall support named, integrity-level-scopable validation severity profiles
 status: draft
 reqDomain: software

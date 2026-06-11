@@ -1,7 +1,6 @@
 ---
 id: FT-SIL-001
 type: FaultTree
-name: FT-SIL-001
 title: Fault tree for SG-SIL-001 — conflicting route set without detection
 topEvent: SG-SIL-001
 status: approved

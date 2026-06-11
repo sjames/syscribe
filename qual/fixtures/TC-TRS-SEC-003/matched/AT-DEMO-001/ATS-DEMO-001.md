@@ -1,7 +1,6 @@
 ---
 id: ATS-DEMO-001
 type: AttackStep
-name: ATS-DEMO-001
 title: Extract the powertrain-bus message-authentication key
 attackFeasibility: high
 ---

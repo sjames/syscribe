@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FMA-004
 type: Requirement
-name: Configuration Validity Under Full Feature-Model Semantics
 title: feature-check --deep shall verify each authored Configuration is a valid model of the feature model
 status: draft
 reqDomain: software

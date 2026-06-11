@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FMA-002
 type: Requirement
-name: Deep Feature-Model Analysis Command Surface
 title: Tool shall expose solver-backed analysis behind feature-check --deep with a defined output and exit contract
 status: draft
 reqDomain: software

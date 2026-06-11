@@ -1,7 +1,6 @@
 ---
 id: FTE-MTB-001
 type: FaultTreeEvent
-name: FTE-MTB-001
 eventKind: basic
 title: Basic hardware failure B
 failureRate: 1.0e-7

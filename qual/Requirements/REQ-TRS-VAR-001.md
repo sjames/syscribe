@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAR-001
 type: Requirement
-name: Variability Is Opt-In
 title: Tool shall treat variability as dormant unless a feature model is linked
 status: draft
 reqDomain: software

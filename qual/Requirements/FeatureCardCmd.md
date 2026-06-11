@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-DISC-002
 type: Requirement
-name: feature Command (Feature Card)
 title: Tool shall provide a feature <qname> command that prints a single feature's card
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-SEC-003
 type: Requirement
-name: Attack Tree element types with weakest-link feasibility roll-up (AttackTree/AttackTreeGate/AttackStep, E915–E921, W035)
 title: Tool shall model ISO/SAE 21434 attack paths as attack trees and roll up attack feasibility (min/max), reconciling it with the ThreatScenario
 status: draft
 reqDomain: software

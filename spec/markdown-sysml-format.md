@@ -266,6 +266,13 @@ All fields are **optional unless marked Required**. Defaults listed apply when t
 
 This applies to **every** qualified-name segment, including **package / directory names** — both a package declared with an `_index.md` and a plain directory without one. Requirements and other stable-id elements are unaffected (their `REQ-*`/`TC-*` ids are exempt); only the directories that contain them must be basic names.
 
+**One label field per element (`name` vs `title`).** Every element carries **exactly one** human-readable label field, and which one is **fixed by the element's identity class** — never both:
+
+- **Id-identified types** — identity is a stable `id` (shortName such as `REQ-*`, `TC-*`, `HE-*`). Their label field is **`title`**. These are: `Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `ConfirmationMeasure`, `HazardousEvent`, `SafetyGoal`, `DamageScenario`, `ThreatScenario`, `CybersecurityGoal`, `SecurityControl`, `VulnerabilityReport`, `TARASheet`, `FaultTree`, `FaultTreeGate`, `FaultTreeEvent`, `FMEASheet`, `FMEAEntry`, `AttackTree`, `AttackTreeGate`, `AttackStep`, `Argument`, `AssumptionOfUse`. Declaring a `name:` on one of these is error **`E024`**.
+- **Name-identified types** — identity is the `name`/path. Their label field is **`name`**. This is every other type: all SysML structural types (`PartDef`, `Part`, `Port`, `ActionDef`, …), `Package`, `Diagram`, and `FeatureDef`. Declaring a `title:` on one of these is error **`E025`**.
+
+`FeatureDef` is the single name-identified type that may *also* carry an optional stable `id` (its `FEAT-*` shortName, §9.6). The `id` axis (shortName) and the label axis (`name` vs `title`) are independent: a `FeatureDef` always labels via `name`, with or without a `FEAT-*` id. No element ever carries both `name` and `title`.
+
 **External references (`extRef`).** A Syscribe element often mirrors an artifact that lives in another tool. `extRef:` records that correspondence as one or more **opaque** strings — a URI (`https://dng.example/resources/4521`) or a tool-qualified token (`DNG:4521`, `cameo://model/Engine#id-99`) — given either as a single string or a list. The field is optional and its syntax is unconstrained (external systems use widely varying identifier schemes). `extRef` is an *external* pointer: it is **not** a model cross-reference and is never a valid target for `supertype:`, `verifies:`, `derivedFrom:`, connections, etc. Look up the element(s) that carry a given reference with `syscribe -m <root> extref <ref>`. The same `extRef` value on two or more elements is permitted but warned (`W028`), since an external artifact normally maps to a single element.
 
 ```yaml

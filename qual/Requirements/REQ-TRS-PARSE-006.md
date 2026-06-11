@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-PARSE-006
 type: Requirement
-name: Unparseable File Non-Fatal
 title: Tool shall continue processing after a file with unparseable frontmatter
 status: draft
 reqDomain: software

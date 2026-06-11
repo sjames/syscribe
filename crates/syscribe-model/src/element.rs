@@ -164,6 +164,46 @@ pub enum ElementType {
     Unknown,
 }
 
+impl ElementType {
+    /// Whether this type is **id-identified** — its identity is a stable `id`
+    /// (shortName such as `REQ-*`, `HE-*`) and its human-readable label belongs in
+    /// `title:` (REQ-TRS-NAME-002). Every other type is **name-identified**: its
+    /// identity is its `name`/path and its label belongs in `name:`.
+    ///
+    /// `FeatureDef` is deliberately **not** here: it is name-identified yet may also
+    /// carry an optional `FEAT-*` `id` (REQ-TRS-ID-006). The `id` axis (shortName) and
+    /// the label axis (`name` vs `title`) are independent.
+    pub fn is_id_identified(&self) -> bool {
+        matches!(
+            self,
+            ElementType::Requirement
+                | ElementType::TestCase
+                | ElementType::TestPlan
+                | ElementType::Configuration
+                | ElementType::ADR
+                | ElementType::ConfirmationMeasure
+                | ElementType::HazardousEvent
+                | ElementType::SafetyGoal
+                | ElementType::DamageScenario
+                | ElementType::ThreatScenario
+                | ElementType::CybersecurityGoal
+                | ElementType::SecurityControl
+                | ElementType::VulnerabilityReport
+                | ElementType::TARASheet
+                | ElementType::FaultTree
+                | ElementType::FaultTreeGate
+                | ElementType::FaultTreeEvent
+                | ElementType::FMEASheet
+                | ElementType::FMEAEntry
+                | ElementType::AttackTree
+                | ElementType::AttackTreeGate
+                | ElementType::AttackStep
+                | ElementType::Argument
+                | ElementType::AssumptionOfUse
+        )
+    }
+}
+
 /// A TestPlan's additive `selection:` membership query (REQ-TRS-PLAN-003).
 /// An absent sub-field is *no constraint*; a block with no sub-fields at all
 /// matches *nothing* (not everything). Draft TestCases are never swept here.

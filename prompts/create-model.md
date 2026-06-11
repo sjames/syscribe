@@ -377,7 +377,8 @@ Key fields that apply to most element types:
 | Field | Notes |
 |---|---|
 | `type` | Required — one of the types in Part 2 |
-| `name` | Display name; defaults to filename stem. **Must be a SysMLv2 basic name** `[A-Za-z_][A-Za-z0-9_]*` — letters/digits/`_`, no hyphens or spaces (use `_` or CamelCase: `Anti_Lock`, not `Anti-Lock`). A hyphen breaks `appliesWhen`/`parameterConstraints` references; non-basic names warn `W042`. Stable ids (REQ-*, …) are exempt. |
+| `name` | Label for **name-identified** types (SysML structural types, `Package`, `Diagram`, `FeatureDef`); defaults to filename stem. **Must be a SysMLv2 basic name** `[A-Za-z_][A-Za-z0-9_]*` — letters/digits/`_`, no hyphens or spaces (use `_` or CamelCase: `Anti_Lock`, not `Anti-Lock`). A hyphen breaks `appliesWhen`/`parameterConstraints` references; non-basic names warn `W042`. **Do not put `name` on id-identified types** (`Requirement`, `TestCase`, `ADR`, the safety/security types) — that is error `E024`; use `title` instead. |
+| `title` | Label for **id-identified** types (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types). Free prose — may contain spaces and punctuation. **Do not put `title` on name-identified types** (`PartDef`, `Package`, `FeatureDef`, …) — that is error `E025`; use `name` instead. Each element carries exactly one label field, never both. |
 | `supertype` | Specialisation link (`>` in SysML) |
 | `typedBy` | Type of a usage element (port, part, action, etc.) |
 | `isAbstract` | `true` for abstract definitions |

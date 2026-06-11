@@ -1,7 +1,6 @@
 ---
 id: HE-SIL-001
 type: HazardousEvent
-name: Signal cleared into occupied track section
 status: approved
 title: Signal cleared into occupied track section — risk of rear-end collision
 consequence: Cd

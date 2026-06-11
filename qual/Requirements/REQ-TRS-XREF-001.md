@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-XREF-001
 type: Requirement
-name: Absolute Cross-Reference Resolution
 title: Tool shall resolve absolute qualified names from the model root
 status: draft
 reqDomain: software

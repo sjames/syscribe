@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-PARAM-004
 type: Requirement
-name: Feature Parameter Binding Time
 title: Tool shall record and validate the binding time of FeatureDef parameters
 status: draft
 reqDomain: software

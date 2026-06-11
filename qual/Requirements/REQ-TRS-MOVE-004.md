@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-MOVE-004
 type: Requirement
-name: Move Preserves Stable Identifiers
 title: Tool shall preserve stable IDs and references made through them when moving
 status: draft
 reqDomain: software

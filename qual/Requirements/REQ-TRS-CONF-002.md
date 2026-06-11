@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-CONF-002
 type: Requirement
-name: Configuration Selection Parsing Is Robust and Visible
 title: Tool shall parse Configuration feature selections consistently, surface empty selections (W016), and display them
 status: draft
 reqDomain: software

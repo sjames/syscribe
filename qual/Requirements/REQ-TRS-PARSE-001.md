@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-PARSE-001
 type: Requirement
-name: Model Root Initialization
 title: Tool shall accept a model root directory
 status: draft
 reqDomain: software

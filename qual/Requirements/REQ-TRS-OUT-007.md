@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-OUT-007
 type: Requirement
-name: Structured Model Graph Export
 title: Tool shall emit a versioned, machine-readable export of the whole model graph
 status: draft
 reqDomain: software

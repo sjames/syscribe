@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAL-002
 type: Requirement
-name: Model-Time Error Rules
 title: Tool shall enforce all model-time error rules E101–E106 and E310–E315
 status: draft
 reqDomain: software

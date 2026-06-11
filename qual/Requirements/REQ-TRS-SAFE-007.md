@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-SAFE-007
 type: Requirement
-name: Confirmation measures, assessment independence, and DIA/CIA responsibility
 title: Tool shall track work-product responsibility (W038) and confirmation measures with independence (ConfirmationMeasure, W039)
 status: draft
 reqDomain: software

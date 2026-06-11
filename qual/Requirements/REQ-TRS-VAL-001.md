@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAL-001
 type: Requirement
-name: Parse-Time Error Rules
 title: Tool shall enforce all parse-time error rules E001–E015 and E300–E304
 status: draft
 reqDomain: software

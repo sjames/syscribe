@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TYPE-002
 type: Requirement
-name: Calculation Definition and Usage
 title: "Tool shall recognise and validate the CalculationDef and Calculation elements"
 status: draft
 reqDomain: software

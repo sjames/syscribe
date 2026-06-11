@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FMA-008
 type: Requirement
-name: Assisted Configuration
 title: Tool shall provide a configure command reporting satisfiability, forced and free features for a partial selection
 status: draft
 reqDomain: software

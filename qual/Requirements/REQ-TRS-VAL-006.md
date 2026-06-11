@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAL-006
 type: Requirement
-name: Parse-Time Finding Attribution
 title: Parse-time errors shall be attributed to the file that triggered them
 status: draft
 reqDomain: software

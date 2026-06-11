@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FM-001
 type: Requirement
-name: Explicit Feature-Model Validation Command
 title: Tool shall provide a feature-check command for holistic feature-model validation, separate from validate
 status: draft
 reqDomain: software

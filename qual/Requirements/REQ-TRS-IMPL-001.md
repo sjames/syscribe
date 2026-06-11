@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-IMPL-001
 type: Requirement
-name: implementedBy Field and Path-Exists Rule (W023)
 title: Tool shall support an implementedBy field on Part/PartDef and emit W023 when its path is missing
 status: draft
 reqDomain: software

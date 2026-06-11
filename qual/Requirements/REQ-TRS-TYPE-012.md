@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TYPE-012
 type: Requirement
-name: State and Exhibit-State Usages
 title: "Tool shall recognise and validate the State and ExhibitState elements"
 status: draft
 reqDomain: software

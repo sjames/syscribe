@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-ID-002
 type: Requirement
-name: TestCase ID Pattern
 title: Tool shall validate that TestCase elements carry a TC-* id
 status: draft
 reqDomain: software

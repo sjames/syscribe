@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-CLI-005
 type: Requirement
-name: Detailed Per-Command Help
 title: Tool shall provide detailed man-page help for every command via help <cmd> and <cmd> --help
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-ID-004
 type: Requirement
-name: Duplicate ID Detection
 title: "Tool shall emit E101 when two elements share the same id: value"
 status: draft
 reqDomain: software

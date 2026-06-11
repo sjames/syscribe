@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-PARSE-002
 type: Requirement
-name: Recursive Directory Walk
 title: Tool shall recursively process all .md files under the model root
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TYPE-004
 type: Requirement
-name: Event Occurrence Definition and Usage
 title: "Tool shall recognise and validate the EventOccurrenceDef and EventOccurrence elements"
 status: draft
 reqDomain: software

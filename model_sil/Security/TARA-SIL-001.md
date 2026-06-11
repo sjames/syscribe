@@ -1,7 +1,6 @@
 ---
 type: TARASheet
 id: TARA-SIL-001
-name: TARA-SIL-001
 title: "TARA — Railway CBI operator workstation and field bus interfaces"
 status: approved
 date: "2026-05-28"

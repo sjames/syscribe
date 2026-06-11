@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-NAME-001
 type: Requirement
-name: Basic-Name Grammar for Element Names
 title: Tool shall flag element name segments that are not SysMLv2 basic names
 status: draft
 reqDomain: software

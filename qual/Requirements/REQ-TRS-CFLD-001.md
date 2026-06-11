@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-CFLD-001
 type: Requirement
-name: Custom Fields Frontmatter and Shape Validation
 title: Tool shall recognise a custom_fields map on any element and shape-check its values
 status: draft
 reqDomain: software

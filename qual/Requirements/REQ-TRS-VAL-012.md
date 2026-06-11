@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAL-012
 type: Requirement
-name: sourceFile Location Semantics
 title: Tool shall resolve sourceFile as model-relative, repo-relative, absolute, or remote URI
 status: draft
 reqDomain: software

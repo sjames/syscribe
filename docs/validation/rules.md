@@ -4,7 +4,7 @@
 
 Warnings are advisory by default (exit `0`). Promote them to CI gate failures (exit `2`) with `validate --deny <CODES>` / `--max-warnings <N>` / `--warnings-as-errors`, or with a named, SIL/ASIL-scopable `validate --profile <name>` policy declared in `.syscribe.toml` — see [CI severity gating](../cli/index.md#ci-severity-gating). Errors always exit `1`.
 
-## Parse-time errors (E001–E023)
+## Parse-time errors (E001–E025)
 
 | Code | Element | Condition |
 |---|---|---|
@@ -27,6 +27,8 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E021 | Any | `coverageTarget` is not one of `statement · branch · MCDC` |
 | E022 | Any | `requirementKind` is not one of `stakeholder · system · software · hardware` |
 | E023 | Any (stable id) | The numeric suffix is longer than the configured maximum (`[ids] max_digits` in `.syscribe.toml`, default 8; minimum 3 enforced by E006) |
+| E024 | Id-identified type | An id-identified element (`Requirement`, `TestCase`, `HazardousEvent`, …) declares a `name:` field — its label belongs in `title:`. Each element has exactly one label field, fixed by identity class. Remove `name:`. |
+| E025 | Name-identified type | A name-identified element (`PartDef`, `Package`, `FeatureDef`, …) declares a `title:` field — its label belongs in `name:`. Remove `title:`. (A `FeatureDef` may still carry an optional `FEAT-*` `id` — the `id` and label axes are independent.) |
 
 ## Parse-time warnings (W001–W008)
 

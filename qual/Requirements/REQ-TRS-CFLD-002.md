@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-CFLD-002
 type: Requirement
-name: Custom Field Query Predicate
 title: Tool shall filter elements by a --where predicate over custom fields
 status: draft
 reqDomain: software

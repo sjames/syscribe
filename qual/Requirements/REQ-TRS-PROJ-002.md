@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-PROJ-002
 type: Requirement
-name: Full Re-validation in the Configuration Lens
 title: validate --config shall re-run the full validation rule set over the projected variant
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-CLI-003
 type: Requirement
-name: Agent Instructions Flag
 title: Tool shall print the LLM generation prompt with --agent-instructions
 status: draft
 reqDomain: software

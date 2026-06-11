@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-OUT-011
 type: Requirement
-name: Verification-Depth and Independence Report
 title: Tool shall report per-requirement verification-level depth and gate single-method high-integrity coverage
 status: draft
 reqDomain: software

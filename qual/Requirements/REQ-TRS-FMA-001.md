@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FMA-001
 type: Requirement
-name: Feature Model Boolean Encoding
 title: Tool shall construct the feature model tree and encode it as a deterministic propositional formula
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-ID-003
 type: Requirement
-name: ADR ID Pattern
 title: Tool shall validate that ADR elements carry an ADR-* id
 status: draft
 reqDomain: software

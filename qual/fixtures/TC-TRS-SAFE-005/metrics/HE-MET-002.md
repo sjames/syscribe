@@ -1,7 +1,6 @@
 ---
 id: HE-MET-002
 type: HazardousEvent
-name: HE-MET-002
 title: Loss of actuator response
 status: approved
 severity: S2

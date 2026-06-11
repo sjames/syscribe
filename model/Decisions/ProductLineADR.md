@@ -1,7 +1,6 @@
 ---
 type: ADR
 id: ADR-SYS-PLE-001
-name: ProductLineADR
 title: "Adopt a 150% product-line model with a feature model and per-product configurations"
 status: accepted
 tags:

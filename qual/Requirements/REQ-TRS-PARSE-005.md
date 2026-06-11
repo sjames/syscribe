@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-PARSE-005
 type: Requirement
-name: Index File as Package
 title: Tool shall treat _index.md as the package declaration for its directory
 status: draft
 reqDomain: software

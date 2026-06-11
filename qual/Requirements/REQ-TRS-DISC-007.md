@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-DISC-007
 type: Requirement
-name: list/matrix status, SIL & coverage filters
 title: Tool shall add status/SIL filters, JSON output and gap/coverage views to list and matrix
 status: draft
 reqDomain: software

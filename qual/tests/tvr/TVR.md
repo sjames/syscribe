@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 163 |
-| Passed | 163 |
+| Total test cases | 164 |
+| Passed | 164 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -648,6 +648,17 @@
 | Scenario | Result |
 |---|---|
 | a basic directory name is not flagged | ✓ PASS |
+
+---
+
+### TC-TRS-NAME-002 — Verify the one-label-field rule: E024 (name on id-identified type), E025 (title on name-identified type), FeatureDef id+name clean.
+
+**Verifies:** REQ-TRS-NAME-002  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a FeatureDef with a FEAT id and a name (no title) is clean of both | ✓ PASS |
 
 ---
 

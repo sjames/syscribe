@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-SAFE-004
 type: Requirement
-name: CybersecurityGoal, SecurityControl, and VulnerabilityReport Validation Rules
 title: Tool shall enforce all cybersecurity element validation rules E815-E824, E827-E832, W802-W804, and W807
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-EXTREF-002
 type: Requirement
-name: Lookup and Discoverability of extRef
 title: Tool shall look up elements by extRef via a dedicated command and surface the field
 status: draft
 reqDomain: software

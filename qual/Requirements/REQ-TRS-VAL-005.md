@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAL-005
 type: Requirement
-name: Finding Content
 title: Each validation finding shall include rule code, element reference, and description
 status: draft
 reqDomain: software

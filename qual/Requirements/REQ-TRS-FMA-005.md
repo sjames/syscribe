@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FMA-005
 type: Requirement
-name: Explanations for Void Models and Dead Features
 title: feature-check --deep shall explain unsatisfiability with a sound conflict set
 status: draft
 reqDomain: software

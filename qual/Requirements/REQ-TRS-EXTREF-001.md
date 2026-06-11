@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-EXTREF-001
 type: Requirement
-name: extRef Field and Duplicate Detection (W028)
 title: Tool shall support an optional extRef field on all elements and warn on duplicates
 status: draft
 reqDomain: software

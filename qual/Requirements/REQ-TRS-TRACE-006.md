@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TRACE-006
 type: Requirement
-name: Domain Compatibility Check
 title: "Tool shall emit E313 for incompatible domain/reqDomain in satisfies: links"
 status: draft
 reqDomain: software

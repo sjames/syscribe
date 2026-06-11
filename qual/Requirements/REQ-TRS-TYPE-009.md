@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TYPE-009
 type: Requirement
-name: Allocation Definition
 title: "Tool shall recognise and validate the AllocationDef element"
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-SAFE-005
 type: Requirement
-name: Quantitative HW Safety Metrics (SPFM / LFM / PMHF)
 title: Tool shall compute and gate ISO 26262-5 §8-9 hardware architectural metrics per SafetyGoal
 status: draft
 reqDomain: software

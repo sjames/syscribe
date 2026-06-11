@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TYPE-003
 type: Requirement
-name: Concern Definition and Usage
 title: "Tool shall recognise and validate the ConcernDef and Concern elements"
 status: draft
 reqDomain: software

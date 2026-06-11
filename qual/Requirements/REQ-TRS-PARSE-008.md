@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-PARSE-008
 type: Requirement
-name: YAML 1.2 Parsing
 title: Tool shall parse frontmatter content as YAML 1.2
 status: draft
 reqDomain: software

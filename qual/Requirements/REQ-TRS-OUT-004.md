@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-OUT-004
 type: Requirement
-name: Non-Zero Exit on Errors
 title: Tool shall exit with a non-zero code when Error findings are present
 status: draft
 reqDomain: software

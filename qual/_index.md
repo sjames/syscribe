@@ -1,7 +1,6 @@
 ---
 type: Package
 name: ToolQual
-title: Syscribe Tool Requirements Specification
 version: "0.1"
 status: draft
 ---

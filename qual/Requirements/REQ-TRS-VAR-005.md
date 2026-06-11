@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAR-005
 type: Requirement
-name: Per-Configuration Coverage Validation
 title: Tool shall enforce per-Configuration uncovered-requirement rule W015
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FMA-006
 type: Requirement
-name: Decision Procedure — Determinism, Reproducibility, Bounds, and Scope
 title: Deep analysis shall use a deterministic pure-Rust decision procedure, guard against blow-up, and stay within the Boolean layer
 status: draft
 reqDomain: software

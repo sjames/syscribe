@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-QNAME-001
 type: Requirement
-name: Qualified Name Derivation
 title: Tool shall derive qualified names from directory path and filename stem
 status: draft
 reqDomain: software

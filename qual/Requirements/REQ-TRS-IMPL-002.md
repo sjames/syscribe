@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-IMPL-002
 type: Requirement
-name: Discoverability of implementedBy
 title: Tool shall surface implementedBy in links, refs, spec fields, and the docs
 status: draft
 reqDomain: software

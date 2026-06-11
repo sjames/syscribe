@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TRACE-009
 type: Requirement
-name: Acyclicity of Hierarchical Relationships
 title: Tool shall detect and report cycles in supertype, derivedFrom, and subsets graphs
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAL-011
 type: Requirement
-name: Actionable Findings and Gherkin Scaffolding
 title: Tool shall emit actionable E106/W701 messages and scaffold Gherkin scenarios
 status: draft
 reqDomain: software

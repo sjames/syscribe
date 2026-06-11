@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TYPE-006
 type: Requirement
-name: Analysis Case Usage
 title: "Tool shall recognise and validate the AnalysisCase element"
 status: draft
 reqDomain: software

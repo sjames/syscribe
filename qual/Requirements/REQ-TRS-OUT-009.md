@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-OUT-009
 type: Requirement
-name: Executed-Evidence in Matrix and Trace
 title: matrix and trace shall surface executed-and-passed evidence (W010 results) by default
 status: draft
 reqDomain: software

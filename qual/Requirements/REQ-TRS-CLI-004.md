@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-CLI-004
 type: Requirement
-name: Model Root Resolution and Auto-Discovery
 title: Tool shall resolve the model root by flag, env, walk-up to .syscribe.toml, then default
 status: draft
 reqDomain: software

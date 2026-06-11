@@ -1,7 +1,6 @@
 ---
 id: FTE-SIL-006
 type: FaultTreeEvent
-name: FTE-SIL-006
 eventKind: basic
 title: SignalController software error — clears signal without all conditions true
 ref: System::Software::SignalController

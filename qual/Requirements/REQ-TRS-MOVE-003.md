@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-MOVE-003
 type: Requirement
-name: Move Is Atomic
 title: Tool shall apply a move atomically (all-or-nothing)
 status: draft
 reqDomain: software

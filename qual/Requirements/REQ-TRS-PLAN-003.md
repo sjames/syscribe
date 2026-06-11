@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-PLAN-003
 type: Requirement
-name: TestPlan Membership (Explicit and Selection)
 title: Tool shall compute a TestPlan's effective TestCase set from explicit members plus an additive selection query
 status: draft
 reqDomain: software

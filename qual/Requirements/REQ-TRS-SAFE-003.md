@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-SAFE-003
 type: Requirement
-name: DamageScenario and ThreatScenario Validation Rules
 title: Tool shall enforce all DamageScenario and ThreatScenario validation rules E807-E814 and E826
 status: draft
 reqDomain: software

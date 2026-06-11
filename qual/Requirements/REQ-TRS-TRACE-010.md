@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TRACE-010
 type: Requirement
-name: Unsatisfied Safety-Mechanism Check
 title: Tool shall flag a high-integrity requirement that is draft, unsatisfied, or active in no configuration (W306)
 status: draft
 reqDomain: software

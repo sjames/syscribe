@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FM-004
 type: Requirement
-name: Mandatory Membership Field
 title: Tool shall accept an optional boolean mandatory field on a FeatureDef, orthogonal to groupKind child grouping
 status: draft
 reqDomain: software

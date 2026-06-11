@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FMA-009
 type: Requirement
-name: Variant-Space Count and Enumeration
 title: feature-check shall count and optionally enumerate the valid configurations a feature model permits
 status: draft
 reqDomain: software

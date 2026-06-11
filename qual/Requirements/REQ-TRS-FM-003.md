@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-FM-003
 type: Requirement
-name: Feature Model Parameter Integrity
 title: feature-check shall detect derivedFrom cycles, bindTo propagation range violations, and parameterConstraints path errors
 status: draft
 reqDomain: software

@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-TRACE-005
 type: Requirement
-name: No Parent Assignment
 title: "Tool shall emit E312 when a parent Requirement is used in satisfies:"
 status: draft
 reqDomain: software

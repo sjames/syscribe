@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-PLAN-004
 type: Requirement
-name: TestPlan Demonstrated Goals
 title: Tool shall let a TestPlan declare the safety-case goals it demonstrates and flag goals with no verifying member
 status: draft
 reqDomain: software

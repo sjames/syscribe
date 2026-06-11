@@ -1,7 +1,6 @@
 ---
 id: REQ-TRS-VAL-014
 type: Requirement
-name: Drift Checks Scoped to Active TestCases
 title: Tool shall apply W004/W009 to a TestCase only when its status is active
 status: draft
 reqDomain: software
