@@ -2,6 +2,22 @@
 
 `RELEASES`
 
+## 0.20.0 — 2026-06-11
+
+### Feature stable IDs (`FEAT-*`)
+
+A `FeatureDef` may now carry an optional stable `id` (`FEAT-ABS-001`) as a short-name alias, and a feature can be referenced **by that id or by its qualified name** — interchangeably — in `appliesWhen:` and in a `Configuration`'s `features:` keys (they canonicalise to one key space, so `appliesWhen: FEAT-ABS-001` gates identically to `appliesWhen: Features::Anti_Lock`). A hyphenated feature *name* reference still errors `E209` — only the stable-id form may contain hyphens. (`REQ-TRS-ID-006`.)
+
+### Per-element-type tool-qualification requirements
+
+New `REQ-TRS-TYPE-*` family: every element type now has a dedicated recognition/validation requirement + test, filling the gap for the SysML structural types (`ConstraintDef`/`Constraint`, `CalculationDef`/`Calculation`, `Concern`, `Case`/`AnalysisCase`/`VerificationCase`/`UseCase`, `AllocationDef`, `SuccessionDef`, `RenderingDef`, `State`/`ExhibitState`, `Metadata`, `BindingConnector`, `LibraryPackage`/`Namespace`, `Dependency`, …).
+
+### Fix
+
+- `show`/`list` previously mislabelled 9 recognised element types (`ConcernDef`, `Concern`, `CaseDef`, `EventOccurrenceDef`/`EventOccurrence`, `SuccessionDef`, `RenderingDef`, `ExhibitState`, `BindingConnector`) as **"Other"** — the `type_label` fallthrough now names them.
+
+Suite at **163** test cases, all passing.
+
 ## 0.19.0 — 2026-06-11
 
 ### Basic-name validation now covers package/directory names (GH #42)
