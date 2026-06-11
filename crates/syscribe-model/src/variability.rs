@@ -112,6 +112,13 @@ fn tokenize(s: &str) -> Result<Vec<Tok>, String> {
                     _ => toks.push(Tok::Ident(word)),
                 }
             }
+            '-' => {
+                return Err(
+                    "unexpected character '-' in appliesWhen — feature names must be SysMLv2 basic \
+                     names (letters/digits/_); rename hyphenated features using '_' or CamelCase (W042)"
+                        .to_string(),
+                )
+            }
             other => return Err(format!("unexpected character '{}' in appliesWhen", other)),
         }
     }

@@ -377,7 +377,7 @@ Key fields that apply to most element types:
 | Field | Notes |
 |---|---|
 | `type` | Required — one of the types in Part 2 |
-| `name` | Display name; defaults to filename stem if omitted |
+| `name` | Display name; defaults to filename stem. **Must be a SysMLv2 basic name** `[A-Za-z_][A-Za-z0-9_]*` — letters/digits/`_`, no hyphens or spaces (use `_` or CamelCase: `Anti_Lock`, not `Anti-Lock`). A hyphen breaks `appliesWhen`/`parameterConstraints` references; non-basic names warn `W042`. Stable ids (REQ-*, …) are exempt. |
 | `supertype` | Specialisation link (`>` in SysML) |
 | `typedBy` | Type of a usage element (port, part, action, etc.) |
 | `isAbstract` | `true` for abstract definitions |

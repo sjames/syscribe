@@ -12,6 +12,7 @@ Normative requirements for the Syscribe tool. Grouped by functional area:
 | `REQ-TRS-XREF` | Cross-reference resolution (§11.5–11.6) |
 | `REQ-TRS-ELEM` | Element type handling (§2, §11.4) |
 | `REQ-TRS-ID` | ID scheme validation (§8.11, §8.12, §8.15) |
+| `REQ-TRS-NAME` | Element naming convention — SysMLv2 basic-name grammar (`W042`) |
 | `REQ-TRS-VAL` | Validation rule enforcement (§11.12) |
 | `REQ-TRS-TRACE` | Traceability rules (§12) |
 | `REQ-TRS-IMPL` | Architecture↔code implementation linkage: `implementedBy` field, `W023` path-exists, discoverability (GH #13) |

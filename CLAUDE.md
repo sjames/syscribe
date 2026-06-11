@@ -119,6 +119,10 @@ supertype: VehicleSystem::Chassis
 subsets: [Interfaces::PowerInterface]
 ```
 
+### Name Scheme
+
+Element **names** (the file/directory stem, which becomes the last qualified-name segment) follow the SysMLv2 **basic-name** grammar: `^[A-Za-z_][A-Za-z0-9_]*$` — letters, digits and `_`, not starting with a digit. **No hyphens or spaces** (a hyphen is the subtraction operator in `appliesWhen`/`parameterConstraints` expressions, so a hyphenated name cannot be referenced there). A non-basic name raises warning `W042`; rename using `_` or CamelCase (`Anti-Lock` → `Anti_Lock`/`AntiLock`). Stable ids (below) are exempt — they legitimately contain `-`.
+
 ### ID Scheme
 
 SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file path if omitted. `Requirement` and `TestCase` carry a **stable opaque identifier** that must be explicitly set and never changes.

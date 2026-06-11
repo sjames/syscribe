@@ -6,8 +6,8 @@ use crate::config::ValidateConfig;
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
 use crate::resolver::{
-    is_adr_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_cm_id, is_conf_id,
-    is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
+    is_adr_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
+    is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
     is_req_id, is_sc_id, is_sg_id, is_stable_id, is_tara_id, is_tc_id, is_test_plan_id, is_ts_id,
     is_vr_id, Resolver,
 };
@@ -214,6 +214,24 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         ),
                     ));
                 }
+            }
+        }
+
+        // W042: an element name that is not a SysMLv2 basic name (REQ-TRS-NAME-001 /
+        // GH #42). The element's own name is the last `::` segment of its qualified
+        // name; stable ids (REQ-*, TC-*, …) legitimately contain '-' and are exempt.
+        // A non-basic name cannot be referenced in the tokenized expression contexts
+        // (appliesWhen, parameterConstraints), where '-' is the subtraction operator.
+        if let Some(seg) = elem.qualified_name.rsplit("::").next() {
+            if !seg.is_empty() && !is_basic_name(seg) && !is_stable_id(seg) {
+                findings.push(warning(
+                    "W042",
+                    &file,
+                    &format!(
+                        "name '{}' is not a SysMLv2 basic name (letters/digits/_, not starting with a digit); rename using '_' or CamelCase",
+                        seg
+                    ),
+                ));
             }
         }
 

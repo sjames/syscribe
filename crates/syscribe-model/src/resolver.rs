@@ -83,6 +83,17 @@ fn vr_re() -> &'static regex::Regex {
     VR_RE.get_or_init(|| regex::Regex::new(r"^VR(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
+static BASIC_NAME_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+
+/// True when `s` is a SysMLv2 **basic name**: a letter or `_`, then letters, digits
+/// or `_` (`^[A-Za-z_][A-Za-z0-9_]*$`). Hyphens, spaces and other punctuation are not
+/// permitted — such names must be renamed (REQ-TRS-NAME-001 / `W042`).
+pub fn is_basic_name(s: &str) -> bool {
+    BASIC_NAME_RE
+        .get_or_init(|| regex::Regex::new(r"^[A-Za-z_][A-Za-z0-9_]*$").unwrap())
+        .is_match(s)
+}
+
 /// Returns true when `s` matches any known stable-ID pattern.
 pub fn is_stable_id(s: &str) -> bool {
     req_re().is_match(s)

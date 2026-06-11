@@ -284,3 +284,9 @@ A duplicate `TestPlan` `id` is the generic `E101` (duplicate stable id).
 | Code | Severity | Condition |
 |---|---|---|
 | `W041` | warning | a `custom_fields` value is not a scalar or a list of scalars (e.g. a nested map); names the offending key |
+
+## Naming (W042)
+
+| Code | Severity | Condition |
+|---|---|---|
+| `W042` | warning | An element's own name (last `::` segment of its qualified name) is not a SysMLv2 **basic name** (`[A-Za-z_][A-Za-z0-9_]*`) and is not a stable id. Hyphens/spaces/punctuation are not allowed — rename using `_` or CamelCase. Such a name cannot be referenced in `appliesWhen`/`parameterConstraints` (where `-` is the subtraction operator). |

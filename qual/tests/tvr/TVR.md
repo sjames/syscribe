@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** unknown  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-06-10  
+**Date:** 2026-06-11  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 145 |
-| Passed | 145 |
+| Total test cases | 146 |
+| Passed | 146 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -626,6 +626,17 @@
 | Scenario | Result |
 |---|---|
 | id-based reference is not rewritten and still resolves | ✓ PASS |
+
+---
+
+### TC-TRS-NAME-001 — Verify SysMLv2 basic-name validation: W042 on non-basic names, exempting stable ids; hyphenated appliesWhen still E209.
+
+**Verifies:** REQ-TRS-NAME-001  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a hyphenated appliesWhen reference still raises E209 | ✓ PASS |
 
 ---
 
