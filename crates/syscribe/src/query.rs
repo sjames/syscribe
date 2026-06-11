@@ -137,6 +137,16 @@ pub fn type_label(et: &ElementType) -> &'static str {
         ElementType::SecurityControl => "SecurityControl",
         ElementType::VulnerabilityReport => "VulnerabilityReport",
         ElementType::ConfirmationMeasure => "ConfirmationMeasure",
+        // Previously fell through to "Other" (mislabelled in show/list) — GH #42 follow-up.
+        ElementType::ConcernDef => "ConcernDef",
+        ElementType::Concern => "Concern",
+        ElementType::CaseDef => "CaseDef",
+        ElementType::EventOccurrenceDef => "EventOccurrenceDef",
+        ElementType::EventOccurrence => "EventOccurrence",
+        ElementType::SuccessionDef => "SuccessionDef",
+        ElementType::RenderingDef => "RenderingDef",
+        ElementType::ExhibitState => "ExhibitState",
+        ElementType::BindingConnector => "BindingConnector",
         _ => "Other",
     }
 }

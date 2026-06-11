@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 146 |
-| Passed | 146 |
+| Total test cases | 162 |
+| Passed | 162 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1456,6 +1456,198 @@
 | W306 message names the sub-conditions | ✓ PASS |
 | a fully-integrated high-integrity requirement produces no W306 | ✓ PASS |
 | W306 is gateable with --deny | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-001 — Verify ConstraintDef and Constraint are recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-001  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| sibling file with bogus type produces E005 | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-002 — Verify CalculationDef and Calculation are recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-002  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| sibling file with bogus type produces E005 | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-003 — Verify ConcernDef and Concern are recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-003  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| show renders the declared type (GH #42 type_label) | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-004 — Verify EventOccurrenceDef and EventOccurrence are recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-004  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| show renders the declared type (GH #42 type_label) | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-005 — Verify CaseDef is recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-005  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| show renders the declared type (GH #42 type_label) | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-006 — Verify AnalysisCase is recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-006  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| sibling file with bogus type produces E005 | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-007 — Verify VerificationCase is recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-007  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| sibling file with bogus type produces E005 | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-008 — Verify UseCase is recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-008  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| sibling file with bogus type produces E005 | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-009 — Verify AllocationDef is recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-009  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| sibling file with bogus type produces E005 | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-010 — Verify SuccessionDef is recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-010  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| show renders the declared type (GH #42 type_label) | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-011 — Verify RenderingDef is recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-011  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| show renders the declared type (GH #42 type_label) | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-012 — Verify State and ExhibitState are recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-012  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| show renders the declared type (GH #42 type_label) | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-013 — Verify Metadata is recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-013  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| sibling file with bogus type produces E005 | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-014 — Verify BindingConnector is recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-014  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| show renders the declared type (GH #42 type_label) | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-015 — Verify LibraryPackage and Namespace are recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-015  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| sibling file with bogus type produces E005 | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-016 — Verify Dependency is recognised and validated without E005.
+
+**Verifies:** REQ-TRS-TYPE-016  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export reports each element at its declared type | ✓ PASS |
+| sibling file with bogus type produces E005 | ✓ PASS |
 
 ---
 
