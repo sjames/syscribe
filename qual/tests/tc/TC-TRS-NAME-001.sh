@@ -17,4 +17,12 @@ tc_TRS_NAME_001() {
 
     SCENARIO_NAME="a hyphenated appliesWhen reference still raises E209"; printf "  ▶ %s\n" "$SCENARIO_NAME"
     assert_has_code "E209"
+
+    SCENARIO_NAME="a hyphenated directory (no _index.md) raises W042 on the directory"; printf "  ▶ %s\n" "$SCENARIO_NAME"
+    printf '%s' "$SCENARIO_OUTPUT" | grep -F "| W042 |" | grep -qF "Brake-System" \
+        && pass "W042 names the un-indexed hyphenated directory" || fail "W042 does not name Brake-System"
+
+    SCENARIO_NAME="a basic directory name is not flagged"; printf "  ▶ %s\n" "$SCENARIO_NAME"
+    printf '%s' "$SCENARIO_OUTPUT" | grep -F "| W042 |" | grep -qF "Powertrain" \
+        && fail "W042 wrongly flagged a basic directory" || pass "basic directory not flagged"
 }

@@ -632,11 +632,11 @@
 ### TC-TRS-NAME-001 — Verify SysMLv2 basic-name validation: W042 on non-basic names, exempting stable ids; hyphenated appliesWhen still E209.
 
 **Verifies:** REQ-TRS-NAME-001  
-**Result:** ✓ PASS (5 passed, 0 failed)
+**Result:** ✓ PASS (7 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
-| a hyphenated appliesWhen reference still raises E209 | ✓ PASS |
+| a basic directory name is not flagged | ✓ PASS |
 
 ---
 

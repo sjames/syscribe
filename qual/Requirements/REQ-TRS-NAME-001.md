@@ -21,12 +21,21 @@ every reference context — including the tokenized expression contexts (`applie
 
 ### Validation
 
+- The basic-name rule applies to **every** qualified-name segment — both an
+  element's **own name** and the **package / directory (namespace) segments** above
+  it — because each is a referenceable segment.
 - For each element, the tool **shall** check the element's **own name** (the final
   `::`-segment of its qualified name). A segment that is **neither** a basic name
   **nor** a stable id (`REQ-*`, `TC-*`, `TP-*`, `ADR-*`, and the safety/security ids,
   which legitimately contain `-`) **shall** raise warning **`W042`**, naming the
   segment and recommending `_` or CamelCase (e.g. `Anti-Lock` → `Anti_Lock` /
   `AntiLock`).
+- A **package / directory** name **shall** likewise be checked. A package declared
+  with an `_index.md` is covered by the own-name check above (the `_index` element's
+  own name is the directory name). A directory **without** an `_index.md` owns no
+  element, so the tool **shall** additionally check each ancestor (namespace)
+  segment and raise `W042` once per distinct non-conforming directory name,
+  attributed to the directory.
 - `W042` is a **warning** (advisory, gateable with `--deny W042`) so existing models
   with non-conforming names have a migration path rather than a hard break.
 - The existing `E209` (invalid `appliesWhen` expression) continues to reject a
@@ -47,6 +56,9 @@ every reference context — including the tokenized expression contexts (`applie
   raises `W042` naming the segment; the same element renamed `Anti_Lock` or
   `AntiLock` raises no `W042`.
 - A stable-id-named element (e.g. file `REQ-PWR-001.md`) raises **no** `W042` despite
-  the hyphens in its id.
+  the hyphens in its id — only its **containing directories** must be basic names.
+- A hyphenated **directory** name (both an `_index.md` package and a directory
+  without one) raises `W042`, attributed to the directory; a basic directory name
+  (`Good_Pkg`) does not.
 - A hyphenated `appliesWhen` reference (`Features::Anti-Lock`) still raises `E209`.
 - A model whose names are all basic (or stable ids) produces no `W042`.

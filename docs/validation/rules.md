@@ -656,4 +656,4 @@ A duplicate `TestPlan` `id` is the generic `E101`.
 
 | Code | Condition |
 |---|---|
-| W042 | An element's own name (last `::` segment of its qualified name) is not a SysMLv2 basic name (`[A-Za-z_][A-Za-z0-9_]*`) and is not a stable id; rename using `_` or CamelCase. Hyphenated names cannot be referenced in `appliesWhen`/`parameterConstraints` (`-` is the subtraction operator). |
+| W042 | A qualified-name segment — an element's own name or a package/directory name — is not a SysMLv2 basic name (`[A-Za-z_][A-Za-z0-9_]*`) and is not a stable id; rename using `_` or CamelCase. Hyphenated names cannot be referenced in `appliesWhen`/`parameterConstraints` (`-` is the subtraction operator). |

@@ -131,6 +131,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     let mut findings: Vec<Finding> = Vec::new();
     let resolver = Resolver::new(elements);
 
+    // Segments some element claims as its own name (covers element names and
+    // `_index.md` packages). A directory WITHOUT an `_index.md` owns no element,
+    // so its namespace segment is W042-checked separately in the loop (GH #42).
+    let owned_names: std::collections::HashSet<&str> = elements
+        .iter()
+        .filter_map(|e| e.qualified_name.rsplit("::").next())
+        .collect();
+    let mut flagged_dir_names: std::collections::HashSet<String> = std::collections::HashSet::new();
+
     // ── Parse-time checks (per-element) ──────────────────────────────────────
 
     for elem in elements {
@@ -229,6 +238,39 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     &file,
                     &format!(
                         "name '{}' is not a SysMLv2 basic name (letters/digits/_, not starting with a digit); rename using '_' or CamelCase",
+                        seg
+                    ),
+                ));
+            }
+        }
+
+        // W042 (namespace/directory segments): an ANCESTOR segment of this element's
+        // qualified name that no element owns — a directory without an `_index.md` —
+        // is still a referenceable namespace segment, so it must be a basic name too.
+        // Flagged once per distinct directory name, attributed to the directory.
+        let segs: Vec<&str> = elem.qualified_name.split("::").collect();
+        if segs.len() >= 2 {
+            for seg in &segs[..segs.len() - 1] {
+                if seg.is_empty()
+                    || owned_names.contains(seg)
+                    || flagged_dir_names.contains(*seg)
+                    || is_basic_name(seg)
+                    || is_stable_id(seg)
+                {
+                    continue;
+                }
+                flagged_dir_names.insert((*seg).to_string());
+                let parts: Vec<&str> = elem.file_path.split('/').collect();
+                let dir = parts
+                    .iter()
+                    .position(|p| p == seg)
+                    .map(|i| parts[..=i].join("/"))
+                    .unwrap_or_else(|| file.clone());
+                findings.push(warning(
+                    "W042",
+                    &dir,
+                    &format!(
+                        "namespace/directory name '{}' is not a SysMLv2 basic name (letters/digits/_); rename the directory using '_' or CamelCase",
                         seg
                     ),
                 ));
