@@ -5064,6 +5064,8 @@ Given a file at path `<root>/<seg1>/<seg2>/.../<segN>/<filename>.md`:
 
 If `model/VehicleSystem/_index.md` contains `name: VS`, the qualified name becomes `VS::Powertrain::Engine`.
 
+> **The model-root package `name:` is not part of qualified names.** Qualified names are derived *relative to the model root*, and the root package (the root `_index.md`) contributes **no** segment (step 5 above). A cross-reference therefore starts at the first sub-namespace — e.g. `VehicleSystem::Powertrain::Engine`, **never** `<RootName>::VehicleSystem::Powertrain::Engine` even when the root `_index.md` declares `name: <RootName>`. Writing the root package name as the leading segment is a common authoring mistake (humans and LLMs alike); when an unresolved cross-reference begins with the root package name followed by `::` and the *stripped* remainder resolves, the tool appends a diagnostic hint naming the corrected reference (REQ-TRS-XREF-006). The hint is advisory only — it adds explanatory text to the existing unresolved-reference finding (`E102`/`E103`/`E311`/`E316`/`E502`/`E503` and the structural supertype/typedBy/subsets/redefines/connection resolution errors); it never changes resolution and never rewrites the model. The hint does not fire when the root package has no `name:`, nor when stripping the prefix still does not resolve.
+
 ### 11.4 Implicit Supertype Rules
 
 When no `supertype:` is given on a definition element, the parser implicitly applies the following base library supertypes. These defaults match the SysML standard library implicit specialization rules (§7.6.8 of the SysML spec). When `supertype:` is explicitly provided, it replaces (not supplements) the implicit default.
@@ -5244,7 +5246,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E313` | A `satisfies:` link connects an architecture element and a requirement whose `domain` / `reqDomain` values are incompatible (e.g., a `software` element satisfying a `hardware` requirement) |
 | `E314` | A `Part` or `PartDef` with `isDeploymentPackage: true` has no `Allocation` to a `hardware` element |
 | `E315` | An element with `domain: software` has a `supertype:` or `typedBy:` reference that resolves to an element with `domain: hardware`, or vice versa — cross-domain direct reference; use `Allocation` instead |
-| `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef` (names the offending operand, owning use case, and resolved type). Base-format check — runs regardless of the MagicGrid profile (REQ-TRS-MG-001) |
+| `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` — or on a behavioral definition `ActionDef`/`Action`/`StateDef`/`State` (REQ-TRS-MG-010) — does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef` (names the offending operand, owning element, and resolved type). Base-format check — runs regardless of the MagicGrid profile (REQ-TRS-MG-001). The `refinedBy` reverse index includes refining behavioral elements alongside refining use cases; the `W307` "missing refines" warning stays scoped to `UseCaseDef` |
 
 #### Warnings
 
@@ -5269,9 +5271,15 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W029` | A non-draft `Requirement` with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no active **measuring** `TestCase` (testLevel `L5`, or tagged `timing`/`wcet`) verifies it. The timing-evidence analog of `W702`. Gateable with `--deny W029`; query with `list --has-wcet` |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
 
-#### MagicGrid gate (`MG###`, REQ-TRS-MG-002..005)
+#### MagicGrid gate (`MG###`, REQ-TRS-MG-002..011)
 
 The `MG###` namespace is **opt-in**: these checks fire only under the MagicGrid profile (`[profiles.<name>] magicgrid = true`, e.g. `validate --profile magicgrid`). The data they validate rides on `mg_`-prefixed `custom_fields:` and the base `actors:` field, all of which stay inert in the base format. All `MG###` findings are Error severity.
+
+**MagicGrid overlay fields (`custom_fields:`).** In addition to `mg_external`, `mg_cell`, `mg_moe*`, and `mg_layer`, three further markers are recognised (all flat scalars, inert in the base format):
+
+- **`mg_mop` (bool)** — marks the host (a `CalculationDef`/`ConstraintDef`/`AnalysisCase`) as a **Measurement of Performance** (MoP, cells W4/S4), with `mg_mop_refines` (the black-box `mg_moe` MoE it refines, resolved by qname or id) and optional `mg_mop_unit`. The tool computes the inverse index **`mopRefinedBy`** on each MoE — the MoPs that refine it — surfaced in `show` (and the JSON `computed` block) alongside `refinedBy`/`actorIn`, so the MoE→MoP measurement chain is navigable from the MoE (REQ-TRS-MG-008).
+- **`mg_soi` (bool)** — marks the **System of Interest** `Part`/`PartDef` (cell B3 boundary). Zero markers is not an error; when exactly one is present the `magicgrid` report identifies it (a `System of interest:` line, and a `systemOfInterest` JSON field) (REQ-TRS-MG-009).
+- **`mg_variant` (bool)** — marks a `Configuration` as a MagicGrid **parametric variant**, relaxing the `featureModel:` requirement (`E201`): such a Configuration denotes the empty feature selection (identity projection) and is differentiated solely by its `parameterBindings`. `validate --config`, `matrix`, `diff`, and `trade-study` treat it as a normal configuration column (REQ-TRS-MG-011).
 
 | Code | Condition |
 |---|---|
@@ -5288,6 +5296,13 @@ The `MG###` namespace is **opt-in**: these checks fire only under the MagicGrid 
 | `MG040` | `custom_fields.mg_layer` is present on a `Part`/`PartDef` and is not `logical` or `physical` |
 | `MG041` | A `Part`/`PartDef` with `mg_layer: logical` has no `Allocation` to a `physical` element |
 | `MG042` | A `logical` and a `physical` `Part`/`PartDef` share a direct `supertype:`/`typedBy:` link — relate the layers only through an explicit `Allocation` |
+| `MG050` | `custom_fields.mg_mop: true` (a Measurement of Performance) on an element that is not a `CalculationDef`, `ConstraintDef`, or `AnalysisCase` (REQ-TRS-MG-008) |
+| `MG051` | `mg_mop_refines` is absent, or does not resolve (by qname/id, §11.10) to a model element |
+| `MG052` | `mg_mop_refines` resolves to an element that is not marked `custom_fields: { mg_moe: true }` — a MoP must refine an MoE |
+| `MG060` | `custom_fields.mg_soi: true` (the System of Interest) on an element that is not a `Part`/`PartDef` (REQ-TRS-MG-009) |
+| `MG061` | More than one element in the model is marked `mg_soi: true` — a MagicGrid model has a single system of interest |
+| `MG062` | An element is marked **both** `mg_soi: true` and `mg_external: true` — the SoI cannot also be external to itself |
+| `MG070` | `custom_fields.mg_variant: true` on an element that is not a `Configuration` (REQ-TRS-MG-011) |
 
 #### Integrity-level propagation errors (E841–E843)
 

@@ -26,8 +26,14 @@ The text report prints the full grid, lists and counts the elements classified
 into each cell, and marks **empty cells** (a model-completeness hint, not an
 error), ending with a count of empty cells.
 
+When exactly one element is marked `custom_fields: { mg_soi: true }` — the System
+of Interest, the single black-box (B3) system block — the report prints a
+**`System of interest: <name> (B3)`** line. Zero markers is not an error; more than
+one is flagged `MG061` under the gated profile.
+
 `--json` emits the same structure: a `cells` object keyed by coordinate
-(e.g. `"B2"`), the row/column axes, and the empty-cell count.
+(e.g. `"B2"`), the row/column axes, the empty-cell count, and a
+`systemOfInterest` field (the SoI element, or null).
 
 ## Examples
 

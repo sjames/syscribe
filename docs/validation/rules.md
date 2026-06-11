@@ -166,7 +166,7 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 | E303 | `domain` value is not `system · hardware · software` |
 | E304 | ADR `status` is not `proposed · accepted · deprecated · superseded` |
 
-## Traceability warnings (W300–W306)
+## Traceability warnings (W300–W307)
 
 | Code | Condition |
 |---|---|
@@ -177,8 +177,9 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 | W304 | `isDeploymentPackage: true` combined with `domain: hardware` |
 | W305 | Parent Requirement (has `derivedFrom` children) at `approved`, `implemented`, or `verified` has no active TestCase at `testLevel: L3`, `L4`, or `L5` — leaf-level tests on derived requirements are not sufficient to verify emergent composed behaviour |
 | W306 | **Unsatisfied safety mechanism** — a high-integrity Requirement (`silLevel >= 4` or `asilLevel: D`) that is **not** a fully integrated safety mechanism: `status: draft`, **or** (for a **leaf**) no element satisfies it, **or** (with a feature model) active in no `Configuration`. The "unsatisfied" sub-condition applies to leaves only — a **parent** (has `derivedChildren`) is satisfied transitively and can't be satisfied directly (`E312`), so it is never flagged unsatisfied. Message names the triggering sub-condition(s). Gate with `--deny W306`. (Threshold/sub-condition tuning rides with severity profiles, #18.) |
+| W307 | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gate with `--deny W307` and promote it to a gate failure via the `[profiles.magicgrid]` profile. See the [MagicGrid](#magicgrid-overlay-e316-w307-mg010mg070) section. |
 
-## §12 Traceability errors (E310–E315)
+## §12 Traceability errors (E310–E316)
 
 | Code | Condition |
 |---|---|
@@ -188,6 +189,7 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 | E313 | `satisfies` domain mismatch: element domain ≠ requirement `reqDomain` |
 | E314 | `isDeploymentPackage: true` element has no Allocation to a hardware element |
 | E315 | Cross-domain `supertype:` or `typedBy:` reference — use Allocation instead |
+| E316 | A `refines:` operand on a `UseCaseDef`/`UseCase` — or on a behavioral definition `ActionDef`/`Action`/`StateDef`/`State` — does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef`. **Base-format check** — runs regardless of the MagicGrid profile. The `refinedBy` reverse index includes refining behavioral elements alongside refining use cases. |
 
 ## §12.8 Implementation trace (W023)
 
@@ -653,6 +655,52 @@ A duplicate `TestPlan` `id` is the generic `E101`.
 | Code | Condition |
 |---|---|
 | W041 | a `custom_fields` value is not a scalar or a list of scalars (e.g. a nested map); names the offending key |
+
+## MagicGrid overlay (E316, W307, MG010–MG070)
+
+The MagicGrid method is supported as a **`custom_fields:` overlay** — see the
+[MagicGrid guide](../model-guide/magicgrid.md). The `MG###` namespace is **opt-in**:
+these checks fire only under the MagicGrid profile (`[profiles.<name>] magicgrid = true`,
+e.g. `validate --profile magicgrid`). They validate `mg_`-prefixed `custom_fields:`
+and the base `actors:` field, all of which stay inert in the base format. All
+`MG###` findings are **Error** severity. `E316` (above) is a base-format check that
+always runs; `W307` (above) is advisory until promoted.
+
+| Code | Condition |
+|---|---|
+| MG010 | An `actors:` entry (on a `UseCaseDef`/`UseCase`/use-case-style `RequirementDef`/`Requirement`) resolves to no model element |
+| MG011 | An `actors:` entry resolves to an element that is not a `Part`/`PartDef` |
+| MG012 | A referenced actor `Part`/`PartDef` is not marked `custom_fields: { mg_external: true }` — a non-external actor is a B3 modelling error |
+| MG013 | A non-`draft` `UseCaseDef` declares an empty or absent `actors:` list |
+| MG020 | `custom_fields.mg_cell` is not one of the recognised coordinates `B1`–`B4`, `W1`–`W4`, `S1`–`S4` |
+| MG021 | An element's `type` is incompatible with the pillar implied by its `mg_cell` column (col1→Requirement; col2→UseCase/Action/State; col3→Part/Port/Interface/Connection; col4→Constraint/Calculation/AnalysisCase) |
+| MG030 | `custom_fields.mg_moe: true` on an element that is not a `CalculationDef` or `AnalysisCase` |
+| MG031 | `mg_moe_measures` is absent, or does not resolve to a `Requirement`/`RequirementDef` |
+| MG032 | `mg_moe_direction` is absent or not `maximize`/`minimize` |
+| MG033 | `mg_moe_threshold`/`mg_moe_objective` not numeric or inconsistent with the direction (`maximize` ⇒ objective ≥ threshold; `minimize` ⇒ objective ≤ threshold); or `mg_moe_weight` present and not numeric in `[0, 1]` |
+| MG040 | `custom_fields.mg_layer` is present on a `Part`/`PartDef` and is not `logical` or `physical` |
+| MG041 | A `Part`/`PartDef` with `mg_layer: logical` has no `Allocation` to a `physical` element |
+| MG042 | A `logical` and a `physical` `Part`/`PartDef` share a direct `supertype:`/`typedBy:` link — relate the layers only through an explicit `Allocation` |
+| MG050 | `custom_fields.mg_mop: true` (a Measurement of Performance) on an element that is not a `CalculationDef`, `ConstraintDef`, or `AnalysisCase` |
+| MG051 | `mg_mop_refines` is absent, or does not resolve (by qname/id) to a model element |
+| MG052 | `mg_mop_refines` resolves to an element that is not marked `custom_fields: { mg_moe: true }` — a MoP must refine an MoE |
+| MG060 | `custom_fields.mg_soi: true` (the System of Interest) on an element that is not a `Part`/`PartDef` |
+| MG061 | More than one element in the model is marked `mg_soi: true` — a MagicGrid model has a single system of interest |
+| MG062 | An element is marked **both** `mg_soi: true` and `mg_external: true` — the SoI cannot also be external to itself |
+| MG070 | `custom_fields.mg_variant: true` on an element that is not a `Configuration` |
+
+**Root-name cross-reference hint (`REQ-TRS-XREF-006`).** Qualified names are derived
+relative to the model root, so the root package (`_index.md`) contributes **no**
+segment — a reference starts at the first sub-namespace
+(e.g. `ProblemDomain::WhiteBox::…`), never `<RootName>::ProblemDomain::…`. When an
+unresolved cross-reference begins with the root package's `name:` followed by `::`
+and the *stripped* remainder resolves, the tool appends a diagnostic **hint** naming
+the corrected reference. The hint augments the existing unresolved-reference finding
+(`E102`/`E103`/`E311`/`E316`/`E502`/`E503` and the structural
+supertype/typedBy/subsets/redefines/connection resolution errors); it is advisory
+only — it never changes resolution and never rewrites the model. It does not fire
+when the root package has no `name:`, nor when stripping the prefix still does not
+resolve.
 
 ## Naming (W042)
 

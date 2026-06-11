@@ -61,6 +61,10 @@ fn element_json(
     if let Some(ucs) = result.actor_in.get(mg_key) {
         computed.insert("actorIn".into(), serde_json::json!(ucs));
     }
+    // REQ-TRS-MG-008 — mopRefinedBy: the MoPs refining this MoE.
+    if let Some(mops) = result.mop_refined_by.get(mg_key) {
+        computed.insert("mopRefinedBy".into(), serde_json::json!(mops));
+    }
 
     let mut obj = serde_json::Map::new();
     obj.insert("qname".into(), serde_json::json!(elem.qualified_name));

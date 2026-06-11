@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 173 |
-| Passed | 173 |
+| Total test cases | 178 |
+| Passed | 178 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -692,6 +692,50 @@
 | Scenario | Result |
 |---|---|
 | the trade study emits JSON | ✓ PASS |
+
+---
+
+### TC-TRS-MG-008 — Verify MoP validation: clean MoP + mopRefinedBy index; MG050 wrong host, MG051 refines missing/unresolved, MG052 target not an MoE; inert without the gate.
+
+**Verifies:** REQ-TRS-MG-008  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| mg_mop fields are inert without the gate | ✓ PASS |
+
+---
+
+### TC-TRS-MG-009 — Verify SoI marker: single SoI clean + identified in magicgrid report; MG060 wrong host, MG061 multiple SoI, MG062 also external; inert without the gate.
+
+**Verifies:** REQ-TRS-MG-009  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| mg_soi is inert without the gate | ✓ PASS |
+
+---
+
+### TC-TRS-MG-010 — Verify refines on behavioral defs: ActionDef/StateDef refine resolves + refinedBy; E316 on bad target; no W307 on a behavioral def.
+
+**Verifies:** REQ-TRS-MG-010  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a behavioral def with no refines raises no W307 | ✓ PASS |
+
+---
+
+### TC-TRS-MG-011 — Verify mg_variant Configuration: no E201 without featureModel when marked; E201 still fires unmarked; trade-study scores it; identity projection; MG070 on non-Configuration.
+
+**Verifies:** REQ-TRS-MG-011  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| mg_variant on a non-Configuration raises MG070 under the gate | ✓ PASS |
 
 ---
 
@@ -2140,5 +2184,16 @@
 | Scenario | Result |
 |---|---|
 | verifies: resolves by stable id: regardless of file path | ✓ PASS |
+
+---
+
+### TC-TRS-XREF-006 — Verify root-package-name hint: unresolved ref prefixed with the root name (stripped form resolves) gets a hint; correct ref no finding; non-matching ref no hint.
+
+**Verifies:** REQ-TRS-XREF-006  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an unresolved reference not starting with the root name gets no hint | ✓ PASS |
 
 ---

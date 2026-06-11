@@ -737,6 +737,31 @@ pub fn cmd_show(
         }
     }
 
+    // Refined by — MoPs (MagicGrid mopRefinedBy, REQ-TRS-MG-008) — the
+    // Measurements of Performance whose `mg_mop_refines:` names this MoE. Keyed by
+    // stable id when present, else qname (matches the validator's index_key).
+    let mop_key = fm.id.as_deref().unwrap_or(elem.qualified_name.as_str());
+    if let Some(mops) = val.mop_refined_by.get(mop_key) {
+        if !mops.is_empty() {
+            println!();
+            println!("## Refined by (MoP)");
+            println!();
+            println!("| MoP | Type | Status |");
+            println!("|---|---|---|");
+            let mut sorted = mops.clone();
+            sorted.sort();
+            for mop_ref in &sorted {
+                if let Some(mop) = resolve(elements, resolver, mop_ref) {
+                    let ty = tl(mop.frontmatter.element_type.as_ref());
+                    let st = mop.frontmatter.status.as_deref().unwrap_or("—");
+                    println!("| {} | {} | {} |", mop_ref, ty, st);
+                } else {
+                    println!("| {} | (not found) | — |", mop_ref);
+                }
+            }
+        }
+    }
+
     // Actor participation (MagicGrid actorIn, REQ-TRS-MG-002) — surfaced like the
     // requirement reverse indices: the use cases that name this part as an actor.
     // Keyed by stable id when present, else qualified name (matches the validator).

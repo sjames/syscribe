@@ -2,7 +2,42 @@
 
 `RELEASES`
 
-## 0.21.0 — 2026-06-11
+## 0.21.0 — 2026-06-12
+
+### MagicGrid methodology support (opt-in overlay)
+
+The [MagicGrid](../model-guide/magicgrid.md) MBSE method (Morkevičius/Aleksandravičienė)
+is now expressible as a pure **overlay** on the SysMLv2 model: all MagicGrid-specific data
+rides on `custom_fields:` with an `mg_` prefix, and every MagicGrid-specific validation is
+gated behind a `[profiles.magicgrid]` profile (`magicgrid = true`) — non-MagicGrid models
+are entirely unaffected.
+
+- **Grid classification & report** — `mg_cell` places elements on the B/W/S × Requirements/
+  Behavior/Structure/Parameters grid (`MG020`/`MG021`); the new `magicgrid` command renders
+  the grid, flags empty cells, and identifies the **System of Interest** (`mg_soi`, B3).
+- **Traceability** — `refines:` is a base-format link on use cases **and** behavioral defs
+  (`ActionDef`/`StateDef`) with `E316` (bad target), `W307` (a non-draft use case with no
+  refinement, draft-suppressed) and a computed `refinedBy` index.
+- **System Context** — use-case `actors:` are gate-validated (`MG010`–`MG013`) with an
+  `mg_external` boundary marker and the `mg_soi` System-of-Interest marker (`MG060`–`MG062`).
+- **Measures** — Measures of Effectiveness (`mg_moe`/`mg_moe_*`, `MG030`–`MG033`) and
+  Measurements of Performance (`mg_mop`/`mg_mop_refines`, `MG050`–`MG052`) with a
+  `mopRefinedBy` index linking MoPs to the MoEs they refine.
+- **Solution architecture** — `mg_layer` logical/physical layering (`MG040`–`MG042`) and the
+  new `matrix --allocations` view (function→structure and logical→physical, with a gap
+  rollup).
+- **Trade study** — the new `trade-study` command scores and ranks `Configuration`s against
+  the MoEs (weighted, threshold-aware). A `Configuration` marked `mg_variant: true` is a
+  **parametric variant** that may omit `featureModel:` (`MG070`), so trade studies compare
+  parameter-only alternatives without a feature model.
+- **DX** — an unresolved cross-reference that wrongly includes the model-root package name
+  now carries a corrective hint (`REQ-TRS-XREF-006`); the root package name is documented as
+  excluded from qualified names.
+
+Requirements `REQ-TRS-MG-001`…`011` and `REQ-TRS-XREF-006`, verified by
+`TC-TRS-MG-001`…`011` and `TC-TRS-XREF-006`. A complete worked example lives in `model_mg/`
+(an EV DC fast-charging station). See the [MagicGrid guide](../model-guide/magicgrid.md).
+
 
 ### Author `appliesWhen` from the CLI (`applies-when`)
 

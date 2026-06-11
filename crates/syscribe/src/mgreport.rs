@@ -74,6 +74,18 @@ pub fn cmd_magicgrid(elems: &[RawElement], json: bool) {
     }
     let empty: usize = grid.values().filter(|v| v.is_empty()).count();
 
+    // REQ-TRS-MG-009 — identify the System of Interest (mg_soi: true) when exactly
+    // one is present, so the B3 System-Context boundary is legible in the report.
+    let sois: Vec<&RawElement> = elems
+        .iter()
+        .filter(|e| e.frontmatter.mg_bool("mg_soi") == Some(true))
+        .collect();
+    let soi: Option<String> = if sois.len() == 1 {
+        Some(label(sois[0]))
+    } else {
+        None
+    };
+
     if json {
         let mut cells = serde_json::Map::new();
         for (k, v) in &grid {
@@ -86,6 +98,7 @@ pub fn cmd_magicgrid(elems: &[RawElement], json: bool) {
             "columns": COLS.iter().map(|c| *c as u64).collect::<Vec<_>>(),
             "cells": cells,
             "emptyCells": empty,
+            "systemOfInterest": soi,
         });
         println!("{}", serde_json::to_string_pretty(&out).unwrap());
         return;
@@ -93,6 +106,11 @@ pub fn cmd_magicgrid(elems: &[RawElement], json: bool) {
 
     println!("MagicGrid — element classification (rows B/W/S × columns 1-4)");
     println!();
+    if let Some(ref s) = soi {
+        // REQ-TRS-MG-009 — note the SoI alongside the B3 Structure cell.
+        println!("System of interest: {} (B3)", s);
+        println!();
+    }
     let row_label = |r: char| match r {
         'B' => "B (problem / black-box)",
         'W' => "W (problem / white-box)",

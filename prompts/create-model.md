@@ -817,6 +817,38 @@ If two configurations would have identical `features:` (e.g. emulator vs physica
 
 ---
 
+## Part 9c — MagicGrid Overlay (opt-in)
+
+**Opt-in overlay.** The MagicGrid MBSE method (problem black-box **B** / white-box **W** / solution **S** rows × Requirements **1** / Behaviour **2** / Structure **3** / Parameters **4** columns) is supported with **no change to the base format**: all data rides on **`mg_`-prefixed `custom_fields:`** (flat scalars) plus the base `actors:` field, and all MagicGrid-specific validation is **gated behind a profile**. Skip this entirely unless building a MagicGrid model.
+
+**Profile gate.** Declare the profile once in `<model_root>/.syscribe.toml`, then run `validate --profile magicgrid`:
+
+```toml
+[profiles.magicgrid]
+magicgrid = true
+promote = ["W307"]   # optional: gate "use case with no refines:"
+```
+
+The `MG###` checks fire only under that profile. The reports (`magicgrid`, `trade-study`, `matrix --allocations`) are read-only and work regardless of profile.
+
+**Overlay fields** (all on `custom_fields:`):
+
+| Field | On | Meaning |
+|---|---|---|
+| `mg_cell: <coord>` | any element | grid coordinate, one of `B1`–`B4`/`W1`–`W4`/`S1`–`S4`; pillar must match the element type (`MG020`/`MG021`) |
+| `mg_external: true` | `Part`/`PartDef` | an actor outside the system boundary (B3) |
+| `mg_soi: true` | `Part`/`PartDef` | the single System of Interest block (B3); at most one (`MG060`–`MG062`) |
+| `mg_moe: true` + `mg_moe_measures`/`mg_moe_direction` (`maximize`/`minimize`)/`mg_moe_threshold`/`mg_moe_objective`/`mg_moe_weight`/`mg_moe_unit` | `CalculationDef`/`AnalysisCase` | a Measure of Effectiveness (B4) (`MG030`–`MG033`) |
+| `mg_mop: true` + `mg_mop_refines` (the MoE it refines)/`mg_mop_unit` | `CalculationDef`/`ConstraintDef`/`AnalysisCase` | a Measure of Performance (W4/S4); inverse index `mopRefinedBy` on the MoE (`MG050`–`MG052`) |
+| `mg_layer: logical \| physical` | `Part`/`PartDef` | W3 logical vs S3 physical; bridge them only with an `Allocation` (`MG040`–`MG042`) |
+| `mg_variant: true` | `Configuration` | a parametric variant — relaxes the `featureModel:` requirement (`E201`); differentiated by `parameterBindings:` alone (`MG070`) |
+
+**Base-format `refines:`.** A `UseCaseDef`/`UseCase` (or `ActionDef`/`Action`/`StateDef`/`State`) declares `refines:` pointing at the `Requirement`/`RequirementDef` it elaborates — an unresolved/wrong-type operand is `E316` (always checked, no profile needed); a non-`draft` `UseCaseDef` with no `refines:` warns `W307`. The reverse index `refinedBy` is computed on each requirement.
+
+**Reports** (read-only): `syscribe model/ magicgrid` (B/W/S × 1-4 cell grid, empty-cell hints, plus a `System of interest:` line when one `mg_soi` is set); `syscribe model/ trade-study` (MoE-weighted scoring of every `Configuration`, WINNER/FAIL rollup); `syscribe model/ matrix --allocations` (allocation source × target matrix with a logical→physical partition when `mg_layer` is present).
+
+---
+
 ## Part 10 — §12 Traceability Rules
 
 ### §12.1 — Link direction

@@ -55,6 +55,11 @@ pub struct ValidationResult {
     /// actor. Keyed by the actor part's stable id when present, else its qualified
     /// name. Computed only when the MagicGrid gate is active.
     pub actor_in: HashMap<String, Vec<String>>,
+    /// REQ-TRS-MG-008 — mopRefinedBy[moe_id_or_qname] = the MoPs (Measurements of
+    /// Performance) whose `mg_mop_refines:` names this MoE. Keyed by the MoE's
+    /// stable id when present, else its qualified name. Computed only when the
+    /// MagicGrid gate is active.
+    pub mop_refined_by: HashMap<String, Vec<String>>,
 }
 
 impl ValidationResult {
@@ -1275,7 +1280,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.status.is_none() {
                 findings.push(error("E201", &file, "`status` is required on Configuration"));
             }
-            if fm.feature_model.is_none() {
+            // REQ-TRS-MG-011 — a Configuration opting in as a MagicGrid parametric
+            // variant (`custom_fields: { mg_variant: true }`) may omit `featureModel:`.
+            // Such a Configuration denotes the empty feature selection (identity
+            // projection); its differentiator is `parameterBindings`. The relaxation
+            // is scoped to the marker, so every non-MagicGrid model is unchanged.
+            let is_mg_variant = fm.mg_bool("mg_variant") == Some(true);
+            if fm.feature_model.is_none() && !is_mg_variant {
                 findings.push(error("E201", &file, "`featureModel` is required on Configuration"));
             }
         }
@@ -3868,6 +3879,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // sees none of those findings.
     let mut refined_by: HashMap<String, Vec<String>> = HashMap::new();
     let mut actor_in: HashMap<String, Vec<String>> = HashMap::new();
+    let mut mop_refined_by: HashMap<String, Vec<String>> = HashMap::new();
 
     // Key a target element by its stable id when present, else its qualified name —
     // matching the keying of verifiedBy/derivedChildren and the show/trace lookups.
@@ -3893,11 +3905,28 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     };
 
     // BASE: refines on UseCaseDef / UseCase (E316), refinedBy index, W307.
+    // REQ-TRS-MG-010 — the `refines:` link is also honoured on behavioral defs
+    // (ActionDef/Action/StateDef/State): white-box functional analysis (W2)
+    // refines the system requirements it realises. The E316 resolve/non-Requirement
+    // check and the `refinedBy` index apply identically; only the W307
+    // "missing refines" warning stays scoped to UseCaseDef.
+    let is_behavioral_refiner = |e: &RawElement| {
+        matches!(
+            e.frontmatter.element_type,
+            Some(ElementType::ActionDef)
+                | Some(ElementType::Action)
+                | Some(ElementType::StateDef)
+                | Some(ElementType::State)
+        )
+    };
     for elem in elements {
         let fm = &elem.frontmatter;
-        if !(is_use_case_def(elem) || is_use_case_usage(elem)) {
+        let is_uc = is_use_case_def(elem) || is_use_case_usage(elem);
+        if !(is_uc || is_behavioral_refiner(elem)) {
             continue;
         }
+        // Display noun for the diagnostic ("use case" vs "behavioral element").
+        let noun = if is_uc { "use case" } else { "behavioral element" };
         let refines = fm.refines.as_deref().unwrap_or(&[]);
         for r in refines {
             match resolver.resolve_ref(elements, r) {
@@ -3905,8 +3934,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     "E316",
                     &elem.file_path,
                     &format!(
-                        "use case '{}' refines '{}' which resolves to nothing",
-                        elem.qualified_name, r
+                        "{} '{}' refines '{}' which resolves to nothing",
+                        noun, elem.qualified_name, r
                     ),
                 )),
                 Some(target) => {
@@ -3919,7 +3948,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             "E316",
                             &elem.file_path,
                             &format!(
-                                "use case '{}' refines '{}' which resolves to a {:?}, not a Requirement/RequirementDef",
+                                "{} '{}' refines '{}' which resolves to a {:?}, not a Requirement/RequirementDef",
+                                noun,
                                 elem.qualified_name,
                                 r,
                                 target.frontmatter.element_type.clone().unwrap_or(ElementType::Unknown)
@@ -4213,6 +4243,139 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // MG-008: Measurements of Performance (mg_mop) + mopRefinedBy index.
+        // An MoP is a CalculationDef/ConstraintDef/AnalysisCase marked mg_mop:true
+        // that refines (mg_mop_refines) the black-box MoE it supports.
+        for elem in elements {
+            let fm = &elem.frontmatter;
+            if fm.mg_bool("mg_mop") != Some(true) {
+                continue;
+            }
+            // MG050: host must be a CalculationDef, ConstraintDef, or AnalysisCase.
+            let host_ok = matches!(
+                fm.element_type,
+                Some(ElementType::CalculationDef)
+                    | Some(ElementType::ConstraintDef)
+                    | Some(ElementType::AnalysisCase)
+            );
+            if !host_ok {
+                findings.push(error(
+                    "MG050",
+                    &elem.file_path,
+                    &format!(
+                        "mg_mop: true on '{}' of type {:?} — an MoP must be a CalculationDef, ConstraintDef, or AnalysisCase",
+                        elem.qualified_name,
+                        fm.element_type.clone().unwrap_or(ElementType::Unknown)
+                    ),
+                ));
+            }
+            // MG051: mg_mop_refines must be present and resolve (by qname or id).
+            // MG052: the resolved target must be marked mg_moe: true.
+            match fm.mg_str("mg_mop_refines") {
+                None => findings.push(error(
+                    "MG051",
+                    &elem.file_path,
+                    &format!("MoP '{}' has no mg_mop_refines", elem.qualified_name),
+                )),
+                Some(m) => match resolver.resolve_ref(elements, &m) {
+                    None => findings.push(error(
+                        "MG051",
+                        &elem.file_path,
+                        &format!(
+                            "MoP '{}' mg_mop_refines '{}' does not resolve to a model element",
+                            elem.qualified_name, m
+                        ),
+                    )),
+                    Some(target) => {
+                        if target.frontmatter.mg_bool("mg_moe") != Some(true) {
+                            findings.push(error(
+                                "MG052",
+                                &elem.file_path,
+                                &format!(
+                                    "MoP '{}' mg_mop_refines '{}' resolves to an element that is not marked mg_moe: true",
+                                    elem.qualified_name, m
+                                ),
+                            ));
+                        } else {
+                            // mopRefinedBy reverse index on the MoE, keyed like the
+                            // other reverse indices (id when present, else qname).
+                            mop_refined_by
+                                .entry(index_key(target))
+                                .or_default()
+                                .push(elem_label(elem));
+                        }
+                    }
+                },
+            }
+        }
+
+        // MG-009: System-of-Interest boundary marker (mg_soi).
+        // MG060 wrong host; MG062 also mg_external; MG061 more than one SoI in model.
+        let mut soi_count = 0usize;
+        for elem in elements {
+            let fm = &elem.frontmatter;
+            if fm.mg_bool("mg_soi") != Some(true) {
+                continue;
+            }
+            soi_count += 1;
+            // MG060: host must be a Part/PartDef.
+            if !is_part(elem) {
+                findings.push(error(
+                    "MG060",
+                    &elem.file_path,
+                    &format!(
+                        "mg_soi: true on '{}' of type {:?} — the system of interest must be a Part/PartDef",
+                        elem.qualified_name,
+                        fm.element_type.clone().unwrap_or(ElementType::Unknown)
+                    ),
+                ));
+            }
+            // MG062: an element cannot be both the SoI and external to it.
+            if fm.mg_bool("mg_external") == Some(true) {
+                findings.push(error(
+                    "MG062",
+                    &elem.file_path,
+                    &format!(
+                        "'{}' is marked both mg_soi: true and mg_external: true — the system of interest cannot also be external",
+                        elem.qualified_name
+                    ),
+                ));
+            }
+        }
+        // MG061: ambiguous boundary — more than one SoI. Emit on every SoI element.
+        if soi_count > 1 {
+            for elem in elements {
+                if elem.frontmatter.mg_bool("mg_soi") == Some(true) {
+                    findings.push(error(
+                        "MG061",
+                        &elem.file_path,
+                        &format!(
+                            "'{}' is one of {} elements marked mg_soi: true — a MagicGrid model has a single system of interest",
+                            elem.qualified_name, soi_count
+                        ),
+                    ));
+                }
+            }
+        }
+
+        // MG-011: mg_variant is only meaningful on a Configuration.
+        for elem in elements {
+            if elem.frontmatter.mg_bool("mg_variant") != Some(true) {
+                continue;
+            }
+            if !matches!(elem.frontmatter.element_type, Some(ElementType::Configuration)) {
+                findings.push(error(
+                    "MG070",
+                    &elem.file_path,
+                    &format!(
+                        "mg_variant: true on '{}' of type {:?} — mg_variant marks a parametric-variant Configuration",
+                        elem.qualified_name,
+                        elem.frontmatter.element_type.clone().unwrap_or(ElementType::Unknown)
+                    ),
+                ));
+            }
+        }
+
         // MG-005: logical/physical layering (mg_layer on a Part/PartDef).
         // Pre-index each part's layer and build the set of logical parts realised by
         // an Allocation to a physical part.
@@ -4338,13 +4501,104 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // REQ-TRS-XREF-006 — root-package-name hint. A qualified name is path-relative
+    // and the model-root package (`_index.md`, empty qname) contributes no segment,
+    // so the root package's `name:` is never part of a qualified name. When an
+    // unresolved-reference finding quotes a reference that begins with the root
+    // package name followed by `::` and the stripped remainder resolves, append a
+    // diagnostic hint naming the corrected reference. This changes nothing about
+    // resolution — the original error still fires.
+    annotate_root_name_hints(&mut findings, elements, &resolver);
+
     ValidationResult {
         findings,
         verified_by,
         derived_children,
         refined_by,
         actor_in,
+        mop_refined_by,
     }
+}
+
+/// The finding codes that quote a single cross-reference and to which the
+/// REQ-TRS-XREF-006 root-name hint applies (the generic unresolved-reference
+/// findings: traceability, refinement, allocation, and the structural
+/// supertype/typedBy/subsets/redefines/connection resolution errors).
+const ROOT_HINT_CODES: &[&str] = &["E102", "E103", "E311", "E316", "E502", "E503"];
+
+/// REQ-TRS-XREF-006 — append a "did you mean" hint to any unresolved-reference
+/// finding whose quoted reference wrongly includes the model-root package name.
+fn annotate_root_name_hints(
+    findings: &mut [Finding],
+    elements: &[RawElement],
+    resolver: &Resolver,
+) {
+    // The model-root package is the element with an empty qualified name (the
+    // root `_index.md`). Its `name:` is the offending prefix authors wrongly add.
+    let root_name = match elements
+        .iter()
+        .find(|e| e.qualified_name.is_empty())
+        .and_then(|e| e.frontmatter.name.as_deref())
+    {
+        Some(n) if !n.is_empty() => n.to_string(),
+        _ => return, // no named root package — never fire (REQ-TRS-XREF-006).
+    };
+    let prefix = format!("{}::", root_name);
+
+    for f in findings.iter_mut() {
+        if !ROOT_HINT_CODES.contains(&f.code) {
+            continue;
+        }
+        if f.message.contains("hint: the model-root package name") {
+            continue; // already annotated
+        }
+        // Extract every single-quoted token from the message and test each one.
+        let mut hint: Option<String> = None;
+        for token in single_quoted_tokens(&f.message) {
+            if let Some(stripped) = token.strip_prefix(&prefix) {
+                if !stripped.is_empty() && resolver.resolve_ref(elements, stripped).is_some() {
+                    hint = Some(stripped.to_string());
+                    break;
+                }
+            }
+        }
+        if let Some(stripped) = hint {
+            f.message.push_str(&format!(
+                " (hint: the model-root package name is not part of qualified names; did you mean '{}'?)",
+                stripped
+            ));
+        }
+    }
+}
+
+/// Extract the contents of every `'…'` single-quoted span in a string.
+fn single_quoted_tokens(s: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut chars = s.char_indices().peekable();
+    while let Some((i, c)) = chars.next() {
+        if c == '\'' {
+            let start = i + 1;
+            let mut end = None;
+            for (j, c2) in s[start..].char_indices() {
+                if c2 == '\'' {
+                    end = Some(start + j);
+                    break;
+                }
+            }
+            if let Some(e) = end {
+                out.push(s[start..e].to_string());
+                // Skip past the closing quote.
+                while let Some(&(k, _)) = chars.peek() {
+                    if k <= e {
+                        chars.next();
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Recursively scan a list of YAML mappings for `typedBy:` string values and resolve them

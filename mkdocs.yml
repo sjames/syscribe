@@ -60,6 +60,7 @@ nav:
       - Architecture Decisions: model-guide/adrs.md
       - Safety & Security Analysis: model-guide/safety-analysis.md
       - Variability & Product Lines: model-guide/variability.md
+      - MagicGrid: model-guide/magicgrid.md
       - Custom Fields: model-guide/custom-fields.md
       - LLM-Assisted Modeling: model-guide/llm-workflow.md
   - CLI:
