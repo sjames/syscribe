@@ -3,7 +3,7 @@ id: TC-TRS-ID-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify FeatureDef stable FEAT id: id-or-qname feature references in appliesWhen and Configuration features; E006/E101/E209 rules."
+title: "Verify FeatureDef stable FEAT id: mandatory id (E201), id-or-qname feature references in appliesWhen and Configuration features; E006/E101/E209 rules."
 verifies:
   - REQ-TRS-ID-006
 ---
@@ -33,6 +33,16 @@ Feature: FeatureDef stable id and feature-by-id references (REQ-TRS-ID-006)
     Given a Requirement with appliesWhen Features::Anti-Lock (a hyphenated name)
     When validate runs
     Then E209 is raised (no regression of the basic-name rule)
+
+  Scenario: a FEAT id without a trailing number is accepted
+    Given a FeatureDef with id FEAT-ABS (no numeric suffix)
+    When validate runs
+    Then no E006, E023, or E201 is raised
+
+  Scenario: a feature with no id is rejected (the FEAT id is mandatory)
+    Given a FeatureDef declaring a name but no id
+    When validate runs
+    Then E201 is raised naming the FeatureDef as requiring an id
 
   Scenario: a malformed FEAT id is rejected
     Given a FeatureDef with id FEAT-bad

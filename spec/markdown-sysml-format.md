@@ -271,7 +271,7 @@ This applies to **every** qualified-name segment, including **package / director
 - **Id-identified types** — identity is a stable `id` (shortName such as `REQ-*`, `TC-*`, `HE-*`). Their label field is **`title`**. These are: `Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `ConfirmationMeasure`, `HazardousEvent`, `SafetyGoal`, `DamageScenario`, `ThreatScenario`, `CybersecurityGoal`, `SecurityControl`, `VulnerabilityReport`, `TARASheet`, `FaultTree`, `FaultTreeGate`, `FaultTreeEvent`, `FMEASheet`, `FMEAEntry`, `AttackTree`, `AttackTreeGate`, `AttackStep`, `Argument`, `AssumptionOfUse`. Declaring a `name:` on one of these is error **`E024`**.
 - **Name-identified types** — identity is the `name`/path. Their label field is **`name`**. This is every other type: all SysML structural types (`PartDef`, `Part`, `Port`, `ActionDef`, …), `Package`, `Diagram`, and `FeatureDef`. Declaring a `title:` on one of these is error **`E025`**.
 
-`FeatureDef` is the single name-identified type that may *also* carry an optional stable `id` (its `FEAT-*` shortName, §9.6). The `id` axis (shortName) and the label axis (`name` vs `title`) are independent: a `FeatureDef` always labels via `name`, with or without a `FEAT-*` id. No element ever carries both `name` and `title`.
+`FeatureDef` is the single name-identified type that *also* carries a **mandatory** stable `id` (its `FEAT-*` shortName, §9.6 — a feature with no `id` is `E201`). The `id` axis (shortName) and the label axis (`name` vs `title`) are independent: a `FeatureDef` always labels via `name`. No element ever carries both `name` and `title`.
 
 **External references (`extRef`).** A Syscribe element often mirrors an artifact that lives in another tool. `extRef:` records that correspondence as one or more **opaque** strings — a URI (`https://dng.example/resources/4521`) or a tool-qualified token (`DNG:4521`, `cameo://model/Engine#id-99`) — given either as a single string or a list. The field is optional and its syntax is unconstrained (external systems use widely varying identifier schemes). `extRef` is an *external* pointer: it is **not** a model cross-reference and is never a valid target for `supertype:`, `verifies:`, `derivedFrom:`, connections, etc. Look up the element(s) that carry a given reference with `syscribe -m <root> extref <ref>`. The same `extRef` value on two or more elements is permitted but warned (`W028`), since an external artifact normally maps to a single element.
 
@@ -4070,7 +4070,7 @@ A `FeatureDef` represents one node in a feature model tree. It may be a leaf fea
 |---|---|---|---|---|
 | `type` | literal `FeatureDef` | **Required** | — | Discriminator. |
 | `name` | string | optional | filename stem | Label and qualified-name segment of the feature (a `FeatureDef` is name-identified). A `title:` here is error `E025`. |
-| `id` | string | optional | absent | Stable short-name alias matching `^FEAT(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` (e.g. `FEAT-ABS-001`). When present, the feature may be referenced by this id **or** its qualified name in `appliesWhen:` and `Configuration` `features:` keys (§9.8). A malformed `FEAT` id is `E006`; a duplicate is `E101`. The `id` and `name` are independent axes. |
+| `id` | string | **Required** | — | Stable short-name matching `^FEAT(-[A-Z0-9]{2,12})+$` (e.g. `FEAT-ABS`, `FEAT-QUADROTOR`, `FEAT-ABS-001`). Every feature **must** declare one — a missing `id` is `E201`. Unlike other stable ids it **need not** end in a number. The feature may be referenced by this id **or** its qualified name in `appliesWhen:` and `Configuration` `features:` keys (§9.8). A malformed `FEAT` id is `E006`; a duplicate is `E101`. The `id` and `name` are independent axes. |
 | `groupKind` | enum | optional | `optional` | How this feature's **children** are grouped (see table below). |
 | `mandatory` | bool | optional | `false` | **Membership** of this feature relative to its parent, orthogonal to `groupKind`: `true` means the feature is selected whenever its parent is (parent ⇒ feature), or always selected when top-level. A node may be both `mandatory: true` and `groupKind: alternative` — a mandatory XOR group (every product selects exactly one child). The legacy `groupKind: mandatory` is a shorthand for `mandatory: true` on a feature that sets no `mandatory:` field. |
 | `cardinality` | string | optional | see groupKind | For `or` and `alternative` groups: how many children may be selected simultaneously, as a multiplicity string (§6). |
@@ -4118,6 +4118,7 @@ SystemFeatures/
 ```yaml
 ---
 type: FeatureDef
+id: FEAT-HEXROTOR-001
 name: HexRotorPropulsion
 groupKind: optional
 requires: []
@@ -4614,7 +4615,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | Code | Condition |
 |---|---|
 | `E200` | `Configuration.id` does not match `CONF-*` pattern |
-| `E201` | `Configuration` missing a required field (`id`, `title`, `status`, `featureModel`). (A `FeatureDef` is name-identified — labelled by `name`, optional `FEAT-*` id — and is not subject to this check; a `title:` on it is `E025`.) |
+| `E201` | A PLE element is missing a required field: a `Configuration` missing `id`, `title`, `status`, or `featureModel`; or a `FeatureDef` missing its mandatory `FEAT-*` `id`. (A `FeatureDef` is still name-labelled — a `title:` on it is `E025`.) |
 | `E202` | A propagated parameter value (via `bindTo:`) falls outside the component parameter's `range:` |
 | `E203` | `Configuration.parameterBindings` binds a parameter for a feature not selected in this configuration |
 | `E204` | `Configuration.parameterBindings` binds a parameter declared `isFixed: true` |

@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-036
 name: Dead
 groupKind: optional
 requires:

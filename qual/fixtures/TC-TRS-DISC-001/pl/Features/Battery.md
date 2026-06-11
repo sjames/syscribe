@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-003
 name: Battery
 groupKind: optional
 parameters:

@@ -163,7 +163,7 @@ Every element carries **exactly one** human-readable label field, fixed by its i
 - **Id-identified types** (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types — identity is a stable `id`) label via **`title`**. Declaring `name:` is error **`E024`**.
 - **Name-identified types** (all SysML structural types, `Package`, `Diagram`, `FeatureDef` — identity is the `name`/path) label via **`name`**. Declaring `title:` is error **`E025`**.
 
-`FeatureDef` may additionally carry an optional `FEAT-*` `id`; it still labels via `name`. Both errors exit `1`.
+`FeatureDef` also carries a **mandatory** `FEAT-*` `id` (a feature with no `id` is `E201`); it still labels via `name`. All these errors exit `1`.
 
 ---
 

@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-LORA
 name: LoRa
 groupKind: optional
 ---

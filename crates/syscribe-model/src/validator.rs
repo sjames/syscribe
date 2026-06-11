@@ -220,9 +220,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // E023: a stable-ID numeric suffix wider than the configured maximum
         // (REQ-TRS-ID-005 / GH #41). The grammar accepts 3+ digits structurally so
         // a long id still resolves; the digit cap is enforced here as a policy.
+        // Only applies to a *numeric* final segment: FEAT ids need not end in a number
+        // (REQ-TRS-ID-006), so a non-numeric trailing segment is not a digit suffix.
         if let Some(ref id) = fm.id {
-            if is_stable_id(id) {
-                let suffix_len = id.rsplit('-').next().map_or(0, str::len);
+            let last_seg = id.rsplit('-').next().unwrap_or("");
+            let numeric_suffix = !last_seg.is_empty() && last_seg.bytes().all(|b| b.is_ascii_digit());
+            if is_stable_id(id) && numeric_suffix {
+                let suffix_len = last_seg.len();
                 let max = config.id_digit_max();
                 if suffix_len > max {
                     findings.push(error(
@@ -1267,6 +1271,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.feature_model.is_none() {
                 findings.push(error("E201", &file, "`featureModel` is required on Configuration"));
             }
+        }
+
+        // E201: FeatureDef requires a stable `id` (REQ-TRS-ID-006). Every feature
+        // carries a `FEAT-*` short-name so it can be referenced by a stable id
+        // independent of its path/name. The id's pattern is checked by E006; its
+        // presence is required here. (The feature is still name-identified — its label
+        // and qname segment are `name`.)
+        if matches!(fm.element_type, Some(ElementType::FeatureDef)) && fm.id.is_none() {
+            findings.push(error("E201", &file, "`id` (a FEAT-* stable id) is required on FeatureDef"));
         }
 
         // E300: ADR.id must match ADR-* pattern

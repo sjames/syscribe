@@ -12,7 +12,7 @@ All frontmatter fields. Optional unless marked **required**.
 | `shortName` | All | string | absent | Abbreviated name for display |
 | `qualifiedName` | All | string | derived | Auto-derived from path; set to override |
 | `visibility` | All | string | `public` | `public` or `private` |
-| `id` | id-identified types | string | **required** | Stable opaque ID matching type pattern. Optional `FEAT-*` alias on `FeatureDef`. |
+| `id` | id-identified types + `FeatureDef` | string | **required** | Stable opaque ID matching the type's pattern. **Mandatory `FEAT-*` id on `FeatureDef`** too (E201 if missing) — a feature stays name-labelled but must carry a stable id. |
 | `title` | id-identified types | string | **required** | Label for id-identified types (native Req/TC/TP/Config/ADR/safety/security). **Not allowed on name-identified types** → error `E025`. Exactly one label field per element — `name` or `title`, never both. |
 | `status` | native Req/TC/ADR/safety | string | **required** | Lifecycle status |
 | `extRef` | All | string or list | absent | External reference(s) — this element represents an artifact in another tool (DNG, a SysML tool). Opaque (URI or `tool:id`). Look up with `extref <ref>`; duplicate across elements warns `W028`. Not a model cross-ref target. |

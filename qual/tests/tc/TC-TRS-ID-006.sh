@@ -45,6 +45,18 @@ tc_TRS_ID_006() {
     printf '%s' "$SCENARIO_OUTPUT" | grep -F "| E006 |" | grep -qF "FEAT pattern" \
         && pass "E006 names the FEAT pattern" || fail "E006 does not mention FEAT pattern"
 
+    SCENARIO_NAME="a FEAT id without a trailing number is accepted"; printf "  ▶ %s\n" "$SCENARIO_NAME"
+    SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$B/numberless-id" validate 2>/dev/null || true)
+    assert_no_code "E006"
+    assert_no_code "E023"
+    assert_no_code "E201"
+
+    SCENARIO_NAME="a FeatureDef with no id raises E201 (mandatory FEAT id)"; printf "  ▶ %s\n" "$SCENARIO_NAME"
+    SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$B/neg-missing-id" validate 2>/dev/null || true)
+    assert_has_code "E201"
+    printf '%s' "$SCENARIO_OUTPUT" | grep -F "| E201 |" | grep -qF "required on FeatureDef" \
+        && pass "E201 names the missing FeatureDef id" || fail "E201 does not flag the missing FeatureDef id"
+
     SCENARIO_NAME="two FeatureDefs sharing a FEAT id raise E101"; printf "  ▶ %s\n" "$SCENARIO_NAME"
     SCENARIO_OUTPUT=$("$SYSCRIBE" -m "$B/neg-dup-id" validate 2>/dev/null || true)
     assert_has_code "E101"

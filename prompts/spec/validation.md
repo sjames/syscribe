@@ -21,7 +21,7 @@
 | `E015` | First Gherkin block has no `Feature:` line |
 | `E023` | A stable-ID numeric suffix is longer than the configured maximum (`[ids] max_digits`, default 8). The minimum (3) is enforced by `E006`. |
 | `E024` | An **id-identified** type (`Requirement`, `TestCase`, the safety/security types, …) declares a `name:` field. Its label belongs in `title:`; remove `name:`. Every element has exactly one label field, fixed by identity class. |
-| `E025` | A **name-identified** type (`PartDef`, `Package`, `FeatureDef`, all SysML structural types, …) declares a `title:` field. Its label belongs in `name:`; remove `title:`. A `FeatureDef` may still carry an optional `FEAT-*` `id` — `id` and the label field are independent axes. |
+| `E025` | A **name-identified** type (`PartDef`, `Package`, `FeatureDef`, all SysML structural types, …) declares a `title:` field. Its label belongs in `name:`; remove `title:`. A `FeatureDef` also carries a mandatory `FEAT-*` `id` (E201 if missing) — `id` and the label field are independent axes. |
 | `E300` | `ADR.id` does not match `ADR-*` pattern |
 | `E301` | `ADR` missing `id`, `title`, or `status` |
 | `E302` | `reqDomain:` is not `system`, `hardware`, or `software` |
@@ -209,7 +209,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | Code | Condition |
 |---|---|
 | `E200` | `Configuration.id` does not match `CONF-*` |
-| `E201` | `Configuration` missing `id`, `title`, `status`, or `featureModel`. (A `FeatureDef` is name-identified — `name` + optional `FEAT-*` id — and is not subject to this check; a `title:` on it is `E025`.) |
+| `E201` | A PLE element missing a required field: a `Configuration` missing `id`/`title`/`status`/`featureModel`, **or** a `FeatureDef` missing its mandatory `FEAT-*` `id`. (A `FeatureDef` is still name-labelled — `title:` on it is `E025`.) |
 | `E202` | Propagated parameter value outside component parameter `range:` |
 | `E203` | `Configuration.parameterBindings` binds a parameter for a feature not selected |
 | `E204` | `Configuration.parameterBindings` binds a parameter declared `isFixed: true` |

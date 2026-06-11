@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-CELL
 name: Cellular
 groupKind: optional
 ---

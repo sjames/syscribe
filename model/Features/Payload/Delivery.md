@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-DELIVERY
 name: Delivery
 groupKind: optional
 requires:

@@ -28,7 +28,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E022 | Any | `requirementKind` is not one of `stakeholder · system · software · hardware` |
 | E023 | Any (stable id) | The numeric suffix is longer than the configured maximum (`[ids] max_digits` in `.syscribe.toml`, default 8; minimum 3 enforced by E006) |
 | E024 | Id-identified type | An id-identified element (`Requirement`, `TestCase`, `HazardousEvent`, …) declares a `name:` field — its label belongs in `title:`. Each element has exactly one label field, fixed by identity class. Remove `name:`. |
-| E025 | Name-identified type | A name-identified element (`PartDef`, `Package`, `FeatureDef`, …) declares a `title:` field — its label belongs in `name:`. Remove `title:`. (A `FeatureDef` may still carry an optional `FEAT-*` `id` — the `id` and label axes are independent.) |
+| E025 | Name-identified type | A name-identified element (`PartDef`, `Package`, `FeatureDef`, …) declares a `title:` field — its label belongs in `name:`. Remove `title:`. (A `FeatureDef` also carries a mandatory `FEAT-*` `id` — see `E201` — the `id` and label axes are independent.) |
 
 ## Parse-time warnings (W001–W008)
 
@@ -75,7 +75,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | Code | Condition |
 |---|---|
 | E200 | Configuration `id` does not match `CONF-*` pattern |
-| E201 | Configuration missing `id`, `title`, `status`, or `featureModel` |
+| E201 | Configuration missing `id`, `title`, `status`, or `featureModel`; **or** a `FeatureDef` missing its mandatory `FEAT-*` `id` |
 | E203 | `parameterBindings` binds a parameter of a feature that is not selected |
 | E204 | `parameterBindings` binds a fixed parameter (`isFixed`/`value`/`derivedFrom`) |
 | E205 | A bound parameter value is outside the parameter's `range:` |

@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-008
 name: Sunroof
 groupKind: optional
 ---

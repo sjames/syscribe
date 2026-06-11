@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-PROP
 name: Propulsion
 groupKind: alternative
 mandatory: true

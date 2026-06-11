@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-PAYLOAD
 name: Payload
 groupKind: alternative
 mandatory: true

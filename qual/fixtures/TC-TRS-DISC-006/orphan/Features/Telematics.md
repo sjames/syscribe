@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-011
 name: Telematics
 groupKind: optional
 ---

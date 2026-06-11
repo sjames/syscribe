@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-SURVEY
 name: Survey
 groupKind: optional
 ---

@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-027
 name: Cyc
 groupKind: optional
 parameters:

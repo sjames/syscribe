@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-MAPPING
 name: Mapping
 groupKind: optional
 ---

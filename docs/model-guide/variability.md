@@ -21,6 +21,7 @@ A **`FeatureDef`** is one node of the feature tree — a selectable characterist
 # Features/Platform/_index.md        (a mandatory XOR group)
 ---
 type: FeatureDef
+id: FEAT-PLATFORM-001       # mandatory stable id (E201 if missing)
 name: Platform
 mandatory: true             # membership: every product has a platform...
 groupKind: alternative      # ...and picks exactly one child (XOR)
@@ -28,6 +29,7 @@ groupKind: alternative      # ...and picks exactly one child (XOR)
 # Features/Platform/CortexM.md
 ---
 type: FeatureDef
+id: FEAT-CORTEXM-001
 name: CortexM
 groupKind: optional
 ---

@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-130
 name: Variant
 groupKind: optional
 ---

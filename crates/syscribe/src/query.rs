@@ -2638,6 +2638,7 @@ Description of this package.
 "#,
         "featuredef" => r#"---
 type: FeatureDef
+id: FEAT-MYFEATURE-001
 name: MyFeatureDef
 groupKind: optional
 # cardinality: "1"

@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-HEX
 name: Hex
 groupKind: optional
 ---

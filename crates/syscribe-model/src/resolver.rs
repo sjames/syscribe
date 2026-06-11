@@ -86,7 +86,9 @@ fn vr_re() -> &'static regex::Regex {
 }
 
 fn feat_re() -> &'static regex::Regex {
-    FEAT_RE.get_or_init(|| regex::Regex::new(r"^FEAT(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+    // FEAT ids do NOT require a trailing numeric segment (unlike REQ/TC/…): a feature
+    // may be `FEAT-ABS` or `FEAT-ABS-001`. Each segment is [A-Z0-9]{2,12}.
+    FEAT_RE.get_or_init(|| regex::Regex::new(r"^FEAT(-[A-Z0-9]{2,12})+$").unwrap())
 }
 
 /// Returns true for FEAT-* IDs (optional FeatureDef stable id, REQ-TRS-ID-006).

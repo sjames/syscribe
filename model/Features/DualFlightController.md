@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-DUALFC
 name: DualFlightController
 groupKind: optional
 requires:

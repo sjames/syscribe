@@ -11,9 +11,13 @@ Every element now carries **exactly one** human-readable label field, determined
 - **Id-identified types** (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types — identity is a stable `id`) label via **`title`**. A `name:` on one of these is now error **`E024`**.
 - **Name-identified types** (all SysML structural types, `Package`, `Diagram`, `FeatureDef` — identity is the `name`/path) label via **`name`**. A `title:` on one of these is now error **`E025`**.
 
-`FeatureDef` stays name-labelled and may still carry its optional `FEAT-*` `id` — the `id` and label axes are independent. This closes the gap left by `W042` (which constrained only the *characters* of a name, not *which* label field applies); previously elements could silently drift into carrying both `name` and `title`. The bundled models and qual model were migrated to one label field each. (`REQ-TRS-NAME-002`.)
+`FeatureDef` stays name-labelled; the `id` and label axes are independent. This closes the gap left by `W042` (which constrained only the *characters* of a name, not *which* label field applies); previously elements could silently drift into carrying both `name` and `title`. The bundled models and qual model were migrated to one label field each. (`REQ-TRS-NAME-002`.)
 
-**Breaking:** a model that carried both `name` and `title` (or the wrong one for its type) now fails validation. Remove the stray field — `title` for id-identified types, `name` for everything else.
+### Mandatory feature ids (`FEAT-*`)
+
+The `FEAT-*` stable id introduced in 0.20.0 is now **mandatory** on every `FeatureDef` — a feature with no `id` is error **`E201`** (the shared PLE required-field error). Features stay name-identified (label/qname = `name`); the id is the stable reference. All bundled and fixture features were migrated to carry an id. (`REQ-TRS-ID-006`.) Unlike the other stable-id types, a feature id **need not** end in a number — `FEAT-ABS`, `FEAT-QUADROTOR` and `FEAT-ABS-001` are all valid (pattern `^FEAT(-[A-Z0-9]{2,12})+$`); the `E023` digit-cap applies only to a numeric trailing segment.
+
+**Breaking:** (1) a model that carried both `name` and `title` (or the wrong one for its type) now fails validation — remove the stray field (`title` for id-identified types, `name` for everything else); (2) a `FeatureDef` with no `FEAT-*` `id` now fails (`E201`) — add one.
 
 Suite at **164** test cases, all passing.
 

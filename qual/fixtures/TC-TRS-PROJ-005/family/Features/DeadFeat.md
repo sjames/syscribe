@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-110
 name: DeadFeat
 groupKind: optional
 requires:

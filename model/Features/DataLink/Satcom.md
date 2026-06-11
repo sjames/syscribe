@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-SATCOM
 name: Satcom
 groupKind: optional
 ---

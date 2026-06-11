@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-005
 name: Electric
 groupKind: optional
 requires:

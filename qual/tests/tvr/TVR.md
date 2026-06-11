@@ -563,10 +563,10 @@
 
 ---
 
-### TC-TRS-ID-006 — Verify FeatureDef stable FEAT id: id-or-qname feature references in appliesWhen and Configuration features; E006/E101/E209 rules.
+### TC-TRS-ID-006 — Verify FeatureDef stable FEAT id: mandatory id (E201), id-or-qname feature references in appliesWhen and Configuration features; E006/E101/E209 rules.
 
 **Verifies:** REQ-TRS-ID-006  
-**Result:** ✓ PASS (16 passed, 0 failed)
+**Result:** ✓ PASS (21 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|

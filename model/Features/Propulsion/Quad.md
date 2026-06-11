@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-QUAD
 name: Quad
 groupKind: optional
 ---

@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-031
 name: Power
 groupKind: mandatory
 ---

@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-086
 name: Soc
 groupKind: optional
 parameters:

@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-131
 name: BadFd
 groupKind: optional
 appliesWhen: Features::Variant

@@ -130,7 +130,7 @@ Every element has **exactly one** human-readable label field, decided by how the
 - **Id-identified types** (identity is a stable `id`: `Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `ConfirmationMeasure`, and all safety/security types — `HazardousEvent`, `SafetyGoal`, `DamageScenario`, `ThreatScenario`, `CybersecurityGoal`, `SecurityControl`, `VulnerabilityReport`, `TARASheet`, `FaultTree`/`FaultTreeGate`/`FaultTreeEvent`, `FMEASheet`/`FMEAEntry`, `AttackTree`/`AttackTreeGate`/`AttackStep`, `Argument`, `AssumptionOfUse`) → label is **`title`**. Declaring `name:` is error **`E024`**.
 - **Name-identified types** (everything else — all SysML structural types, `Package`, `Diagram`, and `FeatureDef`) → label is **`name`**. Declaring `title:` is error **`E025`**.
 
-`FeatureDef` is the one name-identified type that may *also* carry an optional stable `id` (`FEAT-*`, its shortName). The `id` axis and the label axis are independent — a `FeatureDef` uses `name` for its label regardless of whether it has a `FEAT-*` id.
+`FeatureDef` is the one name-identified type that *also* carries a **mandatory** stable `id` (`FEAT-*`, its shortName; a feature with no `id` is error `E201`). The `id` axis and the label axis are independent — a `FeatureDef` uses `name` for its label, and a `FEAT-*` id for stable reference.
 
 ### ID Scheme
 
@@ -147,6 +147,10 @@ SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file pat
 **ADR ID pattern** — `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
 - Same segment rules, prefix `ADR`. Statuses: `proposed | accepted | deprecated | superseded`.
 - Examples: `ADR-SYS-001`, `ADR-SW-SCHED-001`
+
+**FeatureDef ID pattern** — `^FEAT(-[A-Z0-9]{2,12})+$`
+- Prefix `FEAT`, **mandatory** on every `FeatureDef` (a feature with no `id` is `E201`). Unlike other stable ids, a feature id **need not** end in a number — `FEAT-ABS` and `FEAT-ABS-001` are both valid. The feature stays name-identified (label/qname = `name`); the id is a stable reference usable in `appliesWhen:` and `Configuration` `features:` keys interchangeably with the qname.
+- Examples: `FEAT-ABS`, `FEAT-QUADROTOR`, `FEAT-DATALINK-LORA`, `FEAT-CAM-4K`, `FEAT-ABS-001`
 
 Both the `id` field and the qualified name (path-derived) are valid cross-reference targets in `verifies:` and `derivedFrom:`.
 

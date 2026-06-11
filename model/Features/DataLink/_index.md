@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-DATALINK
 name: DataLink
 groupKind: alternative
 mandatory: true

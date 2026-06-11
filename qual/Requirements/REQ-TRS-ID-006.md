@@ -1,25 +1,31 @@
 ---
 id: REQ-TRS-ID-006
 type: Requirement
-title: Tool shall let a FeatureDef carry a stable id and allow features to be referenced by it
+title: Tool shall require every FeatureDef to carry a stable id and allow features to be referenced by it
 status: draft
 reqDomain: software
 verificationMethod: test
 ---
 
 A `FeatureDef` is name-identified (Style B): its identity segment is its basic name
-(e.g. `Features::Anti_Lock`). To allow stable references to a feature independent of its
-path/name, a `FeatureDef` **may** additionally carry a stable **`id`** (a shortName),
-mirroring the stable-id types.
+(e.g. `Features::Anti_Lock`). So that every feature can be referenced by a stable id
+independent of its path/name, a `FeatureDef` **shall** additionally carry a stable
+**`id`** (a shortName), mirroring the stable-id types. The id is a *mandatory* second
+axis; the feature's **name** remains its identity segment and label.
 
 ### Stable id on a FeatureDef
 
-- A `FeatureDef` **may** declare an optional `id` matching the prefix pattern
-  `^FEAT(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` (e.g. `FEAT-ABS-001`). It is **optional** — a
-  `FeatureDef` without one is unchanged.
-- The `id` is a **secondary alias**: the FeatureDef's **name** remains its identity
-  segment and **shall** still follow the basic-name grammar (`W042`). A malformed
-  `FEAT` id **shall** raise `E006`; a duplicate `id` **shall** raise the generic `E101`.
+- Every `FeatureDef` **shall** declare an `id` matching the prefix pattern
+  `^FEAT(-[A-Z0-9]{2,12})+$` — prefix `FEAT` followed by one or more
+  uppercase-alphanumeric segments (2–12 chars each). Unlike the other stable-id types, a
+  feature id **need not** end in a numeric segment: both `FEAT-ABS` and `FEAT-ABS-001`
+  are valid. A `FeatureDef` with **no** `id` **shall** raise error **`E201`** (the PLE
+  required-field error, shared with `Configuration`); the `E023` digit-cap applies only
+  to a *numeric* trailing segment, so it never fires on a name-only feature id.
+- The `id` is a **mandatory secondary axis**: the FeatureDef's **name** remains its
+  identity segment and label and **shall** still follow the basic-name grammar (`W042`);
+  a `title:` on a FeatureDef is `E025` (it is name-labelled). A malformed `FEAT` id
+  **shall** raise `E006`; a duplicate `id` **shall** raise the generic `E101`.
 - An element with a `FEAT` id **shall** be indexed and resolvable by that id.
 
 ### Referencing a feature by id
@@ -46,7 +52,8 @@ short-name concept. Refines [[REQ-TRS-NAME-001]], [[REQ-TRS-PROJ-001]].
 **Acceptance criteria:**
 
 - A `FeatureDef` with `id: FEAT-ABS-001` and a basic `name` validates clean; a
-  malformed `FEAT` id raises `E006`; two FeatureDefs sharing a `FEAT` id raise `E101`.
+  `FeatureDef` with **no** `id` raises `E201`; a malformed `FEAT` id raises `E006`; two
+  FeatureDefs sharing a `FEAT` id raise `E101`.
 - `appliesWhen: FEAT-ABS-001` resolves with **no** `E209` and gates an element
   identically to `appliesWhen: Features::Anti_Lock` (same active/inactive result across
   configurations).

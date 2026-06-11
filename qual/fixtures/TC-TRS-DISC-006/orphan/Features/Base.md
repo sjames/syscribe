@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-010
 name: Base
 groupKind: mandatory
 ---

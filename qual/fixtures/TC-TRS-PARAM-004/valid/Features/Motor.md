@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-091
 name: Motor
 groupKind: optional
 parameters:

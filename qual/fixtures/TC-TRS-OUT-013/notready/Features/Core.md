@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-071
 name: Core
 groupKind: optional
 ---

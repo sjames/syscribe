@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-023
 name: Comp
 groupKind: optional
 parameters:

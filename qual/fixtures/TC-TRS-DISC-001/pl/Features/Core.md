@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-004
 name: Core
 groupKind: mandatory
 requires:

@@ -1,5 +1,6 @@
 ---
 type: FeatureDef
+id: FEAT-FX-083
 name: Amp
 groupKind: optional
 ---
