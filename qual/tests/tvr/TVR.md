@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 178 |
-| Passed | 178 |
+| Total test cases | 179 |
+| Passed | 179 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -736,6 +736,17 @@
 | Scenario | Result |
 |---|---|
 | mg_variant on a non-Configuration raises MG070 under the gate | ✓ PASS |
+
+---
+
+### TC-TRS-MG-012 — Verify trade-study ambiguous binding handling: colliding final-segment bindings => n/a; an exact key wins; a single segment match still resolves.
+
+**Verifies:** REQ-TRS-MG-012  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a single segment match still resolves | ✓ PASS |
 
 ---
 

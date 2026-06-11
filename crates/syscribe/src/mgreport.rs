@@ -400,19 +400,27 @@ struct Cell {
     violation: bool,
 }
 
-/// Resolve a variable token against a configuration's bindings: match on the
-/// final `.`/`::` segment of a binding key, else an exact key match.
+/// Resolve a variable token against a configuration's bindings: an exact key
+/// match wins; otherwise match on the final `.`/`::` segment of a binding key,
+/// but only when exactly one binding's final segment matches. A bare token that
+/// matches the final segment of two or more bindings is **ambiguous** and left
+/// unresolved (the cell becomes `n/a`) rather than silently picking one
+/// (REQ-TRS-MG-012).
 fn resolve_binding(bindings: &BTreeMap<String, f64>, var: &str) -> Option<f64> {
     if let Some(v) = bindings.get(var) {
         return Some(*v);
     }
+    let mut hit: Option<f64> = None;
     for (k, v) in bindings {
         let seg = k.rsplit(|c| c == '.' || c == ':').next().unwrap_or(k);
         if seg == var {
-            return Some(*v);
+            if hit.is_some() {
+                return None; // ambiguous final-segment match
+            }
+            hit = Some(*v);
         }
     }
-    None
+    hit
 }
 
 fn score_moe(moe: &Moe, value: f64) -> (f64, bool) {

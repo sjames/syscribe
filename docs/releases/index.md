@@ -2,6 +2,17 @@
 
 `RELEASES`
 
+## 0.21.1 — 2026-06-12
+
+### `trade-study` — ambiguous parameter binding is now unevaluable
+
+The `trade-study` MoE-variable resolver no longer silently picks one of several
+`parameterBindings` keys that share a final `.`/`::` segment. An exact key still wins;
+the final-segment convenience match now resolves **only when exactly one** binding matches —
+a bare token matching two or more bindings is **ambiguous** and the cell is reported `n/a`
+(excluded from that column's weight normalisation), rather than guessing. (`REQ-TRS-MG-012`,
+verified by `TC-TRS-MG-012`.)
+
 ## 0.21.0 — 2026-06-12
 
 ### MagicGrid methodology support (opt-in overlay)

@@ -18,9 +18,11 @@ available regardless of profile.
 
 For each (MoE, Configuration) the MoE host's `expression:` right-hand side is
 evaluated, resolving each variable from the configuration's `parameterBindings:`
-(matched on a binding key's final `.`/`::` segment, else exact key). A variable
-that does not resolve makes the cell **unevaluable** → printed `n/a` and excluded
-from that column's weight normalisation.
+(an exact key wins; otherwise a binding key's final `.`/`::` segment must match,
+and only when **exactly one** binding does — a bare token matching two or more
+bindings is **ambiguous**). A variable that does not resolve (or is ambiguous)
+makes the cell **unevaluable** → printed `n/a` and excluded from that column's
+weight normalisation.
 
 The value is normalised to a score in `[0,1]`:
 
