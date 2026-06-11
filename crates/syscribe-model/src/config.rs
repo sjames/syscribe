@@ -60,6 +60,12 @@ pub struct ValidateConfig {
     /// GH #41). `None` means the default of 8. The minimum is fixed at 3. Read from
     /// `[ids] max_digits` in `<model_root>/.syscribe.toml`; use [`Self::id_digit_max`].
     pub id_max_digits: Option<usize>,
+
+    /// REQ-TRS-MG-* — run the gated MagicGrid validation pass (actors, mg_cell,
+    /// MoE, logical/physical layering). Off by default; set from a resolved
+    /// `[profiles.<name>] magicgrid = true` profile by the CLI. The base-format
+    /// `refines`/`E316`/`W307` checks run regardless of this flag.
+    pub magicgrid: bool,
 }
 
 /// Default stable-ID suffix digit cap and fixed minimum (REQ-TRS-ID-005).
@@ -104,6 +110,10 @@ pub struct Profile {
     /// Scope by `tags:` membership (the element's tags contain this value).
     #[serde(default)]
     pub tag: Option<String>,
+    /// REQ-TRS-MG-* — when `true`, `validate --profile <name>` runs the gated
+    /// MagicGrid validation pass (sets [`ValidateConfig::magicgrid`]).
+    #[serde(default)]
+    pub magicgrid: bool,
 }
 
 impl Profile {
@@ -153,6 +163,7 @@ impl ValidateConfig {
             // Remote fetching is opt-in (CLI `--fetch-remote`); never enabled here.
             remote_hook: None,
             id_max_digits,
+            magicgrid: false,
         }
     }
 

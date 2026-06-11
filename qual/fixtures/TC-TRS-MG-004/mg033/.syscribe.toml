@@ -1,0 +1,4 @@
+# Root marker + MagicGrid gate profile for TC-TRS-MG-004.
+[profiles.magicgrid]
+magicgrid = true
+promote = ["W307"]

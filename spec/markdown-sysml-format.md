@@ -5244,6 +5244,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E313` | A `satisfies:` link connects an architecture element and a requirement whose `domain` / `reqDomain` values are incompatible (e.g., a `software` element satisfying a `hardware` requirement) |
 | `E314` | A `Part` or `PartDef` with `isDeploymentPackage: true` has no `Allocation` to a `hardware` element |
 | `E315` | An element with `domain: software` has a `supertype:` or `typedBy:` reference that resolves to an element with `domain: hardware`, or vice versa — cross-domain direct reference; use `Allocation` instead |
+| `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef` (names the offending operand, owning use case, and resolved type). Base-format check — runs regardless of the MagicGrid profile (REQ-TRS-MG-001) |
 
 #### Warnings
 
@@ -5266,6 +5267,27 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W305` | Parent `Requirement` (has `derivedFrom` children) at `status: approved`, `implemented`, or `verified` has no active `TestCase` at `testLevel: L3`, `L4`, or `L5` — leaf-level tests on derived requirements are insufficient to verify emergent composed behaviour |
 | `W306` | **Unsatisfied safety mechanism** — a high-integrity `Requirement` (`silLevel >= 4` or `asilLevel: D`) that is `status: draft`, (for a **leaf**) satisfied by no element, or (with a feature model) active in no `Configuration`. The "satisfied by no element" sub-condition applies to leaf requirements only — a **parent** (has `derivedChildren`) is satisfied transitively and may not be satisfied directly (`E312`). Message names the triggering sub-condition(s). Gateable with `--deny W306`; promotable via `[profiles]` |
 | `W029` | A non-draft `Requirement` with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no active **measuring** `TestCase` (testLevel `L5`, or tagged `timing`/`wcet`) verifies it. The timing-evidence analog of `W702`. Gateable with `--deny W029`; query with `list --has-wcet` |
+| `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
+
+#### MagicGrid gate (`MG###`, REQ-TRS-MG-002..005)
+
+The `MG###` namespace is **opt-in**: these checks fire only under the MagicGrid profile (`[profiles.<name>] magicgrid = true`, e.g. `validate --profile magicgrid`). The data they validate rides on `mg_`-prefixed `custom_fields:` and the base `actors:` field, all of which stay inert in the base format. All `MG###` findings are Error severity.
+
+| Code | Condition |
+|---|---|
+| `MG010` | An `actors:` entry (on a `UseCaseDef`/`UseCase`/use-case-style `RequirementDef`/`Requirement`) resolves to no model element |
+| `MG011` | An `actors:` entry resolves to an element that is not a `Part`/`PartDef` (names the resolved type) |
+| `MG012` | A referenced actor `Part`/`PartDef` is not marked `custom_fields: { mg_external: true }` — a non-external actor is a B3 modelling error |
+| `MG013` | A non-`draft` `UseCaseDef` declares an empty or absent `actors:` list |
+| `MG020` | `custom_fields.mg_cell` is not one of the recognised coordinates `B1`–`B4`, `W1`–`W4`, `S1`–`S4` |
+| `MG021` | An element's `type` is incompatible with the pillar implied by its `mg_cell` column (col1→Requirement/RequirementDef; col2→UseCaseDef/UseCase/ActionDef/Action/StateDef/State; col3→Part/PartDef/Port/PortDef/Interface/InterfaceDef/Connection/ConnectionDef; col4→ConstraintDef/Constraint/CalculationDef/Calculation/AnalysisCase) |
+| `MG030` | `custom_fields.mg_moe: true` on an element that is not a `CalculationDef` or `AnalysisCase` |
+| `MG031` | `mg_moe_measures` is absent, or does not resolve (by qname/id) to a `Requirement`/`RequirementDef` |
+| `MG032` | `mg_moe_direction` is absent or not `maximize`/`minimize` |
+| `MG033` | `mg_moe_threshold`/`mg_moe_objective` not numeric, or inconsistent with the direction (`maximize` ⇒ objective ≥ threshold; `minimize` ⇒ objective ≤ threshold); or `mg_moe_weight` present and not numeric in `[0, 1]` |
+| `MG040` | `custom_fields.mg_layer` is present on a `Part`/`PartDef` and is not `logical` or `physical` |
+| `MG041` | A `Part`/`PartDef` with `mg_layer: logical` has no `Allocation` to a `physical` element |
+| `MG042` | A `logical` and a `physical` `Part`/`PartDef` share a direct `supertype:`/`typedBy:` link — relate the layers only through an explicit `Allocation` |
 
 #### Integrity-level propagation errors (E841–E843)
 

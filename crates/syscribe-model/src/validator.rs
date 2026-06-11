@@ -48,6 +48,13 @@ pub struct ValidationResult {
     pub verified_by: HashMap<String, Vec<String>>,
     /// derived_children[req_id] = list of child req ids
     pub derived_children: HashMap<String, Vec<String>>,
+    /// REQ-TRS-MG-001 — refinedBy[req_id_or_qname] = use cases that `refines:` it.
+    /// Keyed by the requirement's stable id when present, else its qualified name.
+    pub refined_by: HashMap<String, Vec<String>>,
+    /// REQ-TRS-MG-002 — actorIn[part_id_or_qname] = use cases naming the part as an
+    /// actor. Keyed by the actor part's stable id when present, else its qualified
+    /// name. Computed only when the MagicGrid gate is active.
+    pub actor_in: HashMap<String, Vec<String>>,
 }
 
 impl ValidationResult {
@@ -3853,10 +3860,490 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // ── MagicGrid (REQ-TRS-MG-001..005) ──────────────────────────────────────
+    //
+    // The `refines:` base-format checks (E316/W307) and the `refinedBy` reverse
+    // index always run. Everything in the `MG###` namespace is gated behind the
+    // MagicGrid profile (`config.magicgrid`), so a model that does not opt in
+    // sees none of those findings.
+    let mut refined_by: HashMap<String, Vec<String>> = HashMap::new();
+    let mut actor_in: HashMap<String, Vec<String>> = HashMap::new();
+
+    // Key a target element by its stable id when present, else its qualified name —
+    // matching the keying of verifiedBy/derivedChildren and the show/trace lookups.
+    let index_key = |t: &RawElement| -> String {
+        t.frontmatter
+            .id
+            .clone()
+            .unwrap_or_else(|| t.qualified_name.clone())
+    };
+    // Display label for a use case in a reverse index (id if present, else qname).
+    let elem_label = |e: &RawElement| -> String {
+        e.frontmatter
+            .id
+            .clone()
+            .unwrap_or_else(|| e.qualified_name.clone())
+    };
+
+    let is_use_case_def = |e: &RawElement| {
+        matches!(e.frontmatter.element_type, Some(ElementType::UseCaseDef))
+    };
+    let is_use_case_usage = |e: &RawElement| {
+        matches!(e.frontmatter.element_type, Some(ElementType::UseCase))
+    };
+
+    // BASE: refines on UseCaseDef / UseCase (E316), refinedBy index, W307.
+    for elem in elements {
+        let fm = &elem.frontmatter;
+        if !(is_use_case_def(elem) || is_use_case_usage(elem)) {
+            continue;
+        }
+        let refines = fm.refines.as_deref().unwrap_or(&[]);
+        for r in refines {
+            match resolver.resolve_ref(elements, r) {
+                None => findings.push(error(
+                    "E316",
+                    &elem.file_path,
+                    &format!(
+                        "use case '{}' refines '{}' which resolves to nothing",
+                        elem.qualified_name, r
+                    ),
+                )),
+                Some(target) => {
+                    let is_req = matches!(
+                        target.frontmatter.element_type,
+                        Some(ElementType::Requirement) | Some(ElementType::RequirementDef)
+                    );
+                    if !is_req {
+                        findings.push(error(
+                            "E316",
+                            &elem.file_path,
+                            &format!(
+                                "use case '{}' refines '{}' which resolves to a {:?}, not a Requirement/RequirementDef",
+                                elem.qualified_name,
+                                r,
+                                target.frontmatter.element_type.clone().unwrap_or(ElementType::Unknown)
+                            ),
+                        ));
+                    } else {
+                        refined_by
+                            .entry(index_key(target))
+                            .or_default()
+                            .push(elem_label(elem));
+                    }
+                }
+            }
+        }
+
+        // W307: a non-draft UseCaseDef with no refines link (absent or empty).
+        if is_use_case_def(elem) {
+            let status = fm.status.as_deref().unwrap_or("");
+            if status != "draft" && refines.is_empty() {
+                findings.push(warning(
+                    "W307",
+                    &elem.file_path,
+                    &format!(
+                        "UseCaseDef '{}' has no refines link to a requirement",
+                        elem.qualified_name
+                    ),
+                ));
+            }
+        }
+    }
+
+    // GATED: the MG### checks fire only under the MagicGrid profile.
+    if config.magicgrid {
+        // True if a type may carry use-case-style `actors:` for MG-002.
+        let carries_actors = |e: &RawElement| {
+            matches!(
+                e.frontmatter.element_type,
+                Some(ElementType::UseCaseDef)
+                    | Some(ElementType::UseCase)
+                    | Some(ElementType::RequirementDef)
+                    | Some(ElementType::Requirement)
+            )
+        };
+        let is_part = |e: &RawElement| {
+            matches!(
+                e.frontmatter.element_type,
+                Some(ElementType::Part) | Some(ElementType::PartDef)
+            )
+        };
+
+        // MG-002: actor validation + actorIn reverse index.
+        for elem in elements {
+            let fm = &elem.frontmatter;
+            if !carries_actors(elem) {
+                continue;
+            }
+            let actors = fm.actors.as_deref().unwrap_or(&[]);
+            for a in actors {
+                match resolver.resolve_ref(elements, a) {
+                    None => findings.push(error(
+                        "MG010",
+                        &elem.file_path,
+                        &format!(
+                            "use case '{}' actor '{}' resolves to nothing",
+                            elem.qualified_name, a
+                        ),
+                    )),
+                    Some(target) => {
+                        if !is_part(target) {
+                            findings.push(error(
+                                "MG011",
+                                &elem.file_path,
+                                &format!(
+                                    "use case '{}' actor '{}' resolves to a {:?}, not a Part/PartDef",
+                                    elem.qualified_name,
+                                    a,
+                                    target.frontmatter.element_type.clone().unwrap_or(ElementType::Unknown)
+                                ),
+                            ));
+                        } else {
+                            if target.frontmatter.mg_bool("mg_external") != Some(true) {
+                                findings.push(error(
+                                    "MG012",
+                                    &elem.file_path,
+                                    &format!(
+                                        "actor '{}' referenced by use case '{}' is not marked custom_fields.mg_external: true",
+                                        target.qualified_name, elem.qualified_name
+                                    ),
+                                ));
+                            }
+                            actor_in
+                                .entry(index_key(target))
+                                .or_default()
+                                .push(elem_label(elem));
+                        }
+                    }
+                }
+            }
+            // MG013: a non-draft UseCaseDef with empty/absent actors.
+            if is_use_case_def(elem) {
+                let status = fm.status.as_deref().unwrap_or("");
+                if status != "draft" && actors.is_empty() {
+                    findings.push(error(
+                        "MG013",
+                        &elem.file_path,
+                        &format!(
+                            "UseCaseDef '{}' declares no actors (every black-box use case must name at least one actor)",
+                            elem.qualified_name
+                        ),
+                    ));
+                }
+            }
+        }
+
+        // MG-003: mg_cell coordinate + type/column validation.
+        const CELLS: [&str; 12] = [
+            "B1", "B2", "B3", "B4", "W1", "W2", "W3", "W4", "S1", "S2", "S3", "S4",
+        ];
+        for elem in elements {
+            let fm = &elem.frontmatter;
+            let Some(cell) = fm.mg_str("mg_cell") else { continue };
+            let cell = cell.trim().to_string();
+            if !CELLS.contains(&cell.as_str()) {
+                findings.push(error(
+                    "MG020",
+                    &elem.file_path,
+                    &format!(
+                        "element '{}' has invalid mg_cell '{}' (expected one of B1-B4, W1-W4, S1-S4)",
+                        elem.qualified_name, cell
+                    ),
+                ));
+                continue;
+            }
+            // Column number is the trailing digit; check type/pillar compatibility.
+            let col = cell.chars().last().unwrap_or('0');
+            let ty = fm.element_type.clone().unwrap_or(ElementType::Unknown);
+            let ok = match col {
+                '1' => matches!(ty, ElementType::Requirement | ElementType::RequirementDef),
+                '2' => matches!(
+                    ty,
+                    ElementType::UseCaseDef
+                        | ElementType::UseCase
+                        | ElementType::ActionDef
+                        | ElementType::Action
+                        | ElementType::StateDef
+                        | ElementType::State
+                ),
+                '3' => matches!(
+                    ty,
+                    ElementType::Part
+                        | ElementType::PartDef
+                        | ElementType::Port
+                        | ElementType::PortDef
+                        | ElementType::Interface
+                        | ElementType::InterfaceDef
+                        | ElementType::Connection
+                        | ElementType::ConnectionDef
+                ),
+                '4' => matches!(
+                    ty,
+                    ElementType::ConstraintDef
+                        | ElementType::Constraint
+                        | ElementType::CalculationDef
+                        | ElementType::Calculation
+                        | ElementType::AnalysisCase
+                ),
+                _ => true,
+            };
+            if !ok {
+                findings.push(error(
+                    "MG021",
+                    &elem.file_path,
+                    &format!(
+                        "element '{}' of type {:?} is incompatible with mg_cell '{}' (column {})",
+                        elem.qualified_name, ty, cell, col
+                    ),
+                ));
+            }
+        }
+
+        // MG-004: Measures of Effectiveness (mg_moe).
+        for elem in elements {
+            let fm = &elem.frontmatter;
+            if fm.mg_bool("mg_moe") != Some(true) {
+                continue;
+            }
+            // MG030: host must be a CalculationDef or AnalysisCase.
+            let host_ok = matches!(
+                fm.element_type,
+                Some(ElementType::CalculationDef) | Some(ElementType::AnalysisCase)
+            );
+            if !host_ok {
+                findings.push(error(
+                    "MG030",
+                    &elem.file_path,
+                    &format!(
+                        "mg_moe: true on '{}' of type {:?} — an MoE must be a CalculationDef or AnalysisCase",
+                        elem.qualified_name,
+                        fm.element_type.clone().unwrap_or(ElementType::Unknown)
+                    ),
+                ));
+            }
+            // MG031: mg_moe_measures must resolve to a Requirement/RequirementDef.
+            match fm.mg_str("mg_moe_measures") {
+                None => findings.push(error(
+                    "MG031",
+                    &elem.file_path,
+                    &format!("MoE '{}' has no mg_moe_measures", elem.qualified_name),
+                )),
+                Some(m) => match resolver.resolve_ref(elements, &m) {
+                    Some(t)
+                        if matches!(
+                            t.frontmatter.element_type,
+                            Some(ElementType::Requirement) | Some(ElementType::RequirementDef)
+                        ) => {}
+                    _ => findings.push(error(
+                        "MG031",
+                        &elem.file_path,
+                        &format!(
+                            "MoE '{}' mg_moe_measures '{}' does not resolve to a Requirement/RequirementDef",
+                            elem.qualified_name, m
+                        ),
+                    )),
+                },
+            }
+            // MG032: direction must be maximize or minimize.
+            let direction = fm.mg_str("mg_moe_direction");
+            let dir_ok = matches!(direction.as_deref(), Some("maximize") | Some("minimize"));
+            if !dir_ok {
+                findings.push(error(
+                    "MG032",
+                    &elem.file_path,
+                    &format!(
+                        "MoE '{}' mg_moe_direction is {} — expected 'maximize' or 'minimize'",
+                        elem.qualified_name,
+                        direction.as_deref().map(|d| format!("'{}'", d)).unwrap_or_else(|| "absent".into())
+                    ),
+                ));
+            }
+            // MG033: numeric/consistent bounds + optional weight in [0,1].
+            let threshold_raw = fm.custom_fields.get("mg_moe_threshold");
+            let objective_raw = fm.custom_fields.get("mg_moe_objective");
+            let threshold = fm.mg_f64("mg_moe_threshold");
+            let objective = fm.mg_f64("mg_moe_objective");
+            if (threshold_raw.is_some() && threshold.is_none())
+                || (objective_raw.is_some() && objective.is_none())
+            {
+                findings.push(error(
+                    "MG033",
+                    &elem.file_path,
+                    &format!(
+                        "MoE '{}' mg_moe_threshold/mg_moe_objective must be numeric",
+                        elem.qualified_name
+                    ),
+                ));
+            } else if let (Some(th), Some(ob)) = (threshold, objective) {
+                let consistent = match direction.as_deref() {
+                    Some("maximize") => ob >= th,
+                    Some("minimize") => ob <= th,
+                    _ => true,
+                };
+                if !consistent {
+                    findings.push(error(
+                        "MG033",
+                        &elem.file_path,
+                        &format!(
+                            "MoE '{}' bounds inconsistent with direction '{}': threshold {} objective {}",
+                            elem.qualified_name,
+                            direction.as_deref().unwrap_or("?"),
+                            th,
+                            ob
+                        ),
+                    ));
+                }
+            }
+            if let Some(w_raw) = fm.custom_fields.get("mg_moe_weight") {
+                match fm.mg_f64("mg_moe_weight") {
+                    Some(w) if (0.0..=1.0).contains(&w) => {}
+                    _ => {
+                        let _ = w_raw;
+                        findings.push(error(
+                            "MG033",
+                            &elem.file_path,
+                            &format!(
+                                "MoE '{}' mg_moe_weight must be numeric in [0, 1]",
+                                elem.qualified_name
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
+
+        // MG-005: logical/physical layering (mg_layer on a Part/PartDef).
+        // Pre-index each part's layer and build the set of logical parts realised by
+        // an Allocation to a physical part.
+        let layer_of = |e: &RawElement| -> Option<String> {
+            if !is_part(e) {
+                return None;
+            }
+            e.frontmatter.mg_str("mg_layer")
+        };
+        // qname -> layer, for resolving Allocation/supertype targets.
+        let mut part_layer: HashMap<String, String> = HashMap::new();
+        for e in elements {
+            if let Some(l) = layer_of(e) {
+                part_layer.insert(e.qualified_name.clone(), l);
+            }
+        }
+        // Logical parts that have an Allocation to a physical part (source qname set).
+        // Allocation edges are carried either as the top-level `allocatedFrom`/
+        // `allocatedTo` fields or as `features:` entries of `type: Allocation`
+        // (mirroring the E500/E501/E502/E503 handling above).
+        let mut logical_realised: HashSet<String> = HashSet::new();
+        let mut record_edge = |from: &str, to: &str| {
+            let to_physical = resolver
+                .resolve_ref(elements, to)
+                .map(|t| part_layer.get(&t.qualified_name).map(|l| l == "physical").unwrap_or(false))
+                .unwrap_or(false);
+            if !to_physical {
+                return;
+            }
+            if let Some(src) = resolver.resolve_ref(elements, from) {
+                logical_realised.insert(src.qualified_name.clone());
+            }
+        };
+        for elem in elements {
+            if !matches!(elem.frontmatter.element_type, Some(ElementType::Allocation)) {
+                continue;
+            }
+            // Top-level allocatedFrom/allocatedTo (cartesian over both lists).
+            let froms = elem.frontmatter.allocated_from.as_deref().unwrap_or(&[]);
+            let tos = elem.frontmatter.allocated_to.as_deref().unwrap_or(&[]);
+            for to in tos {
+                for from in froms {
+                    record_edge(from, to);
+                }
+            }
+            // `features:` entries of type Allocation carrying allocatedFrom/allocatedTo.
+            if let Some(ref feats) = elem.frontmatter.features {
+                for feat_val in feats {
+                    if let serde_yaml::Value::Mapping(ref feat) = *feat_val {
+                        let is_alloc = feat
+                            .get(&serde_yaml::Value::String("type".into()))
+                            .and_then(|v| v.as_str())
+                            == Some("Allocation");
+                        if !is_alloc {
+                            continue;
+                        }
+                        let from = feat
+                            .get(&serde_yaml::Value::String("allocatedFrom".into()))
+                            .and_then(|v| v.as_str());
+                        let to = feat
+                            .get(&serde_yaml::Value::String("allocatedTo".into()))
+                            .and_then(|v| v.as_str());
+                        if let (Some(from), Some(to)) = (from, to) {
+                            record_edge(from, to);
+                        }
+                    }
+                }
+            }
+        }
+        for elem in elements {
+            if !is_part(elem) {
+                continue;
+            }
+            let Some(layer) = elem.frontmatter.mg_str("mg_layer") else { continue };
+            // MG040: layer must be logical or physical.
+            if layer != "logical" && layer != "physical" {
+                findings.push(error(
+                    "MG040",
+                    &elem.file_path,
+                    &format!(
+                        "part '{}' has invalid mg_layer '{}' (expected 'logical' or 'physical')",
+                        elem.qualified_name, layer
+                    ),
+                ));
+                continue;
+            }
+            // MG041: a logical part with no Allocation to a physical part.
+            if layer == "logical" && !logical_realised.contains(&elem.qualified_name) {
+                findings.push(error(
+                    "MG041",
+                    &elem.file_path,
+                    &format!(
+                        "logical part '{}' has no Allocation to a physical element",
+                        elem.qualified_name
+                    ),
+                ));
+            }
+            // MG042: a logical part directly sharing supertype/typedBy with a physical
+            // part (or vice versa). Mirror the E315 walk over supertype + typedBy.
+            for field_val in [elem.frontmatter.supertype.as_ref(), elem.frontmatter.typed_by.as_ref()]
+                .into_iter()
+                .flatten()
+            {
+                for r in yaml_strings(field_val) {
+                    if let Some(target) = resolver.resolve_ref(elements, r) {
+                        if let Some(other_layer) = part_layer.get(&target.qualified_name) {
+                            if (layer == "logical" && other_layer == "physical")
+                                || (layer == "physical" && other_layer == "logical")
+                            {
+                                findings.push(error(
+                                    "MG042",
+                                    &elem.file_path,
+                                    &format!(
+                                        "cross-layer coupling: {} part '{}' references {} part '{}' via supertype/typedBy — relate logical and physical only through an Allocation",
+                                        layer, elem.qualified_name, other_layer, r
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     ValidationResult {
         findings,
         verified_by,
         derived_children,
+        refined_by,
+        actor_in,
     }
 }
 

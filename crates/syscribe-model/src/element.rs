@@ -294,6 +294,10 @@ pub struct RawFrontmatter {
     pub depends_on: Option<Vec<String>>,
     // derivedFrom is a list for both native Requirements and SysML RequirementDef
     pub derived_from: Option<Vec<String>>,
+    /// REQ-TRS-MG-001 — MagicGrid `«refine»`: a `UseCaseDef`/`UseCase` gives concrete
+    /// behavioural meaning to a requirement. Optional list of cross-references
+    /// (qname or stable `REQ-*` id), resolved like `verifies:`/`derivedFrom:`.
+    pub refines: Option<Vec<String>>,
     pub assume: Option<Vec<serde_yaml::Value>>,
     pub requires: Option<Vec<serde_yaml::Value>>,
     pub about: Option<serde_yaml::Value>,
@@ -634,6 +638,42 @@ impl RawFrontmatter {
             }
         }
         out
+    }
+
+    /// REQ-TRS-MG-* — read a MagicGrid overlay value (`mg_*`) from `custom_fields`
+    /// as a string, coercing YAML scalars (string/number/bool) sensibly. Returns
+    /// `None` if the key is absent or the value is not a representable scalar.
+    pub fn mg_str(&self, key: &str) -> Option<String> {
+        match self.custom_fields.get(key)? {
+            serde_yaml::Value::String(s) => Some(s.clone()),
+            serde_yaml::Value::Bool(b) => Some(b.to_string()),
+            serde_yaml::Value::Number(n) => Some(n.to_string()),
+            _ => None,
+        }
+    }
+
+    /// REQ-TRS-MG-* — read a MagicGrid overlay value (`mg_*`) from `custom_fields`
+    /// as a bool, coercing a YAML bool, or the strings `"true"`/`"false"`.
+    pub fn mg_bool(&self, key: &str) -> Option<bool> {
+        match self.custom_fields.get(key)? {
+            serde_yaml::Value::Bool(b) => Some(*b),
+            serde_yaml::Value::String(s) => match s.trim().to_ascii_lowercase().as_str() {
+                "true" => Some(true),
+                "false" => Some(false),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    /// REQ-TRS-MG-* — read a MagicGrid overlay value (`mg_*`) from `custom_fields`
+    /// as an `f64`, coercing a YAML number or a numeric string.
+    pub fn mg_f64(&self, key: &str) -> Option<f64> {
+        match self.custom_fields.get(key)? {
+            serde_yaml::Value::Number(n) => n.as_f64(),
+            serde_yaml::Value::String(s) => s.trim().parse::<f64>().ok(),
+            _ => None,
+        }
     }
 }
 

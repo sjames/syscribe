@@ -52,6 +52,15 @@ fn element_json(
             computed.insert("derivedChildren".into(), serde_json::json!(children));
         }
     }
+    // REQ-TRS-MG-001/002 — refinedBy / actorIn key by stable id when present,
+    // else qualified name (matching the validator's index_key).
+    let mg_key = fm.id.as_deref().unwrap_or(elem.qualified_name.as_str());
+    if let Some(ucs) = result.refined_by.get(mg_key) {
+        computed.insert("refinedBy".into(), serde_json::json!(ucs));
+    }
+    if let Some(ucs) = result.actor_in.get(mg_key) {
+        computed.insert("actorIn".into(), serde_json::json!(ucs));
+    }
 
     let mut obj = serde_json::Map::new();
     obj.insert("qname".into(), serde_json::json!(elem.qualified_name));

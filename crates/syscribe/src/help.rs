@@ -28,6 +28,8 @@ const HELP: &[(&str, &str)] = &[
     ("links", include_str!("../../../prompts/help/links.md")),
     ("refs", include_str!("../../../prompts/help/refs.md")),
     ("matrix", include_str!("../../../prompts/help/matrix.md")),
+    ("magicgrid", include_str!("../../../prompts/help/magicgrid.md")),
+    ("trade-study", include_str!("../../../prompts/help/trade-study.md")),
     ("verification-depth", include_str!("../../../prompts/help/verification-depth.md")),
     ("testplan", include_str!("../../../prompts/help/testplan.md")),
     // Safety / security analysis

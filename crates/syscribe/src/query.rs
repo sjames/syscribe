@@ -528,7 +528,12 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
 
 // ── cmd: show ─────────────────────────────────────────────────────────────────
 
-pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
+pub fn cmd_show(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    val: &ValidationResult,
+    key: &str,
+) {
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
         eprintln!("Tip: use `find` to search by partial name.");
@@ -706,6 +711,55 @@ pub fn cmd_show(elements: &[RawElement], resolver: &Resolver, key: &str) {
             }
         }
     }
+    }
+
+    // Refined by (MagicGrid «refine», REQ-TRS-MG-001) — the use cases that
+    // `refines:` this requirement. Keyed by stable id when present, else qname.
+    let mg_key = fm.id.as_deref().unwrap_or(elem.qualified_name.as_str());
+    if let Some(ucs) = val.refined_by.get(mg_key) {
+        if !ucs.is_empty() {
+            println!();
+            println!("## Refined by");
+            println!();
+            println!("| Use Case | Type | Status |");
+            println!("|---|---|---|");
+            let mut sorted = ucs.clone();
+            sorted.sort();
+            for uc_ref in &sorted {
+                if let Some(uc) = resolve(elements, resolver, uc_ref) {
+                    let ty = tl(uc.frontmatter.element_type.as_ref());
+                    let st = uc.frontmatter.status.as_deref().unwrap_or("—");
+                    println!("| {} | {} | {} |", uc_ref, ty, st);
+                } else {
+                    println!("| {} | (not found) | — |", uc_ref);
+                }
+            }
+        }
+    }
+
+    // Actor participation (MagicGrid actorIn, REQ-TRS-MG-002) — surfaced like the
+    // requirement reverse indices: the use cases that name this part as an actor.
+    // Keyed by stable id when present, else qualified name (matches the validator).
+    let actor_key = fm.id.as_deref().unwrap_or(elem.qualified_name.as_str());
+    if let Some(ucs) = val.actor_in.get(actor_key) {
+        if !ucs.is_empty() {
+            println!();
+            println!("## Actor in");
+            println!();
+            println!("| Use Case | Type | Status |");
+            println!("|---|---|---|");
+            let mut sorted = ucs.clone();
+            sorted.sort();
+            for uc_ref in &sorted {
+                if let Some(uc) = resolve(elements, resolver, uc_ref) {
+                    let ty = tl(uc.frontmatter.element_type.as_ref());
+                    let st = uc.frontmatter.status.as_deref().unwrap_or("—");
+                    println!("| {} | {} | {} |", uc_ref, ty, st);
+                } else {
+                    println!("| {} | (not found) | — |", uc_ref);
+                }
+            }
+        }
     }
 
     // Custom fields (GH #39) — read-only labelled section; scalars inline, lists
@@ -1241,6 +1295,32 @@ pub fn cmd_trace(
                 println!("| {} | {} | {} | {} |", annotated, name, level, scenarios);
             } else {
                 println!("| {} | (not found) | — | — |", tc_id);
+            }
+        }
+        println!();
+    }
+
+    // ── Refined by (MagicGrid «refine», REQ-TRS-MG-001) ───────────────────
+    let refiners = val.refined_by.get(id).cloned().unwrap_or_default();
+    if refiners.is_empty() {
+        println!("## Refined by");
+        println!();
+        println!("_(none)_");
+        println!();
+    } else {
+        println!("## Refined by");
+        println!();
+        println!("| Use Case | Type | Status |");
+        println!("|---|---|---|");
+        let mut sorted_r = refiners.clone();
+        sorted_r.sort();
+        for uc_ref in &sorted_r {
+            if let Some(uc) = resolve(elements, resolver, uc_ref) {
+                let ty = tl(uc.frontmatter.element_type.as_ref());
+                let st = uc.frontmatter.status.as_deref().unwrap_or("—");
+                println!("| {} | {} | {} |", uc_ref, ty, st);
+            } else {
+                println!("| {} | (not found) | — |", uc_ref);
             }
         }
         println!();
@@ -3260,6 +3340,11 @@ pub fn print_help() {
     println!("                                 A per-config + overall coverage-% footer is printed (coverage object in --json).");
     println!("                                 With no feature model, falls back to a flat requirement/testcase view.");
     println!("  matrix --features [--json]     Feature × Configuration selection grid (cell ✓ where selected true)");
+    println!("  matrix --allocations [--json]  Allocation source × target matrix; rollup of unallocated sources /");
+    println!("                                 unused targets; logical→physical partition when mg_layer is present.");
+    println!("  magicgrid [--json]             MagicGrid B/W/S × 1-4 cell report over mg_cell; flags empty cells.");
+    println!("  trade-study [--json]           MoE-weighted trade study: mg_moe rows × Configuration columns, each");
+    println!("       [--config <id|qname> ...] cell VALUE (SCORE); rollup marks WINNER / FAIL. --config restricts columns.");
     println!("  features [--json]              Feature-model overview: every FeatureDef with groupKind, requires/excludes,");
     println!("                                 parameters and a 'selected in N/M' rollup. Notice + exit 0 with no feature model.");
     println!("  feature <qname|name> [--json]  Single-feature card: Gates (elements gating on it), Selected in (configs),");

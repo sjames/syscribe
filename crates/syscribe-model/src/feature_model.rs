@@ -171,6 +171,44 @@ fn eval_constraint(expr: &str, resolve: &dyn Fn(&str) -> Option<f64>) -> Option<
     })
 }
 
+/// Evaluate the right-hand side of an assignment-style expression to a number.
+///
+/// Drops any `LHS =` prefix (e.g. `out = endurance` → `endurance`) — but not the
+/// comparison operators `==`/`<=`/`>=`/`!=` — and evaluates the remainder via the
+/// arithmetic evaluator, resolving each variable token through `resolve`. Returns
+/// `None` if any reference is unresolved or the expression cannot be parsed.
+///
+/// Used by the MoE trade study (REQ-TRS-MG-007) to compute a MoE host element's
+/// `expression:` under a configuration's `parameterBindings`.
+pub fn eval_expr_rhs(expr: &str, resolve: &dyn Fn(&str) -> Option<f64>) -> Option<f64> {
+    let rhs = split_assignment_rhs(expr).unwrap_or(expr);
+    eval_arith(rhs, resolve)
+}
+
+/// Return the slice after a single `=` that is an assignment (not part of a
+/// comparison operator `==`/`<=`/`>=`/`!=`). Returns `None` if there is no such
+/// assignment `=`.
+fn split_assignment_rhs(expr: &str) -> Option<&str> {
+    let bytes = expr.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'=' {
+            let prev = if i > 0 { bytes[i - 1] } else { 0 };
+            let next = if i + 1 < bytes.len() { bytes[i + 1] } else { 0 };
+            let is_cmp = next == b'='
+                || prev == b'='
+                || prev == b'<'
+                || prev == b'>'
+                || prev == b'!';
+            if !is_cmp {
+                return Some(&expr[i + 1..]);
+            }
+        }
+        i += 1;
+    }
+    None
+}
+
 /// Recursive-descent arithmetic over `+ - * /`, parentheses, numeric literals and
 /// parameter references. Returns `None` if any reference is unresolved.
 fn eval_arith(s: &str, resolve: &dyn Fn(&str) -> Option<f64>) -> Option<f64> {

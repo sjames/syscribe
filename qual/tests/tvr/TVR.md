@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 166 |
-| Passed | 166 |
+| Total test cases | 173 |
+| Passed | 173 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -615,6 +615,83 @@
 | Scenario | Result |
 |---|---|
 | spec fields lists implementedBy | ✓ PASS |
+
+---
+
+### TC-TRS-MG-001 — Verify the refines link on UseCaseDef: write/parse, refinedBy index, E316 bad target, W307 missing (draft-suppressed), magicgrid profile promotion.
+
+**Verifies:** REQ-TRS-MG-001  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| the magicgrid profile promotes W307 to a gate failure | ✓ PASS |
+
+---
+
+### TC-TRS-MG-002 — Verify gated actor validation: inert without the gate; MG010 unresolved, MG011 non-part, MG012 not external, MG013 no actors; actorIn index.
+
+**Verifies:** REQ-TRS-MG-002  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| actor participation is indexed | ✓ PASS |
+
+---
+
+### TC-TRS-MG-003 — Verify mg_cell classification and the magicgrid grid report: MG020 invalid coord, MG021 type/column mismatch, grid render with empty-cell flag, --json.
+
+**Verifies:** REQ-TRS-MG-003  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| mg_cell is inert without the magicgrid profile | ✓ PASS |
+
+---
+
+### TC-TRS-MG-004 — Verify MoE validation: valid MoE clean; MG030 wrong host, MG031 measures missing/unresolved, MG032 bad direction, MG033 bad bounds; inert without the gate.
+
+**Verifies:** REQ-TRS-MG-004  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| mg_moe fields are inert without the gate | ✓ PASS |
+
+---
+
+### TC-TRS-MG-005 — Verify logical/physical layering: MG040 bad layer, MG041 unrealised logical, MG042 cross-layer coupling; allocation clears MG042; inert without the gate.
+
+**Verifies:** REQ-TRS-MG-005  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| mg_layer is inert without the gate | ✓ PASS |
+
+---
+
+### TC-TRS-MG-006 — Verify the allocation matrix view: rows=sources, cols=targets, allocated cells; unallocated/unused rollup; mg_layer partition; flat fallback; --json.
+
+**Verifies:** REQ-TRS-MG-006  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| the matrix emits JSON | ✓ PASS |
+
+---
+
+### TC-TRS-MG-007 — Verify the MoE-weighted trade study: MoE rows x configuration columns; objective scores 1.0; sub-threshold scores 0 and fails the config; ranked rollup; --config; --json; n/a cells.
+
+**Verifies:** REQ-TRS-MG-007  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| the trade study emits JSON | ✓ PASS |
 
 ---
 

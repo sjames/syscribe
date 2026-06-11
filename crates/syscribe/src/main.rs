@@ -12,6 +12,7 @@ mod help;
 mod ingest;
 mod matrix;
 mod metrics_cmd;
+mod mgreport;
 mod mv;
 mod query;
 mod render;
@@ -318,7 +319,12 @@ fn main() {
         let key = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
         match subcmd {
             "show" => {
-                query::cmd_show(&elems, &resolver, key);
+                // Build a validation result with the MagicGrid index active so the
+                // `actorIn` reverse index is available to surface (REQ-TRS-MG-002).
+                let mut show_cfg = vcfg.clone();
+                show_cfg.magicgrid = true;
+                let result = validator::validate_with_config(&elems, &show_cfg);
+                query::cmd_show(&elems, &resolver, &result, key);
             }
             "ls" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
@@ -409,6 +415,9 @@ fn main() {
                     .find(|w| w[0] == "--results")
                     .map(|w| w[1].as_str());
                 let mut vcfg_run = vcfg.clone();
+                // REQ-TRS-MG-*: a magicgrid-enabled profile (`magicgrid = true`)
+                // turns on the gated MagicGrid validation pass for this run.
+                vcfg_run.magicgrid = profile_ref.map_or(false, |p| p.magicgrid);
                 if let Some(rf) = results_file {
                     let fmt = rest.windows(2)
                         .find(|w| w[0] == "--format")
@@ -504,15 +513,19 @@ fn main() {
                         .collect()
                 });
                 let ps = plan_scope.as_ref();
+                // REQ-TRS-MG-*: a magicgrid-enabled profile turns on the gated pass.
+                let mut vcfg_audit = vcfg.clone();
+                vcfg_audit.magicgrid = profile.as_ref().map_or(false, |p| p.magicgrid);
+                let vcfg = &vcfg_audit;
                 let code = if all_configs {
-                    audit::cmd_audit_all_configs(&elems, &vcfg, profile.as_ref(), json)
+                    audit::cmd_audit_all_configs(&elems, vcfg, profile.as_ref(), json)
                 } else if let Some(c) = config {
                     match syscribe_model::projection::resolve_selection(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
-                            audit::cmd_audit(&elems, &vcfg, model_root, profile.as_ref(), None, ps, json)
+                            audit::cmd_audit(&elems, vcfg, model_root, profile.as_ref(), None, ps, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
-                            audit::cmd_audit(&elems, &vcfg, model_root, profile.as_ref(), Some(&sel), ps, json)
+                            audit::cmd_audit(&elems, vcfg, model_root, profile.as_ref(), Some(&sel), ps, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
                             eprintln!("Error: {m}");
@@ -520,7 +533,7 @@ fn main() {
                         }
                     }
                 } else {
-                    audit::cmd_audit(&elems, &vcfg, model_root, profile.as_ref(), None, ps, json)
+                    audit::cmd_audit(&elems, vcfg, model_root, profile.as_ref(), None, ps, json)
                 };
                 if code != 0 {
                     std::process::exit(code);
@@ -644,6 +657,12 @@ fn main() {
             "matrix" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
+                // REQ-TRS-MG-006: `matrix --allocations` is an Allocation source ×
+                // target matrix mode, distinct from the Requirement × Configuration grid.
+                if rest.iter().any(|a| a == "--allocations") {
+                    mgreport::cmd_matrix_allocations(&elems, json);
+                    return;
+                }
                 let gaps_only = rest.iter().any(|a| a == "--gaps-only");
                 let linked_only = rest.iter().any(|a| a == "--linked-only");
                 let tag = rest
@@ -690,6 +709,23 @@ fn main() {
                         linked_only,
                     );
                 }
+            }
+            "magicgrid" => {
+                // REQ-TRS-MG-003: read-only B/W/S × 1-4 grid report over mg_cell.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                mgreport::cmd_magicgrid(&elems, json);
+            }
+            "trade-study" => {
+                // REQ-TRS-MG-007: MoE-weighted trade study scoring Configurations.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let config_filter: Vec<String> = rest
+                    .windows(2)
+                    .filter(|w| w[0] == "--config")
+                    .map(|w| w[1].clone())
+                    .collect();
+                mgreport::cmd_trade_study(&elems, json, &config_filter);
             }
             "co-analysis" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
