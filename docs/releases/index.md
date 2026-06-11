@@ -2,6 +2,14 @@
 
 `RELEASES`
 
+## 0.19.0 — 2026-06-11
+
+### Basic-name validation now covers package/directory names (GH #42)
+
+`W042` (SysMLv2 basic-name check) previously covered element names and `_index.md`-backed packages. It now also flags **directories without an `_index.md`** — their namespace segment is still a referenceable qualified-name prefix, so it must be a basic name too (e.g. a `Brake-System/` directory → rename to `Brake_System` / `BrakeSystem`). Stable-id elements (REQ-*, TC-*, …) remain exempt; only the directories that contain them are checked.
+
+Suite at **146** test cases, all passing.
+
 ## 0.18.0 — 2026-06-11
 
 ### SysMLv2 basic-name validation (GH #42)
