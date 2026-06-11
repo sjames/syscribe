@@ -48,6 +48,7 @@ const HELP: &[(&str, &str)] = &[
     ("check-ref", include_str!("../../../prompts/help/check-ref.md")),
     ("path-for", include_str!("../../../prompts/help/path-for.md")),
     ("move", include_str!("../../../prompts/help/move.md")),
+    ("applies-when", include_str!("../../../prompts/help/applies-when.md")),
     ("scaffold-gherkin", include_str!("../../../prompts/help/scaffold-gherkin.md")),
     ("ingest-results", include_str!("../../../prompts/help/ingest-results.md")),
     ("render", include_str!("../../../prompts/help/render.md")),

@@ -1,6 +1,7 @@
 #![deny(warnings)]
 
 mod audit;
+mod aw;
 mod coanalysis;
 mod cyberrisk;
 mod connectivity;
@@ -849,6 +850,25 @@ fn main() {
                 }
                 let fix = subcommand_args.iter().any(|a| a == "--fix");
                 scaffold::cmd_scaffold_gherkin(&elems, &resolver, key, fix);
+            }
+            "applies-when" => {
+                if key.is_empty() {
+                    eprintln!("Usage: syscribe --model <root> applies-when <element-qname|id> (--set \"<expr>\" | --clear) [--dry-run]");
+                    std::process::exit(1);
+                }
+                let set_expr = subcommand_args
+                    .windows(2)
+                    .find(|w| w[0] == "--set")
+                    .map(|w| w[1].as_str());
+                let clear = subcommand_args.iter().any(|a| a == "--clear");
+                let dry_run = subcommand_args.iter().any(|a| a == "--dry-run");
+                let json = subcommand_args.iter().any(|a| a == "--json");
+                // No --set / --clear → read-only display of the gate (REQ-TRS-AW-002).
+                if set_expr.is_some() && clear {
+                    eprintln!("applies-when: --set and --clear are mutually exclusive");
+                    std::process::exit(1);
+                }
+                aw::cmd_applies_when(model_root, &elems, &resolver, key, set_expr, clear, json, dry_run);
             }
             "trace" | "why" | "who-verifies" => {
                 let result = validator::validate_with_config(&elems, &vcfg);

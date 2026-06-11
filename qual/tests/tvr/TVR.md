@@ -12,14 +12,36 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 164 |
-| Passed | 164 |
+| Total test cases | 166 |
+| Passed | 166 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
 ---
 
 ## 2. Results
+
+### TC-TRS-AW-001 — Verify the applies-when CLI: set by feature id or path, E209/E228 refusal, void-model bad-config check on set, clear, dry-run.
+
+**Verifies:** REQ-TRS-AW-001  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| dry-run validates but writes nothing | ✓ PASS |
+
+---
+
+### TC-TRS-AW-002 — Verify applies-when read mode: own gate, inherited (package) effective gate, always-applies, read-only, --json, unresolved.
+
+**Verifies:** REQ-TRS-AW-002  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an unresolved element exits non-zero | ✓ PASS |
+
+---
 
 ### TC-TRS-CFLD-001 — Verify custom_fields shape validation: scalars/lists clean, nested map raises W041.
 

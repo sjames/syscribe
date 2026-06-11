@@ -4,6 +4,23 @@
 
 ## 0.21.0 — 2026-06-11
 
+### Author `appliesWhen` from the CLI (`applies-when`)
+
+A new `applies-when <element> --set "<expr>" | --clear [--dry-run]` command adds,
+replaces, or removes an element's `appliesWhen:` gate. The element resolves by qualified
+name or stable id; each operand resolves to a `FeatureDef` by its **`FEAT-*` id or its
+qualified name** (interchangeably). The edit is refused without writing if the expression
+is malformed/unresolved (`E209`) or the placement is forbidden (`E228`); only the
+`appliesWhen:` key is changed (the rest of the file is byte-preserved). After a successful
+`--set`, the **feature model is validated for bad configurations** (`feature-check --deep`:
+void `E223`, dead `E224`, invalid configurations `E225`) and the command exits non-zero if
+any are found. (`REQ-TRS-AW-001`.)
+
+With **no flag**, `applies-when <element>` is a read-only display of the element's **own**
+and **effective** gate — the latter including any condition **inherited** from an ancestor
+package (transitive package conditioning), or "always applies" when gated nowhere; `--json`
+emits `{element, own, effective, inheritedFrom}`. (`REQ-TRS-AW-002`.)
+
 ### One label field per element, fixed by identity class (E024 / E025)
 
 Every element now carries **exactly one** human-readable label field, determined by how it is identified — never both:
@@ -19,7 +36,7 @@ The `FEAT-*` stable id introduced in 0.20.0 is now **mandatory** on every `Featu
 
 **Breaking:** (1) a model that carried both `name` and `title` (or the wrong one for its type) now fails validation — remove the stray field (`title` for id-identified types, `name` for everything else); (2) a `FeatureDef` with no `FEAT-*` `id` now fails (`E201`) — add one.
 
-Suite at **164** test cases, all passing.
+Suite at **166** test cases, all passing.
 
 ## 0.20.0 — 2026-06-11
 

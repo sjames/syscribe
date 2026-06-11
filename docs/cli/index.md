@@ -500,6 +500,26 @@ $ syscribe -m model/ configure <Configuration>      # from a partial selection: 
 
 `configure` treats a `Configuration`'s `features:` as a *partial* selection (set features fixed, absent open) and reports whether it can be completed plus which features are **forced** or still **free** — a feature configurator. (`--prove` emits the externally-checkable DIMACS CNF; a DRAT refutation proof is deferred — batsat does not expose one.)
 
+### Authoring a gate (`applies-when`)
+
+Show, set, replace, or remove an element's `appliesWhen:` gate from the CLI:
+
+```
+$ syscribe -m model/ applies-when REQ-UAV-NAV-001                       # read: own + effective gate
+$ syscribe -m model/ applies-when REQ-UAV-NAV-001 --json
+$ syscribe -m model/ applies-when REQ-UAV-NAV-001 --set "FEAT-QUAD"
+$ syscribe -m model/ applies-when REQ-UAV-NAV-001 --set "Features::Propulsion::Quad"
+$ syscribe -m model/ applies-when UAV::Payload::Camera --set "FEAT-SURVEY or FEAT-MAPPING"
+$ syscribe -m model/ applies-when REQ-UAV-NAV-001 --clear
+$ syscribe -m model/ applies-when REQ-UAV-NAV-001 --set "FEAT-QUAD" --dry-run
+```
+
+With **no flag** the command is a read-only display: it prints the element's **own** gate and its **effective** condition — the own gate, or, when the element declares none, the gate **inherited** from its nearest ancestor package (transitive package conditioning), naming that package; an element gated nowhere is reported as always applying. This is the static condition; `why-active <element> --config <CONF>` evaluates it for one product.
+
+The element is resolved by qualified name or stable id; each operand of the expression resolves to a `FeatureDef` by its **`FEAT-*` id or its qualified name** (interchangeably). The edit is **refused without writing** if the expression is malformed or has an unresolved operand (`E209`), or the placement is forbidden (`E228` — a `FeatureDef`, a `Configuration`, the model-root package, a package whose subtree contains features, or a path that already declares `appliesWhen:`). Only the `appliesWhen:` key changes; the rest of the file is preserved byte-for-byte.
+
+After a successful `--set`, the **feature model is checked for bad configurations** (`feature-check --deep`: void model `E223`, dead features `E224`, invalid configurations `E225`); the command exits non-zero if any are found, so a gate is never applied on top of an unsound feature model. `--dry-run` previews and runs the same check without writing.
+
 ### Feature discoverability
 
 Four commands answer "what features exist, what does each gate, and why is this element in this product?"
