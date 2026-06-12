@@ -1,7 +1,7 @@
 ---
 id: TC-V14-DM-001
 type: TestCase
-title: "tc_draft_missing"
+name: "tc_draft_missing"
 status: draft
 testLevel: L3
 verifies:

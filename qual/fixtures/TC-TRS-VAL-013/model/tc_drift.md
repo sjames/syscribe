@@ -1,7 +1,7 @@
 ---
 id: TC-V13-DRIFT-001
 type: TestCase
-title: "tc_drift"
+name: "tc_drift"
 status: active
 testLevel: L3
 verifies:

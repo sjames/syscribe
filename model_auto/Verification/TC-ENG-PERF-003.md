@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-PERF-003
-title: Integration test — closed-loop fuel control lambda accuracy
+name: Integration test — closed-loop fuel control lambda accuracy
 status: active
 testLevel: L2
 verifies:

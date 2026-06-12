@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-ELEM-002
 type: Requirement
-title: "Tool shall emit E005 for unrecognised type: values"
+name: "Tool shall emit E005 for unrecognised type: values"
 status: draft
 reqDomain: software
 verificationMethod: test

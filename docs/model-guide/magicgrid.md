@@ -311,7 +311,7 @@ differentiated solely by its `parameterBindings:`:
 ```yaml
 type: Configuration
 id: CONF-EVCS-001
-title: "Entry tier — 2x90 kW, no spare"
+name: "Entry tier — 2x90 kW, no spare"
 status: approved
 custom_fields:
   mg_variant: true

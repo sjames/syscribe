@@ -3,7 +3,7 @@ id: TC-TRS-SAFE-001
 type: TestCase
 testLevel: L3
 status: draft
-title: Verify that HazardousEvent validation rules E800-E804, E833-E836, and W800 are enforced
+name: Verify that HazardousEvent validation rules E800-E804, E833-E836, and W800 are enforced
 verifies:
   - REQ-TRS-SAFE-001
 ---

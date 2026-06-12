@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-010
 type: Requirement
-title: "Tool shall recognise and validate the SuccessionDef element"
+name: "Tool shall recognise and validate the SuccessionDef element"
 status: draft
 reqDomain: software
 verificationMethod: test

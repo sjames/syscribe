@@ -1,7 +1,7 @@
 ---
 id: TC-001
 type: TestCase
-title: Invalid TC id (too short)
+name: Invalid TC id (too short)
 status: draft
 testLevel: L3
 verifies:

@@ -1,7 +1,7 @@
 ---
 id: TC-HIL-001
 type: TestCase
-title: "HIL timing measurement of the control loop deadline"
+name: "HIL timing measurement of the control loop deadline"
 status: active
 testLevel: L5
 tags: [timing]

@@ -3,7 +3,7 @@ id: TC-TRS-TRACE-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that E310 is emitted when derivedFrom: is present but breakdownAdr: is absent."
+name: "Verify that E310 is emitted when derivedFrom: is present but breakdownAdr: is absent."
 verifies:
   - REQ-TRS-TRACE-002
 ---

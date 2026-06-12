@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-UAV-CARGO-001
-title: "Delivery payload shall release cargo within 500 ms of command"
+name: "Delivery payload shall release cargo within 500 ms of command"
 status: approved
 reqDomain: hardware
 verificationMethod: test

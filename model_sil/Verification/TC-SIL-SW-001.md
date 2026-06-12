@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-SIL-SW-001
-title: Software unit test — ConflictChecker conflict matrix formally verified
+name: Software unit test — ConflictChecker conflict matrix formally verified
 status: active
 testLevel: L3
 verifies:

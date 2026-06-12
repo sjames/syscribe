@@ -1,7 +1,7 @@
 ---
 id: REQ-W305-PAR-001
 type: Requirement
-title: Parent requirement with no integration-level TestCase
+name: Parent requirement with no integration-level TestCase
 status: approved
 reqDomain: system
 verificationMethod: test

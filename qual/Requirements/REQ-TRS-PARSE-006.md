@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PARSE-006
 type: Requirement
-title: Tool shall continue processing after a file with unparseable frontmatter
+name: Tool shall continue processing after a file with unparseable frontmatter
 status: draft
 reqDomain: software
 verificationMethod: test

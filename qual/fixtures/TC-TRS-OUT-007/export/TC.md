@@ -1,7 +1,7 @@
 ---
 id: TC-EXP-001
 type: TestCase
-title: "Verify export"
+name: "Verify export"
 status: active
 testLevel: L3
 verifies:

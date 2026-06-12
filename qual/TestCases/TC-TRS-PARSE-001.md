@@ -3,7 +3,7 @@ id: TC-TRS-PARSE-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that the tool accepts a model root directory path and uses it as the namespace root."
+name: "Verify that the tool accepts a model root directory path and uses it as the namespace root."
 verifies:
   - REQ-TRS-PARSE-001
 ---

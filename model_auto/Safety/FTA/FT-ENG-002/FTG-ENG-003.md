@@ -1,7 +1,7 @@
 ---
 type: FaultTreeGate
 id: FTG-ENG-003
-title: OR gate — CPS signal lost due to harness failure OR supply dropout
+name: OR gate — CPS signal lost due to harness failure OR supply dropout
 gateType: OR
 inputs:
   - FTG-ENG-004

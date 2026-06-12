@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-FM4-AUTO-001
-title: "Automatic drive product"
+name: "Automatic drive product"
 status: approved
 featureModel: Features
 features:

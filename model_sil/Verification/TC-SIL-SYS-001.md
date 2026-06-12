@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-SIL-SYS-001
-title: HIL — End-to-end system integration test for SIL 4 interlocking safe state
+name: HIL — End-to-end system integration test for SIL 4 interlocking safe state
 status: active
 testLevel: L5
 verifies:

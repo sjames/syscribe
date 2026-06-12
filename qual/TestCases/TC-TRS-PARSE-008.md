@@ -3,7 +3,7 @@ id: TC-TRS-PARSE-008
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that invalid YAML frontmatter produces error E002."
+name: "Verify that invalid YAML frontmatter produces error E002."
 verifies:
   - REQ-TRS-PARSE-008
 ---

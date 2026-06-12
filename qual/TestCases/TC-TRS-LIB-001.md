@@ -3,7 +3,7 @@ id: TC-TRS-LIB-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify built-in type recognition: ScalarValues/Base members resolve with no W404/W043; unknown members raise W043; import-only packages stay lenient."
+name: "Verify built-in type recognition: ScalarValues/Base members resolve with no W404/W043; unknown members raise W043; import-only packages stay lenient."
 verifies:
   - REQ-TRS-LIB-001
 ---

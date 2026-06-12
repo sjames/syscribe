@@ -395,10 +395,6 @@ pub fn fuzzy_score(elem: &RawElement, pattern: &str) -> u32 {
     }
     // qname contains
     if qn_lc.contains(&pat_lc) { return 65; }
-    // title contains
-    if let Some(t) = &elem.frontmatter.title {
-        if t.to_lowercase().contains(&pat_lc) { return 50; }
-    }
     // name contains
     if let Some(nm) = &elem.frontmatter.name {
         if nm.to_lowercase().contains(&pat_lc) { return 48; }
@@ -1082,10 +1078,9 @@ pub fn cmd_list(
     println!("| Qualified Name | Name / ID | Supertype / TypedBy | File |");
     println!("|---|---|---|---|");
     for e in &matches {
-        let label = e.frontmatter.title
+        let label = e.frontmatter.name
             .as_deref()
             .or_else(|| e.frontmatter.id.as_deref())
-            .or_else(|| e.frontmatter.name.as_deref())
             .unwrap_or("—");
         let classifier = yaml_first_string(e.frontmatter.supertype.as_ref())
             .or_else(|| yaml_first_string(e.frontmatter.typed_by.as_ref()))
@@ -1118,10 +1113,10 @@ pub fn cmd_find(elements: &[RawElement], pattern: &str, wheres: &[CustomWhere]) 
     println!("|---|---|---|---|");
     for (score, elem) in &scored {
         let type_str = tl(elem.frontmatter.element_type.as_ref());
-        // Prefer title or id as excerpt, fall back to doc
+        // Prefer name or id as excerpt, fall back to doc
         let excerpt = elem
             .frontmatter
-            .title
+            .name
             .as_deref()
             .map(|t| t.to_string())
             .or_else(|| {
@@ -1209,7 +1204,7 @@ pub fn cmd_trace(
     let fm = &elem.frontmatter;
 
     let id = fm.id.as_deref().unwrap_or(&elem.qualified_name);
-    let title = fm.title.as_deref().unwrap_or("(no title)");
+    let title = fm.name.as_deref().unwrap_or("(no name)");
     let status = fm.status.as_deref().unwrap_or("—");
     let req_domain = fm.req_domain.as_deref().unwrap_or("—");
     let sil = fm.sil_level.map(|v| v.to_string()).unwrap_or("—".into());
@@ -1233,7 +1228,7 @@ pub fn cmd_trace(
         for parent_ref in parents {
             if let Some(p) = resolve(elements, resolver, parent_ref) {
                 let p_id = p.frontmatter.id.as_deref().unwrap_or(&p.qualified_name);
-                let p_title = p.frontmatter.title.as_deref().unwrap_or("—");
+                let p_title = p.frontmatter.name.as_deref().unwrap_or("—");
                 let p_status = p.frontmatter.status.as_deref().unwrap_or("—");
                 println!("| {} | {} | {} |", p_id, p_title, p_status);
             } else {
@@ -1249,7 +1244,7 @@ pub fn cmd_trace(
         println!();
         if let Some(adr) = resolve(elements, resolver, adr_ref) {
             let adr_id = adr.frontmatter.id.as_deref().unwrap_or(&adr.qualified_name);
-            let adr_title = adr.frontmatter.title.as_deref().unwrap_or("—");
+            let adr_title = adr.frontmatter.name.as_deref().unwrap_or("—");
             let adr_status = adr.frontmatter.status.as_deref().unwrap_or("—");
             println!("- **{}** — {} (`{}`)", adr_id, adr_title, adr_status);
         } else {
@@ -1264,7 +1259,7 @@ pub fn cmd_trace(
         println!();
         if let Some(sg) = resolve(elements, resolver, sg_ref) {
             let sg_id = sg.frontmatter.id.as_deref().unwrap_or(&sg.qualified_name);
-            let sg_title = sg.frontmatter.title.as_deref().unwrap_or("—");
+            let sg_title = sg.frontmatter.name.as_deref().unwrap_or("—");
             let asil = sg.frontmatter.asil_level.as_deref()
                 .or_else(|| sg.frontmatter.sil_level.map(|_| "SIL").unwrap_or_default().into())
                 .unwrap_or("—");
@@ -1283,7 +1278,7 @@ pub fn cmd_trace(
         println!();
         if let Some(csg) = resolve(elements, resolver, csg_ref) {
             let csg_id = csg.frontmatter.id.as_deref().unwrap_or(&csg.qualified_name);
-            let csg_title = csg.frontmatter.title.as_deref().unwrap_or("—");
+            let csg_title = csg.frontmatter.name.as_deref().unwrap_or("—");
             let cal = csg.frontmatter.cal_level.as_deref().unwrap_or("—");
             let prop = csg.frontmatter.security_property.as_deref().unwrap_or("—");
             println!("- **{}** — {} (`{}` · {})", csg_id, csg_title, cal, prop);
@@ -1303,7 +1298,7 @@ pub fn cmd_trace(
         sorted_children.sort();
         for cid in &sorted_children {
             if let Some(c) = resolve(elements, resolver, cid) {
-                let c_title = c.frontmatter.title.as_deref().unwrap_or("—");
+                let c_title = c.frontmatter.name.as_deref().unwrap_or("—");
                 let c_status = c.frontmatter.status.as_deref().unwrap_or("—");
                 let c_domain = c.frontmatter.req_domain.as_deref().unwrap_or("—");
                 println!("| {} | {} | {} | {} |", cid, c_title, c_status, c_domain);
@@ -1519,7 +1514,7 @@ pub fn cmd_why(
     for req_ref in &satisfies {
         if let Some(req) = resolve(elements, resolver, req_ref) {
             let id = req.frontmatter.id.as_deref().unwrap_or(&req.qualified_name);
-            let title = req.frontmatter.title.as_deref().unwrap_or("—");
+            let title = req.frontmatter.name.as_deref().unwrap_or("—");
             let status = req.frontmatter.status.as_deref().unwrap_or("—");
             let rd = req.frontmatter.req_domain.as_deref().unwrap_or("—");
             let sil = req.frontmatter.sil_level.map(|v| v.to_string()).unwrap_or("—".into());
@@ -1575,7 +1570,7 @@ pub fn cmd_who_verifies(
         return;
     };
     let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
-    let title = elem.frontmatter.title.as_deref().unwrap_or("(no title)");
+    let title = elem.frontmatter.name.as_deref().unwrap_or("(no name)");
 
     println!("# Verification: {}", id);
     println!();

@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-ENG-PERF-001
-title: Decompose performance requirement into throttle response and fuel efficiency
+name: Decompose performance requirement into throttle response and fuel efficiency
 status: accepted
 ---
 

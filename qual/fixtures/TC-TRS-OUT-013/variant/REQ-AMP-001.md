@@ -1,7 +1,7 @@
 ---
 id: REQ-AMP-001
 type: Requirement
-title: "Inter-core lockstep shall be monitored"
+name: "Inter-core lockstep shall be monitored"
 status: approved
 silLevel: 4
 appliesWhen: Features::Amp

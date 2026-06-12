@@ -3,7 +3,7 @@ id: TC-TRS-CFLD-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the --where custom-field query: exact, regex, list-membership, presence, and bad-predicate exit."
+name: "Verify the --where custom-field query: exact, regex, list-membership, presence, and bad-predicate exit."
 verifies:
   - REQ-TRS-CFLD-002
 ---

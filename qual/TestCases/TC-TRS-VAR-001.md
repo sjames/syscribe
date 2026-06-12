@@ -3,7 +3,7 @@ id: TC-TRS-VAR-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that the variability dimension is dormant unless a feature model is linked."
+name: "Verify that the variability dimension is dormant unless a feature model is linked."
 verifies:
   - REQ-TRS-VAR-001
 ---

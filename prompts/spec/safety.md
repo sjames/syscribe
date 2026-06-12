@@ -15,7 +15,7 @@ A combination of a hazard and an operational situation.
 ```yaml
 type: HazardousEvent
 id: HE-BRAKE-001            # required; HE-*
-title: "Unintended brake release at highway speed"
+name: "Unintended brake release at highway speed"
 status: approved
 
 # ISO 26262 risk parameters (use these OR the IEC 61508 set below)
@@ -41,7 +41,7 @@ Top-level safety requirement derived from the HARA.
 ```yaml
 type: SafetyGoal
 id: SG-BRAKE-001            # required; SG-*
-title: "Prevent unintended brake release"
+name: "Prevent unintended brake release"
 status: approved
 asilLevel: D                # A | B | C | D  — OR silLevel: 1–4 OR plLevel: a–e
 safeState: "Hold last commanded brake pressure"   # description of the safe state
@@ -62,7 +62,7 @@ requirements), E841 (derived Requirement missing integrity level).
 ```yaml
 type: DamageScenario
 id: DS-001
-title: "Attacker gains control of steering"
+name: "Attacker gains control of steering"
 status: approved
 damageSeverity: severe      # severe · major · moderate · negligible
 impactCategories:           # safety · financial · operational · privacy
@@ -79,7 +79,7 @@ A safety-tagged DamageScenario (`impactCategories` includes `safety`) with no `h
 ```yaml
 type: ThreatScenario
 id: TS-001
-title: "CAN bus spoofing via OBD port"
+name: "CAN bus spoofing via OBD port"
 status: approved
 attackFeasibility: medium   # high · medium · low · very_low
 attackVector: local         # network · adjacent · local · physical
@@ -96,7 +96,7 @@ residualRisk: "Low after MAC on torque frames"   # optional free text
 ```yaml
 type: CybersecurityGoal
 id: CSG-001
-title: "Ensure authenticity of steering control commands"
+name: "Ensure authenticity of steering control commands"
 status: approved
 securityProperty: authenticity  # confidentiality · integrity · availability · authenticity
 calLevel: CAL3              # CAL1 · CAL2 · CAL3 · CAL4
@@ -110,7 +110,7 @@ Validation: W802 (no implementing SecurityControl), W804 (no derived Requirement
 ```yaml
 type: SecurityControl
 id: SC-001
-title: "HMAC authentication on CAN messages"
+name: "HMAC authentication on CAN messages"
 status: approved
 controlType: prevention     # prevention · detection · response · recovery
 implementsGoals: [CSG-001]
@@ -124,7 +124,7 @@ Architecture elements that realise a `SecurityControl` set `allocatedFrom: SC-00
 ```yaml
 type: VulnerabilityReport
 id: VR-001
-title: "CVE-2024-XXXX — OBD port CAN injection"
+name: "CVE-2024-XXXX — OBD port CAN injection"
 status: open                # open triggers W803
 cvssScore: 7.5              # 0.0–10.0
 cveId: CVE-2024-12345       # optional CVE identifier
@@ -141,27 +141,27 @@ Tier 2 types. Use when a compact sheet is preferable to separate files.
 ```yaml
 type: TARASheet
 id: TARA-001
-title: "TARA for braking system"
+name: "TARA for braking system"
 status: approved
 damageTable:
   - id: DS-001
-    title: "..."
+    name: "..."
     damageSeverity: severe
     impactCategories: [safety]
 threatTable:
   - id: TS-001
-    title: "..."
+    name: "..."
     attackFeasibility: medium
     attackVector: local
     damageScenarios: [DS-001]
 goalTable:
   - id: CSG-001
-    title: "..."
+    name: "..."
     securityProperty: authenticity
     calLevel: CAL3
 controlTable:
   - id: SC-001
-    title: "..."
+    name: "..."
     controlType: prevention
     implementsGoals: [CSG-001]
 ```
@@ -188,7 +188,7 @@ This is required so qualified names are prefixed by the tree's qualified name.
 ```yaml
 type: FaultTree
 id: FT-BRAKE-001
-title: "Brake system fault tree"
+name: "Brake system fault tree"
 status: approved
 topEvent: SG-BRAKE-001      # required; must resolve to a SafetyGoal (E902)
 ```
@@ -198,7 +198,7 @@ topEvent: SG-BRAKE-001      # required; must resolve to a SafetyGoal (E902)
 ```yaml
 type: FaultTreeGate
 id: FTG-BRAKE-001
-title: "AND gate — dual failure"
+name: "AND gate — dual failure"
 gateType: AND               # AND · OR · XOR · NOT · inhibit
 inputs:
   - FTG-BRAKE-001::FTE-BRAKE-001
@@ -212,7 +212,7 @@ Place in `FaultTreeName/` subdirectory.
 ```yaml
 type: FaultTreeEvent
 id: FTE-BRAKE-001
-title: "Hydraulic pump failure"
+name: "Hydraulic pump failure"
 eventKind: basic            # basic · undeveloped · house
 failureRate: 1.2e-7         # optional; per-hour failure rate (λ)
 diagnosticCoverage: 0.99        # optional; DC, 0.0–1.0 (E846 if out of range)
@@ -270,7 +270,7 @@ declares `responsibility:`. Gateable (`--deny W038`).
 ```yaml
 type: ConfirmationMeasure
 id: CM-BRK-001
-title: "Independent functional-safety assessment of the braking goal"
+name: "Independent functional-safety assessment of the braking goal"
 status: completed                 # planned | in_progress | completed
 measureType: functional_safety_assessment
 # confirmation_review | functional_safety_audit | functional_safety_assessment | cybersecurity_assessment  (else E849)
@@ -279,7 +279,7 @@ confirms:                         # work product ref(s); each must resolve (else
   - SG-BRK-001
 ```
 
-Errors: E847 (missing `id`/`title`/`status`), E848 (`id` not `CM-*`), E849/E850 (bad enum),
+Errors: E847 (missing `id`/`name`/`status`), E848 (`id` not `CM-*`), E849/E850 (bad enum),
 E851 (unresolved `confirms`).
 
 **W039** — a high-integrity item lacking its required independent assessment: an `asilLevel: D`
@@ -301,7 +301,7 @@ The Goal Structuring Notation (GSN) argument layer. Render the tree with
 ```yaml
 type: Argument
 id: ARG-BRK-001
-title: "Argue over independent torque monitoring"
+name: "Argue over independent torque monitoring"
 status: approved
 argumentType: strategy   # claim | strategy | solution   (absent → claim; else E854)
 supports: SG-BRK-001     # SafetyGoal or parent Argument argued for (string or list; else E855)
@@ -310,7 +310,7 @@ evidence:                # Requirement / TestCase / sub-Argument / AssumptionOfU
   - TC-BRK-001
 ```
 
-`id`/`title`/`status` required (else E852); id must match `ARG-*` (else E853).
+`id`/`name`/`status` required (else E852); id must match `ARG-*` (else E853).
 **W040** — a `claim`/`strategy` Argument with empty `supports` AND empty `evidence`
 (an orphan GSN node).
 
@@ -319,12 +319,12 @@ evidence:                # Requirement / TestCase / sub-Argument / AssumptionOfU
 ```yaml
 type: AssumptionOfUse
 id: AOU-BRK-001
-title: "Integrator provides a redundant torque sensor"
+name: "Integrator provides a redundant torque sensor"
 status: approved
 appliesTo: SG-BRK-001    # SafetyGoal / Argument / Requirement it constrains (string or list; else E858)
 ```
 
-`id`/`title`/`status` required (else E856); id must match `AOU-*` (else E857). A
+`id`/`name`/`status` required (else E856); id must match `AOU-*` (else E857). A
 safety-related application condition (SRAC).
 
 ---
@@ -336,11 +336,11 @@ safety-related application condition (SRAC).
 ```yaml
 type: FMEASheet
 id: FMEA-BRAKE-001
-title: "Braking system FMEA"
+name: "Braking system FMEA"
 status: approved
 entries:
   - id: FM-001
-    title: "Hydraulic line rupture"
+    name: "Hydraulic line rupture"
     ref: UAV::Avionics::BrakingSystem   # optional; resolves to model element
     function: "Apply braking force"
     failureMode: "Loss of hydraulic pressure"
@@ -386,7 +386,7 @@ Security/Attacks/
 ```yaml
 type: AttackTree
 id: AT-TORQUE-001
-title: "Attack tree for TS-TORQUE-001"
+name: "Attack tree for TS-TORQUE-001"
 status: approved
 threatRef: TS-TORQUE-001     # required; must resolve to a ThreatScenario (E917)
 ```
@@ -396,7 +396,7 @@ threatRef: TS-TORQUE-001     # required; must resolve to a ThreatScenario (E917)
 ```yaml
 type: AttackTreeGate
 id: ATG-TORQUE-001
-title: "OR gate — bypass auth OR replay frame"
+name: "OR gate — bypass auth OR replay frame"
 gateType: OR                 # AND (sequential path) | OR (alternatives) (E919)
 inputs:                      # each must resolve to an ATG-*/ATS-* (E920)
   - ATG-TORQUE-002
@@ -410,7 +410,7 @@ Place in the `AttackTreeName/` subdirectory.
 ```yaml
 type: AttackStep
 id: ATS-TORQUE-001
-title: "Extract the bus authentication key"
+name: "Extract the bus authentication key"
 attackFeasibility: high      # high | medium | low | very_low (E921)
 ```
 

@@ -3,7 +3,7 @@ id: TC-TRS-VAL-016
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify wcet queryability (--has-wcet, list --json) and the W029 WCET-not-measured check."
+name: "Verify wcet queryability (--has-wcet, list --json) and the W029 WCET-not-measured check."
 verifies:
   - REQ-TRS-VAL-016
 ---

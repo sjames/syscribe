@@ -3,7 +3,7 @@ id: TC-TRS-FMA-011
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify opt-in proof-evidence emission (DIMACS CNF) for UNSAT findings."
+name: "Verify opt-in proof-evidence emission (DIMACS CNF) for UNSAT findings."
 verifies:
   - REQ-TRS-FMA-011
 ---

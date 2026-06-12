@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: Safety-derived requirement
+name: Safety-derived requirement
 status: draft
 reqDomain: system
 verificationMethod: test

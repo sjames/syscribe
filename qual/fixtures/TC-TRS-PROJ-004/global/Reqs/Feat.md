@@ -1,7 +1,7 @@
 ---
 id: REQ-PROJ4-FEAT-001
 type: Requirement
-title: "REQ-PROJ4-FEAT-001"
+name: "REQ-PROJ4-FEAT-001"
 status: approved
 reqDomain: software
 verificationMethod: test

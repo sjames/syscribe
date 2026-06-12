@@ -3,7 +3,7 @@ id: TC-TRS-SCRIPT-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the read-only model API: element iteration, getters, find by id and qname, e.field, custom_fields, computed reverse indices, and print/eprint output."
+name: "Verify the read-only model API: element iteration, getters, find by id and qname, e.field, custom_fields, computed reverse indices, and print/eprint output."
 verifies:
   - REQ-TRS-SCRIPT-003
 ---

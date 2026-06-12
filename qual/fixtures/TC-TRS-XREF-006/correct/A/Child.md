@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-XREF-CHILD-001
-title: A child requirement whose derivedFrom is correctly written
+name: A child requirement whose derivedFrom is correctly written
 status: approved
 reqDomain: software
 derivedFrom:

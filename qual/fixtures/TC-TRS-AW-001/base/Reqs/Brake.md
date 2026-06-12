@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-AW-BRAKE-001
-title: Brake controller shall modulate pressure
+name: Brake controller shall modulate pressure
 status: approved
 reqDomain: software
 ---

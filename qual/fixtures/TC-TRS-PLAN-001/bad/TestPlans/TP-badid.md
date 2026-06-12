@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-bad
-title: "Malformed id"
+name: "Malformed id"
 status: approved
 scope: smoke
 testCases: [TC-PL1-001]

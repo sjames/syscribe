@@ -1,6 +1,6 @@
 ---
 type: SafetyGoal
-title: Prevent unintended acceleration
+name: Prevent unintended acceleration
 status: draft
 asilLevel: D
 ---

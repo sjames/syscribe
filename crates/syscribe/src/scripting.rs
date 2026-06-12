@@ -266,7 +266,9 @@ fn register_model_api(engine: &mut Engine) {
             .unwrap_or_else(|| el.qualified_name.rsplit("::").next().unwrap_or("").to_string())
     });
     engine.register_get("title", |e: &mut Element| {
-        e.data.elements[e.idx].frontmatter.title.clone().unwrap_or_default()
+        // The script API keeps a `title` getter for back-compat, but the underlying
+        // label field is now `name` (REQ-TRS-NAME-002).
+        e.data.elements[e.idx].frontmatter.name.clone().unwrap_or_default()
     });
     engine.register_get("type", |e: &mut Element| {
         e.data.elements[e.idx]

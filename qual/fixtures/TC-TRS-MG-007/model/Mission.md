@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-MG-MSN-001
-title: The system shall meet mission effectiveness targets
+name: The system shall meet mission effectiveness targets
 status: approved
 reqDomain: system
 ---

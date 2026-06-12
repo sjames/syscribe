@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-ALLOC-001
 type: Requirement
-title: Allocation supports two forms — allocatedTo-on-source (OSLC default) and the documented Allocation element — over one unified edge model
+name: Allocation supports two forms — allocatedTo-on-source (OSLC default) and the documented Allocation element — over one unified edge model
 status: draft
 reqDomain: software
 verificationMethod: test

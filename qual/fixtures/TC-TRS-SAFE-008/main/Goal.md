@@ -1,7 +1,7 @@
 ---
 type: SafetyGoal
 id: SG-DEMO-001
-title: "Prevent unintended acceleration"
+name: "Prevent unintended acceleration"
 status: approved
 asilLevel: C
 safeState: "Torque request limited to zero"

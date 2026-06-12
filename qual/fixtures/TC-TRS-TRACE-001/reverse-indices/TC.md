@@ -1,7 +1,7 @@
 ---
 id: TC-TRC-001
 type: TestCase
-title: Test case verifying REQ-TRC-001
+name: Test case verifying REQ-TRC-001
 status: draft
 testLevel: L3
 verifies:

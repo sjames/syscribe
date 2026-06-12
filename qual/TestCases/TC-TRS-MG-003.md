@@ -3,7 +3,7 @@ id: TC-TRS-MG-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify mg_cell classification and the magicgrid grid report: MG020 invalid coord, MG021 type/column mismatch, grid render with empty-cell flag, --json."
+name: "Verify mg_cell classification and the magicgrid grid report: MG020 invalid coord, MG021 type/column mismatch, grid render with empty-cell flag, --json."
 verifies:
   - REQ-TRS-MG-003
 ---

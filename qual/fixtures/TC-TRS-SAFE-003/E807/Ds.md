@@ -1,6 +1,6 @@
 ---
 type: DamageScenario
-title: Data breach
+name: Data breach
 status: draft
 ---
 

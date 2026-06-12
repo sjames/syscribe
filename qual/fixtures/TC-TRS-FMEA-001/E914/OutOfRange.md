@@ -1,7 +1,7 @@
 ---
 type: FMEAEntry
 id: FM-TST-001
-title: FMEA Entry With Out Of Range Values
+name: FMEA Entry With Out Of Range Values
 failureMode: Sensor stuck high
 effect: System reports incorrect speed
 cause: Electrical short

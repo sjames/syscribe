@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FMA-004
 type: Requirement
-title: feature-check --deep shall verify each authored Configuration is a valid model of the feature model
+name: feature-check --deep shall verify each authored Configuration is a valid model of the feature model
 status: draft
 reqDomain: software
 verificationMethod: test

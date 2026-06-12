@@ -1,7 +1,7 @@
 ---
 id: REQ-W305-CHD-001
 type: Requirement
-title: Child requirement derived from parent
+name: Child requirement derived from parent
 status: draft
 reqDomain: system
 verificationMethod: test

@@ -3,7 +3,7 @@ id: TC-TRS-XREF-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that verifies: and derivedFrom: references are resolved by stable id:."
+name: "Verify that verifies: and derivedFrom: references are resolved by stable id:."
 verifies:
   - REQ-TRS-XREF-005
 ---

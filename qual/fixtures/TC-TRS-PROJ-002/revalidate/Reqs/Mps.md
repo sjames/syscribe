@@ -1,7 +1,7 @@
 ---
 id: REQ-PROJ2-MPS-001
 type: Requirement
-title: "REQ-PROJ2-MPS-001"
+name: "REQ-PROJ2-MPS-001"
 status: approved
 reqDomain: software
 verificationMethod: test

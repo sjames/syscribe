@@ -1,7 +1,7 @@
 ---
 id: REQ-FIX-LGT-001
 type: Requirement
-title: Headlamps shall illuminate the road
+name: Headlamps shall illuminate the road
 status: draft
 reqDomain: system
 verificationMethod: test

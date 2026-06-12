@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-SYS-001
-title: System integration — end-to-end engine management under nominal and fault conditions
+name: System integration — end-to-end engine management under nominal and fault conditions
 status: active
 testLevel: L3
 verifies:

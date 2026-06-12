@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SW-002
-title: Vital software shall be developed by two independent diverse teams
+name: Vital software shall be developed by two independent diverse teams
 status: approved
 reqDomain: software
 silLevel: 4

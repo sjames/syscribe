@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-UAV-MASS-001
-title: "Maximum take-off mass shall not exceed 5 kg"
+name: "Maximum take-off mass shall not exceed 5 kg"
 status: approved
 reqDomain: system
 derivedFrom:

@@ -3,7 +3,7 @@ id: TC-TRS-EXTREF-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the extRef common field parses (string or list) and duplicate detection W028."
+name: "Verify the extRef common field parses (string or list) and duplicate detection W028."
 verifies:
   - REQ-TRS-EXTREF-001
 ---

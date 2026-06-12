@@ -4,7 +4,7 @@ type: TestCase
 testLevel: L3
 status: approved
 verifies: [REQ-IDW-000000001]
-title: "verifies the long-id requirement"
+name: "verifies the long-id requirement"
 ---
 ```gherkin
 Feature: TC-IDW-001

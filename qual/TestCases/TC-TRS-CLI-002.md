@@ -3,7 +3,7 @@ id: TC-TRS-CLI-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that the tool reports an error to stderr and exits non-zero for invalid model paths."
+name: "Verify that the tool reports an error to stderr and exits non-zero for invalid model paths."
 verifies:
   - REQ-TRS-CLI-002
 ---

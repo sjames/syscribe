@@ -1,7 +1,7 @@
 ---
 id: REQ-TAG-003
 type: Requirement
-title: "Requirement REQ-TAG-003"
+name: "Requirement REQ-TAG-003"
 status: approved
 reqDomain: software
 verificationMethod: test

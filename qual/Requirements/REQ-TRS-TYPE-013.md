@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-013
 type: Requirement
-title: "Tool shall recognise and validate the Metadata element"
+name: "Tool shall recognise and validate the Metadata element"
 status: draft
 reqDomain: software
 verificationMethod: test

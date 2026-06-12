@@ -1,7 +1,7 @@
 ---
 type: DamageScenario
 id: DS-TST-001
-title: Data breach
+name: Data breach
 status: draft
 damageSeverity: critical
 ---

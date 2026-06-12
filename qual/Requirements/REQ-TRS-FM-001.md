@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FM-001
 type: Requirement
-title: Tool shall provide a feature-check command for holistic feature-model validation, separate from validate
+name: Tool shall provide a feature-check command for holistic feature-model validation, separate from validate
 status: draft
 reqDomain: software
 verificationMethod: test

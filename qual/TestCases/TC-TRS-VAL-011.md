@@ -3,7 +3,7 @@ id: TC-TRS-VAL-011
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify actionable E106 messages and scaffold-gherkin --fix alignment."
+name: "Verify actionable E106 messages and scaffold-gherkin --fix alignment."
 verifies:
   - REQ-TRS-VAL-011
 ---

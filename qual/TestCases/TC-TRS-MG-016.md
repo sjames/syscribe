@@ -3,7 +3,7 @@ id: TC-TRS-MG-016
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify magicgrid --svg emits a well-formed SVG of the grid (rows/pillars/SoI), -o writes a file, and the SVG works as a Diagram companion (no E402)."
+name: "Verify magicgrid --svg emits a well-formed SVG of the grid (rows/pillars/SoI), -o writes a file, and the SVG works as a Diagram companion (no E402)."
 verifies:
   - REQ-TRS-MG-016
 ---

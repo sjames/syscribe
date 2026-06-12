@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PRM-RUN-001
-title: "CONF-PRM-RUN-001"
+name: "CONF-PRM-RUN-001"
 status: approved
 featureModel: Features
 features:

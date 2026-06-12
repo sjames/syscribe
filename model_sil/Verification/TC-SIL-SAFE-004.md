@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-SIL-SAFE-004
-title: Integration test — level crossing barriers must be confirmed down before signal clearance
+name: Integration test — level crossing barriers must be confirmed down before signal clearance
 status: active
 testLevel: L4
 verifies:

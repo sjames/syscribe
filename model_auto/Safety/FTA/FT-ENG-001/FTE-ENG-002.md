@@ -1,7 +1,7 @@
 ---
 type: FaultTreeEvent
 id: FTE-ENG-002
-title: Throttle position sensor dual-track failure
+name: Throttle position sensor dual-track failure
 eventKind: basic
 ref: System::Sensors::ThrottlePositionSensor
 failureRate: 5.0e-7

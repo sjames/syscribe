@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-LIB-002
 type: Requirement
-title: Tool shall recognise SI units and ISQ quantity-value types as a lenient curated library
+name: Tool shall recognise SI units and ISQ quantity-value types as a lenient curated library
 status: draft
 reqDomain: software
 verificationMethod: test

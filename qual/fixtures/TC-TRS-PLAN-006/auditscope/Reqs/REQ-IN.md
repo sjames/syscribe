@@ -1,7 +1,7 @@
 ---
 id: REQ-IN-001
 type: Requirement
-title: "in scope"
+name: "in scope"
 status: approved
 reqDomain: software
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-ALLOC-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify two allocation forms over one edge model: allocatedTo-on-source clears MG041/MG081 + derives allocatedFrom; type-less legacy features are edges; E503 unresolved; W503 redundant duplicate."
+name: "Verify two allocation forms over one edge model: allocatedTo-on-source clears MG041/MG081 + derives allocatedFrom; type-less legacy features are edges; E503 unresolved; W503 redundant duplicate."
 verifies:
   - REQ-TRS-ALLOC-001
 ---

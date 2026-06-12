@@ -1,7 +1,7 @@
 ---
 id: REQ-PLAIN-003
 type: Requirement
-title: "A plain requirement with no timing claim"
+name: "A plain requirement with no timing claim"
 status: draft
 reqDomain: software
 ---

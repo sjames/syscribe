@@ -3,7 +3,7 @@ id: TC-TRS-DISC-007
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify list --status/--sil/--json filters and matrix --status/--gaps-only/coverage footer."
+name: "Verify list --status/--sil/--json filters and matrix --status/--gaps-only/coverage footer."
 verifies:
   - REQ-TRS-DISC-007
 ---

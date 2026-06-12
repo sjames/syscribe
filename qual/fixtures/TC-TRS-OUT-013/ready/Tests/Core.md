@@ -3,7 +3,7 @@ id: TC-RDY-CORE-001
 type: TestCase
 testLevel: L3
 status: active
-title: "Test TC-RDY-CORE-001"
+name: "Test TC-RDY-CORE-001"
 verifies:
   - REQ-RDY-CORE-001
 ---

@@ -1,7 +1,7 @@
 ---
 type: FaultTree
 id: FT-TST-001
-title: Fault Tree Pointing to Non SafetyGoal
+name: Fault Tree Pointing to Non SafetyGoal
 status: draft
 topEvent: NotAGoal
 ---

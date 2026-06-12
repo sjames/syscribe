@@ -3,7 +3,7 @@ id: TC-OUT9-FAIL-001
 type: TestCase
 testLevel: L3
 status: approved
-title: "Test for the failing requirement"
+name: "Test for the failing requirement"
 verifies:
   - REQ-OUT9-FAIL-001
 testFunctions:

@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-016
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify Dependency is recognised and validated without E005."
+name: "Verify Dependency is recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-016
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-ELEM-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that implicit base library supertypes are applied when no supertype: is given."
+name: "Verify that implicit base library supertypes are applied when no supertype: is given."
 verifies:
   - REQ-TRS-ELEM-003
 ---

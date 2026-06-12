@@ -2,7 +2,7 @@
 id: FTE-SIL-006
 type: FaultTreeEvent
 eventKind: basic
-title: SignalController software error — clears signal without all conditions true
+name: SignalController software error — clears signal without all conditions true
 ref: System::Software::SignalController
 failureRate: 5.0e-10
 probability: 5.0e-7

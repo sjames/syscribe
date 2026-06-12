@@ -128,7 +128,7 @@ Writing Batch 3 — ADRs...
 ---
 type: ADR
 id: ADR-AID-SAFE-001
-title: "Decompose safety goal into fault-detection and safe-landing sub-requirements"
+name: "Decompose safety goal into fault-detection and safe-landing sub-requirements"
 status: accepted
 ---
 ...

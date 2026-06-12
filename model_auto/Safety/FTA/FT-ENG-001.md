@@ -1,7 +1,7 @@
 ---
 type: FaultTree
 id: FT-ENG-001
-title: Fault tree — unintended engine acceleration
+name: Fault tree — unintended engine acceleration
 status: approved
 topEvent: SG-ENG-001
 missionTime: "8760 h"

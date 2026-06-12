@@ -1,7 +1,7 @@
 ---
 id: REQ-SYS-001
 type: Requirement
-title: System domain requirement
+name: System domain requirement
 status: draft
 reqDomain: system
 verificationMethod: test

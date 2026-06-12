@@ -1,7 +1,7 @@
 ---
 type: SafetyGoal
 id: SG-ENG-001
-title: Prevent unintended engine acceleration
+name: Prevent unintended engine acceleration
 status: approved
 asilLevel: D
 safeState: Throttle at fail-safe position (7 % opening), engine at idle torque

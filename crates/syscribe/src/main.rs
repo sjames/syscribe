@@ -1310,7 +1310,7 @@ fn main() {
     sorted_reqs.sort_by_key(|e| e.frontmatter.id.as_deref().unwrap_or(""));
     for e in &sorted_reqs {
         let id = e.frontmatter.id.as_deref().unwrap_or("—");
-        let title = e.frontmatter.title.as_deref().unwrap_or("—");
+        let title = e.frontmatter.name.as_deref().unwrap_or("—");
         let kind = if parent_ids.contains(id) { "Parent" } else { "Leaf" };
         let status = e.frontmatter.status.as_deref().unwrap_or("—");
         let req_domain = e.frontmatter.req_domain.as_deref().unwrap_or("—");
@@ -1555,7 +1555,7 @@ fn main() {
         for e in &sorted_adrs {
             let id = e.frontmatter.id.as_deref().unwrap_or("—");
             let status = e.frontmatter.status.as_deref().unwrap_or("—");
-            let title = e.frontmatter.title.as_deref().unwrap_or("—");
+            let title = e.frontmatter.name.as_deref().unwrap_or("—");
             println!("| {} | {} | {} |", id, status, title);
         }
     }

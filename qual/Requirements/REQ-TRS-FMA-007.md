@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FMA-007
 type: Requirement
-title: feature-check --deep shall produce minimal (MUS) explanations using batsat assumption cores
+name: feature-check --deep shall produce minimal (MUS) explanations using batsat assumption cores
 status: draft
 reqDomain: software
 verificationMethod: test

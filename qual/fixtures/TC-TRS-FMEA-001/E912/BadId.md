@@ -1,7 +1,7 @@
 ---
 type: FMEASheet
 id: SHEET-001
-title: FMEA Sheet With Bad Id
+name: FMEA Sheet With Bad Id
 status: draft
 ---
 

@@ -3,7 +3,7 @@ id: TC-VAR1-003
 type: TestCase
 testLevel: L3
 status: approved
-title: "Test TC-VAR1-003"
+name: "Test TC-VAR1-003"
 verifies:
   - REQ-VAR1-003
 appliesWhen: Features::Wdt

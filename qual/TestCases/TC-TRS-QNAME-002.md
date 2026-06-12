@@ -3,7 +3,7 @@ id: TC-TRS-QNAME-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that the name: field in _index.md overrides the directory name in qualified names."
+name: "Verify that the name: field in _index.md overrides the directory name in qualified names."
 verifies:
   - REQ-TRS-QNAME-002
 ---

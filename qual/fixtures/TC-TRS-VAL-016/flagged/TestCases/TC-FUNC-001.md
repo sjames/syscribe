@@ -1,7 +1,7 @@
 ---
 id: TC-FUNC-001
 type: TestCase
-title: "Functional check of the control loop (not a timing measurement)"
+name: "Functional check of the control loop (not a timing measurement)"
 status: active
 testLevel: L3
 verifies:

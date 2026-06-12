@@ -1,7 +1,7 @@
 ---
 type: FaultTreeEvent
 id: FTE-ENG-005
-title: ECU supply voltage dropout below 7 V
+name: ECU supply voltage dropout below 7 V
 eventKind: basic
 ref: System::EngineECU
 failureRate: 8.0e-8

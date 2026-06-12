@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PROJ-006
 type: Requirement
-title: The read-only safety/security analysis commands shall honour the --config projection lens
+name: The read-only safety/security analysis commands shall honour the --config projection lens
 status: draft
 reqDomain: software
 verificationMethod: test

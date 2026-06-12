@@ -3,7 +3,7 @@ id: TC-TRS-META-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify stereotypes as MetadataDef applications: valid apply (bare + tagged), E317 unresolved, E318 appliesTo mismatch, W045 undeclared tag key, show «Name», list --metadata."
+name: "Verify stereotypes as MetadataDef applications: valid apply (bare + tagged), E317 unresolved, E318 appliesTo mismatch, W045 undeclared tag key, show «Name», list --metadata."
 verifies:
   - REQ-TRS-META-001
 ---

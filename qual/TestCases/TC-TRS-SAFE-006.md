@@ -3,7 +3,7 @@ id: TC-TRS-SAFE-006
 type: TestCase
 testLevel: L3
 status: draft
-title: Verify W034 freedom-from-interference detection for mixed-criticality shared resources, the FFI-argument exemptions, and the opt-in rule
+name: Verify W034 freedom-from-interference detection for mixed-criticality shared resources, the FFI-argument exemptions, and the opt-in rule
 verifies:
   - REQ-TRS-SAFE-006
 ---

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SAFE-008
 type: Requirement
-title: Tool shall represent the GSN safety-argument layer (Argument, AssumptionOfUse) and render a safety-case (GSN) view
+name: Tool shall represent the GSN safety-argument layer (Argument, AssumptionOfUse) and render a safety-case (GSN) view
 status: draft
 reqDomain: software
 verificationMethod: test

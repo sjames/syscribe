@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-CFG2-OLD-001
-title: legacy
+name: legacy
 status: approved
 featureModel: Features
 selections:

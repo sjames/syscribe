@@ -1,7 +1,7 @@
 ---
 id: TS-DEMO-001
 type: ThreatScenario
-title: Attacker injects a forged torque-request frame onto the powertrain bus
+name: Attacker injects a forged torque-request frame onto the powertrain bus
 status: approved
 attackFeasibility: medium
 attackVector: local

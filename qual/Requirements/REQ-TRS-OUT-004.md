@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-OUT-004
 type: Requirement
-title: Tool shall exit with a non-zero code when Error findings are present
+name: Tool shall exit with a non-zero code when Error findings are present
 status: draft
 reqDomain: software
 verificationMethod: test

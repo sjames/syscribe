@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-015
 type: Requirement
-title: Tool shall render the magicgrid report as the 3x4 B/W/S × pillar grid
+name: Tool shall render the magicgrid report as the 3x4 B/W/S × pillar grid
 status: draft
 reqDomain: software
 verificationMethod: test

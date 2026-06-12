@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-SIL-SAFE-001
-title: System integration — 2oo2 channel disagreement forces immediate safe state
+name: System integration — 2oo2 channel disagreement forces immediate safe state
 status: active
 testLevel: L5
 verifies:

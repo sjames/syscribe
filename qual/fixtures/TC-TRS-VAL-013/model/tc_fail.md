@@ -1,7 +1,7 @@
 ---
 id: TC-V13-FAIL-001
 type: TestCase
-title: "tc_fail"
+name: "tc_fail"
 status: active
 testLevel: L3
 verifies:

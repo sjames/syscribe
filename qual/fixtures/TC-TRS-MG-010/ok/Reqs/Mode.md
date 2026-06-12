@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-MG-MODE-001
-title: The vehicle shall provide a defined set of operating modes
+name: The vehicle shall provide a defined set of operating modes
 status: approved
 reqDomain: system
 ---

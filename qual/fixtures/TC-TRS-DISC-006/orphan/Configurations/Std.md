@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-ORPHAN-STD-001
-title: "Standard trim selecting Audio"
+name: "Standard trim selecting Audio"
 status: approved
 featureModel: Features
 features:

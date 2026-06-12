@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SAFE-007
 type: Requirement
-title: Tool shall track work-product responsibility (W038) and confirmation measures with independence (ConfirmationMeasure, W039)
+name: Tool shall track work-product responsibility (W038) and confirmation measures with independence (ConfirmationMeasure, W039)
 status: draft
 reqDomain: software
 verificationMethod: test

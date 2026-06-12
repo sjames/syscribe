@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-OUT-012
 type: Requirement
-title: Tool shall support named, integrity-level-scopable validation severity profiles
+name: Tool shall support named, integrity-level-scopable validation severity profiles
 status: draft
 reqDomain: software
 verificationMethod: test

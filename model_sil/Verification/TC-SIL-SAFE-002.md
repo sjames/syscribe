@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-SIL-SAFE-002
-title: System integration — signal reverts to red within one scan cycle when track section becomes occupied
+name: System integration — signal reverts to red within one scan cycle when track section becomes occupied
 status: active
 testLevel: L5
 verifies:

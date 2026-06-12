@@ -1,7 +1,7 @@
 ---
 id: REQ-SIL4-001
 type: Requirement
-title: SIL-4 approved leaf requirement with no satisfying element
+name: SIL-4 approved leaf requirement with no satisfying element
 status: approved
 reqDomain: system
 silLevel: 4

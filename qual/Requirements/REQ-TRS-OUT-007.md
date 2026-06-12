@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-OUT-007
 type: Requirement
-title: Tool shall emit a versioned, machine-readable export of the whole model graph
+name: Tool shall emit a versioned, machine-readable export of the whole model graph
 status: draft
 reqDomain: software
 verificationMethod: test

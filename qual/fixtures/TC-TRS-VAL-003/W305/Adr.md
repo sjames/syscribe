@@ -1,7 +1,7 @@
 ---
 id: ADR-W305-001
 type: ADR
-title: Accepted decision for breakdown
+name: Accepted decision for breakdown
 status: accepted
 ---
 

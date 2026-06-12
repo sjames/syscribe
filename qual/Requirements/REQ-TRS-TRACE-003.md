@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TRACE-003
 type: Requirement
-title: "Tool shall emit W303 when breakdownAdr: references a proposed ADR"
+name: "Tool shall emit W303 when breakdownAdr: references a proposed ADR"
 status: draft
 reqDomain: software
 verificationMethod: test

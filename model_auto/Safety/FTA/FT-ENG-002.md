@@ -1,7 +1,7 @@
 ---
 type: FaultTree
 id: FT-ENG-002
-title: Fault tree — engine stall during high-speed operation
+name: Fault tree — engine stall during high-speed operation
 status: approved
 topEvent: SG-ENG-002
 missionTime: "8760 h"

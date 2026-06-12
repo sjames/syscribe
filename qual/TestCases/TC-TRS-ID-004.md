@@ -3,7 +3,7 @@ id: TC-TRS-ID-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that duplicate id: values across elements produce E101."
+name: "Verify that duplicate id: values across elements produce E101."
 verifies:
   - REQ-TRS-ID-004
 ---

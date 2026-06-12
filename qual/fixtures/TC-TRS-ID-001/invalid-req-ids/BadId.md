@@ -1,7 +1,7 @@
 ---
 id: REQ-trs-001
 type: Requirement
-title: Invalid lowercase REQ id
+name: Invalid lowercase REQ id
 status: draft
 reqDomain: system
 verificationMethod: test

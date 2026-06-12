@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-CLI-006
 type: Requirement
-title: "Tool shall print a MagicGrid modeling prompt via --agent-instructions magicgrid"
+name: "Tool shall print a MagicGrid modeling prompt via --agent-instructions magicgrid"
 status: draft
 reqDomain: software
 verificationMethod: test

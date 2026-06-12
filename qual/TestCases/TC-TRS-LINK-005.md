@@ -3,7 +3,7 @@ id: TC-TRS-LINK-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the live web UI detail panel shows a per-element source-link icon to the hosted model element."
+name: "Verify the live web UI detail panel shows a per-element source-link icon to the hosted model element."
 verifies:
   - REQ-TRS-LINK-005
 ---

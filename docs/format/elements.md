@@ -47,15 +47,15 @@ Every `.md` file in the model tree is one element. The `type:` field in YAML fro
 
 ## Native elements (own schema)
 
-These are not standard SysML usages — they carry a stable opaque identifier and their own required field sets. They are **id-identified**: their human-readable label is **`title`**, and a `name:` on one of them is error `E024`. (Conversely, the SysML usage/definition types above are **name-identified** — labelled by `name` — and a `title:` on one of them is `E025`. See [Frontmatter → Label field](frontmatter.md#label-field-name-vs-title).)
+These are not standard SysML usages — they carry a stable opaque identifier and their own required field sets. They are **id-identified**: their identity is the stable `id`, and their human-readable label is **`name`** (free prose — spaces and punctuation allowed, `W042` does not apply). The `title` field is **removed**; a `title:` on any element is error `E025`, and `E024` (formerly: `name` on an id-identified type) is **retired**. See [Frontmatter → Label field](frontmatter.md#label-field-name).
 
 | Type | ID pattern | Required fields |
 |---|---|---|
-| `Requirement` | `REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `title`, `status` |
-| `TestCase` | `TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `title`, `status`, `testLevel`, `verifies` |
-| `TestPlan` | `TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `title`, `status` |
-| `ADR` | `ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `title`, `status` |
-| `Configuration` | `CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `title`, `status`, `featureModel` |
+| `Requirement` | `REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status` |
+| `TestCase` | `TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `testLevel`, `verifies` |
+| `TestPlan` | `TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status` |
+| `ADR` | `ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status` |
+| `Configuration` | `CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `featureModel` |
 
 ## Tier 2 — Safety & cybersecurity elements (own schema)
 

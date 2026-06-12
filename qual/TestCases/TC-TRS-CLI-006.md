@@ -3,7 +3,7 @@ id: TC-TRS-CLI-006
 type: TestCase
 testLevel: L2
 status: draft
-title: "Verify --agent-instructions topic: magicgrid prints the MagicGrid prompt; no topic prints the general prompt; an unknown topic exits non-zero; works with no model directory."
+name: "Verify --agent-instructions topic: magicgrid prints the MagicGrid prompt; no topic prints the general prompt; an unknown topic exits non-zero; works with no model directory."
 verifies:
   - REQ-TRS-CLI-006
 ---

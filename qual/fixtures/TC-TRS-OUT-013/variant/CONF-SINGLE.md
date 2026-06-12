@@ -1,7 +1,7 @@
 ---
 id: CONF-SINGLE-001
 type: Configuration
-title: "Single-core variant"
+name: "Single-core variant"
 status: approved
 featureModel: Features
 features:

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-001
 type: Requirement
-title: UseCaseDef shall carry an optional refines link to requirements; a magicgrid profile gates missing refinement
+name: UseCaseDef shall carry an optional refines link to requirements; a magicgrid profile gates missing refinement
 status: draft
 reqDomain: software
 verificationMethod: test

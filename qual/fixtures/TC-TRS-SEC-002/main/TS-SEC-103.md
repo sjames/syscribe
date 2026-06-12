@@ -1,7 +1,7 @@
 ---
 type: ThreatScenario
 id: TS-SEC-103
-title: Attacker spoofs sensor bus to suppress safety reaction (addressed)
+name: Attacker spoofs sensor bus to suppress safety reaction (addressed)
 status: approved
 attackFeasibility: high
 attackVector: local

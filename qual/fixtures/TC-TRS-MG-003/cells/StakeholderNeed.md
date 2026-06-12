@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-MG-NEED-001
-title: The operator shall complete the mission
+name: The operator shall complete the mission
 status: approved
 reqDomain: system
 custom_fields:

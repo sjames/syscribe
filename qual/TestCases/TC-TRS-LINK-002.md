@@ -3,7 +3,7 @@ id: TC-TRS-LINK-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify SVG element shapes are wrapped in a hyperlink to the hosted URL."
+name: "Verify SVG element shapes are wrapped in a hyperlink to the hosted URL."
 verifies:
   - REQ-TRS-LINK-002
 ---

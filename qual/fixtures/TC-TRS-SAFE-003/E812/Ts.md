@@ -1,7 +1,7 @@
 ---
 type: ThreatScenario
 id: THREAT-001
-title: Remote code execution
+name: Remote code execution
 status: draft
 ---
 

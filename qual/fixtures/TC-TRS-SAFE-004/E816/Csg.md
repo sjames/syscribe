@@ -1,7 +1,7 @@
 ---
 type: CybersecurityGoal
 id: GOAL-001
-title: Ensure data confidentiality
+name: Ensure data confidentiality
 status: draft
 ---
 

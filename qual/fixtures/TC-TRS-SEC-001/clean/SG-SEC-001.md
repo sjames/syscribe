@@ -1,7 +1,7 @@
 ---
 type: SafetyGoal
 id: SG-SEC-001
-title: Prevent unintended vehicle acceleration
+name: Prevent unintended vehicle acceleration
 status: approved
 asilLevel: D
 safeState: Throttle driven to fail-safe position; engine at idle torque

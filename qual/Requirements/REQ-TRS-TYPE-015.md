@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-015
 type: Requirement
-title: "Tool shall recognise and validate the LibraryPackage and Namespace elements"
+name: "Tool shall recognise and validate the LibraryPackage and Namespace elements"
 status: draft
 reqDomain: software
 verificationMethod: test

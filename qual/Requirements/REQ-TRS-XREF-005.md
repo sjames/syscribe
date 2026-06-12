@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-XREF-005
 type: Requirement
-title: "Tool shall resolve verifies: and derivedFrom: references by stable ID"
+name: "Tool shall resolve verifies: and derivedFrom: references by stable ID"
 status: draft
 reqDomain: software
 verificationMethod: test

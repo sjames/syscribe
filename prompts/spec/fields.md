@@ -8,12 +8,12 @@ All frontmatter fields. Optional unless marked **required**.
 | Field | Applies to | Type | Default | Notes |
 |---|---|---|---|---|
 | `type` | All | string | **required** | Element type from the type inventory |
-| `name` | name-identified types | string | filename stem | Label + QName segment for name-identified types (SysML structural, `Package`, `Diagram`, `FeatureDef`). **Not allowed on id-identified types** → error `E024`. |
+| `name` | **All** | string | filename stem (name-identified) | The single human-readable label on **every** element type. For name-identified types (SysML structural, `Package`, `Diagram`, `FeatureDef`) it is also the QName/identity segment and must be a basic name (`W042`). For id-identified types (native Req/TC/TP/Config/ADR/safety/security) it is **required** free prose — spaces/punctuation allowed, `W042` does not apply. |
 | `shortName` | All | string | absent | Abbreviated name for display |
 | `qualifiedName` | All | string | derived | Auto-derived from path; set to override |
 | `visibility` | All | string | `public` | `public` or `private` |
 | `id` | id-identified types + `FeatureDef` | string | **required** | Stable opaque ID matching the type's pattern. **Mandatory `FEAT-*` id on `FeatureDef`** too (E201 if missing) — a feature stays name-labelled but must carry a stable id. |
-| `title` | id-identified types | string | **required** | Label for id-identified types (native Req/TC/TP/Config/ADR/safety/security). **Not allowed on name-identified types** → error `E025`. Exactly one label field per element — `name` or `title`, never both. |
+| `title` | — | — | — | **REMOVED.** No longer a label field on any element; use `name`. A stray `title:` on any element is error `E025`. |
 | `status` | native Req/TC/ADR/safety | string | **required** | Lifecycle status |
 | `extRef` | All | string or list | absent | External reference(s) — this element represents an artifact in another tool (DNG, a SysML tool). Opaque (URI or `tool:id`). Look up with `extref <ref>`; duplicate across elements warns `W028`. Not a model cross-ref target. |
 

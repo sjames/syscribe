@@ -187,20 +187,20 @@ and **effective** gate — the latter including any condition **inherited** from
 package (transitive package conditioning), or "always applies" when gated nowhere; `--json`
 emits `{element, own, effective, inheritedFrom}`. (`REQ-TRS-AW-002`.)
 
-### One label field per element, fixed by identity class (E024 / E025)
+### `name` is the universal label; `title` removed (E025; E024 retired)
 
-Every element now carries **exactly one** human-readable label field, determined by how it is identified — never both:
+**`name` is now the single human-readable label on every element type** — `Requirement`, `TestCase`, `ADR`, `PartDef`, `Package`, `FeatureDef`, the safety/security types, everything. The earlier identity-class split (`title` on id-identified types, `name` on name-identified types) is removed:
 
-- **Id-identified types** (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types — identity is a stable `id`) label via **`title`**. A `name:` on one of these is now error **`E024`**.
-- **Name-identified types** (all SysML structural types, `Package`, `Diagram`, `FeatureDef` — identity is the `name`/path) label via **`name`**. A `title:` on one of these is now error **`E025`**.
+- **`name`** labels all types. For id-identified types (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types — identity is a stable `id`) `name` is **required** free prose (spaces/punctuation allowed; `W042` does not apply). For name-identified types (all SysML structural types, `Package`, `Diagram`, `FeatureDef`) `name` is also the identity segment and must be a basic name (`W042`).
+- **`title` is removed.** Declaring `title:` on any element is now error **`E025`** ("rename it to `name`"). Error **`E024`** (formerly: `name:` on an id-identified type) is **retired** — a `Requirement` carrying `id` + `name` validates clean.
 
-`FeatureDef` stays name-labelled; the `id` and label axes are independent. This closes the gap left by `W042` (which constrained only the *characters* of a name, not *which* label field applies); previously elements could silently drift into carrying both `name` and `title`. The bundled models and qual model were migrated to one label field each. (`REQ-TRS-NAME-002`.)
+`FeatureDef` stays name-labelled and also carries its mandatory `FEAT-*` `id`; the `id` and label axes are independent. The bundled models and qual model were migrated to `name` everywhere. (`REQ-TRS-NAME-002`.)
 
 ### Mandatory feature ids (`FEAT-*`)
 
 The `FEAT-*` stable id introduced in 0.20.0 is now **mandatory** on every `FeatureDef` — a feature with no `id` is error **`E201`** (the shared PLE required-field error). Features stay name-identified (label/qname = `name`); the id is the stable reference. All bundled and fixture features were migrated to carry an id. (`REQ-TRS-ID-006`.) Unlike the other stable-id types, a feature id **need not** end in a number — `FEAT-ABS`, `FEAT-QUADROTOR` and `FEAT-ABS-001` are all valid (pattern `^FEAT(-[A-Z0-9]{2,12})+$`); the `E023` digit-cap applies only to a numeric trailing segment.
 
-**Breaking:** (1) a model that carried both `name` and `title` (or the wrong one for its type) now fails validation — remove the stray field (`title` for id-identified types, `name` for everything else); (2) a `FeatureDef` with no `FEAT-*` `id` now fails (`E201`) — add one.
+**Breaking:** (1) a model that carried a `title:` field now fails validation (`E025`) — rename it to `name`; (2) a `FeatureDef` with no `FEAT-*` `id` now fails (`E201`) — add one.
 
 Suite at **166** test cases, all passing.
 

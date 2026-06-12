@@ -1,7 +1,7 @@
 ---
 id: REQ-SIL4-DRAFT-001
 type: Requirement
-title: "Vital interlock shall enforce most-restrictive on disagreement"
+name: "Vital interlock shall enforce most-restrictive on disagreement"
 status: draft
 silLevel: 4
 ---

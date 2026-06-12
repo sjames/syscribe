@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SW-001
-title: CBI vital processing shall use 2oo2D voting architecture with diverse processor channels
+name: CBI vital processing shall use 2oo2D voting architecture with diverse processor channels
 status: approved
 reqDomain: hardware
 silLevel: 4

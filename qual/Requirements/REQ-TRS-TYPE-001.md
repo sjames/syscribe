@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-001
 type: Requirement
-title: "Tool shall recognise and validate the ConstraintDef and Constraint elements"
+name: "Tool shall recognise and validate the ConstraintDef and Constraint elements"
 status: draft
 reqDomain: software
 verificationMethod: test

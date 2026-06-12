@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SAFE-006
 type: Requirement
-title: Tool shall flag mixed-criticality elements sharing a target without an FFI / partitioning argument
+name: Tool shall flag mixed-criticality elements sharing a target without an FFI / partitioning argument
 status: draft
 reqDomain: software
 verificationMethod: test

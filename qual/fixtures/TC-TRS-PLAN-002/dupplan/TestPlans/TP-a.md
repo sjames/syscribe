@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-PL2-010
-title: "Smoke A"
+name: "Smoke A"
 status: approved
 scope: smoke
 configurations: [CONF-PL2A-001]

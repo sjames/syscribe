@@ -11,8 +11,8 @@ available regardless of profile.
 ## Grid
 
 - **Rows** — every element with `custom_fields: { mg_moe: true }` (labelled by name).
-- **Columns** — the model's `Configuration`s (labelled by `title`, falling back to
-  name/id), or the subset named by repeated `--config <id|qname>`.
+- **Columns** — the model's `Configuration`s (labelled by `name`, falling back to
+  id), or the subset named by repeated `--config <id|qname>`.
 
 ## Per-cell evaluation
 

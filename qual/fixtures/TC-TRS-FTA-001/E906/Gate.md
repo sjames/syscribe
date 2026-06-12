@@ -1,7 +1,7 @@
 ---
 type: FaultTreeGate
 id: FTG-TST-001
-title: Gate With Unresolvable Input
+name: Gate With Unresolvable Input
 gateType: AND
 inputs:
   - NonExistentEvent

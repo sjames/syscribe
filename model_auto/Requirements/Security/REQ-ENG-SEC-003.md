@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-SEC-003
-title: ECU firmware update shall require valid ECDSA P-256 signature and monotonic version counter
+name: ECU firmware update shall require valid ECDSA P-256 signature and monotonic version counter
 status: approved
 reqDomain: software
 verificationMethod: test

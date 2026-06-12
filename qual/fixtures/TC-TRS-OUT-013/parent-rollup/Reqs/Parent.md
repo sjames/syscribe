@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-PR-PARENT-000
-title: "System shall provide the composite safety behaviour"
+name: "System shall provide the composite safety behaviour"
 status: approved
 reqDomain: software
 verificationMethod: test

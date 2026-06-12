@@ -3,7 +3,7 @@ id: TC-TRS-MG-017
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the companion matrices render as 2-D grids: matrix --allocations is a sources×targets ✓ matrix with a gap rollup; trade-study is a Configuration×MoE matrix with a winner."
+name: "Verify the companion matrices render as 2-D grids: matrix --allocations is a sources×targets ✓ matrix with a gap rollup; trade-study is a Configuration×MoE matrix with a winner."
 verifies:
   - REQ-TRS-MG-017
 ---

@@ -1,7 +1,7 @@
 ---
 id: ADR-DECOMP-001
 type: ADR
-title: "MPU domain decomposition"
+name: "MPU domain decomposition"
 status: accepted
 ---
 ## Context

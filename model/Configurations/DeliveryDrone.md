@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-UAV-DELIVERY-001
-title: "Delivery drone — redundant hex with cargo module and satcom"
+name: "Delivery drone — redundant hex with cargo module and satcom"
 status: approved
 featureModel: Features
 features:

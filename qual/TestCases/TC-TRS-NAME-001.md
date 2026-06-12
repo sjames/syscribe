@@ -3,7 +3,7 @@ id: TC-TRS-NAME-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify SysMLv2 basic-name validation: W042 on non-basic names, exempting stable ids; hyphenated appliesWhen still E209."
+name: "Verify SysMLv2 basic-name validation: W042 on non-basic names, exempting stable ids; hyphenated appliesWhen still E209."
 verifies:
   - REQ-TRS-NAME-001
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-AW-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the applies-when CLI: set by feature id or path, E209/E228 refusal, void-model bad-config check on set, clear, dry-run."
+name: "Verify the applies-when CLI: set by feature id or path, E209/E228 refusal, void-model bad-config check on set, clear, dry-run."
 verifies:
   - REQ-TRS-AW-001
 ---

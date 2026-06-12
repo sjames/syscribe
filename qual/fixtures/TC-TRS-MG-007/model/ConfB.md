@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-MG-B-001
-title: ConfB
+name: ConfB
 status: approved
 parameterBindings:
   endurance: 28

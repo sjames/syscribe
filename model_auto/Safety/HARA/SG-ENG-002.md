@@ -1,7 +1,7 @@
 ---
 type: SafetyGoal
 id: SG-ENG-002
-title: Prevent critical engine stall during high-speed operation
+name: Prevent critical engine stall during high-speed operation
 status: approved
 asilLevel: B
 safeState: Controlled deceleration with driver warning before stall

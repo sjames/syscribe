@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-AW-001
 type: Requirement
-title: Tool shall set or modify an element's appliesWhen via CLI, validating the feature model on set
+name: Tool shall set or modify an element's appliesWhen via CLI, validating the feature model on set
 status: draft
 reqDomain: software
 verificationMethod: test

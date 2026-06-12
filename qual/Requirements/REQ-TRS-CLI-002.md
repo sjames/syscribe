@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-CLI-002
 type: Requirement
-title: Tool shall emit an error to stderr and exit non-zero if the model directory is invalid
+name: Tool shall emit an error to stderr and exit non-zero if the model directory is invalid
 status: draft
 reqDomain: software
 verificationMethod: test

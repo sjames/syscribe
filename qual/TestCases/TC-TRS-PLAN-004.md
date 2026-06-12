@@ -3,7 +3,7 @@ id: TC-TRS-PLAN-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify TestPlan demonstrated goals: E603 and the evidence-gap W614."
+name: "Verify TestPlan demonstrated goals: E603 and the evidence-gap W614."
 verifies:
   - REQ-TRS-PLAN-004
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-MG-013
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify magicgrid --audit: clean model PASS (exit 0) + readiness; a MagicGrid error lists the code and FAILs (exit 2); plain magicgrid has no verdict; --json."
+name: "Verify magicgrid --audit: clean model PASS (exit 0) + readiness; a MagicGrid error lists the code and FAILs (exit 2); plain magicgrid has no verdict; --json."
 verifies:
   - REQ-TRS-MG-013
 ---

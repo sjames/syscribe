@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-PERF-002
-title: Closed-loop fuel control shall maintain lambda within 2 % of target
+name: Closed-loop fuel control shall maintain lambda within 2 % of target
 status: approved
 reqDomain: software
 derivedFrom:

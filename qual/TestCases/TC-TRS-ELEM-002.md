@@ -3,7 +3,7 @@ id: TC-TRS-ELEM-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that an unrecognised type: value produces exactly one E005 finding."
+name: "Verify that an unrecognised type: value produces exactly one E005 finding."
 verifies:
   - REQ-TRS-ELEM-002
 ---

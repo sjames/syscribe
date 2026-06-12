@@ -1,7 +1,7 @@
 ---
 type: TARASheet
 id: TARA-TST-001
-title: TARA Sheet With No Tables
+name: TARA Sheet With No Tables
 status: draft
 ---
 

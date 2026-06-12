@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-SIL-COMM-001
-title: "Implement EN 50159 Category 2 safety codes on all vital communication paths"
+name: "Implement EN 50159 Category 2 safety codes on all vital communication paths"
 status: accepted
 date: "2026-05-28"
 tags:

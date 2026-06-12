@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-MG-ORPH-001
-title: The user shall be delighted
+name: The user shall be delighted
 status: approved
 reqDomain: system
 custom_fields:

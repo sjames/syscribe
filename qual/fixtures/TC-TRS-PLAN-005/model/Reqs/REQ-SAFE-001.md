@@ -1,7 +1,7 @@
 ---
 id: REQ-SAFE-001
 type: Requirement
-title: "fail safe"
+name: "fail safe"
 status: approved
 reqDomain: software
 appliesWhen: Features::Delivery

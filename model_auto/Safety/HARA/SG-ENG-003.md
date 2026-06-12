@@ -1,7 +1,7 @@
 ---
 type: SafetyGoal
 id: SG-ENG-003
-title: Prevent engine over-speed above rev limiter threshold
+name: Prevent engine over-speed above rev limiter threshold
 status: approved
 asilLevel: A
 safeState: Fuel cut and ignition retard enforced above 6500 rpm

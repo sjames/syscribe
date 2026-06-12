@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-ID-004
 type: Requirement
-title: "Tool shall emit E101 when two elements share the same id: value"
+name: "Tool shall emit E101 when two elements share the same id: value"
 status: draft
 reqDomain: software
 verificationMethod: test

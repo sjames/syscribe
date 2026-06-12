@@ -2,7 +2,7 @@
 id: FTE-MTA-001
 type: FaultTreeEvent
 eventKind: basic
-title: Basic hardware failure A
+name: Basic hardware failure A
 failureRate: 1.0e-7
 diagnosticCoverage: 0.99
 ---

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-001
 type: Requirement
-title: Valid short REQ id
+name: Valid short REQ id
 status: draft
 reqDomain: system
 verificationMethod: test

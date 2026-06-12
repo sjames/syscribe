@@ -1,7 +1,7 @@
 ---
 id: REQ-CHD-001
 type: Requirement
-title: Approved requirement with proposed ADR
+name: Approved requirement with proposed ADR
 status: approved
 reqDomain: system
 verificationMethod: test

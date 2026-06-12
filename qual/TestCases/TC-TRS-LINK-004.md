@@ -3,7 +3,7 @@ id: TC-TRS-LINK-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify Markdown report and export render element references as hosted links."
+name: "Verify Markdown report and export render element references as hosted links."
 verifies:
   - REQ-TRS-LINK-004
 ---

@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: Security-derived requirement
+name: Security-derived requirement
 status: draft
 reqDomain: software
 verificationMethod: test

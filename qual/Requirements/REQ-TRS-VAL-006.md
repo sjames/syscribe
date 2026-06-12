@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-VAL-006
 type: Requirement
-title: Parse-time errors shall be attributed to the file that triggered them
+name: Parse-time errors shall be attributed to the file that triggered them
 status: draft
 reqDomain: software
 verificationMethod: test

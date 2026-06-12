@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-MG-VARIANT-001
-title: "Variant A — small battery"
+name: "Variant A — small battery"
 status: approved
 parameterBindings:
   batteryKWh: 8.0

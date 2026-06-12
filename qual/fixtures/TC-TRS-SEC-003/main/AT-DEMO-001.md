@@ -1,7 +1,7 @@
 ---
 id: AT-DEMO-001
 type: AttackTree
-title: Attack tree for TS-DEMO-001 — forged torque-request injection
+name: Attack tree for TS-DEMO-001 — forged torque-request injection
 threatRef: TS-DEMO-001
 status: approved
 ---

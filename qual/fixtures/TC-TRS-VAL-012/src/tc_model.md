@@ -1,7 +1,7 @@
 ---
 id: TC-V12-MODEL-001
 type: TestCase
-title: "tc_model"
+name: "tc_model"
 status: active
 testLevel: L3
 verifies:

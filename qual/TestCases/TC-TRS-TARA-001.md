@@ -3,7 +3,7 @@ id: TC-TRS-TARA-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that TARASheet validation rules E940–E941, W905 are enforced."
+name: "Verify that TARASheet validation rules E940–E941, W905 are enforced."
 verifies:
   - REQ-TRS-TARA-001
 ---

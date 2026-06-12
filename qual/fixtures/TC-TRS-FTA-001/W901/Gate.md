@@ -1,7 +1,7 @@
 ---
 type: FaultTreeGate
 id: FTG-TST-001
-title: Gate With No Inputs
+name: Gate With No Inputs
 gateType: AND
 ---
 

@@ -3,7 +3,7 @@ id: TC-TRS-SAFE-008
 type: TestCase
 testLevel: L3
 status: draft
-title: Verify the GSN argument layer (Argument ARG-*, AssumptionOfUse AOU-*), the E852–E858/W040 checks, and the safety-case (GSN) view incl. the implicit goal→req→test fold-in
+name: Verify the GSN argument layer (Argument ARG-*, AssumptionOfUse AOU-*), the E852–E858/W040 checks, and the safety-case (GSN) view incl. the implicit goal→req→test fold-in
 verifies:
   - REQ-TRS-SAFE-008
 ---

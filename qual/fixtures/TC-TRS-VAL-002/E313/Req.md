@@ -1,7 +1,7 @@
 ---
 id: REQ-HW-001
 type: Requirement
-title: Hardware requirement
+name: Hardware requirement
 status: draft
 reqDomain: hardware
 verificationMethod: test

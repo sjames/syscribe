@@ -1,7 +1,7 @@
 ---
 id: REQ-PAR-001
 type: Requirement
-title: Parent requirement
+name: Parent requirement
 status: draft
 reqDomain: system
 verificationMethod: test

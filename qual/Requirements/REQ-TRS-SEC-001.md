@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SEC-001
 type: Requirement
-title: Tool shall cross-link damage/threat scenarios to hazards/safety goals and provide a co-analysis view
+name: Tool shall cross-link damage/threat scenarios to hazards/safety goals and provide a co-analysis view
 status: draft
 reqDomain: software
 verificationMethod: test

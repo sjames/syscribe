@@ -3,7 +3,7 @@ id: TC-TRS-FM-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify feature-check parameter rules E207, E202, E213, W014."
+name: "Verify feature-check parameter rules E207, E202, E213, W014."
 verifies:
   - REQ-TRS-FM-003
 ---

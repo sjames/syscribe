@@ -1,7 +1,7 @@
 ---
 id: TC-MV-001
 type: TestCase
-title: "Verify widget"
+name: "Verify widget"
 status: draft
 testLevel: L3
 verifies:

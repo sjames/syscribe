@@ -1,7 +1,7 @@
 ---
 id: TC-W009-GEN-001
 type: TestCase
-title: "generic testFunction resolves in source"
+name: "generic testFunction resolves in source"
 status: active
 testLevel: L3
 verifies:

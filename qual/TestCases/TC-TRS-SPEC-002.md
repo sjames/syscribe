@@ -3,7 +3,7 @@ id: TC-TRS-SPEC-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the discoverable spec includes a ports & interfaces decision guide."
+name: "Verify the discoverable spec includes a ports & interfaces decision guide."
 verifies:
   - REQ-TRS-SPEC-002
 ---

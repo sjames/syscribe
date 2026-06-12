@@ -1,7 +1,7 @@
 ---
 id: TC-V12-MISS-001
 type: TestCase
-title: "tc_missing"
+name: "tc_missing"
 status: active
 testLevel: L3
 verifies:

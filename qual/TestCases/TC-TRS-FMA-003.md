@@ -3,7 +3,7 @@ id: TC-TRS-FMA-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify anomaly analyses: void, dead, core, false-optional."
+name: "Verify anomaly analyses: void, dead, core, false-optional."
 verifies:
   - REQ-TRS-FMA-003
 ---

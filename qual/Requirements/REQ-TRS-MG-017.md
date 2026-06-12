@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-017
 type: Requirement
-title: Tool shall render the allocation and trade-study reports as 2-D matrix grids
+name: Tool shall render the allocation and trade-study reports as 2-D matrix grids
 status: draft
 reqDomain: software
 verificationMethod: test

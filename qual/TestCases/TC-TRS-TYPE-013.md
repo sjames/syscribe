@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-013
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify Metadata is recognised and validated without E005."
+name: "Verify Metadata is recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-013
 ---

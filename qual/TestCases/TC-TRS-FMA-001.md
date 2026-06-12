@@ -3,7 +3,7 @@ id: TC-TRS-FMA-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the Boolean encoding via solver-observable semantics."
+name: "Verify the Boolean encoding via solver-observable semantics."
 verifies:
   - REQ-TRS-FMA-001
 ---

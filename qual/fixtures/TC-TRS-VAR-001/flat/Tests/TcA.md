@@ -3,7 +3,7 @@ id: TC-VAR1-001
 type: TestCase
 testLevel: L3
 status: approved
-title: "Test TC-VAR1-001"
+name: "Test TC-VAR1-001"
 verifies:
   - REQ-VAR1-001
 ---

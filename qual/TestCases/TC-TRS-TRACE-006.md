@@ -3,7 +3,7 @@ id: TC-TRS-TRACE-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that E313 is emitted for incompatible domain/reqDomain in satisfies: links."
+name: "Verify that E313 is emitted for incompatible domain/reqDomain in satisfies: links."
 verifies:
   - REQ-TRS-TRACE-006
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-014
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify BindingConnector is recognised and validated without E005."
+name: "Verify BindingConnector is recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-014
 ---

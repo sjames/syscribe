@@ -3,7 +3,7 @@ id: TC-TRS-OUT-013
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the safety-readiness audit dashboard, its sections, JSON output and PASS/FAIL exit codes."
+name: "Verify the safety-readiness audit dashboard, its sections, JSON output and PASS/FAIL exit codes."
 verifies:
   - REQ-TRS-OUT-013
 ---

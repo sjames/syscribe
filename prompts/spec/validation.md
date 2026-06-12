@@ -20,10 +20,10 @@
 | `E014` | `Scenario Outline:` block has no `Examples:` table |
 | `E015` | First Gherkin block has no `Feature:` line |
 | `E023` | A stable-ID numeric suffix is longer than the configured maximum (`[ids] max_digits`, default 8). The minimum (3) is enforced by `E006`. |
-| `E024` | An **id-identified** type (`Requirement`, `TestCase`, the safety/security types, …) declares a `name:` field. Its label belongs in `title:`; remove `name:`. Every element has exactly one label field, fixed by identity class. |
-| `E025` | A **name-identified** type (`PartDef`, `Package`, `FeatureDef`, all SysML structural types, …) declares a `title:` field. Its label belongs in `name:`; remove `title:`. A `FeatureDef` also carries a mandatory `FEAT-*` `id` (E201 if missing) — `id` and the label field are independent axes. |
+| `E024` | **RETIRED** — formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is no longer emitted. |
+| `E025` | The removed `title:` field is declared on an element (any type, id-identified or name-identified). The `title` field is removed — rename it to `name`. |
 | `E300` | `ADR.id` does not match `ADR-*` pattern |
-| `E301` | `ADR` missing `id`, `title`, or `status` |
+| `E301` | `ADR` missing `id`, `name`, or `status` |
 | `E302` | `reqDomain:` is not `system`, `hardware`, or `software` |
 | `E303` | `domain:` is not `system`, `hardware`, or `software` |
 | `E304` | `ADR.status` not in `proposed · accepted · deprecated · superseded` |
@@ -91,12 +91,12 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `E800` | `HazardousEvent` missing `id`, `title`, or `status` |
+| `E800` | `HazardousEvent` missing `id`, `name`, or `status` |
 | `E801` | `severity` not in `S0 · S1 · S2 · S3` |
 | `E802` | `exposure` not in `E0 · E1 · E2 · E3 · E4` |
 | `E803` | `controllability` not in `C0 · C1 · C2 · C3` |
 | `E804` | `HazardousEvent.id` does not match `HE-*` |
-| `E805` | `SafetyGoal` missing `id`, `title`, or `status` |
+| `E805` | `SafetyGoal` missing `id`, `name`, or `status` |
 | `E806` | `SafetyGoal.id` does not match `SG-*` |
 | `E833` | `consequence` not in `Ca · Cb · Cc · Cd` (IEC 61508) |
 | `E834` | `freqExposure` not in `Fa · Fb` |
@@ -108,22 +108,22 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `E807` | `DamageScenario` missing `id`, `title`, or `status` |
+| `E807` | `DamageScenario` missing `id`, `name`, or `status` |
 | `E808` | `DamageScenario.id` does not match `DS-*` |
 | `E809` | `damageSeverity` not in `severe · major · moderate · negligible` |
 | `E810` | `impactCategories` entry not in `safety · financial · operational · privacy` |
-| `E811` | `ThreatScenario` missing `id`, `title`, or `status` |
+| `E811` | `ThreatScenario` missing `id`, `name`, or `status` |
 | `E812` | `ThreatScenario.id` does not match `TS-*` |
 | `E813` | `attackFeasibility` not in `high · medium · low · very_low` |
 | `E814` | `attackVector` not in `network · adjacent · local · physical` |
-| `E815` | `CybersecurityGoal` missing `id`, `title`, or `status` |
+| `E815` | `CybersecurityGoal` missing `id`, `name`, or `status` |
 | `E816` | `CybersecurityGoal.id` does not match `CSG-*` |
 | `E817` | `securityProperty` not in `confidentiality · integrity · availability · authenticity` |
 | `E818` | `calLevel` not in `CAL1 · CAL2 · CAL3 · CAL4` |
-| `E819` | `SecurityControl` missing `id`, `title`, or `status` |
+| `E819` | `SecurityControl` missing `id`, `name`, or `status` |
 | `E820` | `SecurityControl.id` does not match `SC-*` |
 | `E821` | `controlType` not in `prevention · detection · response · recovery` |
-| `E822` | `VulnerabilityReport` missing `id`, `title`, or `status` |
+| `E822` | `VulnerabilityReport` missing `id`, `name`, or `status` |
 | `E823` | `VulnerabilityReport.id` does not match `VR-*` |
 | `E824` | `cvssScore` outside 0.0–10.0 |
 
@@ -157,14 +157,14 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `E900` | `FaultTree` missing `id`, `title`, `status`, or `topEvent` |
+| `E900` | `FaultTree` missing `id`, `name`, `status`, or `topEvent` |
 | `E901` | `FaultTree.id` does not match `FT-*` |
 | `E902` | `topEvent` does not resolve or resolves to a non-`SafetyGoal` |
-| `E903` | `FaultTreeGate` missing `id`, `title`, or `gateType` |
+| `E903` | `FaultTreeGate` missing `id`, `name`, or `gateType` |
 | `E904` | `FaultTreeGate.id` does not match `FTG-*` |
 | `E905` | `gateType` not in `AND · OR · XOR · NOT · inhibit` |
 | `E906` | `inputs` entry does not resolve to a `FaultTreeGate` or `FaultTreeEvent` |
-| `E907` | `FaultTreeEvent` missing `id`, `title`, or `eventKind` |
+| `E907` | `FaultTreeEvent` missing `id`, `name`, or `eventKind` |
 | `E908` | `FaultTreeEvent.id` does not match `FTE-*` |
 | `E909` | `eventKind` not in `basic · undeveloped · house` |
 | `W900` | `FaultTree` has no gates or events (tree is empty) |
@@ -174,7 +174,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `E911` | `FMEASheet` missing `id`, `title`, or `status` |
+| `E911` | `FMEASheet` missing `id`, `name`, or `status` |
 | `E912` | `FMEASheet.id` does not match `FMEA-*` |
 | `E913` | FMEAEntry `id` does not match `FM-*` |
 | `E914` | `fmeaSeverity`, `occurrence`, or `detection` outside 1–10 |
@@ -186,7 +186,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `E940` | `TARASheet` missing `id`, `title`, or `status` |
+| `E940` | `TARASheet` missing `id`, `name`, or `status` |
 | `E941` | `TARASheet.id` does not match `TARA-*` |
 | `W905` | `TARASheet` has no rows in any section table |
 
@@ -194,13 +194,13 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `E915` | `AttackTree` missing `id`, `title`, `status`, or `threatRef` |
+| `E915` | `AttackTree` missing `id`, `name`, `status`, or `threatRef` |
 | `E916` | `AttackTree.id` does not match `AT-*` |
 | `E917` | `threatRef` does not resolve, or resolves to an element that is not a `ThreatScenario` |
-| `E918` | `AttackTreeGate` missing `id`, `title`, or `gateType`, or `id` does not match `ATG-*` |
+| `E918` | `AttackTreeGate` missing `id`, `name`, or `gateType`, or `id` does not match `ATG-*` |
 | `E919` | `AttackTreeGate.gateType` not in `AND · OR` |
 | `E920` | `inputs` entry does not resolve to an `AttackTreeGate` or `AttackStep` |
-| `E921` | `AttackStep` missing `id`/`title`, `id` not `ATS-*`, or `attackFeasibility` not in `high · medium · low · very_low` |
+| `E921` | `AttackStep` missing `id`/`name`, `id` not `ATS-*`, or `attackFeasibility` not in `high · medium · low · very_low` |
 | `W035` | `AttackTree` computed (weakest-link) feasibility ≠ linked `ThreatScenario.attackFeasibility` (computed vs declared) |
 | `W036` | `AttackTree` has no gates or steps (tree is empty) |
 | `W037` | `AttackTreeGate` has no `inputs` |
@@ -210,7 +210,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | Code | Condition |
 |---|---|
 | `E200` | `Configuration.id` does not match `CONF-*` |
-| `E201` | A PLE element missing a required field: a `Configuration` missing `id`/`title`/`status`/`featureModel`, **or** a `FeatureDef` missing its mandatory `FEAT-*` `id`. (A `FeatureDef` is still name-labelled — `title:` on it is `E025`.) |
+| `E201` | A PLE element missing a required field: a `Configuration` missing `id`/`name`/`status`/`featureModel`, **or** a `FeatureDef` missing its mandatory `FEAT-*` `id`. (A `FeatureDef` carries `name` as its label; a stray `title:` on it is `E025`.) |
 | `E202` | Propagated parameter value outside component parameter `range:` |
 | `E203` | `Configuration.parameterBindings` binds a parameter for a feature not selected |
 | `E204` | `Configuration.parameterBindings` binds a parameter declared `isFixed: true` |
@@ -265,7 +265,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Severity | Condition |
 |---|---|---|
-| `E600` | error | `TestPlan` missing `id`/`title`/`status`, or `id` does not match `^TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` |
+| `E600` | error | `TestPlan` missing `id`/`name`/`status`, or `id` does not match `^TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` |
 | `E601` | error | a `testCases:` entry does not resolve to a `TestCase` |
 | `E602` | error | a `selection.testLevels` value is not one of `L1`–`L5` |
 | `E603` | error | a `demonstrates:` target does not resolve to a `Requirement`/`SafetyGoal`/`CybersecurityGoal`/`Argument` |

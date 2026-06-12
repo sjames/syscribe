@@ -3,7 +3,7 @@ id: TC-TRS-QNAME-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that the name: field in element frontmatter overrides the filename stem."
+name: "Verify that the name: field in element frontmatter overrides the filename stem."
 verifies:
   - REQ-TRS-QNAME-003
 ---

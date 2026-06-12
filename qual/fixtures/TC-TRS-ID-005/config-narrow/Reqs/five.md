@@ -1,7 +1,7 @@
 ---
 id: REQ-IDW-00001
 type: Requirement
-title: "width REQ-IDW-00001"
+name: "width REQ-IDW-00001"
 status: draft
 reqDomain: software
 ---

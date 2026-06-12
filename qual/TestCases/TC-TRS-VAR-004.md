@@ -3,7 +3,7 @@ id: TC-TRS-VAR-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the matrix command emits a Requirement x Configuration coverage grid."
+name: "Verify the matrix command emits a Requirement x Configuration coverage grid."
 verifies:
   - REQ-TRS-VAR-004
 ---

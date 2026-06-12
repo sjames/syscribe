@@ -3,7 +3,7 @@ id: TC-TRS-OUT-009
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify executed-evidence glyphs/annotations in matrix and trace, plus --linked-only and graceful degradation."
+name: "Verify executed-evidence glyphs/annotations in matrix and trace, plus --linked-only and graceful degradation."
 verifies:
   - REQ-TRS-OUT-009
 ---

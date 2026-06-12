@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-MG-SOI-001
-title: A requirement wrongly marked as the system of interest
+name: A requirement wrongly marked as the system of interest
 status: draft
 reqDomain: system
 custom_fields:

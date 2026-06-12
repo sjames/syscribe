@@ -3,7 +3,7 @@ id: TC-TRS-PARSE-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that a file with unparseable frontmatter produces a warning but does not halt processing."
+name: "Verify that a file with unparseable frontmatter produces a warning but does not halt processing."
 verifies:
   - REQ-TRS-PARSE-006
 ---

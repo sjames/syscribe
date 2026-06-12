@@ -1,7 +1,7 @@
 ---
 id: FT-SIL-001
 type: FaultTree
-title: Fault tree for SG-SIL-001 — conflicting route set without detection
+name: Fault tree for SG-SIL-001 — conflicting route set without detection
 topEvent: SG-SIL-001
 status: approved
 missionTime: "350400 h"

@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-MG-AMB-001
-title: AmbConf
+name: AmbConf
 status: approved
 parameterBindings:
   SubsysA.speed: 10

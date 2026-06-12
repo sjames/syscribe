@@ -1,7 +1,7 @@
 ---
 id: FMEA-SIL-002
 type: FMEASheet
-title: FMEA — Trackside Field Equipment
+name: FMEA — Trackside Field Equipment
 status: approved
 entries:
   - id: FM-SIL-009

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-XREF-004
 type: Requirement
-title: Tool shall detect and report circular supertype chains without crashing
+name: Tool shall detect and report circular supertype chains without crashing
 status: draft
 reqDomain: software
 verificationMethod: test

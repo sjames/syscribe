@@ -1,7 +1,7 @@
 ---
 id: REQ-EXP-001
 type: Requirement
-title: "The system shall export traceability"
+name: "The system shall export traceability"
 status: approved
 reqDomain: software
 verificationMethod: test

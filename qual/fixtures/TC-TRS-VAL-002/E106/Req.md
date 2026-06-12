@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-E106-001
 type: Requirement
-title: Requirement for E106 fixture
+name: Requirement for E106 fixture
 status: draft
 reqDomain: software
 verificationMethod: test

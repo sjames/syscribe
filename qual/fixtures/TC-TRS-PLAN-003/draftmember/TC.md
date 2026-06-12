@@ -1,7 +1,7 @@
 ---
 id: TC-PL3-DR-001
 type: TestCase
-title: "Verify TC-PL3-DR-001"
+name: "Verify TC-PL3-DR-001"
 status: draft
 testLevel: L3
 verifies: [REQ-PL3-001]

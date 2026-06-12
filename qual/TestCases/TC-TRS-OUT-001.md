@@ -3,7 +3,7 @@ id: TC-TRS-OUT-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that the tool writes its validation report to stdout in Markdown format."
+name: "Verify that the tool writes its validation report to stdout in Markdown format."
 verifies:
   - REQ-TRS-OUT-001
 ---

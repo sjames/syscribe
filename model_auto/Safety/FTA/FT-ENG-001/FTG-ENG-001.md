@@ -1,7 +1,7 @@
 ---
 type: FaultTreeGate
 id: FTG-ENG-001
-title: OR gate — throttle control failure OR sensor input error
+name: OR gate — throttle control failure OR sensor input error
 gateType: OR
 inputs:
   - FTG-ENG-002

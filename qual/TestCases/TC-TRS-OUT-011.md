@@ -3,7 +3,7 @@ id: TC-TRS-OUT-011
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the verification-depth report: per-requirement level depth, flags, filters, JSON, and --min-levels gate."
+name: "Verify the verification-depth report: per-requirement level depth, flags, filters, JSON, and --min-levels gate."
 verifies:
   - REQ-TRS-OUT-011
 ---

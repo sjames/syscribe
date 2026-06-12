@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-XREF-CHILD-001
-title: A child requirement whose derivedFrom wrongly includes the root name
+name: A child requirement whose derivedFrom wrongly includes the root name
 status: approved
 reqDomain: software
 derivedFrom:

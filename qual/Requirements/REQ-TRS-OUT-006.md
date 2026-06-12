@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-OUT-006
 type: Requirement
-title: Tool shall support configurable warning gating with a documented exit-code contract
+name: Tool shall support configurable warning gating with a documented exit-code contract
 status: draft
 reqDomain: software
 verificationMethod: test

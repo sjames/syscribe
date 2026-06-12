@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-004
 type: Requirement
-title: "Tool shall recognise and validate the EventOccurrenceDef and EventOccurrence elements"
+name: "Tool shall recognise and validate the EventOccurrenceDef and EventOccurrence elements"
 status: draft
 reqDomain: software
 verificationMethod: test

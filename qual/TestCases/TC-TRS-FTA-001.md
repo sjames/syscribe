@@ -3,7 +3,7 @@ id: TC-TRS-FTA-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that FaultTree, FaultTreeGate, and FaultTreeEvent validation rules E900–E909, W900–W901 are enforced."
+name: "Verify that FaultTree, FaultTreeGate, and FaultTreeEvent validation rules E900–E909, W900–W901 are enforced."
 verifies:
   - REQ-TRS-FTA-001
 ---

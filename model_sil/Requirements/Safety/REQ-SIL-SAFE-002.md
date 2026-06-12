@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SAFE-002
-title: Signal controller shall only clear a signal when all interlocking conditions are simultaneously verified
+name: Signal controller shall only clear a signal when all interlocking conditions are simultaneously verified
 status: approved
 reqDomain: software
 silLevel: 4

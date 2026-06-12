@@ -3,7 +3,7 @@ id: TC-TRS-ID-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that ADR elements are validated against the ADR-* id pattern."
+name: "Verify that ADR elements are validated against the ADR-* id pattern."
 verifies:
   - REQ-TRS-ID-003
 ---

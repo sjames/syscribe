@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SCRIPT-002
 type: Requirement
-title: Tool shall run extension scripts in a sandboxed, resource-limited, deterministic engine
+name: Tool shall run extension scripts in a sandboxed, resource-limited, deterministic engine
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-DEMO-001
-title: "Torque request shall be cross-checked by an independent monitor"
+name: "Torque request shall be cross-checked by an independent monitor"
 status: approved
 reqDomain: software
 verificationMethod: test

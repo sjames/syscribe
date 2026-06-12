@@ -3,7 +3,7 @@ id: TC-TRS-OUT-007
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the structured model graph export (JSON + NDJSON, schemaVersion, resolved relationships)."
+name: "Verify the structured model graph export (JSON + NDJSON, schemaVersion, resolved relationships)."
 verifies:
   - REQ-TRS-OUT-007
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-VAR-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify per-Configuration uncovered-requirement rule W015 and its suppression/gating."
+name: "Verify per-Configuration uncovered-requirement rule W015 and its suppression/gating."
 verifies:
   - REQ-TRS-VAR-005
 ---

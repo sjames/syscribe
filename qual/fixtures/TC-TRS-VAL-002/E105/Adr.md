@@ -1,7 +1,7 @@
 ---
 id: ADR-TST-001
 type: ADR
-title: x
+name: x
 status: accepted
 ---
 

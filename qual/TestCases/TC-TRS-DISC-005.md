@@ -3,7 +3,7 @@ id: TC-TRS-DISC-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify `why-active <el> --config <C>`: active/inactive/always-active verdict; errors on missing/unresolved --config."
+name: "Verify `why-active <el> --config <C>`: active/inactive/always-active verdict; errors on missing/unresolved --config."
 verifies:
   - REQ-TRS-DISC-005
 ---

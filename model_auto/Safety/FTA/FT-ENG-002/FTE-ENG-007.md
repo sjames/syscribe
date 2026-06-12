@@ -1,7 +1,7 @@
 ---
 type: FaultTreeEvent
 id: FTE-ENG-007
-title: High-intensity radiated field causing CPS signal dropout
+name: High-intensity radiated field causing CPS signal dropout
 eventKind: basic
 ref: System::Sensors::CrankshaftPositionSensor
 failureRate: 2.0e-8

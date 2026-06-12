@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-VAR-001
 type: Requirement
-title: Tool shall treat variability as dormant unless a feature model is linked
+name: Tool shall treat variability as dormant unless a feature model is linked
 status: draft
 reqDomain: software
 verificationMethod: test

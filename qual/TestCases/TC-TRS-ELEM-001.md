@@ -3,7 +3,7 @@ id: TC-TRS-ELEM-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that all element types defined in §2 are recognised and processed without E005."
+name: "Verify that all element types defined in §2 are recognised and processed without E005."
 verifies:
   - REQ-TRS-ELEM-001
 ---

@@ -1,7 +1,7 @@
 ---
 type: FaultTreeEvent
 id: FTE-ENG-003
-title: Throttle actuator mechanically stuck open above 20 %
+name: Throttle actuator mechanically stuck open above 20 %
 eventKind: basic
 ref: System::Actuators::ThrottleActuator
 failureRate: 2.4e-7

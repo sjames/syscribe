@@ -1,7 +1,7 @@
 ---
 type: FaultTreeGate
 id: FTG-ENG-004
-title: AND gate — CPS signal degraded AND EMC noise burst (common cause)
+name: AND gate — CPS signal degraded AND EMC noise burst (common cause)
 gateType: AND
 inputs:
   - FTE-ENG-006

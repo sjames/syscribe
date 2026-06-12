@@ -1,7 +1,7 @@
 ---
 type: FMEASheet
 id: FMEA-ENG-001
-title: FMEA — Throttle, Fuel Control and Safety Monitor Subsystem
+name: FMEA — Throttle, Fuel Control and Safety Monitor Subsystem
 status: approved
 entries:
   - id: FM-ENG-001

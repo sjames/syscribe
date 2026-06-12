@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PC-AMPOK-001
-title: "AMP with four cores (satisfies >= 2)"
+name: "AMP with four cores (satisfies >= 2)"
 status: approved
 featureModel: Features
 features:

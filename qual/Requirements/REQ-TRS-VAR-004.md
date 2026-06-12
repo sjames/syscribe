@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-VAR-004
 type: Requirement
-title: Tool shall provide a feature-model-driven Requirement x Configuration matrix command
+name: Tool shall provide a feature-model-driven Requirement x Configuration matrix command
 status: draft
 reqDomain: software
 verificationMethod: test

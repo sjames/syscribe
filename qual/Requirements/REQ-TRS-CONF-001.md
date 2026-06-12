@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-CONF-001
 type: Requirement
-title: Tool shall enforce E200, E201, and E209 on Configuration elements and appliesWhen fields
+name: Tool shall enforce E200, E201, and E209 on Configuration elements and appliesWhen fields
 status: draft
 reqDomain: software
 verificationMethod: test

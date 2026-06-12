@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TRACE-008
 type: Requirement
-title: Tool shall emit E314 for a deployment package with no hardware Allocation
+name: Tool shall emit E314 for a deployment package with no hardware Allocation
 status: draft
 reqDomain: software
 verificationMethod: test

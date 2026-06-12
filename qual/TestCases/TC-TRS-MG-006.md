@@ -3,7 +3,7 @@ id: TC-TRS-MG-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the allocation matrix view: rows=sources, cols=targets, allocated cells; unallocated/unused rollup; mg_layer partition; flat fallback; --json."
+name: "Verify the allocation matrix view: rows=sources, cols=targets, allocated cells; unallocated/unused rollup; mg_layer partition; flat fallback; --json."
 verifies:
   - REQ-TRS-MG-006
 ---

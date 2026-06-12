@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TRACE-009
 type: Requirement
-title: Tool shall detect and report cycles in supertype, derivedFrom, and subsets graphs
+name: Tool shall detect and report cycles in supertype, derivedFrom, and subsets graphs
 status: draft
 reqDomain: software
 verificationMethod: test

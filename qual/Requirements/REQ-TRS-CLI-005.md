@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-CLI-005
 type: Requirement
-title: Tool shall provide detailed man-page help for every command via help <cmd> and <cmd> --help
+name: Tool shall provide detailed man-page help for every command via help <cmd> and <cmd> --help
 status: draft
 reqDomain: software
 verificationMethod: test

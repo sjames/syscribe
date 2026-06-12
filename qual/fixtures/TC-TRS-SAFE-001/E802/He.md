@@ -1,7 +1,7 @@
 ---
 type: HazardousEvent
 id: HE-TST-001
-title: Brake failure
+name: Brake failure
 status: draft
 exposure: E9
 ---

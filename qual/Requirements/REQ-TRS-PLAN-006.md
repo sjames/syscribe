@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PLAN-006
 type: Requirement
-title: Tool shall provide a --plan TP-X lens that restricts analysis commands to a TestPlan's scope and composes with --config
+name: Tool shall provide a --plan TP-X lens that restricts analysis commands to a TestPlan's scope and composes with --config
 status: draft
 reqDomain: software
 verificationMethod: test

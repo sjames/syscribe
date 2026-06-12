@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-W01-001
 type: Requirement
-title: Requirement without normative keyword
+name: Requirement without normative keyword
 status: draft
 reqDomain: system
 ---

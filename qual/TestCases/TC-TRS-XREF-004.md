@@ -3,7 +3,7 @@ id: TC-TRS-XREF-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that circular supertype chains are detected and reported without crashing."
+name: "Verify that circular supertype chains are detected and reported without crashing."
 verifies:
   - REQ-TRS-XREF-004
 ---

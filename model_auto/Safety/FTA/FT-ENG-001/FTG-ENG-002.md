@@ -1,7 +1,7 @@
 ---
 type: FaultTreeGate
 id: FTG-ENG-002
-title: AND gate — simultaneous CPS and TPS failure defeats redundancy
+name: AND gate — simultaneous CPS and TPS failure defeats redundancy
 gateType: AND
 inputs:
   - FTE-ENG-001

@@ -3,7 +3,7 @@ id: TC-TRS-SCRIPT-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the two registration shapes (register_command and register_check), a pure library file, and the duplicate-name load error."
+name: "Verify the two registration shapes (register_command and register_check), a pure library file, and the duplicate-name load error."
 verifies:
   - REQ-TRS-SCRIPT-004
 ---

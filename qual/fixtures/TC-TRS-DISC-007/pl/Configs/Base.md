@@ -1,7 +1,7 @@
 ---
 id: CONF-D7-BASE-001
 type: Configuration
-title: "Configuration CONF-D7-BASE-001"
+name: "Configuration CONF-D7-BASE-001"
 status: approved
 featureModel: Features
 features:

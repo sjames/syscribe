@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-CFLD-001
 type: Requirement
-title: Tool shall recognise a custom_fields map on any element and shape-check its values
+name: Tool shall recognise a custom_fields map on any element and shape-check its values
 status: draft
 reqDomain: software
 verificationMethod: test

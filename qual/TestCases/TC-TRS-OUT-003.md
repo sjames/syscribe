@@ -3,7 +3,7 @@ id: TC-TRS-OUT-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that the report includes a summary section with error and warning counts."
+name: "Verify that the report includes a summary section with error and warning counts."
 verifies:
   - REQ-TRS-OUT-003
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify EventOccurrenceDef and EventOccurrence are recognised and validated without E005."
+name: "Verify EventOccurrenceDef and EventOccurrence are recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-004
 ---

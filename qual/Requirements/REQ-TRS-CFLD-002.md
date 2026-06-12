@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-CFLD-002
 type: Requirement
-title: Tool shall filter elements by a --where predicate over custom fields
+name: Tool shall filter elements by a --where predicate over custom fields
 status: draft
 reqDomain: software
 verificationMethod: test

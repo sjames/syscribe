@@ -3,7 +3,7 @@ id: TC-TRS-ID-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that TestCase elements are validated against the TC-* id pattern."
+name: "Verify that TestCase elements are validated against the TC-* id pattern."
 verifies:
   - REQ-TRS-ID-002
 ---

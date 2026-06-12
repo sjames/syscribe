@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SCRIPT-003
 type: Requirement
-title: Tool shall expose a read-only model API to extension scripts, including custom fields
+name: Tool shall expose a read-only model API to extension scripts, including custom fields
 status: draft
 reqDomain: software
 verificationMethod: test

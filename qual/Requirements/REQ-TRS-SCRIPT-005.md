@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SCRIPT-005
 type: Requirement
-title: Tool shall provide scripts list and scripts run to discover and execute commands
+name: Tool shall provide scripts list and scripts run to discover and execute commands
 status: draft
 reqDomain: software
 verificationMethod: test

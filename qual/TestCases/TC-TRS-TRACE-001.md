@@ -3,7 +3,7 @@ id: TC-TRS-TRACE-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that computed reverse indices are populated from downstream link fields."
+name: "Verify that computed reverse indices are populated from downstream link fields."
 verifies:
   - REQ-TRS-TRACE-001
 ---

@@ -1,7 +1,7 @@
 ---
 id: FT-BAD-001
 type: FaultTree
-title: Fault tree for SG-BAD-001
+name: Fault tree for SG-BAD-001
 topEvent: SG-BAD-001
 status: approved
 ---

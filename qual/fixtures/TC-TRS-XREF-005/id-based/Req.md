@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-XRF-001
 type: Requirement
-title: Test requirement for id-based cross-reference
+name: Test requirement for id-based cross-reference
 status: draft
 reqDomain: system
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 id: TC-W009-CPP-001
 type: TestCase
-title: "cpp testFunction resolves in source"
+name: "cpp testFunction resolves in source"
 status: active
 testLevel: L3
 verifies:

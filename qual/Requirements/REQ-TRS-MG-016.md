@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-016
 type: Requirement
-title: Tool shall render the MagicGrid as an SVG via magicgrid --svg, usable as a Diagram companion
+name: Tool shall render the MagicGrid as an SVG via magicgrid --svg, usable as a Diagram companion
 status: draft
 reqDomain: software
 verificationMethod: test

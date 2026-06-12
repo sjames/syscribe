@@ -1,7 +1,7 @@
 ---
 id: CONF-TT-NAB-001
 type: Configuration
-title: "Configuration CONF-TT-NAB-001"
+name: "Configuration CONF-TT-NAB-001"
 status: approved
 featureModel: Features
 features:

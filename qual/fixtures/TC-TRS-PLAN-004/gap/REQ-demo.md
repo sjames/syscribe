@@ -1,7 +1,7 @@
 ---
 id: REQ-PL4-DEMO-001
 type: Requirement
-title: "be demonstrated"
+name: "be demonstrated"
 status: approved
 reqDomain: software
 ---

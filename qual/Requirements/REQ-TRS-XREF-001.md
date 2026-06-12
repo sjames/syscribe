@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-XREF-001
 type: Requirement
-title: Tool shall resolve absolute qualified names from the model root
+name: Tool shall resolve absolute qualified names from the model root
 status: draft
 reqDomain: software
 verificationMethod: test

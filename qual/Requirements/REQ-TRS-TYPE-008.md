@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-008
 type: Requirement
-title: "Tool shall recognise and validate the UseCase element"
+name: "Tool shall recognise and validate the UseCase element"
 status: draft
 reqDomain: software
 verificationMethod: test

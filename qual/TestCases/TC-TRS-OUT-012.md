@@ -3,7 +3,7 @@ id: TC-TRS-OUT-012
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify named, SIL/ASIL-scopable validation severity profiles and their exit codes."
+name: "Verify named, SIL/ASIL-scopable validation severity profiles and their exit codes."
 verifies:
   - REQ-TRS-OUT-012
 ---

@@ -12,7 +12,7 @@ A native Requirement carries a **stable opaque identifier** (`REQ-*`) that never
 ---
 type: Requirement
 id: REQ-UAV-FC-001
-title: FC fault detection ≤ 50 ms
+name: FC fault detection ≤ 50 ms
 status: approved
 ---
 
@@ -23,7 +23,7 @@ and transition to the fault state.
 | Field | Required | Values |
 |---|---|---|
 | `id` | Yes | `REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}` |
-| `title` | Yes | Short human title |
+| `name` | Yes | Short human-readable label (free prose) |
 | `status` | Yes | `draft` · `review` · `approved` · `implemented` · `verified` |
 
 ### Optional traceability fields
@@ -74,7 +74,7 @@ REQ-UAV-PERF-000  (parent — needs L3/L4/L5 TestCase)
 ---
 type: TestCase
 id: TC-UAV-FC-001
-title: FC fault injection — sensor dropout under 50 ms
+name: FC fault injection — sensor dropout under 50 ms
 status: active
 testLevel: L5
 verifies:
@@ -101,7 +101,7 @@ Feature: Flight controller fault detection
 | Field | Required | Values |
 |---|---|---|
 | `id` | Yes | `TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}` |
-| `title` | Yes | Short human title |
+| `name` | Yes | Short human-readable label (free prose) |
 | `status` | Yes | `draft` · `review` · `approved` · `active` · `retired` |
 | `testLevel` | Yes | `L1`–`L5` |
 | `verifies` | Yes | At least one REQ-* ID |

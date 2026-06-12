@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-MG-EXACT-001
-title: ExactConf
+name: ExactConf
 status: approved
 parameterBindings:
   SubsysA.speed: 10

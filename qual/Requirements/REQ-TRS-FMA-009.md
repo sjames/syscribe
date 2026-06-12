@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FMA-009
 type: Requirement
-title: feature-check shall count and optionally enumerate the valid configurations a feature model permits
+name: feature-check shall count and optionally enumerate the valid configurations a feature model permits
 status: draft
 reqDomain: software
 verificationMethod: test

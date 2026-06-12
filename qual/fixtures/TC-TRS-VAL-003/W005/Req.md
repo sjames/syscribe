@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: Orphan requirement
+name: Orphan requirement
 status: draft
 reqDomain: system
 verificationMethod: test

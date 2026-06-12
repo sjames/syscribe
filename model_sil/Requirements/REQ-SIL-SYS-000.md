@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SYS-000
-title: Railway interlocking system shall prevent unsafe train movements in all operating conditions
+name: Railway interlocking system shall prevent unsafe train movements in all operating conditions
 status: approved
 reqDomain: system
 ---

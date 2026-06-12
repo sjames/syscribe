@@ -3,7 +3,7 @@ id: TC-TRS-PARSE-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that standard build and tool directories are excluded from discovery."
+name: "Verify that standard build and tool directories are excluded from discovery."
 verifies:
   - REQ-TRS-PARSE-003
 ---

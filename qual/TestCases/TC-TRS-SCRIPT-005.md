@@ -3,7 +3,7 @@ id: TC-TRS-SCRIPT-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify scripts list and scripts run: enumeration with kind/description/source, running a command (text and --json), unknown-name failure, and check-not-runnable-as-command."
+name: "Verify scripts list and scripts run: enumeration with kind/description/source, running a command (text and --json), unknown-name failure, and check-not-runnable-as-command."
 verifies:
   - REQ-TRS-SCRIPT-005
 ---

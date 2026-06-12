@@ -3,7 +3,7 @@ id: TC-BAD-001
 type: TestCase
 testLevel: L3
 status: approved
-title: "Out-of-scope broken test"
+name: "Out-of-scope broken test"
 verifies: [REQ-GHOST-999]
 ---
 ```gherkin

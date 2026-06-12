@@ -1,7 +1,7 @@
 ---
 id: REQ-PARENT-001
 type: Requirement
-title: "Memory protection domain shall be enforced"
+name: "Memory protection domain shall be enforced"
 status: approved
 silLevel: 4
 ---

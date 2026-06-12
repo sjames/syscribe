@@ -3,7 +3,7 @@ id: TC-TRS-TAG-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the generic --tag filter selects by free-text tags without affecting variant logic."
+name: "Verify the generic --tag filter selects by free-text tags without affecting variant logic."
 verifies:
   - REQ-TRS-TAG-001
 ---

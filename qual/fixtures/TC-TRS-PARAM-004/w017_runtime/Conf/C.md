@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PRM-RT-001
-title: "CONF-PRM-RT-001"
+name: "CONF-PRM-RT-001"
 status: approved
 featureModel: Features
 features:

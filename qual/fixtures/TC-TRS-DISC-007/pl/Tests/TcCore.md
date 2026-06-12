@@ -3,7 +3,7 @@ id: TC-D7-CORE-001
 type: TestCase
 testLevel: L3
 status: approved
-title: "Test TC-D7-CORE-001"
+name: "Test TC-D7-CORE-001"
 verifies:
   - REQ-D7-CORE-001
 ---

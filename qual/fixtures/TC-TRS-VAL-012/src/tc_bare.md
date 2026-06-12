@@ -1,7 +1,7 @@
 ---
 id: TC-V12-BARE-001
 type: TestCase
-title: "tc_bare"
+name: "tc_bare"
 status: active
 testLevel: L3
 verifies:

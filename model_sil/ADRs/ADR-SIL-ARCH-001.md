@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-SIL-ARCH-001
-title: "Diverse software development teams for Channel A and Channel B vital logic"
+name: "Diverse software development teams for Channel A and Channel B vital logic"
 status: accepted
 date: "2026-05-28"
 tags:

@@ -3,7 +3,7 @@ id: TC-TRS-MG-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify logical/physical layering: MG040 bad layer, MG041 unrealised logical, MG042 cross-layer coupling; allocation clears MG042; inert without the gate."
+name: "Verify logical/physical layering: MG040 bad layer, MG041 unrealised logical, MG042 cross-layer coupling; allocation clears MG042; inert without the gate."
 verifies:
   - REQ-TRS-MG-005
 ---

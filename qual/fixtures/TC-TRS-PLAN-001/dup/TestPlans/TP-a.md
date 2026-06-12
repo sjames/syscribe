@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-DUP-001
-title: "First"
+name: "First"
 status: approved
 scope: smoke
 testCases: [TC-PL1-001]

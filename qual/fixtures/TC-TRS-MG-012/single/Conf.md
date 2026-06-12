@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-MG-SINGLE-001
-title: SingleConf
+name: SingleConf
 status: approved
 parameterBindings:
   SubsysA.speed: 30

@@ -3,7 +3,7 @@ id: TC-TRS-FMA-010
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify diagnoses (minimal correction sets) for void models."
+name: "Verify diagnoses (minimal correction sets) for void models."
 verifies:
   - REQ-TRS-FMA-010
 ---

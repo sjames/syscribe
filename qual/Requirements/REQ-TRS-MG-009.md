@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-009
 type: Requirement
-title: MagicGrid gate shall validate a System-of-Interest boundary marker (mg_soi)
+name: MagicGrid gate shall validate a System-of-Interest boundary marker (mg_soi)
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SCRIPT-004
 type: Requirement
-title: Tool shall let a script register two shapes — a top-level command and a validation check
+name: Tool shall let a script register two shapes — a top-level command and a validation check
 status: draft
 reqDomain: software
 verificationMethod: test

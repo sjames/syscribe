@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-META-001
 type: Requirement
-title: Tool shall support stereotypes as MetadataDef applications on elements (SysMLv2 metadata, not UML)
+name: Tool shall support stereotypes as MetadataDef applications on elements (SysMLv2 metadata, not UML)
 status: draft
 reqDomain: software
 verificationMethod: test

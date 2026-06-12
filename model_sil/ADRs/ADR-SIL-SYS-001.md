@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-SIL-SYS-001
-title: "Use 2oo2D voting architecture rather than 2oo3 for vital processing"
+name: "Use 2oo2D voting architecture rather than 2oo3 for vital processing"
 status: accepted
 date: "2026-05-28"
 tags:

@@ -198,14 +198,15 @@ The directory is also the Rhai **module-import root**, so a script can reuse a s
 
 See `syscribe help scripts` for the full read-only model API.
 
-### Label field: `name` vs `title` (E024 / E025)
+### Label field: `name` is the universal label (E025; E024 retired)
 
-Every element carries **exactly one** human-readable label field, fixed by its identity class — never both:
+**`name` is the single human-readable label on every element type** — id-identified and name-identified alike. There is no longer a per-identity-class split.
 
-- **Id-identified types** (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types — identity is a stable `id`) label via **`title`**. Declaring `name:` is error **`E024`**.
-- **Name-identified types** (all SysML structural types, `Package`, `Diagram`, `FeatureDef` — identity is the `name`/path) label via **`name`**. Declaring `title:` is error **`E025`**.
+- **Id-identified types** (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types — identity is a stable `id`) label via **`name`** (free prose — spaces/punctuation allowed; `W042` does not apply), which is **required** on them.
+- **Name-identified types** (all SysML structural types, `Package`, `Diagram`, `FeatureDef` — identity is the `name`/path) label via **`name`**, which is also the identity segment and must be a basic name (`W042`).
+- **`title` is removed.** Declaring `title:` on any element is error **`E025`** ("rename it to `name`"). Error **`E024`** (formerly: `name:` on an id-identified type) is **retired**.
 
-`FeatureDef` also carries a **mandatory** `FEAT-*` `id` (a feature with no `id` is `E201`); it still labels via `name`. All these errors exit `1`.
+`FeatureDef` also carries a **mandatory** `FEAT-*` `id` (a feature with no `id` is `E201`); it labels via `name`. These errors exit `1`.
 
 ---
 
@@ -866,7 +867,7 @@ $ syscribe -m model_auto/ template Requirement
 ---
 type: Requirement
 id: REQ-PREFIX-001
-title: "The system shall ..."
+name: "The system shall ..."
 status: draft
 reqDomain: system
 verificationMethod: test

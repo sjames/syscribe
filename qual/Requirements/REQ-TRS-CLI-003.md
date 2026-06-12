@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-CLI-003
 type: Requirement
-title: Tool shall print the LLM generation prompt with --agent-instructions
+name: Tool shall print the LLM generation prompt with --agent-instructions
 status: draft
 reqDomain: software
 verificationMethod: test

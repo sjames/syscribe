@@ -377,8 +377,8 @@ Key fields that apply to most element types:
 | Field | Notes |
 |---|---|
 | `type` | Required — one of the types in Part 2 |
-| `name` | Label for **name-identified** types (SysML structural types, `Package`, `Diagram`, `FeatureDef`); defaults to filename stem. **Must be a SysMLv2 basic name** `[A-Za-z_][A-Za-z0-9_]*` — letters/digits/`_`, no hyphens or spaces (use `_` or CamelCase: `Anti_Lock`, not `Anti-Lock`). A hyphen breaks `appliesWhen`/`parameterConstraints` references; non-basic names warn `W042`. **Do not put `name` on id-identified types** (`Requirement`, `TestCase`, `ADR`, the safety/security types) — that is error `E024`; use `title` instead. |
-| `title` | Label for **id-identified** types (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types). Free prose — may contain spaces and punctuation. **Do not put `title` on name-identified types** (`PartDef`, `Package`, `FeatureDef`, …) — that is error `E025`; use `name` instead. Each element carries exactly one label field, never both. |
+| `name` | The single human-readable label on **every** element type (`Requirement`, `TestCase`, `ADR`, `PartDef`, `Package`, `FeatureDef`, the safety/security types — all of them). For **name-identified** types (SysML structural types, `Package`, `Diagram`, `FeatureDef`) `name` is also the identity segment: it defaults to the filename stem and **must be a SysMLv2 basic name** `[A-Za-z_][A-Za-z0-9_]*` — letters/digits/`_`, no hyphens or spaces (use `_` or CamelCase: `Anti_Lock`, not `Anti-Lock`); a hyphen breaks `appliesWhen`/`parameterConstraints` references and non-basic names warn `W042`. For **id-identified** types (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types) identity is the stable `id`, so `name` is **free prose** — spaces and punctuation allowed, `W042` does not apply — and is **required** on these types. |
+| `title` | **REMOVED — use `name`.** `title` is no longer a label field on any element; a stray `title:` is error `E025` ("rename it to `name`"). |
 | `supertype` | Specialisation link (`>` in SysML) |
 | `typedBy` | Type of a usage element (port, part, action, etc.) |
 | `isAbstract` | `true` for abstract definitions |
@@ -422,7 +422,7 @@ custom_fields:
 | Field | Rule |
 |---|---|
 | `id` | Must match `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` — e.g. `REQ-SYS-001`, `REQ-AID-FC-001` |
-| `title` | Short human-readable description |
+| `name` | Short human-readable label — free prose (spaces/punctuation allowed) |
 | `status` | One of: `draft` · `review` · `approved` · `implemented` · `verified` |
 
 ### Optional fields
@@ -467,7 +467,7 @@ REQ-SYS-000  (parent — stakeholder goal, no derivedFrom, no reqDomain needed)
 | Field | Rule |
 |---|---|
 | `id` | Must match `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` |
-| `title` | Short description of the decision |
+| `name` | Short description of the decision — free prose |
 | `status` | `proposed` · `accepted` · `deprecated` · `superseded` |
 
 **ADR must be `accepted` before any Requirement can cite it in `breakdownAdr:`** (warning W303 if still `proposed`).
@@ -487,7 +487,7 @@ Body structure: `## Context`, `## Decision`, `## Consequences` (conventional —
 | Field | Rule |
 |---|---|
 | `id` | Must match `^TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` |
-| `title` | Short description |
+| `name` | Short description — free prose |
 | `status` | `draft` · `review` · `approved` · `active` · `retired` |
 | `testLevel` | `L1` · `L2` · `L3` · `L4` · `L5` |
 | `verifies` | List of Requirement `id`s — **must not be empty** (error E013) |
@@ -515,7 +515,7 @@ Place plans under `TestPlans/`.
 | Field | Rule |
 |---|---|
 | `id` | Required; must match `^TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` |
-| `title` | Required |
+| `name` | Required — free prose label |
 | `status` | Required; `draft` · `review` · `approved` · `active` · `retired` |
 | `scope` | Optional; `unit` · `smoke` · `integration` · `hil` · `certification` · `security` · `regression` (other values warn `W610`). Distinguishes multiple plans over the same config. |
 | `configurations` | Optional; a `Configuration` id or list. Absent = applies to every configuration. Each must resolve (`E606`). |
@@ -907,11 +907,11 @@ Use a single `TARASheet` file. The parser explodes it into individual `DamageSce
 ```yaml
 type: TARASheet
 id: TARA-SYS-001
-title: "TARA — CAN bus"
+name: "TARA — CAN bus"
 status: draft
 damageTable:
   - id: DS-SYS-001
-    title: "..."
+    name: "..."
     damageSeverity: severe
     impactCategories: [safety]
 threatTable:
@@ -1011,8 +1011,8 @@ draft → review → approved → implemented → verified
 
 | Code | Cause | Fix |
 |---|---|---|
-| E004 | TestCase missing `id`, `title`, `status`, or `testLevel` | Add all four fields |
-| E004 | Requirement missing `title` or `status` | Add both fields |
+| E004 | TestCase missing `id`, `name`, `status`, or `testLevel` | Add all four fields |
+| E004 | Requirement missing `name` or `status` | Add both fields |
 | E006 | `id` does not match the pattern for its type | Check regex: `REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}` |
 | E007 | `status` value not in allowed enum | Check status table for each type |
 | E008 | `testLevel` not `L1`–`L5` | Use exactly `L1`–`L5` |
@@ -1032,7 +1032,7 @@ draft → review → approved → implemented → verified
 | E104 | `verifies:` target is not a native Requirement | Only point `verifies:` at `type: Requirement` |
 | E105 | `derivedFrom:` target is not a native Requirement | Only point `derivedFrom:` at `type: Requirement` |
 | E300 | ADR `id` does not match `ADR-*` pattern | Fix the ID |
-| E301 | ADR missing `id`, `title`, or `status` | Add all three fields |
+| E301 | ADR missing `id`, `name`, or `status` | Add all three fields |
 | E302 | `reqDomain` not `system`/`hardware`/`software` | Use one of the three values |
 | E303 | `domain` not `system`/`hardware`/`software` | Use one of the three values |
 | E304 | ADR `status` not valid | Use `proposed`, `accepted`, `deprecated`, or `superseded` |
@@ -1095,7 +1095,7 @@ model/
 ### For every Requirement (new or updated)
 
 - [ ] `id:` is globally unique (verified with `next-id`) and matches `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
-- [ ] `title:` and `status:` are present
+- [ ] `name:` and `status:` are present
 - [ ] Normative body is non-empty and contains `shall`
 - [ ] If `derivedFrom:` is set → `breakdownAdr:` is also set, pointing to an `accepted` ADR
 - [ ] If it is a leaf at `approved`/`implemented` → exactly one architecture element has it in `satisfies:`
@@ -1105,7 +1105,7 @@ model/
 ### For every TestCase (new or updated)
 
 - [ ] `id:` is globally unique and matches `^TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
-- [ ] `title:`, `status:`, `testLevel:` are present
+- [ ] `name:`, `status:`, `testLevel:` are present
 - [ ] `verifies:` is non-empty and every ID resolves to a `type: Requirement` element (use `check-ref`)
 - [ ] Body contains a ` ```gherkin ` block whose first line is `Feature:`
 - [ ] Every `Scenario Outline:` has an `Examples:` table
@@ -1113,7 +1113,7 @@ model/
 ### For every ADR (new or updated)
 
 - [ ] `id:` is globally unique and matches `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
-- [ ] `title:` and `status:` are present
+- [ ] `name:` and `status:` are present
 - [ ] `status: accepted` before any Requirement cites it in `breakdownAdr:`
 
 ### Cross-cutting (Mode B only)

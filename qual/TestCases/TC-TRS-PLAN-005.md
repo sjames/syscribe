@@ -3,7 +3,7 @@ id: TC-TRS-PLAN-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the testplan command: list, detail --json contract, goal-closure in-scope, verdict roll-up."
+name: "Verify the testplan command: list, detail --json contract, goal-closure in-scope, verdict roll-up."
 verifies:
   - REQ-TRS-PLAN-005
 ---

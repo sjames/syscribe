@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-SAFE-001
-title: HIL — safety system end-to-end fault response under all single-point faults
+name: HIL — safety system end-to-end fault response under all single-point faults
 status: active
 testLevel: L5
 verifies:

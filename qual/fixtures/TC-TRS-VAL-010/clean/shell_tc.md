@@ -1,7 +1,7 @@
 ---
 id: TC-W009-SH-001
 type: TestCase
-title: "shell testFunction resolves in source"
+name: "shell testFunction resolves in source"
 status: active
 testLevel: L3
 verifies:

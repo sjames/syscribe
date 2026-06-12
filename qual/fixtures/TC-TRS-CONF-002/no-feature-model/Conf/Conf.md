@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-CFG2-NOFM-001
-title: nofm
+name: nofm
 status: approved
 featureModel: Features
 selections:

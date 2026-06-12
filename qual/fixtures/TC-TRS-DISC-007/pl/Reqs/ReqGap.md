@@ -1,7 +1,7 @@
 ---
 id: REQ-D7-GAP-001
 type: Requirement
-title: "Requirement REQ-D7-GAP-001"
+name: "Requirement REQ-D7-GAP-001"
 status: approved
 reqDomain: software
 verificationMethod: test

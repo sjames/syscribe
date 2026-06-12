@@ -3,7 +3,7 @@ id: TC-FIX-BRK-001
 type: TestCase
 testLevel: L3
 status: active
-title: Verify service brake deceleration
+name: Verify service brake deceleration
 verifies:
   - REQ-FIX-BRK-001
 ---

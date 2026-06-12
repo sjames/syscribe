@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-PR-LEAF-002
-title: "Second leaf behaviour shall hold"
+name: "Second leaf behaviour shall hold"
 status: approved
 reqDomain: software
 verificationMethod: test

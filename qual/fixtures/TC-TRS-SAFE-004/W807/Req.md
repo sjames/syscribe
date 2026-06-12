@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: Security requirement without verificationMethod
+name: Security requirement without verificationMethod
 status: draft
 reqDomain: software
 derivedFromSecurityGoal: CSG-TST-001

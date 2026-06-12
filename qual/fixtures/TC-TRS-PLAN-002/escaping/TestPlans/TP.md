@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-PL2-003
-title: "Plan with an escaping member"
+name: "Plan with an escaping member"
 status: approved
 scope: integration
 configurations: [CONF-PL2A-001]

@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-UAV-PERF-000
-title: "UAV shall meet mission performance objectives for endurance, navigation, and data link"
+name: "UAV shall meet mission performance objectives for endurance, navigation, and data link"
 status: approved
 tags:
   - performance

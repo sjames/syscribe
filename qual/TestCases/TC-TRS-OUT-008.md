@@ -3,7 +3,7 @@ id: TC-TRS-OUT-008
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify test-result ingestion and W010 for failing/missing tests (cargo-json + JUnit)."
+name: "Verify test-result ingestion and W010 for failing/missing tests (cargo-json + JUnit)."
 verifies:
   - REQ-TRS-OUT-008
 ---

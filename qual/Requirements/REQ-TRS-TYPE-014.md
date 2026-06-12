@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-014
 type: Requirement
-title: "Tool shall recognise and validate the BindingConnector element"
+name: "Tool shall recognise and validate the BindingConnector element"
 status: draft
 reqDomain: software
 verificationMethod: test

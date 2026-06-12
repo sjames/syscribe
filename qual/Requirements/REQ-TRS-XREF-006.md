@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-XREF-006
 type: Requirement
-title: "Tool shall hint when an unresolved cross-reference wrongly includes the model-root package name"
+name: "Tool shall hint when an unresolved cross-reference wrongly includes the model-root package name"
 status: draft
 reqDomain: software
 verificationMethod: test

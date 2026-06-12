@@ -3,7 +3,7 @@ id: TC-TRS-IMPL-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify implementedBy discoverability: links, refs, spec fields."
+name: "Verify implementedBy discoverability: links, refs, spec fields."
 verifies:
   - REQ-TRS-IMPL-002
 ---

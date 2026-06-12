@@ -1,6 +1,6 @@
 ---
 type: ADR
-title: D
+name: D
 status: accepted
 ---
 

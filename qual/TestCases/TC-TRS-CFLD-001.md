@@ -3,7 +3,7 @@ id: TC-TRS-CFLD-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify custom_fields shape validation: scalars/lists clean, nested map raises W041."
+name: "Verify custom_fields shape validation: scalars/lists clean, nested map raises W041."
 verifies:
   - REQ-TRS-CFLD-001
 ---

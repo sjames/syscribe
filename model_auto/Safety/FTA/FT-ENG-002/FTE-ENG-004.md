@@ -1,7 +1,7 @@
 ---
 type: FaultTreeEvent
 id: FTE-ENG-004
-title: CPS signal wire harness open circuit
+name: CPS signal wire harness open circuit
 eventKind: basic
 ref: System::Sensors::CrankshaftPositionSensor
 failureRate: 1.2e-6

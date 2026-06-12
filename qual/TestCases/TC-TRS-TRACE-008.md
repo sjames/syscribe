@@ -3,7 +3,7 @@ id: TC-TRS-TRACE-008
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that E314 is emitted for a deployment package with no hardware Allocation."
+name: "Verify that E314 is emitted for a deployment package with no hardware Allocation."
 verifies:
   - REQ-TRS-TRACE-008
 ---

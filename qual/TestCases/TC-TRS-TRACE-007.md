@@ -3,7 +3,7 @@ id: TC-TRS-TRACE-007
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that E315 is emitted for cross-domain supertype: or typedBy: links."
+name: "Verify that E315 is emitted for cross-domain supertype: or typedBy: links."
 verifies:
   - REQ-TRS-TRACE-007
 ---

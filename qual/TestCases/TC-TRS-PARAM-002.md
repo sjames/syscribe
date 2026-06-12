@@ -3,7 +3,7 @@ id: TC-TRS-PARAM-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify parameterConstraints evaluation: E221/W025, compound appliesWhen, dotted refs."
+name: "Verify parameterConstraints evaluation: E221/W025, compound appliesWhen, dotted refs."
 verifies:
   - REQ-TRS-PARAM-002
 ---

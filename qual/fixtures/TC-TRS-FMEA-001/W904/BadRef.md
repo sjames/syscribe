@@ -1,7 +1,7 @@
 ---
 type: FMEAEntry
 id: FM-TST-001
-title: FMEA Entry With Unresolvable Ref
+name: FMEA Entry With Unresolvable Ref
 failureMode: Sensor stuck high
 effect: System reports incorrect speed
 cause: Electrical short

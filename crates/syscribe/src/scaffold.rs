@@ -72,9 +72,8 @@ pub fn cmd_scaffold_gherkin(elements: &[RawElement], resolver: &Resolver, key: &
         // Print a suggested block covering every testFunctions scenario.
         let feature = elem
             .frontmatter
-            .title
+            .name
             .as_deref()
-            .or(elem.frontmatter.name.as_deref())
             .unwrap_or("Test scenarios");
         println!("```gherkin");
         println!("Feature: {feature}");
@@ -177,9 +176,8 @@ fn insert_missing(original: &str, missing: &[&String], elem: &RawElement) -> Str
         // No gherkin block at all — append a fresh one.
         let feature = elem
             .frontmatter
-            .title
+            .name
             .as_deref()
-            .or(elem.frontmatter.name.as_deref())
             .unwrap_or("Test scenarios");
         let mut out = original.to_string();
         if !out.ends_with('\n') {

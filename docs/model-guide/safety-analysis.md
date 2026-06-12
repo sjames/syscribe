@@ -41,7 +41,7 @@ All parameters are optional and independent — use the set that matches your do
 ---
 type: HazardousEvent
 id: HE-BRAKE-001
-title: "Unintended brake release during high-speed cornering"
+name: "Unintended brake release during high-speed cornering"
 status: draft
 
 # ISO 26262 — automotive
@@ -61,7 +61,7 @@ Loss of brake hydraulic pressure due to solenoid valve failure allows
 uncontrolled lateral drift at speed.
 ```
 
-Required fields: `id` (HE-\* pattern), `title`, `status`. All risk parameters are optional but at least one set should be present for the analysis to be meaningful.
+Required fields: `id` (HE-* pattern), `name`, `status`. All risk parameters are optional but at least one set should be present for the analysis to be meaningful.
 
 ### SafetyGoal
 
@@ -69,7 +69,7 @@ Required fields: `id` (HE-\* pattern), `title`, `status`. All risk parameters ar
 ---
 type: SafetyGoal
 id: SG-BRAKE-001
-title: "Prevent unintended brake release during vehicle motion"
+name: "Prevent unintended brake release during vehicle motion"
 status: draft
 
 # ISO 26262
@@ -110,32 +110,32 @@ The `TARASheet` is an **exploded container** (Option B). You write one file hold
 ---
 type: TARASheet
 id: TARA-SYS-001
-title: "TARA — Vehicle ECU communication bus"
+name: "TARA — Vehicle ECU communication bus"
 status: draft
 
 damageTable:
   - id: DS-SYS-001
-    title: "Unauthorized command injection causes vehicle manoeuvre"
+    name: "Unauthorized command injection causes vehicle manoeuvre"
     damageSeverity: severe
     impactCategories: [safety, operational]
 
 threatTable:
   - id: TS-SYS-001
-    title: "Attacker replays CAN frame via OBD-II port"
+    name: "Attacker replays CAN frame via OBD-II port"
     attackFeasibility: medium
     attackVector: local
     damageScenarios: [DS-SYS-001]
 
 goalTable:
   - id: CSG-SYS-001
-    title: "Ensure integrity of safety-critical CAN messages"
+    name: "Ensure integrity of safety-critical CAN messages"
     calLevel: CAL3
     securityProperty: integrity
     threatScenarios: [TS-SYS-001]
 
 controlTable:
   - id: SC-SYS-001
-    title: "Implement message authentication (MAC) on safety bus"
+    name: "Implement message authentication (MAC) on safety bus"
     controlType: prevention
     implementsGoals: [CSG-SYS-001]
 ---
@@ -167,7 +167,7 @@ ThreatScenario --damageScenarios--> DamageScenario --hazardRef--> HazardousEvent
 # standalone DamageScenario (or a damageTable row)
 type: DamageScenario
 id: DS-SYS-001
-title: "Unauthorized command injection causes vehicle manoeuvre"
+name: "Unauthorized command injection causes vehicle manoeuvre"
 damageSeverity: severe
 impactCategories: [safety, operational]
 hazardRef: SG-SYS-001          # the SafetyGoal this damage can violate
@@ -262,7 +262,7 @@ W900 fires if no `FaultTreeGate` or `FaultTreeEvent` element has a qualified nam
 ---
 type: FaultTree
 id: FT-BRAKE-001
-title: "Fault tree — brake system loss of control"
+name: "Fault tree — brake system loss of control"
 status: draft
 topEvent: Safety::SG-BRAKE-001   # must resolve to a SafetyGoal (E902)
 # missionTime: "1e9 h"
@@ -275,7 +275,7 @@ topEvent: Safety::SG-BRAKE-001   # must resolve to a SafetyGoal (E902)
 ---
 type: FaultTreeGate
 id: FTG-BRAKE-001
-title: "OR gate — hydraulic failure paths"
+name: "OR gate — hydraulic failure paths"
 gateType: OR           # AND | OR | XOR | NOT | inhibit
 inputs:
   - FTG-BRAKE-002      # child gate
@@ -291,7 +291,7 @@ inputs:
 ---
 type: FaultTreeEvent
 id: FTE-BRAKE-001
-title: "Primary solenoid valve — total failure"
+name: "Primary solenoid valve — total failure"
 eventKind: basic          # basic | undeveloped | house
 ref: Braking::SolenoidValve
 failureRate: 1.0e-9       # failures per hour (λ)
@@ -373,7 +373,7 @@ Security/Attacks/
 ---
 type: AttackTree
 id: AT-TORQUE-001
-title: "Attack tree for TS-TORQUE-001 — forged torque request"
+name: "Attack tree for TS-TORQUE-001 — forged torque request"
 status: approved
 threatRef: TS-TORQUE-001        # required; must resolve to a ThreatScenario (E917)
 ---
@@ -385,7 +385,7 @@ threatRef: TS-TORQUE-001        # required; must resolve to a ThreatScenario (E9
 ---
 type: AttackTreeGate
 id: ATG-TORQUE-001
-title: "OR gate — bypass auth OR replay frame"
+name: "OR gate — bypass auth OR replay frame"
 gateType: OR                    # AND (sequential path) | OR (alternatives) (E919)
 inputs:                         # each must resolve to an ATG-*/ATS- (E920)
   - ATG-TORQUE-002
@@ -401,7 +401,7 @@ inputs:                         # each must resolve to an ATG-*/ATS- (E920)
 ---
 type: AttackStep
 id: ATS-TORQUE-001
-title: "Extract the bus authentication key"
+name: "Extract the bus authentication key"
 attackFeasibility: high         # high | medium | low | very_low (E921)
 ---
 ```
@@ -487,7 +487,7 @@ responsibility: OEM
 ```yaml
 type: ConfirmationMeasure
 id: CM-BRK-001
-title: "Independent functional-safety assessment of the braking goal"
+name: "Independent functional-safety assessment of the braking goal"
 status: completed                 # planned | in_progress | completed
 measureType: functional_safety_assessment
 #   confirmation_review | functional_safety_audit |
@@ -497,7 +497,7 @@ confirms:                         # work product ref(s), resolved via the Resolv
   - SG-BRK-001
 ```
 
-Structural errors: E847 (missing `id`/`title`/`status`), E848 (`id` not `CM-*`), E849/E850
+Structural errors: E847 (missing `id`/`name`/`status`), E848 (`id` not `CM-*`), E849/E850
 (invalid enum), E851 (unresolved `confirms:`).
 
 **W039** flags a high-integrity item that lacks its required independent assessment: an
@@ -527,7 +527,7 @@ the FMEA failure layer.
 ---
 type: Argument
 id: ARG-BRK-001
-title: "Argue over independent torque monitoring"
+name: "Argue over independent torque monitoring"
 status: approved
 argumentType: strategy   # claim | strategy | solution   (absent → claim; else E854)
 supports: SG-BRK-001     # the SafetyGoal or parent Argument argued for (string or list; else E855)
@@ -537,7 +537,7 @@ evidence:                # Requirement / TestCase / sub-Argument / AssumptionOfU
 ---
 ```
 
-`id`/`title`/`status` are required (else E852); the id must match `ARG-*` (else E853).
+`id`/`name`/`status` are required (else E852); the id must match `ARG-*` (else E853).
 A `claim`/`strategy` Argument with **both** empty `supports` and empty `evidence` is an
 orphan GSN node → **W040**.
 
@@ -547,13 +547,13 @@ orphan GSN node → **W040**.
 ---
 type: AssumptionOfUse
 id: AOU-BRK-001
-title: "Integrator provides a redundant torque sensor"
+name: "Integrator provides a redundant torque sensor"
 status: approved
 appliesTo: SG-BRK-001    # the SafetyGoal / Argument / Requirement it constrains (string or list; else E858)
 ---
 ```
 
-`id`/`title`/`status` are required (else E856); the id must match `AOU-*` (else E857).
+`id`/`name`/`status` are required (else E856); the id must match `AOU-*` (else E857).
 
 ### The `safety-case` view
 
@@ -598,7 +598,7 @@ FMEA uses the same **exploded container** pattern as TARA. One `FMEASheet` file;
 ---
 type: FMEASheet
 id: FMEA-BRAKE-001
-title: "FMEA — Brake Controller"
+name: "FMEA — Brake Controller"
 status: draft
 entries:
   - id: FM-BRAKE-001
@@ -634,7 +634,7 @@ Safety and security analysis produces goals and findings that must be elaborated
 ```yaml
 type: Requirement
 id: REQ-BRAKE-HYD-001
-title: "Brake hydraulic pressure shall be maintained within 50 ms of loss detection"
+name: "Brake hydraulic pressure shall be maintained within 50 ms of loss detection"
 reqDomain: software
 status: draft
 derivedFromSafetyGoal: SG-BRAKE-001   # the SafetyGoal that motivated this requirement
@@ -665,7 +665,7 @@ Once a `SafetyGoal` carries an integrity level (`asilLevel`, `silLevel`, or `plL
 ```yaml
 type: Requirement
 id: REQ-SEC-CAN-001
-title: "ECU shall authenticate all CAN frames on the safety bus using CMAC"
+name: "ECU shall authenticate all CAN frames on the safety bus using CMAC"
 reqDomain: software
 status: draft
 derivedFromSecurityGoal: CSG-SYS-001  # the CybersecurityGoal that motivated this requirement
@@ -741,7 +741,7 @@ syscribe model/ refs CSG-SYS-001
 
 | Code | Severity | Description |
 |---|---|---|
-| E800 | Error | `HazardousEvent` missing required field (`id`, `title`, `status`) |
+| E800 | Error | `HazardousEvent` missing required field (`id`, `name`, `status`) |
 | E801–E803 | Error | ISO 26262 risk parameter out of valid range (S/E/C) |
 | E804 | Error | HazardousEvent `id` does not match `HE-*` pattern |
 | E805 | Error | `SafetyGoal` missing required field |

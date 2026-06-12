@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SEC-002
-title: "Field bus commands shall include EN 50159 safety codes preventing replay and insertion"
+name: "Field bus commands shall include EN 50159 safety codes preventing replay and insertion"
 status: approved
 reqDomain: software
 verificationMethod: test

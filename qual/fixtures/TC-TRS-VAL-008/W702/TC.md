@@ -1,7 +1,7 @@
 ---
 id: TC-TST-W702-001
 type: TestCase
-title: "L3 integration test for ASIL-D requirement (insufficient for W702)"
+name: "L3 integration test for ASIL-D requirement (insufficient for W702)"
 status: active
 testLevel: L3
 verifies:

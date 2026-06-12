@@ -1,7 +1,7 @@
 ---
 type: HazardousEvent
 id: HE-ENG-002
-title: Critical engine stall during high-speed motorway driving
+name: Critical engine stall during high-speed motorway driving
 status: approved
 severity: S2
 exposure: E3

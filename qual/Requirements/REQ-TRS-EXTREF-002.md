@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-EXTREF-002
 type: Requirement
-title: Tool shall look up elements by extRef via a dedicated command and surface the field
+name: Tool shall look up elements by extRef via a dedicated command and surface the field
 status: draft
 reqDomain: software
 verificationMethod: test

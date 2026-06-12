@@ -1,7 +1,7 @@
 ---
 id: REQ-W009-CLEAN-001
 type: Requirement
-title: "Function-level traceability resolves across languages"
+name: "Function-level traceability resolves across languages"
 status: draft
 reqDomain: software
 verificationMethod: test

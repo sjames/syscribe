@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: SIL 2 requirement
+name: SIL 2 requirement
 status: draft
 reqDomain: system
 silLevel: 2

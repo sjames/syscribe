@@ -3,7 +3,7 @@ id: TC-TRS-OUT-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that the tool exits non-zero when any Error-severity finding is present."
+name: "Verify that the tool exits non-zero when any Error-severity finding is present."
 verifies:
   - REQ-TRS-OUT-004
 ---

@@ -1,7 +1,7 @@
 ---
 type: FaultTreeEvent
 id: FTE-ENG-006
-title: CPS target wheel corrosion reducing signal amplitude
+name: CPS target wheel corrosion reducing signal amplitude
 eventKind: basic
 ref: System::Sensors::CrankshaftPositionSensor
 failureRate: 4.0e-8

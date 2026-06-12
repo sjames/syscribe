@@ -3,7 +3,7 @@ id: TC-TRS-EXTREF-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify extref lookup command, --json, show surfacing, and spec fields listing."
+name: "Verify extref lookup command, --json, show surfacing, and spec fields listing."
 verifies:
   - REQ-TRS-EXTREF-002
 ---

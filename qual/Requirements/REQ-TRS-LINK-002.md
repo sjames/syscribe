@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-LINK-002
 type: Requirement
-title: Tool shall wrap each element's SVG shape in a hyperlink to its hosted URL
+name: Tool shall wrap each element's SVG shape in a hyperlink to its hosted URL
 status: draft
 reqDomain: software
 verificationMethod: test

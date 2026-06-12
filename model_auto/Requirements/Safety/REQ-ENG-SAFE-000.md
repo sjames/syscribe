@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-SAFE-000
-title: Engine ECU shall prevent safety hazards identified in HARA
+name: Engine ECU shall prevent safety hazards identified in HARA
 status: approved
 reqDomain: system
 derivedFrom:

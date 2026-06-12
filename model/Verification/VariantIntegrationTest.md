@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-VAR-001
-title: "Each product configuration passes its variant integration smoke test"
+name: "Each product configuration passes its variant integration smoke test"
 status: active
 testLevel: L4
 verifies:

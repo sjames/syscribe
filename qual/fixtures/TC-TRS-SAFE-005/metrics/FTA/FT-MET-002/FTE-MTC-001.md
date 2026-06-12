@@ -2,7 +2,7 @@
 id: FTE-MTC-001
 type: FaultTreeEvent
 eventKind: basic
-title: Basic hardware failure C
+name: Basic hardware failure C
 failureRate: 1.0e-8
 diagnosticCoverage: 0.99
 ---

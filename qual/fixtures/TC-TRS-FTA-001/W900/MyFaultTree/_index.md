@@ -1,7 +1,7 @@
 ---
 type: FaultTree
 id: FT-TST-001
-title: Fault Tree With No Children
+name: Fault Tree With No Children
 status: draft
 topEvent: SG-TST-001
 ---

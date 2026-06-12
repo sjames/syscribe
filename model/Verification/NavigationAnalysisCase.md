@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-NAV-001
-title: "Monte Carlo GNSS simulation demonstrates ≤ 1.5 m CEP"
+name: "Monte Carlo GNSS simulation demonstrates ≤ 1.5 m CEP"
 status: active
 testLevel: L2
 verifies:

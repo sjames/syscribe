@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-RANGE-OVER-001
-title: "cores bound above the inclusive range"
+name: "cores bound above the inclusive range"
 status: approved
 featureModel: Features
 features:

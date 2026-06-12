@@ -3,7 +3,7 @@ id: TC-TRS-MG-009
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify SoI marker: single SoI clean + identified in magicgrid report; MG060 wrong host, MG061 multiple SoI, MG062 also external; inert without the gate."
+name: "Verify SoI marker: single SoI clean + identified in magicgrid report; MG060 wrong host, MG061 multiple SoI, MG062 also external; inert without the gate."
 verifies:
   - REQ-TRS-MG-009
 ---

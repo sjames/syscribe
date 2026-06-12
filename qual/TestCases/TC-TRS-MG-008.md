@@ -3,7 +3,7 @@ id: TC-TRS-MG-008
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify MoP validation: clean MoP + mopRefinedBy index; MG050 wrong host, MG051 refines missing/unresolved, MG052 target not an MoE; inert without the gate."
+name: "Verify MoP validation: clean MoP + mopRefinedBy index; MG050 wrong host, MG051 refines missing/unresolved, MG052 target not an MoE; inert without the gate."
 verifies:
   - REQ-TRS-MG-008
 ---

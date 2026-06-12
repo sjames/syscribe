@@ -1,7 +1,7 @@
 ---
 id: TC-SCAF-FIX-001
 type: TestCase
-title: "Scaffold fixture: one scenario missing"
+name: "Scaffold fixture: one scenario missing"
 status: draft
 testLevel: L3
 verifies:

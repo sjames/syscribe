@@ -1,7 +1,7 @@
 ---
 type: ConfirmationMeasure
 id: CM-BAD-001
-title: "Measure with invalid enums"
+name: "Measure with invalid enums"
 status: approved
 measureType: peer_review
 independenceLevel: I9

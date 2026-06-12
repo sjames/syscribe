@@ -3,7 +3,7 @@ id: TC-TRS-PARSE-007
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that frontmatter is recognized only when the opening --- is the first line."
+name: "Verify that frontmatter is recognized only when the opening --- is the first line."
 verifies:
   - REQ-TRS-PARSE-007
 ---

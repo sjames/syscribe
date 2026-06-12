@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PARAM-003
 type: Requirement
-title: Tool shall accept inclusive range syntax so parameter range checks are enforced
+name: Tool shall accept inclusive range syntax so parameter range checks are enforced
 status: draft
 reqDomain: software
 verificationMethod: test

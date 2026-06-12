@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-012
 type: Requirement
-title: trade-study shall treat an ambiguous parameterBindings variable match as unevaluable
+name: trade-study shall treat an ambiguous parameterBindings variable match as unevaluable
 status: draft
 reqDomain: software
 verificationMethod: test

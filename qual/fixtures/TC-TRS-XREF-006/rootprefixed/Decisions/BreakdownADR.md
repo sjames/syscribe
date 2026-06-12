@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-XREF-001
-title: "Breakdown decision for the XREF-006 fixture requirement"
+name: "Breakdown decision for the XREF-006 fixture requirement"
 status: accepted
 ---
 

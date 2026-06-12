@@ -1,7 +1,7 @@
 ---
 type: ThreatScenario
 id: TS-SEC-101
-title: Attacker injects forged torque-request CAN frame (untreated)
+name: Attacker injects forged torque-request CAN frame (untreated)
 status: approved
 attackFeasibility: high
 attackVector: local

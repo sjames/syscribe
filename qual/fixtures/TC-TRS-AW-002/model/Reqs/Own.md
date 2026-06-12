@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-AW2-OWN-001
-title: Has its own appliesWhen gate
+name: Has its own appliesWhen gate
 status: approved
 reqDomain: software
 appliesWhen: FEAT-ABS

@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-XREF-PARENT-001
-title: The real parent requirement at qualified name A::B
+name: The real parent requirement at qualified name A::B
 status: approved
 reqDomain: software
 ---

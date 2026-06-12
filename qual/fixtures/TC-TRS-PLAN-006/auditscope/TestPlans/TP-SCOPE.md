@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-SCOPE-001
-title: "Clean scope"
+name: "Clean scope"
 status: approved
 scope: smoke
 testCases: [TC-IN-001]

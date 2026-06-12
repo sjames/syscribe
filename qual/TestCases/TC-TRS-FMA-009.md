@@ -3,7 +3,7 @@ id: TC-TRS-FMA-009
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify variant-space count and enumeration."
+name: "Verify variant-space count and enumeration."
 verifies:
   - REQ-TRS-FMA-009
 ---

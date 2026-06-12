@@ -1,7 +1,7 @@
 ---
 type: TARASheet
 id: SHEET-001
-title: TARA Sheet With Bad Id
+name: TARA Sheet With Bad Id
 status: draft
 ---
 

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SAFE-005
 type: Requirement
-title: Tool shall compute and gate ISO 26262-5 §8-9 hardware architectural metrics per SafetyGoal
+name: Tool shall compute and gate ISO 26262-5 §8-9 hardware architectural metrics per SafetyGoal
 status: draft
 reqDomain: software
 verificationMethod: test

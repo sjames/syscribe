@@ -3,7 +3,7 @@ id: TC-TRS-VAL-014
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify W004/W009 fire for active TestCases only, while non-TestCase sourceFiles are still checked."
+name: "Verify W004/W009 fire for active TestCases only, while non-TestCase sourceFiles are still checked."
 verifies:
   - REQ-TRS-VAL-014
 ---

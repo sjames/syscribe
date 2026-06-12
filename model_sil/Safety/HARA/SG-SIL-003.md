@@ -2,7 +2,7 @@
 id: SG-SIL-003
 type: SafetyGoal
 status: approved
-title: Prevent train signal clearance while level crossing barriers are not confirmed down
+name: Prevent train signal clearance while level crossing barriers are not confirmed down
 silLevel: 3
 safeState: Train signal at most-restrictive aspect; level crossing warning active
 ftti: 500ms

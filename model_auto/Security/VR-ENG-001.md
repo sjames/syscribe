@@ -1,7 +1,7 @@
 ---
 type: VulnerabilityReport
 id: VR-ENG-001
-title: Unauthenticated CAN message injection via OBD-II port
+name: Unauthenticated CAN message injection via OBD-II port
 status: mitigated
 cvssScore: 7.1
 attackVector: physical

@@ -175,7 +175,7 @@ On architecture elements: `allocatedFrom: SC-001` (or list) references upstream 
 ```yaml
 type: Requirement
 id: REQ-UAV-FC-001           # required; REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}
-title: "..."                 # required
+name: "..."                 # required
 status: approved             # draft | review | approved | implemented | verified
 reqDomain: software          # system | hardware | software
 asilLevel: B                 # A–D  OR  silLevel: 1–4  (not both — W006)
@@ -194,7 +194,7 @@ Body must contain at least one `shall` statement (W001 if absent).
 ```yaml
 type: TestCase
 id: TC-UAV-FC-001            # required; TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}
-title: "..."                 # required
+name: "..."                 # required
 status: active               # draft | active | retired
 testLevel: L2                # L1–L5
 verifies: [REQ-UAV-FC-001]
@@ -210,7 +210,7 @@ Body must contain at least one ` ```gherkin ` fenced block (E011).
 ```yaml
 type: ADR
 id: ADR-SW-SCHED-001         # required; ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}
-title: "..."                 # required
+name: "..."                 # required
 status: accepted             # proposed | accepted | deprecated | superseded
 ```
 Body sections: `## Context`, `## Decision`, `## Consequences`.
@@ -220,7 +220,7 @@ Body sections: `## Context`, `## Decision`, `## Consequences`.
 ```yaml
 type: TestPlan
 id: TP-DELIVERY-INTEGRATION-001   # required; TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}
-title: "..."                      # required
+name: "..."                      # required
 status: approved                  # draft | review | approved | active | retired
 scope: integration                # unit|smoke|integration|hil|certification|security|regression (W610 if other)
 configurations: [CONF-X-001]      # optional; product variant(s); absent = config-agnostic

@@ -3,7 +3,7 @@ id: TC-TRS-DISC-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the `features` command: feature-model overview with groupKind, parameters, and per-feature selection rollup; --json; dormancy."
+name: "Verify the `features` command: feature-model overview with groupKind, parameters, and per-feature selection rollup; --json; dormancy."
 verifies:
   - REQ-TRS-DISC-001
 ---

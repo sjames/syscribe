@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-002
 type: Requirement
-title: MagicGrid gate shall validate use-case actors, external boundary, and mandatory actors
+name: MagicGrid gate shall validate use-case actors, external boundary, and mandatory actors
 status: draft
 reqDomain: software
 verificationMethod: test

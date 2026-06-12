@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PC-SMP-001
-title: "SMP single core — AMP constraints do not apply"
+name: "SMP single core — AMP constraints do not apply"
 status: approved
 featureModel: Features
 features:

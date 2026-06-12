@@ -371,7 +371,7 @@ pub fn cmd_diagram_compose_from_model(
     };
 
     let placement = PlacementFile {
-        title: fm.name.clone().or_else(|| fm.title.clone()),
+        title: fm.name.clone(),
         kind: Some(kind.clone()),
         canvas: Some(PlacementCanvas { padding: Some(40.0), bg: Some("#ffffff".to_string()) }),
         elements: expose

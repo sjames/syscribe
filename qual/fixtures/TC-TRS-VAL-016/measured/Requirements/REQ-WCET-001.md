@@ -1,7 +1,7 @@
 ---
 id: REQ-WCET-001
 type: Requirement
-title: "Control loop shall complete within its deadline"
+name: "Control loop shall complete within its deadline"
 status: approved
 reqDomain: software
 silLevel: 3

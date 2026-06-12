@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SAFE-002
 type: Requirement
-title: Tool shall enforce all SafetyGoal validation rules E805-E806, E825, E837, W801, W805, and W806
+name: Tool shall enforce all SafetyGoal validation rules E805-E806, E825, E837, W801, W805, and W806
 status: draft
 reqDomain: software
 verificationMethod: test

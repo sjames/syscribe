@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-MG-PLAIN-001
-title: "Plain configuration with no feature model and no mg_variant marker"
+name: "Plain configuration with no feature model and no mg_variant marker"
 status: approved
 parameterBindings:
   batteryKWh: 8.0

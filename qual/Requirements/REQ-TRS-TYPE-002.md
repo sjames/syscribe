@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-002
 type: Requirement
-title: "Tool shall recognise and validate the CalculationDef and Calculation elements"
+name: "Tool shall recognise and validate the CalculationDef and Calculation elements"
 status: draft
 reqDomain: software
 verificationMethod: test

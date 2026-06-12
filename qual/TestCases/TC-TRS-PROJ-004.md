@@ -3,7 +3,7 @@ id: TC-TRS-PROJ-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the global appliesWhen-implication guarantee (E227 / W020) with witness."
+name: "Verify the global appliesWhen-implication guarantee (E227 / W020) with witness."
 verifies:
   - REQ-TRS-PROJ-004
 ---

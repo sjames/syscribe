@@ -3,7 +3,7 @@ id: TC-NRD-CORE-001
 type: TestCase
 testLevel: L3
 status: approved
-title: "Test TC-NRD-CORE-001"
+name: "Test TC-NRD-CORE-001"
 verifies:
   - REQ-NRD-CORE-001
 ---

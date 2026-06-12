@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-MASS-001
-title: "UAV total take-off mass does not exceed 5.0 kg on calibrated scale"
+name: "UAV total take-off mass does not exceed 5.0 kg on calibrated scale"
 status: active
 testLevel: L5
 verifies:

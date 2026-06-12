@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-AW2-INH-001
-title: Inherits the package gate
+name: Inherits the package gate
 status: approved
 reqDomain: software
 ---

@@ -1,7 +1,7 @@
 ---
 id: ADR-TST-001
 type: ADR
-title: Breakdown decision
+name: Breakdown decision
 status: accepted
 ---
 

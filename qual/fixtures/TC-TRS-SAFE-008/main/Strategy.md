@@ -1,7 +1,7 @@
 ---
 type: Argument
 id: ARG-DEMO-001
-title: "Argue over independent torque monitoring"
+name: "Argue over independent torque monitoring"
 status: approved
 argumentType: strategy
 supports: SG-DEMO-001

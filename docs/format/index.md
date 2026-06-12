@@ -49,9 +49,9 @@ Runs on a dual-core ARM Cortex-A53 at 1.2 GHz with ECC SRAM.
 | Kind | ID format | Key fields |
 |---|---|---|
 | **SysML elements** | Path-derived qualified name | `type`, `supertype`, `features`, `connections` |
-| **Native Requirements** | `REQ-*` stable ID | `id`, `title`, `status`, `reqDomain`, `silLevel`, `derivedFrom` |
-| **Native TestCases** | `TC-*` stable ID | `id`, `title`, `status`, `testLevel`, `verifies`, Gherkin body |
-| **ADRs** | `ADR-*` stable ID | `id`, `title`, `status` (proposed/accepted/deprecated/superseded) |
+| **Native Requirements** | `REQ-*` stable ID | `id`, `name`, `status`, `reqDomain`, `silLevel`, `derivedFrom` |
+| **Native TestCases** | `TC-*` stable ID | `id`, `name`, `status`, `testLevel`, `verifies`, Gherkin body |
+| **ADRs** | `ADR-*` stable ID | `id`, `name`, `status` (proposed/accepted/deprecated/superseded) |
 
 ## What makes it different
 

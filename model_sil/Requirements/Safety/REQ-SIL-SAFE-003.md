@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SAFE-003
-title: Points controller shall verify detected position before reporting confirmation
+name: Points controller shall verify detected position before reporting confirmation
 status: approved
 reqDomain: software
 silLevel: 4

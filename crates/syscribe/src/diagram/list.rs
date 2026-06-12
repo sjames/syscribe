@@ -56,7 +56,6 @@ pub fn cmd_diagram_list(elements: &[RawElement], type_filter_raw: Option<&str>, 
                 .frontmatter
                 .name
                 .clone()
-                .or_else(|| e.frontmatter.title.clone())
                 .unwrap_or_else(|| {
                     e.qualified_name
                         .split("::")

@@ -1,7 +1,7 @@
 ---
 type: CybersecurityGoal
 id: CSG-TST-001
-title: Ensure data confidentiality
+name: Ensure data confidentiality
 status: draft
 calLevel: CAL5
 ---

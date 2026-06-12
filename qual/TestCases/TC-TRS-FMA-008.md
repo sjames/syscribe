@@ -3,7 +3,7 @@ id: TC-TRS-FMA-008
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the configure command: satisfiability, forced and free features, contradictions."
+name: "Verify the configure command: satisfiability, forced and free features, contradictions."
 verifies:
   - REQ-TRS-FMA-008
 ---

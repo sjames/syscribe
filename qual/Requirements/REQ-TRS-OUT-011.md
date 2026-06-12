@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-OUT-011
 type: Requirement
-title: Tool shall report per-requirement verification-level depth and gate single-method high-integrity coverage
+name: Tool shall report per-requirement verification-level depth and gate single-method high-integrity coverage
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-MG-A-001
-title: ConfA
+name: ConfA
 status: approved
 parameterBindings:
   endurance: 55

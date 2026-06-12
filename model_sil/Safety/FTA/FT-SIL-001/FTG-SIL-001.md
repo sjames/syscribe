@@ -2,7 +2,7 @@
 id: FTG-SIL-001
 type: FaultTreeGate
 gateType: OR
-title: OR gate — software conflict check bypassed OR 2oo2 comparison fails
+name: OR gate — software conflict check bypassed OR 2oo2 comparison fails
 inputs:
   - FTG-SIL-002
   - FTE-SIL-003

@@ -359,7 +359,6 @@ fn build_req_diagram(
             .frontmatter
             .name
             .clone()
-            .or_else(|| root_elem.frontmatter.title.clone())
             .unwrap_or_else(|| root_qname.split("::").last().unwrap_or(&root_qname).to_string());
         format!("{} — Requirement Diagram", root_name)
     };

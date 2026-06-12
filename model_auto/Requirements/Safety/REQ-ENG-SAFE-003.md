@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-SAFE-003
-title: Engine stall monitor shall detect CPS loss and initiate deceleration
+name: Engine stall monitor shall detect CPS loss and initiate deceleration
 status: approved
 reqDomain: software
 asilLevel: B

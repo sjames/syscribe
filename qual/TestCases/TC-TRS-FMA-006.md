@@ -3,7 +3,7 @@ id: TC-TRS-FMA-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify determinism, ~500-feature scale, the size guard, and the Boolean-only scope statement."
+name: "Verify determinism, ~500-feature scale, the size guard, and the Boolean-only scope statement."
 verifies:
   - REQ-TRS-FMA-006
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-SAFE-007
 type: TestCase
 testLevel: L3
 status: draft
-title: Verify W038 work-product responsibility, the ConfirmationMeasure type with W039 independent-assessment coverage, the E84x structural errors, and the opt-in rules
+name: Verify W038 work-product responsibility, the ConfirmationMeasure type with W039 independent-assessment coverage, the E84x structural errors, and the opt-in rules
 verifies:
   - REQ-TRS-SAFE-007
 ---

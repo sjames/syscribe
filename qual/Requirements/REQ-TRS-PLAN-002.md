@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PLAN-002
 type: Requirement
-title: Tool shall bind a TestPlan to zero or more Configurations and evaluate it per-config via the projection engine
+name: Tool shall bind a TestPlan to zero or more Configurations and evaluate it per-config via the projection engine
 status: draft
 reqDomain: software
 verificationMethod: test

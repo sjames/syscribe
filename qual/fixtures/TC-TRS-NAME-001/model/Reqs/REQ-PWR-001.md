@@ -1,7 +1,7 @@
 ---
 id: REQ-PWR-001
 type: Requirement
-title: "stable-id-named file (hyphens in the id are fine)"
+name: "stable-id-named file (hyphens in the id are fine)"
 status: draft
 reqDomain: software
 ---

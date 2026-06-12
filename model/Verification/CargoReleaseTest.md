@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-CARGO-001
-title: "Cargo release actuates within 500 ms of validated command"
+name: "Cargo release actuates within 500 ms of validated command"
 status: active
 testLevel: L4
 verifies:

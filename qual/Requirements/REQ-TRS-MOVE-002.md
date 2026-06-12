@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MOVE-002
 type: Requirement
-title: Tool shall update every qualified-name reference to a moved element
+name: Tool shall update every qualified-name reference to a moved element
 status: draft
 reqDomain: software
 verificationMethod: test

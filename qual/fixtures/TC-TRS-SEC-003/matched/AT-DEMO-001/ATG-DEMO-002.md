@@ -2,7 +2,7 @@
 id: ATG-DEMO-002
 type: AttackTreeGate
 gateType: AND
-title: AND gate — extract bus key AND defeat freshness check
+name: AND gate — extract bus key AND defeat freshness check
 inputs:
   - ATS-DEMO-001
   - ATS-DEMO-002

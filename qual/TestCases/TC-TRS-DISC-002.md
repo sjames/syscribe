@@ -3,7 +3,7 @@ id: TC-TRS-DISC-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the `feature <qname>` card: gated elements, selecting configurations, parameters; errors on unknown feature."
+name: "Verify the `feature <qname>` card: gated elements, selecting configurations, parameters; errors on unknown feature."
 verifies:
   - REQ-TRS-DISC-002
 ---

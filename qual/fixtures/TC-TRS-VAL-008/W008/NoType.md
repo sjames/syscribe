@@ -1,6 +1,5 @@
 ---
 name: UnclassifiedElement
-title: Element with no type field
 status: draft
 ---
 

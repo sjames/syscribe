@@ -3,7 +3,7 @@ id: TC-TRS-PLAN-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify TestPlan membership: E601, E602, E605, empty-set W612 and explicit-draft W613."
+name: "Verify TestPlan membership: E601, E602, E605, empty-set W612 and explicit-draft W613."
 verifies:
   - REQ-TRS-PLAN-003
 ---

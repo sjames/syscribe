@@ -1,7 +1,7 @@
 ---
 id: REQ-CHD-001
 type: Requirement
-title: Child requirement at lower ASIL without decomposition rationale
+name: Child requirement at lower ASIL without decomposition rationale
 status: draft
 reqDomain: system
 asilLevel: B

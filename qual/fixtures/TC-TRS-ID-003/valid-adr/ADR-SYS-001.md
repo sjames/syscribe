@@ -1,7 +1,7 @@
 ---
 id: ADR-SYS-001
 type: ADR
-title: Decision
+name: Decision
 status: accepted
 ---
 

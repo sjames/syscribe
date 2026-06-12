@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-VAR-003
 type: Requirement
-title: Tool shall accept boolean expressions over FeatureDefs in appliesWhen
+name: Tool shall accept boolean expressions over FeatureDefs in appliesWhen
 status: draft
 reqDomain: software
 verificationMethod: test

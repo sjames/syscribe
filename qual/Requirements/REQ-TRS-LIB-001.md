@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-LIB-001
 type: Requirement
-title: Tool shall recognise the auto-imported standard-library types and flag unknown members of them
+name: Tool shall recognise the auto-imported standard-library types and flag unknown members of them
 status: draft
 reqDomain: software
 verificationMethod: test

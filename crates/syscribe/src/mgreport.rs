@@ -25,13 +25,12 @@ use crate::export::SCHEMA_VERSION;
 use svg::node::element::{Group, Rectangle, Text, Title};
 use svg::Document;
 
-/// Human label for an element: `name` for name-identified types, `title` for
-/// id-identified types, falling back to the last qualified-name segment.
+/// Human label for an element: `name` on every type (REQ-TRS-NAME-002), falling
+/// back to the last qualified-name segment.
 fn label(e: &RawElement) -> String {
     e.frontmatter
         .name
         .clone()
-        .or_else(|| e.frontmatter.title.clone())
         .unwrap_or_else(|| e.qualified_name.rsplit("::").next().unwrap_or("—").to_string())
 }
 

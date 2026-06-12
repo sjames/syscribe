@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-SEC-001
-title: Integration test — CAN security module rejects frames with invalid MAC
+name: Integration test — CAN security module rejects frames with invalid MAC
 status: active
 testLevel: L2
 verifies:

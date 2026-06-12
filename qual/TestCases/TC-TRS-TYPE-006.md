@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify AnalysisCase is recognised and validated without E005."
+name: "Verify AnalysisCase is recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-006
 ---

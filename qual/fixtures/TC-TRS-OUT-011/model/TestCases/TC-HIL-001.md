@@ -1,7 +1,7 @@
 ---
 id: TC-HIL-001
 type: TestCase
-title: "HIL MPU trap test"
+name: "HIL MPU trap test"
 status: active
 testLevel: L5
 verifies: [REQ-HIL-001]

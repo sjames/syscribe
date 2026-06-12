@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-COMM-001
-title: "Bidirectional data link sustains connectivity at 5 km line of sight"
+name: "Bidirectional data link sustains connectivity at 5 km line of sight"
 status: active
 testLevel: L5
 verifies:

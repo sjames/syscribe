@@ -1,7 +1,7 @@
 ---
 id: REQ-FM1-NOFM-001
 type: Requirement
-title: plain requirement
+name: plain requirement
 status: approved
 reqDomain: software
 verificationMethod: test

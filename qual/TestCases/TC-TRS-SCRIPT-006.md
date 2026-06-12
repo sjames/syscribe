@@ -3,7 +3,7 @@ id: TC-TRS-SCRIPT-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify scripts validate: namespaced <check>/<code> findings, the 0/1/2 exit contract with gate flags, and independence from the built-in validate."
+name: "Verify scripts validate: namespaced <check>/<code> findings, the 0/1/2 exit contract with gate flags, and independence from the built-in validate."
 verifies:
   - REQ-TRS-SCRIPT-006
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-FMEA-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that FMEASheet and FMEAEntry validation rules E911–E914, W902–W904 are enforced."
+name: "Verify that FMEASheet and FMEAEntry validation rules E911–E914, W902–W904 are enforced."
 verifies:
   - REQ-TRS-FMEA-001
 ---

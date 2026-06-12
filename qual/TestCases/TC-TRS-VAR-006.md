@@ -3,7 +3,7 @@ id: TC-TRS-VAR-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify transitive package appliesWhen: effective condition, E228 nesting/placement, W026, escapes."
+name: "Verify transitive package appliesWhen: effective condition, E228 nesting/placement, W026, escapes."
 verifies:
   - REQ-TRS-VAR-006
 ---

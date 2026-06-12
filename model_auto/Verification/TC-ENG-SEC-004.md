@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-SEC-004
-title: UDS readMemoryByAddress is blocked without authenticated session
+name: UDS readMemoryByAddress is blocked without authenticated session
 status: active
 testLevel: L4
 verifies:

@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PRM-OK-001
-title: "CONF-PRM-OK-001"
+name: "CONF-PRM-OK-001"
 status: approved
 featureModel: Features
 features:

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-LIB-003
 type: Requirement
-title: Tool shall check dimensional consistency between an element's quantity type and its unit
+name: Tool shall check dimensional consistency between an element's quantity type and its unit
 status: draft
 reqDomain: software
 verificationMethod: test

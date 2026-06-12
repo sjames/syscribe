@@ -3,7 +3,7 @@ id: TC-TRS-SAFE-002
 type: TestCase
 testLevel: L3
 status: draft
-title: Verify that SafetyGoal validation rules E805-E806, E825, E837, W801, W805, and W806 are enforced
+name: Verify that SafetyGoal validation rules E805-E806, E825, E837, W801, W805, and W806 are enforced
 verifies:
   - REQ-TRS-SAFE-002
 ---

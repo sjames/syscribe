@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-OUT-001
 type: Requirement
-title: Tool shall output a validation report in Markdown format to stdout
+name: Tool shall output a validation report in Markdown format to stdout
 status: draft
 reqDomain: software
 verificationMethod: test

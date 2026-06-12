@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-SEC-004
-title: UDS readMemoryByAddress shall be restricted to authenticated diagnostic sessions
+name: UDS readMemoryByAddress shall be restricted to authenticated diagnostic sessions
 status: approved
 reqDomain: software
 verificationMethod: inspection

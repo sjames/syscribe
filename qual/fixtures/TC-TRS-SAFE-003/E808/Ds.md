@@ -1,7 +1,7 @@
 ---
 type: DamageScenario
 id: DMG-001
-title: Data breach
+name: Data breach
 status: draft
 ---
 

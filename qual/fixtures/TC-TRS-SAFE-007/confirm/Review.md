@@ -1,7 +1,7 @@
 ---
 type: ConfirmationMeasure
 id: CM-BRK-001
-title: "Confirmation review of the braking work products"
+name: "Confirmation review of the braking work products"
 status: approved
 measureType: confirmation_review
 independenceLevel: I2

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-016
 type: Requirement
-title: "Tool shall recognise and validate the Dependency element"
+name: "Tool shall recognise and validate the Dependency element"
 status: draft
 reqDomain: software
 verificationMethod: test

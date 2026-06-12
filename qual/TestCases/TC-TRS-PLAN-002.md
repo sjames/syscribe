@@ -3,7 +3,7 @@ id: TC-TRS-PLAN-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify TestPlan configuration binding: E606, escaping member W611 and duplicate-plan W616."
+name: "Verify TestPlan configuration binding: E606, escaping member W611 and duplicate-plan W616."
 verifies:
   - REQ-TRS-PLAN-002
 ---

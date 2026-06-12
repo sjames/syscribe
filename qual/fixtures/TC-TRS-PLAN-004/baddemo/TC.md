@@ -1,7 +1,7 @@
 ---
 id: TC-PL4-001
 type: TestCase
-title: "Verify TC-PL4-001"
+name: "Verify TC-PL4-001"
 status: approved
 testLevel: L3
 verifies: [REQ-PL4-001]

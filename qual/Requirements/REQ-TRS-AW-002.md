@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-AW-002
 type: Requirement
-title: Tool shall display an element's own and effective appliesWhen when applies-when is run with no flags
+name: Tool shall display an element's own and effective appliesWhen when applies-when is run with no flags
 status: draft
 reqDomain: software
 verificationMethod: test

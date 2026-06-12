@@ -3,7 +3,7 @@ id: TC-TRS-MG-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify gated actor validation: inert without the gate; MG010 unresolved, MG011 non-part, MG012 not external, MG013 no actors; actorIn index."
+name: "Verify gated actor validation: inert without the gate; MG010 unresolved, MG011 non-part, MG012 not external, MG013 no actors; actorIn index."
 verifies:
   - REQ-TRS-MG-002
 ---

@@ -1,7 +1,7 @@
 ---
 id: TC-TST-E106-001
 type: TestCase
-title: "TestCase with mismatched testFunctions scenario"
+name: "TestCase with mismatched testFunctions scenario"
 status: draft
 testLevel: L3
 verifies:

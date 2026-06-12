@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PL-PETROL-001
-title: "Petrol base trim"
+name: "Petrol base trim"
 status: approved
 featureModel: Features
 features:

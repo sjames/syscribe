@@ -3,7 +3,7 @@ id: TC-TRS-VAL-007
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that Error and Warning severity are reported consistently in the output."
+name: "Verify that Error and Warning severity are reported consistently in the output."
 verifies:
   - REQ-TRS-VAL-007
 ---

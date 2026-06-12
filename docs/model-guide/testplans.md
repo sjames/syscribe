@@ -22,7 +22,7 @@ A `TestPlan` (`type: TestPlan`, stable `TP-*` id) lives by convention under a
 ---
 type: TestPlan
 id: TP-DELIVERY-INTEGRATION-001
-title: "UAV delivery — integration plan"
+name: "UAV delivery — integration plan"
 status: approved
 scope: integration
 configurations: [CONF-UAV-DELIVERY-001, CONF-UAV-SURVEY-001]   # reused across two products

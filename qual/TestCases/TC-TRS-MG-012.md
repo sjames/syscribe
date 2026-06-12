@@ -3,7 +3,7 @@ id: TC-TRS-MG-012
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify trade-study ambiguous binding handling: colliding final-segment bindings => n/a; an exact key wins; a single segment match still resolves."
+name: "Verify trade-study ambiguous binding handling: colliding final-segment bindings => n/a; an exact key wins; a single segment match still resolves."
 verifies:
   - REQ-TRS-MG-012
 ---

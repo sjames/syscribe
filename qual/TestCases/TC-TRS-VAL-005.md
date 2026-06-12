@@ -3,7 +3,7 @@ id: TC-TRS-VAL-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that each finding includes the required fields: rule code, element reference, and description."
+name: "Verify that each finding includes the required fields: rule code, element reference, and description."
 verifies:
   - REQ-TRS-VAL-005
   - REQ-TRS-VAL-006

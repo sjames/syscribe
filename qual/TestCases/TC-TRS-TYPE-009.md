@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-009
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify AllocationDef is recognised and validated without E005."
+name: "Verify AllocationDef is recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-009
 ---

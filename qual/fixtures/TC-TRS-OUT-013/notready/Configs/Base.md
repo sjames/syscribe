@@ -1,7 +1,7 @@
 ---
 id: CONF-NRD-BASE-001
 type: Configuration
-title: "Configuration CONF-NRD-BASE-001"
+name: "Configuration CONF-NRD-BASE-001"
 status: approved
 featureModel: Features
 features:

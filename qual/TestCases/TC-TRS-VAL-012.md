@@ -3,7 +3,7 @@ id: TC-TRS-VAL-012
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify sourceFile location semantics: model-relative, absolute, file URI, and remote URI."
+name: "Verify sourceFile location semantics: model-relative, absolute, file URI, and remote URI."
 verifies:
   - REQ-TRS-VAL-012
 ---

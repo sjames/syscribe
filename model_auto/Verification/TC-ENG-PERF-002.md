@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-PERF-002
-title: Unit test — throttle control step response latency
+name: Unit test — throttle control step response latency
 status: active
 testLevel: L1
 verifies:

@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-SAFE-004
-title: Rev limiter shall cut fuel and retard ignition above 6500 rpm within 20 ms
+name: Rev limiter shall cut fuel and retard ignition above 6500 rpm within 20 ms
 status: approved
 reqDomain: software
 asilLevel: A

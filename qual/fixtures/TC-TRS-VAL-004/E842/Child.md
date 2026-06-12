@@ -1,7 +1,7 @@
 ---
 id: REQ-CHD-001
 type: Requirement
-title: Child requirement missing ASIL inheritance
+name: Child requirement missing ASIL inheritance
 status: draft
 reqDomain: system
 verificationMethod: test

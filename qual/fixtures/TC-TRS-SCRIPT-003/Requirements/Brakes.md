@@ -1,7 +1,7 @@
 ---
 id: REQ-FIX-BRK-001
 type: Requirement
-title: Service brake shall stop the vehicle
+name: Service brake shall stop the vehicle
 status: approved
 reqDomain: system
 verificationMethod: test

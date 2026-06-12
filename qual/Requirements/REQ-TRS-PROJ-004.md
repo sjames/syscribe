@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PROJ-004
 type: Requirement
-title: feature-check --deep shall prove no reference escapes in any valid configuration
+name: feature-check --deep shall prove no reference escapes in any valid configuration
 status: draft
 reqDomain: software
 verificationMethod: test

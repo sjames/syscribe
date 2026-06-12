@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-010
 type: Requirement
-title: refines link shall be honored on behavioral definitions (functional analysis refining requirements)
+name: refines link shall be honored on behavioral definitions (functional analysis refining requirements)
 status: draft
 reqDomain: software
 verificationMethod: test

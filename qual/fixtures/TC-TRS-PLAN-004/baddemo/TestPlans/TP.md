@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-PL4-001
-title: "Bad demonstrates"
+name: "Bad demonstrates"
 status: approved
 scope: certification
 demonstrates: [REQ-NOPE-001]

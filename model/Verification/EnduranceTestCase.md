@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-ENDUR-001
-title: "UAV sustains 25-minute flight at nominal payload under standard conditions"
+name: "UAV sustains 25-minute flight at nominal payload under standard conditions"
 status: active
 testLevel: L5
 verifies:

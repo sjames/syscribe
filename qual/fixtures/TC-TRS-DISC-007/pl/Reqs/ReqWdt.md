@@ -1,7 +1,7 @@
 ---
 id: REQ-D7-WDT-001
 type: Requirement
-title: "Requirement REQ-D7-WDT-001"
+name: "Requirement REQ-D7-WDT-001"
 status: approved
 asilLevel: D
 reqDomain: software

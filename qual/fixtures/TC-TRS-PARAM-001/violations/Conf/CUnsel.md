@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PRM-UNSEL-001
-title: "CONF-PRM-UNSEL-001"
+name: "CONF-PRM-UNSEL-001"
 status: approved
 featureModel: Features
 features:

@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-MG-RANGE-033
-title: The vehicle shall achieve the target range
+name: The vehicle shall achieve the target range
 status: approved
 reqDomain: system
 ---

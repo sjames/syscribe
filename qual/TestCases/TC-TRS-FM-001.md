@@ -3,7 +3,7 @@ id: TC-TRS-FM-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the feature-check command: discoverable, exit codes, dormancy, --json."
+name: "Verify the feature-check command: discoverable, exit codes, dormancy, --json."
 verifies:
   - REQ-TRS-FM-001
 ---

@@ -3,7 +3,7 @@ id: TC-V2-CORE-001
 type: TestCase
 testLevel: L3
 status: approved
-title: "Test TC-V2-CORE-001"
+name: "Test TC-V2-CORE-001"
 verifies:
   - REQ-V2-CORE-001
 ---

@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PROJ5-A-001
-title: "CONF-PROJ5-A-001"
+name: "CONF-PROJ5-A-001"
 status: approved
 featureModel: Features
 features:

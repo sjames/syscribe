@@ -1,7 +1,7 @@
 ---
 id: REQ-CHD-001
 type: Requirement
-title: Child requirement missing breakdownAdr
+name: Child requirement missing breakdownAdr
 status: draft
 reqDomain: system
 verificationMethod: test

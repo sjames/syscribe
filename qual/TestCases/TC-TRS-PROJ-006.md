@@ -3,7 +3,7 @@ id: TC-TRS-PROJ-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the --config projection lens on metrics, cyber-risk, co-analysis, verification-depth and safety-case."
+name: "Verify the --config projection lens on metrics, cyber-risk, co-analysis, verification-depth and safety-case."
 verifies:
   - REQ-TRS-PROJ-006
 ---

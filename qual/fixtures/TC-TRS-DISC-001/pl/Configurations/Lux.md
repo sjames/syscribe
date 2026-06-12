@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PL-LUX-001
-title: "Electric luxury trim"
+name: "Electric luxury trim"
 status: approved
 featureModel: Features
 features:

@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-MAP-001
-title: "LiDAR mapping payload achieves >= 100 points/m^2 at survey altitude"
+name: "LiDAR mapping payload achieves >= 100 points/m^2 at survey altitude"
 status: active
 testLevel: L4
 verifies:

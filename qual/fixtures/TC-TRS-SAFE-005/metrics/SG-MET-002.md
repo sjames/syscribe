@@ -1,7 +1,7 @@
 ---
 id: SG-MET-002
 type: SafetyGoal
-title: Demonstrate SPFM/PMHF meeting ASIL B target (passes the gate)
+name: Demonstrate SPFM/PMHF meeting ASIL B target (passes the gate)
 status: approved
 asilLevel: B
 safeState: De-energise actuator

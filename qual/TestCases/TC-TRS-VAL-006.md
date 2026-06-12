@@ -3,7 +3,7 @@ id: TC-TRS-VAL-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that E-code findings are marked Error and W-code findings are marked Warning."
+name: "Verify that E-code findings are marked Error and W-code findings are marked Warning."
 verifies:
   - REQ-TRS-VAL-007
 ---

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PARSE-001
 type: Requirement
-title: Tool shall accept a model root directory
+name: Tool shall accept a model root directory
 status: draft
 reqDomain: software
 verificationMethod: test

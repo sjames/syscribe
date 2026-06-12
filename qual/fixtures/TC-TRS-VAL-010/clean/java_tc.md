@@ -1,7 +1,7 @@
 ---
 id: TC-W009-JV-001
 type: TestCase
-title: "java testFunction resolves in source"
+name: "java testFunction resolves in source"
 status: active
 testLevel: L3
 verifies:

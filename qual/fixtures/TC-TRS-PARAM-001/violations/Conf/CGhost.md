@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PRM-GHOST-001
-title: "CONF-PRM-GHOST-001"
+name: "CONF-PRM-GHOST-001"
 status: approved
 featureModel: Features
 features:

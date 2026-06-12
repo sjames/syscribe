@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-SEC-001
-title: Safety-critical CAN messages shall be authenticated using MAC
+name: Safety-critical CAN messages shall be authenticated using MAC
 status: approved
 reqDomain: software
 verificationMethod: test

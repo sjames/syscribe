@@ -1,7 +1,7 @@
 ---
 id: REQ-PL4-OTHER-001
 type: Requirement
-title: "be something else"
+name: "be something else"
 status: approved
 reqDomain: software
 ---

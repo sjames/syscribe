@@ -3,7 +3,7 @@ id: TC-TRS-DISC-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify `matrix --features`: Feature × Configuration selection grid; default matrix regression."
+name: "Verify `matrix --features`: Feature × Configuration selection grid; default matrix regression."
 verifies:
   - REQ-TRS-DISC-003
 ---

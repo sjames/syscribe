@@ -3,7 +3,7 @@ id: TC-TRS-QNAME-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that qualified names are derived correctly from directory path and filename stem."
+name: "Verify that qualified names are derived correctly from directory path and filename stem."
 verifies:
   - REQ-TRS-QNAME-001
 ---

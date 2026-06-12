@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-015
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify LibraryPackage and Namespace are recognised and validated without E005."
+name: "Verify LibraryPackage and Namespace are recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-015
 ---

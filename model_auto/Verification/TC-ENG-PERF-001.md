@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-PERF-001
-title: Performance simulation — throttle and fuel control response over drive cycle
+name: Performance simulation — throttle and fuel control response over drive cycle
 status: active
 testLevel: L4
 verifies:

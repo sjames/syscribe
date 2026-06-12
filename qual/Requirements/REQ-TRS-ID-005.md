@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-ID-005
 type: Requirement
-title: Tool shall accept 3-8 digit stable-ID suffixes with a configurable maximum
+name: Tool shall accept 3-8 digit stable-ID suffixes with a configurable maximum
 status: draft
 reqDomain: software
 verificationMethod: test

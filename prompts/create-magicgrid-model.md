@@ -143,7 +143,7 @@ Target: `magicgrid --audit` reports **`Verdict: PASS`** with zero findings.
 # Problem/BlackBox/Needs/ComfortNeed.md
 type: Requirement
 id: REQ-TH-NEED-001
-title: The occupant shall stay comfortable
+name: The occupant shall stay comfortable
 status: approved
 reqDomain: system
 custom_fields: { mg_cell: B1 }

@@ -3,7 +3,7 @@ id: TC-TRS-PLAN-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the --plan lens on matrix, verification-depth and audit: row restriction, scoped verdict, composition, unknown-id exit."
+name: "Verify the --plan lens on matrix, verification-depth and audit: row restriction, scoped verdict, composition, unknown-id exit."
 verifies:
   - REQ-TRS-PLAN-006
 ---

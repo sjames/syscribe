@@ -3,7 +3,7 @@ id: TC-TRS-VAR-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify TestCase-to-Configuration membership is derived from appliesWhen."
+name: "Verify TestCase-to-Configuration membership is derived from appliesWhen."
 verifies:
   - REQ-TRS-VAR-002
 ---

@@ -1,7 +1,7 @@
 ---
 id: REQ-ADAS-001
 type: Requirement
-title: "ADAS lane-keeping shall degrade gracefully"
+name: "ADAS lane-keeping shall degrade gracefully"
 status: approved
 silLevel: 3
 appliesWhen: Features::Adas

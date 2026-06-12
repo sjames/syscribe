@@ -8,8 +8,8 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 
 | Code | Element | Condition |
 |---|---|---|
-| E004 | TestCase | `id`, `title`, `status`, or `testLevel` absent |
-| E004 | Requirement | `title` or `status` absent on native Requirement |
+| E004 | TestCase | `id`, `name`, `status`, or `testLevel` absent |
+| E004 | Requirement | `name` or `status` absent on native Requirement |
 | E006 | Requirement | `id` present but does not match `REQ-*` pattern |
 | E006 | TestCase | `id` present but does not match `TC-*` pattern |
 | E007 | Requirement | `status` is not one of `draft · review · approved · implemented · verified` |
@@ -27,8 +27,8 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E021 | Any | `coverageTarget` is not one of `statement · branch · MCDC` |
 | E022 | Any | `requirementKind` is not one of `stakeholder · system · software · hardware` |
 | E023 | Any (stable id) | The numeric suffix is longer than the configured maximum (`[ids] max_digits` in `.syscribe.toml`, default 8; minimum 3 enforced by E006) |
-| E024 | Id-identified type | An id-identified element (`Requirement`, `TestCase`, `HazardousEvent`, …) declares a `name:` field — its label belongs in `title:`. Each element has exactly one label field, fixed by identity class. Remove `name:`. |
-| E025 | Name-identified type | A name-identified element (`PartDef`, `Package`, `FeatureDef`, …) declares a `title:` field — its label belongs in `name:`. Remove `title:`. (A `FeatureDef` also carries a mandatory `FEAT-*` `id` — see `E201` — the `id` and label axes are independent.) |
+| E024 | — | **RETIRED.** Formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is **no longer emitted** — a `Requirement` carrying `id` + `name` validates clean. |
+| E025 | Any element | The removed `title:` field is declared on an element (id-identified or name-identified alike) — the `title` field is removed; rename it to `name`. (A `FeatureDef` carries `name` as its label and a mandatory `FEAT-*` `id` — see `E201` — the `id` and label axes are independent.) |
 
 ## Parse-time warnings (W001–W008)
 
@@ -76,7 +76,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | Code | Condition |
 |---|---|
 | E200 | Configuration `id` does not match `CONF-*` pattern |
-| E201 | Configuration missing `id`, `title`, `status`, or `featureModel`; **or** a `FeatureDef` missing its mandatory `FEAT-*` `id` |
+| E201 | Configuration missing `id`, `name`, `status`, or `featureModel`; **or** a `FeatureDef` missing its mandatory `FEAT-*` `id` |
 | E203 | `parameterBindings` binds a parameter of a feature that is not selected |
 | E204 | `parameterBindings` binds a fixed parameter (`isFixed`/`value`/`derivedFrom`) |
 | E205 | A bound parameter value is outside the parameter's `range:` |
@@ -162,7 +162,7 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 | Code | Condition |
 |---|---|
 | E300 | ADR `id` does not match `ADR-*` pattern |
-| E301 | ADR missing `id`, `title`, or `status` |
+| E301 | ADR missing `id`, `name`, or `status` |
 | E302 | `reqDomain` value is not `system · hardware · software` |
 | E303 | `domain` value is not `system · hardware · software` |
 | E304 | ADR `status` is not `proposed · accepted · deprecated · superseded` |
@@ -289,7 +289,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 
 | Code | Condition |
 |---|---|
-| E800 | `id`, `title`, or `status` is absent |
+| E800 | `id`, `name`, or `status` is absent |
 | E801 | `severity` is not one of `S0 · S1 · S2 · S3` (ISO 26262 HARA) |
 | E802 | `exposure` is not one of `E0 · E1 · E2 · E3 · E4` (ISO 26262 HARA) |
 | E803 | `controllability` is not one of `C0 · C1 · C2 · C3` (ISO 26262 HARA) |
@@ -303,7 +303,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 
 | Code | Condition |
 |---|---|
-| E805 | `id`, `title`, or `status` is absent |
+| E805 | `id`, `name`, or `status` is absent |
 | E806 | `id` does not match `SG-*` pattern |
 | E837 | `plLevel` is not one of `a · b · c · d · e` (ISO 13849-1) |
 | W801 | SafetyGoal has no integrity level — set `asilLevel` (ISO 26262), `silLevel` (IEC 61508), or `plLevel` (ISO 13849-1) |
@@ -313,7 +313,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 
 | Code | Condition |
 |---|---|
-| E807 | `id`, `title`, or `status` is absent |
+| E807 | `id`, `name`, or `status` is absent |
 | E808 | `id` does not match `DS-*` pattern |
 | E809 | `damageSeverity` is not one of `severe · major · moderate · negligible` |
 | E810 | `impactCategories` entry is not one of `safety · financial · operational · privacy` |
@@ -323,7 +323,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 
 | Code | Condition |
 |---|---|
-| E811 | `id`, `title`, or `status` is absent |
+| E811 | `id`, `name`, or `status` is absent |
 | E812 | `id` does not match `TS-*` pattern |
 | E813 | `attackFeasibility` is not one of `high · medium · low · very_low` |
 | E814 | `attackVector` is not one of `network · adjacent · local · physical` |
@@ -334,7 +334,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 
 | Code | Condition |
 |---|---|
-| E815 | `id`, `title`, or `status` is absent |
+| E815 | `id`, `name`, or `status` is absent |
 | E816 | `id` does not match `CSG-*` pattern |
 | E817 | `securityProperty` is not one of `confidentiality · integrity · availability · authenticity` |
 | E818 | `calLevel` is not one of `CAL1 · CAL2 · CAL3 · CAL4` |
@@ -343,7 +343,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 
 | Code | Condition |
 |---|---|
-| E819 | `id`, `title`, or `status` is absent |
+| E819 | `id`, `name`, or `status` is absent |
 | E820 | `id` does not match `SC-*` pattern |
 | E821 | `controlType` is not one of `prevention · detection · response · recovery` |
 
@@ -351,7 +351,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 
 | Code | Condition |
 |---|---|
-| E822 | `id`, `title`, or `status` is absent |
+| E822 | `id`, `name`, or `status` is absent |
 | E823 | `id` does not match `VR-*` pattern |
 | E824 | `cvssScore` is outside range 0.0–10.0 |
 
@@ -481,7 +481,7 @@ Lower integrity levels are documented as future tightening and are not gated.
 
 | Code | Severity | Condition |
 |---|---|---|
-| E847 | Error | `ConfirmationMeasure` is missing `id`, `title`, or `status` |
+| E847 | Error | `ConfirmationMeasure` is missing `id`, `name`, or `status` |
 | E848 | Error | `ConfirmationMeasure.id` does not match the `CM-*` pattern |
 | E849 | Error | `measureType` is not one of `confirmation_review · functional_safety_audit · functional_safety_assessment · cybersecurity_assessment` |
 | E850 | Error | `independenceLevel` is not one of `I1 · I2 · I3` |
@@ -503,7 +503,7 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 
 | Code | Severity | Condition |
 |---|---|---|
-| E852 | Error | `Argument` is missing `id`, `title`, or `status` |
+| E852 | Error | `Argument` is missing `id`, `name`, or `status` |
 | E853 | Error | `Argument.id` does not match the `ARG-*` pattern |
 | E854 | Error | `Argument.argumentType` is not one of `claim · strategy · solution` (absent → treated as `claim`) |
 | E855 | Error | an `Argument.supports` or `Argument.evidence` ref does not resolve to any model element |
@@ -513,7 +513,7 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 
 | Code | Severity | Condition |
 |---|---|---|
-| E856 | Error | `AssumptionOfUse` is missing `id`, `title`, or `status` |
+| E856 | Error | `AssumptionOfUse` is missing `id`, `name`, or `status` |
 | E857 | Error | `AssumptionOfUse.id` does not match the `AOU-*` pattern |
 | E858 | Error | an `AssumptionOfUse.appliesTo` ref does not resolve to any model element |
 
@@ -536,7 +536,7 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 
 | Code | Condition |
 |---|---|
-| E900 | `id`, `title`, `status`, or `topEvent` is absent |
+| E900 | `id`, `name`, `status`, or `topEvent` is absent |
 | E901 | `id` does not match `FT-*` pattern |
 | E902 | `topEvent` does not resolve, or resolves to an element that is not a `SafetyGoal` |
 | W900 | FaultTree has no gates or events — the tree is empty |
@@ -545,7 +545,7 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 
 | Code | Condition |
 |---|---|
-| E903 | `id`, `title`, or `gateType` is absent |
+| E903 | `id`, `name`, or `gateType` is absent |
 | E904 | `id` does not match `FTG-*` pattern |
 | E905 | `gateType` is not one of `AND · OR · XOR · NOT · inhibit` |
 | E906 | An entry in `inputs` does not resolve, or resolves to an element that is not a `FaultTreeGate` or `FaultTreeEvent` |
@@ -555,7 +555,7 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 
 | Code | Condition |
 |---|---|
-| E907 | `id`, `title`, or `eventKind` is absent |
+| E907 | `id`, `name`, or `eventKind` is absent |
 | E908 | `id` does not match `FTE-*` pattern |
 | E909 | `eventKind` is not one of `basic · undeveloped · house` |
 
@@ -565,7 +565,7 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 
 | Code | Condition |
 |---|---|
-| E911 | `id`, `title`, or `status` is absent |
+| E911 | `id`, `name`, or `status` is absent |
 | E912 | `id` does not match `FMEA-*` pattern |
 | W902 | FMEASheet has no `entries` — add at least one failure mode row |
 
@@ -588,7 +588,7 @@ RPN is computed automatically when all three of `fmeaSeverity`, `occurrence`, an
 
 | Code | Condition |
 |---|---|
-| E940 | `id`, `title`, or `status` is absent |
+| E940 | `id`, `name`, or `status` is absent |
 | E941 | `id` does not match `TARA-*` pattern |
 | W905 | TARASheet has no rows in any section table |
 
@@ -610,7 +610,7 @@ feasibility is the value of its single root child, mapped back to a label.
 
 | Code | Condition |
 |---|---|
-| E915 | `id`, `title`, `status`, or `threatRef` is absent |
+| E915 | `id`, `name`, `status`, or `threatRef` is absent |
 | E916 | `id` does not match `AT-*` pattern |
 | E917 | `threatRef` does not resolve, or resolves to an element that is not a `ThreatScenario` |
 | W035 | The tree's computed (weakest-link) feasibility does not match the linked `ThreatScenario.attackFeasibility` — message names computed vs declared. Gateable via `--deny W035`; promotable via `[profiles]` |
@@ -620,7 +620,7 @@ feasibility is the value of its single root child, mapped back to a label.
 
 | Code | Condition |
 |---|---|
-| E918 | `id`, `title`, or `gateType` is absent, or `id` does not match `ATG-*` pattern |
+| E918 | `id`, `name`, or `gateType` is absent, or `id` does not match `ATG-*` pattern |
 | E919 | `gateType` is not one of `AND` (sequential path) · `OR` (alternatives) |
 | E920 | An entry in `inputs` does not resolve, or resolves to an element that is not an `AttackTreeGate` or `AttackStep` |
 | W037 | AttackTreeGate has no `inputs` — it contributes nothing to the attack tree |
@@ -629,13 +629,13 @@ feasibility is the value of its single root child, mapped back to a label.
 
 | Code | Condition |
 |---|---|
-| E921 | `id` or `title` is absent; `id` does not match `ATS-*` pattern; or `attackFeasibility` is not one of `high · medium · low · very_low` |
+| E921 | `id` or `name` is absent; `id` does not match `ATS-*` pattern; or `attackFeasibility` is not one of `high · medium · low · very_low` |
 
 ## TestPlan (E600–E606, W610–W616)
 
 | Code | Condition |
 |---|---|
-| E600 | `TestPlan` missing `id`/`title`/`status`, or `id` does not match `TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}` |
+| E600 | `TestPlan` missing `id`/`name`/`status`, or `id` does not match `TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}` |
 | E601 | a `testCases:` entry does not resolve to a `TestCase` |
 | E602 | a `selection.testLevels` value is not one of `L1`–`L5` |
 | E603 | a `demonstrates:` target does not resolve to a Requirement/SafetyGoal/CybersecurityGoal/Argument |

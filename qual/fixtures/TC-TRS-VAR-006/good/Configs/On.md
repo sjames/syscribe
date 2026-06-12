@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-VAR-ON-001
-title: "variant on"
+name: "variant on"
 status: approved
 featureModel: Features
 features:

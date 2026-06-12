@@ -1,7 +1,7 @@
 ---
 type: ThreatScenario
 id: TS-SEC-001
-title: Attacker replays captured CAN torque-request frame via OBD-II port
+name: Attacker replays captured CAN torque-request frame via OBD-II port
 status: approved
 attackFeasibility: medium
 attackVector: local

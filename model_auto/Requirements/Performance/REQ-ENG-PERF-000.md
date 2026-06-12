@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-PERF-000
-title: Engine ECU shall meet response time and fuel efficiency targets
+name: Engine ECU shall meet response time and fuel efficiency targets
 status: approved
 reqDomain: system
 derivedFrom:

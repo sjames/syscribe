@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-SIL-SAFE-003
-title: Integration test — conflict checker blocks simultaneous conflicting route requests
+name: Integration test — conflict checker blocks simultaneous conflicting route requests
 status: active
 testLevel: L4
 verifies:

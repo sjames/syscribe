@@ -3,7 +3,7 @@ id: TC-TRS-VAL-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that each parse-time error rule is triggered by the corresponding malformed input."
+name: "Verify that each parse-time error rule is triggered by the corresponding malformed input."
 verifies:
   - REQ-TRS-VAL-001
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-XREF-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that absolute qualified names are resolved correctly from the model root."
+name: "Verify that absolute qualified names are resolved correctly from the model root."
 verifies:
   - REQ-TRS-XREF-001
 ---

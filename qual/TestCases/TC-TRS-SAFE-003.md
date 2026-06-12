@@ -3,7 +3,7 @@ id: TC-TRS-SAFE-003
 type: TestCase
 testLevel: L3
 status: draft
-title: Verify that DamageScenario and ThreatScenario validation rules E807-E814 and E826 are enforced
+name: Verify that DamageScenario and ThreatScenario validation rules E807-E814 and E826 are enforced
 verifies:
   - REQ-TRS-SAFE-003
 ---

@@ -1,7 +1,7 @@
 ---
 type: SafetyGoal
 id: SG-TST-001
-title: Test Safety Goal
+name: Test Safety Goal
 status: draft
 asilLevel: B
 ---

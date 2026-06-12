@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-005
 type: Requirement
-title: MagicGrid gate shall validate logical/physical layering and logical-to-physical allocation
+name: MagicGrid gate shall validate logical/physical layering and logical-to-physical allocation
 status: draft
 reqDomain: software
 verificationMethod: test

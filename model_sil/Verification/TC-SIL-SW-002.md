@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-SIL-SW-002
-title: Integration test — EN 50159 Category 2 safety codes reject all defined fault classes
+name: Integration test — EN 50159 Category 2 safety codes reject all defined fault classes
 status: active
 testLevel: L4
 verifies:

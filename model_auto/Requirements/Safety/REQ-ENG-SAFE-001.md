@@ -2,7 +2,7 @@
 type: Requirement
 id: REQ-ENG-SAFE-001
 typedBy: Requirements::ASILRequirementDef
-title: Safety monitor shall detect all safety faults within 100 ms
+name: Safety monitor shall detect all safety faults within 100 ms
 status: approved
 reqDomain: software
 asilLevel: D

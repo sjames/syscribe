@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-UAV-ENDUR-001
-title: "Minimum 25-minute flight endurance under nominal conditions"
+name: "Minimum 25-minute flight endurance under nominal conditions"
 status: approved
 reqDomain: hardware
 derivedFrom:

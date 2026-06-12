@@ -1,7 +1,7 @@
 ---
 type: AssumptionOfUse
 id: AOU-DEMO-001
-title: "Vehicle integrator provides a redundant torque sensor"
+name: "Vehicle integrator provides a redundant torque sensor"
 status: approved
 appliesTo: SG-DEMO-001
 ---

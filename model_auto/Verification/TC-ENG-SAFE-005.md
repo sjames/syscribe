@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-SAFE-005
-title: HIL — rev limiter enforces fuel cut and ignition retard independently of TPS
+name: HIL — rev limiter enforces fuel cut and ignition retard independently of TPS
 status: active
 testLevel: L5
 verifies:

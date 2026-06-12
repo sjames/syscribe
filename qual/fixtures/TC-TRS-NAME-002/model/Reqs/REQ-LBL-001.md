@@ -1,10 +1,10 @@
 ---
 id: REQ-LBL-001
 type: Requirement
-name: Stray Name On A Requirement
-title: Tool shall reject a name field on an id-identified element
+name: A requirement labelled by name
 status: draft
 reqDomain: software
 ---
 
-An id-identified element (Requirement) that also declares `name:` must raise E024.
+An id-identified element (Requirement) carrying `id` + `name` (no `title`) is the correct
+unified form and must validate clean of E024 (retired) and E025.

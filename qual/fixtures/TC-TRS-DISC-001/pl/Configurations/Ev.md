@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PL-EV-001
-title: "Electric base trim"
+name: "Electric base trim"
 status: approved
 featureModel: Features
 features:

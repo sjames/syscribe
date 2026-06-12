@@ -1,7 +1,7 @@
 ---
 type: DamageScenario
 id: DS-SEC-101
-title: Unauthorised torque command causes unintended acceleration
+name: Unauthorised torque command causes unintended acceleration
 status: approved
 damageSeverity: severe
 impactCategories:

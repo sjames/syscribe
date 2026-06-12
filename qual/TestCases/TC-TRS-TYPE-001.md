@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify ConstraintDef and Constraint are recognised and validated without E005."
+name: "Verify ConstraintDef and Constraint are recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-001
 ---

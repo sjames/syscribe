@@ -3,7 +3,7 @@ id: TC-TRS-PROJ-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the --config projection lens: stored + ad-hoc selection, dormancy, unresolved error."
+name: "Verify the --config projection lens: stored + ad-hoc selection, dormancy, unresolved error."
 verifies:
   - REQ-TRS-PROJ-001
 ---

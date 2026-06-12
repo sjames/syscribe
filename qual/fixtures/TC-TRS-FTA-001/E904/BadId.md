@@ -1,7 +1,7 @@
 ---
 type: FaultTreeGate
 id: GATE-001
-title: Gate With Bad Id
+name: Gate With Bad Id
 gateType: AND
 inputs: []
 ---

@@ -1,7 +1,7 @@
 ---
 type: VulnerabilityReport
 id: VR-TST-001
-title: CVE-2024-1234
+name: CVE-2024-1234
 status: open
 cvssScore: 11.5
 ---

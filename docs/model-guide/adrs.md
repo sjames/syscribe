@@ -10,7 +10,7 @@ Architecture Decision Records (ADRs) document the rationale behind every signifi
 ---
 type: ADR
 id: ADR-SYS-SAFE-001
-title: Decompose safety goal into FC fault detection and safe landing sub-requirements
+name: Decompose safety goal into FC fault detection and safe landing sub-requirements
 status: accepted
 ---
 
@@ -38,7 +38,7 @@ A dedicated safe-landing action must be formally verified.
 | Field | Required | Values |
 |---|---|---|
 | `id` | Yes | `ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}` |
-| `title` | Yes | Short description of the decision |
+| `name` | Yes | Short description of the decision (free prose) |
 | `status` | Yes | `proposed` · `accepted` · `deprecated` · `superseded` |
 
 ## Lifecycle

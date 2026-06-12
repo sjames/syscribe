@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-MG-BAD-001
-title: A requirement with a bogus grid coordinate
+name: A requirement with a bogus grid coordinate
 status: draft
 reqDomain: system
 custom_fields:

@@ -1,7 +1,7 @@
 ---
 id: REQ-PL4-001
 type: Requirement
-title: "do work"
+name: "do work"
 status: approved
 reqDomain: software
 ---

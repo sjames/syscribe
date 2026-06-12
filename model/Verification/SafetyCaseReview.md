@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-SAFE-SYS-001
-title: "Safety case review confirms UAV shall not cause injury across all flight phases"
+name: "Safety case review confirms UAV shall not cause injury across all flight phases"
 status: active
 testLevel: L2
 verifies:

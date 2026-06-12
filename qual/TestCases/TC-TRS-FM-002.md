@@ -3,7 +3,7 @@ id: TC-TRS-FM-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify feature-check structural rules E212, E219, E220, W011, W012."
+name: "Verify feature-check structural rules E212, E219, E220, W011, W012."
 verifies:
   - REQ-TRS-FM-002
 ---

@@ -1,7 +1,7 @@
 ---
 id: FMEA-SIL-001
 type: FMEASheet
-title: FMEA — Vital Processor and Safety Communication
+name: FMEA — Vital Processor and Safety Communication
 status: approved
 entries:
   - id: FM-SIL-001

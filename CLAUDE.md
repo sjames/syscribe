@@ -121,16 +121,17 @@ subsets: [Interfaces::PowerInterface]
 
 ### Name Scheme
 
-Element **names** (the file/directory stem, which becomes the last qualified-name segment) follow the SysMLv2 **basic-name** grammar: `^[A-Za-z_][A-Za-z0-9_]*$` — letters, digits and `_`, not starting with a digit. **No hyphens or spaces** (a hyphen is the subtraction operator in `appliesWhen`/`parameterConstraints` expressions, so a hyphenated name cannot be referenced there). A non-basic name raises warning `W042`; rename using `_` or CamelCase (`Anti-Lock` → `Anti_Lock`/`AntiLock`). Stable ids (below) are exempt — they legitimately contain `-`.
+Element **identity segments** (the file/directory stem, which becomes the last qualified-name segment for name-identified types) follow the SysMLv2 **basic-name** grammar: `^[A-Za-z_][A-Za-z0-9_]*$` — letters, digits and `_`, not starting with a digit. **No hyphens or spaces** (a hyphen is the subtraction operator in `appliesWhen`/`parameterConstraints` expressions, so a hyphenated name cannot be referenced there). A non-basic identity segment raises warning `W042`; rename using `_` or CamelCase (`Anti-Lock` → `Anti_Lock`/`AntiLock`). Stable ids (below) are exempt — they legitimately contain `-`. For **id-identified types** the identity segment is the `id`, so `W042` governs the `id`, **not** the free-text `name` (which may contain spaces and punctuation).
 
-### Label field: `name` vs `title` (one per element, fixed by identity class)
+### Label field: `name` is the single universal label
 
-Every element has **exactly one** human-readable label field, decided by how the element is identified — **never both**:
+Every element type — `Requirement`, `TestCase`, `ADR`, `PartDef`, `Package`, `FeatureDef`, the safety/security types, **everything** — uses **`name`** as its one human-readable label (SysMLv2 `declaredName`). There is no longer a per-identity-class split.
 
-- **Id-identified types** (identity is a stable `id`: `Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `ConfirmationMeasure`, and all safety/security types — `HazardousEvent`, `SafetyGoal`, `DamageScenario`, `ThreatScenario`, `CybersecurityGoal`, `SecurityControl`, `VulnerabilityReport`, `TARASheet`, `FaultTree`/`FaultTreeGate`/`FaultTreeEvent`, `FMEASheet`/`FMEAEntry`, `AttackTree`/`AttackTreeGate`/`AttackStep`, `Argument`, `AssumptionOfUse`) → label is **`title`**. Declaring `name:` is error **`E024`**.
-- **Name-identified types** (everything else — all SysML structural types, `Package`, `Diagram`, and `FeatureDef`) → label is **`name`**. Declaring `title:` is error **`E025`**.
+- **`name`** is the label on all types. It is **optional in general** but **required** on every type that previously required a label (the native and safety/security id-identified types — see "ID Scheme" below). For id-identified types `name` is **free prose** (spaces and punctuation allowed; `W042` does **not** apply). For name-identified types `name` is **both** the label **and** the identity segment, so the basic-name grammar (`W042`) applies to it.
+- **`id`** (the stable shortName) remains the **identity** of the id-identified types — files stay `<id>.md` and cross-references (`verifies:`, `derivedFrom:`, …) resolve by id. The `id` axis and the `name` (label) axis are independent.
+- **`title` is removed.** It is no longer a recognized label field on any element. Declaring `title:` on **any** element raises error **`E025`** ("the `title` field is removed — rename it to `name`"), type-independently. Error **`E024`** (formerly: `name` on an id-identified type) is **retired** — `name` is now the correct, required label on those types, so a `Requirement` carrying `id` + `name` validates clean.
 
-`FeatureDef` is the one name-identified type that *also* carries a **mandatory** stable `id` (`FEAT-*`, its shortName; a feature with no `id` is error `E201`). The `id` axis and the label axis are independent — a `FeatureDef` uses `name` for its label, and a `FEAT-*` id for stable reference.
+`FeatureDef` is name-identified (its `name` is its label *and* qualified-name segment) and **also** carries a **mandatory** stable `id` (`FEAT-*`, its shortName; a feature with no `id` is error `E201`). Under the unified rule it carries `name` (label) + `id` (shortName) and no `title`.
 
 ### ID Scheme
 
@@ -150,6 +151,8 @@ SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file pat
 
 **FeatureDef ID pattern** — `^FEAT(-[A-Z0-9]{2,12})+$`
 - Prefix `FEAT`, **mandatory** on every `FeatureDef` (a feature with no `id` is `E201`). Unlike other stable ids, a feature id **need not** end in a number — `FEAT-ABS` and `FEAT-ABS-001` are both valid. The feature stays name-identified (label/qname = `name`); the id is a stable reference usable in `appliesWhen:` and `Configuration` `features:` keys interchangeably with the qname.
+
+`Configuration` (`CONF-*`) is id-identified: its identity is its `id`, files are `<id>.md`, and its label is a free-prose `name`.
 - Examples: `FEAT-ABS`, `FEAT-QUADROTOR`, `FEAT-DATALINK-LORA`, `FEAT-CAM-4K`, `FEAT-ABS-001`
 
 Both the `id` field and the qualified name (path-derived) are valid cross-reference targets in `verifies:` and `derivedFrom:`.

@@ -1,7 +1,7 @@
 ---
 id: REQ-NRD-CORE-001
 type: Requirement
-title: "Requirement REQ-NRD-CORE-001"
+name: "Requirement REQ-NRD-CORE-001"
 status: approved
 reqDomain: software
 verificationMethod: test

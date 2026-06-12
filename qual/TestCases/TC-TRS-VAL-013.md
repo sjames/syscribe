@@ -3,7 +3,7 @@ id: TC-TRS-VAL-013
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the remote sourceFile download hook: opt-in fetch, function verification, and retrieval-failure flagging."
+name: "Verify the remote sourceFile download hook: opt-in fetch, function verification, and retrieval-failure flagging."
 verifies:
   - REQ-TRS-VAL-013
 ---

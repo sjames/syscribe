@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-UAV-COMM-001
-title: "Telemetry data link range ≥ 5 km line of sight"
+name: "Telemetry data link range ≥ 5 km line of sight"
 status: approved
 reqDomain: software
 derivedFrom:

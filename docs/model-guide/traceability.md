@@ -130,7 +130,7 @@ Leaf-level TestCases (L1/L2) verify individual derived requirements but do not c
 # TC-UAV-PERF-001.md — system test covering the parent requirement
 type: TestCase
 id: TC-UAV-PERF-001
-title: Full performance envelope system test
+name: Full performance envelope system test
 status: active
 testLevel: L3
 verifies:

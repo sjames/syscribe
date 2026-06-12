@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SAFE-004
-title: Signal clearance shall be conditional on level crossing barriers confirmed in lowered position
+name: Signal clearance shall be conditional on level crossing barriers confirmed in lowered position
 status: approved
 reqDomain: software
 silLevel: 3

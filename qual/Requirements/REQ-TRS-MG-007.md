@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-007
 type: Requirement
-title: Tool shall render a MoE-weighted trade study comparing configurations
+name: Tool shall render a MoE-weighted trade study comparing configurations
 status: draft
 reqDomain: software
 verificationMethod: test

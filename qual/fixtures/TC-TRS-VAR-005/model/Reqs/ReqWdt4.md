@@ -1,7 +1,7 @@
 ---
 id: REQ-V5-WDT-004
 type: Requirement
-title: "Requirement REQ-V5-WDT-004"
+name: "Requirement REQ-V5-WDT-004"
 status: approved
 reqDomain: software
 verificationMethod: test

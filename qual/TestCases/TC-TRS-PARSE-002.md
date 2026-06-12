@@ -3,7 +3,7 @@ id: TC-TRS-PARSE-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that the tool recursively discovers .md files in nested subdirectories."
+name: "Verify that the tool recursively discovers .md files in nested subdirectories."
 verifies:
   - REQ-TRS-PARSE-002
 ---

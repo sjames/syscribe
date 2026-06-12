@@ -3,7 +3,7 @@ id: TC-TRS-AW-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify applies-when read mode: own gate, inherited (package) effective gate, always-applies, read-only, --json, unresolved."
+name: "Verify applies-when read mode: own gate, inherited (package) effective gate, always-applies, read-only, --json, unresolved."
 verifies:
   - REQ-TRS-AW-002
 ---

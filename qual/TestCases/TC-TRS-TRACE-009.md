@@ -3,7 +3,7 @@ id: TC-TRS-TRACE-009
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that E016/E017/E018 are emitted for cycles in supertype, derivedFrom, and subsets graphs."
+name: "Verify that E016/E017/E018 are emitted for cycles in supertype, derivedFrom, and subsets graphs."
 verifies:
   - REQ-TRS-TRACE-009
 ---

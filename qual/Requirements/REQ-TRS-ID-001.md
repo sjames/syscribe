@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-ID-001
 type: Requirement
-title: Tool shall validate that Requirement elements carry a REQ-* id
+name: Tool shall validate that Requirement elements carry a REQ-* id
 status: draft
 reqDomain: software
 verificationMethod: test

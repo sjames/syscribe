@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify CalculationDef and Calculation are recognised and validated without E005."
+name: "Verify CalculationDef and Calculation are recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-002
 ---

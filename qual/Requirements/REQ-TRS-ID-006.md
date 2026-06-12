@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-ID-006
 type: Requirement
-title: Tool shall require every FeatureDef to carry a stable id and allow features to be referenced by it
+name: Tool shall require every FeatureDef to carry a stable id and allow features to be referenced by it
 status: draft
 reqDomain: software
 verificationMethod: test

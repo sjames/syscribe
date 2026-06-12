@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-008
 type: Requirement
-title: MagicGrid gate shall validate Measurements of Performance (mg_mop) and their refinement of MoEs
+name: MagicGrid gate shall validate Measurements of Performance (mg_mop) and their refinement of MoEs
 status: draft
 reqDomain: software
 verificationMethod: test

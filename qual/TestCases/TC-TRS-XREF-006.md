@@ -3,7 +3,7 @@ id: TC-TRS-XREF-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify root-package-name hint: unresolved ref prefixed with the root name (stripped form resolves) gets a hint; correct ref no finding; non-matching ref no hint."
+name: "Verify root-package-name hint: unresolved ref prefixed with the root name (stripped form resolves) gets a hint; correct ref no finding; non-matching ref no hint."
 verifies:
   - REQ-TRS-XREF-006
 ---

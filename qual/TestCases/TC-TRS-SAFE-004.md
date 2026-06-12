@@ -3,7 +3,7 @@ id: TC-TRS-SAFE-004
 type: TestCase
 testLevel: L3
 status: draft
-title: Verify that CybersecurityGoal, SecurityControl, and VulnerabilityReport validation rules E815-E824, E827-E832, W802-W804, and W807 are enforced
+name: Verify that CybersecurityGoal, SecurityControl, and VulnerabilityReport validation rules E815-E824, E827-E832, W802-W804, and W807 are enforced
 verifies:
   - REQ-TRS-SAFE-004
 ---

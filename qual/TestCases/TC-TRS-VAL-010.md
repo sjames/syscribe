@@ -3,7 +3,7 @@ id: TC-TRS-VAL-010
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify function-level traceability (W009) across all supported languages and generic files."
+name: "Verify function-level traceability (W009) across all supported languages and generic files."
 verifies:
   - REQ-TRS-VAL-010
 ---

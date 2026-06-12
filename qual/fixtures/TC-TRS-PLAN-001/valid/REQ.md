@@ -1,7 +1,7 @@
 ---
 id: REQ-PL1-001
 type: Requirement
-title: "hold state"
+name: "hold state"
 status: approved
 reqDomain: software
 ---

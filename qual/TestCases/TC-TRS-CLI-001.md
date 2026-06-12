@@ -3,7 +3,7 @@ id: TC-TRS-CLI-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that the tool accepts the model directory via -m and --model arguments."
+name: "Verify that the tool accepts the model directory via -m and --model arguments."
 verifies:
   - REQ-TRS-CLI-001
 ---

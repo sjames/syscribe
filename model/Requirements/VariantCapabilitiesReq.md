@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-UAV-VAR-000
-title: "UAV product line shall support survey, mapping, and delivery variants"
+name: "UAV product line shall support survey, mapping, and delivery variants"
 status: approved
 reqDomain: system
 tags:

@@ -265,9 +265,9 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
             };
 
             let failure_mode = str_val("failureMode");
-            let title = failure_mode
+            let label = failure_mode
                 .clone()
-                .or_else(|| str_val("title"))
+                .or_else(|| str_val("name"))
                 .unwrap_or_else(|| entry_id.clone());
 
             let s = u8_val("severity");
@@ -285,7 +285,7 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
             let fm = RawFrontmatter {
                 element_type: Some(ElementType::FMEAEntry),
                 id: Some(entry_id.clone()),
-                title: Some(title),
+                name: Some(label),
                 status: str_val("status").or_else(|| sheet.frontmatter.status.clone()),
                 subject: str_val("ref"),
                 failure_mode,

@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-FC-001
-title: "FC detects injected sensor failure within 50 ms on HIL bench"
+name: "FC detects injected sensor failure within 50 ms on HIL bench"
 status: active
 testLevel: L5
 verifies:

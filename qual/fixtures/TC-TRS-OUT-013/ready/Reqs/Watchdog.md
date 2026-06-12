@@ -1,7 +1,7 @@
 ---
 id: REQ-RDY-WDT-001
 type: Requirement
-title: "Requirement REQ-RDY-WDT-001"
+name: "Requirement REQ-RDY-WDT-001"
 status: approved
 reqDomain: software
 verificationMethod: test

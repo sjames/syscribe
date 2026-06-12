@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-008
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify UseCase is recognised and validated without E005."
+name: "Verify UseCase is recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-008
 ---

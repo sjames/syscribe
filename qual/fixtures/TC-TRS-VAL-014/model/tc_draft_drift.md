@@ -1,7 +1,7 @@
 ---
 id: TC-V14-DD-001
 type: TestCase
-title: "tc_draft_drift"
+name: "tc_draft_drift"
 status: draft
 testLevel: L3
 verifies:

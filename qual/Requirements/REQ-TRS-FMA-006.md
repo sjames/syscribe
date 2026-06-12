@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FMA-006
 type: Requirement
-title: Deep analysis shall use a deterministic pure-Rust decision procedure, guard against blow-up, and stay within the Boolean layer
+name: Deep analysis shall use a deterministic pure-Rust decision procedure, guard against blow-up, and stay within the Boolean layer
 status: draft
 reqDomain: software
 verificationMethod: test

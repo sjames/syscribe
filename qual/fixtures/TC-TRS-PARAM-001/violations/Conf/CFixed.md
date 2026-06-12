@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PRM-FIXED-001
-title: "CONF-PRM-FIXED-001"
+name: "CONF-PRM-FIXED-001"
 status: approved
 featureModel: Features
 features:

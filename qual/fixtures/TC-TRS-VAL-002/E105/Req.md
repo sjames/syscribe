@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: x
+name: x
 status: draft
 reqDomain: software
 verificationMethod: test

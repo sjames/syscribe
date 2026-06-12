@@ -1,7 +1,7 @@
 ---
 id: HE-BAD-001
 type: HazardousEvent
-title: Hazardous event for the out-of-range fixture
+name: Hazardous event for the out-of-range fixture
 status: approved
 severity: S3
 exposure: E4

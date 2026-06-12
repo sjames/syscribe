@@ -3,7 +3,7 @@ id: TC-TRS-PARSE-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that _index.md is treated as the package declaration for its directory."
+name: "Verify that _index.md is treated as the package declaration for its directory."
 verifies:
   - REQ-TRS-PARSE-005
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-MOVE-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify move preserves stable IDs and references made through them."
+name: "Verify move preserves stable IDs and references made through them."
 verifies:
   - REQ-TRS-MOVE-004
 ---

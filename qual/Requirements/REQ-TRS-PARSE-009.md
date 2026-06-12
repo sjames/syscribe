@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PARSE-009
 type: Requirement
-title: "Tool shall skip files with no type: field"
+name: "Tool shall skip files with no type: field"
 status: draft
 reqDomain: software
 verificationMethod: test

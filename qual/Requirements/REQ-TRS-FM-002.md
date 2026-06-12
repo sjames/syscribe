@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FM-002
 type: Requirement
-title: feature-check shall validate requires/excludes resolution and satisfaction, and flag dead or always-on optional features
+name: feature-check shall validate requires/excludes resolution and satisfaction, and flag dead or always-on optional features
 status: draft
 reqDomain: software
 verificationMethod: test

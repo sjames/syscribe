@@ -1,7 +1,7 @@
 ---
 id: REQ-CHD-001
 type: Requirement
-title: Child requirement with unresolvable breakdownAdr
+name: Child requirement with unresolvable breakdownAdr
 status: draft
 reqDomain: system
 verificationMethod: test

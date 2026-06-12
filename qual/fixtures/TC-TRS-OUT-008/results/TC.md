@@ -1,7 +1,7 @@
 ---
 id: TC-ING-001
 type: TestCase
-title: "Mutex acquire/release"
+name: "Mutex acquire/release"
 status: active
 testLevel: L3
 verifies:

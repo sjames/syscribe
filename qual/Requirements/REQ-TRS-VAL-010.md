@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-VAL-010
 type: Requirement
-title: Tool shall verify testFunctions resolve in sourceFile across languages (W009)
+name: Tool shall verify testFunctions resolve in sourceFile across languages (W009)
 status: draft
 reqDomain: software
 verificationMethod: test

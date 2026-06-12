@@ -3,7 +3,7 @@ id: TC-TRS-CLI-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify detailed per-command help: help <cmd>, <cmd> --help, the index, and unknown handling."
+name: "Verify detailed per-command help: help <cmd>, <cmd> --help, the index, and unknown handling."
 verifies:
   - REQ-TRS-CLI-005
 ---

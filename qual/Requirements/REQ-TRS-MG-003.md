@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-003
 type: Requirement
-title: MagicGrid gate shall classify elements by grid cell and render a grid report
+name: MagicGrid gate shall classify elements by grid cell and render a grid report
 status: draft
 reqDomain: software
 verificationMethod: test

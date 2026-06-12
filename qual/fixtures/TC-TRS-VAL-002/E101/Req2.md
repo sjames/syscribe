@@ -1,7 +1,7 @@
 ---
 id: REQ-DUP-001
 type: Requirement
-title: Second duplicate requirement
+name: Second duplicate requirement
 status: draft
 reqDomain: system
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-UAV-SURVEY-001
-title: "Survey drone — compact quad with EO camera and LoRa link"
+name: "Survey drone — compact quad with EO camera and LoRa link"
 status: approved
 featureModel: Features
 features:

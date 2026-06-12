@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-PL-EV-001
-title: "Electric range shall be at least 300 km on a full charge"
+name: "Electric range shall be at least 300 km on a full charge"
 status: approved
 reqDomain: system
 appliesWhen: Features::Engine::Electric

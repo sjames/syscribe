@@ -3,7 +3,7 @@ id: TC-TRS-PARSE-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that .sysmlignore patterns suppress file discovery."
+name: "Verify that .sysmlignore patterns suppress file discovery."
 verifies:
   - REQ-TRS-PARSE-004
 ---

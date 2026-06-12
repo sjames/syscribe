@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-SAFE-002
-title: Hardware watchdog shall reset ECU within 30 ms of software failure
+name: Hardware watchdog shall reset ECU within 30 ms of software failure
 status: approved
 reqDomain: hardware
 asilLevel: D

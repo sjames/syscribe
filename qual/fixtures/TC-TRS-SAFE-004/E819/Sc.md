@@ -1,6 +1,6 @@
 ---
 type: SecurityControl
-title: Encrypt at rest
+name: Encrypt at rest
 status: draft
 ---
 

@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-SIL-SW-003
-title: Inspection — Independent development process evidence for Channel A and B diversity
+name: Inspection — Independent development process evidence for Channel A and B diversity
 status: active
 testLevel: L2
 verifies:

@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-RANGE-OK-001
-title: "cores bound at the inclusive upper bound"
+name: "cores bound at the inclusive upper bound"
 status: approved
 featureModel: Features
 features:

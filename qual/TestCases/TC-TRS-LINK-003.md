@@ -3,7 +3,7 @@ id: TC-TRS-LINK-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify Mermaid diagrams emit click directives to the hosted URL."
+name: "Verify Mermaid diagrams emit click directives to the hosted URL."
 verifies:
   - REQ-TRS-LINK-003
 ---

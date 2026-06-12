@@ -3,7 +3,7 @@ id: TC-TRS-VAL-008
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that safety-level, standards-compliance, and type-field validation rules are enforced."
+name: "Verify that safety-level, standards-compliance, and type-field validation rules are enforced."
 verifies:
   - REQ-TRS-VAL-008
 ---

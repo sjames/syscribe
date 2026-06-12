@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-DUP-001
-title: "Second"
+name: "Second"
 status: approved
 scope: regression
 testCases: [TC-PL1-001]

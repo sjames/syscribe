@@ -3,7 +3,7 @@ id: TC-TRS-MG-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the refines link on UseCaseDef: write/parse, refinedBy index, E316 bad target, W307 missing (draft-suppressed), magicgrid profile promotion."
+name: "Verify the refines link on UseCaseDef: write/parse, refinedBy index, E316 bad target, W307 missing (draft-suppressed), magicgrid profile promotion."
 verifies:
   - REQ-TRS-MG-001
 ---

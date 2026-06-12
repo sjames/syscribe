@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-E021-001
 type: Requirement
-title: Requirement with invalid coverageTarget
+name: Requirement with invalid coverageTarget
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-ENG-SAFE-001
-title: ASIL D decomposition for engine safety requirement into SW + HW sub-requirements
+name: ASIL D decomposition for engine safety requirement into SW + HW sub-requirements
 status: accepted
 ---
 

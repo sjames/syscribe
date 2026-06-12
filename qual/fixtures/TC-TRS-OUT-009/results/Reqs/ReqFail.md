@@ -1,7 +1,7 @@
 ---
 id: REQ-OUT9-FAIL-001
 type: Requirement
-title: "Requirement whose evidence failed"
+name: "Requirement whose evidence failed"
 status: approved
 reqDomain: software
 verificationMethod: test

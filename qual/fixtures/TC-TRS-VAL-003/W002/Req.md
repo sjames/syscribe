@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: Approved requirement with no test case
+name: Approved requirement with no test case
 status: approved
 reqDomain: system
 verificationMethod: test

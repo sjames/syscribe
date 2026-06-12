@@ -1,7 +1,7 @@
 ---
 id: REQ-LEAF-001
 type: Requirement
-title: Approved leaf requirement with a satisfying element
+name: Approved leaf requirement with a satisfying element
 status: approved
 reqDomain: system
 verificationMethod: test

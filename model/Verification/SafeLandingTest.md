@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-SAFE-001
-title: "Autonomous landing descent rate ≤ 3 m/s on battery-critical trigger"
+name: "Autonomous landing descent rate ≤ 3 m/s on battery-critical trigger"
 status: active
 testLevel: L5
 verifies:

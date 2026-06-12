@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-006
 type: Requirement
-title: Tool shall render an allocation matrix view
+name: Tool shall render an allocation matrix view
 status: draft
 reqDomain: software
 verificationMethod: test

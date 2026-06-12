@@ -3,7 +3,7 @@ id: TC-TRS-LIB-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify dimensional consistency (W044): quantity-type vs unit dimension must match; mismatch flagged; bare symbols handled; lenient when either side unrecognised."
+name: "Verify dimensional consistency (W044): quantity-type vs unit dimension must match; mismatch flagged; bare symbols handled; lenient when either side unrecognised."
 verifies:
   - REQ-TRS-LIB-003
 ---

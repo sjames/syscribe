@@ -1,7 +1,7 @@
 ---
 type: SafetyGoal
 id: SG-TST-001
-title: Prevent brake failure
+name: Prevent brake failure
 status: draft
 plLevel: f
 ---

@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: Requirement with appliesWhen pointing to a Part
+name: Requirement with appliesWhen pointing to a Part
 status: draft
 reqDomain: software
 verificationMethod: test

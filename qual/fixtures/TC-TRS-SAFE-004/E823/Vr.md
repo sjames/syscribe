@@ -1,7 +1,7 @@
 ---
 type: VulnerabilityReport
 id: BUG-001
-title: CVE-2024-1234
+name: CVE-2024-1234
 status: open
 ---
 

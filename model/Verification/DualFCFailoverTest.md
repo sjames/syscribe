@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-REDUN-001
-title: "Backup flight controller assumes control within 100 ms of primary loss"
+name: "Backup flight controller assumes control within 100 ms of primary loss"
 status: active
 testLevel: L4
 verifies:

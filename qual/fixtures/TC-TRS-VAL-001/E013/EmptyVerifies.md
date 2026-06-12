@@ -1,7 +1,7 @@
 ---
 id: TC-TST-001
 type: TestCase
-title: x
+name: x
 status: draft
 testLevel: L3
 verifies: []

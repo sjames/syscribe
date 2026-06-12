@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SEC-001
-title: "Operator commands shall be authenticated before reaching the vital processor"
+name: "Operator commands shall be authenticated before reaching the vital processor"
 status: approved
 reqDomain: system
 verificationMethod: inspection

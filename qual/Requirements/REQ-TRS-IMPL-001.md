@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-IMPL-001
 type: Requirement
-title: Tool shall support an implementedBy field on Part/PartDef and emit W023 when its path is missing
+name: Tool shall support an implementedBy field on Part/PartDef and emit W023 when its path is missing
 status: draft
 reqDomain: software
 verificationMethod: test

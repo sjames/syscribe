@@ -3,7 +3,7 @@ id: TC-TRS-FMA-007
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify minimal (MUS) unsat-core explanations exclude unrelated constraints."
+name: "Verify minimal (MUS) unsat-core explanations exclude unrelated constraints."
 verifies:
   - REQ-TRS-FMA-007
 ---

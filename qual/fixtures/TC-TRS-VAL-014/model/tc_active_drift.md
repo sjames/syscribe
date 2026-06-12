@@ -1,7 +1,7 @@
 ---
 id: TC-V14-AD-001
 type: TestCase
-title: "tc_active_drift"
+name: "tc_active_drift"
 status: active
 testLevel: L3
 verifies:

@@ -1,7 +1,7 @@
 ---
 type: DamageScenario
 id: DS-SEC-002
-title: Brake-by-wire command suppression causes loss of braking
+name: Brake-by-wire command suppression causes loss of braking
 status: approved
 damageSeverity: severe
 impactCategories:

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-VAR-002
 type: Requirement
-title: Tool shall derive TestCase-to-Configuration membership from appliesWhen
+name: Tool shall derive TestCase-to-Configuration membership from appliesWhen
 status: draft
 reqDomain: software
 verificationMethod: test

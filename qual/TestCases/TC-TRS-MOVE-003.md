@@ -3,7 +3,7 @@ id: TC-TRS-MOVE-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify move is atomic — a failing precondition leaves the model unchanged."
+name: "Verify move is atomic — a failing precondition leaves the model unchanged."
 verifies:
   - REQ-TRS-MOVE-003
 ---

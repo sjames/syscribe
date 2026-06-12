@@ -3,7 +3,7 @@ id: TC-TRS-LINK-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify hosted source URLs resolve from the [links] config for file-backed elements."
+name: "Verify hosted source URLs resolve from the [links] config for file-backed elements."
 verifies:
   - REQ-TRS-LINK-001
 ---

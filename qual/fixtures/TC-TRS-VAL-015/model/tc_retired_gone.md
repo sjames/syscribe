@@ -1,7 +1,7 @@
 ---
 id: TC-V15-RET-001
 type: TestCase
-title: "tc_retired_gone"
+name: "tc_retired_gone"
 status: retired
 testLevel: L5
 verifies:

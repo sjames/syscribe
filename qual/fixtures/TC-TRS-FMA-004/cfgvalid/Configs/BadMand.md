@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-FMA4-BADMAND-001
-title: "CONF-FMA4-BADMAND-001"
+name: "CONF-FMA4-BADMAND-001"
 status: approved
 featureModel: Features
 features:

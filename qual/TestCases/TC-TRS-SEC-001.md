@@ -3,7 +3,7 @@ id: TC-TRS-SEC-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify safety↔security co-engineering: hazardRef, E844, W030, and the co-analysis view."
+name: "Verify safety↔security co-engineering: hazardRef, E844, W030, and the co-analysis view."
 verifies:
   - REQ-TRS-SEC-001
 ---

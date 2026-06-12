@@ -1,7 +1,7 @@
 ---
 id: REQ-SIL2-004
 type: Requirement
-title: "Status LED shall reflect channel health"
+name: "Status LED shall reflect channel health"
 status: draft
 silLevel: 2
 ---

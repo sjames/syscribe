@@ -3,7 +3,7 @@ id: TC-TRS-OUT-010
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the element-rooted connectivity subgraph export (text tree, JSON nodes/edges, styled DOT, whole-model dump, depth bound)."
+name: "Verify the element-rooted connectivity subgraph export (text tree, JSON nodes/edges, styled DOT, whole-model dump, depth bound)."
 verifies:
   - REQ-TRS-OUT-010
 ---

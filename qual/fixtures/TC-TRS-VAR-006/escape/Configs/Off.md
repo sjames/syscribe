@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-VAR-OFF-001
-title: "variant off"
+name: "variant off"
 status: approved
 featureModel: Features
 features:

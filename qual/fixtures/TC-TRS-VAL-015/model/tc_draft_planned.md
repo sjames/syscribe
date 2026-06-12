@@ -1,7 +1,7 @@
 ---
 id: TC-V15-DRAFT-001
 type: TestCase
-title: "tc_draft_planned"
+name: "tc_draft_planned"
 status: draft
 testLevel: L5
 verifies:

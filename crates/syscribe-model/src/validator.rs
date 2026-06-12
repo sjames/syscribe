@@ -183,8 +183,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.id.is_none() {
                 findings.push(error("E004", &file, "`id` is required on TestCase"));
             }
-            if fm.title.is_none() {
-                findings.push(error("E004", &file, "`title` is required on TestCase"));
+            if fm.name.is_none() {
+                findings.push(error("E004", &file, "`name` is required on TestCase"));
             }
             if fm.status.is_none() {
                 findings.push(error("E004", &file, "`status` is required on TestCase"));
@@ -201,8 +201,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if let Some(ref id) = fm.id {
                 if is_req_id(id) {
                     // native Requirement: check required fields
-                    if fm.title.is_none() {
-                        findings.push(error("E004", &file, "`title` is required on native Requirement"));
+                    if fm.name.is_none() {
+                        findings.push(error("E004", &file, "`name` is required on native Requirement"));
                     }
                     if fm.status.is_none() {
                         findings.push(error("E004", &file, "`status` is required on native Requirement"));
@@ -259,33 +259,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // E024 / E025: exactly one human-readable label field, fixed by identity class
-        // (REQ-TRS-NAME-002). An id-identified type (REQ-*, HE-*, …) labels via `title`;
-        // declaring `name` is E024. A name-identified type (PartDef, Package, FeatureDef,
-        // …) labels via `name`; declaring `title` is E025. A typeless element is left to
-        // E001/E005.
-        if let Some(ty) = &fm.element_type {
-            if ty.is_id_identified() {
-                if fm.name.is_some() {
-                    findings.push(error(
-                        "E024",
-                        &file,
-                        &format!(
-                            "{:?} is id-identified: its label belongs in `title:`, not `name:` — remove the `name` field",
-                            ty
-                        ),
-                    ));
-                }
-            } else if fm.title.is_some() {
-                findings.push(error(
-                    "E025",
-                    &file,
-                    &format!(
-                        "{:?} is name-identified: its label belongs in `name:`, not `title:` — remove the `title` field",
-                        ty
-                    ),
-                ));
-            }
+        // E025: `name` is the single human-readable label on every element type
+        // (REQ-TRS-NAME-002). The `title` field is removed as a label, so declaring
+        // `title:` on ANY element — id-identified or name-identified — is E025. E024
+        // (formerly: `name` on an id-identified type) is retired: `name` is now the
+        // correct label on those types.
+        if fm.title.is_some() {
+            findings.push(error(
+                "E025",
+                &file,
+                "the `title` field is removed — rename it to `name` (every element labels via `name`)",
+            ));
         }
 
         // W043: a type reference into a known auto-imported built-in package
@@ -560,8 +544,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 )),
                 Some(_) => {}
             }
-            if fm.title.is_none() {
-                findings.push(error("E600", &file, "`title` is required on TestPlan"));
+            if fm.name.is_none() {
+                findings.push(error("E600", &file, "`name` is required on TestPlan"));
             }
             if fm.status.is_none() {
                 findings.push(error("E600", &file, "`status` is required on TestPlan"));
@@ -922,7 +906,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if matches!(fm.element_type, Some(ElementType::HazardousEvent)) {
             // E800: required fields
             if fm.id.is_none() { findings.push(error("E800", &file, "`id` is required on HazardousEvent")); }
-            if fm.title.is_none() { findings.push(error("E800", &file, "`title` is required on HazardousEvent")); }
+            if fm.name.is_none() { findings.push(error("E800", &file, "`name` is required on HazardousEvent")); }
             if fm.status.is_none() { findings.push(error("E800", &file, "`status` is required on HazardousEvent")); }
             // E804: id pattern
             if let Some(ref id) = fm.id {
@@ -977,7 +961,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 2: SafetyGoal (E805-E806, E837) ─────────────────────────────
         if matches!(fm.element_type, Some(ElementType::SafetyGoal)) {
             if fm.id.is_none() { findings.push(error("E805", &file, "`id` is required on SafetyGoal")); }
-            if fm.title.is_none() { findings.push(error("E805", &file, "`title` is required on SafetyGoal")); }
+            if fm.name.is_none() { findings.push(error("E805", &file, "`name` is required on SafetyGoal")); }
             if fm.status.is_none() { findings.push(error("E805", &file, "`status` is required on SafetyGoal")); }
             if let Some(ref id) = fm.id {
                 if !is_sg_id(id) {
@@ -1002,7 +986,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // TestCase / sub-Argument / AssumptionOfUse).
         if matches!(fm.element_type, Some(ElementType::Argument)) {
             if fm.id.is_none() { findings.push(error("E852", &file, "`id` is required on Argument")); }
-            if fm.title.is_none() { findings.push(error("E852", &file, "`title` is required on Argument")); }
+            if fm.name.is_none() { findings.push(error("E852", &file, "`name` is required on Argument")); }
             if fm.status.is_none() { findings.push(error("E852", &file, "`status` is required on Argument")); }
             // E853: id pattern (ARG-*)
             if let Some(ref id) = fm.id {
@@ -1044,7 +1028,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── §8.18: GSN AssumptionOfUse / SRAC (E856-E858) ────────────────────
         if matches!(fm.element_type, Some(ElementType::AssumptionOfUse)) {
             if fm.id.is_none() { findings.push(error("E856", &file, "`id` is required on AssumptionOfUse")); }
-            if fm.title.is_none() { findings.push(error("E856", &file, "`title` is required on AssumptionOfUse")); }
+            if fm.name.is_none() { findings.push(error("E856", &file, "`name` is required on AssumptionOfUse")); }
             if fm.status.is_none() { findings.push(error("E856", &file, "`status` is required on AssumptionOfUse")); }
             // E857: id pattern (AOU-*)
             if let Some(ref id) = fm.id {
@@ -1065,7 +1049,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 2: DamageScenario (E807-E810) ───────────────────────────────
         if matches!(fm.element_type, Some(ElementType::DamageScenario)) {
             if fm.id.is_none() { findings.push(error("E807", &file, "`id` is required on DamageScenario")); }
-            if fm.title.is_none() { findings.push(error("E807", &file, "`title` is required on DamageScenario")); }
+            if fm.name.is_none() { findings.push(error("E807", &file, "`name` is required on DamageScenario")); }
             if fm.status.is_none() { findings.push(error("E807", &file, "`status` is required on DamageScenario")); }
             if let Some(ref id) = fm.id {
                 if !is_ds_id(id) {
@@ -1114,7 +1098,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 2: ThreatScenario (E811-E814) ───────────────────────────────
         if matches!(fm.element_type, Some(ElementType::ThreatScenario)) {
             if fm.id.is_none() { findings.push(error("E811", &file, "`id` is required on ThreatScenario")); }
-            if fm.title.is_none() { findings.push(error("E811", &file, "`title` is required on ThreatScenario")); }
+            if fm.name.is_none() { findings.push(error("E811", &file, "`name` is required on ThreatScenario")); }
             if fm.status.is_none() { findings.push(error("E811", &file, "`status` is required on ThreatScenario")); }
             if let Some(ref id) = fm.id {
                 if !is_ts_id(id) {
@@ -1158,7 +1142,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 2: CybersecurityGoal (E815-E818) ────────────────────────────
         if matches!(fm.element_type, Some(ElementType::CybersecurityGoal)) {
             if fm.id.is_none() { findings.push(error("E815", &file, "`id` is required on CybersecurityGoal")); }
-            if fm.title.is_none() { findings.push(error("E815", &file, "`title` is required on CybersecurityGoal")); }
+            if fm.name.is_none() { findings.push(error("E815", &file, "`name` is required on CybersecurityGoal")); }
             if fm.status.is_none() { findings.push(error("E815", &file, "`status` is required on CybersecurityGoal")); }
             if let Some(ref id) = fm.id {
                 if !is_csg_id(id) {
@@ -1183,7 +1167,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // REQ-TRS-SAFE-007 (ISO 26262-2 §6 confirmation measures / -8 §5 DIA).
         if matches!(fm.element_type, Some(ElementType::ConfirmationMeasure)) {
             if fm.id.is_none() { findings.push(error("E847", &file, "`id` is required on ConfirmationMeasure")); }
-            if fm.title.is_none() { findings.push(error("E847", &file, "`title` is required on ConfirmationMeasure")); }
+            if fm.name.is_none() { findings.push(error("E847", &file, "`name` is required on ConfirmationMeasure")); }
             if fm.status.is_none() { findings.push(error("E847", &file, "`status` is required on ConfirmationMeasure")); }
             // E848: id pattern (CM-*)
             if let Some(ref id) = fm.id {
@@ -1216,7 +1200,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 2: SecurityControl (E819-E821) ──────────────────────────────
         if matches!(fm.element_type, Some(ElementType::SecurityControl)) {
             if fm.id.is_none() { findings.push(error("E819", &file, "`id` is required on SecurityControl")); }
-            if fm.title.is_none() { findings.push(error("E819", &file, "`title` is required on SecurityControl")); }
+            if fm.name.is_none() { findings.push(error("E819", &file, "`name` is required on SecurityControl")); }
             if fm.status.is_none() { findings.push(error("E819", &file, "`status` is required on SecurityControl")); }
             if let Some(ref id) = fm.id {
                 if !is_sc_id(id) {
@@ -1234,7 +1218,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 2: VulnerabilityReport (E822-E824) ──────────────────────────
         if matches!(fm.element_type, Some(ElementType::VulnerabilityReport)) {
             if fm.id.is_none() { findings.push(error("E822", &file, "`id` is required on VulnerabilityReport")); }
-            if fm.title.is_none() { findings.push(error("E822", &file, "`title` is required on VulnerabilityReport")); }
+            if fm.name.is_none() { findings.push(error("E822", &file, "`name` is required on VulnerabilityReport")); }
             if fm.status.is_none() { findings.push(error("E822", &file, "`status` is required on VulnerabilityReport")); }
             if let Some(ref id) = fm.id {
                 if !is_vr_id(id) {
@@ -1462,8 +1446,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.id.is_none() {
                 findings.push(error("E201", &file, "`id` is required on Configuration"));
             }
-            if fm.title.is_none() {
-                findings.push(error("E201", &file, "`title` is required on Configuration"));
+            if fm.name.is_none() {
+                findings.push(error("E201", &file, "`name` is required on Configuration"));
             }
             if fm.status.is_none() {
                 findings.push(error("E201", &file, "`status` is required on Configuration"));
@@ -1502,8 +1486,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.id.is_none() {
                 findings.push(error("E301", &file, "`id` is required on ADR"));
             }
-            if fm.title.is_none() {
-                findings.push(error("E301", &file, "`title` is required on ADR"));
+            if fm.name.is_none() {
+                findings.push(error("E301", &file, "`name` is required on ADR"));
             }
             if fm.status.is_none() {
                 findings.push(error("E301", &file, "`status` is required on ADR"));
@@ -2125,7 +2109,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 4: FaultTree (E900-E902) ────────────────────────────────────
         if matches!(fm.element_type, Some(ElementType::FaultTree)) {
             if fm.id.is_none() { findings.push(error("E900", &file, "`id` is required on FaultTree")); }
-            if fm.title.is_none() { findings.push(error("E900", &file, "`title` is required on FaultTree")); }
+            if fm.name.is_none() { findings.push(error("E900", &file, "`name` is required on FaultTree")); }
             if fm.status.is_none() { findings.push(error("E900", &file, "`status` is required on FaultTree")); }
             if fm.top_event.is_none() { findings.push(error("E900", &file, "`topEvent` is required on FaultTree — reference a SafetyGoal")); }
             if let Some(ref id) = fm.id {
@@ -2138,7 +2122,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 4: FaultTreeGate (E903-E906) ────────────────────────────────
         if matches!(fm.element_type, Some(ElementType::FaultTreeGate)) {
             if fm.id.is_none() { findings.push(error("E903", &file, "`id` is required on FaultTreeGate")); }
-            if fm.title.is_none() { findings.push(error("E903", &file, "`title` is required on FaultTreeGate")); }
+            if fm.name.is_none() { findings.push(error("E903", &file, "`name` is required on FaultTreeGate")); }
             if fm.gate_type.is_none() { findings.push(error("E903", &file, "`gateType` is required on FaultTreeGate")); }
             if let Some(ref id) = fm.id {
                 if !is_ftg_id(id) {
@@ -2160,7 +2144,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 4: FaultTreeEvent (E907-E910) ───────────────────────────────
         if matches!(fm.element_type, Some(ElementType::FaultTreeEvent)) {
             if fm.id.is_none() { findings.push(error("E907", &file, "`id` is required on FaultTreeEvent")); }
-            if fm.title.is_none() { findings.push(error("E907", &file, "`title` is required on FaultTreeEvent")); }
+            if fm.name.is_none() { findings.push(error("E907", &file, "`name` is required on FaultTreeEvent")); }
             if fm.event_kind.is_none() { findings.push(error("E907", &file, "`eventKind` is required on FaultTreeEvent")); }
             if let Some(ref id) = fm.id {
                 if !is_fte_id(id) {
@@ -2178,7 +2162,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 4: AttackTree (E915-E917) — ISO/SAE 21434 §15.7 ─────────────
         if matches!(fm.element_type, Some(ElementType::AttackTree)) {
             if fm.id.is_none() { findings.push(error("E915", &file, "`id` is required on AttackTree")); }
-            if fm.title.is_none() { findings.push(error("E915", &file, "`title` is required on AttackTree")); }
+            if fm.name.is_none() { findings.push(error("E915", &file, "`name` is required on AttackTree")); }
             if fm.status.is_none() { findings.push(error("E915", &file, "`status` is required on AttackTree")); }
             if fm.threat_ref.is_none() { findings.push(error("E915", &file, "`threatRef` is required on AttackTree — reference a ThreatScenario")); }
             if let Some(ref id) = fm.id {
@@ -2191,7 +2175,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 4: AttackTreeGate (E918-E920) ───────────────────────────────
         if matches!(fm.element_type, Some(ElementType::AttackTreeGate)) {
             if fm.id.is_none() { findings.push(error("E918", &file, "`id` is required on AttackTreeGate")); }
-            if fm.title.is_none() { findings.push(error("E918", &file, "`title` is required on AttackTreeGate")); }
+            if fm.name.is_none() { findings.push(error("E918", &file, "`name` is required on AttackTreeGate")); }
             if fm.gate_type.is_none() { findings.push(error("E918", &file, "`gateType` is required on AttackTreeGate")); }
             if let Some(ref id) = fm.id {
                 if !is_atg_id(id) {
@@ -2215,7 +2199,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 4: AttackStep (E921) ────────────────────────────────────────
         if matches!(fm.element_type, Some(ElementType::AttackStep)) {
             if fm.id.is_none() { findings.push(error("E921", &file, "`id` is required on AttackStep")); }
-            if fm.title.is_none() { findings.push(error("E921", &file, "`title` is required on AttackStep")); }
+            if fm.name.is_none() { findings.push(error("E921", &file, "`name` is required on AttackStep")); }
             if let Some(ref id) = fm.id {
                 if !is_ats_id(id) {
                     findings.push(error("E921", &file, &format!("`id` '{}' does not match ATS-* pattern", id)));
@@ -2232,7 +2216,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 4: FMEASheet (E911-E912) ────────────────────────────────────
         if matches!(fm.element_type, Some(ElementType::FMEASheet)) {
             if fm.id.is_none() { findings.push(error("E911", &file, "`id` is required on FMEASheet")); }
-            if fm.title.is_none() { findings.push(error("E911", &file, "`title` is required on FMEASheet")); }
+            if fm.name.is_none() { findings.push(error("E911", &file, "`name` is required on FMEASheet")); }
             if fm.status.is_none() { findings.push(error("E911", &file, "`status` is required on FMEASheet")); }
             if let Some(ref id) = fm.id {
                 if !is_fmea_id(id) {
@@ -2275,7 +2259,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // ── Tier 4: TARASheet (E940-E941, W905) ─────────────────────────────────
         if matches!(fm.element_type, Some(ElementType::TARASheet)) {
             if fm.id.is_none() { findings.push(error("E940", &file, "`id` is required on TARASheet")); }
-            if fm.title.is_none() { findings.push(error("E940", &file, "`title` is required on TARASheet")); }
+            if fm.name.is_none() { findings.push(error("E940", &file, "`name` is required on TARASheet")); }
             if fm.status.is_none() { findings.push(error("E940", &file, "`status` is required on TARASheet")); }
             if let Some(ref id) = fm.id {
                 if !is_tara_id(id) {

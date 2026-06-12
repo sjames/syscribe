@@ -1,7 +1,7 @@
 ---
 type: ThreatScenario
 id: TS-SEC-104
-title: Threat with an invalid riskTreatment value
+name: Threat with an invalid riskTreatment value
 status: draft
 attackFeasibility: low
 riskTreatment: mitigate

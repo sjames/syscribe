@@ -3,7 +3,7 @@ id: TC-TRS-FM-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify `mandatory:` membership field: a mandatory feature is core in deep analysis; legacy groupKind: mandatory still forced."
+name: "Verify `mandatory:` membership field: a mandatory feature is core in deep analysis; legacy groupKind: mandatory still forced."
 verifies:
   - REQ-TRS-FM-004
 ---

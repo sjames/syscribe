@@ -1,7 +1,7 @@
 ---
 id: REQ-ID6-HYPHEN-001
 type: Requirement
-title: "REQ-ID6-HYPHEN-001"
+name: "REQ-ID6-HYPHEN-001"
 status: approved
 reqDomain: software
 verificationMethod: test

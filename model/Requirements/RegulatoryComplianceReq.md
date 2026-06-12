@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-UAV-REG-000
-title: "UAV shall comply with all applicable regulatory requirements for the sub-5 kg open category"
+name: "UAV shall comply with all applicable regulatory requirements for the sub-5 kg open category"
 status: approved
 tags:
   - regulatory

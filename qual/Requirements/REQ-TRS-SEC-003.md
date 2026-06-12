@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SEC-003
 type: Requirement
-title: Tool shall model ISO/SAE 21434 attack paths as attack trees and roll up attack feasibility (min/max), reconciling it with the ThreatScenario
+name: Tool shall model ISO/SAE 21434 attack paths as attack trees and roll up attack feasibility (min/max), reconciling it with the ThreatScenario
 status: draft
 reqDomain: software
 verificationMethod: test

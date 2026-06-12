@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-SIL-SW-001
-title: "Use B-Method (Event-B) for formal specification of all vital interlocking logic"
+name: "Use B-Method (Event-B) for formal specification of all vital interlocking logic"
 status: accepted
 date: "2026-05-28"
 tags:

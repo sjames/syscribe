@@ -3,7 +3,7 @@ id: TC-TRS-XREF-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that an unresolved cross-reference produces an error but does not abort processing."
+name: "Verify that an unresolved cross-reference produces an error but does not abort processing."
 verifies:
   - REQ-TRS-XREF-003
 ---

@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-REG-001
-title: "Regulatory compliance review confirms EASA Open Category A3 obligations are met"
+name: "Regulatory compliance review confirms EASA Open Category A3 obligations are met"
 status: active
 testLevel: L2
 verifies:

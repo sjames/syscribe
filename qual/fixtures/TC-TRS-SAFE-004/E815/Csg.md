@@ -1,6 +1,6 @@
 ---
 type: CybersecurityGoal
-title: Ensure data confidentiality
+name: Ensure data confidentiality
 status: draft
 ---
 

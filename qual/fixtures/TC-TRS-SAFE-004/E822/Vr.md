@@ -1,6 +1,6 @@
 ---
 type: VulnerabilityReport
-title: CVE-2024-1234
+name: CVE-2024-1234
 status: draft
 ---
 

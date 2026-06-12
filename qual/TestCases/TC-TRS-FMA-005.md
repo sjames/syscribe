@@ -3,7 +3,7 @@ id: TC-TRS-FMA-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify sound explanations for void models."
+name: "Verify sound explanations for void models."
 verifies:
   - REQ-TRS-FMA-005
 ---

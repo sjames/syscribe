@@ -3,7 +3,7 @@ id: TC-TRS-QNAME-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that _index.md contributes no name segment to its package or sibling elements."
+name: "Verify that _index.md contributes no name segment to its package or sibling elements."
 verifies:
   - REQ-TRS-QNAME-004
 ---

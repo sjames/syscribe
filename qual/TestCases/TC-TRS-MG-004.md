@@ -3,7 +3,7 @@ id: TC-TRS-MG-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify MoE validation: valid MoE clean; MG030 wrong host, MG031 measures missing/unresolved, MG032 bad direction, MG033 bad bounds; inert without the gate."
+name: "Verify MoE validation: valid MoE clean; MG030 wrong host, MG031 measures missing/unresolved, MG032 bad direction, MG033 bad bounds; inert without the gate."
 verifies:
   - REQ-TRS-MG-004
 ---

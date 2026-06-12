@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-MG-NA-B-001
-title: NaConfB
+name: NaConfB
 status: approved
 parameterBindings:
   other: 1

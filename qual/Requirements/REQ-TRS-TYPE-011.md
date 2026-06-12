@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-011
 type: Requirement
-title: "Tool shall recognise and validate the RenderingDef element"
+name: "Tool shall recognise and validate the RenderingDef element"
 status: draft
 reqDomain: software
 verificationMethod: test

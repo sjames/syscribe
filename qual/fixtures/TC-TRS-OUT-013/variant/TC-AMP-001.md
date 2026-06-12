@@ -1,7 +1,7 @@
 ---
 id: TC-AMP-001
 type: TestCase
-title: "Lockstep monitor reports a divergence"
+name: "Lockstep monitor reports a divergence"
 status: approved
 testLevel: L3
 verifies: [REQ-AMP-001]

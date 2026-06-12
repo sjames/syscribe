@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PC-VIOL-001
-title: "AMP bound to a single core (violates >= 2)"
+name: "AMP bound to a single core (violates >= 2)"
 status: approved
 featureModel: Features
 features:

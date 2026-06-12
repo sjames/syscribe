@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SW-003
-title: Vital logic shall be formally specified using B-Method with machine-checked invariant proofs
+name: Vital logic shall be formally specified using B-Method with machine-checked invariant proofs
 status: approved
 reqDomain: software
 silLevel: 4

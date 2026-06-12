@@ -1,7 +1,7 @@
 ---
 type: HazardousEvent
 id: HE-ENG-001
-title: Unintended engine acceleration during normal driving
+name: Unintended engine acceleration during normal driving
 status: approved
 severity: S3
 exposure: E4

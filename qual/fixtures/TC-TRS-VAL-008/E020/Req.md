@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-E020-001
 type: Requirement
-title: Requirement with invalid verificationMethod
+name: Requirement with invalid verificationMethod
 status: draft
 reqDomain: software
 verificationMethod: oral

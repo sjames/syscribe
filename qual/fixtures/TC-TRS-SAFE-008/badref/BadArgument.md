@@ -1,7 +1,7 @@
 ---
 type: Argument
 id: ARG-BAD-001
-title: "Argument with an unresolved supports ref"
+name: "Argument with an unresolved supports ref"
 status: approved
 argumentType: strategy
 supports: SG-DOES-NOT-EXIST-999

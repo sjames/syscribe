@@ -1,7 +1,7 @@
 ---
 id: REQ-D7-DRAFT-001
 type: Requirement
-title: "Requirement REQ-D7-DRAFT-001"
+name: "Requirement REQ-D7-DRAFT-001"
 status: draft
 silLevel: 4
 reqDomain: software

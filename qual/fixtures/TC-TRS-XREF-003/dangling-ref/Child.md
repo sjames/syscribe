@@ -1,7 +1,7 @@
 ---
 id: TC-XRF-DNG-001
 type: TestCase
-title: Fixture TC with dangling verifies reference
+name: Fixture TC with dangling verifies reference
 status: draft
 testLevel: L3
 verifies:

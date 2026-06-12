@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-ELEM-003
 type: Requirement
-title: "Tool shall apply implicit base library supertypes when no supertype: is given"
+name: "Tool shall apply implicit base library supertypes when no supertype: is given"
 status: draft
 reqDomain: software
 verificationMethod: analysis

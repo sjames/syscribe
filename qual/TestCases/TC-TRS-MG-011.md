@@ -3,7 +3,7 @@ id: TC-TRS-MG-011
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify mg_variant Configuration: no E201 without featureModel when marked; E201 still fires unmarked; trade-study scores it; identity projection; MG070 on non-Configuration."
+name: "Verify mg_variant Configuration: no E201 without featureModel when marked; E201 still fires unmarked; trade-study scores it; identity projection; MG070 on non-Configuration."
 verifies:
   - REQ-TRS-MG-011
 ---

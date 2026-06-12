@@ -1,7 +1,7 @@
 ---
 type: FaultTreeEvent
 id: EVENT-001
-title: Event With Bad Id
+name: Event With Bad Id
 eventKind: basic
 ---
 

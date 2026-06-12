@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FMA-002
 type: Requirement
-title: Tool shall expose solver-backed analysis behind feature-check --deep with a defined output and exit contract
+name: Tool shall expose solver-backed analysis behind feature-check --deep with a defined output and exit contract
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-OUT-009
 type: Requirement
-title: matrix and trace shall surface executed-and-passed evidence (W010 results) by default
+name: matrix and trace shall surface executed-and-passed evidence (W010 results) by default
 status: draft
 reqDomain: software
 verificationMethod: test

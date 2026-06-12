@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-SEC-002
-title: ECU calibration programming sessions shall require cryptographic authentication
+name: ECU calibration programming sessions shall require cryptographic authentication
 status: approved
 reqDomain: software
 verificationMethod: test

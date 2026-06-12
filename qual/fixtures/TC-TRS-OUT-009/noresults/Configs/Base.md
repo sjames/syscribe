@@ -1,7 +1,7 @@
 ---
 id: CONF-OUT9-BASE-001
 type: Configuration
-title: "Configuration CONF-OUT9-BASE-001"
+name: "Configuration CONF-OUT9-BASE-001"
 status: approved
 featureModel: Features
 features:

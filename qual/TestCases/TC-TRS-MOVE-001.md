@@ -3,7 +3,7 @@ id: TC-TRS-MOVE-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify move relocates an element and a package (with subtree) and rejects invalid destinations."
+name: "Verify move relocates an element and a package (with subtree) and rejects invalid destinations."
 verifies:
   - REQ-TRS-MOVE-001
 ---

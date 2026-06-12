@@ -1,7 +1,7 @@
 ---
 id: ATS-DEMO-002
 type: AttackStep
-title: Defeat the message freshness / counter check
+name: Defeat the message freshness / counter check
 attackFeasibility: low
 ---
 

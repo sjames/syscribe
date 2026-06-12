@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-UAV-MAPPING-001
-title: "Mapping drone — redundant hex with LiDAR and cellular link"
+name: "Mapping drone — redundant hex with LiDAR and cellular link"
 status: approved
 featureModel: Features
 features:

@@ -1,7 +1,7 @@
 ---
 type: FMEAEntry
 id: FM-TST-001
-title: FMEA Entry With High RPN And No Action
+name: FMEA Entry With High RPN And No Action
 failureMode: Motor controller overtemperature
 effect: Motor shutdown during operation
 cause: Cooling fan failure

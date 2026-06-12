@@ -3,7 +3,7 @@ id: TC-TRS-CONF-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that E200, E201, and E209 are emitted for Configuration and appliesWhen violations."
+name: "Verify that E200, E201, and E209 are emitted for Configuration and appliesWhen violations."
 verifies:
   - REQ-TRS-CONF-001
 ---

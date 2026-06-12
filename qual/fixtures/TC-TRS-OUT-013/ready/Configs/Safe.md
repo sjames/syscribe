@@ -1,7 +1,7 @@
 ---
 id: CONF-RDY-SAFE-001
 type: Configuration
-title: "Configuration CONF-RDY-SAFE-001"
+name: "Configuration CONF-RDY-SAFE-001"
 status: approved
 featureModel: Features
 features:

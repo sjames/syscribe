@@ -1,7 +1,7 @@
 ---
 id: TC-W009-KT-001
 type: TestCase
-title: "kotlin testFunction resolves in source"
+name: "kotlin testFunction resolves in source"
 status: active
 testLevel: L3
 verifies:

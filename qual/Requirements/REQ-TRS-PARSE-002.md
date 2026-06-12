@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PARSE-002
 type: Requirement
-title: Tool shall recursively process all .md files under the model root
+name: Tool shall recursively process all .md files under the model root
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -3,7 +3,7 @@ id: TC-TRS-SCRIPT-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify Rhai extension scripts load from the configured scripts dir, discover recursively, and support library-module import reuse."
+name: "Verify Rhai extension scripts load from the configured scripts dir, discover recursively, and support library-module import reuse."
 verifies:
   - REQ-TRS-SCRIPT-001
 ---

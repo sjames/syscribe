@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-SAFE-006
-title: HIL — stuck-open throttle detected by position feedback verification
+name: HIL — stuck-open throttle detected by position feedback verification
 status: active
 testLevel: L5
 verifies:

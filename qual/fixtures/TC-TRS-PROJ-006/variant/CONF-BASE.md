@@ -1,7 +1,7 @@
 ---
 id: CONF-BASE-001
 type: Configuration
-title: "Base variant (no ADAS)"
+name: "Base variant (no ADAS)"
 status: approved
 featureModel: Features
 features:

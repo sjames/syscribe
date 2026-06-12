@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-FM2-2-001
-title: c2
+name: c2
 status: approved
 featureModel: Features
 features:

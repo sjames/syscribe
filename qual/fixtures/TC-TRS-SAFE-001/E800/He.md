@@ -1,6 +1,6 @@
 ---
 type: HazardousEvent
-title: Brake failure
+name: Brake failure
 status: draft
 ---
 

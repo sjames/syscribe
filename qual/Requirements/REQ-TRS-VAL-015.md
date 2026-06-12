@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-VAL-015
 type: Requirement
-title: Tool shall emit informational I010 for non-active TestCases whose sources are not yet present
+name: Tool shall emit informational I010 for non-active TestCases whose sources are not yet present
 status: draft
 reqDomain: software
 verificationMethod: test

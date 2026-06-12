@@ -3,7 +3,7 @@ id: TC-PROJ2-MPS-001
 type: TestCase
 testLevel: L3
 status: active
-title: "TC-PROJ2-MPS-001"
+name: "TC-PROJ2-MPS-001"
 verifies:
   - REQ-PROJ2-MPS-001
 appliesWhen: Features::Wdt

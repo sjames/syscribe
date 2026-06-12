@@ -1,7 +1,7 @@
 ---
 id: DS-DEMO-001
 type: DamageScenario
-title: Unauthorised torque request injected, loss of vehicle control
+name: Unauthorised torque request injected, loss of vehicle control
 status: approved
 damageSeverity: severe
 impactCategories:

@@ -1,7 +1,7 @@
 ---
 id: REQ-OK-003
 type: Requirement
-title: "Scheduler shall meet deadline"
+name: "Scheduler shall meet deadline"
 status: approved
 silLevel: 4
 ---

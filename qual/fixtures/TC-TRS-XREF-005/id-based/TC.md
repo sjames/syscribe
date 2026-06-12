@@ -1,7 +1,7 @@
 ---
 id: TC-TST-XRF-001
 type: TestCase
-title: Test TC for id-based cross-reference
+name: Test TC for id-based cross-reference
 status: draft
 testLevel: L3
 verifies:

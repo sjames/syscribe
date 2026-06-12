@@ -152,8 +152,7 @@ pub fn cmd_diagram_seq(elements: &[RawElement], qname: &str, output: Option<&str
     let lifeline_len = MSG_START_Y + (n_msg as f64 + 1.0) * MSG_GAP + 20.0;
     let canvas_h = PADDING + LL_H + lifeline_len + PADDING;
 
-    let title_str = fm.title.clone()
-        .or_else(|| fm.name.clone())
+    let title_str = fm.name.clone()
         .unwrap_or_else(|| qname.to_string());
 
     let mut doc = Document::new()

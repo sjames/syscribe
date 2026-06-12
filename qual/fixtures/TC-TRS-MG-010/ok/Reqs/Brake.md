@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-MG-BRAKE-001
-title: The vehicle shall stop within the braking distance
+name: The vehicle shall stop within the braking distance
 status: approved
 reqDomain: system
 ---

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-004
 type: Requirement
-title: MagicGrid gate shall validate Measures of Effectiveness (mg_moe)
+name: MagicGrid gate shall validate Measures of Effectiveness (mg_moe)
 status: draft
 reqDomain: software
 verificationMethod: test

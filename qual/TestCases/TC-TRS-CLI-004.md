@@ -3,7 +3,7 @@ id: TC-TRS-CLI-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify model-root auto-discovery via walk-up to .syscribe.toml, flag override, and fallback."
+name: "Verify model-root auto-discovery via walk-up to .syscribe.toml, flag override, and fallback."
 verifies:
   - REQ-TRS-CLI-004
 ---

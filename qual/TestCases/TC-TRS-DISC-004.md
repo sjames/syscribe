@@ -3,7 +3,7 @@ id: TC-TRS-DISC-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify `list <type> --feature <F>`: filters to elements gated on F; errors on unknown feature."
+name: "Verify `list <type> --feature <F>`: filters to elements gated on F; errors on unknown feature."
 verifies:
   - REQ-TRS-DISC-004
 ---

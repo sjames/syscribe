@@ -1,7 +1,7 @@
 ---
 type: HazardousEvent
 id: HAZARD-001
-title: Brake failure
+name: Brake failure
 status: draft
 ---
 

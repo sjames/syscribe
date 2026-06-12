@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: Implemented system requirement
+name: Implemented system requirement
 status: implemented
 reqDomain: system
 verificationMethod: test

@@ -29,7 +29,6 @@ pub fn build_element_node(element: &RawElement, view: &ViewConfig) -> ElementNod
     let name = fm
         .name
         .clone()
-        .or_else(|| fm.title.clone())
         .unwrap_or_else(|| {
             element
                 .qualified_name

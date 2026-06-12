@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-W701-001
 type: Requirement
-title: High-ASIL requirement with no verificationMethod
+name: High-ASIL requirement with no verificationMethod
 status: draft
 reqDomain: software
 asilLevel: B

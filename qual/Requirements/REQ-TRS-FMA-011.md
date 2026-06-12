@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FMA-011
 type: Requirement
-title: feature-check --deep shall optionally emit externally-checkable DRAT proofs for void and dead-feature findings
+name: feature-check --deep shall optionally emit externally-checkable DRAT proofs for void and dead-feature findings
 status: draft
 reqDomain: software
 verificationMethod: test

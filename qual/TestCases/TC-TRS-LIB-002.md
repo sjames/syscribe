@@ -3,7 +3,7 @@ id: TC-TRS-LIB-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify SI/ISQ recognition (open/curated tier): recognised members resolve clean (no W404), unknown members lenient (no W043), unit: permissive; closed-package W043 unaffected."
+name: "Verify SI/ISQ recognition (open/curated tier): recognised members resolve clean (no W404), unknown members lenient (no W043), unit: permissive; closed-package W043 unaffected."
 verifies:
   - REQ-TRS-LIB-002
 ---

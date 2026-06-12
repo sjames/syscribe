@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-PR-SW-001
-title: "Break the parent safety requirement into two independent leaf requirements"
+name: "Break the parent safety requirement into two independent leaf requirements"
 status: accepted
 date: "2026-06-08"
 ---

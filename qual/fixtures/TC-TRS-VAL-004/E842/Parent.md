@@ -1,7 +1,7 @@
 ---
 id: REQ-PAR-001
 type: Requirement
-title: ASIL C parent requirement
+name: ASIL C parent requirement
 status: draft
 reqDomain: system
 asilLevel: C

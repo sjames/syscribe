@@ -3,7 +3,7 @@ id: TC-TRS-OUT-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that the tool exits with code 0 when no Error findings are present."
+name: "Verify that the tool exits with code 0 when no Error findings are present."
 verifies:
   - REQ-TRS-OUT-005
 ---

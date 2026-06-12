@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-003
 type: Requirement
-title: "Tool shall recognise and validate the ConcernDef and Concern elements"
+name: "Tool shall recognise and validate the ConcernDef and Concern elements"
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-OUT-008
 type: Requirement
-title: Tool shall ingest external test results and flag unverified passing claims (W010)
+name: Tool shall ingest external test results and flag unverified passing claims (W010)
 status: draft
 reqDomain: software
 verificationMethod: test

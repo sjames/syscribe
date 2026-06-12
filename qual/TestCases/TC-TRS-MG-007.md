@@ -3,7 +3,7 @@ id: TC-TRS-MG-007
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the MoE-weighted trade study: MoE rows x configuration columns; objective scores 1.0; sub-threshold scores 0 and fails the config; ranked rollup; --config; --json; n/a cells."
+name: "Verify the MoE-weighted trade study: MoE rows x configuration columns; objective scores 1.0; sub-threshold scores 0 and fails the config; ranked rollup; --config; --json; n/a cells."
 verifies:
   - REQ-TRS-MG-007
 ---

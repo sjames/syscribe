@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-SEC-002
-title: Integration test — UDS programming session requires cryptographic authentication
+name: Integration test — UDS programming session requires cryptographic authentication
 status: active
 testLevel: L2
 verifies:

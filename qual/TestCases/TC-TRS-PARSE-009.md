@@ -3,7 +3,7 @@ id: TC-TRS-PARSE-009
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that a file without a type: field is skipped with a warning."
+name: "Verify that a file without a type: field is skipped with a warning."
 verifies:
   - REQ-TRS-PARSE-009
 ---

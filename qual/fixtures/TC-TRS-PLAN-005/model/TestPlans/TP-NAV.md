@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-NAV-001
-title: "Navigation integration plan"
+name: "Navigation integration plan"
 status: approved
 scope: integration
 configurations: [CONF-DELIVERY-001]

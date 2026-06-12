@@ -3,7 +3,7 @@ id: TC-TRS-VAL-015
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify informational I010 for planned TestCase sources: emitted for draft, deniable, exit-neutral, none for retired."
+name: "Verify informational I010 for planned TestCase sources: emitted for draft, deniable, exit-neutral, none for retired."
 verifies:
   - REQ-TRS-VAL-015
 ---

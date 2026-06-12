@@ -3,7 +3,7 @@ id: TC-TRS-TRACE-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that W303 is emitted when a breakdownAdr: references a proposed ADR on an approved requirement."
+name: "Verify that W303 is emitted when a breakdownAdr: references a proposed ADR on an approved requirement."
 verifies:
   - REQ-TRS-TRACE-003
 ---

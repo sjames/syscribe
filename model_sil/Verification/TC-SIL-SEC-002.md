@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-SIL-SEC-002
-title: Integration — EN 50159 Category 2 safety codes reject all defined fault classes on field bus
+name: Integration — EN 50159 Category 2 safety codes reject all defined fault classes on field bus
 status: active
 testLevel: L4
 verifies:

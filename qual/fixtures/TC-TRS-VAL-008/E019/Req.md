@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-E019-001
 type: Requirement
-title: Requirement with invalid dalLevel
+name: Requirement with invalid dalLevel
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 type: Argument
 id: ARG-DEMO-002
-title: "Torque monitor is verified by test"
+name: "Torque monitor is verified by test"
 status: approved
 argumentType: solution
 supports: ARG-DEMO-001

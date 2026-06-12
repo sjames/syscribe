@@ -3,7 +3,7 @@ id: TC-TRS-VAL-009
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that E500-E503, W500-W502, and W600-W601 are emitted for Allocation, View, and documentation violations."
+name: "Verify that E500-E503, W500-W502, and W600-W601 are emitted for Allocation, View, and documentation violations."
 verifies:
   - REQ-TRS-VAL-009
 ---

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PARAM-002
 type: Requirement
-title: Tool shall evaluate parameterConstraints numeric expressions against each Configuration
+name: Tool shall evaluate parameterConstraints numeric expressions against each Configuration
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: Multiply-satisfied requirement
+name: Multiply-satisfied requirement
 status: draft
 reqDomain: system
 verificationMethod: test

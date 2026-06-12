@@ -3,7 +3,7 @@ id: TC-TRS-SEC-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify ISO/SAE 21434 risk determination: risk model, E845, W031, W032, and the cyber-risk view."
+name: "Verify ISO/SAE 21434 risk determination: risk model, E845, W031, W032, and the cyber-risk view."
 verifies:
   - REQ-TRS-SEC-002
 ---

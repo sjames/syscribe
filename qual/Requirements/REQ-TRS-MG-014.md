@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-014
 type: Requirement
-title: MagicGrid gate shall flag grid completeness / coverage gaps (MG080-MG083)
+name: MagicGrid gate shall flag grid completeness / coverage gaps (MG080-MG083)
 status: draft
 reqDomain: software
 verificationMethod: test

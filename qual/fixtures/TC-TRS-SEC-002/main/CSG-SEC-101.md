@@ -1,7 +1,7 @@
 ---
 type: CybersecurityGoal
 id: CSG-SEC-101
-title: Ensure integrity of torque-request commands
+name: Ensure integrity of torque-request commands
 status: approved
 securityProperty: integrity
 calLevel: CAL1

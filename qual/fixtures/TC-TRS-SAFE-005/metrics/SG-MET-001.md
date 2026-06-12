@@ -1,7 +1,7 @@
 ---
 id: SG-MET-001
 type: SafetyGoal
-title: Demonstrate SPFM/PMHF below ASIL D target (fails the gate)
+name: Demonstrate SPFM/PMHF below ASIL D target (fails the gate)
 status: approved
 asilLevel: D
 safeState: De-energise actuator

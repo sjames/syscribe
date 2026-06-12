@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-DISC-006
 type: Requirement
-title: Tool shall define warning W024 in feature-check for a FeatureDef that gates nothing and ships in nothing
+name: Tool shall define warning W024 in feature-check for a FeatureDef that gates nothing and ships in nothing
 status: draft
 reqDomain: software
 verificationMethod: test

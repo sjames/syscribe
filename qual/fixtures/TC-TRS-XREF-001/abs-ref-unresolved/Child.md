@@ -1,7 +1,7 @@
 ---
 id: TC-XRF-UNR-001
 type: TestCase
-title: Fixture TC with unresolvable verifies reference
+name: Fixture TC with unresolvable verifies reference
 status: draft
 testLevel: L3
 verifies:

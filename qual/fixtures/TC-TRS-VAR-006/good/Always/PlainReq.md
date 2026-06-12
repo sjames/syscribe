@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-PLAIN-001
-title: "always-active requirement"
+name: "always-active requirement"
 status: draft
 reqDomain: software
 ---

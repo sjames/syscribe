@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FM-003
 type: Requirement
-title: feature-check shall detect derivedFrom cycles, bindTo propagation range violations, and parameterConstraints path errors
+name: feature-check shall detect derivedFrom cycles, bindTo propagation range violations, and parameterConstraints path errors
 status: draft
 reqDomain: software
 verificationMethod: test

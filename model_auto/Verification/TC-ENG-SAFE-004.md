@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-SAFE-004
-title: HIL — engine stall monitor initiates deceleration on CPS loss
+name: HIL — engine stall monitor initiates deceleration on CPS loss
 status: active
 testLevel: L5
 verifies:

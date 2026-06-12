@@ -3,7 +3,7 @@ id: TC-TRS-SAFE-005
 type: TestCase
 testLevel: L3
 status: draft
-title: Verify SPFM/LFM/PMHF computation, ASIL/SIL gating (W033), diagnosticCoverage range (E846), and the metrics command
+name: Verify SPFM/LFM/PMHF computation, ASIL/SIL gating (W033), diagnosticCoverage range (E846), and the metrics command
 verifies:
   - REQ-TRS-SAFE-005
 ---

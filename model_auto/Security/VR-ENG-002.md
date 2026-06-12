@@ -1,7 +1,7 @@
 ---
 type: VulnerabilityReport
 id: VR-ENG-002
-title: Firmware rollback attack via OBD-II reflash without rollback counter check
+name: Firmware rollback attack via OBD-II reflash without rollback counter check
 status: open
 cvssScore: 6.8
 attackVector: physical

@@ -3,7 +3,7 @@ id: TC-TRS-VAR-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify boolean expressions (and/or/not/parens) in appliesWhen parse and evaluate."
+name: "Verify boolean expressions (and/or/not/parens) in appliesWhen parse and evaluate."
 verifies:
   - REQ-TRS-VAR-003
 ---

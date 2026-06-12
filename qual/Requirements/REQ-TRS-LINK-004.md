@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-LINK-004
 type: Requirement
-title: Tool shall render element references in Markdown report and export as hosted links
+name: Tool shall render element references in Markdown report and export as hosted links
 status: draft
 reqDomain: software
 verificationMethod: test

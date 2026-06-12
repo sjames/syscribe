@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-010
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify SuccessionDef is recognised and validated without E005."
+name: "Verify SuccessionDef is recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-010
 ---

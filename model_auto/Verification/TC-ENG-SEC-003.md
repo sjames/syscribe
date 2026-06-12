@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-SEC-003
-title: Firmware signature verification rejects unsigned and rollback images
+name: Firmware signature verification rejects unsigned and rollback images
 status: active
 testLevel: L4
 verifies:

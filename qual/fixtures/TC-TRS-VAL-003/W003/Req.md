@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: Verified requirement with empty verifiedBy
+name: Verified requirement with empty verifiedBy
 status: verified
 reqDomain: system
 verificationMethod: test

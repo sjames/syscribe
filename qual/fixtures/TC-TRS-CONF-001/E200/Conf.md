@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CFG-001
-title: Bad id format
+name: Bad id format
 status: draft
 featureModel: MyFeature
 ---

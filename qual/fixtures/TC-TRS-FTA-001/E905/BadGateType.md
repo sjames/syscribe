@@ -1,7 +1,7 @@
 ---
 type: FaultTreeGate
 id: FTG-TST-001
-title: Gate With Invalid GateType
+name: Gate With Invalid GateType
 gateType: MAJORITY
 inputs: []
 ---

@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SAFE-001
-title: Conflict checker shall prevent any two conflicting routes from being simultaneously set
+name: Conflict checker shall prevent any two conflicting routes from being simultaneously set
 status: approved
 reqDomain: software
 silLevel: 4

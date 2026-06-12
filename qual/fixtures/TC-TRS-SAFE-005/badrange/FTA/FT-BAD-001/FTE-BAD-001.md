@@ -2,7 +2,7 @@
 id: FTE-BAD-001
 type: FaultTreeEvent
 eventKind: basic
-title: Basic event with out-of-range diagnosticCoverage
+name: Basic event with out-of-range diagnosticCoverage
 failureRate: 1.0e-7
 diagnosticCoverage: 1.5
 ---

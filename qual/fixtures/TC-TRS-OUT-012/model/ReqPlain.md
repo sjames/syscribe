@@ -1,7 +1,7 @@
 ---
 id: REQ-PLAIN-001
 type: Requirement
-title: Approved leaf requirement (no SIL) with no satisfying element
+name: Approved leaf requirement (no SIL) with no satisfying element
 status: approved
 reqDomain: system
 verificationMethod: test

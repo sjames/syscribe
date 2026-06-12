@@ -1,7 +1,7 @@
 ---
 type: SecurityControl
 id: SC-TST-001
-title: Encrypt at rest
+name: Encrypt at rest
 status: draft
 controlType: avoidance
 ---

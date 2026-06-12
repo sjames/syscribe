@@ -3,7 +3,7 @@ id: TC-TRS-DISC-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify orphan-feature warning W024 in feature-check: exactly one, names the orphan, not in base validate, gateable."
+name: "Verify orphan-feature warning W024 in feature-check: exactly one, names the orphan, not in base validate, gateable."
 verifies:
   - REQ-TRS-DISC-006
 ---

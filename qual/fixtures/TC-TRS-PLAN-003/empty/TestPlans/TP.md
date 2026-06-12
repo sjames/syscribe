@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-PL3-004
-title: "Empty plan"
+name: "Empty plan"
 status: approved
 scope: smoke
 ---

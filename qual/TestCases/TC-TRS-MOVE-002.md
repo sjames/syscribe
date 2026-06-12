@@ -3,7 +3,7 @@ id: TC-TRS-MOVE-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify move updates all qualified-name references, including nested ones, without false matches."
+name: "Verify move updates all qualified-name references, including nested ones, without false matches."
 verifies:
   - REQ-TRS-MOVE-002
 ---

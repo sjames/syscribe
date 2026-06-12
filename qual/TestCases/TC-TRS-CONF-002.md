@@ -3,7 +3,7 @@ id: TC-TRS-CONF-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify Configuration selection parsing: template uses features:, W016 on empty selections, show displays selections."
+name: "Verify Configuration selection parsing: template uses features:, W016 on empty selections, show displays selections."
 verifies:
   - REQ-TRS-CONF-002
 ---

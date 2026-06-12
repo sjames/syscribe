@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SAFE-000
-title: CBI shall implement safety instrumented functions achieving SIL 4 for all identified hazards
+name: CBI shall implement safety instrumented functions achieving SIL 4 for all identified hazards
 status: approved
 reqDomain: system
 derivedFrom:

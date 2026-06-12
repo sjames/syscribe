@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-SYS-PERF-001
-title: "Decompose mission performance and regulatory compliance stakeholder goals into measurable system requirements"
+name: "Decompose mission performance and regulatory compliance stakeholder goals into measurable system requirements"
 status: accepted
 tags:
   - performance

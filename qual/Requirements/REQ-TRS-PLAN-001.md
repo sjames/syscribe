@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PLAN-001
 type: Requirement
-title: Tool shall recognise a native TestPlan element with a stable opaque id and validated frontmatter schema
+name: Tool shall recognise a native TestPlan element with a stable opaque id and validated frontmatter schema
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -3,7 +3,7 @@ id: TC-TRS-PROJ-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify escaping-reference detection: structural E226 (error), traceability W019 (warning)."
+name: "Verify escaping-reference detection: structural E226 (error), traceability W019 (warning)."
 verifies:
   - REQ-TRS-PROJ-003
 ---

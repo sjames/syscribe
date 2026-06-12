@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PRM-RANGE-001
-title: "CONF-PRM-RANGE-001"
+name: "CONF-PRM-RANGE-001"
 status: approved
 featureModel: Features
 features:

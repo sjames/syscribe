@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-LINK-001
 type: Requirement
-title: "Tool shall resolve a hosted source URL for each element from a [links] config"
+name: "Tool shall resolve a hosted source URL for each element from a [links] config"
 status: draft
 reqDomain: software
 verificationMethod: test

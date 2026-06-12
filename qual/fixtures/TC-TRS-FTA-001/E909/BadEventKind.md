@@ -1,7 +1,7 @@
 ---
 type: FaultTreeEvent
 id: FTE-TST-001
-title: Event With Invalid EventKind
+name: Event With Invalid EventKind
 eventKind: catastrophic
 ---
 

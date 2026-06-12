@@ -1,7 +1,7 @@
 ---
 id: REQ-NRD-WDT-001
 type: Requirement
-title: "Requirement REQ-NRD-WDT-001"
+name: "Requirement REQ-NRD-WDT-001"
 status: draft
 reqDomain: software
 verificationMethod: test

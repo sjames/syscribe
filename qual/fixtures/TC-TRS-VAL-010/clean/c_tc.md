@@ -1,7 +1,7 @@
 ---
 id: TC-W009-CC-001
 type: TestCase
-title: "c testFunction resolves in source"
+name: "c testFunction resolves in source"
 status: active
 testLevel: L3
 verifies:

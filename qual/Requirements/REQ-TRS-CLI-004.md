@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-CLI-004
 type: Requirement
-title: Tool shall resolve the model root by flag, env, walk-up to .syscribe.toml, then default
+name: Tool shall resolve the model root by flag, env, walk-up to .syscribe.toml, then default
 status: draft
 reqDomain: software
 verificationMethod: test

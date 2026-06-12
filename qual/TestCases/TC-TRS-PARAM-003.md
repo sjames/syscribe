@@ -3,7 +3,7 @@ id: TC-TRS-PARAM-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify inclusive range syntax min..=max is enforced (E205)."
+name: "Verify inclusive range syntax min..=max is enforced (E205)."
 verifies:
   - REQ-TRS-PARAM-003
 ---

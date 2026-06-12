@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-LINK-003
 type: Requirement
-title: Tool shall emit Mermaid click directives linking nodes to hosted URLs
+name: Tool shall emit Mermaid click directives linking nodes to hosted URLs
 status: draft
 reqDomain: software
 verificationMethod: test

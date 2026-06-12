@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-FM4-LEGACY-001
-title: "Standard product"
+name: "Standard product"
 status: approved
 featureModel: Features
 features:

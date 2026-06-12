@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-GATED-001
-title: "gated requirement"
+name: "gated requirement"
 status: draft
 reqDomain: software
 ---

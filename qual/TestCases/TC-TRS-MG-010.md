@@ -3,7 +3,7 @@ id: TC-TRS-MG-010
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify refines on behavioral defs: ActionDef/StateDef refine resolves + refinedBy; E316 on bad target; no W307 on a behavioral def."
+name: "Verify refines on behavioral defs: ActionDef/StateDef refine resolves + refinedBy; E316 on bad target; no W307 on a behavioral def."
 verifies:
   - REQ-TRS-MG-010
 ---

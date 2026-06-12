@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FMA-001
 type: Requirement
-title: Tool shall construct the feature model tree and encode it as a deterministic propositional formula
+name: Tool shall construct the feature model tree and encode it as a deterministic propositional formula
 status: draft
 reqDomain: software
 verificationMethod: test

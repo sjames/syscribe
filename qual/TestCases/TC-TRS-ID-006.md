@@ -3,7 +3,7 @@ id: TC-TRS-ID-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify FeatureDef stable FEAT id: mandatory id (E201), id-or-qname feature references in appliesWhen and Configuration features; E006/E101/E209 rules."
+name: "Verify FeatureDef stable FEAT id: mandatory id (E201), id-or-qname feature references in appliesWhen and Configuration features; E006/E101/E209 rules."
 verifies:
   - REQ-TRS-ID-006
 ---

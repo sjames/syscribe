@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-DISC-004
 type: Requirement
-title: Tool shall extend list with a --feature filter restricting to elements gated by a feature
+name: Tool shall extend list with a --feature filter restricting to elements gated by a feature
 status: draft
 reqDomain: software
 verificationMethod: test

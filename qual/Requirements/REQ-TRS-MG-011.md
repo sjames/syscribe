@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-011
 type: Requirement
-title: Configuration marked mg_variant is a parametric variant and may omit featureModel
+name: Configuration marked mg_variant is a parametric variant and may omit featureModel
 status: draft
 reqDomain: software
 verificationMethod: test

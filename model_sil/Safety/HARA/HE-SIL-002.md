@@ -2,7 +2,7 @@
 id: HE-SIL-002
 type: HazardousEvent
 status: approved
-title: Conflicting routes set simultaneously — risk of head-on or side collision at junction
+name: Conflicting routes set simultaneously — risk of head-on or side collision at junction
 consequence: Cd
 freqExposure: Fb
 avoidance: Pb

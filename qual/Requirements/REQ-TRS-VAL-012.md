@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-VAL-012
 type: Requirement
-title: Tool shall resolve sourceFile as model-relative, repo-relative, absolute, or remote URI
+name: Tool shall resolve sourceFile as model-relative, repo-relative, absolute, or remote URI
 status: draft
 reqDomain: software
 verificationMethod: test

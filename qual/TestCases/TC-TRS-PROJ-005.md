@@ -3,7 +3,7 @@ id: TC-TRS-PROJ-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify family checks: all-configs gate, dead elements (W021), aggregate coverage (W022), diff."
+name: "Verify family checks: all-configs gate, dead elements (W021), aggregate coverage (W022), diff."
 verifies:
   - REQ-TRS-PROJ-005
 ---

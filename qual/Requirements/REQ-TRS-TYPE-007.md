@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TYPE-007
 type: Requirement
-title: "Tool shall recognise and validate the VerificationCase element"
+name: "Tool shall recognise and validate the VerificationCase element"
 status: draft
 reqDomain: software
 verificationMethod: test

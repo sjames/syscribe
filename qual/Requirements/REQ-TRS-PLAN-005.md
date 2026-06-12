@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PLAN-005
 type: Requirement
-title: Tool shall provide a testplan command that lists plans, shows plan detail, and rolls up a verification verdict
+name: Tool shall provide a testplan command that lists plans, shows plan detail, and rolls up a verification verdict
 status: draft
 reqDomain: software
 verificationMethod: test

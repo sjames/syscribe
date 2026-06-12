@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FMA-008
 type: Requirement
-title: Tool shall provide a configure command reporting satisfiability, forced and free features for a partial selection
+name: Tool shall provide a configure command reporting satisfiability, forced and free features for a partial selection
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-W703-001
 type: Requirement
-title: Requirement with both asilLevel and dalLevel
+name: Requirement with both asilLevel and dalLevel
 status: draft
 reqDomain: software
 verificationMethod: test

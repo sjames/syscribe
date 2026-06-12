@@ -3,7 +3,7 @@ id: TC-TRS-CLI-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that --agent-instructions prints the LLM prompt and exits 0 without requiring -m."
+name: "Verify that --agent-instructions prints the LLM prompt and exits 0 without requiring -m."
 verifies:
   - REQ-TRS-CLI-003
 ---

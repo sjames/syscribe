@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-VAL-007
 type: Requirement
-title: Tool shall classify findings as Error or Warning per their rule code
+name: Tool shall classify findings as Error or Warning per their rule code
 status: draft
 reqDomain: software
 verificationMethod: test

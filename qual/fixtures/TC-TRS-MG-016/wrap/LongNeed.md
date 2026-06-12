@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-MG16-001
-title: The charging station shall authenticate the driver and authorise the session before energising the connector
+name: The charging station shall authenticate the driver and authorise the session before energising the connector
 status: approved
 reqDomain: system
 custom_fields:

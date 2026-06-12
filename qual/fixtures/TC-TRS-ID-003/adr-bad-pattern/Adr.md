@@ -1,7 +1,7 @@
 ---
 id: ADR-sys-001
 type: ADR
-title: D
+name: D
 status: accepted
 ---
 

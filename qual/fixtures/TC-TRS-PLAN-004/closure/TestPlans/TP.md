@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-PL4-004
-title: "Demonstrates a parent goal via its tested leaf"
+name: "Demonstrates a parent goal via its tested leaf"
 status: approved
 scope: certification
 demonstrates: [REQ-PL4-GOAL-001]

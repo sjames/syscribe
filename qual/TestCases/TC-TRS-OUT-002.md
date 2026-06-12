@@ -3,7 +3,7 @@ id: TC-TRS-OUT-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that each finding in the report contains severity, code, element reference, and description."
+name: "Verify that each finding in the report contains severity, code, element reference, and description."
 verifies:
   - REQ-TRS-OUT-002
 ---

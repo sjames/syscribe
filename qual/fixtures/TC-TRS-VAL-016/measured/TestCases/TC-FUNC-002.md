@@ -1,7 +1,7 @@
 ---
 id: TC-FUNC-002
 type: TestCase
-title: "Functional check of logging"
+name: "Functional check of logging"
 status: active
 testLevel: L3
 verifies:

@@ -1,7 +1,7 @@
 ---
 type: SafetyGoal
 id: SG-TST-001
-title: Prevent unintended acceleration
+name: Prevent unintended acceleration
 status: draft
 asilLevel: D
 hazardousEvents:

@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-AW2-PLAIN-001
-title: Ungated requirement
+name: Ungated requirement
 status: approved
 reqDomain: software
 ---

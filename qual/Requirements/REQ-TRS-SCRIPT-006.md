@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SCRIPT-006
 type: Requirement
-title: Tool shall run validation-hook scripts via scripts validate, with namespaced findings and a CI gate
+name: Tool shall run validation-hook scripts via scripts validate, with namespaced findings and a CI gate
 status: draft
 reqDomain: software
 verificationMethod: test

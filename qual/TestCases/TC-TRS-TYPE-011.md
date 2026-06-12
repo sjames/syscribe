@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-011
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify RenderingDef is recognised and validated without E005."
+name: "Verify RenderingDef is recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-011
 ---

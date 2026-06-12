@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-SAFE-003
-title: HIL — hardware watchdog resets ECU within 30 ms of missed service window
+name: HIL — hardware watchdog resets ECU within 30 ms of missed service window
 status: active
 testLevel: L5
 verifies:

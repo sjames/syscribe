@@ -1,7 +1,7 @@
 ---
 type: DamageScenario
 id: DS-SEC-003
-title: Damage scenario with an unresolvable hazardRef
+name: Damage scenario with an unresolvable hazardRef
 status: draft
 damageSeverity: major
 impactCategories:

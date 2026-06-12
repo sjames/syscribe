@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SCRIPT-001
 type: Requirement
-title: Tool shall load Rhai extension scripts from a configured scripts directory outside the model
+name: Tool shall load Rhai extension scripts from a configured scripts directory outside the model
 status: draft
 reqDomain: software
 verificationMethod: test

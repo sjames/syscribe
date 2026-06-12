@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-MG-013
 type: Requirement
-title: magicgrid --audit shall roll up the MagicGrid findings, readiness, and a PASS/FAIL verdict
+name: magicgrid --audit shall roll up the MagicGrid findings, readiness, and a PASS/FAIL verdict
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -3,7 +3,7 @@ id: TC-TRS-PLAN-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the native TestPlan schema: TP-id pattern, status enum, scope vocabulary and duplicate-id."
+name: "Verify the native TestPlan schema: TP-id pattern, status enum, scope vocabulary and duplicate-id."
 verifies:
   - REQ-TRS-PLAN-001
 ---

@@ -1,7 +1,7 @@
 ---
 id: FT-SIL-002
 type: FaultTree
-title: Fault tree for SG-SIL-002 — signal cleared without all conditions satisfied
+name: Fault tree for SG-SIL-002 — signal cleared without all conditions satisfied
 topEvent: SG-SIL-002
 status: approved
 missionTime: "350400 h"

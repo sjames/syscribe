@@ -9,8 +9,8 @@ All fields are optional unless marked **Required**. `type:` is required on every
 | Field | YAML type | Default | Description |
 |---|---|---|---|
 | `type` | string | — | **Required.** Element type (see [Element Types](elements.md)) |
-| `name` | string | filename stem | Label for **name-identified** types (SysML structural types, `Package`, `Diagram`, `FeatureDef`); defaults to the `.md` filename without extension. **Not permitted on id-identified types** — that is error `E024` (see below) |
-| `title` | string | absent | Label for **id-identified** types (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, the safety/security types). **Not permitted on name-identified types** — that is error `E025` (see below) |
+| `name` | string | filename stem (name-identified) | The single human-readable label on **every** element type. On name-identified types (SysML structural types, `Package`, `Diagram`, `FeatureDef`) it is also the identity/QName segment and defaults to the `.md` filename. On id-identified types (`Requirement`, `TestCase`, `ADR`, the safety/security types) it is **required** free prose. See [Label field](#label-field-name) below. |
+| `title` | — | — | **REMOVED.** No longer a label field on any element; use `name`. A stray `title:` is error `E025` (see below). |
 | `id` | string | absent | Stable opaque identifier — required on the id-identified types **and on `FeatureDef`** (mandatory `FEAT-*` id; `E201` if missing) |
 | `supertype` | string or list | absent | Qualified name(s) of parent definition(s) |
 | `subsets` | list of strings | absent | Features subsetted by this element |
@@ -20,25 +20,32 @@ All fields are optional unless marked **Required**. `type:` is required on every
 | `domain` | string | absent | `system`, `hardware`, or `software` — used in traceability rules §12 |
 | `satisfies` | list | absent | Qualified names or REQ-* IDs of Requirements satisfied by this element |
 
-## Label field: `name` vs `title`
+## Label field: `name`
 
-Every element carries **exactly one** human-readable label field, fixed by how the
-element is identified — **never both**:
+**`name` is the single, universal human-readable label on every element type** —
+`Requirement`, `TestCase`, `ADR`, `PartDef`, `Package`, `FeatureDef`, the safety/security
+types, everything. There is no longer a per-identity-class split.
 
-- **Id-identified types** — identity is a stable `id` (`REQ-*`, `TC-*`, `HE-*`, …):
-  `Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `ConfirmationMeasure`,
-  and all safety/security types (`HazardousEvent`, `SafetyGoal`, `DamageScenario`,
-  `ThreatScenario`, `CybersecurityGoal`, `SecurityControl`, `VulnerabilityReport`,
-  `TARASheet`, `FaultTree`/`FaultTreeGate`/`FaultTreeEvent`, `FMEASheet`/`FMEAEntry`,
-  `AttackTree`/`AttackTreeGate`/`AttackStep`, `Argument`, `AssumptionOfUse`). Label is
-  **`title`**; a `name:` raises error **`E024`**.
-- **Name-identified types** — identity is the `name`/path: all SysML structural types,
-  `Package`, `Diagram`, and `FeatureDef`. Label is **`name`**; a `title:` raises error
-  **`E025`**.
+- For **name-identified types** (all SysML structural types, `Package`, `Diagram`, and
+  `FeatureDef`) `name` is **both** the label **and** the identity/QName segment, so the
+  basic-name grammar (`W042`) applies to it.
+- For **id-identified types** — those whose identity is a stable `id` (`REQ-*`, `TC-*`,
+  `HE-*`, …): `Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`,
+  `ConfirmationMeasure`, and all safety/security types (`HazardousEvent`, `SafetyGoal`,
+  `DamageScenario`, `ThreatScenario`, `CybersecurityGoal`, `SecurityControl`,
+  `VulnerabilityReport`, `TARASheet`, `FaultTree`/`FaultTreeGate`/`FaultTreeEvent`,
+  `FMEASheet`/`FMEAEntry`, `AttackTree`/`AttackTreeGate`/`AttackStep`, `Argument`,
+  `AssumptionOfUse`) — `name` is **free prose** (spaces and punctuation allowed; `W042`
+  does **not** apply) and is **required**.
 
-`FeatureDef` is the one name-identified type that *also* carries a **mandatory** stable
-`id` (its `FEAT-*` shortName; a feature with no `id` is `E201`). The `id` axis and the
-label axis are independent — a `FeatureDef` always labels via `name`.
+**`title` is removed.** It is no longer a recognized label field. Declaring `title:` on
+**any** element raises error **`E025`** ("the `title` field is removed — rename it to
+`name`"). Error **`E024`** (formerly: a `name:` on an id-identified type) is **retired** —
+a `Requirement` carrying `id` + `name` validates clean.
+
+`FeatureDef` is name-identified (its `name` is its label *and* QName segment) and *also*
+carries a **mandatory** stable `id` (its `FEAT-*` shortName; a feature with no `id` is
+`E201`). The `id` axis and the `name` (label) axis are independent.
 
 ## Features (`features:`)
 
@@ -94,7 +101,7 @@ bindingConnections:
 
 | Field | Description |
 |---|---|
-| `title` | Short human-readable title |
+| `name` | Short human-readable label — free prose (spaces/punctuation allowed) |
 | `status` | `draft` · `review` · `approved` · `implemented` · `verified` |
 | `reqDomain` | `system` · `hardware` · `software` |
 | `silLevel` | IEC 61508 SIL 1–4 |
@@ -106,7 +113,7 @@ bindingConnections:
 
 | Field | Description |
 |---|---|
-| `title` | Short human-readable title |
+| `name` | Short human-readable label — free prose (spaces/punctuation allowed) |
 | `status` | `draft` · `review` · `approved` · `active` · `retired` |
 | `testLevel` | `L1` (unit) through `L5` (HIL) |
 | `verifies` | List of REQ-* IDs verified by this test case |
@@ -118,7 +125,7 @@ A `TestPlan` (stable `TP-*` id) groups reusable TestCases by product and scope.
 
 | Field | Description |
 |---|---|
-| `title`, `status` | Required; status `draft` · `review` · `approved` · `active` · `retired` |
+| `name`, `status` | Required; `name` is free prose; status `draft` · `review` · `approved` · `active` · `retired` |
 | `scope` | Recommended `unit·smoke·integration·hil·certification·security·regression` (other → `W610`); discriminates plans over the same config |
 | `configurations` | A `Configuration` id or list of ids — the product variant(s) the plan is for; absent = config-agnostic. Each must resolve (`E606`) |
 | `demonstrates` | Optional list of goals/requirements the plan is evidence for (`E603` if unresolved); not required |
@@ -182,7 +189,7 @@ Opt-in: ignored when the model declares no `FeatureDef`. See the [Variability gu
 | `parameterConstraints` | package `_index.md` | List of cross-feature constraints `{id, expression, severity, appliesWhen}` |
 | `tags` | any element | Free-text labels; filter with `--tag` (orthogonal to the feature model) |
 
-A `Configuration` requires `id` (`CONF-*`), `title`, `status`, and `featureModel`. Validation codes for these fields are in the [Rule Reference](../validation/rules.md) (PLE errors `E2xx`, projection `E226`/`E227`, warnings `W01x`–`W022`).
+A `Configuration` requires `id` (`CONF-*`), `name`, `status`, and `featureModel`. Validation codes for these fields are in the [Rule Reference](../validation/rules.md) (PLE errors `E2xx`, projection `E226`/`E227`, warnings `W01x`–`W022`).
 
 ## Custom fields (`custom_fields:`)
 

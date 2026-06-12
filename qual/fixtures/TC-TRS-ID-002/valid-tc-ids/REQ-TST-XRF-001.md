@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-XRF-001
 type: Requirement
-title: Fixture requirement for TC id validation test
+name: Fixture requirement for TC id validation test
 status: draft
 reqDomain: software
 ---

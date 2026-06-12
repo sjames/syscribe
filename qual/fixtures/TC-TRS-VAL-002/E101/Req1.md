@@ -1,7 +1,7 @@
 ---
 id: REQ-DUP-001
 type: Requirement
-title: First duplicate requirement
+name: First duplicate requirement
 status: draft
 reqDomain: system
 verificationMethod: test

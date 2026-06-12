@@ -3,7 +3,7 @@ id: TC-TRS-TRACE-010
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the unsatisfied safety-mechanism check W306 (high-integrity + draft/unsatisfied/all-N-A)."
+name: "Verify the unsatisfied safety-mechanism check W306 (high-integrity + draft/unsatisfied/all-N-A)."
 verifies:
   - REQ-TRS-TRACE-010
 ---

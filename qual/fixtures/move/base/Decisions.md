@@ -1,7 +1,7 @@
 ---
 id: ADR-MV-001
 type: ADR
-title: "Widget placement decision"
+name: "Widget placement decision"
 status: accepted
 ---
 

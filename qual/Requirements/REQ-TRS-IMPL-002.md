@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-IMPL-002
 type: Requirement
-title: Tool shall surface implementedBy in links, refs, spec fields, and the docs
+name: Tool shall surface implementedBy in links, refs, spec fields, and the docs
 status: draft
 reqDomain: software
 verificationMethod: test

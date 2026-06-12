@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-PERF-001
-title: Throttle position shall track pedal demand within 50 ms
+name: Throttle position shall track pedal demand within 50 ms
 status: approved
 reqDomain: software
 derivedFrom:

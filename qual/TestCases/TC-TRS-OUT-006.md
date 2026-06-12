@@ -3,7 +3,7 @@ id: TC-TRS-OUT-006
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify CI severity-gating flags and the 0/1/2 exit-code contract."
+name: "Verify CI severity-gating flags and the 0/1/2 exit-code contract."
 verifies:
   - REQ-TRS-OUT-006
 ---

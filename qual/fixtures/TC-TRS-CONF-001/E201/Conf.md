@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-TST-001
-title: Missing feature model
+name: Missing feature model
 status: draft
 ---
 

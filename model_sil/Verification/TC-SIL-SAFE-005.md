@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-SIL-SAFE-005
-title: Integration — PointsController position confirmation blocks signal clearance
+name: Integration — PointsController position confirmation blocks signal clearance
 status: active
 testLevel: L4
 verifies:

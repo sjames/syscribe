@@ -3,7 +3,7 @@ id: TC-TRS-DIAG-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that E400–E402 and W400–W412 are emitted for Diagram element validation conditions."
+name: "Verify that E400–E402 and W400–W412 are emitted for Diagram element validation conditions."
 verifies:
   - REQ-TRS-DIAG-001
 ---

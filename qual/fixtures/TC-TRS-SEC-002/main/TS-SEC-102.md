@@ -1,7 +1,7 @@
 ---
 type: ThreatScenario
 id: TS-SEC-102
-title: Attacker replays captured torque frame (treated)
+name: Attacker replays captured torque frame (treated)
 status: approved
 attackFeasibility: high
 attackVector: local

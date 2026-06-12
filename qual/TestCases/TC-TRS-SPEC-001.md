@@ -3,7 +3,7 @@ id: TC-TRS-SPEC-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify the discoverable syscribe spec documents the safety/security types and analysis fields."
+name: "Verify the discoverable syscribe spec documents the safety/security types and analysis fields."
 verifies:
   - REQ-TRS-SPEC-001
 ---

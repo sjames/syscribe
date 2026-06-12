@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-UAV-NAV-001
-title: "GPS position accuracy ≤ 1.5 m CEP under nominal GNSS"
+name: "GPS position accuracy ≤ 1.5 m CEP under nominal GNSS"
 status: approved
 reqDomain: hardware
 derivedFrom:

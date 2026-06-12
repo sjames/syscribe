@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-UAV-REDUN-001
-title: "Backup flight controller shall assume control within 100 ms of primary loss"
+name: "Backup flight controller shall assume control within 100 ms of primary loss"
 status: approved
 reqDomain: software
 verificationMethod: test

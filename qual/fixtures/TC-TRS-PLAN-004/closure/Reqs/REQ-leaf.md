@@ -1,7 +1,7 @@
 ---
 id: REQ-PL4-LEAF-001
 type: Requirement
-title: "meet the leaf"
+name: "meet the leaf"
 status: approved
 reqDomain: software
 derivedFrom: [REQ-PL4-GOAL-001]

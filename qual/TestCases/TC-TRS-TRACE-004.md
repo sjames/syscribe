@@ -3,7 +3,7 @@ id: TC-TRS-TRACE-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that W300 is emitted for an approved leaf Requirement with no satisfying element."
+name: "Verify that W300 is emitted for an approved leaf Requirement with no satisfying element."
 verifies:
   - REQ-TRS-TRACE-004
 ---

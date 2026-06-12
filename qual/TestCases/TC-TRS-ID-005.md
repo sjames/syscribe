@@ -3,7 +3,7 @@ id: TC-TRS-ID-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify configurable stable-ID suffix width: 3-8 default, E023 over the cap, E006 under 3, configurable via [ids] max_digits."
+name: "Verify configurable stable-ID suffix width: 3-8 default, E023 over the cap, E006 under 3, configurable via [ids] max_digits."
 verifies:
   - REQ-TRS-ID-005
 ---

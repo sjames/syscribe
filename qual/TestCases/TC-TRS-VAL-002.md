@@ -3,7 +3,7 @@ id: TC-TRS-VAL-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that each model-time error rule is triggered by its cross-element condition."
+name: "Verify that each model-time error rule is triggered by its cross-element condition."
 verifies:
   - REQ-TRS-VAL-002
 ---

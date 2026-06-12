@@ -3,7 +3,7 @@ id: TC-TRS-PARAM-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify FeatureDef parameter bindingTime rules E230, E229, W027, and W017 suppression."
+name: "Verify FeatureDef parameter bindingTime rules E230, E229, W027, and W017 suppression."
 verifies:
   - REQ-TRS-PARAM-004
 ---

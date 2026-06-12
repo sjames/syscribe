@@ -3,7 +3,7 @@ type: TestCase
 id: TC-DEMO-001
 testLevel: L3
 status: active
-title: "Verify the independent torque monitor trips on disagreement"
+name: "Verify the independent torque monitor trips on disagreement"
 verifies:
   - REQ-DEMO-001
 ---

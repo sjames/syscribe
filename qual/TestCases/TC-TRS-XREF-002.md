@@ -3,7 +3,7 @@ id: TC-TRS-XREF-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that relative references are resolved outward from the current package."
+name: "Verify that relative references are resolved outward from the current package."
 verifies:
   - REQ-TRS-XREF-002
 ---

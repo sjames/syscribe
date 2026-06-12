@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-FFI-PART-001
-title: MPU-based spatial and temporal partitioning for mixed-criticality on HostECU
+name: MPU-based spatial and temporal partitioning for mixed-criticality on HostECU
 status: accepted
 ---
 

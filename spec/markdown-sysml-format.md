@@ -266,12 +266,13 @@ All fields are **optional unless marked Required**. Defaults listed apply when t
 
 This applies to **every** qualified-name segment, including **package / directory names** — both a package declared with an `_index.md` and a plain directory without one. Requirements and other stable-id elements are unaffected (their `REQ-*`/`TC-*` ids are exempt); only the directories that contain them must be basic names.
 
-**One label field per element (`name` vs `title`).** Every element carries **exactly one** human-readable label field, and which one is **fixed by the element's identity class** — never both:
+**`name` is the single, universal label field.** Every element type — id-identified and name-identified alike — carries **`name`** as its one human-readable label (SysMLv2 `declaredName`). There is no longer a per-identity-class split between `name` and `title`.
 
-- **Id-identified types** — identity is a stable `id` (shortName such as `REQ-*`, `TC-*`, `HE-*`). Their label field is **`title`**. These are: `Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `ConfirmationMeasure`, `HazardousEvent`, `SafetyGoal`, `DamageScenario`, `ThreatScenario`, `CybersecurityGoal`, `SecurityControl`, `VulnerabilityReport`, `TARASheet`, `FaultTree`, `FaultTreeGate`, `FaultTreeEvent`, `FMEASheet`, `FMEAEntry`, `AttackTree`, `AttackTreeGate`, `AttackStep`, `Argument`, `AssumptionOfUse`. Declaring a `name:` on one of these is error **`E024`**.
-- **Name-identified types** — identity is the `name`/path. Their label field is **`name`**. This is every other type: all SysML structural types (`PartDef`, `Part`, `Port`, `ActionDef`, …), `Package`, `Diagram`, and `FeatureDef`. Declaring a `title:` on one of these is error **`E025`**.
+- **`name`** is the label on all types. It is optional in general but **required** on every type that previously required a label — the id-identified types: `Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `ConfirmationMeasure`, `HazardousEvent`, `SafetyGoal`, `DamageScenario`, `ThreatScenario`, `CybersecurityGoal`, `SecurityControl`, `VulnerabilityReport`, `TARASheet`, `FaultTree`, `FaultTreeGate`, `FaultTreeEvent`, `FMEASheet`, `FMEAEntry`, `AttackTree`, `AttackTreeGate`, `AttackStep`, `Argument`, `AssumptionOfUse`. For these id-identified types `name` is **free prose** (spaces and punctuation allowed; the basic-name grammar `W042` does **not** apply, because identity is the stable `id`). For name-identified types (all SysML structural types — `PartDef`, `Part`, `Port`, `ActionDef`, … — plus `Package`, `Diagram`, and `FeatureDef`) `name` is **both** the label **and** the qualified-name/identity segment, so the basic-name grammar applies to it.
+- **`id`** (the stable shortName, such as `REQ-*`, `TC-*`, `HE-*`) remains the identity of the id-identified types — files stay `<id>.md` and cross-references resolve by id. The `id` axis and the `name` (label) axis are independent.
+- **`title` is removed.** It is no longer a recognized label field on any element. Declaring a `title:` on **any** element — id-identified or name-identified — is error **`E025`** ("the `title` field is removed — rename it to `name`"). Error **`E024`** (formerly: a `name:` on an id-identified type) is **retired** — `name` is now the correct, required label on those types.
 
-`FeatureDef` is the single name-identified type that *also* carries a **mandatory** stable `id` (its `FEAT-*` shortName, §9.6 — a feature with no `id` is `E201`). The `id` axis (shortName) and the label axis (`name` vs `title`) are independent: a `FeatureDef` always labels via `name`. No element ever carries both `name` and `title`.
+`FeatureDef` is name-identified (its `name` is its label *and* qualified-name segment) and *also* carries a **mandatory** stable `id` (its `FEAT-*` shortName, §9.6 — a feature with no `id` is `E201`). The `id` axis (shortName) and the `name` (label) axis are independent: under the unified rule a `FeatureDef` carries `name` + `id` and no `title`.
 
 **External references (`extRef`).** A Syscribe element often mirrors an artifact that lives in another tool. `extRef:` records that correspondence as one or more **opaque** strings — a URI (`https://dng.example/resources/4521`) or a tool-qualified token (`DNG:4521`, `cameo://model/Engine#id-99`) — given either as a single string or a list. The field is optional and its syntax is unconstrained (external systems use widely varying identifier schemes). `extRef` is an *external* pointer: it is **not** a model cross-reference and is never a valid target for `supertype:`, `verifies:`, `derivedFrom:`, connections, etc. Look up the element(s) that carry a given reference with `syscribe -m <root> extref <ref>`. The same `extRef` value on two or more elements is permitted but warned (`W028`), since an external artifact normally maps to a single element.
 
@@ -2301,7 +2302,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 |---|---|---|---|
 | `type` | literal `Requirement` | **Required** | Discriminator. |
 | `id` | string | **Required** | Stable opaque ID matching `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`. Unique across the model. Never changes. |
-| `title` | string | **Required** | One-line summary. Max 120 chars. No newlines. |
+| `name` | string | **Required** | One-line human-readable label — free prose (spaces/punctuation allowed; `W042` does not apply). Max 120 chars. No newlines. |
 | `status` | enum | **Required** | Lifecycle state: `draft`, `review`, `approved`, `implemented`, `verified`. |
 | `derivedFrom` | list of id-or-qualname | optional | IDs (`REQ-*`) or qualified names of parent Requirements. Absent = stakeholder-level requirement. |
 | `silLevel` | integer 1–4 | optional | IEC 61508 SIL level. Mutually exclusive with `asilLevel` — do not set both (W006). |
@@ -2353,7 +2354,7 @@ Validation: normative text must be non-empty (`E012`); should contain `shall` (w
 ---
 type: Requirement
 id: REQ-SCHED-BITMAP-001
-title: "Bitmap-based O(1) priority selection"
+name: "Bitmap-based O(1) priority selection"
 status: approved
 silLevel: 4
 derivedFrom:
@@ -2526,7 +2527,7 @@ The native `TestCase` type is a **first-class element** for structured, executab
 |---|---|---|---|
 | `type` | literal `TestCase` | **Required** | Discriminator. |
 | `id` | string | **Required** | Stable opaque ID matching `^TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`. Unique across the model. |
-| `title` | string | **Required** | One-line summary. Max 120 chars. |
+| `name` | string | **Required** | One-line human-readable label — free prose (spaces/punctuation allowed). Max 120 chars. |
 | `status` | enum | **Required** | Lifecycle state: `draft`, `review`, `approved`, `active`, `retired`. |
 | `testLevel` | enum L1–L5 | **Required** | Verification layer (see table below). |
 | `verifies` | list of id-or-qualname | **Required** | Requirements this test exercises. At least one entry. All must resolve. |
@@ -2594,7 +2595,7 @@ Gherkin block rules:
 ---
 type: TestCase
 id: TC-SCHED-BITMAP-001
-title: "Bitmap correctly selects highest-priority ready thread"
+name: "Bitmap correctly selects highest-priority ready thread"
 status: active
 testLevel: L1
 verifies:
@@ -2648,7 +2649,7 @@ The native `TestPlan` type groups `TestCase`s into the unit a team executes, rev
 |---|---|---|---|
 | `type` | literal `TestPlan` | **Required** | Discriminator. |
 | `id` | string | **Required** | Stable opaque ID matching `^TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`. Unique across the model. |
-| `title` | string | **Required** | One-line summary. |
+| `name` | string | **Required** | One-line human-readable label — free prose. |
 | `status` | enum | **Required** | `draft`, `review`, `approved`, `active`, `retired`. |
 | `scope` | string | optional | Recommended vocabulary: `unit`, `smoke`, `integration`, `hil`, `certification`, `security`, `regression`. Free-form values are accepted but warn (`W610`). `scope` distinguishes multiple plans over the same configuration(s). |
 | `configurations` | scalar or list of `Configuration` refs | optional | The product variant(s) this plan is for. **Absent** = config-agnostic (applies to every configuration / the flat model). Each entry must resolve to a `Configuration` (`E606`). |
@@ -2677,7 +2678,7 @@ The native `TestPlan` type groups `TestCase`s into the unit a team executes, rev
 ---
 type: TestPlan
 id: TP-DELIVERY-INTEGRATION-001
-title: "UAV delivery — integration plan"
+name: "UAV delivery — integration plan"
 status: approved
 scope: integration
 configurations: [CONF-UAV-DELIVERY-001, CONF-UAV-SURVEY-001]   # reused across two products
@@ -2692,7 +2693,7 @@ Integration plan executed before each delivery/survey release.
 
 **Tooling:** the `testplan` command lists plans (scope, configurations, effective-TestCase count, coverage %, verdict) and shows per-plan detail (`testplan TP-X`, `--json`); coverage and the `pass`/`fail`/`incomplete`/`empty` verdict reuse the `matrix` coverage computation and the ingested-results fold. The `--plan TP-X` lens on `matrix`, `verification-depth`, and `audit` restricts those reports to a plan's scope (composing with `--config`). See `spec/markdown` validation rules `E600`–`E606` / `W610`–`W616` (§11.12 reference) and the CLI guide.
 
-**Validation summary:** `E600` (missing `id`/`title`/`status` or malformed `TP-*` id), `E601` (member not a TestCase), `E602` (bad `selection.testLevels`), `E603` (`demonstrates` unresolved), `E604` (bad `status`), `E605` (bad `selection.domains`), `E606` (`configurations` entry not a Configuration); `W610` (non-recommended `scope`), `W611` (escaping member), `W612` (empty plan), `W613` (pinned draft/retired member), `W614` (approved plan demonstrates a goal no member verifies, honouring goal-closure), `W615` (results-gated: approved plan with a Fail/Missing member), `W616` (duplicate `(configurations, scope)`). A duplicate `id` is the generic `E101`.
+**Validation summary:** `E600` (missing `id`/`name`/`status` or malformed `TP-*` id), `E601` (member not a TestCase), `E602` (bad `selection.testLevels`), `E603` (`demonstrates` unresolved), `E604` (bad `status`), `E605` (bad `selection.domains`), `E606` (`configurations` entry not a Configuration); `W610` (non-recommended `scope`), `W611` (escaping member), `W612` (empty plan), `W613` (pinned draft/retired member), `W614` (approved plan demonstrates a goal no member verifies, honouring goal-closure), `W615` (results-gated: approved plan with a Fail/Missing member), `W616` (duplicate `(configurations, scope)`). A duplicate `id` is the generic `E101`.
 
 ### 8.13 Allocation Elements
 
@@ -3809,7 +3810,7 @@ An `ADR` file is a first-class model element that documents a significant design
 |---|---|---|---|
 | `type` | literal `ADR` | **Required** | Discriminator. |
 | `id` | string | **Required** | Stable opaque ID matching `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`. Unique across the model. Never changes. |
-| `title` | string | **Required** | One-line summary. Max 120 chars. |
+| `name` | string | **Required** | One-line human-readable label — free prose. Max 120 chars. |
 | `status` | enum | **Required** | Lifecycle state: `proposed`, `accepted`, `deprecated`, `superseded`. |
 | `date` | string | optional | ISO-8601 date the decision was made (e.g., `"2026-05-26"`). |
 | `deciders` | list of strings | optional | Qualified names of stakeholder `PartDef` elements or free-text names of the decision-makers. |
@@ -3864,7 +3865,7 @@ model/
 ---
 type: ADR
 id: ADR-SW-SCHED-001
-title: "Decompose REQ-UAV-SCHED-001 into scheduler and bitmap sub-requirements"
+name: "Decompose REQ-UAV-SCHED-001 into scheduler and bitmap sub-requirements"
 status: accepted
 date: "2026-05-20"
 deciders:
@@ -3940,7 +3941,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 
 **Binding SecurityControls to architecture:** Architecture elements (e.g. `PartDef`) that realise a `SecurityControl` should set `allocatedFrom:` to the control's `SC-*` ID. Both `allocatedFrom:` and `allocatedTo:` accept a single string or a list of strings to support multiple controls per element.
 
-**Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:`, and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`title`/`status` → E847; an `id` not matching `CM-*` → E848. An `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; only ASIL D → I3 and CAL4 → I3 are gated, lower levels are future tightening).
+**Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:`, and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`name`/`status` → E847; an `id` not matching `CM-*` → E848. An `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; only ASIL D → I3 and CAL4 → I3 are gated, lower levels are future tightening).
 
 #### 8.18.3 Tier 4 — Fault Tree Analysis (FTA)
 
@@ -3996,8 +3997,8 @@ first-class, validated part of the model. It builds on the Tier-2 hazard/goal la
 
 | Element type | ID pattern | Description |
 |---|---|---|
-| `Argument` | `ARG-*` | A GSN node. `argumentType:` is `claim`, `strategy`, or `solution` (absent → `claim`; invalid → E854). `supports:` (string or list) names the `SafetyGoal` or parent `Argument` argued for; `evidence:` (string or list) names the supporting `Requirement` / `TestCase` / sub-`Argument` / `AssumptionOfUse`. Each `supports`/`evidence` ref resolves via the resolver (unresolved → E855). Missing `id`/`title`/`status` → E852; an `id` not matching `ARG-*` → E853. A `claim`/`strategy` Argument with empty `supports` **and** empty `evidence` is an orphan node → **W040**. |
-| `AssumptionOfUse` | `AOU-*` | A safety-related application condition (SRAC). `appliesTo:` (string or list) names the `SafetyGoal` / `Argument` / `Requirement` it constrains (each resolves; unresolved → E858). Missing `id`/`title`/`status` → E856; an `id` not matching `AOU-*` → E857. |
+| `Argument` | `ARG-*` | A GSN node. `argumentType:` is `claim`, `strategy`, or `solution` (absent → `claim`; invalid → E854). `supports:` (string or list) names the `SafetyGoal` or parent `Argument` argued for; `evidence:` (string or list) names the supporting `Requirement` / `TestCase` / sub-`Argument` / `AssumptionOfUse`. Each `supports`/`evidence` ref resolves via the resolver (unresolved → E855). Missing `id`/`name`/`status` → E852; an `id` not matching `ARG-*` → E853. A `claim`/`strategy` Argument with empty `supports` **and** empty `evidence` is an orphan node → **W040**. |
+| `AssumptionOfUse` | `AOU-*` | A safety-related application condition (SRAC). `appliesTo:` (string or list) names the `SafetyGoal` / `Argument` / `Requirement` it constrains (each resolves; unresolved → E858). Missing `id`/`name`/`status` → E856; an `id` not matching `AOU-*` → E857. |
 
 The `safety-case [<SG-id>] [--json]` view renders, for each `SafetyGoal`, the
 supporting `Argument` tree (recursing into sub-Arguments), each Argument's evidence
@@ -4360,8 +4361,7 @@ Configuration IDs follow the pattern `^CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`:
 |---|---|---|---|---|
 | `type` | literal `Configuration` | **Required** | — | Discriminator. |
 | `id` | string | **Required** | — | Stable ID matching `CONF-*` pattern. |
-| `name` | string | optional | filename stem | Display name. |
-| `title` | string | **Required** | — | One-line summary. Max 120 chars. |
+| `name` | string | **Required** | — | One-line human-readable label — free prose (spaces/punctuation allowed). Max 120 chars. |
 | `status` | enum | **Required** | — | `draft`, `review`, `approved`, `released`, `retired`. |
 | `featureModel` | string | **Required** | — | Qualified name of the feature model package this configuration selects from. |
 | `features` | map | **Required** | — | Feature selection: `FeatureDef qualified name: true/false`. All features in the model must appear; defaults apply for absent entries (see §9.6). |
@@ -4387,7 +4387,7 @@ Configuration IDs follow the pattern `^CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`:
 ---
 type: Configuration
 id: CONF-UAV-HVY-001
-title: "Heavy-lift survey UAV — hex-rotor, dual-IMU, long-range link"
+name: "Heavy-lift survey UAV — hex-rotor, dual-IMU, long-range link"
 status: approved
 featureModel: SystemFeatures
 features:
@@ -4419,7 +4419,7 @@ A configuration may extend a base configuration, inheriting its feature selectio
 ---
 type: Configuration
 id: CONF-UAV-HVY-LR-001
-title: "Heavy-lift UAV — extended-range variant"
+name: "Heavy-lift UAV — extended-range variant"
 status: draft
 featureModel: SystemFeatures
 derivedFrom: Configurations::HeavyLiftUAV   # inherits all from CONF-UAV-HVY-001
@@ -4505,7 +4505,7 @@ The component `Configuration` does not need to redeclare propagated parameter va
 ---
 type: Configuration
 id: CONF-PROP-HEX-001
-title: "Six-rotor hex propulsion — DSHOT ESC protocol"
+name: "Six-rotor hex propulsion — DSHOT ESC protocol"
 status: approved
 featureModel: UAV::Propulsion::Features
 features:
@@ -4651,7 +4651,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | Code | Condition |
 |---|---|
 | `E200` | `Configuration.id` does not match `CONF-*` pattern |
-| `E201` | A PLE element is missing a required field: a `Configuration` missing `id`, `title`, `status`, or `featureModel`; or a `FeatureDef` missing its mandatory `FEAT-*` `id`. (A `FeatureDef` is still name-labelled — a `title:` on it is `E025`.) |
+| `E201` | A PLE element is missing a required field: a `Configuration` missing `id`, `name`, `status`, or `featureModel`; or a `FeatureDef` missing its mandatory `FEAT-*` `id`. (A `FeatureDef` carries `name` as its label; a stray `title:` on it is `E025`.) |
 | `E202` | A propagated parameter value (via `bindTo:`) falls outside the component parameter's `range:` |
 | `E203` | `Configuration.parameterBindings` binds a parameter for a feature not selected in this configuration |
 | `E204` | `Configuration.parameterBindings` binds a parameter declared `isFixed: true` |
@@ -5260,8 +5260,10 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E013` | `verifies:` list is present but empty |
 | `E014` | A `Scenario Outline:` block has no `Examples:` table |
 | `E015` | The first Gherkin block in a `TestCase` has no `Feature:` line |
+| `E024` | **RETIRED** — formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is no longer emitted. |
+| `E025` | The removed `title:` field is declared on an element (any type — id-identified or name-identified). The `title` field is removed; rename it to `name`. |
 | `E300` | `ADR.id` does not match the `ADR-*` pattern |
-| `E301` | `ADR` is missing a required field (`id`, `title`, or `status`) |
+| `E301` | `ADR` is missing a required field (`id`, `name`, or `status`) |
 | `E302` | `reqDomain:` value is not `system`, `hardware`, or `software` |
 | `E303` | `domain:` value is not `system`, `hardware`, or `software` |
 | `E304` | `ADR.status` value is not in `proposed | accepted | deprecated | superseded` |
@@ -5425,7 +5427,7 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 
 | Code | Severity | Condition |
 |---|---|---|
-| `E847` | Error | `ConfirmationMeasure` is missing `id`, `title`, or `status` |
+| `E847` | Error | `ConfirmationMeasure` is missing `id`, `name`, or `status` |
 | `E848` | Error | `ConfirmationMeasure.id` does not match the `CM-*` pattern |
 | `E849` | Error | `measureType` is not `confirmation_review`/`functional_safety_audit`/`functional_safety_assessment`/`cybersecurity_assessment` |
 | `E850` | Error | `independenceLevel` is not `I1`/`I2`/`I3` |
@@ -5442,11 +5444,11 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 
 | Code | Severity | Condition |
 |---|---|---|
-| `E852` | Error | `Argument` is missing `id`, `title`, or `status` |
+| `E852` | Error | `Argument` is missing `id`, `name`, or `status` |
 | `E853` | Error | `Argument.id` does not match the `ARG-*` pattern |
 | `E854` | Error | `Argument.argumentType` is not `claim`/`strategy`/`solution` |
 | `E855` | Error | an `Argument.supports` or `Argument.evidence` ref does not resolve to any model element |
-| `E856` | Error | `AssumptionOfUse` is missing `id`, `title`, or `status` |
+| `E856` | Error | `AssumptionOfUse` is missing `id`, `name`, or `status` |
 | `E857` | Error | `AssumptionOfUse.id` does not match the `AOU-*` pattern |
 | `E858` | Error | an `AssumptionOfUse.appliesTo` ref does not resolve to any model element |
 | `W040` | Warning | a `claim`/`strategy` `Argument` has empty `supports` **and** empty `evidence` (an orphan GSN node) |
@@ -5672,7 +5674,7 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `isConjugated` | Port | bool | `false` | 8.3.2 |
 | `itemType` | FlowDef | string | absent | 8.6.1 |
 | `id` | native Requirement/TestCase | string | — (required) | 8.11.6, 8.12.5 |
-| `title` | native Requirement/TestCase | string | — (required) | 8.11.6, 8.12.5 |
+| `name` | native Requirement/TestCase | string | — (required; free prose) | 8.11.6, 8.12.5 |
 | `status` | native Requirement/TestCase | string | — (required) | 8.11.6, 8.12.5 |
 | `testLevel` | native TestCase | string | — (required) | 8.12.5 |
 | `silLevel` | native Requirement | integer | absent | 8.11.6 |
@@ -5802,7 +5804,7 @@ When a requirement is broken down into multiple child requirements, the breakdow
 ---
 type: Requirement
 id: REQ-SCHED-BITMAP-001
-title: "Bitmap-based O(1) priority selection"
+name: "Bitmap-based O(1) priority selection"
 status: approved
 derivedFrom:
   - REQ-UAV-SCHED-001
@@ -5938,7 +5940,7 @@ metadata:
 ---
 type: SafetyGoal
 id: SG-BRAKE-001
-title: "Prevent unintended brake release"
+name: "Prevent unintended brake release"
 asilLevel: D
 hazardousEvents: [HE-BRAKE-001]
 ---
@@ -5947,7 +5949,7 @@ hazardousEvents: [HE-BRAKE-001]
 ---
 type: Requirement
 id: REQ-BRAKE-HYD-001
-title: "Maintain hydraulic pressure within 50 ms"
+name: "Maintain hydraulic pressure within 50 ms"
 asilLevel: B
 derivedFromSafetyGoal: SG-BRAKE-001
 breakdownAdr: ADR-BRAKE-DECOMP-001    # documents the decomposition rationale

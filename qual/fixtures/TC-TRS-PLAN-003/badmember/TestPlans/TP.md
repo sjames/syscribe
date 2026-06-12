@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-PL3-001
-title: "Unresolvable member"
+name: "Unresolvable member"
 status: approved
 scope: smoke
 testCases: [TC-NOPE-001]

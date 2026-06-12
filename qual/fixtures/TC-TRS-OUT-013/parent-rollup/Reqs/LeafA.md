@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-PR-LEAF-001
-title: "First leaf behaviour shall hold"
+name: "First leaf behaviour shall hold"
 status: approved
 reqDomain: software
 verificationMethod: test

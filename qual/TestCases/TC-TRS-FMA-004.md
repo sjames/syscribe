@@ -3,7 +3,7 @@ id: TC-TRS-FMA-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify full-semantics configuration validity (E225) without duplicating E219/E220."
+name: "Verify full-semantics configuration validity (E225) without duplicating E219/E220."
 verifies:
   - REQ-TRS-FMA-004
 ---

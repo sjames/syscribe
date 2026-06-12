@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: Safety-derived requirement missing ASIL
+name: Safety-derived requirement missing ASIL
 status: draft
 reqDomain: system
 verificationMethod: test

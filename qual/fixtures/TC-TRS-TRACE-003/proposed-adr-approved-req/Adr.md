@@ -1,7 +1,7 @@
 ---
 id: ADR-DRAFT-001
 type: ADR
-title: Draft decision
+name: Draft decision
 status: proposed
 ---
 

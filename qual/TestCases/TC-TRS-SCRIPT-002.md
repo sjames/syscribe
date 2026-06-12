@@ -3,7 +3,7 @@ id: TC-TRS-SCRIPT-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify extension scripts run sandboxed and resource-limited: runaway aborted, eval and filesystem escape refused, parse errors named without crashing siblings, output deterministic."
+name: "Verify extension scripts run sandboxed and resource-limited: runaway aborted, eval and filesystem escape refused, parse errors named without crashing siblings, output deterministic."
 verifies:
   - REQ-TRS-SCRIPT-002
 ---

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRC-001
 type: Requirement
-title: Requirement verified by test case
+name: Requirement verified by test case
 status: draft
 reqDomain: system
 verificationMethod: test

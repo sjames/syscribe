@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-AW-VOID-001
-title: A gateable requirement
+name: A gateable requirement
 status: approved
 reqDomain: software
 ---

@@ -3,7 +3,7 @@ id: TC-TRS-PROJ-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify full re-validation in the configuration lens."
+name: "Verify full re-validation in the configuration lens."
 verifies:
   - REQ-TRS-PROJ-002
 ---

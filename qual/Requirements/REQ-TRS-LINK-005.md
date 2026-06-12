@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-LINK-005
 type: Requirement
-title: Live server shall show a per-element source-link icon to the hosted model element
+name: Live server shall show a per-element source-link icon to the hosted model element
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 id: TC-V12-REMOTE-001
 type: TestCase
-title: "tc_remote"
+name: "tc_remote"
 status: active
 testLevel: L3
 verifies:

@@ -1,7 +1,7 @@
 ---
 id: REQ-SCHED-BITMAP-001
 type: Requirement
-title: Valid multi-segment REQ id
+name: Valid multi-segment REQ id
 status: draft
 reqDomain: system
 verificationMethod: test

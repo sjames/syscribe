@@ -1,7 +1,7 @@
 ---
 id: REQ-V3-001
 type: Requirement
-title: "Requirement REQ-V3-001"
+name: "Requirement REQ-V3-001"
 status: approved
 reqDomain: software
 verificationMethod: test

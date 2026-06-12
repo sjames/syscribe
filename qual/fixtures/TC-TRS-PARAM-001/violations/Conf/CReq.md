@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-PRM-REQ-001
-title: "CONF-PRM-REQ-001"
+name: "CONF-PRM-REQ-001"
 status: approved
 featureModel: Features
 features:

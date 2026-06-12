@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-TAG-001
 type: Requirement
-title: Tool shall support a generic, orthogonal tag filter across queries and reports
+name: Tool shall support a generic, orthogonal tag filter across queries and reports
 status: draft
 reqDomain: software
 verificationMethod: test

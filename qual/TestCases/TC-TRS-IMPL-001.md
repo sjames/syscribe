@@ -3,7 +3,7 @@ id: TC-TRS-IMPL-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify implementedBy path-exists rule W023: missing path, opt-in, draft suppression, gating."
+name: "Verify implementedBy path-exists rule W023: missing path, opt-in, draft suppression, gating."
 verifies:
   - REQ-TRS-IMPL-001
 ---

@@ -166,13 +166,17 @@ pub enum ElementType {
 
 impl ElementType {
     /// Whether this type is **id-identified** — its identity is a stable `id`
-    /// (shortName such as `REQ-*`, `HE-*`) and its human-readable label belongs in
-    /// `title:` (REQ-TRS-NAME-002). Every other type is **name-identified**: its
-    /// identity is its `name`/path and its label belongs in `name:`.
+    /// (shortName such as `REQ-*`, `HE-*`). Every other type is **name-identified**:
+    /// its identity is its `name`/path.
+    ///
+    /// Under the unified identity model (REQ-TRS-NAME-002) the human-readable label is
+    /// **`name`** on every type regardless of identity class; the `title` field is
+    /// removed as a label (declaring it raises `E025`). This predicate therefore only
+    /// distinguishes *identity* (id vs name), not the label field.
     ///
     /// `FeatureDef` is deliberately **not** here: it is name-identified yet may also
     /// carry an optional `FEAT-*` `id` (REQ-TRS-ID-006). The `id` axis (shortName) and
-    /// the label axis (`name` vs `title`) are independent.
+    /// the label axis (always `name`) are independent.
     pub fn is_id_identified(&self) -> bool {
         matches!(
             self,
@@ -352,6 +356,9 @@ pub struct RawFrontmatter {
     pub suppliers: Option<Vec<String>>,
     // Native Requirement fields (§8.11.6)
     pub id: Option<String>,
+    /// **Deprecated / removed as a label** (REQ-TRS-NAME-002). Every element now labels
+    /// via `name`; `title` is no longer a recognized label field. It is still parsed
+    /// here only so the validator can detect a stray `title:` and reject it via `E025`.
     pub title: Option<String>,
     pub status: Option<String>,
     pub sil_level: Option<u8>,

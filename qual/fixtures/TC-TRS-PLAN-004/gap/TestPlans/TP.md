@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-PL4-002
-title: "Demonstration gap"
+name: "Demonstration gap"
 status: approved
 scope: certification
 demonstrates: [REQ-PL4-DEMO-001]

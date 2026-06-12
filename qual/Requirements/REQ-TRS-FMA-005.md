@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-FMA-005
 type: Requirement
-title: feature-check --deep shall explain unsatisfiability with a sound conflict set
+name: feature-check --deep shall explain unsatisfiability with a sound conflict set
 status: draft
 reqDomain: software
 verificationMethod: test

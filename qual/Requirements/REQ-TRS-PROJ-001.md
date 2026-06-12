@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PROJ-001
 type: Requirement
-title: Tool shall provide a --config lens that projects the model onto a configuration
+name: Tool shall provide a --config lens that projects the model onto a configuration
 status: draft
 reqDomain: software
 verificationMethod: test

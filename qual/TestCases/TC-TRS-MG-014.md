@@ -3,7 +3,7 @@ id: TC-TRS-MG-014
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify MagicGrid completeness checks: MG080 orphan need, MG081 unallocated W2 function, MG082 missing SoI, MG083 MoE without MoP; each clears when satisfied; inert without the gate."
+name: "Verify MagicGrid completeness checks: MG080 orphan need, MG081 unallocated W2 function, MG082 missing SoI, MG083 MoE without MoP; each clears when satisfied; inert without the gate."
 verifies:
   - REQ-TRS-MG-014
 ---

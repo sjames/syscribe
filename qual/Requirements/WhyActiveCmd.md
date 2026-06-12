@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-DISC-005
 type: Requirement
-title: Tool shall provide a why-active command explaining an element's activity in a projection
+name: Tool shall provide a why-active command explaining an element's activity in a projection
 status: draft
 reqDomain: software
 verificationMethod: test

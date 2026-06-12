@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-001
 type: Requirement
-title: Fixture requirement for E014 test
+name: Fixture requirement for E014 test
 status: draft
 reqDomain: software
 ---

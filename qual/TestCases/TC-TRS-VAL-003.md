@@ -3,7 +3,7 @@ id: TC-TRS-VAL-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that each warning rule is triggered by its condition with Warning severity."
+name: "Verify that each warning rule is triggered by its condition with Warning severity."
 verifies:
   - REQ-TRS-VAL-003
 ---

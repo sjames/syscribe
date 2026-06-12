@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-EXTREF-001
 type: Requirement
-title: Tool shall support an optional extRef field on all elements and warn on duplicates
+name: Tool shall support an optional extRef field on all elements and warn on duplicates
 status: draft
 reqDomain: software
 verificationMethod: test

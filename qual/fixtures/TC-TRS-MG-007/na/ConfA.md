@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-MG-NA-A-001
-title: NaConfA
+name: NaConfA
 status: approved
 parameterBindings:
   coverage: 80

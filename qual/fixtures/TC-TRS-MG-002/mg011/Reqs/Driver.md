@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-MG-DRIVER-001
-title: A requirement standing in as a bad actor target
+name: A requirement standing in as a bad actor target
 status: approved
 reqDomain: software
 ---

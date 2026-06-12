@@ -3,7 +3,7 @@ id: TC-TRS-FMA-002
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify feature-check --deep command surface, gating, exit codes, and --json."
+name: "Verify feature-check --deep command surface, gating, exit codes, and --json."
 verifies:
   - REQ-TRS-FMA-002
 ---

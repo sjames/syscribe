@@ -1,7 +1,7 @@
 ---
 type: ThreatScenario
 id: TS-TST-001
-title: Remote code execution
+name: Remote code execution
 status: draft
 attackFeasibility: extreme
 ---

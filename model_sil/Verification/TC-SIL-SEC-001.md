@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-SIL-SEC-001
-title: Integration — Operator commands rejected without valid mTLS session
+name: Integration — Operator commands rejected without valid mTLS session
 status: active
 testLevel: L4
 verifies:

@@ -1,7 +1,7 @@
 ---
 id: TC-W009-RS-001
 type: TestCase
-title: "rust testFunction resolves in source"
+name: "rust testFunction resolves in source"
 status: active
 testLevel: L3
 verifies:

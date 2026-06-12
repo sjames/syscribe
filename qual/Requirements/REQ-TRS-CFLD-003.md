@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-CFLD-003
 type: Requirement
-title: Tool shall render custom fields in CLI show and the web detail panel, read-only
+name: Tool shall render custom fields in CLI show and the web detail panel, read-only
 status: draft
 reqDomain: software
 verificationMethod: test

@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-PARSE-007
 type: Requirement
-title: Tool shall require frontmatter to begin on the first line
+name: Tool shall require frontmatter to begin on the first line
 status: draft
 reqDomain: software
 verificationMethod: test

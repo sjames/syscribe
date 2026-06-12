@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-XREF-CHILD-001
-title: A child requirement whose derivedFrom is wholly unknown
+name: A child requirement whose derivedFrom is wholly unknown
 status: approved
 reqDomain: software
 derivedFrom:

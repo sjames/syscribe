@@ -1,7 +1,7 @@
 ---
 id: CONF-SURVEY-001
 type: Configuration
-title: "Survey variant"
+name: "Survey variant"
 status: approved
 featureModel: Features
 features:

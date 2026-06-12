@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-SIL-SW-004
-title: Safety communication shall implement EN 50159 Category 2 safety codes
+name: Safety communication shall implement EN 50159 Category 2 safety codes
 status: approved
 reqDomain: software
 silLevel: 4

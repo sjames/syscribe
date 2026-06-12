@@ -1,7 +1,7 @@
 ---
 type: FMEASheet
 id: FMEA-ENG-002
-title: FMEA — Engine Sensors (CPS, TPS, Lambda)
+name: FMEA — Engine Sensors (CPS, TPS, Lambda)
 status: approved
 entries:
   - id: FM-ENG-011

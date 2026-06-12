@@ -3,7 +3,7 @@ id: TC-TRS-TYPE-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify ConcernDef and Concern are recognised and validated without E005."
+name: "Verify ConcernDef and Concern are recognised and validated without E005."
 verifies:
   - REQ-TRS-TYPE-003
 ---

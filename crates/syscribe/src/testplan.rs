@@ -320,7 +320,7 @@ fn plan_row(
     let (cov, app) = coverage.overall();
     PlanRow {
         id: disp_id(plan),
-        title: plan.frontmatter.title.clone().unwrap_or_default(),
+        title: plan.frontmatter.name.clone().unwrap_or_default(),
         scope: plan.frontmatter.scope.clone().unwrap_or_default(),
         configs,
         effective_count: members.len(),
@@ -460,7 +460,7 @@ pub fn cmd_testplan_detail(
         let doc = json!({
             "schemaVersion": SCHEMA_VERSION,
             "id": disp_id(plan),
-            "title": plan.frontmatter.title.clone().unwrap_or_default(),
+            "title": plan.frontmatter.name.clone().unwrap_or_default(),
             "scope": plan.frontmatter.scope.clone().unwrap_or_default(),
             "status": plan.frontmatter.status.clone().unwrap_or_default(),
             "configurations": config_ids,
@@ -476,7 +476,7 @@ pub fn cmd_testplan_detail(
 
     println!("# TestPlan {}", disp_id(plan));
     println!();
-    println!("- Title: {}", plan.frontmatter.title.as_deref().unwrap_or("—"));
+    println!("- Title: {}", plan.frontmatter.name.as_deref().unwrap_or("—"));
     println!("- Scope: {}", plan.frontmatter.scope.as_deref().unwrap_or("—"));
     println!("- Status: {}", plan.frontmatter.status.as_deref().unwrap_or("—"));
     println!(

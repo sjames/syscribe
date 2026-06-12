@@ -3,7 +3,7 @@ id: TC-TRS-PARAM-001
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify FeatureDef parameter binding rules E203–E206, E222, and W017."
+name: "Verify FeatureDef parameter binding rules E203–E206, E222, and W017."
 verifies:
   - REQ-TRS-PARAM-001
 ---

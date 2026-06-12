@@ -1,7 +1,7 @@
 ---
 type: TestPlan
 id: TP-PL3-003
-title: "Bad domain"
+name: "Bad domain"
 status: approved
 scope: smoke
 selection:

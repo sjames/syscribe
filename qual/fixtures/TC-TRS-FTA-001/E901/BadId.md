@@ -1,7 +1,7 @@
 ---
 type: FaultTree
 id: FAULT-001
-title: Fault Tree With Bad Id
+name: Fault Tree With Bad Id
 status: draft
 topEvent: SG-TST-001
 ---

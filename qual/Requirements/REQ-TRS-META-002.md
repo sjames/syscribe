@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-META-002
 type: Requirement
-title: Tool shall render applied stereotypes as «Name» banners in element diagrams
+name: Tool shall render applied stereotypes as «Name» banners in element diagrams
 status: draft
 reqDomain: software
 verificationMethod: test

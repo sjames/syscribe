@@ -3,7 +3,7 @@ id: TC-TRS-TRACE-005
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that E312 is emitted when a parent Requirement appears in a satisfies: list."
+name: "Verify that E312 is emitted when a parent Requirement appears in a satisfies: list."
 verifies:
   - REQ-TRS-TRACE-005
 ---

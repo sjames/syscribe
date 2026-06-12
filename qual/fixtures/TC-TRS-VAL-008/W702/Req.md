@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-W702-001
 type: Requirement
-title: ASIL-D requirement with no L5 TestCase
+name: ASIL-D requirement with no L5 TestCase
 status: approved
 reqDomain: software
 verificationMethod: test

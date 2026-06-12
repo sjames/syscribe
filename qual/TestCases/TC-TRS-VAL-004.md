@@ -3,7 +3,7 @@ id: TC-TRS-VAL-004
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify that integrity-level propagation errors E841-E843 and W808 are enforced."
+name: "Verify that integrity-level propagation errors E841-E843 and W808 are enforced."
 verifies:
   - REQ-TRS-VAL-004
 ---

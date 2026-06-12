@@ -1,7 +1,7 @@
 ---
 id: REQ-LEAF-001
 type: Requirement
-title: "MPU shall trap out-of-region access"
+name: "MPU shall trap out-of-region access"
 status: approved
 silLevel: 4
 derivedFrom:

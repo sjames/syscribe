@@ -1,7 +1,7 @@
 ---
 type: Argument
 id: ARG-ORPHAN-001
-title: "Claim that argues nothing"
+name: "Claim that argues nothing"
 status: approved
 argumentType: claim
 ---

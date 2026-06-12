@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-SYS-000
-title: Engine ECU shall provide safe and efficient engine management
+name: Engine ECU shall provide safe and efficient engine management
 status: approved
 reqDomain: system
 ---

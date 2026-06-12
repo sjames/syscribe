@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-UAV-PERF-001
-title: "Performance requirements review confirms mission objectives are fully covered"
+name: "Performance requirements review confirms mission objectives are fully covered"
 status: active
 testLevel: L2
 verifies:

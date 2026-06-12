@@ -3,7 +3,7 @@ id: TC-TRS-SEC-003
 type: TestCase
 testLevel: L3
 status: draft
-title: "Verify ISO/SAE 21434 attack tree types: AttackTree/AttackTreeGate/AttackStep, weakest-link roll-up, E915–E921, W035."
+name: "Verify ISO/SAE 21434 attack tree types: AttackTree/AttackTreeGate/AttackStep, weakest-link roll-up, E915–E921, W035."
 verifies:
   - REQ-TRS-SEC-003
 ---

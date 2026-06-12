@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-UAV-MAP-001
-title: "Mapping payload shall capture LiDAR point clouds at >= 100 points/m^2"
+name: "Mapping payload shall capture LiDAR point clouds at >= 100 points/m^2"
 status: approved
 reqDomain: hardware
 verificationMethod: test

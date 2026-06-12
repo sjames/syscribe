@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-ENG-SAFE-005
-title: Throttle close command shall be verified by position feedback within 200 ms
+name: Throttle close command shall be verified by position feedback within 200 ms
 status: approved
 reqDomain: software
 asilLevel: A

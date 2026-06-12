@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-FMA4-BADCHILD-001
-title: "CONF-FMA4-BADCHILD-001"
+name: "CONF-FMA4-BADCHILD-001"
 status: approved
 featureModel: Features
 features:

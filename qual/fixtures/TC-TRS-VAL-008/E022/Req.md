@@ -1,7 +1,7 @@
 ---
 id: REQ-TST-E022-001
 type: Requirement
-title: Requirement with invalid requirementKind
+name: Requirement with invalid requirementKind
 status: draft
 reqDomain: software
 verificationMethod: test

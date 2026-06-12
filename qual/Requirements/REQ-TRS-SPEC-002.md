@@ -1,7 +1,7 @@
 ---
 id: REQ-TRS-SPEC-002
 type: Requirement
-title: The discoverable spec shall include a ports & interfaces decision guide grounded in SysML v2 mechanisms
+name: The discoverable spec shall include a ports & interfaces decision guide grounded in SysML v2 mechanisms
 status: draft
 reqDomain: software
 verificationMethod: test

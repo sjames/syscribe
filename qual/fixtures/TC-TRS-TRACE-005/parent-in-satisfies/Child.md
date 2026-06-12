@@ -1,7 +1,7 @@
 ---
 id: REQ-CHD-001
 type: Requirement
-title: Child requirement
+name: Child requirement
 status: draft
 reqDomain: system
 verificationMethod: test

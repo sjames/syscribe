@@ -1,7 +1,7 @@
 ---
 type: HazardousEvent
 id: HE-ENG-003
-title: Engine over-speed due to failed closed throttle during downshift
+name: Engine over-speed due to failed closed throttle during downshift
 status: approved
 severity: S2
 exposure: E2

@@ -1,7 +1,7 @@
 ---
 type: FMEAEntry
 id: ENTRY-001
-title: FMEA Entry With Bad Id
+name: FMEA Entry With Bad Id
 failureMode: Sensor stuck high
 effect: System reports incorrect speed
 cause: Electrical short

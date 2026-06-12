@@ -3,7 +3,7 @@ id: TC-OUT9-PASS-001
 type: TestCase
 testLevel: L3
 status: approved
-title: "Test for the passing requirement"
+name: "Test for the passing requirement"
 verifies:
   - REQ-OUT9-PASS-001
 testFunctions:

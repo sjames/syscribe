@@ -1,64 +1,64 @@
 ---
 type: TARASheet
 id: TARA-SIL-001
-title: "TARA — Railway CBI operator workstation and field bus interfaces"
+name: "TARA — Railway CBI operator workstation and field bus interfaces"
 status: approved
 date: "2026-05-28"
 
 damageTable:
   - id: DS-SIL-001
-    title: "Unauthorised route set causes conflicting train movements — collision"
+    name: "Unauthorised route set causes conflicting train movements — collision"
     damageSeverity: severe
     impactCategories: [safety, operational]
   - id: DS-SIL-002
-    title: "Replay of field bus command moves points under a train — derailment"
+    name: "Replay of field bus command moves points under a train — derailment"
     damageSeverity: severe
     impactCategories: [safety, operational]
   - id: DS-SIL-003
-    title: "Denial of service on cross-comparison bus forces persistent safe state — service disruption"
+    name: "Denial of service on cross-comparison bus forces persistent safe state — service disruption"
     damageSeverity: major
     impactCategories: [operational, financial]
 
 threatTable:
   - id: TS-SIL-001
-    title: "Compromised maintainer workstation issues unauthorised route commands to vital processor via management LAN"
+    name: "Compromised maintainer workstation issues unauthorised route commands to vital processor via management LAN"
     attackFeasibility: medium
     attackVector: adjacent
     damageScenarios: [DS-SIL-001]
   - id: TS-SIL-002
-    title: "Attacker with physical access to lineside cable replays captured valid field bus point-movement command"
+    name: "Attacker with physical access to lineside cable replays captured valid field bus point-movement command"
     attackFeasibility: low
     attackVector: local
     damageScenarios: [DS-SIL-002]
   - id: TS-SIL-003
-    title: "Flood attack on cross-comparison Ethernet bus saturates link — comparison messages lost"
+    name: "Flood attack on cross-comparison Ethernet bus saturates link — comparison messages lost"
     attackFeasibility: medium
     attackVector: adjacent
     damageScenarios: [DS-SIL-003]
 
 goalTable:
   - id: CSG-SIL-001
-    title: "Ensure authenticity and authorisation of all operator commands reaching the vital processor"
+    name: "Ensure authenticity and authorisation of all operator commands reaching the vital processor"
     calLevel: CAL3
     securityProperty: authenticity
     threatScenarios: [TS-SIL-001]
   - id: CSG-SIL-002
-    title: "Ensure integrity and freshness of all field bus commands to object controllers"
+    name: "Ensure integrity and freshness of all field bus commands to object controllers"
     calLevel: CAL3
     securityProperty: integrity
     threatScenarios: [TS-SIL-002, TS-SIL-003]
 
 controlTable:
   - id: SC-SIL-001
-    title: "Mutual TLS 1.3 authentication between operator workstation and vital processor management interface, with hardware-bound client certificates"
+    name: "Mutual TLS 1.3 authentication between operator workstation and vital processor management interface, with hardware-bound client certificates"
     controlType: prevention
     implementsGoals: [CSG-SIL-001]
   - id: SC-SIL-002
-    title: "EN 50159 Category 2 safety codes on all field bus messages prevent replay and insertion attacks"
+    name: "EN 50159 Category 2 safety codes on all field bus messages prevent replay and insertion attacks"
     controlType: prevention
     implementsGoals: [CSG-SIL-002]
   - id: SC-SIL-003
-    title: "Dedicated VLAN with rate limiting on cross-comparison bus; comparison bus loss triggers immediate safe state (availability vs. safety trade-off)"
+    name: "Dedicated VLAN with rate limiting on cross-comparison bus; comparison bus loss triggers immediate safe state (availability vs. safety trade-off)"
     controlType: detection
     implementsGoals: [CSG-SIL-002]
 ---

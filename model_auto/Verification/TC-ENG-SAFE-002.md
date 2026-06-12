@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-ENG-SAFE-002
-title: HIL — safety monitor detects all defined fault modes within 100 ms
+name: HIL — safety monitor detects all defined fault modes within 100 ms
 status: active
 testLevel: L5
 verifies:

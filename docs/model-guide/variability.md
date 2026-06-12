@@ -48,7 +48,7 @@ A **`Configuration`** (id `CONF-*`) is a complete named product: a `features:` *
 ---
 type: Configuration
 id: CONF-MPS2-WDT-001
-title: "MPS2 board with watchdog"
+name: "MPS2 board with watchdog"
 status: approved
 featureModel: Features
 features:
