@@ -392,6 +392,41 @@ fn scripts_validate_report(
     exit_code
 }
 
+/// The top-level command registry and router (REQ-TRS-CLI-008). Subcommands are derived
+/// from the single embedded help-page list (`help::commands()`) so the router cannot
+/// drift from the man pages. Used only to validate the command line and reject unknown
+/// commands; each subcommand collects its arguments as trailing values so the existing
+/// per-command handlers parse their own flags unchanged. `--help`/`--version`/`spec`/
+/// `--agent-instructions` are handled before this router runs and are intentionally not
+/// modelled here.
+fn build_cli() -> clap::Command {
+    let mut cmd = clap::Command::new("syscribe")
+        .disable_help_flag(true)
+        .disable_version_flag(true)
+        .disable_help_subcommand(true)
+        .subcommand_required(false)
+        .arg_required_else_help(false)
+        .allow_external_subcommands(false)
+        .arg(
+            clap::Arg::new("model")
+                .short('m')
+                .long("model")
+                .num_args(1)
+                .global(true),
+        );
+    for (name, about) in help::commands() {
+        cmd = cmd.subcommand(
+            clap::Command::new(name).about(about).arg(
+                clap::Arg::new("args")
+                    .num_args(0..)
+                    .trailing_var_arg(true)
+                    .allow_hyphen_values(true),
+            ),
+        );
+    }
+    cmd
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
@@ -453,6 +488,17 @@ fn main() {
         return;
     }
 
+    // REQ-TRS-CLI-008: validate the command line through the clap registry before any
+    // model work, so an unknown command is rejected with a clear error + non-zero exit
+    // from any directory. `--help`/`-h`/`help`/`--version`/`version`/`--agent-instructions`/
+    // `spec` are all handled above, so clap only sees real commands here. clap is used
+    // for validation/rejection only — the matched values are discarded and the existing
+    // hand-rolled dispatch below runs unchanged (per-command flags pass through as
+    // trailing args).
+    if let Err(e) = build_cli().try_get_matches_from(&args) {
+        e.exit();
+    }
+
     // Strip --model <path> or --model=<path> from args; collect remaining args.
     let mut remaining: Vec<String> = Vec::new();
     let mut model_flag: Option<String> = None;
@@ -503,7 +549,9 @@ fn main() {
     let vcfg = ValidateConfig::with_model_root(model_root);
 
     // ── Subcommand dispatch ───────────────────────────────────────────────────
-    if let Some(subcmd) = subcommand_args.first().map(|s| s.as_str()) {
+    // `report` (and a bare invocation with no subcommand) fall through to the default
+    // full validation report below (REQ-TRS-CLI-008).
+    if let Some(subcmd) = subcommand_args.first().map(|s| s.as_str()).filter(|s| *s != "report") {
         let resolver = Resolver::new(&elems);
         // subcommand_args[0] = subcommand, subcommand_args[1] = key, subcommand_args[2] = scope, …
         let key = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
@@ -1840,5 +1888,25 @@ leaf hardware parts (Motor, Rotor, IMU, etc.) that are not directly allocated a 
 
     if error_count > 0 {
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod cli_router_tests {
+    use super::*;
+
+    /// The clap registry is structurally valid and stays consistent with the embedded
+    /// help pages: every command with a man page is a registered subcommand
+    /// (REQ-TRS-CLI-008).
+    #[test]
+    fn clap_registry_matches_help_pages() {
+        build_cli().debug_assert();
+        let cli = build_cli();
+        for (name, _) in help::commands() {
+            assert!(
+                cli.find_subcommand(name).is_some(),
+                "command '{name}' has a man page but is not registered in build_cli()"
+            );
+        }
     }
 }

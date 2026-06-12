@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 203 |
-| Passed | 203 |
+| Total test cases | 204 |
+| Passed | 204 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -161,6 +161,17 @@
 | Scenario | Result |
 |---|---|
 | works from a directory with no model or .syscribe.toml | ✓ PASS |
+
+---
+
+### TC-TRS-CLI-008 — TC-TRS-CLI-008
+
+**Verifies:** REQ-TRS-CLI-008  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| explicit 'report' runs the default validation report | ✓ PASS |
 
 ---
 

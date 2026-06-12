@@ -60,6 +60,13 @@ const HELP: &[(&str, &str)] = &[
     ("help", include_str!("../../../prompts/help/help.md")),
 ];
 
+/// The command registry: `(name, one-line summary)` for every command that has a man
+/// page. This is the single source of truth the clap router derives its subcommands
+/// from (REQ-TRS-CLI-008), so the router cannot drift from the help pages.
+pub fn commands() -> impl Iterator<Item = (&'static str, &'static str)> {
+    HELP.iter().map(|(name, body)| (*name, summary(body)))
+}
+
 /// The man page for a command, if one exists.
 pub fn page(cmd: &str) -> Option<&'static str> {
     HELP.iter().find(|(name, _)| *name == cmd).map(|(_, body)| *body)
