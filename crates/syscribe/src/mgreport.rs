@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use syscribe_model::{
     element::{ElementType, RawElement},
     feature_model,
+    validator::{Finding, Severity, ValidationResult},
 };
 
 use crate::export::SCHEMA_VERSION;
@@ -139,6 +140,180 @@ pub fn cmd_magicgrid(elems: &[RawElement], json: bool) {
         empty,
         if empty == 1 { "" } else { "s" }
     );
+}
+
+// ── magicgrid --audit: MagicGrid findings rollup + readiness + verdict (REQ-TRS-MG-013) ─
+
+/// Category for a MagicGrid-relevant finding code, or `None` if not MagicGrid.
+fn mg_category(code: &str) -> Option<&'static str> {
+    match code {
+        "MG020" | "MG021" => Some("Grid"),
+        "E316" | "W307" => Some("Refines"),
+        "MG010" | "MG011" | "MG012" | "MG013" => Some("Context"),
+        "MG060" | "MG061" | "MG062" => Some("SoI"),
+        "MG030" | "MG031" | "MG032" | "MG033" => Some("MoE"),
+        "MG050" | "MG051" | "MG052" => Some("MoP"),
+        "MG040" | "MG041" | "MG042" => Some("Layer"),
+        "MG070" => Some("Variant"),
+        "MG080" | "MG081" | "MG082" | "MG083" => Some("Coverage"),
+        _ => None,
+    }
+}
+
+/// `magicgrid --audit`: roll up the MagicGrid findings (collected with the gate
+/// active), a readiness summary, and a PASS/FAIL verdict. Returns the process
+/// exit code (0 PASS · 2 FAIL). REQ-TRS-MG-013.
+pub fn cmd_magicgrid_audit(elems: &[RawElement], result: &ValidationResult, json: bool) -> i32 {
+    let relevant: Vec<&Finding> = result
+        .findings
+        .iter()
+        .filter(|f| mg_category(f.code).is_some())
+        .collect();
+    let errors: Vec<&Finding> =
+        relevant.iter().copied().filter(|f| f.severity == Severity::Error).collect();
+    let warnings: Vec<&Finding> =
+        relevant.iter().copied().filter(|f| f.severity == Severity::Warning).collect();
+
+    let mut by_code: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut by_cat: BTreeMap<&str, usize> = BTreeMap::new();
+    for f in &relevant {
+        *by_code.entry(f.code).or_default() += 1;
+        *by_cat.entry(mg_category(f.code).unwrap()).or_default() += 1;
+    }
+
+    // Readiness — grid completeness (distinct populated coordinates of 12).
+    let populated = {
+        let mut seen: BTreeSet<String> = BTreeSet::new();
+        for e in elems {
+            if let Some(raw) = e.frontmatter.mg_str("mg_cell") {
+                if let Some((r, c)) = parse_cell(&raw) {
+                    seen.insert(format!("{}{}", r, c));
+                }
+            }
+        }
+        seen.len()
+    };
+    let total_cells = ROWS.len() * COLS.len();
+    let empty_cells = total_cells - populated;
+
+    // Readiness — System of Interest.
+    let sois: Vec<&RawElement> = elems
+        .iter()
+        .filter(|e| e.frontmatter.mg_bool("mg_soi") == Some(true))
+        .collect();
+    let (soi_status, soi_label): (&str, Option<String>) = match sois.len() {
+        0 => ("none", None),
+        1 => ("unique", Some(label(sois[0]))),
+        _ => ("ambiguous", None),
+    };
+
+    let moe_count = elems.iter().filter(|e| e.frontmatter.mg_bool("mg_moe") == Some(true)).count();
+    let mop_count = elems.iter().filter(|e| e.frontmatter.mg_bool("mg_mop") == Some(true)).count();
+    let cfg_count = elems.iter().filter(|e| is_type(e, ElementType::Configuration)).count();
+
+    // Verdict — FAIL when the magicgrid gate would fail: any MagicGrid error, or a
+    // promoted W307.
+    let promoted_w307 = relevant.iter().any(|f| f.code == "W307");
+    let fail = !errors.is_empty() || promoted_w307;
+    let verdict = if fail { "FAIL" } else { "PASS" };
+    let exit_code = if fail { 2 } else { 0 };
+
+    if json {
+        let findings: Vec<serde_json::Value> = relevant
+            .iter()
+            .map(|f| {
+                json!({
+                    "code": f.code,
+                    "severity": match f.severity {
+                        Severity::Error => "error",
+                        Severity::Warning => "warning",
+                        Severity::Info => "info",
+                    },
+                    "category": mg_category(f.code).unwrap(),
+                    "file": f.file,
+                    "message": f.message,
+                })
+            })
+            .collect();
+        let by_code_json: serde_json::Map<String, serde_json::Value> =
+            by_code.iter().map(|(k, v)| (k.to_string(), json!(v))).collect();
+        let by_cat_json: serde_json::Map<String, serde_json::Value> =
+            by_cat.iter().map(|(k, v)| (k.to_string(), json!(v))).collect();
+        let out = json!({
+            "report": "magicgrid-audit",
+            "schemaVersion": SCHEMA_VERSION,
+            "errors": errors.len(),
+            "warnings": warnings.len(),
+            "byCode": by_code_json,
+            "byCategory": by_cat_json,
+            "findings": findings,
+            "readiness": {
+                "cellsPopulated": populated,
+                "cellsEmpty": empty_cells,
+                "systemOfInterest": soi_label,
+                "soiStatus": soi_status,
+                "moes": moe_count,
+                "mops": mop_count,
+                "configurations": cfg_count,
+            },
+            "verdict": verdict,
+            "exitCode": exit_code,
+        });
+        println!("{}", serde_json::to_string_pretty(&out).unwrap());
+        return exit_code;
+    }
+
+    println!("# MagicGrid Audit (profile: magicgrid)");
+    println!();
+    println!("Errors: {} · Warnings: {}", errors.len(), warnings.len());
+    println!();
+    if relevant.is_empty() {
+        println!("No MagicGrid findings.");
+        println!();
+    } else {
+        println!("| Code | Count | Category |");
+        println!("|---|---|---|");
+        for (&code, count) in &by_code {
+            println!("| {} | {} | {} |", code, count, mg_category(code).unwrap());
+        }
+        println!();
+        if !errors.is_empty() {
+            println!("## Errors");
+            for f in &errors {
+                println!("- {}  {}  {}", f.code, f.file, f.message);
+            }
+            println!();
+        }
+        if !warnings.is_empty() {
+            println!("## Warnings");
+            for f in &warnings {
+                println!("- {}  {}  {}", f.code, f.file, f.message);
+            }
+            println!();
+        }
+    }
+
+    println!("## Readiness");
+    println!("- Grid: {}/{} cells populated ({} empty)", populated, total_cells, empty_cells);
+    match soi_status {
+        "unique" => println!("- System of interest: {}", soi_label.as_deref().unwrap_or("—")),
+        "none" => println!("- System of interest: none (no mg_soi marker)"),
+        _ => println!("- System of interest: ambiguous ({} marked)", sois.len()),
+    }
+    println!("- MoEs: {} · MoPs: {} · Configurations: {}", moe_count, mop_count, cfg_count);
+    println!();
+    if fail {
+        let mut codes: Vec<&str> = errors.iter().map(|f| f.code).collect();
+        if promoted_w307 {
+            codes.push("W307");
+        }
+        codes.sort();
+        codes.dedup();
+        println!("## Verdict: FAIL — {}", codes.join(", "));
+    } else {
+        println!("## Verdict: PASS");
+    }
+    exit_code
 }
 
 // ── matrix --allocations: source × target allocation matrix (REQ-TRS-MG-006) ─

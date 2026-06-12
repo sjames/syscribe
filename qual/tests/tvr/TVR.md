@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** unknown  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-06-11  
+**Date:** 2026-06-12  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 179 |
-| Passed | 179 |
+| Total test cases | 181 |
+| Passed | 181 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -747,6 +747,28 @@
 | Scenario | Result |
 |---|---|
 | a single segment match still resolves | ✓ PASS |
+
+---
+
+### TC-TRS-MG-013 — Verify magicgrid --audit: clean model PASS (exit 0) + readiness; a MagicGrid error lists the code and FAILs (exit 2); plain magicgrid has no verdict; --json.
+
+**Verifies:** REQ-TRS-MG-013  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| the audit emits JSON | ✓ PASS |
+
+---
+
+### TC-TRS-MG-014 — Verify MagicGrid completeness checks: MG080 orphan need, MG081 unallocated W2 function, MG082 missing SoI, MG083 MoE without MoP; each clears when satisfied; inert without the gate.
+
+**Verifies:** REQ-TRS-MG-014  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| the completeness checks are inert without the gate | ✓ PASS |
 
 ---
 

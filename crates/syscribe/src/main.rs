@@ -712,8 +712,17 @@ fn main() {
             }
             "magicgrid" => {
                 // REQ-TRS-MG-003: read-only B/W/S × 1-4 grid report over mg_cell.
+                // REQ-TRS-MG-013: `--audit` rolls up the gated MagicGrid findings,
+                // a readiness summary, and a PASS/FAIL verdict (exit 0/2).
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
+                if rest.iter().any(|a| a == "--audit") {
+                    let mut vcfg_audit = vcfg.clone();
+                    vcfg_audit.magicgrid = true;
+                    let result =
+                        syscribe_model::validator::validate_with_config(&elems, &vcfg_audit);
+                    std::process::exit(mgreport::cmd_magicgrid_audit(&elems, &result, json));
+                }
                 mgreport::cmd_magicgrid(&elems, json);
             }
             "trade-study" => {

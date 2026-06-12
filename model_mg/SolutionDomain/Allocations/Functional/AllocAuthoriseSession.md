@@ -3,6 +3,7 @@ type: Allocation
 name: AllocAuthoriseSession
 features:
   - name: source
+    type: Allocation
     allocatedFrom: ProblemDomain::WhiteBox::FunctionalAnalysis::AuthoriseSession
     allocatedTo: ProblemDomain::WhiteBox::LogicalSubsystems::UserInterfaceSubsystem
 ---

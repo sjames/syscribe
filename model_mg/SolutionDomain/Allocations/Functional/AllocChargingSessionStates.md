@@ -3,6 +3,7 @@ type: Allocation
 name: AllocChargingSessionStates
 features:
   - name: source
+    type: Allocation
     allocatedFrom: ProblemDomain::WhiteBox::FunctionalAnalysis::ChargingSessionStates
     allocatedTo: ProblemDomain::WhiteBox::LogicalSubsystems::EnergyControlSubsystem
 ---

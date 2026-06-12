@@ -1,0 +1,3 @@
+[profiles.magicgrid]
+magicgrid = true
+promote = ["W307"]

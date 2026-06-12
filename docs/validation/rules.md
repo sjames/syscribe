@@ -688,6 +688,15 @@ always runs; `W307` (above) is advisory until promoted.
 | MG061 | More than one element in the model is marked `mg_soi: true` — a MagicGrid model has a single system of interest |
 | MG062 | An element is marked **both** `mg_soi: true` and `mg_external: true` — the SoI cannot also be external to itself |
 | MG070 | `custom_fields.mg_variant: true` on an element that is not a `Configuration` |
+| MG080 | **Warning** (coverage) — a non-`draft` B1 `Requirement` (`mg_cell: B1`) neither refined by a use case nor derived into a system requirement (orphan need) |
+| MG081 | **Warning** (coverage) — a W2 functional-analysis element (`ActionDef`/`StateDef`, `mg_cell: W2`) allocated to no logical (W3) `Part`/`PartDef` |
+| MG082 | **Warning** (coverage) — the model declares an external actor (`mg_external: true`) but no element is marked `mg_soi: true` (missing System of Interest) |
+| MG083 | **Warning** (coverage) — an `mg_moe` element that no Measurement of Performance refines (empty `mopRefinedBy`) |
+
+The `MG080`–`MG083` checks are the **completeness / gap-analysis** half of MagicGrid
+validation: advisory warnings (draft-suppressed where applicable, gateable with `--deny`,
+promotable via the profile). They are rolled up, with a readiness summary and a PASS/FAIL
+verdict, by **`magicgrid --audit`** (`--json` for CI).
 
 **Root-name cross-reference hint (`REQ-TRS-XREF-006`).** Qualified names are derived
 relative to the model root, so the root package (`_index.md`) contributes **no**

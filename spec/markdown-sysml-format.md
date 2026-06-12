@@ -5304,6 +5304,15 @@ The `MG###` namespace is **opt-in**: these checks fire only under the MagicGrid 
 | `MG062` | An element is marked **both** `mg_soi: true` and `mg_external: true` — the SoI cannot also be external to itself |
 | `MG070` | `custom_fields.mg_variant: true` on an element that is not a `Configuration` (REQ-TRS-MG-011) |
 
+The next four codes are **completeness / coverage warnings** (`Severity::Warning`, gated, draft-suppressed where applicable, promotable, gateable with `--deny`) — the gap-analysis half of MagicGrid validation. They surface in `magicgrid --audit` (category `Coverage`, REQ-TRS-MG-013/014):
+
+| Code | Condition (warning) |
+|---|---|
+| `MG080` | Orphan stakeholder need: a non-`draft` `Requirement` in cell `B1` (`mg_cell: B1`) that is neither refined by any use case/behavioral element (`refinedBy` empty) nor derived into any system requirement (`derivedChildren` empty) |
+| `MG081` | Unallocated functional-analysis element: an `ActionDef`/`Action`/`StateDef`/`State` in cell `W2` (`mg_cell: W2`) allocated to no `Part`/`PartDef` marked `mg_layer: logical` |
+| `MG082` | Missing System of Interest: the model declares a System Context (≥1 `mg_external: true` element) but no element is marked `mg_soi: true` — emitted once, model-level |
+| `MG083` | MoE without a MoP: an `mg_moe` element with an empty `mopRefinedBy` index — no Measurement of Performance refines it |
+
 #### Integrity-level propagation errors (E841–E843)
 
 Once any element in the traceability chain carries `asilLevel:`, `silLevel:`, or `plLevel:`, all downstream elements reachable via `derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:` must also carry the same field. See §12.7.

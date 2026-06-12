@@ -3,6 +3,7 @@ type: Allocation
 name: AllocDetectAndIsolateFault
 features:
   - name: source
+    type: Allocation
     allocatedFrom: ProblemDomain::WhiteBox::FunctionalAnalysis::DetectAndIsolateFault
     allocatedTo: ProblemDomain::WhiteBox::LogicalSubsystems::SafetyInterlockSubsystem
 ---

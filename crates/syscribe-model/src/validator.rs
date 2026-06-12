@@ -4499,6 +4499,171 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
         }
+
+        // ── MagicGrid completeness / coverage warnings (REQ-TRS-MG-014) ──────
+        //
+        // The *gap-analysis* half of MagicGrid validation: each link of the trace
+        // chain (needs → use cases → context → MoEs → requirements → architecture)
+        // must actually be present. These are advisory warnings, surfaced by
+        // `magicgrid --audit`. They run at the tail of the gated pass so the reverse
+        // indices (`refined_by`, `derived_children`, `mop_refined_by`) are fully
+        // built before MG080/MG083 consult them.
+
+        // MG080 — orphan stakeholder need. A non-draft B1 Requirement that is
+        // neither refined by any behavioral element (empty `refined_by`) nor derived
+        // into any requirement (empty `derived_children`). Both indices are keyed by
+        // the target's stable id else qname (`index_key`), matching the B1 need's key.
+        for elem in elements {
+            let fm = &elem.frontmatter;
+            if !matches!(fm.element_type, Some(ElementType::Requirement)) {
+                continue;
+            }
+            if fm.status.as_deref() == Some("draft") {
+                continue;
+            }
+            if fm.mg_str("mg_cell").as_deref() != Some("B1") {
+                continue;
+            }
+            let key = index_key(elem);
+            let is_refined = refined_by.get(&key).map_or(false, |v| !v.is_empty());
+            let is_derived = derived_children.get(&key).map_or(false, |v| !v.is_empty());
+            if !is_refined && !is_derived {
+                findings.push(warning(
+                    "MG080",
+                    &elem.file_path,
+                    &format!(
+                        "orphan stakeholder need: B1 requirement '{}' is neither refined by a use case nor derived into a system requirement",
+                        elem.qualified_name
+                    ),
+                ));
+            }
+        }
+
+        // MG081 — unallocated functional-analysis element. A W2 behavioral element
+        // (ActionDef/Action/StateDef/State) that is the `allocatedFrom` of no
+        // Allocation edge whose target resolves to a logical (W3) Part/PartDef.
+        // Reuses the Allocation-edge extraction of MG041 (features[].allocatedFrom/
+        // allocatedTo + top-level allocated_from/allocated_to), but matches targets
+        // marked `mg_layer: logical` rather than physical.
+        let is_w2_function = |e: &RawElement| {
+            matches!(
+                e.frontmatter.element_type,
+                Some(ElementType::ActionDef)
+                    | Some(ElementType::Action)
+                    | Some(ElementType::StateDef)
+                    | Some(ElementType::State)
+            )
+        };
+        // Source qnames allocated to a logical part.
+        let mut allocated_to_logical: HashSet<String> = HashSet::new();
+        let mut record_logical_edge = |from: &str, to: &str| {
+            let to_logical = resolver
+                .resolve_ref(elements, to)
+                .map(|t| part_layer.get(&t.qualified_name).map(|l| l == "logical").unwrap_or(false))
+                .unwrap_or(false);
+            if !to_logical {
+                return;
+            }
+            if let Some(src) = resolver.resolve_ref(elements, from) {
+                allocated_to_logical.insert(src.qualified_name.clone());
+            }
+        };
+        for elem in elements {
+            if !matches!(elem.frontmatter.element_type, Some(ElementType::Allocation)) {
+                continue;
+            }
+            let froms = elem.frontmatter.allocated_from.as_deref().unwrap_or(&[]);
+            let tos = elem.frontmatter.allocated_to.as_deref().unwrap_or(&[]);
+            for to in tos {
+                for from in froms {
+                    record_logical_edge(from, to);
+                }
+            }
+            if let Some(ref feats) = elem.frontmatter.features {
+                for feat_val in feats {
+                    if let serde_yaml::Value::Mapping(ref feat) = *feat_val {
+                        let is_alloc = feat
+                            .get(&serde_yaml::Value::String("type".into()))
+                            .and_then(|v| v.as_str())
+                            == Some("Allocation");
+                        if !is_alloc {
+                            continue;
+                        }
+                        let from = feat
+                            .get(&serde_yaml::Value::String("allocatedFrom".into()))
+                            .and_then(|v| v.as_str());
+                        let to = feat
+                            .get(&serde_yaml::Value::String("allocatedTo".into()))
+                            .and_then(|v| v.as_str());
+                        if let (Some(from), Some(to)) = (from, to) {
+                            record_logical_edge(from, to);
+                        }
+                    }
+                }
+            }
+        }
+        for elem in elements {
+            if !is_w2_function(elem) {
+                continue;
+            }
+            if elem.frontmatter.mg_str("mg_cell").as_deref() != Some("W2") {
+                continue;
+            }
+            if !allocated_to_logical.contains(&elem.qualified_name) {
+                findings.push(warning(
+                    "MG081",
+                    &elem.file_path,
+                    &format!(
+                        "unallocated functional-analysis element: W2 '{}' is allocated to no logical (W3) Part/PartDef",
+                        elem.qualified_name
+                    ),
+                ));
+            }
+        }
+
+        // MG082 — missing System of Interest. Emitted once, model-level: the model
+        // declares a System Context (at least one `mg_external: true` element) but no
+        // element is marked `mg_soi: true`. Attach the finding to the first external
+        // element's file (else the model root).
+        let externals: Vec<&RawElement> = elements
+            .iter()
+            .filter(|e| e.frontmatter.mg_bool("mg_external") == Some(true))
+            .collect();
+        let has_soi = elements
+            .iter()
+            .any(|e| e.frontmatter.mg_bool("mg_soi") == Some(true));
+        if !externals.is_empty() && !has_soi {
+            let file = externals
+                .first()
+                .map(|e| e.file_path.as_str())
+                .unwrap_or("");
+            findings.push(warning(
+                "MG082",
+                file,
+                "missing System of Interest: the model has an mg_external element but no element is marked mg_soi: true",
+            ));
+        }
+
+        // MG083 — MoE without a MoP. An `mg_moe` element with an empty `mop_refined_by`
+        // entry (keyed by stable id else qname, the MG-008 keying): no Measurement of
+        // Performance refines it.
+        for elem in elements {
+            if elem.frontmatter.mg_bool("mg_moe") != Some(true) {
+                continue;
+            }
+            let key = index_key(elem);
+            let refined = mop_refined_by.get(&key).map_or(false, |v| !v.is_empty());
+            if !refined {
+                findings.push(warning(
+                    "MG083",
+                    &elem.file_path,
+                    &format!(
+                        "MoE '{}' has no Measurement of Performance refining it (empty mopRefinedBy)",
+                        elem.qualified_name
+                    ),
+                ));
+            }
+        }
     }
 
     // REQ-TRS-XREF-006 — root-package-name hint. A qualified name is path-relative

@@ -329,11 +329,59 @@ Rollup (weighted total per configuration):
 
 ---
 
-## 10. Finding-code reference
+## 10. The audit & gap analysis — `magicgrid --audit`
 
-All `MG###` findings are **Error** severity and fire **only** under
-`validate --profile magicgrid`. `E316` and `W307` concern the `refines:` link;
-`E316` runs in the base format, `W307` is advisory until promoted.
+`magicgrid --audit` runs the gated validation and rolls it into one dashboard — the
+natural complement to the grid report:
+
+```bash
+syscribe -m model_mg/ magicgrid --audit
+syscribe -m model_mg/ magicgrid --audit --json
+```
+
+- **Findings** — error/warning counts, a per-code table grouped by category
+  (Grid · Refines · Context · SoI · MoE · MoP · Layer · Variant · Coverage), then the
+  individual error and warning lines.
+- **Readiness** — grid completeness (populated/empty cells), the System of Interest
+  (unique / none / ambiguous), and MoE / MoP / Configuration counts.
+- **Verdict** — `PASS` (exit 0) / `FAIL` (exit 2). It fails when the gate would fail:
+  any MagicGrid error, or a promoted `W307`. The Coverage warnings below are advisory
+  and do not, on their own, fail the verdict.
+
+```text
+# MagicGrid Audit (profile: magicgrid)
+Errors: 0 · Warnings: 0
+## Readiness
+- Grid: 9/12 cells populated (3 empty)
+- System of interest: ChargingStation
+- MoEs: 4 · MoPs: 4 · Configurations: 2
+## Verdict: PASS
+```
+
+### Coverage / gap-analysis checks (`MG080`–`MG083`)
+
+Beyond per-marker well-formedness, the gate runs **completeness** warnings — the
+gap-analysis half of MagicGrid validation — surfaced under the audit's *Coverage*
+category:
+
+| Code | Coverage gap |
+|---|---|
+| `MG080` | A B1 stakeholder need neither refined by a use case nor derived into a system requirement (orphan need) |
+| `MG081` | A W2 functional-analysis element (`ActionDef`/`StateDef`) allocated to no logical (W3) subsystem |
+| `MG082` | The model declares an external actor (`mg_external`) but no `mg_soi` System of Interest |
+| `MG083` | A MoE with no Measurement of Performance refining it |
+
+These are **advisory warnings** (draft-suppressed where applicable, gateable with
+`--deny`, promotable via the profile) — completeness hints, not gate failures.
+
+---
+
+## 11. Finding-code reference
+
+`MG###` findings fire **only** under `validate --profile magicgrid`; most are
+**Error** severity, except the `MG080`–`MG083` coverage **warnings**. `E316` and
+`W307` concern the `refines:` link; `E316` runs in the base format, `W307` is
+advisory until promoted.
 
 | Code | Severity | Gating |
 |---|---|---|
@@ -346,6 +394,7 @@ All `MG###` findings are **Error** severity and fire **only** under
 | `MG050`–`MG052` | Error | MoPs (§6) — magicgrid profile |
 | `MG060`–`MG062` | Error | System of Interest (§4) — magicgrid profile |
 | `MG070` | Error | `mg_variant` (§8) — magicgrid profile |
+| `MG080`–`MG083` | Warning | completeness / coverage (§10) — magicgrid profile, advisory |
 
 See the [Rule Reference](../validation/rules.md#magicgrid-overlay-e316-w307-mg010mg070)
 for the per-code conditions.

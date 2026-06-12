@@ -3,6 +3,7 @@ type: Allocation
 name: AllocNegotiateChargingContract
 features:
   - name: source
+    type: Allocation
     allocatedFrom: ProblemDomain::WhiteBox::FunctionalAnalysis::NegotiateChargingContract
     allocatedTo: ProblemDomain::WhiteBox::LogicalSubsystems::EnergyControlSubsystem
 ---

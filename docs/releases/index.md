@@ -2,6 +2,33 @@
 
 `RELEASES`
 
+## 0.22.0 — 2026-06-12
+
+### `magicgrid --audit` — MagicGrid findings, readiness, and a verdict
+
+A new audit mode on the `magicgrid` command runs the gated MagicGrid validation and
+rolls it into one dashboard: error/warning **counts**, a **per-code table** grouped by
+category (Grid · Refines · Context · SoI · MoE · MoP · Layer · Variant · Coverage), the
+individual **error and warning lines**, a **readiness** summary (grid completeness, the
+System of Interest, MoE/MoP/Configuration counts), and a **PASS/FAIL verdict** (exit 0/2,
+`FAIL` when the gate would fail). `magicgrid --audit --json` emits the structured rollup
+for CI. (`REQ-TRS-MG-013`.)
+
+### MagicGrid completeness / gap-analysis checks (`MG080`–`MG083`)
+
+The MagicGrid gate gains the *coverage* half of the method's validation — advisory
+warnings (draft-suppressed, gateable, promotable) surfaced by the audit:
+
+- **`MG080`** — a B1 stakeholder need neither refined by a use case nor derived into a
+  system requirement (orphan need).
+- **`MG081`** — a W2 functional-analysis element allocated to no logical (W3) subsystem.
+- **`MG082`** — the model declares an external actor but no `mg_soi` System of Interest.
+- **`MG083`** — a Measure of Effectiveness with no Measurement of Performance refining it.
+
+(`REQ-TRS-MG-014`, verified by `TC-TRS-MG-013`/`TC-TRS-MG-014`; qual suite 181/181. The
+`model_mg/` example was extended with W2→W3 functional allocations and a fourth MoP so it
+audits clean.)
+
 ## 0.21.1 — 2026-06-12
 
 ### `trade-study` — ambiguous parameter binding is now unevaluable
