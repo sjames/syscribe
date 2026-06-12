@@ -39,6 +39,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | W006 | Both `silLevel` (IEC 61508) and `asilLevel` (ISO 26262) are set on the same element — incompatible standards; use only one |
 | W007 | Type definition (e.g. `PartDef`) is never referenced as a supertype or type |
 | W008 | Element has no `type:` field — will be ignored by most commands |
+| W009 | A TestCase `testFunctions[].function` is not found in its `sourceFile` (live source-drift; a planned/draft TestCase reports the informational `I010` instead) |
 
 ## Cross-reference errors (E101–E106)
 

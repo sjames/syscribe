@@ -53,6 +53,7 @@
 | `W002` | `Requirement` at `approved`/`implemented` has no active `TestCase` in `verifiedBy` |
 | `W003` | `Requirement` at `verified` but `verifiedBy` is empty or all entries are `retired` |
 | `W004` | `sourceFile:` path does not exist on disk relative to model root |
+| `W009` | A TestCase `testFunctions[].function` is not found in its `sourceFile` (live source-drift; planned/draft TestCases report `I010` instead) |
 | `W005` | Native `Requirement` has neither `derivedFrom:` nor `derivedChildren` (possible orphan) |
 | `W006` | Both `silLevel:` and `asilLevel:` set on the same element — incompatible standards |
 | `W007` | Unrecognised frontmatter key (lenient mode; key preserved) |

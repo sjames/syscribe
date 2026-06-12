@@ -3,7 +3,8 @@
 ## SYNOPSIS
     syscribe -m <root> list <Type> [scope]
         [--tag <t>] [--feature <F>] [--config <C>]
-        [--status <s>] [--sil <v>] [--has-wcet] [--json]
+        [--status <s>] [--sil <v>] [--has-wcet]
+        [--where custom.<key>[<op><value>]]... [--json]
 
 ## DESCRIPTION
 Lists elements of a given type, optionally scoped to a namespace, with filters
@@ -17,6 +18,8 @@ for tags, feature gating, lifecycle status, integrity level, and WCET claims.
     --status <s>     Keep only elements whose status: equals s.
     --sil <v>        Keep only elements whose silLevel stringifies to v OR asilLevel == v.
     --has-wcet       Keep only elements that declare a non-empty wcet:.
+    --where custom.<key>[<op><value>]   Filter by custom_fields: (op = / != / ~ / > / < /
+                     >= / <=; bare custom.<key> = presence). Repeatable, ANDed.
     --json           Emit a JSON array (qualifiedName,type,name,id,status,silLevel,asilLevel,wcet).
 
 ## EXAMPLES
