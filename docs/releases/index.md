@@ -2,7 +2,7 @@
 
 `RELEASES`
 
-## Unreleased
+## 0.26.0 — 2026-06-12
 
 ### `name` is the universal label; `title` removed (E024 retired, E025 generalised)
 
@@ -47,6 +47,8 @@ command now runs the default full validation report. (`REQ-TRS-CLI-008`.)
 The qualification workflow now fails the build if **any** bundled model (`model`,
 `model_auto`, `model_mg`, `model_sil`, `qual`) has a validation error, and its path
 triggers were widened to include `model*/**` so model-only edits are validated.
+
+Suite at **204** test cases, all passing.
 
 ## 0.25.0 — 2026-06-12
 
