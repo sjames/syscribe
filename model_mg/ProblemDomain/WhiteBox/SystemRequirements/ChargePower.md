@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-EVCS-SYS-001
-title: "The station shall deliver at least 150 kW DC to a single connected vehicle"
+name: "The station shall deliver at least 150 kW DC to a single connected vehicle"
 status: approved
 requirementKind: system
 reqDomain: system

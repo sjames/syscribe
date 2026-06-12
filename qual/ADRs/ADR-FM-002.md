@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-FM-002
-title: "Use batsat as the sole SAT engine for feature-model analysis"
+name: "Use batsat as the sole SAT engine for feature-model analysis"
 status: accepted
 ---
 

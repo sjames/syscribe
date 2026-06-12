@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-FM-003
-title: "Separate feature membership (mandatory:) from child grouping (groupKind:)"
+name: "Separate feature membership (mandatory:) from child grouping (groupKind:)"
 status: accepted
 ---
 

@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-EVCS-NEED-001
-title: "Drivers need a fast charge so a typical EV gains usable range in a short stop"
+name: "Drivers need a fast charge so a typical EV gains usable range in a short stop"
 status: approved
 requirementKind: stakeholder
 reqDomain: system

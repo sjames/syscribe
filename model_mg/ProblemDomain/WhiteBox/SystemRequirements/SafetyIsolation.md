@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-EVCS-SYS-003
-title: "The station shall de-energise the connector within 100 ms of detecting a fault"
+name: "The station shall de-energise the connector within 100 ms of detecting a fault"
 status: approved
 requirementKind: system
 reqDomain: system

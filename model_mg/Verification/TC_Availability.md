@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-EVCS-003
-title: "Verify stall availability meets 99.0% over the analysis window"
+name: "Verify stall availability meets 99.0% over the analysis window"
 status: approved
 testLevel: L5
 verificationMethod: analysis

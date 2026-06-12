@@ -1,7 +1,7 @@
 ---
 type: Configuration
 id: CONF-EVCS-002
-title: "Premium tier — 4x90 kW, dual spare"
+name: "Premium tier — 4x90 kW, dual spare"
 status: approved
 custom_fields:
   mg_variant: true

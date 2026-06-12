@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-EVCS-NEED-003
-title: "Drivers and bystanders need the charging process to be electrically safe"
+name: "Drivers and bystanders need the charging process to be electrically safe"
 status: approved
 requirementKind: stakeholder
 reqDomain: system

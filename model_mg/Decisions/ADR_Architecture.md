@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-EVCS-001
-title: "Centralised power cabinet with distributed dispensers"
+name: "Centralised power cabinet with distributed dispensers"
 status: accepted
 ---
 

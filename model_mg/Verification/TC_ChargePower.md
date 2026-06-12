@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-EVCS-001
-title: "Verify the station delivers at least 150 kW DC to one vehicle"
+name: "Verify the station delivers at least 150 kW DC to one vehicle"
 status: approved
 testLevel: L5
 verifies:

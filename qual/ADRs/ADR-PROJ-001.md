@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-PROJ-001
-title: "Configuration projection: a filter-and-reuse --config lens, per-variant validation, and a global SAT guarantee"
+name: "Configuration projection: a filter-and-reuse --config lens, per-variant validation, and a global SAT guarantee"
 status: proposed
 ---
 

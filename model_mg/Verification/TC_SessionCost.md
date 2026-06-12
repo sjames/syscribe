@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-EVCS-004
-title: "Verify amortised cost per session is at or below USD 4.00"
+name: "Verify amortised cost per session is at or below USD 4.00"
 status: approved
 testLevel: L5
 verificationMethod: analysis

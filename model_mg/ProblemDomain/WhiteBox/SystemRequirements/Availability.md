@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-EVCS-SYS-002
-title: "The station shall achieve at least 99.0% stall availability over a rolling year"
+name: "The station shall achieve at least 99.0% stall availability over a rolling year"
 status: approved
 requirementKind: system
 reqDomain: system

@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-EVCS-NEED-002
-title: "Operators need high station availability so revenue and driver trust are protected"
+name: "Operators need high station availability so revenue and driver trust are protected"
 status: approved
 requirementKind: stakeholder
 reqDomain: system

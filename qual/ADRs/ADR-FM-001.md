@@ -1,7 +1,7 @@
 ---
 type: ADR
 id: ADR-FM-001
-title: "Solver-backed feature-model analysis: in-tree SAT over the boolean layer, numeric/SMT deferred"
+name: "Solver-backed feature-model analysis: in-tree SAT over the boolean layer, numeric/SMT deferred"
 status: superseded
 ---
 

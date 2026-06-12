@@ -1,7 +1,7 @@
 ---
 type: TestCase
 id: TC-EVCS-002
-title: "Verify the connector de-energises within 100 ms of a fault"
+name: "Verify the connector de-energises within 100 ms of a fault"
 status: approved
 testLevel: L5
 verifies:

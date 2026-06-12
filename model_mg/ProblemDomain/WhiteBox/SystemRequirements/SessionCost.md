@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-EVCS-SYS-004
-title: "The station shall keep amortised cost per session at or below USD 4.00"
+name: "The station shall keep amortised cost per session at or below USD 4.00"
 status: approved
 requirementKind: system
 reqDomain: system

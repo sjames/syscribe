@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-EVCS-NEED-004
-title: "Operators need a low cost-per-session so the station is commercially viable"
+name: "Operators need a low cost-per-session so the station is commercially viable"
 status: approved
 requirementKind: stakeholder
 reqDomain: system
