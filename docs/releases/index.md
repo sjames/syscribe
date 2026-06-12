@@ -2,6 +2,13 @@
 
 `RELEASES`
 
+## 0.26.1 — 2026-06-13
+
+### Bug fixes
+
+- **Fix #43 — `template` output failed its own validation.** Every `syscribe template <Type>` command was still emitting the removed `title:` field instead of `name:`, causing freshly scaffolded elements to immediately fail with E025. All 23 templates updated (including TARASheet inline entry rows).
+- **Fix #44 — W042 false positives on id-identified filenames.** W042 ("not a SysMLv2 basic name") was firing on elements whose filename follows the `<id>-Description.md` convention (e.g. `AOU-KERNEL-001-AmpOutsidePerimeter.md` with `id: AOU-KERNEL-001`). The exemption now covers any element whose declared `id:` is a stable id and whose filename stem is not the element's SysML `name:` label. Name-identified types that also carry a stable id (FeatureDef) remain W042-checked as before.
+
 ## 0.26.0 — 2026-06-12
 
 ### `name` is the universal label; `title` removed (E024 retired, E025 generalised)
