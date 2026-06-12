@@ -2,6 +2,17 @@
 
 `RELEASES`
 
+## 0.26.3 — 2026-06-13
+
+### New feature: `list TestCase` with config projection and multi-tag filtering
+
+`list TestCase` now produces execution-oriented output tailored for CI test selection:
+
+- **Columns**: `ID | Name | Level | Status | Verifies | Tags` instead of the generic table.
+- **JSON fields**: `testLevel`, `verifies`, `tags`, `sourceFile`, `testFunctions` in `--json` output.
+- **`--config <id>` projection**: filters to only test cases active in the given configuration (respects `appliesWhen:`).
+- **Repeated `--tag <t>`** (AND semantics): `--tag integration --tag performance` returns only test cases that carry *all* listed tags. Enables fine-grained CI suite selection from a single command. (`REQ-TRS-OUT-014`, `REQ-TRS-TAG-002`)
+
 ## 0.26.2 — 2026-06-13
 
 ### Diagnostic improvements
