@@ -18,6 +18,7 @@ mod query;
 mod render;
 mod safety_case;
 mod scaffold;
+mod scripting;
 mod testplan;
 mod vdepth;
 mod spec;
@@ -237,6 +238,158 @@ fn parse_where_options(args: &[String]) -> Vec<query::CustomWhere> {
         i += 1;
     }
     out
+}
+
+/// REQ-TRS-SCRIPT-005/006 — the `scripts` command family. Returns the process
+/// exit code (0 clean, 1 on error/runtime failure, 2 on a tripped gate). Loads
+/// the sandboxed script environment lazily; a load failure (e.g. duplicate name)
+/// is reported and exits non-zero. Independent of the built-in `validate`.
+fn cmd_scripts(
+    elems: &[RawElement],
+    vcfg: &ValidateConfig,
+    sub: &str,
+    rest: &[String],
+) -> i32 {
+    use scripting::{ScriptEnv, ScriptError};
+
+    // `scripts` with no/unknown subcommand → usage.
+    match sub {
+        "list" | "run" | "validate" => {}
+        "" => {
+            eprintln!("Usage: syscribe -m <root> scripts <list|run|validate> [...]");
+            return 1;
+        }
+        other => {
+            eprintln!("Unknown scripts subcommand: {other}");
+            eprintln!("Usage: syscribe -m <root> scripts <list|run|validate> [...]");
+            return 1;
+        }
+    }
+
+    let env = match ScriptEnv::load(vcfg) {
+        Ok(e) => e,
+        Err(err) => {
+            eprintln!("Error loading extension scripts: {}", err.message());
+            return 1;
+        }
+    };
+
+    let json = rest.iter().any(|a| a == "--json");
+
+    match sub {
+        "list" => {
+            env.list(json);
+            0
+        }
+        "run" => {
+            // First non-flag token is the command name.
+            let name = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
+            let name = match name {
+                Some(n) => n,
+                None => {
+                    eprintln!("Usage: syscribe -m <root> scripts run <command> [--json]");
+                    return 1;
+                }
+            };
+            match env.run_command(elems, vcfg, name) {
+                Ok(out) => {
+                    if !out.is_empty() {
+                        println!("{out}");
+                    }
+                    0
+                }
+                Err(err) => {
+                    match err {
+                        ScriptError::NotFound(m) | ScriptError::Runtime(m) | ScriptError::Load(m) => {
+                            eprintln!("Error: {m}");
+                        }
+                    }
+                    1
+                }
+            }
+        }
+        "validate" => {
+            let gate = parse_gate_options(rest);
+            let (findings, runtime_error) = env.run_checks(elems, vcfg);
+            scripts_validate_report(&findings, &gate, runtime_error, json)
+        }
+        _ => unreachable!(),
+    }
+}
+
+/// Render `scripts validate` findings and compute the exit code (REQ-TRS-SCRIPT-006).
+/// Findings are namespaced `<check>/<code>`; the exit contract mirrors built-in
+/// `validate`: 1 on any error-severity finding, 2 on a tripped gate, else 0. A
+/// runtime check failure also forces a non-zero (1) exit.
+fn scripts_validate_report(
+    findings: &[scripting::ScriptFinding],
+    gate: &query::GateOptions,
+    runtime_error: bool,
+    json: bool,
+) -> i32 {
+    let ns = |f: &scripting::ScriptFinding| format!("{}/{}", f.check, f.code);
+
+    let errors: Vec<&scripting::ScriptFinding> =
+        findings.iter().filter(|f| f.severity == "error").collect();
+    let warnings: Vec<&scripting::ScriptFinding> =
+        findings.iter().filter(|f| f.severity == "warning").collect();
+    let infos: Vec<&scripting::ScriptFinding> =
+        findings.iter().filter(|f| f.severity == "info").collect();
+
+    // Gate evaluation over the namespaced codes (`<check>/<code>`).
+    let denied: Vec<&scripting::ScriptFinding> = if gate.warnings_as_errors {
+        warnings.clone()
+    } else {
+        warnings.iter().filter(|f| gate.deny.contains(&ns(f))).copied().collect()
+    };
+    let denied_infos: Vec<&scripting::ScriptFinding> =
+        infos.iter().filter(|f| gate.deny.contains(&ns(f))).copied().collect();
+    let over_max = gate.max_warnings.map_or(false, |m| warnings.len() > m);
+    let gate_tripped = !denied.is_empty() || !denied_infos.is_empty() || over_max;
+
+    let exit_code = if !errors.is_empty() || runtime_error {
+        1
+    } else if gate_tripped {
+        2
+    } else {
+        0
+    };
+
+    if json {
+        let items: Vec<serde_json::Value> = findings
+            .iter()
+            .map(|f| {
+                serde_json::json!({
+                    "code": ns(f),
+                    "severity": f.severity,
+                    "file": f.file,
+                    "message": f.message,
+                    "source": f.source,
+                })
+            })
+            .collect();
+        println!("{}", serde_json::to_string_pretty(&items).unwrap());
+        return exit_code;
+    }
+
+    if findings.is_empty() {
+        println!("0 errors, 0 warnings — no extension-check findings.");
+        return exit_code;
+    }
+
+    println!("| Code | Severity | File | Message | Source |");
+    println!("|---|---|---|---|---|");
+    for f in findings {
+        println!(
+            "| {} | {} | {} | {} | {} |",
+            ns(f),
+            f.severity,
+            f.file,
+            f.message,
+            f.source
+        );
+    }
+    exit_code
 }
 
 fn main() {
@@ -1000,6 +1153,16 @@ fn main() {
                 );
                 if !ok {
                     std::process::exit(2);
+                }
+            }
+            "scripts" => {
+                // REQ-TRS-SCRIPT-005/006 — `scripts list|run|validate`. The
+                // built-in `validate` never touches this path (separation).
+                let sub = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
+                let rest = subcommand_args.get(2..).unwrap_or(&[]);
+                let code = cmd_scripts(&elems, &vcfg, sub, rest);
+                if code != 0 {
+                    std::process::exit(code);
                 }
             }
             other => {

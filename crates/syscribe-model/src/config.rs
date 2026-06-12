@@ -71,6 +71,13 @@ pub struct ValidateConfig {
     /// table of `<model_root>/.syscribe.toml`. `None` means the feature is inert
     /// (no element resolves to a URL; diagrams/reports are exactly as before).
     pub links: Option<LinkConfig>,
+
+    /// REQ-TRS-SCRIPT-001 — resolved Rhai extension-scripts directory. Read from
+    /// `[scripts] path` in `<model_root>/.syscribe.toml` (default `.syscribe/scripts/`),
+    /// resolved against the model root. Always `Some` when there is a model root
+    /// (the directory may or may not exist on disk — an absent dir is not an error;
+    /// the model simply has no extensions). Scripts are tooling, never model content.
+    pub scripts_dir: Option<PathBuf>,
 }
 
 /// REQ-TRS-LINK-001 — resolved `[links]` configuration. Carries the hosted-URL
@@ -158,6 +165,8 @@ struct PathsToml {
     repo_root: Option<String>,
     #[serde(default)]
     ids: IdsToml,
+    #[serde(default)]
+    scripts: ScriptsToml,
 }
 
 /// The `[ids]` table of `.syscribe.toml`.
@@ -165,6 +174,15 @@ struct PathsToml {
 struct IdsToml {
     #[serde(default, alias = "maxDigits")]
     max_digits: Option<usize>,
+}
+
+/// The `[scripts]` table of `.syscribe.toml` (REQ-TRS-SCRIPT-001). `path` is the
+/// extension-scripts directory, resolved relative to the model root; the default
+/// when unset is `.syscribe/scripts/`.
+#[derive(Debug, Default, Deserialize)]
+struct ScriptsToml {
+    #[serde(default)]
+    path: Option<String>,
 }
 
 /// A named validation severity profile (issue #18 / REQ-TRS-OUT-012).
@@ -234,6 +252,7 @@ impl ValidateConfig {
         let repo_root = resolve_repo_root(&root);
         let id_max_digits = resolve_id_max_digits(&root);
         let links = load_links(&root);
+        let scripts_dir = Some(resolve_scripts_dir(&root));
         Self {
             model_root: Some(root),
             repo_root,
@@ -244,6 +263,7 @@ impl ValidateConfig {
             id_max_digits,
             magicgrid: false,
             links,
+            scripts_dir,
         }
     }
 
@@ -397,6 +417,24 @@ fn resolve_repo_root(model_root: &Path) -> Option<PathBuf> {
         }
     }
     detect_git_root(model_root)
+}
+
+/// Resolve the Rhai extension-scripts directory (REQ-TRS-SCRIPT-001). Reads
+/// `[scripts] path` from `<model_root>/.syscribe.toml`; the default when unset
+/// (or the file is absent/unparseable) is `.syscribe/scripts/`. A relative path
+/// is resolved against the model root; an absolute path is used verbatim.
+fn resolve_scripts_dir(model_root: &Path) -> PathBuf {
+    let configured = std::fs::read_to_string(model_root.join(".syscribe.toml"))
+        .ok()
+        .and_then(|text| toml::from_str::<PathsToml>(&text).ok())
+        .and_then(|cfg| cfg.scripts.path);
+    let rel = configured.unwrap_or_else(|| ".syscribe/scripts".to_string());
+    let p = PathBuf::from(rel);
+    if p.is_absolute() {
+        p
+    } else {
+        model_root.join(p)
+    }
 }
 
 /// Read `[ids] max_digits` from `<model_root>/.syscribe.toml` (REQ-TRS-ID-005).
@@ -565,5 +603,47 @@ mod tests {
             cfg().classify_source("file://localhost/abs/src/lib.rs"),
             SourceLocation::Local(PathBuf::from("/abs/src/lib.rs"))
         );
+    }
+
+    // REQ-TRS-SCRIPT-001 — `[scripts] path` resolution against the model root.
+    #[test]
+    fn scripts_dir_default_when_unset() {
+        let dir = tempdir();
+        std::fs::write(dir.join(".syscribe.toml"), "").unwrap();
+        assert_eq!(resolve_scripts_dir(&dir), dir.join(".syscribe/scripts"));
+        // Absent file behaves the same.
+        let empty = tempdir();
+        assert_eq!(resolve_scripts_dir(&empty), empty.join(".syscribe/scripts"));
+    }
+
+    #[test]
+    fn scripts_dir_relative_configured() {
+        let dir = tempdir();
+        std::fs::write(dir.join(".syscribe.toml"), "[scripts]\npath = \"ext/rhai\"\n").unwrap();
+        assert_eq!(resolve_scripts_dir(&dir), dir.join("ext/rhai"));
+    }
+
+    #[test]
+    fn scripts_dir_absolute_configured() {
+        let dir = tempdir();
+        std::fs::write(
+            dir.join(".syscribe.toml"),
+            "[scripts]\npath = \"/opt/syscribe/scripts\"\n",
+        )
+        .unwrap();
+        assert_eq!(resolve_scripts_dir(&dir), PathBuf::from("/opt/syscribe/scripts"));
+    }
+
+    /// A unique throwaway directory under the OS temp dir.
+    fn tempdir() -> PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static N: AtomicU64 = AtomicU64::new(0);
+        let p = std::env::temp_dir().join(format!(
+            "syscribe-cfg-test-{}-{}",
+            std::process::id(),
+            N.fetch_add(1, Ordering::Relaxed)
+        ));
+        std::fs::create_dir_all(&p).unwrap();
+        p
     }
 }

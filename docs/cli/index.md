@@ -178,6 +178,26 @@ When configured, the URL appears on each surface:
 - **Mermaid** diagrams append `click <nodeId> "<url>" _blank` directives.
 - The **Markdown** validation report and the JSON `export` (`url` field) render element references as hosted links.
 
+### Extension scripts (`[scripts]`)
+
+A `[scripts]` table configures the directory of user-authored **Rhai extension scripts** run by the `scripts` command family. Scripts are **tooling, not model content** — they are never parsed as model elements and are **not** run by the built-in `validate` pass (the qualification boundary stays crisp). An absent scripts directory is **not** an error.
+
+```toml
+# .syscribe.toml
+[scripts]
+path = ".syscribe/scripts"   # default; resolved relative to the model root
+```
+
+The directory is also the Rhai **module-import root**, so a script can reuse a shared library (`import "lib/helpers" as h;`). Scripts run in a sandboxed, resource-limited, deterministic engine (no filesystem/network/clock/random/env; `eval` disabled; runaway scripts aborted by an operation budget; the only side effect is stdout/stderr text). A script registers a **command** (`register_command`) or a **check** (`register_check`).
+
+| Command | Description |
+|---|---|
+| `scripts list [--json]` | Enumerate every registered command/check (name, kind, description, source file). |
+| `scripts run <command> [--json]` | Invoke a command and print its returned string. Unknown name → non-zero; a check name reports that it is a check. |
+| `scripts validate [--deny <codes>] [--max-warnings <n>] [--warnings-as-errors] [--json]` | Run every check; print findings as `<check>/<code>` with the source script. Exit 0 clean / 1 on an error-severity finding / 2 on a tripped gate. Independent of the built-in `validate`. |
+
+See `syscribe help scripts` for the full read-only model API.
+
 ### Label field: `name` vs `title` (E024 / E025)
 
 Every element carries **exactly one** human-readable label field, fixed by its identity class — never both:

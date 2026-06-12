@@ -55,6 +55,7 @@ const HELP: &[(&str, &str)] = &[
     ("ingest-results", include_str!("../../../prompts/help/ingest-results.md")),
     ("render", include_str!("../../../prompts/help/render.md")),
     ("diagram", include_str!("../../../prompts/help/diagram.md")),
+    ("scripts", include_str!("../../../prompts/help/scripts.md")),
     ("spec", include_str!("../../../prompts/help/spec.md")),
     ("help", include_str!("../../../prompts/help/help.md")),
 ];

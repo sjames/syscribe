@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 196 |
-| Passed | 196 |
+| Total test cases | 202 |
+| Passed | 202 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1615,6 +1615,72 @@
 | main: Argument + AssumptionOfUse validate with no errors | ✓ PASS |
 | badref: unresolved Argument.supports/evidence yields E855 | ✓ PASS |
 | orphan: claim Argument with no supports/evidence yields W040 | ✓ PASS |
+
+---
+
+### TC-TRS-SCRIPT-001 — Verify Rhai extension scripts load from the configured scripts dir, discover recursively, and support library-module import reuse.
+
+**Verifies:** REQ-TRS-SCRIPT-001  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a model with no scripts directory runs normally | ✓ PASS |
+
+---
+
+### TC-TRS-SCRIPT-002 — Verify extension scripts run sandboxed and resource-limited: runaway aborted, eval and filesystem escape refused, parse errors named without crashing siblings, output deterministic.
+
+**Verifies:** REQ-TRS-SCRIPT-002  
+**Result:** ✓ PASS (12 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| deterministic output | ✓ PASS |
+
+---
+
+### TC-TRS-SCRIPT-003 — Verify the read-only model API: element iteration, getters, find by id and qname, e.field, custom_fields, computed reverse indices, and print/eprint output.
+
+**Verifies:** REQ-TRS-SCRIPT-003  
+**Result:** ✓ PASS (16 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| stdout and stderr output | ✓ PASS |
+
+---
+
+### TC-TRS-SCRIPT-004 — Verify the two registration shapes (register_command and register_check), a pure library file, and the duplicate-name load error.
+
+**Verifies:** REQ-TRS-SCRIPT-004  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| duplicate name is a load error | ✓ PASS |
+
+---
+
+### TC-TRS-SCRIPT-005 — Verify scripts list and scripts run: enumeration with kind/description/source, running a command (text and --json), unknown-name failure, and check-not-runnable-as-command.
+
+**Verifies:** REQ-TRS-SCRIPT-005  
+**Result:** ✓ PASS (18 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| no scripts directory reports none and exits 0 | ✓ PASS |
+
+---
+
+### TC-TRS-SCRIPT-006 — Verify scripts validate: namespaced <check>/<code> findings, the 0/1/2 exit contract with gate flags, and independence from the built-in validate.
+
+**Verifies:** REQ-TRS-SCRIPT-006  
+**Result:** ✓ PASS (11 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| built-in validate is unaffected by check scripts | ✓ PASS |
 
 ---
 
