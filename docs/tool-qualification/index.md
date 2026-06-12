@@ -27,11 +27,11 @@ Syscribe targets **TCL2**. The qualification package is complete in `qual/`.
 ```
 qual/
   _index.md                    ← Syscribe Package element (the TRS itself)
-  Requirements/                ← 60 REQ-TRS-* requirements
+  Requirements/                ← 204 REQ-TRS-* requirements
     REQ-TRS-PARSE-001.md
     REQ-TRS-VAL-001.md
     ...
-  TestCases/                   ← 73 TC-TRS-* test cases with Gherkin
+  TestCases/                   ← 204 TC-TRS-* test cases with Gherkin
     TC-TRS-PARSE-001.md
     TC-TRS-VAL-001.md
     ...
@@ -63,7 +63,7 @@ Because `qual/` is a Syscribe model, you can run the tool being qualified agains
 syscribe -m qual/
 ```
 
-This produces a standard validation report covering all 60 requirements and 60 test cases. Any structural error in the qualification model — a malformed frontmatter, a dangling `verifies:` reference, a duplicate ID — is caught by the same validation rules the qualification tests exercise.
+This produces a standard validation report covering all 204 requirements and 204 test cases. Any structural error in the qualification model — a malformed frontmatter, a dangling `verifies:` reference, a duplicate ID — is caught by the same validation rules the qualification tests exercise.
 
 ```
 $ syscribe -m qual/
@@ -72,24 +72,24 @@ $ syscribe -m qual/
 
 | Metric    | Count |
 |---|---|
-| Total elements | 123   |
+| Total elements | 416   |
 | Errors         | 0     |
-| Warnings       | 63    |
-| Requirements (total) | 60 |
-| Test cases           | 60 |
-| Gherkin scenarios    | 181 |
+| Warnings       | 210   |
+| Requirements (total) | 204 |
+| Test cases           | 204 |
+| Gherkin scenarios    | 719 |
 ```
 
-The 63 warnings are all W005 ("possible orphan") — expected, because the TRS requirements are intentionally root-level with no parent hierarchy.
+The warnings are predominantly W005 ("possible orphan") — expected, because the TRS requirements are intentionally root-level with no parent hierarchy.
 
 ---
 
 ## Running the tests manually
 
-The test runner discovers test cases by reading `qual/TestCases/TC-TRS-*.md` with `find` and extracting frontmatter (id, title, verifies) using `awk`. For each TC it sources the matching shell script in `qual/tests/tc/` and runs one or more `syscribe -m qual/fixtures/...` invocations, asserting on stdout content and exit codes.
+The test runner discovers test cases by reading `qual/TestCases/TC-TRS-*.md` with `find` and extracting frontmatter (id, name, verifies) using `awk`. For each TC it sources the matching shell script in `qual/tests/tc/` and runs one or more `syscribe -m qual/fixtures/...` invocations, asserting on stdout content and exit codes.
 
 ```bash
-# Build syscribe and run all 60 test cases
+# Build syscribe and run all 204 test cases
 ./qual/tests/run_qual.sh
 
 # Skip rebuild if the binary is already current
@@ -109,7 +109,7 @@ Sample output:
 ```
 Building syscribe...
     Finished dev profile in 0.05s
-Discovered 60 test cases
+Discovered 204 test cases
 
 [TC-TRS-PARSE-008] Verify that invalid YAML frontmatter produces error E002.
   ▶ valid YAML frontmatter produces no E002
@@ -123,7 +123,7 @@ Discovered 60 test cases
 ...
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Results:  60 total  60 passed  0 failed  0 skipped
+Results:  204 total  204 passed  0 failed  0 skipped
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 TVR written to: qual/tests/tvr/TVR.md
 ```
@@ -182,7 +182,7 @@ The TVR records the syscribe version, date, and a pass/fail verdict for every TC
 
 ## Coverage summary
 
-The 60 test cases cover:
+The 204 test cases cover:
 
 | Area | Requirements | Test cases |
 |---|---|---|
@@ -233,30 +233,39 @@ This is tool qualification working as intended: the test suite surfaces gaps, th
 
 ## CI/CD integration
 
-The qualification suite runs automatically on every push to `main` and on every pull request that touches `crates/` or `qual/`. The workflow is at `.github/workflows/qual.yml`.
+The qualification suite runs automatically on every push to `main` and on every pull
+request that touches `crates/`, `qual/`, or any model directory (`model*/**`). The
+workflow is at `.github/workflows/qual.yml`. It **gates on validation of every model** —
+the build fails if `model`, `model_auto`, `model_mg`, `model_sil`, or `qual` has any
+validation error (warnings are allowed) — and then runs the test suite.
 
 ```yaml
 jobs:
   qualify:
-    name: TCL2 qualification suite (73 TCs)
+    name: Model validation + TCL2 qualification suite
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
 
       - name: Build syscribe
         run: cargo build --package syscribe
 
-      - name: Validate TRS model (qual/ self-check)
-        run: ./target/debug/syscribe -m qual/
+      - name: Validate all models (gating — fails on any validation error)
+        run: |
+          fail=0
+          for m in model model_auto model_mg model_sil qual; do
+            ./target/debug/syscribe -m "$m" validate > "validate-$m.md" || fail=1
+          done
+          exit $fail
 
       - name: Run qualification test suite
         run: bash qual/tests/run_qual.sh --no-build
 
       - name: Upload Tool Validation Report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: TVR-${{ github.sha }}
           path: qual/tests/tvr/TVR.md
@@ -270,7 +279,7 @@ Every CI run performs two independent checks:
 
 1. **`syscribe -m qual/`** — validates the TRS model itself. If a requirement or test case has malformed frontmatter, a dangling `verifies:` reference, or a duplicate ID, this step fails before any tests run.
 
-2. **`bash qual/tests/run_qual.sh`** — runs all 60 test cases against the newly built binary. Each TC invokes the binary against a crafted fixture and asserts on stdout and exit code. A single failing assertion causes the run to exit 1.
+2. **`bash qual/tests/run_qual.sh`** — runs all 204 test cases against the newly built binary. Each TC invokes the binary against a crafted fixture and asserts on stdout and exit code. A single failing assertion causes the run to exit 1.
 
 ### Using the TVR artifact as evidence
 
@@ -278,7 +287,7 @@ After a green CI run, download `TVR-<sha>.md` from the workflow artifacts page. 
 
 - The exact binary version under test
 - The date and commit SHA
-- A pass/fail verdict for every one of the 60 test cases
+- A pass/fail verdict for every one of the 204 test cases
 
 This is the primary evidence document for a TCL2 qualification submission. Archive it alongside the release binary.
 

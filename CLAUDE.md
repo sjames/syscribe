@@ -27,6 +27,9 @@ cargo run --package syscribe -- -m model/
 # Print the LLM model generation prompt
 cargo run --package syscribe -- --agent-instructions
 
+# Print the tool version (also -V, or `version`)
+cargo run --package syscribe -- --version
+
 # Start the web server
 cargo run --package syscribe-server -- -m model/
 

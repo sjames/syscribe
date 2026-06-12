@@ -2,6 +2,52 @@
 
 `RELEASES`
 
+## Unreleased
+
+### `name` is the universal label; `title` removed (E024 retired, E025 generalised)
+
+**`name` is now the single human-readable label on *every* element type** — `Requirement`,
+`TestCase`, `ADR`, `PartDef`, `Package`, `FeatureDef`, the safety/security types, all of
+them. The earlier identity-class split (`title` for id-identified types, `name` for
+name-identified types — introduced in 0.21.0) is removed:
+
+- **`name`** labels all types (≈ SysMLv2 `declaredName`). For **id-identified** types
+  (identity is a stable `id` ≈ `declaredShortName`) `name` is **required** free prose —
+  spaces and punctuation are allowed and `W042` does **not** apply. For **name-identified**
+  types `name` is also the identity segment, so the basic-name rule (`W042`) still applies.
+- **`title` is removed.** Declaring `title:` on any element is now error **`E025`**
+  ("rename it to `name`"). Error **`E024`** (formerly `name:` on an id-identified type) is
+  **retired** — a `Requirement` carrying `id` + `name` validates clean. Every type that
+  previously required `title` now requires `name` (same error codes).
+
+Migration renamed `title:` → `name:` across all bundled models (`model`, `model_auto`,
+`model_mg`, `model_sil`) and the qual model + fixtures, including nested FMEA/TARA table-row
+labels. (`REQ-TRS-NAME-002`.)
+
+**Breaking:** a model that carried a `title:` field now fails validation (`E025`) — rename
+it to `name`.
+
+### `syscribe --version`
+
+`syscribe --version` (also `-V`, or the `version` subcommand) prints `syscribe <semver>`
+to stdout and exits 0, with no model directory required. (`REQ-TRS-CLI-007`.)
+
+### clap-based top-level router; unknown commands rejected
+
+The top-level command line is now parsed by a clap router whose subcommand registry is
+derived from the single man-page list, so an **unknown command is rejected** with a clear
+error (`error: unrecognized subcommand '<name>'`) and a **non-zero** exit — from any
+directory, before model resolution. Per-command flags pass through to their handlers
+unchanged, and man-page help (`--help`/`-h`/`help <cmd>`), `--version`,
+`--agent-instructions`, `spec`, and model-resolution are unchanged. The explicit `report`
+command now runs the default full validation report. (`REQ-TRS-CLI-008`.)
+
+### CI gates on validation of every model
+
+The qualification workflow now fails the build if **any** bundled model (`model`,
+`model_auto`, `model_mg`, `model_sil`, `qual`) has a validation error, and its path
+triggers were widened to include `model*/**` so model-only edits are validated.
+
 ## 0.25.0 — 2026-06-12
 
 ### MagicGrid visualisation — grid matrix, `magicgrid --svg` (word-wrapped), matrix grids
@@ -187,20 +233,20 @@ and **effective** gate — the latter including any condition **inherited** from
 package (transitive package conditioning), or "always applies" when gated nowhere; `--json`
 emits `{element, own, effective, inheritedFrom}`. (`REQ-TRS-AW-002`.)
 
-### `name` is the universal label; `title` removed (E025; E024 retired)
+### One label field per element, fixed by identity class (E024 / E025)
 
-**`name` is now the single human-readable label on every element type** — `Requirement`, `TestCase`, `ADR`, `PartDef`, `Package`, `FeatureDef`, the safety/security types, everything. The earlier identity-class split (`title` on id-identified types, `name` on name-identified types) is removed:
+Every element now carries **exactly one** human-readable label field, determined by how it is identified — never both:
 
-- **`name`** labels all types. For id-identified types (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types — identity is a stable `id`) `name` is **required** free prose (spaces/punctuation allowed; `W042` does not apply). For name-identified types (all SysML structural types, `Package`, `Diagram`, `FeatureDef`) `name` is also the identity segment and must be a basic name (`W042`).
-- **`title` is removed.** Declaring `title:` on any element is now error **`E025`** ("rename it to `name`"). Error **`E024`** (formerly: `name:` on an id-identified type) is **retired** — a `Requirement` carrying `id` + `name` validates clean.
+- **Id-identified types** (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types — identity is a stable `id`) label via **`title`**. A `name:` on one of these is now error **`E024`**.
+- **Name-identified types** (all SysML structural types, `Package`, `Diagram`, `FeatureDef` — identity is the `name`/path) label via **`name`**. A `title:` on one of these is now error **`E025`**.
 
-`FeatureDef` stays name-labelled and also carries its mandatory `FEAT-*` `id`; the `id` and label axes are independent. The bundled models and qual model were migrated to `name` everywhere. (`REQ-TRS-NAME-002`.)
+`FeatureDef` stays name-labelled; the `id` and label axes are independent. This closes the gap left by `W042` (which constrained only the *characters* of a name, not *which* label field applies); previously elements could silently drift into carrying both `name` and `title`. The bundled models and qual model were migrated to one label field each. (`REQ-TRS-NAME-002`.)
 
 ### Mandatory feature ids (`FEAT-*`)
 
 The `FEAT-*` stable id introduced in 0.20.0 is now **mandatory** on every `FeatureDef` — a feature with no `id` is error **`E201`** (the shared PLE required-field error). Features stay name-identified (label/qname = `name`); the id is the stable reference. All bundled and fixture features were migrated to carry an id. (`REQ-TRS-ID-006`.) Unlike the other stable-id types, a feature id **need not** end in a number — `FEAT-ABS`, `FEAT-QUADROTOR` and `FEAT-ABS-001` are all valid (pattern `^FEAT(-[A-Z0-9]{2,12})+$`); the `E023` digit-cap applies only to a numeric trailing segment.
 
-**Breaking:** (1) a model that carried a `title:` field now fails validation (`E025`) — rename it to `name`; (2) a `FeatureDef` with no `FEAT-*` `id` now fails (`E201`) — add one.
+**Breaking:** (1) a model that carried both `name` and `title` (or the wrong one for its type) now fails validation — remove the stray field (`title` for id-identified types, `name` for everything else); (2) a `FeatureDef` with no `FEAT-*` `id` now fails (`E201`) — add one.
 
 Suite at **166** test cases, all passing.
 

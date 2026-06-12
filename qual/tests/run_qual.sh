@@ -75,9 +75,9 @@ printf "${BOLD}Discovered %d test cases${NC}\n" "${#TC_FILES[@]}"
 TOTAL=0; PASSED=0; FAILED=0; SKIPPED=0
 
 for tc_file in "${TC_FILES[@]}"; do
-    # Read metadata from frontmatter
+    # Read metadata from frontmatter (TestCases label via `name`, REQ-TRS-NAME-002)
     tc_id=$(fm_get "$tc_file" "id")
-    tc_title=$(fm_get "$tc_file" "title")
+    tc_title=$(fm_get "$tc_file" "name")
     tc_verifies=$(fm_get_list "$tc_file" "verifies" | paste -sd', ')
 
     [ -z "$tc_id" ] && continue

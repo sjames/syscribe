@@ -42,13 +42,15 @@ syscribe <command> --help  # the same page, e.g. `syscribe validate --help` (als
 
 `syscribe --version` (also `-V`, or `syscribe version`) prints the tool version as `syscribe <semver>` and exits 0 — no model directory required.
 
+**Command routing.** The top-level command line is parsed by a clap router whose subcommand registry is derived from the man-page list, so an **unknown command is rejected** with a clear error and a **non-zero** exit (`error: unrecognized subcommand '<name>'`), independent of whether a model directory is present. Each command's own flags are passed through to it unchanged.
+
 ---
 
 ## Validation
 
 ### Full report
 
-Running with no subcommand prints the full 10-section Markdown validation report — element inventory, requirements matrix, traceability summary, and findings.
+Running with no subcommand — or the explicit `report` command — prints the full 10-section Markdown validation report: element inventory, requirements matrix, traceability summary, and findings.
 
 ```
 $ syscribe -m model_auto/

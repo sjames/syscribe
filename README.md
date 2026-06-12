@@ -31,7 +31,7 @@ model/
 ---
 type: Requirement
 id: REQ-ENG-SAFE-001
-title: "Safety monitor shall detect all safety faults within 100 ms"
+name: "Safety monitor shall detect all safety faults within 100 ms"
 status: approved
 reqDomain: software
 asilLevel: D
@@ -182,15 +182,22 @@ syscribe spec validation    # all validation rule codes
 syscribe spec traceability  # traceability rules
 ```
 
+### Version
+
+```bash
+syscribe --version          # also -V, or `syscribe version` → "syscribe <semver>"
+```
+
 ## Demo Models
 
-| Model | Domain | Standards |
+| Model | Domain | Standards / method |
 |---|---|---|
 | `model_auto/` | Automotive Engine ECU | ISO 26262 (ASIL D), ISO/SAE 21434, AUTOSAR SecOC |
 | `model_sil/` | SIL 4 Railway Interlocking | IEC 61508, EN 50128/50129, EN 50159 Cat 2 |
 | `model/` | UAV Autonomous Flight System | General SysMLv2 element palette |
+| `model_mg/` | EV DC Fast-Charging Station | MagicGrid (problem/solution × 4 pillars) |
 
-Both `model_auto` and `model_sil` validate with 0 errors and demonstrate full requirements traceability, safety analysis (HARA, FTA, FMEA), and security analysis (TARA).
+All four demo models validate with 0 errors and demonstrate full requirements traceability, safety analysis (HARA, FTA, FMEA), and security analysis (TARA); CI gates on `validate` for every model.
 
 ## LLM Authoring
 
