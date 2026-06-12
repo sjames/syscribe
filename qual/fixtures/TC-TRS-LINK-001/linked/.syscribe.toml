@@ -1,0 +1,4 @@
+[links]
+base_url = "https://github.com/acme/uav/blob/main/model"
+url_template = "https://github.com/acme/uav/blob/{ref}/model/{path}"
+ref = "main"

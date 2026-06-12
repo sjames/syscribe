@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 191 |
-| Passed | 191 |
+| Total test cases | 195 |
+| Passed | 195 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -670,6 +670,50 @@
 | Scenario | Result |
 |---|---|
 | a non-quantity typedBy makes the check lenient (no W044) | ✓ PASS |
+
+---
+
+### TC-TRS-LINK-001 — Verify hosted source URLs resolve from the [links] config for file-backed elements.
+
+**Verifies:** REQ-TRS-LINK-001  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| no [links] table yields no URLs | ✓ PASS |
+
+---
+
+### TC-TRS-LINK-002 — Verify SVG element shapes are wrapped in a hyperlink to the hosted URL.
+
+**Verifies:** REQ-TRS-LINK-002  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| no [links] table leaves shapes unwrapped by hosted links | ✓ PASS |
+
+---
+
+### TC-TRS-LINK-003 — Verify Mermaid diagrams emit click directives to the hosted URL.
+
+**Verifies:** REQ-TRS-LINK-003  
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| no [links] table emits no hosted click directive | ✓ PASS |
+
+---
+
+### TC-TRS-LINK-004 — Verify Markdown report and export render element references as hosted links.
+
+**Verifies:** REQ-TRS-LINK-004  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| no [links] table leaves the report unlinked | ✓ PASS |
 
 ---
 

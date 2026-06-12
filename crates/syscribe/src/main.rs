@@ -56,6 +56,16 @@ fn is_arch_element(e: &RawElement) -> bool {
     )
 }
 
+/// REQ-TRS-LINK-004 — render an element reference as a Markdown link to its
+/// hosted source URL when `[links]` resolves one, else the plain `label`. The
+/// URL is used verbatim (already encoded by REQ-TRS-LINK-001).
+fn linked_label(label: &str, e: &RawElement, cfg: &ValidateConfig) -> String {
+    match cfg.hosted_url_for(&e.file_path, &e.qualified_name, e.frontmatter.id.as_deref().unwrap_or("")) {
+        Some(url) => format!("[{}]({})", label, url),
+        None => label.to_string(),
+    }
+}
+
 /// Count `Scenario:` lines across the doc body.
 fn count_gherkin_scenarios(doc: &str) -> usize {
     doc.lines()
@@ -390,12 +400,12 @@ fn main() {
                     eprintln!("Usage: syscribe --model <root> render <diagram_path>");
                     std::process::exit(1);
                 }
-                render::cmd_render(&elems, &resolver, key);
+                render::cmd_render(&elems, &resolver, key, &vcfg);
             }
             "diagram" => {
                 let sub = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
                 let rest: Vec<String> = subcommand_args.get(2..).unwrap_or(&[]).to_vec();
-                diagram::cmd_diagram(&elems, &resolver, sub, &rest);
+                diagram::cmd_diagram(&elems, &resolver, sub, &rest, &vcfg);
             }
             "validate" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
@@ -1426,7 +1436,7 @@ fn main() {
             } else {
                 req_satisfies.join(", ")
             };
-            println!("| {} | {} | {} |", qn, domain, sat_str);
+            println!("| {} | {} | {} |", linked_label(qn, e, &vcfg), domain, sat_str);
         }
     }
     println!();
@@ -1458,7 +1468,7 @@ fn main() {
         sorted_dns.sort_by_key(|e| e.qualified_name.as_str());
         for e in sorted_dns {
             let domain = e.frontmatter.domain.as_deref().unwrap_or("—");
-            println!("| {} | {} |", e.qualified_name, domain);
+            println!("| {} | {} |", linked_label(&e.qualified_name, e, &vcfg), domain);
         }
     }
     println!();

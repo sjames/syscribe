@@ -1,11 +1,16 @@
 use std::collections::HashMap;
-use syscribe_model::{element::RawElement, resolver::Resolver};
+use syscribe_model::{config::ValidateConfig, element::RawElement, resolver::Resolver};
 
 /// Entry point for `syscribe <model_root> render <diagram_path>`.
 /// Outputs the rendered diagram to stdout:
 ///   - Mermaid: the mermaid block content with `click href` directives injected
 ///   - SVG:     the raw SVG with `<a href="...">` wrappers injected around linked shapes
-pub fn cmd_render(elements: &[RawElement], resolver: &Resolver, diagram_path: &str) {
+pub fn cmd_render(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    diagram_path: &str,
+    config: &ValidateConfig,
+) {
     let elem = elements.iter().find(|e| {
         e.file_path == diagram_path
             || e.file_path.ends_with(&format!("/{}", diagram_path))
@@ -20,7 +25,7 @@ pub fn cmd_render(elements: &[RawElement], resolver: &Resolver, diagram_path: &s
     };
 
     match elem.frontmatter.diagram_kind.as_deref() {
-        Some("Mermaid") => render_mermaid(elements, resolver, elem),
+        Some("Mermaid") => render_mermaid(elements, resolver, elem, config),
         Some(_) => render_svg(elements, resolver, elem),
         None => {
             eprintln!("error: '{}' has no diagramKind", diagram_path);
@@ -31,7 +36,12 @@ pub fn cmd_render(elements: &[RawElement], resolver: &Resolver, diagram_path: &s
 
 // ── Mermaid ──────────────────────────────────────────────────────────────────
 
-fn render_mermaid(elements: &[RawElement], resolver: &Resolver, elem: &RawElement) {
+fn render_mermaid(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    elem: &RawElement,
+    config: &ValidateConfig,
+) {
     let fence = "```mermaid";
     let fence_start = match elem.doc.find(fence) {
         Some(s) => s,
@@ -55,8 +65,23 @@ fn render_mermaid(elements: &[RawElement], resolver: &Resolver, elem: &RawElemen
             let qn      = parts.next().unwrap_or("").trim();
             if !node_id.is_empty() && !qn.is_empty() {
                 if let Some(target) = resolver.resolve_ref(elements, qn) {
-                    let url = relative_url(&elem.file_path, &target.file_path);
-                    click_lines.push(format!("click {} href \"{}\" _blank", node_id, url));
+                    // REQ-TRS-LINK-003 — prefer the hosted source URL from the
+                    // `[links]` config; emit `click <nodeId> "<url>" _blank`. The
+                    // URL is escaped for the Mermaid double-quoted string context.
+                    if let Some(url) = config.hosted_url_for(
+                        &target.file_path,
+                        &target.qualified_name,
+                        target.frontmatter.id.as_deref().unwrap_or(""),
+                    ) {
+                        click_lines.push(format!(
+                            "click {} \"{}\" _blank",
+                            node_id,
+                            mermaid_escape(&url)
+                        ));
+                    } else {
+                        let url = relative_url(&elem.file_path, &target.file_path);
+                        click_lines.push(format!("click {} href \"{}\" _blank", node_id, url));
+                    }
                 }
             }
         }
@@ -173,6 +198,11 @@ fn inject_svg_links(svg: &str, links: &HashMap<String, String>) -> String {
     }
 
     String::from_utf8(writer.into_inner()).unwrap_or_else(|_| svg.to_string())
+}
+
+/// Escape a URL for the Mermaid double-quoted string context (REQ-TRS-LINK-003).
+fn mermaid_escape(url: &str) -> String {
+    url.replace('"', "&quot;")
 }
 
 // ── Shared utilities ──────────────────────────────────────────────────────────

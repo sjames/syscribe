@@ -156,6 +156,28 @@ max_digits = 8   # default 8; e.g. 12 to allow wider counters, 4 to tighten
 
 A suffix longer than the cap is error `E023`; a suffix shorter than 3 is `E006`. A reference to an over-long ID still resolves (the defect surfaces on the ID-bearing element, not as a dangling reference).
 
+### Hosted source links (`[links]`)
+
+A `[links]` table maps each **file-backed** element to a **hosted source URL** (GitHub/GitLab/a static site), making generated diagrams and reports link back into the hosted model. The feature is **opt-in and advisory** — it never affects validation findings or exit codes, and is **inert** (output byte-for-byte as before) when `[links]` is absent.
+
+```toml
+# .syscribe.toml
+[links]
+base_url = "https://github.com/<org>/<repo>/blob/main/model"   # the 90% case
+# optional escape hatch for hosted HTML / custom refs / anchors:
+url_template = "https://github.com/<org>/<repo>/blob/{ref}/model/{path}"
+ref = "main"
+```
+
+- At least one of `base_url` / `url_template` enables the feature.
+- For an element whose path **relative to the model root** is `<path>` (forward-slashed): with `url_template`, the placeholders `{path}` / `{qname}` / `{id}` / `{ref}` are substituted; otherwise the URL is `base_url` (one trailing `/` trimmed) + `/` + `<path>`. Path **segments** are percent-encoded (a space → `%20`); `/` separators are preserved. A **package** resolves to its `_index.md`; an attribute that is only a YAML key in a parent resolves to no URL.
+
+When configured, the URL appears on each surface:
+
+- **SVG** diagrams wrap each element shape in `<a xlink:href href target="_blank" rel="noopener">`.
+- **Mermaid** diagrams append `click <nodeId> "<url>" _blank` directives.
+- The **Markdown** validation report and the JSON `export` (`url` field) render element references as hosted links.
+
 ### Label field: `name` vs `title` (E024 / E025)
 
 Every element carries **exactly one** human-readable label field, fixed by its identity class — never both:

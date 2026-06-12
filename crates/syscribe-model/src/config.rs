@@ -66,6 +66,84 @@ pub struct ValidateConfig {
     /// `[profiles.<name>] magicgrid = true` profile by the CLI. The base-format
     /// `refines`/`E316`/`W307` checks run regardless of this flag.
     pub magicgrid: bool,
+
+    /// REQ-TRS-LINK-001 — hosted-source link configuration from the `[links]`
+    /// table of `<model_root>/.syscribe.toml`. `None` means the feature is inert
+    /// (no element resolves to a URL; diagrams/reports are exactly as before).
+    pub links: Option<LinkConfig>,
+}
+
+/// REQ-TRS-LINK-001 — resolved `[links]` configuration. Carries the hosted-URL
+/// template/base and the `ref` substitution. Constructed only when at least one
+/// of `base_url`/`url_template` is set, so its presence means the feature is on.
+#[derive(Debug, Clone)]
+pub struct LinkConfig {
+    /// `base_url` — the 90% case. A file's URL is `base_url`/`<path>`.
+    base_url: Option<String>,
+    /// `url_template` — escape hatch with `{path}`/`{qname}`/`{id}`/`{ref}`.
+    url_template: Option<String>,
+    /// `ref` — substituted for `{ref}` in the template (empty when unset).
+    git_ref: String,
+}
+
+/// The `[links]` table of `.syscribe.toml` (REQ-TRS-LINK-001). Unknown keys are
+/// ignored so this parses alongside `[profiles]`/`[matchers]`/`[remote]`.
+#[derive(Debug, Default, Deserialize)]
+struct LinksToml {
+    #[serde(default, alias = "baseUrl")]
+    base_url: Option<String>,
+    #[serde(default, alias = "urlTemplate")]
+    url_template: Option<String>,
+    #[serde(default, rename = "ref")]
+    git_ref: Option<String>,
+}
+
+/// View of `.syscribe.toml` carrying only the `[links]` table.
+#[derive(Debug, Default, Deserialize)]
+struct LinksRootToml {
+    #[serde(default)]
+    links: LinksToml,
+}
+
+impl LinkConfig {
+    /// Resolve `model_relative_path` (always forward-slashed, relative to the
+    /// model root) to a hosted URL, applying the REQ-TRS-LINK-001 rules. `qname`
+    /// and `id` feed the `{qname}`/`{id}` template placeholders (`id` may be empty).
+    pub fn resolve(&self, model_relative_path: &str, qname: &str, id: &str) -> String {
+        let encoded_path = encode_path(model_relative_path);
+        if let Some(tpl) = &self.url_template {
+            tpl.replace("{path}", &encoded_path)
+                .replace("{qname}", qname)
+                .replace("{id}", id)
+                .replace("{ref}", &self.git_ref)
+        } else if let Some(base) = &self.base_url {
+            format!("{}/{}", base.trim_end_matches('/'), encoded_path)
+        } else {
+            // Unreachable: a LinkConfig is only built when one of these is set.
+            encoded_path
+        }
+    }
+}
+
+/// Percent-encode each path segment (a space → `%20`) while preserving the `/`
+/// separators (REQ-TRS-LINK-001).
+fn encode_path(path: &str) -> String {
+    path.split('/').map(encode_segment).collect::<Vec<_>>().join("/")
+}
+
+/// Percent-encode a single path segment. Keeps the unreserved set
+/// (`A–Z a–z 0–9 - _ . ~`) verbatim and `%`-encodes everything else.
+fn encode_segment(seg: &str) -> String {
+    let mut out = String::with_capacity(seg.len());
+    for b in seg.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{:02X}", b)),
+        }
+    }
+    out
 }
 
 /// Default stable-ID suffix digit cap and fixed minimum (REQ-TRS-ID-005).
@@ -155,6 +233,7 @@ impl ValidateConfig {
         let results = ResultsData::load_sidecar(&root);
         let repo_root = resolve_repo_root(&root);
         let id_max_digits = resolve_id_max_digits(&root);
+        let links = load_links(&root);
         Self {
             model_root: Some(root),
             repo_root,
@@ -164,6 +243,57 @@ impl ValidateConfig {
             remote_hook: None,
             id_max_digits,
             magicgrid: false,
+            links,
+        }
+    }
+
+    /// REQ-TRS-LINK-001 — resolve a file-backed element's hosted source URL.
+    ///
+    /// `file_path` is the element's on-disk path as recorded on the `RawElement`
+    /// (`-m`-relative, e.g. `UAV/Avionics/FlightController.md`). Returns `None`
+    /// when `[links]` is not configured, when the path is not under the model
+    /// root, or when there is no model root. A package resolves to its
+    /// `_index.md` only because that is the file recorded for it; YAML-key
+    /// attributes have no file and never reach this method.
+    pub fn hosted_url(&self, file_path: &str) -> Option<String> {
+        self.hosted_url_for(file_path, "", "")
+    }
+
+    /// Like [`Self::hosted_url`] but supplies `{qname}`/`{id}` for the template.
+    pub fn hosted_url_for(&self, file_path: &str, qname: &str, id: &str) -> Option<String> {
+        let links = self.links.as_ref()?;
+        let rel = self.model_relative(file_path)?;
+        Some(links.resolve(&rel, qname, id))
+    }
+
+    /// Express `file_path` relative to the model root, forward-slashed. The path
+    /// may already be relative (the common `RawElement::file_path` form) or
+    /// absolute under the model root.
+    fn model_relative(&self, file_path: &str) -> Option<String> {
+        let p = Path::new(file_path);
+        let root = self.model_root.as_ref()?;
+        // The recorded `file_path` is `<model_root-as-passed>/<rel>` (walker uses
+        // `path.display()`), so the model root is its prefix verbatim. Fall back
+        // to stripping just the root's final component for hand-built paths.
+        let rel: PathBuf = if let Ok(stripped) = p.strip_prefix(root) {
+            stripped.to_path_buf()
+        } else if let Some(name) = root.file_name() {
+            p.strip_prefix(name).map(|s| s.to_path_buf()).unwrap_or_else(|_| p.to_path_buf())
+        } else {
+            p.to_path_buf()
+        };
+        // Forward-slash, dropping any `.` components.
+        let parts: Vec<String> = rel
+            .components()
+            .filter_map(|c| match c {
+                std::path::Component::Normal(s) => Some(s.to_string_lossy().into_owned()),
+                _ => None,
+            })
+            .collect();
+        if parts.is_empty() {
+            None
+        } else {
+            Some(parts.join("/"))
         }
     }
 
@@ -276,6 +406,22 @@ fn resolve_id_max_digits(model_root: &Path) -> Option<usize> {
     toml::from_str::<PathsToml>(&text).ok()?.ids.max_digits
 }
 
+/// Load the `[links]` table from `<model_root>/.syscribe.toml` (REQ-TRS-LINK-001).
+/// Returns `Some` only when at least one of `base_url`/`url_template` is set;
+/// `None` (the feature inert) otherwise, including when the file is absent.
+fn load_links(model_root: &Path) -> Option<LinkConfig> {
+    let text = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok()?;
+    let links = toml::from_str::<LinksRootToml>(&text).ok()?.links;
+    if links.base_url.is_none() && links.url_template.is_none() {
+        return None;
+    }
+    Some(LinkConfig {
+        base_url: links.base_url,
+        url_template: links.url_template,
+        git_ref: links.git_ref.unwrap_or_default(),
+    })
+}
+
 /// Walk up from `start` looking for a `.git` entry; return the directory holding it.
 fn detect_git_root(start: &Path) -> Option<PathBuf> {
     let mut dir = std::fs::canonicalize(start).unwrap_or_else(|_| start.to_path_buf());
@@ -342,6 +488,70 @@ mod tests {
         assert_eq!(
             cfg().classify_source("git+ssh://git@host/repo.git#lib.rs"),
             SourceLocation::Remote("git+ssh://git@host/repo.git#lib.rs".to_string())
+        );
+    }
+
+    fn links_cfg(base: Option<&str>, tpl: Option<&str>, git_ref: &str) -> ValidateConfig {
+        ValidateConfig {
+            model_root: Some(PathBuf::from("model")),
+            links: Some(LinkConfig {
+                base_url: base.map(|s| s.to_string()),
+                url_template: tpl.map(|s| s.to_string()),
+                git_ref: git_ref.to_string(),
+            }),
+            ..ValidateConfig::default()
+        }
+    }
+
+    #[test]
+    fn base_url_appends_relative_path() {
+        let c = links_cfg(Some("https://h/x/blob/main/model"), None, "");
+        assert_eq!(
+            c.hosted_url("model/UAV/Avionics/FlightController.md").as_deref(),
+            Some("https://h/x/blob/main/model/UAV/Avionics/FlightController.md")
+        );
+    }
+
+    #[test]
+    fn base_url_trims_one_trailing_slash() {
+        let c = links_cfg(Some("https://h/x/blob/main/model/"), None, "");
+        assert_eq!(
+            c.hosted_url("model/A.md").as_deref(),
+            Some("https://h/x/blob/main/model/A.md")
+        );
+    }
+
+    #[test]
+    fn template_substitutes_placeholders_and_encodes_path() {
+        let c = links_cfg(
+            None,
+            Some("https://h/x/blob/{ref}/model/{path}?q={qname}&i={id}"),
+            "main",
+        );
+        let url = c
+            .hosted_url_for("model/UAV/Flight Controller.md", "UAV::FC", "REQ-1")
+            .unwrap();
+        assert_eq!(
+            url,
+            "https://h/x/blob/main/model/UAV/Flight%20Controller.md?q=UAV::FC&i=REQ-1"
+        );
+    }
+
+    #[test]
+    fn no_links_config_yields_no_url() {
+        let c = ValidateConfig {
+            model_root: Some(PathBuf::from("model")),
+            ..ValidateConfig::default()
+        };
+        assert_eq!(c.hosted_url("model/A.md"), None);
+    }
+
+    #[test]
+    fn slash_separators_preserved_segments_encoded() {
+        let c = links_cfg(Some("https://h"), None, "");
+        assert_eq!(
+            c.hosted_url("model/Sub Dir/My File.md").as_deref(),
+            Some("https://h/Sub%20Dir/My%20File.md")
         );
     }
 

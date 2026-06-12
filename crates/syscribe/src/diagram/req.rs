@@ -24,8 +24,12 @@ pub struct ReqDiagramOptions<'a> {
     pub output: Option<&'a str>,
 }
 
-pub fn cmd_diagram_req(elements: &[RawElement], opts: ReqDiagramOptions) {
-    let svg = build_req_diagram(elements, &opts);
+pub fn cmd_diagram_req(
+    elements: &[RawElement],
+    opts: ReqDiagramOptions,
+    config: &syscribe_model::config::ValidateConfig,
+) {
+    let svg = build_req_diagram(elements, &opts, config);
     match opts.output {
         Some(path) => {
             if let Err(e) = std::fs::write(path, &svg) {
@@ -41,7 +45,37 @@ pub fn cmd_diagram_req(elements: &[RawElement], opts: ReqDiagramOptions) {
 
 type Rendered = (f64, f64, String); // (width, height, svg)
 
-fn build_req_diagram(elements: &[RawElement], opts: &ReqDiagramOptions) -> String {
+/// REQ-TRS-LINK-002 — open the `<a>` wrapper for an element shape. When `[links]`
+/// resolves a hosted URL for `qname`, emit an SVG hyperlink (both SVG 1.1
+/// `xlink:href` and SVG 2 `href`, opening in a new tab); otherwise keep the live
+/// server's `/ui/detail/` link. The URL is XML-attribute-escaped.
+fn open_shape_anchor(
+    qname: &str,
+    file_by_qname: &HashMap<&str, &str>,
+    config: &syscribe_model::config::ValidateConfig,
+) -> String {
+    if let Some(file) = file_by_qname.get(qname) {
+        if let Some(url) = config.hosted_url_for(file, qname, "") {
+            return format!(
+                "<a xlink:href=\"{u}\" href=\"{u}\" target=\"_blank\" rel=\"noopener\" data-qname=\"{q}\">",
+                u = esc(&url),
+                q = esc(qname),
+            );
+        }
+    }
+    format!("<a href=\"/ui/detail/{q}\" data-qname=\"{q}\">", q = esc(qname))
+}
+
+fn build_req_diagram(
+    elements: &[RawElement],
+    opts: &ReqDiagramOptions,
+    config: &syscribe_model::config::ValidateConfig,
+) -> String {
+    // qname → on-disk file path, for hosted-URL resolution (REQ-TRS-LINK-002).
+    let file_by_qname: HashMap<&str, &str> = elements
+        .iter()
+        .map(|e| (e.qualified_name.as_str(), e.file_path.as_str()))
+        .collect();
     // ── Lookup map: id or qname → element index ───────────────────────────────
     let mut lookup: HashMap<String, usize> = HashMap::new();
     for (i, e) in elements.iter().enumerate() {
@@ -411,10 +445,10 @@ fn build_req_diagram(elements: &[RawElement], opts: &ReqDiagramOptions) -> Strin
         if let Some((x, y)) = positions.get(qn) {
             if let Some((_, _, svg)) = req_rendered.get(qn) {
                 parts.push(format!(
-                    "<a href=\"/ui/detail/{qname}\" data-qname=\"{qname}\">\
+                    "{anchor}\
                      <g transform=\"translate({x:.1} {y:.1})\">\n{inner}\n</g>\
                      </a>",
-                    qname = esc(qn),
+                    anchor = open_shape_anchor(qn, &file_by_qname, config),
                     x = x + ox,
                     y = y + oy,
                     inner = strip_svg_wrapper(svg)
@@ -428,10 +462,10 @@ fn build_req_diagram(elements: &[RawElement], opts: &ReqDiagramOptions) -> Strin
         if let Some((x, y)) = tc_positions.get(tc_qn) {
             if let Some((_, _, svg)) = tc_rendered.get(tc_qn) {
                 parts.push(format!(
-                    "<a href=\"/ui/detail/{qname}\" data-qname=\"{qname}\">\
+                    "{anchor}\
                      <g transform=\"translate({x:.1} {y:.1})\">\n{inner}\n</g>\
                      </a>",
-                    qname = esc(tc_qn),
+                    anchor = open_shape_anchor(tc_qn, &file_by_qname, config),
                     x = x + ox,
                     y = y + oy,
                     inner = strip_svg_wrapper(svg)
@@ -445,10 +479,10 @@ fn build_req_diagram(elements: &[RawElement], opts: &ReqDiagramOptions) -> Strin
         if let Some((x, y)) = arch_positions.get(arch_qn) {
             if let Some((_, _, svg)) = arch_rendered.get(arch_qn) {
                 parts.push(format!(
-                    "<a href=\"/ui/detail/{qname}\" data-qname=\"{qname}\">\
+                    "{anchor}\
                      <g transform=\"translate({x:.1} {y:.1})\">\n{inner}\n</g>\
                      </a>",
-                    qname = esc(arch_qn),
+                    anchor = open_shape_anchor(arch_qn, &file_by_qname, config),
                     x = x + ox,
                     y = y + oy,
                     inner = strip_svg_wrapper(svg)
@@ -459,6 +493,7 @@ fn build_req_diagram(elements: &[RawElement], opts: &ReqDiagramOptions) -> Strin
 
     format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" \
+         xmlns:xlink=\"http://www.w3.org/1999/xlink\" \
          viewBox=\"0 0 {w:.0} {h:.0}\" width=\"{w:.0}\" height=\"{h:.0}\">\n\
          <style>text{{font-family:'Inter','Roboto',system-ui,sans-serif}}\
          @font-face{{font-family:'Inter';font-weight:400;\

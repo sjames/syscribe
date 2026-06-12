@@ -36,6 +36,7 @@ fn strip_nulls(v: serde_json::Value) -> serde_json::Value {
 fn element_json(
     elem: &RawElement,
     result: &validator::ValidationResult,
+    config: &ValidateConfig,
 ) -> serde_json::Value {
     let fm = &elem.frontmatter;
 
@@ -74,6 +75,14 @@ fn element_json(
     let mut obj = serde_json::Map::new();
     obj.insert("qname".into(), serde_json::json!(elem.qualified_name));
     obj.insert("file".into(), serde_json::json!(elem.file_path));
+    // REQ-TRS-LINK-001/004 — hosted source URL when `[links]` is configured.
+    if let Some(url) = config.hosted_url_for(
+        &elem.file_path,
+        &elem.qualified_name,
+        fm.id.as_deref().unwrap_or(""),
+    ) {
+        obj.insert("url".into(), serde_json::json!(url));
+    }
     if let Some(id) = &fm.id {
         obj.insert("id".into(), serde_json::json!(id));
     }
@@ -104,13 +113,13 @@ pub fn cmd_export(elements: &[RawElement], config: &ValidateConfig, ndjson: bool
         });
         println!("{}", serde_json::to_string(&header).unwrap());
         for elem in elements {
-            println!("{}", serde_json::to_string(&element_json(elem, &result)).unwrap());
+            println!("{}", serde_json::to_string(&element_json(elem, &result, config)).unwrap());
         }
         return;
     }
 
     let items: Vec<serde_json::Value> =
-        elements.iter().map(|e| element_json(e, &result)).collect();
+        elements.iter().map(|e| element_json(e, &result, config)).collect();
     let doc = serde_json::json!({
         "schemaVersion": SCHEMA_VERSION,
         "elementCount": elements.len(),

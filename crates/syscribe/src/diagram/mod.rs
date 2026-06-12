@@ -15,6 +15,7 @@ pub fn cmd_diagram(
     _resolver: &syscribe_model::resolver::Resolver,
     subcmd: &str,
     args: &[String],
+    config: &syscribe_model::config::ValidateConfig,
 ) {
     let mut argv: Vec<&str> = vec!["diagram"];
     if !subcmd.is_empty() {
@@ -79,6 +80,7 @@ pub fn cmd_diagram(
             req::cmd_diagram_req(
                 elements,
                 req::ReqDiagramOptions { root, depth, show_verify, show_satisfy, output },
+                config,
             );
         }
         _ => {
