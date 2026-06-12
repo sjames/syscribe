@@ -787,6 +787,32 @@ pub fn cmd_show(
         }
     }
 
+    // Allocated from (REQ-TRS-ALLOC-001) — the derived reverse index: every
+    // source element allocated to this target, aggregated over both authoring
+    // forms (`allocatedTo`-on-source and the standalone `Allocation` element).
+    // Keyed by stable id when present, else qname (matches the validator).
+    let alloc_key = fm.id.as_deref().unwrap_or(elem.qualified_name.as_str());
+    if let Some(srcs) = val.allocated_from.get(alloc_key) {
+        if !srcs.is_empty() {
+            println!();
+            println!("## Allocated from");
+            println!();
+            println!("| Source | Type | Status |");
+            println!("|---|---|---|");
+            let mut sorted = srcs.clone();
+            sorted.sort();
+            for src_ref in &sorted {
+                if let Some(src) = resolve(elements, resolver, src_ref) {
+                    let ty = tl(src.frontmatter.element_type.as_ref());
+                    let st = src.frontmatter.status.as_deref().unwrap_or("—");
+                    println!("| {} | {} | {} |", src_ref, ty, st);
+                } else {
+                    println!("| {} | (not found) | — |", src_ref);
+                }
+            }
+        }
+    }
+
     // Custom fields (GH #39) — read-only labelled section; scalars inline, lists
     // comma-joined. Absent → no section. Keys render in sorted order (BTreeMap).
     if !fm.custom_fields.is_empty() {

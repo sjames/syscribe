@@ -1,6 +1,7 @@
 ---
 type: PartDef
 name: SafetyInterlockSubsystem
+allocatedTo: SolutionDomain::PhysicalComponents::SafetyMonitorUnit
 domain: system
 custom_fields:
   mg_cell: W3

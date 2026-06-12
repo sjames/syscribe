@@ -5278,6 +5278,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W306` | **Unsatisfied safety mechanism** — a high-integrity `Requirement` (`silLevel >= 4` or `asilLevel: D`) that is `status: draft`, (for a **leaf**) satisfied by no element, or (with a feature model) active in no `Configuration`. The "satisfied by no element" sub-condition applies to leaf requirements only — a **parent** (has `derivedChildren`) is satisfied transitively and may not be satisfied directly (`E312`). Message names the triggering sub-condition(s). Gateable with `--deny W306`; promotable via `[profiles]` |
 | `W029` | A non-draft `Requirement` with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no active **measuring** `TestCase` (testLevel `L5`, or tagged `timing`/`wcet`) verifies it. The timing-evidence analog of `W702`. Gateable with `--deny W029`; query with `list --has-wcet` |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
+| `W503` | **Redundant allocation** — the same `source → target` edge is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element (§12.9). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |
 
 #### MagicGrid gate (`MG###`, REQ-TRS-MG-002..011)
 
@@ -5957,3 +5958,43 @@ implementedBy:
   - repo:src/scheduler/bitmap.rs
 ---
 ```
+
+---
+
+### 12.9 Allocation: Two Forms over One Edge Model
+
+An allocation links a source element (typically a logical function or subsystem) to the target that realises it. The format supports **two** first-class ways to author an allocation, both feeding a **single** unified edge set and a **derived** `allocatedFrom` reverse index. Neither form is deprecated and there is no forced migration.
+
+**Form 1 — `allocatedTo:` on the source element (OSLC default).** The source element being allocated holds `allocatedTo: <target | [targets]>`. The source **is** the `allocatedFrom`, which is **derived**, not authored — obeying the OSLC link-direction rule (§12.1) exactly like `satisfies:` / `verifies:` / `refines:`. This is the lightweight default for an allocation that needs no documentation of its own.
+
+```yaml
+---
+type: ActionDef
+name: ComputeThrust
+allocatedTo: Logical::PropulsionController   # this action → that part
+---
+```
+
+**Form 2 — a standalone `Allocation` element (documented allocations).** A `type: Allocation` element names both `allocatedFrom` and `allocatedTo`, either top-level or per `features:` entry. This is a **reified relationship artifact** — kept for when the allocation itself needs a documented body (a freedom-from-interference argument, deployment rationale, or integration-test notes). Naming both endpoints is its purpose, not redundancy. The HW/SW FFI and deployment allocations of §12.6 use this form. A `features:` entry is recognised as an edge when it carries **both** `allocatedFrom` and `allocatedTo`, **regardless** of whether the entry also declares a feature-level `type: Allocation`.
+
+```yaml
+---
+type: Allocation
+name: PropulsionAllocation
+features:
+  - name: computeToController
+    allocatedFrom: Functions::ComputeThrust
+    allocatedTo: Logical::PropulsionController
+---
+```
+
+**One unified edge set.** The allocation-edge set `(source → target)` consumed by `MG041`, `MG081`, the `matrix --allocations` view, and the derived `allocatedFrom` index comes from a **single** extractor that yields edges from both forms. So `matrix --allocations` and the MagicGrid gate can never disagree, and an allocation authored in either form produces the same edge.
+
+**Derived `allocatedFrom` index.** Each target element gains a derived reverse index `allocatedFrom` listing every source allocated to it, aggregated over both forms — surfaced in `show` (an `## Allocated from` section), `links`, and the export `computed` block exactly like `verifiedBy` / `refinedBy` / `mopRefinedBy`.
+
+**Resolution and redundancy.**
+
+- Each `allocatedTo` operand must resolve by qualified name or stable id; an unresolved target raises **`E503`** (and an unresolved `allocatedFrom` on the standalone form raises **`E502`**).
+- When the **same** `source → target` edge is declared by **both** an `allocatedTo` on the source **and** a standalone `Allocation` element, the tool emits **`W503`** once for that edge — the duplicate is redundant, so pick one form. A single edge in a single form raises nothing.
+
+**Guidance:** use `allocatedTo:` by default; promote to a standalone `Allocation` element only when the allocation needs its own documentation.

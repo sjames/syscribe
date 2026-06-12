@@ -12,14 +12,25 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 182 |
-| Passed | 182 |
+| Total test cases | 183 |
+| Passed | 183 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
 ---
 
 ## 2. Results
+
+### TC-TRS-ALLOC-001 — Verify two allocation forms over one edge model: allocatedTo-on-source clears MG041/MG081 + derives allocatedFrom; type-less legacy features are edges; E503 unresolved; W503 redundant duplicate.
+
+**Verifies:** REQ-TRS-ALLOC-001  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| the same edge in both forms raises W503 | ✓ PASS |
+
+---
 
 ### TC-TRS-AW-001 — Verify the applies-when CLI: set by feature id or path, E209/E228 refusal, void-model bad-config check on set, clear, dry-run.
 

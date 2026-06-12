@@ -1,6 +1,7 @@
 ---
 type: StateDef
 name: ChargingSessionStates
+allocatedTo: ProblemDomain::WhiteBox::LogicalSubsystems::EnergyControlSubsystem
 subStates:
   - name: Idle
   - name: Authorising

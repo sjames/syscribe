@@ -1,6 +1,7 @@
 ---
 type: PartDef
 name: PowerConversionSubsystem
+allocatedTo: SolutionDomain::PhysicalComponents::PowerCabinet
 domain: system
 custom_fields:
   mg_cell: W3

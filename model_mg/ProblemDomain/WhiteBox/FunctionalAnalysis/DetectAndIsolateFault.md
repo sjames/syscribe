@@ -1,6 +1,7 @@
 ---
 type: ActionDef
 name: DetectAndIsolateFault
+allocatedTo: ProblemDomain::WhiteBox::LogicalSubsystems::SafetyInterlockSubsystem
 parameters:
   - name: insulationOhms
     typedBy: ScalarValues::Real

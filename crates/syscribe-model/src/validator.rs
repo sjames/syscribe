@@ -60,6 +60,12 @@ pub struct ValidationResult {
     /// stable id when present, else its qualified name. Computed only when the
     /// MagicGrid gate is active.
     pub mop_refined_by: HashMap<String, Vec<String>>,
+    /// REQ-TRS-ALLOC-001 — allocatedFrom[target_id_or_qname] = the source
+    /// elements allocated to this target, aggregated over both authoring forms
+    /// (`allocatedTo`-on-source and the standalone `Allocation` element). Keyed
+    /// by the target's stable id when present, else its qualified name; each
+    /// source is labelled by its stable id else qname.
+    pub allocated_from: HashMap<String, Vec<String>>,
 }
 
 impl ValidationResult {
@@ -4468,57 +4474,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 part_layer.insert(e.qualified_name.clone(), l);
             }
         }
-        // Logical parts that have an Allocation to a physical part (source qname set).
-        // Allocation edges are carried either as the top-level `allocatedFrom`/
-        // `allocatedTo` fields or as `features:` entries of `type: Allocation`
-        // (mirroring the E500/E501/E502/E503 handling above).
+        // Logical parts that have an allocation to a physical part (source qname
+        // set). Both authoring forms feed one unified edge set (REQ-TRS-ALLOC-001).
+        let alloc_edges = allocation_edges(elements, &resolver);
         let mut logical_realised: HashSet<String> = HashSet::new();
-        let mut record_edge = |from: &str, to: &str| {
-            let to_physical = resolver
-                .resolve_ref(elements, to)
-                .map(|t| part_layer.get(&t.qualified_name).map(|l| l == "physical").unwrap_or(false))
-                .unwrap_or(false);
-            if !to_physical {
-                return;
-            }
-            if let Some(src) = resolver.resolve_ref(elements, from) {
-                logical_realised.insert(src.qualified_name.clone());
-            }
-        };
-        for elem in elements {
-            if !matches!(elem.frontmatter.element_type, Some(ElementType::Allocation)) {
-                continue;
-            }
-            // Top-level allocatedFrom/allocatedTo (cartesian over both lists).
-            let froms = elem.frontmatter.allocated_from.as_deref().unwrap_or(&[]);
-            let tos = elem.frontmatter.allocated_to.as_deref().unwrap_or(&[]);
-            for to in tos {
-                for from in froms {
-                    record_edge(from, to);
-                }
-            }
-            // `features:` entries of type Allocation carrying allocatedFrom/allocatedTo.
-            if let Some(ref feats) = elem.frontmatter.features {
-                for feat_val in feats {
-                    if let serde_yaml::Value::Mapping(ref feat) = *feat_val {
-                        let is_alloc = feat
-                            .get(&serde_yaml::Value::String("type".into()))
-                            .and_then(|v| v.as_str())
-                            == Some("Allocation");
-                        if !is_alloc {
-                            continue;
-                        }
-                        let from = feat
-                            .get(&serde_yaml::Value::String("allocatedFrom".into()))
-                            .and_then(|v| v.as_str());
-                        let to = feat
-                            .get(&serde_yaml::Value::String("allocatedTo".into()))
-                            .and_then(|v| v.as_str());
-                        if let (Some(from), Some(to)) = (from, to) {
-                            record_edge(from, to);
-                        }
-                    }
-                }
+        for (from, to) in &alloc_edges {
+            if part_layer.get(to).map(|l| l == "physical").unwrap_or(false) {
+                logical_realised.insert(from.clone());
             }
         }
         for elem in elements {
@@ -4630,52 +4592,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     | Some(ElementType::State)
             )
         };
-        // Source qnames allocated to a logical part.
+        // Source qnames allocated to a logical part, from the same unified edge
+        // set as MG041 (REQ-TRS-ALLOC-001) — matching `mg_layer: logical` targets.
         let mut allocated_to_logical: HashSet<String> = HashSet::new();
-        let mut record_logical_edge = |from: &str, to: &str| {
-            let to_logical = resolver
-                .resolve_ref(elements, to)
-                .map(|t| part_layer.get(&t.qualified_name).map(|l| l == "logical").unwrap_or(false))
-                .unwrap_or(false);
-            if !to_logical {
-                return;
-            }
-            if let Some(src) = resolver.resolve_ref(elements, from) {
-                allocated_to_logical.insert(src.qualified_name.clone());
-            }
-        };
-        for elem in elements {
-            if !matches!(elem.frontmatter.element_type, Some(ElementType::Allocation)) {
-                continue;
-            }
-            let froms = elem.frontmatter.allocated_from.as_deref().unwrap_or(&[]);
-            let tos = elem.frontmatter.allocated_to.as_deref().unwrap_or(&[]);
-            for to in tos {
-                for from in froms {
-                    record_logical_edge(from, to);
-                }
-            }
-            if let Some(ref feats) = elem.frontmatter.features {
-                for feat_val in feats {
-                    if let serde_yaml::Value::Mapping(ref feat) = *feat_val {
-                        let is_alloc = feat
-                            .get(&serde_yaml::Value::String("type".into()))
-                            .and_then(|v| v.as_str())
-                            == Some("Allocation");
-                        if !is_alloc {
-                            continue;
-                        }
-                        let from = feat
-                            .get(&serde_yaml::Value::String("allocatedFrom".into()))
-                            .and_then(|v| v.as_str());
-                        let to = feat
-                            .get(&serde_yaml::Value::String("allocatedTo".into()))
-                            .and_then(|v| v.as_str());
-                        if let (Some(from), Some(to)) = (from, to) {
-                            record_logical_edge(from, to);
-                        }
-                    }
-                }
+        for (from, to) in &alloc_edges {
+            if part_layer.get(to).map(|l| l == "logical").unwrap_or(false) {
+                allocated_to_logical.insert(from.clone());
             }
         }
         for elem in elements {
@@ -4742,6 +4664,70 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // ── Derived allocatedFrom index + W503 redundancy (REQ-TRS-ALLOC-001) ────
+    //
+    // The derived reverse index and the redundancy warning both run for every
+    // model (not gated on the MagicGrid profile), over the unified, form-tagged
+    // edge set. `allocated_from[target_key]` lists the sources allocated to the
+    // target, keyed by the target's stable id else qname (matching the other
+    // reverse indices); each source is labelled by its stable id else qname.
+    let tagged_edges = allocation_edges_tagged(elements, &resolver);
+    // qname → label (stable id when present, else qname) for both endpoints.
+    let label_of: HashMap<String, String> = elements
+        .iter()
+        .map(|e| {
+            let label = e
+                .frontmatter
+                .id
+                .clone()
+                .unwrap_or_else(|| e.qualified_name.clone());
+            (e.qualified_name.clone(), label)
+        })
+        .collect();
+    let mut allocated_from: HashMap<String, Vec<String>> = HashMap::new();
+    // Per edge, the set of forms that produced it (for W503), in encounter order.
+    let mut edge_forms: HashMap<(String, String), (bool, bool)> = HashMap::new();
+    let mut edge_order: Vec<(String, String)> = Vec::new();
+    for (from, to, form) in &tagged_edges {
+        let entry = edge_forms.entry((from.clone(), to.clone()));
+        if matches!(entry, std::collections::hash_map::Entry::Vacant(_)) {
+            edge_order.push((from.clone(), to.clone()));
+        }
+        let flags = entry.or_insert((false, false));
+        match form {
+            AllocForm::AllocatedTo => flags.0 = true,
+            AllocForm::Element => flags.1 = true,
+        }
+    }
+    // Build allocated_from from the de-duplicated edge set.
+    for (from, to) in &edge_order {
+        let target_key = label_of.get(to).cloned().unwrap_or_else(|| to.clone());
+        let source_label = label_of.get(from).cloned().unwrap_or_else(|| from.clone());
+        let bucket = allocated_from.entry(target_key).or_default();
+        if !bucket.contains(&source_label) {
+            bucket.push(source_label);
+        }
+    }
+    // W503 — the same source → target edge declared by BOTH forms.
+    for (from, to) in &edge_order {
+        if let Some((has_allocated_to, has_element)) = edge_forms.get(&(from.clone(), to.clone())) {
+            if *has_allocated_to && *has_element {
+                let file = resolver
+                    .resolve_ref(elements, from)
+                    .map(|e| e.file_path.clone())
+                    .unwrap_or_default();
+                findings.push(warning(
+                    "W503",
+                    &file,
+                    &format!(
+                        "redundant allocation: {} → {} is declared by both an allocatedTo and an Allocation element — use one form",
+                        from, to
+                    ),
+                ));
+            }
+        }
+    }
+
     // REQ-TRS-XREF-006 — root-package-name hint. A qualified name is path-relative
     // and the model-root package (`_index.md`, empty qname) contributes no segment,
     // so the root package's `name:` is never part of a qualified name. When an
@@ -4758,6 +4744,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         refined_by,
         actor_in,
         mop_refined_by,
+        allocated_from,
     }
 }
 
@@ -5115,6 +5102,101 @@ fn req_self_or_descendant_of(
         }
     }
     false
+}
+
+/// Which authoring form produced an allocation edge.
+///
+/// `AllocatedTo` is form 1 — an `allocatedTo:` on the source element (the
+/// OSLC-canonical default; the source *is* the derived `allocatedFrom`).
+/// `Element` is form 2 — a standalone `type: Allocation` element naming both
+/// `allocatedFrom` and `allocatedTo`, top-level or per `features:` entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AllocForm {
+    AllocatedTo,
+    Element,
+}
+
+/// Raw, form-tagged allocation edges before de-duplication, with endpoints
+/// already resolved to qualified names. Skips operands that do not resolve
+/// (E502/E503 report those separately). This is the single source of truth
+/// shared by [`allocation_edges`], `MG041`, `MG081`, `matrix --allocations`,
+/// the derived `allocatedFrom` index, and the W503 redundancy check.
+pub fn allocation_edges_tagged(
+    elements: &[RawElement],
+    resolver: &Resolver,
+) -> Vec<(String, String, AllocForm)> {
+    let mut edges: Vec<(String, String, AllocForm)> = Vec::new();
+    let resolve = |r: &str| resolver.resolve_ref(elements, r).map(|e| e.qualified_name.clone());
+
+    for elem in elements {
+        let is_allocation =
+            matches!(elem.frontmatter.element_type, Some(ElementType::Allocation));
+
+        // Form 1 — `allocatedTo:` on a non-Allocation source element. The element
+        // itself is the derived `allocatedFrom`.
+        if !is_allocation {
+            if let Some(ref tos) = elem.frontmatter.allocated_to {
+                for to in tos {
+                    if let Some(to_qn) = resolve(to) {
+                        edges.push((
+                            elem.qualified_name.clone(),
+                            to_qn,
+                            AllocForm::AllocatedTo,
+                        ));
+                    }
+                }
+            }
+            continue;
+        }
+
+        // Form 2 — a standalone `type: Allocation` element.
+        // Top-level allocatedFrom × allocatedTo cartesian.
+        let froms = elem.frontmatter.allocated_from.as_deref().unwrap_or(&[]);
+        let tos = elem.frontmatter.allocated_to.as_deref().unwrap_or(&[]);
+        for to in tos {
+            for from in froms {
+                if let (Some(f), Some(t)) = (resolve(from), resolve(to)) {
+                    edges.push((f, t, AllocForm::Element));
+                }
+            }
+        }
+        // Each `features:` entry carrying BOTH allocatedFrom and allocatedTo —
+        // regardless of whether the entry also declares a feature-level
+        // `type: Allocation` (the per-feature type requirement is dropped).
+        if let Some(ref feats) = elem.frontmatter.features {
+            for feat_val in feats {
+                if let serde_yaml::Value::Mapping(ref feat) = *feat_val {
+                    let from = feat
+                        .get(&serde_yaml::Value::String("allocatedFrom".into()))
+                        .and_then(|v| v.as_str());
+                    let to = feat
+                        .get(&serde_yaml::Value::String("allocatedTo".into()))
+                        .and_then(|v| v.as_str());
+                    if let (Some(from), Some(to)) = (from, to) {
+                        if let (Some(f), Some(t)) = (resolve(from), resolve(to)) {
+                            edges.push((f, t, AllocForm::Element));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    edges
+}
+
+/// The unified, de-duplicated set of resolved allocation edges
+/// `(from_qname, to_qname)` from BOTH authoring forms. Consumed by `MG041`,
+/// `MG081`, `matrix --allocations`, and the derived `allocatedFrom` index so
+/// the gate and the matrix can never disagree.
+pub fn allocation_edges(elements: &[RawElement], resolver: &Resolver) -> Vec<(String, String)> {
+    let mut seen: HashSet<(String, String)> = HashSet::new();
+    let mut out: Vec<(String, String)> = Vec::new();
+    for (from, to, _form) in allocation_edges_tagged(elements, resolver) {
+        if seen.insert((from.clone(), to.clone())) {
+            out.push((from, to));
+        }
+    }
+    out
 }
 
 fn error(code: &'static str, file: &str, msg: &str) -> Finding {

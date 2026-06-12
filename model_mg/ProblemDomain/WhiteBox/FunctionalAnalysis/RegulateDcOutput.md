@@ -1,6 +1,7 @@
 ---
 type: ActionDef
 name: RegulateDcOutput
+allocatedTo: ProblemDomain::WhiteBox::LogicalSubsystems::PowerConversionSubsystem
 parameters:
   - name: setpoint
     typedBy: ScalarValues::Real

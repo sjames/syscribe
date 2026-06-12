@@ -2,6 +2,29 @@
 
 `RELEASES`
 
+## 0.23.0 — 2026-06-12
+
+### Allocation: two forms over one edge model (`allocatedTo` + derived `allocatedFrom`)
+
+Allocation can now be authored two ways, sharing a single unified edge model (§12.9):
+
+- **`allocatedTo:` on the source element** — the OSLC-canonical, lightweight default. The
+  source holds `allocatedTo: <target>` and **`allocatedFrom` is derived**, never authored —
+  same link direction as `satisfies`/`verifies`/`refines`. The target gains a computed
+  `allocatedFrom` reverse index, surfaced in `show` (a `## Allocated from` section), `links`,
+  and the export `computed` block.
+- **The standalone `Allocation` element** (naming both endpoints) stays first-class for
+  **documented** allocations whose body carries rationale — e.g. the freedom-from-interference
+  / deployment allocations of §12.6. No forced migration; existing models are unchanged.
+
+A **single extractor** now feeds `MG041`, `MG081`, `matrix --allocations`, and the derived
+index, so the matrix and the MagicGrid gate can never disagree — and a `features:` entry is an
+edge when it carries both `allocatedFrom` and `allocatedTo`, **with or without** a per-entry
+`type: Allocation` (the inconsistency that previously produced false `MG041`/`MG081`). Declaring
+the same edge in *both* forms is redundant — new warning **`W503`**. (`REQ-TRS-ALLOC-001`,
+verified by `TC-TRS-ALLOC-001`; qual suite 183/183. The `model_mg/` example's 10 simple
+allocations were converted to the `allocatedTo` form.)
+
 ## 0.22.0 — 2026-06-12
 
 ### `magicgrid --audit` — MagicGrid findings, readiness, and a verdict

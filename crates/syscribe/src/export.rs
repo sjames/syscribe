@@ -65,6 +65,11 @@ fn element_json(
     if let Some(mops) = result.mop_refined_by.get(mg_key) {
         computed.insert("mopRefinedBy".into(), serde_json::json!(mops));
     }
+    // REQ-TRS-ALLOC-001 — allocatedFrom: the sources allocated to this target,
+    // over both authoring forms. Keyed by stable id else qname.
+    if let Some(srcs) = result.allocated_from.get(mg_key) {
+        computed.insert("allocatedFrom".into(), serde_json::json!(srcs));
+    }
 
     let mut obj = serde_json::Map::new();
     obj.insert("qname".into(), serde_json::json!(elem.qualified_name));

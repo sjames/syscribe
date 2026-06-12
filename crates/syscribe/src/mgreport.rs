@@ -15,7 +15,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use syscribe_model::{
     element::{ElementType, RawElement},
     feature_model,
-    validator::{Finding, Severity, ValidationResult},
+    resolver::Resolver,
+    validator::{allocation_edges, Finding, Severity, ValidationResult},
 };
 
 use crate::export::SCHEMA_VERSION;
@@ -324,41 +325,16 @@ struct AllocEdge {
     to: String,
 }
 
-/// Collect every allocation edge from `Allocation` elements: from each
-/// `features:` entry's `allocatedFrom`/`allocatedTo`, and from the element's own
-/// top-level `allocatedFrom`/`allocatedTo` lists (cartesian product).
+/// Collect every allocation edge from the shared, unified extractor
+/// (REQ-TRS-ALLOC-001): both `allocatedTo`-on-source (form 1) and the standalone
+/// `Allocation` element (form 2), resolved and de-duplicated, so the matrix and
+/// the `MG041`/`MG081` gate consume identical edges.
 fn alloc_edges(elems: &[RawElement]) -> Vec<AllocEdge> {
-    let mut edges = Vec::new();
-    for e in elems {
-        if !is_type(e, ElementType::Allocation) {
-            continue;
-        }
-        if let Some(ref feats) = e.frontmatter.features {
-            for fv in feats {
-                if let serde_yaml::Value::Mapping(m) = fv {
-                    let from = m
-                        .get(serde_yaml::Value::String("allocatedFrom".into()))
-                        .and_then(|v| v.as_str());
-                    let to = m
-                        .get(serde_yaml::Value::String("allocatedTo".into()))
-                        .and_then(|v| v.as_str());
-                    if let (Some(f), Some(t)) = (from, to) {
-                        edges.push(AllocEdge { from: f.to_string(), to: t.to_string() });
-                    }
-                }
-            }
-        }
-        if let (Some(froms), Some(tos)) =
-            (&e.frontmatter.allocated_from, &e.frontmatter.allocated_to)
-        {
-            for f in froms {
-                for t in tos {
-                    edges.push(AllocEdge { from: f.clone(), to: t.clone() });
-                }
-            }
-        }
-    }
-    edges
+    let resolver = Resolver::new(elems);
+    allocation_edges(elems, &resolver)
+        .into_iter()
+        .map(|(from, to)| AllocEdge { from, to })
+        .collect()
 }
 
 /// Resolve an allocation endpoint qname to its display label (last segment if no

@@ -1,6 +1,7 @@
 ---
 type: ActionDef
 name: AuthoriseSession
+allocatedTo: ProblemDomain::WhiteBox::LogicalSubsystems::UserInterfaceSubsystem
 parameters:
   - name: credential
     typedBy: ScalarValues::String

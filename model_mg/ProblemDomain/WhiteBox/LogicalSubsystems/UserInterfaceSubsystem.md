@@ -1,6 +1,7 @@
 ---
 type: PartDef
 name: UserInterfaceSubsystem
+allocatedTo: SolutionDomain::PhysicalComponents::DispenserHmi
 domain: system
 custom_fields:
   mg_cell: W3

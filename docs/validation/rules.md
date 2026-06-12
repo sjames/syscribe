@@ -252,13 +252,14 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | E502 | `allocatedFrom:` entry (on any element) does not resolve to a known element |
 | E503 | `allocatedTo:` entry (on any element) does not resolve to a known element |
 
-## Structural warnings (W500–W502)
+## Structural warnings (W500–W503)
 
 | Code | Condition |
 |---|---|
 | W500 | `viewpoint:` on View does not resolve to a ViewpointDef |
 | W501 | `exhibitsStates:` entry does not resolve to any known element |
 | W502 | `expose:` entry on View does not resolve to any known element |
+| W503 | The **same** allocation edge `source → target` is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element — redundant; use one form (§12.9, `REQ-TRS-ALLOC-001`) |
 
 ## Documentation warnings (W600–W601)
 

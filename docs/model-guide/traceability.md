@@ -21,7 +21,26 @@ Concretely:
 | Requirement satisfaction | Architecture element | `satisfies: [REQ-LEAF-*]` |
 | Implementation | Architecture element | `implementedBy: [src/...]` |
 | Test case verification | TestCase | `verifies: [REQ-*]` |
-| Function allocation | Allocation element | `allocatedFrom:` / `allocatedTo:` |
+| Allocation (default) | Source element | `allocatedTo: [target]` — `allocatedFrom` is **derived** |
+
+### Allocation — two forms (§12.9)
+
+An allocation can be authored two ways, sharing one edge model and a derived
+`allocatedFrom` reverse index (shown as **`## Allocated from`** on the target in `show`):
+
+- **`allocatedTo:` on the source element** — the OSLC-canonical, lightweight default. The
+  source holds `allocatedTo: <target>`; `allocatedFrom` is derived, never authored (same
+  direction as `satisfies`/`verifies`/`refines`). Use this for simple allocations.
+- **A standalone `Allocation` element** naming both `allocatedFrom` and `allocatedTo` — a
+  *reified relationship artifact*, kept for **documented** allocations whose body carries
+  rationale (e.g. the freedom-from-interference / deployment allocations of §12.6). Naming
+  both endpoints is its purpose, not redundancy.
+
+Both forms feed `MG041`/`MG081`, `matrix --allocations`, and the derived index identically. A
+`features:` entry is an edge when it has both `allocatedFrom` and `allocatedTo`, with or
+without a per-entry `type: Allocation`. Declaring the **same** edge in *both* forms is
+redundant — warning **`W503`**. Guidance: `allocatedTo` by default; promote to an `Allocation`
+element only when the allocation needs its own documentation.
 
 ## Rule 2 — Decomposition requires an ADR (§12.2)
 

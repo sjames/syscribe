@@ -224,30 +224,48 @@ Under the profile:
 
 Within Structure, a `Part`/`PartDef` may declare its **layer** with
 `mg_layer: logical` (W3, problem white-box) or `mg_layer: physical` (S3, solution).
-A logical subsystem must be realised by a physical component through an explicit
-**`Allocation`** — never a direct `supertype:`/`typedBy:` link:
+A logical subsystem must be realised by a physical component through an
+**allocation** — never a direct `supertype:`/`typedBy:` link. An allocation can be
+authored two ways (§12.9, see [Traceability](traceability.md)):
+
+**Form 1 — `allocatedTo:` on the source (OSLC default, lightweight).** The logical part
+holds `allocatedTo:` its physical realiser; `allocatedFrom` is **derived** (shown as
+`## Allocated from` on the target in `show`). This is what `model_mg/` uses:
 
 ```yaml
-# A logical subsystem (W3)
+# A logical subsystem (W3) — holds allocatedTo to its physical realiser
 type: PartDef
 name: PowerConversionSubsystem
+allocatedTo: SolutionDomain::PhysicalComponents::PowerCabinet
 custom_fields:
   mg_cell: W3
   mg_layer: logical
 ---
-# A physical component (S3)
+# The physical component (S3) it is allocated to
 type: PartDef
 name: PowerCabinet
 custom_fields:
   mg_cell: S3
   mg_layer: physical
----
-# The allocation that bridges them
+```
+
+**Form 2 — a standalone `Allocation` element** naming both `allocatedFrom` and
+`allocatedTo`, kept for **documented** allocations (a body carrying rationale / FFI
+argument), e.g. the deployment allocations of §12.6:
+
+```yaml
 type: Allocation
 name: AllocPowerConversion
 allocatedFrom: ProblemDomain::WhiteBox::LogicalSubsystems::PowerConversionSubsystem
 allocatedTo: SolutionDomain::PhysicalComponents::PowerCabinet
+---
+Rationale, freedom-from-interference argument, integration-test notes …
 ```
+
+Both forms feed `MG041`/`MG081`, `matrix --allocations`, and the derived `allocatedFrom`
+index identically. Declaring the **same** edge in *both* forms is redundant — warning
+`W503`. The same applies to functional allocation (W2 `ActionDef`/`StateDef` →
+`allocatedTo:` a logical subsystem), which clears `MG081`.
 
 The **`matrix --allocations`** report draws the allocation source × target matrix,
 rolls up unallocated sources / unused targets, and — when `mg_layer` is present —

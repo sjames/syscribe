@@ -1,6 +1,7 @@
 ---
 type: ActionDef
 name: NegotiateChargingContract
+allocatedTo: ProblemDomain::WhiteBox::LogicalSubsystems::EnergyControlSubsystem
 parameters:
   - name: vehicleMaxCurrent
     typedBy: ScalarValues::Real

@@ -1,6 +1,7 @@
 ---
 type: PartDef
 name: ConnectivitySubsystem
+allocatedTo: SolutionDomain::PhysicalComponents::NetworkGateway
 domain: system
 custom_fields:
   mg_cell: W3
