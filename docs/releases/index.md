@@ -2,6 +2,13 @@
 
 `RELEASES`
 
+## 0.26.2 — 2026-06-13
+
+### Diagnostic improvements
+
+- **W042 message clarity** — W042 now says "qualified-name segment 'X'" instead of "name 'X'", removing the ambiguity with the free-text `name:` label field.
+- **W042 on FeatureDef cross-references E209** — When W042 fires on a `FeatureDef` with a hyphenated name, the finding now appends "a hyphen in a feature name causes E209 when the feature appears in an `appliesWhen` expression", surfacing the downstream consequence where the rename is cheapest.
+
 ## 0.26.1 — 2026-06-13
 
 ### Bug fixes
