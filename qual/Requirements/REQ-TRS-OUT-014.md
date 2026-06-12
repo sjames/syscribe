@@ -7,6 +7,7 @@ reqDomain: software
 verificationMethod: test
 derivedFrom:
   - REQ-TRS-OUT-001
+breakdownAdr: ADR-OUT-001
 ---
 
 When the `list` command's type filter is `TestCase`, the tool **shall** produce output

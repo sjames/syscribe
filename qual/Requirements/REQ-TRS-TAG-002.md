@@ -7,6 +7,7 @@ reqDomain: software
 verificationMethod: test
 derivedFrom:
   - REQ-TRS-TAG-001
+breakdownAdr: ADR-OUT-001
 ---
 
 The `list` command's `--tag` flag **shall** accept multiple values by repeating the flag
