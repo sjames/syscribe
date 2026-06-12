@@ -1,6 +1,11 @@
 <!-- View mode -->
 <div id="detail-view-mode">
-  <div class="detail-name">{{ name }}</div>
+  <div class="detail-name">
+    {{ name }}
+    {% if let Some(url) = source_url %}
+    <a class="detail-source-link" href="{{ url }}" target="_blank" rel="noopener" title="View source on host" aria-label="View source on host">&#x2197;</a>
+    {% endif %}
+  </div>
   <div class="detail-type">
     <span class="badge {{ badge_class }}">{{ element_type }}</span>
   </div>

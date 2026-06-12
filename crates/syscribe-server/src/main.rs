@@ -1,10 +1,8 @@
 #![deny(warnings)]
 
 use anyhow::Result;
-use axum::{routing::{get, patch}, Router};
 use clap::Parser;
 use std::path::PathBuf;
-use tower_http::cors::CorsLayer;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 
@@ -20,19 +18,10 @@ struct Cli {
     bind: String,
 }
 
-mod routes;
-mod state;
-mod static_assets;
-
-use routes::api_graph::{get_children, get_connections};
-use routes::elements::{get_element, list_elements};
-use routes::graph_cytoscape::get_graph;
-use routes::ui::{canvas, diagram, element_detail, index, tree_items};
-use routes::validation::get_validation;
-use routes::write::{patch_layout, put_element};
-use routes::ws::ws_handler;
-use state::{new_state, ReloadTx, SharedState};
+use syscribe_model::config::ValidateConfig;
 use syscribe_model::walker::walk_model;
+use syscribe_server::build_router;
+use syscribe_server::state::{new_state, ReloadTx, SharedState};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -48,28 +37,12 @@ async fn main() -> Result<()> {
     info!("Loaded {} elements", elements.len());
 
     let symbol_defs = load_symbol_defs(&model_root);
-    let (shared, reload_tx) = new_state(elements, symbol_defs);
+    let config = ValidateConfig::with_model_root(&model_root);
+    let (shared, reload_tx) = new_state(elements, symbol_defs, config);
 
     spawn_watcher(model_root.clone(), shared.clone(), reload_tx.clone());
 
-    let app = Router::new()
-        .route("/", get(index))
-        .route("/canvas", get(canvas))
-        .route("/ui/tree", get(tree_items))
-        .route("/ui/detail/{*qname}", get(element_detail))
-        .route("/ui/diagram/{*qname}", get(diagram))
-        .route("/api/elements", get(list_elements))
-        .route("/api/elements/{*qname}", get(get_element).put(put_element))
-        .route("/api/children", get(get_children))
-        .route("/api/connections", get(get_connections))
-        .route("/api/diagrams/layout/{*qname}", patch(patch_layout))
-        .route("/api/graph", get(get_graph))
-        .route("/api/validation", get(get_validation))
-        .route("/ws", get(ws_handler))
-        .route("/static/{*path}", get(static_assets::static_handler))
-        .layer(axum::Extension(reload_tx))
-        .layer(CorsLayer::permissive())
-        .with_state(shared);
+    let app = build_router(shared, reload_tx);
 
     info!("Listening on http://{}", cli.bind);
     println!("\n  Model browser: http://{}/", cli.bind);
@@ -128,6 +101,9 @@ fn spawn_watcher(model_root: PathBuf, state: SharedState, reload_tx: ReloadTx) {
                         let resolver =
                             syscribe_model::resolver::Resolver::new(&elements);
                         let symbol_defs = load_symbol_defs(&model_root);
+                        // Reload `[links]` too: editing `.syscribe.toml` should
+                        // toggle the detail-panel source-link (REQ-TRS-LINK-005).
+                        let config = ValidateConfig::with_model_root(&model_root);
 
                         // Write into the shared store from inside the blocking thread
                         let rt = tokio::runtime::Handle::current();
@@ -138,6 +114,7 @@ fn spawn_watcher(model_root: PathBuf, state: SharedState, reload_tx: ReloadTx) {
                             store.node_idx = node_idx;
                             store.resolver = resolver;
                             store.symbol_defs = symbol_defs;
+                            store.config = config;
                         });
 
                         let _ = reload_tx.send(r#"{"event":"reload"}"#.to_string());

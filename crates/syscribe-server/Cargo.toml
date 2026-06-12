@@ -26,3 +26,7 @@ clap = { workspace = true }
 pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
 rust-embed = { workspace = true }
 mime_guess = { workspace = true }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"

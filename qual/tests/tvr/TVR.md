@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 195 |
-| Passed | 195 |
+| Total test cases | 196 |
+| Passed | 196 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -714,6 +714,17 @@
 | Scenario | Result |
 |---|---|
 | no [links] table leaves the report unlinked | ✓ PASS |
+
+---
+
+### TC-TRS-LINK-005 — Verify the live web UI detail panel shows a per-element source-link icon to the hosted model element.
+
+**Verifies:** REQ-TRS-LINK-005  
+**Result:** ✓ PASS (1 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| live detail panel renders/omits the source-link icon per [links] | ✓ PASS |
 
 ---
 

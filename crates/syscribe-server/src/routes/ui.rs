@@ -105,6 +105,10 @@ pub struct ElementDetailTemplate {
     /// Each value is pre-rendered (scalars inline, lists comma-joined). Empty when
     /// the element declares no `custom_fields`. Not editable via the PUT editor.
     pub custom_fields: Vec<(String, String)>,
+    /// REQ-TRS-LINK-005 — the element's resolved hosted source URL, or `None`.
+    /// `Some` only when `[links]` is configured and the element is file-backed;
+    /// drives the conditional "view source" icon in the detail panel header.
+    pub source_url: Option<String>,
 }
 
 /// Render a single YAML scalar (string/number/bool/null) as plain text.
@@ -243,6 +247,18 @@ pub async fn element_detail(
                 .map(|t| format!("{:?}", t))
                 .unwrap_or_else(|| "Unknown".to_string());
             let badge_class = badge_class_for(&element_type);
+            // REQ-TRS-LINK-005 — resolve the hosted source URL for the
+            // "view source" icon. `None` when `[links]` is unconfigured or the
+            // element is not file-backed, in which case no icon is rendered.
+            let source_url = if e.file_path.is_empty() {
+                None
+            } else {
+                store.config.hosted_url_for(
+                    &e.file_path,
+                    &e.qualified_name,
+                    e.frontmatter.id.as_deref().unwrap_or(""),
+                )
+            };
             let tmpl = ElementDetailTemplate {
                 name: e
                     .frontmatter
@@ -261,6 +277,7 @@ pub async fn element_detail(
                     .iter()
                     .map(|(k, v)| (k.clone(), custom_field_display(v)))
                     .collect(),
+                source_url,
             };
             Html(tmpl.render().unwrap_or_default())
         }
