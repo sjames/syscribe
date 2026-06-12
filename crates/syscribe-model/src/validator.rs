@@ -2268,6 +2268,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(warning("W903", &file, &format!("FMEAEntry RPN {} > 100 but has no `recommendedAction`", rpn)));
                 }
             }
+            // E922: unknown key in FMEA entry — silent drops in a safety analysis are errors
+            for key in &fm.unknown_fmea_keys {
+                findings.push(error("E922", &file, &format!(
+                    "FMEAEntry has unknown key '{}' — this field is silently ignored (recognised: failureMode, effect, cause, fmeaSeverity, occurrence, detection, rpn, recommendedAction, satisfies)", key)));
+            }
         }
 
         // ── Tier 4: TARASheet (E940-E941, W905) ─────────────────────────────────
@@ -3478,15 +3483,20 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
             for elem in elements {
                 let fm = &elem.frontmatter;
-                // ASIL D SafetyGoal or native Requirement → I3 functional_safety_assessment.
+                // ASIL D or SIL 3/4 SafetyGoal or native Requirement → I3 functional_safety_assessment.
                 let is_safety_item = Resolver::is_safety_goal(elem)
                     || Resolver::is_native_requirement(elem);
-                if is_safety_item && fm.asil_level.as_deref() == Some("D")
-                    && !is_assessed(elem, &fs_assessed)
-                {
+                let needs_fs_assessment = fm.asil_level.as_deref() == Some("D")
+                    || matches!(fm.sil_level, Some(3) | Some(4));
+                if is_safety_item && needs_fs_assessment && !is_assessed(elem, &fs_assessed) {
                     let id = fm.id.as_deref().unwrap_or(&elem.qualified_name);
+                    let integrity = if let Some(sil) = fm.sil_level {
+                        format!("SIL {}", sil)
+                    } else {
+                        "ASIL D".to_string()
+                    };
                     findings.push(warning("W039", &elem.file_path, &format!(
-                        "ASIL D item '{}' has no independent (I3) functional_safety_assessment ConfirmationMeasure confirming it (ISO 26262-2 §6)", id)));
+                        "{} item '{}' has no independent (I3) functional_safety_assessment ConfirmationMeasure confirming it (ISO 26262-2 §6 / IEC 61508-1 §8)", integrity, id)));
                 }
                 // CAL4 CybersecurityGoal → I3 cybersecurity_assessment.
                 if Resolver::is_cybersecurity_goal(elem)

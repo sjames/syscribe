@@ -571,6 +571,8 @@ pub struct RawFrontmatter {
     pub detection: Option<u8>,                   // FMEAEntry detection 1–10 (YAML: detection)
     pub rpn: Option<u32>,                        // FMEAEntry Risk Priority Number (YAML: rpn)
     pub recommended_action: Option<String>,      // FMEAEntry mitigation (YAML: recommendedAction)
+    #[serde(skip)]
+    pub unknown_fmea_keys: Vec<String>,          // keys not in recognised set; validator emits E922
 
     // §T2 — HazardousEvent (ISO 26262 §7 HARA)
     pub severity: Option<String>,               // S0-S3

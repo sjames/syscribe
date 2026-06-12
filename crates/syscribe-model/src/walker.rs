@@ -270,7 +270,7 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 .or_else(|| str_val("name"))
                 .unwrap_or_else(|| entry_id.clone());
 
-            let s = u8_val("severity");
+            let s = u8_val("fmeaSeverity").or_else(|| u8_val("severity"));
             let o = u8_val("occurrence");
             let d = u8_val("detection");
             // Compute RPN if all three components are present; otherwise take explicit value
@@ -281,6 +281,18 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                     .and_then(|v| v.as_u64())
                     .map(|n| n as u32),
             };
+
+            const KNOWN_FMEA_ENTRY_KEYS: &[&str] = &[
+                "id", "ref", "name", "failureMode", "status", "effect", "cause",
+                "fmeaSeverity", "severity", "occurrence", "detection", "rpn",
+                "recommendedAction", "satisfies",
+            ];
+            let unknown_fmea_keys: Vec<String> = map
+                .keys()
+                .filter_map(|k| k.as_str())
+                .filter(|k| !KNOWN_FMEA_ENTRY_KEYS.contains(k))
+                .map(String::from)
+                .collect();
 
             let fm = RawFrontmatter {
                 element_type: Some(ElementType::FMEAEntry),
@@ -297,6 +309,7 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 rpn,
                 recommended_action: str_val("recommendedAction"),
                 satisfies: strings_val("satisfies"),
+                unknown_fmea_keys,
                 ..Default::default()
             };
 

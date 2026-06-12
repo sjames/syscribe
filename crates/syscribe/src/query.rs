@@ -3147,10 +3147,10 @@ entries:
     failureMode: "Loss of output signal"
     effect: "No command issued"
     cause: "Software exception in main loop"
-    severity: 9             # 1–10
+    fmeaSeverity: 9         # 1–10
     occurrence: 3           # 1–10
     detection: 4            # 1–10
-    # rpn: 108              # computed automatically if omitted
+    # rpn: 108              # computed automatically as S×O×D if omitted
     recommendedAction: "Add watchdog monitor"
     # satisfies: REQ-PREFIX-001
   - id: FM-PREFIX-002
@@ -3158,7 +3158,7 @@ entries:
     failureMode: "Stuck-at-high output"
     effect: "False positive reading"
     cause: "Hardware fault"
-    severity: 7
+    fmeaSeverity: 7
     occurrence: 2
     detection: 6
     recommendedAction: "Add redundant sensor cross-check"

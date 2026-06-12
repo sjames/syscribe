@@ -2,6 +2,14 @@
 
 `RELEASES`
 
+## 0.26.4 — 2026-06-13
+
+### Bug fixes (issues #45, #46, #47)
+
+- **Fix #45 — FMEA entry canonical field `fmeaSeverity:` now accepted; unknown keys raise E922.** The parser was reading `severity:` while the spec and element schema documented `fmeaSeverity:`. Both keys are now accepted (`fmeaSeverity:` canonical, `severity:` as a deprecated alias). Any key in an `entries:` row that is not in the recognised set raises error **E922** (silent drops in a safety analysis are unacceptable). The template now emits `fmeaSeverity:`. (`REQ-TRS-FMEA-002`)
+- **Fix #46 — W903 RPN auto-compute now works when `rpn:` is absent and `fmeaSeverity:` is used.** The root cause was that the walker was reading `severity:` for the S component; an entry written with `fmeaSeverity:` (the canonical key) produced `S = None`, disabling the auto-compute. Fixed by the same key-reading fix as #45. (`REQ-TRS-FMEA-002`)
+- **Fix #47 — W039 now fires for `silLevel: 3` and `silLevel: 4` items.** W039 was checking only `asilLevel: D`, ignoring the equivalent IEC 61508 integrity levels. W039 messages for SIL 3/4 items now reference IEC 61508-1 §8. (`REQ-TRS-SAFE-009`)
+
 ## 0.26.3 — 2026-06-13
 
 ### New feature: `list TestCase` with config projection and multi-tag filtering

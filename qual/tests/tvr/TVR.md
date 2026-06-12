@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.2  
+**Version:** syscribe 0.26.3  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-12  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 206 |
-| Passed | 206 |
+| Total test cases | 208 |
+| Passed | 208 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -544,6 +544,17 @@
 | trigger W902 | ✓ PASS |
 | trigger W903 | ✓ PASS |
 | trigger W904 | ✓ PASS |
+
+---
+
+### TC-TRS-FMEA-002 — Verify FMEA entry canonical fields: fmeaSeverity accepted, RPN auto-computed, unknown keys raise E922
+
+**Verifies:** REQ-TRS-FMEA-002  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| template FMEASheet emits fmeaSeverity not severity | ✓ PASS |
 
 ---
 
@@ -1648,6 +1659,17 @@
 | main: Argument + AssumptionOfUse validate with no errors | ✓ PASS |
 | badref: unresolved Argument.supports/evidence yields E855 | ✓ PASS |
 | orphan: claim Argument with no supports/evidence yields W040 | ✓ PASS |
+
+---
+
+### TC-TRS-SAFE-009 — Verify W039 fires for silLevel 3 and 4 SafetyGoals missing I3 assessment
+
+**Verifies:** REQ-TRS-SAFE-009  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| W039 message mentions IEC 61508-1 | ✓ PASS |
 
 ---
 
