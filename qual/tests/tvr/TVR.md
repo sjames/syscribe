@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** unknown  
+**Version:** syscribe 0.25.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-12  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 202 |
-| Passed | 202 |
+| Total test cases | 203 |
+| Passed | 203 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -150,6 +150,17 @@
 | Scenario | Result |
 |---|---|
 | works without a model directory | ✓ PASS |
+
+---
+
+### TC-TRS-CLI-007 — TC-TRS-CLI-007
+
+**Verifies:** REQ-TRS-CLI-007  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| works from a directory with no model or .syscribe.toml | ✓ PASS |
 
 ---
 

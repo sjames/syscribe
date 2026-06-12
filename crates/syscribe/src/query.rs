@@ -3518,6 +3518,7 @@ pub fn print_help() {
     println!("Options:");
     println!("  -m, --model <path>             Model root directory");
     println!("  --agent-instructions [topic]   Print the LLM authoring prompt; topic 'magicgrid' teaches MagicGrid modeling");
+    println!("  --version, -V                  Print the tool version (also `syscribe version`)");
     println!("  --help, -h                     Show this help");
     println!();
     println!("Examples:");

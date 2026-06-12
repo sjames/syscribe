@@ -395,6 +395,16 @@ fn scripts_validate_report(
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
+    // REQ-TRS-CLI-007: version reporting. `--version`, `-V`, or the `version`
+    // subcommand print "syscribe <semver>" to stdout and exit 0, handled before any
+    // model resolution so they work from any directory with no model present.
+    if args.iter().skip(1).any(|a| a == "--version" || a == "-V")
+        || args.get(1).map(|a| a == "version").unwrap_or(false)
+    {
+        println!("syscribe {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
+
     // REQ-TRS-CLI-006: `--agent-instructions [topic]`. No topic (or `general`) →
     // the general modeling prompt; `magicgrid` → the MagicGrid modeling prompt; an
     // unknown topic exits non-zero. The token after the flag is a topic only when it

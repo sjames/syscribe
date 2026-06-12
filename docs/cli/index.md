@@ -40,6 +40,8 @@ syscribe <command> --help  # the same page, e.g. `syscribe validate --help` (als
 
 `syscribe spec [<section>]` browses the embedded **format** reference (types, fields, validation rules, …); `syscribe --agent-instructions` prints the LLM authoring prompt (`syscribe --agent-instructions magicgrid` prints a dedicated MagicGrid modeling prompt).
 
+`syscribe --version` (also `-V`, or `syscribe version`) prints the tool version as `syscribe <semver>` and exits 0 — no model directory required.
+
 ---
 
 ## Validation
