@@ -2925,6 +2925,21 @@ metadata:
 Fuel system component with catastrophic hazard classification.
 ```
 
+A `metadata:` entry is either a **bare reference** (`metadata: [Metadata::SafetyAnnotation]`)
+or a **map** whose **`type`** (aliases `apply`/`def`) names the `MetadataDef` and whose other
+keys set its `features` as tagged values. This is the SysMLv2 way to model a **stereotype**
+(there is no UML stereotype mechanism). Validation (REQ-TRS-META-001):
+
+- an application that does not resolve to a `MetadataDef` is **`E317`** (standard-library
+  metadata packages `ModelingMetadata`/`RiskMetadata` are recognised);
+- applying a `MetadataDef` whose **`annotates:`** excludes the element's metaclass — directly
+  or via the abstract `Element`/`Definition`/`Usage` — is **`E318`**;
+- a tagged-value key that is not a declared `features:` attribute of the `MetadataDef` is
+  warning **`W045`**.
+
+Applied stereotypes are shown by `show` as **«Name»** banners and are filterable with
+`list <Type> --metadata <MetadataDef>`.
+
 #### 8.15.3 Standard Library Metadata
 
 The following metadata types from the SysML Standard Library are referenced by their qualified names:

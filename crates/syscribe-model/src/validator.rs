@@ -387,6 +387,89 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // E317 / E318 / W045: stereotype applications via `metadata:` (REQ-TRS-META-001).
+        // Each application must resolve to a MetadataDef (E317); if that def declares
+        // `annotates:`, this element's type must be allowed (E318); each tagged-value key
+        // must be a declared feature of the def (W045). Standard-library metadata packages
+        // are recognised (no E317), and abstract metaclasses (Element/Definition/Usage) match.
+        for app in crate::element::metadata_applications(&fm.metadata) {
+            let stdlib_meta = matches!(
+                app.def.split("::").next(),
+                Some("ModelingMetadata") | Some("RiskMetadata")
+            );
+            match resolver.resolve_ref(elements, &app.def) {
+                Some(def_el)
+                    if matches!(
+                        def_el.frontmatter.element_type,
+                        Some(crate::element::ElementType::MetadataDef)
+                    ) =>
+                {
+                    // E318: applicability constraint (`annotates:` metaclass names).
+                    if let Some(ref allowed) = def_el.frontmatter.annotates {
+                        let this_ty = fm
+                            .element_type
+                            .as_ref()
+                            .map(|t| format!("{:?}", t))
+                            .unwrap_or_default();
+                        let is_def = this_ty.ends_with("Def");
+                        let matches_mc = |mc: &str| -> bool {
+                            mc == this_ty
+                                || mc == "Element"
+                                || (mc == "Definition" && is_def)
+                                || (mc == "Usage" && !is_def)
+                        };
+                        if !allowed.iter().any(|a| matches_mc(a)) {
+                            findings.push(error(
+                                "E318",
+                                &file,
+                                &format!(
+                                    "stereotype '{}' does not annotate a {} (its annotates is [{}])",
+                                    app.def, this_ty, allowed.join(", ")
+                                ),
+                            ));
+                        }
+                    }
+                    // W045: tagged-value keys must be declared features of the def.
+                    let feat_names: Vec<String> = def_el
+                        .frontmatter
+                        .features
+                        .iter()
+                        .flatten()
+                        .filter_map(|f| match f {
+                            serde_yaml::Value::Mapping(m) => m
+                                .get(serde_yaml::Value::from("name"))
+                                .and_then(|v| v.as_str())
+                                .map(str::to_string),
+                            _ => None,
+                        })
+                        .collect();
+                    for (k, _) in &app.values {
+                        if !feat_names.contains(k) {
+                            findings.push(warning(
+                                "W045",
+                                &file,
+                                &format!(
+                                    "tagged value '{}' is not a declared feature of stereotype '{}'",
+                                    k, app.def
+                                ),
+                            ));
+                        }
+                    }
+                }
+                _ => {
+                    // Recognised standard-library metadata packages resolve from the
+                    // built-in inventory (no in-model file) — not an error.
+                    if !stdlib_meta {
+                        findings.push(error(
+                            "E317",
+                            &file,
+                            &format!("`metadata:` application '{}' does not resolve to a MetadataDef", app.def),
+                        ));
+                    }
+                }
+            }
+        }
+
         // W042: an element name that is not a SysMLv2 basic name (REQ-TRS-NAME-001 /
         // GH #42). The element's own name is the last `::` segment of its qualified
         // name; stable ids (REQ-*, TC-*, …) legitimately contain '-' and are exempt.

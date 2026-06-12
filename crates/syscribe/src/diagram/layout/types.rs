@@ -267,6 +267,9 @@ pub struct FeatureRow {
 pub enum Compartment {
     Header {
         stereotype: Option<String>,
+        /// Applied-metadata («Name») stereotypes (REQ-TRS-META-002), rendered as
+        /// additional «Name» banners below the type-keyword banner.
+        applied_stereotypes: Vec<String>,
         name: String,
         is_abstract: bool,
         badges: Vec<Badge>,

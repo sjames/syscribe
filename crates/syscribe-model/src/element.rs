@@ -204,6 +204,49 @@ impl ElementType {
     }
 }
 
+/// One parsed `metadata:` application — a stereotype (MetadataDef) applied to an element,
+/// plus its tagged-value keys (REQ-TRS-META-001).
+#[derive(Debug, Clone)]
+pub struct MetaApply {
+    /// The referenced `MetadataDef` (qualified name or id).
+    pub def: String,
+    /// Tagged values supplied by the application (key, value).
+    pub values: Vec<(String, serde_yaml::Value)>,
+}
+
+/// Parse an element's `metadata:` list into stereotype applications. Each entry is either a
+/// bare string reference, or a map carrying tagged values whose `apply` (alias `def`) key
+/// names the MetadataDef and whose other keys are the tagged values. Entries without a
+/// resolvable `def` reference are skipped.
+pub fn metadata_applications(metadata: &Option<Vec<serde_yaml::Value>>) -> Vec<MetaApply> {
+    let mut out = Vec::new();
+    let Some(list) = metadata else { return out };
+    for entry in list {
+        match entry {
+            serde_yaml::Value::String(s) => {
+                out.push(MetaApply { def: s.clone(), values: Vec::new() });
+            }
+            serde_yaml::Value::Mapping(m) => {
+                // The def reference key is `type` (SysMLv2 metadata application, spec §8.15.2);
+                // `apply`/`def` are accepted aliases.
+                let def = ["type", "apply", "def"]
+                    .iter()
+                    .find_map(|k| m.get(serde_yaml::Value::from(*k)).and_then(|v| v.as_str()));
+                if let Some(def) = def {
+                    let values = m
+                        .iter()
+                        .filter_map(|(k, v)| k.as_str().map(|k| (k.to_string(), v.clone())))
+                        .filter(|(k, _)| k != "type" && k != "apply" && k != "def")
+                        .collect();
+                    out.push(MetaApply { def: def.to_string(), values });
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
 /// A TestPlan's additive `selection:` membership query (REQ-TRS-PLAN-003).
 /// An absent sub-field is *no constraint*; a block with no sub-fields at all
 /// matches *nothing* (not everything). Draft TestCases are never swept here.

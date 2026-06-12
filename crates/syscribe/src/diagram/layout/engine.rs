@@ -70,10 +70,14 @@ fn required_width(node: &ElementNode, m: &dyn TextMetrics) -> f64 {
 
     for c in &node.compartments {
         match c {
-            Compartment::Header { stereotype, name, badges, .. } => {
-                let stereo_w = stereotype.as_deref().map_or(0.0, |s| {
+            Compartment::Header { stereotype, applied_stereotypes, name, badges, .. } => {
+                let mut stereo_w = stereotype.as_deref().map_or(0.0, |s| {
                     m.advance_width(&format!("«{}»", s), FS_STEREOTYPE, false)
                 });
+                for s in applied_stereotypes {
+                    stereo_w = stereo_w
+                        .max(m.advance_width(&format!("«{}»", s), FS_STEREOTYPE, false));
+                }
                 let name_w = m.advance_width(name, FS_NAME, true);
                 let badge_w: f64 = badges.iter().map(|b| {
                     m.advance_width(&b.text, FS_BADGE, b.mono) + BADGE_PAD_H * 2.0
@@ -131,6 +135,7 @@ struct HeaderLayout {
 
 fn layout_header(
     stereotype: Option<&str>,
+    applied_count: usize,
     _name: &str,
     is_abstract: bool,
     badges: &[Badge],
@@ -139,18 +144,22 @@ fn layout_header(
 ) -> HeaderLayout {
     let mut taffy = TaffyTree::<()>::new();
 
-    let stereo_h = if stereotype.is_some() || is_abstract {
+    let has_stereo_line = stereotype.is_some() || applied_count > 0 || is_abstract;
+    let stereo_h = if has_stereo_line {
         m.line_height(FS_STEREOTYPE)
     } else {
         0.0
     };
+    // Each applied-metadata «Name» banner adds one stereotype line (REQ-TRS-META-002).
+    let applied_h = applied_count as f64 * m.line_height(FS_STEREOTYPE);
     let name_h = m.line_height(FS_NAME);
-    let abstract_h = if is_abstract && stereotype.is_some() {
+    let abstract_h = if is_abstract && (stereotype.is_some() || applied_count > 0) {
         m.line_height(FS_STEREOTYPE)
     } else {
         0.0
     };
-    let left_h = stereo_h + name_h + abstract_h + GAP * (if stereo_h > 0.0 { 1.0 } else { 0.0 });
+    let left_h =
+        stereo_h + applied_h + name_h + abstract_h + GAP * (if stereo_h > 0.0 { 1.0 } else { 0.0 });
 
     let left_col = taffy
         .new_leaf(Style {
@@ -277,9 +286,10 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
     // ── Per-compartment SVG ───────────────────────────────────────────────────
     for (ci, compartment) in node.compartments.iter().enumerate() {
         match compartment {
-            Compartment::Header { stereotype, name, is_abstract, badges } => {
+            Compartment::Header { stereotype, applied_stereotypes, name, is_abstract, badges } => {
                 let hl = layout_header(
                     stereotype.as_deref(),
+                    applied_stereotypes.len(),
                     name,
                     *is_abstract,
                     badges,
@@ -307,6 +317,26 @@ pub fn render_element(node: &ElementNode, m: &dyn TextMetrics) -> RenderedElemen
                         fg = theme.stereotype_fg, text = esc(&stereo_text)
                     ));
                     text_y += lh - m.cap_height(FS_STEREOTYPE) + GAP;
+                }
+
+                // Applied-metadata «Name» stereotype banners (REQ-TRS-META-002), one line
+                // each, reusing the shared stereotype styling (stereotype_fg, italic).
+                if !applied_stereotypes.is_empty() {
+                    // When there is no type-keyword banner, the first applied banner is the
+                    // top line and still needs the leading gap before the name below it.
+                    let lh = m.line_height(FS_STEREOTYPE);
+                    for applied in applied_stereotypes {
+                        let applied_text = format!("«{}»", applied);
+                        text_y += m.cap_height(FS_STEREOTYPE);
+                        svg_parts.push(format!(
+                            "<text x=\"{x:.1}\" y=\"{ty:.1}\" font-size=\"{fs}\" \
+                             fill=\"{fg}\" font-style=\"italic\">{text}</text>",
+                            x = CONTENT_X, ty = text_y, fs = FS_STEREOTYPE,
+                            fg = theme.stereotype_fg, text = esc(&applied_text)
+                        ));
+                        text_y += lh - m.cap_height(FS_STEREOTYPE);
+                    }
+                    text_y += GAP;
                 }
 
                 // Name

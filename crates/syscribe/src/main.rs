@@ -623,6 +623,10 @@ fn main() {
                     .windows(2)
                     .find(|w| w[0] == "--feature")
                     .map(|w| w[1].as_str());
+                let metadata = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--metadata")
+                    .map(|w| w[1].as_str());
                 let status = rest
                     .windows(2)
                     .find(|w| w[0] == "--status")
@@ -642,7 +646,8 @@ fn main() {
                 while i < rest.len() {
                     if matches!(
                         rest[i].as_str(),
-                        "--tag" | "--config" | "--feature" | "--status" | "--sil" | "--where"
+                        "--tag" | "--config" | "--feature" | "--metadata" | "--status" | "--sil"
+                            | "--where"
                     ) {
                         i += 2;
                         continue;
@@ -655,14 +660,14 @@ fn main() {
                     break;
                 }
                 match config {
-                    None => query::cmd_list(&elems, key, scope, tag, feature, status, sil, has_wcet, &wheres, json),
+                    None => query::cmd_list(&elems, key, scope, tag, feature, metadata, status, sil, has_wcet, &wheres, json),
                     Some(c) => match syscribe_model::projection::resolve_selection(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
-                            query::cmd_list(&elems, key, scope, tag, feature, status, sil, has_wcet, &wheres, json)
+                            query::cmd_list(&elems, key, scope, tag, feature, metadata, status, sil, has_wcet, &wheres, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
                             let view = syscribe_model::projection::project(&elems, &sel);
-                            query::cmd_list(&view, key, scope, tag, feature, status, sil, has_wcet, &wheres, json);
+                            query::cmd_list(&view, key, scope, tag, feature, metadata, status, sil, has_wcet, &wheres, json);
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
                             eprintln!("{m}");

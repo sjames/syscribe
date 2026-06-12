@@ -2,7 +2,7 @@
 
 ## SYNOPSIS
     syscribe -m <root> list <Type> [scope]
-        [--tag <t>] [--feature <F>] [--config <C>]
+        [--tag <t>] [--feature <F>] [--metadata <D>] [--config <C>]
         [--status <s>] [--sil <v>] [--has-wcet]
         [--where custom.<key>[<op><value>]]... [--json]
 
@@ -14,6 +14,8 @@ for tags, feature gating, lifecycle status, integrity level, and WCET claims.
     [scope]          Namespace prefix to restrict to (e.g. UAV::Avionics).
     --tag <t>        Keep only elements whose tags: include t.
     --feature <F>    Keep only elements gated by FeatureDef F (via appliesWhen).
+    --metadata <D>   Keep only elements that apply the stereotype MetadataDef D
+                     (a `metadata:` application; matched by qname or last segment).
     --config <C>     Project onto a configuration (only active elements).
     --status <s>     Keep only elements whose status: equals s.
     --sil <v>        Keep only elements whose silLevel stringifies to v OR asilLevel == v.

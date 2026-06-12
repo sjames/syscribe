@@ -1,4 +1,4 @@
-use syscribe_model::element::{ElementType, RawElement};
+use syscribe_model::element::{metadata_applications, ElementType, RawElement};
 
 use super::{
     theme::{
@@ -16,6 +16,15 @@ pub fn build_element_node(element: &RawElement, view: &ViewConfig) -> ElementNod
     let etype = fm.element_type.clone().unwrap_or(ElementType::Unknown);
     let theme = theme_for(&etype);
     let stereotype = stereotype_label(&etype).map(|s| s.to_string());
+
+    // Applied-metadata stereotypes (REQ-TRS-META-002): each `metadata:` application of a
+    // MetadataDef surfaces as a «Name» banner. The banner name is the last `::` segment of
+    // the referenced def. The renderer shows what's declared; resolution validity (E317/E318)
+    // is a validation concern handled elsewhere.
+    let applied_stereotypes: Vec<String> = metadata_applications(&fm.metadata)
+        .into_iter()
+        .map(|app| app.def.rsplit("::").next().unwrap_or(&app.def).to_string())
+        .collect();
 
     let name = fm
         .name
@@ -48,6 +57,7 @@ pub fn build_element_node(element: &RawElement, view: &ViewConfig) -> ElementNod
 
     let mut compartments = vec![Compartment::Header {
         stereotype,
+        applied_stereotypes,
         name: name.clone(),
         is_abstract,
         badges: header_badges,

@@ -300,3 +300,13 @@ A duplicate `TestPlan` `id` is the generic `E101` (duplicate stable id).
 |---|---|---|
 | `W043` | warning | A type reference names a member of a **closed** auto-imported package (`ScalarValues`, `Base`) that the package does not declare (e.g. `ScalarValues::Flota`) — a likely typo; the message lists the known members. Recognised members resolve with no `W404`/`W043`. The **open** packages `ISQ`/`SI` are curated-recognised (clean) but lenient — an unrecognised `ISQ`/`SI` member is never flagged. |
 | `W044` | warning | An element/feature declares both a recognised `ISQ` quantity type and a recognised `SI` unit whose physical **dimensions differ** (e.g. `ISQ::MassValue` + `unit: SI::metre`); names both dimensions. Lenient when either side is unrecognised. |
+
+## Stereotypes — metadata applications (E317, E318, W045)
+
+A stereotype is a `MetadataDef` applied via an element's `metadata:` field (SysMLv2 metadata, not UML).
+
+| Code | Severity | Condition |
+|---|---|---|
+| `E317` | error | A `metadata:` application does not resolve to a `MetadataDef`. |
+| `E318` | error | A `metadata:` application's `MetadataDef` declares `annotates:` that excludes the annotated element's type (abstract `Element`/`Definition`/`Usage` match; stdlib metadata recognised). |
+| `W045` | warning | A tagged-value key in a `metadata:` application is not a declared feature of the `MetadataDef`. |

@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 189 |
-| Passed | 189 |
+| Total test cases | 191 |
+| Passed | 191 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -670,6 +670,28 @@
 | Scenario | Result |
 |---|---|
 | a non-quantity typedBy makes the check lenient (no W044) | ✓ PASS |
+
+---
+
+### TC-TRS-META-001 — Verify stereotypes as MetadataDef applications: valid apply (bare + tagged), E317 unresolved, E318 appliesTo mismatch, W045 undeclared tag key, show «Name», list --metadata.
+
+**Verifies:** REQ-TRS-META-001  
+**Result:** ✓ PASS (9 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| list --metadata filters to elements applying the stereotype | ✓ PASS |
+
+---
+
+### TC-TRS-META-002 — Verify diagrams render applied MetadataDef stereotypes as «Name» banners: a stereotyped element shows «Critical» in addition to its type-keyword banner; an element with no application shows no spurious banner.
+
+**Verifies:** REQ-TRS-META-002  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an element with no application renders no spurious stereotype banner | ✓ PASS |
 
 ---
 

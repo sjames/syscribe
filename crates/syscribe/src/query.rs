@@ -551,6 +551,29 @@ pub fn cmd_show(
     if let Some(ref id) = fm.id { println!("| **id** | {} |", id); }
     if let Some(ref t) = fm.title { println!("| **title** | {} |", t); }
     if let Some(ref s) = fm.status { println!("| **status** | {} |", s); }
+    // Applied stereotypes (MetadataDef applications, REQ-TRS-META-001) as «Name» banners.
+    {
+        let apps = syscribe_model::element::metadata_applications(&fm.metadata);
+        if !apps.is_empty() {
+            let parts: Vec<String> = apps
+                .iter()
+                .map(|a| {
+                    let nm = a.def.rsplit("::").next().unwrap_or(&a.def);
+                    if a.values.is_empty() {
+                        format!("«{}»", nm)
+                    } else {
+                        let vs: Vec<String> = a
+                            .values
+                            .iter()
+                            .map(|(k, v)| format!("{}={}", k, custom_field_display(v)))
+                            .collect();
+                        format!("«{}» {}", nm, vs.join(", "))
+                    }
+                })
+                .collect();
+            println!("| **stereotypes** | {} |", parts.join(", "));
+        }
+    }
     if let Some(ref refs) = fm.ext_ref { println!("| **extRef** | {} |", refs.join(", ")); }
     if fm.is_abstract == Some(true) { println!("| **abstract** | true |"); }
     if let Some(ref d) = fm.domain { println!("| **domain** | {} |", d); }
@@ -952,6 +975,7 @@ pub fn cmd_list(
     scope: &str,
     tag: Option<&str>,
     feature: Option<&str>,
+    metadata: Option<&str>,
     status: Option<&str>,
     sil: Option<&str>,
     has_wcet: bool,
@@ -997,6 +1021,15 @@ pub fn cmd_list(
             })
         })
         .filter(|e| feature.is_none_or(|feat| gates_feature(e, feat)))
+        // `--metadata <Def>`: keep only elements that apply that stereotype (MetadataDef),
+        // matched by full ref or last `::` segment (REQ-TRS-META-001).
+        .filter(|e| {
+            metadata.is_none_or(|md| {
+                syscribe_model::element::metadata_applications(&e.frontmatter.metadata)
+                    .iter()
+                    .any(|a| a.def == md || a.def.rsplit("::").next() == Some(md))
+            })
+        })
         // `--status <s>`: keep only elements whose `status:` equals s exactly.
         .filter(|e| status.is_none_or(|s| e.frontmatter.status.as_deref() == Some(s)))
         // `--sil <v>`: one flag covers SIL and ASIL — match when `silLevel`

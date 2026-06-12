@@ -725,3 +725,13 @@ resolve.
 |---|---|
 | W043 | A type reference (`supertype`/`typedBy`/`returnType`/parameter `type`) names a member of a **closed** auto-imported package (`ScalarValues`, `Base`) that the package does not declare — e.g. `ScalarValues::Flota` — a likely typo; the message lists the package's known members. Recognised members (`ScalarValues::{Integer,Real,Natural,Boolean,String}`, `Base::{Anything,DataValue}`) resolve cleanly with no `W404`/`W043`. The **open** packages `ISQ`/`SI` are curated-recognised (clean, no `W404`) but **lenient** — an unrecognised `ISQ`/`SI` member is never flagged `W043`. |
 | W044 | An element/feature declares **both** a recognised `ISQ` quantity type (`typedBy:`/parameter `type`) **and** a recognised `SI` unit (`unit:`) whose **physical dimensions differ** — e.g. `typedBy: ISQ::MassValue` with `unit: SI::metre`. The message names both and their dimensions (over the seven SI base quantities). Lenient when either side is unrecognised (e.g. a domain unit like `USD`). |
+
+## Stereotypes — metadata applications (E317, E318, W045)
+
+SysMLv2 has no UML stereotypes; a stereotype is a `MetadataDef` applied to an element via its `metadata:` field (bare reference, or a map whose `apply`/`def` names the def and whose other keys are tagged values).
+
+| Code | Condition |
+|---|---|
+| E317 | A `metadata:` application does not resolve to a `MetadataDef` (unresolved stereotype). The root-name hint applies. |
+| E318 | A `metadata:` application names a `MetadataDef` whose `annotates:` does not include the annotated element's type (directly or via the abstract `Element`/`Definition`/`Usage` metaclasses) — stereotype not applicable to this element kind. Standard-library metadata (`ModelingMetadata`, `RiskMetadata`) is recognised (no `E317`). |
+| W045 | A tagged-value key in a `metadata:` application is not a declared `features:` attribute of the referenced `MetadataDef` (likely typo / undeclared attribute). |
