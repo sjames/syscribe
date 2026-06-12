@@ -29,6 +29,19 @@ warnings (draft-suppressed, gateable, promotable) surfaced by the audit:
 `model_mg/` example was extended with W2→W3 functional allocations and a fourth MoP so it
 audits clean.)
 
+### Built-in standard-library type recognition (`W043`)
+
+The auto-imported standard-library packages with fully-known membership — `ScalarValues`
+(`Integer`, `Real`, `Natural`, `Boolean`, `String`) and `Base` (`Anything`, `DataValue`) —
+are now **recognised**: a type reference to a known member (`typedBy: ScalarValues::Real`,
+`supertype: Base::DataValue`, an operation `returnType`/parameter `typedBy`, a feature
+`parameters[].type`) resolves cleanly with **no `W404`**. A reference into one of these
+packages to a member it does not declare (e.g. `ScalarValues::Flota`) is flagged as a likely
+typo with new warning **`W043`**, listing the package's known members — across every
+type-reference context (this previously passed silently). Import-only packages (`SI`, `ISQ`,
+…) are not enumerated and stay lenient (never `W043`). (`REQ-TRS-LIB-001`, verified by
+`TC-TRS-LIB-001`.)
+
 ## 0.21.1 — 2026-06-12
 
 ### `trade-study` — ambiguous parameter binding is now unevaluable

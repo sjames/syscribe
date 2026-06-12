@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 181 |
-| Passed | 181 |
+| Total test cases | 182 |
+| Passed | 182 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -615,6 +615,17 @@
 | Scenario | Result |
 |---|---|
 | spec fields lists implementedBy | ✓ PASS |
+
+---
+
+### TC-TRS-LIB-001 — Verify built-in type recognition: ScalarValues/Base members resolve with no W404/W043; unknown members raise W043; import-only packages stay lenient.
+
+**Verifies:** REQ-TRS-LIB-001  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| the check covers Base and multiple contexts (supertype, typedBy, returnType, parameter type) | ✓ PASS |
 
 ---
 

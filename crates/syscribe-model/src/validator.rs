@@ -282,6 +282,72 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // W043: a type reference into a known auto-imported built-in package
+        // (`ScalarValues`, `Base`) naming a member that package does not declare — a
+        // likely typo (REQ-TRS-LIB-001). Recognised members resolve cleanly; the
+        // import-only packages (`SI`, `ISQ`, …) are not enumerated and never flagged.
+        {
+            use crate::resolver::{builtin_type_kind, BuiltinType};
+            let k = |s: &str| serde_yaml::Value::String(s.to_string());
+            let mut type_refs: Vec<&str> = Vec::new();
+            if let Some(v) = &fm.supertype {
+                type_refs.extend(yaml_strings(v));
+            }
+            if let Some(v) = &fm.typed_by {
+                type_refs.extend(yaml_strings(v));
+            }
+            if let Some(rt) = &fm.return_type {
+                type_refs.push(rt.as_str());
+            }
+            for v in fm
+                .features
+                .iter()
+                .flatten()
+                .chain(fm.connections.iter().flatten())
+            {
+                if let serde_yaml::Value::Mapping(m) = v {
+                    if let Some(tb) = m.get(&k("typedBy")) {
+                        type_refs.extend(yaml_strings(tb));
+                    }
+                }
+            }
+            for v in fm.parameters.iter().flatten() {
+                if let serde_yaml::Value::Mapping(m) = v {
+                    if let Some(t) = m.get(&k("type")) {
+                        type_refs.extend(yaml_strings(t));
+                    }
+                }
+            }
+            for op in fm.operations.iter().flatten() {
+                if let serde_yaml::Value::Mapping(m) = op {
+                    if let Some(rt) = m.get(&k("returnType")) {
+                        type_refs.extend(yaml_strings(rt));
+                    }
+                    if let Some(serde_yaml::Value::Sequence(params)) = m.get(&k("parameters")) {
+                        for p in params {
+                            if let serde_yaml::Value::Mapping(pm) = p {
+                                if let Some(tb) = pm.get(&k("typedBy")) {
+                                    type_refs.extend(yaml_strings(tb));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            for r in &type_refs {
+                if let BuiltinType::UnknownMember { pkg, known, .. } = builtin_type_kind(r) {
+                    findings.push(warning(
+                        "W043",
+                        &file,
+                        &format!(
+                            "'{}' is not a member of the built-in package `{}` (known members: {}) — check for a typo",
+                            r, pkg, known.join(", ")
+                        ),
+                    ));
+                }
+            }
+        }
+
         // W042: an element name that is not a SysMLv2 basic name (REQ-TRS-NAME-001 /
         // GH #42). The element's own name is the last `::` segment of its qualified
         // name; stable ids (REQ-*, TC-*, …) legitimately contain '-' and are exempt.
@@ -1887,7 +1953,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                 if let Some(serde_yaml::Value::String(ref typed_by)) =
                                     param.get(&serde_yaml::Value::String("typedBy".into()))
                                 {
-                                    if resolver.resolve_ref(elements, typed_by).is_none() {
+                                    if resolver.resolve_ref(elements, typed_by).is_none()
+                                        && matches!(
+                                            crate::resolver::builtin_type_kind(typed_by),
+                                            crate::resolver::BuiltinType::NotBuiltin
+                                        )
+                                    {
                                         findings.push(warning(
                                             "W404",
                                             &file,
@@ -1905,7 +1976,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     if let Some(serde_yaml::Value::String(ref ret)) =
                         op.get(&serde_yaml::Value::String("returnType".into()))
                     {
-                        if resolver.resolve_ref(elements, ret).is_none() {
+                        if resolver.resolve_ref(elements, ret).is_none()
+                            && matches!(
+                                crate::resolver::builtin_type_kind(ret),
+                                crate::resolver::BuiltinType::NotBuiltin
+                            )
+                        {
                             findings.push(warning(
                                 "W404",
                                 &file,

@@ -292,3 +292,9 @@ A duplicate `TestPlan` `id` is the generic `E101` (duplicate stable id).
 | Code | Severity | Condition |
 |---|---|---|
 | `W042` | warning | A qualified-name segment — an element's own name **or** a package/directory (namespace) name — is not a SysMLv2 **basic name** (`[A-Za-z_][A-Za-z0-9_]*`) and is not a stable id. Hyphens/spaces/punctuation are not allowed — rename using `_` or CamelCase. Such a name cannot be referenced in `appliesWhen`/`parameterConstraints` (where `-` is the subtraction operator). |
+
+## Built-in types (W043)
+
+| Code | Severity | Condition |
+|---|---|---|
+| `W043` | warning | A type reference (`supertype`/`typedBy`/`returnType`/parameter `type`) names a member of a known auto-imported built-in package (`ScalarValues`, `Base`) that the package does not declare (e.g. `ScalarValues::Flota`) — a likely typo; the message lists the known members. Recognised members (`ScalarValues::{Integer,Real,Natural,Boolean,String}`, `Base::{Anything,DataValue}`) resolve with no `W404`/`W043`; import-only packages (`SI`, `ISQ`, …) are not enumerated and never flagged. |

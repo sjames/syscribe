@@ -96,6 +96,57 @@ pub fn is_feat_id(s: &str) -> bool {
     feat_re().is_match(s)
 }
 
+/// The **auto-imported** SysMLv2 standard-library packages whose membership is fully
+/// known (spec §4.7). Type references to these resolve from the built-in inventory
+/// without an `.md` file; an unknown member of one of them is a likely typo
+/// (REQ-TRS-LIB-001). Import-only packages (`SI`, `ISQ`, …) are intentionally absent —
+/// their membership is not enumerated, so they stay lenient.
+pub const BUILTIN_TYPE_PACKAGES: &[(&str, &[&str])] = &[
+    ("ScalarValues", &["Integer", "Real", "Natural", "Boolean", "String"]),
+    ("Base", &["Anything", "DataValue"]),
+];
+
+/// Classification of a reference against the built-in type inventory.
+pub enum BuiltinType {
+    /// A recognised member of a known auto-imported built-in package.
+    Member,
+    /// A reference into a known built-in package, to a member it does not declare.
+    UnknownMember {
+        pkg: &'static str,
+        member: String,
+        known: &'static [&'static str],
+    },
+    /// Not a reference into a known auto-imported built-in package (in-model,
+    /// import-only stdlib, or external).
+    NotBuiltin,
+}
+
+/// Classify `s` against [`BUILTIN_TYPE_PACKAGES`] (REQ-TRS-LIB-001). Only a single
+/// `Pkg::member` form is considered; deeper nesting or a bare package is `NotBuiltin`.
+pub fn builtin_type_kind(s: &str) -> BuiltinType {
+    for (pkg, members) in BUILTIN_TYPE_PACKAGES {
+        if let Some(member) = s.strip_prefix(pkg).and_then(|r| r.strip_prefix("::")) {
+            if member.is_empty() || member.contains("::") {
+                return BuiltinType::NotBuiltin;
+            }
+            if members.contains(&member) {
+                return BuiltinType::Member;
+            }
+            return BuiltinType::UnknownMember {
+                pkg,
+                member: member.to_string(),
+                known: members,
+            };
+        }
+    }
+    BuiltinType::NotBuiltin
+}
+
+/// True when `s` names a recognised built-in standard-library type (REQ-TRS-LIB-001).
+pub fn is_builtin_type(s: &str) -> bool {
+    matches!(builtin_type_kind(s), BuiltinType::Member)
+}
+
 static BASIC_NAME_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
 /// True when `s` is a SysMLv2 **basic name**: a letter or `_`, then letters, digits

@@ -668,6 +668,14 @@ The following packages are part of the SysML v2 standard library. A parser must 
 | `ScalarValues` | Primitive scalar types: `Integer`, `Real`, `String`, `Boolean`, `Natural` |
 | `Base` | Base types: `Anything`, `DataValue` |
 
+These two packages have a **fully known** membership, so a type reference to a recognised
+member (e.g. `typedBy: ScalarValues::Real`, `supertype: Base::DataValue`) resolves cleanly
+— it raises **no** `W404`/unresolved-reference finding — while a reference into one of them
+to a member it does **not** declare (e.g. `ScalarValues::Flota`) is flagged as a likely typo
+with warning **`W043`**, listing the package's known members. The import-only packages below
+are **not** enumerated, so references into them stay lenient (an unresolved `typedBy:` is at
+most `W404`; never `W043`).
+
 **Available via explicit import:**
 
 | Package | Contents |
