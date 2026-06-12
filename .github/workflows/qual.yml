@@ -6,16 +6,24 @@ on:
     paths:
       - "crates/**"
       - "qual/**"
+      - "model/**"
+      - "model_sil/**"
+      - "model_auto/**"
+      - "model_mg/**"
       - ".github/workflows/qual.yml"
   pull_request:
     paths:
       - "crates/**"
       - "qual/**"
+      - "model/**"
+      - "model_sil/**"
+      - "model_auto/**"
+      - "model_mg/**"
   workflow_dispatch:
 
 jobs:
   qualify:
-    name: TCL2 qualification suite (73 TCs)
+    name: Model validation + TCL2 qualification suite
     runs-on: ubuntu-latest
 
     steps:
@@ -28,11 +36,25 @@ jobs:
       - name: Build syscribe
         run: cargo build --package syscribe
 
-      - name: Validate TRS model (qual/ self-check)
+      - name: Validate all models (gating — fails on any validation error)
         run: |
-          ./target/debug/syscribe -m qual/ > qual-self-check.md
-          echo "Exit code: $?"
-          grep -E "Errors|Warnings" qual-self-check.md | head -3
+          fail=0
+          for m in model model_auto model_mg model_sil qual; do
+            echo "::group::validate $m"
+            if ./target/debug/syscribe -m "$m" validate > "validate-$m.md"; then
+              errs=0; warns=$(grep -cE '^\| W' "validate-$m.md" || true)
+              echo "✓ $m: 0 errors, ${warns} warnings"
+            else
+              errs=$(grep -cE '^\| E' "validate-$m.md" || true)
+              echo "::error title=Model validation::$m has $errs validation error(s)"
+              grep -E '^\| E' "validate-$m.md" | head -50 || true
+              fail=1
+            fi
+            echo "::endgroup::"
+          done
+          # Keep the full qual/ report as a self-check artifact.
+          ./target/debug/syscribe -m qual/ > qual-self-check.md || true
+          exit $fail
 
       - name: Run qualification test suite
         run: bash qual/tests/run_qual.sh --no-build
@@ -50,3 +72,10 @@ jobs:
         with:
           name: TRS-self-check-${{ github.sha }}
           path: qual-self-check.md
+
+      - name: Upload per-model validation reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: model-validation-${{ github.sha }}
+          path: validate-*.md
