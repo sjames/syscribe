@@ -71,12 +71,26 @@ legal element types:
 | 4 | Parameters | `ConstraintDef` / `Constraint` / `CalculationDef` / `Calculation` / `AnalysisCase` |
 
 The **`magicgrid`** report buckets every element by its `mg_cell` into the full
-grid, lists and counts each cell's members, and marks **empty cells** as a
-completeness hint (not an error):
+grid. It opens with a **3×4 grid matrix** (rows `B`/`W`/`S` × the four pillars) of
+per-cell counts — the B3 System of Interest marked `◆`, empty cells marked `·`, and
+an `N/12 cells populated` summary — followed by a **Detail** section listing each
+cell's members:
 
 ```bash
-syscribe -m model_mg/ magicgrid          # text grid
+syscribe -m model_mg/ magicgrid          # text grid matrix + detail
 syscribe -m model_mg/ magicgrid --json   # cells object keyed by coordinate
+```
+
+For a publishable picture, **`magicgrid --svg`** renders the same grid as a
+self-contained SVG (colour-banded rows, the four pillar columns, each cell's
+elements, the SoI highlighted, empty cells de-emphasised) using the shared diagram
+theme and font metrics. Drop it next to a `Diagram` element as its companion to have
+it render in the browser like any other diagram:
+
+```bash
+syscribe -m model_mg/ magicgrid --svg                       # SVG to stdout
+syscribe -m model_mg/ magicgrid --svg -o Views/MagicGrid.svg
+# Views/MagicGrid.md → { type: Diagram, name: MagicGrid, svgMode: companion }
 ```
 
 Under `validate --profile magicgrid`, an unrecognised coordinate is `MG020` and a

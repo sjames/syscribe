@@ -2,6 +2,7 @@
 
 ```
 syscribe -m <root> magicgrid [--audit] [--json]
+syscribe -m <root> magicgrid --svg [-o <file>]
 ```
 
 Without `--audit`: bucket every model element by its MagicGrid overlay coordinate
@@ -10,6 +11,8 @@ render it. Read-only; available regardless of profile.
 
 With `--audit`: run the gated MagicGrid validation and print a one-screen audit —
 the findings, a readiness summary, and a PASS/FAIL verdict (see **Audit** below).
+
+With `--svg`: render the grid as a standalone SVG (see **SVG** below).
 
 ## Coordinates
 
@@ -25,9 +28,11 @@ is informational.
 
 ## Output
 
-The text report prints the full grid, lists and counts the elements classified
-into each cell, and marks **empty cells** (a model-completeness hint, not an
-error), ending with a count of empty cells.
+The text report opens with a **3×4 grid matrix** (rows `B`/`W`/`S` × the four
+pillar columns) showing each cell's element count, with the B3 System of Interest
+marked `◆` and **empty cells** marked `·` (a model-completeness hint, not an error)
+plus an `N/12 cells populated` summary. A **Detail** section then lists the elements
+classified into each cell. The populated-cell count matches `--audit` readiness.
 
 When exactly one element is marked `custom_fields: { mg_soi: true }` — the System
 of Interest, the single black-box (B3) system block — the report prints a
@@ -57,6 +62,23 @@ one is flagged `MG061` under the gated profile.
 `--json` emits the structured audit (`errors`, `warnings`, `byCode`, `byCategory`,
 `findings`, `readiness`, `verdict`, `exitCode`).
 
+## SVG (`--svg`)
+
+`magicgrid --svg` renders the grid as a self-contained **SVG** — rows colour-banded,
+the four pillar columns, each cell listing its elements, the B3 System of Interest
+highlighted, and empty cells de-emphasised. It uses the shared diagram theme and font
+metrics, so it looks consistent with the other diagrams. The SVG is written to stdout,
+or to a file with `-o <file>`.
+
+It is intended as a **`Diagram` companion**: write it as `<Name>.svg` next to a
+`Diagram` element with `svgMode: companion` (default same-stem `.svg`) and it renders
+in the browser/detail view like any other diagram:
+
+```
+syscribe -m model/ magicgrid --svg -o model/Views/MagicGrid.svg
+# Views/MagicGrid.md  →  { type: Diagram, name: MagicGrid, svgMode: companion }
+```
+
 ## Examples
 
 ```
@@ -64,6 +86,8 @@ syscribe -m model/ magicgrid
 syscribe -m model/ magicgrid --json
 syscribe -m model/ magicgrid --audit
 syscribe -m model/ magicgrid --audit --json
+syscribe -m model/ magicgrid --svg
+syscribe -m model/ magicgrid --svg -o model/Views/MagicGrid.svg
 ```
 
 See also: `matrix --allocations`, `trade-study`, `validate --profile magicgrid`.

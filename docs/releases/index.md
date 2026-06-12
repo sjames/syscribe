@@ -2,6 +2,30 @@
 
 `RELEASES`
 
+## 0.25.0 — 2026-06-12
+
+### MagicGrid visualisation — grid matrix, `magicgrid --svg` (word-wrapped), matrix grids
+
+The MagicGrid reports now *look* like the grid:
+
+- **`magicgrid`** opens with the recognisable **3×4 grid matrix** (rows `B`/`W`/`S` ×
+  the four pillars) of per-cell counts — the B3 System of Interest marked `◆`, empty
+  cells marked `·`, and an `N/12 cells populated` summary — above the per-cell detail.
+  The count matches `--audit` readiness. (`REQ-TRS-MG-015`.)
+- **`magicgrid --svg [-o <file>]`** renders the grid as a self-contained **SVG** —
+  colour-banded rows, the four pillar columns, each cell's elements, the SoI
+  highlighted, empty cells de-emphasised — laid out with the shared **`taffy`** layout
+  engine and the diagram **theme** + **font metrics** for visual consistency with the
+  other diagrams. Long cell labels are **word-wrapped** to the cell width (metrics-based,
+  no truncation) and cells/rows **stretch** to fit. It is a drop-in **`Diagram`
+  companion** (`svgMode: companion`), so it renders in the browser like any other
+  diagram. (`REQ-TRS-MG-016`.)
+- The companion matrices — **`matrix --allocations`** (sources × targets ✓ matrix with
+  a gap rollup) and **`trade-study`** (Configuration × MoE scored matrix with a winner)
+  — are confirmed as 2-D grids and regression-locked. (`REQ-TRS-MG-017`.)
+
+Verified by `TC-TRS-MG-015`/`016`/`017`; qual suite 189/189.
+
 ## 0.24.0 — 2026-06-12
 
 ### `--agent-instructions magicgrid` — teach an LLM to model with MagicGrid

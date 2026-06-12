@@ -1,5 +1,5 @@
 mod compose;
-mod layout;
+pub mod layout;
 mod list;
 mod measure;
 mod req;

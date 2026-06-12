@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 186 |
-| Passed | 186 |
+| Total test cases | 189 |
+| Passed | 189 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -824,6 +824,39 @@
 | Scenario | Result |
 |---|---|
 | the completeness checks are inert without the gate | ✓ PASS |
+
+---
+
+### TC-TRS-MG-015 — Verify the magicgrid report renders the 3x4 B/W/S × pillar grid matrix (counts, SoI marker, empty cells) alongside the per-cell detail.
+
+**Verifies:** REQ-TRS-MG-015  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| the per-cell element detail is retained | ✓ PASS |
+
+---
+
+### TC-TRS-MG-016 — Verify magicgrid --svg emits a well-formed SVG of the grid (rows/pillars/SoI), -o writes a file, and the SVG works as a Diagram companion (no E402).
+
+**Verifies:** REQ-TRS-MG-016  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a long cell label is word-wrapped, not truncated | ✓ PASS |
+
+---
+
+### TC-TRS-MG-017 — Verify the companion matrices render as 2-D grids: matrix --allocations is a sources×targets ✓ matrix with a gap rollup; trade-study is a Configuration×MoE matrix with a winner.
+
+**Verifies:** REQ-TRS-MG-017  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| the winning configuration is marked | ✓ PASS |
 
 ---
 

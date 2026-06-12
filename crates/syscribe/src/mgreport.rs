@@ -19,7 +19,11 @@ use syscribe_model::{
     validator::{allocation_edges, Finding, Severity, ValidationResult},
 };
 
+use crate::diagram::layout::metrics::load_metrics;
+use crate::diagram::layout::theme::theme_for;
 use crate::export::SCHEMA_VERSION;
+use svg::node::element::{Group, Rectangle, Text, Title};
+use svg::Document;
 
 /// Human label for an element: `name` for name-identified types, `title` for
 /// id-identified types, falling back to the last qualified-name segment.
@@ -113,6 +117,46 @@ pub fn cmd_magicgrid(elems: &[RawElement], json: bool) {
         println!("System of interest: {} (B3)", s);
         println!();
     }
+    // REQ-TRS-MG-015 — the 3x4 grid matrix (rows B/W/S × the four pillars). Each
+    // cell shows its element count; the B3 System of Interest is marked with ◆ and
+    // empty cells with ·. The per-cell element detail follows below.
+    println!(
+        "## Grid\n\n| Row | 1 {} | 2 {} | 3 {} | 4 {} |",
+        COL_NAMES[0], COL_NAMES[1], COL_NAMES[2], COL_NAMES[3]
+    );
+    println!("|---|---|---|---|---|");
+    for r in ROWS {
+        let mut cells = Vec::with_capacity(4);
+        for c in COLS {
+            let coord = format!("{}{}", r, c);
+            let n = grid[&coord].len();
+            let mut cell = n.to_string();
+            if coord == "B3" && soi.is_some() {
+                cell.push_str(" ◆");
+            }
+            if n == 0 {
+                cell.push_str(" ·");
+            }
+            cells.push(cell);
+        }
+        let rl = match r {
+            'B' => "**B** black-box",
+            'W' => "**W** white-box",
+            'S' => "**S** solution",
+            _ => "?",
+        };
+        println!("| {} | {} | {} | {} | {} |", rl, cells[0], cells[1], cells[2], cells[3]);
+    }
+    println!();
+    println!(
+        "◆ = System of Interest{} · · = empty cell · {}/12 cells populated",
+        soi.as_ref().map(|s| format!(" ({}, B3)", s)).unwrap_or_default(),
+        12 - empty
+    );
+    println!();
+    println!("## Detail");
+    println!();
+
     let row_label = |r: char| match r {
         'B' => "B (problem / black-box)",
         'W' => "W (problem / white-box)",
@@ -141,6 +185,376 @@ pub fn cmd_magicgrid(elems: &[RawElement], json: bool) {
         empty,
         if empty == 1 { "" } else { "s" }
     );
+}
+
+// ── magicgrid --svg: standalone SVG of the grid, companion-ready (REQ-TRS-MG-016) ─────
+
+/// `magicgrid --svg [-o <file>]` — render the 3×4 grid as a self-contained SVG.
+pub fn cmd_magicgrid_svg(elems: &[RawElement], output_file: Option<&str>) {
+    let mut grid: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for r in ROWS {
+        for c in COLS {
+            grid.insert(format!("{}{}", r, c), Vec::new());
+        }
+    }
+    for e in elems {
+        if let Some(raw) = e.frontmatter.mg_str("mg_cell") {
+            if let Some((r, c)) = parse_cell(&raw) {
+                grid.entry(format!("{}{}", r, c)).or_default().push(label(e));
+            }
+        }
+    }
+    for v in grid.values_mut() {
+        v.sort();
+    }
+    let sois: Vec<&RawElement> = elems
+        .iter()
+        .filter(|e| e.frontmatter.mg_bool("mg_soi") == Some(true))
+        .collect();
+    let soi: Option<String> = if sois.len() == 1 {
+        Some(label(sois[0]))
+    } else {
+        None
+    };
+
+    let svg = render_grid_svg(&grid, soi.as_deref());
+    match output_file {
+        Some(path) => {
+            if let Err(e) = std::fs::write(path, &svg) {
+                eprintln!("error writing output file '{}': {}", path, e);
+                std::process::exit(1);
+            }
+        }
+        None => println!("{}", svg),
+    }
+}
+
+/// Hard-break a single word that is wider than `max_w` into character chunks.
+fn hard_break(word: &str, max_w: f64, fs: f64, m: &dyn crate::diagram::layout::metrics::TextMetrics) -> Vec<String> {
+    if m.advance_width(word, fs, false) <= max_w {
+        return vec![word.to_string()];
+    }
+    let mut out = Vec::new();
+    let mut chunk = String::new();
+    for ch in word.chars() {
+        let t = format!("{}{}", chunk, ch);
+        if !chunk.is_empty() && m.advance_width(&t, fs, false) > max_w {
+            out.push(std::mem::take(&mut chunk));
+            chunk = ch.to_string();
+        } else {
+            chunk = t;
+        }
+    }
+    if !chunk.is_empty() {
+        out.push(chunk);
+    }
+    out
+}
+
+/// Greedy word-wrap `s` to `max_w` pixels at font size `fs`, measured with the shared
+/// font metrics (REQ-TRS-MG-016). Breaks on word boundaries; a single over-wide word is
+/// hard-broken by character.
+fn wrap_text(s: &str, max_w: f64, fs: f64, m: &dyn crate::diagram::layout::metrics::TextMetrics) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    for word in s.split_whitespace() {
+        for piece in hard_break(word, max_w, fs, m) {
+            let cand = if cur.is_empty() { piece.clone() } else { format!("{} {}", cur, piece) };
+            if cur.is_empty() || m.advance_width(&cand, fs, false) <= max_w {
+                cur = cand;
+            } else {
+                lines.push(std::mem::take(&mut cur));
+                cur = piece;
+            }
+        }
+    }
+    if !cur.is_empty() {
+        lines.push(cur);
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines
+}
+
+/// One laid-out cell of the grid.
+enum CellKind {
+    /// Empty corner (top-left).
+    Corner,
+    /// Pillar header: bold pillar name.
+    Header { text: String, fg: &'static str, bg: &'static str, border: &'static str },
+    /// Row label (B/W/S description).
+    Label { text: String },
+    /// A grid cell: badge + wrapped content lines.
+    Body { badge: String, lines: Vec<(String, &'static str)>, fill: &'static str, border: &'static str, sw: u8 },
+}
+
+fn render_grid_svg(grid: &BTreeMap<String, Vec<String>>, soi: Option<&str>) -> String {
+    use taffy::prelude::*;
+
+    let m = load_metrics();
+    let pillar_type = [
+        ElementType::Requirement,
+        ElementType::UseCase,
+        ElementType::PartDef,
+        ElementType::ConstraintDef,
+    ];
+    let themes: Vec<_> = pillar_type.iter().map(theme_for).collect();
+
+    let hdr_fs = 13.0;
+    let body_fs = 11.0;
+    let badge_fs = 10.0;
+    let title_fs = 16.0;
+    let line_h = m.line_height(body_fs).round();
+    let pad = 8.0;
+
+    // Fixed pillar column width (fits the header; labels wrap into it).
+    let mut col_w = 0f64;
+    for (ci, name) in COL_NAMES.iter().enumerate() {
+        col_w = col_w.max(m.advance_width(&format!("{} {}", ci + 1, name), hdr_fs, true));
+    }
+    col_w = (col_w + pad * 2.0).clamp(180.0, 240.0).ceil();
+    let text_w = col_w - pad * 2.0 - 4.0;
+
+    let row_desc = |r: char| match r {
+        'B' => "B — black-box",
+        'W' => "W — white-box",
+        'S' => "S — solution",
+        _ => "?",
+    };
+    let lbl_w = ROWS
+        .iter()
+        .map(|r| m.advance_width(row_desc(*r), hdr_fs, true))
+        .fold(0.0_f64, f64::max)
+        .ceil()
+        + pad * 2.0;
+
+    // Build the per-cell content (badge + wrapped lines) and its natural height.
+    let body_cell = |coord: &str| -> (CellKind, f64) {
+        let ci = (coord.as_bytes()[1] - b'1') as usize;
+        let th = &themes[ci];
+        let names = &grid[coord];
+        let is_soi = coord == "B3" && soi.is_some();
+        let (fill, border, sw) = if names.is_empty() {
+            ("#f5f5f5", th.border, 1)
+        } else if is_soi {
+            ("#fff3cd", "#f9a825", 2)
+        } else {
+            (th.body_bg, th.border, 1)
+        };
+        let badge = format!("{}{} [{}]", coord, if is_soi { " ◆" } else { "" }, names.len());
+        let mut lines: Vec<(String, &'static str)> = Vec::new();
+        if names.is_empty() {
+            lines.push(("(empty)".to_string(), "#bdbdbd"));
+        } else {
+            // Show every element; the cell (and its row) stretches to fit.
+            for nm in names {
+                for wl in wrap_text(nm, text_w, body_fs, m.as_ref()) {
+                    lines.push((wl, th.body_fg));
+                }
+            }
+        }
+        let h = (pad + badge_fs + line_h * lines.len() as f64 + pad).max(64.0);
+        (CellKind::Body { badge, lines, fill, border, sw }, h)
+    };
+
+    // Assemble the 4×5 cell grid (header row + 3 body rows; label col + 4 pillars).
+    let hdr_h = 32.0;
+    let mut rows_cells: Vec<Vec<(CellKind, f64, f64)>> = Vec::new(); // (kind, width, height)
+    // header row
+    let mut hdr_row = vec![(CellKind::Corner, lbl_w, hdr_h)];
+    for (ci, name) in COL_NAMES.iter().enumerate() {
+        let th = &themes[ci];
+        hdr_row.push((
+            CellKind::Header { text: format!("{} {}", ci + 1, name), fg: th.header_fg, bg: th.header_bg, border: th.border },
+            col_w,
+            hdr_h,
+        ));
+    }
+    rows_cells.push(hdr_row);
+    // body rows
+    for r in ROWS {
+        let mut row = vec![(CellKind::Label { text: row_desc(r).to_string() }, lbl_w, line_h + pad * 2.0)];
+        for c in COLS {
+            let (kind, h) = body_cell(&format!("{}{}", r, c));
+            row.push((kind, col_w, h));
+        }
+        rows_cells.push(row);
+    }
+
+    // ── taffy: a flex column of flex rows; fixed cell widths align the columns,
+    //    align-items: stretch makes each row as tall as its tallest cell. ──────────
+    let mut tree: TaffyTree<()> = TaffyTree::new();
+    let mut row_nodes = Vec::new();
+    let mut cell_nodes: Vec<Vec<_>> = Vec::new();
+    for row in &rows_cells {
+        let mut cells = Vec::new();
+        for (_, w, h) in row {
+            let leaf = tree
+                .new_leaf(Style {
+                    size: Size { width: length(*w as f32), height: auto() },
+                    min_size: Size { width: auto(), height: length(*h as f32) },
+                    ..Default::default()
+                })
+                .unwrap();
+            cells.push(leaf);
+        }
+        let row_node = tree
+            .new_with_children(
+                Style {
+                    display: Display::Flex,
+                    flex_direction: FlexDirection::Row,
+                    align_items: Some(AlignItems::Stretch),
+                    ..Default::default()
+                },
+                &cells,
+            )
+            .unwrap();
+        row_nodes.push(row_node);
+        cell_nodes.push(cells);
+    }
+    let root = tree
+        .new_with_children(
+            Style {
+                display: Display::Flex,
+                flex_direction: FlexDirection::Column,
+                align_items: Some(AlignItems::Stretch),
+                ..Default::default()
+            },
+            &row_nodes,
+        )
+        .unwrap();
+    tree.compute_layout(
+        root,
+        Size { width: AvailableSpace::MaxContent, height: AvailableSpace::MaxContent },
+    )
+    .unwrap();
+
+    let root_layout = *tree.layout(root).unwrap();
+    let margin = 20.0;
+    let title_h = 32.0;
+    let origin_x = margin;
+    let origin_y = margin + title_h;
+    let total_w = margin * 2.0 + root_layout.size.width as f64;
+    let total_h = origin_y + root_layout.size.height as f64 + margin;
+
+    let title = soi
+        .map(|s| format!("MagicGrid — System of Interest: {}", s))
+        .unwrap_or_else(|| "MagicGrid".to_string());
+    let mut doc = Document::new()
+        .set("xmlns", "http://www.w3.org/2000/svg")
+        .set("width", total_w.ceil())
+        .set("height", total_h.ceil())
+        .set("viewBox", format!("0 0 {:.0} {:.0}", total_w.ceil(), total_h.ceil()))
+        .set("font-family", "'Segoe UI', system-ui, sans-serif")
+        .add(Title::new(title.clone()))
+        .add(
+            Rectangle::new()
+                .set("x", 0)
+                .set("y", 0)
+                .set("width", total_w.ceil())
+                .set("height", total_h.ceil())
+                .set("fill", "#ffffff"),
+        )
+        .add(
+            Text::new(title)
+                .set("x", margin)
+                .set("y", margin + title_fs)
+                .set("font-size", title_fs)
+                .set("font-weight", "bold")
+                .set("fill", "#1a1a2e"),
+        );
+
+    for (ri, row) in rows_cells.iter().enumerate() {
+        let row_loc = tree.layout(row_nodes[ri]).unwrap().location;
+        for (ci, (kind, _, _)) in row.iter().enumerate() {
+            let cl = tree.layout(cell_nodes[ri][ci]).unwrap();
+            let x = origin_x + row_loc.x as f64 + cl.location.x as f64;
+            let y = origin_y + row_loc.y as f64 + cl.location.y as f64;
+            let w = cl.size.width as f64;
+            let h = cl.size.height as f64;
+            doc = doc.add(draw_cell(kind, x, y, w, h, pad, hdr_fs, body_fs, badge_fs, line_h));
+        }
+    }
+
+    doc.to_string()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn draw_cell(
+    kind: &CellKind,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    pad: f64,
+    hdr_fs: f64,
+    body_fs: f64,
+    badge_fs: f64,
+    line_h: f64,
+) -> Group {
+    let mut g = Group::new();
+    match kind {
+        CellKind::Corner => {
+            g = g.add(rect(x, y, w, h, "#ffffff", "#cfd8dc", 1));
+        }
+        CellKind::Header { text, fg, bg, border } => {
+            g = g
+                .add(rect(x, y, w, h, bg, border, 1))
+                .add(
+                    Text::new(text.clone())
+                        .set("x", x + pad)
+                        .set("y", y + h * 0.66)
+                        .set("font-size", hdr_fs)
+                        .set("font-weight", "bold")
+                        .set("fill", *fg),
+                );
+        }
+        CellKind::Label { text } => {
+            g = g
+                .add(rect(x, y, w, h, "#eceff1", "#90a4ae", 1))
+                .add(
+                    Text::new(text.clone())
+                        .set("x", x + pad)
+                        .set("y", y + pad + hdr_fs)
+                        .set("font-size", hdr_fs)
+                        .set("font-weight", "bold")
+                        .set("fill", "#37474f"),
+                );
+        }
+        CellKind::Body { badge, lines, fill, border, sw } => {
+            g = g
+                .add(rect(x, y, w, h, fill, border, *sw as i32))
+                .add(
+                    Text::new(badge.clone())
+                        .set("x", x + pad)
+                        .set("y", y + pad + badge_fs)
+                        .set("font-size", badge_fs)
+                        .set("fill", "#78909c"),
+                );
+            for (i, (text, fillc)) in lines.iter().enumerate() {
+                g = g.add(
+                    Text::new(text.clone())
+                        .set("x", x + pad + 4.0)
+                        .set("y", y + pad + badge_fs + line_h * (i as f64 + 1.0))
+                        .set("font-size", body_fs)
+                        .set("fill", *fillc),
+                );
+            }
+        }
+    }
+    g
+}
+
+fn rect(x: f64, y: f64, w: f64, h: f64, fill: &str, stroke: &str, sw: i32) -> Rectangle {
+    Rectangle::new()
+        .set("x", x)
+        .set("y", y)
+        .set("width", w)
+        .set("height", h)
+        .set("fill", fill)
+        .set("stroke", stroke)
+        .set("stroke-width", sw)
 }
 
 // ── magicgrid --audit: MagicGrid findings rollup + readiness + verdict (REQ-TRS-MG-013) ─

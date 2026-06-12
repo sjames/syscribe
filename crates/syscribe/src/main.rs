@@ -740,7 +740,17 @@ fn main() {
                         syscribe_model::validator::validate_with_config(&elems, &vcfg_audit);
                     std::process::exit(mgreport::cmd_magicgrid_audit(&elems, &result, json));
                 }
-                mgreport::cmd_magicgrid(&elems, json);
+                // REQ-TRS-MG-016: `--svg [-o <file>]` renders the grid as a standalone
+                // SVG, usable as a Diagram element's companion.
+                if rest.iter().any(|a| a == "--svg") {
+                    let out_file = rest
+                        .windows(2)
+                        .find(|w| w[0] == "-o" || w[0] == "--output")
+                        .map(|w| w[1].as_str());
+                    mgreport::cmd_magicgrid_svg(&elems, out_file);
+                } else {
+                    mgreport::cmd_magicgrid(&elems, json);
+                }
             }
             "trade-study" => {
                 // REQ-TRS-MG-007: MoE-weighted trade study scoring Configurations.
