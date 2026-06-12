@@ -459,8 +459,16 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // name; stable ids (REQ-*, TC-*, …) legitimately contain '-' and are exempt.
         // A non-basic name cannot be referenced in the tokenized expression contexts
         // (appliesWhen, parameterConstraints), where '-' is the subtraction operator.
+        // Also exempt: elements whose declared `id:` is a stable id AND whose qname
+        // segment differs from their `name:` label — the file stem is a lookup handle,
+        // not the element's SysML name (e.g. `AOU-001-Desc.md` with `id: AOU-001`;
+        // the label lives in `name:`). FeatureDef carries a stable id but is
+        // name-identified (its `name` IS the qname segment), so it is not exempt.
+        let elem_has_stable_id = fm.id.as_deref().is_some_and(is_stable_id);
         if let Some(seg) = elem.qualified_name.rsplit("::").next() {
-            if !seg.is_empty() && !is_basic_name(seg) && !is_stable_id(seg) {
+            let seg_is_the_name = fm.name.as_deref().is_some_and(|n| n == seg);
+            let id_identified_stem = elem_has_stable_id && !seg_is_the_name;
+            if !seg.is_empty() && !is_basic_name(seg) && !is_stable_id(seg) && !id_identified_stem {
                 findings.push(warning(
                     "W042",
                     &file,

@@ -2461,7 +2461,7 @@ pub fn cmd_template(type_name: &str) {
         "requirement" => r#"---
 type: Requirement
 id: REQ-PREFIX-001
-title: "The system shall ..."
+name: "The system shall ..."
 status: draft
 requirementKind: system
 reqDomain: system
@@ -2485,7 +2485,7 @@ Why this requirement exists.
         "testcase" => r#"---
 type: TestCase
 id: TC-PREFIX-001
-title: "Verify that ..."
+name: "Verify that ..."
 status: draft
 testLevel: L5
 coverageTarget: statement
@@ -2516,7 +2516,7 @@ Feature: ...
         "testplan" => r#"---
 type: TestPlan
 id: TP-PREFIX-001
-title: "..."
+name: "..."
 status: draft
 scope: integration   # unit|smoke|integration|hil|certification|security|regression
 # configurations: [CONF-PREFIX-001]   # the product variant(s); omit = config-agnostic
@@ -2537,7 +2537,7 @@ Inspect with `syscribe -m model/ testplan TP-PREFIX-001`.
         "adr" => r#"---
 type: ADR
 id: ADR-PREFIX-001
-title: "Decision title"
+name: "Decision title"
 status: proposed
 ---
 
@@ -2858,7 +2858,7 @@ Description of this attribute definition.
         "configuration" => r#"---
 type: Configuration
 id: CONF-PREFIX-001
-title: "My variant configuration"
+name: "My variant configuration"
 status: draft
 featureModel: Features::MyFeatureDef
 # features: a map of <FeatureDef qualified name>: true/false (§9.8).
@@ -2995,7 +2995,7 @@ typedBy: Enumerations::MyEnumerationDef
         "faulttree" => r#"---
 type: FaultTree
 id: FT-PREFIX-001
-title: "Fault tree for [undesired top event]"
+name: "Fault tree for [undesired top event]"
 status: draft
 topEvent: SG-PREFIX-001     # SafetyGoal this tree analyses
 # missionTime: "1e9 h"
@@ -3018,7 +3018,7 @@ Describe the analysis scope and methodology.
         "faulttreegate" => r#"---
 type: FaultTreeGate
 id: FTG-PREFIX-001
-title: "OR gate — [description]"
+name: "OR gate — [description]"
 gateType: OR                # AND | OR | XOR | NOT | inhibit
 inputs:
   - FTG-PREFIX-002          # child gate (id or qname)
@@ -3032,7 +3032,7 @@ inputs:
         "faulttreeevent" => r#"---
 type: FaultTreeEvent
 id: FTE-PREFIX-001
-title: "[Component] [failure description]"
+name: "[Component] [failure description]"
 eventKind: basic            # basic | undeveloped | house
 # ref: Package::Component   # model element this failure belongs to
 # failureRate: 1.0e-9       # failures per hour (basic events)
@@ -3045,7 +3045,7 @@ eventKind: basic            # basic | undeveloped | house
         "attacktree" => r#"---
 type: AttackTree
 id: AT-PREFIX-001
-title: "Attack tree for [ThreatScenario]"
+name: "Attack tree for [ThreatScenario]"
 status: draft
 threatRef: TS-PREFIX-001     # ThreatScenario this tree substantiates (E917)
 ---
@@ -3067,7 +3067,7 @@ Describe the attack path analysis scope (ISO/SAE 21434 §15.7).
         "attacktreegate" => r#"---
 type: AttackTreeGate
 id: ATG-PREFIX-001
-title: "OR gate — [description]"
+name: "OR gate — [description]"
 gateType: OR                # AND (sequential path) | OR (alternatives)
 inputs:
   - ATG-PREFIX-002          # child gate (id or qname)
@@ -3081,7 +3081,7 @@ inputs:
         "attackstep" => r#"---
 type: AttackStep
 id: ATS-PREFIX-001
-title: "[Attacker action / sub-goal]"
+name: "[Attacker action / sub-goal]"
 attackFeasibility: medium   # high | medium | low | very_low
 ---
 
@@ -3091,7 +3091,7 @@ attackFeasibility: medium   # high | medium | low | very_low
         "fmeasheet" => r#"---
 type: FMEASheet
 id: FMEA-PREFIX-001
-title: "FMEA — [system or component name]"
+name: "FMEA — [system or component name]"
 status: draft
 entries:
   - id: FM-PREFIX-001
@@ -3127,31 +3127,31 @@ Describe the system boundary and assumptions for this FMEA.
         "tarasheet" => r#"---
 type: TARASheet
 id: TARA-PREFIX-001
-title: "TARA — [system or asset name]"
+name: "TARA — [system or asset name]"
 status: draft
 damageTable:
   - id: DS-PREFIX-001
-    title: "Unauthorized [action] enables [damage]"
+    name: "Unauthorized [action] enables [damage]"
     damageSeverity: severe    # severe | major | moderate | negligible
     impactCategories:
       - safety                # safety | financial | operational | privacy
 threatTable:
   - id: TS-PREFIX-001
-    title: "Attacker [action] via [attack surface]"
+    name: "Attacker [action] via [attack surface]"
     attackFeasibility: medium # high | medium | low | very_low
     attackVector: network     # network | adjacent | local | physical
     damageScenarios:
       - DS-PREFIX-001
 goalTable:
   - id: CSG-PREFIX-001
-    title: "Ensure [security property] of [asset]"
+    name: "Ensure [security property] of [asset]"
     calLevel: CAL3            # CAL1 | CAL2 | CAL3 | CAL4
     securityProperty: integrity # confidentiality | integrity | availability | authenticity
     threatScenarios:
       - TS-PREFIX-001
 controlTable:
   - id: SC-PREFIX-001
-    title: "Implement [control mechanism]"
+    name: "Implement [control mechanism]"
     controlType: prevention   # prevention | detection | response | recovery
     implementsGoals:
       - CSG-PREFIX-001
@@ -3168,7 +3168,7 @@ Reference the threat modelling approach used (e.g. STRIDE, PASTA, TARA per ISO/S
         "hazardousevent" => r#"---
 type: HazardousEvent
 id: HE-PREFIX-001
-title: "Loss of [function] during [operating scenario]"
+name: "Loss of [function] during [operating scenario]"
 status: draft
 # ── ISO 26262 HARA parameters ──────────────────────────────────────────────
 # severity: S3         # S0 no injury | S1 light | S2 severe | S3 life-threatening
@@ -3192,7 +3192,7 @@ Why this event was identified in the HARA.
         "safetygoal" => r#"---
 type: SafetyGoal
 id: SG-PREFIX-001
-title: "Prevent [hazard] to avoid [harm]"
+name: "Prevent [hazard] to avoid [harm]"
 status: draft
 # ── Integrity level — choose one standard ─────────────────────────────────
 asilLevel: D           # ISO 26262: A | B | C | D
@@ -3214,7 +3214,7 @@ Why this safety goal derives from the listed hazardous events.
         "damagescenario" => r#"---
 type: DamageScenario
 id: DS-PREFIX-001
-title: "Unauthorized [action] enables [damage]"
+name: "Unauthorized [action] enables [damage]"
 status: draft
 damageSeverity: severe    # severe | major | moderate | negligible
 impactCategories:
@@ -3226,7 +3226,7 @@ Describe what damage could occur and to whom.
         "threatscenario" => r#"---
 type: ThreatScenario
 id: TS-PREFIX-001
-title: "Attacker [action] via [attack surface]"
+name: "Attacker [action] via [attack surface]"
 status: draft
 attackFeasibility: medium  # high | medium | low | very_low
 attackVector: network      # network | adjacent | local | physical
@@ -3239,7 +3239,7 @@ Describe how the threat could be realized and which damage scenarios it enables.
         "cybersecuritygoal" => r#"---
 type: CybersecurityGoal
 id: CSG-PREFIX-001
-title: "Ensure [security property] of [asset]"
+name: "Ensure [security property] of [asset]"
 status: draft
 calLevel: CAL3            # CAL1 | CAL2 | CAL3 | CAL4
 securityProperty: integrity # confidentiality | integrity | availability | authenticity
@@ -3252,7 +3252,7 @@ The [asset] shall maintain [security property] against the identified threat sce
         "securitycontrol" => r#"---
 type: SecurityControl
 id: SC-PREFIX-001
-title: "Implement [control mechanism]"
+name: "Implement [control mechanism]"
 status: draft
 controlType: prevention   # prevention | detection | response | recovery
 implementsGoals:
@@ -3277,7 +3277,7 @@ allocatedFrom: SC-PREFIX-001   # this component implements this security control
         "confirmationmeasure" => r#"---
 type: ConfirmationMeasure
 id: CM-PREFIX-001
-title: "Independent functional-safety assessment of [work product]"
+name: "Independent functional-safety assessment of [work product]"
 status: planned          # planned | in_progress | completed
 measureType: functional_safety_assessment
 # measureType options:
@@ -3297,7 +3297,7 @@ a CAL4 CybersecurityGoal requires an I3 `cybersecurity_assessment` (else W039).
         "vulnerabilityreport" => r#"---
 type: VulnerabilityReport
 id: VR-PREFIX-001
-title: "Stack buffer overflow in [component]"
+name: "Stack buffer overflow in [component]"
 status: open              # open | mitigated | accepted | resolved
 # cvssScore: 8.1
 # cveId: CVE-2024-12345
@@ -3322,7 +3322,7 @@ How the vulnerability is being addressed.
         "argument" => r#"---
 type: Argument
 id: ARG-PREFIX-001
-title: "Argue that [claim]"
+name: "Argue that [claim]"
 status: draft
 argumentType: strategy   # claim | strategy | solution
 supports: SG-PREFIX-001  # the SafetyGoal or parent Argument this argues for
@@ -3337,7 +3337,7 @@ evidence discharges it. Render the full tree with `syscribe safety-case`.
         "assumptionofuse" => r#"---
 type: AssumptionOfUse
 id: AOU-PREFIX-001
-title: "Integrator provides [application condition]"
+name: "Integrator provides [application condition]"
 status: draft
 appliesTo: SG-PREFIX-001  # the SafetyGoal / Argument / Requirement this SRAC constrains
 ---

@@ -17,4 +17,9 @@ Feature: basic-name validation (W042)
     And the underscore name is not flagged
     And the stable-id-named element is not flagged
     And a hyphenated appliesWhen reference still raises E209
+
+  Scenario: id-identified element with id+description filename is exempt from W042
+    Given an id-identified element (AssumptionOfUse) whose file stem is id + description (e.g. AOU-001-Desc.md) with an explicit name: label
+    When validate runs
+    Then W042 is not raised for the id+description file stem
 ```

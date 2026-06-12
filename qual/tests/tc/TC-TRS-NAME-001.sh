@@ -15,6 +15,10 @@ tc_TRS_NAME_001() {
     printf '%s' "$SCENARIO_OUTPUT" | grep -F "| W042 |" | grep -qF "REQ-PWR-001" \
         && fail "W042 wrongly flagged a stable id" || pass "stable id exempt from W042"
 
+    SCENARIO_NAME="an id-identified element with id+description filename is exempt from W042 (GH #44)"; printf "  ▶ %s\n" "$SCENARIO_NAME"
+    printf '%s' "$SCENARIO_OUTPUT" | grep -F "| W042 |" | grep -qF "AOU-KERNEL-001-AmpOutsidePerimeter" \
+        && fail "W042 wrongly flagged id-prefixed filename" || pass "id+description filename exempt from W042"
+
     SCENARIO_NAME="a hyphenated appliesWhen reference still raises E209"; printf "  ▶ %s\n" "$SCENARIO_NAME"
     assert_has_code "E209"
 
