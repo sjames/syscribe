@@ -703,6 +703,19 @@ most `W404`; never `W043`).
 | `Metadata` | Base `SemanticMetadata` definition |
 | `ModelingMetadata` | Standard annotation metadata: `StatusInfo`, `Issue`, `Rationale`, `Refinement` |
 
+**Curated recognition of `ISQ` and `SI` (open/lenient tier).** Although `ISQ`/`SI` are
+large open packages, the tool recognises a **curated subset** — the `ISQ` quantity-value
+types (`MassValue`, `ForceValue`, `EnergyValue`, `VoltageValue`/`ElectricPotentialValue`,
+…) and the `SI` units (the seven base units plus common derived units), accepting both the
+**full name** (`SI::kilogram`) and the common **symbol** (`SI::kg`, or a bare `kg`). A
+recognised member resolves cleanly (no `W404`); an *unrecognised* `ISQ`/`SI` member is
+**lenient** (never `W043`, unlike the closed `ScalarValues`/`Base` packages), and the
+`unit:` field stays fully permissive (non-SI/domain units like `USD`, `kWh`, `percent` are
+accepted). When an element/feature declares **both** a recognised quantity type
+(`typedBy: ISQ::…`) **and** a recognised unit (`unit: SI::…`), the tool checks their
+**physical dimensions** agree (over the seven SI base quantities) and raises warning
+**`W044`** on a mismatch (e.g. `ISQ::MassValue` with `unit: SI::metre`).
+
 ---
 
 ## 5 Cross-Reference Syntax

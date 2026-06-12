@@ -354,6 +354,39 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // W044: dimensional consistency between an element/feature's quantity type and
+        // its unit (REQ-TRS-LIB-003). Fires only when BOTH the `typedBy:` (or a
+        // parameter `type:`) resolves to a recognised ISQ quantity and the `unit:`
+        // resolves to a recognised SI unit, and the two dimensions differ. Lenient when
+        // either side is unrecognised.
+        {
+            use crate::units::{quantity_dimension, unit_dimension};
+            let kk = |s: &str| serde_yaml::Value::String(s.to_string());
+            for v in fm.features.iter().flatten().chain(fm.parameters.iter().flatten()) {
+                if let serde_yaml::Value::Mapping(m) = v {
+                    let q = m
+                        .get(&kk("typedBy"))
+                        .or_else(|| m.get(&kk("type")))
+                        .and_then(|x| x.as_str());
+                    let u = m.get(&kk("unit")).and_then(|x| x.as_str());
+                    if let (Some(q), Some(u)) = (q, u) {
+                        if let (Some(qd), Some(ud)) = (quantity_dimension(q), unit_dimension(u)) {
+                            if qd != ud {
+                                findings.push(warning(
+                                    "W044",
+                                    &file,
+                                    &format!(
+                                        "unit '{}' (dimension {}) is dimensionally inconsistent with quantity type '{}' (dimension {})",
+                                        u, ud.human(), q, qd.human()
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // W042: an element name that is not a SysMLv2 basic name (REQ-TRS-NAME-001 /
         // GH #42). The element's own name is the last `::` segment of its qualified
         // name; stable ids (REQ-*, TC-*, …) legitimately contain '-' and are exempt.
@@ -1964,6 +1997,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                             crate::resolver::builtin_type_kind(typed_by),
                                             crate::resolver::BuiltinType::NotBuiltin
                                         )
+                                        && !crate::units::is_recognised_type_ref(typed_by)
                                     {
                                         findings.push(warning(
                                             "W404",
@@ -1987,6 +2021,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                 crate::resolver::builtin_type_kind(ret),
                                 crate::resolver::BuiltinType::NotBuiltin
                             )
+                            && !crate::units::is_recognised_type_ref(ret)
                         {
                             findings.push(warning(
                                 "W404",

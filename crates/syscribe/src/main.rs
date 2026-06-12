@@ -138,6 +138,8 @@ fn top_level_package(file_path: &str, model_root: &str) -> String {
 }
 
 const AGENT_INSTRUCTIONS: &str = include_str!("../../../prompts/create-model.md");
+// REQ-TRS-CLI-006: `--agent-instructions magicgrid` teaches MagicGrid modeling.
+const MAGICGRID_INSTRUCTIONS: &str = include_str!("../../../prompts/create-magicgrid-model.md");
 
 /// Parse CI severity-gating flags for the `validate` subcommand (issue #3):
 ///   --deny <CODES>          comma-separated warning codes to treat as gate failures
@@ -230,8 +232,23 @@ fn parse_where_options(args: &[String]) -> Vec<query::CustomWhere> {
 fn main() {
     let args: Vec<String> = std::env::args().collect();
 
-    if args.iter().any(|a| a == "--agent-instructions") {
-        print!("{}", AGENT_INSTRUCTIONS);
+    // REQ-TRS-CLI-006: `--agent-instructions [topic]`. No topic (or `general`) →
+    // the general modeling prompt; `magicgrid` → the MagicGrid modeling prompt; an
+    // unknown topic exits non-zero. The token after the flag is a topic only when it
+    // is not itself an option.
+    if let Some(pos) = args.iter().position(|a| a == "--agent-instructions") {
+        let topic = args.get(pos + 1).map(|s| s.as_str()).filter(|t| !t.starts_with('-'));
+        match topic {
+            None | Some("general") => print!("{}", AGENT_INSTRUCTIONS),
+            Some("magicgrid") => print!("{}", MAGICGRID_INSTRUCTIONS),
+            Some(other) => {
+                eprintln!(
+                    "Unknown --agent-instructions topic '{}'. Available topics: magicgrid (or omit for the general modeling prompt).",
+                    other
+                );
+                std::process::exit(2);
+            }
+        }
         return;
     }
 

@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 183 |
-| Passed | 183 |
+| Total test cases | 186 |
+| Passed | 186 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -139,6 +139,17 @@
 | Scenario | Result |
 |---|---|
 | help <unknown> exits non-zero | ✓ PASS |
+
+---
+
+### TC-TRS-CLI-006 — Verify --agent-instructions topic: magicgrid prints the MagicGrid prompt; no topic prints the general prompt; an unknown topic exits non-zero; works with no model directory.
+
+**Verifies:** REQ-TRS-CLI-006  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| works without a model directory | ✓ PASS |
 
 ---
 
@@ -637,6 +648,28 @@
 | Scenario | Result |
 |---|---|
 | the check covers Base and multiple contexts (supertype, typedBy, returnType, parameter type) | ✓ PASS |
+
+---
+
+### TC-TRS-LIB-002 — Verify SI/ISQ recognition (open/curated tier): recognised members resolve clean (no W404), unknown members lenient (no W043), unit: permissive; closed-package W043 unaffected.
+
+**Verifies:** REQ-TRS-LIB-002  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| non-SI domain units in unit: are permissive (no finding) | ✓ PASS |
+
+---
+
+### TC-TRS-LIB-003 — Verify dimensional consistency (W044): quantity-type vs unit dimension must match; mismatch flagged; bare symbols handled; lenient when either side unrecognised.
+
+**Verifies:** REQ-TRS-LIB-003  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a non-quantity typedBy makes the check lenient (no W044) | ✓ PASS |
 
 ---
 

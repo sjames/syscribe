@@ -718,8 +718,9 @@ resolve.
 |---|---|
 | W042 | A qualified-name segment — an element's own name or a package/directory name — is not a SysMLv2 basic name (`[A-Za-z_][A-Za-z0-9_]*`) and is not a stable id; rename using `_` or CamelCase. Hyphenated names cannot be referenced in `appliesWhen`/`parameterConstraints` (`-` is the subtraction operator). |
 
-## Built-in standard-library types (W043)
+## Built-in standard-library types (W043, W044)
 
 | Code | Condition |
 |---|---|
-| W043 | A type reference (`supertype`/`typedBy`/`returnType`/parameter `type`) names a member of a **known auto-imported built-in package** (`ScalarValues`, `Base`) that the package does not declare — e.g. `ScalarValues::Flota` — a likely typo; the message lists the package's known members. Recognised members (`ScalarValues::{Integer,Real,Natural,Boolean,String}`, `Base::{Anything,DataValue}`) resolve cleanly with no `W404`/`W043`; import-only packages (`SI`, `ISQ`, …) are not enumerated and are never flagged `W043`. |
+| W043 | A type reference (`supertype`/`typedBy`/`returnType`/parameter `type`) names a member of a **closed** auto-imported package (`ScalarValues`, `Base`) that the package does not declare — e.g. `ScalarValues::Flota` — a likely typo; the message lists the package's known members. Recognised members (`ScalarValues::{Integer,Real,Natural,Boolean,String}`, `Base::{Anything,DataValue}`) resolve cleanly with no `W404`/`W043`. The **open** packages `ISQ`/`SI` are curated-recognised (clean, no `W404`) but **lenient** — an unrecognised `ISQ`/`SI` member is never flagged `W043`. |
+| W044 | An element/feature declares **both** a recognised `ISQ` quantity type (`typedBy:`/parameter `type`) **and** a recognised `SI` unit (`unit:`) whose **physical dimensions differ** — e.g. `typedBy: ISQ::MassValue` with `unit: SI::metre`. The message names both and their dimensions (over the seven SI base quantities). Lenient when either side is unrecognised (e.g. a domain unit like `USD`). |

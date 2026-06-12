@@ -2,6 +2,39 @@
 
 `RELEASES`
 
+## 0.24.0 — 2026-06-12
+
+### `--agent-instructions magicgrid` — teach an LLM to model with MagicGrid
+
+`syscribe --agent-instructions` now accepts an optional **topic**. With no topic it prints the
+general model-authoring prompt (unchanged); `syscribe --agent-instructions magicgrid` prints a
+dedicated, self-contained **MagicGrid modeling prompt** that teaches an LLM the method *and*
+how to express it with this tool — the `mg_` overlay fields, the `[profiles.magicgrid]` gate,
+the cell-by-cell authoring workflow (stakeholder needs → use cases → system context → MoEs →
+system requirements → functional analysis → logical/physical architecture → allocations →
+configurations → trade study), the `magicgrid` / `magicgrid --audit` / `trade-study` /
+`matrix --allocations` commands, and the `MG###` codes with how to clear each. An unknown topic
+exits non-zero naming the available topics. (`REQ-TRS-CLI-006`, verified by `TC-TRS-CLI-006`.)
+
+### Built-in SI units, ISQ quantity types, and dimensional consistency (`W044`)
+
+A second **open/curated** recognition tier (on top of the closed `ScalarValues`/`Base` of
+0.22.0): the common `ISQ` quantity-value types (`MassValue`, `ForceValue`, `EnergyValue`,
+`VoltageValue`, …) and `SI` units (the seven base units + common derived units) are now
+recognised — by **full name or symbol** (`SI::kilogram` ≡ `SI::kg` ≡ bare `kg`). Recognised
+members resolve cleanly (no `W404`); unlike the closed packages, an *unrecognised* `ISQ`/`SI`
+member is **lenient** (never `W043`), and `unit:` stays fully permissive (`USD`, `kWh`,
+`percent` accepted). (`REQ-TRS-LIB-002`.)
+
+When an element/feature declares **both** a recognised quantity type (`typedBy: ISQ::…`) and a
+recognised unit (`unit: SI::…`), the tool now checks their **physical dimensions** agree over
+the seven SI base quantities and raises new warning **`W044`** on a mismatch — e.g.
+`typedBy: ISQ::MassValue` with `unit: SI::metre`. Dimensions are prefix-independent; the check
+is lenient when either side is unrecognised. The engine is a small **in-tree** dimension table
+(no external units crate — `uom`/`dimensioned` are type-level, `rink-core` is heavy with
+non-SysML names). (`REQ-TRS-LIB-003`, verified by `TC-TRS-LIB-002`/`TC-TRS-LIB-003`; qual
+suite 186/186.)
+
 ## 0.23.0 — 2026-06-12
 
 ### Allocation: two forms over one edge model (`allocatedTo` + derived `allocatedFrom`)

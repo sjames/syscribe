@@ -3489,7 +3489,7 @@ pub fn print_help() {
     println!();
     println!("Options:");
     println!("  -m, --model <path>             Model root directory");
-    println!("  --agent-instructions           Print the LLM authoring prompt");
+    println!("  --agent-instructions [topic]   Print the LLM authoring prompt; topic 'magicgrid' teaches MagicGrid modeling");
     println!("  --help, -h                     Show this help");
     println!();
     println!("Examples:");

@@ -16,6 +16,7 @@ pub mod results;
 pub mod risk;
 pub mod solver;
 pub mod testplan;
+pub mod units;
 pub mod validator;
 pub mod variability;
 pub mod walker;

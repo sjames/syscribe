@@ -38,7 +38,7 @@ syscribe help <command>    # the command's full page, e.g. `syscribe help audit`
 syscribe <command> --help  # the same page, e.g. `syscribe validate --help` (also -h)
 ```
 
-`syscribe spec [<section>]` browses the embedded **format** reference (types, fields, validation rules, …); `syscribe --agent-instructions` prints the LLM authoring prompt.
+`syscribe spec [<section>]` browses the embedded **format** reference (types, fields, validation rules, …); `syscribe --agent-instructions` prints the LLM authoring prompt (`syscribe --agent-instructions magicgrid` prints a dedicated MagicGrid modeling prompt).
 
 ---
 
@@ -948,7 +948,7 @@ See the [LLM Workflow guide](../model-guide/llm-workflow.md) for the full eight-
 | `matrix --features` | Feature × Configuration grid | To see which feature ships in which product |
 | `list <type> --feature <F>` | Elements gated by feature `F` (via `appliesWhen:`) | To find what a feature controls |
 | `why-active <el> --config <C>` | Whether an element is active in a product, and why | To debug a projection |
-| `--agent-instructions` | Full generation prompt | System prompt for a model-authoring session |
+| `--agent-instructions [topic]` | Full generation prompt; `magicgrid` topic = a dedicated MagicGrid modeling prompt | System prompt for a model-authoring session |
 
 ### Exposing syscribe as an MCP tool
 
