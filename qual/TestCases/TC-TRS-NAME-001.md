@@ -13,7 +13,8 @@ Feature: basic-name validation (W042)
   Scenario: non-basic names are flagged, basic names and stable ids are not
     Given a model with a hyphenated FeatureDef name, an underscore name, and a stable-id-named requirement
     When validate runs
-    Then W042 is raised naming the hyphenated segment
+    Then W042 is raised naming the hyphenated segment using the term "qualified-name segment"
+    And the W042 finding on the FeatureDef includes an E209 consequence hint
     And the underscore name is not flagged
     And the stable-id-named element is not flagged
     And a hyphenated appliesWhen reference still raises E209

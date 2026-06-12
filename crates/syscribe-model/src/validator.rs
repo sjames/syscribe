@@ -469,12 +469,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             let seg_is_the_name = fm.name.as_deref().is_some_and(|n| n == seg);
             let id_identified_stem = elem_has_stable_id && !seg_is_the_name;
             if !seg.is_empty() && !is_basic_name(seg) && !is_stable_id(seg) && !id_identified_stem {
+                let is_feature_def = matches!(fm.element_type, Some(ElementType::FeatureDef));
+                let suffix = if is_feature_def {
+                    " — a hyphen in a feature name causes E209 when the feature appears in an appliesWhen expression"
+                } else {
+                    ""
+                };
                 findings.push(warning(
                     "W042",
                     &file,
                     &format!(
-                        "name '{}' is not a SysMLv2 basic name (letters/digits/_, not starting with a digit); rename using '_' or CamelCase",
-                        seg
+                        "qualified-name segment '{}' is not a SysMLv2 basic name (letters/digits/_, not starting with a digit); rename using '_' or CamelCase{}",
+                        seg, suffix
                     ),
                 ));
             }
