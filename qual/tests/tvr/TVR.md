@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.0  
+**Version:** syscribe 0.26.2  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-12  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 204 |
-| Passed | 204 |
+| Total test cases | 206 |
+| Passed | 206 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1006,7 +1006,7 @@
 ### TC-TRS-NAME-001 — Verify SysMLv2 basic-name validation: W042 on non-basic names, exempting stable ids; hyphenated appliesWhen still E209.
 
 **Verifies:** REQ-TRS-NAME-001  
-**Result:** ✓ PASS (8 passed, 0 failed)
+**Result:** ✓ PASS (10 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
@@ -1163,6 +1163,17 @@
 
 **Verifies:** REQ-TRS-OUT-013  
 **Result:** ✓ PASS (21 passed, 0 failed)
+
+---
+
+### TC-TRS-OUT-014 — Verify list TestCase emits test-execution table and JSON with testFunctions; config+tag combined.
+
+**Verifies:** REQ-TRS-OUT-014,REQ-TRS-TAG-002  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| list Requirement still uses the generic table (no regression) | ✓ PASS |
 
 ---
 
@@ -1773,6 +1784,17 @@
 | Scenario | Result |
 |---|---|
 | matrix --tag filters rows but not columns | ✓ PASS |
+
+---
+
+### TC-TRS-TAG-002 — Verify list --tag multi-tag AND filtering: repeated --tag narrows to elements carrying all tags.
+
+**Verifies:** REQ-TRS-TAG-002  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| no --tag lists all (filter inactive) | ✓ PASS |
 
 ---
 

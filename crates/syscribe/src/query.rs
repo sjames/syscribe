@@ -969,7 +969,7 @@ pub fn cmd_list(
     elements: &[RawElement],
     type_filter: &str,
     scope: &str,
-    tag: Option<&str>,
+    tags: &[&str],
     feature: Option<&str>,
     metadata: Option<&str>,
     status: Option<&str>,
@@ -1008,13 +1008,12 @@ pub fn cmd_list(
             label == type_filter_lc
         })
         .filter(|e| scope.is_empty() || e.qualified_name.starts_with(scope))
+        // Multi-tag AND: all specified tags must be present (REQ-TRS-TAG-002).
         .filter(|e| {
-            tag.is_none_or(|t| {
-                e.frontmatter
-                    .tags
-                    .as_ref()
-                    .is_some_and(|ts| ts.iter().any(|x| x == t))
-            })
+            tags.is_empty() || {
+                let elem_tags = e.frontmatter.tags.as_deref().unwrap_or(&[]);
+                tags.iter().all(|t| elem_tags.iter().any(|x| x == t))
+            }
         })
         .filter(|e| feature.is_none_or(|feat| gates_feature(e, feat)))
         // `--metadata <Def>`: keep only elements that apply that stereotype (MetadataDef),
@@ -1044,13 +1043,16 @@ pub fn cmd_list(
 
     matches.sort_by_key(|e| e.qualified_name.as_str());
 
-    // `--json`: emit a JSON array of the (filtered) elements. Absent fields are
-    // emitted as null (serde skips nothing here; consumers treat null as absent).
+    let is_testcase = type_filter_lc == "testcase";
+
+    // `--json`: emit a JSON array of the (filtered) elements. TestCase gets
+    // extra fields a CI runner needs (REQ-TRS-OUT-014); other types get the
+    // generic set.
     if json {
         let items: Vec<_> = matches
             .iter()
             .map(|e| {
-                serde_json::json!({
+                let mut obj = serde_json::json!({
                     "qualifiedName": e.qualified_name,
                     "type": tl(e.frontmatter.element_type.as_ref()),
                     "name": e.frontmatter.name,
@@ -1059,7 +1061,25 @@ pub fn cmd_list(
                     "silLevel": e.frontmatter.sil_level,
                     "asilLevel": e.frontmatter.asil_level,
                     "wcet": e.frontmatter.wcet,
-                })
+                });
+                if is_testcase {
+                    let verifies: Vec<&str> = e.frontmatter.verifies
+                        .as_deref().unwrap_or(&[])
+                        .iter().map(|v| v.as_str()).collect();
+                    let tags_list: Vec<&str> = e.frontmatter.tags
+                        .as_deref().unwrap_or(&[])
+                        .iter().map(|s| s.as_str()).collect();
+                    let tf = e.frontmatter.test_functions
+                        .as_deref().unwrap_or(&[]).to_vec();
+                    obj.as_object_mut().unwrap().extend([
+                        ("testLevel".into(), serde_json::json!(e.frontmatter.test_level)),
+                        ("verifies".into(), serde_json::json!(verifies)),
+                        ("tags".into(), serde_json::json!(tags_list)),
+                        ("sourceFile".into(), serde_json::json!(e.frontmatter.source_file)),
+                        ("testFunctions".into(), serde_json::json!(tf)),
+                    ]);
+                }
+                obj
             })
             .collect();
         println!("{}", serde_json::to_string_pretty(&items).unwrap());
@@ -1075,17 +1095,45 @@ pub fn cmd_list(
     let scope_note = if scope.is_empty() { String::new() } else { format!(" in `{scope}`") };
     println!("# {} elements{} ({})", type_filter, scope_note, matches.len());
     println!();
-    println!("| Qualified Name | Name / ID | Supertype / TypedBy | File |");
-    println!("|---|---|---|---|");
-    for e in &matches {
-        let label = e.frontmatter.name
-            .as_deref()
-            .or_else(|| e.frontmatter.id.as_deref())
-            .unwrap_or("—");
-        let classifier = yaml_first_string(e.frontmatter.supertype.as_ref())
-            .or_else(|| yaml_first_string(e.frontmatter.typed_by.as_ref()))
-            .unwrap_or("—");
-        println!("| {} | {} | {} | {} |", e.qualified_name, label, classifier, e.file_path);
+
+    if is_testcase {
+        // TestCase-specific table: columns useful for test-execution planning
+        // (REQ-TRS-OUT-014).
+        println!("| ID | Name | Level | Status | Verifies | Tags |");
+        println!("|---|---|---|---|---|---|");
+        for e in &matches {
+            let id = e.frontmatter.id.as_deref().unwrap_or("—");
+            let name = e.frontmatter.name.as_deref().unwrap_or("—");
+            let level = e.frontmatter.test_level.as_deref().unwrap_or("—");
+            let status = e.frontmatter.status.as_deref().unwrap_or("—");
+            let verifies = {
+                let vs: Vec<&str> = e.frontmatter.verifies
+                    .as_deref().unwrap_or(&[])
+                    .iter().map(|v| v.as_str()).collect();
+                if vs.is_empty() { "—".to_string() } else { vs.join(", ") }
+            };
+            let tags_col = {
+                let ts: Vec<&str> = e.frontmatter.tags
+                    .as_deref().unwrap_or(&[])
+                    .iter().map(|s| s.as_str()).collect();
+                if ts.is_empty() { "—".to_string() } else { ts.join(", ") }
+            };
+            println!("| {} | {} | {} | {} | {} | {} |",
+                id, name, level, status, verifies, tags_col);
+        }
+    } else {
+        println!("| Qualified Name | Name / ID | Supertype / TypedBy | File |");
+        println!("|---|---|---|---|");
+        for e in &matches {
+            let label = e.frontmatter.name
+                .as_deref()
+                .or_else(|| e.frontmatter.id.as_deref())
+                .unwrap_or("—");
+            let classifier = yaml_first_string(e.frontmatter.supertype.as_ref())
+                .or_else(|| yaml_first_string(e.frontmatter.typed_by.as_ref()))
+                .unwrap_or("—");
+            println!("| {} | {} | {} | {} |", e.qualified_name, label, classifier, e.file_path);
+        }
     }
     println!();
 }

@@ -8,7 +8,6 @@ tc_TRS_NAME_001() {
         && pass "W042 names the hyphenated segment" || fail "W042 does not name Anti-Lock"
 
     SCENARIO_NAME="W042 on a FeatureDef mentions E209 consequence"; printf "  ▶ %s\n" "$SCENARIO_NAME"
-    printf '%s' "$SCENARIO_OUTPUT" | grep -F "| W042 |" | grep -qF "Anti-Lock" | grep -qF "E209" 2>/dev/null; \
     printf '%s' "$SCENARIO_OUTPUT" | grep -F "| W042 |" | grep "Anti-Lock" | grep -qF "E209" \
         && pass "W042 on FeatureDef mentions E209" || fail "W042 on FeatureDef missing E209 hint"
 
