@@ -243,6 +243,7 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W410 | Mermaid `%% link:` annotation does not resolve to a known element |
 | W411 | Shape `link:` value does not resolve to a known element |
 | W412 | SVG `href="..."` attribute does not resolve to any model element file |
+| W080 | `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` in its sub-action tree not referenced by any `edges:` entry (draft-suppressed; `--deny W080`) |
 
 ## Allocation errors (E500–E503)
 

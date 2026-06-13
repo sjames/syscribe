@@ -2,6 +2,12 @@
 
 `RELEASES`
 
+## 0.26.11 — 2026-06-13
+
+### New features (issue #70)
+
+- **`W080` — Sequence diagram send/receive completeness** — a `type: Diagram` element with `diagramKind: Sequence` whose `subject:` resolves to an `ActionDef` now raises **`W080`** for every `SendAction`/`AcceptAction` reachable through the subject's sub-action tree (`subActions:`/`steps:`, recursing into `IfAction` `then:`/`else:` branches) that no `edges:` entry references. A message action is "covered" when an `edges:` entry's `ref:` equals its qualified name (`<ActionDef>::<action>`) or its bare name. The rule (previously advisory in §8.16.8.3, now normative per §22.4) is **draft-suppressed** and gateable with `validate --deny W080`. (`REQ-TRS-DIAG-002`)
+
 ## 0.26.8 — 2026-06-13
 
 ### New features (issue #60)

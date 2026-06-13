@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.9  
+**Version:** syscribe 0.26.10  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 225 |
-| Passed | 225 |
+| Total test cases | 226 |
+| Passed | 226 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -281,6 +281,21 @@
 | trigger W412 | ✓ PASS |
 | trigger W405 (companion mode, no img tag) | ✓ PASS |
 | trigger W405 (inline mode, no svg block) | ✓ PASS |
+
+---
+
+### TC-TRS-DIAG-002 — Verify W080 — a Sequence diagram raises a finding for each SendAction/AcceptAction of its subject ActionDef not covered by an edge; covered diagrams are clean; draft-suppressed; gateable with --deny W080.
+
+**Verifies:** REQ-TRS-DIAG-002  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| W080 — uncovered SendAction | ✓ PASS |
+| no W080 — every action covered | ✓ PASS |
+| W080 — nested SendAction in IfAction then-branch | ✓ PASS |
+| W080 draft-suppressed | ✓ PASS |
+| validate --deny W080 promotes to gate failure | ✓ PASS |
 
 ---
 

@@ -98,6 +98,34 @@ fn normalize_relative_path(base_dir: &str, href: &str) -> String {
     parts.join("/")
 }
 
+/// Collect the `name` of every `SendAction`/`AcceptAction` reachable through an
+/// ActionDef sub-action tree (§22.4, W080). Recurses into `IfAction` `then:`/`else:`
+/// branches and nested `subActions:` lists. Order-preserving, names only (the caller
+/// builds the qualified name against the owning ActionDef).
+fn collect_message_actions(sub_actions: &[serde_yaml::Value], out: &mut Vec<String>) {
+    for sa in sub_actions {
+        let serde_yaml::Value::Mapping(m) = sa else { continue };
+        let kind = m
+            .get(&serde_yaml::Value::String("kind".into()))
+            .and_then(|v| v.as_str());
+        let name = m
+            .get(&serde_yaml::Value::String("name".into()))
+            .and_then(|v| v.as_str());
+        if let (Some(k), Some(n)) = (kind, name) {
+            if k == "SendAction" || k == "AcceptAction" {
+                out.push(n.to_string());
+            }
+        }
+        for branch in ["then", "else", "subActions"] {
+            if let Some(serde_yaml::Value::Sequence(seq)) =
+                m.get(&serde_yaml::Value::String(branch.into()))
+            {
+                collect_message_actions(seq, out);
+            }
+        }
+    }
+}
+
 /// Map ASIL level string to a numeric rank for comparison (A=1, B=2, C=3, D=4).
 fn asil_rank(level: &str) -> Option<u8> {
     match level.to_ascii_uppercase().as_str() {
@@ -1859,6 +1887,64 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         }
                     }
                     _ => {}
+                }
+            }
+
+            // W080 (§22.4): a `Sequence` diagram must include an edge for every
+            // SendAction/AcceptAction reachable through its subject ActionDef's
+            // sub-action tree. Draft-suppressed; gateable with `--deny W080`.
+            if fm.diagram_kind.as_deref() == Some("Sequence")
+                && fm.status.as_deref() != Some("draft")
+            {
+                if let Some(subj_qn) = fm.subject.as_deref() {
+                    if let Some(subj_el) = resolver.resolve_ref(elements, subj_qn) {
+                        if matches!(
+                            subj_el.frontmatter.element_type,
+                            Some(ElementType::ActionDef)
+                        ) {
+                            // Collect every SendAction/AcceptAction name in the
+                            // subject's sub-action tree (recursing into IfAction
+                            // then/else branches and nested subActions).
+                            let mut msg_actions: Vec<String> = Vec::new();
+                            if let Some(subs) = subj_el.frontmatter.sub_actions.as_ref() {
+                                collect_message_actions(subs, &mut msg_actions);
+                            }
+                            if !msg_actions.is_empty() {
+                                // Set of qnames/short-names referenced by any edge `ref:`.
+                                let edge_vals: Vec<&serde_yaml::Value> = match fm.edges.as_ref() {
+                                    Some(serde_yaml::Value::Mapping(m)) => m.values().collect(),
+                                    Some(serde_yaml::Value::Sequence(s)) => s.iter().collect(),
+                                    _ => Vec::new(),
+                                };
+                                let mut edge_refs: HashSet<&str> = HashSet::new();
+                                for v in edge_vals {
+                                    if let serde_yaml::Value::Mapping(a) = v {
+                                        if let Some(r) = a
+                                            .get(&serde_yaml::Value::String("ref".into()))
+                                            .and_then(|x| x.as_str())
+                                        {
+                                            edge_refs.insert(r);
+                                        }
+                                    }
+                                }
+                                for action in &msg_actions {
+                                    let qn = format!("{}::{}", subj_el.qualified_name, action);
+                                    if !edge_refs.contains(qn.as_str())
+                                        && !edge_refs.contains(action.as_str())
+                                    {
+                                        findings.push(warning(
+                                            "W080",
+                                            &file,
+                                            &format!(
+                                                "Sequence diagram has no `edges` entry for message action '{}' of subject `{}` — add an edge or remove the action",
+                                                qn, subj_qn
+                                            ),
+                                        ));
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

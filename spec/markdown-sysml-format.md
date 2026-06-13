@@ -67,6 +67,21 @@
     - 12.6 [Hardware/Software Architecture Independence](#126-hardwaresoftware-architecture-independence)
     - 12.7 [Safety/Security Integrity Level Propagation](#127-safetysecurity-integrity-level-propagation)
     - 12.8 [Implementation Trace](#128-implementation-trace)
+    - 12.9 [Allocation: Two Forms over One Edge Model](#129-allocation-two-forms-over-one-edge-model)
+13. [IEC 62443 Industrial Cybersecurity (Zone/Conduit Model)](#13-iec-62443-industrial-cybersecurity-zoneconduit-model)
+14. [Multi-Repository Model Composition](#14-multi-repository-model-composition)
+15. [General-Purpose Trade Study](#15-general-purpose-trade-study)
+16. [N² Interface Matrix](#16-n-interface-matrix)
+17. [Change Impact Analysis](#17-change-impact-analysis)
+18. [SBOM Generation](#18-sbom-generation)
+19. [Review Records](#19-review-records)
+20. [Behavioral Coverage](#20-behavioral-coverage)
+21. [ReqIF Export](#21-reqif-export)
+22. [Extensions to Existing Sections](#22-extensions-to-existing-sections)
+    - 22.1 [State Machine Completeness Validation](#221-state-machine-completeness-validation-extends-88)
+    - 22.2 [Budget Expression Language](#222-budget-expression-language-extends-89)
+    - 22.3 [ASIL/SIL Decomposition Pair Completeness](#223-asilsil-decomposition-pair-completeness-extends-127)
+    - 22.4 [Sequence Diagram Send/Receive Completeness](#224-sequence-diagram-sendreceive-completeness-extends-81683)
 
 ---
 
@@ -5310,6 +5325,97 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
 | `W503` | **Redundant allocation** — the same `source → target` edge is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element (§12.9). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |
 
+#### State machine completeness warnings (W070–W074, §22.1)
+
+| Code | Condition |
+|---|---|
+| `W070` | Dead state — substate has no incoming transitions and is not `isInitial: true` |
+| `W071` | Trap state — substate has no outgoing transitions and is not `isFinal: true` |
+| `W072` | Non-determinism — two transitions from the same state accept the same payload type without guards |
+| `W073` | Missing initial state — `StateDef` with `subStates:` has no `isInitial: true` entry |
+| `W074` | Multiple initial states — more than one substate in the same `StateDef` is `isInitial: true` |
+
+#### Sequence diagram completeness (W080, §22.4)
+
+| Code | Condition |
+|---|---|
+| `W080` | `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` sub-action not referenced in the diagram's `edges:` |
+
+#### Budget expression validation (E800–E802, W060, §22.2)
+
+| Code | Condition |
+|---|---|
+| `E800` | `CalculationDef.evaluate:` resolves to an element that is not a `ConstraintDef` |
+| `E801` | `bodyLanguage: budget` body expression has a syntax error |
+| `E802` | `bodyLanguage: budget` expression references an unresolved attribute |
+| `W060` | `CalculationDef` with `bodyLanguage: budget` evaluates to a value that violates the `evaluate:` constraint (opt-in; gateable with `--deny W060`) |
+
+#### ASIL/SIL decomposition pair completeness (E860, W860, §22.3)
+
+| Code | Condition |
+|---|---|
+| `E860` | ASIL/SIL decomposition siblings share a `satisfies:` target — decomposed channels must satisfy distinct elements |
+| `W860` | Requirement at ASIL D / SIL 4 has children at uniformly lower levels but fewer than two children |
+
+#### Trade study validation (E400–E408, W400–W403, §15.5)
+
+| Code | Condition |
+|---|---|
+| `E400` | `TradeStudy` missing `id:`, `name:`, `status:`, `criteria:`, `alternatives:`, or `scores:` |
+| `E401` | `TradeStudy.id` does not match `TRD-*` pattern |
+| `E402` | `criteria:` entry missing `name:`, `weight:`, or `direction:` |
+| `E403` | `criteria[].weight` not in [0.0, 1.0] or all weights are zero |
+| `E404` | `criteria[].direction` not `maximize` or `minimize` |
+| `E405` | `alternatives:` is empty |
+| `E406` | `alternatives:` entry missing `name:` |
+| `E407` | `scores:` entry references an unknown alternative or criterion name |
+| `E408` | `scores:` entry `score:` is not a number |
+| `W400` | `TradeStudy` with `status: complete` has no `decision:` ADR |
+| `W401` | `TradeStudy.objective:` unresolved |
+| `W402` | `scores:` matrix is incomplete (at least one (alternative, criterion) pair missing) |
+| `W403` | `alternatives[].element:` unresolved |
+
+#### Review record validation (E700–E705, W700–W701, §19.3)
+
+| Code | Condition |
+|---|---|
+| `E700` | `ReviewRecord` missing `id:`, `name:`, `status:`, `reviewType:`, or `reviews:` |
+| `E701` | `ReviewRecord.id` does not match `RR-*` pattern |
+| `E702` | `ReviewRecord.status` not in `open \| closed \| waived` |
+| `E703` | `ReviewRecord.reviewType` not in allowed enum |
+| `E704` | `reviews:` entry unresolved |
+| `E705` | `items[].disposition` not in `open \| closed \| not_applicable` |
+| `W700` | `ReviewRecord` with `status: closed` has ≥1 `items[]` with `disposition: open` |
+| `W701` | Non-`draft` element appears in no `ReviewRecord.reviews:` list (opt-in; gateable with `--deny W701`) |
+
+#### Multi-repository composition (E510–E515, W510, §14.6)
+
+| Code | Condition |
+|---|---|
+| `E510` | Circular repo import (repo A → repo B → … → repo A) |
+| `E511` | `repos.<alias>.path` does not exist on disk and no `ref:` is configured |
+| `E512` | Cross-repo cross-reference (`verifies:`, `derivedFrom:`, etc.) unresolved in any loaded repo |
+| `E513` | `repoImports[].repo` alias not present in `[repos]` config |
+| `E514` | `repoImports[].qname` does not resolve in the named repo |
+| `E515` | Same stable ID appears in two repos (duplicate across composition) |
+| `W510` | Repo in `[repos]` has no `ref:` — composition is not reproducible (opt-in; `--deny W510`) |
+
+#### IEC 62443 Zone/Conduit validation (E950–E956, W950–W953, §13.5)
+
+| Code | Condition |
+|---|---|
+| `E950` | `Zone` missing `id:`, `name:`, `status:`, or `targetSL:` |
+| `E951` | `Zone.id` does not match `ZN-*` pattern |
+| `E952` | `Conduit` missing `id:`, `name:`, `status:`, `fromZone:`, or `toZone:` |
+| `E953` | `Conduit.id` does not match `CD-*` pattern |
+| `E954` | `Conduit.fromZone` or `toZone` unresolved or not a `Zone` |
+| `E955` | `Zone.members:` entry unresolved or not a `PartDef`/`Part` |
+| `E956` | `PartDef`/`Part.inZone:` unresolved or not a `Zone` |
+| `W950` | `Zone.achievedSL` < `Zone.targetSL` — security level not yet achieved |
+| `W951` | `Conduit.achievedSL` < min(`fromZone.targetSL`, `toZone.targetSL`) — conduit boundary weaker than connected zones (opt-in) |
+| `W952` | `PartDef`/`Part` has `targetSL:` but no zone membership (opt-in) |
+| `W953` | Approved `Zone` with `targetSL >= 2` has no referencing `Conduit` |
+
 #### MagicGrid gate (`MG###`, REQ-TRS-MG-002..011)
 
 The `MG###` namespace is **opt-in**: these checks fire only under the MagicGrid profile (`[profiles.<name>] magicgrid = true`, e.g. `validate --profile magicgrid`). The data they validate rides on `mg_`-prefixed `custom_fields:` and the base `actors:` field, all of which stay inert in the base format. All `MG###` findings are Error severity.
@@ -6028,3 +6134,951 @@ features:
 - When the **same** `source → target` edge is declared by **both** an `allocatedTo` on the source **and** a standalone `Allocation` element, the tool emits **`W503`** once for that edge — the duplicate is redundant, so pick one form. A single edge in a single form raises nothing.
 
 **Guidance:** use `allocatedTo:` by default; promote to a standalone `Allocation` element only when the allocation needs its own documentation.
+
+---
+
+## 13 IEC 62443 Industrial Cybersecurity (Zone/Conduit Model)
+
+### 13.1 Overview
+
+IEC 62443 (Industrial Automation and Control Systems security) models security as **Zones** (groups of assets sharing a common security policy) connected by **Conduits** (communication channels between zones). Each zone has a **Security Level** (SL 1–4) representing required robustness.
+
+This section extends the format with two native element types — `Zone` and `Conduit` — and adds `targetSL:` / `achievedSL:` fields to structural elements for SL-based gap analysis.
+
+### 13.2 `Zone` Element
+
+A `Zone` groups `PartDef` / `Part` elements that share a security boundary.
+
+**ID pattern:** `^ZN(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`  
+Examples: `ZN-CTRL-001`, `ZN-FIELD-001`, `ZN-DMZ-001`
+
+**Frontmatter schema:**
+
+| Field | YAML type | Required | Description |
+|---|---|---|---|
+| `id` | string | **Required** | Stable `ZN-*` identifier |
+| `name` | string | **Required** | Display label |
+| `status` | enum | **Required** | `draft` / `review` / `approved` / `deprecated` |
+| `targetSL` | integer 1–4 | **Required** | Required Security Level per IEC 62443-3-3 |
+| `achievedSL` | integer 1–4 | optional | Achieved Security Level (assessed; omit when not yet assessed) |
+| `members` | list of strings | optional | Qualified names or stable IDs of `PartDef`/`Part` elements in this zone |
+| `rationale` | string | optional | Justification for the zone boundary and SL assignment |
+
+**Example:**
+
+```yaml
+---
+type: Zone
+id: ZN-CTRL-001
+name: Control Zone
+status: approved
+targetSL: 3
+achievedSL: 2
+members:
+  - Logical::PLCController
+  - Logical::SafetyRelay
+rationale: >
+  Hosts real-time control functions. SL 3 required due to potential for
+  significant process disruption.
+---
+The Control Zone hosts all real-time process control components.
+```
+
+### 13.3 `Conduit` Element
+
+A `Conduit` is a communication channel between two zones. It must implement security controls sufficient to maintain the SL of the higher-SL zone at the boundary.
+
+**ID pattern:** `^CD(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`  
+Examples: `CD-CTRL-FIELD-001`, `CD-CORP-DMZ-001`
+
+**Frontmatter schema:**
+
+| Field | YAML type | Required | Description |
+|---|---|---|---|
+| `id` | string | **Required** | Stable `CD-*` identifier |
+| `name` | string | **Required** | Display label |
+| `status` | enum | **Required** | `draft` / `review` / `approved` / `deprecated` |
+| `fromZone` | string | **Required** | Qualified name or stable ID of source `Zone` |
+| `toZone` | string | **Required** | Qualified name or stable ID of destination `Zone` |
+| `achievedSL` | integer 1–4 | optional | Achieved SL of this conduit's security controls |
+| `protocols` | list of strings | optional | Communication protocols traversing this conduit (informational) |
+| `implementedBy` | list of strings | optional | `SecurityControl` IDs or architecture element qnames implementing the conduit boundary controls |
+
+**Example:**
+
+```yaml
+---
+type: Conduit
+id: CD-CTRL-FIELD-001
+name: ControlToField
+status: approved
+fromZone: ZN-CTRL-001
+toZone: ZN-FIELD-001
+achievedSL: 3
+protocols: [Modbus/TCP, OPC-UA]
+implementedBy: [SC-FIREWALL-001, SC-UNIDIRECTIONAL-001]
+---
+Unidirectional data diode from the Control Zone to the Field Zone.
+```
+
+### 13.4 Additional Fields on Structural Elements
+
+Any `PartDef` or `Part` may declare:
+
+| Field | YAML type | Description |
+|---|---|---|
+| `targetSL` | integer 1–4 | Required Security Level for this component |
+| `achievedSL` | integer 1–4 | Assessed Security Level of this component |
+| `inZone` | string | Qualified name or stable ID of the `Zone` this element belongs to |
+
+When `inZone:` is present, the element is implicitly added to that zone's member set (the `members:` field on `Zone` is the authoritative list; `inZone:` on the element is the reverse pointer for navigation).
+
+### 13.5 Validation Rules
+
+| Code | Condition |
+|---|---|
+| `E950` | `Zone` missing `id:`, `name:`, `status:`, or `targetSL:` |
+| `E951` | `Zone.id` does not match the `ZN-*` pattern |
+| `E952` | `Conduit` missing `id:`, `name:`, `status:`, `fromZone:`, or `toZone:` |
+| `E953` | `Conduit.id` does not match the `CD-*` pattern |
+| `E954` | `Conduit.fromZone` or `Conduit.toZone` unresolved, or resolves to an element that is not a `Zone` |
+| `E955` | `Zone.members:` entry unresolved, or resolves to an element that is not a `PartDef` / `Part` |
+| `E956` | `PartDef`/`Part.inZone:` unresolved, or resolves to a non-`Zone` element |
+| `W950` | `Zone.achievedSL` is less than `Zone.targetSL` — the zone's security level is not yet achieved |
+| `W951` | `Conduit.achievedSL` is less than the `targetSL` of either connected zone — the conduit boundary is weaker than both zones it connects (opt-in; gateable with `--deny W951`) |
+| `W952` | `PartDef`/`Part` has `targetSL:` but is not referenced by any `Zone.members:` and declares no `inZone:` — isolated SL claim (opt-in) |
+| `W953` | `Zone` with `targetSL >= 2` and `status: approved` has no `Conduit` referencing it — an approved zone that is unreachable from any conduit may be a modelling gap |
+
+### 13.6 CLI Commands
+
+**`syscribe zones [--json]`** — List all `Zone` elements with their `targetSL`, `achievedSL`, member count, and gap status.
+
+```
+Zone           tSL  aSL  Members  Gap
+ZN-CTRL-001    3    2    2        ⚠ SL gap
+ZN-FIELD-001   2    2    5        ✓
+```
+
+**`syscribe conduits [--json]`** — List all `Conduit` elements with from/to zones, `achievedSL`, and whether the conduit SL meets the connected zone requirements.
+
+JSON output includes `{ id, name, fromZone, toZone, achievedSL, requiredSL, pass }` per conduit.
+
+**`syscribe zones --coverage [--json]`** — Cross-table: Zone × SecurityControl showing which controls contribute to which zone's SL. Sourced from `Conduit.implementedBy:` and zone member `SecurityControl` references.
+
+---
+
+## 14 Multi-Repository Model Composition
+
+### 14.1 Motivation
+
+Large programs partition the system model across organizational boundaries: a prime integrator assembles subcontractor models, each maintained in a separate repository. Multi-repo composition lets a Syscribe model import namespaces from peer repos, resolving cross-repo cross-references at analysis time.
+
+### 14.2 Repository Configuration
+
+Repos are declared in the model root `.syscribe.toml`:
+
+```toml
+[repos]
+avionics = { path = "../avionics-model", root = "model/" }
+brakes   = { path = "../brakes-subsystem", root = "model/", ref = "v2.1.0" }
+shared   = { path = "../shared-library", root = "model/", ref = "main" }
+```
+
+Each entry key is the **repo alias** — a short identifier used in `_index.md` import declarations. Fields:
+
+| Key | Type | Required | Description |
+|---|---|---|---|
+| `path` | string | **Required** | File-system path to the repo root (relative to this model's `.syscribe.toml`) |
+| `root` | string | optional (default `"model/"`) | Path within the repo where the Syscribe model root lives |
+| `ref` | string | optional | Git ref (tag, branch, or SHA) to check out via `syscribe repos sync`; absent means "use whatever is on disk" |
+
+### 14.3 Import Declarations in `_index.md`
+
+A package `_index.md` may import a sub-tree from a peer repo using the `repoImports:` field:
+
+```yaml
+---
+type: Package
+name: Integration
+repoImports:
+  - repo: avionics
+    qname: Avionics                    # import the Avionics package from the avionics repo
+    as: Avionics                       # mount it here as Integration::Avionics
+  - repo: brakes
+    qname: BrakeSystem                 # import a specific sub-package
+    as: Brakes
+---
+```
+
+**`repoImports:` sub-schema:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `repo` | string | **Required** | Alias matching a key in `[repos]` |
+| `qname` | string | **Required** | Qualified name of the element / package to import from the peer repo (relative to that repo's model root) |
+| `as` | string | optional | Local alias; defaults to the last segment of `qname` |
+
+### 14.4 Resolution Rules
+
+1. Imported elements are mounted in the local namespace at `<package>::<as>` and are read-only.
+2. Cross-repo cross-references (`verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:`) are resolved by searching the local model first, then each loaded repo in declaration order.
+3. Cross-repo `supertype:` / `typedBy:` links are permitted for structural reuse (e.g., using a shared `PartDef`); integrity-level propagation (`E841`–`E843`) does not cross repo boundaries — each repo's safety case is authored independently.
+4. The `id`-based cross-reference namespace (`REQ-*`, `TC-*`, etc.) is global across all loaded repos; a `REQ-*` ID must be unique across the entire composition.
+
+### 14.5 CLI Commands
+
+**`syscribe repos list [--json]`** — Show all configured repos with their paths, configured refs, and on-disk sync status.
+
+```
+Alias     Path                   Ref      On disk   Status
+avionics  ../avionics-model      —        ✓         (no ref pinned)
+brakes    ../brakes-subsystem    v2.1.0   ✓         in sync
+shared    ../shared-library      main     ✓         behind (3 commits)
+```
+
+**`syscribe repos sync [--all | <alias>]`** — For repos with a `ref:` configured, run `git fetch` and `git checkout <ref>` in the repo's directory. Without `--all`, syncs the named alias only.
+
+**`syscribe repos status [--json]`** — Show whether each repo is at its configured ref (uses `git describe --exact-match`). Exits `2` if any pinned repo is out of sync.
+
+### 14.6 Validation Rules
+
+| Code | Condition |
+|---|---|
+| `E510` | Circular repo import — repo A's composition imports from repo B which (directly or transitively) imports from repo A |
+| `E511` | `repos.<alias>.path` does not exist on disk (and no `ref:` is configured) |
+| `E512` | Cross-repo `verifies:` / `derivedFrom:` / `satisfies:` / `allocatedTo:` reference cannot be resolved in the local model or any loaded repo |
+| `E513` | `_index.md repoImports[].repo` names an alias not present in `[repos]` |
+| `E514` | `repoImports[].qname` does not resolve to any element in the named repo |
+| `E515` | Two repos export the same stable ID (e.g., `REQ-SCHED-001` appears in both the local model and a peer repo) |
+| `W510` | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; gateable with `--deny W510`) |
+
+---
+
+## 15 General-Purpose Trade Study
+
+### 15.1 Overview
+
+A `TradeStudy` records a formal weighted-criteria evaluation of design alternatives. It is a first-class model element that links to the requirement it informs and the ADR recording its outcome, making the rationale for architecture decisions navigable from the model.
+
+This section defines a general-purpose trade study facility independent of the MagicGrid profile. The MagicGrid MoE-weighted `trade-study` command (§9, REQ-TRS-MG-007) remains active under `--profile magicgrid`; the command described here operates on `TradeStudy` elements and requires no profile.
+
+### 15.2 `TradeStudy` Element
+
+**ID pattern:** `^TRD(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`  
+Examples: `TRD-PROC-001`, `TRD-COMM-001`
+
+**Frontmatter schema:**
+
+| Field | YAML type | Required | Description |
+|---|---|---|---|
+| `id` | string | **Required** | Stable `TRD-*` identifier |
+| `name` | string | **Required** | Free-prose label |
+| `status` | enum | **Required** | `draft` / `review` / `complete` |
+| `objective` | string | optional | Qualified name or ID of the `Requirement` this study informs |
+| `decision` | string | optional | Qualified name or ID of the `ADR` recording the selected alternative |
+| `criteria` | list | **Required** | Evaluation criteria; see sub-schema below |
+| `alternatives` | list | **Required** | Options being evaluated; see sub-schema below |
+| `scores` | list | **Required** | Score matrix; see sub-schema below |
+
+**`criteria:` sub-schema:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | **Required** | Criterion identifier (used as key in `scores:`) |
+| `weight` | float | **Required** | Relative weight in [0.0, 1.0]; weights need not sum to 1 (tool normalises) |
+| `direction` | enum | **Required** | `maximize` or `minimize` |
+| `unit` | string | optional | Unit of measure (informational) |
+| `description` | string | optional | What is being measured |
+
+**`alternatives:` sub-schema:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | **Required** | Alternative identifier (used as key in `scores:`) |
+| `element` | string | optional | Qualified name or ID of the modeled element representing this alternative |
+| `description` | string | optional | Short description of the alternative |
+
+**`scores:` sub-schema:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `alternative` | string | **Required** | Must match a name in `alternatives:` |
+| `criterion` | string | **Required** | Must match a name in `criteria:` |
+| `score` | float | **Required** | Raw score in the criterion's natural units |
+| `rationale` | string | optional | Supporting rationale for this score |
+
+**Complete example:**
+
+```yaml
+---
+type: TradeStudy
+id: TRD-COMM-001
+name: Communication Bus Architecture Trade
+status: complete
+objective: REQ-COMM-001
+decision: ADR-COMM-BUS-001
+criteria:
+  - name: latency
+    weight: 0.4
+    direction: minimize
+    unit: ms
+    description: Worst-case message latency under peak load
+  - name: bandwidth
+    weight: 0.3
+    direction: maximize
+    unit: Mbps
+  - name: cost
+    weight: 0.2
+    direction: minimize
+    unit: USD/node
+  - name: maturity
+    weight: 0.1
+    direction: maximize
+    description: Industry adoption (1=experimental, 5=widely deployed)
+alternatives:
+  - name: CAN-FD
+    element: Physical::CANFDBus
+    description: CAN with Flexible Data-rate, ISO 11898-1:2015
+  - name: Ethernet-TSN
+    element: Physical::TSNNetwork
+    description: IEEE 802.1Qbv Time-Sensitive Networking
+  - name: FlexRay
+    description: AUTOSAR FlexRay v2.1
+scores:
+  - { alternative: CAN-FD,       criterion: latency,    score: 0.5,  rationale: "50µs worst-case" }
+  - { alternative: CAN-FD,       criterion: bandwidth,  score: 8 }
+  - { alternative: CAN-FD,       criterion: cost,       score: 2.50 }
+  - { alternative: CAN-FD,       criterion: maturity,   score: 5 }
+  - { alternative: Ethernet-TSN, criterion: latency,    score: 0.1 }
+  - { alternative: Ethernet-TSN, criterion: bandwidth,  score: 1000 }
+  - { alternative: Ethernet-TSN, criterion: cost,       score: 8.00 }
+  - { alternative: Ethernet-TSN, criterion: maturity,   score: 3 }
+  - { alternative: FlexRay,      criterion: latency,    score: 0.3 }
+  - { alternative: FlexRay,      criterion: bandwidth,  score: 10 }
+  - { alternative: FlexRay,      criterion: cost,       score: 5.00 }
+  - { alternative: FlexRay,      criterion: maturity,   score: 4 }
+---
+Trade study for the in-vehicle communication bus selecting the architecture
+that best balances real-time performance, bandwidth, cost, and industry maturity.
+```
+
+### 15.3 Computed Scoring
+
+The tool computes, but does not author, the following derived values:
+
+1. **Normalised score per alternative per criterion** — min-max normalisation within each criterion column (0 = worst in set, 1 = best). Direction is applied before normalisation.
+2. **Weighted score per alternative per criterion** — `normalized_score × weight`
+3. **Total weighted score per alternative** — sum of weighted scores across all criteria
+4. **Rank** — alternatives ordered by total descending
+
+These appear in `show <TRD-id>` and the `trade-study` command output; they are never written to the `.md` file.
+
+### 15.4 CLI Command
+
+**`syscribe trade-study [<TRD-id>] [--json]`** — Without an ID, lists all `TradeStudy` elements (id, name, status, alternative count, whether complete). With an ID, prints the full scoring table and ranking.
+
+```
+Trade Study: TRD-COMM-001 — Communication Bus Architecture Trade
+Objective: REQ-COMM-001   Decision ADR: ADR-COMM-BUS-001
+
+Alternative    latency(0.4)  bandwidth(0.3)  cost(0.2)  maturity(0.1)  Total   Rank
+CAN-FD         0.000         0.008           1.000      1.000          0.509   #2
+Ethernet-TSN   1.000         1.000           0.000      0.000          0.700   #1
+FlexRay        0.500         0.010           0.455      0.667          0.436   #3
+```
+
+### 15.5 Validation Rules
+
+| Code | Condition |
+|---|---|
+| `E400` | `TradeStudy` missing `id:`, `name:`, `status:`, `criteria:`, `alternatives:`, or `scores:` |
+| `E401` | `TradeStudy.id` does not match the `TRD-*` pattern |
+| `E402` | `criteria:` entry missing `name:`, `weight:`, or `direction:` |
+| `E403` | `criteria[].weight` is not a float in [0.0, 1.0], or all weights are zero |
+| `E404` | `criteria[].direction` is not `maximize` or `minimize` |
+| `E405` | `alternatives:` is empty |
+| `E406` | `alternatives:` entry missing `name:` |
+| `E407` | `scores:` entry references an `alternative` or `criterion` name not present in the respective list |
+| `E408` | `scores:` entry `score:` is not a number |
+| `W400` | `TradeStudy` with `status: complete` has no `decision:` field (no ADR recording the outcome) |
+| `W401` | `TradeStudy.objective:` is present but unresolved (no element with that qname or id) |
+| `W402` | `scores:` matrix is incomplete — at least one (alternative, criterion) pair has no score entry |
+| `W403` | `TradeStudy.alternatives[].element` is present but unresolved |
+
+---
+
+## 16 N² Interface Matrix
+
+### 16.1 Overview
+
+The N² diagram (also called N-squared chart) is a standard systems engineering artifact for interface identification and completeness review. It displays system elements on a diagonal; off-diagonal cells show the interfaces between elements at the row and column intersection.
+
+Syscribe generates N² matrices from the model's existing port, connection, flow, and allocation edges — no new element types are required.
+
+### 16.2 CLI Command
+
+**`syscribe n2 [<qname>] [--depth <N>] [--format text|html|json] [--interfaces-only] [--allocations]`**
+
+| Flag | Default | Description |
+|---|---|---|
+| `<qname>` | model root | Scope: only `PartDef`/`Part` elements in this namespace (subtree) are included |
+| `--depth N` | 1 | How many levels of nesting below `<qname>` to include (1 = direct children only) |
+| `--format` | `text` | Output format: `text` (ASCII table), `html` (styled HTML fragment), `json` |
+| `--interfaces-only` | false | Only show cells with at least one interface (hides empty cells) |
+| `--allocations` | false | Include allocation edges in addition to port/flow/connection edges |
+
+**Algorithm:**
+
+1. Collect all `PartDef`/`Part` elements in scope at the requested depth — these become the matrix rows and columns (axis elements).
+2. For each ordered pair `(row R, col C)` where `R ≠ C`: collect all directed edges from `R` toward `C`:
+   - **Connection edges**: a `Connection` (or `connections:` entry) with `from:` inside `R` and `to:` inside `C`
+   - **Flow edges**: a `Flow` connecting a port on `R` to a port on `C`
+   - **Port edges**: `PortDef`/`Port` on `R` whose `typedBy:` matches a conjugated port on `C`
+   - **Allocation edges** (with `--allocations`): `allocatedTo:` from `R` to `C`
+3. Render: diagonal cell = element name; `(R, C)` off-diagonal cell = list of interface names (or count + kind summary in text mode).
+
+**Text output:**
+
+```
+N² Interface Matrix — VehicleSystem (depth 1)
+
+              Chassis  Engine  Transmission  BrakeSys
+Chassis         ■       —      MechCouple    BrakeLink
+Engine          —       ■      DriveShaft    —
+Transmission    —       —      ■             —
+BrakeSys        —       —      —             ■
+```
+
+**JSON output:**
+
+```json
+{
+  "scope": "VehicleSystem",
+  "elements": ["Chassis", "Engine", "Transmission", "BrakeSys"],
+  "matrix": {
+    "Chassis": {
+      "Transmission": [{"kind": "Connection", "name": "MechCouple"}],
+      "BrakeSys":    [{"kind": "Connection", "name": "BrakeLink"}]
+    }
+  }
+}
+```
+
+No new element types. No new validation rules.
+
+---
+
+## 17 Change Impact Analysis
+
+### 17.1 Overview
+
+When a model element is modified, all downstream elements that trace to it — through any combination of traceability links — may need to be reviewed or updated. The `impact` command traverses the traceability graph from a named element and reports every reachable node, its distance (hop count), and the edge kind that connects it.
+
+This is a read-only analysis command. It does not modify the model.
+
+### 17.2 CLI Command
+
+**`syscribe impact <qname|id> [--direction downstream|upstream|both] [--depth <N>] [--format text|json|dot] [--kinds <csv>]`**
+
+| Flag | Default | Description |
+|---|---|---|
+| `<qname\|id>` | — | **Required.** Starting element |
+| `--direction` | `downstream` | Traversal direction: `downstream` follows links from the element outward; `upstream` follows them back to root; `both` does both |
+| `--depth N` | unlimited | Maximum hop distance to report |
+| `--format` | `text` | Output: `text` (indented tree), `json`, `dot` (Graphviz) |
+| `--kinds csv` | all | Restrict to specific edge kinds: `verifies`, `derivedFrom`, `satisfies`, `supertype`, `appliesWhen`, `allocatedTo`, `refines` |
+
+**Downstream traversal** follows these outgoing edge kinds from the named element:
+
+| Edge kind | Follows |
+|---|---|
+| `specializedBy` | Elements that have `supertype:` pointing here |
+| `derivedChildren` | Requirements with `derivedFrom:` pointing here |
+| `verifiedBy` | TestCases with `verifies:` pointing here |
+| `satisfiedBy` | Architecture elements with `satisfies:` pointing here (reverse of `satisfies:`) |
+| `refinedBy` | UseCases/behaviors with `refines:` pointing here |
+| `conditionalOn` | Elements whose `appliesWhen:` includes a feature here |
+| `allocatedFrom` | Elements allocated to this element |
+
+**Upstream traversal** follows:
+
+| Edge kind | Follows |
+|---|---|
+| `supertype` | The definition this element specialises |
+| `derivedFrom` | Parent requirements |
+| `verifies` | Requirements this TestCase verifies |
+| `derivedFromSafetyGoal` | Safety goal tracing |
+| `satisfies` | Requirements this architecture element satisfies |
+| `allocatedTo` | Allocation targets of this element |
+
+**Text output:**
+
+```
+Impact of REQ-BRAKES-001 (downstream, unlimited depth)
+
+REQ-BRAKES-001 [Requirement, approved]
+  ├── REQ-BRAKES-ABS-001  [Requirement, approved]  via derivedChildren
+  │     ├── Physical::ABSActuator  [PartDef]        via satisfiedBy
+  │     └── TC-ABS-001            [TestCase, active] via verifiedBy
+  └── REQ-BRAKES-PARK-001 [Requirement, draft]    via derivedChildren
+
+4 elements reachable (2 requirements, 1 architecture, 1 test)
+```
+
+**JSON output:**
+
+```json
+{
+  "root": { "qname": "REQ-BRAKES-001", "type": "Requirement", "id": "REQ-BRAKES-001" },
+  "nodes": [
+    { "qname": "REQ-BRAKES-ABS-001", "type": "Requirement", "id": "REQ-BRAKES-ABS-001",
+      "depth": 1, "via": "derivedChildren" },
+    { "qname": "Physical::ABSActuator", "type": "PartDef",
+      "depth": 2, "via": "satisfiedBy" },
+    { "qname": "TC-ABS-001", "type": "TestCase", "id": "TC-ABS-001",
+      "depth": 2, "via": "verifiedBy" }
+  ]
+}
+```
+
+No new element types. No new validation rules.
+
+---
+
+## 18 SBOM Generation
+
+### 18.1 Overview
+
+A Software Bill of Materials (SBOM) enumerates all software components in a deliverable — enabling vulnerability tracking, license compliance, and supply-chain auditing. Syscribe generates an SBOM from the `implementedBy:` links on `Part`/`PartDef` elements and, optionally, from `TestCase.sourceFile:` links.
+
+The generated SBOM satisfies the NTIA minimum elements for an SBOM (supplier, component name, version, unique identifiers, dependency relationships, SBOM author, timestamp).
+
+### 18.2 CLI Command
+
+**`syscribe sbom [--format cyclonedx|spdx] [--config <CONF>] [--output <file>] [--include-tests] [--scope <qname>]`**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--format` | `cyclonedx` | Output format: `cyclonedx` (CycloneDX 1.6 JSON) or `spdx` (SPDX 2.3 JSON) |
+| `--config CONF` | all variants | When a feature model is present, project to this `Configuration` first |
+| `--output file` | stdout | Write to file instead of stdout |
+| `--include-tests` | false | Include `TestCase.sourceFile:` entries as `testCase` components |
+| `--scope qname` | model root | Restrict to a namespace subtree |
+
+### 18.3 Remote Package URI Syntax
+
+An `implementedBy:` value that matches the pattern `<registry>:<package>@<version>[#<path>]` is treated as a named external dependency rather than a local file path.
+
+**Supported registries:**
+
+| Registry prefix | Ecosystem |
+|---|---|
+| `crates.io:` | Rust (Cargo) |
+| `npm:` | JavaScript/Node |
+| `pypi:` | Python (pip) |
+| `maven:` | Java (Maven Central) |
+| `nuget:` | .NET |
+| `github:` | GitHub repository `owner/repo@ref` |
+
+**Examples:**
+
+```yaml
+implementedBy:
+  - src/scheduler/mod.rs            # local path — harvested as a file component
+  - crates.io:tokio@1.38.0          # Rust crate — emitted as a package component
+  - npm:lodash@4.17.21              # npm package
+  - github:embedded-io-packages/embedded-hal@v1.0.0
+```
+
+### 18.4 CycloneDX Output (Default)
+
+```json
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:<generated>",
+  "metadata": {
+    "timestamp": "<ISO 8601>",
+    "tools": [{ "vendor": "Syscribe", "name": "syscribe", "version": "<tool version>" }],
+    "component": { "type": "firmware", "name": "<model root name>" }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "scheduler",
+      "evidence": {
+        "occurrences": [{ "location": "src/scheduler/mod.rs" }]
+      },
+      "externalReferences": [
+        { "type": "model", "url": "syscribe://REQ-SCHED-001" }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "tokio",
+      "version": "1.38.0",
+      "purl": "pkg:cargo/tokio@1.38.0"
+    }
+  ]
+}
+```
+
+The `externalReferences` array on locally-derived components links back to the Syscribe requirement(s) the implementing part satisfies — enabling forward traceability from the SBOM to the model.
+
+### 18.5 SPDX Output
+
+SPDX 2.3 JSON format with `spdxVersion: "SPDX-2.3"`. Local file components become `Package` entries with `filesAnalyzed: true`; remote URI components become `Package` entries with `filesAnalyzed: false` and a `packageVersion`. Relationships: `DESCRIBES`, `CONTAINS`, `GENERATED_FROM`.
+
+No new element types. No new validation rules.
+
+---
+
+## 19 Review Records
+
+### 19.1 Overview
+
+A `ReviewRecord` captures a formal review event — design review, requirements review, hazard review, test readiness review — and links it to the model elements it covers. This enables traceability from model elements to the review evidence that authorised them.
+
+`ReviewRecord` complements `ConfirmationMeasure` (§8.18): `ConfirmationMeasure` tracks assessment-level activities required by safety standards (ISO 26262 §6); `ReviewRecord` tracks the finer-grained, element-level review evidence appropriate for any development review, not limited to safety.
+
+### 19.2 `ReviewRecord` Element
+
+**ID pattern:** `^RR(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`  
+Examples: `RR-SW-ARCH-001`, `RR-SYS-REQ-001`
+
+**Frontmatter schema:**
+
+| Field | YAML type | Required | Description |
+|---|---|---|---|
+| `id` | string | **Required** | Stable `RR-*` identifier |
+| `name` | string | **Required** | Free-prose label (e.g., "Software Architecture Review — Sprint 12") |
+| `status` | enum | **Required** | `open` / `closed` / `waived` |
+| `reviewType` | enum | **Required** | See enum below |
+| `reviewDate` | string | optional | ISO 8601 date (`YYYY-MM-DD`) |
+| `reviewedBy` | list of strings | optional | Names or org-unit identifiers of reviewers |
+| `reviews` | list of strings | **Required** | Qualified names or stable IDs of elements covered by this review (≥ 1) |
+| `items` | list | optional | Action items arising from the review; see sub-schema below |
+
+**`reviewType` enum:**
+
+| Value | Description |
+|---|---|
+| `design_review` | Architecture or detailed design review |
+| `requirements_review` | Requirements elicitation or allocation review |
+| `hazard_review` | HARA or TARA review meeting |
+| `test_readiness_review` | Test Readiness Review (TRR) verifying test completeness before execution |
+| `inspection` | Formal Fagan-style inspection |
+| `walk_through` | Less-formal peer walkthrough |
+
+**`items:` sub-schema:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `id` | string | optional | Local action-item identifier (e.g., `RID-001`) |
+| `description` | string | **Required** | Action item description |
+| `disposition` | enum | **Required** | `open` / `closed` / `not_applicable` |
+| `closedBy` | string | optional | Qualified name or ID of the element or document evidencing closure |
+
+**Example:**
+
+```yaml
+---
+type: ReviewRecord
+id: RR-SW-ARCH-001
+name: Software Architecture Review — ABS Subsystem
+status: closed
+reviewType: design_review
+reviewDate: "2026-05-14"
+reviewedBy: [alice.nakamura, bob.patel]
+reviews:
+  - Logical::ABSController
+  - Logical::WheelSpeedSensor
+  - REQ-ABS-001
+items:
+  - id: RID-001
+    description: >
+      ABSController missing timeout handling on sensor dropout.
+      Add a watchdog requirement.
+    disposition: closed
+    closedBy: REQ-ABS-WATCHDOG-001
+  - id: RID-002
+    description: Clarify sensor sampling rate in REQ-ABS-001.
+    disposition: closed
+    closedBy: REQ-ABS-001
+---
+Design review of the ABS software architecture covering the controller
+and wheel-speed sensor elements.
+```
+
+### 19.3 Validation Rules
+
+| Code | Condition |
+|---|---|
+| `E700` | `ReviewRecord` missing `id:`, `name:`, `status:`, `reviewType:`, or `reviews:` |
+| `E701` | `ReviewRecord.id` does not match the `RR-*` pattern |
+| `E702` | `ReviewRecord.status` not in `open \| closed \| waived` |
+| `E703` | `ReviewRecord.reviewType` not in the allowed enum |
+| `E704` | `reviews:` entry cannot be resolved |
+| `E705` | `items[].disposition` not in `open \| closed \| not_applicable` |
+| `W700` | `ReviewRecord` with `status: closed` has at least one `items[]` entry with `disposition: open` — a closed review with unresolved items |
+| `W701` | Non-`draft` element appears in no `ReviewRecord.reviews:` list (opt-in; gateable with `--deny W701`; enable per coverage gate) |
+
+### 19.4 CLI Commands
+
+**`syscribe reviews [<qname>] [--open-only] [--json]`** — List `ReviewRecord` elements, optionally scoped to a namespace. With `--open-only`, shows only records with `status: open` or at least one open action item.
+
+```
+ID              Name                               Status  Date        Open items
+RR-SW-ARCH-001  Software Architecture Review — ABS  closed  2026-05-14  0
+RR-SYS-REQ-001  System Requirements Review v1        open    2026-06-01  3
+```
+
+**`syscribe review <RR-id> [--json]`** — Detail a single review: elements covered, reviewer list, action items with dispositions.
+
+**`syscribe reviews --coverage [<qname>] [--json]`** — Cross-table: element → most recent `ReviewRecord` covering it → date → open items. Elements with no covering `ReviewRecord` are listed last.
+
+---
+
+## 20 Behavioral Coverage
+
+### 20.1 Overview
+
+Behavioral coverage reports how completely the set of active `TestCase` elements exercises the behavioral elements (`ActionDef`, `Action`, `StateDef`, `State`) in the model. It bridges the model-level view of behavior with the test-level view of verification.
+
+This is a reporting command — no new element types or validation rules are introduced. Coverage determination uses the existing `implementedBy:`, `sourceFile:`, `verifies:`, and `satisfies:` links already present in the model.
+
+### 20.2 Coverage Determination
+
+A behavioral element `B` is **covered** by a `TestCase` `TC` when any of the following holds:
+
+1. **Direct source overlap:** `TC.sourceFile:` resolves to a path under (or equal to) any path in `B.implementedBy:` (for `PartDef`/`ActionDef` — directory containment check).
+2. **Requirement chain:** `TC.verifies:` contains a requirement `R`, and `R` is satisfied by an architecture element `E`, and `E` is typed by or specialises `B`.
+3. **Test function:** `TC.testFunctions[].function` resolves to a function in a file that is under `B.implementedBy:`.
+4. **Transitive via allocation:** `TC.verifies:` → `R.satisfies:` → architecture element `E` allocated to `B` (via `allocatedTo:`).
+
+Only `active` `TestCase` elements contribute to coverage. `draft`/`review`/`approved` test cases are counted separately as "planned coverage."
+
+### 20.3 CLI Command
+
+**`syscribe behavioral-coverage [<qname>] [--depth <N>] [--format text|json] [--uncovered-only] [--include-planned]`**
+
+| Flag | Default | Description |
+|---|---|---|
+| `<qname>` | model root | Scope: only behavioral elements in this namespace |
+| `--depth N` | unlimited | Namespace depth limit |
+| `--format` | `text` | Output format |
+| `--uncovered-only` | false | Show only uncovered elements |
+| `--include-planned` | false | Include `draft`/`review`/`approved` test cases in a "planned" coverage column |
+
+**Text output:**
+
+```
+Behavioral Coverage — VehicleSystem (active tests only)
+
+Element                          Type       Covered  Test Cases
+Propulsion::ComputeThrust        ActionDef  ✓        TC-PROP-001, TC-PROP-002
+Propulsion::FuelShutoff          ActionDef  ✗        —
+Braking::ABSControl              ActionDef  ✓        TC-ABS-001
+Braking::EmergencyBrake          StateDef   ✗        —
+Navigation::WaypointTracker      ActionDef  ✓        TC-NAV-003
+
+Coverage: 3 / 5 (60.0%)
+```
+
+**JSON output:**
+
+```json
+{
+  "scope": "VehicleSystem",
+  "covered": 3,
+  "total": 5,
+  "coverage_pct": 60.0,
+  "elements": [
+    {
+      "qname": "Propulsion::ComputeThrust",
+      "type": "ActionDef",
+      "covered": true,
+      "coveredBy": ["TC-PROP-001", "TC-PROP-002"]
+    },
+    {
+      "qname": "Propulsion::FuelShutoff",
+      "type": "ActionDef",
+      "covered": false,
+      "coveredBy": []
+    }
+  ]
+}
+```
+
+---
+
+## 21 ReqIF Export
+
+### 21.1 Overview
+
+ReqIF (Requirements Interchange Format, OMG formal/2016-09-01) is the standard XML-based interchange format for requirements management tools — IBM DOORS Next, PTC Integrity, Jama Connect, Polarion ALM. Exporting to ReqIF allows Syscribe models to be imported into these tools for review, annotation, or contractual handoff.
+
+This specification defines the mapping from native `Requirement` elements (and their containing packages) to ReqIF 1.2 artefacts.
+
+### 21.2 CLI Command
+
+**`syscribe export-reqif [--output <file>] [--scope <qname>] [--config <CONF>] [--zip]`**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--output file` | stdout | Write to `<file>.reqif`; with `--zip`, writes `<file>.reqifz` |
+| `--scope qname` | model root | Export only requirements in this namespace subtree |
+| `--config CONF` | no projection | When a feature model is present, project to this `Configuration` and export only active requirements |
+| `--zip` | false | Package as `.reqifz` (ZIP with a `content.reqif` entry and any embedded XHTML assets) |
+
+### 21.3 Element Mapping
+
+**Requirement → SPEC-OBJECT:**
+
+| Syscribe field | ReqIF construct |
+|---|---|
+| `id:` | `SPEC-OBJECT LONG-NAME` (also emitted as attribute `SYSCRIBE_ID`) |
+| `name:` | Attribute `NAME` (string) |
+| Body (Markdown → XHTML) | `SPEC-OBJECT.DESC` (XHTML content in `TheValue`) |
+| `status:` | Attribute `STATUS` (enumeration: `draft`, `review`, `approved`, `implemented`, `verified`) |
+| `silLevel:` | Attribute `SIL_LEVEL` (integer) |
+| `asilLevel:` | Attribute `ASIL_LEVEL` (string: A–D) |
+| `plLevel:` | Attribute `PL_LEVEL` (string: a–e) |
+| `reqDomain:` | Attribute `DOMAIN` (enumeration: `system`, `hardware`, `software`) |
+| `verificationMethod:` | Attribute `VERIFICATION_METHOD` |
+| Qualified name | Attribute `QUALIFIED_NAME` (string) |
+
+**Package (directory) → SPECIFICATION + SPEC-HIERARCHY:**
+
+Each package becomes a `SPECIFICATION` element. Nested packages and requirements become `SPEC-HIERARCHY` entries within it, preserving the directory tree structure.
+
+**`derivedFrom:` links → SPEC-RELATION:**
+
+Each `derivedFrom:` entry produces a `SPEC-RELATION` with `RELATION-TYPE-REF` pointing to the pre-defined type `DERIVED_FROM`. The `SOURCE` is the child requirement; the `TARGET` is the parent (OSLC direction preserved).
+
+**`verifies:` (reverse index `verifiedBy`) → SPEC-RELATION:**
+
+Each TestCase's `verifies:` link produces a `SPEC-RELATION` with type `VERIFIED_BY`. `SOURCE` is the requirement; `TARGET` is the TestCase's id (emitted as a separate SPEC-OBJECT with type `TEST_CASE`).
+
+**TestCase → SPEC-OBJECT (type `TEST_CASE`, optional):**
+
+When `--include-tests` is specified, active `TestCase` elements are emitted as SPEC-OBJECT entries of a separate specification section `Test Cases`.
+
+### 21.4 Markdown → XHTML Conversion
+
+The Markdown body of each `Requirement` is converted to XHTML for `SPEC-OBJECT.DESC`. Supported constructs:
+
+| Markdown | XHTML |
+|---|---|
+| `**bold**` | `<strong>` |
+| `*italic*` | `<em>` |
+| `` `code` `` | `<code>` |
+| `## heading` | `<h2>` (stripped of `#` markers) |
+| Bullet lists | `<ul><li>` |
+| Numbered lists | `<ol><li>` |
+| Fenced code blocks | `<pre><code>` |
+| Gherkin blocks | Omitted from XHTML (test-spec artefacts, not requirement prose) |
+
+### 21.5 Limitations
+
+- **Import not supported** — `export-reqif` is export-only; importing a ReqIF file into a Syscribe model is out of scope in this version.
+- **SysML structural elements excluded** — Only `Requirement` (and optionally `TestCase`) elements are exported. `PartDef`, `Port`, `Action`, etc. have no ReqIF mapping.
+- **XHTML conversion is best-effort** — Complex Markdown (tables, nested lists, HTML passthrough) may lose fidelity.
+- **Cross-tool round-trip** — Attributes added by the receiving tool during import are not preserved by Syscribe and will be lost on re-export.
+
+No new element types. No new validation rules.
+
+---
+
+## 22 Extensions to Existing Sections
+
+### 22.1 State Machine Completeness Validation (extends §8.8)
+
+The following validation rules apply to any `StateDef` that declares at least one `subStates:` entry (i.e., a composite state machine). They fire at model-time, after all cross-references are resolved.
+
+| Code | Condition |
+|---|---|
+| `W070` | **Dead state** — a substate has no incoming transitions from any other substate and is not marked `isInitial: true`. The substate can never be entered once the machine starts. |
+| `W071` | **Trap state** — a substate has no outgoing transitions and is not marked `isFinal: true`. Once entered, the state machine cannot exit this state. |
+| `W072` | **Non-determinism** — two transitions from the same source state have the same `accept.payload` (same trigger event type) and neither carries a `guard:`. The machine's response to this event is ambiguous. |
+| `W073` | **Missing initial state** — a `StateDef` with `subStates:` has no substate marked `isInitial: true`. The machine has no defined starting point. |
+| `W074` | **Multiple initial states** — more than one substate in the same `StateDef` is marked `isInitial: true`. A state machine has exactly one initial pseudostate. |
+
+All five codes are **draft-suppressed** (not emitted for `StateDef` elements with `status: draft`). All are gateable with `--deny W07x`.
+
+### 22.2 Budget Expression Language (extends §8.9)
+
+A restricted arithmetic expression grammar is defined for `CalculationDef.body` when `bodyLanguage: budget`. This enables the tool to evaluate and verify scalar budgets (mass, power, timing, link margin) without a full KerML expression evaluator.
+
+**Grammar (EBNF):**
+
+```
+expr   ::= term (("+" | "-") term)*
+term   ::= factor (("*" | "/") factor)*
+factor ::= NUMBER | feature_ref | "(" expr ")"
+NUMBER ::= [0-9]+ ("." [0-9]+)?
+feature_ref ::= IDENT ("::" IDENT)*
+IDENT  ::= [A-Za-z_][A-Za-z0-9_]*
+```
+
+**Resolution:** A `feature_ref` operand resolves to the `value:` or `default:` field of an inline attribute in the `CalculationDef`'s own `features:`, or to a named inline attribute of the element declared in the `typedBy:` scope chain.
+
+**New field on `CalculationDef`:**
+
+| Field | YAML type | Default | Description |
+|---|---|---|---|
+| `evaluate` | string | absent | Qualified name of a `ConstraintDef` whose `expression:` bounds the result. When present, the tool evaluates the `body:` expression and compares against the constraint. |
+
+**New validation rules:**
+
+| Code | Condition |
+|---|---|
+| `E800` | `evaluate:` resolves to an element that is not a `ConstraintDef` |
+| `E801` | `bodyLanguage: budget` expression contains a syntax error (unmatched parens, invalid token, etc.) |
+| `E802` | `bodyLanguage: budget` expression references a `feature_ref` that does not resolve to an attribute |
+| `W060` | `CalculationDef` with `bodyLanguage: budget` evaluates to a value that violates the `evaluate:` constraint (opt-in — dormant unless `bodyLanguage: budget` is present; gateable with `--deny W060`) |
+
+**New CLI command:**
+
+**`syscribe budgets [<qname>] [--json]`** — Evaluates all `CalculationDef` elements with `bodyLanguage: budget` in scope, shows the computed value, the constraint bound, and a pass/fail verdict.
+
+```
+Budget                              Value    Bound      Pass
+Propulsion::ThrustBudget            4250 N   ≤ 5000 N   ✓
+Propulsion::FuelMassFlowBudget      1.4 kg/s ≤ 1.2 kg/s ✗  ← violates constraint
+Navigation::TimingBudget            82 ms    ≤ 100 ms   ✓
+```
+
+### 22.3 ASIL/SIL Decomposition Pair Completeness (extends §12.7)
+
+The following extends Section 12.7 Rule R-007 with an additional structural check for decomposition claims.
+
+**Rule R-007b — Decomposition pair completeness.** When a `Requirement` with `asilLevel: D` (or `silLevel: 4`) has two or more `derivedChildren` all carrying strictly lower integrity levels (forming a decomposition claim per ISO 26262-9 §5 / IEC 61508-2 §7.4.9), the following structural conditions must hold:
+
+1. **Distinct satisfaction targets.** No two decomposition sibling requirements (children with lower integrity levels) may name the same architecture element in their `satisfies:` list. Sharing a satisfying element means the decomposition is not architecturally independent.
+2. **Breakdown ADR required.** Each sibling must carry `breakdownAdr:` referencing the same `accepted` ADR as the parent (or its own accepted ADR), containing the freedom-from-interference argument.
+
+**New frontmatter field on `Requirement`:**
+
+| Field | YAML type | Default | Description |
+|---|---|---|---|
+| `decompositionKind` | enum | absent | Documents the decomposition argument type: `independent` (each path independent by design), `redundant` (both paths active concurrently), or `diverse` (different implementation technologies). Informational — propagated to the `safety-case` report. |
+
+**New validation rules:**
+
+| Code | Condition |
+|---|---|
+| `E860` | ASIL/SIL decomposition siblings (children of a higher-level requirement with uniformly lower levels) share a `satisfies:` target — the decomposed channels must satisfy distinct architecture elements |
+| `W860` | A `Requirement` at `asilLevel: D` or `silLevel: 4` has `derivedChildren` at a uniformly lower level but fewer than two children — a single-child ASIL D decomposition is structurally incomplete |
+
+### 22.4 Sequence Diagram Send/Receive Completeness (extends §8.16.8.3)
+
+The completeness rule described in §8.16.8.3 for `Sequence` diagrams is now normative and enforced. A `Sequence` diagram element `D` with `subject:` pointing to an `ActionDef` `A` must include an edge entry for every `SendAction` and every `AcceptAction` reachable via `A.subActions:` or `A.steps:`.
+
+**New validation rule:**
+
+| Code | Condition |
+|---|---|
+| `W080` | A `Sequence` diagram's `subject:` `ActionDef` has a `SendAction` or `AcceptAction` in its sub-action tree that is not referenced by any entry in the diagram's `edges:` list — the sequence diagram is missing an edge for a known message event |
+
+`W080` is **draft-suppressed** (not emitted for `Sequence` diagrams with `status: draft`). Gateable with `--deny W080`.
