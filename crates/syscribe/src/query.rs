@@ -2654,6 +2654,27 @@ What was decided.
 
 What are the results of this decision?
 "#,
+        "reviewrecord" => r#"---
+type: ReviewRecord
+id: RR-PREFIX-001
+name: "Software Architecture Review — Sprint N"
+status: closed          # open | closed | waived
+reviewType: design_review   # design_review | requirements_review | hazard_review |
+                            #   test_readiness_review | inspection | walk_through
+reviewDate: "2026-01-01"
+# reviewedBy: [alice, bob]
+# recordedAt: "https://github.com/<org>/<repo>/pull/<n>"   # thin pointer to the review
+reviews:                # ≥1 element qnames / stable IDs covered by this review
+  - REQ-PREFIX-001
+# items:
+#   - id: RID-001
+#     description: "Action item description."
+#     disposition: closed   # open | closed | not_applicable
+#     closedBy: REQ-PREFIX-002
+---
+
+Summary of the review and its outcome (discussion lives in the linked `recordedAt` review).
+"#,
         "partdef" => r#"---
 type: PartDef
 name: MyPartDef

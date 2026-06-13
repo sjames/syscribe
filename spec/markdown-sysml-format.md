@@ -5397,7 +5397,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W402` | `scores:` matrix is incomplete (at least one (alternative, criterion) pair missing) |
 | `W403` | `alternatives[].element:` unresolved |
 
-#### Review record validation (E700–E705, W700–W701, §19.3)
+#### Review record validation (E700–E705, W700, W704, §19.3)
 
 | Code | Condition |
 |---|---|
@@ -5408,7 +5408,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E704` | `reviews:` entry unresolved |
 | `E705` | `items[].disposition` not in `open \| closed \| not_applicable` |
 | `W700` | `ReviewRecord` with `status: closed` has ≥1 `items[]` with `disposition: open` |
-| `W701` | Non-`draft` element appears in no `ReviewRecord.reviews:` list (opt-in; gateable with `--deny W701`) |
+| `W704` | Non-`draft` native `Requirement` appears in no `ReviewRecord.reviews:` list — dormant unless ReviewRecords exist (opt-in; `--deny W704`; drafted as `W701`, already in use) |
 
 #### Multi-repository composition (E510–E515, W510, §14.6)
 
@@ -6778,6 +6778,7 @@ Examples: `RR-SW-ARCH-001`, `RR-SYS-REQ-001`
 | `reviewType` | enum | **Required** | See enum below |
 | `reviewDate` | string | optional | ISO 8601 date (`YYYY-MM-DD`) |
 | `reviewedBy` | list of strings | optional | Names or org-unit identifiers of reviewers |
+| `recordedAt` | string | optional | URI of the external review record (e.g. a GitHub PR/review). A `ReviewRecord` is a **thin, baselined anchor** — the discussion lives in the linked tool; the model keeps the traceability and the coverage gate. |
 | `reviews` | list of strings | **Required** | Qualified names or stable IDs of elements covered by this review (≥ 1) |
 | `items` | list | optional | Action items arising from the review; see sub-schema below |
 
@@ -6843,7 +6844,7 @@ and wheel-speed sensor elements.
 | `E704` | `reviews:` entry cannot be resolved |
 | `E705` | `items[].disposition` not in `open \| closed \| not_applicable` |
 | `W700` | `ReviewRecord` with `status: closed` has at least one `items[]` entry with `disposition: open` — a closed review with unresolved items |
-| `W701` | Non-`draft` element appears in no `ReviewRecord.reviews:` list (opt-in; gateable with `--deny W701`; enable per coverage gate) |
+| `W704` | A non-`draft` native `Requirement` appears in no `ReviewRecord.reviews:` list — dormant unless the model uses ReviewRecords (opt-in; gateable with `--deny W704`). Drafted as `W701`, which is already in use (Requirement asilLevel → verificationMethod). |
 
 ### 19.4 CLI Commands
 

@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.17  
+**Version:** syscribe 0.26.18  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 234 |
-| Passed | 234 |
+| Total test cases | 235 |
+| Passed | 235 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2470,6 +2470,29 @@
 | Scenario | Result |
 |---|---|
 | list Asset shows asset elements | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-018 — Verify the native ReviewRecord element: E700–E705 structural rules, W700 (closed review with open item), W704 (uncovered requirement), and the reviews / review / reviews --coverage commands plus template ReviewRecord.
+
+**Verifies:** REQ-TRS-TYPE-018  
+**Result:** ✓ PASS (19 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| well-formed ReviewRecord is clean | ✓ PASS |
+| E700 — missing required fields | ✓ PASS |
+| E701 — bad id pattern | ✓ PASS |
+| E702 — bad status | ✓ PASS |
+| E703 — bad reviewType | ✓ PASS |
+| E704 — unresolved reviews entry | ✓ PASS |
+| E705 — bad item disposition | ✓ PASS |
+| W700 — closed review with open item | ✓ PASS |
+| W704 — uncovered requirement | ✓ PASS |
+| reviews lists the record | ✓ PASS |
+| reviews --coverage shows uncovered requirement | ✓ PASS |
+| review shows detail | ✓ PASS |
+| template ReviewRecord skeleton | ✓ PASS |
 
 ---
 

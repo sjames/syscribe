@@ -8,7 +8,7 @@ use crate::graph::EdgeKind;
 use crate::resolver::{
     is_adr_id, is_asset_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
     is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
-    is_req_id, is_sc_id, is_sg_id, is_stable_id, is_tara_id, is_tc_id, is_test_plan_id, is_ts_id,
+    is_req_id, is_rr_id, is_sc_id, is_sg_id, is_stable_id, is_tara_id, is_tc_id, is_test_plan_id, is_ts_id,
     is_vr_id, Resolver,
 };
 
@@ -2169,6 +2169,78 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // ── ReviewRecord (§19, GH #71) ───────────────────────────────────────
+        if matches!(fm.element_type, Some(ElementType::ReviewRecord)) {
+            // E700: required fields.
+            if fm.id.is_none() {
+                findings.push(error("E700", &file, "`id` is required on ReviewRecord"));
+            }
+            if fm.name.is_none() {
+                findings.push(error("E700", &file, "`name` is required on ReviewRecord"));
+            }
+            if fm.status.is_none() {
+                findings.push(error("E700", &file, "`status` is required on ReviewRecord"));
+            }
+            if fm.review_type.is_none() {
+                findings.push(error("E700", &file, "`reviewType` is required on ReviewRecord"));
+            }
+            if fm.reviews.as_ref().map_or(true, |r| r.is_empty()) {
+                findings.push(error("E700", &file, "`reviews` (at least one covered element) is required on ReviewRecord"));
+            }
+            // E701: id pattern.
+            if let Some(ref id) = fm.id {
+                if !is_rr_id(id) {
+                    findings.push(error("E701", &file, &format!("`id` '{}' does not match RR-* pattern", id)));
+                }
+            }
+            // E702: status enum.
+            if let Some(ref s) = fm.status {
+                const RR_STATUSES: &[&str] = &["open", "closed", "waived"];
+                if !RR_STATUSES.contains(&s.as_str()) {
+                    findings.push(error("E702", &file, &format!("ReviewRecord.status '{}' must be open, closed, or waived", s)));
+                }
+            }
+            // E703: reviewType enum.
+            if let Some(ref rt) = fm.review_type {
+                const REVIEW_TYPES: &[&str] = &[
+                    "design_review", "requirements_review", "hazard_review",
+                    "test_readiness_review", "inspection", "walk_through",
+                ];
+                if !REVIEW_TYPES.contains(&rt.as_str()) {
+                    findings.push(error("E703", &file, &format!("ReviewRecord.reviewType '{}' is not a recognised review type", rt)));
+                }
+            }
+            // E704: each reviews entry must resolve.
+            if let Some(ref reviews) = fm.reviews {
+                for r in reviews {
+                    if resolver.resolve_ref(elements, r).is_none() {
+                        findings.push(error("E704", &file, &format!("ReviewRecord.reviews entry '{}' does not resolve to a known element", r)));
+                    }
+                }
+            }
+            // E705: items[].disposition enum; track open items for W700.
+            let mut has_open_item = false;
+            if let Some(ref items) = fm.items {
+                for it in items {
+                    if let Some(m) = it.as_mapping() {
+                        match yaml_field(m, "disposition").and_then(|v| v.as_str()) {
+                            Some("open") => has_open_item = true,
+                            Some("closed") | Some("not_applicable") => {}
+                            other => findings.push(error(
+                                "E705",
+                                &file,
+                                &format!("ReviewRecord items[].disposition '{}' must be open, closed, or not_applicable", other.unwrap_or("<missing>")),
+                            )),
+                        }
+                    }
+                }
+            }
+            // W700: a closed review with an unresolved (open) action item.
+            if fm.status.as_deref() == Some("closed") && has_open_item {
+                findings.push(warning("W700", &file, "ReviewRecord is `status: closed` but has an action item with `disposition: open`"));
+            }
+        }
+
         // W304: isDeploymentPackage: true combined with domain: hardware
         if fm.is_deployment_package == Some(true) {
             if fm.domain.as_deref() == Some("hardware") {
@@ -3487,6 +3559,47 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     req_id
                 ),
             ));
+        }
+    }
+
+    // W704 (§19, GH #71): review coverage gap. Scoped to non-draft native Requirements and
+    // dormant unless the model uses ReviewRecords — a Requirement covered by no
+    // `ReviewRecord.reviews:` list. Opt-in; gateable with `--deny W704`.
+    {
+        let review_records: Vec<&RawElement> = elements
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::ReviewRecord)))
+            .collect();
+        if !review_records.is_empty() {
+            let mut covered: HashSet<String> = HashSet::new();
+            for rr in &review_records {
+                if let Some(reviews) = &rr.frontmatter.reviews {
+                    for r in reviews {
+                        covered.insert(r.clone());
+                        if let Some(t) = resolver.resolve_ref(elements, r) {
+                            if let Some(id) = &t.frontmatter.id {
+                                covered.insert(id.clone());
+                            }
+                            covered.insert(t.qualified_name.clone());
+                        }
+                    }
+                }
+            }
+            for el in elements {
+                if !Resolver::is_native_requirement(el)
+                    || el.frontmatter.status.as_deref() == Some("draft")
+                {
+                    continue;
+                }
+                let id = el.frontmatter.id.as_deref().unwrap_or("");
+                if !covered.contains(id) && !covered.contains(&el.qualified_name) {
+                    findings.push(warning(
+                        "W704",
+                        &el.file_path,
+                        &format!("Requirement '{}' appears in no ReviewRecord.reviews list — no review evidence", id),
+                    ));
+                }
+            }
         }
     }
 

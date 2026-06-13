@@ -18,6 +18,7 @@ mod mgreport;
 mod mv;
 mod query;
 mod render;
+mod reviews;
 mod safety_case;
 mod scaffold;
 mod scripting;
@@ -1057,6 +1058,31 @@ fn main() {
                         if code != 0 {
                             std::process::exit(code);
                         }
+                    }
+                }
+            }
+            "reviews" => {
+                // ReviewRecord surface (§19, GH #71). Read-only.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let open_only = rest.iter().any(|a| a == "--open-only");
+                let coverage = rest.iter().any(|a| a == "--coverage");
+                let filter = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
+                reviews::cmd_reviews(&elems, filter, open_only, coverage, json);
+            }
+            "review" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                match rest.iter().find(|a| !a.starts_with("--")) {
+                    Some(id) => {
+                        let code = reviews::cmd_review(&elems, id, json);
+                        if code != 0 {
+                            std::process::exit(code);
+                        }
+                    }
+                    None => {
+                        eprintln!("Usage: syscribe --model <root> review <RR-id> [--json]");
+                        std::process::exit(2);
                     }
                 }
             }

@@ -2,6 +2,16 @@
 
 `RELEASES`
 
+## 0.26.19 — 2026-06-13
+
+### Native ReviewRecord element — thin, GitHub-pointer design (GH #71)
+
+- **`ReviewRecord` (`RR-*`)** — a first-class, baselined element capturing a formal review event (design / requirements / hazard / test-readiness review, inspection, walkthrough) and the model elements it covers. Deliberately **thin**: a `recordedAt:` URI points to the external review (e.g. a GitHub PR/review) so the discussion stays in the review tool while the model keeps the auditable traceability anchor and the coverage gate. (`REQ-TRS-TYPE-018`)
+- **Validation** — `E700` (required fields), `E701` (RR-* id pattern), `E702` (status enum), `E703` (reviewType enum), `E704` (unresolved `reviews:` entry), `E705` (item disposition enum), `W700` (closed review with an open action item), and `W704` (a non-`draft` Requirement covered by no review — dormant unless ReviewRecords exist; gateable with `--deny W704`).
+- **CLI** — `reviews [<qname>] [--open-only] [--json]`, `review <RR-id> [--json]`, `reviews --coverage [--json]` (requirement coverage cross-table), and `template ReviewRecord`.
+
+> **Code note:** the spec drafted the coverage warning as `W701`, already in use (Requirement asilLevel → verificationMethod); reassigned to **`W704`** and the spec §19 corrected. `E700`–`E705`/`W700` were free. The `recordedAt:` field was added to §19 for the thin/pointer design.
+
 ## 0.26.18 — 2026-06-13
 
 ### Budget expression language for CalculationDef (GH #67)

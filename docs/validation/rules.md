@@ -275,6 +275,21 @@ For a `CalculationDef` with `bodyLanguage: budget`, the `body:` is a restricted 
 | E868 | A `feature_ref` operand resolves to no numeric attribute in scope. |
 | W060 | The budget value violates the `evaluate:` constraint (best-effort, for `<lhs> <op> <number>` bounds; draft-suppressed; `--deny W060`). |
 
+## Review records (E700–E705, W700, W704, §19)
+
+A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal review; the discussion lives in the external tool named by `recordedAt:`.
+
+| Code | Condition |
+|---|---|
+| E700 | Missing `id`, `name`, `status`, `reviewType`, or `reviews` (≥1). |
+| E701 | `id` does not match the `RR-*` pattern. |
+| E702 | `status` not in `open \| closed \| waived`. |
+| E703 | `reviewType` not in the allowed enum. |
+| E704 | A `reviews:` entry does not resolve. |
+| E705 | An `items[].disposition` is not `open \| closed \| not_applicable`. |
+| W700 | A `status: closed` review has an `items[]` with `disposition: open`. |
+| W704 | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (dormant unless ReviewRecords exist; `--deny W704`). |
+
 ## Allocation errors (E500–E503)
 
 | Code | Condition |

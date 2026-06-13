@@ -125,6 +125,7 @@ pub enum ElementType {
     TestCase,
     TestPlan,         // TP-* — configuration-bound test campaign (GH #38)
     ADR,              // Architecture Decision Record (§8.17)
+    ReviewRecord,     // RR-* — formal review event + traceability (§19, GH #71)
     // Confirmation measure (ISO 26262-2 §6 / ISO/SAE 21434 §7) — CM-*
     ConfirmationMeasure,
     // Safety analysis (ISO 26262 HARA)
@@ -187,6 +188,7 @@ impl ElementType {
                 | ElementType::TestPlan
                 | ElementType::Configuration
                 | ElementType::ADR
+                | ElementType::ReviewRecord
                 | ElementType::ConfirmationMeasure
                 | ElementType::HazardousEvent
                 | ElementType::SafetyGoal
@@ -433,6 +435,16 @@ pub struct RawFrontmatter {
     pub body_language: Option<String>,
     /// `CalculationDef` (§22.2): qualified name of a `ConstraintDef` bounding the budget result.
     pub evaluate: Option<String>,
+    // Native ReviewRecord fields (§19, GH #71). `recordedAt` is the thin pointer to the
+    // external review (e.g. a GitHub PR/review URL); the model keeps the baselined anchor.
+    pub review_type: Option<String>,
+    pub review_date: Option<String>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub reviewed_by: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub reviews: Option<Vec<String>>,
+    pub items: Option<Vec<serde_yaml::Value>>,
+    pub recorded_at: Option<String>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
     pub return_type: Option<String>,
