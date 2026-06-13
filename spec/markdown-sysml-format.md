@@ -5352,6 +5352,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W073` | Missing initial state — a region (single-region `StateDef`, or a parallel region) with substates has no `isInitial: true` entry |
 | `W074` | Multiple initial states — a region has more than one `isInitial: true` substate |
 | `W075` | Deprecated transition keys — a transition uses `from:`/`to:`/`trigger:` instead of canonical `source:`/`target:`/`accept:` (§8.8.3) |
+| `W076` | Unresolved endpoint — a transition `source`/`target` names no state anywhere in the machine and resolves to no model element |
 | `W077` | Cross-region transition — a transition connects substates in two different regions of a parallel state (illegal in SysMLv2) |
 | `W078` | Parallel arity — an `isParallel: true` state declares fewer than two regions |
 
@@ -7031,7 +7032,13 @@ The following validation rules apply to a **single-region** `StateDef`/`State` t
 | `W077` | **Cross-region transition** — a transition (declared at the parallel parent or inside a region) connects substates belonging to two different regions. SysMLv2 forbids transitions between the substates of a parallel state. |
 | `W078` | **Parallel arity** — an `isParallel: true` state declares fewer than two regions; it is not orthogonal. |
 
-All of these codes are **draft-suppressed** (not emitted for `status: draft`) and gateable with `--deny W07x`. Non-parallel **composite** machines (a substate carrying `typedBy:` or an inline `subStates:`) defer `W070`/`W071` to the hierarchy-aware treatment.
+**Composite (hierarchical) state machines.** A substate is **composite** when it carries `typedBy:` (a reference to another `StateDef`) or an inline `subStates:` list (SysMLv2 §7.18). The checks apply **recursively** over the hierarchy: at each level the direct substates are checked by `W070`–`W074` with a composite substate treated as a single **node**, and every **inline-`subStates:`** substate is recursed into and checked as its own region (findings name the enclosing region). A `typedBy:` substate is a node only — the referenced `StateDef` is validated as its own element. The flat single-region case is the depth-1 special case; parallel regions are checked per region by the same recursion.
+
+| Code | Condition |
+|---|---|
+| `W076` | **Unresolved endpoint** — a transition `source`/`target` names no state anywhere in the machine's hierarchy and resolves to no model element by qualified name. |
+
+All of these codes are **draft-suppressed** (not emitted for `status: draft`) and gateable with `--deny W07x`.
 
 ### 22.2 Budget Expression Language (extends §8.9)
 

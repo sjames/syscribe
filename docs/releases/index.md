@@ -2,6 +2,14 @@
 
 `RELEASES`
 
+## 0.26.15 — 2026-06-13
+
+### State machines — hierarchy/composite + endpoint resolution (Phase D of SysMLv2-faithful HSM)
+
+- **Composite (hierarchical) state machines validated recursively** — a substate that carries `typedBy:` or an inline `subStates:` list is a composite state (SysMLv2 §7.18). The §22.1 checks now run **recursively** over the hierarchy: each level's substates are checked by `W070`–`W074` with a composite substate treated as a single **node**, and every inline-`subStates:` substate is recursed into and checked as its own region (findings name the enclosing region). A `typedBy:` substate is a node only — the referenced `StateDef` is validated as its own element. (`REQ-TRS-SM-006`)
+- **`W076` — unresolved transition endpoint** — a transition `source`/`target` that names no state anywhere in the machine's hierarchy and resolves to no model element by qualified name is flagged (typos, references to removed states). Draft-suppressed; gateable with `validate --deny W076`. (`REQ-TRS-SM-007`)
+- **Unified engine** — the flat (Phase B), parallel (Phase C) and composite paths now share one recursive walk (`check_state_node`) over one transition extractor, so a composite substate no longer suppresses its enclosing level's dead/trap checks.
+
 ## 0.26.14 — 2026-06-13
 
 ### State machines — parallel/orthogonal regions (Phase C of SysMLv2-faithful HSM)

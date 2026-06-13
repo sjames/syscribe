@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.13  
+**Version:** syscribe 0.26.14  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 230 |
-| Passed | 230 |
+| Total test cases | 231 |
+| Passed | 231 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2025,6 +2025,21 @@
 | W078 — single-region parallel state | ✓ PASS |
 | W078 draft-suppressed | ✓ PASS |
 | validate --deny W078 promotes to gate failure | ✓ PASS |
+
+---
+
+### TC-TRS-SM-005 — Verify composite/hierarchical state machines: recursion into inner regions (region-named W073), composite-as-node top-level checks, and W076 for unresolved transition endpoints; clean composite is silent; draft-suppressed; gateable.
+
+**Verifies:** REQ-TRS-SM-006,REQ-TRS-SM-007  
+**Result:** ✓ PASS (11 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| well-formed composite machine is clean | ✓ PASS |
+| W073 — inner region has no initial | ✓ PASS |
+| W076 — unresolved transition endpoint | ✓ PASS |
+| W076 draft-suppressed | ✓ PASS |
+| validate --deny W076 promotes to gate failure | ✓ PASS |
 
 ---
 

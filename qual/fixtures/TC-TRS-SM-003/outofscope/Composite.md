@@ -5,8 +5,12 @@ subStates:
   - name: Outer
     typedBy: Parallel
     isInitial: true
-  - name: Other
+    transitions:
+      - target: Done
+  - name: Done
+    isFinal: true
 ---
 
-A composite machine: the `Outer` substate is typed by another StateDef. Out of scope for the
-flat checks; must raise none of W070–W074 (handled by the hierarchy-aware phase).
+A well-formed composite machine: `Outer` (typed by another StateDef) is the initial state
+and transitions to a final `Done`. The flat W070–W074 must not fire. Composite interiors and
+endpoint resolution are exercised by TC-TRS-SM-005.
