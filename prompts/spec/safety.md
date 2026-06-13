@@ -57,6 +57,30 @@ requirements), E841 (derived Requirement missing integrity level).
 
 ## Tier 2 — TARA (Threat Analysis and Risk Assessment)
 
+### Asset — `ASSET-*` (ISO/SAE 21434 §15.3)
+
+Formal asset identification — the starting point of the TARA process. A `DamageScenario`
+damages one or more assets; an `Asset` names what is being protected and which
+cybersecurity properties (CIA) matter.
+
+```yaml
+type: Asset
+id: ASSET-KERNEL-001
+name: "Scheduler state"
+status: approved
+cybersecurityProperties:    # confidentiality · integrity · availability · authenticity
+  - integrity
+  - availability
+assetOwner: SabatonRt::Software::Scheduler   # optional: owning architecture element (qname/id)
+relatedSafetyGoal: SG-KERNEL-001             # optional: SafetyGoal ref for safety↔security co-engineering
+```
+
+`id`, `name` and `status` are required (**E861** if absent); the `id` must match the
+`ASSET-*` pattern (**E862**). Each `cybersecurityProperties` entry must be one of
+`confidentiality`, `integrity`, `availability`, `authenticity` (**E863** otherwise). An
+Asset not referenced by any `DamageScenario.assets` warns **W810** (asset-identification
+gap). A `DamageScenario.assets` entry that does not resolve to an `Asset` errors **E864**.
+
 ### DamageScenario — `DS-*`
 
 ```yaml
@@ -68,6 +92,7 @@ damageSeverity: severe      # severe · major · moderate · negligible
 impactCategories:           # safety · financial · operational · privacy
   - safety
   - operational
+assets: [ASSET-KERNEL-001]  # optional: Asset(s) this scenario damages (§15.3 → §15.4 trace; refs must resolve, else E864)
 hazardRef: SG-001           # optional: HazardousEvent/SafetyGoal this damage endangers
                             #   (string or list; safety↔security co-engineering)
 ```

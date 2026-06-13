@@ -132,6 +132,8 @@ mod tests {
             },
             doc: String::new(),
             parse_issue: None,
+            derived: std::collections::HashMap::new(),
+            derive_findings: Vec::new(),
         }
     }
 
@@ -148,6 +150,8 @@ mod tests {
             },
             doc: String::new(),
             parse_issue: None,
+            derived: std::collections::HashMap::new(),
+            derive_findings: Vec::new(),
         }
     }
 
@@ -163,6 +167,8 @@ mod tests {
             },
             doc: String::new(),
             parse_issue: None,
+            derived: std::collections::HashMap::new(),
+            derive_findings: Vec::new(),
         }
     }
 

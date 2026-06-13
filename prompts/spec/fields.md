@@ -142,6 +142,7 @@ All frontmatter fields. Optional unless marked **required**.
 | Field | Type | Notes |
 |---|---|---|
 | `testLevel` | string | **required** — `L1` (doc review) · `L2` (analysis) · `L3` (unit/integration) · `L4` (system) · `L5` (HIL/physical) |
+| `securityTestMethod` | string | optional (ISO/SAE 21434 §13.3) — `fuzz` · `penetration_test` · `security_regression` · `vulnerability_scan` · `threat_modeling` (W809 if other). Orthogonal to `testLevel`; lets `verification-depth`/`matrix` distinguish security-method tests from functional ones |
 | `sourceFile` | string | Path relative to model root (W004 if not found) |
 | `testFunctions` | list | `{function: name, scenario: "title"}` mappings |
 | `tags` | list | Free-form tags |

@@ -218,6 +218,22 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W036` | `AttackTree` has no gates or steps (tree is empty) |
 | `W037` | `AttackTreeGate` has no `inputs` |
 
+## Asset identification — ISO/SAE 21434 §15.3 (E861–E864, W810)
+
+| Code | Condition |
+|---|---|
+| `E861` | `Asset` missing `id`, `name`, or `status` |
+| `E862` | `Asset.id` does not match the `ASSET-*` pattern |
+| `E863` | `Asset.cybersecurityProperties` entry not in `confidentiality · integrity · availability · authenticity` |
+| `E864` | `DamageScenario.assets` entry does not resolve to an `Asset` element |
+| `W810` | `Asset` not referenced by any `DamageScenario.assets` (asset-identification gap) |
+
+## Security test method — ISO/SAE 21434 §13.3 (W809)
+
+| Code | Condition |
+|---|---|
+| `W809` | `TestCase.securityTestMethod` not in `fuzz · penetration_test · security_regression · vulnerability_scan · threat_modeling` |
+
 ## Product Line Engineering errors (E200–E221)
 
 | Code | Condition |

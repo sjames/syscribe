@@ -2586,6 +2586,8 @@ id: TC-PREFIX-001
 name: "Verify that ..."
 status: draft
 testLevel: L5
+# securityTestMethod: fuzz   # optional (ISO/SAE 21434 §13.3): fuzz | penetration_test |
+#                            #   security_regression | vulnerability_scan | threat_modeling (W809 if other)
 coverageTarget: statement
 verifies:
   - REQ-PREFIX-001
@@ -3309,6 +3311,19 @@ The system shall avoid [hazard] in all driving situations.
 
 Why this safety goal derives from the listed hazardous events.
 "#,
+        "asset" => r#"---
+type: Asset
+id: ASSET-PREFIX-001
+name: "What is being protected"
+status: draft
+cybersecurityProperties:  # confidentiality | integrity | availability | authenticity
+  - integrity
+assetOwner: Pkg::Subpkg::Component   # optional: owning architecture element (qname/id)
+relatedSafetyGoal: SG-PREFIX-001     # optional: SafetyGoal ref for safety<->security co-engineering
+---
+
+Describe the asset (ISO/SAE 21434 §15.3) and why its cybersecurity properties matter.
+"#,
         "damagescenario" => r#"---
 type: DamageScenario
 id: DS-PREFIX-001
@@ -3317,6 +3332,8 @@ status: draft
 damageSeverity: severe    # severe | major | moderate | negligible
 impactCategories:
   - safety                # safety | financial | operational | privacy
+assets:                   # optional: Asset(s) this scenario damages (§15.3 -> §15.4 trace)
+  - ASSET-PREFIX-001
 ---
 
 Describe what damage could occur and to whom.
@@ -3467,7 +3484,7 @@ honour for the referenced goal/argument/requirement to hold.
             eprintln!("  PLE:              FeatureDef, Configuration");
             eprintln!("  Misc:             Dependency");
             eprintln!("  Safety (HARA):    HazardousEvent, SafetyGoal");
-            eprintln!("  Security (TARA):  DamageScenario, ThreatScenario, CybersecurityGoal,");
+            eprintln!("  Security (TARA):  Asset, DamageScenario, ThreatScenario, CybersecurityGoal,");
             eprintln!("                    SecurityControl, VulnerabilityReport, TARASheet");
             eprintln!("  FTA:              FaultTree, FaultTreeGate, FaultTreeEvent");
             eprintln!("  FMEA:             FMEASheet");
@@ -3663,6 +3680,8 @@ mod custom_where_tests {
             frontmatter: fm,
             doc: String::new(),
             parse_issue: None,
+            derived: std::collections::HashMap::new(),
+            derive_findings: Vec::new(),
         }
     }
 

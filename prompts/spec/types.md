@@ -82,8 +82,9 @@
 
 ## Safety/security native types — see `syscribe spec safety`
 
-`HazardousEvent` (HE-*) · `SafetyGoal` (SG-*) · `DamageScenario` (DS-*) ·
-`ThreatScenario` (TS-*) · `CybersecurityGoal` (CSG-*) · `SecurityControl` (SC-*) ·
+`HazardousEvent` (HE-*) · `SafetyGoal` (SG-*) · `Asset` (ASSET-*) ·
+`DamageScenario` (DS-*) · `ThreatScenario` (TS-*) · `CybersecurityGoal` (CSG-*) ·
+`SecurityControl` (SC-*) ·
 `VulnerabilityReport` (VR-*) · `TARASheet` (TARA-*) · `FaultTree` (FT-*) ·
 `FaultTreeGate` (FTG-*) · `FaultTreeEvent` (FTE-*) · `FMEASheet` (FMEA-*) ·
 `FMEAEntry` (row of an FMEASheet) · `AttackTree` (AT-*) ·
@@ -197,6 +198,8 @@ id: TC-UAV-FC-001            # required; TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}
 name: "..."                 # required
 status: active               # draft | active | retired
 testLevel: L2                # L1–L5
+securityTestMethod: fuzz     # optional (ISO/SAE 21434 §13.3): fuzz · penetration_test ·
+                             #   security_regression · vulnerability_scan · threat_modeling (else W809)
 verifies: [REQ-UAV-FC-001]
 sourceFile: tests/test_fc.py
 testFunctions:
