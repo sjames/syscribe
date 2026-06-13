@@ -29,6 +29,7 @@ mod scaffold;
 mod scripting;
 mod testplan;
 mod tradestudy;
+mod zones;
 mod vdepth;
 mod spec;
 
@@ -1107,6 +1108,18 @@ fn main() {
                     tool_version: env!("CARGO_PKG_VERSION"),
                 };
                 reqif::cmd_export_reqif(&view, &opts);
+            }
+            "zones" => {
+                // IEC 62443 zones (§13, GH #61). Read-only.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let coverage = rest.iter().any(|a| a == "--coverage");
+                zones::cmd_zones(&elems, coverage, json);
+            }
+            "conduits" => {
+                // IEC 62443 conduits (§13, GH #61). Read-only.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                zones::cmd_conduits(&elems, rest.iter().any(|a| a == "--json"));
             }
             "sbom" => {
                 // SBOM generation (§18, GH #66). Read-only.

@@ -295,6 +295,22 @@ A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes no
 | W063 | The score matrix is incomplete (draft-suppressed). |
 | W064 | An `alternatives[].element` is present but unresolved (draft-suppressed). |
 
+## IEC 62443 Zone/Conduit (E950–E956, W950–W953, §13)
+
+| Code | Condition |
+|---|---|
+| E950 | `Zone` missing `id`/`name`/`status`/`targetSL`. |
+| E951 | `Zone.id` not a `ZN-*` id. |
+| E952 | `Conduit` missing `id`/`name`/`status`/`fromZone`/`toZone`. |
+| E953 | `Conduit.id` not a `CD-*` id. |
+| E954 | `Conduit.fromZone`/`toZone` unresolved or not a `Zone`. |
+| E955 | `Zone.members:` entry unresolved or not a `PartDef`/`Part`. |
+| E956 | `PartDef`/`Part.inZone:` unresolved or not a `Zone`. |
+| W950 | `Zone.achievedSL < targetSL` (SL gap). |
+| W951 | `Conduit.achievedSL` below a connected zone's `targetSL` (opt-in). |
+| W952 | A part declares `targetSL` but belongs to no zone (opt-in). |
+| W953 | An `approved` `Zone` (`targetSL >= 2`) referenced by no `Conduit`. |
+
 ## Documentation linting (W099–W102, `lint-docs`)
 
 The `lint-docs` command scans external `.md` and `.svg` docs for references to model elements that no longer resolve (gateable, e.g. `--deny W100`).

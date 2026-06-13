@@ -2,6 +2,14 @@
 
 `RELEASES`
 
+## 0.26.27 — 2026-06-13
+
+### IEC 62443 Zone/Conduit model (GH #61)
+
+- **Native `Zone` (`ZN-*`) and `Conduit` (`CD-*`) element types** (§13) for industrial cybersecurity: a `Zone` groups parts under a Security Level (`targetSL`/`achievedSL`, `members:`); a `Conduit` connects two zones (`fromZone`/`toZone`, `achievedSL`, `implementedBy:` controls). `PartDef`/`Part` may carry `targetSL`/`achievedSL`/`inZone:`. (`REQ-TRS-TYPE-020`)
+- **Validation** — `E950`–`E956` (required fields, `ZN-*`/`CD-*` ids, conduit endpoints resolve to zones, member/inZone type checks) and `W950`–`W953` (SL gap, weak conduit boundary, isolated SL claim, approved zone with no conduit).
+- **CLI** — `zones [--coverage] [--json]` (zones + SL gap, or Zone × SecurityControl cross-table), `conduits [--json]` (conduits + SL adequacy), and `template Zone`/`template Conduit`. The demo model is extended with an avionics control zone, a datalink zone, and the conduit between them.
+
 ## 0.26.26 — 2026-06-13
 
 ### lint-docs — diagram reference resolution (GH #74)

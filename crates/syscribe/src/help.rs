@@ -40,6 +40,8 @@ const HELP: &[(&str, &str)] = &[
     ("behavioral-coverage", include_str!("../../../prompts/help/behavioral-coverage.md")),
     ("sbom", include_str!("../../../prompts/help/sbom.md")),
     ("export-reqif", include_str!("../../../prompts/help/export-reqif.md")),
+    ("zones", include_str!("../../../prompts/help/zones.md")),
+    ("conduits", include_str!("../../../prompts/help/conduits.md")),
     ("impact", include_str!("../../../prompts/help/impact.md")),
     ("n2", include_str!("../../../prompts/help/n2.md")),
     ("reviews", include_str!("../../../prompts/help/reviews.md")),

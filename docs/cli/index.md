@@ -412,6 +412,15 @@ PowerSystem         PowerConn…   PowerConn…  ■            PowerConn…
 PropulsionSystem    —            —           —            ■
 ```
 
+## IEC 62443 zones & conduits (`zones`, `conduits`)
+
+```bash
+syscribe -m model/ zones [--coverage] [--json]
+syscribe -m model/ conduits [--json]
+```
+
+Lists `Zone` elements (§13) with their `targetSL`/`achievedSL`, member count, and SL gap status, and `Conduit` elements with from/to zones, `achievedSL`, and whether the conduit boundary meets the higher connected zone's required SL. `zones --coverage` prints a Zone × SecurityControl cross-table (controls sourced from conduit `implementedBy:` and zone-member SecurityControls).
+
 ## ReqIF export (`export-reqif`)
 
 ```bash

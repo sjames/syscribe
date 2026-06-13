@@ -7,7 +7,8 @@ use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
 use crate::resolver::{
     is_adr_id, is_asset_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
-    is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
+    is_cd_id, is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
+    is_zn_id,
     is_req_id, is_rr_id, is_sc_id, is_sg_id, is_stable_id, is_tara_id, is_tc_id, is_test_plan_id, is_trd_id, is_ts_id,
     is_vr_id, Resolver,
 };
@@ -3731,6 +3732,119 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         &format!("Requirement '{}' appears in no ReviewRecord.reviews list — no review evidence", id),
                     ));
                 }
+            }
+        }
+    }
+
+    // ── IEC 62443 Zone / Conduit (§13, GH #61) ──────────────────────────────
+    {
+        let is_zone = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::Zone));
+        let is_part = |e: &RawElement| {
+            matches!(e.frontmatter.element_type, Some(ElementType::PartDef) | Some(ElementType::Part))
+        };
+        // Zones referenced by any conduit (fromZone/toZone) → for W953.
+        let mut conduit_zone_refs: HashSet<String> = HashSet::new();
+        for c in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Conduit))) {
+            for z in [&c.frontmatter.from_zone, &c.frontmatter.to_zone].into_iter().flatten() {
+                if let Some(t) = resolver.resolve_ref(elements, z) {
+                    conduit_zone_refs.insert(t.qualified_name.clone());
+                }
+            }
+        }
+        // Parts referenced by any Zone.members → for W952.
+        let mut member_parts: HashSet<String> = HashSet::new();
+        for z in elements.iter().filter(|e| is_zone(e)) {
+            for m in z.frontmatter.members.as_deref().unwrap_or(&[]) {
+                if let Some(t) = resolver.resolve_ref(elements, m) {
+                    member_parts.insert(t.qualified_name.clone());
+                }
+            }
+        }
+
+        for z in elements.iter().filter(|e| is_zone(e)) {
+            let fm = &z.frontmatter;
+            let f = &z.file_path;
+            // E950 required fields.
+            for (present, label) in [(fm.id.is_some(), "id"), (fm.name.is_some(), "name"), (fm.status.is_some(), "status"), (fm.target_sl.is_some(), "targetSL")] {
+                if !present {
+                    findings.push(error("E950", f, &format!("`{}` is required on Zone", label)));
+                }
+            }
+            // E951 id pattern.
+            if let Some(id) = &fm.id {
+                if !is_zn_id(id) {
+                    findings.push(error("E951", f, &format!("`id` '{}' does not match ZN-* pattern", id)));
+                }
+            }
+            // E955 members must resolve to PartDef/Part.
+            for m in fm.members.as_deref().unwrap_or(&[]) {
+                match resolver.resolve_ref(elements, m) {
+                    Some(t) if is_part(t) => {}
+                    _ => findings.push(error("E955", f, &format!("Zone member '{}' does not resolve to a PartDef/Part", m))),
+                }
+            }
+            // W950 achievedSL < targetSL.
+            if let (Some(a), Some(t)) = (fm.achieved_sl, fm.target_sl) {
+                if a < t {
+                    findings.push(warning("W950", f, &format!("Zone achievedSL {} is below targetSL {} — security level not yet achieved", a, t)));
+                }
+            }
+            // W953 approved zone (targetSL>=2) with no referencing conduit.
+            if fm.status.as_deref() == Some("approved") && fm.target_sl.unwrap_or(0) >= 2 && !conduit_zone_refs.contains(&z.qualified_name) {
+                findings.push(warning("W953", f, &format!("approved Zone '{}' (targetSL {}) is referenced by no Conduit", fm.id.as_deref().unwrap_or(&z.qualified_name), fm.target_sl.unwrap_or(0))));
+            }
+        }
+
+        for c in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Conduit))) {
+            let fm = &c.frontmatter;
+            let f = &c.file_path;
+            for (present, label) in [(fm.id.is_some(), "id"), (fm.name.is_some(), "name"), (fm.status.is_some(), "status"), (fm.from_zone.is_some(), "fromZone"), (fm.to_zone.is_some(), "toZone")] {
+                if !present {
+                    findings.push(error("E952", f, &format!("`{}` is required on Conduit", label)));
+                }
+            }
+            if let Some(id) = &fm.id {
+                if !is_cd_id(id) {
+                    findings.push(error("E953", f, &format!("`id` '{}' does not match CD-* pattern", id)));
+                }
+            }
+            // E954 from/to must resolve to a Zone; collect connected targetSLs for W951.
+            let mut zone_target_sls: Vec<u8> = Vec::new();
+            for (z, which) in [(&fm.from_zone, "fromZone"), (&fm.to_zone, "toZone")] {
+                if let Some(zref) = z {
+                    match resolver.resolve_ref(elements, zref) {
+                        Some(t) if is_zone(t) => {
+                            if let Some(sl) = t.frontmatter.target_sl {
+                                zone_target_sls.push(sl);
+                            }
+                        }
+                        _ => findings.push(error("E954", f, &format!("Conduit {} '{}' does not resolve to a Zone", which, zref))),
+                    }
+                }
+            }
+            // W951 conduit achievedSL below either connected zone's targetSL (opt-in).
+            if let Some(a) = fm.achieved_sl {
+                if let Some(&max_req) = zone_target_sls.iter().max() {
+                    if a < max_req {
+                        findings.push(warning("W951", f, &format!("Conduit achievedSL {} is below a connected zone targetSL {} — boundary weaker than the zones it connects", a, max_req)));
+                    }
+                }
+            }
+        }
+
+        for p in elements.iter().filter(|e| is_part(e)) {
+            let fm = &p.frontmatter;
+            let f = &p.file_path;
+            // E956 inZone must resolve to a Zone.
+            if let Some(z) = &fm.in_zone {
+                match resolver.resolve_ref(elements, z) {
+                    Some(t) if is_zone(t) => {}
+                    _ => findings.push(error("E956", f, &format!("`inZone` '{}' does not resolve to a Zone", z))),
+                }
+            }
+            // W952 targetSL claim with no zone membership (opt-in).
+            if fm.target_sl.is_some() && fm.in_zone.is_none() && !member_parts.contains(&p.qualified_name) {
+                findings.push(warning("W952", f, &format!("'{}' declares targetSL but belongs to no Zone (no inZone, no Zone.members entry)", p.qualified_name)));
             }
         }
     }

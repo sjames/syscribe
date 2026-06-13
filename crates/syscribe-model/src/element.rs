@@ -127,6 +127,8 @@ pub enum ElementType {
     ADR,              // Architecture Decision Record (§8.17)
     ReviewRecord,     // RR-* — formal review event + traceability (§19, GH #71)
     TradeStudy,       // TRD-* — weighted-criteria evaluation of alternatives (§15, GH #63)
+    Zone,             // ZN-* — IEC 62443 security zone (§13, GH #61)
+    Conduit,          // CD-* — IEC 62443 conduit between zones (§13, GH #61)
     // Confirmation measure (ISO 26262-2 §6 / ISO/SAE 21434 §7) — CM-*
     ConfirmationMeasure,
     // Safety analysis (ISO 26262 HARA)
@@ -191,6 +193,8 @@ impl ElementType {
                 | ElementType::ADR
                 | ElementType::ReviewRecord
                 | ElementType::TradeStudy
+                | ElementType::Zone
+                | ElementType::Conduit
                 | ElementType::ConfirmationMeasure
                 | ElementType::HazardousEvent
                 | ElementType::SafetyGoal
@@ -452,6 +456,19 @@ pub struct RawFrontmatter {
     pub alternatives: Option<Vec<serde_yaml::Value>>,
     pub scores: Option<Vec<serde_yaml::Value>>,
     pub decision: Option<String>,
+    // Native IEC 62443 Zone/Conduit fields (§13, GH #61).
+    #[serde(rename = "targetSL")]
+    pub target_sl: Option<u8>,
+    #[serde(rename = "achievedSL")]
+    pub achieved_sl: Option<u8>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub members: Option<Vec<String>>,
+    pub rationale: Option<String>,
+    pub from_zone: Option<String>,
+    pub to_zone: Option<String>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub protocols: Option<Vec<String>>,
+    pub in_zone: Option<String>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
     pub return_type: Option<String>,

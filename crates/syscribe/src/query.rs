@@ -2654,6 +2654,34 @@ What was decided.
 
 What are the results of this decision?
 "#,
+        "zone" => r#"---
+type: Zone
+id: ZN-PREFIX-001
+name: "Control Zone"
+status: approved          # draft | review | approved | deprecated
+targetSL: 3               # required Security Level 1-4 (IEC 62443-3-3)
+# achievedSL: 2           # assessed SL (W950 if below targetSL)
+members:                  # PartDef/Part qnames or stable IDs in this zone
+  - Logical::PLCController
+# rationale: "SL 3 due to potential for significant process disruption."
+---
+
+What this security zone groups and why this Security Level.
+"#,
+        "conduit" => r#"---
+type: Conduit
+id: CD-PREFIX-001
+name: "ControlToField"
+status: approved          # draft | review | approved | deprecated
+fromZone: ZN-PREFIX-001
+toZone: ZN-PREFIX-002
+# achievedSL: 3           # SL of the conduit's boundary controls (W951 if below either zone)
+# protocols: [Modbus/TCP, OPC-UA]
+# implementedBy: [SC-FIREWALL-001]   # SecurityControl ids / architecture qnames
+---
+
+The communication channel between the two zones and its boundary controls.
+"#,
         "reviewrecord" => r#"---
 type: ReviewRecord
 id: RR-PREFIX-001

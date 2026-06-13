@@ -1,6 +1,6 @@
 [package]
 name = "syscribe-model"
-version = "0.26.26"
+version = "0.26.27"
 edition = "2021"
 
 [dependencies]
