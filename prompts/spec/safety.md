@@ -283,9 +283,10 @@ Errors: E847 (missing `id`/`name`/`status`), E848 (`id` not `CM-*`), E849/E850 (
 E851 (unresolved `confirms`).
 
 **W039** — a high-integrity item lacking its required independent assessment: an `asilLevel: D`
-`SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`; a
-`calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. (Lower
-levels are future tightening, not gated.) **Opt-in:** dormant unless at least one
+**or `silLevel: 3`/`silLevel: 4`** `SafetyGoal`/native `Requirement` not confirmed by an I3
+`functional_safety_assessment` (ISO 26262-2 §6 / IEC 61508-1 §8); a `calLevel: CAL4`
+`CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. `silLevel: 1`/`2`
+and `asilLevel: A`–`C` are future tightening. **Opt-in:** dormant unless at least one
 `ConfirmationMeasure` exists. Gateable (`--deny W039`).
 
 ---

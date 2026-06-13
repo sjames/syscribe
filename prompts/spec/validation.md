@@ -87,6 +87,18 @@ must also carry the same field. A lower level is allowed only with `breakdownAdr
 
 Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
+## Confirmation measures & DIA/CIA responsibility (E847–E851, W038, W039)
+
+| Code | Condition |
+|---|---|
+| `E847` | `ConfirmationMeasure` missing `id`, `name`, or `status` |
+| `E848` | `ConfirmationMeasure.id` does not match `CM-*` pattern |
+| `E849` | `ConfirmationMeasure.measureType` not in `confirmation_review · functional_safety_audit · functional_safety_assessment · cybersecurity_assessment` |
+| `E850` | `ConfirmationMeasure.independenceLevel` not in `I1 · I2 · I3` |
+| `E851` | A `confirms:` ref does not resolve to any model element |
+| `W038` | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) has no `responsibility:` field. **Opt-in:** dormant unless some element declares `responsibility:`. Gate with `--deny W038` |
+| `W039` | A high-integrity item lacks its required independent assessment: an `asilLevel: D` **or** `silLevel: 3`/`silLevel: 4` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`; or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039` |
+
 ## Tier 2 parse-time errors — HARA (E800–E806, E833–E837)
 
 | Code | Condition |
@@ -170,7 +182,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W900` | `FaultTree` has no gates or events (tree is empty) |
 | `W901` | `FaultTreeGate` has no `inputs` |
 
-## Tier 4 — FMEA (E911–E914, W902–W904)
+## Tier 4 — FMEA (E911–E914, E922, W902–W904)
 
 | Code | Condition |
 |---|---|
@@ -178,8 +190,9 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E912` | `FMEASheet.id` does not match `FMEA-*` |
 | `E913` | FMEAEntry `id` does not match `FM-*` |
 | `E914` | `fmeaSeverity`, `occurrence`, or `detection` outside 1–10 |
+| `E922` | An `entries:` row contains an unrecognised key (silent data loss in a safety analysis — error) |
 | `W902` | `FMEASheet` has no `entries` |
-| `W903` | Computed RPN > 100 and no `recommendedAction` set |
+| `W903` | Computed RPN > 100 and no `recommendedAction` set. RPN is auto-computed as `fmeaSeverity × occurrence × detection` when `rpn:` is absent |
 | `W904` | Entry `ref` does not resolve to a known model element |
 
 ## Tier 4 — TARA container (E940–E941, W905)

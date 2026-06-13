@@ -487,7 +487,7 @@ Lower integrity levels are documented as future tightening and are not gated.
 | E850 | Error | `independenceLevel` is not one of `I1 · I2 · I3` |
 | E851 | Error | a `confirms:` ref does not resolve to any model element |
 | W038 | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. **Opt-in:** dormant unless some element declares `responsibility:`. Gate with `--deny W038`; promotable via `[profiles]` |
-| W039 | Warning | A high-integrity item lacks its required independent assessment: an `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039`; promotable via `[profiles]` |
+| W039 | Warning | A high-integrity item lacks its required independent assessment: an `asilLevel: D` **or `silLevel: 3`/`silLevel: 4`** `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment` (ISO 26262-2 §6 / IEC 61508-1 §8); or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039`; promotable via `[profiles]` |
 
 See `docs/model-guide/safety-analysis.md`.
 
@@ -569,7 +569,7 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 | E912 | `id` does not match `FMEA-*` pattern |
 | W902 | FMEASheet has no `entries` — add at least one failure mode row |
 
-### FMEAEntry (E913–E914, W903–W904)
+### FMEAEntry (E913–E914, E922, W903–W904)
 
 FMEAEntry elements are synthesised at parse time from each row in a `FMEASheet.entries:` list. They are not authored as standalone files.
 
@@ -577,10 +577,11 @@ FMEAEntry elements are synthesised at parse time from each row in a `FMEASheet.e
 |---|---|
 | E913 | Entry `id` does not match `FM-*` pattern |
 | E914 | `fmeaSeverity`, `occurrence`, or `detection` is outside the range 1–10 |
-| W903 | Computed RPN (severity × occurrence × detection) exceeds 100 and no `recommendedAction` is set |
+| E922 | An `entries:` row contains an unrecognised key — the field is silently ignored, which constitutes silent data loss in a safety analysis (error-level) |
+| W903 | Computed RPN (fmeaSeverity × occurrence × detection) exceeds 100 and no `recommendedAction` is set |
 | W904 | Entry `ref` field does not resolve to a known model element |
 
-RPN is computed automatically when all three of `fmeaSeverity`, `occurrence`, and `detection` are present. An explicit `rpn:` field is accepted and used as-is.
+The canonical severity key is **`fmeaSeverity:`** (camelCase, integer 1–10). The deprecated alias `severity:` is accepted and silently mapped for backward compatibility. RPN is computed automatically as `fmeaSeverity × occurrence × detection` when `rpn:` is absent; an explicit `rpn:` overrides the computed value.
 
 ## Tier 4 — TARA container (E940–E941, W905)
 

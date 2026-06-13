@@ -3387,7 +3387,8 @@ type: AssumptionOfUse
 id: AOU-PREFIX-001
 name: "Integrator provides [application condition]"
 status: draft
-appliesTo: SG-PREFIX-001  # the SafetyGoal / Argument / Requirement this SRAC constrains
+appliesTo:
+  - SG-PREFIX-001  # SafetyGoal / Argument / Requirement this SRAC constrains
 ---
 
 A safety-related application condition (SRAC): a constraint the integrator must

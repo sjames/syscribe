@@ -2,6 +2,15 @@
 
 `RELEASES`
 
+## 0.26.5 — 2026-06-13
+
+### Bug fix (issue #53)
+
+- **Fix #53A — `template AssumptionOfUse` now emits list-form `appliesTo:`.** The template was showing scalar `appliesTo: SG-PREFIX-001`; multi-goal SRACs require list form. Template now emits the list variant so scaffolded files are immediately valid for multi-goal use.
+- **Fix #53B — `spec validation` now lists ConfirmationMeasure codes (E847–E851, W038, W039) and FMEA E922.** These codes were only discoverable via `spec safety` or by empirically triggering them. They now appear in the `spec validation` table with their conditions. W039 description updated in all spec files to include `silLevel: 3`/`4` alongside `asilLevel: D`.
+
+Also fixes `qual` CI failure for v0.26.4 (E011: TestCase gherkin blocks were missing in the two new test cases).
+
 ## 0.26.4 — 2026-06-13
 
 ### Bug fixes (issues #45, #46, #47)
