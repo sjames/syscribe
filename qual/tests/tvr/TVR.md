@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.12  
+**Version:** syscribe 0.26.13  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 229 |
-| Passed | 229 |
+| Total test cases | 230 |
+| Passed | 230 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2009,6 +2009,22 @@
 | parallel/composite machines out of scope | ✓ PASS |
 | W073 draft-suppressed | ✓ PASS |
 | validate --deny W073 promotes to gate failure | ✓ PASS |
+
+---
+
+### TC-TRS-SM-004 — Verify parallel state machines: per-region completeness (region-named W073), cross-region transition W077, parallel arity W078; a well-formed parallel machine is clean; draft-suppressed; gateable.
+
+**Verifies:** REQ-TRS-SM-004,REQ-TRS-SM-005  
+**Result:** ✓ PASS (13 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| well-formed parallel machine is clean | ✓ PASS |
+| W073 — region has no initial | ✓ PASS |
+| W077 — cross-region transition | ✓ PASS |
+| W078 — single-region parallel state | ✓ PASS |
+| W078 draft-suppressed | ✓ PASS |
+| validate --deny W078 promotes to gate failure | ✓ PASS |
 
 ---
 

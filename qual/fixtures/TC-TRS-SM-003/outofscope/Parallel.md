@@ -6,10 +6,15 @@ subStates:
   - name: RegionA
     subStates:
       - name: A1
+        isInitial: true
+        isFinal: true
   - name: RegionB
     subStates:
       - name: B1
+        isInitial: true
+        isFinal: true
 ---
 
-A parallel (orthogonal) state machine — out of scope for the flat W070–W074 checks; must
-raise none of them (handled by the region-aware phase).
+A well-formed parallel (orthogonal) state machine — two regions, each with a single
+initial/final state. The flat W070–W074 must not fire (it is region-aware; this machine is
+clean). Region/cross-region defects are exercised by TC-TRS-SM-004.

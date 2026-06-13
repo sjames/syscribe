@@ -5342,16 +5342,18 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
 | `W503` | **Redundant allocation** — the same `source → target` edge is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element (§12.9). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |
 
-#### State machine completeness warnings (W070–W075, §22.1)
+#### State machine completeness warnings (W070–W078, §22.1)
 
 | Code | Condition |
 |---|---|
-| `W070` | Dead state — substate has no incoming transitions and is not `isInitial: true` |
+| `W070` | Dead state — substate has no incoming transitions and is not `isInitial: true` (per region) |
 | `W071` | Trap state — substate has no outgoing transitions and is not `isFinal: true` |
 | `W072` | Non-determinism — two transitions from the same state accept the same payload type without guards |
-| `W073` | Missing initial state — `StateDef` with `subStates:` has no `isInitial: true` entry |
-| `W074` | Multiple initial states — more than one substate in the same `StateDef` is `isInitial: true` |
+| `W073` | Missing initial state — a region (single-region `StateDef`, or a parallel region) with substates has no `isInitial: true` entry |
+| `W074` | Multiple initial states — a region has more than one `isInitial: true` substate |
 | `W075` | Deprecated transition keys — a transition uses `from:`/`to:`/`trigger:` instead of canonical `source:`/`target:`/`accept:` (§8.8.3) |
+| `W077` | Cross-region transition — a transition connects substates in two different regions of a parallel state (illegal in SysMLv2) |
+| `W078` | Parallel arity — an `isParallel: true` state declares fewer than two regions |
 
 #### Sequence diagram completeness (W080, §22.4)
 
@@ -7020,9 +7022,16 @@ The following validation rules apply to a **single-region** `StateDef`/`State` t
 | `W071` | **Trap state** — a substate has no outgoing transitions and is not marked `isFinal: true`. Once entered, the state machine cannot exit this state. |
 | `W072` | **Non-determinism** — two transitions from the same source state have the same `accept.payload` (same trigger event type) and neither carries a `guard:`. The machine's response to this event is ambiguous. |
 | `W073` | **Missing initial state** — a `StateDef` with `subStates:` has no substate marked `isInitial: true`. The machine has no defined starting point. |
-| `W074` | **Multiple initial states** — more than one substate in the same `StateDef` is marked `isInitial: true`. A state machine has exactly one initial pseudostate. |
+| `W074` | **Multiple initial states** — more than one substate in the same region is marked `isInitial: true`. A region has exactly one initial state. |
 
-All five codes are **draft-suppressed** (not emitted for `StateDef` elements with `status: draft`). All are gateable with `--deny W07x`.
+**Parallel (orthogonal) state machines.** A `StateDef`/`State` with `isParallel: true` has **concurrent regions** as its direct substates (each region itself declares its own `subStates:` and transitions; SysMLv2 §7.18). The completeness checks are applied **per region**: `W073`/`W074` (initial cardinality) are evaluated for each region, and `W070`/`W071`/`W072` apply within each flat region (findings name the region). Two further rules apply to the parallel parent:
+
+| Code | Condition |
+|---|---|
+| `W077` | **Cross-region transition** — a transition (declared at the parallel parent or inside a region) connects substates belonging to two different regions. SysMLv2 forbids transitions between the substates of a parallel state. |
+| `W078` | **Parallel arity** — an `isParallel: true` state declares fewer than two regions; it is not orthogonal. |
+
+All of these codes are **draft-suppressed** (not emitted for `status: draft`) and gateable with `--deny W07x`. Non-parallel **composite** machines (a substate carrying `typedBy:` or an inline `subStates:`) defer `W070`/`W071` to the hierarchy-aware treatment.
 
 ### 22.2 Budget Expression Language (extends §8.9)
 

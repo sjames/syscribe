@@ -257,8 +257,10 @@ SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppresse
 | W073 | Missing initial — a single-region `StateDef` with substates has no `isInitial: true` substate. |
 | W074 | Multiple initial — more than one substate is `isInitial: true`. |
 | W075 | A transition uses the deprecated keys `from:`/`to:`/`trigger:` instead of the canonical `source:`/`target:`/`accept:` (§8.8.3). Legacy keys are still accepted as aliases. |
+| W077 | Cross-region transition — a transition connects substates in two different regions of an `isParallel` state (illegal in SysMLv2). |
+| W078 | Parallel arity — an `isParallel: true` state declares fewer than two regions. |
 
-`W070`–`W074` apply only to flat (non-`isParallel`, non-composite) machines; parallel/composite machines are handled by region/hierarchy-aware checks.
+For a flat machine, `W070`–`W074` apply directly. For a parallel (`isParallel`) machine they apply **per region**, plus `W077`/`W078`. Non-parallel composite machines defer `W070`/`W071` to the hierarchy-aware checks.
 
 ## Allocation errors (E500–E503)
 

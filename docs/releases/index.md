@@ -2,6 +2,15 @@
 
 `RELEASES`
 
+## 0.26.14 — 2026-06-13
+
+### State machines — parallel/orthogonal regions (Phase C of SysMLv2-faithful HSM)
+
+- **Parallel state machines validated per region** — an `isParallel: true` `StateDef`/`State` is now understood as concurrent **regions** (its direct substates, each a composite region per SysMLv2 §7.18). The completeness checks run **per region**: `W073`/`W074` (initial cardinality) and the flat `W070`/`W071`/`W072` apply within each region, with findings naming the region. (`REQ-TRS-SM-004`)
+- **`W077` — cross-region transition** — a transition connecting substates in two different regions of a parallel state is flagged (SysMLv2 forbids transitions between the substates of a parallel state). The scan covers the parallel parent's own transitions and each region's internal transitions. (`REQ-TRS-SM-005`)
+- **`W078` — parallel arity** — an `isParallel: true` state with fewer than two regions is flagged. (`REQ-TRS-SM-005`)
+- Both draft-suppressed and gateable (`validate --deny W077`/`W078`). The flat (`W070`–`W074`) and parallel paths share one transition extractor and one region checker; non-parallel composite machines still defer `W070`/`W071` to the upcoming hierarchy phase.
+
 ## 0.26.13 — 2026-06-13
 
 ### State machines — flat completeness W070–W074 (Phase B; closes GH #68)

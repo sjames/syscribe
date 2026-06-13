@@ -143,27 +143,44 @@ struct StateEdge {
     legacy: bool,
 }
 
-/// Extract every transition edge of a `StateDef`/`State` from both placements,
-/// normalizing the canonical and deprecated spellings onto one edge model.
-fn state_transitions(fm: &crate::element::RawFrontmatter) -> Vec<StateEdge> {
-    fn sval<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a serde_yaml::Value> {
-        m.get(&serde_yaml::Value::String(k.to_string()))
-    }
+/// Read a string-keyed field from a YAML mapping.
+fn yaml_field<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a serde_yaml::Value> {
+    m.get(&serde_yaml::Value::String(k.to_string()))
+}
+
+/// True when a `subStates:` entry is a **composite** state — it carries `typedBy:`,
+/// an inline `subStates:`, or `isParallel:` — and therefore is not a flat leaf state.
+fn is_composite_substate(s: &serde_yaml::Value) -> bool {
+    s.as_mapping().is_some_and(|m| {
+        yaml_field(m, "typedBy").is_some()
+            || matches!(yaml_field(m, "subStates"), Some(serde_yaml::Value::Sequence(_)))
+            || yaml_field(m, "isParallel") == Some(&serde_yaml::Value::Bool(true))
+    })
+}
+
+/// Extract the transition edges contributed by a substate roster (each substate's
+/// nested `transitions:`, with the substate as implicit source) plus an optional
+/// top-level/region-level `transitions:` list (explicit source). Normalizes the
+/// canonical and deprecated spellings onto one edge model. §8.8.3.
+fn transitions_from(
+    sub_states: Option<&[serde_yaml::Value]>,
+    top: Option<&[serde_yaml::Value]>,
+) -> Vec<StateEdge> {
     fn parse_transition(t: &serde_yaml::Value, implicit_source: Option<&str>) -> Option<StateEdge> {
         let m = t.as_mapping()?;
-        let src = sval(m, "source").or_else(|| sval(m, "from")).and_then(|v| v.as_str());
-        let tgt = sval(m, "target").or_else(|| sval(m, "to")).and_then(|v| v.as_str());
-        let payload = match sval(m, "accept") {
+        let src = yaml_field(m, "source").or_else(|| yaml_field(m, "from")).and_then(|v| v.as_str());
+        let tgt = yaml_field(m, "target").or_else(|| yaml_field(m, "to")).and_then(|v| v.as_str());
+        let payload = match yaml_field(m, "accept") {
             Some(serde_yaml::Value::String(s)) => Some(s.clone()),
             Some(serde_yaml::Value::Mapping(am)) => {
-                sval(am, "payload").and_then(|v| v.as_str()).map(String::from)
+                yaml_field(am, "payload").and_then(|v| v.as_str()).map(String::from)
             }
-            _ => sval(m, "trigger").and_then(|v| v.as_str()).map(String::from),
+            _ => yaml_field(m, "trigger").and_then(|v| v.as_str()).map(String::from),
         };
-        let legacy = sval(m, "from").is_some()
-            || sval(m, "to").is_some()
-            || sval(m, "trigger").is_some();
-        let has_guard = sval(m, "guard")
+        let legacy = yaml_field(m, "from").is_some()
+            || yaml_field(m, "to").is_some()
+            || yaml_field(m, "trigger").is_some();
+        let has_guard = yaml_field(m, "guard")
             .and_then(|v| v.as_str())
             .map(|s| !s.is_empty())
             .unwrap_or(false);
@@ -177,16 +194,11 @@ fn state_transitions(fm: &crate::element::RawFrontmatter) -> Vec<StateEdge> {
     }
 
     let mut edges = Vec::new();
-    // Nested: each substate's own transitions, with the substate as implicit source.
-    if let Some(subs) = fm.sub_states.as_ref() {
+    if let Some(subs) = sub_states {
         for s in subs {
             let Some(sm) = s.as_mapping() else { continue };
-            let name = sm
-                .get(&serde_yaml::Value::String("name".into()))
-                .and_then(|v| v.as_str());
-            if let Some(serde_yaml::Value::Sequence(ts)) =
-                sm.get(&serde_yaml::Value::String("transitions".into()))
-            {
+            let name = yaml_field(sm, "name").and_then(|v| v.as_str());
+            if let Some(serde_yaml::Value::Sequence(ts)) = yaml_field(sm, "transitions") {
                 for t in ts {
                     if let Some(e) = parse_transition(t, name) {
                         edges.push(e);
@@ -195,8 +207,7 @@ fn state_transitions(fm: &crate::element::RawFrontmatter) -> Vec<StateEdge> {
             }
         }
     }
-    // Top-level: source must be explicit (parse_transition has no implicit source here).
-    if let Some(ts) = fm.transitions.as_ref() {
+    if let Some(ts) = top {
         for t in ts {
             if let Some(e) = parse_transition(t, None) {
                 edges.push(e);
@@ -204,6 +215,120 @@ fn state_transitions(fm: &crate::element::RawFrontmatter) -> Vec<StateEdge> {
         }
     }
     edges
+}
+
+/// Extract every transition edge of a `StateDef`/`State` from both placements.
+fn state_transitions(fm: &crate::element::RawFrontmatter) -> Vec<StateEdge> {
+    transitions_from(fm.sub_states.as_deref(), fm.transitions.as_deref())
+}
+
+/// Run the SysMLv2 flat-completeness checks over **one region** — a substate roster
+/// plus the edge set scoped to it. `region` labels the parallel region for messages
+/// (`None` for a top-level single-region machine). `W073`/`W074` (initial cardinality)
+/// always apply; the reachability-flavoured `W070`/`W071`/`W072` apply only when the
+/// region is flat (no composite substate), since those are refined for hierarchy/
+/// parallelism in later phases. §22.1.
+fn check_state_region(
+    region: Option<&str>,
+    sub_states: &[serde_yaml::Value],
+    edges: &[StateEdge],
+    file: &str,
+    findings: &mut Vec<Finding>,
+) {
+    struct Sub {
+        name: String,
+        is_initial: bool,
+        is_final: bool,
+    }
+    let roster: Vec<Sub> = sub_states
+        .iter()
+        .filter_map(|s| s.as_mapping())
+        .filter_map(|m| {
+            let name = yaml_field(m, "name")?.as_str()?.to_string();
+            let flag = |k: &str| yaml_field(m, k) == Some(&serde_yaml::Value::Bool(true));
+            Some(Sub { name, is_initial: flag("isInitial"), is_final: flag("isFinal") })
+        })
+        .collect();
+    if roster.is_empty() {
+        return;
+    }
+    let suffix = region.map(|r| format!(" in region '{}'", r)).unwrap_or_default();
+
+    // W073 / W074 — initial-state cardinality (always checked).
+    let initial_count = roster.iter().filter(|s| s.is_initial).count();
+    if initial_count == 0 {
+        findings.push(warning(
+            "W073",
+            file,
+            &format!("state machine has no `isInitial: true` substate{} — no defined starting point", suffix),
+        ));
+    } else if initial_count > 1 {
+        findings.push(warning(
+            "W074",
+            file,
+            &format!("state machine has {} `isInitial: true` substates{} — a region has exactly one initial state", initial_count, suffix),
+        ));
+    }
+
+    // W070/W071/W072 only on a flat region (composite refinement deferred).
+    if sub_states.iter().any(is_composite_substate) {
+        return;
+    }
+
+    let names: HashSet<&str> = roster.iter().map(|s| s.name.as_str()).collect();
+    let mut indeg: HashMap<&str, usize> = names.iter().map(|n| (*n, 0)).collect();
+    let mut outdeg: HashMap<&str, usize> = names.iter().map(|n| (*n, 0)).collect();
+    for e in edges {
+        if let Some(src) = e.source.as_deref() {
+            if let Some(d) = outdeg.get_mut(src) {
+                *d += 1;
+            }
+        }
+        if let Some(tgt) = e.target.as_deref() {
+            if let Some(d) = indeg.get_mut(tgt) {
+                *d += 1;
+            }
+        }
+    }
+    for s in &roster {
+        if !s.is_initial && indeg.get(s.name.as_str()) == Some(&0) {
+            findings.push(warning(
+                "W070",
+                file,
+                &format!("dead state '{}'{} — no incoming transition and not `isInitial`", s.name, suffix),
+            ));
+        }
+        if !s.is_final && outdeg.get(s.name.as_str()) == Some(&0) {
+            findings.push(warning(
+                "W071",
+                file,
+                &format!("trap state '{}'{} — no outgoing transition and not `isFinal`", s.name, suffix),
+            ));
+        }
+    }
+    // W072 non-determinism — same source + same accept payload, no guard.
+    let mut groups: std::collections::BTreeMap<(&str, &str), (usize, usize)> =
+        std::collections::BTreeMap::new();
+    for e in edges {
+        if let (Some(src), Some(pl)) = (e.source.as_deref(), e.payload.as_deref()) {
+            if names.contains(src) {
+                let g = groups.entry((src, pl)).or_insert((0, 0));
+                g.0 += 1;
+                if e.has_guard {
+                    g.1 += 1;
+                }
+            }
+        }
+    }
+    for ((src, pl), (count, guarded)) in groups {
+        if count >= 2 && guarded == 0 {
+            findings.push(warning(
+                "W072",
+                file,
+                &format!("non-determinism — {} transitions from '{}'{} accept the same payload '{}' with no guard", count, src, suffix, pl),
+            ));
+        }
+    }
 }
 
 /// Map ASIL level string to a numeric rank for comparison (A=1, B=2, C=3, D=4).
@@ -2047,114 +2172,77 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 ));
             }
 
-            // Phase B (§22.1, W070–W074): flat completeness on a single-region,
-            // non-composite, non-parallel state machine. Parallel/composite machines
-            // are out of scope here (handled by region/hierarchy-aware phases).
+            // §22.1 completeness. Dispatch by machine kind:
+            //   • parallel (`isParallel`)         → Phase C, per-region + W077/W078
+            //   • flat (non-parallel, non-composite) → Phase B, one region
+            //   • non-parallel composite           → deferred to the hierarchy phase
             if let Some(subs) = fm.sub_states.as_ref().filter(|s| !s.is_empty()) {
-                let sub_field = |m: &serde_yaml::Mapping, k: &str| -> Option<serde_yaml::Value> {
-                    m.get(&serde_yaml::Value::String(k.to_string())).cloned()
-                };
-                let is_parallel = fm.is_parallel == Some(true);
-                let has_composite = subs.iter().any(|s| {
-                    s.as_mapping().is_some_and(|m| {
-                        sub_field(m, "typedBy").is_some()
-                            || matches!(sub_field(m, "subStates"), Some(serde_yaml::Value::Sequence(_)))
-                            || sub_field(m, "isParallel") == Some(serde_yaml::Value::Bool(true))
-                    })
-                });
+                if fm.is_parallel == Some(true) {
+                    // Phase C — parallel/orthogonal regions. Direct substates are the
+                    // concurrent regions; each is itself a (composite) region.
+                    let regions: Vec<&serde_yaml::Value> = subs.iter().collect();
 
-                if !is_parallel && !has_composite {
-                    // Substate roster with initial/final flags, in declaration order.
-                    struct Sub {
-                        name: String,
-                        is_initial: bool,
-                        is_final: bool,
-                    }
-                    let roster: Vec<Sub> = subs
-                        .iter()
-                        .filter_map(|s| s.as_mapping())
-                        .filter_map(|m| {
-                            let name = sub_field(m, "name")?.as_str()?.to_string();
-                            let flag = |k: &str| sub_field(m, k) == Some(serde_yaml::Value::Bool(true));
-                            Some(Sub { name, is_initial: flag("isInitial"), is_final: flag("isFinal") })
-                        })
-                        .collect();
-                    let names: HashSet<&str> = roster.iter().map(|s| s.name.as_str()).collect();
-
-                    // In/out degree over edges whose endpoints are known substates.
-                    let mut indeg: HashMap<&str, usize> = names.iter().map(|n| (*n, 0)).collect();
-                    let mut outdeg: HashMap<&str, usize> = names.iter().map(|n| (*n, 0)).collect();
-                    for e in &edges {
-                        if let Some(src) = e.source.as_deref() {
-                            if let Some(d) = outdeg.get_mut(src) {
-                                *d += 1;
-                            }
-                        }
-                        if let Some(tgt) = e.target.as_deref() {
-                            if let Some(d) = indeg.get_mut(tgt) {
-                                *d += 1;
-                            }
-                        }
-                    }
-
-                    // W073 / W074 — initial-state cardinality.
-                    let initial_count = roster.iter().filter(|s| s.is_initial).count();
-                    if initial_count == 0 {
+                    // W078 — a parallel state must have at least two regions.
+                    if regions.len() < 2 {
                         findings.push(warning(
-                            "W073",
+                            "W078",
                             &file,
-                            "state machine has no `isInitial: true` substate — no defined starting point",
-                        ));
-                    } else if initial_count > 1 {
-                        findings.push(warning(
-                            "W074",
-                            &file,
-                            &format!("state machine has {} `isInitial: true` substates — a region has exactly one initial state", initial_count),
+                            &format!("`isParallel: true` state has {} region(s) — a parallel state needs at least two", regions.len()),
                         ));
                     }
 
-                    // W070 dead / W071 trap — per substate, in declaration order.
-                    for s in &roster {
-                        if !s.is_initial && indeg.get(s.name.as_str()) == Some(&0) {
-                            findings.push(warning(
-                                "W070",
-                                &file,
-                                &format!("dead state '{}' — no incoming transition and not `isInitial`", s.name),
-                            ));
-                        }
-                        if !s.is_final && outdeg.get(s.name.as_str()) == Some(&0) {
-                            findings.push(warning(
-                                "W071",
-                                &file,
-                                &format!("trap state '{}' — no outgoing transition and not `isFinal`", s.name),
-                            ));
-                        }
-                    }
-
-                    // W072 non-determinism — same source + same accept payload, no guard.
-                    let mut groups: std::collections::BTreeMap<(&str, &str), (usize, usize)> =
-                        std::collections::BTreeMap::new();
-                    for e in &edges {
-                        if let (Some(src), Some(pl)) = (e.source.as_deref(), e.payload.as_deref()) {
-                            if names.contains(src) {
-                                let g = groups.entry((src, pl)).or_insert((0, 0));
-                                g.0 += 1;
-                                if e.has_guard {
-                                    g.1 += 1;
+                    // Map each region's direct substate names to its region label, for
+                    // cross-region transition detection (W077). Names appearing in more
+                    // than one region are ambiguous and excluded.
+                    let mut name_region: HashMap<String, Option<String>> = HashMap::new();
+                    for region in &regions {
+                        let Some(rm) = region.as_mapping() else { continue };
+                        let rlabel = yaml_field(rm, "name").and_then(|v| v.as_str()).map(String::from);
+                        if let Some(serde_yaml::Value::Sequence(rsubs)) = yaml_field(rm, "subStates") {
+                            for cs in rsubs {
+                                if let Some(n) = cs.as_mapping().and_then(|m| yaml_field(m, "name")).and_then(|v| v.as_str()) {
+                                    name_region
+                                        .entry(n.to_string())
+                                        .and_modify(|e| *e = None) // duplicate name ⇒ ambiguous
+                                        .or_insert(rlabel.clone());
                                 }
                             }
                         }
                     }
-                    for ((src, pl), (count, guarded)) in groups {
-                        if count >= 2 && guarded == 0 {
-                            findings.push(warning(
-                                "W072",
-                                &file,
-                                &format!("non-determinism — {} transitions from '{}' accept the same payload '{}' with no guard", count, src, pl),
-                            ));
+
+                    // Per-region completeness, and gather every edge for the W077 scan.
+                    let mut all_edges = transitions_from(None, fm.transitions.as_deref());
+                    for region in &regions {
+                        let Some(rm) = region.as_mapping() else { continue };
+                        let rlabel = yaml_field(rm, "name").and_then(|v| v.as_str());
+                        if let Some(serde_yaml::Value::Sequence(rsubs)) = yaml_field(rm, "subStates") {
+                            let redges = transitions_from(Some(rsubs), yaml_field(rm, "transitions").and_then(|v| v.as_sequence()).map(|v| v.as_slice()));
+                            check_state_region(rlabel, rsubs, &redges, &file, &mut findings);
+                            all_edges.extend(redges);
                         }
                     }
+
+                    // W077 — a transition whose endpoints live in two different regions.
+                    for e in &all_edges {
+                        if let (Some(src), Some(tgt)) = (e.source.as_deref(), e.target.as_deref()) {
+                            if let (Some(Some(rs)), Some(Some(rt))) =
+                                (name_region.get(src), name_region.get(tgt))
+                            {
+                                if rs != rt {
+                                    findings.push(warning(
+                                        "W077",
+                                        &file,
+                                        &format!("transition '{}' → '{}' crosses parallel regions ('{}' → '{}') — illegal in a parallel state", src, tgt, rs, rt),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                } else if !subs.iter().any(is_composite_substate) {
+                    // Phase B — flat single-region machine.
+                    check_state_region(None, subs, &edges, &file, &mut findings);
                 }
+                // else: non-parallel composite — deferred to the hierarchy phase.
             }
         }
 
