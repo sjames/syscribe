@@ -38,15 +38,30 @@ jobs:
 
       - name: Validate all models (gating — fails on any validation error)
         run: |
+          # Per-model validation invocations. Each entry is "<model_dir>|<extra args to `validate`>".
+          # Add a model, or attach model-specific flags, by editing this list — no other change needed.
+          # MagicGrid models need their profile so the MG### structural rules run and W307 is
+          # promoted to a gate failure (model_mg/.syscribe.toml → [profiles.magicgrid]).
+          MODELS=(
+            "model|"
+            "model_auto|"
+            "model_mg|--profile magicgrid"
+            "model_sil|"
+            "qual|"
+          )
           fail=0
-          for m in model model_auto model_mg model_sil qual; do
-            echo "::group::validate $m"
-            if ./target/debug/syscribe -m "$m" validate > "validate-$m.md"; then
-              errs=0; warns=$(grep -cE '^\| W' "validate-$m.md" || true)
-              echo "✓ $m: 0 errors, ${warns} warnings"
+          for entry in "${MODELS[@]}"; do
+            m="${entry%%|*}"
+            args="${entry#*|}"
+            echo "::group::validate $m ${args}"
+            # $args is intentionally unquoted so multi-word flags split into argv.
+            # shellcheck disable=SC2086
+            if ./target/debug/syscribe -m "$m" validate $args > "validate-$m.md"; then
+              warns=$(grep -cE '^\| W' "validate-$m.md" || true)
+              echo "✓ $m: 0 errors, ${warns} warnings (args: ${args:-none})"
             else
               errs=$(grep -cE '^\| E' "validate-$m.md" || true)
-              echo "::error title=Model validation::$m has $errs validation error(s)"
+              echo "::error title=Model validation::$m has $errs validation error(s) (args: ${args:-none})"
               grep -E '^\| E' "validate-$m.md" | head -50 || true
               fail=1
             fi
