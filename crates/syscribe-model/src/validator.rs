@@ -3938,6 +3938,26 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     ),
                 ));
             }
+            // W512: the parent's submodule gitlink for `path` disagrees with the
+            // commit the `ref:` resolves to (REQ-TRS-TYPE-023). Only when `path`
+            // is a submodule and both commits are known. Gate with `--deny W512`.
+            if let (Some(gitlink), Some(ref_commit)) = (&repo.gitlink_sha, &repo.ref_commit) {
+                if gitlink != ref_commit {
+                    let short = |s: &str| s[..s.len().min(8)].to_string();
+                    findings.push(warning(
+                        "W512",
+                        cfg_file,
+                        &format!(
+                            "repo '{}' ref '{}' resolves to {} but the git submodule gitlink for '{}' pins {} — `.syscribe.toml` disagrees with `.gitmodules`",
+                            repo.alias,
+                            repo.config.git_ref.as_deref().unwrap_or(""),
+                            short(ref_commit),
+                            repo.config.path,
+                            short(gitlink),
+                        ),
+                    ));
+                }
+            }
         }
 
         // E515: a stable ID exported by both the local model and a peer repo.

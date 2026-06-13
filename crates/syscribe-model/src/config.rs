@@ -139,6 +139,13 @@ pub struct LoadedRepo {
     pub ref_state: RefState,
     /// The peer work tree's resolved `HEAD` sha, when known (for the `W511` message).
     pub head_sha: Option<String>,
+    /// The commit the configured `ref:` resolves to in the peer repo, when known
+    /// (REQ-TRS-TYPE-023, used for the `W512` gitlink comparison).
+    pub ref_commit: Option<String>,
+    /// The git submodule gitlink commit the parent repo records for this repo's
+    /// `path`, when `path` is a submodule (REQ-TRS-TYPE-023, `W512`). `None` when
+    /// `path` is not a submodule of the composing model's repo.
+    pub gitlink_sha: Option<String>,
     /// Qualified names of every element in the peer model.
     pub qnames: HashSet<String>,
     /// Stable IDs (`REQ-*`, `TC-*`, …) exported by the peer model.
@@ -578,7 +585,8 @@ fn load_repos(model_root: &Path) -> Vec<LoadedRepo> {
     cfg.repos
         .into_iter()
         .map(|(alias, entry)| {
-            let peer_root = resolve_repo_model_root(model_root, &entry);
+            let peer_base = resolve_repo_base(model_root, &entry);
+            let peer_root = join_repo_root(&peer_base, &entry);
             let exists = peer_root.exists();
             let (qnames, stable_ids) = if exists {
                 index_repo(&peer_root)
@@ -589,7 +597,9 @@ fn load_repos(model_root: &Path) -> Vec<LoadedRepo> {
             let mut seen = HashSet::new();
             let circular = exists && chain_reaches(&peer_root, &start, &mut seen);
             // W511: is the peer work tree at its configured ref?
-            let (ref_state, head_sha) = compute_ref_state(&peer_root, &entry, exists);
+            let (ref_state, head_sha, ref_commit) = compute_ref_state(&peer_root, &entry, exists);
+            // W512: does the parent's submodule gitlink for `path` match the ref?
+            let gitlink_sha = compute_gitlink(model_root, &peer_base);
             LoadedRepo {
                 alias,
                 config: entry,
@@ -598,6 +608,8 @@ fn load_repos(model_root: &Path) -> Vec<LoadedRepo> {
                 circular,
                 ref_state,
                 head_sha,
+                ref_commit,
+                gitlink_sha,
                 qnames,
                 stable_ids,
             }
@@ -608,11 +620,25 @@ fn load_repos(model_root: &Path) -> Vec<LoadedRepo> {
 /// Resolve a repo entry's peer model root: `<model_root>/<path>/<root>`, with an
 /// absolute `path` used verbatim. `root` defaults to `model/`.
 fn resolve_repo_model_root(model_root: &Path, entry: &RepoEntry) -> PathBuf {
+    join_repo_root(&resolve_repo_base(model_root, entry), entry)
+}
+
+/// The peer **repo root** (`path`) — `<model_root>/<path>`, absolute used verbatim.
+/// This is the git work-tree root (the submodule directory), not the model subdir.
+fn resolve_repo_base(model_root: &Path, entry: &RepoEntry) -> PathBuf {
     let base = PathBuf::from(&entry.path);
-    let base = if base.is_absolute() { base } else { model_root.join(base) };
+    if base.is_absolute() {
+        base
+    } else {
+        model_root.join(base)
+    }
+}
+
+/// Join the model `root` subdir onto a peer repo base (default `model/`).
+fn join_repo_root(base: &Path, entry: &RepoEntry) -> PathBuf {
     let root = entry.root.trim_start_matches("./");
     if root.is_empty() {
-        base
+        base.to_path_buf()
     } else {
         base.join(root)
     }
@@ -666,31 +692,70 @@ fn canon(p: &Path) -> PathBuf {
 
 /// REQ-TRS-TYPE-022 — determine a peer repo's state vs its configured `ref:` by
 /// comparing the work tree's `HEAD` commit with the commit the `ref:` resolves to.
-/// Returns `(state, head_sha)`. Any uncertainty (no git, not a work tree, ref not
-/// found) yields [`RefState::Unknown`] so drift is never falsely reported.
-fn compute_ref_state(model_root: &Path, entry: &RepoEntry, exists: bool) -> (RefState, Option<String>) {
+/// Returns `(state, head_sha, ref_commit)` — the latter feeds the `W512` gitlink
+/// check. Any uncertainty (no git, not a work tree, ref not found) yields
+/// [`RefState::Unknown`] so drift is never falsely reported.
+fn compute_ref_state(
+    model_root: &Path,
+    entry: &RepoEntry,
+    exists: bool,
+) -> (RefState, Option<String>, Option<String>) {
     let Some(want) = entry.git_ref.as_deref() else {
-        return (RefState::NoRef, None);
+        return (RefState::NoRef, None, None);
     };
     if !exists {
-        return (RefState::Missing, None);
+        return (RefState::Missing, None, None);
     }
     let head = git_rev_parse(model_root, "HEAD");
     let want_commit = git_rev_parse(model_root, &format!("{want}^{{commit}}"));
-    match (head, want_commit) {
-        (Some(h), Some(w)) if h == w => (RefState::InSync, Some(h)),
-        (Some(h), Some(_)) => (RefState::Drift, Some(h)),
-        _ => (RefState::Unknown, None),
+    let state = match (&head, &want_commit) {
+        (Some(h), Some(w)) if h == w => RefState::InSync,
+        (Some(_), Some(_)) => RefState::Drift,
+        _ => RefState::Unknown,
+    };
+    let head_sha = if matches!(state, RefState::InSync | RefState::Drift) {
+        head
+    } else {
+        None
+    };
+    (state, head_sha, want_commit)
+}
+
+/// REQ-TRS-TYPE-023 — the git submodule gitlink commit the **parent** repository
+/// (the one containing the composing model) records for `peer_base`, or `None`
+/// when `peer_base` is not a submodule of that repo / cannot be determined.
+fn compute_gitlink(model_root: &Path, peer_base: &Path) -> Option<String> {
+    // The parent repo work tree containing the composing model.
+    let toplevel = git_output(model_root, &["rev-parse", "--show-toplevel"])?;
+    let top_canon = std::fs::canonicalize(toplevel.trim()).ok()?;
+    let peer_canon = std::fs::canonicalize(peer_base).ok()?;
+    // The submodule path is `peer_base` relative to the parent work tree.
+    let sub = peer_canon.strip_prefix(&top_canon).ok()?;
+    let sub = sub.to_string_lossy().replace('\\', "/");
+    if sub.is_empty() {
+        return None;
     }
+    // `git ls-tree HEAD <sub>` ⇒ "160000 commit <sha>\t<path>" for a submodule.
+    let line = git_output(&top_canon, &["ls-tree", "HEAD", &sub])?;
+    let mut parts = line.split_whitespace();
+    let mode = parts.next()?;
+    let _ty = parts.next()?;
+    let sha = parts.next()?;
+    (mode == "160000").then(|| sha.to_string())
 }
 
 /// Resolve a git revision to its object id in `dir`, or `None` when git is
 /// unavailable, `dir` is not a work tree, or the revision does not resolve.
 fn git_rev_parse(dir: &Path, rev: &str) -> Option<String> {
+    git_output(dir, &["rev-parse", "--verify", "--quiet", rev])
+}
+
+/// Run `git -C <dir> <args>` and return trimmed stdout on success, else `None`.
+fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
     let out = std::process::Command::new("git")
         .arg("-C")
         .arg(dir)
-        .args(["rev-parse", "--verify", "--quiet", rev])
+        .args(args)
         .output()
         .ok()?;
     if !out.status.success() {

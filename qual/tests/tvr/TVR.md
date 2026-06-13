@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.29  
+**Version:** syscribe 0.26.30  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 245 |
-| Passed | 245 |
+| Total test cases | 246 |
+| Passed | 246 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2654,6 +2654,17 @@
 | Scenario | Result |
 |---|---|
 | undeterminable drift does not warn | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-023 — Verify gitlink/ref mismatch detection: W512 fires when a submodule peer's ref resolves to a different commit than the parent's recorded gitlink, --deny W512 gates CI, a ref matching the gitlink is silent, and a non-submodule sibling peer never emits W512.
+
+**Verifies:** REQ-TRS-TYPE-023  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| non-submodule peer does not emit W512 | ✓ PASS |
 
 ---
 

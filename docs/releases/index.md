@@ -2,6 +2,14 @@
 
 `RELEASES`
 
+## 0.26.30 — 2026-06-13
+
+### Submodule gitlink/ref consistency gate (W512, GH #62)
+
+Multi-repo composition now integrates with git submodules (§14, `REQ-TRS-TYPE-023`). When a peer repo's `path` is a **git submodule** of the composing model's repository, validation compares the commit its `ref:` resolves to against the **gitlink** the parent repo records for that path (`git ls-tree HEAD <submodule-path>`) and emits **`W512`** when they disagree — catching a `.syscribe.toml` `ref:` that has silently diverged from the `.gitmodules` pin. Gate CI with `validate --deny W512`. `W512` is independent of `W511` (gitlink pin vs `ref:`, not checkout vs `ref:`) and is never raised when `path` is not a submodule, no `ref:` is configured, or either commit cannot be resolved — so non-submodule compositions (sibling checkouts, monorepo paths) are unaffected. Verified by `TC-TRS-TYPE-023` (4 assertions over a real parent-repo-plus-submodule). Qual 246/246; all models clean.
+
+The two layers are complementary: a submodule provides the pinned checkout, and `[repos]` adds model-level cross-reference resolution plus the `W511`/`W512` reproducibility gates on top.
+
 ## 0.26.29 — 2026-06-13
 
 ### Peer-repository ref-drift gate (W511, GH #62)

@@ -5410,7 +5410,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W700` | `ReviewRecord` with `status: closed` has ≥1 `items[]` with `disposition: open` |
 | `W704` | Non-`draft` native `Requirement` appears in no `ReviewRecord.reviews:` list — dormant unless ReviewRecords exist (opt-in; `--deny W704`; drafted as `W701`, already in use) |
 
-#### Multi-repository composition (E510–E515, W510–W511, §14.6)
+#### Multi-repository composition (E510–E515, W510–W512, §14.6)
 
 | Code | Condition |
 |---|---|
@@ -5422,6 +5422,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E515` | Same stable ID appears in two repos (duplicate across composition) |
 | `W510` | Repo in `[repos]` has no `ref:` — composition is not reproducible (opt-in; `--deny W510`) |
 | `W511` | Peer repo `HEAD` has drifted from its configured `ref:` (opt-in; `--deny W511`) |
+| `W512` | Submodule peer's `ref:` disagrees with the parent's gitlink pin (opt-in; `--deny W512`) |
 
 #### IEC 62443 Zone/Conduit validation (E950–E956, W950–W953, §13.5)
 
@@ -6375,8 +6376,9 @@ shared    ../shared-library      main     ✓         behind (3 commits)
 | `E515` | Two repos export the same stable ID (e.g., `REQ-SCHED-001` appears in both the local model and a peer repo) |
 | `W510` | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; gateable with `--deny W510`) |
 | `W511` | A peer repo's git `HEAD` has drifted from its configured `ref:` — the checkout is not at the pinned snapshot. Detected by comparing the peer work tree's `HEAD` commit with the commit the `ref:` resolves to; never raised when drift cannot be determined (git unavailable, not a work tree, `ref:` unresolved). Opt-in; gateable with `--deny W511` as a CI reproducibility gate. `repos status` reports the same drift and exits `2`. |
+| `W512` | A peer repo's `path` is a **git submodule** of the composing model's repository, and the commit its `ref:` resolves to differs from the **gitlink** the parent repo records for that path — i.e. `.syscribe.toml` disagrees with `.gitmodules`. Detected by comparing `git ls-tree HEAD <submodule-path>` in the parent against the `ref:` commit; never raised when `path` is not a submodule, no `ref:` is configured, or either commit cannot be resolved. Independent of `W511` (gitlink pin vs `ref:`, not checkout vs `ref:`). Opt-in; gateable with `--deny W512`. |
 
-`repos sync` brings a drifted repo back to its pinned `ref:`.
+`repos sync` brings a drifted repo back to its pinned `ref:`. Git submodules and `[repos]` are complementary: a submodule provides the pinned checkout, while `[repos]` adds the model-level cross-reference resolution and the `W511`/`W512` reproducibility checks on top.
 
 ---
 

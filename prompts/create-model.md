@@ -951,7 +951,7 @@ repoImports:
     as: Brakes          # local mount name (defaults to last qname segment)
 ```
 
-Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each repo in declaration order — by **global stable ID** (`REQ-*`, `TC-*`, …, unique across the whole composition) or qualified name. Rules: `E510` circular import, `E511` missing path (no ref), `E512` dangling cross-repo ref, `E513` unknown alias, `E514` unresolved import qname, `E515` duplicate stable ID, `W510` unpinned repo, `W511` peer `HEAD` drifted from its pinned `ref:` (gate a reproducible composition with `validate --deny W511`). CLI: `repos list|status|sync`.
+Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each repo in declaration order — by **global stable ID** (`REQ-*`, `TC-*`, …, unique across the whole composition) or qualified name. Rules: `E510` circular import, `E511` missing path (no ref), `E512` dangling cross-repo ref, `E513` unknown alias, `E514` unresolved import qname, `E515` duplicate stable ID, `W510` unpinned repo, `W511` peer `HEAD` drifted from its pinned `ref:`, `W512` submodule peer whose `ref:` disagrees with the parent's `.gitmodules` gitlink (gate a reproducible composition with `validate --deny W511 --deny W512`). Git submodules and `[repos]` are complementary — the submodule pins the checkout, `[repos]` adds cross-ref resolution and the drift/gitlink gates. CLI: `repos list|status|sync`.
 
 ---
 
