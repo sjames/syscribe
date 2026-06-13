@@ -14,12 +14,12 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 walkdir = "2"
 anyhow = "1"
-petgraph = "0.6"
+petgraph = "0.8"
 notify = "6"
 futures-util = "0.3"
 regex = "1"
-toml = "0.8"
-quick-xml = "0.36"
+toml = "1"
+quick-xml = "0.40"
 clap = { version = "4", features = ["derive", "env"] }
 rust-embed = { version = "8", features = ["compression"] }
 mime_guess = "2"

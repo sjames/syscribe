@@ -403,7 +403,7 @@ fn render_grid_svg(grid: &BTreeMap<String, Vec<String>>, soi: Option<&str>) -> S
                 Style {
                     display: Display::Flex,
                     flex_direction: FlexDirection::Row,
-                    align_items: Some(AlignItems::Stretch),
+                    align_items: Some(AlignItems::STRETCH),
                     ..Default::default()
                 },
                 &cells,
@@ -417,7 +417,7 @@ fn render_grid_svg(grid: &BTreeMap<String, Vec<String>>, soi: Option<&str>) -> S
             Style {
                 display: Display::Flex,
                 flex_direction: FlexDirection::Column,
-                align_items: Some(AlignItems::Stretch),
+                align_items: Some(AlignItems::STRETCH),
                 ..Default::default()
             },
             &row_nodes,

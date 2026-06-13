@@ -196,7 +196,7 @@ fn layout_header(
                     width: length(BADGE_GAP as f32),
                     height: length(0.0),
                 },
-                align_items: Some(AlignItems::Center),
+                align_items: Some(AlignItems::CENTER),
                 flex_shrink: 1.0,
                 ..Default::default()
             },
@@ -223,7 +223,7 @@ fn layout_header(
                     width: length(PAD_H as f32),
                     height: length(0.0),
                 },
-                align_items: Some(AlignItems::Center),
+                align_items: Some(AlignItems::CENTER),
                 ..Default::default()
             },
             &[left_col, right_col],
