@@ -2,6 +2,13 @@
 
 `RELEASES`
 
+## 0.26.22 — 2026-06-13
+
+### Change impact analysis — `impact` command (GH #65)
+
+- **`syscribe impact <qname|id> [--direction downstream|upstream|both] [--depth N] [--format text|json|dot] [--kinds <csv>]`** — traverses the traceability graph from a named element and reports every reachable node, its hop distance, and the edge kind that connects it ("if I change this, what else may need to change?"). Read-only; no new element types or validation rules. (`REQ-TRS-OUT-017`)
+- **Downstream** follows reverse links (`specializedBy`, `derivedChildren`, `verifiedBy`, `satisfiedBy`, `refinedBy`, `conditionalOn`, `allocatedFrom`, `safetyGoalChildren`); **upstream** follows forward links (`supertype`, `derivedFrom`, `verifies`, `satisfies`, `refines`, `allocatedTo`, `derivedFromSafetyGoal`). `--depth` limits hops; `--kinds` restricts edge kinds; `text` (indented tree) / `json` (`{root, nodes}`) / `dot` (Graphviz). Cycle-safe; accepts qnames and stable IDs.
+
 ## 0.26.21 — 2026-06-13
 
 ### N² interface matrix — `n2` command (GH #64)

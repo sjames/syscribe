@@ -16,6 +16,7 @@ mod matrix;
 mod metrics_cmd;
 mod mgreport;
 mod mv;
+mod impact;
 mod n2;
 mod query;
 mod render;
@@ -1068,6 +1069,30 @@ fn main() {
                         }
                     }
                 }
+            }
+            "impact" => {
+                // Change impact analysis (§17, GH #65). Read-only.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let root = match rest.iter().find(|a| !a.starts_with("--")) {
+                    Some(r) => r.as_str(),
+                    None => {
+                        eprintln!("Usage: syscribe --model <root> impact <qname|id> [--direction downstream|upstream|both] [--depth N] [--format text|json|dot] [--kinds <csv>]");
+                        std::process::exit(2);
+                    }
+                };
+                let direction = match rest.windows(2).find(|w| w[0] == "--direction").map(|w| w[1].as_str()) {
+                    Some("upstream") => impact::Direction::Upstream,
+                    Some("both") => impact::Direction::Both,
+                    _ => impact::Direction::Downstream,
+                };
+                let depth = rest.windows(2).find(|w| w[0] == "--depth").and_then(|w| w[1].parse::<usize>().ok());
+                let format = rest.windows(2).find(|w| w[0] == "--format").map(|w| w[1].as_str()).unwrap_or("text");
+                let kinds = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--kinds")
+                    .map(|w| w[1].split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect::<Vec<_>>());
+                let opts = impact::ImpactOptions { root, direction, depth, format, kinds };
+                impact::cmd_impact(&elems, &opts);
             }
             "n2" => {
                 // N² interface matrix (§16, GH #64). Read-only.

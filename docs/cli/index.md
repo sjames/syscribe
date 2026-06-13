@@ -412,6 +412,14 @@ PowerSystem         PowerConn…   PowerConn…  ■            PowerConn…
 PropulsionSystem    —            —           —            ■
 ```
 
+## Change impact analysis (`impact`)
+
+```bash
+syscribe -m model/ impact <qname|id> [--direction downstream|upstream|both] [--depth N] [--format text|json|dot] [--kinds <csv>]
+```
+
+Traverses the traceability graph (§17) from an element and reports every reachable node, its hop distance, and the connecting edge kind — "if I change this, what else may need to change?". **Downstream** follows reverse links (`derivedChildren`, `verifiedBy`, `satisfiedBy`, `specializedBy`, `refinedBy`, `conditionalOn`, `allocatedFrom`, `safetyGoalChildren`); **upstream** follows forward links (`derivedFrom`, `verifies`, `satisfies`, `supertype`, `refines`, `allocatedTo`, `derivedFromSafetyGoal`). `--depth` limits hops, `--kinds` restricts edge kinds; `text` / `json` / `dot` output. Cycle-safe.
+
 ## Review records (`reviews`)
 
 ```bash

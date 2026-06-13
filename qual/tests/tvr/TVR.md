@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.20  
+**Version:** syscribe 0.26.21  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 237 |
-| Passed | 237 |
+| Total test cases | 238 |
+| Passed | 238 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1320,6 +1320,23 @@
 | --format json matches the schema | ✓ PASS |
 | --format html is a table | ✓ PASS |
 | --interfaces-only retains wired elements | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-017 — Verify the impact command: downstream reaches derived children / satisfying elements / verifying tests; upstream traces back to the safety goal; --kinds and --depth filter; --format json/dot are well-formed.
+
+**Verifies:** REQ-TRS-OUT-017  
+**Result:** ✓ PASS (14 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| downstream reaches the full chain | ✓ PASS |
+| upstream traces back to the safety goal | ✓ PASS |
+| --kinds restricts to verifies | ✓ PASS |
+| --depth 1 limits the hops | ✓ PASS |
+| --format json schema | ✓ PASS |
+| --format dot is a digraph | ✓ PASS |
+| qualified-name root works | ✓ PASS |
 
 ---
 
