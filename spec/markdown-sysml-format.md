@@ -5363,13 +5363,13 @@ This section defines the normative set of parse-time errors, model-time errors, 
 |---|---|
 | `W080` | `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` sub-action not referenced in the diagram's `edges:` |
 
-#### Budget expression validation (E800–E802, W060, §22.2)
+#### Budget expression validation (E866–E868, W060, §22.2)
 
 | Code | Condition |
 |---|---|
-| `E800` | `CalculationDef.evaluate:` resolves to an element that is not a `ConstraintDef` |
-| `E801` | `bodyLanguage: budget` body expression has a syntax error |
-| `E802` | `bodyLanguage: budget` expression references an unresolved attribute |
+| `E866` | `CalculationDef.evaluate:` resolves to an element that is not a `ConstraintDef` (drafted as `E800`, already in use) |
+| `E867` | `bodyLanguage: budget` body expression has a syntax error (drafted as `E801`) |
+| `E868` | `bodyLanguage: budget` expression references an unresolved attribute (drafted as `E802`) |
 | `W060` | `CalculationDef` with `bodyLanguage: budget` evaluates to a value that violates the `evaluate:` constraint (opt-in; gateable with `--deny W060`) |
 
 #### ASIL/SIL decomposition pair completeness (E865, W860, §22.3)
@@ -7074,9 +7074,9 @@ IDENT  ::= [A-Za-z_][A-Za-z0-9_]*
 
 | Code | Condition |
 |---|---|
-| `E800` | `evaluate:` resolves to an element that is not a `ConstraintDef` |
-| `E801` | `bodyLanguage: budget` expression contains a syntax error (unmatched parens, invalid token, etc.) |
-| `E802` | `bodyLanguage: budget` expression references a `feature_ref` that does not resolve to an attribute |
+| `E866` | `evaluate:` resolves to an element that is not a `ConstraintDef` (drafted as `E800`, which is already in use) |
+| `E867` | `bodyLanguage: budget` expression contains a syntax error (unmatched parens, invalid token, etc.) (drafted as `E801`) |
+| `E868` | `bodyLanguage: budget` expression references a `feature_ref` that does not resolve to an attribute (drafted as `E802`) |
 | `W060` | `CalculationDef` with `bodyLanguage: budget` evaluates to a value that violates the `evaluate:` constraint (opt-in — dormant unless `bodyLanguage: budget` is present; gateable with `--deny W060`) |
 
 **New CLI command:**

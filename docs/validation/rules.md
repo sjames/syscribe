@@ -264,6 +264,17 @@ SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppresse
 
 The checks apply **recursively** over the state hierarchy: each level's substates are checked by `W070`–`W074` (composite substates as nodes), inline-`subStates:` substates are recursed into, and parallel (`isParallel`) levels are checked per region plus `W077`/`W078`. `W076` covers transition endpoints that resolve to no state.
 
+## Budget expression validation (E866–E868, W060, §22.2)
+
+For a `CalculationDef` with `bodyLanguage: budget`, the `body:` is a restricted arithmetic expression (`+ - * /`, parentheses, number literals, and `feature_ref` operands resolving to inline attribute `value:`/`default:`). An optional `evaluate:` names a `ConstraintDef` bounding the result.
+
+| Code | Condition |
+|---|---|
+| E866 | `evaluate:` does not resolve to a `ConstraintDef`. |
+| E867 | The budget `body:` expression has a syntax error. |
+| E868 | A `feature_ref` operand resolves to no numeric attribute in scope. |
+| W060 | The budget value violates the `evaluate:` constraint (best-effort, for `<lhs> <op> <number>` bounds; draft-suppressed; `--deny W060`). |
+
 ## Allocation errors (E500–E503)
 
 | Code | Condition |

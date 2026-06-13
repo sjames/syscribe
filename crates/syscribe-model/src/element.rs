@@ -431,6 +431,8 @@ pub struct RawFrontmatter {
     // §8.7.1 + §8.9.1 — Action/Calculation body
     pub body: Option<String>,
     pub body_language: Option<String>,
+    /// `CalculationDef` (§22.2): qualified name of a `ConstraintDef` bounding the budget result.
+    pub evaluate: Option<String>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
     pub return_type: Option<String>,

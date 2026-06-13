@@ -441,6 +441,216 @@ fn check_state_node(
     }
 }
 
+// ── Budget expression language (§22.2, CalculationDef bodyLanguage: budget) ──────────
+
+/// Read a numeric value from a YAML scalar that may be a number or a numeric string.
+fn yaml_num(v: &serde_yaml::Value) -> Option<f64> {
+    match v {
+        serde_yaml::Value::Number(n) => n.as_f64(),
+        serde_yaml::Value::String(s) => s.trim().parse::<f64>().ok(),
+        _ => None,
+    }
+}
+
+/// Numeric `value:`/`default:` of an inline `features:` entry named `name`.
+fn feature_value(fm: &crate::element::RawFrontmatter, name: &str) -> Option<f64> {
+    fm.features.as_ref()?.iter().find_map(|f| {
+        let m = f.as_mapping()?;
+        if yaml_field(m, "name").and_then(|v| v.as_str()) != Some(name) {
+            return None;
+        }
+        yaml_field(m, "value").or_else(|| yaml_field(m, "default")).and_then(yaml_num)
+    })
+}
+
+/// Top-level numeric `value:` of an element's frontmatter.
+fn scalar_value(fm: &crate::element::RawFrontmatter) -> Option<f64> {
+    fm.value.as_ref().and_then(yaml_num)
+}
+
+/// Resolve a budget `feature_ref` operand to a number: a bare name on the CalculationDef's
+/// own features; a full qualified name carrying a scalar value; or `<owner>::<feature>`.
+fn resolve_budget_operand(
+    r: &str,
+    calc_fm: &crate::element::RawFrontmatter,
+    elements: &[RawElement],
+    resolver: &Resolver,
+) -> Option<f64> {
+    if !r.contains("::") {
+        if let Some(v) = feature_value(calc_fm, r) {
+            return Some(v);
+        }
+    }
+    if let Some(el) = resolver.resolve_ref(elements, r) {
+        if let Some(v) = scalar_value(&el.frontmatter) {
+            return Some(v);
+        }
+    }
+    if let Some(pos) = r.rfind("::") {
+        if let Some(el) = resolver.resolve_ref(elements, &r[..pos]) {
+            if let Some(v) = feature_value(&el.frontmatter, &r[pos + 2..]) {
+                return Some(v);
+            }
+        }
+    }
+    None
+}
+
+#[derive(Debug, PartialEq)]
+enum BudTok {
+    Num(f64),
+    Ref(String),
+    Plus,
+    Minus,
+    Star,
+    Slash,
+    LParen,
+    RParen,
+}
+
+fn budget_tokenize(s: &str) -> Result<Vec<BudTok>, String> {
+    let b = s.as_bytes();
+    let mut i = 0;
+    let mut toks = Vec::new();
+    while i < b.len() {
+        let c = b[i];
+        if c.is_ascii_whitespace() {
+            i += 1;
+        } else if c == b'+' {
+            toks.push(BudTok::Plus);
+            i += 1;
+        } else if c == b'-' {
+            toks.push(BudTok::Minus);
+            i += 1;
+        } else if c == b'*' {
+            toks.push(BudTok::Star);
+            i += 1;
+        } else if c == b'/' {
+            toks.push(BudTok::Slash);
+            i += 1;
+        } else if c == b'(' {
+            toks.push(BudTok::LParen);
+            i += 1;
+        } else if c == b')' {
+            toks.push(BudTok::RParen);
+            i += 1;
+        } else if c.is_ascii_digit() || c == b'.' {
+            let start = i;
+            while i < b.len() && (b[i].is_ascii_digit() || b[i] == b'.' || b[i] == b'e' || b[i] == b'E') {
+                i += 1;
+            }
+            let num = &s[start..i];
+            toks.push(BudTok::Num(num.parse::<f64>().map_err(|_| format!("invalid number '{}'", num))?));
+        } else if c.is_ascii_alphabetic() || c == b'_' {
+            let start = i;
+            while i < b.len() && (b[i].is_ascii_alphanumeric() || b[i] == b'_' || b[i] == b':') {
+                i += 1;
+            }
+            toks.push(BudTok::Ref(s[start..i].to_string()));
+        } else {
+            return Err(format!("unexpected character '{}'", c as char));
+        }
+    }
+    Ok(toks)
+}
+
+fn bud_factor(t: &[BudTok], p: &mut usize, res: &dyn Fn(&str) -> Option<f64>, unres: &mut Vec<String>) -> Result<f64, String> {
+    match t.get(*p) {
+        Some(BudTok::Num(n)) => {
+            *p += 1;
+            Ok(*n)
+        }
+        Some(BudTok::Ref(r)) => {
+            *p += 1;
+            match res(r) {
+                Some(v) => Ok(v),
+                None => {
+                    unres.push(r.clone());
+                    Ok(0.0)
+                }
+            }
+        }
+        Some(BudTok::LParen) => {
+            *p += 1;
+            let v = bud_expr(t, p, res, unres)?;
+            if t.get(*p) != Some(&BudTok::RParen) {
+                return Err("expected ')'".into());
+            }
+            *p += 1;
+            Ok(v)
+        }
+        _ => Err("expected a number, reference, or '('".into()),
+    }
+}
+
+fn bud_term(t: &[BudTok], p: &mut usize, res: &dyn Fn(&str) -> Option<f64>, unres: &mut Vec<String>) -> Result<f64, String> {
+    let mut v = bud_factor(t, p, res, unres)?;
+    while let Some(op) = t.get(*p) {
+        match op {
+            BudTok::Star => {
+                *p += 1;
+                v *= bud_factor(t, p, res, unres)?;
+            }
+            BudTok::Slash => {
+                *p += 1;
+                v /= bud_factor(t, p, res, unres)?;
+            }
+            _ => break,
+        }
+    }
+    Ok(v)
+}
+
+fn bud_expr(t: &[BudTok], p: &mut usize, res: &dyn Fn(&str) -> Option<f64>, unres: &mut Vec<String>) -> Result<f64, String> {
+    let mut v = bud_term(t, p, res, unres)?;
+    while let Some(op) = t.get(*p) {
+        match op {
+            BudTok::Plus => {
+                *p += 1;
+                v += bud_term(t, p, res, unres)?;
+            }
+            BudTok::Minus => {
+                *p += 1;
+                v -= bud_term(t, p, res, unres)?;
+            }
+            _ => break,
+        }
+    }
+    Ok(v)
+}
+
+/// Evaluate a budget expression. `Err` is a syntax error (E867); `Ok((value, unresolved))`
+/// reports operands that resolved to no value (E868).
+fn eval_budget(body: &str, res: &dyn Fn(&str) -> Option<f64>) -> Result<(f64, Vec<String>), String> {
+    let toks = budget_tokenize(body)?;
+    if toks.is_empty() {
+        return Err("empty budget expression".into());
+    }
+    let mut p = 0;
+    let mut unres = Vec::new();
+    let v = bud_expr(&toks, &mut p, res, &mut unres)?;
+    if p != toks.len() {
+        return Err("trailing tokens after expression".into());
+    }
+    Ok((v, unres))
+}
+
+/// Reduce a constraint expression of the form `<lhs> <op> <number>` to `(op, bound)`,
+/// for the best-effort W060 check. Compound constraints (`and`/`or`) return `None`.
+fn constraint_simple_bound(expr: &str) -> Option<(&'static str, f64)> {
+    if expr.contains(" and ") || expr.contains(" or ") {
+        return None;
+    }
+    for op in ["<=", ">=", "==", "<", ">"] {
+        if let Some(idx) = expr.find(op) {
+            if let Ok(n) = expr[idx + op.len()..].trim().parse::<f64>() {
+                return Some((op, n));
+            }
+        }
+    }
+    None
+}
+
 /// Map ASIL level string to a numeric rank for comparison (A=1, B=2, C=3, D=4).
 fn asil_rank(level: &str) -> Option<u8> {
     match level.to_ascii_uppercase().as_str() {
@@ -2335,6 +2545,79 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         &file,
                         &format!("state-machine behavior reference '{}' (entry/do/exit/effect) does not resolve to a known element", r),
                     ));
+                }
+            }
+        }
+
+        // ── Budget expression language (§22.2) ───────────────────────────────
+        // A CalculationDef with `bodyLanguage: budget` evaluates a restricted arithmetic
+        // `body:` over inline attribute values, optionally bounded by an `evaluate:`
+        // ConstraintDef. E866 (bad evaluate target), E867 (syntax), E868 (unresolved
+        // operand), W060 (value violates the constraint bound).
+        if matches!(fm.element_type, Some(ElementType::CalculationDef))
+            && fm.body_language.as_deref() == Some("budget")
+        {
+            if let Some(ref ev) = fm.evaluate {
+                let is_constraint = resolver
+                    .resolve_ref(elements, ev)
+                    .map(|e| matches!(e.frontmatter.element_type, Some(ElementType::ConstraintDef)))
+                    .unwrap_or(false);
+                if !is_constraint {
+                    findings.push(error(
+                        "E866",
+                        &file,
+                        &format!("`evaluate: {}` does not resolve to a ConstraintDef", ev),
+                    ));
+                }
+            }
+            if let Some(ref body) = fm.body {
+                let res = |r: &str| resolve_budget_operand(r, fm, elements, &resolver);
+                match eval_budget(body, &res) {
+                    Err(msg) => findings.push(error(
+                        "E867",
+                        &file,
+                        &format!("budget expression syntax error: {}", msg),
+                    )),
+                    Ok((value, unresolved)) => {
+                        for u in &unresolved {
+                            findings.push(error(
+                                "E868",
+                                &file,
+                                &format!("budget operand '{}' resolves to no numeric attribute in scope", u),
+                            ));
+                        }
+                        // W060 — best-effort bound check (draft-suppressed, opt-in via --deny).
+                        if unresolved.is_empty() && fm.status.as_deref() != Some("draft") {
+                            if let Some(ref ev) = fm.evaluate {
+                                if let Some(c) = resolver.resolve_ref(elements, ev) {
+                                    if matches!(c.frontmatter.element_type, Some(ElementType::ConstraintDef)) {
+                                        if let Some((op, bound)) = c
+                                            .frontmatter
+                                            .expression
+                                            .as_deref()
+                                            .and_then(constraint_simple_bound)
+                                        {
+                                            let ok = match op {
+                                                "<=" => value <= bound,
+                                                ">=" => value >= bound,
+                                                "<" => value < bound,
+                                                ">" => value > bound,
+                                                "==" => (value - bound).abs() < 1e-9,
+                                                _ => true,
+                                            };
+                                            if !ok {
+                                                findings.push(warning(
+                                                    "W060",
+                                                    &file,
+                                                    &format!("budget evaluates to {} which violates constraint `{}` ({} {} {})", value, ev, value, op, bound),
+                                                ));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

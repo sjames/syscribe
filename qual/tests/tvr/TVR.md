@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.16  
+**Version:** syscribe 0.26.17  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 233 |
-| Passed | 233 |
+| Total test cases | 234 |
+| Passed | 234 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -51,6 +51,23 @@
 | Scenario | Result |
 |---|---|
 | an unresolved element exits non-zero | ✓ PASS |
+
+---
+
+### TC-TRS-BUDGET-001 — Verify the budget expression language: a resolvable in-bound budget is clean; E866 (evaluate not a ConstraintDef), E867 (syntax error), E868 (unresolved operand), W060 (value violates the evaluate constraint); W060 draft-suppressed and gateable.
+
+**Verifies:** REQ-TRS-BUDGET-001  
+**Result:** ✓ PASS (11 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| well-formed in-bound budget is clean | ✓ PASS |
+| E866 — evaluate not a ConstraintDef | ✓ PASS |
+| E867 — malformed budget expression | ✓ PASS |
+| E868 — unresolved operand | ✓ PASS |
+| W060 — budget violates the evaluate constraint | ✓ PASS |
+| W060 draft-suppressed | ✓ PASS |
+| validate --deny W060 promotes to gate failure | ✓ PASS |
 
 ---
 

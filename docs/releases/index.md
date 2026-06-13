@@ -2,6 +2,15 @@
 
 `RELEASES`
 
+## 0.26.18 — 2026-06-13
+
+### Budget expression language for CalculationDef (GH #67)
+
+- **`bodyLanguage: budget`** — a `CalculationDef` can now carry a restricted arithmetic `body:` (`+ - * /`, parentheses, number literals, and `feature_ref` operands resolving to inline attribute `value:`/`default:`). The tool evaluates it without a full KerML expression evaluator. A new `evaluate:` field names a `ConstraintDef` bounding the result. (`REQ-TRS-BUDGET-001`)
+- **Validation** — `E866` (`evaluate:` is not a `ConstraintDef`), `E867` (budget syntax error), `E868` (operand resolves to no numeric attribute), and `W060` (budget value violates the `evaluate:` constraint — best-effort for `<lhs> <op> <number>` bounds; draft-suppressed; gateable with `validate --deny W060`).
+
+> **Code note:** the spec drafted the errors as `E800`–`E802`, already in use (HazardousEvent); reassigned to **`E866`–`E868`** and the spec §22.2 corrected. `W060` was free.
+
 ## 0.26.17 — 2026-06-13
 
 ### ASIL D / SIL 4 decomposition pair completeness (GH #69)
