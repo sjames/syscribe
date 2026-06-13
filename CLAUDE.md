@@ -41,9 +41,17 @@ cargo run --package syscribe-server -- -m model/
 ./target/debug/syscribe -m model/ validate --config CONF-X     # validate one projected variant
 ./target/debug/syscribe -m model/ validate --all-configs       # CI gate over every Configuration
 ./target/debug/syscribe -m model/ diff --config CONF-A --config CONF-B
+
+# Multi-repository composition (opt-in; see docs/model-guide/multi-repo.md)
+./target/debug/syscribe -m model/ repos list             # configured peer repos + on-disk/sync status
+./target/debug/syscribe -m model/ repos status           # whether each pinned repo is at its ref (exit 2 on drift)
+./target/debug/syscribe -m model/ repos sync --all       # git fetch + checkout <ref> for pinned repos
+./target/debug/syscribe -m model/ validate --deny W511 --deny W512   # gate CI on ref drift / submodule gitlink
 ```
 
 The feature-model SAT engine is `batsat` (vendored, MIT, pure Rust — `ADR-FM-002`); the in-tree clause IR + brute-force oracle live in `crates/syscribe-model/src/{solver,projection,feature_model}.rs`.
+
+Multi-repo composition (§14) is config-driven: `[repos]` in `.syscribe.toml` + `repoImports:` on a package `_index.md`. The loader (`crates/syscribe-model/src/config.rs`) walks each peer, indexes qnames/stable-IDs, and precomputes git ref/gitlink state (`RefState`); the validator emits `E510`–`E515`/`W510`–`W512` only when `[repos]` is configured.
 
 ---
 

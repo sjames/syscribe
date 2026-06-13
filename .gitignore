@@ -3,3 +3,6 @@ temp/
 site/
 *.layout.json
 .syscribe/cache/
+
+# Local Claude Code plan scratch files (ephemeral, never committed)
+.claude/plans/

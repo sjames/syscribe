@@ -61,6 +61,7 @@ nav:
       - State Machines: model-guide/state-machines.md
       - Safety & Security Analysis: model-guide/safety-analysis.md
       - Variability & Product Lines: model-guide/variability.md
+      - Multi-Repository Composition: model-guide/multi-repo.md
       - MagicGrid: model-guide/magicgrid.md
       - Custom Fields: model-guide/custom-fields.md
       - LLM-Assisted Modeling: model-guide/llm-workflow.md

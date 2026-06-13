@@ -62,8 +62,11 @@ The safety monitor shall perform a complete supervision cycle within 100 ms...
 - **Architecture Decision Records** (ADR-*) — every requirement decomposition cites an accepted ADR
 - **Safety analysis**: HARA, SafetyGoal, HazardousEvent, FaultTree (file-per-node), FMEA (exploded entries)
 - **Security analysis**: TARA, DamageScenario, ThreatScenario, CybersecurityGoal, SecurityControl, VulnerabilityReport
+- **Variability / product lines**: feature models (`FeatureDef`, `Configuration`), `appliesWhen:` conditioning, SAT-backed `feature-check`, and the `--config` projection lens
+- **Multi-repository composition** (§14): import namespaces from peer repos via `[repos]` + `repoImports:`, resolve cross-repo references by global stable ID, and gate reproducibility on git ref drift / submodule gitlink (`W510`–`W512`)
+- **IEC 62443 zones & conduits**, **review records**, **trade studies**, and **state-machine / sequence completeness** checks
 - **Six §12 traceability rules** enforced by the validator: OSLC link direction, breakdown ADR, leaf assignment, domain classification, HW/SW independence, deployment allocation
-- **80+ validation rules** (E001–E843, W001–W808): cross-reference resolution, integrity level consistency, diagram annotation, documentation completeness
+- **200+ validation rules** across parse-time, cross-reference, safety/security, behavior, and composition: cross-reference resolution, integrity level consistency, diagram annotation, documentation completeness
 
 ## Repository Structure
 

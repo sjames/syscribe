@@ -337,7 +337,7 @@ A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal 
 | W700 | A `status: closed` review has an `items[]` with `disposition: open`. |
 | W704 | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (dormant unless ReviewRecords exist; `--deny W704`). |
 
-## Multi-repository composition (E510–E515, W510, §14)
+## Multi-repository composition (E510–E515, W510–W512, §14)
 
 A model composes peer repositories declared in the `[repos]` table of the model-root `.syscribe.toml` and imports their namespaces via `repoImports:` on a Package `_index.md`. Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each loaded repo in declaration order (by global stable ID or qualified name). **Active only when `[repos]` is configured** — single-repo models are unaffected.
 

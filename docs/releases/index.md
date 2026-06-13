@@ -2,6 +2,18 @@
 
 `RELEASES`
 
+## 0.26.31 — 2026-06-13
+
+### Documentation: multi-repository composition
+
+Full documentation pass for the §14 multi-repo / git-submodule work (`W510`–`W512`):
+
+- **New guide** — [Multi-Repository Composition](../model-guide/multi-repo.md): `[repos]` declaration, `repoImports:` mounting, cross-repo resolution, the reproducibility gates, and how `[repos]` composes with git submodules. Added to the site nav and the Modeling-Guide index.
+- **Validation overview** — the code-range table in `docs/validation/index.md` now covers the whole §13–§22 backlog (TestPlan, review records, multi-repo, decomposition/budgets, trade studies, IEC 62443, behavior), and the stale qualification-suite counts were corrected.
+- Cross-links and the `W512` row added across the rule reference, CLI reference, and frontmatter reference; the `README` "What It Supports" list now includes variability, multi-repo composition, and the expanded rule set; `CLAUDE.md` gained a multi-repo commands block.
+
+Documentation-only; no code or validation behavior change. `mkdocs build --strict` is clean.
+
 ## 0.26.30 — 2026-06-13
 
 ### Submodule gitlink/ref consistency gate (W512, GH #62)
