@@ -108,6 +108,21 @@ bindingConnections:
 | `asilLevel` | ISO 26262 ASIL A–D |
 | `derivedFrom` | List of parent REQ-* IDs |
 | `breakdownAdr` | Qualified name of the accepted ADR that justifies this derivation |
+| `decompositionKind` | ASIL D / SIL 4 decomposition argument: `independent` · `redundant` · `diverse` (§22.3; siblings must satisfy distinct elements — `E865` — and number ≥2 — `W860`) |
+
+## Native element fields (ReviewRecord, TradeStudy, budget)
+
+These id-identified native types carry their own field sets (full schema in [Element Types](elements.md) and `syscribe spec fields`):
+
+| Type / field | Description |
+|---|---|
+| `ReviewRecord` (`RR-*`) | `reviewType`, `reviews:` (covered elements), `items[].disposition`, `recordedAt:` (URI to the external review — keep records thin), `reviewDate`, `reviewedBy` (§19) |
+| `TradeStudy` (`TRD-*`) | `criteria:` (`weight` + `direction`), `alternatives:` (optional `element:`), `scores:` matrix, optional `objective:` / `decision:` (§15) |
+| `CalculationDef` budget | `bodyLanguage: budget` + `body:` (restricted arithmetic over inline attribute values) and `evaluate:` (a `ConstraintDef` bounding the result) (§22.2) |
+
+## State machine transitions (`StateDef`/`State`)
+
+The canonical transition schema (§8.8.3) is `source` / `target` / `accept{payload,via}` / `guard` / `effect`, authored either nested under a `subStates:` entry (implicit source) or top-level (explicit `source:`); `isInitial`/`isFinal` mark the initial/final substates. The legacy `from`/`to`/`trigger` keys are accepted as aliases but **deprecated** (`W075`). Hierarchy/region-aware completeness checks are `W070`–`W079`.
 
 ## Traceability fields (TestCases)
 

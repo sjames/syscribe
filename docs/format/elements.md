@@ -55,7 +55,20 @@ These are not standard SysML usages — they carry a stable opaque identifier an
 | `TestCase` | `TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `testLevel`, `verifies` |
 | `TestPlan` | `TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status` |
 | `ADR` | `ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status` |
+| `ReviewRecord` | `RR(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `reviewType`, `reviews` |
+| `TradeStudy` | `TRD(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `criteria`, `alternatives`, `scores` |
 | `Configuration` | `CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `featureModel` |
+
+**`ReviewRecord`** (§19) captures a formal review event (design / requirements / hazard /
+test-readiness review, inspection, walkthrough) and the model elements it covers — a thin,
+baselined traceability anchor whose `recordedAt:` points to the external review (e.g. a
+GitHub PR). Validation `E700`–`E705`, `W700`, `W704`; commands `reviews`, `review`,
+`reviews --coverage`. See [CLI → Reviews](../cli/index.md#review-records-reviews).
+
+**`TradeStudy`** (§15) records a weighted-criteria evaluation of design alternatives
+(`criteria` with weight + `maximize`/`minimize`, `alternatives`, a `scores` matrix, optional
+`objective`/`decision`). The tool computes — never writes — normalised/weighted scores and
+rankings. Validation `E869`–`E877`, `W061`–`W064`; command `trade-study`.
 
 ## Tier 2 — Safety & cybersecurity elements (own schema)
 

@@ -122,6 +122,9 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe model/ co-analysis [--json]` | Safety↔security: which cyber threats can violate each SafetyGoal (via `hazardRef`) |
 | `syscribe model/ safety-case [<SG>] [--json]` | GSN goal→argument→evidence tree (Argument/AssumptionOfUse + implicit goal→req→test) |
 | `syscribe model/ connectivity <element> [--depth N] [--format text\|dot\|json]` | Element-rooted subgraph of elements + connections (model root = whole model) |
+| `syscribe model/ n2 [<qname>] [--depth N] [--format text\|html\|json] [--interfaces-only] [--allocations]` | N² interface matrix: parts on the diagonal, connecting interfaces in the cells |
+| `syscribe model/ reviews [<qname>] [--open-only] [--json]` / `review <RR-id>` / `reviews --coverage` | List/detail `ReviewRecord`s and their requirement coverage |
+| `syscribe model/ trade-study [<TRD-id>] [--json]` | List/score `TradeStudy` elements (normalised, weighted, ranked) |
 | `syscribe model/ extref <ref> [--json]` | Find elements by external reference (`extRef`) |
 | `syscribe model/ list <type> [--status <s>] [--sil <v>] [--has-wcet] [--json]` | (filters) status/integrity/WCET filters + JSON |
 | `syscribe model/ matrix [--gaps-only] [--status <s>] [--linked-only]` | (flags) drop covered rows; status filter; coverage-% footer; executed-evidence glyphs when results ingested |
@@ -339,6 +342,8 @@ One-line description of this package.
 | `TestCase` | native test case | `Verification/` |
 | `TestPlan` | native test plan (groups TestCases) | `TestPlans/` |
 | `ADR` | architecture decision | `Decisions/` |
+| `ReviewRecord` | formal review event + traceability (RR-*) | `Reviews/` |
+| `TradeStudy` | weighted-criteria evaluation of alternatives (TRD-*) | `TradeStudies/` |
 | `Allocation` | `allocation` | `Allocations/` |
 | `Diagram` | diagram | `Diagrams/` |
 | `HazardousEvent` | native hazard (HARA) | `Safety/HARA/` |
@@ -377,7 +382,7 @@ Key fields that apply to most element types:
 | Field | Notes |
 |---|---|
 | `type` | Required — one of the types in Part 2 |
-| `name` | The single human-readable label on **every** element type (`Requirement`, `TestCase`, `ADR`, `PartDef`, `Package`, `FeatureDef`, the safety/security types — all of them). For **name-identified** types (SysML structural types, `Package`, `Diagram`, `FeatureDef`) `name` is also the identity segment: it defaults to the filename stem and **must be a SysMLv2 basic name** `[A-Za-z_][A-Za-z0-9_]*` — letters/digits/`_`, no hyphens or spaces (use `_` or CamelCase: `Anti_Lock`, not `Anti-Lock`); a hyphen breaks `appliesWhen`/`parameterConstraints` references and non-basic names warn `W042`. For **id-identified** types (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, and the safety/security types) identity is the stable `id`, so `name` is **free prose** — spaces and punctuation allowed, `W042` does not apply — and is **required** on these types. |
+| `name` | The single human-readable label on **every** element type (`Requirement`, `TestCase`, `ADR`, `PartDef`, `Package`, `FeatureDef`, the safety/security types — all of them). For **name-identified** types (SysML structural types, `Package`, `Diagram`, `FeatureDef`) `name` is also the identity segment: it defaults to the filename stem and **must be a SysMLv2 basic name** `[A-Za-z_][A-Za-z0-9_]*` — letters/digits/`_`, no hyphens or spaces (use `_` or CamelCase: `Anti_Lock`, not `Anti-Lock`); a hyphen breaks `appliesWhen`/`parameterConstraints` references and non-basic names warn `W042`. For **id-identified** types (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `ReviewRecord`, `TradeStudy`, and the safety/security types) identity is the stable `id`, so `name` is **free prose** — spaces and punctuation allowed, `W042` does not apply — and is **required** on these types. |
 | `title` | **REMOVED — use `name`.** `title` is no longer a label field on any element; a stray `title:` is error `E025` ("rename it to `name`"). |
 | `supertype` | Specialisation link (`>` in SysML) |
 | `typedBy` | Type of a usage element (port, part, action, etc.) |
@@ -438,6 +443,7 @@ custom_fields:
 | `verificationMethod` | `test` · `inspection` · `analysis` · `demonstration` — required for ASIL B/C/D (W701). |
 | `derivedFrom` | List of parent Requirement `id`s — triggers §12 rules |
 | `breakdownAdr` | Qualified name of an `accepted` ADR — **required whenever `derivedFrom` is set** (E310); also required when integrity level is lower than the source (W808) |
+| `decompositionKind` | For an ASIL D / SIL 4 decomposition: `independent` · `redundant` · `diverse` (informational; shown in the `safety-case` report). The decomposition's siblings must satisfy **distinct** architecture elements (`E865`) and number **≥2** (`W860`). |
 
 ### Normative body rules
 
@@ -536,6 +542,72 @@ is *for*.
 **Getting the next ID:** `syscribe model/ next-id TP-DELIVERY-INTEGRATION`
 
 **Template:** `syscribe model/ template TestPlan`
+
+---
+
+## Part 6c — ReviewRecord (`type: ReviewRecord`)
+
+A `ReviewRecord` (id `RR-*`) captures a **formal review event** (design / requirements /
+hazard / test-readiness review, inspection, walkthrough) and the model elements it covers —
+a thin, **baselined traceability anchor**. Keep it thin: put a `recordedAt:` URI to the
+external review (e.g. a GitHub PR) and the action-item dispositions in the model; the
+discussion stays in the review tool.
+
+```yaml
+---
+type: ReviewRecord
+id: RR-SW-ARCH-001
+name: Software Architecture Review — Sprint 12   # free prose
+status: closed                # open | closed | waived
+reviewType: design_review     # requirements_review | hazard_review | test_readiness_review | inspection | walk_through
+reviewDate: "2026-05-14"
+reviewedBy: [alice, bob]
+recordedAt: "https://github.com/org/repo/pull/42"   # thin pointer to the review
+reviews:                      # ≥1 covered elements (qnames or stable IDs)
+  - Logical::ABSController
+  - REQ-ABS-001
+items:
+  - { description: "Add watchdog requirement.", disposition: closed, closedBy: REQ-ABS-WD-001 }
+---
+```
+
+Validation: `E700` (required fields), `E701` (RR-* id), `E702`/`E703`/`E705` (status / reviewType /
+disposition enums), `E704` (unresolved `reviews:`), `W700` (closed review with an open item),
+`W704` (a non-draft Requirement covered by no review — dormant unless ReviewRecords exist).
+Commands: `reviews`, `review <RR-id>`, `reviews --coverage`. Template: `template ReviewRecord`.
+
+---
+
+## Part 6d — TradeStudy (`type: TradeStudy`)
+
+A `TradeStudy` (id `TRD-*`) records a **weighted-criteria evaluation** of design alternatives.
+The tool computes (never writes) min-max normalised scores, weighted totals, and rankings.
+
+```yaml
+---
+type: TradeStudy
+id: TRD-COMM-001
+name: Communication Bus Trade
+status: complete             # draft | review | complete
+objective: REQ-COMM-001      # the Requirement this study informs (optional)
+decision: ADR-COMM-BUS-001   # the ADR recording the choice (optional; W061 if complete and absent)
+criteria:
+  - { name: latency, weight: 0.6, direction: minimize, unit: ms }   # weight in [0,1]; tool normalises
+  - { name: cost,    weight: 0.4, direction: maximize, unit: Mbps }
+alternatives:
+  - { name: CAN-FD, element: Physical::CANFDBus }
+  - { name: TSN }
+scores:
+  - { alternative: CAN-FD, criterion: latency, score: 0.5 }
+  - { alternative: CAN-FD, criterion: cost,    score: 8 }
+  - { alternative: TSN,    criterion: latency, score: 0.1 }
+  - { alternative: TSN,    criterion: cost,    score: 1000 }
+---
+```
+
+Validation: `E869` (required), `E870` (TRD-* id), `E871`–`E873` (criteria), `E874`/`E875`
+(alternatives), `E876`/`E877` (scores), `W061`–`W064` (advisories). Command: `trade-study [<TRD-id>]`.
+Template: `template TradeStudy`.
 
 ---
 

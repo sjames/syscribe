@@ -390,6 +390,48 @@ Edges are styled per kind: containment is dashed grey, typing/supertype is solid
 
 ---
 
+## N² interface matrix (`n2`)
+
+```bash
+syscribe -m model/ n2 [<qname>] [--depth <N>] [--format text|html|json] [--interfaces-only] [--allocations]
+```
+
+Generates an N² (N-squared) interface matrix (§16): the in-scope `PartDef`/`Part` elements sit on the diagonal, and the off-diagonal cell **(row R, col C)** lists the interfaces directed from R to C — each a named interface from the connecting `connections:`/`flowConnections:` entry's `typedBy:` (ConnectionDef/InterfaceDef) or its `name`. Derived read-only from the wiring you already authored.
+
+- No `<qname>` → every part in the model is on the axis; a `<qname>` → the composite's subpart types, expanded `--depth` levels (default 1).
+- `--format` `text` (ASCII grid) / `html` (self-contained `<table>`) / `json` (`{ scope, elements, matrix: { R: { C: [{kind, name}] } } }`).
+- `--allocations` adds `allocatedTo:` edges; `--interfaces-only` drops elements with no interfaces.
+
+```text
+N² Interface Matrix — UAV::Airframe (depth 1)
+
+                    AvionicsBay  PayloadBay  PowerSystem  PropulsionSystem
+AvionicsBay         ■            —           —            —
+PayloadBay          —            ■           —            —
+PowerSystem         PowerConn…   PowerConn…  ■            PowerConn…
+PropulsionSystem    —            —           —            ■
+```
+
+## Review records (`reviews`)
+
+```bash
+syscribe -m model/ reviews [<qname>] [--open-only] [--json]
+syscribe -m model/ reviews --coverage [--json]
+syscribe -m model/ review <RR-id> [--json]
+```
+
+Lists `ReviewRecord` elements (§19) and their coverage. A `ReviewRecord` is a baselined, thin traceability anchor for a formal review; the discussion lives in the tool named by `recordedAt:`. `reviews <qname>` filters to reviews covering that element; `--open-only` to reviews with open action items; `reviews --coverage` prints the native-Requirement review-coverage cross-table; `review <RR-id>` shows one record in full.
+
+## Trade studies (`trade-study`)
+
+```bash
+syscribe -m model/ trade-study [<TRD-id>] [--json]
+```
+
+When the model contains `TradeStudy` elements (§15), lists them or prints one study's full **normalised, weighted, ranked** scoring table (computed, never written). Without `TradeStudy` elements, the command falls back to the MagicGrid MoE-weighted trade study (`--profile magicgrid`, REQ-TRS-MG-007). `template TradeStudy` prints a skeleton.
+
+---
+
 ## Searching
 
 ### Fuzzy search
