@@ -379,7 +379,7 @@ pub async fn get_graph(State(state): State<SharedState>) -> Json<GraphResponse> 
         }
 
         // derivedFromSecurityGoal: Requirement → CybersecurityGoal
-        if let Some(ref csg) = fm.derived_from_security_goal {
+        if let Some(ref csg) = fm.derived_from_cybersecurity_goal {
             if let Some(tgt) = resolve_to_qname(resolver, elements, csg) {
                 add_edge(&mut edges, &mut seen_edges, src, &tgt, "derivedFromSecurityGoal");
             }

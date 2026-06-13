@@ -135,7 +135,7 @@ fn requirements_derived_from_goal<'a>(
         .filter(|e| Resolver::is_native_requirement(e))
         .filter(|e| {
             let from_sg = e.frontmatter.derived_from_safety_goal.as_deref();
-            let from_csg = e.frontmatter.derived_from_security_goal.as_deref();
+            let from_csg = e.frontmatter.derived_from_cybersecurity_goal.as_deref();
             [from_sg, from_csg]
                 .into_iter()
                 .flatten()

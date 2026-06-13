@@ -2,6 +2,17 @@
 
 `RELEASES`
 
+## 0.26.7 — 2026-06-13
+
+### New features and fixes (issues #54–#59)
+
+- **`AssumptionOfUse.appliesTo` accepts `CybersecurityGoal`** — AOUs can now cross-link to `CybersecurityGoal` elements for ISO/SAE 21434 §9 SEooC obligations. An explicit type check (`E859`) fires when `appliesTo` targets an element that is not a SafetyGoal, CybersecurityGoal, Argument, or Requirement. (`REQ-TRS-SEC-004`)
+- **`ConfirmationMeasure.confirms` accepts `CybersecurityGoal`** — TARA review CMs can now confirm CybersecurityGoal elements. Targeting an element of an invalid type raises **E860**. (`REQ-TRS-SEC-005`)
+- **`derivedFromCybersecurityGoal:` field on `Requirement`** — renamed from `derivedFromSecurityGoal:` for clarity; the old key is a serde alias for backward compatibility. E831 enforces resolution to a `CybersecurityGoal` element. W804 message updated. (`REQ-TRS-SEC-006`)
+- **W039 extended to CAL3 CybersecurityGoals** — a CAL3 `CybersecurityGoal` with no I2 (or I3) `cybersecurity_assessment` `ConfirmationMeasure` now triggers W039, per ISO/SAE 21434 §15.9. The existing CAL4→I3 check is unchanged. (`REQ-TRS-SEC-007`)
+- **`securityTestMethod:` field on `TestCase`** — ISO/SAE 21434 §13 security-specific test methods (`fuzz`, `penetration_test`, `security_regression`, `vulnerability_scan`, `threat_modeling`). Invalid value → **W809**. (`REQ-TRS-SEC-008`)
+- **Native `Asset` element type** — first-class asset identification per ISO/SAE 21434 §15.3 with stable `ASSET-*` IDs, `cybersecurityProperties`, `assetOwner`, and `relatedSafetyGoal` fields. `DamageScenario.assets` links scenarios to identified assets. Validation: **E861** (required fields), **E862** (id pattern), **E863** (invalid property), **E864** (bad assets ref), **W810** (unreferenced asset). (`REQ-TRS-TYPE-017`)
+
 ## 0.26.6 — 2026-06-13
 
 ### New features (issues #48–#52)

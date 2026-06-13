@@ -166,7 +166,7 @@ pub fn outbound_refs(elem: &RawElement) -> Vec<(RefKind, String)> {
             out.push((RefKind::Traceability, s.clone()));
         }
     }
-    for s in [&fm.breakdown_adr, &fm.derived_from_safety_goal, &fm.derived_from_security_goal]
+    for s in [&fm.breakdown_adr, &fm.derived_from_safety_goal, &fm.derived_from_cybersecurity_goal]
         .into_iter()
         .flatten()
     {

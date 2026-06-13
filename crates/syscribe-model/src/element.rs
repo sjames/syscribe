@@ -136,6 +136,8 @@ pub enum ElementType {
     CybersecurityGoal,
     SecurityControl,
     VulnerabilityReport,
+    // Asset identification (ISO/SAE 21434 §15.3) — ASSET-* id-identified
+    Asset,
     // Fault Tree Analysis (IEC 61025 / ISO 26262-9)
     FaultTree,
     FaultTreeGate,
@@ -204,6 +206,7 @@ impl ElementType {
                 | ElementType::AttackStep
                 | ElementType::Argument
                 | ElementType::AssumptionOfUse
+                | ElementType::Asset
         )
     }
 }
@@ -596,6 +599,9 @@ pub struct RawFrontmatter {
     // §T2 — DamageScenario (ISO/SAE 21434 §15)
     pub damage_severity: Option<String>,        // severe|major|moderate|negligible
     pub impact_categories: Option<Vec<String>>, // safety|financial|operational|privacy
+    // DamageScenario.assets: references to Asset elements (REQ-TRS-TYPE-017, YAML: assets)
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub assets: Option<Vec<String>>,
 
     /// §T4 safety↔security co-engineering (ISO 26262 ⇄ ISO/SAE 21434) — cross-link
     /// from a `DamageScenario`/`ThreatScenario` to the `HazardousEvent`/`SafetyGoal`
@@ -630,7 +636,9 @@ pub struct RawFrontmatter {
     pub mitigated_by: Option<Vec<String>>,      // SecurityControl id/qname refs
 
     // §T2 — upstream goal links for native Requirement
-    pub derived_from_security_goal: Option<String>, // CSG-* that generated this requirement (YAML: derivedFromSecurityGoal)
+    // YAML: derivedFromCybersecurityGoal; alias: derivedFromSecurityGoal (legacy)
+    #[serde(alias = "derivedFromSecurityGoal")]
+    pub derived_from_cybersecurity_goal: Option<String>,
     pub derived_from_safety_goal: Option<String>,   // SG-* that generated this requirement (YAML: derivedFromSafetyGoal)
 
     // §8.18 — GSN safety-argument layer (issue #20)
@@ -652,6 +660,17 @@ pub struct RawFrontmatter {
     /// Resolver (else E858).
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub applies_to: Option<Vec<String>>,
+
+    // §T2 — TestCase security test method (REQ-TRS-SEC-008; ISO/SAE 21434 §13.3)
+    // Valid: fuzz|penetration_test|security_regression|vulnerability_scan|threat_modeling
+    // Invalid → W809. (YAML: securityTestMethod)
+    pub security_test_method: Option<String>,
+
+    // §T2 — Asset (REQ-TRS-TYPE-017; ISO/SAE 21434 §15.3 asset identification)
+    // cybersecurityProperties: list of confidentiality|integrity|availability|authenticity (YAML: cybersecurityProperties)
+    pub cybersecurity_properties: Option<Vec<String>>,
+    pub asset_owner: Option<String>,          // qname/id of owning architecture element (YAML: assetOwner)
+    pub related_safety_goal: Option<String>,  // SG-* ref for co-engineering (YAML: relatedSafetyGoal)
 
     /// §custom-fields (GH #39) — user-defined, freeform metadata attachable to any
     /// element. A flat map of `string -> scalar | list-of-scalars`. Distinct from the

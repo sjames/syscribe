@@ -128,6 +128,8 @@ pub fn type_label(et: &ElementType) -> &'static str {
         ElementType::AssumptionOfUse => "AssumptionOfUse",
         // TARA container
         ElementType::TARASheet => "TARASheet",
+        // Asset identification (ISO/SAE 21434 §15.3)
+        ElementType::Asset => "Asset",
         // Tier 2
         ElementType::HazardousEvent => "HazardousEvent",
         ElementType::SafetyGoal => "SafetyGoal",
@@ -446,7 +448,7 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
         }
     }
     if let Some(ref s) = fm.breakdown_adr { out.push(("breakdownAdr".into(), s.clone())); }
-    if let Some(ref g) = fm.derived_from_security_goal { out.push(("derivedFromSecurityGoal".into(), g.clone())); }
+    if let Some(ref g) = fm.derived_from_cybersecurity_goal { out.push(("derivedFromCybersecurityGoal".into(), g.clone())); }
     if let Some(ref g) = fm.derived_from_safety_goal { out.push(("derivedFromSafetyGoal".into(), g.clone())); }
     if let Some(ref ss) = fm.supports {
         for s in ss { out.push(("supports".into(), s.clone())); }
@@ -586,7 +588,7 @@ pub fn cmd_show(
     if let Some(ref mul) = fm.multiplicity { println!("| **multiplicity** | {} |", mul); }
     if let Some(ref dir) = fm.direction { println!("| **direction** | {} |", dir); }
     if let Some(ref s) = fm.breakdown_adr { println!("| **breakdownAdr** | {} |", s); }
-    if let Some(ref g) = fm.derived_from_security_goal { println!("| **derivedFromSecurityGoal** | {} |", g); }
+    if let Some(ref g) = fm.derived_from_cybersecurity_goal { println!("| **derivedFromCybersecurityGoal** | {} |", g); }
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
     if let Some(ref at) = fm.argument_type { println!("| **argumentType** | {} |", at); }
     if let Some(ref ss) = fm.supports { if !ss.is_empty() { println!("| **supports** | {} |", ss.join(", ")); } }
@@ -1353,8 +1355,8 @@ pub fn cmd_trace(
     }
 
     // ── Security Goal (derivedFromSecurityGoal) ──────────────────────────
-    if let Some(ref csg_ref) = fm.derived_from_security_goal {
-        println!("## Security Goal (`derivedFromSecurityGoal`)");
+    if let Some(ref csg_ref) = fm.derived_from_cybersecurity_goal {
+        println!("## Security Goal (`derivedFromCybersecurityGoal`)");
         println!();
         if let Some(csg) = resolve(elements, resolver, csg_ref) {
             let csg_id = csg.frontmatter.id.as_deref().unwrap_or(&csg.qualified_name);

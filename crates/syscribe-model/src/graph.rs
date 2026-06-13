@@ -424,7 +424,7 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
         }
 
         // derivedFromSecurityGoal: Requirement → CybersecurityGoal
-        if let Some(ref csg) = fm.derived_from_security_goal {
+        if let Some(ref csg) = fm.derived_from_cybersecurity_goal {
             if let Some(dst) = resolve_to_idx(csg) {
                 graph.add_edge(src, dst, EdgeKind::DerivedFromSecurityGoal);
             }

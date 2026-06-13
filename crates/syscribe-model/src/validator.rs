@@ -6,7 +6,7 @@ use crate::config::ValidateConfig;
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
 use crate::resolver::{
-    is_adr_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
+    is_adr_id, is_asset_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
     is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
     is_req_id, is_sc_id, is_sg_id, is_stable_id, is_tara_id, is_tc_id, is_test_plan_id, is_ts_id,
     is_vr_id, Resolver,
@@ -545,6 +545,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 findings.push(error("E008", &file, &format!("unknown testLevel '{}'", lvl)));
             }
         }
+        // W809: securityTestMethod must be a recognised ISO/SAE 21434 §13 test method (REQ-TRS-SEC-008).
+        if let Some(ref m) = fm.security_test_method {
+            const METHODS: &[&str] = &["fuzz", "penetration_test", "security_regression", "vulnerability_scan", "threat_modeling"];
+            if !METHODS.contains(&m.as_str()) {
+                findings.push(warning("W809", &file, &format!(
+                    "TestCase.securityTestMethod '{}' is not a recognised security test method — expected fuzz, penetration_test, security_regression, vulnerability_scan, or threat_modeling", m)));
+            }
+        }
 
         // ── Native TestPlan schema checks (GH #38; REQ-TRS-PLAN-001..004) ────
         if matches!(fm.element_type, Some(ElementType::TestPlan)) {
@@ -895,15 +903,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // W807: security requirement (derivedFromSecurityGoal set) should have verificationMethod
+        // W807: security requirement (derivedFromCybersecurityGoal set) should have verificationMethod
         if matches!(fm.element_type, Some(ElementType::Requirement))
-            && fm.derived_from_security_goal.is_some()
+            && fm.derived_from_cybersecurity_goal.is_some()
             && fm.verification_method.is_none()
         {
             findings.push(warning(
                 "W807",
                 &file,
-                "security Requirement (derivedFromSecurityGoal set) has no verificationMethod — add test, inspection, analysis, or demonstration",
+                "security Requirement (derivedFromCybersecurityGoal set) has no verificationMethod — add test, inspection, analysis, or demonstration",
             ));
         }
 
@@ -1051,10 +1059,22 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             // E858: appliesTo refs must resolve.
+            // E859: target must be SafetyGoal, CybersecurityGoal, Argument, or Requirement (REQ-TRS-SEC-004).
             if let Some(ref refs) = fm.applies_to {
                 for r in refs {
-                    if resolver.resolve_ref(elements, r).is_none() {
-                        findings.push(error("E858", &file, &format!("AssumptionOfUse.appliesTo '{}' does not resolve to any model element", r)));
+                    match resolver.resolve_ref(elements, r) {
+                        None => findings.push(error("E858", &file, &format!("AssumptionOfUse.appliesTo '{}' does not resolve to any model element", r))),
+                        Some(target) => {
+                            let ok = Resolver::is_safety_goal(target)
+                                || Resolver::is_cybersecurity_goal(target)
+                                || Resolver::is_argument(target)
+                                || Resolver::is_native_requirement(target)
+                                || matches!(target.frontmatter.element_type, Some(ElementType::Requirement));
+                            if !ok {
+                                findings.push(error("E859", &file, &format!(
+                                    "AssumptionOfUse.appliesTo '{}' must be a SafetyGoal, CybersecurityGoal, Argument, or Requirement", r)));
+                            }
+                        }
                     }
                 }
             }
@@ -1201,11 +1221,60 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(error("E850", &file, &format!("ConfirmationMeasure.independenceLevel '{}' must be I1, I2, or I3", il)));
                 }
             }
-            // E851: confirms refs must resolve
+            // E851: confirms refs must resolve.
+            // E860: target must be SafetyGoal, CybersecurityGoal, HazardousEvent, or native Requirement (REQ-TRS-SEC-005).
             if let Some(ref refs) = fm.confirms {
                 for r in refs {
-                    if resolver.resolve_ref(elements, r).is_none() {
-                        findings.push(error("E851", &file, &format!("ConfirmationMeasure.confirms '{}' does not resolve to any model element", r)));
+                    match resolver.resolve_ref(elements, r) {
+                        None => findings.push(error("E851", &file, &format!("ConfirmationMeasure.confirms '{}' does not resolve to any model element", r))),
+                        Some(target) => {
+                            let ok = Resolver::is_safety_goal(target)
+                                || Resolver::is_cybersecurity_goal(target)
+                                || Resolver::is_hazardous_event(target)
+                                || Resolver::is_native_requirement(target)
+                                || matches!(target.frontmatter.element_type, Some(ElementType::Requirement));
+                            if !ok {
+                                findings.push(error("E860", &file, &format!(
+                                    "ConfirmationMeasure.confirms '{}' is not a valid confirmation target type (expected SafetyGoal, CybersecurityGoal, HazardousEvent, or Requirement)", r)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Asset (E861-E864; REQ-TRS-TYPE-017; ISO/SAE 21434 §15.3) ─────────
+        if matches!(fm.element_type, Some(ElementType::Asset)) {
+            if fm.id.is_none()     { findings.push(error("E861", &file, "`id` is required on Asset")); }
+            if fm.name.is_none()   { findings.push(error("E861", &file, "`name` is required on Asset")); }
+            if fm.status.is_none() { findings.push(error("E861", &file, "`status` is required on Asset")); }
+            if let Some(ref id) = fm.id {
+                if !is_asset_id(id) {
+                    findings.push(error("E862", &file, &format!(
+                        "`id` '{}' does not match ASSET-* pattern (^ASSET(-[A-Z0-9]{{2,12}})+-[0-9]{{3,}}$)", id)));
+                }
+            }
+            const VALID_CP: &[&str] = &["confidentiality", "integrity", "availability", "authenticity"];
+            if let Some(ref props) = fm.cybersecurity_properties {
+                for p in props {
+                    if !VALID_CP.contains(&p.as_str()) {
+                        findings.push(error("E863", &file, &format!(
+                            "Asset.cybersecurityProperties '{}' is not valid — expected confidentiality, integrity, availability, or authenticity", p)));
+                    }
+                }
+            }
+        }
+
+        // E864: DamageScenario.assets refs must resolve to Asset elements (REQ-TRS-TYPE-017).
+        if matches!(fm.element_type, Some(ElementType::DamageScenario)) {
+            if let Some(ref asset_refs) = fm.assets {
+                for r in asset_refs {
+                    match resolver.resolve_ref(elements, r) {
+                        None => findings.push(error("E864", &file, &format!(
+                            "DamageScenario.assets '{}' does not resolve to any model element", r))),
+                        Some(target) if !Resolver::is_asset(target) => findings.push(error("E864", &file, &format!(
+                            "DamageScenario.assets '{}' does not resolve to an Asset element", r))),
+                        _ => {}
                     }
                 }
             }
@@ -2914,6 +2983,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     let mut csg_derived_reqs: HashSet<String> = HashSet::new();
     // Build reverse index: sg_derived_reqs[sg_id_or_qn] — used for W805
     let mut sg_derived_reqs: HashSet<String> = HashSet::new();
+    // Build reverse index: asset_referenced — used for W810
+    let mut asset_referenced: HashSet<String> = HashSet::new();
 
     for elem in elements {
         let fm = &elem.frontmatter;
@@ -3018,14 +3089,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // E831: derivedFromSecurityGoal must resolve to a CybersecurityGoal
-        if let Some(ref goal_ref) = fm.derived_from_security_goal {
+        // E831: derivedFromCybersecurityGoal must resolve to a CybersecurityGoal
+        if let Some(ref goal_ref) = fm.derived_from_cybersecurity_goal {
             match resolver.resolve_ref(elements, goal_ref) {
                 None => findings.push(error("E831", &elem.file_path,
-                    &format!("`derivedFromSecurityGoal` '{}' does not resolve to any element", goal_ref))),
+                    &format!("`derivedFromCybersecurityGoal` '{}' does not resolve to any element", goal_ref))),
                 Some(target) if !Resolver::is_cybersecurity_goal(target) => {
                     findings.push(error("E831", &elem.file_path,
-                        &format!("`derivedFromSecurityGoal` '{}' does not resolve to a CybersecurityGoal", goal_ref)));
+                        &format!("`derivedFromCybersecurityGoal` '{}' does not resolve to a CybersecurityGoal", goal_ref)));
                 }
                 Some(target) => {
                     csg_derived_reqs.insert(target.qualified_name.clone());
@@ -3046,6 +3117,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 Some(target) => {
                     sg_derived_reqs.insert(target.qualified_name.clone());
                     if let Some(ref id) = target.frontmatter.id { sg_derived_reqs.insert(id.clone()); }
+                }
+            }
+        }
+
+        // Populate asset_referenced from DamageScenario.assets (used for W810).
+        if matches!(fm.element_type, Some(ElementType::DamageScenario)) {
+            if let Some(ref asset_refs) = fm.assets {
+                for r in asset_refs {
+                    if let Some(target) = resolver.resolve_ref(elements, r) {
+                        asset_referenced.insert(target.qualified_name.clone());
+                        if let Some(ref id) = target.frontmatter.id { asset_referenced.insert(id.clone()); }
+                    }
                 }
             }
         }
@@ -3309,7 +3392,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
-    // W804: CybersecurityGoal not referenced by any Requirement via derivedFromSecurityGoal
+    // W804: CybersecurityGoal not referenced by any Requirement via derivedFromCybersecurityGoal
     for elem in elements {
         if Resolver::is_cybersecurity_goal(elem) {
             let has_req = csg_derived_reqs.contains(&elem.qualified_name)
@@ -3317,7 +3400,20 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if !has_req {
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W804", &elem.file_path,
-                    &format!("CybersecurityGoal '{}' has no Requirement with `derivedFromSecurityGoal` pointing to it", id)));
+                    &format!("CybersecurityGoal '{}' has no Requirement with `derivedFromCybersecurityGoal` pointing to it", id)));
+            }
+        }
+    }
+
+    // W810: Asset not referenced by any DamageScenario.assets (REQ-TRS-TYPE-017).
+    for elem in elements {
+        if Resolver::is_asset(elem) {
+            let referenced = asset_referenced.contains(&elem.qualified_name)
+                || elem.frontmatter.id.as_ref().map_or(false, |id| asset_referenced.contains(id));
+            if !referenced {
+                let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
+                findings.push(warning("W810", &elem.file_path,
+                    &format!("Asset '{}' is not referenced by any DamageScenario.assets (ISO/SAE 21434 §15.3 asset identification gap)", id)));
             }
         }
     }
@@ -3474,33 +3570,26 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     {
         let has_confirmation_measure = elements.iter().any(Resolver::is_confirmation_measure);
         if has_confirmation_measure {
-            // Index the (subject qname, subject id) confirmed by an I3 measure of
-            // each required measureType.
-            let mut fs_assessed: HashSet<String> = HashSet::new();   // functional_safety_assessment @ I3
-            let mut cs_assessed: HashSet<String> = HashSet::new();   // cybersecurity_assessment @ I3
+            let mut fs_assessed: HashSet<String> = HashSet::new();    // functional_safety_assessment @ I3
+            let mut cs_assessed_i3: HashSet<String> = HashSet::new(); // cybersecurity_assessment @ I3
+            let mut cs_assessed_i2: HashSet<String> = HashSet::new(); // cybersecurity_assessment @ I2 or I3 (REQ-TRS-SEC-007)
             for cm in elements {
-                if !Resolver::is_confirmation_measure(cm) {
-                    continue;
-                }
+                if !Resolver::is_confirmation_measure(cm) { continue; }
                 let fm = &cm.frontmatter;
-                if fm.independence_level.as_deref() != Some("I3") {
-                    continue;
-                }
-                let target_set = match fm.measure_type.as_deref() {
-                    Some("functional_safety_assessment") => &mut fs_assessed,
-                    Some("cybersecurity_assessment") => &mut cs_assessed,
-                    _ => continue,
-                };
-                if let Some(refs) = &fm.confirms {
+                let il = fm.independence_level.as_deref().unwrap_or("");
+                let mt = fm.measure_type.as_deref().unwrap_or("");
+                let refs = fm.confirms.as_deref().unwrap_or(&[]);
+                let insert_to = |set: &mut HashSet<String>| {
                     for r in refs {
                         if let Some(target) = resolver.resolve_ref(elements, r) {
-                            target_set.insert(target.qualified_name.clone());
-                            if let Some(id) = &target.frontmatter.id {
-                                target_set.insert(id.clone());
-                            }
+                            set.insert(target.qualified_name.clone());
+                            if let Some(id) = &target.frontmatter.id { set.insert(id.clone()); }
                         }
                     }
-                }
+                };
+                if il == "I3" && mt == "functional_safety_assessment" { insert_to(&mut fs_assessed); }
+                if il == "I3" && mt == "cybersecurity_assessment" { insert_to(&mut cs_assessed_i3); }
+                if (il == "I2" || il == "I3") && mt == "cybersecurity_assessment" { insert_to(&mut cs_assessed_i2); }
             }
 
             let is_assessed = |elem: &RawElement, set: &HashSet<String>| -> bool {
@@ -3525,14 +3614,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(warning("W039", &elem.file_path, &format!(
                         "{} item '{}' has no independent (I3) functional_safety_assessment ConfirmationMeasure confirming it (ISO 26262-2 §6 / IEC 61508-1 §8)", integrity, id)));
                 }
-                // CAL4 CybersecurityGoal → I3 cybersecurity_assessment.
-                if Resolver::is_cybersecurity_goal(elem)
-                    && fm.cal_level.as_deref() == Some("CAL4")
-                    && !is_assessed(elem, &cs_assessed)
-                {
+                if Resolver::is_cybersecurity_goal(elem) {
                     let id = fm.id.as_deref().unwrap_or(&elem.qualified_name);
-                    findings.push(warning("W039", &elem.file_path, &format!(
-                        "CAL4 item '{}' has no independent (I3) cybersecurity_assessment ConfirmationMeasure confirming it (ISO/SAE 21434 §7)", id)));
+                    // CAL4 → I3 cybersecurity_assessment required (ISO/SAE 21434 §7).
+                    if fm.cal_level.as_deref() == Some("CAL4") && !is_assessed(elem, &cs_assessed_i3) {
+                        findings.push(warning("W039", &elem.file_path, &format!(
+                            "CAL4 item '{}' has no independent (I3) cybersecurity_assessment ConfirmationMeasure confirming it (ISO/SAE 21434 §7)", id)));
+                    }
+                    // CAL3 → I2 (or higher) cybersecurity_assessment required (REQ-TRS-SEC-007).
+                    if fm.cal_level.as_deref() == Some("CAL3") && !is_assessed(elem, &cs_assessed_i2) {
+                        findings.push(warning("W039", &elem.file_path, &format!(
+                            "CAL3 item '{}' has no I2 cybersecurity_assessment ConfirmationMeasure confirming it (ISO/SAE 21434 §7)", id)));
+                    }
                 }
             }
         }

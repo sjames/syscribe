@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.5  
+**Version:** syscribe 0.26.6  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 214 |
-| Passed | 214 |
+| Total test cases | 220 |
+| Passed | 220 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1842,6 +1842,61 @@
 
 ---
 
+### TC-TRS-SEC-004 — AOU.appliesTo accepts CybersecurityGoal and enforces E859 for wrong types
+
+**Verifies:**   
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| AOU.appliesTo wrong type triggers E859 | ✓ PASS |
+
+---
+
+### TC-TRS-SEC-005 — ConfirmationMeasure.confirms accepts CybersecurityGoal and enforces E860 for wrong types
+
+**Verifies:**   
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| CM.confirms wrong element type triggers E860 | ✓ PASS |
+
+---
+
+### TC-TRS-SEC-006 — derivedFromCybersecurityGoal field resolves correctly; alias derivedFromSecurityGoal also works
+
+**Verifies:**   
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| legacy derivedFromSecurityGoal alias also resolves | ✓ PASS |
+
+---
+
+### TC-TRS-SEC-007 — W039 fires for CAL3 CybersecurityGoal with no I2 confirmation measure
+
+**Verifies:**   
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| CAL3 CSG with I3 CM also clears W039 | ✓ PASS |
+
+---
+
+### TC-TRS-SEC-008 — TestCase.securityTestMethod validates recognised values; W809 for unknown
+
+**Verifies:**   
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| invalid securityTestMethod triggers W809 | ✓ PASS |
+
+---
+
 ### TC-TRS-SPEC-001 — Verify the discoverable syscribe spec documents the safety/security types and analysis fields.
 
 **Verifies:** REQ-TRS-SPEC-001  
@@ -2209,6 +2264,17 @@
 |---|---|
 | export reports each element at its declared type | ✓ PASS |
 | sibling file with bogus type produces E005 | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-017 — Asset type validates with E861/E862/E863/E864/W810 rules
+
+**Verifies:**   
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| list Asset shows asset elements | ✓ PASS |
 
 ---
 

@@ -30,6 +30,8 @@ static TS_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static CSG_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static SC_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static VR_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+// Asset (ISO/SAE 21434 §15.3) stable-ID pattern (REQ-TRS-TYPE-017)
+static ASSET_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 // FeatureDef optional stable-ID pattern (REQ-TRS-ID-006)
 static FEAT_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
@@ -83,6 +85,15 @@ fn sc_re() -> &'static regex::Regex {
 
 fn vr_re() -> &'static regex::Regex {
     VR_RE.get_or_init(|| regex::Regex::new(r"^VR(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+}
+
+fn asset_re() -> &'static regex::Regex {
+    ASSET_RE.get_or_init(|| regex::Regex::new(r"^ASSET(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+}
+
+/// Returns true for ASSET-* IDs (REQ-TRS-TYPE-017).
+pub fn is_asset_id(s: &str) -> bool {
+    asset_re().is_match(s)
 }
 
 fn feat_re() -> &'static regex::Regex {
@@ -163,6 +174,7 @@ pub fn is_stable_id(s: &str) -> bool {
     req_re().is_match(s)
         || tc_re().is_match(s)
         || tp_re().is_match(s)
+        || asset_re().is_match(s)
         || conf_re().is_match(s)
         || adr_re().is_match(s)
         || cm_re().is_match(s)
@@ -456,5 +468,9 @@ impl Resolver {
 
     pub fn is_confirmation_measure(elem: &RawElement) -> bool {
         matches!(elem.frontmatter.element_type, Some(ElementType::ConfirmationMeasure))
+    }
+
+    pub fn is_asset(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::Asset))
     }
 }
