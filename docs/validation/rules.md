@@ -295,6 +295,17 @@ A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes no
 | W063 | The score matrix is incomplete (draft-suppressed). |
 | W064 | An `alternatives[].element` is present but unresolved (draft-suppressed). |
 
+## Documentation linting (W099–W102, `lint-docs`)
+
+The `lint-docs` command scans external `.md` and `.svg` docs for references to model elements that no longer resolve (gateable, e.g. `--deny W100`).
+
+| Code | Condition |
+|---|---|
+| W099 | An unresolvable stable-ID token (`REQ-*`/`TC-*`/…) in prose. |
+| W100 | A qualified name (`A::B::C`) inside a ` ```mermaid ` block that does not resolve (prose qnames are not checked). |
+| W101 | An SVG `sysml:ref="…"` that does not resolve (SVGs with no `sysml:ref` are opaque). |
+| W102 | A local image/diagram embed path (`![](…)`, `<img src>`) that does not exist (remote URIs accepted). |
+
 ## Review records (E700–E705, W700, W704, §19)
 
 A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal review; the discussion lives in the external tool named by `recordedAt:`.

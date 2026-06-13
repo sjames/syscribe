@@ -2,6 +2,13 @@
 
 `RELEASES`
 
+## 0.26.26 — 2026-06-13
+
+### lint-docs — diagram reference resolution (GH #74)
+
+- **`lint-docs` now validates diagram references** against the model, beyond the existing prose stable-ID check (`W099`): a qualified name (`A::B::C`) inside a ` ```mermaid ` block that does not resolve raises **`W100`**; an SVG `sysml:ref="…"` that does not resolve raises **`W101`**; a local Markdown image/diagram embed path (`![](…)`, `<img src>`) that does not exist raises **`W102`**. (`REQ-TRS-LINT-002`)
+- `lint-docs` now scans `.svg` files in addition to `.md`. Qualified names in **prose** remain deliberately unresolved (no false-positive regression); SVGs with no `sysml:ref` are opaque; remote URIs (`https://…`) are accepted as external. All findings appear in text + `--json` and are gateable (`--deny W100`).
+
 ## 0.26.25 — 2026-06-13
 
 ### ReqIF 1.2 export — `export-reqif` command (GH #73)

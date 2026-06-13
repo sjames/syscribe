@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0">
+  <g sysml:ref="Engine"/>
+  <g sysml:ref="Gone::Element"/>
+</svg>

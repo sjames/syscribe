@@ -444,6 +444,14 @@ syscribe -m model/ impact <qname|id> [--direction downstream|upstream|both] [--d
 
 Traverses the traceability graph (§17) from an element and reports every reachable node, its hop distance, and the connecting edge kind — "if I change this, what else may need to change?". **Downstream** follows reverse links (`derivedChildren`, `verifiedBy`, `satisfiedBy`, `specializedBy`, `refinedBy`, `conditionalOn`, `allocatedFrom`, `safetyGoalChildren`); **upstream** follows forward links (`derivedFrom`, `verifies`, `satisfies`, `supertype`, `refines`, `allocatedTo`, `derivedFromSafetyGoal`). `--depth` limits hops, `--kinds` restricts edge kinds; `text` / `json` / `dot` output. Cycle-safe.
 
+## Lint external docs (`lint-docs`)
+
+```bash
+syscribe -m model/ lint-docs <path>... [--json]
+```
+
+Scans external `.md` and `.svg` files for references to model elements that no longer resolve: stable-ID tokens in prose (**W099**), qualified names inside ` ```mermaid ` blocks (**W100**), SVG `sysml:ref` manifests (**W101**), and local image/diagram embed paths (**W102** — remote URIs accepted). Qualified names in *prose* are deliberately not resolved (false-positive prone). Exits non-zero on any finding (CI-gateable, e.g. `--deny W100`).
+
 ## Review records (`reviews`)
 
 ```bash
