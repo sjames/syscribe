@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.15  
+**Version:** syscribe 0.26.16  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 232 |
-| Passed | 232 |
+| Total test cases | 233 |
+| Passed | 233 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1806,6 +1806,23 @@
 | Scenario | Result |
 |---|---|
 | JSON has empty requirements array for goal with explicit Argument | ✓ PASS |
+
+---
+
+### TC-TRS-SAFE-012 — Verify ASIL D / SIL 4 decomposition pair completeness: E865 when siblings share a satisfies target, W860 for a single-child decomposition, clean when distinct; decompositionKind surfaces in the safety-case report and the Requirement template; draft-suppressed; gateable.
+
+**Verifies:** REQ-TRS-SAFE-012  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| E865 — siblings share a satisfies target | ✓ PASS |
+| no E865 — distinct satisfies targets | ✓ PASS |
+| W860 — single-child decomposition | ✓ PASS |
+| W860 draft-suppressed | ✓ PASS |
+| validate --deny W860 promotes to gate failure | ✓ PASS |
+| decompositionKind appears in safety-case report | ✓ PASS |
+| template Requirement includes decompositionKind | ✓ PASS |
 
 ---
 

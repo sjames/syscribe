@@ -2570,6 +2570,7 @@ verificationMethod: test
 # derivedFrom:
 #   - REQ-PARENT-001
 # breakdownAdr: ADR-XXX-001
+# decompositionKind: independent   # ASIL D / SIL 4 decomposition: independent | redundant | diverse
 # derivedFromSafetyGoal: SG-PREFIX-001
 # derivedFromSecurityGoal: CSG-PREFIX-001
 ---

@@ -366,6 +366,9 @@ pub struct RawFrontmatter {
     pub status: Option<String>,
     pub sil_level: Option<u8>,
     pub asil_level: Option<String>,
+    /// ASIL/SIL decomposition argument type (§22.3): `independent` | `redundant` | `diverse`.
+    /// Informational; surfaced in the safety-case report.
+    pub decomposition_kind: Option<String>,
     pub dal_level: Option<String>,
     pub wcet: Option<String>,
     pub tags: Option<Vec<String>>,

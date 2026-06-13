@@ -3076,6 +3076,72 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // E865 / W860 (§22.3, R-007b): ASIL D / SIL 4 decomposition pair completeness.
+        // When an ASIL D / SIL 4 requirement's integrity-bearing children are *all*
+        // strictly lower (a decomposition claim per ISO 26262-9 §5 / IEC 61508-2 §7.4.9),
+        // the channels must be ≥2 and satisfy architecturally distinct elements.
+        {
+            let pfm = &elem.frontmatter;
+            let parent_is_d4 =
+                pfm.asil_level.as_deref() == Some("D") || pfm.sil_level == Some(4);
+            if parent_is_d4 {
+                let leveled: Vec<&RawElement> = derived_children
+                    .get(req_id)
+                    .map(|ids| {
+                        ids.iter()
+                            .filter_map(|cid| resolver.get_by_id(elements, cid))
+                            .filter(|c| {
+                                c.frontmatter.asil_level.is_some()
+                                    || c.frontmatter.sil_level.is_some()
+                            })
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let all_lower = !leveled.is_empty()
+                    && leveled.iter().all(|c| {
+                        integrity_is_lower(
+                            c.frontmatter.asil_level.as_deref(),
+                            c.frontmatter.sil_level,
+                            pfm.asil_level.as_deref(),
+                            pfm.sil_level,
+                        )
+                    });
+                if all_lower {
+                    if leveled.len() < 2 {
+                        // W860 — single-channel decomposition (draft-suppressed).
+                        if pfm.status.as_deref() != Some("draft") {
+                            findings.push(warning(
+                                "W860",
+                                &elem.file_path,
+                                &format!("ASIL D / SIL 4 requirement '{}' has a single lower-level decomposition child — a decomposition needs at least two independent channels", req_id),
+                            ));
+                        }
+                    } else {
+                        // E865 — two siblings share a `satisfies:` target.
+                        let mut by_target: std::collections::BTreeMap<&str, Vec<&str>> =
+                            std::collections::BTreeMap::new();
+                        for c in &leveled {
+                            let cid = c.frontmatter.id.as_deref().unwrap_or("");
+                            if let Some(sat) = &c.frontmatter.satisfies {
+                                for s in sat {
+                                    by_target.entry(s.as_str()).or_default().push(cid);
+                                }
+                            }
+                        }
+                        for (target, kids) in &by_target {
+                            if kids.len() >= 2 {
+                                findings.push(error(
+                                    "E865",
+                                    &elem.file_path,
+                                    &format!("ASIL/SIL decomposition of '{}' is not architecturally independent — siblings {} all satisfy the same element '{}'; decomposed channels must satisfy distinct elements", req_id, kids.join(", "), target),
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // W029 (REQ-TRS-VAL-016, GH #22): a non-draft requirement carrying an
         // integrity level and a `wcet:` claim must be backed by a *measuring*
         // test — an active TestCase verifying it at testLevel L5 (HIL) or tagged

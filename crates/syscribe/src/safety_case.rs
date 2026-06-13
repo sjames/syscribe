@@ -52,6 +52,15 @@ fn disp_title(elem: &RawElement) -> &str {
     elem.frontmatter.name.as_deref().unwrap_or("")
 }
 
+/// ` [decomposition: <kind>]` suffix when a requirement declares `decompositionKind` (§22.3).
+fn decomp_suffix(elem: &RawElement) -> String {
+    elem.frontmatter
+        .decomposition_kind
+        .as_deref()
+        .map(|k| format!(" [decomposition: {}]", k))
+        .unwrap_or_default()
+}
+
 /// Verdict suffix for a TestCase leaf (`[pass]` / `[fail]` / `[unknown]`).
 fn verdict_suffix(tc: &RawElement, results: Option<&ResultsData>) -> &'static str {
     match tc_verdict(tc, results) {
@@ -213,7 +222,7 @@ fn render_text(
             idx += 1;
             let last = idx == total;
             let conn = if last { "└──" } else { "├──" };
-            println!("{} [evidence:Requirement] {} — {}", conn, disp_id(req), disp_title(req));
+            println!("{} [evidence:Requirement] {} — {}{}", conn, disp_id(req), disp_title(req), decomp_suffix(req));
             let child_indent = if last { "    " } else { "│   " };
             let tcs = verifying_testcases(elements, disp_id(req));
             let tcn = tcs.len();
@@ -290,7 +299,7 @@ fn print_argument(
                 }
                 NodeKind::Requirement => {
                     let c = if elast { "└──" } else { "├──" };
-                    println!("{}{} [evidence:Requirement] {} — {}", child_indent, c, disp_id(target), disp_title(target));
+                    println!("{}{} [evidence:Requirement] {} — {}{}", child_indent, c, disp_id(target), disp_title(target), decomp_suffix(target));
                 }
                 NodeKind::TestCase => {
                     let c = if elast { "└──" } else { "├──" };
@@ -359,11 +368,15 @@ fn render_json(
                                 v
                             })
                             .collect();
-                        serde_json::json!({
+                        let mut r = serde_json::json!({
                             "id": disp_id(req),
                             "title": disp_title(req),
                             "testCases": tcs,
-                        })
+                        });
+                        if let Some(k) = req.frontmatter.decomposition_kind.as_deref() {
+                            r["decompositionKind"] = serde_json::json!(k);
+                        }
+                        r
                     })
                     .collect()
             };
@@ -420,7 +433,11 @@ fn argument_json(
                     sub_args.push(argument_json(elements, resolver, target, results, guard, any_unknown))
                 }
                 NodeKind::Requirement => {
-                    reqs.push(serde_json::json!({ "id": disp_id(target), "title": disp_title(target) }))
+                    let mut r = serde_json::json!({ "id": disp_id(target), "title": disp_title(target) });
+                    if let Some(k) = target.frontmatter.decomposition_kind.as_deref() {
+                        r["decompositionKind"] = serde_json::json!(k);
+                    }
+                    reqs.push(r)
                 }
                 NodeKind::TestCase => {
                     let v = testcase_json(target, results);

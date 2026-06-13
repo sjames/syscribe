@@ -5372,11 +5372,11 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E802` | `bodyLanguage: budget` expression references an unresolved attribute |
 | `W060` | `CalculationDef` with `bodyLanguage: budget` evaluates to a value that violates the `evaluate:` constraint (opt-in; gateable with `--deny W060`) |
 
-#### ASIL/SIL decomposition pair completeness (E860, W860, §22.3)
+#### ASIL/SIL decomposition pair completeness (E865, W860, §22.3)
 
 | Code | Condition |
 |---|---|
-| `E860` | ASIL/SIL decomposition siblings share a `satisfies:` target — decomposed channels must satisfy distinct elements |
+| `E865` | ASIL/SIL decomposition siblings share a `satisfies:` target — decomposed channels must satisfy distinct elements (drafted as `E860`, which is already in use) |
 | `W860` | Requirement at ASIL D / SIL 4 has children at uniformly lower levels but fewer than two children |
 
 #### Trade study validation (E400–E408, W400–W403, §15.5)
@@ -7109,7 +7109,7 @@ The following extends Section 12.7 Rule R-007 with an additional structural chec
 
 | Code | Condition |
 |---|---|
-| `E860` | ASIL/SIL decomposition siblings (children of a higher-level requirement with uniformly lower levels) share a `satisfies:` target — the decomposed channels must satisfy distinct architecture elements |
+| `E865` | ASIL/SIL decomposition siblings (children of a higher-level requirement with uniformly lower levels) share a `satisfies:` target — the decomposed channels must satisfy distinct architecture elements. (Drafted as `E860`; reassigned to `E865` because `E860` is already in use.) |
 | `W860` | A `Requirement` at `asilLevel: D` or `silLevel: 4` has `derivedChildren` at a uniformly lower level but fewer than two children — a single-child ASIL D decomposition is structurally incomplete |
 
 ### 22.4 Sequence Diagram Send/Receive Completeness (extends §8.16.8.3)

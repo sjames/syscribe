@@ -2,6 +2,16 @@
 
 `RELEASES`
 
+## 0.26.17 — 2026-06-13
+
+### ASIL D / SIL 4 decomposition pair completeness (GH #69)
+
+- **`E865` — non-independent decomposition** — when an ASIL D (or SIL 4) requirement's integrity-bearing `derivedChildren` are *all* strictly lower (a decomposition claim per ISO 26262-9 §5 / IEC 61508-2 §7.4.9), two sibling channels that name the **same** element in their `satisfies:` lists are flagged — decomposed channels must be architecturally independent. (`REQ-TRS-SAFE-012`)
+- **`W860` — incomplete decomposition** — an ASIL D / SIL 4 parent with a single uniformly-lower child is flagged (a decomposition needs ≥2 independent channels). Draft-suppressed; gateable with `validate --deny W860`.
+- **`decompositionKind:` field on `Requirement`** — `independent` | `redundant` | `diverse`, informational; surfaced in the `safety-case` report (text + JSON) and the `template Requirement` skeleton.
+
+> **Code note:** the spec drafted the error as `E860`, which is already in use (ConfirmationMeasure/CybersecurityGoal, 0.26.7); it is assigned **`E865`** and the spec §22.3 is corrected.
+
 ## 0.26.16 — 2026-06-13
 
 ### State machines — behavior resolution + decision transitions (Phase E; completes SysMLv2-faithful HSM)
