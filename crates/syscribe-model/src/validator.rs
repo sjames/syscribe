@@ -3135,6 +3135,33 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         &format!("FMEAEntry `ref` '{}' does not resolve to a known element", r)));
                 }
             }
+            // W927: FMEAEntry.ftaRef should resolve to a known FaultTreeEvent
+            if let Some(ref r) = fm.fta_ref {
+                match resolver.resolve_ref(elements, r) {
+                    None => findings.push(warning("W927", &elem.file_path,
+                        &format!("FMEAEntry `ftaRef` '{}' does not resolve to a known element", r))),
+                    Some(target) if !Resolver::is_fault_tree_event(target) => {
+                        findings.push(warning("W927", &elem.file_path,
+                            &format!("FMEAEntry `ftaRef` '{}' does not resolve to a FaultTreeEvent", r)));
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // W926: FaultTreeEvent.fmeaRef should resolve to a known FMEAEntry
+        if matches!(fm.element_type, Some(ElementType::FaultTreeEvent)) {
+            if let Some(ref r) = fm.fmea_ref {
+                match resolver.resolve_ref(elements, r) {
+                    None => findings.push(warning("W926", &elem.file_path,
+                        &format!("FaultTreeEvent `fmeaRef` '{}' does not resolve to a known element", r))),
+                    Some(target) if !matches!(target.frontmatter.element_type, Some(ElementType::FMEAEntry)) => {
+                        findings.push(warning("W926", &elem.file_path,
+                            &format!("FaultTreeEvent `fmeaRef` '{}' does not resolve to a FMEAEntry", r)));
+                    }
+                    _ => {}
+                }
+            }
         }
     }
 

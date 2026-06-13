@@ -285,7 +285,7 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
             const KNOWN_FMEA_ENTRY_KEYS: &[&str] = &[
                 "id", "ref", "name", "failureMode", "status", "effect", "cause",
                 "fmeaSeverity", "severity", "occurrence", "detection", "rpn",
-                "recommendedAction", "satisfies",
+                "recommendedAction", "satisfies", "ftaRef",
             ];
             let unknown_fmea_keys: Vec<String> = map
                 .keys()
@@ -308,6 +308,7 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 detection: d,
                 rpn,
                 recommended_action: str_val("recommendedAction"),
+                fta_ref: str_val("ftaRef"),
                 satisfies: strings_val("satisfies"),
                 unknown_fmea_keys,
                 ..Default::default()

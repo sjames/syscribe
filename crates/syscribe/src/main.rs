@@ -8,8 +8,10 @@ mod connectivity;
 mod diagram;
 mod discover;
 mod export;
+mod fmea_report;
 mod help;
 mod ingest;
+mod lint_docs;
 mod matrix;
 mod metrics_cmd;
 mod mgreport;
@@ -1017,6 +1019,7 @@ fn main() {
                 // and the issue-#21 results sidecar for TestCase verdicts.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
+                let no_implicit = rest.iter().any(|a| a == "--no-implicit");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 // optional positional <SG-id> = first non-flag arg that is not a flag value.
                 let mut goal = "";
@@ -1034,9 +1037,10 @@ fn main() {
                     break;
                 }
                 let results = ResultsData::load_sidecar(model_root);
+                let sidecar_loaded = results.is_some();
                 let view = projected_elements(&elems, config);
                 let view_resolver = Resolver::new(&view);
-                safety_case::cmd_safety_case(&view, &view_resolver, goal, results.as_ref(), json);
+                safety_case::cmd_safety_case(&view, &view_resolver, goal, results.as_ref(), json, no_implicit, sidecar_loaded);
             }
             "testplan" => {
                 // Read-only TestPlan surface (GH #38 / REQ-TRS-PLAN-005).
@@ -1221,6 +1225,50 @@ fn main() {
                 let sub = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
                 let rest = subcommand_args.get(2..).unwrap_or(&[]);
                 let code = cmd_scripts(&elems, &vcfg, sub, rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "fmea" => {
+                let sub = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
+                let rest = subcommand_args.get(2..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let sheet_filter = rest.windows(2).find(|w| w[0] == "--fmea-sheet").map(|w| w[1].as_str());
+                match sub {
+                    "report" => fmea_report::cmd_fmea_report(&elems, sheet_filter, json),
+                    _ => {
+                        eprintln!("Usage: syscribe -m <model> fmea report [--fmea-sheet <id>] [--json]");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            "fault-tree" => {
+                let sub = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
+                let rest = subcommand_args.get(2..).unwrap_or(&[]);
+                let ft_id = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str()).unwrap_or("");
+                match sub {
+                    "render" => {
+                        if ft_id.is_empty() {
+                            eprintln!("Usage: syscribe -m <model> fault-tree render <FaultTree-id>");
+                            std::process::exit(1);
+                        }
+                        fmea_report::cmd_fault_tree_render(&elems, ft_id);
+                    }
+                    _ => {
+                        eprintln!("Usage: syscribe -m <model> fault-tree render <FaultTree-id>");
+                        std::process::exit(1);
+                    }
+                }
+            }
+            "lint-docs" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let paths: Vec<&str> = rest.iter().filter(|a| !a.starts_with("--")).map(|s| s.as_str()).collect();
+                if paths.is_empty() {
+                    eprintln!("Usage: syscribe -m <model> lint-docs <path>... [--json]");
+                    std::process::exit(1);
+                }
+                let code = lint_docs::cmd_lint_docs(&elems, &paths, json);
                 if code != 0 {
                     std::process::exit(code);
                 }

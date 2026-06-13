@@ -2,6 +2,18 @@
 
 `RELEASES`
 
+## 0.26.6 — 2026-06-13
+
+### New features (issues #48–#52)
+
+- **`fmea report` command** — renders all `FMEASheet` entries as a Markdown table sorted by RPN descending. `--fmea-sheet <id>` restricts to one sheet; `--json` emits a JSON array. (`REQ-TRS-RPT-001`)
+- **`fault-tree render <id>` command** — emits a Mermaid `flowchart TD` diagram for a named `FaultTree` element, showing gates and events with type labels and input edges. (`REQ-TRS-RPT-001`)
+- **`list AssumptionOfUse` SRAC-oriented output** — `list AssumptionOfUse` now shows an `ID | Name | Applies To | Status` table instead of the generic table. `--json` includes `appliesTo` (array) and `body` (string | null) for safety-manual pipeline automation. (`REQ-TRS-OUT-015`)
+- **`lint-docs` command** — scans external Markdown files or directories for stable-ID tokens (`REQ-*`, `TC-*`, `ADR-*`, `FEAT-*`, `FM-*`, `FTE-*`, `AOU-*`, `SG-*`, `CM-*`) that do not resolve to a known model element. Emits **W099** per finding; exits non-zero for CI gating. `--json` flag for structured output. (`REQ-TRS-LINT-001`)
+- **`safety-case` implicit fold-in suppression** — goals with at least one explicit `Argument` in `support:` no longer show the duplicate implicit `SafetyGoal → Requirement → TestCase` chain alongside the explicit argument tree. `--no-implicit` suppresses the fold-in for all goals regardless. (`REQ-TRS-SAFE-011`)
+- **`safety-case` [unknown] verdict footnote** — when TestCase leaves have unknown verdicts and no results sidecar has been ingested, a one-line footnote `(verdicts unknown — run syscribe ingest-results to populate)` is appended. In JSON: `"verdictsUnknown": true` at the top level. (`REQ-TRS-SAFE-010`)
+- **`fmeaRef:` / `ftaRef:` cross-reference fields** — `FaultTreeEvent` accepts `fmeaRef:` pointing to the reconciling `FMEAEntry`; `FMEAEntry` rows accept `ftaRef:` pointing to the corresponding `FaultTreeEvent`. Missing targets raise **W926** / **W927** respectively. Both fields are surfaced by `refs`. (`REQ-TRS-FMEA-003`)
+
 ## 0.26.5 — 2026-06-13
 
 ### Bug fix (issue #53)

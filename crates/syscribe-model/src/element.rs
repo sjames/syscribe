@@ -554,6 +554,7 @@ pub struct RawFrontmatter {
     pub event_kind: Option<String>,             // FaultTreeEvent: basic|undeveloped|house (YAML: eventKind)
     pub failure_rate: Option<f64>,              // FaultTreeEvent failure rate /h (YAML: failureRate)
     pub probability: Option<f64>,               // cut-set or top-event probability (YAML: probability)
+    pub fmea_ref: Option<String>,               // FaultTreeEvent → reconciling FMEAEntry (YAML: fmeaRef)
 
     // §T4 — AttackTree (ISO/SAE 21434 §15.7 attack path analysis)
     pub threat_ref: Option<String>,             // AttackTree → ThreatScenario ref (YAML: threatRef)
@@ -571,6 +572,7 @@ pub struct RawFrontmatter {
     pub detection: Option<u8>,                   // FMEAEntry detection 1–10 (YAML: detection)
     pub rpn: Option<u32>,                        // FMEAEntry Risk Priority Number (YAML: rpn)
     pub recommended_action: Option<String>,      // FMEAEntry mitigation (YAML: recommendedAction)
+    pub fta_ref: Option<String>,                 // FMEAEntry → reconciling FaultTreeEvent (YAML: ftaRef)
     #[serde(skip)]
     pub unknown_fmea_keys: Vec<String>,          // keys not in recognised set; validator emits E922
 

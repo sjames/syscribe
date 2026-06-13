@@ -37,6 +37,9 @@ const HELP: &[(&str, &str)] = &[
     ("cyber-risk", include_str!("../../../prompts/help/cyber-risk.md")),
     ("co-analysis", include_str!("../../../prompts/help/co-analysis.md")),
     ("safety-case", include_str!("../../../prompts/help/safety-case.md")),
+    ("fmea", include_str!("../../../prompts/help/fmea.md")),
+    ("fault-tree", include_str!("../../../prompts/help/fault-tree.md")),
+    ("lint-docs", include_str!("../../../prompts/help/lint-docs.md")),
     // Product lines
     ("feature-check", include_str!("../../../prompts/help/feature-check.md")),
     ("features", include_str!("../../../prompts/help/features.md")),

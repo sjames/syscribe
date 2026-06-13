@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.4  
+**Version:** syscribe 0.26.5  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 208 |
-| Passed | 208 |
+| Total test cases | 214 |
+| Passed | 214 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -558,6 +558,17 @@
 
 ---
 
+### TC-TRS-FMEA-003 — Verify fmeaRef on FaultTreeEvent and ftaRef on FMEAEntry cross-references raise W926/W927 on broken refs
+
+**Verifies:** REQ-TRS-FMEA-003  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| refs FM-KERN-001 lists FTE-KERN-001 as referencing via fmeaRef | ✓ PASS |
+
+---
+
 ### TC-TRS-FTA-001 — Verify that FaultTree, FaultTreeGate, and FaultTreeEvent validation rules E900–E909, W900–W901 are enforced.
 
 **Verifies:** REQ-TRS-FTA-001  
@@ -758,6 +769,17 @@
 | Scenario | Result |
 |---|---|
 | live detail panel renders/omits the source-link icon per [links] | ✓ PASS |
+
+---
+
+### TC-TRS-LINT-001 — Verify lint-docs scans external Markdown for unresolvable stable ID tokens and exits non-zero
+
+**Verifies:** REQ-TRS-LINT-001  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| file with no stable-ID tokens exits 0 and produces no output | ✓ PASS |
 
 ---
 
@@ -1188,6 +1210,17 @@
 
 ---
 
+### TC-TRS-OUT-015 — Verify list AssumptionOfUse emits SRAC-oriented table columns and appliesTo/body in JSON
+
+**Verifies:** REQ-TRS-OUT-015  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| list Requirement still uses generic table (no regression) | ✓ PASS |
+
+---
+
 ### TC-TRS-PARAM-001 — Verify FeatureDef parameter binding rules E203–E206, E222, and W017.
 
 **Verifies:** REQ-TRS-PARAM-001  
@@ -1521,6 +1554,17 @@
 
 ---
 
+### TC-TRS-RPT-001 — Verify fmea report emits RPN-sorted Markdown table and fault-tree render emits Mermaid flowchart
+
+**Verifies:** REQ-TRS-RPT-001  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| fault-tree render FT-KERN-001 emits Mermaid flowchart | ✓ PASS |
+
+---
+
 ### TC-TRS-SAFE-001 — Verify that HazardousEvent validation rules E800-E804, E833-E836, and W800 are enforced
 
 **Verifies:** REQ-TRS-SAFE-001  
@@ -1670,6 +1714,28 @@
 | Scenario | Result |
 |---|---|
 | W039 message mentions IEC 61508-1 | ✓ PASS |
+
+---
+
+### TC-TRS-SAFE-010 — Verify safety-case appends [unknown] verdict footnote when no results sidecar is loaded
+
+**Verifies:** REQ-TRS-SAFE-010  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| safety-case text includes the ingest-results tip command | ✓ PASS |
+
+---
+
+### TC-TRS-SAFE-011 — Verify safety-case suppresses implicit fold-in per-goal and globally via --no-implicit
+
+**Verifies:** REQ-TRS-SAFE-011  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| JSON has empty requirements array for goal with explicit Argument | ✓ PASS |
 
 ---
 

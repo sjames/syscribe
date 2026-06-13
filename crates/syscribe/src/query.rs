@@ -470,6 +470,8 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
         for s in impls { out.push(("implementedBy".into(), s.clone())); }
     }
     if let Some(ref s) = fm.subject { out.push(("subject".into(), s.clone())); }
+    if let Some(ref r) = fm.fmea_ref { out.push(("fmeaRef".into(), r.clone())); }
+    if let Some(ref r) = fm.fta_ref { out.push(("ftaRef".into(), r.clone())); }
     if let Some(ref cl) = fm.clients {
         for s in cl { out.push(("clients".into(), s.clone())); }
     }
@@ -1044,6 +1046,7 @@ pub fn cmd_list(
     matches.sort_by_key(|e| e.qualified_name.as_str());
 
     let is_testcase = type_filter_lc == "testcase";
+    let is_aou = type_filter_lc == "assumptionofuse";
 
     // `--json`: emit a JSON array of the (filtered) elements. TestCase gets
     // extra fields a CI runner needs (REQ-TRS-OUT-014); other types get the
@@ -1077,6 +1080,19 @@ pub fn cmd_list(
                         ("tags".into(), serde_json::json!(tags_list)),
                         ("sourceFile".into(), serde_json::json!(e.frontmatter.source_file)),
                         ("testFunctions".into(), serde_json::json!(tf)),
+                    ]);
+                } else if is_aou {
+                    let applies_to: Vec<&str> = e.frontmatter.applies_to
+                        .as_deref().unwrap_or(&[])
+                        .iter().map(|s| s.as_str()).collect();
+                    let body = if e.doc.trim().is_empty() {
+                        serde_json::Value::Null
+                    } else {
+                        serde_json::json!(e.doc.trim())
+                    };
+                    obj.as_object_mut().unwrap().extend([
+                        ("appliesTo".into(), serde_json::json!(applies_to)),
+                        ("body".into(), body),
                     ]);
                 }
                 obj
@@ -1120,6 +1136,22 @@ pub fn cmd_list(
             };
             println!("| {} | {} | {} | {} | {} | {} |",
                 id, name, level, status, verifies, tags_col);
+        }
+    } else if is_aou {
+        // AssumptionOfUse SRAC-oriented table (REQ-TRS-OUT-015).
+        println!("| ID | Name | Applies To | Status |");
+        println!("|---|---|---|---|");
+        for e in &matches {
+            let id = e.frontmatter.id.as_deref().unwrap_or("—");
+            let name = e.frontmatter.name.as_deref().unwrap_or("—");
+            let status = e.frontmatter.status.as_deref().unwrap_or("—");
+            let applies = {
+                let ts: Vec<&str> = e.frontmatter.applies_to
+                    .as_deref().unwrap_or(&[])
+                    .iter().map(|s| s.as_str()).collect();
+                if ts.is_empty() { "—".to_string() } else { ts.join(", ") }
+            };
+            println!("| {} | {} | {} | {} |", id, name, applies, status);
         }
     } else {
         println!("| Qualified Name | Name / ID | Supertype / TypedBy | File |");
