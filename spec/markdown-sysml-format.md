@@ -71,7 +71,7 @@
 13. [IEC 62443 Industrial Cybersecurity (Zone/Conduit Model)](#13-iec-62443-industrial-cybersecurity-zoneconduit-model)
 14. [Multi-Repository Model Composition](#14-multi-repository-model-composition)
 15. [General-Purpose Trade Study](#15-general-purpose-trade-study)
-16. [N² Interface Matrix](#16-n-interface-matrix)
+16. [N² Interface Matrix](#16-n2-interface-matrix)
 17. [Change Impact Analysis](#17-change-impact-analysis)
 18. [SBOM Generation](#18-sbom-generation)
 19. [Review Records](#19-review-records)
