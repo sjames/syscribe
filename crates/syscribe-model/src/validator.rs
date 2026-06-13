@@ -2038,12 +2038,123 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             Some(ElementType::StateDef) | Some(ElementType::State)
         ) && fm.status.as_deref() != Some("draft")
         {
-            if state_transitions(fm).iter().any(|e| e.legacy) {
+            let edges = state_transitions(fm);
+            if edges.iter().any(|e| e.legacy) {
                 findings.push(warning(
                     "W075",
                     &file,
                     "state-machine transition uses deprecated keys `from`/`to`/`trigger` — migrate to canonical `source`/`target`/`accept` (§8.8.3)",
                 ));
+            }
+
+            // Phase B (§22.1, W070–W074): flat completeness on a single-region,
+            // non-composite, non-parallel state machine. Parallel/composite machines
+            // are out of scope here (handled by region/hierarchy-aware phases).
+            if let Some(subs) = fm.sub_states.as_ref().filter(|s| !s.is_empty()) {
+                let sub_field = |m: &serde_yaml::Mapping, k: &str| -> Option<serde_yaml::Value> {
+                    m.get(&serde_yaml::Value::String(k.to_string())).cloned()
+                };
+                let is_parallel = fm.is_parallel == Some(true);
+                let has_composite = subs.iter().any(|s| {
+                    s.as_mapping().is_some_and(|m| {
+                        sub_field(m, "typedBy").is_some()
+                            || matches!(sub_field(m, "subStates"), Some(serde_yaml::Value::Sequence(_)))
+                            || sub_field(m, "isParallel") == Some(serde_yaml::Value::Bool(true))
+                    })
+                });
+
+                if !is_parallel && !has_composite {
+                    // Substate roster with initial/final flags, in declaration order.
+                    struct Sub {
+                        name: String,
+                        is_initial: bool,
+                        is_final: bool,
+                    }
+                    let roster: Vec<Sub> = subs
+                        .iter()
+                        .filter_map(|s| s.as_mapping())
+                        .filter_map(|m| {
+                            let name = sub_field(m, "name")?.as_str()?.to_string();
+                            let flag = |k: &str| sub_field(m, k) == Some(serde_yaml::Value::Bool(true));
+                            Some(Sub { name, is_initial: flag("isInitial"), is_final: flag("isFinal") })
+                        })
+                        .collect();
+                    let names: HashSet<&str> = roster.iter().map(|s| s.name.as_str()).collect();
+
+                    // In/out degree over edges whose endpoints are known substates.
+                    let mut indeg: HashMap<&str, usize> = names.iter().map(|n| (*n, 0)).collect();
+                    let mut outdeg: HashMap<&str, usize> = names.iter().map(|n| (*n, 0)).collect();
+                    for e in &edges {
+                        if let Some(src) = e.source.as_deref() {
+                            if let Some(d) = outdeg.get_mut(src) {
+                                *d += 1;
+                            }
+                        }
+                        if let Some(tgt) = e.target.as_deref() {
+                            if let Some(d) = indeg.get_mut(tgt) {
+                                *d += 1;
+                            }
+                        }
+                    }
+
+                    // W073 / W074 — initial-state cardinality.
+                    let initial_count = roster.iter().filter(|s| s.is_initial).count();
+                    if initial_count == 0 {
+                        findings.push(warning(
+                            "W073",
+                            &file,
+                            "state machine has no `isInitial: true` substate — no defined starting point",
+                        ));
+                    } else if initial_count > 1 {
+                        findings.push(warning(
+                            "W074",
+                            &file,
+                            &format!("state machine has {} `isInitial: true` substates — a region has exactly one initial state", initial_count),
+                        ));
+                    }
+
+                    // W070 dead / W071 trap — per substate, in declaration order.
+                    for s in &roster {
+                        if !s.is_initial && indeg.get(s.name.as_str()) == Some(&0) {
+                            findings.push(warning(
+                                "W070",
+                                &file,
+                                &format!("dead state '{}' — no incoming transition and not `isInitial`", s.name),
+                            ));
+                        }
+                        if !s.is_final && outdeg.get(s.name.as_str()) == Some(&0) {
+                            findings.push(warning(
+                                "W071",
+                                &file,
+                                &format!("trap state '{}' — no outgoing transition and not `isFinal`", s.name),
+                            ));
+                        }
+                    }
+
+                    // W072 non-determinism — same source + same accept payload, no guard.
+                    let mut groups: std::collections::BTreeMap<(&str, &str), (usize, usize)> =
+                        std::collections::BTreeMap::new();
+                    for e in &edges {
+                        if let (Some(src), Some(pl)) = (e.source.as_deref(), e.payload.as_deref()) {
+                            if names.contains(src) {
+                                let g = groups.entry((src, pl)).or_insert((0, 0));
+                                g.0 += 1;
+                                if e.has_guard {
+                                    g.1 += 1;
+                                }
+                            }
+                        }
+                    }
+                    for ((src, pl), (count, guarded)) in groups {
+                        if count >= 2 && guarded == 0 {
+                            findings.push(warning(
+                                "W072",
+                                &file,
+                                &format!("non-determinism — {} transitions from '{}' accept the same payload '{}' with no guard", count, src, pl),
+                            ));
+                        }
+                    }
+                }
             }
         }
 

@@ -2,6 +2,13 @@
 
 `RELEASES`
 
+## 0.26.13 — 2026-06-13
+
+### State machines — flat completeness W070–W074 (Phase B; closes GH #68)
+
+- **`W070`–`W074` state-machine completeness** — single-region `StateDef`/`State` machines are now checked, over the canonical transition edge model (§8.8.3), for: dead states (`W070` — no incoming transition, not `isInitial`), trap states (`W071` — no outgoing transition, not `isFinal`), non-determinism (`W072` — two+ transitions from one source with the same `accept` payload and no guard), missing initial (`W073`), and multiple initial (`W074`). All draft-suppressed; gateable with `validate --deny W07x`. (`REQ-TRS-SM-003`)
+- **Scope** — these flat checks apply only to non-`isParallel`, non-composite machines (a composite substate carries `typedBy:`, an inline `subStates:`, or `isParallel:`). Parallel/composite machines raise none of W070–W074; their region/hierarchy-aware treatment lands in later phases. The demo machines (`FlightStates`, `ChargingSessionStates`) are clean.
+
 ## 0.26.12 — 2026-06-13
 
 ### State machines — schema consolidation (Phase A of SysMLv2-faithful HSM; GH #68)

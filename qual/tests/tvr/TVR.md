@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.11  
+**Version:** syscribe 0.26.12  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 228 |
-| Passed | 228 |
+| Total test cases | 229 |
+| Passed | 229 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1990,6 +1990,25 @@
 | no W075 — canonical source/target/accept | ✓ PASS |
 | W075 draft-suppressed | ✓ PASS |
 | validate --deny W075 promotes to gate failure | ✓ PASS |
+
+---
+
+### TC-TRS-SM-003 — Verify flat state-machine completeness W070–W074: dead/trap/non-determinism/missing-initial/multiple-initial each fire on a crafted defect; a well-formed machine and a parallel/composite machine are clean; draft-suppressed; gateable.
+
+**Verifies:** REQ-TRS-SM-003  
+**Result:** ✓ PASS (18 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| W070 — dead state | ✓ PASS |
+| W071 — trap state | ✓ PASS |
+| W072 — non-determinism | ✓ PASS |
+| W073 — missing initial state | ✓ PASS |
+| W074 — multiple initial states | ✓ PASS |
+| well-formed machine is clean | ✓ PASS |
+| parallel/composite machines out of scope | ✓ PASS |
+| W073 draft-suppressed | ✓ PASS |
+| validate --deny W073 promotes to gate failure | ✓ PASS |
 
 ---
 

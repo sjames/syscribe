@@ -251,7 +251,14 @@ SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppresse
 
 | Code | Condition |
 |---|---|
+| W070 | Dead state — a substate has no incoming transition and is not `isInitial: true` (single-region machines). |
+| W071 | Trap state — a substate has no outgoing transition and is not `isFinal: true`. |
+| W072 | Non-determinism — two+ transitions from one source with the same `accept` payload, none guarded. |
+| W073 | Missing initial — a single-region `StateDef` with substates has no `isInitial: true` substate. |
+| W074 | Multiple initial — more than one substate is `isInitial: true`. |
 | W075 | A transition uses the deprecated keys `from:`/`to:`/`trigger:` instead of the canonical `source:`/`target:`/`accept:` (§8.8.3). Legacy keys are still accepted as aliases. |
+
+`W070`–`W074` apply only to flat (non-`isParallel`, non-composite) machines; parallel/composite machines are handled by region/hierarchy-aware checks.
 
 ## Allocation errors (E500–E503)
 

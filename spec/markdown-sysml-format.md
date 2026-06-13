@@ -7012,7 +7012,7 @@ No new element types. No new validation rules.
 
 ### 22.1 State Machine Completeness Validation (extends §8.8)
 
-The following validation rules apply to any `StateDef` that declares at least one `subStates:` entry (i.e., a composite state machine). They fire at model-time, after all cross-references are resolved.
+The following validation rules apply to a **single-region** `StateDef`/`State` that declares at least one `subStates:` entry — i.e. a flat (non-`isParallel`, non-composite) state machine. A machine is composite when any substate carries `typedBy:`, an inline `subStates:`, or `isParallel:`; parallel and composite machines are **out of scope** for these flat checks (their region/hierarchy-aware treatment is handled separately) and raise none of W070–W074. The rules fire at model-time, after all cross-references are resolved, over the directed `(source → target)` edge set produced by the canonical transition extractor (§8.8.3, both nested and top-level placements).
 
 | Code | Condition |
 |---|---|
