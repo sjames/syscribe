@@ -469,6 +469,10 @@ pub struct RawFrontmatter {
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub protocols: Option<Vec<String>>,
     pub in_zone: Option<String>,
+    /// §14.3 — `repoImports:` on a Package `_index.md`: a list of mappings
+    /// `{repo, qname, as}` mounting a sub-tree from a peer repo declared in
+    /// `[repos]`. Untyped here; the validator reads the `repo`/`qname`/`as` keys.
+    pub repo_imports: Option<Vec<serde_yaml::Value>>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
     pub return_type: Option<String>,

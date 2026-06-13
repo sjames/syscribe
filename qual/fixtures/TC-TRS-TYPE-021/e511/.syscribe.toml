@@ -1,0 +1,2 @@
+[repos]
+ghost = { path = "../ghostrepo", root = "model/" }

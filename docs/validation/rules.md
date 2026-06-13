@@ -337,6 +337,20 @@ A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal 
 | W700 | A `status: closed` review has an `items[]` with `disposition: open`. |
 | W704 | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (dormant unless ReviewRecords exist; `--deny W704`). |
 
+## Multi-repository composition (E510–E515, W510, §14)
+
+A model composes peer repositories declared in the `[repos]` table of the model-root `.syscribe.toml` and imports their namespaces via `repoImports:` on a Package `_index.md`. Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each loaded repo in declaration order (by global stable ID or qualified name). **Active only when `[repos]` is configured** — single-repo models are unaffected.
+
+| Code | Condition |
+|---|---|
+| E510 | Circular repo import — a repo transitively imports back into this model. |
+| E511 | `repos.<alias>.path` is absent on disk and no `ref:` is configured. |
+| E512 | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo` reference resolves in neither the local model nor any loaded repo. |
+| E513 | `repoImports[].repo` names an alias not present in `[repos]`. |
+| E514 | `repoImports[].qname` does not resolve to any element in the named repo. |
+| E515 | Two repos export the same stable ID (the id namespace is global across the composition). |
+| W510 | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; `--deny W510`). |
+
 ## Allocation errors (E500–E503)
 
 | Code | Condition |

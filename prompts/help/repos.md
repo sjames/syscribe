@@ -1,0 +1,59 @@
+# repos — multi-repository composition (§14)
+
+Inspect and synchronise the peer repositories declared in the model-root
+`.syscribe.toml` `[repos]` table. Large programs partition a system model across
+organizational boundaries; multi-repo composition lets one model import namespaces
+from peer repos and resolve cross-repo cross-references at analysis time.
+
+## Configuration (`.syscribe.toml`)
+
+```toml
+[repos]
+avionics = { path = "../avionics-model", root = "model/" }
+brakes   = { path = "../brakes-subsystem", root = "model/", ref = "v2.1.0" }
+shared   = { path = "../shared-library", root = "model/", ref = "main" }
+```
+
+- `path` (**required**) — file-system path to the repo root, relative to this
+  model's `.syscribe.toml`.
+- `root` (optional, default `model/`) — where the Syscribe model root lives inside
+  the repo.
+- `ref` (optional) — git tag/branch/SHA to check out via `repos sync`; absent means
+  "use whatever is on disk" (and raises `W510`, since the snapshot is not pinned).
+
+## Import declarations (`_index.md`)
+
+```yaml
+type: Package
+name: Integration
+repoImports:
+  - repo: avionics       # alias from [repos]
+    qname: Avionics      # package/element to import from that repo
+    as: Avionics         # local mount name (defaults to the last qname segment)
+```
+
+## Subcommands
+
+```
+repos                # alias for `repos list`
+repos list [--json]  # configured repos: path, ref, on-disk + sync status
+repos status [--json] # whether each pinned repo is at its ref; exit 2 if any drifted
+repos sync [--all | <alias>]  # git fetch + checkout <ref> for pinned repos
+```
+
+## Resolution & validation
+
+Cross-repo `verifies:` / `derivedFrom:` / `satisfies:` / `allocatedTo:` references
+resolve by searching the local model first, then each loaded repo in declaration
+order — by global stable ID (`REQ-*`, `TC-*`, …) or by qualified name. Stable IDs
+are **global** across the composition.
+
+| Code | Condition |
+|---|---|
+| `E510` | Circular repo import — a repo transitively imports back into this model |
+| `E511` | `repos.<alias>.path` is absent on disk and no `ref:` is configured |
+| `E512` | Cross-repo trace reference resolves in neither the local model nor any repo |
+| `E513` | `repoImports[].repo` names an alias not present in `[repos]` |
+| `E514` | `repoImports[].qname` does not resolve in the named repo |
+| `E515` | Two repos export the same stable ID (the id namespace is global) |
+| `W510` | A repo has no `ref:` — composition is not pinned (gate with `--deny W510`) |

@@ -1,0 +1,2 @@
+[repos]
+peerA = { path = "../peerA", root = "model/", ref = "main" }

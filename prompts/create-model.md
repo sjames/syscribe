@@ -128,6 +128,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe model/ sbom [--format cyclonedx\|spdx] [--config <C>] [--output <f>] [--include-tests] [--scope <qname>]` | Software Bill of Materials from implementedBy: links (CycloneDX 1.6 / SPDX 2.3; registry URIs → PURLs) |
 | `syscribe model/ export-reqif [--output <f>] [--scope <qname>] [--config <C>] [--include-tests] [--zip]` | Export Requirements as a ReqIF 1.2 document (DOORS/Jama/Polarion interchange) |
 | `syscribe model/ zones [--coverage] [--json]` / `conduits [--json]` | IEC 62443 security zones (SL gap) and conduits (SL adequacy), with a Zone × SecurityControl coverage table |
+| `syscribe model/ repos [list\|status\|sync] [--json] [--all]` | Multi-repository composition (§14): list/sync peer repos from `[repos]` in `.syscribe.toml` |
 | `syscribe model/ reviews [<qname>] [--open-only] [--json]` / `review <RR-id>` / `reviews --coverage` | List/detail `ReviewRecord`s and their requirement coverage |
 | `syscribe model/ trade-study [<TRD-id>] [--json]` | List/score `TradeStudy` elements (normalised, weighted, ranked) |
 | `syscribe model/ extref <ref> [--json]` | Find elements by external reference (`extRef`) |
@@ -925,6 +926,32 @@ The `MG###` checks fire only under that profile. The reports (`magicgrid`, `trad
 **Base-format `refines:`.** A `UseCaseDef`/`UseCase` (or `ActionDef`/`Action`/`StateDef`/`State`) declares `refines:` pointing at the `Requirement`/`RequirementDef` it elaborates — an unresolved/wrong-type operand is `E316` (always checked, no profile needed); a non-`draft` `UseCaseDef` with no `refines:` warns `W307`. The reverse index `refinedBy` is computed on each requirement.
 
 **Reports** (read-only): `syscribe model/ magicgrid` (B/W/S × 1-4 cell grid, empty-cell hints, plus a `System of interest:` line when one `mg_soi` is set); `syscribe model/ trade-study` (MoE-weighted scoring of every `Configuration`, WINNER/FAIL rollup); `syscribe model/ matrix --allocations` (allocation source × target matrix with a logical→physical partition when `mg_layer` is present).
+
+---
+
+## Part 9d — Multi-Repository Composition (opt-in, §14)
+
+Large programs split a model across repositories. Declare peer repos in the model-root `.syscribe.toml` `[repos]` table and import their namespaces. **Single-repo models need none of this** — the whole feature is inert without `[repos]`.
+
+```toml
+# .syscribe.toml
+[repos]
+avionics = { path = "../avionics-model", root = "model/" }        # ⇒ W510 (no ref pin)
+brakes   = { path = "../brakes-subsystem", root = "model/", ref = "v2.1.0" }
+```
+
+A package `_index.md` mounts a peer sub-tree:
+
+```yaml
+type: Package
+name: Integration
+repoImports:
+  - repo: brakes        # alias from [repos]   (else E513)
+    qname: BrakeSystem  # element/package in that repo (else E514)
+    as: Brakes          # local mount name (defaults to last qname segment)
+```
+
+Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each repo in declaration order — by **global stable ID** (`REQ-*`, `TC-*`, …, unique across the whole composition) or qualified name. Rules: `E510` circular import, `E511` missing path (no ref), `E512` dangling cross-repo ref, `E513` unknown alias, `E514` unresolved import qname, `E515` duplicate stable ID, `W510` unpinned repo. CLI: `repos list|status|sync`.
 
 ---
 

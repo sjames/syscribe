@@ -421,6 +421,16 @@ syscribe -m model/ conduits [--json]
 
 Lists `Zone` elements (§13) with their `targetSL`/`achievedSL`, member count, and SL gap status, and `Conduit` elements with from/to zones, `achievedSL`, and whether the conduit boundary meets the higher connected zone's required SL. `zones --coverage` prints a Zone × SecurityControl cross-table (controls sourced from conduit `implementedBy:` and zone-member SecurityControls).
 
+## Multi-repository composition (`repos`)
+
+```bash
+syscribe -m model/ repos [list] [--json]      # configured repos: path, ref, on-disk + sync status
+syscribe -m model/ repos status [--json]      # whether each pinned repo is at its ref; exit 2 on drift
+syscribe -m model/ repos sync [--all | <alias>]   # git fetch + checkout <ref> for pinned repos
+```
+
+Inspects and synchronises the peer repositories declared in the model-root `.syscribe.toml` `[repos]` table (§14). Each entry has a `path` (required, relative to `.syscribe.toml`), `root` (default `model/`) and optional `ref`. A package `_index.md` mounts a peer sub-tree with `repoImports: [{repo, qname, as}]`. Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each loaded repo in declaration order — by global stable ID or qualified name. Validation rules `E510`–`E515`/`W510` ([rules](../validation/rules.md#multi-repository-composition-e510e515-w510-14)) are active only when `[repos]` is configured.
+
 ## ReqIF export (`export-reqif`)
 
 ```bash

@@ -3033,11 +3033,24 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if let Some(ref ats) = fm.allocated_to {
             for at_ref in ats {
                 if resolver.resolve_ref(elements, at_ref).is_none() {
-                    findings.push(error(
-                        "E503",
-                        &file,
-                        &format!("`allocatedTo` '{}' does not resolve to a known element", at_ref),
-                    ));
+                    if config.peer_resolves(at_ref) {
+                        // §14.4 — valid cross-repo allocation target.
+                    } else if config.has_repos() {
+                        findings.push(error(
+                            "E512",
+                            &file,
+                            &format!(
+                                "cross-repo allocatedTo reference '{}' resolves neither locally nor in any loaded repo",
+                                at_ref
+                            ),
+                        ));
+                    } else {
+                        findings.push(error(
+                            "E503",
+                            &file,
+                            &format!("`allocatedTo` '{}' does not resolve to a known element", at_ref),
+                        ));
+                    }
                 }
             }
         }
@@ -3419,6 +3432,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if let Some(ref vs) = fm.verifies {
             for v in vs {
                 match resolver.resolve_ref(elements, v) {
+                    None if config.peer_resolves(v) => { /* §14.4 valid cross-repo reference */ }
+                    None if config.has_repos() => findings.push(error(
+                        "E512",
+                        &elem.file_path,
+                        &format!(
+                            "cross-repo verifies reference '{}' resolves neither locally nor in any loaded repo",
+                            v
+                        ),
+                    )),
                     None => findings.push(error(
                         "E102",
                         &elem.file_path,
@@ -3450,6 +3472,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if let Some(ref dfs) = fm.derived_from {
             for df in dfs {
                 match resolver.resolve_ref(elements, df) {
+                    None if config.peer_resolves(df) => { /* §14.4 valid cross-repo reference */ }
+                    None if config.has_repos() => findings.push(error(
+                        "E512",
+                        &elem.file_path,
+                        &format!(
+                            "cross-repo derivedFrom reference '{}' resolves neither locally nor in any loaded repo",
+                            df
+                        ),
+                    )),
                     None => findings.push(error(
                         "E103",
                         &elem.file_path,
@@ -3845,6 +3876,129 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // W952 targetSL claim with no zone membership (opt-in).
             if fm.target_sl.is_some() && fm.in_zone.is_none() && !member_parts.contains(&p.qualified_name) {
                 findings.push(warning("W952", f, &format!("'{}' declares targetSL but belongs to no Zone (no inZone, no Zone.members entry)", p.qualified_name)));
+            }
+        }
+    }
+
+    // ── §14 Multi-repository composition (E510–E515, W510, GH #62) ───────────
+    // Active only when `[repos]` is configured (`config.repos` non-empty); the
+    // bare `validate` entry point and every single-repo model are unaffected.
+    if config.has_repos() {
+        let cfg_file = ".syscribe.toml";
+        let repo_by_alias: HashMap<&str, &crate::config::LoadedRepo> =
+            config.repos.iter().map(|r| (r.alias.as_str(), r)).collect();
+
+        // Per configured repo: E510 (circular), E511 (missing path, no ref), W510 (no ref).
+        for repo in &config.repos {
+            if repo.circular {
+                findings.push(error(
+                    "E510",
+                    cfg_file,
+                    &format!(
+                        "circular repo import: repo '{}' transitively imports back into this model",
+                        repo.alias
+                    ),
+                ));
+            }
+            if !repo.exists && repo.config.git_ref.is_none() {
+                findings.push(error(
+                    "E511",
+                    cfg_file,
+                    &format!(
+                        "repos.{}.path '{}' does not exist on disk and no `ref` is configured",
+                        repo.alias, repo.config.path
+                    ),
+                ));
+            }
+            if repo.config.git_ref.is_none() {
+                findings.push(warning(
+                    "W510",
+                    cfg_file,
+                    &format!(
+                        "repo '{}' has no `ref:` — composition is not pinned to a reproducible snapshot",
+                        repo.alias
+                    ),
+                ));
+            }
+        }
+
+        // E515: a stable ID exported by both the local model and a peer repo.
+        let local_ids: HashSet<&str> = elements
+            .iter()
+            .filter_map(|e| e.frontmatter.id.as_deref())
+            .filter(|id| is_stable_id(id))
+            .collect();
+        for repo in &config.repos {
+            let mut dup: Vec<&str> = repo
+                .stable_ids
+                .iter()
+                .map(String::as_str)
+                .filter(|id| local_ids.contains(id))
+                .collect();
+            dup.sort_unstable();
+            for id in dup {
+                findings.push(error(
+                    "E515",
+                    cfg_file,
+                    &format!(
+                        "stable ID '{}' is exported by both the local model and repo '{}' — the id namespace is global across the composition",
+                        id, repo.alias
+                    ),
+                ));
+            }
+        }
+
+        // E513 / E514: `repoImports:` declarations on Package elements.
+        for elem in elements {
+            let Some(imports) = &elem.frontmatter.repo_imports else {
+                continue;
+            };
+            for imp in imports {
+                let get = |k: &str| {
+                    imp.get(serde_yaml::Value::String(k.to_string()))
+                        .and_then(|v| v.as_str())
+                        .map(str::to_string)
+                };
+                let Some(alias) = get("repo") else {
+                    findings.push(error(
+                        "E513",
+                        &elem.file_path,
+                        "`repoImports` entry is missing the required `repo` alias",
+                    ));
+                    continue;
+                };
+                match repo_by_alias.get(alias.as_str()) {
+                    None => findings.push(error(
+                        "E513",
+                        &elem.file_path,
+                        &format!("`repoImports` names alias '{}', absent from the `[repos]` config", alias),
+                    )),
+                    Some(repo) if repo.exists => {
+                        if let Some(qname) = get("qname") {
+                            let suffix = format!("::{qname}");
+                            let found = repo.qnames.contains(&qname)
+                                || repo.qnames.iter().any(|q| q.ends_with(&suffix));
+                            if !found {
+                                findings.push(error(
+                                    "E514",
+                                    &elem.file_path,
+                                    &format!(
+                                        "`repoImports` qname '{}' does not resolve to any element in repo '{}'",
+                                        qname, alias
+                                    ),
+                                ));
+                            }
+                        } else {
+                            findings.push(error(
+                                "E514",
+                                &elem.file_path,
+                                &format!("`repoImports` from '{}' is missing the required `qname`", alias),
+                            ));
+                        }
+                    }
+                    // Repo configured but absent on disk: E511 already reported it.
+                    Some(_) => {}
+                }
             }
         }
     }
@@ -4840,6 +4994,16 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         .entry(target.qualified_name.clone())
                         .or_default()
                         .push(elem.qualified_name.clone());
+                } else if config.has_repos() && !config.peer_resolves(s) {
+                    // §14.4 — a satisfies target resolving in no repo is E512.
+                    findings.push(error(
+                        "E512",
+                        &elem.file_path,
+                        &format!(
+                            "cross-repo satisfies reference '{}' resolves neither locally nor in any loaded repo",
+                            s
+                        ),
+                    ));
                 }
             }
         }

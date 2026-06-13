@@ -29,6 +29,7 @@ mod scaffold;
 mod scripting;
 mod testplan;
 mod tradestudy;
+mod repos;
 mod zones;
 mod vdepth;
 mod spec;
@@ -1120,6 +1121,31 @@ fn main() {
                 // IEC 62443 conduits (§13, GH #61). Read-only.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 zones::cmd_conduits(&elems, rest.iter().any(|a| a == "--json"));
+            }
+            "repos" => {
+                // Multi-repository composition (§14, GH #62). Read-only listing + sync.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let sub = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
+                let code = match sub {
+                    Some("status") => repos::cmd_status(&vcfg, json),
+                    Some("sync") => {
+                        let all = rest.iter().any(|a| a == "--all");
+                        let alias = rest
+                            .iter()
+                            .skip_while(|a| a.as_str() != "sync")
+                            .nth(1)
+                            .filter(|a| !a.starts_with("--"))
+                            .map(|s| s.as_str());
+                        repos::cmd_sync(&vcfg, alias, all)
+                    }
+                    // `repos` / `repos list`
+                    _ => {
+                        repos::cmd_list(&vcfg, json);
+                        0
+                    }
+                };
+                std::process::exit(code);
             }
             "sbom" => {
                 // SBOM generation (§18, GH #66). Read-only.

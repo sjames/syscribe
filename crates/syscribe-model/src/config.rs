@@ -9,7 +9,7 @@
 //! [`ValidateConfig::default()`], preserving the historical behaviour for the
 //! web server and other callers that do not need on-disk resolution.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
@@ -78,6 +78,57 @@ pub struct ValidateConfig {
     /// (the directory may or may not exist on disk — an absent dir is not an error;
     /// the model simply has no extensions). Scripts are tooling, never model content.
     pub scripts_dir: Option<PathBuf>,
+
+    /// REQ-TRS-TYPE-021 (§14) — peer repositories loaded for multi-repo
+    /// composition, from the `[repos]` table of `<model_root>/.syscribe.toml`.
+    /// Empty (the default) means single-repo: the `E510`–`E515`/`W510` block and
+    /// all cross-repo resolution are inert, so single-repo models are unaffected.
+    pub repos: Vec<LoadedRepo>,
+}
+
+/// One entry in the `[repos]` table of `.syscribe.toml` (§14.2, REQ-TRS-TYPE-021).
+#[derive(Debug, Clone, Deserialize)]
+pub struct RepoEntry {
+    /// File-system path to the repo root, relative to this model's `.syscribe.toml`.
+    pub path: String,
+    /// Path within the repo where the Syscribe model root lives (default `model/`).
+    #[serde(default = "default_repo_model_root")]
+    pub root: String,
+    /// Git ref (tag, branch, or SHA) to pin via `repos sync`; absent ⇒ "use disk".
+    #[serde(default, rename = "ref")]
+    pub git_ref: Option<String>,
+}
+
+fn default_repo_model_root() -> String {
+    "model/".to_string()
+}
+
+/// A peer repository loaded for cross-repo composition (§14, REQ-TRS-TYPE-021).
+/// Carries the configured entry plus the resolved peer model root and the index
+/// needed by validation: the peer's element qnames and exported stable IDs.
+#[derive(Debug, Clone)]
+pub struct LoadedRepo {
+    /// The `[repos]` table key — the repo alias used in `repoImports[].repo`.
+    pub alias: String,
+    /// The raw configuration (`path` / `root` / `ref`).
+    pub config: RepoEntry,
+    /// Resolved `<.syscribe.toml dir>/<path>/<root>` — the peer model root.
+    pub model_root: PathBuf,
+    /// Whether `model_root` exists on disk.
+    pub exists: bool,
+    /// Following this repo's import chain leads back to the local model (`E510`).
+    pub circular: bool,
+    /// Qualified names of every element in the peer model.
+    pub qnames: HashSet<String>,
+    /// Stable IDs (`REQ-*`, `TC-*`, …) exported by the peer model.
+    pub stable_ids: HashSet<String>,
+}
+
+/// View of `.syscribe.toml` carrying only the `[repos]` table.
+#[derive(Debug, Default, Deserialize)]
+struct ReposRootToml {
+    #[serde(default)]
+    repos: std::collections::BTreeMap<String, RepoEntry>,
 }
 
 /// REQ-TRS-LINK-001 — resolved `[links]` configuration. Carries the hosted-URL
@@ -253,6 +304,7 @@ impl ValidateConfig {
         let id_max_digits = resolve_id_max_digits(&root);
         let links = load_links(&root);
         let scripts_dir = Some(resolve_scripts_dir(&root));
+        let repos = load_repos(&root);
         Self {
             model_root: Some(root),
             repo_root,
@@ -264,7 +316,32 @@ impl ValidateConfig {
             magicgrid: false,
             links,
             scripts_dir,
+            repos,
         }
+    }
+
+    /// REQ-TRS-TYPE-021 — true when any peer repo is configured (`[repos]`).
+    /// The cross-repo validation block and resolution are inert when this is false.
+    pub fn has_repos(&self) -> bool {
+        !self.repos.is_empty()
+    }
+
+    /// REQ-TRS-TYPE-021 (§14.4) — true when `reference` resolves to an element
+    /// exported by any loaded peer repo, by global stable ID or by qualified name
+    /// (exact, or as the trailing `::`-segment of a peer qname). Used to recognise
+    /// valid cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:`
+    /// references so they are neither flagged locally nor reported as `E512`.
+    pub fn peer_resolves(&self, reference: &str) -> bool {
+        let r = reference.trim();
+        if r.is_empty() {
+            return false;
+        }
+        let suffix = format!("::{r}");
+        self.repos.iter().any(|repo| {
+            repo.stable_ids.contains(r)
+                || repo.qnames.contains(r)
+                || repo.qnames.iter().any(|q| q.ends_with(&suffix))
+        })
     }
 
     /// REQ-TRS-LINK-001 — resolve a file-backed element's hosted source URL.
@@ -458,6 +535,108 @@ fn load_links(model_root: &Path) -> Option<LinkConfig> {
         url_template: links.url_template,
         git_ref: links.git_ref.unwrap_or_default(),
     })
+}
+
+/// Load the `[repos]` table from `<model_root>/.syscribe.toml` (§14, REQ-TRS-TYPE-021).
+///
+/// For each declared repo, resolve `<model_root>/<path>/<root>` to the peer model
+/// root, record whether it exists, walk it to index the peer's element qnames and
+/// exported stable IDs (so cross-repo references and `E514`/`E515` can be checked),
+/// and detect whether following its import chain leads back to this model (`E510`).
+/// Returns an empty vector when the file is absent, unparseable, or has no `[repos]`.
+fn load_repos(model_root: &Path) -> Vec<LoadedRepo> {
+    let text = match std::fs::read_to_string(model_root.join(".syscribe.toml")) {
+        Ok(t) => t,
+        Err(_) => return Vec::new(),
+    };
+    let cfg = match toml::from_str::<ReposRootToml>(&text) {
+        Ok(c) => c,
+        Err(_) => return Vec::new(),
+    };
+    let start = canon(model_root);
+    cfg.repos
+        .into_iter()
+        .map(|(alias, entry)| {
+            let peer_root = resolve_repo_model_root(model_root, &entry);
+            let exists = peer_root.exists();
+            let (qnames, stable_ids) = if exists {
+                index_repo(&peer_root)
+            } else {
+                (HashSet::new(), HashSet::new())
+            };
+            // E510: does this peer's import chain reach back to the local model?
+            let mut seen = HashSet::new();
+            let circular = exists && chain_reaches(&peer_root, &start, &mut seen);
+            LoadedRepo {
+                alias,
+                config: entry,
+                model_root: peer_root,
+                exists,
+                circular,
+                qnames,
+                stable_ids,
+            }
+        })
+        .collect()
+}
+
+/// Resolve a repo entry's peer model root: `<model_root>/<path>/<root>`, with an
+/// absolute `path` used verbatim. `root` defaults to `model/`.
+fn resolve_repo_model_root(model_root: &Path, entry: &RepoEntry) -> PathBuf {
+    let base = PathBuf::from(&entry.path);
+    let base = if base.is_absolute() { base } else { model_root.join(base) };
+    let root = entry.root.trim_start_matches("./");
+    if root.is_empty() {
+        base
+    } else {
+        base.join(root)
+    }
+}
+
+/// Walk a peer model root, returning its element qnames and exported stable IDs.
+fn index_repo(peer_root: &Path) -> (HashSet<String>, HashSet<String>) {
+    let mut qnames = HashSet::new();
+    let mut stable_ids = HashSet::new();
+    if let Ok(elems) = crate::walker::walk_model(peer_root) {
+        for e in &elems {
+            qnames.insert(e.qualified_name.clone());
+            if let Some(id) = e.frontmatter.id.as_deref() {
+                if crate::resolver::is_stable_id(id) {
+                    stable_ids.insert(id.to_string());
+                }
+            }
+        }
+    }
+    (qnames, stable_ids)
+}
+
+/// Detect whether the `[repos]` import chain rooted at peer model `dir` reaches
+/// `target` (the local model root) — the `E510` circular-import condition.
+/// Follows each repo's own `[repos]` transitively over canonicalised model roots.
+fn chain_reaches(dir: &Path, target: &Path, seen: &mut HashSet<PathBuf>) -> bool {
+    let text = match std::fs::read_to_string(dir.join(".syscribe.toml")) {
+        Ok(t) => t,
+        Err(_) => return false,
+    };
+    let cfg = match toml::from_str::<ReposRootToml>(&text) {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    for entry in cfg.repos.values() {
+        let child = canon(&resolve_repo_model_root(dir, entry));
+        if child == *target {
+            return true;
+        }
+        if seen.insert(child.clone()) && chain_reaches(&child, target, seen) {
+            return true;
+        }
+    }
+    false
+}
+
+/// Canonicalise a path, falling back to the path itself when it does not exist.
+fn canon(p: &Path) -> PathBuf {
+    std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
 }
 
 /// Walk up from `start` looking for a `.git` entry; return the directory holding it.

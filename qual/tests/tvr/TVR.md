@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.26  
+**Version:** syscribe 0.26.28  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 243 |
-| Passed | 243 |
+| Total test cases | 244 |
+| Passed | 244 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2632,6 +2632,17 @@
 | zones --coverage shows the control | ✓ PASS |
 | template Zone | ✓ PASS |
 | template Conduit | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-021 — Verify multi-repository composition: E510 circular, E511 missing path, E512 dangling cross-repo ref, E513 unknown alias, E514 unknown qname, E515 duplicate stable id, W510 unpinned repo; a valid composition resolves a cross-repo verifies cleanly; the repos list command.
+
+**Verifies:** REQ-TRS-TYPE-021  
+**Result:** ✓ PASS (10 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| repos list command | ✓ PASS |
 
 ---
 

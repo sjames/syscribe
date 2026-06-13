@@ -2,6 +2,18 @@
 
 `RELEASES`
 
+## 0.26.28 — 2026-06-13
+
+### Multi-repository model composition (GH #62)
+
+Large programs may now split a system model across repositories (§14, `REQ-TRS-TYPE-021`). A model declares peer repos in the `[repos]` table of its model-root `.syscribe.toml` (`path`, optional `root` default `model/`, optional `ref`), and a Package `_index.md` mounts a peer sub-tree with `repoImports: [{repo, qname, as}]`. Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each loaded repo in declaration order — by **global stable ID** (`REQ-*`, `TC-*`, … unique across the whole composition) or qualified name.
+
+- **Validation** — `E510` circular repo import, `E511` missing path (no ref), `E512` dangling cross-repo trace reference, `E513` unknown `repoImports` alias, `E514` unresolved import qname, `E515` duplicate stable ID across repos, `W510` unpinned repo (opt-in, `--deny W510`). The whole block is **inert unless `[repos]` is configured**, so single-repo models are unaffected.
+- **CLI** — `repos list [--json]` (configured repos with path/ref/on-disk + sync status), `repos status [--json]` (whether each pinned repo is at its `ref`; exits 2 on drift), `repos sync [--all | <alias>]` (`git fetch` + `git checkout <ref>`).
+- Verified by `TC-TRS-TYPE-021` (10 assertions: the seven rules, a clean cross-repo composition, and `repos list`). Full qual suite 244/244; all shipped models validate clean.
+
+This completes the §13–§22 spec-feature backlog (GH #61–#74).
+
 ## 0.26.27 — 2026-06-13
 
 ### IEC 62443 Zone/Conduit model (GH #61)

@@ -149,6 +149,25 @@ A `TestPlan` (stable `TP-*` id) groups reusable TestCases by product and scope.
 
 Effective members = `testCases` ∪ `selection` matches. Surfaced by `testplan` and the `--plan TP-X` lens on `matrix`/`verification-depth`/`audit`. Codes `E600`–`E606` / `W610`–`W616` in the [Rule Reference](../validation/rules.md).
 
+## Multi-repository composition (`repoImports:`, §14)
+
+A Package `_index.md` may mount a sub-tree from a peer repository declared in the `[repos]` table of the model-root `.syscribe.toml`. Cross-repo references resolve against the local model first, then each repo in declaration order (global stable ID or qualified name).
+
+| Field | Description |
+|---|---|
+| `repoImports` | List of `{repo, qname, as}` mappings. `repo` is an alias from `[repos]` (`E513` if unknown); `qname` is the element/package to import (`E514` if unresolved in that repo); `as` is the optional local mount name (defaults to the last `qname` segment). |
+
+```yaml
+type: Package
+name: Integration
+repoImports:
+  - repo: brakes
+    qname: BrakeSystem
+    as: Brakes
+```
+
+Validation rules `E510`–`E515`/`W510` are active only when `[repos]` is configured — see the [Rule Reference](../validation/rules.md#multi-repository-composition-e510e515-w510-14). CLI: `repos list|status|sync`.
+
 ## Implementation trace (`implementedBy:`)
 
 `Part`/`PartDef` elements may link to the source artifact(s) that realise them, closing the V-model leg `Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test`.
