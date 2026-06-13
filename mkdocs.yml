@@ -58,6 +58,7 @@ nav:
       - Test Plans: model-guide/testplans.md
       - Traceability: model-guide/traceability.md
       - Architecture Decisions: model-guide/adrs.md
+      - State Machines: model-guide/state-machines.md
       - Safety & Security Analysis: model-guide/safety-analysis.md
       - Variability & Product Lines: model-guide/variability.md
       - MagicGrid: model-guide/magicgrid.md

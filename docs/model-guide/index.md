@@ -106,5 +106,6 @@ Its shape:
 - [Requirements & Test Cases](requirements.md) — stable IDs, lifecycle, Gherkin
 - [Traceability](traceability.md) — the seven §12 rules, including `implementedBy:`/`W023`
 - [Architecture Decisions](adrs.md) — ADR lifecycle and breakdown rules
+- [State Machines](state-machines.md) — `StateDef` transitions, hierarchy/parallel regions, the `W070`–`W079` completeness checks
 - [Variability & Product Lines](variability.md) — feature models, `appliesWhen`, `matrix`, `feature-check`, the `--config` lens
 - [MagicGrid](magicgrid.md) — the B/W/S × 1-4 overlay (`mg_` custom fields), MoEs/MoPs, logical/physical layers, the `magicgrid` / `trade-study` reports

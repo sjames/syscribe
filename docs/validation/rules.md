@@ -245,7 +245,7 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W412 | SVG `href="..."` attribute does not resolve to any model element file |
 | W080 | `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` in its sub-action tree not referenced by any `edges:` entry (draft-suppressed; `--deny W080`) |
 
-## State machine warnings (W070–W078, §22.1)
+## State machine warnings (W070–W079, §22.1)
 
 SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppressed and gateable with `--deny W07x`.
 
