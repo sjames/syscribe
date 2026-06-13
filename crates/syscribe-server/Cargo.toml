@@ -1,6 +1,6 @@
 [package]
 name = "syscribe-server"
-version = "0.26.24"
+version = "0.26.25"
 edition = "2021"
 
 [[bin]]

@@ -412,6 +412,14 @@ PowerSystem         PowerConn…   PowerConn…  ■            PowerConn…
 PropulsionSystem    —            —           —            ■
 ```
 
+## ReqIF export (`export-reqif`)
+
+```bash
+syscribe -m model/ export-reqif [--output <file>] [--scope <qname>] [--config <CONF>] [--include-tests] [--zip]
+```
+
+Exports native `Requirement` elements (and their packages) as a **ReqIF 1.2** XML document (§21) for import into DOORS Next / Jama / Polarion / PTC. Each requirement → a `SPEC-OBJECT` (id/name/status/sil/asil/domain attributes + an XHTML `DESC` from the body); packages → a nested `SPEC-HIERARCHY`; `derivedFrom:` → `DERIVED_FROM` relations; `--include-tests` adds `TEST_CASE` objects + `VERIFIED_BY`. `--output` writes `<file>.reqif` (`.reqifz` with `--zip`). Export-only.
+
 ## SBOM generation (`sbom`)
 
 ```bash

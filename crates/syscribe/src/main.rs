@@ -21,6 +21,7 @@ mod impact;
 mod n2;
 mod query;
 mod render;
+mod reqif;
 mod reviews;
 mod safety_case;
 mod sbom;
@@ -1088,6 +1089,24 @@ fn main() {
                         }
                     }
                 }
+            }
+            "export-reqif" => {
+                // ReqIF 1.2 export (§21, GH #73). Read-only, export-only.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let scope = rest.windows(2).find(|w| w[0] == "--scope").map(|w| w[1].as_str());
+                let output = rest.windows(2).find(|w| w[0] == "--output").map(|w| w[1].as_str());
+                let view = projected_elements(&elems, config);
+                let title = std::path::Path::new(model_root).file_name().and_then(|s| s.to_str()).unwrap_or("model");
+                let opts = reqif::ReqifOptions {
+                    scope,
+                    include_tests: rest.iter().any(|a| a == "--include-tests"),
+                    output,
+                    zip: rest.iter().any(|a| a == "--zip"),
+                    title,
+                    tool_version: env!("CARGO_PKG_VERSION"),
+                };
+                reqif::cmd_export_reqif(&view, &opts);
             }
             "sbom" => {
                 // SBOM generation (§18, GH #66). Read-only.

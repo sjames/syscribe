@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.23  
+**Version:** syscribe 0.26.24  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 240 |
-| Passed | 240 |
+| Total test cases | 241 |
+| Passed | 241 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1368,6 +1368,22 @@
 | SPDX 2.3 output | ✓ PASS |
 | --include-tests adds test components | ✓ PASS |
 | --output writes a file | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-020 — Verify export-reqif: well-formed ReqIF 1.2 XML; a SPEC-OBJECT per Requirement; nested SPEC-HIERARCHY for packages; DERIVED_FROM relations; --include-tests adds VERIFIED_BY; --zip writes a readable .reqifz.
+
+**Verifies:** REQ-TRS-OUT-020  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| output is well-formed ReqIF XML | ✓ PASS |
+| a SPEC-OBJECT per requirement | ✓ PASS |
+| package hierarchy as nested SPEC-HIERARCHY | ✓ PASS |
+| derivedFrom becomes DERIVED_FROM | ✓ PASS |
+| --include-tests adds VERIFIED_BY | ✓ PASS |
+| --zip writes a readable .reqifz | ✓ PASS |
 
 ---
 

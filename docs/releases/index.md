@@ -2,6 +2,14 @@
 
 `RELEASES`
 
+## 0.26.25 — 2026-06-13
+
+### ReqIF 1.2 export — `export-reqif` command (GH #73)
+
+- **`syscribe export-reqif [--output <f>] [--scope <qname>] [--config <C>] [--include-tests] [--zip]`** — exports native `Requirement` elements (and their packages) as a ReqIF 1.2 XML document for interchange with DOORS Next / Jama / Polarion / PTC. Read-only, export-only. (`REQ-TRS-OUT-020`)
+- Each requirement → a `SPEC-OBJECT` (`SYSCRIBE_ID`/`NAME`/`QUALIFIED_NAME`/`STATUS` enum/`SIL_LEVEL` int/`ASIL_LEVEL`/`DOMAIN` enum + an XHTML `DESC` converted best-effort from the body, Gherkin omitted); packages → a nested `SPEC-HIERARCHY`; `derivedFrom:` → `DERIVED_FROM` `SPEC-RELATION`s; `--include-tests` adds `TEST_CASE` objects + `VERIFIED_BY` relations.
+- `--output` writes `<file>.reqif`, or `<file>.reqifz` with `--zip` (a stored ZIP, no external deps); `--scope`/`--config` restrict/project. Output is well-formed ReqIF 1.2 XML.
+
 ## 0.26.24 — 2026-06-13
 
 ### SBOM generation — `sbom` command (GH #66)
