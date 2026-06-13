@@ -260,6 +260,7 @@ SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppresse
 | W076 | Unresolved endpoint — a transition `source`/`target` names no state anywhere in the machine and resolves to no model element. |
 | W077 | Cross-region transition — a transition connects substates in two different regions of an `isParallel` state (illegal in SysMLv2). |
 | W078 | Parallel arity — an `isParallel: true` state declares fewer than two regions. |
+| W079 | Unresolved behavior — a state `entryAction`/`doAction`/`exitAction` or a transition `effect` references an action that resolves to no model element. |
 
 The checks apply **recursively** over the state hierarchy: each level's substates are checked by `W070`–`W074` (composite substates as nodes), inline-`subStates:` substates are recursed into, and parallel (`isParallel`) levels are checked per region plus `W077`/`W078`. `W076` covers transition endpoints that resolve to no state.
 

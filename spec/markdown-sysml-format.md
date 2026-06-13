@@ -5342,7 +5342,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
 | `W503` | **Redundant allocation** — the same `source → target` edge is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element (§12.9). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |
 
-#### State machine completeness warnings (W070–W078, §22.1)
+#### State machine completeness warnings (W070–W079, §22.1)
 
 | Code | Condition |
 |---|---|
@@ -5355,6 +5355,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W076` | Unresolved endpoint — a transition `source`/`target` names no state anywhere in the machine and resolves to no model element |
 | `W077` | Cross-region transition — a transition connects substates in two different regions of a parallel state (illegal in SysMLv2) |
 | `W078` | Parallel arity — an `isParallel: true` state declares fewer than two regions |
+| `W079` | Unresolved behavior — a state `entryAction`/`doAction`/`exitAction` or a transition `effect` references an action that resolves to no model element |
 
 #### Sequence diagram completeness (W080, §22.4)
 
@@ -7037,6 +7038,12 @@ The following validation rules apply to a **single-region** `StateDef`/`State` t
 | Code | Condition |
 |---|---|
 | `W076` | **Unresolved endpoint** — a transition `source`/`target` names no state anywhere in the machine's hierarchy and resolves to no model element by qualified name. |
+
+**Behaviors and decision transitions.** A state's `entryAction`/`doAction`/`exitAction` and a transition's `effect` reference an action (a qualified-name string or `{typedBy: <qn>}`); an unresolved reference raises `W079`. (`accept.payload` is **not** resolution-checked — payloads often name informal event labels.) **Decision transitions** — two or more transitions from the same source distinguished by **guards** (SysMLv2 §8.4.13.3) — are legitimate branching and do **not** raise `W072`; `W072` fires only for same-source, same-payload transitions where none is guarded.
+
+| Code | Condition |
+|---|---|
+| `W079` | **Unresolved behavior** — a state `entryAction`/`doAction`/`exitAction` or a transition `effect` references an action that resolves to no model element. |
 
 All of these codes are **draft-suppressed** (not emitted for `status: draft`) and gateable with `--deny W07x`.
 

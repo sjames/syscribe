@@ -336,6 +336,40 @@ fn collect_machine(
     edges.extend(transitions_from(Some(sub_states), sibling_top));
 }
 
+/// Recursively collect every state-machine **behavior reference** (`W079`): each state's
+/// `entryAction`/`doAction`/`exitAction` and each transition's `effect`, given either as a
+/// qualified-name string or a `{typedBy: <qn>}` map. `accept.payload` is intentionally
+/// excluded (payloads frequently name informal event labels, not model elements).
+fn collect_state_refs(sub_states: &[serde_yaml::Value], out: &mut Vec<String>) {
+    fn add_behavior(v: Option<&serde_yaml::Value>, out: &mut Vec<String>) {
+        match v {
+            Some(serde_yaml::Value::String(s)) => out.push(s.clone()),
+            Some(serde_yaml::Value::Mapping(m)) => {
+                if let Some(t) = yaml_field(m, "typedBy").and_then(|x| x.as_str()) {
+                    out.push(t.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+    for s in sub_states {
+        let Some(sm) = s.as_mapping() else { continue };
+        for k in ["entryAction", "doAction", "exitAction"] {
+            add_behavior(yaml_field(sm, k), out);
+        }
+        if let Some(serde_yaml::Value::Sequence(ts)) = yaml_field(sm, "transitions") {
+            for t in ts {
+                if let Some(tm) = t.as_mapping() {
+                    add_behavior(yaml_field(tm, "effect"), out);
+                }
+            }
+        }
+        if let Some(serde_yaml::Value::Sequence(inner)) = yaml_field(sm, "subStates") {
+            collect_state_refs(inner, out);
+        }
+    }
+}
+
 /// Recursively check a state node and its descendants (§22.1). A non-parallel node is one
 /// region: its substates are checked by [`check_state_region`] (composite substates as
 /// nodes), then each inline-composite substate is recursed into. A parallel node's direct
@@ -2282,6 +2316,24 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         "W076",
                         &file,
                         &format!("transition endpoint '{}' does not resolve to a state in scope", ep),
+                    ));
+                }
+
+                // W079 — entry/do/exit and transition `effect` behavior references that
+                // resolve to no model element.
+                let mut refs = Vec::new();
+                collect_state_refs(subs, &mut refs);
+                let mut unresolved_refs: std::collections::BTreeSet<String> = Default::default();
+                for r in &refs {
+                    if resolver.resolve_ref(elements, r).is_none() {
+                        unresolved_refs.insert(r.clone());
+                    }
+                }
+                for r in unresolved_refs {
+                    findings.push(warning(
+                        "W079",
+                        &file,
+                        &format!("state-machine behavior reference '{}' (entry/do/exit/effect) does not resolve to a known element", r),
                     ));
                 }
             }

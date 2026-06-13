@@ -2,6 +2,15 @@
 
 `RELEASES`
 
+## 0.26.16 — 2026-06-13
+
+### State machines — behavior resolution + decision transitions (Phase E; completes SysMLv2-faithful HSM)
+
+- **`W079` — unresolved behavior reference** — a state's `entryAction`/`doAction`/`exitAction` or a transition's `effect` (a qualified-name string or `{typedBy:}`) that resolves to no model element is flagged. `accept.payload` is intentionally not resolution-checked (payloads frequently name informal event labels). Draft-suppressed; gateable with `validate --deny W079`. (`REQ-TRS-SM-008`)
+- **Decision transitions guaranteed legitimate** — two or more guarded transitions from the same source (SysMLv2 §8.4.13.3 decision transitions) are valid branching and do **not** raise `W072`; `W072` is reserved for same-source, same-payload transitions where none is guarded. Now covered by a regression check.
+
+This completes the state-machine work: one canonical transition schema (§8.8.3) and a recursive, hierarchy/region-aware validator covering `W070`–`W079` over flat, parallel (orthogonal) and composite (hierarchical) machines, faithful to SysMLv2 §7.18.
+
 ## 0.26.15 — 2026-06-13
 
 ### State machines — hierarchy/composite + endpoint resolution (Phase D of SysMLv2-faithful HSM)

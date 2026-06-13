@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.14  
+**Version:** syscribe 0.26.15  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 231 |
-| Passed | 231 |
+| Total test cases | 232 |
+| Passed | 232 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2040,6 +2040,21 @@
 | W076 — unresolved transition endpoint | ✓ PASS |
 | W076 draft-suppressed | ✓ PASS |
 | validate --deny W076 promotes to gate failure | ✓ PASS |
+
+---
+
+### TC-TRS-SM-006 — Verify W079 (unresolved entry/do/exit/effect behavior reference) fires on a dangling effect and is silent when resolvable; decision transitions (guarded same-source branches) do not raise W072; draft-suppressed; gateable.
+
+**Verifies:** REQ-TRS-SM-008  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| W079 — dangling transition effect | ✓ PASS |
+| no W079 — resolvable entry action and effect | ✓ PASS |
+| decision transition does not raise W072 | ✓ PASS |
+| W079 draft-suppressed | ✓ PASS |
+| validate --deny W079 promotes to gate failure | ✓ PASS |
 
 ---
 
