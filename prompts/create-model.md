@@ -125,6 +125,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe model/ n2 [<qname>] [--depth N] [--format text\|html\|json] [--interfaces-only] [--allocations]` | N² interface matrix: parts on the diagonal, connecting interfaces in the cells |
 | `syscribe model/ impact <qname\|id> [--direction downstream\|upstream\|both] [--depth N] [--format text\|json\|dot] [--kinds <csv>]` | Change impact: every element reachable through the traceability graph, with hop distance + edge kind |
 | `syscribe model/ behavioral-coverage [<qname>] [--depth N] [--format text\|json] [--uncovered-only] [--include-planned]` | How completely active TestCases exercise ActionDef/StateDef behaviors (source/requirement/testFn/allocation paths) |
+| `syscribe model/ sbom [--format cyclonedx\|spdx] [--config <C>] [--output <f>] [--include-tests] [--scope <qname>]` | Software Bill of Materials from implementedBy: links (CycloneDX 1.6 / SPDX 2.3; registry URIs → PURLs) |
 | `syscribe model/ reviews [<qname>] [--open-only] [--json]` / `review <RR-id>` / `reviews --coverage` | List/detail `ReviewRecord`s and their requirement coverage |
 | `syscribe model/ trade-study [<TRD-id>] [--json]` | List/score `TradeStudy` elements (normalised, weighted, ranked) |
 | `syscribe model/ extref <ref> [--json]` | Find elements by external reference (`extRef`) |

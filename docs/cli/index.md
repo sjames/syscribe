@@ -412,6 +412,14 @@ PowerSystem         PowerConn…   PowerConn…  ■            PowerConn…
 PropulsionSystem    —            —           —            ■
 ```
 
+## SBOM generation (`sbom`)
+
+```bash
+syscribe -m model/ sbom [--format cyclonedx|spdx] [--config <CONF>] [--output <file>] [--include-tests] [--scope <qname>]
+```
+
+Generates a Software Bill of Materials (§18) from the `implementedBy:` links on `Part`/`PartDef` (and, with `--include-tests`, `TestCase.sourceFile:`). A value matching `<registry>:<package>@<version>` (registries `crates.io`/`npm`/`pypi`/`maven`/`nuget`/`github`) becomes a package component with a PURL (`pkg:cargo/tokio@1.38.0`); any other value is a local file component. Local components link back to the requirements the part satisfies (CycloneDX `externalReferences` / SPDX `GENERATED_FROM`). `--format cyclonedx` (default, CycloneDX 1.6) or `spdx` (SPDX 2.3); `--config` projects to a variant; `--output` writes a file.
+
 ## Behavioral coverage (`behavioral-coverage`)
 
 ```bash

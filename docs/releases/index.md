@@ -2,6 +2,14 @@
 
 `RELEASES`
 
+## 0.26.24 — 2026-06-13
+
+### SBOM generation — `sbom` command (GH #66)
+
+- **`syscribe sbom [--format cyclonedx|spdx] [--config <C>] [--output <f>] [--include-tests] [--scope <qname>]`** — generates a Software Bill of Materials from the `implementedBy:` links on `Part`/`PartDef` (and, with `--include-tests`, `TestCase.sourceFile:`). Read-only; no new element types or rules. (`REQ-TRS-OUT-019`)
+- An `implementedBy:` value matching `<registry>:<package>@<version>` (`crates.io`/`npm`/`pypi`/`maven`/`nuget`/`github`) becomes an external package component with a **PURL** (`pkg:cargo/tokio@1.38.0`); any other value (incl. a `repo:` link) is a local **file** component. Local components carry references back to the requirements the part satisfies (CycloneDX `externalReferences` `syscribe://<REQ>` / SPDX `GENERATED_FROM`).
+- `--format cyclonedx` (default) emits **CycloneDX 1.6** JSON (serialNumber urn:uuid, tool + timestamp metadata, components); `--format spdx` emits **SPDX 2.3** JSON (packages + `DESCRIBES`/`CONTAINS`/`GENERATED_FROM`). `--config` projects to a variant; `--output` writes a file.
+
 ## 0.26.23 — 2026-06-13
 
 ### Behavioral coverage — `behavioral-coverage` command (GH #72)

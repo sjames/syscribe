@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.22  
+**Version:** syscribe 0.26.23  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 239 |
-| Passed | 239 |
+| Total test cases | 240 |
+| Passed | 240 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1352,6 +1352,22 @@
 | --uncovered-only keeps the true percentage | ✓ PASS |
 | json schema | ✓ PASS |
 | demo model >50% behavioral coverage | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-019 — Verify the sbom command: local paths → file components with model externalReferences; registry URIs → package components with PURLs; CycloneDX 1.6 and SPDX 2.3 are well-formed; --include-tests adds test components; --output writes a file.
+
+**Verifies:** REQ-TRS-OUT-019  
+**Result:** ✓ PASS (11 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| CycloneDX file + package components | ✓ PASS |
+| local component links to the requirement | ✓ PASS |
+| registry URIs become PURLs | ✓ PASS |
+| SPDX 2.3 output | ✓ PASS |
+| --include-tests adds test components | ✓ PASS |
+| --output writes a file | ✓ PASS |
 
 ---
 

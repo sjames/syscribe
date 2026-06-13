@@ -23,6 +23,7 @@ mod query;
 mod render;
 mod reviews;
 mod safety_case;
+mod sbom;
 mod scaffold;
 mod scripting;
 mod testplan;
@@ -1087,6 +1088,28 @@ fn main() {
                         }
                     }
                 }
+            }
+            "sbom" => {
+                // SBOM generation (§18, GH #66). Read-only.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let format = rest.windows(2).find(|w| w[0] == "--format").map(|w| w[1].as_str()).unwrap_or("cyclonedx");
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let scope = rest.windows(2).find(|w| w[0] == "--scope").map(|w| w[1].as_str());
+                let output = rest.windows(2).find(|w| w[0] == "--output").map(|w| w[1].as_str());
+                let view = projected_elements(&elems, config);
+                let root_name = std::path::Path::new(model_root)
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("model");
+                let opts = sbom::SbomOptions {
+                    format,
+                    scope,
+                    include_tests: rest.iter().any(|a| a == "--include-tests"),
+                    output,
+                    root_name,
+                    tool_version: env!("CARGO_PKG_VERSION"),
+                };
+                sbom::cmd_sbom(&view, &opts);
             }
             "behavioral-coverage" => {
                 // Behavioral coverage report (§20, GH #72). Read-only.
