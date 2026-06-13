@@ -14,10 +14,17 @@ inputs:
     default: model/
   version:
     description: >
-      syscribe release tag to download (e.g. v0.2.0).
+      syscribe release tag to download (e.g. v0.26.10).
       Omit or set to 'latest' to always use the newest release.
     required: false
     default: latest
+  args:
+    description: >
+      Extra arguments appended to `syscribe -m <model-path> validate`.
+      Example: '--profile magicgrid' to enforce a MagicGrid profile, or
+      '--deny W023' to promote a warning to a gate failure.
+    required: false
+    default: ''
   fail-on-warnings:
     description: Exit with code 1 when any warnings are present.
     required: false
@@ -87,16 +94,24 @@ runs:
     - name: Validate model
       id: validate
       shell: bash
+      env:
+        MODEL_PATH: ${{ inputs.model-path }}
+        ARGS: ${{ inputs.args }}
+        FAIL_ON_WARNINGS: ${{ inputs.fail-on-warnings }}
       run: |
         set +e
-        syscribe "${{ inputs.model-path }}" > syscribe-validation-report.md 2>&1
+        # $ARGS is intentionally unquoted so multi-word flags (e.g. "--profile magicgrid")
+        # split into separate argv entries.
+        # shellcheck disable=SC2086
+        syscribe -m "$MODEL_PATH" validate $ARGS > syscribe-validation-report.md 2>&1
         EXIT_CODE=$?
         set -e
 
         cat syscribe-validation-report.md
 
-        ERRORS=$(awk -F'|' '/\| Errors \|/{ gsub(/ /, "", $3); print $3 }' syscribe-validation-report.md)
-        WARNINGS=$(awk -F'|' '/\| Warnings \|/{ gsub(/ /, "", $3); print $3 }' syscribe-validation-report.md)
+        # `validate` prints "Errors (N):" / "Warnings (N):" headers (omitted when zero).
+        ERRORS=$(sed -n 's/^Errors (\([0-9]*\)):.*/\1/p' syscribe-validation-report.md | head -1)
+        WARNINGS=$(sed -n 's/^Warnings (\([0-9]*\)):.*/\1/p' syscribe-validation-report.md | head -1)
         ERRORS="${ERRORS:-0}"
         WARNINGS="${WARNINGS:-0}"
 
@@ -107,7 +122,7 @@ runs:
           echo "::error::Syscribe validation failed with $ERRORS error(s). See the validation report for details."
         fi
 
-        if [ "${{ inputs.fail-on-warnings }}" = "true" ] && [ "$WARNINGS" -gt "0" ]; then
+        if [ "$FAIL_ON_WARNINGS" = "true" ] && [ "$WARNINGS" -gt "0" ]; then
           echo "::error::Syscribe validation found $WARNINGS warning(s) (fail-on-warnings is enabled)."
           exit 1
         fi
