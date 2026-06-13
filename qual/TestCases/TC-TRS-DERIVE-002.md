@@ -10,6 +10,9 @@ verifies: [REQ-TRS-DERIVE-002]
 A parent `PartDef` with a `derive:` block using `sum(children.custom_fields.wcet)` and `count(children)` shall aggregate values from its direct children.
 
 ```gherkin
+Feature: Aggregate operators sum and count work over children
+
+  Scenario: Aggregate operators sum and count work over children
 Given a model with a parent PartDef with two child PartDef elements
   And each child has a custom_fields.wcet value
   And the parent has: derive: { totalWcet: "sum(children.custom_fields.wcet)", childCount: "count(children)" }
