@@ -1960,6 +1960,23 @@ Each entry in `transitions:`:
 - `accept: StartCommand` expands to `accept: {payload: StartCommand}`
 - `effect: VehicleBehavior::StartEngine` expands to `effect: {typedBy: VehicleBehavior::StartEngine}`
 
+**Placement.** A transition may be authored in **either** of two equivalent placements,
+both yielding the same `(source → target)` edge:
+
+1. **nested** — under a `subStates:` entry's own `transitions:` list; the enclosing
+   substate is the implicit `source` (so `source:` may be omitted);
+2. **top-level** — under the `StateDef`'s `transitions:` list; here `source:` is
+   **required**.
+
+A single transition extractor consumes both placements, so the state-machine completeness
+checks (§22.1) see one consistent edge model regardless of authoring style.
+
+**Deprecated keys (`W075`).** The keys `from:` / `to:` / `trigger:` are **not** SysMLv2
+vocabulary (SysMLv2 §7.18.3 uses `source` / `target` / `accept`). They remain accepted as
+**aliases** — `from` ≡ `source`, `to` ≡ `target`, `trigger` ≡ `accept.payload` — so existing
+models keep parsing, but any transition using them raises **`W075`** (draft-suppressed;
+gateable with `--deny W075`). Author new transitions with the canonical keys.
+
 **Example** (`model/VehicleBehavior/VehicleStates.md`):
 
 ```yaml
@@ -5325,7 +5342,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
 | `W503` | **Redundant allocation** — the same `source → target` edge is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element (§12.9). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |
 
-#### State machine completeness warnings (W070–W074, §22.1)
+#### State machine completeness warnings (W070–W075, §22.1)
 
 | Code | Condition |
 |---|---|
@@ -5334,6 +5351,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W072` | Non-determinism — two transitions from the same state accept the same payload type without guards |
 | `W073` | Missing initial state — `StateDef` with `subStates:` has no `isInitial: true` entry |
 | `W074` | Multiple initial states — more than one substate in the same `StateDef` is `isInitial: true` |
+| `W075` | Deprecated transition keys — a transition uses `from:`/`to:`/`trigger:` instead of canonical `source:`/`target:`/`accept:` (§8.8.3) |
 
 #### Sequence diagram completeness (W080, §22.4)
 

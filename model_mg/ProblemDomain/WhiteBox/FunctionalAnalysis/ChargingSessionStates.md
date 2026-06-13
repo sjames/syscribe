@@ -4,33 +4,34 @@ name: ChargingSessionStates
 allocatedTo: ProblemDomain::WhiteBox::LogicalSubsystems::EnergyControlSubsystem
 subStates:
   - name: Idle
+    isInitial: true
   - name: Authorising
   - name: Negotiating
   - name: Charging
   - name: Faulted
   - name: Completed
 transitions:
-  - from: Idle
-    to: Authorising
-    trigger: plugIn
-  - from: Authorising
-    to: Negotiating
-    trigger: authorised
-  - from: Negotiating
-    to: Charging
-    trigger: contractAgreed
-  - from: Charging
-    to: Completed
-    trigger: targetSocReached
-  - from: Charging
-    to: Faulted
-    trigger: faultDetected
-  - from: Faulted
-    to: Idle
-    trigger: reset
-  - from: Completed
-    to: Idle
-    trigger: unplug
+  - source: Idle
+    target: Authorising
+    accept: plugIn
+  - source: Authorising
+    target: Negotiating
+    accept: authorised
+  - source: Negotiating
+    target: Charging
+    accept: contractAgreed
+  - source: Charging
+    target: Completed
+    accept: targetSocReached
+  - source: Charging
+    target: Faulted
+    accept: faultDetected
+  - source: Faulted
+    target: Idle
+    accept: reset
+  - source: Completed
+    target: Idle
+    accept: unplug
 refines:
   - ProblemDomain::WhiteBox::SystemRequirements::Availability
 custom_fields:

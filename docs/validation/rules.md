@@ -245,6 +245,14 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W412 | SVG `href="..."` attribute does not resolve to any model element file |
 | W080 | `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` in its sub-action tree not referenced by any `edges:` entry (draft-suppressed; `--deny W080`) |
 
+## State machine warnings (W070–W078, §22.1)
+
+SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppressed and gateable with `--deny W07x`.
+
+| Code | Condition |
+|---|---|
+| W075 | A transition uses the deprecated keys `from:`/`to:`/`trigger:` instead of the canonical `source:`/`target:`/`accept:` (§8.8.3). Legacy keys are still accepted as aliases. |
+
 ## Allocation errors (E500–E503)
 
 | Code | Condition |

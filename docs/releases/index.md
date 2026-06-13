@@ -2,6 +2,15 @@
 
 `RELEASES`
 
+## 0.26.12 — 2026-06-13
+
+### State machines — schema consolidation (Phase A of SysMLv2-faithful HSM; GH #68)
+
+- **One canonical transition schema** — `StateDef`/`State` transitions are now defined by a single SysMLv2-faithful vocabulary (`source` / `target` / `accept{payload,via}` / `guard` / `effect`, §8.8.3), authored **either** nested under a `subStates:` entry (implicit source) **or** top-level (explicit `source:`). A single transition extractor yields one edge model from both placements, so downstream state-machine checks never disagree. (`REQ-TRS-SM-001`)
+- **`W075` — deprecated transition keys** — the legacy top-level spelling `from:` / `to:` / `trigger:` is **not** SysMLv2 vocabulary. It is still accepted as aliases (`from`≡`source`, `to`≡`target`, `trigger`≡`accept.payload`) so existing models keep parsing, but now raises **`W075`** directing migration to the canonical keys. Draft-suppressed; gateable with `validate --deny W075`. The one model using the legacy form (`model_mg` `ChargingSessionStates`) is migrated to canonical and given an explicit `isInitial` state. (`REQ-TRS-SM-002`)
+
+This is the foundation for the hierarchy/region-aware completeness checks (`W070`–`W078`) landing in later phases.
+
 ## 0.26.11 — 2026-06-13
 
 ### New features (issue #70)

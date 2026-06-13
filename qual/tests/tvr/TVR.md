@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.10  
+**Version:** syscribe 0.26.11  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 226 |
-| Passed | 226 |
+| Total test cases | 228 |
+| Passed | 228 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1964,6 +1964,32 @@
 | Scenario | Result |
 |---|---|
 | invalid securityTestMethod triggers W809 | ✓ PASS |
+
+---
+
+### TC-TRS-SM-001 — Verify the canonical SysMLv2 transition schema: nested (implicit source) and top-level (explicit source) placements yield the same edges; accept string and {payload} forms are equivalent; both validate clean.
+
+**Verifies:** REQ-TRS-SM-001  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| nested per-substate transitions are canonical | ✓ PASS |
+| top-level transitions with explicit source | ✓ PASS |
+
+---
+
+### TC-TRS-SM-002 — Verify W075 — legacy from/to/trigger transition keys raise the deprecation warning while still contributing the correct edge; canonical keys are silent; draft-suppressed; gateable with --deny W075.
+
+**Verifies:** REQ-TRS-SM-002  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| W075 — legacy from/to/trigger keys | ✓ PASS |
+| no W075 — canonical source/target/accept | ✓ PASS |
+| W075 draft-suppressed | ✓ PASS |
+| validate --deny W075 promotes to gate failure | ✓ PASS |
 
 ---
 

@@ -126,6 +126,86 @@ fn collect_message_actions(sub_actions: &[serde_yaml::Value], out: &mut Vec<Stri
     }
 }
 
+/// A normalized state-machine transition edge (§8.8.3), extracted from either
+/// authoring placement (nested under a `subStates:` entry, or top-level under the
+/// `StateDef`'s `transitions:`) and either spelling (canonical
+/// `source`/`target`/`accept` or the deprecated `from`/`to`/`trigger`). This is the
+/// single edge primitive the state-machine completeness checks consume.
+#[allow(dead_code)] // source/target/payload/has_guard are read by later W07x phases
+#[derive(Debug, Clone)]
+struct StateEdge {
+    source: Option<String>,
+    target: Option<String>,
+    /// Accept payload — the `accept` string, `accept.payload`, or legacy `trigger`.
+    payload: Option<String>,
+    has_guard: bool,
+    /// True when authored with the deprecated `from`/`to`/`trigger` keys (W075).
+    legacy: bool,
+}
+
+/// Extract every transition edge of a `StateDef`/`State` from both placements,
+/// normalizing the canonical and deprecated spellings onto one edge model.
+fn state_transitions(fm: &crate::element::RawFrontmatter) -> Vec<StateEdge> {
+    fn sval<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a serde_yaml::Value> {
+        m.get(&serde_yaml::Value::String(k.to_string()))
+    }
+    fn parse_transition(t: &serde_yaml::Value, implicit_source: Option<&str>) -> Option<StateEdge> {
+        let m = t.as_mapping()?;
+        let src = sval(m, "source").or_else(|| sval(m, "from")).and_then(|v| v.as_str());
+        let tgt = sval(m, "target").or_else(|| sval(m, "to")).and_then(|v| v.as_str());
+        let payload = match sval(m, "accept") {
+            Some(serde_yaml::Value::String(s)) => Some(s.clone()),
+            Some(serde_yaml::Value::Mapping(am)) => {
+                sval(am, "payload").and_then(|v| v.as_str()).map(String::from)
+            }
+            _ => sval(m, "trigger").and_then(|v| v.as_str()).map(String::from),
+        };
+        let legacy = sval(m, "from").is_some()
+            || sval(m, "to").is_some()
+            || sval(m, "trigger").is_some();
+        let has_guard = sval(m, "guard")
+            .and_then(|v| v.as_str())
+            .map(|s| !s.is_empty())
+            .unwrap_or(false);
+        Some(StateEdge {
+            source: src.map(String::from).or_else(|| implicit_source.map(String::from)),
+            target: tgt.map(String::from),
+            payload,
+            has_guard,
+            legacy,
+        })
+    }
+
+    let mut edges = Vec::new();
+    // Nested: each substate's own transitions, with the substate as implicit source.
+    if let Some(subs) = fm.sub_states.as_ref() {
+        for s in subs {
+            let Some(sm) = s.as_mapping() else { continue };
+            let name = sm
+                .get(&serde_yaml::Value::String("name".into()))
+                .and_then(|v| v.as_str());
+            if let Some(serde_yaml::Value::Sequence(ts)) =
+                sm.get(&serde_yaml::Value::String("transitions".into()))
+            {
+                for t in ts {
+                    if let Some(e) = parse_transition(t, name) {
+                        edges.push(e);
+                    }
+                }
+            }
+        }
+    }
+    // Top-level: source must be explicit (parse_transition has no implicit source here).
+    if let Some(ts) = fm.transitions.as_ref() {
+        for t in ts {
+            if let Some(e) = parse_transition(t, None) {
+                edges.push(e);
+            }
+        }
+    }
+    edges
+}
+
 /// Map ASIL level string to a numeric rank for comparison (A=1, B=2, C=3, D=4).
 fn asil_rank(level: &str) -> Option<u8> {
     match level.to_ascii_uppercase().as_str() {
@@ -1946,6 +2026,24 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         }
                     }
                 }
+            }
+        }
+
+        // ── State machine checks (W07x, §22.1) ───────────────────────────────
+        // Phase A: W075 — flag the deprecated `from`/`to`/`trigger` transition
+        // spelling (accepted as aliases, but the canonical schema is
+        // `source`/`target`/`accept`, §8.8.3). Draft-suppressed; `--deny W075`.
+        if matches!(
+            fm.element_type,
+            Some(ElementType::StateDef) | Some(ElementType::State)
+        ) && fm.status.as_deref() != Some("draft")
+        {
+            if state_transitions(fm).iter().any(|e| e.legacy) {
+                findings.push(warning(
+                    "W075",
+                    &file,
+                    "state-machine transition uses deprecated keys `from`/`to`/`trigger` — migrate to canonical `source`/`target`/`accept` (§8.8.3)",
+                ));
             }
         }
 
