@@ -771,4 +771,11 @@ pub struct RawElement {
     /// Set when the file had no `---` opener (E001) or unparseable YAML (E002).
     #[serde(skip)]
     pub parse_issue: Option<ParseIssue>,
+    /// Computed fields from `derive:` blocks (REQ-TRS-DERIVE-001).
+    /// Populated by `derive::derive_pass` after walking; visible to validator and query.
+    #[serde(skip_serializing_if = "std::collections::HashMap::is_empty", default)]
+    pub derived: std::collections::HashMap<String, serde_yaml::Value>,
+    /// Findings produced by the derive pass (E501, E502). Gathered by the validator.
+    #[serde(skip)]
+    pub derive_findings: Vec<(String, String, String)>, // (code, file, message)
 }

@@ -147,6 +147,19 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
 /// Run all parse-time and model-time validation rules with explicit [`ValidateConfig`].
 pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) -> ValidationResult {
     let mut findings: Vec<Finding> = Vec::new();
+
+    // Collect derive pass findings (E500, E501, E502) stored by the derive pass in walker.
+    for elem in elements {
+        for (code, file, message) in &elem.derive_findings {
+            let sev = if code.starts_with('E') { Severity::Error } else { Severity::Warning };
+            let static_code: &'static str = match code.as_str() {
+                "E500" => "E500", "E501" => "E501", "E502" => "E502",
+                _ => "E000",
+            };
+            findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });
+        }
+    }
+
     let resolver = Resolver::new(elements);
 
     // Segments some element claims as its own name (covers element names and

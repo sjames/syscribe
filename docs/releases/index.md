@@ -2,6 +2,12 @@
 
 `RELEASES`
 
+## 0.26.8 — 2026-06-13
+
+### New features (issue #60)
+
+- **`derive:` block for computed fields** — any element's YAML frontmatter now accepts an optional `derive:` mapping of `fieldName → formula`. Formulas are evaluated top-to-bottom within an element; later entries may reference earlier ones via `self.<field>`. Operators: `sum`, `max`, `min`, `count`, `collect` over `children`/`parent` collections; `elements["Qualified::Name"].<field>` for cross-element refs; `+`, `-`, `*`, `/` arithmetic; `??` null coalesce. Derived values appear under **Derived Fields** in `syscribe show <qname>`. Errors: **E501** (parse error), **E502** (unknown element ref). (`REQ-TRS-DERIVE-001`–`005`)
+
 ## 0.26.7 — 2026-06-13
 
 ### New features and fixes (issues #54–#59)

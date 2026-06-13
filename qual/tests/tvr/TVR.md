@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.6  
+**Version:** syscribe 0.26.7  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 220 |
-| Passed | 220 |
+| Total test cases | 225 |
+| Passed | 225 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -199,6 +199,61 @@
 | legacy selections: under a feature model warns | ✓ PASS |
 | features: map configuration does not warn | ✓ PASS |
 | show displays parsed feature selections | ✓ PASS |
+
+---
+
+### TC-TRS-DERIVE-001 — Basic derive block evaluates and appears in query show output
+
+**Verifies:**   
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| Validation reports no errors for valid derive block | ✓ PASS |
+
+---
+
+### TC-TRS-DERIVE-002 — Aggregate operators sum and count work over children
+
+**Verifies:**   
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| count(children) returns number of direct children | ✓ PASS |
+
+---
+
+### TC-TRS-DERIVE-003 — Null coalesce and custom_fields arithmetic evaluate correctly
+
+**Verifies:**   
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| No errors for valid arithmetic derive block | ✓ PASS |
+
+---
+
+### TC-TRS-DERIVE-004 — Invalid derive formula emits E501 parse error
+
+**Verifies:**   
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| E501 message names the field 'broken' | ✓ PASS |
+
+---
+
+### TC-TRS-DERIVE-005 — Cross-element reference to unknown element emits E502
+
+**Verifies:**   
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| E502 message names the missing element | ✓ PASS |
 
 ---
 

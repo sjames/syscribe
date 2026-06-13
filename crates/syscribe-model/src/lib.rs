@@ -2,6 +2,7 @@
 
 pub mod attack_tree;
 pub mod config;
+pub mod derive;
 pub mod element;
 pub mod feature_model;
 pub mod frontmatter;

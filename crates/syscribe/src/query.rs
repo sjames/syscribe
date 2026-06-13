@@ -836,6 +836,22 @@ pub fn cmd_show(
         }
     }
 
+    // Derived fields (issue #60) — computed by the derive: block.
+    if !elem.derived.is_empty() {
+        println!();
+        println!("## Derived Fields");
+        println!();
+        println!("| Field | Value |");
+        println!("|---|---|");
+        let mut keys: Vec<_> = elem.derived.keys().collect();
+        keys.sort();
+        for key in keys {
+            if let Some(val) = elem.derived.get(key) {
+                println!("| {} | {} |", key, custom_field_display(val));
+            }
+        }
+    }
+
     // Custom fields (GH #39) — read-only labelled section; scalars inline, lists
     // comma-joined. Absent → no section. Keys render in sorted order (BTreeMap).
     if !fm.custom_fields.is_empty() {

@@ -140,11 +140,15 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
             frontmatter,
             doc: body.to_string(),
             parse_issue,
+            derived: Default::default(),
+            derive_findings: Vec::new(),
         });
     }
 
     explode_fmea_entries(&mut elements);
     explode_tara_entries(&mut elements);
+    // Derive pass: evaluate `derive:` blocks; findings stored in each element's derive_findings.
+    crate::derive::derive_pass(&mut elements);
     Ok(elements)
 }
 
@@ -209,6 +213,8 @@ fn explode_tara_entries(elements: &mut Vec<RawElement>) {
                     frontmatter: fm,
                     doc: String::new(),
                     parse_issue: None,
+                    derived: Default::default(),
+                    derive_findings: Vec::new(),
                 });
             }
         }
@@ -320,6 +326,8 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 frontmatter: fm,
                 doc: String::new(),
                 parse_issue: None,
+                derived: Default::default(),
+                derive_findings: Vec::new(),
             });
         }
     }
