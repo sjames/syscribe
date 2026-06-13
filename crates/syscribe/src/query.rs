@@ -2675,6 +2675,35 @@ reviews:                # ≥1 element qnames / stable IDs covered by this revie
 
 Summary of the review and its outcome (discussion lives in the linked `recordedAt` review).
 "#,
+        "tradestudy" => r#"---
+type: TradeStudy
+id: TRD-PREFIX-001
+name: "..."
+status: draft   # draft | review | complete
+# objective: REQ-PREFIX-001     # the Requirement this study informs
+# decision: ADR-PREFIX-001      # the ADR recording the selected alternative
+criteria:
+  - name: latency
+    weight: 0.5          # relative weight in [0,1]; need not sum to 1 (tool normalises)
+    direction: minimize  # maximize | minimize
+    unit: ms
+  - name: cost
+    weight: 0.5
+    direction: minimize
+    unit: USD
+alternatives:
+  - name: OptionA
+    # element: Physical::OptionA   # optional modeled element
+  - name: OptionB
+scores:
+  - { alternative: OptionA, criterion: latency, score: 10 }
+  - { alternative: OptionA, criterion: cost,    score: 5 }
+  - { alternative: OptionB, criterion: latency, score: 20 }
+  - { alternative: OptionB, criterion: cost,    score: 3 }
+---
+
+What this trade study evaluates and why.
+"#,
         "partdef" => r#"---
 type: PartDef
 name: MyPartDef

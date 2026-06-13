@@ -2,6 +2,17 @@
 
 `RELEASES`
 
+## 0.26.20 — 2026-06-13
+
+### Native TradeStudy element — weighted-criteria evaluation (GH #63)
+
+- **`TradeStudy` (`TRD-*`)** — a first-class, profile-independent weighted-criteria evaluation of design alternatives: `criteria:` (weight + `maximize`/`minimize`), `alternatives:` (optional `element:` ref), a `scores:` matrix, and optional `objective:` (Requirement) / `decision:` (ADR). (`REQ-TRS-TYPE-019`)
+- **Computed scoring** — the tool computes (never writes) min-max **normalised** scores per criterion (direction applied), **weighted** by the normalised criterion weight, a **total** per alternative, and a **rank**.
+- **Validation** — `E869`–`E877` (required fields, `TRD-*` id, criteria/weight/direction, empty/unnamed alternatives, unknown score keys, non-numeric score) and `W061`–`W064` (complete-without-decision, unresolved objective, incomplete matrix, unresolved alternative element — the last three draft-suppressed).
+- **CLI** — `trade-study [<TRD-id>] [--json]` lists studies or prints one's ranked normalised scoring table. When the model contains `TradeStudy` elements this command takes precedence; the MagicGrid MoE `trade-study` (REQ-TRS-MG-007) remains for models without them. `template TradeStudy` added.
+
+> **Code note:** the spec drafted these as `E400`–`E408` / `W400`–`W403`, which collide with the Diagram codes; reassigned to **`E869`–`E877`** / **`W061`–`W064`** and the spec §15.5 corrected.
+
 ## 0.26.19 — 2026-06-13
 
 ### Native ReviewRecord element — thin, GitHub-pointer design (GH #71)

@@ -275,6 +275,26 @@ For a `CalculationDef` with `bodyLanguage: budget`, the `body:` is a restricted 
 | E868 | A `feature_ref` operand resolves to no numeric attribute in scope. |
 | W060 | The budget value violates the `evaluate:` constraint (best-effort, for `<lhs> <op> <number>` bounds; draft-suppressed; `--deny W060`). |
 
+## Trade studies (E869–E877, W061–W064, §15)
+
+A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes normalised/weighted scores and rankings (never written to disk). Codes drafted as `E400`–`E408`/`W400`–`W403` were reassigned (they collide with the Diagram codes).
+
+| Code | Condition |
+|---|---|
+| E869 | Missing `id`, `name`, `status`, `criteria`, `alternatives`, or `scores`. |
+| E870 | `id` does not match the `TRD-*` pattern. |
+| E871 | A `criteria:` entry is missing `name`, `weight`, or `direction`. |
+| E872 | A `criteria[].weight` is not in [0.0, 1.0], or all weights are zero. |
+| E873 | A `criteria[].direction` is not `maximize` or `minimize`. |
+| E874 | `alternatives:` is empty. |
+| E875 | An `alternatives:` entry is missing `name`. |
+| E876 | A `scores:` entry references an unknown alternative or criterion. |
+| E877 | A `scores[].score` is not a number. |
+| W061 | A `status: complete` study has no `decision:` ADR. |
+| W062 | `objective:` is present but unresolved (draft-suppressed). |
+| W063 | The score matrix is incomplete (draft-suppressed). |
+| W064 | An `alternatives[].element` is present but unresolved (draft-suppressed). |
+
 ## Review records (E700–E705, W700, W704, §19)
 
 A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal review; the discussion lives in the external tool named by `recordedAt:`.

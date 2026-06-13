@@ -126,6 +126,7 @@ pub enum ElementType {
     TestPlan,         // TP-* — configuration-bound test campaign (GH #38)
     ADR,              // Architecture Decision Record (§8.17)
     ReviewRecord,     // RR-* — formal review event + traceability (§19, GH #71)
+    TradeStudy,       // TRD-* — weighted-criteria evaluation of alternatives (§15, GH #63)
     // Confirmation measure (ISO 26262-2 §6 / ISO/SAE 21434 §7) — CM-*
     ConfirmationMeasure,
     // Safety analysis (ISO 26262 HARA)
@@ -189,6 +190,7 @@ impl ElementType {
                 | ElementType::Configuration
                 | ElementType::ADR
                 | ElementType::ReviewRecord
+                | ElementType::TradeStudy
                 | ElementType::ConfirmationMeasure
                 | ElementType::HazardousEvent
                 | ElementType::SafetyGoal
@@ -445,6 +447,11 @@ pub struct RawFrontmatter {
     pub reviews: Option<Vec<String>>,
     pub items: Option<Vec<serde_yaml::Value>>,
     pub recorded_at: Option<String>,
+    // Native TradeStudy fields (§15, GH #63). `objective` (Requirement) is shared above.
+    pub criteria: Option<Vec<serde_yaml::Value>>,
+    pub alternatives: Option<Vec<serde_yaml::Value>>,
+    pub scores: Option<Vec<serde_yaml::Value>>,
+    pub decision: Option<String>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
     pub return_type: Option<String>,

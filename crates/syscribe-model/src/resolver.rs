@@ -7,6 +7,7 @@ static TP_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static CONF_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static ADR_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static RR_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+static TRD_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static CM_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 // Tier 2 safety/security stable-ID patterns
 static HE_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
@@ -58,6 +59,10 @@ fn adr_re() -> &'static regex::Regex {
 
 fn rr_re() -> &'static regex::Regex {
     RR_RE.get_or_init(|| regex::Regex::new(r"^RR(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+}
+
+fn trd_re() -> &'static regex::Regex {
+    TRD_RE.get_or_init(|| regex::Regex::new(r"^TRD(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 fn cm_re() -> &'static regex::Regex {
@@ -183,6 +188,7 @@ pub fn is_stable_id(s: &str) -> bool {
         || conf_re().is_match(s)
         || adr_re().is_match(s)
         || rr_re().is_match(s)
+        || trd_re().is_match(s)
         || cm_re().is_match(s)
         || he_re().is_match(s)
         || sg_re().is_match(s)
@@ -291,6 +297,11 @@ pub fn is_adr_id(s: &str) -> bool {
 /// Returns true for RR-* IDs (ReviewRecord).
 pub fn is_rr_id(s: &str) -> bool {
     rr_re().is_match(s)
+}
+
+/// Returns true for TRD-* IDs (TradeStudy).
+pub fn is_trd_id(s: &str) -> bool {
+    trd_re().is_match(s)
 }
 
 /// Returns true for CM-* IDs (ConfirmationMeasure).

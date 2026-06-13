@@ -5379,23 +5379,23 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E865` | ASIL/SIL decomposition siblings share a `satisfies:` target — decomposed channels must satisfy distinct elements (drafted as `E860`, which is already in use) |
 | `W860` | Requirement at ASIL D / SIL 4 has children at uniformly lower levels but fewer than two children |
 
-#### Trade study validation (E400–E408, W400–W403, §15.5)
+#### Trade study validation (E869–E877, W061–W064, §15.5)
 
 | Code | Condition |
 |---|---|
-| `E400` | `TradeStudy` missing `id:`, `name:`, `status:`, `criteria:`, `alternatives:`, or `scores:` |
-| `E401` | `TradeStudy.id` does not match `TRD-*` pattern |
-| `E402` | `criteria:` entry missing `name:`, `weight:`, or `direction:` |
-| `E403` | `criteria[].weight` not in [0.0, 1.0] or all weights are zero |
-| `E404` | `criteria[].direction` not `maximize` or `minimize` |
-| `E405` | `alternatives:` is empty |
-| `E406` | `alternatives:` entry missing `name:` |
-| `E407` | `scores:` entry references an unknown alternative or criterion name |
-| `E408` | `scores:` entry `score:` is not a number |
-| `W400` | `TradeStudy` with `status: complete` has no `decision:` ADR |
-| `W401` | `TradeStudy.objective:` unresolved |
-| `W402` | `scores:` matrix is incomplete (at least one (alternative, criterion) pair missing) |
-| `W403` | `alternatives[].element:` unresolved |
+| `E869` | `TradeStudy` missing `id:`, `name:`, `status:`, `criteria:`, `alternatives:`, or `scores:` |
+| `E870` | `TradeStudy.id` does not match `TRD-*` pattern |
+| `E871` | `criteria:` entry missing `name:`, `weight:`, or `direction:` |
+| `E872` | `criteria[].weight` not in [0.0, 1.0] or all weights are zero |
+| `E873` | `criteria[].direction` not `maximize` or `minimize` |
+| `E874` | `alternatives:` is empty |
+| `E875` | `alternatives:` entry missing `name:` |
+| `E876` | `scores:` entry references an unknown alternative or criterion name |
+| `E877` | `scores:` entry `score:` is not a number |
+| `W061` | `TradeStudy` with `status: complete` has no `decision:` ADR |
+| `W062` | `TradeStudy.objective:` unresolved |
+| `W063` | `scores:` matrix is incomplete (at least one (alternative, criterion) pair missing) |
+| `W064` | `alternatives[].element:` unresolved |
 
 #### Review record validation (E700–E705, W700, W704, §19.3)
 
@@ -6513,19 +6513,21 @@ FlexRay        0.500         0.010           0.455      0.667          0.436   #
 
 | Code | Condition |
 |---|---|
-| `E400` | `TradeStudy` missing `id:`, `name:`, `status:`, `criteria:`, `alternatives:`, or `scores:` |
-| `E401` | `TradeStudy.id` does not match the `TRD-*` pattern |
-| `E402` | `criteria:` entry missing `name:`, `weight:`, or `direction:` |
-| `E403` | `criteria[].weight` is not a float in [0.0, 1.0], or all weights are zero |
-| `E404` | `criteria[].direction` is not `maximize` or `minimize` |
-| `E405` | `alternatives:` is empty |
-| `E406` | `alternatives:` entry missing `name:` |
-| `E407` | `scores:` entry references an `alternative` or `criterion` name not present in the respective list |
-| `E408` | `scores:` entry `score:` is not a number |
-| `W400` | `TradeStudy` with `status: complete` has no `decision:` field (no ADR recording the outcome) |
-| `W401` | `TradeStudy.objective:` is present but unresolved (no element with that qname or id) |
-| `W402` | `scores:` matrix is incomplete — at least one (alternative, criterion) pair has no score entry |
-| `W403` | `TradeStudy.alternatives[].element` is present but unresolved |
+| `E869` | `TradeStudy` missing `id:`, `name:`, `status:`, `criteria:`, `alternatives:`, or `scores:` |
+| `E870` | `TradeStudy.id` does not match the `TRD-*` pattern |
+| `E871` | `criteria:` entry missing `name:`, `weight:`, or `direction:` |
+| `E872` | `criteria[].weight` is not a float in [0.0, 1.0], or all weights are zero |
+| `E873` | `criteria[].direction` is not `maximize` or `minimize` |
+| `E874` | `alternatives:` is empty |
+| `E875` | `alternatives:` entry missing `name:` |
+| `E876` | `scores:` entry references an `alternative` or `criterion` name not present in the respective list |
+| `E877` | `scores:` entry `score:` is not a number |
+| `W061` | `TradeStudy` with `status: complete` has no `decision:` field (no ADR recording the outcome) |
+| `W062` | `TradeStudy.objective:` is present but unresolved (no element with that qname or id) |
+| `W063` | `scores:` matrix is incomplete — at least one (alternative, criterion) pair has no score entry |
+| `W064` | `TradeStudy.alternatives[].element` is present but unresolved |
+
+> **Code note:** these were drafted as `E400`–`E408` / `W400`–`W403`, which collide with the Diagram codes (`E400`–`E402`, `W400`–`W403`, §11.12). They are reassigned to `E869`–`E877` / `W061`–`W064`.
 
 ---
 

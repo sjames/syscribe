@@ -23,6 +23,7 @@ mod safety_case;
 mod scaffold;
 mod scripting;
 mod testplan;
+mod tradestudy;
 mod vdepth;
 mod spec;
 
@@ -984,15 +985,21 @@ fn main() {
                 }
             }
             "trade-study" => {
-                // REQ-TRS-MG-007: MoE-weighted trade study scoring Configurations.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
-                let config_filter: Vec<String> = rest
-                    .windows(2)
-                    .filter(|w| w[0] == "--config")
-                    .map(|w| w[1].clone())
-                    .collect();
-                mgreport::cmd_trade_study(&elems, json, &config_filter);
+                if tradestudy::has_trade_studies(&elems) {
+                    // §15 (GH #63): general-purpose TradeStudy elements take precedence.
+                    let filter = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
+                    tradestudy::cmd_trade_study(&elems, filter, json);
+                } else {
+                    // REQ-TRS-MG-007: MoE-weighted trade study scoring Configurations.
+                    let config_filter: Vec<String> = rest
+                        .windows(2)
+                        .filter(|w| w[0] == "--config")
+                        .map(|w| w[1].clone())
+                        .collect();
+                    mgreport::cmd_trade_study(&elems, json, &config_filter);
+                }
             }
             "co-analysis" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

@@ -8,7 +8,7 @@ use crate::graph::EdgeKind;
 use crate::resolver::{
     is_adr_id, is_asset_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
     is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
-    is_req_id, is_rr_id, is_sc_id, is_sg_id, is_stable_id, is_tara_id, is_tc_id, is_test_plan_id, is_ts_id,
+    is_req_id, is_rr_id, is_sc_id, is_sg_id, is_stable_id, is_tara_id, is_tc_id, is_test_plan_id, is_trd_id, is_ts_id,
     is_vr_id, Resolver,
 };
 
@@ -2238,6 +2238,138 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // W700: a closed review with an unresolved (open) action item.
             if fm.status.as_deref() == Some("closed") && has_open_item {
                 findings.push(warning("W700", &file, "ReviewRecord is `status: closed` but has an action item with `disposition: open`"));
+            }
+        }
+
+        // ── TradeStudy (§15, GH #63) ─────────────────────────────────────────
+        // Codes drafted in the spec as E400–E408 / W400–W403 collide with the Diagram
+        // codes; reassigned to E869–E877 / W061–W064 (see release notes / §15.5).
+        if matches!(fm.element_type, Some(ElementType::TradeStudy)) {
+            let is_draft = fm.status.as_deref() == Some("draft");
+            // E869: required fields.
+            for (present, label) in [
+                (fm.id.is_some(), "id"),
+                (fm.name.is_some(), "name"),
+                (fm.status.is_some(), "status"),
+                (fm.criteria.is_some(), "criteria"),
+                (fm.alternatives.is_some(), "alternatives"),
+                (fm.scores.is_some(), "scores"),
+            ] {
+                if !present {
+                    findings.push(error("E869", &file, &format!("`{}` is required on TradeStudy", label)));
+                }
+            }
+            // E870: id pattern.
+            if let Some(ref id) = fm.id {
+                if !is_trd_id(id) {
+                    findings.push(error("E870", &file, &format!("`id` '{}' does not match TRD-* pattern", id)));
+                }
+            }
+            // Criteria — E871/E872/E873, collect names.
+            let mut crit_names: HashSet<String> = HashSet::new();
+            let mut any_positive_weight = false;
+            let mut saw_criterion = false;
+            if let Some(ref crits) = fm.criteria {
+                for c in crits {
+                    let Some(m) = c.as_mapping() else { continue };
+                    saw_criterion = true;
+                    let name = yaml_field(m, "name").and_then(|v| v.as_str());
+                    let weight = yaml_field(m, "weight");
+                    let dir = yaml_field(m, "direction").and_then(|v| v.as_str());
+                    if name.is_none() || weight.is_none() || dir.is_none() {
+                        findings.push(error("E871", &file, "TradeStudy criteria entry is missing `name`, `weight`, or `direction`"));
+                    }
+                    if let Some(n) = name {
+                        crit_names.insert(n.to_string());
+                    }
+                    if let Some(w) = weight.and_then(yaml_num) {
+                        if !(0.0..=1.0).contains(&w) {
+                            findings.push(error("E872", &file, &format!("TradeStudy criterion weight {} is not in [0.0, 1.0]", w)));
+                        }
+                        // A positive weight (even if out of range) means weights are not all zero.
+                        any_positive_weight |= w > 0.0;
+                    }
+                    if let Some(d) = dir {
+                        if d != "maximize" && d != "minimize" {
+                            findings.push(error("E873", &file, &format!("TradeStudy criterion direction '{}' must be maximize or minimize", d)));
+                        }
+                    }
+                }
+                if saw_criterion && !any_positive_weight {
+                    findings.push(error("E872", &file, "TradeStudy criteria weights are all zero"));
+                }
+            }
+            // Alternatives — E874/E875, W064, collect names.
+            let mut alt_names: HashSet<String> = HashSet::new();
+            if let Some(ref alts) = fm.alternatives {
+                if alts.is_empty() {
+                    findings.push(error("E874", &file, "TradeStudy `alternatives` is empty"));
+                }
+                for a in alts {
+                    let Some(m) = a.as_mapping() else { continue };
+                    match yaml_field(m, "name").and_then(|v| v.as_str()) {
+                        Some(n) => {
+                            alt_names.insert(n.to_string());
+                        }
+                        None => findings.push(error("E875", &file, "TradeStudy alternatives entry is missing `name`")),
+                    }
+                    if !is_draft {
+                        if let Some(el) = yaml_field(m, "element").and_then(|v| v.as_str()) {
+                            if resolver.resolve_ref(elements, el).is_none() {
+                                findings.push(warning("W064", &file, &format!("TradeStudy alternative `element` '{}' does not resolve", el)));
+                            }
+                        }
+                    }
+                }
+            }
+            // Scores — E876/E877, collect (alt, crit) coverage.
+            let mut have: HashSet<(String, String)> = HashSet::new();
+            if let Some(ref scores) = fm.scores {
+                for s in scores {
+                    let Some(m) = s.as_mapping() else { continue };
+                    let alt = yaml_field(m, "alternative").and_then(|v| v.as_str());
+                    let crit = yaml_field(m, "criterion").and_then(|v| v.as_str());
+                    if let Some(a) = alt {
+                        if !alt_names.contains(a) {
+                            findings.push(error("E876", &file, &format!("TradeStudy score references unknown alternative '{}'", a)));
+                        }
+                    }
+                    if let Some(c) = crit {
+                        if !crit_names.contains(c) {
+                            findings.push(error("E876", &file, &format!("TradeStudy score references unknown criterion '{}'", c)));
+                        }
+                    }
+                    match yaml_field(m, "score") {
+                        Some(v) if yaml_num(v).is_some() => {}
+                        _ => findings.push(error("E877", &file, "TradeStudy score `score` is not a number")),
+                    }
+                    if let (Some(a), Some(c)) = (alt, crit) {
+                        have.insert((a.to_string(), c.to_string()));
+                    }
+                }
+            }
+            // W063: incomplete score matrix (some alternative×criterion pair has no entry).
+            if !is_draft && !alt_names.is_empty() && !crit_names.is_empty() {
+                let missing = alt_names
+                    .iter()
+                    .flat_map(|a| crit_names.iter().map(move |c| (a.clone(), c.clone())))
+                    .filter(|p| !have.contains(p))
+                    .count();
+                if missing > 0 {
+                    findings.push(warning("W063", &file, &format!("TradeStudy score matrix is incomplete — {} alternative×criterion pair(s) have no score", missing)));
+                }
+            }
+            // W061: complete study without a decision ADR.
+            if fm.status.as_deref() == Some("complete") && fm.decision.is_none() {
+                findings.push(warning("W061", &file, "TradeStudy is `status: complete` but has no `decision:` ADR recording the outcome"));
+            }
+            // W062: objective present but unresolved.
+            if !is_draft {
+                if let Some(ref obj) = fm.objective {
+                    if resolver.resolve_ref(elements, obj).is_none() {
+                        findings.push(warning("W062", &file, &format!("TradeStudy `objective` '{}' does not resolve", obj)));
+                    }
+                }
             }
         }
 

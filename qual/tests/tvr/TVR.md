@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.18  
+**Version:** syscribe 0.26.19  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 235 |
-| Passed | 235 |
+| Total test cases | 236 |
+| Passed | 236 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2493,6 +2493,30 @@
 | reviews --coverage shows uncovered requirement | ✓ PASS |
 | review shows detail | ✓ PASS |
 | template ReviewRecord skeleton | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-019 — Verify the native TradeStudy element: E869–E877 structural rules, W061–W064 advisories, normalised/weighted/ranked scoring, and the trade-study list/detail commands plus template TradeStudy.
+
+**Verifies:** REQ-TRS-TYPE-019  
+**Result:** ✓ PASS (27 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| well-formed TradeStudy is clean | ✓ PASS |
+| E869 — missing scores | ✓ PASS |
+| E870 — bad id | ✓ PASS |
+| E871 — criterion missing field | ✓ PASS |
+| E872 — weight out of range | ✓ PASS |
+| E873 — bad direction | ✓ PASS |
+| E874 — empty alternatives | ✓ PASS |
+| E875 — alternative missing name | ✓ PASS |
+| E876 — unknown alternative | ✓ PASS |
+| E877 — non-numeric score | ✓ PASS |
+| W061 — complete without decision | ✓ PASS |
+| W063 — incomplete matrix | ✓ PASS |
+| trade-study detail ranked table | ✓ PASS |
+| template TradeStudy skeleton | ✓ PASS |
 
 ---
 
