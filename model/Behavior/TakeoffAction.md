@@ -2,6 +2,8 @@
 type: ActionDef
 name: TakeoffAction
 supertype: Actions::Action
+implementedBy:
+  - firmware/flight_control/
 parameters:
   - name: targetAltitudeM
     typedBy: ScalarValues::Real

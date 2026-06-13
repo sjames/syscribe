@@ -2,6 +2,8 @@
 type: ActionDef
 name: LandingAction
 supertype: Actions::Action
+implementedBy:
+  - firmware/flight_control/
 parameters:
   - name: descentRateMs
     typedBy: ScalarValues::Real

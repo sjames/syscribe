@@ -2,6 +2,8 @@
 type: ActionDef
 name: MissionExecution
 supertype: Actions::Action
+implementedBy:
+  - firmware/flight_control/
 parameters:
   - name: missionWaypoints
     typedBy: Items::GPSFix

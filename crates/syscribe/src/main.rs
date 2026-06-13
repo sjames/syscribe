@@ -16,6 +16,7 @@ mod matrix;
 mod metrics_cmd;
 mod mgreport;
 mod mv;
+mod bcov;
 mod impact;
 mod n2;
 mod query;
@@ -405,6 +406,23 @@ fn scripts_validate_report(
 /// per-command handlers parse their own flags unchanged. `--help`/`--version`/`spec`/
 /// `--agent-instructions` are handled before this router runs and are intentionally not
 /// modelled here.
+/// First non-flag positional argument, skipping value-taking flags and their values
+/// (so `cmd --format json` does not mistake `json` for a positional).
+fn first_positional<'a>(args: &'a [String], value_flags: &[&str]) -> Option<&'a str> {
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if value_flags.contains(&a) {
+            i += 2;
+        } else if a.starts_with("--") {
+            i += 1;
+        } else {
+            return Some(a);
+        }
+    }
+    None
+}
+
 fn build_cli() -> clap::Command {
     let mut cmd = clap::Command::new("syscribe")
         .disable_help_flag(true)
@@ -1070,11 +1088,26 @@ fn main() {
                     }
                 }
             }
+            "behavioral-coverage" => {
+                // Behavioral coverage report (§20, GH #72). Read-only.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let scope = first_positional(rest, &["--depth", "--format"]);
+                let depth = rest.windows(2).find(|w| w[0] == "--depth").and_then(|w| w[1].parse::<usize>().ok());
+                let format = rest.windows(2).find(|w| w[0] == "--format").map(|w| w[1].as_str()).unwrap_or("text");
+                let opts = bcov::BcovOptions {
+                    scope,
+                    depth,
+                    format,
+                    uncovered_only: rest.iter().any(|a| a == "--uncovered-only"),
+                    include_planned: rest.iter().any(|a| a == "--include-planned"),
+                };
+                bcov::cmd_behavioral_coverage(&elems, &opts);
+            }
             "impact" => {
                 // Change impact analysis (§17, GH #65). Read-only.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let root = match rest.iter().find(|a| !a.starts_with("--")) {
-                    Some(r) => r.as_str(),
+                let root = match first_positional(rest, &["--direction", "--depth", "--format", "--kinds"]) {
+                    Some(r) => r,
                     None => {
                         eprintln!("Usage: syscribe --model <root> impact <qname|id> [--direction downstream|upstream|both] [--depth N] [--format text|json|dot] [--kinds <csv>]");
                         std::process::exit(2);
@@ -1097,7 +1130,7 @@ fn main() {
             "n2" => {
                 // N² interface matrix (§16, GH #64). Read-only.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let scope = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
+                let scope = first_positional(rest, &["--depth", "--format"]);
                 let depth = rest
                     .windows(2)
                     .find(|w| w[0] == "--depth")

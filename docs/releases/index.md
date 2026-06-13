@@ -2,6 +2,15 @@
 
 `RELEASES`
 
+## 0.26.23 — 2026-06-13
+
+### Behavioral coverage — `behavioral-coverage` command (GH #72)
+
+- **`syscribe behavioral-coverage [<qname>] [--depth N] [--format text|json] [--uncovered-only] [--include-planned]`** — reports how completely the **active** TestCases exercise the behavioral elements (`ActionDef`/`Action`/`StateDef`/`State`), via four coverage paths: source overlap (`sourceFile` under `implementedBy`), requirement chain (`verifies`→`satisfies`→`typedBy`/`supertype`), test function (`testFunctions[].file` under `implementedBy`), and allocation (`allocatedTo`). Read-only; no new element types or rules. (`REQ-TRS-OUT-018`)
+- `--include-planned` counts draft/review/approved tests in a separate planned column; `--uncovered-only` filters while keeping the true percentage; `text`/`json` (`{scope, covered, total, coverage_pct, elements}`).
+- The demo model now links its flight-control behaviours (`TakeoffAction`/`MissionExecution`/`LandingAction`) to the realizing firmware and the HIL fault test, so it reports **60%** behavioral coverage out of the box.
+- Fixed a CLI argument bug where a value-taking flag (`--format`/`--depth`) with no positional could be mistaken for the positional (affected `n2`/`impact`/`behavioral-coverage`).
+
 ## 0.26.22 — 2026-06-13
 
 ### Change impact analysis — `impact` command (GH #65)

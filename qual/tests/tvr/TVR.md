@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.21  
+**Version:** syscribe 0.26.22  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 238 |
-| Passed | 238 |
+| Total test cases | 239 |
+| Passed | 239 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1337,6 +1337,21 @@
 | --format json schema | ✓ PASS |
 | --format dot is a digraph | ✓ PASS |
 | qualified-name root works | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-018 — Verify behavioral-coverage: source-overlap (path 1) and allocation (path 4) coverage, active-only by default, --include-planned, --uncovered-only, json schema, correct percentage, and the demo model >50%.
+
+**Verifies:** REQ-TRS-OUT-018  
+**Result:** ✓ PASS (11 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| default coverage (paths 1 and 4) | ✓ PASS |
+| --include-planned surfaces planned coverage | ✓ PASS |
+| --uncovered-only keeps the true percentage | ✓ PASS |
+| json schema | ✓ PASS |
+| demo model >50% behavioral coverage | ✓ PASS |
 
 ---
 

@@ -124,6 +124,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe model/ connectivity <element> [--depth N] [--format text\|dot\|json]` | Element-rooted subgraph of elements + connections (model root = whole model) |
 | `syscribe model/ n2 [<qname>] [--depth N] [--format text\|html\|json] [--interfaces-only] [--allocations]` | N² interface matrix: parts on the diagonal, connecting interfaces in the cells |
 | `syscribe model/ impact <qname\|id> [--direction downstream\|upstream\|both] [--depth N] [--format text\|json\|dot] [--kinds <csv>]` | Change impact: every element reachable through the traceability graph, with hop distance + edge kind |
+| `syscribe model/ behavioral-coverage [<qname>] [--depth N] [--format text\|json] [--uncovered-only] [--include-planned]` | How completely active TestCases exercise ActionDef/StateDef behaviors (source/requirement/testFn/allocation paths) |
 | `syscribe model/ reviews [<qname>] [--open-only] [--json]` / `review <RR-id>` / `reviews --coverage` | List/detail `ReviewRecord`s and their requirement coverage |
 | `syscribe model/ trade-study [<TRD-id>] [--json]` | List/score `TradeStudy` elements (normalised, weighted, ranked) |
 | `syscribe model/ extref <ref> [--json]` | Find elements by external reference (`extRef`) |

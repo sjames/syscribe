@@ -412,6 +412,14 @@ PowerSystem         PowerConn…   PowerConn…  ■            PowerConn…
 PropulsionSystem    —            —           —            ■
 ```
 
+## Behavioral coverage (`behavioral-coverage`)
+
+```bash
+syscribe -m model/ behavioral-coverage [<qname>] [--depth N] [--format text|json] [--uncovered-only] [--include-planned]
+```
+
+Reports how completely the **active** `TestCase` elements exercise the behavioral elements (`ActionDef`/`Action`/`StateDef`/`State`) (§20). A behavioral element is covered when an active test reaches it by any of four paths: source overlap (`TC.sourceFile` under `B.implementedBy`), requirement chain (`verifies` → `satisfies` → element `typedBy`/`supertype` B), test function (a `testFunctions[].file` under `implementedBy`), or allocation (the satisfying element `allocatedTo` B). `--include-planned` adds draft/review/approved tests in a separate column; `--uncovered-only` filters; `text`/`json` output with a coverage percentage.
+
 ## Change impact analysis (`impact`)
 
 ```bash

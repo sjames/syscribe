@@ -3,6 +3,7 @@ type: TestCase
 id: TC-UAV-FC-001
 name: "FC detects injected sensor failure within 50 ms on HIL bench"
 status: active
+sourceFile: firmware/flight_control/failover.rs
 testLevel: L5
 verifies:
   - REQ-UAV-FC-001
