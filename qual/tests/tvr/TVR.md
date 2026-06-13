@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.19  
+**Version:** syscribe 0.26.20  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 236 |
-| Passed | 236 |
+| Total test cases | 237 |
+| Passed | 237 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1305,6 +1305,21 @@
 | Scenario | Result |
 |---|---|
 | list Requirement still uses generic table (no regression) | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-016 — Verify the n2 interface-matrix command: connection edges appear as named interfaces in the right cells; --allocations adds allocation edges; --format json matches the schema; --format html is a table; --interfaces-only and --depth behave.
+
+**Verifies:** REQ-TRS-OUT-016  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| connection edges appear as named interfaces | ✓ PASS |
+| --allocations adds allocation edges | ✓ PASS |
+| --format json matches the schema | ✓ PASS |
+| --format html is a table | ✓ PASS |
+| --interfaces-only retains wired elements | ✓ PASS |
 
 ---
 

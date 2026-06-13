@@ -16,6 +16,7 @@ mod matrix;
 mod metrics_cmd;
 mod mgreport;
 mod mv;
+mod n2;
 mod query;
 mod render;
 mod reviews;
@@ -1067,6 +1068,29 @@ fn main() {
                         }
                     }
                 }
+            }
+            "n2" => {
+                // N² interface matrix (§16, GH #64). Read-only.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let scope = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
+                let depth = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--depth")
+                    .and_then(|w| w[1].parse::<usize>().ok())
+                    .unwrap_or(1);
+                let format = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--format")
+                    .map(|w| w[1].as_str())
+                    .unwrap_or("text");
+                let opts = n2::N2Options {
+                    scope,
+                    depth,
+                    format,
+                    interfaces_only: rest.iter().any(|a| a == "--interfaces-only"),
+                    allocations: rest.iter().any(|a| a == "--allocations"),
+                };
+                n2::cmd_n2(&elems, &opts);
             }
             "reviews" => {
                 // ReviewRecord surface (§19, GH #71). Read-only.

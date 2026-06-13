@@ -1,0 +1,4 @@
+---
+type: ConnectionDef
+name: IfaceAB
+---

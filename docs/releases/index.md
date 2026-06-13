@@ -2,6 +2,13 @@
 
 `RELEASES`
 
+## 0.26.21 — 2026-06-13
+
+### N² interface matrix — `n2` command (GH #64)
+
+- **`syscribe n2 [<qname>] [--depth N] [--format text|html|json] [--interfaces-only] [--allocations]`** — generates an N² (N-squared) interface matrix: in-scope `PartDef`/`Part` elements on the diagonal, and each off-diagonal cell `(R, C)` listing the **named interfaces** directed from R to C (from the connection's `typedBy:` ConnectionDef/InterfaceDef or its name). Derived read-only from the existing `connections:`, `flowConnections:`, and (with `--allocations`) `allocatedTo:` edges — no new element types or validation rules. (`REQ-TRS-OUT-016`)
+- Without a `<qname>` the axis is every part in the model; with one it is the composite's subpart types, expanded `--depth` levels. `text` / `html` (self-contained `<table>`) / `json` (`{ scope, elements, matrix }`) formats; `--interfaces-only` drops unconnected elements.
+
 ## 0.26.20 — 2026-06-13
 
 ### Native TradeStudy element — weighted-criteria evaluation (GH #63)
