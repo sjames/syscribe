@@ -103,6 +103,23 @@ fn default_repo_model_root() -> String {
     "model/".to_string()
 }
 
+/// REQ-TRS-TYPE-022 (§14) — a peer repo's on-disk state relative to its
+/// configured `ref:`. Computed once at load time via `git rev-parse`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RefState {
+    /// No `ref:` configured for this repo (composition is not pinned — `W510`).
+    NoRef,
+    /// The peer path is absent on disk.
+    Missing,
+    /// git is unavailable, the repo is not a git work tree, or the configured
+    /// `ref:` could not be resolved — drift cannot be determined.
+    Unknown,
+    /// The peer work tree's `HEAD` matches the configured `ref:`.
+    InSync,
+    /// The peer work tree's `HEAD` differs from the configured `ref:` (`W511`).
+    Drift,
+}
+
 /// A peer repository loaded for cross-repo composition (§14, REQ-TRS-TYPE-021).
 /// Carries the configured entry plus the resolved peer model root and the index
 /// needed by validation: the peer's element qnames and exported stable IDs.
@@ -118,6 +135,10 @@ pub struct LoadedRepo {
     pub exists: bool,
     /// Following this repo's import chain leads back to the local model (`E510`).
     pub circular: bool,
+    /// On-disk state vs the configured `ref:` (REQ-TRS-TYPE-022, `W511`).
+    pub ref_state: RefState,
+    /// The peer work tree's resolved `HEAD` sha, when known (for the `W511` message).
+    pub head_sha: Option<String>,
     /// Qualified names of every element in the peer model.
     pub qnames: HashSet<String>,
     /// Stable IDs (`REQ-*`, `TC-*`, …) exported by the peer model.
@@ -567,12 +588,16 @@ fn load_repos(model_root: &Path) -> Vec<LoadedRepo> {
             // E510: does this peer's import chain reach back to the local model?
             let mut seen = HashSet::new();
             let circular = exists && chain_reaches(&peer_root, &start, &mut seen);
+            // W511: is the peer work tree at its configured ref?
+            let (ref_state, head_sha) = compute_ref_state(&peer_root, &entry, exists);
             LoadedRepo {
                 alias,
                 config: entry,
                 model_root: peer_root,
                 exists,
                 circular,
+                ref_state,
+                head_sha,
                 qnames,
                 stable_ids,
             }
@@ -637,6 +662,46 @@ fn chain_reaches(dir: &Path, target: &Path, seen: &mut HashSet<PathBuf>) -> bool
 /// Canonicalise a path, falling back to the path itself when it does not exist.
 fn canon(p: &Path) -> PathBuf {
     std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf())
+}
+
+/// REQ-TRS-TYPE-022 — determine a peer repo's state vs its configured `ref:` by
+/// comparing the work tree's `HEAD` commit with the commit the `ref:` resolves to.
+/// Returns `(state, head_sha)`. Any uncertainty (no git, not a work tree, ref not
+/// found) yields [`RefState::Unknown`] so drift is never falsely reported.
+fn compute_ref_state(model_root: &Path, entry: &RepoEntry, exists: bool) -> (RefState, Option<String>) {
+    let Some(want) = entry.git_ref.as_deref() else {
+        return (RefState::NoRef, None);
+    };
+    if !exists {
+        return (RefState::Missing, None);
+    }
+    let head = git_rev_parse(model_root, "HEAD");
+    let want_commit = git_rev_parse(model_root, &format!("{want}^{{commit}}"));
+    match (head, want_commit) {
+        (Some(h), Some(w)) if h == w => (RefState::InSync, Some(h)),
+        (Some(h), Some(_)) => (RefState::Drift, Some(h)),
+        _ => (RefState::Unknown, None),
+    }
+}
+
+/// Resolve a git revision to its object id in `dir`, or `None` when git is
+/// unavailable, `dir` is not a work tree, or the revision does not resolve.
+fn git_rev_parse(dir: &Path, rev: &str) -> Option<String> {
+    let out = std::process::Command::new("git")
+        .arg("-C")
+        .arg(dir)
+        .args(["rev-parse", "--verify", "--quiet", rev])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
 }
 
 /// Walk up from `start` looking for a `.git` entry; return the directory holding it.

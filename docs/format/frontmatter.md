@@ -166,7 +166,7 @@ repoImports:
     as: Brakes
 ```
 
-Validation rules `E510`–`E515`/`W510` are active only when `[repos]` is configured — see the [Rule Reference](../validation/rules.md#multi-repository-composition-e510e515-w510-14). CLI: `repos list|status|sync`.
+Validation rules `E510`–`E515`/`W510`–`W511` are active only when `[repos]` is configured — see the [Rule Reference](../validation/rules.md#multi-repository-composition-e510e515-w510-14). A pinned repo (`ref:`) whose `HEAD` has drifted raises `W511`; gate CI on a reproducible composition with `validate --deny W511`. CLI: `repos list|status|sync`.
 
 ## Implementation trace (`implementedBy:`)
 

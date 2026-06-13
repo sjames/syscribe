@@ -5410,7 +5410,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W700` | `ReviewRecord` with `status: closed` has ≥1 `items[]` with `disposition: open` |
 | `W704` | Non-`draft` native `Requirement` appears in no `ReviewRecord.reviews:` list — dormant unless ReviewRecords exist (opt-in; `--deny W704`; drafted as `W701`, already in use) |
 
-#### Multi-repository composition (E510–E515, W510, §14.6)
+#### Multi-repository composition (E510–E515, W510–W511, §14.6)
 
 | Code | Condition |
 |---|---|
@@ -5421,6 +5421,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E514` | `repoImports[].qname` does not resolve in the named repo |
 | `E515` | Same stable ID appears in two repos (duplicate across composition) |
 | `W510` | Repo in `[repos]` has no `ref:` — composition is not reproducible (opt-in; `--deny W510`) |
+| `W511` | Peer repo `HEAD` has drifted from its configured `ref:` (opt-in; `--deny W511`) |
 
 #### IEC 62443 Zone/Conduit validation (E950–E956, W950–W953, §13.5)
 
@@ -6373,6 +6374,9 @@ shared    ../shared-library      main     ✓         behind (3 commits)
 | `E514` | `repoImports[].qname` does not resolve to any element in the named repo |
 | `E515` | Two repos export the same stable ID (e.g., `REQ-SCHED-001` appears in both the local model and a peer repo) |
 | `W510` | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; gateable with `--deny W510`) |
+| `W511` | A peer repo's git `HEAD` has drifted from its configured `ref:` — the checkout is not at the pinned snapshot. Detected by comparing the peer work tree's `HEAD` commit with the commit the `ref:` resolves to; never raised when drift cannot be determined (git unavailable, not a work tree, `ref:` unresolved). Opt-in; gateable with `--deny W511` as a CI reproducibility gate. `repos status` reports the same drift and exits `2`. |
+
+`repos sync` brings a drifted repo back to its pinned `ref:`.
 
 ---
 

@@ -5,7 +5,7 @@
 use std::path::Path;
 use std::process::Command;
 
-use syscribe_model::config::{LoadedRepo, ValidateConfig};
+use syscribe_model::config::{LoadedRepo, RefState, ValidateConfig};
 
 /// `repos list [--json]` — configured repos with their paths, refs, and on-disk status.
 pub fn cmd_list(cfg: &ValidateConfig, json: bool) {
@@ -183,34 +183,20 @@ fn status_label(r: &LoadedRepo) -> String {
     repo_sync_state(r).1
 }
 
-/// Determine a repo's sync state against its configured ref via
-/// `git describe --tags --exact-match` / `rev-parse`.
+/// Map a repo's precomputed [`RefState`] (the single source of truth, computed by
+/// the config loader) to the CLI's display state and a human-readable detail.
 fn repo_sync_state(r: &LoadedRepo) -> (SyncState, String) {
-    if !r.exists {
-        return (SyncState::Missing, "path not on disk".to_string());
-    }
-    let Some(want) = r.config.git_ref.as_deref() else {
-        return (SyncState::NoRef, "—".to_string());
-    };
-    // Run git in the model root's repo (walk up to the work tree is handled by git).
-    let dir = &r.model_root;
-    let head = git_out(dir, &["rev-parse", "HEAD"]);
-    let want_sha = git_out(dir, &["rev-parse", &format!("{want}^{{commit}}")]);
-    match (head, want_sha) {
-        (Some(h), Some(w)) if h.trim() == w.trim() => {
-            (SyncState::InSync, format!("at {want}"))
+    let want = r.config.git_ref.as_deref().unwrap_or("");
+    match r.ref_state {
+        RefState::NoRef => (SyncState::NoRef, "—".to_string()),
+        RefState::Missing => (SyncState::Missing, "path not on disk".to_string()),
+        RefState::Unknown => (SyncState::NotGit, "git unavailable".to_string()),
+        RefState::InSync => (SyncState::InSync, format!("at {want}")),
+        RefState::Drift => {
+            let head = r.head_sha.as_deref().unwrap_or("");
+            let short = &head[..head.len().min(8)];
+            (SyncState::OutOfSync, format!("HEAD {short} ≠ {want}"))
         }
-        (Some(_), Some(_)) => (SyncState::OutOfSync, format!("HEAD ≠ {want}")),
-        _ => (SyncState::NotGit, "git unavailable".to_string()),
-    }
-}
-
-fn git_out(dir: &Path, args: &[&str]) -> Option<String> {
-    let out = Command::new("git").arg("-C").arg(dir).args(args).output().ok()?;
-    if out.status.success() {
-        Some(String::from_utf8_lossy(&out.stdout).into_owned())
-    } else {
-        None
     }
 }
 

@@ -2,6 +2,12 @@
 
 `RELEASES`
 
+## 0.26.29 — 2026-06-13
+
+### Peer-repository ref-drift gate (W511, GH #62)
+
+Multi-repo composition now enforces reproducibility (§14, `REQ-TRS-TYPE-022`). When a peer repo in `[repos]` declares a `ref:`, validation compares the peer work tree's `HEAD` with the commit the `ref:` resolves to and emits **`W511`** on drift — gate CI on a pinned composition with `validate --deny W511`. The drift state is computed once at load time (single source of truth shared by validation and the `repos` CLI); `repos status` reports the same drift and exits `2`, and `repos sync` brings the checkout back to its `ref:`. Drift is never falsely reported when it cannot be determined — git unavailable, the peer is not a work tree, the `ref:` does not resolve, the path is absent, or no `ref:` is configured. Verified by `TC-TRS-TYPE-022` (4 assertions over real isolated git work trees). Qual 245/245; all models clean.
+
 ## 0.26.28 — 2026-06-13
 
 ### Multi-repository model composition (GH #62)

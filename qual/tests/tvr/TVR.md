@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.28  
+**Version:** syscribe 0.26.29  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-06-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 244 |
-| Passed | 244 |
+| Total test cases | 245 |
+| Passed | 245 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2643,6 +2643,17 @@
 | Scenario | Result |
 |---|---|
 | repos list command | ✓ PASS |
+
+---
+
+### TC-TRS-TYPE-022 — Verify peer-repository ref-drift detection: W511 fires when a peer HEAD drifts from its pinned ref, --deny W511 gates CI (exit 2), an in-sync peer is silent, and undeterminable drift (no git) does not emit W511.
+
+**Verifies:** REQ-TRS-TYPE-022  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| undeterminable drift does not warn | ✓ PASS |
 
 ---
 

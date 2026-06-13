@@ -429,7 +429,9 @@ syscribe -m model/ repos status [--json]      # whether each pinned repo is at i
 syscribe -m model/ repos sync [--all | <alias>]   # git fetch + checkout <ref> for pinned repos
 ```
 
-Inspects and synchronises the peer repositories declared in the model-root `.syscribe.toml` `[repos]` table (§14). Each entry has a `path` (required, relative to `.syscribe.toml`), `root` (default `model/`) and optional `ref`. A package `_index.md` mounts a peer sub-tree with `repoImports: [{repo, qname, as}]`. Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each loaded repo in declaration order — by global stable ID or qualified name. Validation rules `E510`–`E515`/`W510` ([rules](../validation/rules.md#multi-repository-composition-e510e515-w510-14)) are active only when `[repos]` is configured.
+Inspects and synchronises the peer repositories declared in the model-root `.syscribe.toml` `[repos]` table (§14). Each entry has a `path` (required, relative to `.syscribe.toml`), `root` (default `model/`) and optional `ref`. A package `_index.md` mounts a peer sub-tree with `repoImports: [{repo, qname, as}]`. Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each loaded repo in declaration order — by global stable ID or qualified name. Validation rules `E510`–`E515`/`W510`–`W511` ([rules](../validation/rules.md#multi-repository-composition-e510e515-w510-14)) are active only when `[repos]` is configured.
+
+**Reproducibility gate.** When a repo has a `ref:`, validation compares the peer work tree's `HEAD` against it and emits `W511` on drift — gate CI on a pinned composition with `validate --deny W511`. `repos status` reports the same drift and exits `2`; `repos sync` brings the checkout back to the `ref:`.
 
 ## ReqIF export (`export-reqif`)
 

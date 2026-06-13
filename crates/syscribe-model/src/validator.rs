@@ -3920,6 +3920,24 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     ),
                 ));
             }
+            // W511: peer work tree has drifted from its configured ref (REQ-TRS-TYPE-022).
+            // Gate it to a hard failure in CI with `--deny W511`.
+            if repo.ref_state == crate::config::RefState::Drift {
+                let want = repo.config.git_ref.as_deref().unwrap_or("");
+                let detail = repo
+                    .head_sha
+                    .as_deref()
+                    .map(|h| format!(" (HEAD {} ≠ {})", &h[..h.len().min(8)], want))
+                    .unwrap_or_default();
+                findings.push(warning(
+                    "W511",
+                    cfg_file,
+                    &format!(
+                        "repo '{}' is not at its configured ref '{}'{} — run `repos sync {}`",
+                        repo.alias, want, detail, repo.alias
+                    ),
+                ));
+            }
         }
 
         // E515: a stable ID exported by both the local model and a peer repo.

@@ -57,3 +57,12 @@ are **global** across the composition.
 | `E514` | `repoImports[].qname` does not resolve in the named repo |
 | `E515` | Two repos export the same stable ID (the id namespace is global) |
 | `W510` | A repo has no `ref:` — composition is not pinned (gate with `--deny W510`) |
+| `W511` | A pinned repo's `HEAD` has drifted from its `ref:` (gate with `--deny W511`) |
+
+## Reproducibility gate
+
+When a repo declares a `ref:`, validation compares the peer work tree's `HEAD` with the
+commit the `ref:` resolves to and emits `W511` on drift. Gate CI on a pinned composition
+with `validate --deny W511`. `repos status` reports the same drift and exits `2`; run
+`repos sync <alias>` (or `--all`) to bring the checkout back to its `ref:`. Drift is never
+reported when it cannot be determined (git unavailable, not a work tree, `ref:` unresolved).

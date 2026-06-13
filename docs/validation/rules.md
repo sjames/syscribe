@@ -350,6 +350,7 @@ A model composes peer repositories declared in the `[repos]` table of the model-
 | E514 | `repoImports[].qname` does not resolve to any element in the named repo. |
 | E515 | Two repos export the same stable ID (the id namespace is global across the composition). |
 | W510 | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; `--deny W510`). |
+| W511 | A peer repo's git `HEAD` has drifted from its configured `ref:` — checkout is not at the pinned snapshot. Never raised when drift cannot be determined (no git, not a work tree, ref unresolved). Opt-in; `--deny W511` for a CI reproducibility gate. |
 
 ## Allocation errors (E500–E503)
 
