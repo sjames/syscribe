@@ -75,6 +75,23 @@ nav:
       - Engine ECU (ISO 26262): demo-model/engine-ecu.md
       - SIL 4 Interlocking: demo-model/interlocking.md
       - UAV Autonomous Flight: demo-model/uav.md
+  - Practitioner Guide:
+      - guides/index.md
+      - Introduction: guides/introduction.md
+      - Part I — Concepts: guides/concepts.md
+      - Part II — Requirements: guides/requirements.md
+      - Part III — Architecture: guides/architecture.md
+      - Part IV — Tests: guides/tests.md
+      - Part V — ISO 26262 Safety: guides/iso-26262.md
+      - Part VI — IEC 61508 Safety: guides/iec-61508.md
+      - Part VII — ISO/SAE 21434 Security: guides/iso-21434.md
+      - Part VIII — CI/CD Integration: guides/cicd.md
+      - Part IX — Software Architecture: guides/software-architecture.md
+      - Part X — Feature Modeling: guides/feature-modeling.md
+      - Appendix A — Tool Mapping: guides/tool-mapping.md
+      - Appendix B — Validation Codes: validation/rules.md
+      - Appendix C — Quick Reference: guides/quick-reference.md
+      - Appendix D — Scripting: guides/scripting.md
   - Web Browser:
       - browser/index.md
   - Tool Qualification:
