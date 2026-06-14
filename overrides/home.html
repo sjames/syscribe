@@ -268,6 +268,14 @@
     font-size: 11px; color: var(--sml-text-3); margin-top: 16px; display: block;
   }
 
+  /* ── Origin ──────────────────────────────────────────── */
+  .sml-origin { padding: 96px 40px; border-bottom: 1px solid var(--sml-border); }
+  .sml-origin__inner { max-width: 720px; margin: 0 auto; }
+  .sml-origin__body {
+    color: var(--sml-text-2); font-size: 16px; line-height: 1.7; margin-bottom: 20px;
+  }
+  .sml-origin__body:last-child { margin-bottom: 0; }
+
   /* ── Features grid ────────────────────────────────────── */
   .sml-features { padding: 96px 40px; border-bottom: 1px solid var(--sml-border); }
   .sml-features__inner { max-width: 1200px; margin: 0 auto; }
@@ -666,6 +674,35 @@ syscribe -m model_auto/ \
         Feature comparison based on public documentation, 2026-05.
         Syscribe is a semantic <em>subset</em> of SysMLv2 — not a full implementation.
       </span>
+    </div>
+  </section>
+
+  <!-- ORIGIN -->
+  <section class="sml-origin">
+    <div class="sml-origin__inner">
+      <span class="sml-section-tag">§ 05 — ORIGIN</span>
+      <div class="sml-section-h">Why I built this.</div>
+
+      <p class="sml-origin__body">
+        I started using LLMs for development as soon as they were usable. The speed was unlike
+        anything I'd seen — hard problems that would have taken weeks collapsed into days. But
+        I came from automotive engineering, and I couldn't stop asking the uncomfortable
+        questions: who reviewed this decision? what requirement does this satisfy? how do I
+        know it's correct?
+      </p>
+      <p class="sml-origin__body">
+        The automotive world has spent decades building processes — HARA, FMEA, traceability
+        matrices, change notices — that exist because overconfident engineering kills people.
+        An LLM that generates requirements with no formal check is just a faster way to produce
+        undetectable mistakes. The obvious fix — slow the LLM down with process overhead —
+        defeats the point.
+      </p>
+      <p class="sml-origin__body">
+        Syscribe is my answer to that tension. Plain text so the LLM can write it. A validator
+        so it can't silently be wrong. Git so every decision has an author, a date, and a diff.
+        The speed of LLM-assisted authoring with the rigour that safety engineering actually
+        requires — not as a compromise, but as a design choice.
+      </p>
     </div>
   </section>
 
