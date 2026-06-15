@@ -887,7 +887,40 @@ Every operand must resolve to a `FeatureDef` (else `E209`).
 
 If two configurations would have identical `features:` (e.g. emulator vs physical rig), model the distinguishing axis as its own feature (e.g. an `ExecEnv` alternative group) rather than reaching for a separate field.
 
-**Feature parameters (quantitative variability, §9.7).** A `FeatureDef` may declare typed `parameters:` (each `{name, type, range: "min..max" or "min..=max", enumValues, default, isFixed, isRequired, bindingTime}`); a `Configuration` binds them under `parameterBindings:` keyed by the dotted reference `<FeatureDef QName>.<param>`. Bindings are validated by `validate`: a binding for an unselected feature (`E203`), of a fixed parameter (`E204`), out of `range:` (`E205`), not in `enumValues:` (`E206`), or to an undeclared/legacy-`::` path (`E222`) is an error; a selected feature's required, default-less parameter left unbound warns (`W017`). Cross-feature `parameterConstraints` (on a package `_index.md`) are evaluated by `feature-check`: a violated comparison is `E221` (or `W025` if `severity: warning`). The optional `bindingTime:` records *when* a parameter is resolved — `compile` < `load` < `runtime` (ordered); an unknown value is `E230`, a parameter bound earlier than a `derivedFrom`/`bindTo` source it depends on is `E229` (`feature-check`), binding a `runtime` parameter in a `Configuration` warns `W027`, and `W017` is suppressed for unbound `runtime` parameters.
+**Feature parameters (quantitative variability, §9.7).** A `FeatureDef` may declare typed `parameters:` (each `{name, type, range: "min..max" or "min..=max", enumValues, default, isFixed, isRequired, bindingTime, buildVar}`); a `Configuration` binds them under `parameterBindings:` keyed by the dotted reference `<FeatureDef QName>.<param>`. Bindings are validated by `validate`: a binding for an unselected feature (`E203`), of a fixed parameter (`E204`), out of `range:` (`E205`), not in `enumValues:` (`E206`), or to an undeclared/legacy-`::` path (`E222`) is an error; a selected feature's required, default-less parameter left unbound warns (`W017`). Cross-feature `parameterConstraints` (on a package `_index.md`) are evaluated by `feature-check`: a violated comparison is `E221` (or `W025` if `severity: warning`). The optional `bindingTime:` records *when* a parameter is resolved — `compile` < `load` < `runtime` (ordered); an unknown value is `E230`, a parameter bound earlier than a `derivedFrom`/`bindTo` source it depends on is `E229` (`feature-check`), binding a `runtime` parameter in a `Configuration` warns `W027`, and `W017` is suppressed for unbound `runtime` parameters.
+
+**Build-system integration (§9.9, `build-config`).** Add `buildExports:` to a `FeatureDef` to declare which build variables it contributes and what value to assign when the feature is selected or deselected. Add `buildVar:` to a parameter to map its bound value directly into a build variable. Use `buildOverrides:` on a `Configuration` to set a variable unconditionally (last-writer-wins, resolves `E050` conflicts). Run `syscribe -m model/ build-config --config CONF-X --format cmake` (or `c-header`/`makefile`/`env`/`json`/`kconfig`) to generate the artifact; `--all-configs` produces a JSON array for CI matrix use. Example:
+
+```yaml
+# Features/ABS.md
+type: FeatureDef
+id: FEAT-ABS
+name: ABS
+buildExports:
+  - var: ENABLE_ABS
+    whenSelected: 1
+    whenDeselected: 0
+parameters:
+  - name: threshold
+    type: ScalarValues::Real
+    range: "0..100"
+    default: 30
+    buildVar: ABS_THRESHOLD
+```
+
+```yaml
+# Configs/CONF-PREMIUM-001.md
+type: Configuration
+id: CONF-PREMIUM-001
+name: Premium
+featureModel: Features
+features:
+  Features::ABS: true
+parameterBindings:
+  Features::ABS.threshold: 45
+buildOverrides:
+  DEBUG_BUILD: 0
+```
 
 **Holistic checks — run `feature-check` (not part of `validate`).** `syscribe feature-check` validates the feature model as a whole: `requires:`/`excludes:` resolution (`E212`) and satisfaction per configuration (`E219`/`E220`), dead/always-on optional features (`W011`/`W012`), circular `derivedFrom:` (`E207`), `bindTo:` propagation outside the component `range:` (`E202`), and cross-feature `parameterConstraints` declared on a package `_index.md` — unresolved paths (`E213`) and `appliesWhen:` features used in no configuration (`W014`).
 
@@ -1160,6 +1193,8 @@ draft → review → approved → implemented → verified
 | W016 | `Configuration` parsed no feature selections (e.g. used `selections:`) | Use a `features:` map of `<FeatureDef>: true/false` (run `template Configuration`) |
 | E203–E206 / E222 | Bad `parameterBindings`: unselected feature / fixed param / out of range / not in enum / undeclared (or legacy-`::`) path | Bind only selected, configurable params with in-range, in-enum values keyed `<FeatureDef>.<param>` (dotted) |
 | W017 | Selected feature's required parameter left unbound | Bind it in `parameterBindings:` or give the parameter a `default:` |
+| E050 | Two selected features export the same `buildExports:` variable with conflicting values | Add a `buildOverrides:` entry on the `Configuration` to resolve the conflict |
+| W050 | Selected feature contributes no build variable (opt-in) | Add `buildExports:` or a parameter with `buildVar:`, or suppress with `--deny W050` |
 
 ---
 

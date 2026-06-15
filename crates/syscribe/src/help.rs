@@ -56,6 +56,7 @@ const HELP: &[(&str, &str)] = &[
     ("feature", include_str!("../../../prompts/help/feature.md")),
     ("why-active", include_str!("../../../prompts/help/why-active.md")),
     ("configure", include_str!("../../../prompts/help/configure.md")),
+    ("build-config", include_str!("../../../prompts/help/build-config.md")),
     ("diff", include_str!("../../../prompts/help/diff.md")),
     // Authoring helpers
     ("template", include_str!("../../../prompts/help/template.md")),

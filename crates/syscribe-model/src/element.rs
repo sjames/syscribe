@@ -351,6 +351,7 @@ pub struct RawFrontmatter {
     pub imports: Option<Vec<serde_yaml::Value>>,
     pub depends_on: Option<Vec<String>>,
     // derivedFrom is a list for both native Requirements and SysML RequirementDef
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub derived_from: Option<Vec<String>>,
     /// REQ-TRS-MG-001 — MagicGrid `«refine»`: a `UseCaseDef`/`UseCase` gives concrete
     /// behavioural meaning to a requirement. Optional list of cross-references
@@ -549,10 +550,25 @@ pub struct RawFrontmatter {
     // generic typed-parameter list; only FeatureDef parameters are validated).
     pub parameters: Option<Vec<serde_yaml::Value>>,
 
+    // §9.9 — Build-system integration (build-config command)
+    /// `buildExports:` — on a `FeatureDef`: a list of `{var, whenSelected, whenDeselected}`
+    /// entries. Each entry declares a build variable emitted based on whether the feature
+    /// is selected or deselected in a `Configuration`. `whenSelected` defaults to 1;
+    /// `whenDeselected` absent means the variable is omitted when deselected.
+    #[serde(rename = "buildExports", default, skip_serializing_if = "Option::is_none")]
+    pub build_exports: Option<Vec<serde_yaml::Value>>,
+
     // §9.8 — Configuration
     pub feature_model: Option<String>,
     pub parameter_bindings: Option<serde_yaml::Value>,
     pub baseline_ref: Option<String>,
+
+    /// `buildOverrides:` — on a `Configuration`: a flat mapping of `varName -> scalar`
+    /// that wins over any `buildExports` or parameter `buildVar` contribution.
+    /// Last-writer-wins semantics; resolves E050 conflicts. Consistent pattern with
+    /// `parameter_bindings` (also `Option<serde_yaml::Value>`).
+    #[serde(rename = "buildOverrides", default, skip_serializing_if = "Option::is_none")]
+    pub build_overrides: Option<serde_yaml::Value>,
 
     // §9.10 — PLE conditioning (any element)
     pub applies_when: Option<serde_yaml::Value>,

@@ -6382,6 +6382,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // resolution — the original error still fires.
     annotate_root_name_hints(&mut findings, elements, &resolver);
 
+    // §9.9 — Build-system integration: E050 (conflicting buildExports var names
+    // across selected features, not resolved by buildOverrides).
+    // Gate: only run when at least one element opts in to the build-config feature
+    // so the pass is zero-cost for models that do not use it.
+    let has_build_fields = elements.iter().any(|e| {
+        e.frontmatter.build_exports.is_some() || e.frontmatter.build_overrides.is_some()
+    });
+    if has_build_fields {
+        findings.extend(crate::build_config::validate_build_exports(elements));
+    }
+
     ValidationResult {
         findings,
         verified_by,

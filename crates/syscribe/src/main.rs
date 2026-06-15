@@ -2,6 +2,7 @@
 
 mod audit;
 mod aw;
+mod build_config;
 mod coanalysis;
 mod cyberrisk;
 mod connectivity;
@@ -537,6 +538,14 @@ fn main() {
                 model_flag = iter.next().cloned();
             } else if let Some(val) = a.strip_prefix("--model=") {
                 model_flag = Some(val.to_string());
+            } else if let Some(val) = a.strip_prefix("-m") {
+                // POSIX short-flag concatenation: -mPATH (no space)
+                if !val.is_empty() {
+                    model_flag = Some(val.to_string());
+                } else {
+                    // bare "-m" already caught above; this branch is unreachable
+                    model_flag = iter.next().cloned();
+                }
             } else {
                 remaining.push(a.clone());
             }
@@ -551,6 +560,21 @@ fn main() {
         .unwrap_or_else(|| "model".to_string());
 
     let subcommand_args: &[String] = &remaining;
+
+    // Model-free commands: re-check after -m stripping so `syscribe -m <root> spec`
+    // and `syscribe -m <root> help` work even when the model flag precedes the subcommand.
+    match subcommand_args.first().map(String::as_str) {
+        Some("spec") => {
+            let section = subcommand_args.get(1).map(String::as_str).unwrap_or("toc");
+            spec::cmd_spec(section);
+            return;
+        }
+        Some("help") => {
+            help::cmd_help(subcommand_args.get(1).map(String::as_str));
+            return;
+        }
+        _ => {}
+    }
 
     let model_root = std::path::Path::new(&model_root_arg);
     let model_root_str = model_root.to_string_lossy().into_owned();
@@ -1305,6 +1329,32 @@ fn main() {
                 let rest = subcommand_args.get(2..).unwrap_or(&[]);
                 let json = rest.iter().any(|a| a == "--json");
                 query::cmd_configure(&elems, conf, json);
+            }
+            "build-config" => {
+                let conf = subcommand_args.windows(2)
+                    .find(|w| w[0] == "--config")
+                    .map(|w| w[1].as_str())
+                    .unwrap_or("");
+                let all = subcommand_args.iter().any(|a| a == "--all-configs");
+                let format = subcommand_args.windows(2)
+                    .find(|w| w[0] == "--format")
+                    .map(|w| w[1].as_str())
+                    .unwrap_or("json");
+                let prefix = subcommand_args.windows(2)
+                    .find(|w| w[0] == "--prefix")
+                    .map(|w| w[1].as_str())
+                    .unwrap_or("");
+                let no_validate = subcommand_args.iter().any(|a| a == "--no-validate");
+                if all {
+                    build_config::cmd_build_config_all(&elems, format, prefix, no_validate);
+                } else {
+                    if conf.is_empty() || conf.starts_with("--") {
+                        eprintln!("Usage: syscribe -m <root> build-config --config <id> --format <fmt> [--prefix <p>] [--no-validate]");
+                        eprintln!("       syscribe -m <root> build-config --all-configs [--format json] [--prefix <p>] [--no-validate]");
+                        std::process::exit(1);
+                    }
+                    build_config::cmd_build_config(&elems, conf, format, prefix, no_validate);
+                }
             }
             "path-for" => {
                 if key.is_empty() {
