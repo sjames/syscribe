@@ -2983,6 +2983,16 @@ groupKind: optional
 # parentFeature: Features::ParentFeatureDef
 # excludes:
 #   - Features::ConflictingFeatureDef
+# parameters:
+#   - name: myParam
+#     type: integer
+#     range: "1..100"
+#     default: 10
+#     buildVar: MY_PARAM   # emitted by build-config when feature is selected
+# buildExports:            # optional: build variables driven by this feature
+#   - var: ENABLE_MYFEATURE
+#     whenSelected: 1      # value when selected (default: 1)
+#     whenDeselected: 0    # omit this line to suppress the var when deselected
 ---
 
 Description of this feature definition.
@@ -3045,6 +3055,11 @@ featureModel: Features::MyFeatureDef
 features:
   Features::FeatureA: true
   Features::FeatureB: false
+# parameterBindings:          # bind FeatureDef parameter values for this variant
+#   Features::MyFeature.myParam: 42
+# buildOverrides:             # optional: config-level build variable overrides
+#   PRODUCT_VARIANT: "premium"  # applied last by build-config; wins on collision
+#   VERSION_STRING: "2.0.0"
 ---
 
 Description of this configuration.
