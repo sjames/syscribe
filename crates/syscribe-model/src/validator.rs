@@ -1979,15 +1979,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
 
         // W023: implementedBy paths must exist (§12.7). The implementation trace
-        // links an architecture element (Part/PartDef) to its source artifact(s).
-        // Opt-in: only checked when implementedBy is present. Draft elements are
-        // suppressed (the implementation may not exist yet). Local paths
-        // (model-/repo-relative, absolute, or file://) are checked on disk; remote
-        // URIs are accepted as external and not verified locally.
+        // links an architecture element (Part/PartDef/Interface/InterfaceDef) to
+        // its source artifact(s). Opt-in: only checked when implementedBy is
+        // present. Draft elements are suppressed (the implementation may not exist
+        // yet). Local paths (model-/repo-relative, absolute, or file://) are
+        // checked on disk; remote URIs are accepted as external and not verified.
         if let Some(ref impls) = fm.implemented_by {
             let is_arch = matches!(
                 fm.element_type,
-                Some(ElementType::Part) | Some(ElementType::PartDef)
+                Some(ElementType::Part)
+                    | Some(ElementType::PartDef)
+                    | Some(ElementType::Interface)
+                    | Some(ElementType::InterfaceDef)
             );
             let is_draft = fm.status.as_deref() == Some("draft");
             if is_arch && !is_draft {
@@ -7033,5 +7036,194 @@ mod custom_field_roundtrip_tests {
         assert!(a < m && m < z, "custom_fields keys not sorted:\n{out}");
         // list element order is preserved verbatim
         assert!(out.contains("- c"));
+    }
+}
+
+// ── W023 — implementedBy path existence (REQ-TRS-IFACE-002) ──────────────────
+
+#[cfg(test)]
+mod w023_implemented_by_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+    use std::fs;
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn cfg_with_root(root: &std::path::Path) -> ValidateConfig {
+        ValidateConfig {
+            model_root: Some(root.to_path_buf()),
+            repo_root: Some(root.to_path_buf()),
+            ..ValidateConfig::default()
+        }
+    }
+
+    fn tempdir() -> std::path::PathBuf {
+        let p = std::env::temp_dir()
+            .join(format!("syscribe-w023-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_nanos()));
+        fs::create_dir_all(&p).unwrap();
+        p
+    }
+
+    fn w023_count(findings: &[Finding]) -> usize {
+        findings.iter().filter(|f| f.code == "W023").count()
+    }
+
+    // ── Part/PartDef (existing behaviour must be preserved) ───────────────────
+
+    #[test]
+    fn part_missing_path_fires_w023() {
+        let dir = tempdir();
+        let elem = make_elem(
+            "Sys::Motor",
+            "type: Part\nstatus: approved\nimplementedBy: src/motor.rs\n",
+            "model/Sys/Motor.md",
+        );
+        let result = validate_with_config(&[elem], &cfg_with_root(&dir));
+        assert_eq!(w023_count(&result.findings), 1);
+    }
+
+    #[test]
+    fn part_existing_path_no_w023() {
+        let dir = tempdir();
+        let src = dir.join("src/motor.rs");
+        fs::create_dir_all(src.parent().unwrap()).unwrap();
+        fs::write(&src, "// motor").unwrap();
+        let elem = make_elem(
+            "Sys::Motor",
+            "type: Part\nstatus: approved\nimplementedBy: src/motor.rs\n",
+            "model/Sys/Motor.md",
+        );
+        let result = validate_with_config(&[elem], &cfg_with_root(&dir));
+        assert!(w023_count(&result.findings) == 0, "unexpected W023: {:?}", result.findings);
+    }
+
+    #[test]
+    fn part_draft_suppresses_w023() {
+        let dir = tempdir();
+        let elem = make_elem(
+            "Sys::Motor",
+            "type: Part\nstatus: draft\nimplementedBy: src/motor.rs\n",
+            "model/Sys/Motor.md",
+        );
+        let result = validate_with_config(&[elem], &cfg_with_root(&dir));
+        assert!(w023_count(&result.findings) == 0, "draft should suppress W023");
+    }
+
+    // ── InterfaceDef — REQ-TRS-IFACE-001 / REQ-TRS-IFACE-002 ─────────────────
+
+    #[test]
+    fn interfacedef_missing_path_fires_w023() {
+        let dir = tempdir();
+        let elem = make_elem(
+            "Interfaces::PowerIface",
+            "type: InterfaceDef\nstatus: approved\nimplementedBy: include/power_iface.h\n",
+            "model/Interfaces/PowerIface.md",
+        );
+        let result = validate_with_config(&[elem], &cfg_with_root(&dir));
+        assert_eq!(w023_count(&result.findings), 1, "expected W023 for missing path");
+    }
+
+    #[test]
+    fn interfacedef_existing_path_no_w023() {
+        let dir = tempdir();
+        let hdr = dir.join("include/power_iface.h");
+        fs::create_dir_all(hdr.parent().unwrap()).unwrap();
+        fs::write(&hdr, "// power interface").unwrap();
+        let elem = make_elem(
+            "Interfaces::PowerIface",
+            "type: InterfaceDef\nstatus: approved\nimplementedBy: include/power_iface.h\n",
+            "model/Interfaces/PowerIface.md",
+        );
+        let result = validate_with_config(&[elem], &cfg_with_root(&dir));
+        assert!(w023_count(&result.findings) == 0, "unexpected W023: {:?}", result.findings);
+    }
+
+    #[test]
+    fn interfacedef_draft_suppresses_w023() {
+        let dir = tempdir();
+        let elem = make_elem(
+            "Interfaces::PowerIface",
+            "type: InterfaceDef\nstatus: draft\nimplementedBy: include/power_iface.h\n",
+            "model/Interfaces/PowerIface.md",
+        );
+        let result = validate_with_config(&[elem], &cfg_with_root(&dir));
+        assert!(w023_count(&result.findings) == 0, "draft should suppress W023");
+    }
+
+    #[test]
+    fn interfacedef_remote_uri_no_w023() {
+        let dir = tempdir();
+        let elem = make_elem(
+            "Interfaces::PowerIface",
+            "type: InterfaceDef\nstatus: approved\nimplementedBy: https://example.com/power_iface.h\n",
+            "model/Interfaces/PowerIface.md",
+        );
+        let result = validate_with_config(&[elem], &cfg_with_root(&dir));
+        assert!(w023_count(&result.findings) == 0, "remote URI should not fire W023");
+    }
+
+    #[test]
+    fn interfacedef_multiple_paths_reports_each_missing() {
+        let dir = tempdir();
+        let elem = make_elem(
+            "Interfaces::PowerIface",
+            "type: InterfaceDef\nstatus: approved\nimplementedBy:\n  - include/power_iface.h\n  - include/power_iface_ext.h\n",
+            "model/Interfaces/PowerIface.md",
+        );
+        let result = validate_with_config(&[elem], &cfg_with_root(&dir));
+        assert_eq!(w023_count(&result.findings), 2, "expected one W023 per missing path");
+    }
+
+    // ── Interface (instance) — same rules ────────────────────────────────────
+
+    #[test]
+    fn interface_instance_missing_path_fires_w023() {
+        let dir = tempdir();
+        let elem = make_elem(
+            "Sys::PowerPort",
+            "type: Interface\nstatus: approved\nimplementedBy: src/power_port.c\n",
+            "model/Sys/PowerPort.md",
+        );
+        let result = validate_with_config(&[elem], &cfg_with_root(&dir));
+        assert_eq!(w023_count(&result.findings), 1);
+    }
+
+    #[test]
+    fn interface_instance_draft_suppresses_w023() {
+        let dir = tempdir();
+        let elem = make_elem(
+            "Sys::PowerPort",
+            "type: Interface\nstatus: draft\nimplementedBy: src/power_port.c\n",
+            "model/Sys/PowerPort.md",
+        );
+        let result = validate_with_config(&[elem], &cfg_with_root(&dir));
+        assert!(w023_count(&result.findings) == 0, "draft should suppress W023");
+    }
+
+    // ── Unrelated types are NOT affected ─────────────────────────────────────
+
+    #[test]
+    fn requirement_with_implemented_by_does_not_fire_w023() {
+        let dir = tempdir();
+        let elem = make_elem(
+            "Reqs::SafetyReq",
+            "type: Requirement\nid: REQ-SYS-001\nname: Safety\nstatus: approved\nimplementedBy: src/safety.rs\n",
+            "model/Reqs/SafetyReq.md",
+        );
+        let result = validate_with_config(&[elem], &cfg_with_root(&dir));
+        assert!(w023_count(&result.findings) == 0,
+            "W023 must not fire for non-architecture element types");
     }
 }

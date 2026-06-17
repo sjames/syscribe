@@ -2820,6 +2820,7 @@ name: MyInterfaceDef
 #     type: Port
 #     typedBy: Interfaces::MyPortDef
 #     direction: in
+# implementedBy: include/my_interface.h   # path to header/IDL/source that defines this contract
 ---
 
 Description of this interface definition.
@@ -3021,6 +3022,7 @@ Description of this item usage.
 type: Interface
 name: myInterface
 typedBy: Interfaces::MyInterfaceDef
+# implementedBy: src/my_interface.c   # path to source artifact implementing this interface
 ---
 
 Description of this interface usage.

@@ -400,7 +400,7 @@ Key fields that apply to most element types:
 | `features` | Inline attributes or ports |
 | `connections` | Port bindings (on Part files) |
 | `satisfies` | List of `REQ-*` IDs this element satisfies |
-| `implementedBy` | Path(s) to the source code realising this Part/PartDef (string or list); missing local paths warn W023 |
+| `implementedBy` | Path(s) to the source artifact realising this Part/PartDef/Interface/InterfaceDef (string or list); missing local paths warn W023 |
 | `custom_fields` | Optional freeform user metadata (see below) |
 
 ### `custom_fields:` — user-defined metadata
