@@ -194,11 +194,11 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 
 ## §12.8 Implementation trace (W023)
 
-The optional `implementedBy:` field on a `Part`/`PartDef` records the source artifact(s) that realise an architecture element — the downstream leg of the V-model (`Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test`).
+The optional `implementedBy:` field on a `Part`, `PartDef`, `Interface`, or `InterfaceDef` records the source artifact(s) that realise an architecture element — the downstream leg of the V-model (`Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test`). For interface-typed elements this typically points to a header file, IDL file, or protocol spec document.
 
 | Code | Condition |
 |---|---|
-| W023 | A non-`draft` `Part`/`PartDef` has an `implementedBy:` path that does not exist on disk |
+| W023 | A non-`draft` `Part`/`PartDef`/`Interface`/`InterfaceDef` has an `implementedBy:` path that does not exist on disk |
 
 - **Opt-in** — the check runs only when `implementedBy:` is present; elements without it are never flagged.
 - **Draft-suppressed** — elements with `status: draft` are skipped (the implementation may not exist yet).

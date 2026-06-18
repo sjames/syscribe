@@ -64,7 +64,7 @@ The server watches the model directory for changes and reloads automatically.
 3. **Write an ADR** for each decomposition decision — the validator enforces this (E310)
 4. **Build the architecture** — create `PartDef`, `PortDef`, `InterfaceDef` elements
 5. **Assign requirements** — add `satisfies:` and `domain:` to architecture elements
-6. **Link implementation** — add `implementedBy:` on `Part`/`PartDef` to point at the source code that realises each element (§12.8); the validator flags missing paths with `W023`
+6. **Link implementation** — add `implementedBy:` on `Part`/`PartDef`/`Interface`/`InterfaceDef` to point at the source artifact that realises each element (§12.8); the validator flags missing paths with `W023`
 7. **Write test cases** — create `TestCase` elements with `verifies:` and Gherkin bodies
 8. **Draw diagrams** — create `Diagram` elements; add `layout:` for SVG rendering
 9. **Validate** — run the validator; fix all errors; review warnings

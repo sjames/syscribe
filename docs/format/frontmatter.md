@@ -174,7 +174,7 @@ Validation rules `E510`–`E515`/`W510`–`W512` are active only when `[repos]` 
 
 | Field | Description |
 |---|---|
-| `implementedBy` | String or list of paths to the implementing source. Resolved like a TestCase's `sourceFile` (model-/repo-relative, `model:`/`repo:` prefixes, absolute, `file://`, remote `scheme://`). A missing **local** path on a non-`draft` element emits **W023** (§12.8); remote URIs are accepted as external pointers. Opt-in, draft-suppressed, gate with `--deny W023`. |
+| `implementedBy` | String or list of paths to the implementing source. Valid on `Part`, `PartDef`, `Interface`, and `InterfaceDef`. Resolved like a TestCase's `sourceFile` (model-/repo-relative, `model:`/`repo:` prefixes, absolute, `file://`, remote `scheme://`). A missing **local** path on a non-`draft` element emits **W023** (§12.8); remote URIs are accepted as external pointers. Opt-in, draft-suppressed, gate with `--deny W023`. |
 
 ```yaml
 type: PartDef

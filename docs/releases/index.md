@@ -2,6 +2,25 @@
 
 `RELEASES`
 
+## 0.26.34 — 2026-06-18
+
+### implementedBy / W023 extended to Interface and InterfaceDef
+
+`Interface` and `InterfaceDef` elements now participate in the §12.8 implementation-trace chain. Add `implementedBy:` to link an interface definition to its header file, IDL, ROS message definition, or any other source artifact that defines the interface contract. **W023** fires for missing local paths on non-`draft` elements, with the same opt-in, draft-suppression, and remote-URI-exemption rules that apply to `Part`/`PartDef`.
+
+- **W023** — extended to cover `Interface` and `InterfaceDef` (previously `Part`/`PartDef` only)
+- `template interfacedef` and `template interface` updated with commented-out `implementedBy:` examples
+- Spec, frontmatter reference, traceability guide, and LLM prompt all updated
+- 11 unit tests (REQ-TRS-IFACE-000..002, ADR-SYS-IFACE-001)
+
+## 0.26.33 — 2026-06-17
+
+### Template and spec updates for build system integration fields
+
+Documentation-only follow-up to v0.26.32. The `template configuration` output now includes commented-out `buildOverrides:` and `parameterBindings:` examples; the `spec fields` PLE table documents `buildExports`, `buildOverrides`, and the `buildVar` parameter sub-field.
+
+No code or validation behavior change.
+
 ## 0.26.31 — 2026-06-13
 
 ### Documentation: multi-repository composition

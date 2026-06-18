@@ -113,7 +113,7 @@ implementedBy:
 
 The field accepts a single string or a list. Path resolution is identical to a TestCase's `sourceFile`: model-/repo-relative, `model:`/`repo:` prefixes, absolute, and `file://` paths are checked on disk; remote URIs (`scheme://`) are accepted as external pointers and not verified locally.
 
-- **W023** — a non-`draft` `Part`/`PartDef` has an `implementedBy:` path that does not exist on disk
+- **W023** — a non-`draft` `Part`/`PartDef`/`Interface`/`InterfaceDef` has an `implementedBy:` path that does not exist on disk
 
 The check is **opt-in** (only when `implementedBy:` is present) and **draft-suppressed** (skipped for `status: draft`, where the implementation may not exist yet). Gate it in CI with `validate --deny W023`.
 
