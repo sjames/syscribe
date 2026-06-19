@@ -38,24 +38,27 @@
 </span><span id=__span-4-14><a id=__codelineno-4-14 name=__codelineno-4-14 href=#__codelineno-4-14></a>| `pumlMode: companion` | Opt in; the only supported value |
 </span><span id=__span-4-15><a id=__codelineno-4-15 name=__codelineno-4-15 href=#__codelineno-4-15></a>| `pumlFile: ./MyDiagram.puml` | Override companion path (default: `&lt;stem&gt;.puml`) |
 </span><span id=__span-4-16><a id=__codelineno-4-16 name=__codelineno-4-16 href=#__codelineno-4-16></a>
-</span><span id=__span-4-17><a id=__codelineno-4-17 name=__codelineno-4-17 href=#__codelineno-4-17></a>The body must contain an `&lt;img&gt;` tag referencing the anticipated SVG output (W413).
-</span><span id=__span-4-18><a id=__codelineno-4-18 name=__codelineno-4-18 href=#__codelineno-4-18></a>
-</span><span id=__span-4-19><a id=__codelineno-4-19 name=__codelineno-4-19 href=#__codelineno-4-19></a>```yaml
-</span><span id=__span-4-20><a id=__codelineno-4-20 name=__codelineno-4-20 href=#__codelineno-4-20></a>---
-</span><span id=__span-4-21><a id=__codelineno-4-21 name=__codelineno-4-21 href=#__codelineno-4-21></a>type: Diagram
-</span><span id=__span-4-22><a id=__codelineno-4-22 name=__codelineno-4-22 href=#__codelineno-4-22></a>name: UAVSystemBDD
-</span><span id=__span-4-23><a id=__codelineno-4-23 name=__codelineno-4-23 href=#__codelineno-4-23></a>diagramKind: BDD
-</span><span id=__span-4-24><a id=__codelineno-4-24 name=__codelineno-4-24 href=#__codelineno-4-24></a>pumlMode: companion
-</span><span id=__span-4-25><a id=__codelineno-4-25 name=__codelineno-4-25 href=#__codelineno-4-25></a>pumlFile: ./UAVSystemBDD.puml
-</span><span id=__span-4-26><a id=__codelineno-4-26 name=__codelineno-4-26 href=#__codelineno-4-26></a>subject: UAV::UAVSystem
-</span><span id=__span-4-27><a id=__codelineno-4-27 name=__codelineno-4-27 href=#__codelineno-4-27></a>shapes:
-</span><span id=__span-4-28><a id=__codelineno-4-28 name=__codelineno-4-28 href=#__codelineno-4-28></a>  s-uavsystem: {ref: &quot;UAV::UAVSystem&quot;, kind: PartDef}
-</span><span id=__span-4-29><a id=__codelineno-4-29 name=__codelineno-4-29 href=#__codelineno-4-29></a>  s-avionics:  {ref: &quot;UAV::Avionics::AvionicsBay&quot;, kind: PartDef, parent: s-uavsystem}
-</span><span id=__span-4-30><a id=__codelineno-4-30 name=__codelineno-4-30 href=#__codelineno-4-30></a>edges:
-</span><span id=__span-4-31><a id=__codelineno-4-31 name=__codelineno-4-31 href=#__codelineno-4-31></a>  e-comp: {source: s-uavsystem, target: s-avionics, kind: composition}
-</span><span id=__span-4-32><a id=__codelineno-4-32 name=__codelineno-4-32 href=#__codelineno-4-32></a>---
-</span><span id=__span-4-33><a id=__codelineno-4-33 name=__codelineno-4-33 href=#__codelineno-4-33></a>
-</span><span id=__span-4-34><a id=__codelineno-4-34 name=__codelineno-4-34 href=#__codelineno-4-34></a>&lt;img src=&quot;./UAVSystemBDD.svg&quot; alt=&quot;UAV System BDD&quot; width=&quot;100%&quot;/&gt;
+</span><span id=__span-4-17><a id=__codelineno-4-17 name=__codelineno-4-17 href=#__codelineno-4-17></a>The body must reference the anticipated SVG so the diagram is visible on GitHub
+</span><span id=__span-4-18><a id=__codelineno-4-18 name=__codelineno-4-18 href=#__codelineno-4-18></a>and other Markdown renderers. `syscribe plantuml` injects a Markdown image link
+</span><span id=__span-4-19><a id=__codelineno-4-19 name=__codelineno-4-19 href=#__codelineno-4-19></a>automatically if the body has no image reference yet. Both `![name](path.svg)` and
+</span><span id=__span-4-20><a id=__codelineno-4-20 name=__codelineno-4-20 href=#__codelineno-4-20></a>`&lt;img src=&quot;path.svg&quot;&gt;` satisfy W413.
+</span><span id=__span-4-21><a id=__codelineno-4-21 name=__codelineno-4-21 href=#__codelineno-4-21></a>
+</span><span id=__span-4-22><a id=__codelineno-4-22 name=__codelineno-4-22 href=#__codelineno-4-22></a>```yaml
+</span><span id=__span-4-23><a id=__codelineno-4-23 name=__codelineno-4-23 href=#__codelineno-4-23></a>---
+</span><span id=__span-4-24><a id=__codelineno-4-24 name=__codelineno-4-24 href=#__codelineno-4-24></a>type: Diagram
+</span><span id=__span-4-25><a id=__codelineno-4-25 name=__codelineno-4-25 href=#__codelineno-4-25></a>name: UAVSystemBDD
+</span><span id=__span-4-26><a id=__codelineno-4-26 name=__codelineno-4-26 href=#__codelineno-4-26></a>diagramKind: BDD
+</span><span id=__span-4-27><a id=__codelineno-4-27 name=__codelineno-4-27 href=#__codelineno-4-27></a>pumlMode: companion
+</span><span id=__span-4-28><a id=__codelineno-4-28 name=__codelineno-4-28 href=#__codelineno-4-28></a>pumlFile: ./UAVSystemBDD.puml
+</span><span id=__span-4-29><a id=__codelineno-4-29 name=__codelineno-4-29 href=#__codelineno-4-29></a>subject: UAV::UAVSystem
+</span><span id=__span-4-30><a id=__codelineno-4-30 name=__codelineno-4-30 href=#__codelineno-4-30></a>shapes:
+</span><span id=__span-4-31><a id=__codelineno-4-31 name=__codelineno-4-31 href=#__codelineno-4-31></a>  s-uavsystem: {ref: &quot;UAV::UAVSystem&quot;, kind: PartDef}
+</span><span id=__span-4-32><a id=__codelineno-4-32 name=__codelineno-4-32 href=#__codelineno-4-32></a>  s-avionics:  {ref: &quot;UAV::Avionics::AvionicsBay&quot;, kind: PartDef, parent: s-uavsystem}
+</span><span id=__span-4-33><a id=__codelineno-4-33 name=__codelineno-4-33 href=#__codelineno-4-33></a>edges:
+</span><span id=__span-4-34><a id=__codelineno-4-34 name=__codelineno-4-34 href=#__codelineno-4-34></a>  e-comp: {source: s-uavsystem, target: s-avionics, kind: composition}
+</span><span id=__span-4-35><a id=__codelineno-4-35 name=__codelineno-4-35 href=#__codelineno-4-35></a>---
+</span><span id=__span-4-36><a id=__codelineno-4-36 name=__codelineno-4-36 href=#__codelineno-4-36></a>
+</span><span id=__span-4-37><a id=__codelineno-4-37 name=__codelineno-4-37 href=#__codelineno-4-37></a>![UAVSystemBDD](./UAVSystemBDD.svg)
 </span></code></pre></div></p> <h3 id=cli-workflow>CLI workflow<a class=headerlink href=#cli-workflow title="Permanent link">&para;</a></h3> <div class="language-bash highlight"><pre><span></span><code><span id=__span-5-1><a id=__codelineno-5-1 name=__codelineno-5-1 href=#__codelineno-5-1></a><span class=c1># 1. Generate .puml source files for all companion diagrams</span>
 </span><span id=__span-5-2><a id=__codelineno-5-2 name=__codelineno-5-2 href=#__codelineno-5-2></a>syscribe<span class=w> </span>-m<span class=w> </span>model/<span class=w> </span>plantuml
 </span><span id=__span-5-3><a id=__codelineno-5-3 name=__codelineno-5-3 href=#__codelineno-5-3></a>
