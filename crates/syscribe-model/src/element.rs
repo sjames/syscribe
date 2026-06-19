@@ -344,6 +344,8 @@ pub struct RawFrontmatter {
     pub diagram_kind: Option<String>,
     pub svg_mode: Option<String>,
     pub svg_file: Option<String>,
+    pub puml_mode: Option<String>,
+    pub puml_file: Option<String>,
     pub subject: Option<String>,
     pub shapes: Option<serde_yaml::Value>,
     pub edges: Option<serde_yaml::Value>,

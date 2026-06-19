@@ -246,6 +246,9 @@ struct PathsToml {
     ids: IdsToml,
     #[serde(default)]
     scripts: ScriptsToml,
+    #[serde(default)]
+    #[allow(dead_code)]
+    plantuml: PlantumlToml,
 }
 
 /// The `[ids]` table of `.syscribe.toml`.
@@ -262,6 +265,56 @@ struct IdsToml {
 struct ScriptsToml {
     #[serde(default)]
     path: Option<String>,
+}
+
+/// The `[plantuml]` table of `.syscribe.toml` (REQ-TRS-PUML-040).
+#[derive(Debug, Default, Deserialize)]
+struct PlantumlToml {
+    #[serde(default)]
+    theme: Option<String>,
+    #[serde(default)]
+    style_file: Option<String>,
+    #[serde(default)]
+    base_url: Option<String>,
+}
+
+/// Resolved styling config for PlantUML generation (REQ-TRS-PUML-040).
+#[derive(Debug, Default, Clone)]
+pub struct PlantumlConfig {
+    /// Emit `!theme <name>` (ignored when `style_file` is also set).
+    pub theme: Option<String>,
+    /// Emit `!include <absolute-path>` (takes precedence over `theme`).
+    pub style_file: Option<PathBuf>,
+    /// Base URL for clickable element links (REQ-TRS-PUML-043).
+    /// `None` means use the default (`http://localhost:3000`).
+    /// `Some("")` suppresses links entirely.
+    pub base_url: Option<String>,
+}
+
+/// Load `[plantuml]` config from `<model_root>/.syscribe.toml`.
+/// Returns `PlantumlConfig::default()` when the section is absent or the file
+/// is missing/unparseable (REQ-TRS-PUML-040).
+pub fn load_plantuml_config(model_root: &Path) -> PlantumlConfig {
+    #[derive(Debug, Default, Deserialize)]
+    struct Root {
+        #[serde(default)]
+        plantuml: PlantumlToml,
+    }
+    let Ok(text) = std::fs::read_to_string(model_root.join(".syscribe.toml")) else {
+        return PlantumlConfig::default();
+    };
+    let Ok(root) = toml::from_str::<Root>(&text) else {
+        return PlantumlConfig::default();
+    };
+    let p = root.plantuml;
+    PlantumlConfig {
+        theme: p.theme,
+        style_file: p.style_file.map(|s| {
+            let path = PathBuf::from(&s);
+            if path.is_absolute() { path } else { model_root.join(path) }
+        }),
+        base_url: p.base_url,
+    }
 }
 
 /// A named validation severity profile (issue #18 / REQ-TRS-OUT-012).

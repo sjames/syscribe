@@ -67,6 +67,7 @@ const HELP: &[(&str, &str)] = &[
     ("applies-when", include_str!("../../../prompts/help/applies-when.md")),
     ("scaffold-gherkin", include_str!("../../../prompts/help/scaffold-gherkin.md")),
     ("ingest-results", include_str!("../../../prompts/help/ingest-results.md")),
+    ("plantuml", include_str!("../../../prompts/help/plantuml.md")),
     ("render", include_str!("../../../prompts/help/render.md")),
     ("diagram", include_str!("../../../prompts/help/diagram.md")),
     ("scripts", include_str!("../../../prompts/help/scripts.md")),

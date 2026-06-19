@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use petgraph::algo::toposort;
 use petgraph::graph::DiGraph;
 use petgraph::visit::EdgeRef;
-use crate::config::ValidateConfig;
+use crate::config::{load_plantuml_config, ValidateConfig};
 use crate::element::{ElementType, ParseIssue, RawElement};
 use crate::graph::EdgeKind;
 use crate::resolver::{
@@ -711,6 +711,23 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });
+        }
+    }
+
+    // W415: [plantuml] style_file path does not exist (REQ-TRS-PUML-042)
+    if let Some(ref root) = config.model_root {
+        let pcfg = load_plantuml_config(root);
+        if let Some(ref sf) = pcfg.style_file {
+            if !sf.exists() {
+                findings.push(warning(
+                    "W415",
+                    root.to_str().unwrap_or(""),
+                    &format!(
+                        "[plantuml] style_file '{}' does not exist — fix the path in .syscribe.toml",
+                        sf.display()
+                    ),
+                ));
+            }
         }
     }
 
@@ -2882,6 +2899,57 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     }
                 }
                 _ => {}
+            }
+        }
+
+        // E403: unrecognized pumlMode value (REQ-TRS-PUML-032)
+        if let Some(ref mode) = fm.puml_mode {
+            if mode != "companion" {
+                findings.push(error(
+                    "E403",
+                    &file,
+                    &format!(
+                        "unrecognized `pumlMode` value '{}' — only `companion` is supported",
+                        mode
+                    ),
+                ));
+            }
+        }
+
+        // E404: pumlMode: companion requires diagramKind (REQ-TRS-PUML-033)
+        if fm.puml_mode.as_deref() == Some("companion") && fm.diagram_kind.is_none() {
+            findings.push(error(
+                "E404",
+                &file,
+                "`pumlMode: companion` requires `diagramKind` to be set (e.g. `diagramKind: BDD`)",
+            ));
+        }
+
+        // W413: pumlMode: companion body must contain an <img tag (REQ-TRS-PUML-030)
+        if fm.puml_mode.as_deref() == Some("companion") && !elem.doc.contains("<img") {
+            findings.push(warning(
+                "W413",
+                &file,
+                "`pumlMode: companion` but body contains no `<img` tag pointing to the anticipated SVG output",
+            ));
+        }
+
+        // W414: pumlMode: companion .puml file not yet generated (REQ-TRS-PUML-031)
+        if fm.puml_mode.as_deref() == Some("companion") {
+            let puml_path = if let Some(ref pf) = fm.puml_file {
+                md_dir.join(pf.trim_start_matches("./"))
+            } else {
+                std::path::Path::new(&file).with_extension("puml")
+            };
+            if !puml_path.exists() {
+                findings.push(warning(
+                    "W414",
+                    &file,
+                    &format!(
+                        "companion `.puml` file '{}' not found — run `syscribe plantuml` to generate it",
+                        puml_path.display()
+                    ),
+                ));
             }
         }
 

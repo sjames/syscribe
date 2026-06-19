@@ -3107,6 +3107,10 @@ type: Diagram
 name: MyDiagram
 diagramKind: IBD
 subject: SomePackage::SomeElement
+# svgMode: companion      # for Syscribe native SVG rendering
+# svgFile: ./MyDiagram.svg
+# pumlMode: companion      # for PlantUML source generation (syscribe plantuml)
+# pumlFile: ./MyDiagram.puml
 shapes:
   - id: shape-a
     ref: SomePackage::PartA
@@ -3114,6 +3118,10 @@ edges: []
 ---
 
 Describe the purpose and scope of this diagram.
+
+<!-- When using pumlMode: companion, add an img tag pointing to the anticipated SVG:
+<img src="./MyDiagram.svg" alt="MyDiagram" width="100%"/>
+-->
 "#,
         "view" => r#"---
 type: View

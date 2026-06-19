@@ -20,6 +20,7 @@ mod mv;
 mod bcov;
 mod impact;
 mod n2;
+mod plantuml;
 mod query;
 mod render;
 mod reqif;
@@ -657,6 +658,11 @@ fn main() {
             }
             "refs" => {
                 query::cmd_refs(&elems, &resolver, key);
+            }
+            "plantuml" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let puml_cfg = syscribe_model::config::load_plantuml_config(model_root);
+                plantuml::cmd_plantuml(&elems, rest, &puml_cfg);
             }
             "render" => {
                 if key.is_empty() {

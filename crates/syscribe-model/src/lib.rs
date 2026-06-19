@@ -12,6 +12,7 @@ pub mod matchers;
 pub mod metrics;
 pub mod projection;
 pub mod remote;
+pub mod plantuml;
 pub mod renderer;
 pub mod resolver;
 pub mod results;
