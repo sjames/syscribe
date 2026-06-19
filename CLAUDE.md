@@ -33,6 +33,12 @@ cargo run --package syscribe -- --version
 # Start the web server
 cargo run --package syscribe-server -- -m model/
 
+# PlantUML companion diagrams
+./target/debug/syscribe -m model/ plantuml               # generate all .puml companion files
+./target/debug/syscribe -m model/ plantuml render        # render .puml → .svg (needs plantuml on PATH or PLANTUML_JAR set)
+./target/debug/syscribe -m model/ plantuml render --jar /path/to/plantuml.jar
+./target/debug/syscribe -m model/ plantuml render --dry-run   # preview which files would be rendered
+
 # Variability / product-line commands (opt-in; see docs/model-guide/variability.md)
 ./target/debug/syscribe -m model/ matrix                 # Requirement × Configuration coverage grid
 ./target/debug/syscribe -m model/ feature-check          # holistic feature-model validation

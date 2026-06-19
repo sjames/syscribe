@@ -36,6 +36,20 @@ jobs:
       - name: Build syscribe
         run: cargo build --package syscribe
 
+      - name: Download PlantUML JAR
+        run: |
+          wget -q https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar \
+            -O plantuml.jar
+
+      - name: Generate PlantUML companion files and render SVGs
+        env:
+          PLANTUML_JAR: ${{ github.workspace }}/plantuml.jar
+        run: |
+          # Regenerate all .puml source files from model elements
+          ./target/debug/syscribe -m model/ plantuml
+          # Render every companion .puml → .svg
+          ./target/debug/syscribe -m model/ plantuml render
+
       - name: Validate all models (gating — fails on any validation error)
         run: |
           # Per-model validation invocations. Each entry is "<model_dir>|<extra args to `validate`>".

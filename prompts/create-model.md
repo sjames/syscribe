@@ -207,7 +207,16 @@ Add `satisfies:` to architecture elements. Validate and fix any E312 (parent in 
 Write `Allocation` elements. Validate: fix E502/E503 (unresolved `allocatedFrom`/`allocatedTo`).
 
 **Batch 8 — Diagrams**
-Write `Diagram` elements after all model elements are in place. For Mermaid or embedded SVG diagrams, write the `.md` file directly. For `svgMode: companion` diagrams, use the 4-step CLI workflow: `diagram list` → `diagram measure` → author `*.layout.json` → `diagram compose --output <path>`, then commit both the `.md` and the generated `.svg`. Validate: fix E400, W402, W403, W408, W409.
+Write `Diagram` elements after all model elements are in place.
+
+- **Mermaid** — write the `.md` directly with a fenced ` ```mermaid ` block. Validate: fix E400, W408, W409.
+- **svgMode: companion** (composed SVG) — use the 4-step CLI workflow: `diagram list` → `diagram measure` → author `*.layout.json` → `diagram compose --output <path>`. Commit both `.md` and generated `.svg`.
+- **pumlMode: companion** (PlantUML) — preferred for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Set `pumlMode: companion`, `pumlFile: ./<Name>.puml`, and add an `<img src="./<Name>.svg"/>` tag in the body. Then run:
+  ```bash
+  syscribe -m model/ plantuml          # generates .puml files
+  syscribe -m model/ plantuml render   # renders .puml → .svg (needs PLANTUML_JAR or plantuml on PATH)
+  ```
+  Commit both the `.md`, the `.puml`, and the generated `.svg`. Validate: fix E403, E404, W413, W414.
 
 **Batch 9 — Resolve leaf PartDefs (closure pass)**
 After all architecture and requirement elements exist, verify that every leaf `PartDef`/`Part` is properly closed. See Part 7b for the full procedure. Validate: resolve all W300 (unassigned leaf requirements) and W301 (over-assigned leaf requirements).
@@ -727,11 +736,12 @@ Operations on a PortDef:
 
 ## Part 9 — Diagrams
 
-Every diagram is a `type: Diagram` element in `Diagrams/`. Three authoring approaches:
+Every diagram is a `type: Diagram` element in `Diagrams/`. Four authoring approaches:
 
-- **Mermaid** — for traceability trees, flow diagrams, sequence diagrams, simple state machines. Set `diagramKind: Mermaid`. Include a fenced ` ```mermaid ` block (error E400 if absent).
+- **PlantUML companion** (`pumlMode: companion`) — **preferred** for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Syscribe generates a `.puml` source file; PlantUML renders it to SVG. Each shape carries a clickable hyperlink back to its element in the web browser. Set `pumlMode: companion`, `pumlFile:`, and add an `<img>` tag in the body referencing the anticipated SVG. Run `syscribe plantuml` then `syscribe plantuml render`.
+- **Mermaid** — for traceability trees, flow diagrams, simple state machines. Set `diagramKind: Mermaid`. Include a fenced ` ```mermaid ` block (error E400 if absent).
 - **Composed SVG** (`syscribe diagram` CLI) — element-card architecture diagrams. Cards generated from live model data. Commit the generated SVG as a companion file.
-- **Embedded SVG** — hand-coded SVG using the symbol library, for precise SysML notation (BDD, IBD, StateMachine, Requirement).
+- **Embedded SVG** — hand-coded SVG using the symbol library, for precise SysML notation.
 
 ### Diagram element frontmatter
 
@@ -739,15 +749,19 @@ Every diagram is a `type: Diagram` element in `Diagrams/`. Three authoring appro
 ---
 type: Diagram
 name: UAVSystemBDD
-diagramKind: BDD            # BDD | IBD | StateMachine | Requirement | Mermaid
+diagramKind: BDD            # BDD | IBD | StateMachine | Sequence | Requirement | Mermaid
 subject: UAV::UAVSystem     # element this diagram depicts (W401 if it doesn't resolve)
-svgMode: inline             # required when embedding SVG in the body
+pumlMode: companion         # generate .puml via `syscribe plantuml`; render SVG via `syscribe plantuml render`
+pumlFile: ./UAVSystemBDD.puml
+# svgMode: inline           # alternative: embed SVG directly in body
 shapes:                     # shape-id → descriptor
   s-uav: {ref: "UAV::UAVSystem", kind: PartDef}
   s-fc:  {ref: "UAV::Avionics::FlightController", kind: Part, parent: s-uav}
 edges:
   e-comp: {source: s-uav, target: s-fc, kind: composition}
 ---
+
+<img src="./UAVSystemBDD.svg" alt="UAV System BDD" width="100%"/>
 ```
 
 Shape `ref:` triggers W402 if it doesn't resolve. Edge `source`/`target` trigger W403 if they don't match a defined shape-id.
@@ -849,12 +863,16 @@ SVG conventions: root `<svg>` uses `xmlns:sysml="urn:syscribe:1.0"`. Each shape 
 | Code | Condition |
 |---|---|
 | E400 | `diagramKind: Mermaid` but no ` ```mermaid ` block |
+| E403 | `pumlMode` has an unrecognized value |
+| E404 | `pumlMode: companion` set but `diagramKind` is absent |
 | W400 | Diagram has no `diagramKind` |
 | W401 | `subject:` does not resolve |
 | W402 | Shape `ref:` does not resolve |
 | W403 | Edge `source`/`target` is not a defined shape-id |
 | W408 | Mermaid `%% ref:` annotation doesn't resolve |
 | W409 | Mermaid diagram has no `%% ref:` annotations |
+| W413 | `pumlMode: companion` but body has no `<img` tag |
+| W414 | `pumlMode: companion` but the `.puml` file does not exist yet |
 
 ---
 

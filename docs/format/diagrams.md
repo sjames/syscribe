@@ -8,12 +8,12 @@ Diagrams are `type: Diagram` elements. The `diagramKind:` field selects the rend
 
 | `diagramKind` | Rendering | Description |
 |---|---|---|
-| `BDD` | SVG (server) | Block Definition Diagram — part/item type hierarchy and compositions |
-| `IBD` | SVG (server) | Internal Block Diagram — part usages, ports, and connections within a block |
-| `StateMachine` | SVG (server) | State machine — states, transitions, and guards |
-| `Requirement` | SVG (server) | Requirement diagram — requirements, derivation, and verification links |
+| `BDD` | SVG (server / PlantUML) | Block Definition Diagram — part/item type hierarchy and compositions |
+| `IBD` | SVG (server / PlantUML) | Internal Block Diagram — part usages, ports, and connections within a block |
+| `StateMachine` | SVG (server / PlantUML) | State machine — states, transitions, and guards |
+| `Requirement` | SVG (server / PlantUML) | Requirement diagram — requirements, derivation, and verification links |
+| `Sequence` | SVG (PlantUML) | Sequence diagram — lifelines, messages, returns |
 | `Mermaid` | Mermaid.js (client) | Any diagram expressible in Mermaid graph syntax |
-| `PlantUML` | PlantUML (future) | Reserved for PlantUML integration |
 
 ## Structured diagrams (BDD, IBD, StateMachine, Requirement)
 
@@ -89,14 +89,88 @@ graph TD
 
 The Mermaid.js runtime is loaded from CDN and renders the diagram client-side when the tab is activated.
 
+## PlantUML companion diagrams
+
+`pumlMode: companion` opts a diagram into the PlantUML workflow. Syscribe generates
+a `.puml` source file; your PlantUML toolchain (JAR, CI step, IDE plugin) renders it
+to SVG. Every shape emits a `[[URL]]` hyperlink back to the element's detail page in
+the web browser.
+
+### Frontmatter fields
+
+| Field | Description |
+|---|---|
+| `pumlMode: companion` | Opt in; the only supported value |
+| `pumlFile: ./MyDiagram.puml` | Override companion path (default: `<stem>.puml`) |
+
+The body must contain an `<img>` tag referencing the anticipated SVG output (W413).
+
+```yaml
+---
+type: Diagram
+name: UAVSystemBDD
+diagramKind: BDD
+pumlMode: companion
+pumlFile: ./UAVSystemBDD.puml
+subject: UAV::UAVSystem
+shapes:
+  s-uavsystem: {ref: "UAV::UAVSystem", kind: PartDef}
+  s-avionics:  {ref: "UAV::Avionics::AvionicsBay", kind: PartDef, parent: s-uavsystem}
+edges:
+  e-comp: {source: s-uavsystem, target: s-avionics, kind: composition}
+---
+
+<img src="./UAVSystemBDD.svg" alt="UAV System BDD" width="100%"/>
+```
+
+### CLI workflow
+
+```bash
+# 1. Generate .puml source files for all companion diagrams
+syscribe -m model/ plantuml
+
+# 2. Render .puml → .svg (needs plantuml on PATH or PLANTUML_JAR env var)
+syscribe -m model/ plantuml render
+syscribe -m model/ plantuml render --jar /opt/plantuml/plantuml.jar
+
+# Generate a single diagram
+syscribe -m model/ plantuml Diagrams::UAVSystemBDD --output -
+```
+
+### Style configuration (`.syscribe.toml`)
+
+```toml
+[plantuml]
+theme = "spacelab"                    # any PlantUML built-in theme
+# style_file = "style/custom.puml"   # !include — takes precedence over theme
+# base_url   = "https://my-server"   # clickable link prefix (default: http://localhost:3000)
+# jar        = "/opt/plantuml.jar"   # JAR path for `plantuml render`
+```
+
+### Supported `diagramKind` values for PlantUML generation
+
+| `diagramKind` | PlantUML output |
+|---|---|
+| `BDD` | Class diagram — `class "Name" <<part def>>`, `*--` composition |
+| `IBD` | Component diagram — `rectangle` boundary, `component` blocks |
+| `StateMachine` | State diagram — `[*]` initial, `state "Name" as id` |
+| `Sequence` | Sequence diagram — `actor`/`participant`, `->` messages |
+| `Requirement` | Class diagram — `<<requirement>>` stereotype, `..>` edges |
+
+`Mermaid` and unknown kinds are skipped with a warning.
+
 ## Validation rules for diagrams
 
 | Code | Severity | Condition |
 |---|---|---|
 | E400 | Error | `diagramKind: Mermaid` but body has no ` ```mermaid ` block |
-| E401 | Error | `diagramKind: PlantUML` but body has no ` ```plantuml ` block |
 | E402 | Error | `svgFile:` path does not exist on disk |
+| E403 | Error | `pumlMode` has an unrecognized value (only `companion` is supported) |
+| E404 | Error | `pumlMode: companion` set but `diagramKind` is absent |
 | W400 | Warning | Diagram element has no `diagramKind` — rendering mode ambiguous |
 | W401 | Warning | `subject:` does not resolve to a known element |
 | W402 | Warning | A shape `ref:` does not resolve (and is not a sub-feature of a known element) |
 | W403 | Warning | An edge `source` or `target` is not a defined shape id in this diagram |
+| W413 | Warning | `pumlMode: companion` but body has no `<img` tag |
+| W414 | Warning | `pumlMode: companion` but the `.puml` companion file does not exist yet |
+| W415 | Warning | `[plantuml] style_file` in `.syscribe.toml` does not exist on disk |
