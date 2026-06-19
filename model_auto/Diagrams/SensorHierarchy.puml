@@ -5,10 +5,10 @@ skinparam class {
 }
 hide empty members
 
-class "Sensor" as sensor_block <<part>> [[http://localhost:3000/ui/detail/System::Sensors::Sensor]]
-class "Crankshaft Position Sensor" as cps_block <<part>> [[http://localhost:3000/ui/detail/System::Sensors::CrankshaftPositionSensor]]
-class "Throttle Position Sensor" as tps_block <<part>> [[http://localhost:3000/ui/detail/System::Sensors::ThrottlePositionSensor]]
-class "Lambda Sensor" as lambda_block <<part>> [[http://localhost:3000/ui/detail/System::Sensors::LambdaSensor]]
+class "Sensor" as sensor_block <<part>> 
+class "Crankshaft Position Sensor" as cps_block <<part>> 
+class "Throttle Position Sensor" as tps_block <<part>> 
+class "Lambda Sensor" as lambda_block <<part>> 
 
 cps_block --|> sensor_block : cps-inherit
 tps_block --|> sensor_block : tps-inherit
