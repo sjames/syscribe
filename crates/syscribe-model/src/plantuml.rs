@@ -109,18 +109,20 @@ pub fn render_plantuml(
     }
 }
 
-/// Return `[[<base_url>/ui/detail/<qref>]]` if links are enabled, else `""`.
-/// Empty `base_url` suppresses links; absent config uses `http://localhost:3000`.
+/// Return `[[<base_url>/<qref_as_path>.md]]` when `base_url` is configured, else `""`.
+/// Absent or empty `base_url` suppresses links (REQ-TRS-PUML-055).
+/// `qref_as_path` replaces every `::` with `/` so the URL resolves to the
+/// element's file on GitHub or any static hosting.
 fn element_url(qref: &str, cfg: Option<&PlantumlConfig>) -> String {
     let base = match cfg {
-        None => "http://localhost:3000",
+        None => return String::new(),
         Some(c) => match c.base_url.as_deref() {
-            None => "http://localhost:3000",
-            Some("") => return String::new(),
+            None | Some("") => return String::new(),
             Some(b) => b,
         },
     };
-    format!("[[{}/ui/detail/{}]]", base, qref)
+    let path = qref.replace("::", "/");
+    format!("[[{}/{}.md]]", base, path)
 }
 
 /// Emit the style preamble: `!include`, `!theme`, or built-in skinparams.

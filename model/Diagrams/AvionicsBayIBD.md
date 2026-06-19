@@ -20,6 +20,6 @@ edges:
   e-ctrl: {ref: "UAV::Avionics::AvionicsBay", source: s-fc-ctrl, target: s-gps, kind: flowConnection}
 ---
 
-<img src="./AvionicsBayIBD.svg" alt="Avionics Bay Internal Block Diagram" width="100%"/>
+![AvionicsBayIBD](./AvionicsBayIBD.svg)
 
 Internal Block Diagram showing the internal structure of the AvionicsBay, including part usages for FlightController, IMU, and GPSReceiver, with their interconnecting ports and flow connections.

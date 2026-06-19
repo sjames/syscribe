@@ -26,4 +26,4 @@ edges:
 
 Block Definition Diagram showing the top-level structural decomposition of the UAVSystem into its constituent subsystem definitions.
 
-<img src="./UAVSystemBDD.svg" alt="UAV System Block Definition Diagram" width="100%"/>
+![UAVSystemBDD](./UAVSystemBDD.svg)

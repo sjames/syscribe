@@ -4,12 +4,12 @@ skinparam component {
   BorderColor #3a3a4a
 }
 
-component "PowerDistributionUnit" as s_pdu [[http://localhost:3000/ui/detail/UAV::Power::PowerDistributionUnit]]
-component "FlightController" as s_fc [[http://localhost:3000/ui/detail/UAV::Avionics::FlightController]]
-component "PropulsionSystem" as s_prop [[http://localhost:3000/ui/detail/UAV::Propulsion::PropulsionSystem]]
-component "IMU" as s_imu [[http://localhost:3000/ui/detail/UAV::Avionics::IMU]]
-component "GPSReceiver" as s_gps [[http://localhost:3000/ui/detail/UAV::Avionics::GPSReceiver]]
-component "GroundControlStation" as s_gcs [[http://localhost:3000/ui/detail/GroundStation::GroundControlStation]]
+component "PowerDistributionUnit" as s_pdu [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerDistributionUnit.md]]
+component "FlightController" as s_fc [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/FlightController.md]]
+component "PropulsionSystem" as s_prop [[https://github.com/sjames/syscribe/blob/main/model/UAV/Propulsion/PropulsionSystem.md]]
+component "IMU" as s_imu [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/IMU.md]]
+component "GPSReceiver" as s_gps [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/GPSReceiver.md]]
+component "GroundControlStation" as s_gcs [[https://github.com/sjames/syscribe/blob/main/model/GroundStation/GroundControlStation.md]]
 
 s_pdu --> s_fc : flow
 s_pdu --> s_imu : flow

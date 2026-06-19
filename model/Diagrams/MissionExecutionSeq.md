@@ -112,7 +112,7 @@ edges:
     kind: return
 ---
 
-<img src="./MissionExecutionSeq.svg" alt="Mission Execution Sequence Diagram" width="100%"/>
+![MissionExecutionSeq](./MissionExecutionSeq.svg)
 
 Sequence diagram for `MissionExecution`. Shows the message flow between the ground station, flight controller, propulsion system, and GPS receiver across the three sub-actions:
 

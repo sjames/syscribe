@@ -4,9 +4,9 @@ skinparam component {
   BorderColor #3a3a4a
 }
 
-rectangle "PowerSystem" as s_boundary [[http://localhost:3000/ui/detail/UAV::Power::PowerSystem]] {
-  component "battery" as s_battery [[http://localhost:3000/ui/detail/UAV::Power::PowerSystem::battery]]
-  component "pdu" as s_pdu [[http://localhost:3000/ui/detail/UAV::Power::PowerSystem::pdu]]
+rectangle "PowerSystem" as s_boundary [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerSystem.md]] {
+  component "battery" as s_battery [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerSystem/battery.md]]
+  component "pdu" as s_pdu [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerSystem/pdu.md]]
 }
 
 s_battery --> s_pdu : flow

@@ -20,8 +20,6 @@ edges:
   e-fc-gcs:    {source: s-fc,   target: s-gcs,  kind: flow}
 ---
 
-<img src="UAVArchitectureDiagram.svg" alt="UAV System Architecture" width="100%">
-
 ![UAVArchitectureDiagram](./UAVArchitectureDiagram.svg)
 
 Power and data flow across the UAV's main subsystems. The battery pack supplies the power distribution unit, which fans out to the avionics bay and propulsion system. The avionics bay streams telemetry to the ground control station via the UAV's outbound telemetry port.

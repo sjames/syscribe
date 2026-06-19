@@ -98,7 +98,7 @@ layout:
     h: 46
 ---
 
-<img src="./SafetyRequirementsD.svg" alt="Safety Requirements Diagram" width="100%"/>
+![SafetyRequirementsD](./SafetyRequirementsD.svg)
 
 Safety requirements traceability showing derivation from the abstract safety root,
 allocation to hardware elements, and verification by test cases.

@@ -5,13 +5,13 @@ skinparam class {
 }
 hide empty members
 
-class "UAVSystem" as s_uavsystem <<part def>> [[http://localhost:3000/ui/detail/UAV::UAVSystem]]
-class "Airframe" as s_airframe <<part def>> [[http://localhost:3000/ui/detail/UAV::Airframe]]
-class "PropulsionSystem" as s_propulsion <<part def>> [[http://localhost:3000/ui/detail/UAV::Propulsion::PropulsionSystem]]
-class "AvionicsBay" as s_avionics <<part def>> [[http://localhost:3000/ui/detail/UAV::Avionics::AvionicsBay]]
-class "PowerSystem" as s_power <<part def>> [[http://localhost:3000/ui/detail/UAV::Power::PowerSystem]]
-class "PayloadBay" as s_payload <<part def>> [[http://localhost:3000/ui/detail/UAV::Payload::PayloadBay]]
-class "GroundControlStation" as s_gcs <<part def>> [[http://localhost:3000/ui/detail/GroundStation::GroundControlStation]]
+class "UAVSystem" as s_uavsystem <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/UAV/UAVSystem.md]]
+class "Airframe" as s_airframe <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/UAV/Airframe.md]]
+class "PropulsionSystem" as s_propulsion <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/UAV/Propulsion/PropulsionSystem.md]]
+class "AvionicsBay" as s_avionics <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/AvionicsBay.md]]
+class "PowerSystem" as s_power <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerSystem.md]]
+class "PayloadBay" as s_payload <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/UAV/Payload/PayloadBay.md]]
+class "GroundControlStation" as s_gcs <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/GroundStation/GroundControlStation.md]]
 
 s_uavsystem *-- s_airframe : airframe
 s_uavsystem *-- s_propulsion : propulsion

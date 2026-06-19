@@ -4,12 +4,12 @@ skinparam component {
   BorderColor #3a3a4a
 }
 
-component "BatteryPack" as s_bat [[http://localhost:3000/ui/detail/UAV::Power::BatteryPack]]
-component "PowerDistributionUnit" as s_pdu [[http://localhost:3000/ui/detail/UAV::Power::PowerDistributionUnit]]
-component "AvionicsBay" as s_avi [[http://localhost:3000/ui/detail/UAV::Avionics::AvionicsBay]]
-component "FlightController" as s_fc [[http://localhost:3000/ui/detail/UAV::Avionics::FlightController]]
-component "PropulsionSystem" as s_prop [[http://localhost:3000/ui/detail/UAV::Propulsion::PropulsionSystem]]
-component "GroundControlStation" as s_gcs [[http://localhost:3000/ui/detail/GroundStation::GroundControlStation]]
+component "BatteryPack" as s_bat [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/BatteryPack.md]]
+component "PowerDistributionUnit" as s_pdu [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerDistributionUnit.md]]
+component "AvionicsBay" as s_avi [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/AvionicsBay.md]]
+component "FlightController" as s_fc [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/FlightController.md]]
+component "PropulsionSystem" as s_prop [[https://github.com/sjames/syscribe/blob/main/model/UAV/Propulsion/PropulsionSystem.md]]
+component "GroundControlStation" as s_gcs [[https://github.com/sjames/syscribe/blob/main/model/GroundStation/GroundControlStation.md]]
 
 s_bat --> s_pdu : flow
 s_pdu --> s_avi : flow

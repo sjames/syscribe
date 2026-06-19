@@ -23,8 +23,6 @@ edges:
   e-flightc-fc:  {source: s-flightc, target: s-fc,     kind: satisfies}
 ---
 
-<img src="SafetyReqDiagram.svg" alt="Safety Requirement Diagram" width="100%">
-
 ![SafetyReqDiagram](./SafetyReqDiagram.svg)
 
 Requirement tree rooted at REQ-UAV-SAFE-000, the top-level safety goal for the UAV. The two derived requirements (REQ-UAV-FC-001, REQ-UAV-SAFE-001) are shown with their test cases and the satisfying FlightController architecture element.

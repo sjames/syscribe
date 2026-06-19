@@ -4,10 +4,10 @@ skinparam participant {
   BorderColor #3a3a4a
 }
 
-actor "GroundControlStation" as ll_gcs [[http://localhost:3000/ui/detail/GroundStation::GroundControlStation]]
-participant "FlightController" as ll_fc [[http://localhost:3000/ui/detail/UAV::Avionics::FlightController]]
-participant "PropulsionSystem" as ll_prop [[http://localhost:3000/ui/detail/UAV::Propulsion::PropulsionSystem]]
-participant "GPSReceiver" as ll_gps [[http://localhost:3000/ui/detail/UAV::Avionics::GPSReceiver]]
+actor "GroundControlStation" as ll_gcs [[https://github.com/sjames/syscribe/blob/main/model/GroundStation/GroundControlStation.md]]
+participant "FlightController" as ll_fc [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/FlightController.md]]
+participant "PropulsionSystem" as ll_prop [[https://github.com/sjames/syscribe/blob/main/model/UAV/Propulsion/PropulsionSystem.md]]
+participant "GPSReceiver" as ll_gps [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/GPSReceiver.md]]
 
 ll_gcs -> ll_fc : MissionExecution
 ll_fc -> ll_prop : setThrottle

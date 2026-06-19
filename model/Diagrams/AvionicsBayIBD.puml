@@ -4,10 +4,10 @@ skinparam component {
   BorderColor #3a3a4a
 }
 
-rectangle "AvionicsBay" as s_boundary [[http://localhost:3000/ui/detail/UAV::Avionics::AvionicsBay]] {
-  component "FlightController" as s_fc [[http://localhost:3000/ui/detail/UAV::Avionics::FlightController]]
-  component "IMU" as s_imu [[http://localhost:3000/ui/detail/UAV::Avionics::IMU]]
-  component "GPSReceiver" as s_gps [[http://localhost:3000/ui/detail/UAV::Avionics::GPSReceiver]]
+rectangle "AvionicsBay" as s_boundary [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/AvionicsBay.md]] {
+  component "FlightController" as s_fc [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/FlightController.md]]
+  component "IMU" as s_imu [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/IMU.md]]
+  component "GPSReceiver" as s_gps [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/GPSReceiver.md]]
 }
 
 s_fc --> s_imu : flowConnection

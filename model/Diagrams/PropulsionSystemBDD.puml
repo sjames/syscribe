@@ -5,9 +5,9 @@ skinparam class {
 }
 hide empty members
 
-class "PropulsionSystem" as s_propulsion <<part def>> [[http://localhost:3000/ui/detail/UAV::Propulsion::PropulsionSystem]]
-class "Motor" as s_motor <<part def>> [[http://localhost:3000/ui/detail/UAV::Propulsion::Motor]]
-class "RotorAssembly" as s_rotor <<part def>> [[http://localhost:3000/ui/detail/UAV::Propulsion::RotorAssembly]]
+class "PropulsionSystem" as s_propulsion <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/UAV/Propulsion/PropulsionSystem.md]]
+class "Motor" as s_motor <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/UAV/Propulsion/Motor.md]]
+class "RotorAssembly" as s_rotor <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/UAV/Propulsion/RotorAssembly.md]]
 
 s_rotor *-- s_motor : motor-comp
 

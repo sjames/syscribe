@@ -21,8 +21,6 @@ edges:
   e-fc-gcs:   {source: s-fc,   target: s-gcs,  kind: flow}
 ---
 
-<img src="AvionicsBayIBD.svg" alt="Avionics Bay Internal Block Diagram" width="100%">
-
 ![AvionicsBayIBD](./AvionicsBayIBD.svg)
 
 Internal block diagram of the avionics bay, showing how power flows from the PowerDistributionUnit to all onboard subsystems and how the FlightController exchanges control and telemetry signals with external elements.

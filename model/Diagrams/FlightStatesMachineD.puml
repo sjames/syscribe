@@ -4,12 +4,12 @@ skinparam state {
   BorderColor #3a3a4a
 }
 
-state "disarmed" as s_disarmed [[http://localhost:3000/ui/detail/Behavior::FlightStates::disarmed]]
-state "armed" as s_armed [[http://localhost:3000/ui/detail/Behavior::FlightStates::armed]]
-state "takingOff" as s_takingOff [[http://localhost:3000/ui/detail/Behavior::FlightStates::takingOff]]
-state "flying" as s_flying [[http://localhost:3000/ui/detail/Behavior::FlightStates::flying]]
-state "landing" as s_landing [[http://localhost:3000/ui/detail/Behavior::FlightStates::landing]]
-state "fault" as s_fault [[http://localhost:3000/ui/detail/Behavior::FlightStates::fault]]
+state "disarmed" as s_disarmed [[https://github.com/sjames/syscribe/blob/main/model/Behavior/FlightStates/disarmed.md]]
+state "armed" as s_armed [[https://github.com/sjames/syscribe/blob/main/model/Behavior/FlightStates/armed.md]]
+state "takingOff" as s_takingOff [[https://github.com/sjames/syscribe/blob/main/model/Behavior/FlightStates/takingOff.md]]
+state "flying" as s_flying [[https://github.com/sjames/syscribe/blob/main/model/Behavior/FlightStates/flying.md]]
+state "landing" as s_landing [[https://github.com/sjames/syscribe/blob/main/model/Behavior/FlightStates/landing.md]]
+state "fault" as s_fault [[https://github.com/sjames/syscribe/blob/main/model/Behavior/FlightStates/fault.md]]
 
 [*] --> s_disarmed : init
 s_disarmed --> s_armed : arm

@@ -25,7 +25,7 @@ edges:
     kind: composition
 ---
 
-<img src="./PropulsionSystemBDD.svg" alt="Propulsion System Block Definition Diagram" width="100%"/>
+![PropulsionSystemBDD](./PropulsionSystemBDD.svg)
 
 Block Definition Diagram for the Propulsion subsystem. Shows the three classifier definitions — `PropulsionSystem` (abstract), `Motor`, and `RotorAssembly` — with their key features and the composition relationship expressing that each `RotorAssembly` owns exactly one `Motor`.
 
