@@ -129,8 +129,8 @@ fn element_url(qref: &str, cfg: Option<&PlantumlConfig>) -> String {
     format!("[[{}/{}.md]]", base, path)
 }
 
-/// Emit the style preamble: `!include`, `!theme`, or built-in skinparams.
-fn style_preamble(cfg: Option<&PlantumlConfig>, diagram_kind: &str) -> String {
+/// Emit the style preamble: `!include`, `!theme`, or built-in SysML skinparams.
+fn style_preamble(cfg: Option<&PlantumlConfig>, _diagram_kind: &str) -> String {
     if let Some(c) = cfg {
         if let Some(ref sf) = c.style_file {
             return format!("!include {}\n", sf.display());
@@ -139,27 +139,145 @@ fn style_preamble(cfg: Option<&PlantumlConfig>, diagram_kind: &str) -> String {
             return format!("!theme {}\n", theme);
         }
     }
-    // Built-in defaults vary by diagram kind
-    match diagram_kind {
-        "Requirement" => {
-            "skinparam class {\n  BackgroundColor #f9f7ff\n  BorderColor #4a0a6e\n}\n".to_string()
-        }
-        "IBD" => {
-            "skinparam component {\n  BackgroundColor #f5f5fa\n  BorderColor #3a3a4a\n}\n"
-                .to_string()
-        }
-        "StateMachine" => {
-            "skinparam state {\n  BackgroundColor #f5f5fa\n  BorderColor #3a3a4a\n}\n".to_string()
-        }
-        "Sequence" => {
-            "skinparam participant {\n  BackgroundColor #f5f5fa\n  BorderColor #3a3a4a\n}\n"
-                .to_string()
-        }
-        _ => {
-            "skinparam class {\n  BackgroundColor #f5f5fa\n  BorderColor #3a3a4a\n}\n".to_string()
-        }
-    }
+    // Built-in SysML professional defaults — kept in sync with .plantuml/sysml.iuml
+    SYSML_SKINPARAM.to_string()
 }
+
+static SYSML_SKINPARAM: &str = r#"
+skinparam defaultFontName "Helvetica Neue, Helvetica, Arial, sans-serif"
+skinparam defaultFontSize 11
+skinparam backgroundColor WHITE
+skinparam shadowing false
+skinparam roundCorner 4
+skinparam ArrowColor #1F497D
+skinparam ArrowThickness 1.5
+skinparam ArrowFontSize 10
+skinparam ArrowFontColor #2C3E50
+skinparam note {
+  BackgroundColor #FFFDE7
+  BorderColor #F9A825
+  FontSize 10
+  BorderThickness 1
+}
+skinparam class {
+  BackgroundColor #D4E6F1
+  BorderColor #1A4A7A
+  BorderThickness 1.5
+  HeaderBackgroundColor #1A4A7A
+  FontColor #FFFFFF
+  FontSize 11
+  FontStyle bold
+  AttributeFontColor #1C2833
+  AttributeFontSize 10
+  ArrowColor #1F497D
+  ArrowThickness 1.5
+  StereotypeFontColor #A8C8E8
+  StereotypeFontSize 9
+  BackgroundColor<<requirement>> #FDEDEC
+  BorderColor<<requirement>> #C0392B
+  HeaderBackgroundColor<<requirement>> #C0392B
+  FontColor<<requirement>> #FFFFFF
+  StereotypeFontColor<<requirement>> #F5B7B1
+  BackgroundColor<<requirement def>> #FDEDEC
+  BorderColor<<requirement def>> #C0392B
+  HeaderBackgroundColor<<requirement def>> #922B21
+  FontColor<<requirement def>> #FFFFFF
+  BackgroundColor<<test case>> #E9F7EF
+  BorderColor<<test case>> #1E8449
+  HeaderBackgroundColor<<test case>> #1E8449
+  FontColor<<test case>> #FFFFFF
+  StereotypeFontColor<<test case>> #A9DFBF
+  BackgroundColor<<test case def>> #E9F7EF
+  BorderColor<<test case def>> #196F3D
+  HeaderBackgroundColor<<test case def>> #196F3D
+  FontColor<<test case def>> #FFFFFF
+  BackgroundColor<<part>> #D4E6F1
+  BorderColor<<part>> #1A4A7A
+  HeaderBackgroundColor<<part>> #1A4A7A
+  FontColor<<part>> #FFFFFF
+  StereotypeFontColor<<part>> #A8C8E8
+  BackgroundColor<<part def>> #D4E6F1
+  BorderColor<<part def>> #154360
+  HeaderBackgroundColor<<part def>> #154360
+  FontColor<<part def>> #FFFFFF
+  BackgroundColor<<action>> #FEF9E7
+  BorderColor<<action>> #B7950B
+  HeaderBackgroundColor<<action>> #B7950B
+  FontColor<<action>> #FFFFFF
+  BackgroundColor<<action def>> #FEF9E7
+  BorderColor<<action def>> #9A7D0A
+  HeaderBackgroundColor<<action def>> #9A7D0A
+  FontColor<<action def>> #FFFFFF
+  BackgroundColor<<interface>> #E8F8F5
+  BorderColor<<interface>> #148F77
+  HeaderBackgroundColor<<interface>> #0E6655
+  FontColor<<interface>> #FFFFFF
+  BackgroundColor<<interface def>> #E8F8F5
+  BorderColor<<interface def>> #0E6655
+  HeaderBackgroundColor<<interface def>> #0B5345
+  FontColor<<interface def>> #FFFFFF
+  BackgroundColor<<allocation>> #F4ECF7
+  BorderColor<<allocation>> #7D3C98
+  HeaderBackgroundColor<<allocation>> #7D3C98
+  FontColor<<allocation>> #FFFFFF
+}
+skinparam component {
+  BackgroundColor #D4E6F1
+  BorderColor #1A4A7A
+  BorderThickness 1.5
+  FontColor #1C2833
+  FontSize 11
+  FontStyle bold
+  ArrowColor #1F497D
+  ArrowThickness 1.5
+  StereotypeFontColor #4A7A9B
+  StereotypeFontSize 9
+}
+skinparam rectangle {
+  BackgroundColor #AED6F1
+  BorderColor #1A4A7A
+  BorderThickness 2
+  FontColor #1A4A7A
+  FontSize 12
+  FontStyle bold
+}
+skinparam state {
+  BackgroundColor #E8D5F5
+  BorderColor #5B2C8E
+  BorderThickness 1.5
+  FontColor #2C1654
+  FontSize 11
+  FontStyle bold
+  ArrowColor #5B2C8E
+  ArrowThickness 1.5
+  StartColor #2C1654
+  EndColor #2C1654
+}
+skinparam participant {
+  BackgroundColor #D4E6F1
+  BorderColor #1A4A7A
+  BorderThickness 1.5
+  FontColor #1C2833
+  FontSize 11
+  FontStyle bold
+}
+skinparam actor {
+  BackgroundColor #D4E6F1
+  BorderColor #1A4A7A
+}
+skinparam sequence {
+  ArrowColor #1F497D
+  ArrowThickness 1.5
+  LifeLineBorderColor #1A4A7A
+  LifeLineBorderThickness 1
+  LifeLineBackgroundColor #EBF5FB
+  MessageAlignment left
+  DividerBackgroundColor #AED6F1
+  DividerBorderColor #1A4A7A
+  GroupBackgroundColor #EBF5FB
+  GroupBorderColor #1A4A7A
+}
+"#;
 
 // ── BDD ───────────────────────────────────────────────────────────────────────
 

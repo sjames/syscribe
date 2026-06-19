@@ -1,8 +1,5 @@
 @startuml SafetyRequirementsD
-skinparam class {
-  BackgroundColor #f9f7ff
-  BorderColor #4a0a6e
-}
+!include /home/sjames/playground/syscribe/.plantuml/sysml.iuml
 hide empty members
 
 class "SafetyReqs" as s_safety_root <<requirement def>> [[https://github.com/sjames/syscribe/blob/main/model/Requirements/SafetyReqs.md]]

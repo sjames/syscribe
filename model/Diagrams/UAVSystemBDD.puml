@@ -1,8 +1,5 @@
 @startuml UAVSystemBDD
-skinparam class {
-  BackgroundColor #f5f5fa
-  BorderColor #3a3a4a
-}
+!include /home/sjames/playground/syscribe/.plantuml/sysml.iuml
 hide empty members
 
 class "UAVSystem" as s_uavsystem <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/UAV/UAVSystem.md]]

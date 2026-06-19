@@ -1,8 +1,5 @@
 @startuml SystemOverview
-skinparam component {
-  BackgroundColor #f5f5fa
-  BorderColor #3a3a4a
-}
+!include /home/sjames/playground/syscribe/.plantuml/sysml.iuml
 
 rectangle "Engine ECU" as s_ecu [[https://github.com/sjames/syscribe/blob/main/model_auto/System/EngineECU.md]] {
   component "Watchdog Timer" as s_wdt [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Hardware/WatchdogTimer.md]]

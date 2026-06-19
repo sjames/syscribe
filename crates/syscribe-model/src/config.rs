@@ -311,16 +311,28 @@ pub fn load_plantuml_config(model_root: &Path) -> PlantumlConfig {
         return PlantumlConfig::default();
     };
     let p = root.plantuml;
+    // Resolve the model root to an absolute path so that relative style_file /
+    // jar references embedded in generated .puml files work regardless of the
+    // caller's working directory.
+    let abs_root = model_root
+        .canonicalize()
+        .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default().join(model_root));
+
+    // Resolve + canonicalize a path relative to the model root (collapse `..`).
+    // `canonicalize` requires the file to exist; fall back to the unnormalized path.
+    let resolve_abs = |s: String| -> PathBuf {
+        let p = PathBuf::from(&s);
+        let joined = if p.is_absolute() { p } else { abs_root.join(p) };
+        joined.canonicalize().unwrap_or(joined)
+    };
+
     PlantumlConfig {
         theme: p.theme,
-        style_file: p.style_file.map(|s| {
-            let path = PathBuf::from(&s);
-            if path.is_absolute() { path } else { model_root.join(path) }
-        }),
+        style_file: p.style_file.map(resolve_abs),
         base_url: p.base_url,
         jar: p.jar.map(|s| {
             let path = PathBuf::from(&s);
-            if path.is_absolute() { path } else { model_root.join(path) }
+            if path.is_absolute() { path } else { abs_root.join(path) }
         }),
     }
 }

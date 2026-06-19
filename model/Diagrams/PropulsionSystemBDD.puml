@@ -1,8 +1,5 @@
 @startuml PropulsionSystemBDD
-skinparam class {
-  BackgroundColor #f5f5fa
-  BorderColor #3a3a4a
-}
+!include /home/sjames/playground/syscribe/.plantuml/sysml.iuml
 hide empty members
 
 class "PropulsionSystem" as s_propulsion <<part def>> [[https://github.com/sjames/syscribe/blob/main/model/UAV/Propulsion/PropulsionSystem.md]]

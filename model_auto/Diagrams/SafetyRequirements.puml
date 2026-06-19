@@ -1,8 +1,5 @@
 @startuml SafetyRequirements
-skinparam class {
-  BackgroundColor #f9f7ff
-  BorderColor #4a0a6e
-}
+!include /home/sjames/playground/syscribe/.plantuml/sysml.iuml
 hide empty members
 
 class "Engine ECU shall prevent safety hazards identified in HARA" as s_sys <<requirement>> [[https://github.com/sjames/syscribe/blob/main/model_auto/Requirements/Safety/REQ-ENG-SAFE-000.md]]

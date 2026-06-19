@@ -1,8 +1,5 @@
 @startuml UAVArchitectureDiagram
-skinparam component {
-  BackgroundColor #f5f5fa
-  BorderColor #3a3a4a
-}
+!include /home/sjames/playground/syscribe/.plantuml/sysml.iuml
 
 component "BatteryPack" as s_bat [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/BatteryPack.md]]
 component "PowerDistributionUnit" as s_pdu [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerDistributionUnit.md]]

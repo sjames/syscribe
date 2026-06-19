@@ -1,8 +1,5 @@
 @startuml InterlockingArchitecture
-skinparam component {
-  BackgroundColor #f5f5fa
-  BorderColor #3a3a4a
-}
+!include /home/sjames/playground/syscribe/.plantuml/sysml.iuml
 
 rectangle "Station 1 Interlocking" as s_il [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking.md]] {
   component "Vital Processor Channel A" as s_vpa [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/vitalProcessorA.md]]

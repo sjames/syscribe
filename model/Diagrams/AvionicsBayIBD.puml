@@ -1,8 +1,5 @@
 @startuml AvionicsBayIBD
-skinparam component {
-  BackgroundColor #f5f5fa
-  BorderColor #3a3a4a
-}
+!include /home/sjames/playground/syscribe/.plantuml/sysml.iuml
 
 rectangle "AvionicsBay" as s_boundary [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/AvionicsBay.md]] {
   component "FlightController" as s_fc [[https://github.com/sjames/syscribe/blob/main/model/UAV/Avionics/FlightController.md]]

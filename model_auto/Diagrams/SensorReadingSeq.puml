@@ -1,8 +1,5 @@
 @startuml SensorReadingSeq
-skinparam participant {
-  BackgroundColor #f5f5fa
-  BorderColor #3a3a4a
-}
+!include /home/sjames/playground/syscribe/.plantuml/sysml.iuml
 
 participant "Crankshaft Position Sensor" as p_cps [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Sensors/CrankshaftPositionSensor.md]]
 participant "Throttle Position Sensor" as p_tps [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Sensors/ThrottlePositionSensor.md]]

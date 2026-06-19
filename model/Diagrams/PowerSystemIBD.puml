@@ -1,12 +1,11 @@
 @startuml PowerSystemIBD
-skinparam component {
-  BackgroundColor #f5f5fa
-  BorderColor #3a3a4a
-}
+!include /home/sjames/playground/syscribe/.plantuml/sysml.iuml
 
 rectangle "PowerSystem" as s_boundary [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerSystem.md]] {
-  component "battery" as s_battery [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerSystem/battery.md]]
-  component "pdu" as s_pdu [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerSystem/pdu.md]]
+  rectangle "battery" as s_battery [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerSystem/battery.md]] {
+  }
+  rectangle "pdu" as s_pdu [[https://github.com/sjames/syscribe/blob/main/model/UAV/Power/PowerSystem/pdu.md]] {
+  }
 }
 
 s_battery --> s_pdu : flow

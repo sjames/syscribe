@@ -1,8 +1,5 @@
 @startuml SensorHierarchy
-skinparam class {
-  BackgroundColor #f5f5fa
-  BorderColor #3a3a4a
-}
+!include /home/sjames/playground/syscribe/.plantuml/sysml.iuml
 hide empty members
 
 class "Sensor" as sensor_block <<part>> [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Sensors/Sensor.md]]
