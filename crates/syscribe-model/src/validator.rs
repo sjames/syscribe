@@ -2925,12 +2925,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             ));
         }
 
-        // W413: pumlMode: companion body must contain an <img tag (REQ-TRS-PUML-030)
-        if fm.puml_mode.as_deref() == Some("companion") && !elem.doc.contains("<img") {
+        // W413: pumlMode: companion body must contain an image reference (REQ-TRS-PUML-030)
+        if fm.puml_mode.as_deref() == Some("companion")
+            && !elem.doc.contains("![")
+            && !elem.doc.contains("<img")
+        {
             findings.push(warning(
                 "W413",
                 &file,
-                "`pumlMode: companion` but body contains no `<img` tag pointing to the anticipated SVG output",
+                "`pumlMode: companion` but body contains no image reference (`![...](.svg)` or `<img`) pointing to the anticipated SVG output",
             ));
         }
 

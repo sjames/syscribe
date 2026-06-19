@@ -211,12 +211,12 @@ Write `Diagram` elements after all model elements are in place.
 
 - **Mermaid** — write the `.md` directly with a fenced ` ```mermaid ` block. Validate: fix E400, W408, W409.
 - **svgMode: companion** (composed SVG) — use the 4-step CLI workflow: `diagram list` → `diagram measure` → author `*.layout.json` → `diagram compose --output <path>`. Commit both `.md` and generated `.svg`.
-- **pumlMode: companion** (PlantUML) — preferred for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Set `pumlMode: companion`, `pumlFile: ./<Name>.puml`, and add an `<img src="./<Name>.svg"/>` tag in the body. Then run:
+- **pumlMode: companion** (PlantUML) — preferred for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Set `pumlMode: companion` and `pumlFile: ./<Name>.puml`. Then run:
   ```bash
-  syscribe -m model/ plantuml          # generates .puml files
+  syscribe -m model/ plantuml          # generates .puml files and injects ![name](./stem.svg) if absent
   syscribe -m model/ plantuml render   # renders .puml → .svg (needs PLANTUML_JAR or plantuml on PATH)
   ```
-  Commit both the `.md`, the `.puml`, and the generated `.svg`. Validate: fix E403, E404, W413, W414.
+  Commit the `.md` (with the auto-injected image link), the `.puml`, and the generated `.svg`. Validate: fix E403, E404, W413, W414.
 
 **Batch 9 — Resolve leaf PartDefs (closure pass)**
 After all architecture and requirement elements exist, verify that every leaf `PartDef`/`Part` is properly closed. See Part 7b for the full procedure. Validate: resolve all W300 (unassigned leaf requirements) and W301 (over-assigned leaf requirements).
@@ -761,7 +761,7 @@ edges:
   e-comp: {source: s-uav, target: s-fc, kind: composition}
 ---
 
-<img src="./UAVSystemBDD.svg" alt="UAV System BDD" width="100%"/>
+![UAVSystemBDD](./UAVSystemBDD.svg)
 ```
 
 Shape `ref:` triggers W402 if it doesn't resolve. Edge `source`/`target` trigger W403 if they don't match a defined shape-id.

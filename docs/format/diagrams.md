@@ -103,7 +103,10 @@ the web browser.
 | `pumlMode: companion` | Opt in; the only supported value |
 | `pumlFile: ./MyDiagram.puml` | Override companion path (default: `<stem>.puml`) |
 
-The body must contain an `<img>` tag referencing the anticipated SVG output (W413).
+The body must reference the anticipated SVG so the diagram is visible on GitHub
+and other Markdown renderers. `syscribe plantuml` injects a Markdown image link
+automatically if the body has no image reference yet. Both `![name](path.svg)` and
+`<img src="path.svg">` satisfy W413.
 
 ```yaml
 ---
@@ -120,7 +123,7 @@ edges:
   e-comp: {source: s-uavsystem, target: s-avionics, kind: composition}
 ---
 
-<img src="./UAVSystemBDD.svg" alt="UAV System BDD" width="100%"/>
+![UAVSystemBDD](./UAVSystemBDD.svg)
 ```
 
 ### CLI workflow

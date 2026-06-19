@@ -48,12 +48,15 @@ pumlMode: companion
 pumlFile: ./diagrams/MyBDD.puml   # optional; default: <stem>.puml
 ---
 
-<img src="./diagrams/MyBDD.svg" alt="MyBDD" width="100%"/>
+![MyBDD](./diagrams/MyBDD.svg)
 ```
 
-The markdown body should reference the anticipated `.svg` produced by your
-PlantUML toolchain. The validator emits **W413** when the `<img>` tag is
-missing and **W414** when the `.puml` file has not yet been generated.
+The markdown body must reference the anticipated `.svg` so the diagram is
+visible on GitHub and other Markdown renderers. `syscribe plantuml` injects this
+line automatically if the body has no image reference yet.
+
+The validator emits **W413** when neither `![` nor `<img` is present, and
+**W414** when the `.puml` file has not yet been generated.
 
 ## Options — source generation
 

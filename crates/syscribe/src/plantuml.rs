@@ -96,6 +96,7 @@ fn cmd_single(elements: &[RawElement], qname: &str, output: Option<&str>, dry_ru
         None => {
             let path = companion_puml_path(elem);
             write_file(path.to_string_lossy().as_ref(), &puml, dry_run);
+            inject_img_tag_if_absent(elem, &path, dry_run);
         }
     }
 }
@@ -130,6 +131,7 @@ fn cmd_batch(elements: &[RawElement], dry_run: bool, cfg: &PlantumlConfig) {
             Some(puml) => {
                 let path = companion_puml_path(elem);
                 write_file(path.to_string_lossy().as_ref(), &puml, dry_run);
+                inject_img_tag_if_absent(elem, &path, dry_run);
                 written += 1;
             }
         }
@@ -150,6 +152,58 @@ fn companion_puml_path(elem: &RawElement) -> PathBuf {
     match &elem.frontmatter.puml_file {
         Some(pf) => dir.join(pf.trim_start_matches("./")),
         None => md_path.with_extension("puml"),
+    }
+}
+
+/// Append a Markdown image link to the element's `.md` file when neither a
+/// Markdown `![` nor an HTML `<img` reference is already present (REQ-TRS-PUML-054).
+fn inject_img_tag_if_absent(elem: &RawElement, puml_path: &Path, dry_run: bool) {
+    if elem.doc.contains("![") || elem.doc.contains("<img") {
+        return;
+    }
+
+    // SVG path relative to the .md file's directory
+    let md_dir = Path::new(&elem.file_path)
+        .parent()
+        .unwrap_or(Path::new("."));
+    let rel_svg = puml_path
+        .strip_prefix(md_dir)
+        .unwrap_or(puml_path)
+        .with_extension("svg");
+    let src = format!("./{}", rel_svg.display());
+
+    let name = elem
+        .frontmatter
+        .name
+        .as_deref()
+        .unwrap_or_else(|| {
+            puml_path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("Diagram")
+        });
+
+    let img_line = format!("![{}]({})\n", name, src);
+
+    if dry_run {
+        println!("  [would inject '{}' into {}]", img_line.trim(), elem.file_path);
+        return;
+    }
+
+    match std::fs::read_to_string(&elem.file_path) {
+        Ok(content) => {
+            let new_content = if content.ends_with('\n') {
+                format!("{}{}", content, img_line)
+            } else {
+                format!("{}\n{}", content, img_line)
+            };
+            if let Err(e) = std::fs::write(&elem.file_path, new_content) {
+                eprintln!("warn: could not inject image link into '{}': {}", elem.file_path, e);
+            }
+        }
+        Err(e) => {
+            eprintln!("warn: could not read '{}' to inject image link: {}", elem.file_path, e);
+        }
     }
 }
 
