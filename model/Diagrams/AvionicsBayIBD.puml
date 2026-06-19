@@ -1,0 +1,16 @@
+@startuml AvionicsBayIBD
+skinparam component {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+
+rectangle "AvionicsBay" as s_boundary [[http://localhost:3000/ui/detail/UAV::Avionics::AvionicsBay]] {
+  component "FlightController" as s_fc [[http://localhost:3000/ui/detail/UAV::Avionics::FlightController]]
+  component "IMU" as s_imu [[http://localhost:3000/ui/detail/UAV::Avionics::IMU]]
+  component "GPSReceiver" as s_gps [[http://localhost:3000/ui/detail/UAV::Avionics::GPSReceiver]]
+}
+
+s_fc --> s_imu : flowConnection
+s_fc --> s_gps : flowConnection
+
+@enduml

@@ -4,6 +4,8 @@ name: FlightStatesMachineD
 diagramKind: StateMachine
 svgMode: companion
 svgFile: ./FlightStatesMachineD.svg
+pumlMode: companion
+pumlFile: ./FlightStatesMachineD.puml
 subject: Behavior::FlightStates
 shapes:
   s-initial: {ref: "Behavior::FlightStates", kind: initial}

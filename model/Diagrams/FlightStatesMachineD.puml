@@ -1,0 +1,26 @@
+@startuml FlightStatesMachineD
+skinparam state {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+
+state "disarmed" as s_disarmed [[http://localhost:3000/ui/detail/Behavior::FlightStates::disarmed]]
+state "armed" as s_armed [[http://localhost:3000/ui/detail/Behavior::FlightStates::armed]]
+state "takingOff" as s_takingOff [[http://localhost:3000/ui/detail/Behavior::FlightStates::takingOff]]
+state "flying" as s_flying [[http://localhost:3000/ui/detail/Behavior::FlightStates::flying]]
+state "landing" as s_landing [[http://localhost:3000/ui/detail/Behavior::FlightStates::landing]]
+state "fault" as s_fault [[http://localhost:3000/ui/detail/Behavior::FlightStates::fault]]
+
+[*] --> s_disarmed : init
+s_disarmed --> s_armed : arm
+s_armed --> s_takingOff : takeoff
+s_armed --> s_fault : armfault
+s_takingOff --> s_flying : fly
+s_takingOff --> s_fault : tofault
+s_flying --> s_landing : land
+s_flying --> s_fault : flyfault
+s_landing --> s_disarmed : disarm
+s_landing --> s_fault : lndfault
+s_fault --> s_disarmed : recover
+
+@enduml

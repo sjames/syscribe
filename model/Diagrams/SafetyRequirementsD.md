@@ -4,6 +4,8 @@ name: SafetyRequirementsD
 diagramKind: Requirement
 svgMode: companion
 svgFile: ./SafetyRequirementsD.svg
+pumlMode: companion
+pumlFile: ./SafetyRequirementsD.puml
 subject: Requirements::SafetyReqs
 shapes:
   s-safety-root:

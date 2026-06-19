@@ -1,0 +1,22 @@
+@startuml UAVSystemBDD
+skinparam class {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+hide empty members
+
+class "UAVSystem" as s_uavsystem <<part def>> [[http://localhost:3000/ui/detail/UAV::UAVSystem]]
+class "Airframe" as s_airframe <<part def>> [[http://localhost:3000/ui/detail/UAV::Airframe]]
+class "PropulsionSystem" as s_propulsion <<part def>> [[http://localhost:3000/ui/detail/UAV::Propulsion::PropulsionSystem]]
+class "AvionicsBay" as s_avionics <<part def>> [[http://localhost:3000/ui/detail/UAV::Avionics::AvionicsBay]]
+class "PowerSystem" as s_power <<part def>> [[http://localhost:3000/ui/detail/UAV::Power::PowerSystem]]
+class "PayloadBay" as s_payload <<part def>> [[http://localhost:3000/ui/detail/UAV::Payload::PayloadBay]]
+class "GroundControlStation" as s_gcs <<part def>> [[http://localhost:3000/ui/detail/GroundStation::GroundControlStation]]
+
+s_uavsystem *-- s_airframe : airframe
+s_uavsystem *-- s_propulsion : propulsion
+s_uavsystem *-- s_avionics : avionics
+s_uavsystem *-- s_power : power
+s_uavsystem *-- s_payload : payload
+
+@enduml

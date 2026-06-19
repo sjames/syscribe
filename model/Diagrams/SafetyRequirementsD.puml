@@ -1,0 +1,23 @@
+@startuml SafetyRequirementsD
+skinparam class {
+  BackgroundColor #f9f7ff
+  BorderColor #4a0a6e
+}
+hide empty members
+
+class "SafetyReqs" as s_safety_root <<requirement def>> [[http://localhost:3000/ui/detail/Requirements::SafetyReqs]]
+class "Flight controller shall detect single sensor failure within 50 ms" as s_fc_req <<requirement>> [[http://localhost:3000/ui/detail/Requirements::FaultTolerantFCReq]]
+class "Autonomous safe landing on battery-critical or link-loss event" as s_land_req <<requirement>> [[http://localhost:3000/ui/detail/Requirements::SafeLandingReq]]
+class "FC detects injected sensor failure within 50 ms on HIL bench" as s_fc_test <<testcasedef>> [[http://localhost:3000/ui/detail/Verification::FCFaultInjectionTest]]
+class "Autonomous landing descent rate ≤ 3 m/s on battery-critical trigger" as s_land_test <<testcasedef>> [[http://localhost:3000/ui/detail/Verification::SafeLandingTest]]
+class "FlightController" as s_fc_hw <<partdef>> [[http://localhost:3000/ui/detail/UAV::Avionics::FlightController]]
+class "UAVSystem" as s_uav_sys <<partdef>> [[http://localhost:3000/ui/detail/UAV::UAVSystem]]
+
+s_fc_req ..> s_safety_root : derivedFrom
+s_land_req ..> s_safety_root : derivedFrom
+s_fc_test ..> s_fc_req : verifies
+s_land_test ..> s_land_req : verifies
+s_fc_req ..> s_fc_hw : allocated to
+s_land_req ..> s_uav_sys : allocated to
+
+@enduml

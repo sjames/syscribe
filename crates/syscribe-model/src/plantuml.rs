@@ -50,7 +50,9 @@ fn parse_shapes(val: &serde_yaml::Value) -> Vec<Shape> {
     for (k, v) in map {
         let key = k.as_str().unwrap_or("").to_string();
         let qref = v.get("ref").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let kind = v.get("kind").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        // Normalise to lowercase so renderers use simple equality checks regardless
+        // of whether the diagram uses "block"/"port" or "Part"/"Port" etc.
+        let kind = v.get("kind").and_then(|x| x.as_str()).unwrap_or("").to_lowercase();
         let parent = v.get("parent").and_then(|x| x.as_str()).map(str::to_string);
         out.push(Shape { key, qref, kind, parent });
     }
@@ -157,8 +159,8 @@ fn render_bdd(element: &RawElement, elements: &[RawElement], name: &str, cfg: Op
     for s in &shapes {
         let display = lookup_name(&s.qref, elements);
         let stereo = match s.kind.as_str() {
-            "PartDef" => "part def",
-            "Part" => "part",
+            "partdef" => "part def",
+            "part" | "block" => "part",
             other => other,
         };
         let url = element_url(&s.qref, cfg);
@@ -203,20 +205,38 @@ fn render_ibd(element: &RawElement, elements: &[RawElement], name: &str, cfg: Op
         .filter_map(|s| s.parent.as_deref().map(|p| (s.key.as_str(), p)))
         .collect();
 
-    // Resolve a shape key through its parent chain to the nearest block/boundary
+    // Resolve a shape key through its parent chain to the nearest block/boundary.
+    // If the port has no explicit `parent:`, fall back to finding a block/part whose
+    // qref is a proper prefix of the port's qref (i.e. the port's owning element).
     let resolve_to_block = |id: &str| -> String {
-        let kind = shapes.iter().find(|s| s.key == id).map(|s| s.kind.as_str()).unwrap_or("");
+        let shape = shapes.iter().find(|s| s.key == id);
+        let kind = shape.map(|s| s.kind.as_str()).unwrap_or("");
         if kind == "port" {
-            parent_map.get(id).map(|s| s.to_string()).unwrap_or_else(|| id.to_string())
-        } else {
-            id.to_string()
+            if let Some(parent_key) = parent_map.get(id) {
+                return parent_key.to_string();
+            }
+            // Fallback: find a block whose qref is a prefix of this port's qref
+            if let Some(port_qref) = shape.map(|s| s.qref.as_str()) {
+                let prefix = match port_qref.rfind("::") {
+                    Some(i) => &port_qref[..i],
+                    None => "",
+                };
+                if !prefix.is_empty() {
+                    if let Some(owner) = shapes.iter().find(|s| {
+                        (s.kind == "block" || s.kind == "part") && s.qref == prefix
+                    }) {
+                        return owner.key.clone();
+                    }
+                }
+            }
         }
+        id.to_string()
     };
 
-    // Group block shapes by their parent boundary key
+    // Group block/part shapes by their parent boundary key
     let mut blocks_by_boundary: HashMap<&str, Vec<&Shape>> = HashMap::new();
     for s in &shapes {
-        if s.kind == "block" {
+        if s.kind == "block" || s.kind == "part" {
             if let Some(p) = s.parent.as_deref() {
                 blocks_by_boundary.entry(p).or_default().push(s);
             }
@@ -248,7 +268,7 @@ fn render_ibd(element: &RawElement, elements: &[RawElement], name: &str, cfg: Op
 
     // Top-level blocks (no parent)
     for s in &shapes {
-        if s.kind == "block" && s.parent.is_none() {
+        if (s.kind == "block" || s.kind == "part") && s.parent.is_none() {
             let cname = lookup_name(&s.qref, elements);
             let url = element_url(&s.qref, cfg);
             out.push_str(&format!("component \"{}\" as {} {}\n", cname, sanitize_id(&s.key), url));
@@ -373,8 +393,8 @@ fn render_requirement(element: &RawElement, elements: &[RawElement], name: &str,
     for s in &shapes {
         let sname = lookup_name(&s.qref, elements);
         let stereo = match s.kind.as_str() {
-            "Requirement" => "requirement",
-            "RequirementDef" => "requirement def",
+            "requirement" => "requirement",
+            "requirementdef" => "requirement def",
             other => other,
         };
         let url = element_url(&s.qref, cfg);

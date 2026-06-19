@@ -4,6 +4,8 @@ name: AvionicsBayIBD
 diagramKind: IBD
 svgMode: companion
 svgFile: ./AvionicsBayIBD.svg
+pumlMode: companion
+pumlFile: ./AvionicsBayIBD.puml
 subject: UAV::Avionics::AvionicsBay
 shapes:
   s-boundary: {ref: "UAV::Avionics::AvionicsBay", kind: boundary}

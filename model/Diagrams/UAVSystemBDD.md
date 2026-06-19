@@ -4,6 +4,8 @@ name: UAVSystemBDD
 diagramKind: BDD
 svgMode: companion
 svgFile: ./UAVSystemBDD.svg
+pumlMode: companion
+pumlFile: ./UAVSystemBDD.puml
 subject: UAV::UAVSystem
 shapes:
   s-uavsystem: {ref: "UAV::UAVSystem", kind: PartDef}

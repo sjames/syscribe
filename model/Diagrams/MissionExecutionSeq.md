@@ -4,6 +4,8 @@ name: MissionExecutionSeq
 diagramKind: Sequence
 svgMode: companion
 svgFile: ./MissionExecutionSeq.svg
+pumlMode: companion
+pumlFile: ./MissionExecutionSeq.puml
 subject: Behavior::MissionExecution
 shapes:
   ll-gcs:

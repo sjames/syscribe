@@ -1,0 +1,15 @@
+@startuml PowerSystemIBD
+skinparam component {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+
+rectangle "PowerSystem" as s_boundary [[http://localhost:3000/ui/detail/UAV::Power::PowerSystem]] {
+  component "battery" as s_battery [[http://localhost:3000/ui/detail/UAV::Power::PowerSystem::battery]]
+  component "pdu" as s_pdu [[http://localhost:3000/ui/detail/UAV::Power::PowerSystem::pdu]]
+}
+
+s_battery --> s_pdu : flow
+s_pdu ..> s_boundary : binding
+
+@enduml

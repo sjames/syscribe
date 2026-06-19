@@ -4,6 +4,8 @@ name: PropulsionSystemBDD
 diagramKind: BDD
 svgMode: companion
 svgFile: ./PropulsionSystemBDD.svg
+pumlMode: companion
+pumlFile: ./PropulsionSystemBDD.puml
 subject: UAV::Propulsion
 shapes:
   s-propulsion:

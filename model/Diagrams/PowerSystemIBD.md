@@ -4,6 +4,8 @@ name: PowerSystemIBD
 diagramKind: IBD
 svgMode: companion
 svgFile: ./PowerSystemIBD.svg
+pumlMode: companion
+pumlFile: ./PowerSystemIBD.puml
 subject: UAV::Power::PowerSystem
 shapes:
   s-boundary:

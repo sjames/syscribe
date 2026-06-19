@@ -1,0 +1,26 @@
+@startuml MissionExecutionSeq
+skinparam participant {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+
+actor "GroundControlStation" as ll_gcs [[http://localhost:3000/ui/detail/GroundStation::GroundControlStation]]
+participant "FlightController" as ll_fc [[http://localhost:3000/ui/detail/UAV::Avionics::FlightController]]
+participant "PropulsionSystem" as ll_prop [[http://localhost:3000/ui/detail/UAV::Propulsion::PropulsionSystem]]
+participant "GPSReceiver" as ll_gps [[http://localhost:3000/ui/detail/UAV::Avionics::GPSReceiver]]
+
+ll_gcs -> ll_fc : MissionExecution
+ll_fc -> ll_prop : setThrottle
+ll_prop -> ll_fc : waitForAltitude
+ll_fc -> ll_gps : WaypointNavAction
+ll_gps --> ll_fc : navigateWaypoints
+ll_fc -> ll_gcs : abortMission
+ll_fc -> ll_gps : navigateWaypoints
+ll_gps --> ll_fc : awaitArrival
+ll_fc -> ll_prop : commandDescent
+ll_prop -> ll_fc : waitForGround
+ll_fc -> ll_prop : disarm
+ll_prop --> ll_fc : LandingAction
+ll_fc --> ll_gcs : MissionExecution
+
+@enduml
