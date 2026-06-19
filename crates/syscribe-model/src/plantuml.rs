@@ -395,6 +395,12 @@ fn render_requirement(element: &RawElement, elements: &[RawElement], name: &str,
         let stereo = match s.kind.as_str() {
             "requirement" => "requirement",
             "requirementdef" => "requirement def",
+            "testcase" => "test case",
+            "testcasedef" => "test case def",
+            "partdef" | "itemdef" => "part def",
+            "part" | "item" | "block" => "part",
+            "actiondef" => "action def",
+            "action" => "action",
             other => other,
         };
         let url = element_url(&s.qref, cfg);

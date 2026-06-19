@@ -10,13 +10,13 @@ subject: UAV::Propulsion
 shapes:
   s-propulsion:
     ref: UAV::Propulsion::PropulsionSystem
-    kind: block
+    kind: PartDef
   s-motor:
     ref: UAV::Propulsion::Motor
-    kind: block
+    kind: PartDef
   s-rotor:
     ref: UAV::Propulsion::RotorAssembly
-    kind: block
+    kind: PartDef
 edges:
   e-motor-comp:
     ref: UAV::Propulsion::RotorAssembly::motor

@@ -21,6 +21,7 @@ edges:
   e-avionics: {ref: "UAV::UAVSystem", source: s-uavsystem, target: s-avionics, kind: composition}
   e-power: {ref: "UAV::UAVSystem", source: s-uavsystem, target: s-power, kind: composition}
   e-payload: {ref: "UAV::UAVSystem", source: s-uavsystem, target: s-payload, kind: composition}
+  e-gcs: {ref: "UAV::UAVSystem", source: s-uavsystem, target: s-gcs, kind: usage}
 ---
 
 Block Definition Diagram showing the top-level structural decomposition of the UAVSystem into its constituent subsystem definitions.
