@@ -83,18 +83,28 @@ pub fn render_plantuml(
     cfg: Option<&PlantumlConfig>,
 ) -> Option<String> {
     let kind = element.frontmatter.diagram_kind.as_deref()?;
+
+    // Display label used inside the diagram (may contain spaces/punctuation).
     let name = element
         .frontmatter
         .name
         .as_deref()
         .unwrap_or_else(|| element.qualified_name.rsplit("::").next().unwrap_or(&element.qualified_name));
 
+    // @startuml identifier / PlantUML output filename stem — must not contain
+    // spaces so PlantUML names the .svg predictably.  Derive from the file stem.
+    let file_stem: String = std::path::Path::new(&element.file_path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or(name)
+        .replace(' ', "_");
+
     match kind {
-        "BDD" => Some(render_bdd(element, elements, name, cfg)),
-        "IBD" => Some(render_ibd(element, elements, name, cfg)),
-        "StateMachine" => Some(render_state_machine(element, elements, name, cfg)),
-        "Sequence" => Some(render_sequence(element, elements, name, cfg)),
-        "Requirement" => Some(render_requirement(element, elements, name, cfg)),
+        "BDD" => Some(render_bdd(element, elements, name, &file_stem, cfg)),
+        "IBD" => Some(render_ibd(element, elements, name, &file_stem, cfg)),
+        "StateMachine" => Some(render_state_machine(element, elements, name, &file_stem, cfg)),
+        "Sequence" => Some(render_sequence(element, elements, name, &file_stem, cfg)),
+        "Requirement" => Some(render_requirement(element, elements, name, &file_stem, cfg)),
         _ => None,
     }
 }
@@ -147,12 +157,12 @@ fn style_preamble(cfg: Option<&PlantumlConfig>, diagram_kind: &str) -> String {
 
 // ── BDD ───────────────────────────────────────────────────────────────────────
 
-fn render_bdd(element: &RawElement, elements: &[RawElement], name: &str, cfg: Option<&PlantumlConfig>) -> String {
+fn render_bdd(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
     let shapes = element.frontmatter.shapes.as_ref().map(|v| parse_shapes(v)).unwrap_or_default();
     let edges = element.frontmatter.edges.as_ref().map(|v| parse_edges(v)).unwrap_or_default();
 
     let mut out = String::new();
-    out.push_str(&format!("@startuml {}\n", sanitize_id(name)));
+    out.push_str(&format!("@startuml {}\n", id));
     out.push_str(&style_preamble(cfg, "BDD"));
     out.push_str("hide empty members\n\n");
 
@@ -195,7 +205,7 @@ fn render_bdd(element: &RawElement, elements: &[RawElement], name: &str, cfg: Op
 
 // ── IBD ───────────────────────────────────────────────────────────────────────
 
-fn render_ibd(element: &RawElement, elements: &[RawElement], name: &str, cfg: Option<&PlantumlConfig>) -> String {
+fn render_ibd(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
     let shapes = element.frontmatter.shapes.as_ref().map(|v| parse_shapes(v)).unwrap_or_default();
     let edges = element.frontmatter.edges.as_ref().map(|v| parse_edges(v)).unwrap_or_default();
 
@@ -244,7 +254,7 @@ fn render_ibd(element: &RawElement, elements: &[RawElement], name: &str, cfg: Op
     }
 
     let mut out = String::new();
-    out.push_str(&format!("@startuml {}\n", sanitize_id(name)));
+    out.push_str(&format!("@startuml {}\n", id));
     out.push_str(&style_preamble(cfg, "IBD"));
     out.push('\n');
 
@@ -297,7 +307,7 @@ fn render_ibd(element: &RawElement, elements: &[RawElement], name: &str, cfg: Op
 
 // ── StateMachine ──────────────────────────────────────────────────────────────
 
-fn render_state_machine(element: &RawElement, elements: &[RawElement], name: &str, cfg: Option<&PlantumlConfig>) -> String {
+fn render_state_machine(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
     let shapes = element.frontmatter.shapes.as_ref().map(|v| parse_shapes(v)).unwrap_or_default();
     let edges = element.frontmatter.edges.as_ref().map(|v| parse_edges(v)).unwrap_or_default();
 
@@ -308,7 +318,7 @@ fn render_state_machine(element: &RawElement, elements: &[RawElement], name: &st
         .collect();
 
     let mut out = String::new();
-    out.push_str(&format!("@startuml {}\n", sanitize_id(name)));
+    out.push_str(&format!("@startuml {}\n", id));
     out.push_str(&style_preamble(cfg, "StateMachine"));
     out.push('\n');
 
@@ -342,12 +352,12 @@ fn render_state_machine(element: &RawElement, elements: &[RawElement], name: &st
 
 // ── Sequence ──────────────────────────────────────────────────────────────────
 
-fn render_sequence(element: &RawElement, elements: &[RawElement], name: &str, cfg: Option<&PlantumlConfig>) -> String {
+fn render_sequence(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
     let shapes = element.frontmatter.shapes.as_ref().map(|v| parse_shapes(v)).unwrap_or_default();
     let edges = element.frontmatter.edges.as_ref().map(|v| parse_edges(v)).unwrap_or_default();
 
     let mut out = String::new();
-    out.push_str(&format!("@startuml {}\n", sanitize_id(name)));
+    out.push_str(&format!("@startuml {}\n", id));
     out.push_str(&style_preamble(cfg, "Sequence"));
     out.push('\n');
 
@@ -381,12 +391,12 @@ fn render_sequence(element: &RawElement, elements: &[RawElement], name: &str, cf
 
 // ── Requirement diagram ───────────────────────────────────────────────────────
 
-fn render_requirement(element: &RawElement, elements: &[RawElement], name: &str, cfg: Option<&PlantumlConfig>) -> String {
+fn render_requirement(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
     let shapes = element.frontmatter.shapes.as_ref().map(|v| parse_shapes(v)).unwrap_or_default();
     let edges = element.frontmatter.edges.as_ref().map(|v| parse_edges(v)).unwrap_or_default();
 
     let mut out = String::new();
-    out.push_str(&format!("@startuml {}\n", sanitize_id(name)));
+    out.push_str(&format!("@startuml {}\n", id));
     out.push_str(&style_preamble(cfg, "Requirement"));
     out.push_str("hide empty members\n\n");
 

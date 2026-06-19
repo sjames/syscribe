@@ -1,4 +1,4 @@
-@startuml Sensor Hierarchy
+@startuml SensorHierarchy
 skinparam class {
   BackgroundColor #f5f5fa
   BorderColor #3a3a4a
