@@ -1,0 +1,19 @@
+@startuml UAVArchitectureDiagram
+skinparam component {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+
+component "BatteryPack" as s_bat [[http://localhost:3000/ui/detail/UAV::Power::BatteryPack]]
+component "PowerDistributionUnit" as s_pdu [[http://localhost:3000/ui/detail/UAV::Power::PowerDistributionUnit]]
+component "AvionicsBay" as s_avi [[http://localhost:3000/ui/detail/UAV::Avionics::AvionicsBay]]
+component "FlightController" as s_fc [[http://localhost:3000/ui/detail/UAV::Avionics::FlightController]]
+component "PropulsionSystem" as s_prop [[http://localhost:3000/ui/detail/UAV::Propulsion::PropulsionSystem]]
+component "GroundControlStation" as s_gcs [[http://localhost:3000/ui/detail/GroundStation::GroundControlStation]]
+
+s_bat --> s_pdu : flow
+s_pdu --> s_avi : flow
+s_pdu --> s_prop : flow
+s_fc --> s_gcs : flow
+
+@enduml

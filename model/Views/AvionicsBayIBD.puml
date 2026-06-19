@@ -1,0 +1,20 @@
+@startuml AvionicsBayIBD
+skinparam component {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+
+component "PowerDistributionUnit" as s_pdu [[http://localhost:3000/ui/detail/UAV::Power::PowerDistributionUnit]]
+component "FlightController" as s_fc [[http://localhost:3000/ui/detail/UAV::Avionics::FlightController]]
+component "PropulsionSystem" as s_prop [[http://localhost:3000/ui/detail/UAV::Propulsion::PropulsionSystem]]
+component "IMU" as s_imu [[http://localhost:3000/ui/detail/UAV::Avionics::IMU]]
+component "GPSReceiver" as s_gps [[http://localhost:3000/ui/detail/UAV::Avionics::GPSReceiver]]
+component "GroundControlStation" as s_gcs [[http://localhost:3000/ui/detail/GroundStation::GroundControlStation]]
+
+s_pdu --> s_fc : flow
+s_pdu --> s_imu : flow
+s_pdu --> s_gps : flow
+s_fc --> s_prop : flow
+s_fc --> s_gcs : flow
+
+@enduml

@@ -1,0 +1,17 @@
+@startuml Sensor Hierarchy
+skinparam class {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+hide empty members
+
+class "Sensor" as sensor_block <<part>> [[http://localhost:3000/ui/detail/System::Sensors::Sensor]]
+class "Crankshaft Position Sensor" as cps_block <<part>> [[http://localhost:3000/ui/detail/System::Sensors::CrankshaftPositionSensor]]
+class "Throttle Position Sensor" as tps_block <<part>> [[http://localhost:3000/ui/detail/System::Sensors::ThrottlePositionSensor]]
+class "Lambda Sensor" as lambda_block <<part>> [[http://localhost:3000/ui/detail/System::Sensors::LambdaSensor]]
+
+cps_block --|> sensor_block : cps-inherit
+tps_block --|> sensor_block : tps-inherit
+lambda_block --|> sensor_block : lambda-inherit
+
+@enduml

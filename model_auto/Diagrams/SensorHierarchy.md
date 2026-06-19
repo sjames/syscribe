@@ -1,7 +1,9 @@
 ---
 type: Diagram
 name: Sensor Hierarchy
-diagramKind: SVG
+diagramKind: BDD
+pumlMode: companion
+pumlFile: ./SensorHierarchy.puml
 generatedBy: claude-sonnet-4-6
 shapes:
   sensor-block:
@@ -100,3 +102,4 @@ temperature range features.
   <polygon points="313,80 321,88 307,90" fill="none" stroke="#4a6fa5" stroke-width="1.5"/>
 </svg>
 ```
+![Sensor Hierarchy](./SensorHierarchy.svg)

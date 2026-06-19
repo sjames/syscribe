@@ -1,34 +1,29 @@
 ---
 type: Diagram
 name: AvionicsBayIBD
-diagramKind: ibd
+diagramKind: IBD
 svgMode: companion
-expose:
-  - UAV::Power::PowerDistributionUnit
-  - UAV::Avionics::FlightController
-  - UAV::Propulsion::PropulsionSystem
-  - UAV::Avionics::IMU
-  - UAV::Avionics::GPSReceiver
-  - GroundStation::GroundControlStation
+pumlMode: companion
+pumlFile: ./AvionicsBayIBD.puml
+subject: UAV::Avionics::AvionicsBay
+shapes:
+  s-pdu:  {ref: "UAV::Power::PowerDistributionUnit",     kind: Part}
+  s-fc:   {ref: "UAV::Avionics::FlightController",       kind: Part}
+  s-prop: {ref: "UAV::Propulsion::PropulsionSystem",     kind: Part}
+  s-imu:  {ref: "UAV::Avionics::IMU",                   kind: Part}
+  s-gps:  {ref: "UAV::Avionics::GPSReceiver",           kind: Part}
+  s-gcs:  {ref: "GroundStation::GroundControlStation",  kind: Part}
 edges:
-  - from: {qname: "UAV::Power::PowerDistributionUnit", port: powerOut}
-    to:   {qname: "UAV::Avionics::FlightController",   port: powerIn}
-    kind: flow
-  - from: {qname: "UAV::Power::PowerDistributionUnit", port: powerOut}
-    to:   {qname: "UAV::Avionics::IMU",                port: powerIn}
-    kind: flow
-  - from: {qname: "UAV::Power::PowerDistributionUnit", port: powerOut}
-    to:   {qname: "UAV::Avionics::GPSReceiver",        port: powerIn}
-    kind: flow
-  - from: {qname: "UAV::Avionics::FlightController",   port: controlOut}
-    to:   {qname: "UAV::Propulsion::PropulsionSystem",  port: powerIn}
-    kind: flow
-  - from: {qname: "UAV::Avionics::FlightController",   port: telemetryOut}
-    to:   {qname: "GroundStation::GroundControlStation", port: telemetryIn}
-    kind: flow
+  e-pdu-fc:   {source: s-pdu,  target: s-fc,   kind: flow}
+  e-pdu-imu:  {source: s-pdu,  target: s-imu,  kind: flow}
+  e-pdu-gps:  {source: s-pdu,  target: s-gps,  kind: flow}
+  e-fc-prop:  {source: s-fc,   target: s-prop, kind: flow}
+  e-fc-gcs:   {source: s-fc,   target: s-gcs,  kind: flow}
 ---
 
 <img src="AvionicsBayIBD.svg" alt="Avionics Bay Internal Block Diagram" width="100%">
+
+![AvionicsBayIBD](./AvionicsBayIBD.svg)
 
 Internal block diagram of the avionics bay, showing how power flows from the PowerDistributionUnit to all onboard subsystems and how the FlightController exchanges control and telemetry signals with external elements.
 

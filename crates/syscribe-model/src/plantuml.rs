@@ -177,7 +177,7 @@ fn render_bdd(element: &RawElement, elements: &[RawElement], name: &str, cfg: Op
         let connector = match e.kind.as_str() {
             "composition" => "*--",
             "usage" => "..>",
-            "generalization" | "specialization" => "<|--",
+            "generalization" | "specialization" | "inheritance" => "--|>",
             _ => "-->",
         };
         out.push_str(&format!(

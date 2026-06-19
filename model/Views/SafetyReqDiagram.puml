@@ -1,0 +1,23 @@
+@startuml SafetyReqDiagram
+skinparam class {
+  BackgroundColor #f9f7ff
+  BorderColor #4a0a6e
+}
+hide empty members
+
+class "UAV shall not cause injury to persons or property during any flight phase" as s_safe <<requirement>> [[http://localhost:3000/ui/detail/Requirements::SafetyParentReq]]
+class "Autonomous safe landing on battery-critical or link-loss event" as s_land <<requirement>> [[http://localhost:3000/ui/detail/Requirements::SafeLandingReq]]
+class "Flight controller shall detect single sensor failure within 50 ms" as s_fc <<requirement>> [[http://localhost:3000/ui/detail/Requirements::FaultTolerantFCReq]]
+class "Safety case review confirms UAV shall not cause injury across all flight phases" as s_review <<test case>> [[http://localhost:3000/ui/detail/Verification::SafetyCaseReview]]
+class "Autonomous landing descent rate ≤ 3 m/s on battery-critical trigger" as s_ltest <<test case>> [[http://localhost:3000/ui/detail/Verification::SafeLandingTest]]
+class "FC detects injected sensor failure within 50 ms on HIL bench" as s_fitest <<test case>> [[http://localhost:3000/ui/detail/Verification::FCFaultInjectionTest]]
+class "FlightController" as s_flightc <<part>> [[http://localhost:3000/ui/detail/UAV::Avionics::FlightController]]
+
+s_land ..> s_safe : derivedFrom
+s_fc ..> s_safe : derivedFrom
+s_review ..> s_safe : verifies
+s_ltest ..> s_land : verifies
+s_fitest ..> s_fc : verifies
+s_flightc --> s_fc : satisfies
+
+@enduml
