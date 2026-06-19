@@ -4,20 +4,24 @@
 
 ```
 syscribe -m <root> plantuml [<qname>] [--output <file>|-] [--dry-run]
+syscribe -m <root> plantuml render [--jar <path>] [--dry-run]
 ```
 
 ## Description
 
-Generates PlantUML (`.puml`) source files from `Diagram` model elements.
-The generated `.puml` is text-only; rendering to SVG/PNG is the user's
-responsibility (PlantUML JAR, CI step, or IDE plugin).
+Two modes of operation:
 
-**Batch mode** (no `<qname>`): processes every `Diagram` element in the
-model that has `pumlMode: companion` set, writing each to its resolved
-`pumlFile:` path (or `<stem>.puml` by default).
+**Source generation** (default): generates PlantUML `.puml` source files from
+`Diagram` model elements. The `.puml` is text-only; you run PlantUML separately
+to produce SVG/PNG — or use `plantuml render` (see below).
 
-**Single-element mode** (`<qname>` given): generates the `.puml` for that
-one element regardless of whether `pumlMode` is set on it.
+- **Batch** (no `<qname>`): every `Diagram` with `pumlMode: companion`, written to `pumlFile:` or `<stem>.puml`.
+- **Single** (`<qname>` given): one element, regardless of whether `pumlMode` is set.
+
+**SVG rendering** (`render` subcommand): invokes PlantUML on every companion
+`.puml` file in the model and writes the resulting `.svg` alongside it.
+PlantUML is resolved in order: `--jar` flag → `[plantuml] jar` in
+`.syscribe.toml` → `PLANTUML_JAR` env variable → `plantuml` on `PATH`.
 
 ## Supported diagram kinds
 
@@ -51,7 +55,7 @@ The markdown body should reference the anticipated `.svg` produced by your
 PlantUML toolchain. The validator emits **W413** when the `<img>` tag is
 missing and **W414** when the `.puml` file has not yet been generated.
 
-## Options
+## Options — source generation
 
 | Flag | Description |
 |---|---|
@@ -62,16 +66,32 @@ missing and **W414** when the `.puml` file has not yet been generated.
 
 `--output` is only valid in single-element mode.
 
+## Options — `render` subcommand
+
+| Flag | Description |
+|---|---|
+| `--jar <path>` | Path to `plantuml.jar`; invoked as `java -jar <path> -tsvg` |
+| `--dry-run` | Print the `.puml` paths that would be rendered without invoking PlantUML |
+
 ## Examples
 
 ```bash
 # Generate all companion .puml files in the model
 syscribe -m model/ plantuml
 
+# Render all companion .puml files to SVG (plantuml on PATH)
+syscribe -m model/ plantuml render
+
+# Render using an explicit JAR
+syscribe -m model/ plantuml render --jar /opt/plantuml/plantuml.jar
+
+# Preview which .puml files would be rendered without invoking PlantUML
+syscribe -m model/ plantuml render --dry-run
+
 # Generate a single diagram, print to stdout
 syscribe -m model/ plantuml Diagrams::UAVSystemBDD --output -
 
-# Check what would be written without writing
+# Check what .puml files would be written without writing
 syscribe -m model/ plantuml --dry-run
 
 # Generate to an explicit path

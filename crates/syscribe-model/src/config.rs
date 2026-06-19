@@ -276,6 +276,8 @@ struct PlantumlToml {
     style_file: Option<String>,
     #[serde(default)]
     base_url: Option<String>,
+    #[serde(default)]
+    jar: Option<String>,
 }
 
 /// Resolved styling config for PlantUML generation (REQ-TRS-PUML-040).
@@ -289,6 +291,8 @@ pub struct PlantumlConfig {
     /// `None` means use the default (`http://localhost:3000`).
     /// `Some("")` suppresses links entirely.
     pub base_url: Option<String>,
+    /// Path to a PlantUML `.jar` file for `plantuml render` (REQ-TRS-PUML-051).
+    pub jar: Option<PathBuf>,
 }
 
 /// Load `[plantuml]` config from `<model_root>/.syscribe.toml`.
@@ -314,6 +318,10 @@ pub fn load_plantuml_config(model_root: &Path) -> PlantumlConfig {
             if path.is_absolute() { path } else { model_root.join(path) }
         }),
         base_url: p.base_url,
+        jar: p.jar.map(|s| {
+            let path = PathBuf::from(&s);
+            if path.is_absolute() { path } else { model_root.join(path) }
+        }),
     }
 }
 

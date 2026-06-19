@@ -11,6 +11,12 @@ use syscribe_model::element::RawElement;
 /// Single (qname given): generates the `.puml` for that one element regardless of
 /// whether `pumlMode` is set (REQ-TRS-PUML-011).
 pub fn cmd_plantuml(elements: &[RawElement], args: &[String], cfg: &PlantumlConfig) {
+    // `render` is a sub-subcommand — hand off before any other parsing.
+    if args.first().map(|s| s.as_str()) == Some("render") {
+        cmd_render(elements, &args[1..], cfg);
+        return;
+    }
+
     let dry_run = args.iter().any(|a| a == "--dry-run");
 
     // --output / -o  (single-element mode only)
@@ -156,4 +162,153 @@ fn write_file(path: &str, content: &str, dry_run: bool) {
         eprintln!("error writing '{}': {}", path, e);
         std::process::exit(1);
     }
+}
+
+// ── plantuml render ───────────────────────────────────────────────────────────
+
+/// Invoke PlantUML to render `.puml` companion files to SVG (REQ-TRS-PUML-050).
+fn cmd_render(elements: &[RawElement], args: &[String], cfg: &PlantumlConfig) {
+    let dry_run = args.iter().any(|a| a == "--dry-run");
+
+    // --jar flag (highest priority per REQ-TRS-PUML-051)
+    let jar_flag: Option<PathBuf> = {
+        let mut found = None;
+        let mut i = 0;
+        while i < args.len() {
+            if args[i] == "--jar" && i + 1 < args.len() {
+                found = Some(PathBuf::from(&args[i + 1]));
+                break;
+            }
+            if let Some(val) = args[i].strip_prefix("--jar=") {
+                found = Some(PathBuf::from(val));
+                break;
+            }
+            i += 1;
+        }
+        found
+    };
+
+    let invocation = resolve_plantuml(jar_flag.as_deref(), cfg);
+
+    let companions: Vec<PathBuf> = elements
+        .iter()
+        .filter(|e| e.frontmatter.puml_mode.as_deref() == Some("companion"))
+        .map(companion_puml_path)
+        .collect();
+
+    if companions.is_empty() {
+        println!("No diagrams with `pumlMode: companion` found.");
+        return;
+    }
+
+    if dry_run {
+        for p in &companions {
+            println!("{}", p.display());
+        }
+        return;
+    }
+
+    let inv = match invocation {
+        Some(i) => i,
+        None => {
+            eprintln!("error: PlantUML not found. Provide it via one of:");
+            eprintln!("  --jar <path>              path to plantuml.jar");
+            eprintln!("  [plantuml] jar in .syscribe.toml");
+            eprintln!("  PLANTUML_JAR env variable  path to plantuml.jar");
+            eprintln!("  plantuml on PATH           binary or wrapper script");
+            std::process::exit(1);
+        }
+    };
+
+    let mut rendered = 0usize;
+    let mut failed = 0usize;
+
+    for puml_path in &companions {
+        if !puml_path.exists() {
+            eprintln!(
+                "warn: skipping '{}' — .puml file not found (run `syscribe plantuml` first)",
+                puml_path.display()
+            );
+            continue;
+        }
+
+        let result = inv.run(puml_path);
+        match result {
+            Ok(output) if output.status.success() => {
+                rendered += 1;
+            }
+            Ok(output) => {
+                eprintln!("error rendering '{}':", puml_path.display());
+                if !output.stderr.is_empty() {
+                    eprintln!("{}", String::from_utf8_lossy(&output.stderr));
+                }
+                failed += 1;
+            }
+            Err(e) => {
+                eprintln!("error invoking PlantUML for '{}': {}", puml_path.display(), e);
+                failed += 1;
+            }
+        }
+    }
+
+    println!("{} rendered, {} failed.", rendered, failed);
+    if failed > 0 {
+        std::process::exit(1);
+    }
+}
+
+// ── PlantUML tool resolution (REQ-TRS-PUML-051) ──────────────────────────────
+
+enum PlantUmlInvocation {
+    Jar(PathBuf),    // java -jar <path> -tsvg
+    Binary(String),  // <cmd> -tsvg
+}
+
+impl PlantUmlInvocation {
+    fn run(&self, puml: &Path) -> std::io::Result<std::process::Output> {
+        match self {
+            Self::Jar(jar) => std::process::Command::new("java")
+                .args(["-jar", jar.to_str().unwrap_or(""), "-tsvg"])
+                .arg(puml)
+                .output(),
+            Self::Binary(cmd) => std::process::Command::new(cmd)
+                .arg("-tsvg")
+                .arg(puml)
+                .output(),
+        }
+    }
+}
+
+fn resolve_plantuml(
+    jar_flag: Option<&Path>,
+    cfg: &PlantumlConfig,
+) -> Option<PlantUmlInvocation> {
+    // 1. --jar flag
+    if let Some(j) = jar_flag {
+        return Some(PlantUmlInvocation::Jar(j.to_path_buf()));
+    }
+    // 2. [plantuml] jar in .syscribe.toml
+    if let Some(ref j) = cfg.jar {
+        return Some(PlantUmlInvocation::Jar(j.clone()));
+    }
+    // 3. PLANTUML_JAR env variable
+    if let Ok(j) = std::env::var("PLANTUML_JAR") {
+        if !j.is_empty() {
+            return Some(PlantUmlInvocation::Jar(PathBuf::from(j)));
+        }
+    }
+    // 4. `plantuml` on PATH
+    if which_plantuml() {
+        return Some(PlantUmlInvocation::Binary("plantuml".to_string()));
+    }
+    None
+}
+
+fn which_plantuml() -> bool {
+    std::process::Command::new("plantuml")
+        .arg("-version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok()
 }
