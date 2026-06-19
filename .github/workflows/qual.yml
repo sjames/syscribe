@@ -36,6 +36,9 @@ jobs:
       - name: Build syscribe
         run: cargo build --package syscribe
 
+      - name: Install Graphviz
+        run: sudo apt-get install -y graphviz
+
       - name: Download PlantUML JAR
         run: |
           wget -qL https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar \
