@@ -1,0 +1,21 @@
+@startuml SafetyRequirements
+skinparam class {
+  BackgroundColor #f9f7ff
+  BorderColor #4a0a6e
+}
+hide empty members
+
+class "Engine ECU shall prevent safety hazards identified in HARA" as s_sys <<requirement>> [[https://github.com/sjames/syscribe/blob/main/model_auto/Requirements/Safety/REQ-ENG-SAFE-000.md]]
+class "Safety monitor shall detect all safety faults within 100 ms" as s_safe <<requirement>> [[https://github.com/sjames/syscribe/blob/main/model_auto/Requirements/Safety/REQ-ENG-SAFE-001.md]]
+class "Engine stall monitor shall detect CPS loss and initiate deceleration" as s_stall <<requirement>> [[https://github.com/sjames/syscribe/blob/main/model_auto/Requirements/Safety/REQ-ENG-SAFE-003.md]]
+class "Safety Monitor" as s_sm <<part def>> [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Software/SafetyMonitor.md]]
+class "Engine Stall Monitor" as s_esm <<part def>> [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Software/EngineStallMonitor.md]]
+class "HIL — safety system end-to-end fault response under all single-point faults" as s_tc1 <<test case>> [[https://github.com/sjames/syscribe/blob/main/model_auto/Verification/TC-ENG-SAFE-001.md]]
+
+s_safe ..> s_sys : derivedFrom
+s_stall ..> s_sys : derivedFrom
+s_tc1 ..> s_sys : verifies
+s_sm --> s_safe : satisfies
+s_esm --> s_stall : satisfies
+
+@enduml

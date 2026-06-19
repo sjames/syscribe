@@ -1,53 +1,39 @@
 ---
 type: Diagram
 name: System Overview
-diagramKind: Mermaid
+diagramKind: IBD
+pumlMode: companion
+pumlFile: ./SystemOverview.puml
+subject: System::EngineECU
+shapes:
+  s-ecu:      {ref: "System::EngineECU",                          kind: PartDef}
+  s-wdt:      {ref: "System::Hardware::WatchdogTimer",            kind: PartDef, parent: s-ecu}
+  s-can-phy:  {ref: "System::Hardware::CANTransceiver",           kind: PartDef, parent: s-ecu}
+  s-sw:       {ref: "System::EngineControlSoftware",              kind: PartDef, parent: s-ecu}
+  s-tc:       {ref: "System::Software::ThrottleControl",          kind: PartDef, parent: s-sw}
+  s-fc:       {ref: "System::Software::FuelControl",              kind: PartDef, parent: s-sw}
+  s-sm:       {ref: "System::Software::SafetyMonitor",            kind: PartDef, parent: s-sw}
+  s-esm:      {ref: "System::Software::EngineStallMonitor",       kind: PartDef, parent: s-sw}
+  s-csm:      {ref: "System::Software::CANSecurityModule",        kind: PartDef, parent: s-sw}
+  s-cps:      {ref: "System::Sensors::CrankshaftPositionSensor",  kind: PartDef}
+  s-tps:      {ref: "System::Sensors::ThrottlePositionSensor",    kind: PartDef}
+  s-lambda:   {ref: "System::Sensors::LambdaSensor",             kind: PartDef}
+  s-ta:       {ref: "System::Actuators::ThrottleActuator",        kind: PartDef}
+  s-fi:       {ref: "System::Actuators::FuelInjector",            kind: PartDef}
+edges:
+  e-cps-ecu:  {source: s-cps,    target: s-ecu,     kind: flow}
+  e-tps-ecu:  {source: s-tps,    target: s-ecu,     kind: flow}
+  e-lam-ecu:  {source: s-lambda, target: s-ecu,     kind: flow}
+  e-ecu-ta:   {source: s-ecu,    target: s-ta,      kind: flow}
+  e-ecu-fi:   {source: s-ecu,    target: s-fi,      kind: flow}
+  e-sm-wdt:   {source: s-sm,     target: s-wdt,     kind: flow}
+  e-wdt-ecu:  {source: s-wdt,    target: s-ecu,     kind: flow}
+  e-can:      {source: s-ecu,    target: s-can-phy,  kind: binding}
 ---
 
+![System Overview](./SystemOverview.svg)
+
 High-level block diagram of the Engine ECU system showing the main components
-and their relationships.
-
-```mermaid
-%% ref: System::EngineECU
-%% ref: System::EngineControlSoftware
-%% ref: System::Software::SafetyMonitor
-%% ref: System::Software::ThrottleControl
-%% ref: System::Software::FuelControl
-%% ref: System::Hardware::WatchdogTimer
-graph TD
-    subgraph HW["System::EngineECU (hardware)"]
-        WDT["WatchdogTimer\nASIL D HW"]
-        CAN_PHY["CANTransceiver"]
-        MCU["Microcontroller"]
-    end
-
-    subgraph SW["System::EngineControlSoftware (software)"]
-        TC["ThrottleControl\nSatisfies REQ-ENG-PERF-001"]
-        FC["FuelControl\nSatisfies REQ-ENG-PERF-002"]
-        SM["SafetyMonitor\nSatisfies REQ-ENG-SAFE-001\nASIL D"]
-        ESM["EngineStallMonitor\nSatisfies REQ-ENG-SAFE-003\nASIL B"]
-        CSM["CANSecurityModule\nSatisfies REQ-ENG-SEC-001\nSecOC"]
-    end
-
-    subgraph Sensors["System::Sensors"]
-        CPS["CrankshaftPositionSensor"]
-        TPS["ThrottlePositionSensor\n(dual-track)"]
-        LSensor["LambdaSensor\n(wideband)"]
-    end
-
-    subgraph Actuators["System::Actuators"]
-        TA["ThrottleActuator\n+ return spring"]
-        FI["FuelInjector × 4"]
-    end
-
-    CPS --> MCU
-    TPS --> MCU
-    LSensor --> MCU
-    MCU --> TA
-    MCU --> FI
-    MCU <--> CAN_PHY
-    SM --> WDT
-    WDT -->|"reset on timeout"| MCU
-
-    CAN_PHY <-->|"powertrain bus\n500 kbit/s"| ExternalECUs["Other ECUs\n(BCM, TCU, ABS)"]
-```
+and their relationships. The ECU integrates hardware (Watchdog Timer, CAN
+Transceiver) and software (Safety Monitor, Throttle/Fuel Control, CAN Security)
+with three sensor inputs and two actuator outputs.

@@ -1,0 +1,25 @@
+@startuml SensorReadingSeq
+skinparam participant {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+
+participant "Crankshaft Position Sensor" as p_cps [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Sensors/CrankshaftPositionSensor.md]]
+participant "Throttle Position Sensor" as p_tps [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Sensors/ThrottlePositionSensor.md]]
+participant "Engine Control Software" as p_ecs [[https://github.com/sjames/syscribe/blob/main/model_auto/System/EngineControlSoftware.md]]
+participant "Safety Monitor" as p_sm [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Software/SafetyMonitor.md]]
+participant "Throttle Control" as p_tc [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Software/ThrottleControl.md]]
+participant "Fuel Control" as p_fc [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Software/FuelControl.md]]
+participant "Throttle Actuator" as p_ta [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Actuators/ThrottleActuator.md]]
+participant "Fuel Injector" as p_fi [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Actuators/FuelInjector.md]]
+
+p_cps -> p_ecs : crankPosition(angle, rpm)
+p_tps -> p_ecs : throttlePosition(pos1, pos2)
+p_ecs -> p_sm : checkSafetyConstraints()
+p_sm --> p_ecs : safetyOK : bool
+p_ecs -> p_tc : computeThrottleTarget(rpm, pos)
+p_tc -> p_ta : setPosition(target)
+p_ecs -> p_fc : computeFuelInjection(rpm, lambda)
+p_fc -> p_fi : inject(pulseWidth)
+
+@enduml

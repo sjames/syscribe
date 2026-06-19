@@ -1,0 +1,33 @@
+@startuml SystemOverview
+skinparam component {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+
+rectangle "Engine ECU" as s_ecu [[https://github.com/sjames/syscribe/blob/main/model_auto/System/EngineECU.md]] {
+  component "Watchdog Timer" as s_wdt [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Hardware/WatchdogTimer.md]]
+  component "CAN Transceiver" as s_can_phy [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Hardware/CANTransceiver.md]]
+  rectangle "Engine Control Software" as s_sw [[https://github.com/sjames/syscribe/blob/main/model_auto/System/EngineControlSoftware.md]] {
+    component "Throttle Control" as s_tc [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Software/ThrottleControl.md]]
+    component "Fuel Control" as s_fc [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Software/FuelControl.md]]
+    component "Safety Monitor" as s_sm [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Software/SafetyMonitor.md]]
+    component "Engine Stall Monitor" as s_esm [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Software/EngineStallMonitor.md]]
+    component "CAN Security Module" as s_csm [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Software/CANSecurityModule.md]]
+  }
+}
+component "Crankshaft Position Sensor" as s_cps [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Sensors/CrankshaftPositionSensor.md]]
+component "Throttle Position Sensor" as s_tps [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Sensors/ThrottlePositionSensor.md]]
+component "Lambda Sensor" as s_lambda [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Sensors/LambdaSensor.md]]
+component "Throttle Actuator" as s_ta [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Actuators/ThrottleActuator.md]]
+component "Fuel Injector" as s_fi [[https://github.com/sjames/syscribe/blob/main/model_auto/System/Actuators/FuelInjector.md]]
+
+s_cps --> s_ecu : flow
+s_tps --> s_ecu : flow
+s_lambda --> s_ecu : flow
+s_ecu --> s_ta : flow
+s_ecu --> s_fi : flow
+s_sm --> s_wdt : flow
+s_wdt --> s_ecu : flow
+s_ecu ..> s_can_phy : binding
+
+@enduml

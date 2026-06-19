@@ -1,0 +1,31 @@
+@startuml InterlockingArchitecture
+skinparam component {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+
+rectangle "Station 1 Interlocking" as s_il [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking.md]] {
+  component "Vital Processor Channel A" as s_vpa [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/vitalProcessorA.md]]
+  component "Vital Processor Channel B" as s_vpb [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/vitalProcessorB.md]]
+  rectangle "Software Image" as s_sw [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/softwareImage.md]] {
+    component "routeProcessor" as s_rp [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/softwareImage/routeProcessor.md]]
+    component "conflictChecker" as s_cc [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/softwareImage/conflictChecker.md]]
+    component "pointsController" as s_pc [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/softwareImage/pointsController.md]]
+    component "signalController" as s_sc [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/softwareImage/signalController.md]]
+  }
+  component "Object Controller 1 (Home Signals)" as s_oc1 [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/objectController1.md]]
+  component "Object Controller 2 (Points and LX)" as s_oc2 [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/objectController2.md]]
+  component "Track Circuit — Approach Section" as s_tc1 [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/trackCircuit1.md]]
+  component "Track Circuit — Platform 1" as s_tc2 [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/trackCircuit2.md]]
+  component "Track Circuit — Platform 2" as s_tc3 [[https://github.com/sjames/syscribe/blob/main/model_sil/Deployment/Station1Interlocking/trackCircuit3.md]]
+}
+
+s_vpa --> s_vpb : flow
+s_vpa --> s_oc1 : flow
+s_vpa --> s_oc2 : flow
+s_vpa --> s_tc1 : flow
+s_vpa --> s_tc2 : flow
+s_vpa --> s_tc3 : flow
+s_sw --> s_vpa : flow
+
+@enduml

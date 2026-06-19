@@ -1,3 +1,6 @@
 [profiles.magicgrid]
 magicgrid = true
 promote = ["W307"]
+
+[plantuml]
+base_url = "https://github.com/sjames/syscribe/blob/main/model_mg"

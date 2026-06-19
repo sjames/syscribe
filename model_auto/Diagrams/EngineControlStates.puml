@@ -1,0 +1,22 @@
+@startuml EngineControlStates
+skinparam state {
+  BackgroundColor #f5f5fa
+  BorderColor #3a3a4a
+}
+
+state "Idle" as s_idle [[https://github.com/sjames/syscribe/blob/main/model_auto/System/EngineControlSoftware.md]]
+state "Cranking" as s_crank [[https://github.com/sjames/syscribe/blob/main/model_auto/System/EngineControlSoftware.md]]
+state "Running" as s_run [[https://github.com/sjames/syscribe/blob/main/model_auto/System/EngineControlSoftware.md]]
+state "FaultDetected" as s_fault [[https://github.com/sjames/syscribe/blob/main/model_auto/System/EngineControlSoftware.md]]
+state "SafeStop" as s_stop [[https://github.com/sjames/syscribe/blob/main/model_auto/System/EngineControlSoftware.md]]
+
+[*] --> s_idle : init
+s_idle --> s_crank : ignitionOn
+s_crank --> s_run : rpmAboveThreshold
+s_crank --> s_idle : timeout / cranking failed
+s_run --> s_fault : safetyFaultDetected [ASIL D]
+s_run --> s_idle : ignitionOff
+s_fault --> s_stop : shutdownCommand
+s_stop --> s_idle : resetComplete
+
+@enduml

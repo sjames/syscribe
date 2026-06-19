@@ -34,6 +34,7 @@ struct Shape {
     qref: String,
     kind: String,
     parent: Option<String>,
+    label: Option<String>,
 }
 
 struct Edge {
@@ -42,6 +43,7 @@ struct Edge {
     source: String,
     target: String,
     kind: String,
+    label: Option<String>,
 }
 
 fn parse_shapes(val: &serde_yaml::Value) -> Vec<Shape> {
@@ -54,7 +56,8 @@ fn parse_shapes(val: &serde_yaml::Value) -> Vec<Shape> {
         // of whether the diagram uses "block"/"port" or "Part"/"Port" etc.
         let kind = v.get("kind").and_then(|x| x.as_str()).unwrap_or("").to_lowercase();
         let parent = v.get("parent").and_then(|x| x.as_str()).map(str::to_string);
-        out.push(Shape { key, qref, kind, parent });
+        let label = v.get("label").and_then(|x| x.as_str()).map(str::to_string);
+        out.push(Shape { key, qref, kind, parent, label });
     }
     out
 }
@@ -68,7 +71,8 @@ fn parse_edges(val: &serde_yaml::Value) -> Vec<Edge> {
         let source = v.get("source").and_then(|x| x.as_str()).unwrap_or("").to_string();
         let target = v.get("target").and_then(|x| x.as_str()).unwrap_or("").to_string();
         let kind = v.get("kind").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        out.push(Edge { key, qref, source, target, kind });
+        let label = v.get("label").and_then(|x| x.as_str()).map(str::to_string);
+        out.push(Edge { key, qref, source, target, kind, label });
     }
     out
 }
@@ -207,6 +211,38 @@ fn render_bdd(element: &RawElement, elements: &[RawElement], _name: &str, id: &s
 
 // ── IBD ───────────────────────────────────────────────────────────────────────
 
+fn render_ibd_container(
+    key: &str,
+    shapes: &[Shape],
+    container_keys: &std::collections::HashSet<String>,
+    elements: &[RawElement],
+    cfg: Option<&PlantumlConfig>,
+    indent: usize,
+    out: &mut String,
+) {
+    let pad = "  ".repeat(indent);
+    let s = match shapes.iter().find(|s| s.key == key) {
+        Some(s) => s,
+        None => return,
+    };
+    let name = lookup_name(&s.qref, elements);
+    let url = element_url(&s.qref, cfg);
+    out.push_str(&format!("{}rectangle \"{}\" as {} {} {{\n", pad, name, sanitize_id(key), url));
+    for child in shapes {
+        if child.parent.as_deref() != Some(key) || child.kind == "port" {
+            continue;
+        }
+        if container_keys.contains(&child.key) {
+            render_ibd_container(&child.key, shapes, container_keys, elements, cfg, indent + 1, out);
+        } else {
+            let cname = lookup_name(&child.qref, elements);
+            let curl = element_url(&child.qref, cfg);
+            out.push_str(&format!("{}  component \"{}\" as {} {}\n", pad, cname, sanitize_id(&child.key), curl));
+        }
+    }
+    out.push_str(&format!("{}}}\n", pad));
+}
+
 fn render_ibd(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
     let shapes = element.frontmatter.shapes.as_ref().map(|v| parse_shapes(v)).unwrap_or_default();
     let edges = element.frontmatter.edges.as_ref().map(|v| parse_edges(v)).unwrap_or_default();
@@ -245,42 +281,29 @@ fn render_ibd(element: &RawElement, elements: &[RawElement], _name: &str, id: &s
         id.to_string()
     };
 
-    // Group block/part shapes by their parent boundary key
-    let mut blocks_by_boundary: HashMap<&str, Vec<&Shape>> = HashMap::new();
-    for s in &shapes {
-        if s.kind == "block" || s.kind == "part" {
-            if let Some(p) = s.parent.as_deref() {
-                blocks_by_boundary.entry(p).or_default().push(s);
-            }
-        }
-    }
+    // Shapes whose key appears as `parent:` on another shape are containers.
+    // Detected structurally so explicit `kind: boundary` is not required.
+    let container_keys: std::collections::HashSet<String> = shapes
+        .iter()
+        .filter_map(|s| s.parent.clone())
+        .collect();
 
     let mut out = String::new();
     out.push_str(&format!("@startuml {}\n", id));
     out.push_str(&style_preamble(cfg, "IBD"));
     out.push('\n');
 
-    // Boundaries with their nested blocks
+    // Top-level containers: have children and no parent themselves.
     for s in &shapes {
-        if s.kind != "boundary" {
+        if s.kind == "port" || s.parent.is_some() || !container_keys.contains(&s.key) {
             continue;
         }
-        let bname = lookup_name(&s.qref, elements);
-        let url = element_url(&s.qref, cfg);
-        out.push_str(&format!("rectangle \"{}\" as {} {} {{\n", bname, sanitize_id(&s.key), url));
-        if let Some(children) = blocks_by_boundary.get(s.key.as_str()) {
-            for c in children {
-                let cname = lookup_name(&c.qref, elements);
-                let curl = element_url(&c.qref, cfg);
-                out.push_str(&format!("  component \"{}\" as {} {}\n", cname, sanitize_id(&c.key), curl));
-            }
-        }
-        out.push_str("}\n");
+        render_ibd_container(&s.key, &shapes, &container_keys, elements, cfg, 0, &mut out);
     }
 
-    // Top-level blocks (no parent)
+    // Standalone components: no parent, no children, not a port.
     for s in &shapes {
-        if (s.kind == "block" || s.kind == "part") && s.parent.is_none() {
+        if s.kind != "port" && s.parent.is_none() && !container_keys.contains(&s.key) {
             let cname = lookup_name(&s.qref, elements);
             let url = element_url(&s.qref, cfg);
             out.push_str(&format!("component \"{}\" as {} {}\n", cname, sanitize_id(&s.key), url));
@@ -326,7 +349,10 @@ fn render_state_machine(element: &RawElement, elements: &[RawElement], _name: &s
 
     for s in &shapes {
         if s.kind == "state" {
-            let sname = lookup_name(&s.qref, elements);
+            // Prefer explicit label:; fall back to element name or qref short segment.
+            let sname = s.label.as_deref()
+                .map(str::to_string)
+                .unwrap_or_else(|| lookup_name(&s.qref, elements));
             let url = element_url(&s.qref, cfg);
             out.push_str(&format!("state \"{}\" as {} {}\n", sname, sanitize_id(&s.key), url));
         }
@@ -335,9 +361,15 @@ fn render_state_machine(element: &RawElement, elements: &[RawElement], _name: &s
     out.push('\n');
 
     for e in &edges {
-        let label = e.key.strip_prefix("e-").unwrap_or(&e.key);
+        // Prefer explicit label:; fall back to key stem.
+        let label: &str = e.label.as_deref()
+            .unwrap_or_else(|| e.key.strip_prefix("e-").unwrap_or(&e.key));
         if initial_keys.contains(e.source.as_str()) {
-            out.push_str(&format!("[*] --> {} : {}\n", sanitize_id(&e.target), label));
+            if label.is_empty() {
+                out.push_str(&format!("[*] --> {}\n", sanitize_id(&e.target)));
+            } else {
+                out.push_str(&format!("[*] --> {} : {}\n", sanitize_id(&e.target), label));
+            }
         } else {
             out.push_str(&format!(
                 "{} --> {} : {}\n",
@@ -376,7 +408,9 @@ fn render_sequence(element: &RawElement, elements: &[RawElement], _name: &str, i
     out.push('\n');
 
     for e in &edges {
-        let label = edge_label(&e.key, e.qref.as_deref());
+        let label = e.label.as_deref()
+            .map(str::to_string)
+            .unwrap_or_else(|| edge_label(&e.key, e.qref.as_deref()));
         let arrow = if e.kind == "return" { "-->" } else { "->" };
         out.push_str(&format!(
             "{} {} {} : {}\n",
