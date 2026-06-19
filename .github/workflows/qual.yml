@@ -38,8 +38,9 @@ jobs:
 
       - name: Download PlantUML JAR
         run: |
-          wget -q https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar \
+          wget -qL https://github.com/plantuml/plantuml/releases/latest/download/plantuml.jar \
             -O plantuml.jar
+          java -jar plantuml.jar -version
 
       - name: Generate PlantUML companion files and render SVGs
         env:
