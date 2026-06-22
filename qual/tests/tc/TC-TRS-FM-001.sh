@@ -3,7 +3,11 @@ tc_TRS_FM_001() {
 
     # Scenario: feature-check is discoverable in help.
     SCENARIO_NAME="feature-check is listed in help"; printf "  ▶ %s\n" "$SCENARIO_NAME"
-    "$SYSCRIBE" --help 2>/dev/null | grep -qE "^\s*feature-check" \
+    # Capture first: piping `--help` into `grep -q` lets grep close the pipe on its
+    # first match, killing syscribe with SIGPIPE mid-write — which `set -o pipefail`
+    # reports as a failure even though the command is listed.
+    local help_out; help_out=$("$SYSCRIBE" --help 2>/dev/null || true)
+    printf '%s' "$help_out" | grep -qE "^\s*feature-check" \
         && pass "feature-check listed in --help" || fail "feature-check missing from --help"
 
     # Scenario: a clean feature model exits 0.

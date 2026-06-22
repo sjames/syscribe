@@ -23,3 +23,6 @@ cassowary = "0.3.0"
 svg = "0.18.0"
 pathfinding = "4"
 rhai = "=1.25.1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

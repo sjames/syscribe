@@ -5,7 +5,11 @@ tc_TRS_FMA_002() {
     local NOFM="$F/TC-TRS-FM-001/no-fm"
 
     SCENARIO_NAME="--deep is listed in help"; printf "  ▶ %s\n" "$SCENARIO_NAME"
-    "$SYSCRIBE" --help 2>/dev/null | grep -q -- "--deep" \
+    # Capture the full help first: piping `--help` straight into `grep -q` lets grep
+    # close the pipe on its first match, killing syscribe with SIGPIPE mid-write, which
+    # `set -o pipefail` then reports as a failure even though the token is present.
+    local help_out; help_out=$("$SYSCRIBE" --help 2>/dev/null || true)
+    printf '%s' "$help_out" | grep -q -- "--deep" \
         && pass "--deep documented in help" || fail "--deep missing from help"
 
     SCENARIO_NAME="--deep is opt-in (no E223 without it)"; printf "  ▶ %s\n" "$SCENARIO_NAME"

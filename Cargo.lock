@@ -1701,6 +1701,7 @@ dependencies = [
  "cassowary",
  "clap",
  "fontdb",
+ "libc",
  "pathfinding",
  "quick-xml",
  "regex",

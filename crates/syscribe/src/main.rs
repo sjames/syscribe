@@ -458,6 +458,16 @@ fn build_cli() -> clap::Command {
 }
 
 fn main() {
+    // Restore the default SIGPIPE disposition. Rust ignores SIGPIPE at startup, so
+    // writing to a pipe whose reader has closed early — `syscribe --help | head`,
+    // `... | grep -q`, `... | less` quit early — turns into an EPIPE that makes
+    // println! panic ("failed printing to stdout", exit 101). Resetting to SIG_DFL
+    // makes the process exit quietly on a broken pipe like a normal Unix tool.
+    #[cfg(unix)]
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+
     let args: Vec<String> = std::env::args().collect();
 
     // REQ-TRS-CLI-007: version reporting. `--version`, `-V`, or the `version`
