@@ -34,6 +34,12 @@ the element's documentation. Directory path encodes namespace ownership.
 | `Requirement` | `REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `REQ-UAV-FC-001` |
 | `TestCase` | `TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `TC-SCHED-001` |
 | `ADR` | `ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `ADR-SW-SCHED-001` |
+| `TestPlan` | `TP(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `TP-DELIVERY-INTEGRATION-001` |
+| `ReviewRecord` | `RR-*` | `RR-SW-ARCH-001` |
+| `TradeStudy` | `TRD-*` | `TRD-COMM-001` |
+| `FeatureDef` (PLE) | `FEAT(-[A-Z0-9]{2,12})+` (no numeric suffix required) | `FEAT-ABS` |
+| `Asset` | `ASSET-*` | `ASSET-KERNEL-001` |
+| `Zone` / `Conduit` (IEC 62443) | `ZN-*` / `CD-*` | `ZN-CTRL-001` / `CD-EXT-001` |
 | `HazardousEvent` | `HE-*` | `HE-BRAKE-001` |
 | `SafetyGoal` | `SG-*` | `SG-BRAKE-001` |
 | `DamageScenario` | `DS-*` | `DS-001` |
@@ -53,7 +59,10 @@ the element's documentation. Directory path encodes namespace ownership.
 | Element | Allowed statuses |
 |---|---|
 | `Requirement` | `draft` · `review` · `approved` · `implemented` · `verified` |
-| `TestCase` | `draft` · `active` · `retired` |
+| `TestCase` | `draft` · `review` · `approved` · `active` · `retired` |
+| `TestPlan` | `draft` · `review` · `approved` · `active` · `retired` |
 | `ADR` | `proposed` · `accepted` · `deprecated` · `superseded` |
-| Safety/security (HE, SG, DS, TS, CSG, SC, VR, FT, FMEA) | `draft` · `review` · `approved` |
+| `ReviewRecord` | `open` · `closed` · `waived` |
+| Safety/security (HE, SG, Asset, DS, TS, CSG, SC, VR, FT, FMEA, AT, ARG, AOU) | `status:` required but not enum-checked (use `draft`/`review`/`approved`) |
+| `ConfirmationMeasure` | `planned` · `in_progress` · `completed` |
 | Other elements | no mandated status field |

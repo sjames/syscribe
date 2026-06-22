@@ -428,10 +428,11 @@ The PendSV handler and register save/restore sequence. Implemented in naked
 assembly with an explicit stack frame layout documented in REQ-PORT-FRAME-001.
 ```
 
-The `implementedBy:` field is a free-form reference to the source file. It is not
-validated by syscribe (the source file is at the implementation level), but it
-creates an explicit link from the design to the code that reviewers and auditors
-can follow.
+The `implementedBy:` field references the source file(s) that realise the element.
+A non-`draft` element whose **local** `implementedBy:` path does not exist on disk
+raises warning **W023** (opt-in, draft-suppressed; gate with `validate --deny W023`);
+remote URIs are accepted as external pointers. The link makes the path from design to
+code explicit for reviewers and auditors to follow.
 
 ### 9.9 Level 3 — Detailed interface specification
 

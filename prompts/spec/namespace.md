@@ -35,6 +35,7 @@ model/
 | `imports` | list | Import declarations |
 | `aliases` | list | Alias declarations |
 | `filterCondition` | string | Package filter (KerML opaque expression) |
+| `repoImports` | list | Multi-repo composition (§14, opt-in): each `{repo, qname, as}` mounts a peer-repo subtree declared in `[repos]` of the model-root `.syscribe.toml`. Inert unless `[repos]` is configured. See `spec fields`. |
 
 ### Standard library packages
 

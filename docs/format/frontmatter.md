@@ -170,7 +170,7 @@ Validation rules `E510`–`E515`/`W510`–`W512` are active only when `[repos]` 
 
 ## Implementation trace (`implementedBy:`)
 
-`Part`/`PartDef` elements may link to the source artifact(s) that realise them, closing the V-model leg `Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test`.
+`Part`/`PartDef`/`Interface`/`InterfaceDef` elements may link to the source artifact(s) that realise them, closing the V-model leg `Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test`.
 
 | Field | Description |
 |---|---|

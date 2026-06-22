@@ -202,6 +202,19 @@ The directory is also the Rhai **module-import root**, so a script can reuse a s
 
 See `syscribe help scripts` for the full read-only model API.
 
+### Ingesting executed test results (`ingest-results`)
+
+`ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
+
+```bash
+syscribe -m model/ ingest-results <file> [--format cargo-json|junit]
+```
+
+- **`<file>`** — the results file (required, first positional).
+- **`--format cargo-json|junit`** — the input format. When omitted it is **auto-detected** from the filename: a `.xml` suffix is parsed as JUnit, anything else as `cargo test --format json` output.
+
+Each parsed function maps to a `testFunctions[].function` so an active `TestCase` rolls up to a `Pass`/`Fail`/`Unknown` verdict. Once the sidecar exists, the coverage views fold it in automatically; pass `--linked-only` on a consuming command to ignore it for one run. `validate --results <file>` performs the same ingest for a single run *without* writing the sidecar.
+
 ### Label field: `name` is the universal label (E025; E024 retired)
 
 **`name` is the single human-readable label on every element type** — id-identified and name-identified alike. There is no longer a per-identity-class split.
@@ -300,6 +313,27 @@ $ syscribe -m model_auto/ show System::Software::SafetyMonitor
 Safety monitoring software component (ASIL D). Supervises all safety-relevant
 inputs and function outputs...
 ```
+
+### Element-type inventory
+
+`types` lists every element `type:` present in the model with a count; `untyped` lists elements with no `type:` set (a quick way to catch frontmatter that failed to declare its kind).
+
+```bash
+syscribe -m model/ types       # e.g. PartDef 24, Requirement 14, TestCase 11, ...
+syscribe -m model/ untyped     # elements missing a type: field
+```
+
+### Export the whole graph
+
+`export` serialises the resolved model graph as one structured JSON document on stdout — the machine-readable form of the whole model, for downstream tooling.
+
+```bash
+syscribe -m model/ export             # single JSON document (default)
+syscribe -m model/ export --ndjson    # newline-delimited: one element per line
+syscribe -m model/ export --config CONF-X   # projected onto a configuration variant
+```
+
+`--ndjson` streams one element per line; the `--config` lens projects the export onto a single variant.
 
 ---
 
@@ -490,6 +524,37 @@ syscribe -m model/ trade-study [<TRD-id>] [--json]
 ```
 
 When the model contains `TradeStudy` elements (§15), lists them or prints one study's full **normalised, weighted, ranked** scoring table (computed, never written). Without `TradeStudy` elements, the command falls back to the MagicGrid MoE-weighted trade study (`--profile magicgrid`, REQ-TRS-MG-007). `template TradeStudy` prints a skeleton.
+
+## FMEA & fault trees (`fmea`, `fault-tree`)
+
+```bash
+syscribe -m model/ fmea report [--fmea-sheet <id>] [--json]
+syscribe -m model/ fault-tree render <FaultTree-id>
+```
+
+`fmea report` rolls up the `FMEAEntry` rows (grouped by `FMEASheet`) — each entry's failure mode, severity/occurrence/detection ratings, computed **RPN**, and recommended actions. `--fmea-sheet <id>` restricts the report to a single sheet; `--json` emits the structured document. `fault-tree render <FaultTree-id>` prints one `FaultTree` as an indented gate/event tree (AND/OR gates, basic events with their `failureRate`/`diagnosticCoverage`); the same λ/DC data feeds the quantitative `metrics` rollup. Both are read-only. See the [safety-analysis guide](../model-guide/safety-analysis.md).
+
+## Diagrams (`render`, `diagram`, `plantuml`)
+
+The model carries native SVG/Mermaid diagram rendering plus a PlantUML companion-file generator.
+
+```bash
+syscribe -m model/ render <diagram_path>                         # one Diagram element → stdout
+syscribe -m model/ diagram <subcommand> [args...]                # SVG generation toolkit
+syscribe -m model/ plantuml [<qname>] [--output <file>|-] [--dry-run]   # generate .puml
+syscribe -m model/ plantuml render [--jar <path>] [--dry-run]    # render .puml → .svg
+```
+
+- **`render <diagram_path>`** renders a single `Diagram` element to stdout — Mermaid or SVG according to its `diagramKind`.
+- **`diagram`** is the SVG toolkit (each subcommand takes `--output <file>` / `-o`, default stdout):
+  - `diagram list [--type <T>] [--namespace <NS>]` — list candidate elements for diagram generation, filtered by comma-separated element types and/or a qualified-name prefix.
+  - `diagram render <qname> [--view full|ports|features|compact|name|requirement] [--include-ports <csv>] [--include-features <csv>] [--min-width <N>]` — render one element with a view preset.
+  - `diagram measure <qnames>` — print computed box dimensions for a comma-separated list of qnames.
+  - `diagram compose <layout.json|qname> [--kind bdd|ibd|arch] [--emit-placement]` — compose a multi-element SVG from a layout file or a `Diagram` element; `--emit-placement` emits the auto-generated placement JSON instead of SVG.
+  - `diagram layout <placement.json|-> [--compose] [--kind bdd|ibd|arch] [--svg <file>]` — resolve a placement file (or stdin via `-`) into a final layout; `--compose` pipes the result into compose and emits SVG to `--svg`.
+  - `diagram seq <qname>` — render a Sequence `Diagram` element to SVG.
+  - `diagram req <root> [--depth N] [--show-verify] [--show-satisfy]` — render a requirement-breakdown tree; `--show-verify` adds verifying TestCases, `--show-satisfy` adds satisfying architecture elements.
+- **`plantuml`** generates PlantUML `.puml` source from `Diagram` elements — batch (every `pumlMode: companion` diagram) or a single `<qname>`; `--output -` writes to stdout, `--dry-run` previews paths. **`plantuml render`** invokes PlantUML on the companion `.puml` files and writes `.svg` alongside, resolving the engine via `--jar` → `[plantuml] jar` in `.syscribe.toml` → `PLANTUML_JAR` → `plantuml` on `PATH`. See `syscribe help plantuml` and `syscribe help diagram`.
 
 ---
 
@@ -700,6 +765,18 @@ $ syscribe -m model/ diff --config CONF-MPS2-WDT --config CONF-M0-BASE
 ```
 
 `validate --config` re-runs the full validation in the lens (coverage, traceability, safety) **and** flags **escaping references** — an active element pointing at one inactive in the variant: structural → `E226` (error), traceability → `W019` (warning). The complementary `feature-check --deep` rules prove this can't happen in *any* valid configuration (`E227`/`W020`), and report dead elements (`W021`) and family-wide coverage gaps (`W022`).
+
+### Materialising build flags (`build-config`)
+
+`build-config` emits a `Configuration`'s resolved feature selection as build-system inputs (e.g. a flags file the firmware build consumes), so the model's product definition drives the toolchain.
+
+```bash
+syscribe -m model/ build-config --config CONF-MPS2-WDT [--format <fmt>] [--prefix <p>] [--no-validate]
+syscribe -m model/ build-config --all-configs [--format json] [--prefix <p>] [--no-validate]
+```
+
+- **`--config <id>`** materialises one Configuration; **`--all-configs`** emits every stored Configuration.
+- **`--format <fmt>`** chooses the output format (default `json`); **`--prefix <p>`** names/prefixes the output; **`--no-validate`** skips the per-variant validation that otherwise runs first.
 
 ---
 
@@ -999,6 +1076,28 @@ Create a new requirement file in one step:
 syscribe -m model_auto/ template Requirement \
   > model_auto/Requirements/Safety/REQ-ENG-SAFE-006.md
 ```
+
+### Scaffold Gherkin scenarios
+
+`scaffold-gherkin <TC>` generates (or aligns) the `## Scenario` Gherkin blocks in a `TestCase` body from its `testFunctions:`, so each declared function has a matching scenario stub.
+
+```bash
+syscribe -m model/ scaffold-gherkin TC-ENG-SAFE-002          # print the aligned body to stdout
+syscribe -m model/ scaffold-gherkin TC-ENG-SAFE-002 --fix    # write the changes back to the file
+```
+
+Without `--fix` it is a read-only preview; with `--fix` it rewrites the file in place (frontmatter preserved). The argument resolves by qualified name or stable `TC-*` id.
+
+### Move / rename an element
+
+`move <source> <dest>` relocates an element or package to a new qualified name and **rewrites every cross-reference** that pointed at it.
+
+```bash
+syscribe -m model/ move System::Software::FuelControl System::Software::FuelGovernor
+syscribe -m model/ move System::Software::FuelControl System::Software::FuelGovernor --dry-run
+```
+
+The source resolves by qualified name or stable id; both positionals are required. `--dry-run` reports the file move plus every reference rewrite without touching disk.
 
 ---
 

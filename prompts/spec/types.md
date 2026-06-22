@@ -74,6 +74,8 @@
 | `type:` | Category | Description |
 |---|---|---|
 | `ADR` | Record | Architecture Decision Record — stable `ADR-*` ID |
+| `ReviewRecord` | Record | Formal review event + traceability anchor — stable `RR-*` ID |
+| `TradeStudy` | Record | Weighted-criteria evaluation of alternatives — stable `TRD-*` ID |
 | `Package` | Namespace | Named container; `_index.md` in a directory |
 | `LibraryPackage` | Namespace | Package marked as a model library |
 | `Namespace` | Namespace | Root namespace; `_index.md` at model root |
@@ -84,6 +86,7 @@
 
 `HazardousEvent` (HE-*) · `SafetyGoal` (SG-*) · `Asset` (ASSET-*) ·
 `DamageScenario` (DS-*) · `ThreatScenario` (TS-*) · `CybersecurityGoal` (CSG-*) ·
+`Zone` (ZN-*) · `Conduit` (CD-*) ·
 `SecurityControl` (SC-*) ·
 `VulnerabilityReport` (VR-*) · `TARASheet` (TARA-*) · `FaultTree` (FT-*) ·
 `FaultTreeGate` (FTG-*) · `FaultTreeEvent` (FTE-*) · `FMEASheet` (FMEA-*) ·
@@ -196,7 +199,7 @@ Body must contain at least one `shall` statement (W001 if absent).
 type: TestCase
 id: TC-UAV-FC-001            # required; TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}
 name: "..."                 # required
-status: active               # draft | active | retired
+status: active               # draft | review | approved | active | retired
 testLevel: L2                # L1–L5
 securityTestMethod: fuzz     # optional (ISO/SAE 21434 §13.3): fuzz · penetration_test ·
                              #   security_regression · vulnerability_scan · threat_modeling (else W809)

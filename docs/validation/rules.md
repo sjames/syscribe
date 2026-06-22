@@ -8,7 +8,10 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 
 | Code | Element | Condition |
 |---|---|---|
+| E000 | — | Internal fallback code for a derive-pass finding whose original code is not one of the recognised derive codes (`E500`/`E501`/`E502`). Should not appear in a healthy model |
+| E002 | Any | Frontmatter is not valid YAML 1.2 (parse error) |
 | E004 | TestCase | `id`, `name`, `status`, or `testLevel` absent |
+| E005 | Any | `type:` value is present but is not in the element type inventory (unrecognised type) |
 | E004 | Requirement | `name` or `status` absent on native Requirement |
 | E006 | Requirement | `id` present but does not match `REQ-*` pattern |
 | E006 | TestCase | `id` present but does not match `TC-*` pattern |
@@ -131,8 +134,6 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 
 Core features (present in every valid configuration) are reported informationally in the `--json` `coreFeatures` list and the text summary. Not implemented: configuration counting and numeric/parameter (SMT) reasoning.
 
-Not yet implemented (specified): group-cardinality rules (`E216`/`E217`/`E218`) and two-level satisfies completeness (`E210`/`E211`).
-
 ## Configuration projection (the `--config` lens, ADR-PROJ-001)
 
 `validate --config <C>` projects the 150% model onto a configuration (or ad-hoc feature set) and re-validates that variant; `feature-check --deep` proves variability integrity across all variants; `validate --all-configs` gates every stored configuration.
@@ -218,13 +219,15 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 - **Not a cross-reference** — `extRef` is an external pointer; it is never a target for `supertype:`/`verifies:`/`derivedFrom:` etc.
 - **Gateable** — `validate --deny W028` exits non-zero when any W028 is present.
 
-## Diagram errors (E400–E402)
+## Diagram errors (E400–E404)
 
 | Code | Condition |
 |---|---|
 | E400 | `diagramKind: Mermaid` but body has no ` ```mermaid ` block |
 | E401 | `diagramKind: PlantUML` but body has no ` ```plantuml ` block |
-| E402 | `svgFile:` path does not exist on disk |
+| E402 | `svgFile:`/companion SVG path does not exist on disk (`svgMode: companion`, or `svgFile:` set without `svgMode`) |
+| E403 | `pumlMode:` declares an unrecognised value (only `companion` is supported) |
+| E404 | `pumlMode: companion` is set but the element has no `diagramKind:` to derive the PlantUML companion from |
 
 ## Diagram warnings (W400–W412)
 
@@ -243,6 +246,9 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W410 | Mermaid `%% link:` annotation does not resolve to a known element |
 | W411 | Shape `link:` value does not resolve to a known element |
 | W412 | SVG `href="..."` attribute does not resolve to any model element file |
+| W413 | `pumlMode: companion` element's body contains no image reference to its rendered PlantUML companion (REQ-TRS-PUML-030) |
+| W414 | `pumlMode: companion` element's `.puml` companion file has not been generated yet — run `plantuml` (REQ-TRS-PUML-031) |
+| W415 | The `[plantuml] style_file` path configured in `.syscribe.toml` does not exist on disk (REQ-TRS-PUML-042) |
 | W080 | `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` in its sub-action tree not referenced by any `edges:` entry (draft-suppressed; `--deny W080`) |
 
 ## State machine warnings (W070–W079, §22.1)
@@ -352,6 +358,15 @@ A model composes peer repositories declared in the `[repos]` table of the model-
 | W510 | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; `--deny W510`). |
 | W511 | A peer repo's git `HEAD` has drifted from its configured `ref:` — checkout is not at the pinned snapshot. Never raised when drift cannot be determined (no git, not a work tree, ref unresolved). Opt-in; `--deny W511` for a CI reproducibility gate. |
 | W512 | A peer repo's `path` is a **git submodule** of the composing model's repo, and its `ref:` resolves to a different commit than the gitlink the parent repo records — `.syscribe.toml` disagrees with `.gitmodules`. Independent of `W511` (gitlink pin vs ref, not checkout vs ref). Never raised when `path` is not a submodule. Opt-in; `--deny W512`. |
+
+## Build-system integration (E050, W050, §9.9)
+
+A `FeatureDef` or `Configuration` may declare `buildExports:` mapping selected features to build-system variables, with `buildOverrides:` resolving conflicts. **Opt-in** — the pass runs only when at least one element declares `buildExports:` or `buildOverrides:`.
+
+| Code | Condition |
+|---|---|
+| E050 | Two selected features export the same `buildExports` variable name and the conflict is not resolved by `buildOverrides:` |
+| W050 | A selected feature contributes no build variable (no `buildExports:` and no parameter with `buildVar:`). Opt-in; gate with `--deny W050` |
 
 ## Allocation errors (E500–E503)
 
@@ -489,6 +504,24 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 | W806 | SafetyGoal has no `hazardousEvents` — not grounded in any hazard analysis |
 | W807 | `Requirement` with `derivedFromSecurityGoal` has no `verificationMethod` |
 
+## Asset identification — ISO/SAE 21434 §15.3 (E861–E864, W810)
+
+An `Asset` (`ASSET-*`) is a model element worth protecting; `DamageScenario.assets:` links a damage scenario to the assets it endangers. See `docs/model-guide/safety-analysis.md`.
+
+| Code | Severity | Condition |
+|---|---|---|
+| E861 | Error | `Asset` is missing `id`, `name`, or `status` |
+| E862 | Error | `Asset.id` does not match the `ASSET-*` pattern (`^ASSET(-[A-Z0-9]{2,12})+-[0-9]{3,}$`) |
+| E863 | Error | `Asset.cybersecurityProperties` entry is not one of `confidentiality · integrity · availability · authenticity` |
+| E864 | Error | a `DamageScenario.assets` entry does not resolve to an `Asset` element (REQ-TRS-TYPE-017) |
+| W810 | Warning | An `Asset` is not referenced by any `DamageScenario.assets` (asset-identification gap; REQ-TRS-TYPE-017) |
+
+## Security test methods — ISO/SAE 21434 §13 (W809)
+
+| Code | Severity | Condition |
+|---|---|---|
+| W809 | Warning | A `TestCase.securityTestMethod` is not a recognised ISO/SAE 21434 §13 test method (REQ-TRS-SEC-008) |
+
 ## Safety↔security co-engineering (E844, W030)
 
 ISO 26262 ⇄ ISO/SAE 21434 cross-domain checks. A `DamageScenario`/`ThreatScenario` may declare `hazardRef:` (string or list) pointing to the `HazardousEvent`/`SafetyGoal` it endangers. See `docs/model-guide/safety-analysis.md` and `syscribe -m <root> co-analysis`.
@@ -572,7 +605,7 @@ one** of the two sources declares a non-empty `ffiRationale:` string, OR carries
 
 See `docs/model-guide/safety-analysis.md`.
 
-## Confirmation measures & DIA/CIA responsibility (E847–E851, W038, W039)
+## Confirmation measures & DIA/CIA responsibility (E847–E851, E860, W038, W039)
 
 ISO 26262-2 §6 confirmation measures, ISO 26262-8 §5 Development Interface Agreement (DIA),
 and ISO/SAE 21434 §7 Cybersecurity Interface Agreement (CIA). Both checks are **opt-in**.
@@ -595,12 +628,13 @@ Lower integrity levels are documented as future tightening and are not gated.
 | E849 | Error | `measureType` is not one of `confirmation_review · functional_safety_audit · functional_safety_assessment · cybersecurity_assessment` |
 | E850 | Error | `independenceLevel` is not one of `I1 · I2 · I3` |
 | E851 | Error | a `confirms:` ref does not resolve to any model element |
+| E860 | Error | a `ConfirmationMeasure.confirms` ref resolves to an element that is not a `SafetyGoal`, `CybersecurityGoal`, `HazardousEvent`, or native `Requirement` (REQ-TRS-SEC-005) |
 | W038 | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. **Opt-in:** dormant unless some element declares `responsibility:`. Gate with `--deny W038`; promotable via `[profiles]` |
 | W039 | Warning | A high-integrity item lacks its required independent assessment: an `asilLevel: D` **or `silLevel: 3`/`silLevel: 4`** `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment` (ISO 26262-2 §6 / IEC 61508-1 §8); or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039`; promotable via `[profiles]` |
 
 See `docs/model-guide/safety-analysis.md`.
 
-## GSN safety-argument layer (E852–E858, W040)
+## GSN safety-argument layer (E852–E859, W040)
 
 The Goal Structuring Notation (GSN) argument layer (issue #20). `Argument` (`ARG-*`)
 nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
@@ -618,13 +652,14 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 | E855 | Error | an `Argument.supports` or `Argument.evidence` ref does not resolve to any model element |
 | W040 | Warning | a `claim`/`strategy` `Argument` has **both** an empty `supports` and an empty `evidence` (an orphan GSN node arguing nothing) |
 
-### AssumptionOfUse (E856–E858)
+### AssumptionOfUse (E856–E859)
 
 | Code | Severity | Condition |
 |---|---|---|
 | E856 | Error | `AssumptionOfUse` is missing `id`, `name`, or `status` |
 | E857 | Error | `AssumptionOfUse.id` does not match the `AOU-*` pattern |
 | E858 | Error | an `AssumptionOfUse.appliesTo` ref does not resolve to any model element |
+| E859 | Error | an `AssumptionOfUse.appliesTo` ref resolves to an element that is not a `SafetyGoal`, `CybersecurityGoal`, `Argument`, or `Requirement` (REQ-TRS-SEC-004) |
 
 See `docs/model-guide/safety-analysis.md`.
 
@@ -641,7 +676,7 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 | E865 | Error | ASIL D / SIL 4 decomposition siblings (uniformly-lower children) share a `satisfies:` target — channels must be architecturally independent (§22.3) |
 | W860 | Warning | An ASIL D / SIL 4 requirement has a single uniformly-lower child — a decomposition needs ≥2 independent channels (§22.3) |
 
-## Tier 4 — Fault Tree Analysis (E900–E910, W900–W901)
+## Tier 4 — Fault Tree Analysis (E900–E909, W900–W901)
 
 ### FaultTree (E900–E902, W900)
 
@@ -691,6 +726,8 @@ FMEAEntry elements are synthesised at parse time from each row in a `FMEASheet.e
 | E922 | An `entries:` row contains an unrecognised key — the field is silently ignored, which constitutes silent data loss in a safety analysis (error-level) |
 | W903 | Computed RPN (fmeaSeverity × occurrence × detection) exceeds 100 and no `recommendedAction` is set |
 | W904 | Entry `ref` field does not resolve to a known model element |
+| W926 | A `FaultTreeEvent.fmeaRef` does not resolve to a known `FMEAEntry` (FTA↔FMEA cross-link) |
+| W927 | An `FMEAEntry.ftaRef` does not resolve to a known `FaultTreeEvent` (FMEA↔FTA cross-link) |
 
 The canonical severity key is **`fmeaSeverity:`** (camelCase, integer 1–10). The deprecated alias `severity:` is accepted and silently mapped for backward compatibility. RPN is computed automatically as `fmeaSeverity × occurrence × detection` when `rpn:` is absent; an explicit `rpn:` overrides the computed value.
 

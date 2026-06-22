@@ -83,13 +83,14 @@ All frontmatter fields. Optional unless marked **required**.
 
 ## State machines
 
-| Field | Applies to | Type |
-|---|---|---|
-| `entryAction` | StateDef/State | string or map |
-| `doAction` | StateDef/State | string or map |
-| `exitAction` | StateDef/State | string or map |
-| `subStates` | StateDef/State | list |
-| `transitions` | StateDef/State | list |
+| Field | Applies to | Type | Notes |
+|---|---|---|---|
+| `entryAction` | StateDef/State | string or map | Behaviour on entry |
+| `doAction` | StateDef/State | string or map | Ongoing behaviour |
+| `exitAction` | StateDef/State | string or map | Behaviour on exit |
+| `isParallel` | StateDef/State | bool | Parallel (orthogonal) region container |
+| `subStates` | StateDef/State | list | Nested states; each may itself carry `transitions`/`subStates` |
+| `transitions` | StateDef/State | list | Each entry: `source` · `target` · `accept` (event/payload) · `guard`. The deprecated spellings `from`/`to`/`trigger` still parse but warn **W075** — prefer `source`/`target`/`accept`. |
 
 ## Constraints and expressions
 
@@ -173,14 +174,28 @@ All frontmatter fields. Optional unless marked **required**.
 | `satisfiedBy` | ViewpointDef | list |
 | `methods` | ViewpointDef | list |
 
+## Diagrams (`type: Diagram`)
+
+| Field | Applies to | Type | Notes |
+|---|---|---|---|
+| `diagramKind` | Diagram | string | `BDD` · `IBD` · `StateMachine` · `Sequence` · `Requirement` · `Mermaid` · `PlantUML` |
+| `subject` | Diagram | string | QName of the element the diagram depicts (W401 if unresolved) |
+| `pumlMode` | Diagram | string | Only value: `companion` (E403 otherwise). Generates a `.puml` via `syscribe plantuml`, rendered to SVG by `syscribe plantuml render`. Requires `diagramKind` (E404) and an `<img>` tag in the body (W413); `.puml` must exist (W414). |
+| `pumlFile` | Diagram | string | Path to the `.puml` companion source |
+| `svgMode` | Diagram | string | `companion` (composed-SVG workflow) · `inline` (embedded SVG in body) |
+| `svgFile` | Diagram | string | Path to a pre-rendered SVG companion |
+| `shapes` | Diagram | map | Shape-id → `{ref, kind, parent}` (shape `ref:` warns W402 if unresolved) |
+| `edges` | Diagram | map | Edge-id → `{source, target, kind}` (source/target warn W403 if not a shape-id) |
+
 ## Packaging and imports
 
-| Field | Applies to | Type |
-|---|---|---|
-| `imports` | Package | list |
-| `aliases` | All | list |
-| `filterCondition` | Package | string |
-| `dependsOn` | All | list |
+| Field | Applies to | Type | Notes |
+|---|---|---|---|
+| `imports` | Package | list | Import declarations |
+| `aliases` | All | list | Alias declarations |
+| `filterCondition` | Package | string | KerML opaque package filter |
+| `dependsOn` | All | list | Dependency edges |
+| `repoImports` | Package `_index.md` | list | Multi-repo composition (§14, opt-in): each `{repo, qname, as}` mounts a peer-repo subtree. `repo` is an alias from `[repos]` in `.syscribe.toml` (E513), `qname` the element/package in that repo (E514), `as` the local mount name. Inert unless `[repos]` is configured. |
 
 ## Miscellaneous
 
@@ -191,6 +206,8 @@ All frontmatter fields. Optional unless marked **required**.
 | `values` | EnumerationDef | list | **required** |
 | `annotates` | MetadataDef | list | Restricts what types this metadata may annotate |
 | `itemType` | FlowDef | string | QName of the item type flowing |
+| `responsibility` | All work products | string | Accountable party/organisation (ISO 26262-8 §5 DIA/CIA split); drives W038. Opt-in. |
+| `ffiRationale` | PartDef/Part/etc. | string | Freedom-from-interference argument for mixed-criticality on a shared resource; suppresses W034. Opt-in. |
 
 ## Custom fields
 

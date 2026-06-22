@@ -2,7 +2,7 @@
 
 `GUIDE · TRACEABILITY`
 
-Section §12 of the format spec defines six enforced traceability rules. All are checked by the validator.
+Section §12 of the format spec defines seven enforced traceability rules. All are checked by the validator.
 
 ## Rule 1 — OSLC link direction (§12.1)
 
