@@ -13,6 +13,14 @@ use crate::resolver::{
     is_vr_id, Resolver,
 };
 
+/// Matches `href="..."` attributes in an embedded SVG block. Compiled once
+/// (clippy::regex_creation_in_loops — it is consulted inside the per-element loop).
+static HREF_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+
+fn href_re() -> &'static regex::Regex {
+    HREF_RE.get_or_init(|| regex::Regex::new(r#"href="([^"]+)""#).unwrap())
+}
+
 /// A single validation finding.
 #[derive(Debug, Clone)]
 pub struct Finding {
@@ -107,10 +115,10 @@ fn collect_message_actions(sub_actions: &[serde_yaml::Value], out: &mut Vec<Stri
     for sa in sub_actions {
         let serde_yaml::Value::Mapping(m) = sa else { continue };
         let kind = m
-            .get(&serde_yaml::Value::String("kind".into()))
+            .get(serde_yaml::Value::String("kind".into()))
             .and_then(|v| v.as_str());
         let name = m
-            .get(&serde_yaml::Value::String("name".into()))
+            .get(serde_yaml::Value::String("name".into()))
             .and_then(|v| v.as_str());
         if let (Some(k), Some(n)) = (kind, name) {
             if k == "SendAction" || k == "AcceptAction" {
@@ -119,7 +127,7 @@ fn collect_message_actions(sub_actions: &[serde_yaml::Value], out: &mut Vec<Stri
         }
         for branch in ["then", "else", "subActions"] {
             if let Some(serde_yaml::Value::Sequence(seq)) =
-                m.get(&serde_yaml::Value::String(branch.into()))
+                m.get(serde_yaml::Value::String(branch.into()))
             {
                 collect_message_actions(seq, out);
             }
@@ -146,7 +154,7 @@ struct StateEdge {
 
 /// Read a string-keyed field from a YAML mapping.
 fn yaml_field<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a serde_yaml::Value> {
-    m.get(&serde_yaml::Value::String(k.to_string()))
+    m.get(serde_yaml::Value::String(k.to_string()))
 }
 
 /// Extract the transition edges contributed by a substate roster (each substate's
@@ -731,6 +739,45 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // W046: malformed `[ids.prefixes]` config (REQ-TRS-ID-007). Reported once, before
+    // any per-element id check. An unknown element-type key or a prefix not matching
+    // `^[A-Z][A-Z0-9]{1,11}$` is skipped by the resolver; surface it so the author
+    // knows the intended prefix is not in effect. Keys are sorted for stable output.
+    if !config.id_extra_prefixes.is_empty() {
+        let cfg_file = config
+            .model_root
+            .as_ref()
+            .map(|r| r.join(".syscribe.toml").display().to_string())
+            .unwrap_or_else(|| ".syscribe.toml".to_string());
+        let mut types: Vec<&String> = config.id_extra_prefixes.keys().collect();
+        types.sort();
+        for type_name in types {
+            if !crate::resolver::is_stable_id_type_name(type_name) {
+                findings.push(warning(
+                    "W046",
+                    &cfg_file,
+                    &format!(
+                        "[ids.prefixes] key '{}' is not an id-identified element type — entry ignored",
+                        type_name
+                    ),
+                ));
+                continue;
+            }
+            for prefix in &config.id_extra_prefixes[type_name] {
+                if !crate::resolver::is_valid_id_prefix(prefix) {
+                    findings.push(warning(
+                        "W046",
+                        &cfg_file,
+                        &format!(
+                            "[ids.prefixes] prefix '{}' for type '{}' is malformed (expected uppercase, 2–12 chars, starting with a letter) — prefix ignored",
+                            prefix, type_name
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+
     let resolver = Resolver::new(elements);
 
     // Segments some element claims as its own name (covers element names and
@@ -776,7 +823,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.test_level.is_none() {
                 findings.push(error("E004", &file, "`testLevel` is required on TestCase"));
             }
-            if fm.verifies.as_ref().map_or(true, |v| v.is_empty()) {
+            if fm.verifies.as_ref().is_none_or(|v| v.is_empty()) {
                 findings.push(error("E013", &file, "`verifies` must have at least one entry on TestCase"));
             }
         }
@@ -880,27 +927,27 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 .chain(fm.connections.iter().flatten())
             {
                 if let serde_yaml::Value::Mapping(m) = v {
-                    if let Some(tb) = m.get(&k("typedBy")) {
+                    if let Some(tb) = m.get(k("typedBy")) {
                         type_refs.extend(yaml_strings(tb));
                     }
                 }
             }
             for v in fm.parameters.iter().flatten() {
                 if let serde_yaml::Value::Mapping(m) = v {
-                    if let Some(t) = m.get(&k("type")) {
+                    if let Some(t) = m.get(k("type")) {
                         type_refs.extend(yaml_strings(t));
                     }
                 }
             }
             for op in fm.operations.iter().flatten() {
                 if let serde_yaml::Value::Mapping(m) = op {
-                    if let Some(rt) = m.get(&k("returnType")) {
+                    if let Some(rt) = m.get(k("returnType")) {
                         type_refs.extend(yaml_strings(rt));
                     }
-                    if let Some(serde_yaml::Value::Sequence(params)) = m.get(&k("parameters")) {
+                    if let Some(serde_yaml::Value::Sequence(params)) = m.get(k("parameters")) {
                         for p in params {
                             if let serde_yaml::Value::Mapping(pm) = p {
-                                if let Some(tb) = pm.get(&k("typedBy")) {
+                                if let Some(tb) = pm.get(k("typedBy")) {
                                     type_refs.extend(yaml_strings(tb));
                                 }
                             }
@@ -933,10 +980,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             for v in fm.features.iter().flatten().chain(fm.parameters.iter().flatten()) {
                 if let serde_yaml::Value::Mapping(m) = v {
                     let q = m
-                        .get(&kk("typedBy"))
-                        .or_else(|| m.get(&kk("type")))
+                        .get(kk("typedBy"))
+                        .or_else(|| m.get(kk("type")))
                         .and_then(|x| x.as_str());
-                    let u = m.get(&kk("unit")).and_then(|x| x.as_str());
+                    let u = m.get(kk("unit")).and_then(|x| x.as_str());
                     if let (Some(q), Some(u)) = (q, u) {
                         if let (Some(qd), Some(ud)) = (quantity_dimension(q), unit_dimension(u)) {
                             if qd != ud {
@@ -1905,11 +1952,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
 
         // E011: TestCase must have a gherkin block
-        if matches!(fm.element_type, Some(ElementType::TestCase)) {
-            if !elem.doc.contains("```gherkin") {
+        if matches!(fm.element_type, Some(ElementType::TestCase))
+            && !elem.doc.contains("```gherkin") {
                 findings.push(error("E011", &file, "TestCase body has no ```gherkin fenced block"));
             }
-        }
 
         // E012: native Requirement normative text must be non-empty
         if let Some(ElementType::Requirement) = &fm.element_type {
@@ -1927,11 +1973,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
 
         // E015: first gherkin block must have Feature: line
-        if matches!(fm.element_type, Some(ElementType::TestCase)) {
-            if !first_gherkin_has_feature(&elem.doc) {
+        if matches!(fm.element_type, Some(ElementType::TestCase))
+            && !first_gherkin_has_feature(&elem.doc) {
                 findings.push(error("E015", &file, "first ```gherkin block has no Feature: line"));
             }
-        }
 
         // W001: normative text should contain "shall"
         if let Some(ElementType::Requirement) = &fm.element_type {
@@ -1975,7 +2020,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     ),
                     crate::config::SourceLocation::Remote(uri) => {
                         let miss = match &config.remote_hook {
-                            Some(hook) => !hook.fetch(&uri).map_or(false, |p| p.exists()),
+                            Some(hook) => !hook.fetch(&uri).is_some_and(|p| p.exists()),
                             None => false, // remote, no hook: accepted, not checked
                         };
                         (
@@ -2205,7 +2250,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.review_type.is_none() {
                 findings.push(error("E700", &file, "`reviewType` is required on ReviewRecord"));
             }
-            if fm.reviews.as_ref().map_or(true, |r| r.is_empty()) {
+            if fm.reviews.as_ref().is_none_or(|r| r.is_empty()) {
                 findings.push(error("E700", &file, "`reviews` (at least one covered element) is required on ReviewRecord"));
             }
             // E701: id pattern.
@@ -2395,11 +2440,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
 
         // W304: isDeploymentPackage: true combined with domain: hardware
-        if fm.is_deployment_package == Some(true) {
-            if fm.domain.as_deref() == Some("hardware") {
+        if fm.is_deployment_package == Some(true)
+            && fm.domain.as_deref() == Some("hardware") {
                 findings.push(warning("W304", &file, "`isDeploymentPackage: true` combined with `domain: hardware` — deployment packages must be software"));
             }
-        }
 
         // ── Diagram checks (E4xx / W4xx) ─────────────────────────────────────
 
@@ -2444,7 +2488,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             }
                         } else if let Some(rest) = trimmed.strip_prefix("%% link:") {
                             // Format: %% link: NodeId QualifiedName
-                            let qn = rest.trim().splitn(2, ' ').nth(1).map(|s| s.trim()).unwrap_or("");
+                            let qn = rest.trim().split_once(' ').map(|x| x.1).map(|s| s.trim()).unwrap_or("");
                             if !qn.is_empty() && resolver.resolve_ref(elements, qn).is_none() {
                                 findings.push(warning(
                                     "W410",
@@ -2504,10 +2548,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             };
             let validate_shape_link = |attrs: &serde_yaml::Mapping, findings: &mut Vec<Finding>| {
-                let link_qn: Option<&str> = match attrs.get(&serde_yaml::Value::String("link".into())) {
+                let link_qn: Option<&str> = match attrs.get(serde_yaml::Value::String("link".into())) {
                     Some(serde_yaml::Value::String(s)) if !s.is_empty() => Some(s.as_str()),
                     Some(serde_yaml::Value::Bool(true)) => attrs
-                        .get(&serde_yaml::Value::String("ref".into()))
+                        .get(serde_yaml::Value::String("ref".into()))
                         .and_then(|v| v.as_str()),
                     _ => None,
                 };
@@ -2526,7 +2570,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     for shape_val in shapes_map.values() {
                         if let serde_yaml::Value::Mapping(attrs) = shape_val {
                             if let Some(serde_yaml::Value::String(ref_str)) =
-                                attrs.get(&serde_yaml::Value::String("ref".into()))
+                                attrs.get(serde_yaml::Value::String("ref".into()))
                             {
                                 validate_shape_ref(ref_str, &mut findings);
                             }
@@ -2538,7 +2582,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     for shape_val in shapes_seq {
                         if let serde_yaml::Value::Mapping(attrs) = shape_val {
                             if let Some(serde_yaml::Value::String(ref_str)) =
-                                attrs.get(&serde_yaml::Value::String("ref".into()))
+                                attrs.get(serde_yaml::Value::String("ref".into()))
                             {
                                 validate_shape_ref(ref_str, &mut findings);
                             }
@@ -2561,7 +2605,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         .unwrap_or(std::path::Path::new("."))
                         .to_string_lossy()
                         .into_owned();
-                    let href_re = regex::Regex::new(r#"href="([^"]+)""#).unwrap();
+                    let href_re = href_re();
                     for cap in href_re.captures_iter(svg) {
                         let href = &cap[1];
                         // Skip external and anchor-only links
@@ -2592,7 +2636,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     .iter()
                     .filter_map(|sh| {
                         if let serde_yaml::Value::Mapping(m) = sh {
-                            m.get(&serde_yaml::Value::String("id".into()))
+                            m.get(serde_yaml::Value::String("id".into()))
                                 .and_then(|v| v.as_str())
                                 .map(|s| s.to_string())
                         } else {
@@ -2606,7 +2650,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 let validate_edge = |edge_attrs: &serde_yaml::Mapping, findings: &mut Vec<Finding>| {
                     for field in &["source", "target"] {
                         if let Some(serde_yaml::Value::String(ref_str)) =
-                            edge_attrs.get(&serde_yaml::Value::String((*field).into()))
+                            edge_attrs.get(serde_yaml::Value::String((*field).into()))
                         {
                             if !shape_ids.contains(ref_str.as_str()) {
                                 findings.push(warning(
@@ -2670,7 +2714,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                 for v in edge_vals {
                                     if let serde_yaml::Value::Mapping(a) = v {
                                         if let Some(r) = a
-                                            .get(&serde_yaml::Value::String("ref".into()))
+                                            .get(serde_yaml::Value::String("ref".into()))
                                             .and_then(|x| x.as_str())
                                         {
                                             edge_refs.insert(r);
@@ -2973,7 +3017,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     for v in seq {
                         if let serde_yaml::Value::Mapping(m) = v {
                             if let Some(serde_yaml::Value::String(id)) =
-                                m.get(&serde_yaml::Value::String("id".into()))
+                                m.get(serde_yaml::Value::String("id".into()))
                             {
                                 ids.insert(id.clone());
                             }
@@ -3061,12 +3105,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             for feat_val in feats {
                 if let serde_yaml::Value::Mapping(ref feat) = *feat_val {
                     let feat_type = feat
-                        .get(&serde_yaml::Value::String("type".into()))
+                        .get(serde_yaml::Value::String("type".into()))
                         .and_then(|v| v.as_str())
                         .unwrap_or("");
                     if feat_type == "Allocation" {
                         if let Some(serde_yaml::Value::String(ref from_str)) =
-                            feat.get(&serde_yaml::Value::String("allocatedFrom".into()))
+                            feat.get(serde_yaml::Value::String("allocatedFrom".into()))
                         {
                             if resolver.resolve_ref(elements, from_str).is_none() {
                                 findings.push(error(
@@ -3077,7 +3121,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             }
                         }
                         if let Some(serde_yaml::Value::String(ref to_str)) =
-                            feat.get(&serde_yaml::Value::String("allocatedTo".into()))
+                            feat.get(serde_yaml::Value::String("allocatedTo".into()))
                         {
                             if resolver.resolve_ref(elements, to_str).is_none() {
                                 findings.push(error(
@@ -3177,7 +3221,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     let ref_str = match exp_val {
                         serde_yaml::Value::String(s) => Some(s.as_str()),
                         serde_yaml::Value::Mapping(map) => map
-                            .get(&serde_yaml::Value::String("ref".into()))
+                            .get(serde_yaml::Value::String("ref".into()))
                             .and_then(|v| v.as_str()),
                         _ => None,
                     };
@@ -3199,12 +3243,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             for op_val in ops {
                 if let serde_yaml::Value::Mapping(ref op) = *op_val {
                     if let Some(serde_yaml::Value::Sequence(ref params)) =
-                        op.get(&serde_yaml::Value::String("parameters".into()))
+                        op.get(serde_yaml::Value::String("parameters".into()))
                     {
                         for param_val in params {
                             if let serde_yaml::Value::Mapping(ref param) = *param_val {
                                 if let Some(serde_yaml::Value::String(ref typed_by)) =
-                                    param.get(&serde_yaml::Value::String("typedBy".into()))
+                                    param.get(serde_yaml::Value::String("typedBy".into()))
                                 {
                                     if resolver.resolve_ref(elements, typed_by).is_none()
                                         && matches!(
@@ -3228,7 +3272,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     }
                     // also check returnType
                     if let Some(serde_yaml::Value::String(ref ret)) =
-                        op.get(&serde_yaml::Value::String("returnType".into()))
+                        op.get(serde_yaml::Value::String("returnType".into()))
                     {
                         if resolver.resolve_ref(elements, ret).is_none()
                             && matches!(
@@ -3283,7 +3327,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             // W901: gate with no inputs is a dead end
-            if fm.inputs.as_ref().map_or(true, |v| v.is_empty()) {
+            if fm.inputs.as_ref().is_none_or(|v| v.is_empty()) {
                 findings.push(warning("W901", &file, "FaultTreeGate has no `inputs` — it contributes nothing to the fault tree"));
             }
         }
@@ -3338,7 +3382,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // W901-analog: gate with no inputs is a dead end (reuses W036 family? no —
             // mirror FTA's W901 shape but keep W036 for the empty-tree warning). A
             // gate with no inputs contributes nothing.
-            if fm.inputs.as_ref().map_or(true, |v| v.is_empty()) {
+            if fm.inputs.as_ref().is_none_or(|v| v.is_empty()) {
                 findings.push(warning("W037", &file, "AttackTreeGate has no `inputs` — it contributes nothing to the attack tree"));
             }
         }
@@ -3371,7 +3415,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             // W902: empty sheet
-            if fm.entries.as_ref().map_or(true, |v| v.is_empty()) {
+            if fm.entries.as_ref().is_none_or(|v| v.is_empty()) {
                 findings.push(warning("W902", &file, "FMEASheet has no `entries` — add at least one failure mode row"));
             }
         }
@@ -3419,10 +3463,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             // W905: empty sheet — all four tables absent or empty
-            let all_empty = fm.damage_table.as_ref().map_or(true, |v| v.is_empty())
-                && fm.threat_table.as_ref().map_or(true, |v| v.is_empty())
-                && fm.goal_table.as_ref().map_or(true, |v| v.is_empty())
-                && fm.control_table.as_ref().map_or(true, |v| v.is_empty());
+            let all_empty = fm.damage_table.as_ref().is_none_or(|v| v.is_empty())
+                && fm.threat_table.as_ref().is_none_or(|v| v.is_empty())
+                && fm.goal_table.as_ref().is_none_or(|v| v.is_empty())
+                && fm.control_table.as_ref().is_none_or(|v| v.is_empty());
             if all_empty {
                 findings.push(warning("W905", &file, "TARASheet has no rows in any section table — add damageTable, threatTable, goalTable, or controlTable entries"));
             }
@@ -3587,7 +3631,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             for tf in fns {
                 if let Some(serde_yaml::Value::Mapping(map)) = Some(tf) {
                     if let Some(serde_yaml::Value::String(scenario)) =
-                        map.get(&serde_yaml::Value::String("scenario".into()))
+                        map.get(serde_yaml::Value::String("scenario".into()))
                     {
                         if !scenarios.contains(scenario.as_str()) {
                             findings.push(error(
@@ -3629,7 +3673,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             })
             .unwrap_or_default();
 
-        let is_parent = derived_children.get(req_id).map_or(false, |v| !v.is_empty());
+        let is_parent = derived_children.get(req_id).is_some_and(|v| !v.is_empty());
         match status {
             // W002: leaf requirements at approved/implemented need an active TestCase.
             // Parent requirements (those with derivedChildren) are verified by
@@ -3771,7 +3815,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 resolver
                     .get_by_id(elements, tc_id)
                     .and_then(|e| e.frontmatter.test_level.as_deref())
-                    .map_or(false, |lvl| matches!(lvl, "L3" | "L4" | "L5"))
+                    .is_some_and(|lvl| matches!(lvl, "L3" | "L4" | "L5"))
             });
             if !has_integration_tc {
                 findings.push(warning(
@@ -3786,8 +3830,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
 
         // W005: orphan (no derivedFrom and no derivedChildren)
-        let has_parent = elem.frontmatter.derived_from.as_ref().map_or(false, |v| !v.is_empty());
-        let has_children = derived_children.get(req_id).map_or(false, |v| !v.is_empty());
+        let has_parent = elem.frontmatter.derived_from.as_ref().is_some_and(|v| !v.is_empty());
+        let has_children = derived_children.get(req_id).is_some_and(|v| !v.is_empty());
         if !has_parent && !has_children {
             findings.push(warning(
                 "W005",
@@ -4157,8 +4201,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
         for elem in elements {
-            if is_type_def(elem) {
-                if !referenced_defs.contains(&elem.qualified_name) {
+            if is_type_def(elem)
+                && !referenced_defs.contains(&elem.qualified_name) {
                     findings.push(warning(
                         "W007",
                         &elem.file_path,
@@ -4168,7 +4212,6 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         ),
                     ));
                 }
-            }
         }
     }
 
@@ -4414,12 +4457,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 .clone()
                 .unwrap_or_else(|| cfg.qualified_name.clone());
             for (rid, rexpr, rkeys) in &reqs {
-                let active = rexpr.as_ref().map_or(true, |e| e.eval(&selected));
+                let active = rexpr.as_ref().is_none_or(|e| e.eval(&selected));
                 if !active {
                     continue;
                 }
                 let covered = tcs.iter().any(|(texpr, verifies)| {
-                    let runs = texpr.as_ref().map_or(true, |e| e.eval(&selected));
+                    let runs = texpr.as_ref().is_none_or(|e| e.eval(&selected));
                     runs && verifies.iter().any(|v| rkeys.iter().any(|k| k == v))
                 });
                 if !covered {
@@ -4777,7 +4820,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     for elem in elements {
         if Resolver::is_hazardous_event(elem) {
             let referenced = he_referenced.contains(&elem.qualified_name)
-                || elem.frontmatter.id.as_ref().map_or(false, |id| he_referenced.contains(id));
+                || elem.frontmatter.id.as_ref().is_some_and(|id| he_referenced.contains(id));
             if !referenced {
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W800", &elem.file_path,
@@ -4791,7 +4834,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if Resolver::is_safety_goal(elem) {
             let has_he = elem.frontmatter.hazardous_events
                 .as_ref()
-                .map_or(false, |v| !v.is_empty());
+                .is_some_and(|v| !v.is_empty());
             if !has_he {
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W806", &elem.file_path,
@@ -4846,7 +4889,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     for elem in elements {
         if Resolver::is_cybersecurity_goal(elem) {
             let implemented = csg_implemented.contains(&elem.qualified_name)
-                || elem.frontmatter.id.as_ref().map_or(false, |id| csg_implemented.contains(id));
+                || elem.frontmatter.id.as_ref().is_some_and(|id| csg_implemented.contains(id));
             if !implemented {
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W802", &elem.file_path,
@@ -4859,7 +4902,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     for elem in elements {
         if Resolver::is_cybersecurity_goal(elem) {
             let has_req = csg_derived_reqs.contains(&elem.qualified_name)
-                || elem.frontmatter.id.as_ref().map_or(false, |id| csg_derived_reqs.contains(id));
+                || elem.frontmatter.id.as_ref().is_some_and(|id| csg_derived_reqs.contains(id));
             if !has_req {
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W804", &elem.file_path,
@@ -4872,7 +4915,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     for elem in elements {
         if Resolver::is_asset(elem) {
             let referenced = asset_referenced.contains(&elem.qualified_name)
-                || elem.frontmatter.id.as_ref().map_or(false, |id| asset_referenced.contains(id));
+                || elem.frontmatter.id.as_ref().is_some_and(|id| asset_referenced.contains(id));
             if !referenced {
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W810", &elem.file_path,
@@ -4920,7 +4963,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     .frontmatter
                     .id
                     .as_ref()
-                    .map_or(false, |id| addressed.contains(id));
+                    .is_some_and(|id| addressed.contains(id));
             if !has_treatment && !is_addressed {
                 let id = ts.frontmatter.id.as_deref().unwrap_or(&ts.qualified_name);
                 findings.push(warning(
@@ -4985,7 +5028,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     for elem in elements {
         if Resolver::is_safety_goal(elem) {
             let has_req = sg_derived_reqs.contains(&elem.qualified_name)
-                || elem.frontmatter.id.as_ref().map_or(false, |id| sg_derived_reqs.contains(id));
+                || elem.frontmatter.id.as_ref().is_some_and(|id| sg_derived_reqs.contains(id));
             if !has_req {
                 let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
                 findings.push(warning("W805", &elem.file_path,
@@ -5160,7 +5203,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // directly — so the "no satisfier" sub-condition applies to leaf
             // requirements only (GH #34; mirrors the W002 parent suppression).
             let req_id = fm.id.as_deref().unwrap_or(&elem.qualified_name);
-            let is_parent = derived_children.get(req_id).map_or(false, |v| !v.is_empty());
+            let is_parent = derived_children.get(req_id).is_some_and(|v| !v.is_empty());
 
             let mut reasons: Vec<&str> = Vec::new();
             if fm.status.as_deref() == Some("draft") {
@@ -5200,17 +5243,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         let fm = &elem.frontmatter;
 
         // E310: native Requirement with derivedFrom must have breakdownAdr
-        if Resolver::is_native_requirement(elem) {
-            if fm.derived_from.as_ref().map_or(false, |v| !v.is_empty()) {
-                if fm.breakdown_adr.is_none() {
+        if Resolver::is_native_requirement(elem)
+            && fm.derived_from.as_ref().is_some_and(|v| !v.is_empty())
+                && fm.breakdown_adr.is_none() {
                     findings.push(error(
                         "E310",
                         &elem.file_path,
                         "Requirement has `derivedFrom` but no `breakdownAdr`",
                     ));
                 }
-            }
-        }
 
         // E311: breakdownAdr must resolve to an ADR
         if let Some(ref adr_ref) = fm.breakdown_adr {
@@ -5249,11 +5290,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // E312: a parent requirement (has derivedChildren) must not appear in any satisfies list
         if Resolver::is_native_requirement(elem) {
             let req_id = fm.id.as_deref().unwrap_or("");
-            let is_parent = derived_children.get(req_id).map_or(false, |c| !c.is_empty());
+            let is_parent = derived_children.get(req_id).is_some_and(|c| !c.is_empty());
             if is_parent {
                 let qn = &elem.qualified_name;
                 let in_satisfies = satisfied_reqs.contains_key(qn.as_str())
-                    || (req_id != "" && satisfied_reqs.contains_key(req_id));
+                    || (!req_id.is_empty() && satisfied_reqs.contains_key(req_id));
                 if in_satisfies {
                     findings.push(error(
                         "E312",
@@ -5439,8 +5480,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
         for elem in elements {
-            if elem.frontmatter.is_deployment_package == Some(true) {
-                if !hw_alloc_targets.contains(&elem.qualified_name) {
+            if elem.frontmatter.is_deployment_package == Some(true)
+                && !hw_alloc_targets.contains(&elem.qualified_name) {
                     findings.push(error(
                         "E314",
                         &elem.file_path,
@@ -5450,7 +5491,6 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         ),
                     ));
                 }
-            }
         }
     }
 
@@ -5488,7 +5528,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     .frontmatter
                     .ffi_rationale
                     .as_deref()
-                    .map_or(false, |s| !s.trim().is_empty())
+                    .is_some_and(|s| !s.trim().is_empty())
                 {
                     return true;
                 }
@@ -5539,7 +5579,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     continue; // a target with <2 sources cannot host a sharing
                 }
                 let target_elem = resolver.get(elements, target_qn);
-                let target_has_ffi = target_elem.map_or(false, has_ffi_arg);
+                let target_has_ffi = target_elem.is_some_and(has_ffi_arg);
 
                 let srcs: Vec<&String> = sources.iter().collect();
                 for i in 0..srcs.len() {
@@ -5581,7 +5621,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             continue;
         }
         let req_id = elem.frontmatter.id.as_deref().unwrap_or("");
-        let is_parent = derived_children.get(req_id).map_or(false, |c| !c.is_empty());
+        let is_parent = derived_children.get(req_id).is_some_and(|c| !c.is_empty());
         if is_parent {
             continue; // only check leaf requirements
         }
@@ -6282,8 +6322,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 continue;
             }
             let key = index_key(elem);
-            let is_refined = refined_by.get(&key).map_or(false, |v| !v.is_empty());
-            let is_derived = derived_children.get(&key).map_or(false, |v| !v.is_empty());
+            let is_refined = refined_by.get(&key).is_some_and(|v| !v.is_empty());
+            let is_derived = derived_children.get(&key).is_some_and(|v| !v.is_empty());
             if !is_refined && !is_derived {
                 findings.push(warning(
                     "MG080",
@@ -6369,7 +6409,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 continue;
             }
             let key = index_key(elem);
-            let refined = mop_refined_by.get(&key).map_or(false, |v| !v.is_empty());
+            let refined = mop_refined_by.get(&key).is_some_and(|v| !v.is_empty());
             if !refined {
                 findings.push(warning(
                     "MG083",
@@ -6897,10 +6937,10 @@ pub fn allocation_edges_tagged(
             for feat_val in feats {
                 if let serde_yaml::Value::Mapping(ref feat) = *feat_val {
                     let from = feat
-                        .get(&serde_yaml::Value::String("allocatedFrom".into()))
+                        .get(serde_yaml::Value::String("allocatedFrom".into()))
                         .and_then(|v| v.as_str());
                     let to = feat
-                        .get(&serde_yaml::Value::String("allocatedTo".into()))
+                        .get(serde_yaml::Value::String("allocatedTo".into()))
                         .and_then(|v| v.as_str());
                     if let (Some(from), Some(to)) = (from, to) {
                         if let (Some(f), Some(t)) = (resolve(from), resolve(to)) {

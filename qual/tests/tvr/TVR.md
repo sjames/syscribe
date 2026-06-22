@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 246 |
-| Passed | 246 |
+| Total test cases | 247 |
+| Passed | 247 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -746,6 +746,17 @@
 | Scenario | Result |
 |---|---|
 | a stable-id-shaped reference resolving to nothing raises E209 | ✓ PASS |
+
+---
+
+### TC-TRS-ID-007 — Verify configurable additional stable-ID prefixes via [ids.prefixes]: additive, per-type, id-resolvable, digit-capped, W046 on malformed config.
+
+**Verifies:** REQ-TRS-ID-007  
+**Result:** ✓ PASS (13 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| malformed config: unknown type and bad prefix raise W046, good sibling works | ✓ PASS |
 
 ---
 

@@ -2362,6 +2362,8 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 - Prefix `REQ`, one or more uppercase-alphanumeric segments (2–12 chars each), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
 - Examples: `REQ-SCHED-001`, `REQ-SCHED-BITMAP-001`, `REQ-BRAKE-CTRL-003`
 
+> **Configurable additional prefixes (`[ids.prefixes]`).** The built-in prefix above is not the only one a type may accept. A project may add extra stable-ID prefixes per element type in the `[ids.prefixes]` table of `<model_root>/.syscribe.toml` — keyed by element-type name (`Requirement`, `TestCase`, …), each value a list of prefixes. Extra prefixes are **additive** (the built-in always stays valid) and **pure identity** (they affect only id recognition and id-based resolution; no other field is implied). Each prefix must match `^[A-Z][A-Z0-9]{1,11}$`; an additional prefix `P` accepts the same id grammar as the type's built-in with `P` substituted, and the `[ids] max_digits` cap (`E023`) applies equally. An entry keyed by a non-id-identified type, or a prefix failing the prefix grammar, raises warning `W046` and is ignored (well-formed siblings still apply). Example: `Requirement = ["STK", "SYS"]` makes `STK-SCHED-001` and `SYS-SCHED-001` valid `Requirement` ids alongside `REQ-SCHED-001`.
+
 **Body structure:**
 
 The body is free-form Markdown. The **normative statement** is the leading prose — all content before the first `##` heading. The parser extracts this as the canonical requirement text.

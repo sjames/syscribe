@@ -1,0 +1,6 @@
+# Frobnicate is not a known id-identified type -> W046; entry ignored.
+# "st-k" is a malformed prefix (lowercase + hyphen) -> W046; ignored.
+# "GOOD" is well-formed and still takes effect for Requirement.
+[ids.prefixes]
+Frobnicate = ["XX"]
+Requirement = ["st-k", "GOOD"]

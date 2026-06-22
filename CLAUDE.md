@@ -174,6 +174,8 @@ SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file pat
 
 Both the `id` field and the qualified name (path-derived) are valid cross-reference targets in `verifies:` and `derivedFrom:`.
 
+**Configurable additional prefixes** — every id-identified type accepts its built-in prefix (`REQ`, `TC`, `ADR`, … `FEAT`); a project may declare **extra** prefixes per type in the `[ids.prefixes]` table of `.syscribe.toml`, keyed by element-type name. They are **additive** (the built-in always stays valid) and **pure identity** (they affect only id validation/resolution). Each prefix must match `^[A-Z][A-Z0-9]{1,11}$`; a malformed or unknown-type entry raises warning `W046` and is ignored. Example: `[ids.prefixes]` with `Requirement = ["STK", "SYS"]` makes `STK-SCHED-001` and `SYS-SCHED-001` valid `Requirement` ids alongside `REQ-SCHED-001`. (REQ-TRS-ID-007.)
+
 ---
 
 ## Part 1B — Native Requirement and TestCase Elements

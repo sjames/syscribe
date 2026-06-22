@@ -13,8 +13,8 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E004 | TestCase | `id`, `name`, `status`, or `testLevel` absent |
 | E005 | Any | `type:` value is present but is not in the element type inventory (unrecognised type) |
 | E004 | Requirement | `name` or `status` absent on native Requirement |
-| E006 | Requirement | `id` present but does not match `REQ-*` pattern |
-| E006 | TestCase | `id` present but does not match `TC-*` pattern |
+| E006 | Requirement | `id` present but matches neither the built-in `REQ-*` pattern nor any prefix configured for `Requirement` in `[ids.prefixes]` (see W046) |
+| E006 | TestCase | `id` present but matches neither the built-in `TC-*` pattern nor any prefix configured for `TestCase` in `[ids.prefixes]` |
 | E007 | Requirement | `status` is not one of `draft · review · approved · implemented · verified` |
 | E007 | TestCase | `status` is not one of `draft · review · approved · active · retired` |
 | E008 | TestCase | `testLevel` is not one of `L1 · L2 · L3 · L4 · L5` |
@@ -29,7 +29,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E020 | Any | `verificationMethod` is not one of `test · inspection · analysis · demonstration` |
 | E021 | Any | `coverageTarget` is not one of `statement · branch · MCDC` |
 | E022 | Any | `requirementKind` is not one of `stakeholder · system · software · hardware` |
-| E023 | Any (stable id) | The numeric suffix is longer than the configured maximum (`[ids] max_digits` in `.syscribe.toml`, default 8; minimum 3 enforced by E006) |
+| E023 | Any (stable id) | The numeric suffix is longer than the configured maximum (`[ids] max_digits` in `.syscribe.toml`, default 8; minimum 3 enforced by E006). Applies identically to ids under a configured additional prefix (see W046) |
 | E024 | — | **RETIRED.** Formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is **no longer emitted** — a `Requirement` carrying `id` + `name` validates clean. |
 | E025 | Any element | The removed `title:` field is declared on an element (id-identified or name-identified alike) — the `title` field is removed; rename it to `name`. (A `FeatureDef` carries `name` as its label and a mandatory `FEAT-*` `id` — see `E201` — the `id` and label axes are independent.) |
 
@@ -867,6 +867,20 @@ resolve.
 | Code | Condition |
 |---|---|
 | W042 | A qualified-name segment — an element's own name or a package/directory name — is not a SysMLv2 basic name (`[A-Za-z_][A-Za-z0-9_]*`) and is not a stable id; rename using `_` or CamelCase. Hyphenated names cannot be referenced in `appliesWhen`/`parameterConstraints` (`-` is the subtraction operator). |
+
+## Additional stable-ID prefixes (W046)
+
+Each id-identified element type accepts a built-in prefix (`REQ` for `Requirement`, `TC` for `TestCase`, … `FEAT` for `FeatureDef`). A project may declare **additional** prefixes per type in the `[ids.prefixes]` table of `<model_root>/.syscribe.toml` — keyed by element-type name, each value a list of extra prefixes. Extras are strictly **additive** (the built-in always stays valid) and **pure identity** (they affect only id validation and id-based resolution — `reqClass`, `domain`, etc. are untouched). Each prefix must match `^[A-Z][A-Z0-9]{1,11}$`.
+
+```toml
+[ids.prefixes]
+Requirement = ["STK", "SYS"]   # STK-SCHED-001 and SYS-SCHED-001 are now valid Requirement ids
+TestCase    = ["QT"]
+```
+
+| Code | Condition |
+|---|---|
+| W046 | An `[ids.prefixes]` entry is malformed: the key is not an id-identified element type, **or** a prefix string does not match `^[A-Z][A-Z0-9]{1,11}$` (uppercase, 2–12 chars, starting with a letter). The offending entry/prefix is ignored; well-formed siblings still take effect. |
 
 ## Built-in standard-library types (W043, W044)
 

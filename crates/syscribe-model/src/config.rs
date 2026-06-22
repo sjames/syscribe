@@ -84,6 +84,15 @@ pub struct ValidateConfig {
     /// Empty (the default) means single-repo: the `E510`–`E515`/`W510` block and
     /// all cross-repo resolution are inert, so single-repo models are unaffected.
     pub repos: Vec<LoadedRepo>,
+
+    /// REQ-TRS-ID-007 — additional stable-ID prefixes accepted per element type,
+    /// from the `[ids.prefixes]` table of `<model_root>/.syscribe.toml`. Keyed by
+    /// element-type name (`type:`), each value a list of extra prefixes added to the
+    /// built-in (which always stays valid). Empty (the default) means built-in
+    /// prefixes only. The validator reports unknown keys / malformed prefixes as
+    /// `W046`; [`Self::with_model_root`] also installs the well-formed entries into
+    /// the resolver so every `is_*_id` check recognises them.
+    pub id_extra_prefixes: HashMap<String, Vec<String>>,
 }
 
 /// One entry in the `[repos]` table of `.syscribe.toml` (§14.2, REQ-TRS-TYPE-021).
@@ -256,6 +265,10 @@ struct PathsToml {
 struct IdsToml {
     #[serde(default, alias = "maxDigits")]
     max_digits: Option<usize>,
+    /// REQ-TRS-ID-007 — `[ids.prefixes]`: additional stable-ID prefixes per element
+    /// type, keyed by type name (`Requirement`, `TestCase`, …).
+    #[serde(default)]
+    prefixes: HashMap<String, Vec<String>>,
 }
 
 /// The `[scripts]` table of `.syscribe.toml` (REQ-TRS-SCRIPT-001). `path` is the
@@ -403,6 +416,11 @@ impl ValidateConfig {
         let results = ResultsData::load_sidecar(&root);
         let repo_root = resolve_repo_root(&root);
         let id_max_digits = resolve_id_max_digits(&root);
+        let id_extra_prefixes = resolve_id_prefixes(&root);
+        // REQ-TRS-ID-007 — install the well-formed additional prefixes into the
+        // resolver so every `is_*_id` / `is_stable_id` check recognises them. An empty
+        // map clears any previously installed set, keeping built-in-only behaviour.
+        crate::resolver::set_extra_id_prefixes_by_type(&id_extra_prefixes);
         let links = load_links(&root);
         let scripts_dir = Some(resolve_scripts_dir(&root));
         let repos = load_repos(&root);
@@ -418,6 +436,7 @@ impl ValidateConfig {
             links,
             scripts_dir,
             repos,
+            id_extra_prefixes,
         }
     }
 
@@ -620,6 +639,18 @@ fn resolve_scripts_dir(model_root: &Path) -> PathBuf {
 fn resolve_id_max_digits(model_root: &Path) -> Option<usize> {
     let text = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok()?;
     toml::from_str::<PathsToml>(&text).ok()?.ids.max_digits
+}
+
+/// Read `[ids.prefixes]` from `<model_root>/.syscribe.toml` (REQ-TRS-ID-007). Returns
+/// the raw type-name → extra-prefix map (empty when unset or unparseable); the
+/// validator reports malformed entries as `W046` and the resolver compiles the
+/// well-formed ones.
+fn resolve_id_prefixes(model_root: &Path) -> HashMap<String, Vec<String>> {
+    std::fs::read_to_string(model_root.join(".syscribe.toml"))
+        .ok()
+        .and_then(|text| toml::from_str::<PathsToml>(&text).ok())
+        .map(|cfg| cfg.ids.prefixes)
+        .unwrap_or_default()
 }
 
 /// Load the `[links]` table from `<model_root>/.syscribe.toml` (REQ-TRS-LINK-001).

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::RwLock;
 use crate::element::{ElementType, RawElement};
 
 static REQ_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
@@ -113,7 +114,7 @@ fn asset_re() -> &'static regex::Regex {
 
 /// Returns true for ASSET-* IDs (REQ-TRS-TYPE-017).
 pub fn is_asset_id(s: &str) -> bool {
-    asset_re().is_match(s)
+    asset_re().is_match(s) || extra_matches("ASSET", s)
 }
 
 fn feat_re() -> &'static regex::Regex {
@@ -124,7 +125,124 @@ fn feat_re() -> &'static regex::Regex {
 
 /// Returns true for FEAT-* IDs (optional FeatureDef stable id, REQ-TRS-ID-006).
 pub fn is_feat_id(s: &str) -> bool {
-    feat_re().is_match(s)
+    feat_re().is_match(s) || extra_matches("FEAT", s)
+}
+
+// ── Configurable additional stable-ID prefixes (REQ-TRS-ID-007) ──────────────────
+//
+// Each id-identified type has a fixed built-in prefix; a project may declare *extra*
+// prefixes per type in `[ids.prefixes]` of `.syscribe.toml`. Extras are strictly
+// additive (the built-in always stays valid) and pure identity (they affect only id
+// recognition / id-based resolution). The registry below is installed once from the
+// loaded config; when empty (the default) behaviour is identical to built-in only.
+
+/// The id-identified element types, each paired with its built-in stable-ID prefix and
+/// whether its ids require a trailing numeric suffix (every type except `FeatureDef`,
+/// REQ-TRS-ID-006). Single source of truth: the type name is the `[ids.prefixes]` key,
+/// the built-in prefix keys the runtime registry, and the suffix flag selects the
+/// grammar used to compile an additional prefix.
+pub const STABLE_ID_KINDS: &[(&str, &str, bool)] = &[
+    ("Requirement", "REQ", true),
+    ("TestCase", "TC", true),
+    ("TestPlan", "TP", true),
+    ("Configuration", "CONF", true),
+    ("ADR", "ADR", true),
+    ("ReviewRecord", "RR", true),
+    ("TradeStudy", "TRD", true),
+    ("Zone", "ZN", true),
+    ("Conduit", "CD", true),
+    ("ConfirmationMeasure", "CM", true),
+    ("HazardousEvent", "HE", true),
+    ("SafetyGoal", "SG", true),
+    ("DamageScenario", "DS", true),
+    ("ThreatScenario", "TS", true),
+    ("CybersecurityGoal", "CSG", true),
+    ("SecurityControl", "SC", true),
+    ("VulnerabilityReport", "VR", true),
+    ("Asset", "ASSET", true),
+    ("TARASheet", "TARA", true),
+    ("FaultTree", "FT", true),
+    ("FaultTreeGate", "FTG", true),
+    ("FaultTreeEvent", "FTE", true),
+    ("FMEASheet", "FMEA", true),
+    ("FMEAEntry", "FM", true),
+    ("AttackTree", "AT", true),
+    ("AttackTreeGate", "ATG", true),
+    ("AttackStep", "ATS", true),
+    ("Argument", "ARG", true),
+    ("AssumptionOfUse", "AOU", true),
+    ("FeatureDef", "FEAT", false),
+];
+
+static PREFIX_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+
+/// True when `s` is a well-formed stable-ID prefix: uppercase, starting with a letter,
+/// 2–12 characters (`^[A-Z][A-Z0-9]{1,11}$`) — the shape of every built-in prefix and
+/// the rule a configured additional prefix must satisfy (REQ-TRS-ID-007).
+pub fn is_valid_id_prefix(s: &str) -> bool {
+    PREFIX_RE
+        .get_or_init(|| regex::Regex::new(r"^[A-Z][A-Z0-9]{1,11}$").unwrap())
+        .is_match(s)
+}
+
+/// True when `name` is an element-type name that carries a stable id (an accepted
+/// `[ids.prefixes]` key).
+pub fn is_stable_id_type_name(name: &str) -> bool {
+    STABLE_ID_KINDS.iter().any(|(ty, _, _)| *ty == name)
+}
+
+/// Compiled additional stable-ID prefixes (REQ-TRS-ID-007), keyed by the **built-in**
+/// prefix of the type they extend (e.g. `"REQ"`). Installed from `.syscribe.toml` via
+/// [`set_extra_id_prefixes_by_type`]; empty (the default) means built-in prefixes only.
+static EXTRA_PREFIXES: std::sync::OnceLock<RwLock<HashMap<String, Vec<regex::Regex>>>> =
+    std::sync::OnceLock::new();
+
+fn extra_registry() -> &'static RwLock<HashMap<String, Vec<regex::Regex>>> {
+    EXTRA_PREFIXES.get_or_init(|| RwLock::new(HashMap::new()))
+}
+
+/// Install the configured additional stable-ID prefixes, replacing any previous set.
+/// `by_type` is keyed by element-type name (`[ids.prefixes]` form). Unknown type names
+/// and prefixes failing [`is_valid_id_prefix`] are silently skipped here (the validator
+/// reports them as `W046`); an empty map clears all extras.
+pub fn set_extra_id_prefixes_by_type(by_type: &HashMap<String, Vec<String>>) {
+    let mut compiled: HashMap<String, Vec<regex::Regex>> = HashMap::new();
+    for (type_name, builtin, requires_suffix) in STABLE_ID_KINDS {
+        let Some(extras) = by_type.get(*type_name) else { continue };
+        let mut res = Vec::new();
+        for p in extras {
+            if !is_valid_id_prefix(p) {
+                continue;
+            }
+            let pat = if *requires_suffix {
+                format!(r"^{p}(-[A-Z0-9]{{2,12}})+-[0-9]{{3,}}$")
+            } else {
+                format!(r"^{p}(-[A-Z0-9]{{2,12}})+$")
+            };
+            if let Ok(re) = regex::Regex::new(&pat) {
+                res.push(re);
+            }
+        }
+        if !res.is_empty() {
+            compiled.insert((*builtin).to_string(), res);
+        }
+    }
+    if let Ok(mut w) = extra_registry().write() {
+        *w = compiled;
+    }
+}
+
+/// True when `s` matches any configured additional prefix registered under built-in
+/// prefix `builtin` (REQ-TRS-ID-007).
+fn extra_matches(builtin: &str, s: &str) -> bool {
+    let Ok(map) = extra_registry().read() else { return false };
+    map.get(builtin).is_some_and(|res| res.iter().any(|re| re.is_match(s)))
+}
+
+/// True when `s` matches any configured additional prefix for any type.
+fn any_extra_matches(s: &str) -> bool {
+    let Ok(map) = extra_registry().read() else { return false };
+    map.values().any(|res| res.iter().any(|re| re.is_match(s)))
 }
 
 /// The **auto-imported** SysMLv2 standard-library packages whose membership is fully
@@ -221,29 +339,30 @@ pub fn is_stable_id(s: &str) -> bool {
         || arg_re().is_match(s)
         || aou_re().is_match(s)
         || feat_re().is_match(s)
+        || any_extra_matches(s)
 }
 
 /// Returns true for HE-* IDs (HazardousEvent).
-pub fn is_he_id(s: &str) -> bool { he_re().is_match(s) }
+pub fn is_he_id(s: &str) -> bool { he_re().is_match(s) || extra_matches("HE", s) }
 /// Returns true for SG-* IDs (SafetyGoal).
-pub fn is_sg_id(s: &str) -> bool { sg_re().is_match(s) }
+pub fn is_sg_id(s: &str) -> bool { sg_re().is_match(s) || extra_matches("SG", s) }
 /// Returns true for DS-* IDs (DamageScenario).
-pub fn is_ds_id(s: &str) -> bool { ds_re().is_match(s) }
+pub fn is_ds_id(s: &str) -> bool { ds_re().is_match(s) || extra_matches("DS", s) }
 /// Returns true for TS-* IDs (ThreatScenario).
-pub fn is_ts_id(s: &str) -> bool { ts_re().is_match(s) }
+pub fn is_ts_id(s: &str) -> bool { ts_re().is_match(s) || extra_matches("TS", s) }
 /// Returns true for CSG-* IDs (CybersecurityGoal).
-pub fn is_csg_id(s: &str) -> bool { csg_re().is_match(s) }
+pub fn is_csg_id(s: &str) -> bool { csg_re().is_match(s) || extra_matches("CSG", s) }
 /// Returns true for SC-* IDs (SecurityControl).
-pub fn is_sc_id(s: &str) -> bool { sc_re().is_match(s) }
+pub fn is_sc_id(s: &str) -> bool { sc_re().is_match(s) || extra_matches("SC", s) }
 /// Returns true for VR-* IDs (VulnerabilityReport).
-pub fn is_vr_id(s: &str) -> bool { vr_re().is_match(s) }
+pub fn is_vr_id(s: &str) -> bool { vr_re().is_match(s) || extra_matches("VR", s) }
 
 fn tara_re() -> &'static regex::Regex {
     TARA_RE.get_or_init(|| regex::Regex::new(r"^TARA(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
 }
 
 /// Returns true for TARA-* IDs (TARASheet).
-pub fn is_tara_id(s: &str) -> bool { tara_re().is_match(s) }
+pub fn is_tara_id(s: &str) -> bool { tara_re().is_match(s) || extra_matches("TARA", s) }
 
 fn ft_re() -> &'static regex::Regex {
     FT_RE.get_or_init(|| regex::Regex::new(r"^FT(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
@@ -262,15 +381,15 @@ fn fm_re() -> &'static regex::Regex {
 }
 
 /// Returns true for FT-* IDs (FaultTree).
-pub fn is_ft_id(s: &str) -> bool { ft_re().is_match(s) }
+pub fn is_ft_id(s: &str) -> bool { ft_re().is_match(s) || extra_matches("FT", s) }
 /// Returns true for FTG-* IDs (FaultTreeGate).
-pub fn is_ftg_id(s: &str) -> bool { ftg_re().is_match(s) }
+pub fn is_ftg_id(s: &str) -> bool { ftg_re().is_match(s) || extra_matches("FTG", s) }
 /// Returns true for FTE-* IDs (FaultTreeEvent).
-pub fn is_fte_id(s: &str) -> bool { fte_re().is_match(s) }
+pub fn is_fte_id(s: &str) -> bool { fte_re().is_match(s) || extra_matches("FTE", s) }
 /// Returns true for FMEA-* IDs (FMEASheet).
-pub fn is_fmea_id(s: &str) -> bool { fmea_re().is_match(s) }
+pub fn is_fmea_id(s: &str) -> bool { fmea_re().is_match(s) || extra_matches("FMEA", s) }
 /// Returns true for FM-* IDs (FMEAEntry).
-pub fn is_fm_id(s: &str) -> bool { fm_re().is_match(s) }
+pub fn is_fm_id(s: &str) -> bool { fm_re().is_match(s) || extra_matches("FM", s) }
 
 fn at_re() -> &'static regex::Regex {
     AT_RE.get_or_init(|| regex::Regex::new(r"^AT(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
@@ -290,65 +409,65 @@ fn aou_re() -> &'static regex::Regex {
 }
 
 /// Returns true for ARG-* IDs (Argument).
-pub fn is_arg_id(s: &str) -> bool { arg_re().is_match(s) }
+pub fn is_arg_id(s: &str) -> bool { arg_re().is_match(s) || extra_matches("ARG", s) }
 /// Returns true for AOU-* IDs (AssumptionOfUse).
-pub fn is_aou_id(s: &str) -> bool { aou_re().is_match(s) }
+pub fn is_aou_id(s: &str) -> bool { aou_re().is_match(s) || extra_matches("AOU", s) }
 
 /// Returns true for AT-* IDs (AttackTree).
-pub fn is_at_id(s: &str) -> bool { at_re().is_match(s) }
+pub fn is_at_id(s: &str) -> bool { at_re().is_match(s) || extra_matches("AT", s) }
 /// Returns true for ATG-* IDs (AttackTreeGate).
-pub fn is_atg_id(s: &str) -> bool { atg_re().is_match(s) }
+pub fn is_atg_id(s: &str) -> bool { atg_re().is_match(s) || extra_matches("ATG", s) }
 /// Returns true for ATS-* IDs (AttackStep).
-pub fn is_ats_id(s: &str) -> bool { ats_re().is_match(s) }
+pub fn is_ats_id(s: &str) -> bool { ats_re().is_match(s) || extra_matches("ATS", s) }
 
 /// Returns true for ADR-* IDs.
 pub fn is_adr_id(s: &str) -> bool {
-    adr_re().is_match(s)
+    adr_re().is_match(s) || extra_matches("ADR", s)
 }
 
 /// Returns true for RR-* IDs (ReviewRecord).
 pub fn is_rr_id(s: &str) -> bool {
-    rr_re().is_match(s)
+    rr_re().is_match(s) || extra_matches("RR", s)
 }
 
 /// Returns true for TRD-* IDs (TradeStudy).
 pub fn is_trd_id(s: &str) -> bool {
-    trd_re().is_match(s)
+    trd_re().is_match(s) || extra_matches("TRD", s)
 }
 
 /// Returns true for ZN-* IDs (Zone).
 pub fn is_zn_id(s: &str) -> bool {
-    zn_re().is_match(s)
+    zn_re().is_match(s) || extra_matches("ZN", s)
 }
 
 /// Returns true for CD-* IDs (Conduit).
 pub fn is_cd_id(s: &str) -> bool {
-    cd_re().is_match(s)
+    cd_re().is_match(s) || extra_matches("CD", s)
 }
 
 /// Returns true for CM-* IDs (ConfirmationMeasure).
 pub fn is_cm_id(s: &str) -> bool {
-    cm_re().is_match(s)
+    cm_re().is_match(s) || extra_matches("CM", s)
 }
 
 /// Returns true for REQ-* IDs.
 pub fn is_req_id(s: &str) -> bool {
-    req_re().is_match(s)
+    req_re().is_match(s) || extra_matches("REQ", s)
 }
 
 /// Returns true for TC-* IDs.
 pub fn is_tc_id(s: &str) -> bool {
-    tc_re().is_match(s)
+    tc_re().is_match(s) || extra_matches("TC", s)
 }
 
 /// Returns true for TP-* IDs (TestPlan).
 pub fn is_test_plan_id(s: &str) -> bool {
-    tp_re().is_match(s)
+    tp_re().is_match(s) || extra_matches("TP", s)
 }
 
 /// Returns true for CONF-* IDs.
 pub fn is_conf_id(s: &str) -> bool {
-    conf_re().is_match(s)
+    conf_re().is_match(s) || extra_matches("CONF", s)
 }
 
 pub struct Resolver {
