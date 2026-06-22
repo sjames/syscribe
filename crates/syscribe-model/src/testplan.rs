@@ -37,9 +37,9 @@ fn is_testcase(elem: &RawElement) -> bool {
 
 /// The `reqDomain:` values reachable from a TestCase's `verifies:` targets.
 /// Used to evaluate a `selection.domains` constraint transitively.
-fn testcase_domains<'a>(
+fn testcase_domains(
     tc: &RawElement,
-    elements: &'a [RawElement],
+    elements: &[RawElement],
     resolver: &Resolver,
 ) -> HashSet<String> {
     let mut out = HashSet::new();

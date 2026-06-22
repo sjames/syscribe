@@ -45,7 +45,7 @@ pub async fn list_elements(
                 e.frontmatter
                     .element_type
                     .as_ref()
-                    .map_or(false, |t| format!("{:?}", t).eq_ignore_ascii_case(tf))
+                    .is_some_and(|t| format!("{:?}", t).eq_ignore_ascii_case(tf))
             } else {
                 true
             }

@@ -85,11 +85,11 @@ impl IncludeFilter {
     }
 
     pub fn port_allowed(&self, name: &str) -> bool {
-        self.ports.as_ref().map_or(true, |list| list.iter().any(|n| n == name))
+        self.ports.as_ref().is_none_or(|list| list.iter().any(|n| n == name))
     }
 
     pub fn feature_allowed(&self, name: &str) -> bool {
-        self.features.as_ref().map_or(true, |list| list.iter().any(|n| n == name))
+        self.features.as_ref().is_none_or(|list| list.iter().any(|n| n == name))
     }
 
     /// Serialize to a JSON-compatible map for `effective_include` output.

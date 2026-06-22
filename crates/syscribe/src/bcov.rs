@@ -29,7 +29,7 @@ fn path_under(child: &str, parent: &str) -> bool {
 }
 
 /// Qualified names an element's `typedBy:` / `supertype:` / `allocatedTo:` point to (resolved).
-fn refs_of<'a>(v: &Option<serde_yaml::Value>, resolver: &Resolver, elements: &'a [RawElement]) -> Vec<String> {
+fn refs_of(v: &Option<serde_yaml::Value>, resolver: &Resolver, elements: &[RawElement]) -> Vec<String> {
     let raw: Vec<&str> = match v {
         Some(serde_yaml::Value::String(s)) => vec![s.as_str()],
         Some(serde_yaml::Value::Sequence(seq)) => seq.iter().filter_map(|x| x.as_str()).collect(),

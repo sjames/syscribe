@@ -21,7 +21,7 @@ fn disp(e: &RawElement) -> String {
 }
 
 fn sval<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a serde_yaml::Value> {
-    m.get(&serde_yaml::Value::String(k.to_string()))
+    m.get(serde_yaml::Value::String(k.to_string()))
 }
 
 /// Resolve a connection endpoint feature chain (e.g. `power.mainPowerOut`) to the axis

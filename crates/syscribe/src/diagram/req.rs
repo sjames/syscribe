@@ -590,6 +590,7 @@ fn compute_spans(
 }
 
 /// Assign absolute (x, y) top-left positions to each node in the subtree.
+#[allow(clippy::too_many_arguments)]
 fn assign_positions(
     qname: &str,
     span_left: f64,

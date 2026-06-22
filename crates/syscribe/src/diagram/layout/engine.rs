@@ -788,11 +788,9 @@ fn render_ibd_port(
         // Inner sub-port squares, stacked inside the outer frame
         for (i, sub) in row.sub_ports.iter().enumerate() {
             let inner_y = frame_y + PORT_INNER_PAD + i as f64 * (PORT_SQ_INNER + PORT_INNER_PAD);
-            let inner_x = if is_left {
-                frame_x + (fw - PORT_SQ_INNER) / 2.0
-            } else {
-                frame_x + (fw - PORT_SQ_INNER) / 2.0
-            };
+            // Inner sub-port squares are horizontally centred in the frame on both
+            // borders, so the x is the same regardless of `is_left`.
+            let inner_x = frame_x + (fw - PORT_SQ_INNER) / 2.0;
             let inner_color = sub.direction.color();
             svg_parts.push(format!(
                 "<rect x=\"{ix:.1}\" y=\"{iy:.1}\" width=\"{sz:.0}\" height=\"{sz:.0}\" \

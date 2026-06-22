@@ -213,12 +213,16 @@ pub fn solve_layout(elements: &[RawElement], placement: &PlacementFile) -> Resol
     }
 
     // Preferred positions (WEAK): push towards compact, minimum-area packing.
+    // The index drives a cumulative `(0..c)` width sum, so an iterator rewrite would
+    // not be clearer.
+    #[allow(clippy::needless_range_loop)]
     for c in 0..=max_col as usize {
         let ideal: f64 = (0..c)
             .map(|i| col_max_w.get(&(i as u32)).copied().unwrap_or(160.0) + COL_GAP)
             .sum();
         solver.add_constraint(col_vars[c] | EQ(WEAK) | ideal).unwrap();
     }
+    #[allow(clippy::needless_range_loop)]
     for r in 0..=max_row as usize {
         let ideal: f64 = (0..r)
             .map(|i| row_max_h.get(&(i as u32)).copied().unwrap_or(80.0) + ROW_GAP)

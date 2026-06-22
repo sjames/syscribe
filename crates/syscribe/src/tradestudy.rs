@@ -13,7 +13,7 @@ fn id_of(e: &RawElement) -> &str {
 }
 
 fn sval<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a serde_yaml::Value> {
-    m.get(&serde_yaml::Value::String(k.to_string()))
+    m.get(serde_yaml::Value::String(k.to_string()))
 }
 fn snum(v: &serde_yaml::Value) -> Option<f64> {
     match v {

@@ -91,8 +91,8 @@ fn replace_whole_token(text: &str, old: &str, new: &str) -> String {
     while let Some(pos) = rest.find(old) {
         let before = &rest[..pos];
         let after = &rest[pos + old.len()..];
-        let prev_ok = before.chars().next_back().map_or(true, |c| !is_q(c));
-        let next_ok = after.chars().next().map_or(true, |c| !is_q(c));
+        let prev_ok = before.chars().next_back().is_none_or(|c| !is_q(c));
+        let next_ok = after.chars().next().is_none_or(|c| !is_q(c));
         out.push_str(before);
         out.push_str(if prev_ok && next_ok { new } else { old });
         rest = after;
@@ -265,7 +265,7 @@ pub fn cmd_move(
         .filter(|e| e.file_type().is_file())
     {
         let p = entry.path();
-        if p.extension().map_or(false, |x| x.eq_ignore_ascii_case("svg")) {
+        if p.extension().is_some_and(|x| x.eq_ignore_ascii_case("svg")) {
             let pb = p.to_path_buf();
             if !seen.insert(pb.clone()) {
                 continue;

@@ -16,7 +16,7 @@ pub fn derive_qname(rel_path: &Path) -> String {
         let is_last = i + 1 == total;
         if is_last {
             // File component
-            let stem = if s.ends_with(".md") { &s[..s.len() - 3] } else { &s };
+            let stem = s.strip_suffix(".md").unwrap_or(&s);
             if stem == "_index" {
                 // Don't add a segment — the directory name is already added
             } else {
@@ -86,7 +86,7 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
         .into_iter()
         .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
-        .filter(|e| e.path().extension().map_or(false, |ext| ext == "md"))
+        .filter(|e| e.path().extension().is_some_and(|ext| ext == "md"))
         .filter(|e| {
             if ignore_patterns.is_empty() { return true; }
             let rel = e.path().strip_prefix(model_root).unwrap_or(e.path());
@@ -100,8 +100,8 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
         let da = a.components().count();
         let db = b.components().count();
         da.cmp(&db).then_with(|| {
-            let a_is_index = a.file_name().map_or(false, |n| n == "_index.md");
-            let b_is_index = b.file_name().map_or(false, |n| n == "_index.md");
+            let a_is_index = a.file_name().is_some_and(|n| n == "_index.md");
+            let b_is_index = b.file_name().is_some_and(|n| n == "_index.md");
             b_is_index.cmp(&a_is_index).then_with(|| a.cmp(b))
         })
     });
@@ -246,17 +246,17 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
 
             // Helpers for extracting typed values from the mapping
             let str_val = |key: &str| -> Option<String> {
-                map.get(&serde_yaml::Value::String(key.into()))
+                map.get(serde_yaml::Value::String(key.into()))
                     .and_then(|v| v.as_str())
                     .map(String::from)
             };
             let u8_val = |key: &str| -> Option<u8> {
-                map.get(&serde_yaml::Value::String(key.into()))
+                map.get(serde_yaml::Value::String(key.into()))
                     .and_then(|v| v.as_u64())
                     .map(|n| n.min(255) as u8)
             };
             let strings_val = |key: &str| -> Option<Vec<String>> {
-                match map.get(&serde_yaml::Value::String(key.into())) {
+                match map.get(serde_yaml::Value::String(key.into())) {
                     Some(serde_yaml::Value::String(s)) => Some(vec![s.clone()]),
                     Some(serde_yaml::Value::Sequence(seq)) => Some(
                         seq.iter().filter_map(|v| v.as_str().map(String::from)).collect(),
@@ -283,7 +283,7 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
             let rpn: Option<u32> = match (s, o, d) {
                 (Some(sv), Some(oc), Some(dt)) => Some(sv as u32 * oc as u32 * dt as u32),
                 _ => map
-                    .get(&serde_yaml::Value::String("rpn".into()))
+                    .get(serde_yaml::Value::String("rpn".into()))
                     .and_then(|v| v.as_u64())
                     .map(|n| n as u32),
             };

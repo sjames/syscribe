@@ -292,7 +292,7 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
                 return; // need at least two distinct endpoints to form an edge
             }
             for &other in rest {
-                graph.add_edge(first, other, kind.clone());
+                graph.add_edge(first, other, kind);
             }
         };
 
@@ -334,7 +334,7 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
             if let Some(entries) = list {
                 for entry in entries {
                     let ends = entry_endpoints(entry);
-                    add_wiring(ends, kind.clone(), &mut graph);
+                    add_wiring(ends, kind, &mut graph);
                 }
             }
         }
@@ -510,7 +510,7 @@ pub fn connectivity_subgraph(
                 continue;
             }
             if seen.insert((e.source(), t, e.weight().name())) {
-                edges.push((graph[e.source()].clone(), graph[t].clone(), e.weight().clone()));
+                edges.push((graph[e.source()].clone(), graph[t].clone(), *e.weight()));
             }
         }
     }

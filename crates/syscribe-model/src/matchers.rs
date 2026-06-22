@@ -24,7 +24,7 @@ use serde::Deserialize;
 /// `classname#method` → `method`, `Suite.Name` → `Name`.
 pub fn function_leaf(function_ref: &str) -> &str {
     function_ref
-        .rsplit(|c| c == ':' || c == '.' || c == '#' || c == '/')
+        .rsplit([':', '.', '#', '/'])
         .find(|s| !s.is_empty())
         .unwrap_or(function_ref)
 }

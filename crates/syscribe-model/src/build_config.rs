@@ -186,19 +186,14 @@ pub fn resolve(elements: &[RawElement], conf_id: &str) -> Result<BuildConfigResu
     // ── E050: detect conflicts among selected features ────────────────────────
     // Build the override key set (vars that buildOverrides will cover) so we can
     // suppress E050 for those. We need to read buildOverrides before the check.
-    let override_keys: std::collections::HashSet<String> = if let Some(ref ov) =
-        cfg.frontmatter.build_overrides
-    {
-        if let serde_yaml::Value::Mapping(m) = ov {
+    let override_keys: std::collections::HashSet<String> =
+        if let Some(serde_yaml::Value::Mapping(m)) = &cfg.frontmatter.build_overrides {
             m.keys()
                 .filter_map(|k| k.as_str().map(|s| s.to_string()))
                 .collect()
         } else {
             std::collections::HashSet::new()
-        }
-    } else {
-        std::collections::HashSet::new()
-    };
+        };
 
     for (var_name, contributors) in &conflict_tracker {
         if contributors.len() < 2 {
@@ -252,12 +247,10 @@ pub fn resolve(elements: &[RawElement], conf_id: &str) -> Result<BuildConfigResu
     }
 
     // ── Step 3: buildOverrides win unconditionally ────────────────────────────
-    if let Some(ref ov) = cfg.frontmatter.build_overrides {
-        if let serde_yaml::Value::Mapping(m) = ov {
-            for (k, v) in m {
-                if let Some(k_str) = k.as_str() {
-                    vars.insert(k_str.to_string(), v.clone());
-                }
+    if let Some(serde_yaml::Value::Mapping(m)) = &cfg.frontmatter.build_overrides {
+        for (k, v) in m {
+            if let Some(k_str) = k.as_str() {
+                vars.insert(k_str.to_string(), v.clone());
             }
         }
     }
@@ -406,7 +399,7 @@ features:
         let elements = vec![fd, cfg];
         let result = resolve(&elements, "CONF-BASE-001").unwrap();
         assert!(
-            result.vars.get("ENABLE_ABS").is_none(),
+            !result.vars.contains_key("ENABLE_ABS"),
             "var should be absent when deselected with no whenDeselected"
         );
     }

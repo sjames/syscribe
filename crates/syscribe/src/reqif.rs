@@ -99,7 +99,7 @@ fn md_to_xhtml(body: &str) -> String {
             }
             out.push_str(&format!("<xhtml:li>{}</xhtml:li>", inline(it)));
         } else if trimmed.chars().next().map(|c| c.is_ascii_digit()).unwrap_or(false) && trimmed.contains(". ") {
-            let item = trimmed.splitn(2, ". ").nth(1).unwrap_or(trimmed);
+            let item = trimmed.split_once(". ").map(|x| x.1).unwrap_or(trimmed);
             if list != Some("ol") {
                 close_list(&mut out, &mut list);
                 out.push_str("<xhtml:ol>");

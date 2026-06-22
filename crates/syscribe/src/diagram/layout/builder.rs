@@ -109,9 +109,9 @@ pub fn build_element_node(element: &RawElement, view: &ViewConfig) -> ElementNod
     if let Some(features) = &fm.features {
         for feat in features {
             if let serde_yaml::Value::Mapping(map) = feat {
-                let name_val = map.get(&serde_yaml::Value::String("name".into()));
-                let dir_val = map.get(&serde_yaml::Value::String("direction".into()));
-                let type_val = map.get(&serde_yaml::Value::String("type".into()));
+                let name_val = map.get(serde_yaml::Value::String("name".into()));
+                let dir_val = map.get(serde_yaml::Value::String("direction".into()));
+                let type_val = map.get(serde_yaml::Value::String("type".into()));
 
                 if let (Some(serde_yaml::Value::String(n)), Some(serde_yaml::Value::String(d))) =
                     (name_val, dir_val)
@@ -121,7 +121,7 @@ pub fn build_element_node(element: &RawElement, view: &ViewConfig) -> ElementNod
 
                     // Parse nested sub-ports from an optional `ports:` sub-key
                     let sub_ports = map
-                        .get(&serde_yaml::Value::String("ports".into()))
+                        .get(serde_yaml::Value::String("ports".into()))
                         .and_then(|v| v.as_sequence())
                         .map(|seq| parse_sub_ports(seq))
                         .unwrap_or_default();
@@ -162,11 +162,11 @@ pub fn build_element_node(element: &RawElement, view: &ViewConfig) -> ElementNod
         for feat in feat_list {
             if let serde_yaml::Value::Mapping(map) = feat {
                 // Skip if it has a direction (already added as port)
-                if map.contains_key(&serde_yaml::Value::String("direction".into())) {
+                if map.contains_key(serde_yaml::Value::String("direction".into())) {
                     continue;
                 }
-                let name_val = map.get(&serde_yaml::Value::String("name".into()));
-                let type_val = map.get(&serde_yaml::Value::String("type".into()));
+                let name_val = map.get(serde_yaml::Value::String("name".into()));
+                let type_val = map.get(serde_yaml::Value::String("type".into()));
 
                 if let Some(serde_yaml::Value::String(n)) = name_val {
                     let type_ref = type_val
@@ -174,23 +174,23 @@ pub fn build_element_node(element: &RawElement, view: &ViewConfig) -> ElementNod
                         .unwrap_or("Any")
                         .to_string();
                     let unit = map
-                        .get(&serde_yaml::Value::String("unit".into()))
+                        .get(serde_yaml::Value::String("unit".into()))
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
                     let value = map
-                        .get(&serde_yaml::Value::String("value".into()))
+                        .get(serde_yaml::Value::String("value".into()))
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
                     let is_derived = map
-                        .get(&serde_yaml::Value::String("isDerived".into()))
+                        .get(serde_yaml::Value::String("isDerived".into()))
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
                     let is_constant = map
-                        .get(&serde_yaml::Value::String("isConstant".into()))
+                        .get(serde_yaml::Value::String("isConstant".into()))
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
                     let mult = map
-                        .get(&serde_yaml::Value::String("multiplicity".into()))
+                        .get(serde_yaml::Value::String("multiplicity".into()))
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string());
                     features.push(FeatureRow {
@@ -311,16 +311,16 @@ fn parse_sub_ports(seq: &[serde_yaml::Value]) -> Vec<PortRow> {
         .filter_map(|v| {
             let map = v.as_mapping()?;
             let name = map
-                .get(&serde_yaml::Value::String("name".into()))?
+                .get(serde_yaml::Value::String("name".into()))?
                 .as_str()?
                 .to_string();
             let dir_str = map
-                .get(&serde_yaml::Value::String("direction".into()))
+                .get(serde_yaml::Value::String("direction".into()))
                 .and_then(|v| v.as_str())
                 .unwrap_or("undirected");
             let type_ref = map
-                .get(&serde_yaml::Value::String("type".into()))
-                .or_else(|| map.get(&serde_yaml::Value::String("typedBy".into())))
+                .get(serde_yaml::Value::String("type".into()))
+                .or_else(|| map.get(serde_yaml::Value::String("typedBy".into())))
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
             Some(PortRow {
@@ -346,8 +346,8 @@ fn parse_direction(s: &str) -> PortDirection {
 fn extract_gherkin_step(doc: &str, keyword: &str) -> Option<String> {
     for line in doc.lines() {
         let trimmed = line.trim();
-        if trimmed.starts_with(keyword) {
-            let rest = trimmed[keyword.len()..].trim();
+        if let Some(rest) = trimmed.strip_prefix(keyword) {
+            let rest = rest.trim();
             let truncated = if rest.chars().count() > 44 {
                 format!("{}…", rest.chars().take(44).collect::<String>())
             } else {

@@ -123,7 +123,7 @@ pub fn cmd_impact(elements: &[RawElement], opts: &ImpactOptions) {
     let root_q = root_el.qualified_name.clone();
     let (up, down) = build_adjacency(elements, &resolver);
 
-    let kind_ok = |base: &str| opts.kinds.as_ref().map_or(true, |ks| ks.iter().any(|k| k == base));
+    let kind_ok = |base: &str| opts.kinds.as_ref().is_none_or(|ks| ks.iter().any(|k| k == base));
 
     // BFS spanning tree from the root in the chosen direction(s); cycle-safe via `seen`.
     let mut seen: HashSet<String> = HashSet::from([root_q.clone()]);

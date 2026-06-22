@@ -74,9 +74,9 @@ fn connection_endpoints(v: &serde_yaml::Value) -> Option<(String, String)> {
 
 /// Resolve a string that may be a stable ID (REQ-*, TC-*, …) to a qname using
 /// the resolver, or return it unchanged if it already looks like a qname.
-fn resolve_to_qname<'a>(
+fn resolve_to_qname(
     resolver: &syscribe_model::resolver::Resolver,
-    elements: &'a [syscribe_model::element::RawElement],
+    elements: &[syscribe_model::element::RawElement],
     r: &str,
 ) -> Option<String> {
     resolver
@@ -392,8 +392,8 @@ pub async fn get_graph(State(state): State<SharedState>) -> Json<GraphResponse> 
             fm.binding_connections.as_ref(),
             fm.succession_connections.as_ref(),
         ];
-        for list_opt in conn_lists.iter() {
-            if let Some(list) = list_opt {
+        for list in conn_lists.iter().flatten() {
+            {
                 for v in list.iter() {
                     if let Some((from, to)) = connection_endpoints(v) {
                         // Qualify relative names against the containing element's parent namespace

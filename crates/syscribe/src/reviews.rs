@@ -28,7 +28,7 @@ fn item_counts(e: &RawElement) -> (usize, usize) {
         .iter()
         .filter(|it| {
             it.as_mapping()
-                .and_then(|m| m.get(&serde_yaml::Value::String("disposition".into())))
+                .and_then(|m| m.get(serde_yaml::Value::String("disposition".into())))
                 .and_then(|v| v.as_str())
                 == Some("open")
         })
@@ -222,7 +222,7 @@ pub fn cmd_review(elements: &[RawElement], rr_id: &str, json: bool) -> i32 {
         for it in items {
             if let Some(m) = it.as_mapping() {
                 let g = |k: &str| {
-                    m.get(&serde_yaml::Value::String(k.into()))
+                    m.get(serde_yaml::Value::String(k.into()))
                         .and_then(|v| v.as_str())
                         .unwrap_or("")
                 };

@@ -450,6 +450,7 @@ impl ScriptEnv {
         let mut engine = build_engine(&scripts_dir, findings);
 
         // Shared registry the host registration fns write into.
+        #[allow(clippy::type_complexity)]
         let registry: Rc<RefCell<Vec<(String, String, Kind, FnPtr)>>> =
             Rc::new(RefCell::new(Vec::new()));
         {

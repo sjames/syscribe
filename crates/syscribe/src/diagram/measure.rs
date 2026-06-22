@@ -69,10 +69,10 @@ fn gather_peers(elem: &RawElement, _all: &[RawElement]) -> Vec<PeerEntry> {
         for conn in connections {
             if let serde_yaml::Value::Mapping(map) = conn {
                 let from = map
-                    .get(&serde_yaml::Value::String("from".into()))
+                    .get(serde_yaml::Value::String("from".into()))
                     .and_then(|v| v.as_str());
                 let to = map
-                    .get(&serde_yaml::Value::String("to".into()))
+                    .get(serde_yaml::Value::String("to".into()))
                     .and_then(|v| v.as_str());
 
                 if let (Some(from_str), Some(to_str)) = (from, to) {

@@ -1,11 +1,11 @@
 //! MagicGrid read-only report commands (REQ-TRS-MG-003/006/007):
 //!
-//!   * `magicgrid [--json]`   — bucket every element by its `mg_cell` overlay into
-//!                              the B/W/S × 1-4 grid and render it.
-//!   * `matrix --allocations` — source × target allocation matrix (a mode of the
-//!                              existing `matrix` command, handled here).
-//!   * `trade-study [--json] [--config …]` — MoE-weighted trade study scoring the
-//!                              model's `Configuration`s against its `mg_moe` MoEs.
+//! * `magicgrid [--json]` — bucket every element by its `mg_cell` overlay into the
+//!   B/W/S × 1-4 grid and render it.
+//! * `matrix --allocations` — source × target allocation matrix (a mode of the
+//!   existing `matrix` command, handled here).
+//! * `trade-study [--json] [--config …]` — MoE-weighted trade study scoring the
+//!   model's `Configuration`s against its `mg_moe` MoEs.
 //!
 //! All three are read-only and available regardless of profile; the gated
 //! validation (MG020/MG021) lives in the validator, not here.
@@ -976,7 +976,7 @@ fn resolve_binding(bindings: &BTreeMap<String, f64>, var: &str) -> Option<f64> {
     }
     let mut hit: Option<f64> = None;
     for (k, v) in bindings {
-        let seg = k.rsplit(|c| c == '.' || c == ':').next().unwrap_or(k);
+        let seg = k.rsplit(['.', ':']).next().unwrap_or(k);
         if seg == var {
             if hit.is_some() {
                 return None; // ambiguous final-segment match
@@ -1182,6 +1182,7 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
     println!();
     for (ri, moe) in moes.iter().enumerate() {
         print!("  {:width$} ", moe.name, width = row_w);
+        #[allow(clippy::needless_range_loop)]
         for ci in 0..cfgs.len() {
             let cell = &cells[ri][ci];
             let text = match cell.value {

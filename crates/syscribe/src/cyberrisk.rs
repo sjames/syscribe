@@ -83,7 +83,7 @@ pub fn cmd_cyber_risk(elements: &[RawElement], json_out: bool) {
                 .frontmatter
                 .id
                 .as_ref()
-                .map_or(false, |id| addressed.contains(id));
+                .is_some_and(|id| addressed.contains(id));
 
         let has_treatment = ts.frontmatter.risk_treatment.is_some();
         let flag = match level {

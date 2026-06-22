@@ -3,11 +3,12 @@
 //!
 //! Rows are requirements; columns are the model's `Configuration` elements. Each
 //! cell classifies the (requirement, configuration) pair as:
-//!   * `na`      — the requirement's `appliesWhen:` is not satisfied by the
-//!                 configuration's selections (it does not exist in this variant);
-//!   * `covered` — the requirement is active and a non-draft TestCase that runs
-//!                 in this configuration verifies it;
-//!   * `gap`     — the requirement is active but no such TestCase exists.
+//!
+//! * `na` — the requirement's `appliesWhen:` is not satisfied by the configuration's
+//!   selections (it does not exist in this variant);
+//! * `covered` — the requirement is active and a non-draft TestCase that runs in this
+//!   configuration verifies it;
+//! * `gap` — the requirement is active but no such TestCase exists.
 //!
 //! When the variability dimension is dormant (REQ-TRS-VAR-001) the command
 //! prints a notice and falls back to a flat requirement/testcase view.
@@ -171,7 +172,7 @@ fn cell_state(
 ) -> &'static str {
     let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
     let rexpr = variability::effective_expr_canon(r, pkg, alias);
-    let active = rexpr.as_ref().map_or(true, |e| e.eval(&selected));
+    let active = rexpr.as_ref().is_none_or(|e| e.eval(&selected));
     if !active {
         return "na";
     }
@@ -179,7 +180,7 @@ fn cell_state(
     let mut covered = false;
     let mut any_pass = false;
     for (texpr, ver, verdict) in tcs {
-        let runs = texpr.as_ref().map_or(true, |e| e.eval(&selected));
+        let runs = texpr.as_ref().is_none_or(|e| e.eval(&selected));
         if runs && ver.iter().any(|v| rkeys.iter().any(|k| k == v)) {
             covered = true;
             if *verdict == TcVerdict::Pass {
@@ -196,6 +197,7 @@ fn cell_state(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_matrix_inner(
     elements: &[RawElement],
     json: bool,
@@ -269,7 +271,7 @@ fn cmd_matrix_inner(
             let cells: Vec<&'static str> = cfg_sel.iter().map(|(_, sel)| state(r, sel)).collect();
             (disp_id(r), cells)
         })
-        .filter(|(_, cells)| !gaps_only || cells.iter().any(|c| *c == "gap"))
+        .filter(|(_, cells)| !gaps_only || cells.contains(&"gap"))
         .collect();
 
     // Coverage rollup: covered / applicable, applicable = covered + gap (N/A

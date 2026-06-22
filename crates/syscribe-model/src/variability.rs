@@ -517,7 +517,7 @@ mod tests {
     }
 
     fn gen(state: &mut u64, depth: u32, vars: &[&str]) -> FeatureExpr {
-        if depth == 0 || xorshift(state) % 3 == 0 {
+        if depth == 0 || xorshift(state).is_multiple_of(3) {
             let v = vars[(xorshift(state) as usize) % vars.len()];
             return FeatureExpr::Feat(v.to_string());
         }

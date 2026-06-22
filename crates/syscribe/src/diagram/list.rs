@@ -72,7 +72,7 @@ pub fn cmd_diagram_list(elements: &[RawElement], type_filter_raw: Option<&str>, 
                     fs.iter()
                         .filter(|f| {
                             matches!(f, serde_yaml::Value::Mapping(m)
-                                if m.contains_key(&serde_yaml::Value::String("direction".into())))
+                                if m.contains_key(serde_yaml::Value::String("direction".into())))
                         })
                         .count()
                 })
@@ -119,7 +119,7 @@ fn gather_connected_elements(e: &RawElement) -> Vec<String> {
             if let serde_yaml::Value::Mapping(map) = conn {
                 for key in ["to", "target", "from", "source"] {
                     if let Some(serde_yaml::Value::String(v)) =
-                        map.get(&serde_yaml::Value::String(key.into()))
+                        map.get(serde_yaml::Value::String(key.into()))
                     {
                         let element_qname = v.split("::").collect::<Vec<_>>();
                         if element_qname.len() > 1 {

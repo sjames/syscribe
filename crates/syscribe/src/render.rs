@@ -106,10 +106,10 @@ fn render_svg(elements: &[RawElement], resolver: &Resolver, elem: &RawElement) {
             let attrs = match v { serde_yaml::Value::Mapping(m) => m, _ => continue };
 
             let link_qn: Option<String> =
-                match attrs.get(&serde_yaml::Value::String("link".into())) {
+                match attrs.get(serde_yaml::Value::String("link".into())) {
                     Some(serde_yaml::Value::String(s)) if !s.is_empty() => Some(s.clone()),
                     Some(serde_yaml::Value::Bool(true)) => attrs
-                        .get(&serde_yaml::Value::String("ref".into()))
+                        .get(serde_yaml::Value::String("ref".into()))
                         .and_then(|v| v.as_str())
                         .map(|s| s.to_string()),
                     _ => None,

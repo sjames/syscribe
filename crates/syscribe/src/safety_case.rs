@@ -252,6 +252,7 @@ fn render_text(
 }
 
 /// Recursively print an Argument node and its evidence children.
+#[allow(clippy::too_many_arguments)]
 fn print_argument(
     elements: &[RawElement],
     resolver: &Resolver,

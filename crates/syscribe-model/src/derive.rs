@@ -1,15 +1,15 @@
-/// Declarative derive: block evaluator (REQ-TRS-DERIVE-001..005, issue #60).
-///
-/// Each element may declare a `derive:` mapping of fieldName → formula. Formulas
-/// are evaluated top-to-bottom within an element; derived fields from earlier
-/// entries are visible to later ones via `self.<field>`. Cross-element references
-/// (`elements["Qname"]`) are resolved against the full element set.
-///
-/// The evaluation pipeline:
-///   Walker → derive_pass(elements) → Validator
-///
-/// The pass populates `RawElement.derived` for each element; the validator and
-/// query layer read derived fields from there.
+//! Declarative derive: block evaluator (REQ-TRS-DERIVE-001..005, issue #60).
+//!
+//! Each element may declare a `derive:` mapping of fieldName → formula. Formulas
+//! are evaluated top-to-bottom within an element; derived fields from earlier
+//! entries are visible to later ones via `self.<field>`. Cross-element references
+//! (`elements["Qname"]`) are resolved against the full element set.
+//!
+//! The evaluation pipeline:
+//!   Walker → derive_pass(elements) → Validator
+//!
+//! The pass populates `RawElement.derived` for each element; the validator and
+//! query layer read derived fields from there.
 
 use crate::element::RawElement;
 
@@ -76,7 +76,7 @@ impl Value {
 
     fn to_yaml(&self) -> serde_yaml::Value {
         match self {
-            Value::Num(n) => serde_yaml::Value::Number(serde_yaml::Number::from(*n as f64)),
+            Value::Num(n) => serde_yaml::Value::Number(serde_yaml::Number::from(*n)),
             Value::Str(s) => serde_yaml::Value::String(s.clone()),
             Value::List(items) => serde_yaml::Value::Sequence(
                 items.iter().map(|v| v.to_yaml()).collect()
@@ -157,7 +157,7 @@ impl<'a> Parser<'a> {
             return Ok(e);
         }
         // Numeric literal
-        if self.peek().map_or(false, |b| b.is_ascii_digit() || b == b'.') {
+        if self.peek().is_some_and(|b| b.is_ascii_digit() || b == b'.') {
             return self.parse_number();
         }
         // String literal
@@ -478,7 +478,7 @@ fn eval(
 
 /// Run the derive pass over all elements. Populates `RawElement.derived` and
 /// `RawElement.derive_findings` for each element that has a `derive:` block.
-pub fn derive_pass(elements: &mut Vec<RawElement>) {
+pub fn derive_pass(elements: &mut [RawElement]) {
     let mut findings: Vec<Finding> = Vec::new();
 
     // Process elements sequentially — simple strategy: iterate up to 3 times
@@ -519,7 +519,7 @@ pub fn derive_pass(elements: &mut Vec<RawElement>) {
             elements[idx].derived.insert(field_name.to_string(), value.to_yaml());
         }
 
-        elements[idx].derive_findings.extend(elem_findings.drain(..));
+        elements[idx].derive_findings.append(&mut elem_findings);
         let _ = &mut findings; // suppress unused warning
     }
 }

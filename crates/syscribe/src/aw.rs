@@ -127,6 +127,7 @@ fn feature_check_and_exit(elements: &[RawElement]) -> ! {
 }
 
 /// `applies-when` subcommand entry point.
+#[allow(clippy::too_many_arguments)]
 pub fn cmd_applies_when(
     model_root: &Path,
     elements: &[RawElement],

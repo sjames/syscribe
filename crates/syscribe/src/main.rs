@@ -357,7 +357,7 @@ fn scripts_validate_report(
     };
     let denied_infos: Vec<&scripting::ScriptFinding> =
         infos.iter().filter(|f| gate.deny.contains(&ns(f))).copied().collect();
-    let over_max = gate.max_warnings.map_or(false, |m| warnings.len() > m);
+    let over_max = gate.max_warnings.is_some_and(|m| warnings.len() > m);
     let gate_tripped = !denied.is_empty() || !denied_infos.is_empty() || over_max;
 
     let exit_code = if !errors.is_empty() || runtime_error {
@@ -723,7 +723,7 @@ fn main() {
                 let mut vcfg_run = vcfg.clone();
                 // REQ-TRS-MG-*: a magicgrid-enabled profile (`magicgrid = true`)
                 // turns on the gated MagicGrid validation pass for this run.
-                vcfg_run.magicgrid = profile_ref.map_or(false, |p| p.magicgrid);
+                vcfg_run.magicgrid = profile_ref.is_some_and(|p| p.magicgrid);
                 if let Some(rf) = results_file {
                     let fmt = rest.windows(2)
                         .find(|w| w[0] == "--format")
@@ -821,7 +821,7 @@ fn main() {
                 let ps = plan_scope.as_ref();
                 // REQ-TRS-MG-*: a magicgrid-enabled profile turns on the gated pass.
                 let mut vcfg_audit = vcfg.clone();
-                vcfg_audit.magicgrid = profile.as_ref().map_or(false, |p| p.magicgrid);
+                vcfg_audit.magicgrid = profile.as_ref().is_some_and(|p| p.magicgrid);
                 let vcfg = &vcfg_audit;
                 let code = if all_configs {
                     audit::cmd_audit_all_configs(&elems, vcfg, profile.as_ref(), json)
@@ -1583,7 +1583,7 @@ fn main() {
         .iter()
         .filter(|e| {
             is_arch_element(e)
-                && e.frontmatter.satisfies.as_ref().map_or(false, |v| !v.is_empty())
+                && e.frontmatter.satisfies.as_ref().is_some_and(|v| !v.is_empty())
         })
         .count();
     let arch_without_satisfies = elems
@@ -1591,7 +1591,7 @@ fn main() {
         .filter(|e| {
             is_arch_element(e)
                 && e.frontmatter.is_abstract != Some(true)
-                && e.frontmatter.satisfies.as_ref().map_or(true, |v| v.is_empty())
+                && e.frontmatter.satisfies.as_ref().is_none_or(|v| v.is_empty())
         })
         .count();
 
@@ -1769,7 +1769,7 @@ fn main() {
             native_reqs
                 .iter()
                 .find(|e| e.frontmatter.id.as_deref() == Some(pid.as_str()))
-                .map(|e| e.frontmatter.derived_from.as_ref().map_or(true, |v| v.is_empty()))
+                .map(|e| e.frontmatter.derived_from.as_ref().is_none_or(|v| v.is_empty()))
                 .unwrap_or(true)
         })
         .map(|s| s.as_str())
@@ -1943,7 +1943,7 @@ fn main() {
     println!();
     let with_satisfies: Vec<&RawElement> = elems
         .iter()
-        .filter(|e| e.frontmatter.satisfies.as_ref().map_or(false, |v| !v.is_empty()))
+        .filter(|e| e.frontmatter.satisfies.as_ref().is_some_and(|v| !v.is_empty()))
         .collect();
     if with_satisfies.is_empty() {
         println!("None.");
@@ -1987,7 +1987,7 @@ fn main() {
             is_arch_element(e)
                 && e.frontmatter.is_abstract != Some(true)
                 && e.frontmatter.domain.is_some()
-                && e.frontmatter.satisfies.as_ref().map_or(true, |v| v.is_empty())
+                && e.frontmatter.satisfies.as_ref().is_none_or(|v| v.is_empty())
         })
         .collect();
     if domain_no_satisfies.is_empty() {
@@ -2012,7 +2012,7 @@ fn main() {
             is_arch_element(e)
                 && e.frontmatter.is_abstract != Some(true)
                 && e.frontmatter.domain.is_none()
-                && e.frontmatter.satisfies.as_ref().map_or(true, |v| v.is_empty())
+                && e.frontmatter.satisfies.as_ref().is_none_or(|v| v.is_empty())
         })
         .count();
     if structural_count > 0 {
@@ -2060,12 +2060,12 @@ leaf hardware parts (Motor, Rotor, IMU, etc.) that are not directly allocated a 
                 for feat in features {
                     if let serde_yaml::Value::Mapping(map) = feat {
                         let from = map
-                            .get(&serde_yaml::Value::String("allocatedFrom".into()))
+                            .get(serde_yaml::Value::String("allocatedFrom".into()))
                             .and_then(|v| v.as_str())
                             .unwrap_or("—")
                             .to_string();
                         let to = map
-                            .get(&serde_yaml::Value::String("allocatedTo".into()))
+                            .get(serde_yaml::Value::String("allocatedTo".into()))
                             .and_then(|v| v.as_str())
                             .unwrap_or("—")
                             .to_string();
@@ -2146,7 +2146,7 @@ leaf hardware parts (Motor, Rotor, IMU, etc.) that are not directly allocated a 
         .filter(|e| {
             is_arch_element(e)
                 && e.frontmatter.is_abstract != Some(true)
-                && e.frontmatter.satisfies.as_ref().map_or(true, |v| v.is_empty())
+                && e.frontmatter.satisfies.as_ref().is_none_or(|v| v.is_empty())
                 && e.frontmatter.domain.is_none()
         })
         .map(|e| e.qualified_name.as_str())

@@ -413,7 +413,7 @@ pub fn cmd_testplan_detail(
         .unwrap_or(&[])
         .iter()
         .filter_map(|r| resolver.resolve_ref(elements, r))
-        .map(|tc| disp_id(tc))
+        .map(disp_id)
         .collect();
     struct MemberRow {
         id: String,

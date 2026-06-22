@@ -93,6 +93,7 @@ fn rect_border(rx: f64, ry: f64, rw: f64, rh: f64, toward_x: f64, toward_y: f64)
 // SVG rendering helpers per shape kind
 // ---------------------------------------------------------------------------
 
+#[allow(clippy::too_many_arguments)]
 fn render_shape(
     id: &str,
     kind: &str,
@@ -388,7 +389,7 @@ pub fn render_diagram(
     let mut max_x = f64::NEG_INFINITY;
     let mut max_y = f64::NEG_INFINITY;
 
-    for (_, &(x, y, w, h)) in &shape_rects {
+    for &(x, y, w, h) in shape_rects.values() {
         if x < min_x { min_x = x; }
         if y < min_y { min_y = y; }
         if x + w > max_x { max_x = x + w; }

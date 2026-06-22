@@ -879,7 +879,7 @@ fn combinations(items: &[String], r: usize) -> Vec<Vec<String>> {
 fn group_card(gk: &str, card: Option<&str>, k: usize) -> (usize, Option<usize>) {
     if let Some(s) = card {
         if let Some((lo, hi)) = s.split_once("..") {
-            let m = lo.trim().parse::<usize>().unwrap_or(if gk == "alternative" { 1 } else { 1 });
+            let m = lo.trim().parse::<usize>().unwrap_or(1);
             let n = if hi.trim() == "*" {
                 None
             } else {
@@ -1232,13 +1232,13 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
             for cfg in &configs {
                 let sel = sel_of(cfg);
                 let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
-                let active = rexpr.as_ref().map_or(true, |e| e.eval(&selected));
+                let active = rexpr.as_ref().is_none_or(|e| e.eval(&selected));
                 if !active {
                     continue;
                 }
                 active_somewhere = true;
                 let covered = tcs.iter().any(|(texpr, ver)| {
-                    let runs = texpr.as_ref().map_or(true, |e| e.eval(&selected));
+                    let runs = texpr.as_ref().is_none_or(|e| e.eval(&selected));
                     runs && ver.iter().any(|v| rkeys.iter().any(|k| k == v))
                 });
                 if covered {

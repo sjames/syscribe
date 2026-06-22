@@ -985,6 +985,7 @@ pub fn cmd_types(elements: &[RawElement]) {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn cmd_list(
     elements: &[RawElement],
     type_filter: &str,
@@ -1177,7 +1178,7 @@ pub fn cmd_list(
         for e in &matches {
             let label = e.frontmatter.name
                 .as_deref()
-                .or_else(|| e.frontmatter.id.as_deref())
+                .or(e.frontmatter.id.as_deref())
                 .unwrap_or("—");
             let classifier = yaml_first_string(e.frontmatter.supertype.as_ref())
                 .or_else(|| yaml_first_string(e.frontmatter.typed_by.as_ref()))
@@ -1985,7 +1986,7 @@ pub fn cmd_feature_check(
     let warn_refs: Vec<&syscribe_model::validator::Finding> = findings.iter().filter(|f| f.severity == Severity::Warning).collect();
     let info_refs: Vec<&syscribe_model::validator::Finding> = findings.iter().filter(|f| f.severity == Severity::Info).collect();
     let denied = gate.denied(&warn_refs, &info_refs);
-    let over_max = gate.max_warnings.map_or(false, |m| warn_refs.len() > m);
+    let over_max = gate.max_warnings.is_some_and(|m| warn_refs.len() > m);
     let gate_tripped = !denied.is_empty() || over_max;
 
     let sev = |s: &Severity| match s {
@@ -2183,7 +2184,7 @@ pub fn cmd_validate(
     let result = validator::validate_with_config(elements, config);
 
     let findings: Vec<_> = result.findings.iter()
-        .filter(|f| file_filter.map_or(true, |ff| f.file.contains(ff)))
+        .filter(|f| file_filter.is_none_or(|ff| f.file.contains(ff)))
         .collect();
 
     let errors: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Error).copied().collect();
@@ -2202,7 +2203,7 @@ pub fn cmd_validate(
             }
         }
     }
-    let over_max = gate.max_warnings.map_or(false, |m| warnings.len() > m);
+    let over_max = gate.max_warnings.is_some_and(|m| warnings.len() > m);
     let gate_tripped = !denied.is_empty() || over_max;
 
     // Exit code: errors dominate (1), then gated warnings (2), else clean (0).
@@ -2306,7 +2307,7 @@ fn print_findings_report(
     let warnings: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Warning).collect();
     let infos: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Info).collect();
     let denied = gate.denied(&warnings, &infos);
-    let over_max = gate.max_warnings.map_or(false, |m| warnings.len() > m);
+    let over_max = gate.max_warnings.is_some_and(|m| warnings.len() > m);
     let exit_code = if !errors.is_empty() {
         1
     } else if !denied.is_empty() || over_max {
@@ -2383,7 +2384,7 @@ pub fn cmd_validate_all_configs(
         .iter()
         .filter(|e| e.frontmatter.element_type.as_ref() == Some(&ElementType::Configuration))
         .collect();
-    configs.sort_by(|a, b| cfg_id(a).cmp(&cfg_id(b)));
+    configs.sort_by_key(|a| cfg_id(a));
 
     let mut any_error = false;
     let mut rows: Vec<(String, usize, usize)> = Vec::new();

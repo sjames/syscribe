@@ -282,8 +282,8 @@ skinparam sequence {
 // ── BDD ───────────────────────────────────────────────────────────────────────
 
 fn render_bdd(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
-    let shapes = element.frontmatter.shapes.as_ref().map(|v| parse_shapes(v)).unwrap_or_default();
-    let edges = element.frontmatter.edges.as_ref().map(|v| parse_edges(v)).unwrap_or_default();
+    let shapes = element.frontmatter.shapes.as_ref().map(parse_shapes).unwrap_or_default();
+    let edges = element.frontmatter.edges.as_ref().map(parse_edges).unwrap_or_default();
 
     let mut out = String::new();
     out.push_str(&format!("@startuml {}\n", id));
@@ -362,8 +362,8 @@ fn render_ibd_container(
 }
 
 fn render_ibd(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
-    let shapes = element.frontmatter.shapes.as_ref().map(|v| parse_shapes(v)).unwrap_or_default();
-    let edges = element.frontmatter.edges.as_ref().map(|v| parse_edges(v)).unwrap_or_default();
+    let shapes = element.frontmatter.shapes.as_ref().map(parse_shapes).unwrap_or_default();
+    let edges = element.frontmatter.edges.as_ref().map(parse_edges).unwrap_or_default();
 
     // Map shape key → parent key (for ports resolving to their parent block)
     let parent_map: HashMap<&str, &str> = shapes
@@ -451,8 +451,8 @@ fn render_ibd(element: &RawElement, elements: &[RawElement], _name: &str, id: &s
 // ── StateMachine ──────────────────────────────────────────────────────────────
 
 fn render_state_machine(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
-    let shapes = element.frontmatter.shapes.as_ref().map(|v| parse_shapes(v)).unwrap_or_default();
-    let edges = element.frontmatter.edges.as_ref().map(|v| parse_edges(v)).unwrap_or_default();
+    let shapes = element.frontmatter.shapes.as_ref().map(parse_shapes).unwrap_or_default();
+    let edges = element.frontmatter.edges.as_ref().map(parse_edges).unwrap_or_default();
 
     let initial_keys: HashSet<&str> = shapes
         .iter()
@@ -505,8 +505,8 @@ fn render_state_machine(element: &RawElement, elements: &[RawElement], _name: &s
 // ── Sequence ──────────────────────────────────────────────────────────────────
 
 fn render_sequence(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
-    let shapes = element.frontmatter.shapes.as_ref().map(|v| parse_shapes(v)).unwrap_or_default();
-    let edges = element.frontmatter.edges.as_ref().map(|v| parse_edges(v)).unwrap_or_default();
+    let shapes = element.frontmatter.shapes.as_ref().map(parse_shapes).unwrap_or_default();
+    let edges = element.frontmatter.edges.as_ref().map(parse_edges).unwrap_or_default();
 
     let mut out = String::new();
     out.push_str(&format!("@startuml {}\n", id));
@@ -546,8 +546,8 @@ fn render_sequence(element: &RawElement, elements: &[RawElement], _name: &str, i
 // ── Requirement diagram ───────────────────────────────────────────────────────
 
 fn render_requirement(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
-    let shapes = element.frontmatter.shapes.as_ref().map(|v| parse_shapes(v)).unwrap_or_default();
-    let edges = element.frontmatter.edges.as_ref().map(|v| parse_edges(v)).unwrap_or_default();
+    let shapes = element.frontmatter.shapes.as_ref().map(parse_shapes).unwrap_or_default();
+    let edges = element.frontmatter.edges.as_ref().map(parse_edges).unwrap_or_default();
 
     let mut out = String::new();
     out.push_str(&format!("@startuml {}\n", id));
