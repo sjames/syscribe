@@ -335,6 +335,17 @@ syscribe -m model/ export --config CONF-X   # projected onto a configuration var
 
 `--ndjson` streams one element per line; the `--config` lens projects the export onto a single variant.
 
+### Static HTML site (`export-html`)
+
+`export-html` generates a self-contained, **offline** HTML website for the whole model — a navigable per-element site for publishing, sharing, or reviewing without the toolchain or a running server.
+
+```bash
+syscribe -m model/ export-html --out site/            # write the site to site/
+syscribe -m model/ export-html --out site/ --css my.css   # supply your own stylesheet
+```
+
+It writes `index.html`, per-element pages under `elements/` (frontmatter, rendered doc, resolved cross-reference links, embedded SVG/Mermaid diagrams), report pages (`validation`, `coverage`, `traceability`), and a client-side search index. `--css <file>` replaces the bundled default `style.css`; the output bundles all assets (no CDN) so it renders with no network. (For an interactive, live-reloading browser, see `syscribe-server`.)
+
 ---
 
 ## Safety ↔ security co-analysis
@@ -1199,58 +1210,35 @@ See the [LLM Workflow guide](../model-guide/llm-workflow.md) for the full eight-
 | `why-active <el> --config <C>` | Whether an element is active in a product, and why | To debug a projection |
 | `--agent-instructions [topic]` | Full generation prompt; `magicgrid` topic = a dedicated MagicGrid modeling prompt | System prompt for a model-authoring session |
 
-### Exposing syscribe as an MCP tool
+### The built-in MCP server (`syscribe mcp`)
 
-Any MCP server that can execute shell commands can expose syscribe as a set of tools. The simplest pattern is one tool per command group, using `SYSCRIBE_MODEL` to avoid passing the path on every call:
+syscribe ships a first-class **Model Context Protocol server** over stdio — no shell-wrapping required. An MCP client (Claude Code/Desktop, an editor, an agent runtime) spawns it as a subprocess:
 
-```json
-{
-  "tools": [
-    {
-      "name": "syscribe_validate",
-      "description": "Validate the Syscribe model and return a JSON array of findings. Empty array means valid.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "file": { "type": "string", "description": "Optional: scope validation to a single file path" }
-        }
-      }
-    },
-    {
-      "name": "syscribe_show",
-      "description": "Show all fields and documentation for a model element.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "qname": { "type": "string", "description": "Qualified name or stable ID (e.g. System::Software::SafetyMonitor or REQ-ENG-SAFE-001)" }
-        },
-        "required": ["qname"]
-      }
-    },
-    {
-      "name": "syscribe_trace",
-      "description": "Full traceability slice for a requirement: parents, ADR, safety goal, satisfiers, test cases.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "string", "description": "Stable requirement ID (e.g. REQ-ENG-SAFE-001)" }
-        },
-        "required": ["id"]
-      }
-    },
-    {
-      "name": "syscribe_next_id",
-      "description": "Return the next unused stable ID for a given prefix.",
-      "inputSchema": {
-        "type": "object",
-        "properties": {
-          "prefix": { "type": "string", "description": "ID prefix, e.g. REQ-ENG-SAFE or TC-ENG-SEC" }
-        },
-        "required": ["prefix"]
-      }
-    }
-  ]
-}
+```bash
+syscribe -m model/ mcp              # full read + guarded-write surface
+syscribe -m model/ mcp --read-only  # read/query only (write tools hidden)
 ```
 
-Each tool handler runs the corresponding `syscribe` command, captures stdout, and returns it as the tool result. The agent calls `syscribe_validate` after every write and only proceeds when it returns `[]`.
+Register it with Claude Code:
+
+```bash
+claude mcp add syscribe -- /abs/path/to/syscribe mcp -m /abs/path/to/model
+```
+
+It exposes **37 structured tools** (31 read-only + 6 guarded writes); references are accepted as id / qualified-name / display-name, and write tools are `dry_run`-by-default with a new-error commit gate. Run **`syscribe help mcp`** for the full, current tool list. By category:
+
+| Category | Tools |
+|---|---|
+| Navigate / query | `get_element`, `search`, `list_by_type`, `tree`, `neighbors`, `graph_query`, `trace`, `impact`, `validate`, `validate_element`, `reload` |
+| Authoring helpers | `describe_type`, `template`, `explain_finding`, `check_ref`, `next_id`, `coverage` |
+| Variability | `features`, `feature_check`, `configure`, `project`, `diff_configs`, `why_active` |
+| Evidence & coverage | `coverage_matrix`, `coverage_gaps`, `evidence` |
+| Diagram / doc integrity | `lint_docs`, `render_diagram`, `diagram_coverage`, `generate_view` |
+| Report passthrough | `run_report` (allowlisted, read-only reports) |
+| Guarded writes | `create_element`, `update_element`, `move_element`, `delete_element`, `apply_changes`, `ingest_results` |
+
+It also serves the format spec, project config, and each element as **resources**; offers element-reference **completion**; and exposes authoring **prompts** (`create-model`, `add-requirement`, `break-down-requirement`, `add-testcase-for`, `traceability-review`).
+
+### Wrapping CLI commands instead
+
+If you prefer not to run the built-in server, any MCP host that can execute shell commands can wrap individual `syscribe` commands as tools (one tool per command, `SYSCRIBE_MODEL` set once). Each handler runs the command, captures stdout, and returns it; the agent calls `syscribe validate --json` after every write and proceeds only on `[]`.
