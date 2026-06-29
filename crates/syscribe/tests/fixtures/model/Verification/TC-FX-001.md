@@ -6,6 +6,9 @@ status: draft
 testLevel: L2
 verifies:
   - REQ-FX-001
+testFunctions:
+  - function: "fx::tests::req_fx_001"
+    sourceFile: "crates/fx/src/lib.rs"
 ---
 
 ```gherkin

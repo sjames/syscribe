@@ -174,6 +174,32 @@ fn message(code: &str, detail: &str) -> String {
     }
 }
 
+/// Scan `paths` and return the findings as JSON values
+/// (`{file, line, code, token|ref|path}`), optionally filtered to `codes`.
+/// The value producer shared by the CLI `lint-docs --json` and the MCP `lint_docs` tool.
+pub fn lint_docs_findings(
+    elements: &[RawElement],
+    paths: &[&str],
+    codes: Option<&[String]>,
+) -> Vec<serde_json::Value> {
+    let mut findings: Vec<Finding> = Vec::new();
+    for &path_str in paths {
+        scan_path(Path::new(path_str), elements, &mut findings);
+    }
+    findings
+        .iter()
+        .filter(|f| codes.is_none_or(|cs| cs.iter().any(|c| c == f.code)))
+        .map(|f| {
+            let key = match f.code {
+                "W099" => "token",
+                "W102" => "path",
+                _ => "ref",
+            };
+            serde_json::json!({ "file": f.file, "line": f.line, "code": f.code, key: f.detail })
+        })
+        .collect()
+}
+
 pub fn cmd_lint_docs(elements: &[RawElement], paths: &[&str], json: bool) -> i32 {
     let mut findings: Vec<Finding> = Vec::new();
     for &path_str in paths {

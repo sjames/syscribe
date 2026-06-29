@@ -41,9 +41,13 @@ use syscribe_model::resolver::{is_stable_id, Resolver, STABLE_ID_KINDS};
 use syscribe_model::validator::validate_with_config;
 use syscribe_model::walker::walk_model;
 
+use crate::lint_docs::lint_docs_findings;
+use crate::matrix::matrix_json;
 use crate::mv;
-use crate::query::{fuzzy_score, next_id_value, template_str, type_label};
+use crate::query::{fuzzy_score, next_id_value, tc_verdict, template_str, type_label, TcVerdict};
 use crate::spec;
+use syscribe_model::plantuml::render_plantuml;
+use syscribe_model::results::{FnVerdict, ResultsData};
 use store::McpStore;
 use util::{elem_detail, elem_summary, finding_json, json_to_yaml, rel_file, severity_str};
 use write::{guarded_write, refuse};
@@ -262,7 +266,103 @@ struct ApplyChangesArgs {
     dry_run: bool,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct IngestResultsArgs {
+    format: Option<String>,
+    path: Option<String>,
+    content: Option<String>,
+    #[serde(default = "default_true")]
+    dry_run: bool,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct CoverageMatrixArgs {
+    config: Option<String>,
+    status: Option<String>,
+    tag: Option<String>,
+    gaps_only: Option<bool>,
+    linked_only: Option<bool>,
+    limit: Option<u32>,
+    offset: Option<u32>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct CoverageGapsArgs {
+    config: Option<String>,
+    status: Option<String>,
+    class: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct EvidenceArgs {
+    r#ref: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct LintDocsArgs {
+    paths: Vec<String>,
+    codes: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct RenderDiagramArgs {
+    r#ref: String,
+    format: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct DiagramCoverageArgs {
+    root: Option<String>,
+    types: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct GenerateViewArgs {
+    kind: String,
+    root: Option<String>,
+    format: Option<String>,
+}
+
 // ── Small result helpers ────────────────────────────────────────────────────
+
+/// Extract the inner source of the first ```mermaid fenced block in `doc`.
+fn extract_mermaid(doc: &str) -> Option<String> {
+    let mut out: Vec<&str> = Vec::new();
+    let mut in_block = false;
+    for line in doc.lines() {
+        let t = line.trim_start();
+        if t.starts_with("```") {
+            if in_block {
+                return Some(out.join("\n"));
+            }
+            if t.contains("mermaid") {
+                in_block = true;
+            }
+            continue;
+        }
+        if in_block {
+            out.push(line);
+        }
+    }
+    (!out.is_empty()).then(|| out.join("\n"))
+}
+
+fn tc_verdict_str(v: TcVerdict) -> &'static str {
+    match v {
+        TcVerdict::Pass => "pass",
+        TcVerdict::Fail => "fail",
+        TcVerdict::Unknown => "unknown",
+    }
+}
+
+fn fn_verdict_str(v: FnVerdict) -> &'static str {
+    match v {
+        FnVerdict::Pass => "pass",
+        FnVerdict::Fail => "fail",
+        FnVerdict::Ignored => "ignored",
+        FnVerdict::Missing => "missing",
+    }
+}
 
 fn ok(v: Value) -> Result<CallToolResult, ErrorData> {
     Ok(CallToolResult::success(vec![Content::json(v)?]))
@@ -668,6 +768,7 @@ const WRITE_TOOLS: &[&str] = &[
     "move_element",
     "delete_element",
     "apply_changes",
+    "ingest_results",
 ];
 
 fn is_write_tool(name: &str) -> bool {
@@ -1307,6 +1408,467 @@ impl SyscribeMcp {
             "verifiedCount": summary.verified_count,
             "unverifiedLeaves": unverified_leaves,
             "parentsMissingIntegrationTest": parents_missing_integration,
+        }))
+    }
+
+    #[tool(
+        description = "Requirement x Configuration coverage grid (matches `matrix --json`): \
+        per-cell passing/covered/gap/na plus the coverage rollup. Reflects ingested results.",
+        annotations(read_only_hint = true)
+    )]
+    async fn coverage_matrix(
+        &self,
+        Parameters(args): Parameters<CoverageMatrixArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let mut v = matrix_json(
+            &store.elements,
+            args.tag.as_deref(),
+            args.status.as_deref(),
+            args.gaps_only.unwrap_or(false),
+            store.config.results.as_ref(),
+            args.linked_only.unwrap_or(false),
+        );
+        // Optional single-Configuration projection: keep only that column/cell.
+        if let Some(cfg) = args.config.as_deref() {
+            if let Some(cols) = v.get_mut("columns").and_then(|c| c.as_array_mut()) {
+                cols.retain(|c| c.as_str() == Some(cfg));
+            }
+            if let Some(rows) = v.get_mut("rows").and_then(|r| r.as_array_mut()) {
+                for row in rows.iter_mut() {
+                    if let Some(cells) = row.get_mut("cells").and_then(|c| c.as_object_mut()) {
+                        cells.retain(|k, _| k == cfg);
+                    }
+                }
+            }
+        }
+        // Optional row paging.
+        if let Some(rows) = v.get_mut("rows").and_then(|r| r.as_array_mut()) {
+            let off = args.offset.unwrap_or(0) as usize;
+            if off > 0 {
+                rows.drain(..off.min(rows.len()));
+            }
+            if let Some(lim) = args.limit {
+                rows.truncate(lim as usize);
+            }
+        }
+        ok(v)
+    }
+
+    #[tool(
+        description = "The actionable coverage subset: rows classed uncovered / failing / \
+        unverified-claim, each with the governing finding code. Complements `coverage`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn coverage_gaps(
+        &self,
+        Parameters(args): Parameters<CoverageGapsArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let results = store.config.results.as_ref();
+        let class_filter = args.class.as_deref();
+        let want = |c: &str| class_filter.is_none_or(|f| f == c);
+        let status_ok = |e: &RawElement| {
+            args.status.as_deref().is_none_or(|s| e.frontmatter.status.as_deref() == Some(s))
+        };
+        let mut gaps: Vec<Value> = Vec::new();
+
+        // uncovered: requirement active in a configuration with no verifying TestCase (gap cell).
+        if want("uncovered") {
+            let mj = matrix_json(&store.elements, None, args.status.as_deref(), false, results, false);
+            if let Some(rows) = mj.get("rows").and_then(|r| r.as_array()) {
+                for row in rows {
+                    let id = row.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string();
+                    let gap_cfgs: Vec<String> = match row.get("cells").and_then(|c| c.as_object()) {
+                        Some(cells) => cells
+                            .iter()
+                            .filter(|(_, v)| v.as_str() == Some("gap"))
+                            .map(|(k, _)| k.clone())
+                            .collect(),
+                        // flat fallback: `verified: false` is the gap.
+                        None if row.get("verified").and_then(|b| b.as_bool()) == Some(false) => {
+                            vec!["(flat)".to_string()]
+                        }
+                        None => Vec::new(),
+                    };
+                    if gap_cfgs.is_empty() {
+                        continue;
+                    }
+                    if let Some(cfg) = args.config.as_deref() {
+                        if !gap_cfgs.iter().any(|c| c == cfg) {
+                            continue;
+                        }
+                    }
+                    gaps.push(json!({ "ref": id, "configs": gap_cfgs, "class": "uncovered", "code": "W015" }));
+                }
+            }
+        }
+
+        // failing / unverified-claim: from the validator + verdicts.
+        if want("failing") || want("unverified-claim") {
+            let result = validate_with_config(&store.elements, &store.config);
+            if want("failing") {
+                for e in store.elements.iter().filter(|e| {
+                    e.frontmatter.element_type == Some(ElementType::Requirement) && status_ok(e)
+                }) {
+                    let key = e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone());
+                    let failing = result.verified_by.get(&key).is_some_and(|tcs| {
+                        tcs.iter().any(|tid| {
+                            store
+                                .resolver
+                                .resolve_ref(&store.elements, tid)
+                                .is_some_and(|tc| tc_verdict(tc, results) == TcVerdict::Fail)
+                        })
+                    });
+                    if failing {
+                        gaps.push(json!({ "ref": key, "configs": [], "class": "failing", "code": "W010" }));
+                    }
+                }
+            }
+            if want("unverified-claim") {
+                for f in result.findings.iter().filter(|f| f.code == "W029") {
+                    if let Some(e) = store.elements.iter().find(|e| e.file_path == f.file) {
+                        if !status_ok(e) {
+                            continue;
+                        }
+                        let key = e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone());
+                        gaps.push(json!({ "ref": key, "configs": [], "class": "unverified-claim", "code": "W029" }));
+                    }
+                }
+            }
+        }
+        ok(json!({ "gaps": gaps }))
+    }
+
+    #[tool(
+        description = "A requirement's verification chain: each verifying TestCase, its test \
+        functions, and the latest ingested verdict (unknown when no results are loaded).",
+        annotations(read_only_hint = true)
+    )]
+    async fn evidence(
+        &self,
+        Parameters(args): Parameters<EvidenceArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let req = match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
+            Some(e) => e,
+            None => return tool_error(format!("unresolved reference: {}", args.r#ref)),
+        };
+        let result = validate_with_config(&store.elements, &store.config);
+        let key = req.frontmatter.id.clone().unwrap_or_else(|| req.qualified_name.clone());
+        let tc_ids = result
+            .verified_by
+            .get(&key)
+            .cloned()
+            .or_else(|| result.verified_by.get(&req.qualified_name).cloned())
+            .unwrap_or_default();
+        let results = store.config.results.as_ref();
+        let fkey = serde_yaml::Value::String("function".into());
+        let skey = serde_yaml::Value::String("sourceFile".into());
+        let mut chain: Vec<Value> = Vec::new();
+        for tid in &tc_ids {
+            let tc = match store.resolver.resolve_ref(&store.elements, tid) {
+                Some(t) => t,
+                None => continue,
+            };
+            let funcs: Vec<Value> = tc
+                .frontmatter
+                .test_functions
+                .as_deref()
+                .unwrap_or(&[])
+                .iter()
+                .filter_map(|tf| {
+                    let m = tf.as_mapping()?;
+                    let function = m.get(&fkey).and_then(|v| v.as_str())?.to_string();
+                    let source = m.get(&skey).and_then(|v| v.as_str()).map(String::from);
+                    let verdict = match results {
+                        Some(r) => fn_verdict_str(r.verdict_for(&function)),
+                        None => "unknown",
+                    };
+                    Some(json!({ "function": function, "sourceFile": source, "verdict": verdict }))
+                })
+                .collect();
+            let tc_v = match results {
+                Some(r) => tc_verdict_str(tc_verdict(tc, Some(r))),
+                None => "unknown",
+            };
+            chain.push(json!({
+                "testCase": tc.frontmatter.id,
+                "qname": tc.qualified_name,
+                "functions": funcs,
+                "verdict": tc_v,
+            }));
+        }
+        ok(json!({ "ref": req.qualified_name, "chain": chain }))
+    }
+
+    #[tool(
+        description = "Ingest an external test report (cargo-json | junit) into the results \
+        sidecar. dry_run defaults to true (returns the verdict delta without writing).",
+        annotations(read_only_hint = false, destructive_hint = false)
+    )]
+    async fn ingest_results(
+        &self,
+        Parameters(args): Parameters<IngestResultsArgs>,
+        peer: Peer<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let (text, source) = match (&args.path, &args.content) {
+            (Some(p), None) => match std::fs::read_to_string(p) {
+                Ok(t) => (t, p.clone()),
+                Err(e) => return tool_error(format!("cannot read '{p}': {e}")),
+            },
+            (None, Some(c)) => (c.clone(), "<inline>".to_string()),
+            _ => return tool_error("supply exactly one of `path` or `content`"),
+        };
+        let fmt = match args.format.as_deref() {
+            Some("cargo-json") => "cargo-json",
+            Some("junit") => "junit",
+            Some(o) => return tool_error(format!("unknown format '{o}': expected cargo-json | junit")),
+            None if source.ends_with(".xml") => "junit",
+            None => "cargo-json",
+        };
+        let parsed = match fmt {
+            "junit" => ResultsData::parse_junit(&text, &source),
+            _ => ResultsData::parse_cargo_json(&text, &source),
+        };
+        if parsed.count == 0 {
+            return tool_error("no test records parsed from report (malformed or unrecognised for the given format)");
+        }
+        let mut store = self.store.write().await;
+        let mut delta: Vec<Value> = Vec::new();
+        for e in &store.elements {
+            if e.frontmatter.element_type != Some(ElementType::TestCase) {
+                continue;
+            }
+            let from = tc_verdict(e, store.config.results.as_ref());
+            let to = tc_verdict(e, Some(&parsed));
+            if from != to {
+                delta.push(json!({
+                    "testCase": e.frontmatter.id,
+                    "qname": e.qualified_name,
+                    "from": tc_verdict_str(from),
+                    "to": tc_verdict_str(to),
+                }));
+            }
+        }
+        let extra = extra_map(json!({ "format": fmt, "count": parsed.count, "delta": delta }));
+        let apply = move |root: &Path| -> Result<(), String> {
+            parsed
+                .write_sidecar(root)
+                .map(|_| ())
+                .map_err(|e| format!("cannot write results sidecar: {e}"))
+        };
+        let res = guarded_write(&mut store, args.dry_run, false, extra, apply);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
+    }
+
+    #[tool(
+        description = "Scan .md/.svg files or directories for unresolvable model references \
+        (W099 prose ids, W100 mermaid qnames, W101 SVG sysml:ref, W102 missing local embeds).",
+        annotations(read_only_hint = true)
+    )]
+    async fn lint_docs(
+        &self,
+        Parameters(args): Parameters<LintDocsArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let paths: Vec<&str> = args.paths.iter().map(|s| s.as_str()).collect();
+        let findings = lint_docs_findings(&store.elements, &paths, args.codes.as_deref());
+        ok(json!({ "findings": findings }))
+    }
+
+    #[tool(
+        description = "Return a Diagram element's SOURCE (PlantUML by default, or the Mermaid \
+        source) plus its W400-W415 structural findings. Does not render an image.",
+        annotations(read_only_hint = true)
+    )]
+    async fn render_diagram(
+        &self,
+        Parameters(args): Parameters<RenderDiagramArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let elem = match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
+            Some(e) => e,
+            None => return tool_error(format!("unresolved reference: {}", args.r#ref)),
+        };
+        if elem.frontmatter.element_type != Some(ElementType::Diagram) {
+            return tool_error(format!("{} is not a Diagram element", args.r#ref));
+        }
+        let result = validate_with_config(&store.elements, &store.config);
+        let root = &store.model_root;
+        let findings: Vec<Value> = result
+            .findings
+            .iter()
+            .filter(|f| f.file == elem.file_path && f.code.starts_with("W40"))
+            .map(|f| finding_json(f, root))
+            .collect();
+        let (format, source) = if elem.frontmatter.diagram_kind.as_deref() == Some("Mermaid") {
+            ("mermaid".to_string(), extract_mermaid(&elem.doc).unwrap_or_default())
+        } else {
+            let src = render_plantuml(elem, &store.elements, None).unwrap_or_default();
+            (args.format.clone().unwrap_or_else(|| "plantuml".to_string()), src)
+        };
+        ok(json!({ "format": format, "source": source, "findings": findings }))
+    }
+
+    #[tool(
+        description = "View-vs-model drift: in-scope elements referenced by no Diagram shape, \
+        and diagram shape refs that resolve to no element (the W402 set).",
+        annotations(read_only_hint = true)
+    )]
+    async fn diagram_coverage(
+        &self,
+        Parameters(args): Parameters<DiagramCoverageArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        // Qualified names referenced by any Diagram shape's `ref`.
+        let ref_key = serde_yaml::Value::String("ref".into());
+        let mut referenced: HashSet<String> = HashSet::new();
+        for e in &store.elements {
+            if e.frontmatter.element_type != Some(ElementType::Diagram) {
+                continue;
+            }
+            if let Some(shapes) = e.frontmatter.shapes.as_ref().and_then(|v| v.as_mapping()) {
+                for (_id, sv) in shapes {
+                    if let Some(r) = sv
+                        .as_mapping()
+                        .and_then(|m| m.get(&ref_key))
+                        .and_then(|v| v.as_str())
+                    {
+                        referenced.insert(r.to_string());
+                    }
+                }
+            }
+        }
+        let root = args.root.as_deref();
+        let types = args.types.as_ref();
+        // Structural/container types are not expected to appear in diagrams.
+        let skip = |e: &RawElement| {
+            matches!(
+                e.frontmatter.element_type.as_ref().map(type_label),
+                Some("Package") | Some("LibraryPackage") | Some("Namespace") | Some("Diagram") | None
+            )
+        };
+        let uncovered: Vec<Value> = store
+            .elements
+            .iter()
+            .filter(|e| !skip(e))
+            .filter(|e| root.is_none_or(|r| e.qualified_name.starts_with(r)))
+            .filter(|e| {
+                types.is_none_or(|ts| {
+                    e.frontmatter
+                        .element_type
+                        .as_ref()
+                        .map(type_label)
+                        .is_some_and(|tl| ts.iter().any(|t| t == tl))
+                })
+            })
+            .filter(|e| !referenced.contains(&e.qualified_name))
+            .map(|e| {
+                json!({
+                    "qname": e.qualified_name,
+                    "id": e.frontmatter.id,
+                    "type": e.frontmatter.element_type.as_ref().map(type_label),
+                })
+            })
+            .collect();
+        let result = validate_with_config(&store.elements, &store.config);
+        let unresolved: Vec<Value> = result
+            .findings
+            .iter()
+            .filter(|f| f.code == "W402")
+            .map(|f| finding_json(f, &store.model_root))
+            .collect();
+        ok(json!({ "uncoveredElements": uncovered, "unresolvedRefs": unresolved }))
+    }
+
+    #[tool(
+        description = "Synthesise diagram source (Mermaid) from the model graph for a view kind: \
+        traceability | containment | feature | allocation. Embeds %% ref: annotations.",
+        annotations(read_only_hint = true)
+    )]
+    async fn generate_view(
+        &self,
+        Parameters(args): Parameters<GenerateViewArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let result = validate_with_config(&store.elements, &store.config);
+        let root = args.root.as_deref();
+        let in_scope = |q: &str| root.is_none_or(|r| q.starts_with(r));
+        let san = |q: &str| q.replace("::", "_").replace(['-', ' ', '.'], "_");
+        let label = |e: &RawElement| {
+            e.frontmatter
+                .id
+                .clone()
+                .or_else(|| e.frontmatter.name.clone())
+                .unwrap_or_else(|| e.qualified_name.clone())
+        };
+        let mut s = String::from("graph TD\n");
+        match args.kind.as_str() {
+            "traceability" => {
+                for e in store.elements.iter().filter(|e| {
+                    e.frontmatter.element_type == Some(ElementType::Requirement)
+                        && in_scope(&e.qualified_name)
+                }) {
+                    let rid = san(&e.qualified_name);
+                    s.push_str(&format!("  {rid}[\"{}\"]\n", label(e)));
+                    s.push_str(&format!("  %% ref: {}\n", e.qualified_name));
+                    let key = e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone());
+                    if let Some(tcs) = result.verified_by.get(&key) {
+                        for tid in tcs {
+                            if let Some(tc) = store.resolver.resolve_ref(&store.elements, tid) {
+                                let tcid = san(&tc.qualified_name);
+                                s.push_str(&format!("  {tcid}[\"{}\"]\n", label(tc)));
+                                s.push_str(&format!("  %% ref: {}\n", tc.qualified_name));
+                                s.push_str(&format!("  {rid} --> {tcid}\n"));
+                            }
+                        }
+                    }
+                }
+            }
+            "containment" => {
+                for e in store.elements.iter().filter(|e| in_scope(&e.qualified_name)) {
+                    let nid = san(&e.qualified_name);
+                    s.push_str(&format!("  {nid}[\"{}\"]\n", label(e)));
+                    s.push_str(&format!("  %% ref: {}\n", e.qualified_name));
+                    for child in children_of(&store.graph, &store.node_idx, &e.qualified_name) {
+                        if in_scope(child) {
+                            s.push_str(&format!("  {nid} --> {}\n", san(child)));
+                        }
+                    }
+                }
+            }
+            "feature" => {
+                for e in store.elements.iter().filter(|e| {
+                    e.frontmatter.element_type == Some(ElementType::FeatureDef)
+                        && in_scope(&e.qualified_name)
+                }) {
+                    let nid = san(&e.qualified_name);
+                    s.push_str(&format!("  {nid}[\"{}\"]\n", label(e)));
+                    s.push_str(&format!("  %% ref: {}\n", e.qualified_name));
+                    for child in children_of(&store.graph, &store.node_idx, &e.qualified_name) {
+                        s.push_str(&format!("  {nid} --> {}\n", san(child)));
+                    }
+                }
+            }
+            "allocation" => {
+                for e in store.elements.iter().filter(|e| {
+                    e.frontmatter.element_type == Some(ElementType::Allocation)
+                        && in_scope(&e.qualified_name)
+                }) {
+                    let nid = san(&e.qualified_name);
+                    s.push_str(&format!("  {nid}[\"{}\"]\n", label(e)));
+                    s.push_str(&format!("  %% ref: {}\n", e.qualified_name));
+                }
+            }
+            other => return tool_error(format!("unknown view kind: {other}")),
+        }
+        ok(json!({
+            "kind": args.kind,
+            "format": args.format.clone().unwrap_or_else(|| "mermaid".to_string()),
+            "source": s,
         }))
     }
 
