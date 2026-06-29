@@ -21,6 +21,7 @@ const HELP: &[(&str, &str)] = &[
     ("untyped", include_str!("../../../prompts/help/untyped.md")),
     ("connectivity", include_str!("../../../prompts/help/connectivity.md")),
     ("export", include_str!("../../../prompts/help/export.md")),
+    ("export-html", include_str!("../../../prompts/help/export-html.md")),
     // Traceability
     ("trace", include_str!("../../../prompts/help/trace.md")),
     ("why", include_str!("../../../prompts/help/why.md")),

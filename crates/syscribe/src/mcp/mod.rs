@@ -1277,63 +1277,34 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         let result = validate_with_config(&store.elements, &store.config);
-        let mut verified = 0u64;
-        let mut unverified_leaves: Vec<Value> = Vec::new();
-        let mut parents_missing_integration: Vec<Value> = Vec::new();
+        let summary = crate::coverage::coverage_summary(&store.elements, &result);
 
-        for e in &store.elements {
-            if !Resolver::is_native_requirement(e) {
-                continue;
-            }
-            let id = e.frontmatter.id.as_deref().unwrap_or("");
-            // Parent ⇔ it has non-empty derivedChildren (two-level model / W305).
-            let children = result.derived_children.get(id);
-            let child_count = children.map(|c| c.len()).unwrap_or(0);
-            let has_children = child_count > 0;
-            let verifying_tcs = result.verified_by.get(id);
-
-            // An "integration" test is testLevel L3/L4/L5 on a verifying TestCase.
-            let has_integration_tc = verifying_tcs.is_some_and(|tcs| {
-                tcs.iter().any(|tc_id| {
-                    store
-                        .resolver
-                        .resolve_ref(&store.elements, tc_id)
-                        .and_then(|tc| tc.frontmatter.test_level.as_deref())
-                        .is_some_and(|lvl| matches!(lvl, "L3" | "L4" | "L5"))
+        let unverified_leaves: Vec<Value> = summary
+            .unverified_leaves
+            .iter()
+            .map(|e| {
+                json!({
+                    "qname": e.qname,
+                    "id": e.id,
+                    "name": e.name,
                 })
-            });
-
-            // Gaps are reported only for non-draft requirements (mirror W300/W305,
-            // which are suppressed on draft / planned work).
-            let reportable = matches!(
-                e.frontmatter.status.as_deref(),
-                Some("approved") | Some("implemented") | Some("verified")
-            );
-
-            if has_children {
-                if has_integration_tc {
-                    verified += 1;
-                } else if reportable {
-                    parents_missing_integration.push(json!({
-                        "qname": e.qualified_name,
-                        "id": e.frontmatter.id,
-                        "name": e.frontmatter.name,
-                        "childCount": child_count,
-                    }));
-                }
-            } else if verifying_tcs.is_some_and(|tcs| !tcs.is_empty()) {
-                verified += 1;
-            } else if reportable {
-                unverified_leaves.push(json!({
-                    "qname": e.qualified_name,
-                    "id": e.frontmatter.id,
-                    "name": e.frontmatter.name,
-                }));
-            }
-        }
+            })
+            .collect();
+        let parents_missing_integration: Vec<Value> = summary
+            .parents_missing_integration
+            .iter()
+            .map(|e| {
+                json!({
+                    "qname": e.qname,
+                    "id": e.id,
+                    "name": e.name,
+                    "childCount": e.child_count.unwrap_or(0),
+                })
+            })
+            .collect();
 
         ok(json!({
-            "verifiedCount": verified,
+            "verifiedCount": summary.verified_count,
             "unverifiedLeaves": unverified_leaves,
             "parentsMissingIntegrationTest": parents_missing_integration,
         }))
