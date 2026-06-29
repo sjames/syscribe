@@ -12,9 +12,9 @@ tags:
   - write
 ---
 
-Every MCP write tool (`create_element`, `update_element`, `move_element`) shall implement a
-common write-guard protocol so an LLM can propose a change, inspect its effect, and only then
-commit it.
+Every MCP write tool (`create_element`, `update_element`, `move_element`, `delete_element`, and
+`apply_changes`) shall implement a common write-guard protocol so an LLM can propose a change,
+inspect its effect, and only then commit it.
 
 ## Guard protocol
 

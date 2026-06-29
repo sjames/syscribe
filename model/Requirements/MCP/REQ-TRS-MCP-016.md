@@ -20,7 +20,9 @@ so a client can render and guard tools appropriately.
   `graph_query`, `trace`, `impact`, `validate`, `validate_element`, `reload`, and the authoring
   helpers `describe_type`, `template`, `explain_finding`, `check_ref`, `next_id`, `coverage`)
   shall carry `readOnlyHint: true`.
-- The write tools (`create_element`, `update_element`, `move_element`) shall not carry
-  `readOnlyHint: true`; they shall be annotated as non-destructive (they create/modify rather
-  than delete) so a client knows they mutate the model.
+- The write tools (`create_element`, `update_element`, `move_element`, `delete_element`,
+  `apply_changes`) shall not carry `readOnlyHint: true`, so a client knows they mutate the
+  model. The create/modify tools shall be annotated non-destructive; `delete_element` (and an
+  `apply_changes` batch that contains a delete) shall be annotated destructive
+  (`destructiveHint: true`).
 - The annotations shall be present in the `tools/list` output.

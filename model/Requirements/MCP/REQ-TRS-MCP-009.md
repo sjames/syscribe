@@ -13,9 +13,10 @@ tags:
   - security
 ---
 
-Every MCP write tool (`create_element`, `update_element`, `move_element`) shall confine all
-file creation, modification, and deletion to the resolved model root, and shall reject any
-qualified name, destination, or path that would resolve to a location outside that root.
+Every MCP write tool (`create_element`, `update_element`, `move_element`, `delete_element`, and
+`apply_changes`) shall confine all file creation, modification, and deletion to the resolved
+model root, and shall reject any qualified name, destination, or path that would resolve to a
+location outside that root.
 
 ## Confinement guards
 

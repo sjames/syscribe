@@ -3,6 +3,7 @@
 //! Exposes a curated set of read tools and guarded-write tools over an in-memory
 //! [`McpStore`], plus the format spec as resources and the authoring prompt.
 
+mod diff;
 mod store;
 mod util;
 mod write;
@@ -31,7 +32,7 @@ use tokio::sync::RwLock;
 
 use syscribe_model::element::{ElementType, RawElement};
 use syscribe_model::graph::{children_of, EdgeKind};
-use syscribe_model::resolver::{is_stable_id, STABLE_ID_KINDS};
+use syscribe_model::resolver::{is_stable_id, Resolver, STABLE_ID_KINDS};
 use syscribe_model::validator::validate_with_config;
 use syscribe_model::walker::walk_model;
 
@@ -175,6 +176,37 @@ struct UpdateElementArgs {
 struct MoveElementArgs {
     r#ref: String,
     dest: String,
+    #[serde(default = "default_true")]
+    dry_run: bool,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct DeleteElementArgs {
+    r#ref: String,
+    #[serde(default)]
+    force: bool,
+    #[serde(default = "default_true")]
+    dry_run: bool,
+}
+
+/// One operation in an `apply_changes` batch. Carries the union of the single
+/// write tools' arguments; `op` selects which are read.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct BatchOp {
+    op: String,
+    qname: Option<String>,
+    r#type: Option<String>,
+    fields: Option<Value>,
+    doc: Option<String>,
+    r#ref: Option<String>,
+    dest: Option<String>,
+    #[allow(dead_code)]
+    force: Option<bool>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ApplyChangesArgs {
+    operations: Vec<BatchOp>,
     #[serde(default = "default_true")]
     dry_run: bool,
 }
@@ -444,6 +476,138 @@ fn apply_update(path: &Path, fields: Option<&Value>, doc: Option<&str>) -> Resul
     let new_content = format!("---\n{}---\n\n{}", new_yaml, final_body);
     std::fs::write(path, new_content).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// A planned new-element write: where to write it, the file content, and the
+/// reported id (auto-allocated for id-identified types, or the explicit one).
+struct CreatePlan {
+    rel: String,
+    content: String,
+    id: Value,
+}
+
+/// Validate inputs and build the file content for a `create` (single tool or a
+/// batch op). Returns `Err` on an already-existing or syntactically invalid qname.
+fn plan_create(
+    elements: &[RawElement],
+    qname_raw: &str,
+    type_name: &str,
+    fields: Option<&Value>,
+    doc: Option<&str>,
+) -> Result<CreatePlan, String> {
+    let qname = qname_raw.replace('/', "::");
+    if elements.iter().any(|e| e.qualified_name == qname) {
+        return Err("an element with this qualified name already exists".into());
+    }
+    if !mv::valid_qname(&qname) {
+        return Err("not a valid basic qualified name".into());
+    }
+    let etype: ElementType = serde_yaml::from_value(serde_yaml::Value::String(type_name.to_string()))
+        .unwrap_or(ElementType::Unknown);
+    let fields_obj = fields.and_then(|v| v.as_object());
+    let explicit_id = fields_obj
+        .and_then(|o| o.get("id"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let mut allocated_id: Option<String> = None;
+    if etype.is_id_identified() && explicit_id.is_none() {
+        if let Some(prefix) = builtin_prefix(&etype) {
+            let mut n = 1u32;
+            let id = loop {
+                let cand = format!("{prefix}-GEN-{n:03}");
+                let taken = elements
+                    .iter()
+                    .any(|e| e.frontmatter.id.as_deref() == Some(cand.as_str()));
+                if !taken && is_stable_id(&cand) {
+                    break cand;
+                }
+                n += 1;
+            };
+            allocated_id = Some(id);
+        }
+    }
+
+    let mut map = serde_yaml::Mapping::new();
+    map.insert("type".into(), serde_yaml::Value::String(type_name.to_string()));
+    if let Some(id) = &allocated_id {
+        map.insert("id".into(), serde_yaml::Value::String(id.clone()));
+    }
+    if let Some(o) = fields_obj {
+        for (k, v) in o {
+            map.insert(serde_yaml::Value::String(k.clone()), json_to_yaml(v));
+        }
+    }
+    let yaml = serde_yaml::to_string(&serde_yaml::Value::Mapping(map)).unwrap_or_default();
+    let content = format!("---\n{yaml}---\n\n{}\n", doc.unwrap_or(""));
+    let rel = format!("{}.md", qname.replace("::", "/"));
+    let id = allocated_id
+        .or(explicit_id)
+        .map(Value::String)
+        .unwrap_or(Value::Null);
+    Ok(CreatePlan { rel, content, id })
+}
+
+/// Write `content` to `<root>/<rel>`, confirming the resolved parent stays within
+/// the canonicalized model root (defeats `..`/symlink traversal).
+fn write_confined(root: &Path, rel: &str, content: &str) -> Result<(), String> {
+    let target = root.join(rel);
+    let canon_root = std::fs::canonicalize(root).map_err(|e| e.to_string())?;
+    if let Some(parent) = target.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        let canon_parent = std::fs::canonicalize(parent).map_err(|e| e.to_string())?;
+        if !canon_parent.starts_with(&canon_root) {
+            return Err("resolved path escapes the model root".into());
+        }
+    }
+    std::fs::write(&target, content).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// Apply one batch operation against the working model root `root`, re-reading
+/// the current on-disk state so a later op can depend on an earlier one.
+fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
+    match op.op.as_str() {
+        "create" => {
+            let qname = op.qname.as_deref().ok_or("create op missing `qname`")?;
+            let ty = op.r#type.as_deref().ok_or("create op missing `type`")?;
+            let elems = walk_model(root).map_err(|e| e.to_string())?;
+            let plan = plan_create(&elems, qname, ty, op.fields.as_ref(), op.doc.as_deref())?;
+            write_confined(root, &plan.rel, &plan.content)
+        }
+        "update" => {
+            let r = op.r#ref.as_deref().ok_or("update op missing `ref`")?;
+            let elems = walk_model(root).map_err(|e| e.to_string())?;
+            let resolver = Resolver::new(&elems);
+            let file = resolver
+                .resolve_ref(&elems, r)
+                .map(|e| e.file_path.clone())
+                .ok_or_else(|| format!("unresolved reference: {r}"))?;
+            apply_update(Path::new(&file), op.fields.as_ref(), op.doc.as_deref())
+        }
+        "move" => {
+            let r = op.r#ref.as_deref().ok_or("move op missing `ref`")?;
+            let dest = op.dest.as_deref().ok_or("move op missing `dest`")?;
+            let dest_n = dest.replace('/', "::");
+            if !mv::valid_qname(&dest_n) {
+                return Err(format!("invalid destination qualified name: {dest}"));
+            }
+            let elems = walk_model(root).map_err(|e| e.to_string())?;
+            let resolver = Resolver::new(&elems);
+            mv::move_element(root, &elems, &resolver, r, &dest_n, false).map(|_| ())
+        }
+        "delete" => {
+            let r = op.r#ref.as_deref().ok_or("delete op missing `ref`")?;
+            let elems = walk_model(root).map_err(|e| e.to_string())?;
+            let resolver = Resolver::new(&elems);
+            let file = resolver
+                .resolve_ref(&elems, r)
+                .map(|e| e.file_path.clone())
+                .ok_or_else(|| format!("unresolved reference: {r}"))?;
+            std::fs::remove_file(&file).map_err(|e| e.to_string())
+        }
+        other => Err(format!("unknown op: {other}")),
+    }
 }
 
 // ── The handler ─────────────────────────────────────────────────────────────
@@ -974,79 +1138,25 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
         let qname = args.qname.replace('/', "::");
-        let extra = extra_map(json!({ "qname": qname }));
+        let mut extra = extra_map(json!({ "qname": qname }));
 
-        if store.elements.iter().any(|e| e.qualified_name == qname) {
-            return ok(refuse(extra, "an element with this qualified name already exists"));
-        }
-        if !mv::valid_qname(&qname) {
-            return ok(refuse(extra, "not a valid basic qualified name"));
-        }
-
-        let etype: ElementType =
-            serde_yaml::from_value(serde_yaml::Value::String(args.r#type.clone()))
-                .unwrap_or(ElementType::Unknown);
-
-        let fields_obj = args.fields.as_ref().and_then(|v| v.as_object());
-        let explicit_id = fields_obj
-            .and_then(|o| o.get("id"))
-            .and_then(|v| v.as_str())
-            .map(String::from);
-
-        let mut allocated_id: Option<String> = None;
-        if etype.is_id_identified() && explicit_id.is_none() {
-            if let Some(prefix) = builtin_prefix(&etype) {
-                let mut n = 1u32;
-                let id = loop {
-                    let cand = format!("{prefix}-GEN-{n:03}");
-                    let taken = store
-                        .elements
-                        .iter()
-                        .any(|e| e.frontmatter.id.as_deref() == Some(cand.as_str()));
-                    if !taken && is_stable_id(&cand) {
-                        break cand;
-                    }
-                    n += 1;
-                };
-                allocated_id = Some(id);
-            }
-        }
-
-        // Build the frontmatter mapping: type, (id), then requested fields.
-        let mut map = serde_yaml::Mapping::new();
-        map.insert("type".into(), serde_yaml::Value::String(args.r#type.clone()));
-        if let Some(id) = &allocated_id {
-            map.insert("id".into(), serde_yaml::Value::String(id.clone()));
-        }
-        if let Some(o) = fields_obj {
-            for (k, v) in o {
-                map.insert(serde_yaml::Value::String(k.clone()), json_to_yaml(v));
-            }
-        }
-        let yaml = serde_yaml::to_string(&serde_yaml::Value::Mapping(map)).unwrap_or_default();
-        let doc = args.doc.clone().unwrap_or_default();
-        let content = format!("---\n{yaml}---\n\n{doc}\n");
-        let rel = format!("{}.md", qname.replace("::", "/"));
-
-        let reported_id = allocated_id.clone().or(explicit_id);
-        let mut extra = extra;
-        extra.insert("id".into(), reported_id.map(Value::String).unwrap_or(Value::Null));
-
-        let apply = move |root: &Path| -> Result<(), String> {
-            let target = root.join(&rel);
-            let canon_root = std::fs::canonicalize(root).map_err(|e| e.to_string())?;
-            if let Some(parent) = target.parent() {
-                std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-                let canon_parent = std::fs::canonicalize(parent).map_err(|e| e.to_string())?;
-                if !canon_parent.starts_with(&canon_root) {
-                    return Err("resolved path escapes the model root".into());
-                }
-            }
-            std::fs::write(&target, &content).map_err(|e| e.to_string())?;
-            Ok(())
+        let plan = match plan_create(
+            &store.elements,
+            &args.qname,
+            &args.r#type,
+            args.fields.as_ref(),
+            args.doc.as_deref(),
+        ) {
+            Ok(p) => p,
+            Err(e) => return ok(refuse(extra, &e)),
         };
+        extra.insert("id".into(), plan.id.clone());
 
-        ok(guarded_write(&mut store, args.dry_run, extra, apply))
+        let rel = plan.rel.clone();
+        let content = plan.content.clone();
+        let apply = move |root: &Path| -> Result<(), String> { write_confined(root, &rel, &content) };
+
+        ok(guarded_write(&mut store, args.dry_run, true, extra, apply))
     }
 
     #[tool(
@@ -1069,7 +1179,7 @@ impl SyscribeMcp {
         let apply = move |root: &Path| -> Result<(), String> {
             apply_update(&root.join(&rel), fields.as_ref(), doc.as_deref())
         };
-        ok(guarded_write(&mut store, args.dry_run, extra, apply))
+        ok(guarded_write(&mut store, args.dry_run, true, extra, apply))
     }
 
     #[tool(
@@ -1093,7 +1203,71 @@ impl SyscribeMcp {
             let resolver = syscribe_model::resolver::Resolver::new(&elems);
             mv::move_element(root, &elems, &resolver, &source, &dest_c, false).map(|_| ())
         };
-        ok(guarded_write(&mut store, args.dry_run, extra, apply))
+        ok(guarded_write(&mut store, args.dry_run, true, extra, apply))
+    }
+
+    #[tool(
+        description = "Delete an element file. Refuses (blockedBy) if other elements reference \
+        it unless force=true. dry_run defaults to true.",
+        annotations(read_only_hint = false, destructive_hint = true)
+    )]
+    async fn delete_element(
+        &self,
+        Parameters(args): Parameters<DeleteElementArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let mut store = self.store.write().await;
+        let (target_qname, rel) = match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
+            Some(e) => (
+                e.qualified_name.clone(),
+                rel_file(&e.file_path, &store.model_root),
+            ),
+            None => return tool_error(format!("unresolved reference: {}", args.r#ref)),
+        };
+
+        if !args.force {
+            let refs = write::referrers(&store.elements, &target_qname);
+            if !refs.is_empty() {
+                let blocked: Vec<Value> = refs
+                    .iter()
+                    .map(|(q, id)| json!({ "qname": q, "id": id }))
+                    .collect();
+                let extra = extra_map(json!({ "ref": args.r#ref, "blockedBy": blocked }));
+                return ok(refuse(
+                    extra,
+                    "delete blocked by inbound references; pass force:true to override",
+                ));
+            }
+        }
+
+        let extra = extra_map(json!({ "ref": args.r#ref }));
+        let rel_c = rel.clone();
+        let apply = move |root: &Path| -> Result<(), String> {
+            std::fs::remove_file(root.join(&rel_c)).map_err(|e| e.to_string())
+        };
+        // gate=false: deletion may legitimately orphan a reference (esp. under force);
+        // the reference-impact guard above is delete's safety mechanism.
+        ok(guarded_write(&mut store, args.dry_run, false, extra, apply))
+    }
+
+    #[tool(
+        description = "Apply an ordered batch of create/update/move/delete operations \
+        atomically (all-or-nothing). dry_run defaults to true.",
+        annotations(read_only_hint = false, destructive_hint = true)
+    )]
+    async fn apply_changes(
+        &self,
+        Parameters(args): Parameters<ApplyChangesArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let mut store = self.store.write().await;
+        let extra = extra_map(json!({ "operations": args.operations.len() }));
+        let ops = args.operations;
+        let apply = move |root: &Path| -> Result<(), String> {
+            for op in &ops {
+                apply_op(root, op)?;
+            }
+            Ok(())
+        };
+        ok(guarded_write(&mut store, args.dry_run, true, extra, apply))
     }
 }
 

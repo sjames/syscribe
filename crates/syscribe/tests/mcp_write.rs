@@ -251,3 +251,108 @@ fn create_through_symlinked_dir_is_refused() {
     assert!(!outside.join("Pwned.md").exists(), "no file created at the symlink target outside the root");
     assert_eq!(dir_hash(&model), before, "model tree unchanged");
 }
+
+// ---- TC-TRS-MCP-021: delete_element -----------------------------------------
+
+#[test]
+fn delete_referenced_element_is_blocked() {
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    // Parts::Derived references Parts::Base via supertype.
+    let res = mcp.call_tool("delete_element", json!({"ref": "Parts::Base", "dry_run": false}));
+    assert_eq!(res.get("written").and_then(|w| w.as_bool()), Some(false), "referenced delete refused: {res}");
+    let blocked: Vec<String> = res
+        .get("blockedBy")
+        .and_then(|b| b.as_array())
+        .map(|a| a.iter().filter_map(|x| x.get("qname").and_then(|q| q.as_str()).map(String::from)).collect())
+        .unwrap_or_default();
+    assert!(blocked.iter().any(|q| q.contains("Parts::Derived")), "blocking ref from Derived reported; got {blocked:?}");
+    assert!(model.join("Parts/Base.md").exists(), "Base still present");
+}
+
+#[test]
+fn delete_unreferenced_element_succeeds() {
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    // Nothing references Parts::Derived.
+    let res = mcp.call_tool("delete_element", json!({"ref": "Parts::Derived", "dry_run": false}));
+    assert_eq!(res.get("written").and_then(|w| w.as_bool()), Some(true), "unreferenced delete commits: {res}");
+    assert!(!model.join("Parts/Derived.md").exists(), "Derived removed");
+}
+
+#[test]
+fn delete_with_force_overrides_references() {
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let res = mcp.call_tool("delete_element", json!({"ref": "Parts::Base", "force": true, "dry_run": false}));
+    assert_eq!(res.get("written").and_then(|w| w.as_bool()), Some(true), "force delete commits: {res}");
+    assert!(!model.join("Parts/Base.md").exists(), "Base removed under force");
+}
+
+// ---- TC-TRS-MCP-022: apply_changes (atomic batch) ---------------------------
+
+#[test]
+fn apply_changes_commits_dependent_pair_atomically() {
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let res = mcp.call_tool(
+        "apply_changes",
+        json!({
+            "dry_run": false,
+            "operations": [
+                {"op": "create", "qname": "Requirements::REQ_BATCH", "type": "Requirement",
+                 "fields": {"id": "REQ-BATCH-001", "name": "Batch requirement", "status": "draft", "reqDomain": "software", "reqClass": "system"},
+                 "doc": "The system shall support batch creation."},
+                {"op": "create", "qname": "Verification::TC_BATCH", "type": "TestCase",
+                 "fields": {"id": "TC-BATCH-001", "name": "Batch test", "status": "draft", "testLevel": "L2", "verifies": ["REQ-BATCH-001"]},
+                 "doc": "covers REQ-BATCH-001"}
+            ]
+        }),
+    );
+    assert_eq!(res.get("written").and_then(|w| w.as_bool()), Some(true), "batch commits: {res}");
+    assert!(model.join("Requirements/REQ_BATCH.md").exists(), "first element written");
+    assert!(model.join("Verification/TC_BATCH.md").exists(), "second (dependent) element written");
+    assert!(res.get("validationDelta").is_some(), "single combined validation delta returned");
+}
+
+#[test]
+fn apply_changes_rolls_back_fully_on_failure() {
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    // Second op recreates an existing qname → whole batch must roll back.
+    let res = mcp.call_tool(
+        "apply_changes",
+        json!({
+            "dry_run": false,
+            "operations": [
+                {"op": "create", "qname": "Parts::Good", "type": "PartDef"},
+                {"op": "create", "qname": "Parts::Base", "type": "PartDef"}
+            ]
+        }),
+    );
+    assert_eq!(res.get("written").and_then(|w| w.as_bool()), Some(false), "failing batch refused: {res}");
+    assert!(!model.join("Parts/Good.md").exists(), "first op rolled back — no partial application");
+}
+
+// ---- TC-TRS-MCP-023: unified diff preview -----------------------------------
+
+#[test]
+fn dry_run_update_returns_unified_diff() {
+    let model = fixture_copy();
+    let before = dir_hash(&model);
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let res = mcp.call_tool(
+        "update_element",
+        json!({"ref": "REQ-FX-001", "fields": {"status": "approved"}}),
+    );
+    let diff = res.get("diff").and_then(|d| d.as_str()).expect("diff string present");
+    assert!(!diff.is_empty(), "diff is non-empty");
+    assert!(diff.contains("approved"), "diff shows the new value as an addition; got {diff}");
+    assert_eq!(dir_hash(&model), before, "dry-run leaves disk unchanged");
+}

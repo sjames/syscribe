@@ -19,6 +19,7 @@ use syscribe_model::element::RawElement;
 use syscribe_model::resolver::{is_builtin_type, Resolver};
 use syscribe_model::validator::{validate_with_config, Severity};
 
+use super::diff::tree_unified_diff;
 use super::store::McpStore;
 use super::util::rel_file;
 
@@ -68,40 +69,67 @@ fn yaml_strings(v: &serde_yaml::Value) -> Vec<String> {
     }
 }
 
+/// Every cross-reference string an element holds, paired with its field name.
+pub fn element_ref_strings(e: &RawElement) -> Vec<(&'static str, String)> {
+    let fm = &e.frontmatter;
+    let mut refs: Vec<(&'static str, String)> = Vec::new();
+    for (field, val) in [
+        ("supertype", &fm.supertype),
+        ("typedBy", &fm.typed_by),
+        ("redefines", &fm.redefines),
+    ] {
+        if let Some(v) = val {
+            for s in yaml_strings(v) {
+                refs.push((field, s));
+            }
+        }
+    }
+    for (field, list) in [
+        ("subsets", &fm.subsets),
+        ("verifies", &fm.verifies),
+        ("derivedFrom", &fm.derived_from),
+        ("satisfies", &fm.satisfies),
+        ("allocatedFrom", &fm.allocated_from),
+        ("allocatedTo", &fm.allocated_to),
+    ] {
+        if let Some(l) = list {
+            for s in l {
+                refs.push((field, s.clone()));
+            }
+        }
+    }
+    refs
+}
+
+/// Elements (other than the target) that hold a cross-reference resolving to
+/// `target_qname` — used by `delete_element`'s reference-impact guard. Returns
+/// `(qname, id)` of each distinct referrer.
+pub fn referrers(elements: &[RawElement], target_qname: &str) -> Vec<(String, Option<String>)> {
+    let resolver = Resolver::new(elements);
+    let mut out: Vec<(String, Option<String>)> = Vec::new();
+    for e in elements {
+        if e.qualified_name == target_qname {
+            continue;
+        }
+        let hits = element_ref_strings(e).into_iter().any(|(_, r)| {
+            resolver
+                .resolve_ref(elements, &r)
+                .is_some_and(|t| t.qualified_name == target_qname)
+        });
+        if hits {
+            out.push((e.qualified_name.clone(), e.frontmatter.id.clone()));
+        }
+    }
+    out
+}
+
 /// Every cross-reference in the model that does not resolve, as error entries.
 /// Built-in standard-library type references (`ScalarValues::Real`, …) are exempt.
 fn ref_errors(elements: &[RawElement], root: &Path) -> Vec<Entry> {
     let resolver = Resolver::new(elements);
     let mut out = Vec::new();
     for e in elements {
-        let fm = &e.frontmatter;
-        let mut refs: Vec<(&str, String)> = Vec::new();
-        for (field, val) in [
-            ("supertype", &fm.supertype),
-            ("typedBy", &fm.typed_by),
-            ("redefines", &fm.redefines),
-        ] {
-            if let Some(v) = val {
-                for s in yaml_strings(v) {
-                    refs.push((field, s));
-                }
-            }
-        }
-        for (field, list) in [
-            ("subsets", &fm.subsets),
-            ("verifies", &fm.verifies),
-            ("derivedFrom", &fm.derived_from),
-            ("satisfies", &fm.satisfies),
-            ("allocatedFrom", &fm.allocated_from),
-            ("allocatedTo", &fm.allocated_to),
-        ] {
-            if let Some(l) = list {
-                for s in l {
-                    refs.push((field, s.clone()));
-                }
-            }
-        }
-        for (field, r) in refs {
+        for (field, r) in element_ref_strings(e) {
             if is_builtin_type(&r) {
                 continue;
             }
@@ -150,33 +178,42 @@ fn empty_delta() -> Value {
 }
 
 /// Assemble a result object from tool-specific `extra` fields plus the standard
-/// `written` / `validationDelta` (and an optional `reason`).
-fn result(extra: &Map<String, Value>, written: bool, delta: Value, reason: Option<&str>) -> Value {
+/// `written` / `validationDelta` / `diff` (and an optional `reason`).
+fn result(
+    extra: &Map<String, Value>,
+    written: bool,
+    delta: Value,
+    diff: &str,
+    reason: Option<&str>,
+) -> Value {
     let mut obj = extra.clone();
     obj.insert("written".into(), Value::Bool(written));
     obj.insert("validationDelta".into(), delta);
+    obj.insert("diff".into(), Value::String(diff.to_string()));
     if let Some(r) = reason {
         obj.insert("reason".into(), Value::String(r.to_string()));
     }
     Value::Object(obj)
 }
 
-/// A guard refusal that never touched disk and computed no delta (e.g. an invalid
-/// or traversal qname caught before any candidate work).
+/// A guard refusal that never touched disk and computed no delta/diff (e.g. an
+/// invalid or traversal qname, or a blocked delete, caught before candidate work).
 pub fn refuse(extra: Map<String, Value>, reason: &str) -> Value {
-    result(&extra, false, empty_delta(), Some(reason))
+    result(&extra, false, empty_delta(), "", Some(reason))
 }
 
 /// Run a guarded write. `apply` performs the edit against an arbitrary model root
 /// (invoked once on a temp copy to compute the candidate, and a second time on the
 /// real model only when committing a clean change).
 ///
-/// On `dry_run` (the default) disk is never touched. On commit, a change that
-/// introduces a newly-unresolved cross-reference is refused unless
-/// `SYSCRIBE_MCP_ALLOW_NEW_ERRORS=1`.
+/// On `dry_run` (the default) disk is never touched. On commit, when `gate` is
+/// true a change that introduces a newly-unresolved cross-reference is refused
+/// (unless `SYSCRIBE_MCP_ALLOW_NEW_ERRORS=1`). `delete_element` passes `gate=false`
+/// because its own reference-impact guard already governs safety.
 pub fn guarded_write<F>(
     store: &mut McpStore,
     dry_run: bool,
+    gate: bool,
     extra: Map<String, Value>,
     apply: F,
 ) -> Value
@@ -211,6 +248,9 @@ where
             return refuse(extra, &format!("candidate model failed to load: {e}"));
         }
     };
+
+    // Unified diff of the would-be change (real tree vs candidate tree).
+    let diff = tree_unified_diff(&base_root, &cand_root);
     let _ = std::fs::remove_dir_all(&cand_root);
 
     let base_err_set: HashSet<Entry> = base_errs.iter().cloned().collect();
@@ -232,27 +272,28 @@ where
     });
 
     if dry_run {
-        return result(&extra, false, delta, None);
+        return result(&extra, false, delta, &diff, None);
     }
 
     let allow_new_errors = std::env::var("SYSCRIBE_MCP_ALLOW_NEW_ERRORS")
         .map(|v| v == "1")
         .unwrap_or(false);
-    if new_error_count > 0 && !allow_new_errors {
+    if gate && new_error_count > 0 && !allow_new_errors {
         return result(
             &extra,
             false,
             delta,
+            &diff,
             Some("refused: commit would introduce an unresolved reference"),
         );
     }
 
     // Commit: apply to the real model, then rebuild the store.
     if let Err(e) = apply(&base_root) {
-        return result(&extra, false, delta, Some(&format!("commit failed: {e}")));
+        return result(&extra, false, delta, &diff, Some(&format!("commit failed: {e}")));
     }
     if let Err(e) = store.reload() {
-        return result(&extra, true, delta, Some(&format!("written, but reload failed: {e}")));
+        return result(&extra, true, delta, &diff, Some(&format!("written, but reload failed: {e}")));
     }
-    result(&extra, true, delta, None)
+    result(&extra, true, delta, &diff, None)
 }
