@@ -603,7 +603,8 @@ fn main() {
     // `mcp` owns model loading (it builds a long-lived, reloadable store), so dispatch
     // it before the eager `walk_model` below to avoid loading the model twice.
     if subcommand_args.first().map(String::as_str) == Some("mcp") {
-        if let Err(e) = mcp::cmd_mcp(model_root) {
+        let read_only = subcommand_args.iter().any(|a| a == "--read-only");
+        if let Err(e) = mcp::cmd_mcp(model_root, read_only) {
             eprintln!("Error: mcp server failed: {e}");
             std::process::exit(1);
         }

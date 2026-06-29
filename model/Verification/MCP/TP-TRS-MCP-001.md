@@ -29,6 +29,9 @@ testCases:
   - TC-TRS-MCP-021
   - TC-TRS-MCP-022
   - TC-TRS-MCP-023
+  - TC-TRS-MCP-024
+  - TC-TRS-MCP-025
+  - TC-TRS-MCP-026
 tags:
   - mcp
   - integration

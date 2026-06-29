@@ -53,13 +53,24 @@ pub struct Mcp {
     reader: BufReader<std::process::ChildStdout>,
     next_id: i64,
     pub model_root: PathBuf,
+    /// Server-initiated notifications observed while awaiting responses.
+    pub notifications: Vec<Value>,
 }
 
 impl Mcp {
     /// Spawn `syscribe mcp -m <model_root>` and return the client.
     pub fn start(model_root: &Path) -> Mcp {
-        let mut child = Command::new(env!("CARGO_BIN_EXE_syscribe"))
-            .arg("mcp")
+        Mcp::start_with_args(model_root, &[])
+    }
+
+    /// Spawn `syscribe mcp <extra…> -m <model_root>` and return the client.
+    pub fn start_with_args(model_root: &Path, extra: &[&str]) -> Mcp {
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_syscribe"));
+        cmd.arg("mcp");
+        for a in extra {
+            cmd.arg(a);
+        }
+        let mut child = cmd
             .arg("-m")
             .arg(model_root)
             .stdin(Stdio::piped())
@@ -69,7 +80,7 @@ impl Mcp {
             .expect("spawn syscribe mcp");
         let stdin = child.stdin.take().unwrap();
         let reader = BufReader::new(child.stdout.take().unwrap());
-        Mcp { child, stdin, reader, next_id: 1, model_root: model_root.to_path_buf() }
+        Mcp { child, stdin, reader, next_id: 1, model_root: model_root.to_path_buf(), notifications: Vec::new() }
     }
 
     fn send(&mut self, msg: &Value) {
@@ -102,8 +113,20 @@ impl Mcp {
                 }
                 return v.get("result").cloned().unwrap_or(Value::Null);
             }
-            // otherwise a notification or another message: keep reading
+            // A server-initiated notification (method, no id): record and keep reading.
+            if v.get("id").is_none() && v.get("method").is_some() {
+                self.notifications.push(v);
+            }
         }
+    }
+
+    /// True if a notification with the given method has been observed.
+    pub fn saw_notification(&self, method: &str) -> bool {
+        self.notifications.iter().any(|n| n.get("method").and_then(|m| m.as_str()) == Some(method))
+    }
+
+    pub fn logging_set_level(&mut self, level: &str) -> Value {
+        self.request("logging/setLevel", json!({"level": level}))
     }
 
     fn request(&mut self, method: &str, params: Value) -> Value {

@@ -16,16 +16,20 @@ use petgraph::graph::NodeIndex;
 use petgraph::visit::EdgeRef;
 use petgraph::Direction;
 use rmcp::handler::server::wrapper::Parameters;
+use rmcp::handler::server::tool::ToolCallContext;
 use rmcp::model::{
-    AnnotateAble, CallToolResult, CompleteRequestParams, CompleteResult, CompletionInfo, Content,
-    GetPromptRequestParams, GetPromptResult, Implementation, ListPromptsResult,
-    ListResourceTemplatesResult, ListResourcesResult, PaginatedRequestParams, Prompt,
-    PromptArgument, PromptMessage, PromptMessageRole, RawResource, RawResourceTemplate,
-    ReadResourceRequestParams, ReadResourceResult, Reference, ResourceContents, ServerCapabilities,
-    ServerInfo,
+    AnnotateAble, CallToolRequestParams, CallToolResult, CompleteRequestParams, CompleteResult,
+    CompletionInfo, Content, GetPromptRequestParams, GetPromptResult, Implementation,
+    ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
+    LoggingLevel, LoggingMessageNotificationParam, PaginatedRequestParams, Prompt, PromptArgument,
+    PromptMessage, PromptMessageRole, RawResource, RawResourceTemplate, ReadResourceRequestParams,
+    ReadResourceResult, Reference, ResourceContents, ServerCapabilities, ServerInfo,
+    SetLevelRequestParams,
 };
 use rmcp::service::RequestContext;
-use rmcp::{tool, tool_handler, tool_router, ErrorData, RoleServer, ServerHandler, ServiceExt};
+use rmcp::{
+    tool, tool_handler, tool_router, ErrorData, Peer, RoleServer, ServerHandler, ServiceExt,
+};
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use tokio::sync::RwLock;
@@ -610,16 +614,38 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
     }
 }
 
+/// The write tools, hidden and rejected under `--read-only`.
+const WRITE_TOOLS: &[&str] = &[
+    "create_element",
+    "update_element",
+    "move_element",
+    "delete_element",
+    "apply_changes",
+];
+
+fn is_write_tool(name: &str) -> bool {
+    WRITE_TOOLS.contains(&name)
+}
+
+/// After a committed write (or reload), tell the client the resource list changed
+/// so it can re-fetch. Best-effort: a transport error is ignored.
+async fn notify_committed(peer: &Peer<RoleServer>, res: &Value) {
+    if res.get("written").and_then(|w| w.as_bool()) == Some(true) {
+        let _ = peer.notify_resource_list_changed().await;
+    }
+}
+
 // ── The handler ─────────────────────────────────────────────────────────────
 
 pub struct SyscribeMcp {
     store: Arc<RwLock<McpStore>>,
+    read_only: bool,
 }
 
 #[tool_router]
 impl SyscribeMcp {
-    fn new(store: Arc<RwLock<McpStore>>) -> Self {
-        Self { store }
+    fn new(store: Arc<RwLock<McpStore>>, read_only: bool) -> Self {
+        Self { store, read_only }
     }
 
     #[tool(
@@ -1006,12 +1032,25 @@ impl SyscribeMcp {
         description = "Re-read the model from disk. Returns the element count.",
         annotations(read_only_hint = true)
     )]
-    async fn reload(&self) -> Result<CallToolResult, ErrorData> {
-        let mut store = self.store.write().await;
-        if let Err(e) = store.reload() {
-            return tool_error(format!("reload failed: {e}"));
-        }
-        ok(json!({ "count": store.elements.len() }))
+    async fn reload(&self, peer: Peer<RoleServer>) -> Result<CallToolResult, ErrorData> {
+        let count = {
+            let mut store = self.store.write().await;
+            if let Err(e) = store.reload() {
+                return tool_error(format!("reload failed: {e}"));
+            }
+            store.elements.len()
+        };
+        // Significant event → a log message and a resource-list-changed signal.
+        #[allow(deprecated)]
+        let _ = peer
+            .notify_logging_message(LoggingMessageNotificationParam {
+                level: LoggingLevel::Info,
+                logger: Some("syscribe".to_string()),
+                data: json!({ "event": "reload", "count": count }),
+            })
+            .await;
+        let _ = peer.notify_resource_list_changed().await;
+        ok(json!({ "count": count }))
     }
 
     #[tool(
@@ -1135,6 +1174,7 @@ impl SyscribeMcp {
     async fn create_element(
         &self,
         Parameters(args): Parameters<CreateElementArgs>,
+        peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
         let qname = args.qname.replace('/', "::");
@@ -1156,7 +1196,10 @@ impl SyscribeMcp {
         let content = plan.content.clone();
         let apply = move |root: &Path| -> Result<(), String> { write_confined(root, &rel, &content) };
 
-        ok(guarded_write(&mut store, args.dry_run, true, extra, apply))
+        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
     }
 
     #[tool(
@@ -1166,6 +1209,7 @@ impl SyscribeMcp {
     async fn update_element(
         &self,
         Parameters(args): Parameters<UpdateElementArgs>,
+        peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
         let file = match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
@@ -1179,7 +1223,10 @@ impl SyscribeMcp {
         let apply = move |root: &Path| -> Result<(), String> {
             apply_update(&root.join(&rel), fields.as_ref(), doc.as_deref())
         };
-        ok(guarded_write(&mut store, args.dry_run, true, extra, apply))
+        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
     }
 
     #[tool(
@@ -1189,6 +1236,7 @@ impl SyscribeMcp {
     async fn move_element(
         &self,
         Parameters(args): Parameters<MoveElementArgs>,
+        peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
         let dest = args.dest.replace('/', "::");
@@ -1200,10 +1248,13 @@ impl SyscribeMcp {
         let dest_c = dest.clone();
         let apply = move |root: &Path| -> Result<(), String> {
             let elems = walk_model(root).map_err(|e| e.to_string())?;
-            let resolver = syscribe_model::resolver::Resolver::new(&elems);
+            let resolver = Resolver::new(&elems);
             mv::move_element(root, &elems, &resolver, &source, &dest_c, false).map(|_| ())
         };
-        ok(guarded_write(&mut store, args.dry_run, true, extra, apply))
+        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
     }
 
     #[tool(
@@ -1214,6 +1265,7 @@ impl SyscribeMcp {
     async fn delete_element(
         &self,
         Parameters(args): Parameters<DeleteElementArgs>,
+        peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
         let (target_qname, rel) = match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
@@ -1246,7 +1298,10 @@ impl SyscribeMcp {
         };
         // gate=false: deletion may legitimately orphan a reference (esp. under force);
         // the reference-impact guard above is delete's safety mechanism.
-        ok(guarded_write(&mut store, args.dry_run, false, extra, apply))
+        let res = guarded_write(&mut store, args.dry_run, false, extra, apply);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
     }
 
     #[tool(
@@ -1257,6 +1312,7 @@ impl SyscribeMcp {
     async fn apply_changes(
         &self,
         Parameters(args): Parameters<ApplyChangesArgs>,
+        peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
         let extra = extra_map(json!({ "operations": args.operations.len() }));
@@ -1267,19 +1323,27 @@ impl SyscribeMcp {
             }
             Ok(())
         };
-        ok(guarded_write(&mut store, args.dry_run, true, extra, apply))
+        let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
     }
 }
 
 #[tool_handler]
 impl ServerHandler for SyscribeMcp {
+    #[allow(deprecated)] // `enable_logging` is soft-deprecated upstream but still the
+                         // way to advertise the logging capability the tests require.
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 .enable_resources()
+                .enable_resources_list_changed()
+                .enable_resources_subscribe()
                 .enable_prompts()
                 .enable_completions()
+                .enable_logging()
                 .build(),
         )
         .with_server_info(Implementation::new("syscribe-mcp", env!("CARGO_PKG_VERSION")))
@@ -1289,6 +1353,48 @@ impl ServerHandler for SyscribeMcp {
              introduce new validation errors."
                 .to_string(),
         )
+    }
+
+    // Accept logging/setLevel (the level is advisory; we always emit at Info).
+    async fn set_level(
+        &self,
+        _request: SetLevelRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<(), ErrorData> {
+        Ok(())
+    }
+
+    // Filter the generated tool list under --read-only (hides the write tools).
+    async fn list_tools(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, ErrorData> {
+        let mut tools = Self::tool_router().list_all();
+        if self.read_only {
+            tools.retain(|t| !is_write_tool(t.name.as_ref()));
+        }
+        Ok(ListToolsResult {
+            tools,
+            next_cursor: None,
+            meta: None,
+        })
+    }
+
+    // Reject write tools under --read-only; otherwise dispatch via the router.
+    async fn call_tool(
+        &self,
+        request: CallToolRequestParams,
+        context: RequestContext<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        if self.read_only && is_write_tool(&request.name) {
+            return Ok(CallToolResult::error(vec![Content::text(format!(
+                "tool '{}' is disabled in --read-only mode",
+                request.name
+            ))]));
+        }
+        let tcc = ToolCallContext::new(self, request, context);
+        Self::tool_router().call(tcc).await
     }
 
     async fn list_resources(
@@ -1491,13 +1597,14 @@ impl ServerHandler for SyscribeMcp {
 }
 
 /// `syscribe mcp` entry point: build a runtime, load the store, serve over stdio.
-pub fn cmd_mcp(model_root: &Path) -> anyhow::Result<()> {
+/// `read_only` hides and rejects the write tools (`--read-only`).
+pub fn cmd_mcp(model_root: &Path, read_only: bool) -> anyhow::Result<()> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
     rt.block_on(async move {
         let store = McpStore::load(model_root)?;
-        let handler = SyscribeMcp::new(Arc::new(RwLock::new(store)));
+        let handler = SyscribeMcp::new(Arc::new(RwLock::new(store)), read_only);
         let service = handler.serve(rmcp::transport::stdio()).await?;
         service.waiting().await?;
         Ok::<(), anyhow::Error>(())
