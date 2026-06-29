@@ -26,7 +26,11 @@ use syscribe_model::resolver::Resolver;
 const NON_REF_KEYS: &[&str] = &["name", "title", "shortName", "short_name", "label"];
 
 /// True when `q` is a syntactically valid qualified name (`Seg(::Seg)*`).
-fn valid_qname(q: &str) -> bool {
+///
+/// Every segment must be a non-empty run of ASCII alphanumerics and `_`. This
+/// rejects `..`/`.` traversal segments, so it doubles as a path-confinement guard
+/// for write paths derived from a qualified name.
+pub fn valid_qname(q: &str) -> bool {
     !q.is_empty()
         && q.split("::").all(|seg| {
             !seg.is_empty()
@@ -178,15 +182,30 @@ fn rewrite_file(path: &Path, old: &str, new: &str) -> Option<(String, String)> {
     Some((content, result))
 }
 
-/// `move` subcommand entry point.
-pub fn cmd_move(
+/// The outcome of a (planned or applied) move: the resolved from/to qualified
+/// names, the filesystem relocation, and every file whose references were rewritten.
+pub struct MoveReport {
+    pub from: String,
+    pub to: String,
+    pub is_package: bool,
+    pub from_path: PathBuf,
+    pub to_path: PathBuf,
+    pub rewritten_files: Vec<PathBuf>,
+}
+
+/// Plan and (unless `dry_run`) apply a move of `source_key` to `dest`, rewriting
+/// every qualified-name reference. Returns the [`MoveReport`] on success, or a
+/// human-readable error string on any planning/apply failure (the original state
+/// is restored on an apply failure). Never panics, prints, or exits — the CLI and
+/// the MCP server both build on this.
+pub fn move_element(
     model_root: &Path,
     elements: &[RawElement],
     resolver: &Resolver,
     source_key: &str,
     dest: &str,
     dry_run: bool,
-) {
+) -> Result<MoveReport, String> {
     // ── Resolve the source (element id/qname, or an implicit package directory) ──
     let (old, src_file): (String, Option<PathBuf>) =
         match resolver.resolve_ref(elements, source_key) {
@@ -197,8 +216,7 @@ pub fn cmd_move(
                 if dir.is_dir() {
                     (norm, None)
                 } else {
-                    eprintln!("Source not found: {source_key}");
-                    std::process::exit(1);
+                    return Err(format!("Source not found: {source_key}"));
                 }
             }
         };
@@ -207,16 +225,13 @@ pub fn cmd_move(
 
     // ── Validate destination ────────────────────────────────────────────────
     if !valid_qname(&new) {
-        eprintln!("Invalid destination qualified name: '{new}'");
-        std::process::exit(1);
+        return Err(format!("Invalid destination qualified name: '{new}'"));
     }
     if new == old {
-        eprintln!("Destination equals source ('{old}') — nothing to do.");
-        std::process::exit(1);
+        return Err(format!("Destination equals source ('{old}') — nothing to do."));
     }
     if new.starts_with(&format!("{old}::")) {
-        eprintln!("Cannot move '{old}' into its own subtree ('{new}').");
-        std::process::exit(1);
+        return Err(format!("Cannot move '{old}' into its own subtree ('{new}')."));
     }
 
     // ── Determine filesystem source/target (file vs package directory) ────────
@@ -227,10 +242,7 @@ pub fn cmd_move(
     } else {
         match src_file {
             Some(ref p) => p.clone(),
-            None => {
-                eprintln!("Source '{old}' has no file to move.");
-                std::process::exit(1);
-            }
+            None => return Err(format!("Source '{old}' has no file to move.")),
         }
     };
     let new_fs = if is_pkg {
@@ -240,8 +252,7 @@ pub fn cmd_move(
     };
 
     if new_fs.exists() {
-        eprintln!("Destination already exists: {}", new_fs.display());
-        std::process::exit(1);
+        return Err(format!("Destination already exists: {}", new_fs.display()));
     }
 
     // ── Compute every planned reference-rewrite (across all model files) ───────
@@ -278,19 +289,17 @@ pub fn cmd_move(
         }
     }
 
-    let kind = if is_pkg { "package" } else { "element" };
+    let rewritten_files: Vec<PathBuf> = edits.iter().map(|(p, _, _)| p.clone()).collect();
 
     if dry_run {
-        println!("[dry-run] move {kind} {old} -> {new}");
-        println!("[dry-run]   relocate {} -> {}", old_fs.display(), new_fs.display());
-        if edits.is_empty() {
-            println!("[dry-run]   no reference updates needed");
-        } else {
-            for (p, _, _) in &edits {
-                println!("[dry-run]   update references in {}", p.display());
-            }
-        }
-        return;
+        return Ok(MoveReport {
+            from: old,
+            to: new,
+            is_package: is_pkg,
+            from_path: old_fs,
+            to_path: new_fs,
+            rewritten_files,
+        });
     }
 
     // ── Apply atomically: write edits, then relocate; roll back on any error ──
@@ -298,29 +307,74 @@ pub fn cmd_move(
     for (p, orig, updated) in &edits {
         backups.push((p.clone(), orig.clone()));
         if let Err(e) = std::fs::write(p, updated) {
-            eprintln!("Write failed for {} ({e}); rolling back.", p.display());
             rollback(&backups);
-            std::process::exit(1);
+            return Err(format!("Write failed for {} ({e}); rolled back.", p.display()));
         }
     }
 
     if let Some(parent) = new_fs.parent() {
         if let Err(e) = std::fs::create_dir_all(parent) {
-            eprintln!("Cannot create destination directory {} ({e}); rolling back.", parent.display());
             rollback(&backups);
-            std::process::exit(1);
+            return Err(format!(
+                "Cannot create destination directory {} ({e}); rolled back.",
+                parent.display()
+            ));
         }
     }
 
     if let Err(e) = std::fs::rename(&old_fs, &new_fs) {
-        eprintln!("Relocation failed ({e}); rolling back.");
         rollback(&backups);
-        std::process::exit(1);
+        return Err(format!("Relocation failed ({e}); rolled back."));
     }
 
-    println!("Moved {kind} {old} -> {new}");
-    println!("  {} -> {}", old_fs.display(), new_fs.display());
-    println!("  updated references in {} file(s)", edits.len());
+    Ok(MoveReport {
+        from: old,
+        to: new,
+        is_package: is_pkg,
+        from_path: old_fs,
+        to_path: new_fs,
+        rewritten_files,
+    })
+}
+
+/// `move` subcommand entry point.
+pub fn cmd_move(
+    model_root: &Path,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    source_key: &str,
+    dest: &str,
+    dry_run: bool,
+) {
+    let report = match move_element(model_root, elements, resolver, source_key, dest, dry_run) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    };
+
+    let kind = if report.is_package { "package" } else { "element" };
+    if dry_run {
+        println!("[dry-run] move {kind} {} -> {}", report.from, report.to);
+        println!(
+            "[dry-run]   relocate {} -> {}",
+            report.from_path.display(),
+            report.to_path.display()
+        );
+        if report.rewritten_files.is_empty() {
+            println!("[dry-run]   no reference updates needed");
+        } else {
+            for p in &report.rewritten_files {
+                println!("[dry-run]   update references in {}", p.display());
+            }
+        }
+        return;
+    }
+
+    println!("Moved {kind} {} -> {}", report.from, report.to);
+    println!("  {} -> {}", report.from_path.display(), report.to_path.display());
+    println!("  updated references in {} file(s)", report.rewritten_files.len());
 }
 
 /// Restore original file contents recorded before any write.

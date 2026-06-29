@@ -23,6 +23,11 @@ cassowary = "0.3.0"
 svg = "0.18.0"
 pathfinding = "4"
 rhai = "=1.25.1"
+rmcp = { version = "1", features = ["server", "transport-io", "macros"] }
+schemars = "1"
+tokio = { workspace = true }
+anyhow = { workspace = true }
+petgraph = { workspace = true }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

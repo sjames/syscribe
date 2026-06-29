@@ -14,6 +14,7 @@ mod help;
 mod ingest;
 mod lint_docs;
 mod matrix;
+mod mcp;
 mod metrics_cmd;
 mod mgreport;
 mod mv;
@@ -597,6 +598,16 @@ fn main() {
     if !model_root.is_dir() {
         eprintln!("Error: model path is not a directory: {}", model_root_str);
         std::process::exit(1);
+    }
+
+    // `mcp` owns model loading (it builds a long-lived, reloadable store), so dispatch
+    // it before the eager `walk_model` below to avoid loading the model twice.
+    if subcommand_args.first().map(String::as_str) == Some("mcp") {
+        if let Err(e) = mcp::cmd_mcp(model_root) {
+            eprintln!("Error: mcp server failed: {e}");
+            std::process::exit(1);
+        }
+        return;
     }
 
     let elems = match walker::walk_model(model_root) {

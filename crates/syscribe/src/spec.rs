@@ -6,6 +6,18 @@ const VALIDATION: &str = include_str!("../../../prompts/spec/validation.md");
 const TRACEABILITY: &str = include_str!("../../../prompts/spec/traceability.md");
 const SAFETY: &str = include_str!("../../../prompts/spec/safety.md");
 
+/// The spec sections, keyed by the short name used in `syscribe spec <section>`
+/// and in the MCP `syscribe://spec/<section>` resource URIs.
+pub const SECTIONS: &[(&str, &str)] = &[
+    ("toc", TOC),
+    ("types", TYPES),
+    ("fields", FIELDS),
+    ("namespace", NAMESPACE),
+    ("validation", VALIDATION),
+    ("traceability", TRACEABILITY),
+    ("safety", SAFETY),
+];
+
 pub fn cmd_spec(section: &str) {
     match section {
         "" | "toc" => print!("{}", TOC),

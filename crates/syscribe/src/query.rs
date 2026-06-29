@@ -2531,31 +2531,47 @@ pub fn cmd_check_ref(elements: &[RawElement], resolver: &Resolver, key: &str) {
     }
 }
 
-pub fn cmd_next_id(elements: &[RawElement], prefix: &str) {
+/// Next free stable id for `prefix`, e.g. `next_id_value(.., "REQ-FX")` → `REQ-FX-004`
+/// when `REQ-FX-001`/`REQ-FX-003` exist. Reused by the CLI `next-id` command and the
+/// MCP `next_id` tool so both compute identically.
+pub fn next_id_value(elements: &[RawElement], prefix: &str) -> String {
     let prefix_with_dash = format!("{}-", prefix.trim_end_matches('-'));
     let mut max_n: u32 = 0;
-    let mut found_any = false;
-
     for e in elements {
         if let Some(id) = e.frontmatter.id.as_deref() {
             if let Some(suffix) = id.strip_prefix(&prefix_with_dash) {
                 if let Ok(n) = suffix.parse::<u32>() {
-                    found_any = true;
-                    if n > max_n { max_n = n; }
+                    if n > max_n {
+                        max_n = n;
+                    }
                 }
             }
         }
     }
+    format!("{}{:03}", prefix_with_dash, max_n + 1)
+}
 
-    let next = max_n + 1;
-    println!("{}{:03}", prefix_with_dash, next);
+pub fn cmd_next_id(elements: &[RawElement], prefix: &str) {
+    let prefix_with_dash = format!("{}-", prefix.trim_end_matches('-'));
+    let found_any = elements.iter().any(|e| {
+        e.frontmatter
+            .id
+            .as_deref()
+            .and_then(|id| id.strip_prefix(&prefix_with_dash))
+            .is_some_and(|suffix| suffix.parse::<u32>().is_ok())
+    });
+
+    println!("{}", next_id_value(elements, prefix));
 
     if !found_any {
         eprintln!("(no existing IDs with prefix '{}' — starting from 001)", prefix_with_dash);
     }
 }
 
-pub fn cmd_template(type_name: &str) {
+/// The skeleton frontmatter+body for a known element type, or `None` for an
+/// unknown type (and for `FMEAEntry`, which is synthesised from a `FMEASheet`).
+/// Reused by the CLI `template` command and the MCP `template` tool.
+pub fn template_str(type_name: &str) -> Option<&'static str> {
     let out = match type_name.to_lowercase().as_str() {
         "requirement" => r#"---
 type: Requirement
@@ -3325,10 +3341,7 @@ entries:
 
 Describe the system boundary and assumptions for this FMEA.
 "#,
-        "fmeaentry" => {
-            eprintln!("FMEAEntry elements are synthesised from FMEASheet entries — use `template FMEASheet` instead.");
-            std::process::exit(1);
-        }
+        "fmeaentry" => return None,
         "tarasheet" => r#"---
 type: TARASheet
 id: TARA-PREFIX-001
@@ -3566,8 +3579,20 @@ appliesTo:
 A safety-related application condition (SRAC): a constraint the integrator must
 honour for the referenced goal/argument/requirement to hold.
 "#,
-        other => {
-            eprintln!("Unknown type '{}'. Known types:", other);
+        _ => return None,
+    };
+    Some(out)
+}
+
+pub fn cmd_template(type_name: &str) {
+    if type_name.eq_ignore_ascii_case("fmeaentry") {
+        eprintln!("FMEAEntry elements are synthesised from FMEASheet entries — use `template FMEASheet` instead.");
+        std::process::exit(1);
+    }
+    match template_str(type_name) {
+        Some(out) => print!("{}", out),
+        None => {
+            eprintln!("Unknown type '{}'. Known types:", type_name);
             eprintln!("  Native elements:  Requirement, TestCase, TestPlan, ADR");
             eprintln!("  Structural:       PartDef, Part, ItemDef, Item");
             eprintln!("  Interfaces:       PortDef, Port, InterfaceDef, Interface");
@@ -3598,8 +3623,7 @@ honour for the referenced goal/argument/requirement to hold.
             eprintln!("  Safety case (GSN): Argument, AssumptionOfUse");
             std::process::exit(1);
         }
-    };
-    print!("{}", out);
+    }
 }
 
 pub fn print_help() {
