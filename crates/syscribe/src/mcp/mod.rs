@@ -52,6 +52,16 @@ use store::McpStore;
 use util::{elem_detail, elem_summary, finding_json, json_to_yaml, rel_file, severity_str};
 use write::{guarded_write, refuse};
 
+/// Schema for a free-form frontmatter map. `serde_json::Value` makes schemars
+/// emit the boolean schema `true` ("any"), which strict MCP clients (zod) reject
+/// as an invalid property schema; emit a plain `{"type":"object"}` instead.
+fn fields_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "object",
+        "description": "Frontmatter fields as a JSON object (key -> value)."
+    })
+}
+
 fn default_true() -> bool {
     true
 }
@@ -212,6 +222,7 @@ struct RunReportArgs {
 struct CreateElementArgs {
     qname: String,
     r#type: String,
+    #[schemars(schema_with = "fields_schema")]
     fields: Option<Value>,
     doc: Option<String>,
     #[serde(default = "default_true")]
@@ -221,6 +232,7 @@ struct CreateElementArgs {
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct UpdateElementArgs {
     r#ref: String,
+    #[schemars(schema_with = "fields_schema")]
     fields: Option<Value>,
     doc: Option<String>,
     #[serde(default = "default_true")]
@@ -251,6 +263,7 @@ struct BatchOp {
     op: String,
     qname: Option<String>,
     r#type: Option<String>,
+    #[schemars(schema_with = "fields_schema")]
     fields: Option<Value>,
     doc: Option<String>,
     r#ref: Option<String>,
