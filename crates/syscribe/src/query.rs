@@ -254,19 +254,18 @@ pub fn parse_custom_where(arg: &str) -> Result<CustomWhere, String> {
     Ok(CustomWhere::Present { key: mk_key(body)? })
 }
 
-/// True when `elem`'s `custom_fields` satisfy the predicate. An element without the
-/// named field never matches (including the presence form).
-pub fn custom_field_matches(elem: &RawElement, pred: &CustomWhere) -> bool {
-    let key = match pred {
+/// The custom-field key a predicate addresses.
+fn custom_where_key(pred: &CustomWhere) -> &str {
+    match pred {
         CustomWhere::Present { key }
         | CustomWhere::Eq { key, .. }
         | CustomWhere::Regex { key, .. }
         | CustomWhere::Member { key, .. } => key,
-    };
-    let Some(value) = elem.frontmatter.custom_fields.get(key) else {
-        return false;
-    };
+    }
+}
 
+/// Evaluate a predicate against a concrete YAML value (the field is present).
+fn custom_where_value_matches(value: &serde_yaml::Value, pred: &CustomWhere) -> bool {
     match pred {
         CustomWhere::Present { .. } => true,
         CustomWhere::Eq { val, .. } => match value {
@@ -291,6 +290,30 @@ pub fn custom_field_matches(elem: &RawElement, pred: &CustomWhere) -> bool {
             other => &yaml_scalar_string(other) == val,
         },
     }
+}
+
+/// True when `elem`'s `custom_fields` satisfy the predicate. An element without the
+/// named field never matches (including the presence form).
+pub fn custom_field_matches(elem: &RawElement, pred: &CustomWhere) -> bool {
+    match elem.frontmatter.custom_fields.get(custom_where_key(pred)) {
+        Some(value) => custom_where_value_matches(value, pred),
+        None => false,
+    }
+}
+
+/// Like [`custom_field_matches`] but also consults the top-level `extra` catch-all
+/// (unknown frontmatter keys), so a predicate over a plain top-level key such as
+/// `custom.customKey=keepme` matches. Used by the MCP `search` tool's `where`
+/// filter; the CLI keeps the stricter `custom_fields`-only [`custom_field_matches`].
+pub fn custom_or_extra_matches(elem: &RawElement, pred: &CustomWhere) -> bool {
+    let key = custom_where_key(pred);
+    if let Some(value) = elem.frontmatter.custom_fields.get(key) {
+        return custom_where_value_matches(value, pred);
+    }
+    if let Some(value) = elem.frontmatter.extra.get(key) {
+        return custom_where_value_matches(value, pred);
+    }
+    false
 }
 
 fn doc_excerpt(doc: &str, max: usize) -> String {

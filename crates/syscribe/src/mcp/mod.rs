@@ -65,8 +65,12 @@ struct GetElementArgs {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct SearchArgs {
-    query: String,
+    query: Option<String>,
     r#type: Option<String>,
+    status: Option<String>,
+    domain: Option<String>,
+    /// Custom-field predicate, e.g. `custom.<key>=<value>` (see the CLI `--where`).
+    r#where: Option<String>,
     limit: Option<u32>,
     offset: Option<u32>,
 }
@@ -698,17 +702,62 @@ impl SyscribeMcp {
         let limit = args.limit.unwrap_or(20) as usize;
         let offset = args.offset.unwrap_or(0) as usize;
         let type_filter = args.r#type.as_deref();
-        let mut scored: Vec<(u32, &RawElement)> = store
-            .elements
-            .iter()
-            .filter(|e| {
-                type_filter.is_none_or(|t| {
-                    e.frontmatter.element_type.as_ref().map(type_label) == Some(t)
-                })
-            })
-            .map(|e| (fuzzy_score(e, &args.query), e))
-            .filter(|(s, _)| *s > 0)
-            .collect();
+        let status_filter = args.status.as_deref();
+        let domain_filter = args.domain.as_deref();
+        let query = args.query.as_deref().filter(|q| !q.is_empty());
+        let query_lc = query.map(|q| q.to_lowercase());
+
+        // Parse the optional custom-field `where` predicate up front.
+        let where_pred = match args.r#where.as_deref() {
+            Some(w) => match crate::query::parse_custom_where(w) {
+                Ok(p) => Some(p),
+                Err(e) => return tool_error(e),
+            },
+            None => None,
+        };
+
+        let mut scored: Vec<(u32, &RawElement)> = Vec::new();
+        for e in &store.elements {
+            // ── query match: fuzzy score, else case-insensitive body match ──
+            let score = match (&query, &query_lc) {
+                (None, _) => 0,
+                (Some(q), Some(q_lc)) => {
+                    let fs = fuzzy_score(e, q);
+                    if fs > 0 {
+                        fs
+                    } else if e.doc.to_lowercase().contains(q_lc.as_str()) {
+                        0
+                    } else {
+                        continue; // query supplied but neither name/id/qname nor body matches
+                    }
+                }
+                _ => 0,
+            };
+            // ── filters (logical AND) ──
+            let fm = &e.frontmatter;
+            if let Some(t) = type_filter {
+                if fm.element_type.as_ref().map(type_label) != Some(t) {
+                    continue;
+                }
+            }
+            if let Some(s) = status_filter {
+                if fm.status.as_deref() != Some(s) {
+                    continue;
+                }
+            }
+            if let Some(d) = domain_filter {
+                let hit = fm.req_domain.as_deref() == Some(d) || fm.domain.as_deref() == Some(d);
+                if !hit {
+                    continue;
+                }
+            }
+            if let Some(pred) = &where_pred {
+                if !crate::query::custom_or_extra_matches(e, pred) {
+                    continue;
+                }
+            }
+            scored.push((score, e));
+        }
         scored.sort_by(|a, b| b.0.cmp(&a.0));
         let total = scored.len();
         let results: Vec<Value> = scored
@@ -1402,13 +1451,17 @@ impl ServerHandler for SyscribeMcp {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListResourcesResult, ErrorData> {
-        let resources = spec::SECTIONS
+        let mut resources: Vec<_> = spec::SECTIONS
             .iter()
             .map(|(name, _)| {
                 RawResource::new(format!("syscribe://spec/{name}"), format!("spec: {name}"))
                     .no_annotation()
             })
             .collect();
+        resources.push(
+            RawResource::new("syscribe://config", "project configuration (.syscribe.toml)")
+                .no_annotation(),
+        );
         Ok(ListResourcesResult::with_all_items(resources))
     }
 
@@ -1449,6 +1502,16 @@ impl ServerHandler for SyscribeMcp {
                     uri.clone(),
                 )]));
             }
+        }
+        if uri == "syscribe://config" {
+            // The project config; absent file → empty string (not an error).
+            let store = self.store.read().await;
+            let text = std::fs::read_to_string(store.model_root.join(".syscribe.toml"))
+                .unwrap_or_default();
+            return Ok(ReadResourceResult::new(vec![ResourceContents::text(
+                text,
+                uri.clone(),
+            )]));
         }
         Err(ErrorData::resource_not_found(
             format!("unknown resource: {uri}"),

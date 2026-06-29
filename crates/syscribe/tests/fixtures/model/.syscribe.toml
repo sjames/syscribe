@@ -1,0 +1,3 @@
+# Fixture project configuration for the MCP retrieval tests.
+[ids.prefixes]
+Requirement = ["FXREQ"]
