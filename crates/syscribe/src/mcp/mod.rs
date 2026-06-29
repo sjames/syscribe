@@ -1275,34 +1275,60 @@ impl SyscribeMcp {
         &self,
         Parameters(_args): Parameters<CoverageArgs>,
     ) -> Result<CallToolResult, ErrorData> {
-        use syscribe_model::resolver::Resolver;
         let store = self.store.read().await;
         let result = validate_with_config(&store.elements, &store.config);
         let mut verified = 0u64;
-        let mut unverified: Vec<Value> = Vec::new();
+        let mut unverified_leaves: Vec<Value> = Vec::new();
+        let mut parents_missing_integration: Vec<Value> = Vec::new();
+
         for e in &store.elements {
             if !Resolver::is_native_requirement(e) {
                 continue;
             }
             let id = e.frontmatter.id.as_deref().unwrap_or("");
-            let is_verified = result
-                .verified_by
-                .get(id)
-                .is_some_and(|tcs| !tcs.is_empty());
-            if is_verified {
+            // Parent ⇔ it has non-empty derivedChildren (two-level model / W305).
+            let children = result.derived_children.get(id);
+            let child_count = children.map(|c| c.len()).unwrap_or(0);
+            let has_children = child_count > 0;
+            let verifying_tcs = result.verified_by.get(id);
+
+            // An "integration" test is testLevel L3/L4/L5 on a verifying TestCase.
+            let has_integration_tc = verifying_tcs.is_some_and(|tcs| {
+                tcs.iter().any(|tc_id| {
+                    store
+                        .resolver
+                        .resolve_ref(&store.elements, tc_id)
+                        .and_then(|tc| tc.frontmatter.test_level.as_deref())
+                        .is_some_and(|lvl| matches!(lvl, "L3" | "L4" | "L5"))
+                })
+            });
+
+            if has_children {
+                if has_integration_tc {
+                    verified += 1;
+                } else {
+                    parents_missing_integration.push(json!({
+                        "qname": e.qualified_name,
+                        "id": e.frontmatter.id,
+                        "name": e.frontmatter.name,
+                        "childCount": child_count,
+                    }));
+                }
+            } else if verifying_tcs.is_some_and(|tcs| !tcs.is_empty()) {
                 verified += 1;
             } else {
-                unverified.push(json!({
+                unverified_leaves.push(json!({
                     "qname": e.qualified_name,
                     "id": e.frontmatter.id,
                     "name": e.frontmatter.name,
                 }));
             }
         }
+
         ok(json!({
             "verifiedCount": verified,
-            "unverifiedCount": unverified.len(),
-            "unverified": unverified,
+            "unverifiedLeaves": unverified_leaves,
+            "parentsMissingIntegrationTest": parents_missing_integration,
         }))
     }
 

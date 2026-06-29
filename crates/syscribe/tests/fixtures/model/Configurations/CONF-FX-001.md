@@ -3,6 +3,7 @@ type: Configuration
 id: CONF-FX-001
 name: "Fixture LoRa variant"
 status: approved
+featureModel: Features
 features:
   Features::Link: true
   Features::Link::LoRa: true

@@ -14,10 +14,12 @@ tags:
 ```gherkin
 Feature: Verification coverage summary
 
-  Scenario: coverage reports verified and unverified requirements
-    Given an initialized mcp server over a fixture with one verified and one unverified requirement
+  Scenario: coverage partitions leaf gaps from parents missing an integration test
+    Given an initialized mcp server over a fixture with verified, unverified-leaf, and parent requirements
     When the coverage tool is called
     Then the verified requirement count is at least one
-    And the unverified list contains the unverified requirement's id
-    And each listed requirement carries its qname and id
+    And unverifiedLeaves contains the unverified leaf requirements (no derivedChildren, no TestCase)
+    And parentsMissingIntegrationTest contains a parent that has only a unit-level (L1/L2) test
+    And a parent is never listed as a leaf gap, nor a leaf as a parent gap
+    And each listed requirement carries its qname and id, and parents carry a child count
 ```

@@ -211,19 +211,48 @@ fn add_requirement_prompt_carries_conventions() {
 // ---- TC-TRS-MCP-019: coverage -----------------------------------------------
 
 #[test]
-fn coverage_reports_verified_and_unverified() {
+fn coverage_partitions_leaf_gaps_and_parents_missing_integration_tests() {
     let model = fixture_copy();
     let mut mcp = Mcp::start(&model);
     mcp.initialize();
     let res = mcp.call_tool("coverage", json!({}));
+
     let verified = res.get("verifiedCount").and_then(|c| c.as_u64()).expect("verifiedCount");
     assert!(verified >= 1, "at least one verified requirement (REQ-FX-001)");
-    let unverified = res.get("unverified").and_then(|u| u.as_array()).expect("unverified array");
+
+    let ids = |key: &str| -> Vec<String> {
+        res.get(key)
+            .and_then(|u| u.as_array())
+            .unwrap_or(&vec![])
+            .iter()
+            .filter_map(|u| u.get("id").and_then(|i| i.as_str()).map(String::from))
+            .collect()
+    };
+
+    // Leaf gaps: leaf requirements with no verifying TestCase.
+    let leaves = ids("unverifiedLeaves");
+    assert!(leaves.contains(&"REQ-FX-003".to_string()), "REQ-FX-003 is an unverified leaf; got {leaves:?}");
+    assert!(leaves.contains(&"REQ-FXCHILD-001".to_string()), "the leaf child is an unverified leaf; got {leaves:?}");
+    assert!(!leaves.contains(&"REQ-FXPARENT-001".to_string()), "a parent must not be listed as a leaf gap");
+
+    // Parents missing an integration test: REQ-FXPARENT-001 has only a unit (L2) TC.
+    let parents = ids("parentsMissingIntegrationTest");
     assert!(
-        unverified.iter().any(|u| u.get("id").and_then(|i| i.as_str()) == Some("REQ-FX-003")),
-        "unverified list contains REQ-FX-003; got {unverified:?}"
+        parents.contains(&"REQ-FXPARENT-001".to_string()),
+        "parent with only a unit-level test still needs an integration test; got {parents:?}"
     );
-    for u in unverified {
-        assert!(u.get("qname").is_some() && u.get("id").is_some(), "unverified entries carry qname+id");
+    assert!(!parents.contains(&"REQ-FX-003".to_string()), "a leaf must not be listed as a parent gap");
+
+    // Entries carry qname+id; parents carry a child count.
+    for key in ["unverifiedLeaves", "parentsMissingIntegrationTest"] {
+        for e in res.get(key).and_then(|u| u.as_array()).unwrap_or(&vec![]) {
+            assert!(e.get("qname").is_some() && e.get("id").is_some(), "{key} entries carry qname+id");
+        }
     }
+    assert!(
+        res.get("parentsMissingIntegrationTest")
+            .and_then(|a| a.as_array()).and_then(|a| a.first())
+            .and_then(|e| e.get("childCount")).is_some(),
+        "parent entries carry a childCount"
+    );
 }
