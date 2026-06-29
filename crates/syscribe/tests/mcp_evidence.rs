@@ -98,6 +98,43 @@ fn coverage_matrix_upgrades_to_passing_after_ingest() {
     );
 }
 
+// ---- TC-TRS-MCP-045: unified classifier (coverage <-> coverage_matrix) ------
+
+fn cell_for(matrix: &serde_json::Value, req: &str) -> Option<String> {
+    let row = matrix.get("rows")?.as_array()?.iter().find(|r| r.get("id").and_then(|i| i.as_str()) == Some(req))?;
+    let cells = row.get("cells")?.as_object()?;
+    cells.values().next().and_then(|v| v.as_str()).map(String::from)
+}
+
+fn id_list(v: &serde_json::Value, key: &str) -> Vec<String> {
+    v.get(key)
+        .and_then(|a| a.as_array())
+        .map(|a| a.iter().filter_map(|e| e.get("id").and_then(|i| i.as_str()).map(String::from)).collect())
+        .unwrap_or_default()
+}
+
+#[test]
+fn draft_only_linked_requirement_is_planned_not_verified() {
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let cov = mcp.call_tool("coverage", json!({}));
+    let mtx = mcp.call_tool("coverage_matrix", json!({}));
+
+    // REQ-FXPLAN-001 is linked only by a draft TestCase -> planned, never verified.
+    let planned = id_list(&cov, "planned");
+    let unverified = id_list(&cov, "unverifiedLeaves");
+    assert!(planned.contains(&"REQ-FXPLAN-001".to_string()), "draft-linked req is in the planned set; got planned={planned:?}");
+    assert!(!unverified.contains(&"REQ-FXPLAN-001".to_string()), "planned req is not an unverified leaf");
+    assert_eq!(cell_for(&mtx, "REQ-FXPLAN-001").as_deref(), Some("planned"), "matrix cell is planned");
+
+    // REQ-FX-001 is linked by a non-draft TestCase -> verified; matrix cell never a gap.
+    assert!(!planned.contains(&"REQ-FX-001".to_string()), "non-draft-linked req is not planned");
+    assert!(!unverified.contains(&"REQ-FX-001".to_string()), "non-draft-linked req is verified, not unverified");
+    let c = cell_for(&mtx, "REQ-FX-001");
+    assert!(matches!(c.as_deref(), Some("covered") | Some("passing")), "REQ-FX-001 cell is covered/passing, not {c:?}");
+}
+
 // ---- TC-TRS-MCP-038: coverage_gaps ------------------------------------------
 
 #[test]

@@ -386,7 +386,7 @@ fn validation_report(
 
 fn coverage_report(elements: &[RawElement], result: &ValidationResult) -> String {
     let rel_root = "../";
-    let summary = coverage_summary(elements, result);
+    let summary = coverage_summary(elements, result, None);
     let mut body = String::from("<h1>Coverage</h1>\n");
     body.push_str(&format!(
         "<p>Verification coverage: <strong>{}</strong> verified requirement(s), \

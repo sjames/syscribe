@@ -50,6 +50,7 @@ testCases:
   - TC-TRS-MCP-042
   - TC-TRS-MCP-043
   - TC-TRS-MCP-044
+  - TC-TRS-MCP-045
 tags:
   - mcp
   - integration

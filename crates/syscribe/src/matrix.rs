@@ -167,7 +167,7 @@ fn cell_state(
     sel: &BTreeMap<String, bool>,
     pkg: &std::collections::HashMap<String, serde_yaml::Value>,
     alias: &std::collections::HashMap<String, String>,
-    tcs: &[(Option<FeatureExpr>, Vec<String>, TcVerdict)],
+    tcs: &[(Option<FeatureExpr>, Vec<String>, TcVerdict, bool)],
     evidence: Option<&ResultsData>,
 ) -> &'static str {
     let selected = |q: &str| sel.get(q).copied().unwrap_or(false);
@@ -177,23 +177,38 @@ fn cell_state(
         return "na";
     }
     let rkeys = keys(r);
-    let mut covered = false;
+    let mut nondraft_covered = false;
+    let mut draft_covered = false;
     let mut any_pass = false;
-    for (texpr, ver, verdict) in tcs {
+    let mut any_fail = false;
+    for (texpr, ver, verdict, is_draft) in tcs {
         let runs = texpr.as_ref().is_none_or(|e| e.eval(&selected));
         if runs && ver.iter().any(|v| rkeys.iter().any(|k| k == v)) {
-            covered = true;
-            if *verdict == TcVerdict::Pass {
-                any_pass = true;
+            if *is_draft {
+                draft_covered = true;
+            } else {
+                nondraft_covered = true;
+                match verdict {
+                    TcVerdict::Pass => any_pass = true,
+                    TcVerdict::Fail => any_fail = true,
+                    _ => {}
+                }
             }
         }
     }
-    if !covered {
-        "gap"
-    } else if evidence.is_some() && any_pass {
-        "passing"
+    // A non-draft TestCase is real coverage; a draft-only link is `planned` intent.
+    if nondraft_covered {
+        if evidence.is_some() && any_pass {
+            "passing"
+        } else if evidence.is_some() && any_fail {
+            "failing"
+        } else {
+            "covered"
+        }
+    } else if draft_covered {
+        "planned"
     } else {
-        "covered"
+        "gap"
     }
 }
 
@@ -201,26 +216,25 @@ fn cell_state(
 /// verdict)`. Non-draft TestCases always participate; a *draft* TestCase joins
 /// only once executed evidence shows it passing (issue #21) — without a results
 /// sidecar a draft TestCase is excluded, matching the linked-coverage view.
+/// Every TestCase as `(effective appliesWhen, verifies, verdict, is_draft)`. Unlike
+/// before, draft TestCases are retained (flagged) so the classifier can report a
+/// draft-only-linked requirement as `planned` rather than dropping the link.
 fn participating_tcs(
     elements: &[RawElement],
     pkg: &std::collections::HashMap<String, serde_yaml::Value>,
     feat_alias: &std::collections::HashMap<String, String>,
     evidence: Option<&ResultsData>,
-) -> Vec<(Option<FeatureExpr>, Vec<String>, TcVerdict)> {
+) -> Vec<(Option<FeatureExpr>, Vec<String>, TcVerdict, bool)> {
     elements
         .iter()
         .filter(|e| is_type(e, ElementType::TestCase))
-        .filter_map(|e| {
-            let verdict = tc_verdict(e, evidence);
-            let is_draft = e.frontmatter.status.as_deref() == Some("draft");
-            if is_draft && verdict != TcVerdict::Pass {
-                return None;
-            }
-            Some((
+        .map(|e| {
+            (
                 variability::effective_expr_canon(e, pkg, feat_alias),
                 e.frontmatter.verifies.clone().unwrap_or_default(),
-                verdict,
-            ))
+                tc_verdict(e, evidence),
+                e.frontmatter.status.as_deref() == Some("draft"),
+            )
         })
         .collect()
 }
@@ -364,6 +378,54 @@ pub fn matrix_json(
     })
 }
 
+/// Collapse the coverage grid to one verdict per requirement (keyed by `disp_id`):
+/// `"verified"` | `"planned"` | `"unverified"` | `"na"`. This is the row-collapse
+/// (AND across applicable configurations) of the same per-cell classifier that
+/// `coverage_matrix` displays, so `coverage` cannot contradict the matrix.
+pub fn requirement_rollup(
+    elements: &[RawElement],
+    results: Option<&ResultsData>,
+) -> std::collections::HashMap<String, &'static str> {
+    let alias = variability::feature_id_to_qname(elements);
+    let pkg = variability::package_conditions(elements);
+    let tcs = participating_tcs(elements, &pkg, &alias, results);
+    // Project over the model's Configurations; a flat model collapses over a
+    // single empty selection (every requirement active, no projection).
+    let cfgs: Vec<BTreeMap<String, bool>> = if variability::is_active(elements) {
+        elements
+            .iter()
+            .filter(|e| is_type(e, ElementType::Configuration))
+            .map(|c| variability::canon_selection(&c.frontmatter.feature_selections(), &alias))
+            .collect()
+    } else {
+        vec![BTreeMap::new()]
+    };
+    let mut out = std::collections::HashMap::new();
+    for r in elements.iter().filter(|e| is_type(e, ElementType::Requirement)) {
+        let cells: Vec<&'static str> = cfgs
+            .iter()
+            .map(|sel| cell_state(r, sel, &pkg, &alias, &tcs, results))
+            .collect();
+        out.insert(disp_id(r), rollup_cells(&cells));
+    }
+    out
+}
+
+/// AND row-collapse of a requirement's cells over the configurations it applies to.
+fn rollup_cells(cells: &[&'static str]) -> &'static str {
+    let active: Vec<&str> = cells.iter().copied().filter(|c| *c != "na").collect();
+    if active.is_empty() {
+        return "na";
+    }
+    if active.iter().any(|c| *c == "gap" || *c == "failing") {
+        return "unverified";
+    }
+    if active.contains(&"planned") {
+        return "planned";
+    }
+    "verified"
+}
+
 #[allow(clippy::too_many_arguments)]
 fn cmd_matrix_inner(
     elements: &[RawElement],
@@ -407,6 +469,8 @@ fn cmd_matrix_inner(
                 "✓"
             }
         }
+        "planned" => "▢",
+        "failing" => "✗",
         "gap" => "✗",
         _ => "—",
     };
@@ -473,7 +537,8 @@ impl Coverage {
                         covered += 1;
                         applicable += 1;
                     }
-                    "gap" => applicable += 1,
+                    // Applicable but not (yet) covered.
+                    "gap" | "planned" | "failing" => applicable += 1,
                     _ => {}
                 }
             }
@@ -518,18 +583,7 @@ impl Coverage {
         reqs.sort_by_key(|e| disp_id(e));
 
         let pkg = variability::package_conditions(elements);
-        let tcs: Vec<(Option<FeatureExpr>, Vec<String>, TcVerdict)> = elements
-            .iter()
-            .filter(|e| is_type(e, ElementType::TestCase))
-            .filter(|e| e.frontmatter.status.as_deref() != Some("draft"))
-            .map(|e| {
-                (
-                    variability::effective_expr_canon(e, &pkg, &feat_alias),
-                    e.frontmatter.verifies.clone().unwrap_or_default(),
-                    tc_verdict(e, evidence),
-                )
-            })
-            .collect();
+        let tcs = participating_tcs(elements, &pkg, &feat_alias, evidence);
 
         let grid: Vec<(String, Vec<&'static str>)> = reqs
             .iter()
