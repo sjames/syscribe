@@ -19,6 +19,34 @@ fn initialize_handshake_advertises_capabilities() {
     assert!(caps.get("prompts").is_some(), "prompts capability advertised");
 }
 
+// ---- TC-TRS-MCP-044: tool input-schema validity (regression for v0.28.1) ----
+
+#[test]
+fn tool_input_schemas_have_object_property_schemas() {
+    // A property whose schema is a bare boolean (`true`, as serde_json::Value emits
+    // via schemars) is rejected by strict zod-based MCP clients, failing the whole
+    // tools/list. Every property must be an object schema.
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let res = mcp.tools_list();
+    for tool in res.get("tools").and_then(|t| t.as_array()).expect("tools array") {
+        let name = tool.get("name").and_then(|n| n.as_str()).unwrap_or("?");
+        if let Some(props) = tool
+            .get("inputSchema")
+            .and_then(|s| s.get("properties"))
+            .and_then(|p| p.as_object())
+        {
+            for (prop, schema) in props {
+                assert!(
+                    schema.is_object(),
+                    "tool {name} property '{prop}' has a non-object schema {schema} (breaks zod clients)"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn tools_list_includes_core_tools() {
     let model = fixture_copy();
