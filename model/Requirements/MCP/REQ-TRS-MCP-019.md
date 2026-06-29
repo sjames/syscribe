@@ -27,8 +27,13 @@ verified by a TestCase (typically unit-level), while **parent** requirements (th
   counted as gaps, mirroring the validator's own suppression of draft requirements
   (`W300`/`W305` do not fire on drafts). `draft` requirements are planned work and shall not
   appear in the gap lists.
-- It shall **partition** the verification gaps into two groups, so a client targets real gaps:
-  - **`unverifiedLeaves`** — requirements with no `derivedChildren` and no verifying TestCase.
+- It shall **partition** the requirements into the following groups, so a client targets real gaps:
+  - **`unverifiedLeaves`** — leaf requirements with a verification gap. A leaf is verified per the
+    unified classifier of REQ-TRS-MCP-044 (covered by a **non-draft** TestCase in every applicable
+    configuration), **not** merely by having any `verifies` edge — so a leaf linked only by draft
+    tests is **not** counted verified (Invariant 2).
+  - **`planned`** — leaf requirements linked only by draft (or otherwise immature) TestCases:
+    verification *intent*, reported distinctly so it is neither counted verified nor lost.
   - **`parentsMissingIntegrationTest`** — requirements with `derivedChildren` that have no
     verifying TestCase at integration level (L3/L4/L5); a parent with only unit-level
     (L1/L2) verifying TestCases still appears here. Each entry shall carry its child count.

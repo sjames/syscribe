@@ -1391,19 +1391,14 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         let result = validate_with_config(&store.elements, &store.config);
-        let summary = crate::coverage::coverage_summary(&store.elements, &result);
+        let summary =
+            crate::coverage::coverage_summary(&store.elements, &result, store.config.results.as_ref());
 
-        let unverified_leaves: Vec<Value> = summary
-            .unverified_leaves
-            .iter()
-            .map(|e| {
-                json!({
-                    "qname": e.qname,
-                    "id": e.id,
-                    "name": e.name,
-                })
-            })
-            .collect();
+        let entries = |v: &[crate::coverage::CoverageEntry]| -> Vec<Value> {
+            v.iter().map(|e| json!({ "qname": e.qname, "id": e.id, "name": e.name })).collect()
+        };
+        let unverified_leaves = entries(&summary.unverified_leaves);
+        let planned = entries(&summary.planned);
         let parents_missing_integration: Vec<Value> = summary
             .parents_missing_integration
             .iter()
@@ -1420,6 +1415,7 @@ impl SyscribeMcp {
         ok(json!({
             "verifiedCount": summary.verified_count,
             "unverifiedLeaves": unverified_leaves,
+            "planned": planned,
             "parentsMissingIntegrationTest": parents_missing_integration,
         }))
     }
