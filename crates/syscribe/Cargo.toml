@@ -24,6 +24,7 @@ svg = "0.18.0"
 pathfinding = "4"
 rhai = "=1.25.1"
 rmcp = { version = "1", features = ["server", "transport-io", "macros"] }
+pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }
 schemars = "1"
 tokio = { workspace = true }
 anyhow = { workspace = true }

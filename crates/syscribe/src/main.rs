@@ -4,11 +4,13 @@ mod audit;
 mod aw;
 mod build_config;
 mod coanalysis;
+mod coverage;
 mod cyberrisk;
 mod connectivity;
 mod diagram;
 mod discover;
 mod export;
+mod export_html;
 mod fmea_report;
 mod help;
 mod ingest;
@@ -899,6 +901,10 @@ fn main() {
                         }
                     },
                 }
+            }
+            "export-html" => {
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                export_html::cmd_export_html(&elems, &resolver, &vcfg, rest);
             }
             "types" => {
                 query::cmd_types(&elems);
