@@ -100,5 +100,10 @@ runtime dependency — consistent with Syscribe being a self-contained Rust tool
   server's overwrite-style `put_element` does not have.
 - The model is loaded once into a shared store and rebuilt after each successful write; a
   `reload` tool covers external edits. No filesystem watcher in the stdio process.
-- Future work (separate requirements): per-element resources, feature-model/projection tools,
-  a guarded read-only `run_report` passthrough, and an HTTP/SSE transport.
+- Subsequent requirements built atop this decision: per-element resources (REQ-TRS-MCP-017),
+  feature-model/projection tools (REQ-TRS-MCP-028..032), and a guarded read-only `run_report`
+  passthrough (REQ-TRS-MCP-033) that runs an allowlisted, model-root-confined report command and
+  returns its output — restoring the deliberately-excluded report/analysis family (including the
+  safety/security reports `metrics`, `cyber-risk`, `safety-case`, `fmea`, `fault-tree`, `zones`,
+  `conduits`, `co-analysis`, `sbom`, `behavioral-coverage`) without a dedicated tool per report.
+  An HTTP/SSE transport remains future work.

@@ -196,6 +196,15 @@ struct WhyActiveArgs {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct RunReportArgs {
+    command: String,
+    #[serde(default)]
+    args: Option<Vec<String>>,
+    /// "text" (default) | "json".
+    format: Option<String>,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct CreateElementArgs {
     qname: String,
     r#type: String,
@@ -663,6 +672,53 @@ const WRITE_TOOLS: &[&str] = &[
 
 fn is_write_tool(name: &str) -> bool {
     WRITE_TOOLS.contains(&name)
+}
+
+/// Read-only CLI report/analysis commands `run_report` may invoke. Anything else
+/// (notably write commands like `move`) is refused.
+const REPORT_ALLOWLIST: &[&str] = &[
+    "audit",
+    "matrix",
+    "magicgrid",
+    "trade-study",
+    "verification-depth",
+    "testplan",
+    "metrics",
+    "cyber-risk",
+    "co-analysis",
+    "safety-case",
+    "behavioral-coverage",
+    "sbom",
+    "zones",
+    "conduits",
+    "n2",
+    "fmea",
+    "fault-tree",
+    "impact",
+    "lint-docs",
+];
+
+/// Reject a caller-supplied `run_report` argument that would redirect the model
+/// root, redirect output, use an absolute path, or escape via `..`. The model
+/// root is fixed to the server's own `store.model_root`.
+fn check_report_arg(a: &str) -> Result<(), String> {
+    let bad = a == "-m"
+        || a == "--model"
+        || a.starts_with("-m")
+        || a.starts_with("--model=")
+        || a == "-o"
+        || a == "--output"
+        || a == "--out"
+        || a.starts_with("--output=")
+        || a.starts_with("--out=")
+        || a.starts_with('/')
+        || a.contains("..");
+    if bad {
+        return Err(format!(
+            "argument '{a}' is not permitted (model/output redirection or path escape)"
+        ));
+    }
+    Ok(())
 }
 
 /// After a committed write (or reload), tell the client the resource list changed
@@ -1328,19 +1384,64 @@ impl SyscribeMcp {
         Parameters(args): Parameters<WhyActiveArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
-        // Lenient resolution: the resolver only indexes *valid* stable ids, but an
-        // element may carry a non-canonical `id:` (e.g. `REQ-FX-SAT`) — fall back to
-        // a raw id / qualified-name match.
-        let elem = store.resolver.resolve_ref(&store.elements, &args.r#ref).or_else(|| {
-            store.elements.iter().find(|e| {
-                e.frontmatter.id.as_deref() == Some(args.r#ref.as_str())
-                    || e.qualified_name == args.r#ref
-            })
-        });
-        match elem {
+        match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
             Some(elem) => ok(variability::why_active(&store.elements, elem, &args.config)),
             None => tool_error(format!("unresolved reference: {}", args.r#ref)),
         }
+    }
+
+    #[tool(
+        description = "Run an allow-listed read-only report command (audit, matrix, metrics, …) \
+        over THIS model and return its output. The model root is fixed; arguments that \
+        redirect the model/output or escape the root are refused.",
+        annotations(read_only_hint = true)
+    )]
+    async fn run_report(
+        &self,
+        Parameters(args): Parameters<RunReportArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        if !REPORT_ALLOWLIST.contains(&args.command.as_str()) {
+            return tool_error(format!(
+                "command '{}' is not an allowed report command",
+                args.command
+            ));
+        }
+        let caller_args = args.args.clone().unwrap_or_default();
+        for a in &caller_args {
+            if let Err(e) = check_report_arg(a) {
+                return tool_error(e);
+            }
+        }
+
+        let model_root = { self.store.read().await.model_root.clone() };
+        let exe = match std::env::current_exe() {
+            Ok(p) => p,
+            Err(e) => return tool_error(format!("cannot locate the syscribe executable: {e}")),
+        };
+
+        // argv: <command> -m <fixed model root> <sanitized caller args…> [--json]
+        let mut argv: Vec<String> = vec![
+            args.command.clone(),
+            "-m".to_string(),
+            model_root.to_string_lossy().into_owned(),
+        ];
+        argv.extend(caller_args.iter().cloned());
+        if args.format.as_deref() == Some("json") {
+            argv.push("--json".to_string());
+        }
+
+        let out = match std::process::Command::new(&exe).args(&argv).output() {
+            Ok(o) => o,
+            Err(e) => return tool_error(format!("failed to run report '{}': {e}", args.command)),
+        };
+        let output = String::from_utf8_lossy(&out.stdout).into_owned();
+        let exit_code = out.status.code().unwrap_or(-1);
+        ok(json!({
+            "command": args.command,
+            "args": caller_args,
+            "output": output,
+            "exitCode": exit_code,
+        }))
     }
 
     #[tool(
