@@ -2,7 +2,7 @@
 type: Requirement
 id: REQ-FXPARENT-001
 name: "Decomposed parent requirement"
-status: draft
+status: approved
 reqDomain: software
 reqClass: stakeholder
 ---

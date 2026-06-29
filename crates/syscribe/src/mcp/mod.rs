@@ -1303,10 +1303,17 @@ impl SyscribeMcp {
                 })
             });
 
+            // Gaps are reported only for non-draft requirements (mirror W300/W305,
+            // which are suppressed on draft / planned work).
+            let reportable = matches!(
+                e.frontmatter.status.as_deref(),
+                Some("approved") | Some("implemented") | Some("verified")
+            );
+
             if has_children {
                 if has_integration_tc {
                     verified += 1;
-                } else {
+                } else if reportable {
                     parents_missing_integration.push(json!({
                         "qname": e.qualified_name,
                         "id": e.frontmatter.id,
@@ -1316,7 +1323,7 @@ impl SyscribeMcp {
                 }
             } else if verifying_tcs.is_some_and(|tcs| !tcs.is_empty()) {
                 verified += 1;
-            } else {
+            } else if reportable {
                 unverified_leaves.push(json!({
                     "qname": e.qualified_name,
                     "id": e.frontmatter.id,

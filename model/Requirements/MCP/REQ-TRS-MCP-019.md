@@ -23,6 +23,10 @@ verified by a TestCase (typically unit-level), while **parent** requirements (th
 (`testLevel` L3, L4, or L5), mirroring validation rule `W305`.
 
 - It shall report the count of requirements that are adequately verified.
+- Only **non-draft** requirements (status `approved`, `implemented`, or `verified`) shall be
+  counted as gaps, mirroring the validator's own suppression of draft requirements
+  (`W300`/`W305` do not fire on drafts). `draft` requirements are planned work and shall not
+  appear in the gap lists.
 - It shall **partition** the verification gaps into two groups, so a client targets real gaps:
   - **`unverifiedLeaves`** — requirements with no `derivedChildren` and no verifying TestCase.
   - **`parentsMissingIntegrationTest`** — requirements with `derivedChildren` that have no

@@ -2,7 +2,7 @@
 type: Requirement
 id: REQ-FX-003
 name: "Unverified fixture requirement"
-status: draft
+status: approved
 reqDomain: software
 reqClass: system
 ---

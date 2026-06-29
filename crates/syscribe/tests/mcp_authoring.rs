@@ -229,17 +229,18 @@ fn coverage_partitions_leaf_gaps_and_parents_missing_integration_tests() {
             .collect()
     };
 
-    // Leaf gaps: leaf requirements with no verifying TestCase.
+    // Leaf gaps: NON-DRAFT leaf requirements with no verifying TestCase.
     let leaves = ids("unverifiedLeaves");
-    assert!(leaves.contains(&"REQ-FX-003".to_string()), "REQ-FX-003 is an unverified leaf; got {leaves:?}");
-    assert!(leaves.contains(&"REQ-FXCHILD-001".to_string()), "the leaf child is an unverified leaf; got {leaves:?}");
+    assert!(leaves.contains(&"REQ-FX-003".to_string()), "approved unverified leaf is a gap; got {leaves:?}");
+    // REQ-FXCHILD-001 is a leaf with no TC but status:draft -> excluded (mirrors W300/W305 suppression).
+    assert!(!leaves.contains(&"REQ-FXCHILD-001".to_string()), "a draft leaf is planned, not a gap; got {leaves:?}");
     assert!(!leaves.contains(&"REQ-FXPARENT-001".to_string()), "a parent must not be listed as a leaf gap");
 
-    // Parents missing an integration test: REQ-FXPARENT-001 has only a unit (L2) TC.
+    // Parents missing an integration test: REQ-FXPARENT-001 is approved with only a unit (L2) TC.
     let parents = ids("parentsMissingIntegrationTest");
     assert!(
         parents.contains(&"REQ-FXPARENT-001".to_string()),
-        "parent with only a unit-level test still needs an integration test; got {parents:?}"
+        "approved parent with only a unit-level test still needs an integration test; got {parents:?}"
     );
     assert!(!parents.contains(&"REQ-FX-003".to_string()), "a leaf must not be listed as a parent gap");
 
