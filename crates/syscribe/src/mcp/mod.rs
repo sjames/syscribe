@@ -6,6 +6,7 @@
 mod diff;
 mod store;
 mod util;
+mod variability;
 mod write;
 
 use std::collections::HashSet;
@@ -160,6 +161,39 @@ struct NextIdArgs {
 
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct CoverageArgs {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct FeaturesArgs {
+    feature: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct FeatureCheckArgs {
+    #[serde(default)]
+    deep: bool,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ConfigureArgs {
+    config: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct ProjectArgs {
+    config: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct DiffConfigsArgs {
+    a: String,
+    b: String,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct WhyActiveArgs {
+    r#ref: String,
+    config: String,
+}
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct CreateElementArgs {
@@ -1214,6 +1248,99 @@ impl SyscribeMcp {
             "unverifiedCount": unverified.len(),
             "unverified": unverified,
         }))
+    }
+
+    #[tool(
+        description = "List the feature model (or one feature's card).",
+        annotations(read_only_hint = true)
+    )]
+    async fn features(
+        &self,
+        Parameters(args): Parameters<FeaturesArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        ok(variability::features(&store.elements, args.feature.as_deref()))
+    }
+
+    #[tool(
+        description = "Validate the feature model; deep=true runs the SAT-backed analysis \
+        (void/dead/core/false-optional/invalid-configs/diagnoses).",
+        annotations(read_only_hint = true)
+    )]
+    async fn feature_check(
+        &self,
+        Parameters(args): Parameters<FeatureCheckArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        ok(variability::feature_check(&store.elements, args.deep, &store.model_root))
+    }
+
+    #[tool(
+        description = "Assisted configuration: forced/free features for a Configuration.",
+        annotations(read_only_hint = true)
+    )]
+    async fn configure(
+        &self,
+        Parameters(args): Parameters<ConfigureArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        ok(variability::configure_tool(&store.elements, &args.config))
+    }
+
+    #[tool(
+        description = "Project the model onto a Configuration (or ad-hoc feature set): \
+        active elements + projected validation findings.",
+        annotations(read_only_hint = true)
+    )]
+    async fn project(
+        &self,
+        Parameters(args): Parameters<ProjectArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        ok(variability::project_tool(
+            &store.elements,
+            &store.config,
+            &args.config,
+            &store.model_root,
+        ))
+    }
+
+    #[tool(
+        description = "Diff two projections' active element sets (a/b may be a Configuration \
+        or an ad-hoc feature set).",
+        annotations(read_only_hint = true)
+    )]
+    async fn diff_configs(
+        &self,
+        Parameters(args): Parameters<DiffConfigsArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        ok(variability::diff_configs(&store.elements, &args.a, &args.b))
+    }
+
+    #[tool(
+        description = "Explain whether an element is active under a configuration and why \
+        (effective appliesWhen, referenced features).",
+        annotations(read_only_hint = true)
+    )]
+    async fn why_active(
+        &self,
+        Parameters(args): Parameters<WhyActiveArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        // Lenient resolution: the resolver only indexes *valid* stable ids, but an
+        // element may carry a non-canonical `id:` (e.g. `REQ-FX-SAT`) — fall back to
+        // a raw id / qualified-name match.
+        let elem = store.resolver.resolve_ref(&store.elements, &args.r#ref).or_else(|| {
+            store.elements.iter().find(|e| {
+                e.frontmatter.id.as_deref() == Some(args.r#ref.as_str())
+                    || e.qualified_name == args.r#ref
+            })
+        });
+        match elem {
+            Some(elem) => ok(variability::why_active(&store.elements, elem, &args.config)),
+            None => tool_error(format!("unresolved reference: {}", args.r#ref)),
+        }
     }
 
     #[tool(

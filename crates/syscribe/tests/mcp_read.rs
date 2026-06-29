@@ -195,9 +195,11 @@ fn excluded_tool_families_are_not_listed() {
         .iter()
         .filter_map(|t| t.get("name").and_then(|n| n.as_str()).map(String::from))
         .collect();
+    // The report/render family stays off the dedicated tool list (reachable via run_report);
+    // feature-model tools (configure, feature_check, diff_configs, …) ARE exposed (Bundle E).
     for excluded in [
         "export", "plantuml", "render", "n2", "matrix", "fmea", "safety-case", "sbom",
-        "reqif", "audit", "metrics", "zones", "feature-check", "configure", "diff",
+        "reqif", "audit", "metrics", "zones",
     ] {
         assert!(
             !names.contains(&excluded.to_string()),
