@@ -470,7 +470,10 @@ fn cmd_matrix_inner(
             }
         }
         "planned" => "▢",
-        "failing" => "✗",
+        // Covered by a non-draft TestCase whose latest verdict is fail: the
+        // requirement IS covered, just not passing — same ▣ glyph as an
+        // evidence-less "covered" cell, and visually distinct from a true gap.
+        "failing" => "▣",
         "gap" => "✗",
         _ => "—",
     };
