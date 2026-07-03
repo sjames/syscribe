@@ -3,6 +3,7 @@
 mod audit;
 mod aw;
 mod build_config;
+mod clusters;
 mod coanalysis;
 mod coverage;
 mod cyberrisk;
@@ -35,7 +36,10 @@ mod sbom;
 mod scaffold;
 mod scripting;
 mod stats;
+mod summarize;
 mod testplan;
+mod textstats;
+mod topics;
 mod tradestudy;
 mod repos;
 mod zones;
@@ -922,6 +926,44 @@ fn main() {
                 // Query = first positional token (skipping value-taking flags/their values).
                 let query = first_positional(rest, &["--type", "--status", "--config", "--limit"]).unwrap_or("");
                 let code = ftsearch::cmd_search_text(&elems, query, type_filter, status, config, limit, json);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "summarize" => {
+                // Hierarchical extractive content digest + content-hash cache
+                // (REQ-TRS-OUT-023). Exit 0 · 1 on unresolvable --scope/--config.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let no_cache = rest.iter().any(|a| a == "--no-cache");
+                let scope = rest.windows(2).find(|w| w[0] == "--scope").map(|w| w[1].as_str());
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let depth = rest.windows(2).find(|w| w[0] == "--depth").and_then(|w| w[1].parse::<usize>().ok());
+                let code = summarize::cmd_summarize(&elems, model_root, scope, depth, no_cache, config, json);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "topics" => {
+                // Per-package TF-IDF distinctive keywords (REQ-TRS-SEARCH-002).
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let type_filter = rest.windows(2).find(|w| w[0] == "--type").map(|w| w[1].as_str());
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let top = rest.windows(2).find(|w| w[0] == "--top").and_then(|w| w[1].parse::<usize>().ok()).unwrap_or(10);
+                let code = topics::cmd_topics(&elems, type_filter, top, config, json);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "clusters" => {
+                // TF-IDF cosine k-means topical clustering (REQ-TRS-SEARCH-003).
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let type_filter = rest.windows(2).find(|w| w[0] == "--type").map(|w| w[1].as_str());
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let k = rest.windows(2).find(|w| w[0] == "--k").and_then(|w| w[1].parse::<usize>().ok()).unwrap_or(8);
+                let code = clusters::cmd_clusters(&elems, type_filter, k, config, json);
                 if code != 0 {
                     std::process::exit(code);
                 }

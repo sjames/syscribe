@@ -349,6 +349,36 @@ struct SearchTextArgs {
     limit: Option<u32>,
 }
 
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct SummarizeArgs {
+    /// Restrict to the subtree rooted at this package qualified name.
+    scope: Option<String>,
+    /// Bound the nesting depth reported.
+    depth: Option<u32>,
+    /// Project onto this Configuration before summarising.
+    config: Option<String>,
+    /// Bypass and rewrite the content-hash cache.
+    no_cache: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct TopicsArgs {
+    /// Element type to analyse (default `Requirement`).
+    r#type: Option<String>,
+    /// Terms per package (default 10).
+    top: Option<u32>,
+    config: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct ClustersArgs {
+    /// Number of clusters (default min(8, element count); clamped to the count).
+    k: Option<u32>,
+    /// Element type to cluster (default `Requirement`).
+    r#type: Option<String>,
+    config: Option<String>,
+}
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct EvidenceArgs {
     r#ref: String,
@@ -837,6 +867,7 @@ const REPORT_ALLOWLIST: &[&str] = &[
     "audit",
     "stats",
     "digest",
+    "summarize",
     "matrix",
     "magicgrid",
     "trade-study",
@@ -1569,6 +1600,77 @@ impl SyscribeMcp {
             args.r#type.as_deref(),
             args.status.as_deref(),
             limit,
+        ) {
+            Ok(doc) => ok(doc),
+            Err(msg) => Err(ErrorData::invalid_params(msg, None)),
+        }
+    }
+
+    #[tool(
+        description = "Hierarchical content digest (REQ-TRS-OUT-023): a bottom-up per-package \
+        rollup — count, status split, TF-IDF 'about' terms, and one-line extracts of \
+        representative requirements — so you read a few package summaries, not 15k files. \
+        Deterministic/extractive (not an LLM summary), content-hash cached. Mirrors \
+        `summarize --json`. Optional scope/depth/config.",
+        annotations(read_only_hint = true)
+    )]
+    async fn summarize(
+        &self,
+        Parameters(args): Parameters<SummarizeArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::summarize::summarize_document(
+            &store.elements,
+            &store.model_root,
+            args.scope.as_deref(),
+            args.depth.map(|d| d as usize),
+            args.no_cache.unwrap_or(false),
+            args.config.as_deref(),
+        ) {
+            Ok(doc) => ok(doc),
+            Err(msg) => Err(ErrorData::invalid_params(msg, None)),
+        }
+    }
+
+    #[tool(
+        description = "Distinctive per-package keywords via TF-IDF (REQ-TRS-SEARCH-002): names \
+        what each package is about, demoting vocabulary common to every package. Deterministic/\
+        offline. Mirrors `topics --json`. Optional type/top/config.",
+        annotations(read_only_hint = true)
+    )]
+    async fn topics(
+        &self,
+        Parameters(args): Parameters<TopicsArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::topics::topics_document(
+            &store.elements,
+            args.r#type.as_deref(),
+            args.top.unwrap_or(10) as usize,
+            args.config.as_deref(),
+        ) {
+            Ok(doc) => ok(doc),
+            Err(msg) => Err(ErrorData::invalid_params(msg, None)),
+        }
+    }
+
+    #[tool(
+        description = "Topical clustering via TF-IDF cosine k-means (REQ-TRS-SEARCH-003): groups \
+        elements by shared distinctive vocabulary, surfacing cross-package themes. Deterministic \
+        (fixed init, no random seed) and offline (no neural embeddings). Mirrors `clusters --json`. \
+        Optional k/type/config.",
+        annotations(read_only_hint = true)
+    )]
+    async fn clusters(
+        &self,
+        Parameters(args): Parameters<ClustersArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::clusters::clusters_document(
+            &store.elements,
+            args.r#type.as_deref(),
+            args.k.unwrap_or(8) as usize,
+            args.config.as_deref(),
         ) {
             Ok(doc) => ok(doc),
             Err(msg) => Err(ErrorData::invalid_params(msg, None)),
