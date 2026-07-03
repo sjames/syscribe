@@ -28,6 +28,7 @@ Normative requirements for the Syscribe tool. Grouped by functional area:
 | `REQ-TRS-TAG` | Generic tag filtering (orthogonal to variability) |
 | `REQ-TRS-CFLD` | User-defined `custom_fields:` frontmatter: shape validation (`W041`), the `--where` query predicate, and read-only CLI/web rendering (GH #39) |
 | `REQ-TRS-OUT` | Output and reporting |
+| `REQ-TRS-SEARCH` | Full-text ranked retrieval over normative text (BM25 inverted index) |
 | `REQ-TRS-CLI` | CLI interface |
 | `REQ-TRS-SM` | SysMLv2-faithful state machines: one canonical transition schema (`source`/`target`/`accept`/`guard`/`effect`), legacy `from`/`to`/`trigger` deprecation (`W075`), and hierarchy/region-aware completeness (`W070`–`W079`, §8.8/§22.1; GH #68) |
 | `REQ-TRS-BUDGET` | Budget expression language for `CalculationDef` (`bodyLanguage: budget`): grammar evaluation, `evaluate:` ConstraintDef bound, `E866`–`E868`/`W060` (§22.2; GH #67) |

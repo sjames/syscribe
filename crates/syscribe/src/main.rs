@@ -8,10 +8,12 @@ mod coverage;
 mod cyberrisk;
 mod connectivity;
 mod diagram;
+mod digest;
 mod discover;
 mod export;
 mod export_html;
 mod fmea_report;
+mod ftsearch;
 mod help;
 mod ingest;
 mod lint_docs;
@@ -32,6 +34,7 @@ mod safety_case;
 mod sbom;
 mod scaffold;
 mod scripting;
+mod stats;
 mod testplan;
 mod tradestudy;
 mod repos;
@@ -855,6 +858,70 @@ fn main() {
                 } else {
                     audit::cmd_audit(&elems, vcfg, model_root, profile.as_ref(), None, ps, json)
                 };
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "stats" => {
+                // Read-only corpus-shape digest (REQ-TRS-OUT-021). Reuses
+                // coverage_summary, the validator reverse indices, the --where
+                // predicate and the --config projection lens. Exit 0 · 1 on usage.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let group_by = rest.windows(2).find(|w| w[0] == "--group-by").map(|w| w[1].as_str());
+                let status = rest.windows(2).find(|w| w[0] == "--status").map(|w| w[1].as_str());
+                let tag = rest.windows(2).find(|w| w[0] == "--tag").map(|w| w[1].as_str());
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let top_n = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--package-top-n")
+                    .and_then(|w| w[1].parse::<usize>().ok());
+                let wheres = parse_where_options(rest);
+                let opts = stats::StatsOptions {
+                    group_by,
+                    wheres: &wheres,
+                    status,
+                    tag,
+                    package_top_n: top_n,
+                };
+                let code = stats::cmd_stats(&elems, &vcfg, config, &opts, json);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "digest" => {
+                // Token-budgeted, one-line-per-requirement bulk view (REQ-TRS-OUT-022).
+                // Reuses the stats scoping + coverage 'verified' notion. Exit 0 · 1 usage.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let status = rest.windows(2).find(|w| w[0] == "--status").map(|w| w[1].as_str());
+                let tag = rest.windows(2).find(|w| w[0] == "--tag").map(|w| w[1].as_str());
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let limit = rest.windows(2).find(|w| w[0] == "--limit").and_then(|w| w[1].parse::<usize>().ok());
+                let offset = rest.windows(2).find(|w| w[0] == "--offset").and_then(|w| w[1].parse::<usize>().ok());
+                let wheres = parse_where_options(rest);
+                let opts = digest::DigestOptions { wheres: &wheres, status, tag, limit, offset };
+                let code = digest::cmd_digest(&elems, config, &opts, json);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "search-text" => {
+                // Ranked full-text (BM25) over normative text (REQ-TRS-SEARCH-001).
+                // Exit 0 · 1 on empty query or unresolvable --config.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let json = rest.iter().any(|a| a == "--json");
+                let type_filter = rest.windows(2).find(|w| w[0] == "--type").map(|w| w[1].as_str());
+                let status = rest.windows(2).find(|w| w[0] == "--status").map(|w| w[1].as_str());
+                let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let limit = rest
+                    .windows(2)
+                    .find(|w| w[0] == "--limit")
+                    .and_then(|w| w[1].parse::<usize>().ok())
+                    .unwrap_or(10);
+                // Query = first positional token (skipping value-taking flags/their values).
+                let query = first_positional(rest, &["--type", "--status", "--config", "--limit"]).unwrap_or("");
+                let code = ftsearch::cmd_search_text(&elems, query, type_filter, status, config, limit, json);
                 if code != 0 {
                     std::process::exit(code);
                 }
