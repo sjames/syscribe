@@ -428,8 +428,13 @@ pub fn fuzzy_score(elem: &RawElement, pattern: &str) -> u32 {
     if qn.split("::").any(|seg| seg.to_lowercase().starts_with(&pat_lc)) {
         return 35;
     }
-    // Doc body (first 2000 chars)
-    let doc_slice = &elem.doc[..elem.doc.len().min(2000)];
+    // Doc body (first ~2000 bytes). Round the cap down to a UTF-8 char
+    // boundary so a multi-byte character straddling byte 2000 does not panic.
+    let mut cap = elem.doc.len().min(2000);
+    while cap > 0 && !elem.doc.is_char_boundary(cap) {
+        cap -= 1;
+    }
+    let doc_slice = &elem.doc[..cap];
     if doc_slice.to_lowercase().contains(&pat_lc) { return 15; }
 
     0
@@ -3916,6 +3921,20 @@ mod custom_where_tests {
     }
     fn list(vs: &[&str]) -> serde_yaml::Value {
         serde_yaml::Value::Sequence(vs.iter().map(|x| s(x)).collect())
+    }
+
+    #[test]
+    fn fuzzy_score_doc_cap_survives_unicode_boundary() {
+        // A multi-byte char (é = 2 bytes) straddling the 2000-byte doc cap must
+        // not panic when the slice boundary lands mid-character.
+        let mut e = elem_with(&[]);
+        // 1999 ASCII bytes, then "é" (bytes 1999..2001) so byte 2000 is mid-char.
+        e.doc = "a".repeat(1999) + "ément trailing content";
+        assert!(!e.doc.is_char_boundary(2000));
+        // Must not panic; pattern absent → no doc-body hit.
+        let _ = fuzzy_score(&e, "zzz-not-present");
+        // Content before the cap is still searchable.
+        assert_eq!(fuzzy_score(&e, "aaaa"), 15);
     }
 
     #[test]
