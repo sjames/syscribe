@@ -26,3 +26,60 @@ pub fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
 pub fn parse_frontmatter(yaml: &str) -> Result<RawFrontmatter> {
     serde_yaml::from_str(yaml).context("Failed to parse YAML frontmatter")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // REQ-TRS-ORDER-001 — the generic `displayOrder` field parses as a first-class
+    // numeric (integer or decimal), not swallowed into the `extra` catch-all.
+    #[test]
+    fn display_order_parses_integer_and_decimal() {
+        let int_fm = parse_frontmatter("type: Requirement\nid: REQ-AA-001\ndisplayOrder: 20").unwrap();
+        assert_eq!(int_fm.display_order, Some(20.0));
+        assert!(!int_fm.extra.contains_key("displayOrder"));
+
+        let dec_fm = parse_frontmatter("type: Requirement\nid: REQ-AA-002\ndisplayOrder: 15.5").unwrap();
+        assert_eq!(dec_fm.display_order, Some(15.5));
+    }
+
+    // REQ-TRS-ORDER-001 — absent `displayOrder` yields `None`, and its sort key is
+    // `+∞` so unordered elements sink below every element that declares an order.
+    #[test]
+    fn absent_display_order_sinks_last() {
+        let fm = parse_frontmatter("type: Requirement\nid: REQ-AA-003").unwrap();
+        assert_eq!(fm.display_order, None);
+        assert_eq!(fm.display_order_key(), f64::INFINITY);
+        assert!(fm.display_order_key() > 10_000.0);
+    }
+
+    // REQ-TRS-ORDER-001 — the comparator orders ascending, sinks unset last, and
+    // tie-breaks on the stable identifier (mirrors the report / matrix sort).
+    #[test]
+    fn display_order_comparator_matches_spec() {
+        let mk = |id: &str, ord: Option<f64>| {
+            let mut fm = RawFrontmatter::default();
+            fm.id = Some(id.to_string());
+            fm.display_order = ord;
+            fm
+        };
+        let mut fms = vec![
+            mk("REQ-AA-003", Some(30.0)),
+            mk("REQ-AA-009", None),
+            mk("REQ-AA-001", Some(10.0)),
+            mk("REQ-AA-008", None),
+            mk("REQ-AA-004", Some(15.0)),
+            mk("REQ-AA-002", Some(20.0)),
+        ];
+        fms.sort_by(|a, b| {
+            a.display_order_key()
+                .total_cmp(&b.display_order_key())
+                .then_with(|| a.id.as_deref().unwrap_or("").cmp(b.id.as_deref().unwrap_or("")))
+        });
+        let ids: Vec<&str> = fms.iter().map(|f| f.id.as_deref().unwrap()).collect();
+        assert_eq!(
+            ids,
+            vec!["REQ-AA-001", "REQ-AA-004", "REQ-AA-002", "REQ-AA-003", "REQ-AA-008", "REQ-AA-009"]
+        );
+    }
+}

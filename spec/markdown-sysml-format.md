@@ -611,6 +611,43 @@ via the `custom.<key>` namespace:
 `--where` composes (AND) with the existing `type` / `--tag` / `--status` filters, and
 multiple `--where` predicates are ANDed. An unparseable predicate is a usage error.
 
+### 3.16 Display Order
+
+`displayOrder:` is a **generic, first-class** numeric field, accepted on **every**
+element type, that controls the order in which an element is presented alongside its
+peers in an ordered output. It exists to decouple *presentation order* from *identity*:
+stable identifiers (`REQ-*`, qualified names) are opaque and must never change, so they
+cannot be renumbered to express the order in which elements — most importantly
+**requirements** — are meant to be read.
+
+| Field | YAML type | Required | Default | Description |
+|---|---|---|---|---|
+| `displayOrder` | number (int or decimal) | optional | *(unset)* | Primary sort key among peers. Ascending: lower sorts first. Unset sorts **after** every element that declares a value. Ties (equal or both-unset) fall back to stable-identifier order. |
+
+```yaml
+---
+type: Requirement
+id: REQ-SCHED-001
+name: "Scheduler determinism"
+displayOrder: 20        # read after displayOrder 10, before 30
+---
+```
+
+Rules:
+
+- Sort is **ascending** by `displayOrder`; an element **without** `displayOrder` sorts
+  after every element that has one, and remaining ties break on the element's stable
+  identifier (`id` else qualified name).
+- The value is a **number and may be a decimal**, so a new element can be inserted
+  between two neighbours (`displayOrder: 15` between `10` and `20`) without renumbering.
+  Convention: leave gaps (`10, 20, 30, …`).
+- `displayOrder` governs presentation order in the **Requirements** section of the
+  Markdown validation report, the **Requirement rows of the coverage matrix**, and the
+  **containment tree of the web UI**. It never affects validation, identity, or
+  cross-reference resolution — it is purely a presentation hint.
+- An element with no `displayOrder:` is unaffected; the field adds no findings to models
+  that do not use it. (REQ-TRS-ORDER-001)
+
 ---
 
 ## 4 Directory and Namespace Conventions
@@ -2345,6 +2382,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `verificationMethod` | enum | optional | How this requirement will be verified: `test`, `inspection`, `analysis`, or `demonstration`. Required for ASIL B/C/D requirements (W701). |
 | `wcet` | string | optional | WCET claim (opaque). E.g. `"O(1)"`, `"≤ 200 cycles @ 72 MHz"`. |
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
+| `displayOrder` | number | optional | Reading/presentation order among peer requirements in the report and coverage matrix; ascending, unset last, id tie-break. Generic field — see §3.16. |
 | `reqDomain` | enum | optional | Engineering domain of this requirement: `system`, `hardware`, or `software`. Leaf requirements at `implemented`/`verified` status should be refined to `hardware` or `software` (warning `W302`). |
 | `breakdownAdr` | string | optional | `ADR-*` id or qualified name of the ADR documenting the rationale for this requirement's derivation from its parent(s). Required when `derivedFrom:` is non-empty (error `E310`). Also required when the requirement's integrity level is lower than its source's (W808; see §12.7). |
 
