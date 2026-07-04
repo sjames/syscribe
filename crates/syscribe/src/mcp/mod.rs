@@ -306,6 +306,79 @@ struct CoverageGapsArgs {
     class: Option<String>,
 }
 
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct StatsArgs {
+    /// Re-key the primary histogram by this facet crossed with top-level package:
+    /// status | reqDomain | silLevel | asilLevel | tags.
+    group_by: Option<String>,
+    /// Custom-field predicate restricting the requirement set (e.g. `custom.k=v`).
+    r#where: Option<String>,
+    /// Restrict to requirements with this status.
+    status: Option<String>,
+    /// Restrict to requirements carrying this tag.
+    tag: Option<String>,
+    /// Aggregate only the elements active in this Configuration (id/qname or
+    /// comma-separated FeatureDef qualified names).
+    config: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct DigestArgs {
+    /// Custom-field predicate restricting the requirement set (e.g. `custom.k=v`).
+    r#where: Option<String>,
+    status: Option<String>,
+    tag: Option<String>,
+    /// Aggregate only requirements active in this Configuration.
+    config: Option<String>,
+    /// Emit at most this many rows (cursor paging).
+    limit: Option<u32>,
+    /// Skip the first N rows.
+    offset: Option<u32>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct SearchTextArgs {
+    /// The full-text query (BM25-ranked over element body + name).
+    query: String,
+    /// Restrict to one element type (e.g. `Requirement`).
+    r#type: Option<String>,
+    status: Option<String>,
+    /// Search only the elements active in this Configuration.
+    config: Option<String>,
+    /// Return at most this many results, ordered by score (default 10).
+    limit: Option<u32>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct SummarizeArgs {
+    /// Restrict to the subtree rooted at this package qualified name.
+    scope: Option<String>,
+    /// Bound the nesting depth reported.
+    depth: Option<u32>,
+    /// Project onto this Configuration before summarising.
+    config: Option<String>,
+    /// Bypass and rewrite the content-hash cache.
+    no_cache: Option<bool>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct TopicsArgs {
+    /// Element type to analyse (default `Requirement`).
+    r#type: Option<String>,
+    /// Terms per package (default 10).
+    top: Option<u32>,
+    config: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct ClustersArgs {
+    /// Number of clusters (default min(8, element count); clamped to the count).
+    k: Option<u32>,
+    /// Element type to cluster (default `Requirement`).
+    r#type: Option<String>,
+    config: Option<String>,
+}
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct EvidenceArgs {
     r#ref: String,
@@ -792,6 +865,9 @@ fn is_write_tool(name: &str) -> bool {
 /// (notably write commands like `move`) is refused.
 const REPORT_ALLOWLIST: &[&str] = &[
     "audit",
+    "stats",
+    "digest",
+    "summarize",
     "matrix",
     "magicgrid",
     "trade-study",
@@ -1418,6 +1494,187 @@ impl SyscribeMcp {
             "planned": planned,
             "parentsMissingIntegrationTest": parents_missing_integration,
         }))
+    }
+
+    #[tool(
+        description = "Corpus-shape digest for fast scanning of large requirement sets \
+        (REQ-TRS-OUT-021): per-facet histograms (status, reqDomain, silLevel, asilLevel, \
+        package, tags) plus coverage and orphan rollups, in one call. Mirrors `stats --json`. \
+        Optional `group_by` (facet x package), `where`/`status`/`tag` scoping, and `config` \
+        projection lens. Use this as the cheap first hop before per-element `get_element`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn stats(
+        &self,
+        Parameters(args): Parameters<StatsArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        // A single `where` predicate mirrors the CLI (which also accepts repeats).
+        let wheres = match args.r#where.as_deref() {
+            Some(w) => match crate::query::parse_custom_where(w) {
+                Ok(p) => vec![p],
+                Err(msg) => return Err(ErrorData::invalid_params(msg, None)),
+            },
+            None => vec![],
+        };
+        let opts = crate::stats::StatsOptions {
+            group_by: args.group_by.as_deref(),
+            wheres: &wheres,
+            status: args.status.as_deref(),
+            tag: args.tag.as_deref(),
+            package_top_n: None,
+        };
+        match crate::stats::stats_document(
+            &store.elements,
+            &store.config,
+            args.config.as_deref(),
+            &opts,
+        ) {
+            Ok(doc) => ok(doc),
+            Err(msg) => Err(ErrorData::invalid_params(msg, None)),
+        }
+    }
+
+    #[tool(
+        description = "Token-budgeted bulk view (REQ-TRS-OUT-022): one compact row per \
+        Requirement — {id, name, status, reqDomain, sil?, asil?, text, verified} — paginated. \
+        Mirrors `digest --json`. The 'dump the slice' companion to `stats`: narrow with \
+        `stats`, then page rows here. Reuses the same where/status/tag/config scoping.",
+        annotations(read_only_hint = true)
+    )]
+    async fn digest(
+        &self,
+        Parameters(args): Parameters<DigestArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let wheres = match args.r#where.as_deref() {
+            Some(w) => match crate::query::parse_custom_where(w) {
+                Ok(p) => vec![p],
+                Err(msg) => return Err(ErrorData::invalid_params(msg, None)),
+            },
+            None => vec![],
+        };
+        let opts = crate::digest::DigestOptions {
+            wheres: &wheres,
+            status: args.status.as_deref(),
+            tag: args.tag.as_deref(),
+            limit: args.limit.map(|l| l as usize),
+            offset: args.offset.map(|o| o as usize),
+        };
+        match crate::digest::digest_document(&store.elements, args.config.as_deref(), &opts) {
+            Ok(doc) => ok(doc),
+            Err(msg) => Err(ErrorData::invalid_params(msg, None)),
+        }
+    }
+
+    #[tool(
+        description = "Ranked full-text search (REQ-TRS-SEARCH-001): Okapi BM25 over element \
+        body + name, best-first with a snippet marking the hit. Mirrors `search-text --json`. \
+        Use to find elements by what they SAY, ranked by relevance (the `search` tool matches \
+        identifiers). Optional `type`/`status`/`config` scoping.",
+        annotations(read_only_hint = true)
+    )]
+    async fn search_text(
+        &self,
+        Parameters(args): Parameters<SearchTextArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let limit = args.limit.unwrap_or(10) as usize;
+        // Apply the optional --config projection lens before searching.
+        let projected = match args.config.as_deref() {
+            None => None,
+            Some(c) => match syscribe_model::projection::resolve_selection(&store.elements, c) {
+                syscribe_model::projection::SelectionOutcome::Dormant => None,
+                syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
+                    Some(syscribe_model::projection::project(&store.elements, &sel))
+                }
+                syscribe_model::projection::SelectionOutcome::Error(m) => {
+                    return Err(ErrorData::invalid_params(m, None))
+                }
+            },
+        };
+        let view = projected.as_deref().unwrap_or(&store.elements);
+        match crate::ftsearch::search_document(
+            view,
+            &args.query,
+            args.r#type.as_deref(),
+            args.status.as_deref(),
+            limit,
+        ) {
+            Ok(doc) => ok(doc),
+            Err(msg) => Err(ErrorData::invalid_params(msg, None)),
+        }
+    }
+
+    #[tool(
+        description = "Hierarchical content digest (REQ-TRS-OUT-023): a bottom-up per-package \
+        rollup — count, status split, TF-IDF 'about' terms, and one-line extracts of \
+        representative requirements — so you read a few package summaries, not 15k files. \
+        Deterministic/extractive (not an LLM summary), content-hash cached. Mirrors \
+        `summarize --json`. Optional scope/depth/config.",
+        annotations(read_only_hint = true)
+    )]
+    async fn summarize(
+        &self,
+        Parameters(args): Parameters<SummarizeArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::summarize::summarize_document(
+            &store.elements,
+            &store.model_root,
+            args.scope.as_deref(),
+            args.depth.map(|d| d as usize),
+            args.no_cache.unwrap_or(false),
+            args.config.as_deref(),
+        ) {
+            Ok(doc) => ok(doc),
+            Err(msg) => Err(ErrorData::invalid_params(msg, None)),
+        }
+    }
+
+    #[tool(
+        description = "Distinctive per-package keywords via TF-IDF (REQ-TRS-SEARCH-002): names \
+        what each package is about, demoting vocabulary common to every package. Deterministic/\
+        offline. Mirrors `topics --json`. Optional type/top/config.",
+        annotations(read_only_hint = true)
+    )]
+    async fn topics(
+        &self,
+        Parameters(args): Parameters<TopicsArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::topics::topics_document(
+            &store.elements,
+            args.r#type.as_deref(),
+            args.top.unwrap_or(10) as usize,
+            args.config.as_deref(),
+        ) {
+            Ok(doc) => ok(doc),
+            Err(msg) => Err(ErrorData::invalid_params(msg, None)),
+        }
+    }
+
+    #[tool(
+        description = "Topical clustering via TF-IDF cosine k-means (REQ-TRS-SEARCH-003): groups \
+        elements by shared distinctive vocabulary, surfacing cross-package themes. Deterministic \
+        (fixed init, no random seed) and offline (no neural embeddings). Mirrors `clusters --json`. \
+        Optional k/type/config.",
+        annotations(read_only_hint = true)
+    )]
+    async fn clusters(
+        &self,
+        Parameters(args): Parameters<ClustersArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match crate::clusters::clusters_document(
+            &store.elements,
+            args.r#type.as_deref(),
+            args.k.unwrap_or(8) as usize,
+            args.config.as_deref(),
+        ) {
+            Ok(doc) => ok(doc),
+            Err(msg) => Err(ErrorData::invalid_params(msg, None)),
+        }
     }
 
     #[tool(

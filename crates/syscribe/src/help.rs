@@ -10,6 +10,12 @@ const HELP: &[(&str, &str)] = &[
     ("validate", include_str!("../../../prompts/help/validate.md")),
     ("report", include_str!("../../../prompts/help/report.md")),
     ("audit", include_str!("../../../prompts/help/audit.md")),
+    ("stats", include_str!("../../../prompts/help/stats.md")),
+    ("digest", include_str!("../../../prompts/help/digest.md")),
+    ("search-text", include_str!("../../../prompts/help/search-text.md")),
+    ("summarize", include_str!("../../../prompts/help/summarize.md")),
+    ("topics", include_str!("../../../prompts/help/topics.md")),
+    ("clusters", include_str!("../../../prompts/help/clusters.md")),
     // Browsing
     ("show", include_str!("../../../prompts/help/show.md")),
     ("ls", include_str!("../../../prompts/help/ls.md")),
