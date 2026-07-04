@@ -383,6 +383,11 @@ pub struct RawFrontmatter {
     /// here only so the validator can detect a stray `title:` and reject it via `E025`.
     pub title: Option<String>,
     pub status: Option<String>,
+    /// §8.11.6 — Requirement classification in the stakeholder/system decomposition:
+    /// `stakeholder` | `system` | `derived`. Recognised, first-class field (a plain
+    /// unrecognised `reqClass:` would otherwise be silently dropped and warned via
+    /// W047). (REQ-TRS-SCHEMA-002)
+    pub req_class: Option<String>,
     pub sil_level: Option<u8>,
     pub asil_level: Option<String>,
     /// ASIL/SIL decomposition argument type (§22.3): `independent` | `redundant` | `diverse`.

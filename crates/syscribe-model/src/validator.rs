@@ -809,6 +809,25 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // W047 (REQ-TRS-SCHEMA-001): unrecognised top-level frontmatter field. Any key
+        // not bound to a recognised schema field lands in the `extra` catch-all and is
+        // otherwise silently discarded — a hazard for typos (`reqDomian`, `verifis`).
+        // Advisory severity; gate with `--deny W047`. Author-defined data belongs under
+        // `custom_fields:` (§3.15), which is exempt. Keys sorted for deterministic order.
+        let mut unknown_keys: Vec<&String> = fm.extra.keys().collect();
+        unknown_keys.sort();
+        for key in unknown_keys {
+            findings.push(warning(
+                "W047",
+                &file,
+                &format!(
+                    "unrecognized frontmatter field '{}' — not a recognized schema field; \
+                     move author-defined data under `custom_fields:` (§3.15)",
+                    key
+                ),
+            ));
+        }
+
         // E004: required fields for native elements
         if let Some(ElementType::TestCase) = &fm.element_type {
             if fm.id.is_none() {

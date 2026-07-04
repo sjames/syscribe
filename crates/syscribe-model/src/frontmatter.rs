@@ -53,6 +53,28 @@ mod tests {
         assert!(fm.display_order_key() > 10_000.0);
     }
 
+    // REQ-TRS-SCHEMA-002 — `reqClass` is a recognized field, bound to the model and
+    // kept out of the `extra` catch-all.
+    #[test]
+    fn req_class_is_recognized_not_extra() {
+        let fm = parse_frontmatter(
+            "type: Requirement\nid: REQ-AA-001\nreqClass: stakeholder",
+        )
+        .unwrap();
+        assert_eq!(fm.req_class.as_deref(), Some("stakeholder"));
+        assert!(!fm.extra.contains_key("reqClass"));
+    }
+
+    // REQ-TRS-SCHEMA-001 — a genuinely unrecognized key is captured by `extra`
+    // (where the validator picks it up for W047), not silently absent.
+    #[test]
+    fn unknown_key_lands_in_extra() {
+        let fm = parse_frontmatter("type: PartDef\nname: Widget\nwibble: 3").unwrap();
+        assert!(fm.extra.contains_key("wibble"));
+        // A recognized field on the same element is NOT in extra.
+        assert!(!fm.extra.contains_key("name"));
+    }
+
     // REQ-TRS-ORDER-001 — the comparator orders ascending, sinks unset last, and
     // tie-breaks on the stable identifier (mirrors the report / matrix sort).
     #[test]

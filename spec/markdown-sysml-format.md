@@ -569,8 +569,12 @@ When `domain:` is not set, `system` is assumed — the element is domain-agnosti
 ### 3.15 Custom Fields
 
 `custom_fields:` is the **intentional, addressable home for user-defined metadata** on
-any element. Unlike unknown top-level keys (which are silently swallowed by the parser's
-catch-all), data placed under `custom_fields:` is preserved, queryable, and rendered.
+any element. It is the **only** sanctioned channel for author-defined data: an
+unrecognised **top-level** key is still captured by the parser's catch-all (and so
+survives a round-trip), but it is **no longer silent** — it raises warning `W047`
+(§3.17) directing you to move the data here. Data placed under `custom_fields:` is
+recognised: preserved, queryable (`custom.<key>`), shape-checked, and exempt from
+`W047`.
 
 | Field | YAML type | Required | Default | Description |
 |---|---|---|---|---|
@@ -647,6 +651,34 @@ Rules:
   cross-reference resolution — it is purely a presentation hint.
 - An element with no `displayOrder:` is unaffected; the field adds no findings to models
   that do not use it. (REQ-TRS-ORDER-001)
+
+### 3.17 Frontmatter Schema Strictness
+
+The frontmatter schema is **fixed**: the parser recognises a defined set of field names
+(the fields documented in this specification) and binds each to a typed slot. A
+**top-level** key that is not a recognised field is captured by an anonymous catch-all —
+it round-trips through writes, but it takes **no** part in validation or semantics.
+
+Because such a key is otherwise invisible, every unrecognised top-level key raises
+warning **`W047`**:
+
+| Code | Severity | Trigger | Message |
+|---|---|---|---|
+| `W047` | warning | A top-level frontmatter key that is not a recognised schema field and is not `custom_fields` | `unrecognized frontmatter field '<key>' — not a recognized schema field; move author-defined data under `custom_fields:` (§3.15)` |
+
+Rules:
+
+- `W047` is **advisory** — a warning, never a hard error — so pre-existing models keep
+  validating. Gate it in CI with `--deny W047` to make an unrecognised field fail the
+  build.
+- It fires **per unrecognised key**, naming the key and the element's file.
+- Keys under `custom_fields:` are **exempt** — that is the sanctioned home for
+  author-defined data (§3.15). Recognised schema fields never trigger it.
+- The most common cause is a **typo** in a real field name (`reqDomian` for `reqDomain`,
+  `verifis` for `verifies`): the misspelling was previously accepted and the value
+  silently discarded. `W047` surfaces the mistake instead of losing the data quietly.
+
+(REQ-TRS-SCHEMA-001.)
 
 ---
 
@@ -2373,6 +2405,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `id` | string | **Required** | Stable opaque ID matching `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`. Unique across the model. Never changes. |
 | `name` | string | **Required** | One-line human-readable label — free prose (spaces/punctuation allowed; `W042` does not apply). Max 120 chars. No newlines. |
 | `status` | enum | **Required** | Lifecycle state: `draft`, `review`, `approved`, `implemented`, `verified`. |
+| `reqClass` | enum | optional | Classification in the stakeholder/system decomposition: `stakeholder`, `system`, or `derived`. Recognised, first-class field (REQ-TRS-SCHEMA-002); records authoring intent independently of `derivedFrom`. |
 | `derivedFrom` | list of id-or-qualname | optional | IDs (`REQ-*`) or qualified names of parent Requirements. Absent = stakeholder-level requirement. |
 | `silLevel` | integer 1–4 | optional | IEC 61508 SIL level. Mutually exclusive with `asilLevel` — do not set both (W006). |
 | `asilLevel` | enum A\|B\|C\|D | optional | ISO 26262 ASIL level. Mutually exclusive with `silLevel` — do not set both (W006). |
