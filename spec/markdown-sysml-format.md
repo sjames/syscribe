@@ -569,8 +569,12 @@ When `domain:` is not set, `system` is assumed — the element is domain-agnosti
 ### 3.15 Custom Fields
 
 `custom_fields:` is the **intentional, addressable home for user-defined metadata** on
-any element. Unlike unknown top-level keys (which are silently swallowed by the parser's
-catch-all), data placed under `custom_fields:` is preserved, queryable, and rendered.
+any element. It is the **only** sanctioned channel for author-defined data: an
+unrecognised **top-level** key is still captured by the parser's catch-all (and so
+survives a round-trip), but it is **no longer silent** — it raises warning `W047`
+(§3.17) directing you to move the data here. Data placed under `custom_fields:` is
+recognised: preserved, queryable (`custom.<key>`), shape-checked, and exempt from
+`W047`.
 
 | Field | YAML type | Required | Default | Description |
 |---|---|---|---|---|
@@ -610,6 +614,71 @@ via the `custom.<key>` namespace:
 
 `--where` composes (AND) with the existing `type` / `--tag` / `--status` filters, and
 multiple `--where` predicates are ANDed. An unparseable predicate is a usage error.
+
+### 3.16 Display Order
+
+`displayOrder:` is a **generic, first-class** numeric field, accepted on **every**
+element type, that controls the order in which an element is presented alongside its
+peers in an ordered output. It exists to decouple *presentation order* from *identity*:
+stable identifiers (`REQ-*`, qualified names) are opaque and must never change, so they
+cannot be renumbered to express the order in which elements — most importantly
+**requirements** — are meant to be read.
+
+| Field | YAML type | Required | Default | Description |
+|---|---|---|---|---|
+| `displayOrder` | number (int or decimal) | optional | *(unset)* | Primary sort key among peers. Ascending: lower sorts first. Unset sorts **after** every element that declares a value. Ties (equal or both-unset) fall back to stable-identifier order. |
+
+```yaml
+---
+type: Requirement
+id: REQ-SCHED-001
+name: "Scheduler determinism"
+displayOrder: 20        # read after displayOrder 10, before 30
+---
+```
+
+Rules:
+
+- Sort is **ascending** by `displayOrder`; an element **without** `displayOrder` sorts
+  after every element that has one, and remaining ties break on the element's stable
+  identifier (`id` else qualified name).
+- The value is a **number and may be a decimal**, so a new element can be inserted
+  between two neighbours (`displayOrder: 15` between `10` and `20`) without renumbering.
+  Convention: leave gaps (`10, 20, 30, …`).
+- `displayOrder` governs presentation order in the **Requirements** section of the
+  Markdown validation report, the **Requirement rows of the coverage matrix**, and the
+  **containment tree of the web UI**. It never affects validation, identity, or
+  cross-reference resolution — it is purely a presentation hint.
+- An element with no `displayOrder:` is unaffected; the field adds no findings to models
+  that do not use it. (REQ-TRS-ORDER-001)
+
+### 3.17 Frontmatter Schema Strictness
+
+The frontmatter schema is **fixed**: the parser recognises a defined set of field names
+(the fields documented in this specification) and binds each to a typed slot. A
+**top-level** key that is not a recognised field is captured by an anonymous catch-all —
+it round-trips through writes, but it takes **no** part in validation or semantics.
+
+Because such a key is otherwise invisible, every unrecognised top-level key raises
+warning **`W047`**:
+
+| Code | Severity | Trigger | Message |
+|---|---|---|---|
+| `W047` | warning | A top-level frontmatter key that is not a recognised schema field and is not `custom_fields` | `unrecognized frontmatter field '<key>' — not a recognized schema field; move author-defined data under `custom_fields:` (§3.15)` |
+
+Rules:
+
+- `W047` is **advisory** — a warning, never a hard error — so pre-existing models keep
+  validating. Gate it in CI with `--deny W047` to make an unrecognised field fail the
+  build.
+- It fires **per unrecognised key**, naming the key and the element's file.
+- Keys under `custom_fields:` are **exempt** — that is the sanctioned home for
+  author-defined data (§3.15). Recognised schema fields never trigger it.
+- The most common cause is a **typo** in a real field name (`reqDomian` for `reqDomain`,
+  `verifis` for `verifies`): the misspelling was previously accepted and the value
+  silently discarded. `W047` surfaces the mistake instead of losing the data quietly.
+
+(REQ-TRS-SCHEMA-001.)
 
 ---
 
@@ -2336,6 +2405,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `id` | string | **Required** | Stable opaque ID matching `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`. Unique across the model. Never changes. |
 | `name` | string | **Required** | One-line human-readable label — free prose (spaces/punctuation allowed; `W042` does not apply). Max 120 chars. No newlines. |
 | `status` | enum | **Required** | Lifecycle state: `draft`, `review`, `approved`, `implemented`, `verified`. |
+| `reqClass` | enum | optional | Classification in the stakeholder/system decomposition: `stakeholder`, `system`, or `derived`. Recognised, first-class field (REQ-TRS-SCHEMA-002); records authoring intent independently of `derivedFrom`. |
 | `derivedFrom` | list of id-or-qualname | optional | IDs (`REQ-*`) or qualified names of parent Requirements. Absent = stakeholder-level requirement. |
 | `silLevel` | integer 1–4 | optional | IEC 61508 SIL level. Mutually exclusive with `asilLevel` — do not set both (W006). |
 | `asilLevel` | enum A\|B\|C\|D | optional | ISO 26262 ASIL level. Mutually exclusive with `silLevel` — do not set both (W006). |
@@ -2345,6 +2415,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `verificationMethod` | enum | optional | How this requirement will be verified: `test`, `inspection`, `analysis`, or `demonstration`. Required for ASIL B/C/D requirements (W701). |
 | `wcet` | string | optional | WCET claim (opaque). E.g. `"O(1)"`, `"≤ 200 cycles @ 72 MHz"`. |
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
+| `displayOrder` | number | optional | Reading/presentation order among peer requirements in the report and coverage matrix; ascending, unset last, id tie-break. Generic field — see §3.16. |
 | `reqDomain` | enum | optional | Engineering domain of this requirement: `system`, `hardware`, or `software`. Leaf requirements at `implemented`/`verified` status should be refined to `hardware` or `software` (warning `W302`). |
 | `breakdownAdr` | string | optional | `ADR-*` id or qualified name of the ADR documenting the rationale for this requirement's derivation from its parent(s). Required when `derivedFrom:` is non-empty (error `E310`). Also required when the requirement's integrity level is lower than its source's (W808; see §12.7). |
 

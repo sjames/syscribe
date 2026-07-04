@@ -179,9 +179,17 @@ pub async fn tree_items(
     Query(query): Query<TreeQuery>,
 ) -> Html<String> {
     let store = state.read().await;
-    let items: Vec<TreeNode> = store
-        .elements
-        .iter()
+    let mut ordered: Vec<&syscribe_model::element::RawElement> = store.elements.iter().collect();
+    // REQ-TRS-ORDER-001 — present siblings by displayOrder (ascending, unset last),
+    // tie-broken by qualified name; the walker's file order is otherwise arbitrary.
+    ordered.sort_by(|a, b| {
+        a.frontmatter
+            .display_order_key()
+            .total_cmp(&b.frontmatter.display_order_key())
+            .then_with(|| a.qualified_name.cmp(&b.qualified_name))
+    });
+    let items: Vec<TreeNode> = ordered
+        .into_iter()
         .filter(|e| {
             let qn = &e.qualified_name;
             if let Some(ref parent) = query.parent {

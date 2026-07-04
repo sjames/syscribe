@@ -36,6 +36,18 @@ fn disp_id(e: &RawElement) -> String {
         .unwrap_or_else(|| e.qualified_name.clone())
 }
 
+/// REQ-TRS-ORDER-001 — order requirement rows by `displayOrder` (ascending, unset
+/// sinking last), tie-broken by display id, so the matrix follows the authored
+/// reading order rather than pure identifier order.
+fn sort_reqs_by_display_order(reqs: &mut [&RawElement]) {
+    reqs.sort_by(|a, b| {
+        a.frontmatter
+            .display_order_key()
+            .total_cmp(&b.frontmatter.display_order_key())
+            .then_with(|| disp_id(a).cmp(&disp_id(b)))
+    });
+}
+
 /// Cross-reference identity keys an inbound `verifies:` entry may use.
 fn keys(e: &RawElement) -> Vec<String> {
     let mut k = vec![e.qualified_name.clone()];
@@ -273,7 +285,7 @@ fn active_grid(
         .filter(|e| tag.is_none_or(|t| has_tag(e, t)))
         .filter(|e| status.is_none_or(|s| e.frontmatter.status.as_deref() == Some(s)))
         .collect();
-    reqs.sort_by_key(|e| disp_id(e));
+    sort_reqs_by_display_order(&mut reqs);
 
     // Effective conditions honour transitive package appliesWhen (REQ-TRS-VAR-006).
     let pkg = variability::package_conditions(elements);
@@ -306,7 +318,7 @@ fn dormant_json(elements: &[RawElement], status: Option<&str>, gaps_only: bool) 
         .filter(|e| is_type(e, ElementType::Requirement))
         .filter(|e| status.is_none_or(|s| e.frontmatter.status.as_deref() == Some(s)))
         .collect();
-    reqs.sort_by_key(|e| disp_id(e));
+    sort_reqs_by_display_order(&mut reqs);
 
     let tcs: Vec<Vec<String>> = elements
         .iter()
@@ -583,7 +595,7 @@ impl Coverage {
             .iter()
             .filter(|e| is_type(e, ElementType::Requirement))
             .collect();
-        reqs.sort_by_key(|e| disp_id(e));
+        sort_reqs_by_display_order(&mut reqs);
 
         let pkg = variability::package_conditions(elements);
         let tcs = participating_tcs(elements, &pkg, &feat_alias, evidence);
@@ -723,7 +735,7 @@ fn cmd_matrix_dormant(
         .filter(|e| is_type(e, ElementType::Requirement))
         .filter(|e| status.is_none_or(|s| e.frontmatter.status.as_deref() == Some(s)))
         .collect();
-    reqs.sort_by_key(|e| disp_id(e));
+    sort_reqs_by_display_order(&mut reqs);
 
     let tcs: Vec<Vec<String>> = elements
         .iter()

@@ -807,6 +807,18 @@ A duplicate `TestPlan` `id` is the generic `E101`.
 |---|---|
 | W041 | a `custom_fields` value is not a scalar or a list of scalars (e.g. a nested map); names the offending key |
 
+## Unrecognized frontmatter fields (W047)
+
+The frontmatter schema is fixed. A top-level key that is not a recognized schema field
+lands in the parser's catch-all — it round-trips through writes but takes no part in
+validation or semantics. Every such key is flagged so silent data loss (most often a
+typo like `reqDomian` for `reqDomain`) becomes visible. Author-defined data belongs
+under `custom_fields:` (which is exempt). Advisory; gate with `--deny W047`.
+
+| Code | Condition |
+|---|---|
+| W047 | A top-level frontmatter key is not a recognized schema field and is not `custom_fields`. One finding per key, naming the key and file, pointing to `custom_fields:`. Keys under `custom_fields:` and all recognized fields are exempt. |
+
 ## MagicGrid overlay (E316, W307, MG010–MG070)
 
 The MagicGrid method is supported as a **`custom_fields:` overlay** — see the

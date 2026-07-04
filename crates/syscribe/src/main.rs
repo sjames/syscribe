@@ -1804,7 +1804,19 @@ fn main() {
     println!("| ID | Title | Kind | Status | reqDomain | SIL | ASIL |");
     println!("|---|---|---|---|---|---|---|");
     let mut sorted_reqs = native_reqs.clone();
-    sorted_reqs.sort_by_key(|e| e.frontmatter.id.as_deref().unwrap_or(""));
+    // REQ-TRS-ORDER-001 — displayOrder ascending, unset sinks last, id tie-break.
+    sorted_reqs.sort_by(|a, b| {
+        a.frontmatter
+            .display_order_key()
+            .total_cmp(&b.frontmatter.display_order_key())
+            .then_with(|| {
+                a.frontmatter
+                    .id
+                    .as_deref()
+                    .unwrap_or("")
+                    .cmp(b.frontmatter.id.as_deref().unwrap_or(""))
+            })
+    });
     for e in &sorted_reqs {
         let id = e.frontmatter.id.as_deref().unwrap_or("—");
         let title = e.frontmatter.name.as_deref().unwrap_or("—");

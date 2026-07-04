@@ -294,6 +294,14 @@ pub struct RawFrontmatter {
     pub name: Option<String>,
     pub short_name: Option<String>,
     pub visibility: Option<String>,
+    /// §3.16 — display / reading order. A generic, optional ordinal used as the
+    /// primary sort key when this element is presented alongside its peers in an
+    /// ordered output (requirements report, coverage matrix, web-UI tree). Elements
+    /// sort by ascending `displayOrder`; an element with no `displayOrder` sorts
+    /// **after** every element that declares one, ties then breaking on the stable
+    /// identifier. A decimal is accepted so a new element can be inserted between two
+    /// neighbours (e.g. `15` between `10` and `20`) without renumbering. (REQ-TRS-ORDER-001)
+    pub display_order: Option<f64>,
     pub supertype: Option<serde_yaml::Value>,
     pub typed_by: Option<serde_yaml::Value>,
     pub subsets: Option<Vec<String>>,
@@ -375,6 +383,11 @@ pub struct RawFrontmatter {
     /// here only so the validator can detect a stray `title:` and reject it via `E025`.
     pub title: Option<String>,
     pub status: Option<String>,
+    /// §8.11.6 — Requirement classification in the stakeholder/system decomposition:
+    /// `stakeholder` | `system` | `derived`. Recognised, first-class field (a plain
+    /// unrecognised `reqClass:` would otherwise be silently dropped and warned via
+    /// W047). (REQ-TRS-SCHEMA-002)
+    pub req_class: Option<String>,
     pub sil_level: Option<u8>,
     pub asil_level: Option<String>,
     /// ASIL/SIL decomposition argument type (§22.3): `independent` | `redundant` | `diverse`.
@@ -774,6 +787,15 @@ impl RawFrontmatter {
             }
         }
         out
+    }
+
+    /// §3.16 (REQ-TRS-ORDER-001) — sort key for display / reading order: the
+    /// `displayOrder` value, or `+∞` when unset so unordered elements sink below
+    /// every element that declares an order. Callers combine this with the stable
+    /// identifier as a tie-break, e.g.
+    /// `a.display_order_key().total_cmp(&b.display_order_key()).then_with(|| id_a.cmp(id_b))`.
+    pub fn display_order_key(&self) -> f64 {
+        self.display_order.unwrap_or(f64::INFINITY)
     }
 
     /// REQ-TRS-MG-* — read a MagicGrid overlay value (`mg_*`) from `custom_fields`
