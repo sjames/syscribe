@@ -2,7 +2,7 @@
 id: TC-TRS-OUT-022
 type: TestCase
 testLevel: L3
-status: draft
+status: approved
 name: "Verify the digest bulk view: compact NDJSON rows, one-line text, paging, scoping filters, --config lens, JSON document, and CLI/MCP parity."
 verifies:
   - REQ-TRS-OUT-022

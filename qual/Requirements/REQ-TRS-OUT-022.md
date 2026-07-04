@@ -2,7 +2,7 @@
 id: REQ-TRS-OUT-022
 type: Requirement
 name: Tool shall provide a token-budgeted digest command emitting one compact line per requirement for LLM bulk scanning
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

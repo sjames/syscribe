@@ -2,7 +2,7 @@
 id: TC-TRS-OUT-021
 type: TestCase
 testLevel: L3
-status: draft
+status: approved
 name: "Verify the stats corpus-shape digest: facets, coverage/orphan rollups, --group-by, scoping filters, --config lens, JSON, and CLI/MCP parity."
 verifies:
   - REQ-TRS-OUT-021

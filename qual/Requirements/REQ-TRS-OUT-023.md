@@ -2,7 +2,7 @@
 id: REQ-TRS-OUT-023
 type: Requirement
 name: Tool shall provide a hierarchical summarize command with content-addressed caching for LLM corpus digestion
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

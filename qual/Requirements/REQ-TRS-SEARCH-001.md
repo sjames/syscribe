@@ -2,7 +2,7 @@
 id: REQ-TRS-SEARCH-001
 type: Requirement
 name: Tool shall provide ranked full-text search over normative text with BM25 relevance and snippets
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

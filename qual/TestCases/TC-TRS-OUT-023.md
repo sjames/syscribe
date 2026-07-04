@@ -2,7 +2,7 @@
 id: TC-TRS-OUT-023
 type: TestCase
 testLevel: L3
-status: draft
+status: approved
 name: "Verify the hierarchical summarize digest: per-package rollup, extractive terms, representatives, content-hash cache, scope/depth/config, and CLI/MCP parity."
 verifies:
   - REQ-TRS-OUT-023

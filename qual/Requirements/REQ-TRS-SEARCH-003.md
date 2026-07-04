@@ -2,7 +2,7 @@
 id: REQ-TRS-SEARCH-003
 type: Requirement
 name: Tool shall group requirements into topical clusters via TF-IDF cosine k-means (clusters command)
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

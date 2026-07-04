@@ -2,7 +2,7 @@
 id: TC-TRS-SEARCH-002
 type: TestCase
 testLevel: L3
-status: draft
+status: approved
 name: "Verify topics: per-package TF-IDF keywords, stopword demotion, type scoping, multi-package corpus, config lens, and CLI/MCP parity."
 verifies:
   - REQ-TRS-SEARCH-002

@@ -2,7 +2,7 @@
 id: TC-TRS-SEARCH-001
 type: TestCase
 testLevel: L3
-status: draft
+status: approved
 name: "Verify ranked full-text search: BM25 relevance ordering, snippets, type/status/config scoping, empty-query and JSON contracts, and CLI/MCP parity."
 verifies:
   - REQ-TRS-SEARCH-001

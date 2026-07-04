@@ -2,7 +2,7 @@
 id: REQ-TRS-SEARCH-002
 type: Requirement
 name: Tool shall extract distinctive per-package keywords via TF-IDF (topics command)
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

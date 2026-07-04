@@ -2,7 +2,7 @@
 id: REQ-TRS-OUT-021
 type: Requirement
 name: Tool shall provide a read-only stats command that aggregates the model into facet histograms for fast LLM corpus scanning
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

@@ -2,7 +2,7 @@
 id: TC-TRS-SEARCH-003
 type: TestCase
 testLevel: L3
-status: draft
+status: approved
 name: "Verify clusters: TF-IDF cosine k-means grouping, deterministic init, k clamping/validation, cosine separation, config lens, and CLI/MCP parity."
 verifies:
   - REQ-TRS-SEARCH-003
