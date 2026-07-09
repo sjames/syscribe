@@ -104,4 +104,29 @@ mod tests {
             vec!["REQ-AA-001", "REQ-AA-004", "REQ-AA-002", "REQ-AA-003", "REQ-AA-008", "REQ-AA-009"]
         );
     }
+
+    // REQ-TRS-EXTREF-001 — `extRef` should be recognized as a first-class field,
+    // not captured by the `extra` catch-all.
+    #[test]
+    fn ext_ref_is_recognized_not_extra() {
+        let fm = parse_frontmatter(
+            "type: PartDef\nname: Widget\nextRef: \"DNG:4521\"",
+        )
+        .unwrap();
+        assert_eq!(fm.ext_ref, Some(vec!["DNG:4521".to_string()]));
+        assert!(!fm.extra.contains_key("extRef"), "extRef should not be in extra: {:?}", fm.extra);
+    }
+
+    #[test]
+    fn ext_ref_list_is_recognized() {
+        let fm = parse_frontmatter(
+            "type: PartDef\nname: Widget\nextRef:\n  - \"DNG:4521\"\n  - \"cameo://model/Engine#id-99\"",
+        )
+        .unwrap();
+        assert_eq!(
+            fm.ext_ref,
+            Some(vec!["DNG:4521".to_string(), "cameo://model/Engine#id-99".to_string()])
+        );
+        assert!(!fm.extra.contains_key("extRef"));
+    }
 }

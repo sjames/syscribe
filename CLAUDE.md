@@ -94,6 +94,7 @@ Each model element is a `.md` file. The **directory path** encodes namespace/own
 id: <qualified-name>          # auto-derived from path if omitted
 type: <SysML element type>    # required
 name: <display name>          # defaults to filename stem
+extRef: <string or list>      # external reference(s) (e.g. DNG:4521)
 supertype: <qualified-name>   # specialization (':>')
 subsets: [<qualified-name>]   # subsetting ('::>')
 redefines: <qualified-name>   # redefinition
