@@ -104,7 +104,7 @@ Its shape:
 ## Further reading
 
 - [Requirements & Test Cases](requirements.md) — stable IDs, lifecycle, Gherkin
-- [Traceability](traceability.md) — the seven §12 rules, including `implementedBy:`/`W023`
+- [Traceability](traceability.md) — the seven §12 rules, including `implementedBy:`/`W023`, plus suspect-link detection (`traceBaselines:`/`W090`, the `suspect` commands)
 - [Architecture Decisions](adrs.md) — ADR lifecycle and breakdown rules
 - [State Machines](state-machines.md) — `StateDef` transitions, hierarchy/parallel regions, the `W070`–`W079` completeness checks
 - [Variability & Product Lines](variability.md) — feature models, `appliesWhen`, `matrix`, `feature-check`, the `--config` lens

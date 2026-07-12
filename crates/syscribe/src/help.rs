@@ -34,6 +34,7 @@ const HELP: &[(&str, &str)] = &[
     ("who-verifies", include_str!("../../../prompts/help/who-verifies.md")),
     ("links", include_str!("../../../prompts/help/links.md")),
     ("refs", include_str!("../../../prompts/help/refs.md")),
+    ("suspect", include_str!("../../../prompts/help/suspect.md")),
     ("matrix", include_str!("../../../prompts/help/matrix.md")),
     ("magicgrid", include_str!("../../../prompts/help/magicgrid.md")),
     ("trade-study", include_str!("../../../prompts/help/trade-study.md")),

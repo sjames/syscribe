@@ -11,6 +11,8 @@ tags:
   - safety
   - fault-detection
   - flight-controller
+traceBaselines:
+  REQ-UAV-FC-001: "blake3:1e162cb3fa8ce147eecd30b06f9fb5b27193dfe97e886110a393438a6dd07648"
 ---
 
 Hardware-in-the-loop test using the fault injection bench. Sensor failure signals are injected via the HIL interface and response time is measured from fault signal assertion to FC mode-transition command on the CAN bus.

@@ -426,6 +426,16 @@ pub struct RawFrontmatter {
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub implemented_by: Option<Vec<String>>,
 
+    /// REQ-TRS-SUS-LINKS-001 — suspect-link baselines. A map from a trace-link
+    /// **target identifier** (exactly as authored on the link — a stable id or a
+    /// qualified name) to the algorithm-prefixed content hash (`blake3:<hex>`) of
+    /// that target's normative projection (REQ-TRS-SUS-LINKS-002), captured at the
+    /// moment the link was last reviewed. One map on the source (which holds the
+    /// link, per §12.1) covers every link kind. `BTreeMap` → deterministic, sorted
+    /// serialization so re-baselining produces minimal diffs.
+    #[serde(rename = "traceBaselines", default, skip_serializing_if = "Option::is_none")]
+    pub trace_baselines: Option<std::collections::BTreeMap<String, String>>,
+
     /// §3 — external reference(s): this element represents an artifact managed in
     /// another tool (a DNG requirement, a SysML-tool element, …). Opaque strings
     /// (URI or tool-qualified token); string or list. Never a model cross-ref target.

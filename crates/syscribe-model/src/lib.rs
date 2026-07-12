@@ -18,6 +18,7 @@ pub mod resolver;
 pub mod results;
 pub mod risk;
 pub mod solver;
+pub mod suspect;
 pub mod testplan;
 pub mod units;
 pub mod validator;

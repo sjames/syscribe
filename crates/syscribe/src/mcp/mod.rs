@@ -256,6 +256,23 @@ struct DeleteElementArgs {
     dry_run: bool,
 }
 
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct SuspectListArgs {
+    /// Also report links that have no baseline yet (candidates for suspect_accept).
+    #[serde(default = "default_true")]
+    include_unbaselined: bool,
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct SuspectAcceptArgs {
+    /// The source element holding the link (stable id or qualified name).
+    source: String,
+    /// The link target to baseline (stable id or qualified name).
+    target: String,
+    #[serde(default = "default_true")]
+    dry_run: bool,
+}
+
 /// One operation in an `apply_changes` batch. Carries the union of the single
 /// write tools' arguments; `op` selects which are read.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -855,6 +872,7 @@ const WRITE_TOOLS: &[&str] = &[
     "delete_element",
     "apply_changes",
     "ingest_results",
+    "suspect_accept",
 ];
 
 fn is_write_tool(name: &str) -> bool {
@@ -2433,6 +2451,89 @@ impl SyscribeMcp {
             Ok(())
         };
         let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
+    }
+
+    #[tool(
+        description = "List suspect trace links (a baselined link whose target's content \
+        changed since review, i.e. the W090 set) and, by default, links that have no \
+        baseline yet. Each entry gives the source (id + qname), target ref, and link kind. \
+        Read-only; deterministic ordering. See suspect_accept to clear a suspect link.",
+        annotations(read_only_hint = true)
+    )]
+    async fn suspect_list(
+        &self,
+        Parameters(args): Parameters<SuspectListArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let links = syscribe_model::suspect::scan(&store.elements, &store.resolver);
+        let to_json = |l: &syscribe_model::suspect::SuspectLink| {
+            json!({
+                "source": l.source_label(),
+                "sourceQname": l.source_qname,
+                "target": l.target_ref,
+                "kind": l.kind,
+            })
+        };
+        let suspect: Vec<Value> = links
+            .iter()
+            .filter(|l| l.state == syscribe_model::suspect::LinkState::Suspect)
+            .map(to_json)
+            .collect();
+        let mut out = json!({ "suspect": suspect });
+        if args.include_unbaselined {
+            let unbaselined: Vec<Value> = links
+                .iter()
+                .filter(|l| l.state == syscribe_model::suspect::LinkState::Unbaselined)
+                .map(to_json)
+                .collect();
+            out["unbaselined"] = Value::Array(unbaselined);
+        }
+        ok(out)
+    }
+
+    #[tool(
+        description = "Baseline a reviewed trace link: capture the target's current content \
+        hash into the source's traceBaselines, clearing its suspect flag (W090). Obeys the \
+        write guard — dry_run defaults to true (returns a diff + validation delta, clearing \
+        the link shows the W090 under resolvedWarnings; nothing is written). Pass \
+        dry_run:false to commit. source/target accept a stable id or qualified name.",
+        annotations(read_only_hint = false)
+    )]
+    async fn suspect_accept(
+        &self,
+        Parameters(args): Parameters<SuspectAcceptArgs>,
+        peer: Peer<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let mut store = self.store.write().await;
+
+        // Resolve against the live model first so an unresolved source / non-referenced
+        // target is a clean tool error (no candidate staging).
+        if let Err(e) =
+            crate::suspect::plan_accept(&store.elements, &store.resolver, &args.source, &args.target)
+        {
+            return tool_error(e);
+        }
+
+        let extra = extra_map(json!({ "source": args.source, "target": args.target }));
+        let (source_ref, target_ref) = (args.source.clone(), args.target.clone());
+        // The baseline is recomputed against whichever tree the guard applies to
+        // (temp candidate, then the real model on commit), so hashes match the
+        // model actually being written.
+        let apply = move |root: &Path| -> Result<(), String> {
+            let elems = syscribe_model::walker::walk_model(root).map_err(|e| e.to_string())?;
+            let resolver = Resolver::new(&elems);
+            let plan =
+                crate::suspect::plan_accept(&elems, &resolver, &source_ref, &target_ref)?;
+            // plan.source_file is the absolute path under `root` produced by walk_model.
+            crate::suspect::write_baseline(Path::new(&plan.source_file), &plan.authored_key, &plan.hash)
+                .map_err(|e| e.to_string())
+        };
+        // gate=false: baselining never changes cross-references, so the referential-
+        // integrity gate does not apply (like delete_element).
+        let res = guarded_write(&mut store, args.dry_run, false, extra, apply);
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)
