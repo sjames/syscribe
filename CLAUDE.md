@@ -182,6 +182,10 @@ SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file pat
 `Configuration` (`CONF-*`) is id-identified: its identity is its `id`, files are `<id>.md`, and its label is a free-prose `name`.
 - Examples: `FEAT-ABS`, `FEAT-QUADROTOR`, `FEAT-DATALINK-LORA`, `FEAT-CAM-4K`, `FEAT-ABS-001`
 
+**Baseline ID pattern** — `^BL(-[A-Z0-9]{2,12})+$`
+- Prefix `BL`, id-identified (`type: Baseline`; release snapshots, `ADR-SYS-BASELINE-001`). Like `FeatureDef`, a baseline id **need not** end in a number, so a release-style id such as `BL-2026-07` is valid. The `id` is the model identity and is **distinct** from the version-control tag string carried in `gitTag:` (e.g. `gitTag: REL-2026-07`). Files live under `model/Baselines/`.
+- Examples: `BL-2026-07`, `BL-QUARTERLY-001`, `BL-SAFETY-REL-03`
+
 Both the `id` field and the qualified name (path-derived) are valid cross-reference targets in `verifies:` and `derivedFrom:`.
 
 **Configurable additional prefixes** — every id-identified type accepts its built-in prefix (`REQ`, `TC`, `ADR`, … `FEAT`); a project may declare **extra** prefixes per type in the `[ids.prefixes]` table of `.syscribe.toml`, keyed by element-type name. They are **additive** (the built-in always stays valid) and **pure identity** (they affect only id validation/resolution). Each prefix must match `^[A-Z][A-Z0-9]{1,11}$`; a malformed or unknown-type entry raises warning `W046` and is ignored. Example: `[ids.prefixes]` with `Requirement = ["STK", "SYS"]` makes `STK-SCHED-001` and `SYS-SCHED-001` valid `Requirement` ids alongside `REQ-SCHED-001`. (REQ-TRS-ID-007.)
