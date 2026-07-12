@@ -194,7 +194,7 @@ fn layout_header(
                 flex_direction: FlexDirection::Row,
                 gap: Size {
                     width: length(BADGE_GAP as f32),
-                    height: length(0.0),
+                    height: length(0.0_f32),
                 },
                 align_items: Some(AlignItems::CENTER),
                 flex_shrink: 1.0,
@@ -221,7 +221,7 @@ fn layout_header(
                 },
                 gap: Size {
                     width: length(PAD_H as f32),
-                    height: length(0.0),
+                    height: length(0.0_f32),
                 },
                 align_items: Some(AlignItems::CENTER),
                 ..Default::default()
