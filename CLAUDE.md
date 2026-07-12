@@ -53,11 +53,20 @@ cargo run --package syscribe-server -- -m model/
 ./target/debug/syscribe -m model/ repos status           # whether each pinned repo is at its ref (exit 2 on drift)
 ./target/debug/syscribe -m model/ repos sync --all       # git fetch + checkout <ref> for pinned repos
 ./target/debug/syscribe -m model/ validate --deny W511 --deny W512   # gate CI on ref drift / submodule gitlink
+
+# Suspect links (opt-in content baselines; see docs/design/suspect-links.md)
+./target/debug/syscribe -m model/ suspect list                       # suspect + unbaselined trace links
+./target/debug/syscribe -m model/ suspect accept <src> <tgt>         # baseline one reviewed link
+./target/debug/syscribe -m model/ suspect accept --all               # re-baseline every suspect link (review)
+./target/debug/syscribe -m model/ suspect accept --all-unbaselined   # onboarding: baseline every un-baselined link
+./target/debug/syscribe -m model/ validate --deny W090               # gate CI on suspect (stale) links
 ```
 
 The feature-model SAT engine is `batsat` (vendored, MIT, pure Rust — `ADR-FM-002`); the in-tree clause IR + brute-force oracle live in `crates/syscribe-model/src/{solver,projection,feature_model}.rs`.
 
 Multi-repo composition (§14) is config-driven: `[repos]` in `.syscribe.toml` + `repoImports:` on a package `_index.md`. The loader (`crates/syscribe-model/src/config.rs`) walks each peer, indexes qnames/stable-IDs, and precomputes git ref/gitlink state (`RefState`); the validator emits `E510`–`E515`/`W510`–`W512` only when `[repos]` is configured.
+
+Suspect links (`ADR-SYS-SUSLINK-001`; `crates/syscribe-model/src/suspect.rs`) detect when a trace-link target changed since review. The source stores a `traceBaselines:` map (target id → `blake3:<hex>` of the target's normative projection — body + normative frontmatter, excluding editorial fields). Validation recomputes and compares; a mismatch is `W090`. Opt-in/additive: unbaselined links stay silent in `validate` and are surfaced only by `suspect list`. Baselines are captured/refreshed with `suspect accept` (single link or `--all` over the suspect set); `suspect accept --all-unbaselined` is the one-time onboarding switch that baselines every link with no baseline yet without ever overwriting an existing one. The MCP server exposes `suspect_list` (read) and the guarded `suspect_accept` (write, dry-run/delta/commit; clearing a link shows its W090 under `resolvedWarnings`).
 
 ---
 

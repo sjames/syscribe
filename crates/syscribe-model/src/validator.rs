@@ -6526,6 +6526,28 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         findings.extend(crate::build_config::validate_build_exports(elements));
     }
 
+    // REQ-TRS-SUS-LINKS-004 — W090 suspect-link detection. For each trace link that
+    // carries a stored baseline, recompute the target's projection hash and compare;
+    // a mismatch is suspect. Unbaselined links stay silent (opt-in/additive) and an
+    // unresolvable baselined target is left to the unresolved-cross-reference checks.
+    for link in crate::suspect::scan(elements, &resolver) {
+        if matches!(link.state, crate::suspect::LinkState::Suspect) {
+            findings.push(warning(
+                "W090",
+                &link.source_file,
+                &format!(
+                    "suspect link: `{}` {} `{}` — the target's content changed since the \
+                     baseline was captured; review and re-run `suspect accept {} {}`",
+                    link.source_label(),
+                    link.kind,
+                    link.target_ref,
+                    link.source_label(),
+                    link.target_ref,
+                ),
+            ));
+        }
+    }
+
     ValidationResult {
         findings,
         verified_by,

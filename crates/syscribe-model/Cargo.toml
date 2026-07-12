@@ -16,3 +16,5 @@ serde_json = { workspace = true }
 quick-xml = { workspace = true }
 # Pinned: feature-model SAT analysis engine (MIT, pure Rust, MiniSat lineage).
 batsat = "=0.6.0"
+# Content-baseline digest for suspect-link detection (§SuspectLinks; MIT/Apache, pure Rust).
+blake3 = "1"

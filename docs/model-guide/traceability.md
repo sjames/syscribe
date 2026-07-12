@@ -151,3 +151,45 @@ The validation report (section 4) prints a matrix of all leaf requirements again
 | REQ-UAV-FC-001    | ✓             |                | 1          |
 | REQ-UAV-NAV-001   |               | ✓              | 1          |
 ```
+
+## Suspect links — has a reviewed link gone stale? (`ADR-SYS-SUSLINK-001`)
+
+A trace link asserts a relationship that was valid *when a human reviewed it*. When the
+target later changes, the assertion may silently become stale — a test may no longer cover
+the requirement it verifies. **Suspect-link detection** flags this by storing a content
+**baseline** of the target at review time and re-checking it on every `validate`.
+
+The baseline is a `blake3` hash of the target's *normative projection* (its body plus
+normative frontmatter — `status`, `reqDomain`, safety fields, …). Editorial fields (`name`,
+`displayOrder`, `extRef`, diagram layout) are **excluded**, so cosmetic edits never raise a
+false flag. It lives on the **source** element (the one holding the link, per Rule 1),
+keyed by the target reference:
+
+```yaml
+# Verification/SafeLandingTest.md — a reviewed verification link
+verifies:
+  - REQ-UAV-SAFE-001
+traceBaselines:
+  REQ-UAV-SAFE-001: "blake3:1ddab032…"   # captured with `suspect accept`
+```
+
+The feature is **opt-in and additive**: a link with no baseline is never flagged. Baseline
+a reviewed link, and thereafter any change to the target's projected content raises **W090**.
+
+```bash
+# Discover links (suspect vs. never-baselined); onboard an existing model in one pass
+syscribe -m model/ suspect list
+syscribe -m model/ suspect accept --all-unbaselined     # baseline every un-baselined link
+
+# Capture a single reviewed link, then gate CI on staleness
+syscribe -m model/ suspect accept TC-UAV-SAFE-001 REQ-UAV-SAFE-001
+syscribe -m model/ validate --deny W090
+```
+
+Try it on the demo model: edit the body of `REQ-UAV-SAFE-001` and re-run `validate` — the
+`TC-UAV-SAFE-001 → REQ-UAV-SAFE-001` link (baselined above) is now reported suspect (W090).
+Review the change and clear it by re-running `suspect accept` (or `suspect accept --all` to
+clear every suspect link at once). Propagation is **implicit, one hop per review**: only the
+direct link goes suspect; a link *into* the source flips only once the source's own
+projection actually changes. The same operations are exposed over MCP as `suspect_list` and
+the guarded `suspect_accept`.
