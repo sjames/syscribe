@@ -125,6 +125,7 @@ pub enum ElementType {
     TestCase,
     TestPlan,         // TP-* — configuration-bound test campaign (GH #38)
     ADR,              // Architecture Decision Record (§8.17)
+    Baseline,         // BL-* — frozen release snapshot (ADR-SYS-BASELINE-001)
     ReviewRecord,     // RR-* — formal review event + traceability (§19, GH #71)
     TradeStudy,       // TRD-* — weighted-criteria evaluation of alternatives (§15, GH #63)
     Zone,             // ZN-* — IEC 62443 security zone (§13, GH #61)
@@ -191,6 +192,7 @@ impl ElementType {
                 | ElementType::TestPlan
                 | ElementType::Configuration
                 | ElementType::ADR
+                | ElementType::Baseline
                 | ElementType::ReviewRecord
                 | ElementType::TradeStudy
                 | ElementType::Zone
@@ -282,6 +284,29 @@ impl TestPlanSelection {
     pub fn is_empty(&self) -> bool {
         self.test_levels.is_none() && self.domains.is_none() && self.tags.is_none()
     }
+}
+
+/// `frozenScope` on a `Baseline` (REQ-TRS-BL-003): the selector defining which
+/// elements a baseline freezes. All fields optional; absent `package` ⇒ whole model,
+/// and the filters compose as a logical AND. `Baseline` elements are always excluded
+/// from the resolved set.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FrozenScope {
+    pub package: Option<String>,
+    pub types: Option<Vec<String>>,
+    pub status: Option<Vec<String>>,
+    pub tags: Option<Vec<String>>,
+}
+
+/// The generated `seal` block on a `Baseline` (REQ-TRS-BL-002/004): the frozen
+/// aggregate hash, the in-scope element count, and the manifest path.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct BaselineSeal {
+    pub aggregate_hash: String,
+    pub element_count: usize,
+    pub manifest: String,
 }
 
 /// Parsed frontmatter from a `.md` model file.
@@ -435,6 +460,24 @@ pub struct RawFrontmatter {
     /// serialization so re-baselining produces minimal diffs.
     #[serde(rename = "traceBaselines", default, skip_serializing_if = "Option::is_none")]
     pub trace_baselines: Option<std::collections::BTreeMap<String, String>>,
+
+    // §Baseline (ADR-SYS-BASELINE-001) — release-baseline fields on a `type: Baseline`.
+    /// The baseline date (REQ-TRS-BL-001).
+    pub date: Option<String>,
+    /// The accountable identity that approved the baseline (REQ-TRS-BL-001).
+    pub approver: Option<String>,
+    /// The intended source-control tag name (distinct from the `id`; REQ-TRS-BL-001).
+    pub git_tag: Option<String>,
+    /// The commit the baseline was sealed at, captured by `create` (REQ-TRS-BL-004).
+    pub git_commit: Option<String>,
+    /// The scope selector (REQ-TRS-BL-003). Named `frozenScope` to avoid colliding with
+    /// the free-form TestPlan `scope` field.
+    pub frozen_scope: Option<FrozenScope>,
+    /// The generated content seal (REQ-TRS-BL-002).
+    pub seal: Option<BaselineSeal>,
+    /// The `Baseline` this one replaces (REQ-TRS-BL-005). Resolver-checked, not a
+    /// suspect-tracked trace link.
+    pub supersedes: Option<String>,
 
     /// §3 — external reference(s): this element represents an artifact managed in
     /// another tool (a DNG requirement, a SysML-tool element, …). Opaque strings
