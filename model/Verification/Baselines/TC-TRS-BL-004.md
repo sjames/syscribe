@@ -2,8 +2,9 @@
 type: TestCase
 id: TC-TRS-BL-004
 name: "baseline create writes element and manifest and captures the git commit"
-status: draft
+status: active
 testLevel: L2
+sourceFile: repo:crates/syscribe/tests/baseline.rs
 tags:
   - baseline
   - cli

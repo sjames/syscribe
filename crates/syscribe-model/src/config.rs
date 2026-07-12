@@ -855,7 +855,7 @@ fn git_rev_parse(dir: &Path, rev: &str) -> Option<String> {
 }
 
 /// Run `git -C <dir> <args>` and return trimmed stdout on success, else `None`.
-fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
+pub fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
     let out = std::process::Command::new("git")
         .arg("-C")
         .arg(dir)
@@ -874,7 +874,7 @@ fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
 }
 
 /// Walk up from `start` looking for a `.git` entry; return the directory holding it.
-fn detect_git_root(start: &Path) -> Option<PathBuf> {
+pub fn detect_git_root(start: &Path) -> Option<PathBuf> {
     let mut dir = std::fs::canonicalize(start).unwrap_or_else(|_| start.to_path_buf());
     loop {
         if dir.join(".git").exists() {

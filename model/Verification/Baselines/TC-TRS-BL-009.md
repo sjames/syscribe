@@ -2,8 +2,9 @@
 type: TestCase
 id: TC-TRS-BL-009
 name: "Baseline type and commands are documented for humans and LLMs"
-status: draft
+status: active
 testLevel: L1
+sourceFile: repo:crates/syscribe/tests/baseline.rs
 tags:
   - baseline
   - documentation

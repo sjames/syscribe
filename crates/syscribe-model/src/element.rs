@@ -293,9 +293,13 @@ impl TestPlanSelection {
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FrozenScope {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub package: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub types: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<String>>,
 }
 

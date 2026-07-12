@@ -2,8 +2,9 @@
 type: TestCase
 id: TC-TRS-BL-003
 name: "Scope selection resolves whole-model, subtree, and filters"
-status: draft
+status: active
 testLevel: L2
+sourceFile: repo:crates/syscribe/tests/baseline.rs
 tags:
   - baseline
   - scope

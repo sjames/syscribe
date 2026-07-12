@@ -2,8 +2,9 @@
 type: TestCase
 id: TC-TRS-BL-007
 name: "baseline list and show are read-only and print provenance"
-status: draft
+status: active
 testLevel: L2
+sourceFile: repo:crates/syscribe/tests/baseline.rs
 tags:
   - baseline
   - cli

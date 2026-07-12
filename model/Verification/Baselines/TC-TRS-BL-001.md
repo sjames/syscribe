@@ -2,8 +2,9 @@
 type: TestCase
 id: TC-TRS-BL-001
 name: "Baseline is a recognized element type with the BL-* id scheme and schema"
-status: draft
+status: active
 testLevel: L2
+sourceFile: repo:crates/syscribe/tests/baseline.rs
 tags:
   - baseline
   - schema

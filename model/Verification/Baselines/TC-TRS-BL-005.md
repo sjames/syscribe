@@ -2,8 +2,9 @@
 type: TestCase
 id: TC-TRS-BL-005
 name: "Drift is status-graded and released baselines are frozen"
-status: draft
+status: active
 testLevel: L2
+sourceFile: repo:crates/syscribe/tests/baseline.rs
 tags:
   - baseline
   - validation

@@ -2,8 +2,9 @@
 type: TestCase
 id: TC-TRS-BL-006
 name: "baseline diff reports added, removed, and changed by stable id"
-status: draft
+status: active
 testLevel: L2
+sourceFile: repo:crates/syscribe/tests/baseline.rs
 tags:
   - baseline
   - cli

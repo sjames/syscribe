@@ -2,8 +2,9 @@
 type: TestCase
 id: TC-TRS-BL-002
 name: "Full-content seal is byte-exact and deterministically aggregated"
-status: draft
+status: active
 testLevel: L2
+sourceFile: repo:crates/syscribe/tests/baseline.rs
 tags:
   - baseline
   - hashing

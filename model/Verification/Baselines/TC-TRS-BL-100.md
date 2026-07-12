@@ -2,8 +2,9 @@
 type: TestCase
 id: TC-TRS-BL-100
 name: "End-to-end baseline lifecycle: create, verify, drift, supersede, diff"
-status: draft
+status: active
 testLevel: L3
+sourceFile: repo:crates/syscribe/tests/baseline.rs
 tags:
   - baseline
   - release-management

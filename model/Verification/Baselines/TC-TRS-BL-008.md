@@ -2,8 +2,9 @@
 type: TestCase
 id: TC-TRS-BL-008
 name: "baseline verify proves content and git consistency"
-status: draft
+status: active
 testLevel: L2
+sourceFile: repo:crates/syscribe/tests/baseline.rs
 tags:
   - baseline
   - cli
