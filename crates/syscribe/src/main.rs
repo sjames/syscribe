@@ -2,6 +2,7 @@
 
 mod audit;
 mod aw;
+mod baseline;
 mod build_config;
 mod clusters;
 mod coanalysis;
@@ -1669,6 +1670,15 @@ fn main() {
                 let sub = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
                 let rest: Vec<String> = subcommand_args.get(2..).unwrap_or(&[]).to_vec();
                 let code = suspect::cmd_suspect(&elems, &resolver, model_root, sub, &rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "baseline" => {
+                // Release-baseline management (ADR-SYS-BASELINE-001; REQ-TRS-BL-004/006/007/008).
+                let sub = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
+                let rest: Vec<String> = subcommand_args.get(2..).unwrap_or(&[]).to_vec();
+                let code = baseline::cmd_baseline(&elems, &resolver, model_root, sub, &rest);
                 if code != 0 {
                     std::process::exit(code);
                 }

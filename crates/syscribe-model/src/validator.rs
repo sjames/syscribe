@@ -6526,6 +6526,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         findings.extend(crate::build_config::validate_build_exports(elements));
     }
 
+    // REQ-TRS-BL-005 — baseline drift / freeze pass. E520 released-drift, W520
+    // approved-drift, E521 seal-vs-manifest tamper, E522 unresolved supersedes.
+    if let Some(root) = config.model_root.as_deref() {
+        if elements.iter().any(|e| crate::baseline::is_baseline(&e.frontmatter)) {
+            for (code, file, msg) in crate::baseline::scan(elements, &resolver, root) {
+                let sev = if code.starts_with('E') { Severity::Error } else { Severity::Warning };
+                findings.push(Finding { code, file, message: msg, severity: sev });
+            }
+        }
+    }
+
     // REQ-TRS-SUS-LINKS-004 — W090 suspect-link detection. For each trace link that
     // carries a stored baseline, recompute the target's projection hash and compare;
     // a mismatch is suspect. Unbaselined links stay silent (opt-in/additive) and an

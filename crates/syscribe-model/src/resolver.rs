@@ -39,6 +39,8 @@ static VR_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static ASSET_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 // FeatureDef optional stable-ID pattern (REQ-TRS-ID-006)
 static FEAT_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+// Baseline stable-ID pattern (FEAT-style, no trailing numeric suffix; REQ-TRS-BL-001)
+static BL_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
 fn req_re() -> &'static regex::Regex {
     REQ_RE.get_or_init(|| regex::Regex::new(r"^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
@@ -128,6 +130,17 @@ pub fn is_feat_id(s: &str) -> bool {
     feat_re().is_match(s) || extra_matches("FEAT", s)
 }
 
+fn bl_re() -> &'static regex::Regex {
+    // BL ids do NOT require a trailing numeric segment (FEAT-style, REQ-TRS-BL-001):
+    // a baseline may be `BL-2026-07` or `BL-QUARTERLY-001`. Each segment is [A-Z0-9]{2,12}.
+    BL_RE.get_or_init(|| regex::Regex::new(r"^BL(-[A-Z0-9]{2,12})+$").unwrap())
+}
+
+/// Returns true for BL-* IDs (Baseline, REQ-TRS-BL-001).
+pub fn is_baseline_id(s: &str) -> bool {
+    bl_re().is_match(s) || extra_matches("BL", s)
+}
+
 // ── Configurable additional stable-ID prefixes (REQ-TRS-ID-007) ──────────────────
 //
 // Each id-identified type has a fixed built-in prefix; a project may declare *extra*
@@ -172,6 +185,7 @@ pub const STABLE_ID_KINDS: &[(&str, &str, bool)] = &[
     ("Argument", "ARG", true),
     ("AssumptionOfUse", "AOU", true),
     ("FeatureDef", "FEAT", false),
+    ("Baseline", "BL", false),
 ];
 
 static PREFIX_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
@@ -339,6 +353,7 @@ pub fn is_stable_id(s: &str) -> bool {
         || arg_re().is_match(s)
         || aou_re().is_match(s)
         || feat_re().is_match(s)
+        || bl_re().is_match(s)
         || any_extra_matches(s)
 }
 

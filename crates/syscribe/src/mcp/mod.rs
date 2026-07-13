@@ -273,6 +273,24 @@ struct SuspectAcceptArgs {
     dry_run: bool,
 }
 
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct BaselineListArgs {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct BaselineDiffArgs {
+    /// The earlier baseline id.
+    from: String,
+    /// The later baseline id.
+    to: String,
+}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct BaselineVerifyArgs {
+    /// A baseline id to verify; omit (or "all") to verify every baseline.
+    #[serde(default)]
+    r#ref: Option<String>,
+}
+
 /// One operation in an `apply_changes` batch. Carries the union of the single
 /// write tools' arguments; `op` selects which are read.
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
@@ -2537,6 +2555,110 @@ impl SyscribeMcp {
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)
+    }
+
+    #[tool(
+        description = "List every release Baseline (BL-*) with its id, name, status, date, \
+        scope, gitTag/gitCommit, elementCount, and aggregateHash. Read-only. Sealing a new \
+        baseline is a CLI/CI action (`baseline create`), not an MCP tool.",
+        annotations(read_only_hint = true)
+    )]
+    async fn baseline_list(
+        &self,
+        Parameters(_args): Parameters<BaselineListArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let mut bs: Vec<&RawElement> = store
+            .elements
+            .iter()
+            .filter(|e| syscribe_model::baseline::is_baseline(&e.frontmatter))
+            .collect();
+        bs.sort_by(|a, b| syscribe_model::baseline::element_key(b).cmp(&syscribe_model::baseline::element_key(a)));
+        let list: Vec<Value> = bs
+            .iter()
+            .map(|b| {
+                let fm = &b.frontmatter;
+                json!({
+                    "id": syscribe_model::baseline::element_key(b),
+                    "name": fm.name,
+                    "status": fm.status,
+                    "date": fm.date,
+                    "gitTag": fm.git_tag,
+                    "gitCommit": fm.git_commit,
+                    "scope": fm.frozen_scope,
+                    "elementCount": fm.seal.as_ref().map(|s| s.element_count),
+                    "aggregateHash": fm.seal.as_ref().map(|s| s.aggregate_hash.clone()),
+                    "supersedes": fm.supersedes,
+                })
+            })
+            .collect();
+        ok(json!({ "baselines": list }))
+    }
+
+    #[tool(
+        description = "Diff two release baselines by id: element-level added / removed / \
+        changed (keyed by stable id, grouped by type) from their manifests, plus whether the \
+        aggregates are identical. Read-only.",
+        annotations(read_only_hint = true)
+    )]
+    async fn baseline_diff(
+        &self,
+        Parameters(args): Parameters<BaselineDiffArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let load = |id: &str| -> Option<syscribe_model::baseline::Manifest> {
+            let b = store.resolver.resolve_ref(&store.elements, id)?;
+            if !syscribe_model::baseline::is_baseline(&b.frontmatter) {
+                return None;
+            }
+            let seal = b.frontmatter.seal.as_ref()?;
+            syscribe_model::baseline::Manifest::from_file(&syscribe_model::baseline::manifest_path(
+                &store.model_root,
+                seal,
+            ))
+        };
+        let (Some(a), Some(b)) = (load(&args.from), load(&args.to)) else {
+            return tool_error(format!(
+                "could not load manifests for `{}` and `{}` (both must be baselines with a manifest on disk)",
+                args.from, args.to
+            ));
+        };
+        ok(serde_json::to_value(syscribe_model::baseline::diff_manifests(&a, &b)).unwrap_or(Value::Null))
+    }
+
+    #[tool(
+        description = "Verify release baselines: recompute each seal (content proof vs seal vs \
+        manifest) and check git tag↔commit consistency, returning `passed` per baseline. Pass \
+        `ref` for one, or omit to verify all. Read-only.",
+        annotations(read_only_hint = true)
+    )]
+    async fn baseline_verify(
+        &self,
+        Parameters(args): Parameters<BaselineVerifyArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let all = args.r#ref.as_deref().is_none_or(|r| r == "all");
+        let targets: Vec<&RawElement> = if all {
+            store.elements.iter().filter(|e| syscribe_model::baseline::is_baseline(&e.frontmatter)).collect()
+        } else {
+            match store.resolver.resolve_ref(&store.elements, args.r#ref.as_deref().unwrap()) {
+                Some(e) if syscribe_model::baseline::is_baseline(&e.frontmatter) => vec![e],
+                _ => return tool_error(format!("`{}` is not a baseline", args.r#ref.unwrap_or_default())),
+            }
+        };
+        let results: Vec<Value> = targets
+            .iter()
+            .map(|b| {
+                serde_json::to_value(syscribe_model::baseline::verify_baseline(
+                    &store.elements,
+                    b,
+                    &store.model_root,
+                ))
+                .unwrap_or(Value::Null)
+            })
+            .collect();
+        let passed = results.iter().all(|r| r.get("passed").and_then(|p| p.as_bool()).unwrap_or(false));
+        ok(json!({ "passed": passed, "results": results }))
     }
 }
 

@@ -357,6 +357,7 @@ One-line description of this package.
 | `TestCase` | native test case | `Verification/` |
 | `TestPlan` | native test plan (groups TestCases) | `TestPlans/` |
 | `ADR` | architecture decision | `Decisions/` |
+| `Baseline` | frozen, git-anchored release snapshot (BL-*; created by `baseline create`, not hand-authored) | `Baselines/` |
 | `ReviewRecord` | formal review event + traceability (RR-*) | `Reviews/` |
 | `TradeStudy` | weighted-criteria evaluation of alternatives (TRD-*) | `TradeStudies/` |
 | `Zone` | IEC 62443 security zone (ZN-*; `targetSL`, `members`) | `Security/Zones/` |
@@ -399,7 +400,7 @@ Key fields that apply to most element types:
 | Field | Notes |
 |---|---|
 | `type` | Required — one of the types in Part 2 |
-| `name` | The single human-readable label on **every** element type (`Requirement`, `TestCase`, `ADR`, `PartDef`, `Package`, `FeatureDef`, the safety/security types — all of them). For **name-identified** types (SysML structural types, `Package`, `Diagram`, `FeatureDef`) `name` is also the identity segment: it defaults to the filename stem and **must be a SysMLv2 basic name** `[A-Za-z_][A-Za-z0-9_]*` — letters/digits/`_`, no hyphens or spaces (use `_` or CamelCase: `Anti_Lock`, not `Anti-Lock`); a hyphen breaks `appliesWhen`/`parameterConstraints` references and non-basic names warn `W042`. For **id-identified** types (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `ReviewRecord`, `TradeStudy`, `Zone`, `Conduit`, and the safety/security types) identity is the stable `id`, so `name` is **free prose** — spaces and punctuation allowed, `W042` does not apply — and is **required** on these types. |
+| `name` | The single human-readable label on **every** element type (`Requirement`, `TestCase`, `ADR`, `PartDef`, `Package`, `FeatureDef`, the safety/security types — all of them). For **name-identified** types (SysML structural types, `Package`, `Diagram`, `FeatureDef`) `name` is also the identity segment: it defaults to the filename stem and **must be a SysMLv2 basic name** `[A-Za-z_][A-Za-z0-9_]*` — letters/digits/`_`, no hyphens or spaces (use `_` or CamelCase: `Anti_Lock`, not `Anti-Lock`); a hyphen breaks `appliesWhen`/`parameterConstraints` references and non-basic names warn `W042`. For **id-identified** types (`Requirement`, `TestCase`, `TestPlan`, `Configuration`, `ADR`, `Baseline`, `ReviewRecord`, `TradeStudy`, `Zone`, `Conduit`, and the safety/security types) identity is the stable `id`, so `name` is **free prose** — spaces and punctuation allowed, `W042` does not apply — and is **required** on these types. |
 | `title` | **REMOVED — use `name`.** `title` is no longer a label field on any element; a stray `title:` is error `E025` ("rename it to `name`"). |
 | `supertype` | Specialisation link (`>` in SysML) |
 | `typedBy` | Type of a usage element (port, part, action, etc.) |

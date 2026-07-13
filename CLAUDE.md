@@ -66,6 +66,8 @@ The feature-model SAT engine is `batsat` (vendored, MIT, pure Rust — `ADR-FM-0
 
 Multi-repo composition (§14) is config-driven: `[repos]` in `.syscribe.toml` + `repoImports:` on a package `_index.md`. The loader (`crates/syscribe-model/src/config.rs`) walks each peer, indexes qnames/stable-IDs, and precomputes git ref/gitlink state (`RefState`); the validator emits `E510`–`E515`/`W510`–`W512` only when `[repos]` is configured.
 
+Release baselines (`ADR-SYS-BASELINE-001`; `crates/syscribe-model/src/baseline.rs`) freeze a scope of the model into a git-anchored, content-hashed snapshot. `baseline create` seals a `frozenScope` (whole-model / package subtree / type·status·tag filters; `Baseline` elements excluded), writes a `type: Baseline` element (`BL-*`) under `model/Baselines/` and a lean JSON manifest under `<git-root>/baselines/` (both configurable via a `[baselines]` `element_dir`/`manifest_dir` table in `.syscribe.toml`), and captures the HEAD commit. Validation recomputes the aggregate vs the seal, status-graded: `released` drift `E520`, `approved` `W520`, `draft` silent, `superseded` skipped; seal↔manifest tamper `E521`, unresolved `supersedes` `E522`. `baseline verify`/`diff`/`list`/`show` round it out; a `frozenScope.config` clause freezes a projected PLE variant (drift re-projects); output locations are configurable via `[baselines]` in `.syscribe.toml`. The full-content seal reuses the suspect hashing via a shared `element_hash(elem, exclusions)`. MCP exposes read-only `baseline_list`/`baseline_diff`/`baseline_verify` (sealing is a CLI/CI action, not an MCP write tool).
+
 Suspect links (`ADR-SYS-SUSLINK-001`; `crates/syscribe-model/src/suspect.rs`) detect when a trace-link target changed since review. The source stores a `traceBaselines:` map (target id → `blake3:<hex>` of the target's normative projection — body + normative frontmatter, excluding editorial fields). Validation recomputes and compares; a mismatch is `W090`. Opt-in/additive: unbaselined links stay silent in `validate` and are surfaced only by `suspect list`. Baselines are captured/refreshed with `suspect accept` (single link or `--all` over the suspect set); `suspect accept --all-unbaselined` is the one-time onboarding switch that baselines every link with no baseline yet without ever overwriting an existing one. The MCP server exposes `suspect_list` (read) and the guarded `suspect_accept` (write, dry-run/delta/commit; clearing a link shows its W090 under `resolvedWarnings`).
 
 ---
@@ -181,6 +183,10 @@ SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file pat
 
 `Configuration` (`CONF-*`) is id-identified: its identity is its `id`, files are `<id>.md`, and its label is a free-prose `name`.
 - Examples: `FEAT-ABS`, `FEAT-QUADROTOR`, `FEAT-DATALINK-LORA`, `FEAT-CAM-4K`, `FEAT-ABS-001`
+
+**Baseline ID pattern** — `^BL(-[A-Z0-9]{2,12})+$`
+- Prefix `BL`, id-identified (`type: Baseline`; release snapshots, `ADR-SYS-BASELINE-001`). Like `FeatureDef`, a baseline id **need not** end in a number, so a release-style id such as `BL-2026-07` is valid. The `id` is the model identity and is **distinct** from the version-control tag string carried in `gitTag:` (e.g. `gitTag: REL-2026-07`). Files live under `model/Baselines/`.
+- Examples: `BL-2026-07`, `BL-QUARTERLY-001`, `BL-SAFETY-REL-03`
 
 Both the `id` field and the qualified name (path-derived) are valid cross-reference targets in `verifies:` and `derivedFrom:`.
 

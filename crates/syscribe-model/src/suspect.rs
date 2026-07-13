@@ -87,9 +87,24 @@ impl SuspectLink {
 /// canonicalization hash identically; a change confined to an excluded field
 /// does not change the hash.
 pub fn projection_hash(elem: &RawElement) -> String {
+    element_hash(elem, EXCLUDED_KEYS)
+}
+
+/// Full-content hash of an element for release baselines (REQ-TRS-BL-002): freezes
+/// all frontmatter *and* body byte-exactly (editorial fields included). The only
+/// exclusion is a `Baseline`'s own `seal` block, which cannot hash itself.
+pub fn content_hash(elem: &RawElement) -> String {
+    element_hash(elem, &["seal"])
+}
+
+/// Canonical BLAKE3 hash of an element's projected content: serialize the
+/// frontmatter to JSON, drop `excluded_keys`, canonicalize (sorted keys,
+/// null-stripped), and append the normalized body. Shared by the suspect
+/// projection (editorial-exclusion set) and the baseline seal (`["seal"]`).
+pub fn element_hash(elem: &RawElement, excluded_keys: &[&str]) -> String {
     let mut fm_json = serde_json::to_value(&elem.frontmatter).unwrap_or(serde_json::Value::Null);
     if let serde_json::Value::Object(ref mut map) = fm_json {
-        for k in EXCLUDED_KEYS {
+        for k in excluded_keys {
             map.remove(*k);
         }
     }

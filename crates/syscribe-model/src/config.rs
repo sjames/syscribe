@@ -200,6 +200,42 @@ struct LinksRootToml {
     links: LinksToml,
 }
 
+/// Resolved `[baselines]` output-location config (REQ-TRS-BL-010). Absent keys keep
+/// the built-in defaults (`Baselines` under the model root, `baselines` under the git
+/// root), so models without the table are unaffected.
+#[derive(Debug, Clone, Default)]
+pub struct BaselineConfig {
+    /// Directory for the `Baseline` element (relative to the model root, or absolute).
+    pub element_dir: Option<String>,
+    /// Directory for the JSON manifest (relative to the git root, or absolute).
+    pub manifest_dir: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct BaselinesToml {
+    #[serde(default, alias = "elementDir")]
+    element_dir: Option<String>,
+    #[serde(default, alias = "manifestDir")]
+    manifest_dir: Option<String>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct BaselinesRootToml {
+    #[serde(default)]
+    baselines: BaselinesToml,
+}
+
+/// Load the `[baselines]` table from `<model_root>/.syscribe.toml` (REQ-TRS-BL-010).
+/// Returns defaults (both `None`) when the file is absent, unparseable, or has no table.
+pub fn load_baseline_config(model_root: &Path) -> BaselineConfig {
+    let cfg = std::fs::read_to_string(model_root.join(".syscribe.toml"))
+        .ok()
+        .and_then(|text| toml::from_str::<BaselinesRootToml>(&text).ok())
+        .map(|r| r.baselines)
+        .unwrap_or_default();
+    BaselineConfig { element_dir: cfg.element_dir, manifest_dir: cfg.manifest_dir }
+}
+
 impl LinkConfig {
     /// Resolve `model_relative_path` (always forward-slashed, relative to the
     /// model root) to a hosted URL, applying the REQ-TRS-LINK-001 rules. `qname`
@@ -855,7 +891,7 @@ fn git_rev_parse(dir: &Path, rev: &str) -> Option<String> {
 }
 
 /// Run `git -C <dir> <args>` and return trimmed stdout on success, else `None`.
-fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
+pub fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
     let out = std::process::Command::new("git")
         .arg("-C")
         .arg(dir)
@@ -874,7 +910,7 @@ fn git_output(dir: &Path, args: &[&str]) -> Option<String> {
 }
 
 /// Walk up from `start` looking for a `.git` entry; return the directory holding it.
-fn detect_git_root(start: &Path) -> Option<PathBuf> {
+pub fn detect_git_root(start: &Path) -> Option<PathBuf> {
     let mut dir = std::fs::canonicalize(start).unwrap_or_else(|_| start.to_path_buf());
     loop {
         if dir.join(".git").exists() {

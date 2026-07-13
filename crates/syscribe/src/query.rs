@@ -84,6 +84,7 @@ pub fn type_label(et: &ElementType) -> &'static str {
         ElementType::RequirementDef => "RequirementDef",
         ElementType::TestCase => "TestCase",
         ElementType::ADR => "ADR",
+        ElementType::Baseline => "Baseline",
         ElementType::Package => "Package",
         ElementType::Allocation => "Allocation",
         ElementType::AllocationDef => "AllocationDef",
