@@ -293,6 +293,10 @@ impl TestPlanSelection {
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FrozenScope {
+    /// A `Configuration` (id/qname) or ad-hoc feature set; when set, scope resolution
+    /// first projects the model to that variant (REQ-TRS-BL-011).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub package: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

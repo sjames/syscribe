@@ -29,6 +29,12 @@ single string of `;`-separated `key=value` clauses; multi-valued keys take a `,`
 
 Omitting it ⇒ the whole model. `Baseline` elements are always excluded from a seal.
 
+A `config=<Configuration>` clause freezes a **projected product-line variant**: the model is
+first projected to that Configuration (or ad-hoc feature set) — dropping every element
+inactive under it — and the remaining filters apply over the variant. Drift-checking and
+`verify` re-project, so a change to the variant's active content (or to the Configuration's
+selections) is detected. Example: `--frozen-scope "config=CONF-ABS;status=approved"`.
+
 ## OUTPUT LOCATIONS
 By default the element goes to `model/Baselines/<id>.md` and the manifest to
 `<git-root>/baselines/<id>.manifest.json`. A `[baselines]` table in `.syscribe.toml`

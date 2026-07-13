@@ -223,6 +223,86 @@ fn list_and_show_are_read_only() {
     assert!(read(&model, "Baselines/BL-2026-06.md").contains("status: draft"), "list/show mutate nothing");
 }
 
+/// A git-backed model with a two-feature product line: FeatA/FeatB, two
+/// Configurations, a base requirement plus one requirement gated to each feature.
+fn new_variability_model() -> (PathBuf, PathBuf) {
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+    let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let repo = std::env::temp_dir().join(format!("syscribe-blv-{}-{}-{}", std::process::id(), nanos, n));
+    let model = repo.join("model");
+    std::fs::create_dir_all(model.join("Requirements")).unwrap();
+    write(&model, "_index.md", "---\ntype: Package\nname: M\n---\n\nroot\n");
+    write(&model, "Features/_index.md", "---\ntype: Package\nname: Features\n---\n\nfeatures\n");
+    write(&model, "Features/FeatA.md", "---\ntype: FeatureDef\nid: FEAT-FA\nname: FeatA\n---\n\nFeature A.\n");
+    write(&model, "Features/FeatB.md", "---\ntype: FeatureDef\nid: FEAT-FB\nname: FeatB\n---\n\nFeature B.\n");
+    write(&model, "Configurations/CONF-VA-001.md",
+        "---\ntype: Configuration\nid: CONF-VA-001\nname: \"Variant A\"\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features::FeatA: true\n  Features::FeatB: false\n---\n\nA.\n");
+    write(&model, "Configurations/CONF-VB-001.md",
+        "---\ntype: Configuration\nid: CONF-VB-001\nname: \"Variant B\"\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features::FeatA: false\n  Features::FeatB: true\n---\n\nB.\n");
+    write_req(&model, "REQ-BASE-001", "Always-active base requirement.");
+    write(&model, "Requirements/REQ-AONLY-001.md",
+        "---\ntype: Requirement\nid: REQ-AONLY-001\nname: \"A only\"\nstatus: approved\nreqDomain: software\nreqClass: system\nappliesWhen: Features::FeatA\n---\n\nActive only in variant A.\n");
+    write(&model, "Requirements/REQ-BONLY-001.md",
+        "---\ntype: Requirement\nid: REQ-BONLY-001\nname: \"B only\"\nstatus: approved\nreqDomain: software\nreqClass: system\nappliesWhen: Features::FeatB\n---\n\nActive only in variant B.\n");
+    git(&repo, &["init", "-q"]);
+    git(&repo, &["config", "user.email", "t@t"]);
+    git(&repo, &["config", "user.name", "t"]);
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-qm", "init"]);
+    (repo, model)
+}
+
+// TC-TRS-BL-011 — a config-scoped seal covers only the active variant.
+#[test]
+fn config_scope_seals_only_the_variant() {
+    let (repo, model) = new_variability_model();
+    let (o, _e, code) = create(&repo, &model, "REL-2026-06", &["--frozen-scope", "config=CONF-VA-001"]);
+    assert_eq!(code, 0, "config-scoped create exits 0: {o}");
+    let manifest = read(&repo, "baselines/BL-2026-06.manifest.json");
+    assert!(manifest.contains("REQ-AONLY-001"), "variant-A seal includes the FeatA element:\n{manifest}");
+    assert!(!manifest.contains("REQ-BONLY-001"), "variant-A seal excludes the FeatB element:\n{manifest}");
+}
+
+// TC-TRS-BL-011 — two configs seal different content.
+#[test]
+fn two_configs_seal_different_aggregates() {
+    let (repo, model) = new_variability_model();
+    create(&repo, &model, "REL-2026-06", &["--frozen-scope", "config=CONF-VA-001"]);
+    create(&repo, &model, "REL-2026-07", &["--frozen-scope", "config=CONF-VB-001"]);
+    let a = read(&repo, "baselines/BL-2026-06.manifest.json");
+    let b = read(&repo, "baselines/BL-2026-07.manifest.json");
+    let agg = |m: &str| m.lines().find(|l| l.contains("aggregateHash")).unwrap().to_string();
+    assert_ne!(agg(&a), agg(&b), "different variants seal different aggregates");
+}
+
+// TC-TRS-BL-011 — drift follows the variant; out-of-variant change does not drift.
+#[test]
+fn config_scope_drift_follows_the_variant() {
+    let (repo, model) = new_variability_model();
+    create(&repo, &model, "REL-2026-06", &["--frozen-scope", "config=CONF-VA-001"]);
+    set_status(&model, "BL-2026-06", "released");
+
+    // change an element NOT active in variant A → no drift
+    write(&model, "Requirements/REQ-BONLY-001.md",
+        "---\ntype: Requirement\nid: REQ-BONLY-001\nname: \"B only\"\nstatus: approved\nreqDomain: software\nreqClass: system\nappliesWhen: Features::FeatB\n---\n\nCHANGED but out of variant A.\n");
+    assert!(!validate_out(&model).contains("E520"), "out-of-variant change must not drift a config-scoped baseline");
+
+    // change an element active in variant A → drift
+    write(&model, "Requirements/REQ-AONLY-001.md",
+        "---\ntype: Requirement\nid: REQ-AONLY-001\nname: \"A only\"\nstatus: approved\nreqDomain: software\nreqClass: system\nappliesWhen: Features::FeatA\n---\n\nCHANGED and in variant A.\n");
+    assert!(validate_out(&model).contains("E520"), "in-variant change must drift the config-scoped baseline");
+}
+
+// TC-TRS-BL-011 — an unresolvable config is refused.
+#[test]
+fn unresolvable_config_is_refused() {
+    let (repo, model) = new_variability_model();
+    let (_o, e, code) = run(&model, &["baseline", "create", "--tag", "REL-2026-06", "--frozen-scope", "config=CONF-NONEXISTENT"]);
+    assert_ne!(code, 0, "unresolvable config refused");
+    assert!(e.to_lowercase().contains("config"), "error mentions the config: {e}");
+    let _ = repo;
+}
+
 // TC-TRS-BL-010 — [baselines] config redirects element and manifest output.
 #[test]
 fn configured_dirs_redirect_output() {

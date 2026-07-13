@@ -9,9 +9,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use syscribe_model::baseline::{
-    self, aggregate, element_key, manifest_path, resolve_scope, Manifest,
-};
+use syscribe_model::baseline::{self, aggregate, element_key, manifest_path, Manifest};
 use syscribe_model::config::{detect_git_root, git_output, load_baseline_config, ValidateConfig};
 use syscribe_model::element::{BaselineSeal, FrozenScope, RawElement};
 use syscribe_model::resolver::Resolver;
@@ -95,11 +93,12 @@ fn parse_scope(sel: &str) -> Result<FrozenScope, String> {
             .ok_or_else(|| format!("malformed scope clause `{clause}` (expected key=value)"))?;
         let list = || val.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
         match key.trim() {
+            "config" => scope.config = Some(val.trim().to_string()),
             "package" => scope.package = Some(val.trim().to_string()),
             "types" => scope.types = Some(list()),
             "status" => scope.status = Some(list()),
             "tags" => scope.tags = Some(list()),
-            other => return Err(format!("unknown scope key `{other}` (expected package|types|status|tags)")),
+            other => return Err(format!("unknown scope key `{other}` (expected config|package|types|status|tags)")),
         }
     }
     Ok(scope)
@@ -237,12 +236,20 @@ fn cmd_create(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest
         }
     };
 
-    // Resolve scope; refuse an empty seal.
-    let in_scope = resolve_scope(elems, &scope);
-    if in_scope.is_empty() {
+    // Resolve scope (projecting to the variant when config is set, REQ-TRS-BL-011);
+    // refuse an unresolvable config or an empty seal.
+    let in_scope_owned = match baseline::resolve_in_scope(elems, &scope) {
+        Ok(v) => v,
+        Err(m) => {
+            eprintln!("error: scope config did not resolve: {m}");
+            return 1;
+        }
+    };
+    if in_scope_owned.is_empty() {
         eprintln!("error: the resolved scope is empty — nothing to seal");
         return 1;
     }
+    let in_scope: Vec<&RawElement> = in_scope_owned.iter().collect();
 
     // Review awareness (REQ-TRS-BL-004): warn on suspect/unbaselined in-scope links;
     // --require-reviewed upgrades to a refusal.
@@ -374,7 +381,7 @@ fn cmd_verify(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest
             continue;
         };
         let scope = fm.frozen_scope.clone().unwrap_or_default();
-        let (current, _n) = aggregate(&resolve_scope(elems, &scope));
+        let (current, _n) = baseline::aggregate_for_scope(elems, &scope);
         let mut msgs: Vec<String> = Vec::new();
         if current != seal.aggregate_hash {
             msgs.push("content drift (recomputed aggregate ≠ seal)".to_string());
@@ -538,6 +545,9 @@ fn unified_lines(old: &str, new: &str) -> Vec<String> {
 
 fn scope_summary(scope: &FrozenScope) -> String {
     let mut parts = Vec::new();
+    if let Some(c) = &scope.config {
+        parts.push(format!("config={c}"));
+    }
     if let Some(p) = &scope.package {
         parts.push(format!("package={p}"));
     }

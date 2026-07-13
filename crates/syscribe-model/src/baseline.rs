@@ -82,6 +82,41 @@ pub fn resolve_scope<'a>(elements: &'a [RawElement], scope: &FrozenScope) -> Vec
     out
 }
 
+/// The in-scope elements as an owned vector, projecting to the variant when
+/// `scope.config` is set (REQ-TRS-BL-011). `Err` when a `config` is given but does
+/// not resolve to a Configuration or feature set (and a feature model exists).
+pub fn resolve_in_scope(
+    elements: &[RawElement],
+    scope: &FrozenScope,
+) -> Result<Vec<RawElement>, String> {
+    use crate::projection::{project, resolve_selection, SelectionOutcome};
+    let filtered_owned = |base: &[RawElement]| -> Vec<RawElement> {
+        resolve_scope(base, scope).into_iter().cloned().collect()
+    };
+    match &scope.config {
+        Some(cfg) => match resolve_selection(elements, cfg) {
+            SelectionOutcome::Resolved(sel) => Ok(filtered_owned(&project(elements, &sel))),
+            SelectionOutcome::Dormant => Ok(filtered_owned(elements)), // no feature model → inert
+            SelectionOutcome::Error(m) => Err(m),
+        },
+        None => Ok(filtered_owned(elements)),
+    }
+}
+
+/// Recompute the in-scope aggregate for a scope, projecting to the variant when
+/// `scope.config` is set. Borrow-friendly: no whole-model clone in the common
+/// no-config path. An unresolvable/absent config falls back to the flat scope.
+pub fn aggregate_for_scope(elements: &[RawElement], scope: &FrozenScope) -> (String, usize) {
+    use crate::projection::{project, resolve_selection, SelectionOutcome};
+    if let Some(cfg) = &scope.config {
+        if let SelectionOutcome::Resolved(sel) = resolve_selection(elements, cfg) {
+            let projected = project(elements, &sel);
+            return aggregate(&resolve_scope(&projected, scope));
+        }
+    }
+    aggregate(&resolve_scope(elements, scope))
+}
+
 // ── Aggregate seal (REQ-TRS-BL-002) ──────────────────────────────────────────
 
 /// Compute the deterministic aggregate content hash over the in-scope elements and
@@ -275,7 +310,7 @@ pub fn scan(elements: &[RawElement], resolver: &Resolver, model_root: &Path) -> 
             continue;
         }
         let scope = fm.frozen_scope.clone().unwrap_or_default();
-        let (current, _n) = aggregate(&resolve_scope(elements, &scope));
+        let (current, _n) = aggregate_for_scope(elements, &scope);
         if current != seal.aggregate_hash {
             let (code, sev): (&'static str, &str) = match status {
                 "released" => ("E520", "released"),
