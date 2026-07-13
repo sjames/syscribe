@@ -6,14 +6,14 @@
 //! git anchoring, and the validator drift/freeze pass (REQ-TRS-BL-005). The CLI
 //! command family (`crates/syscribe/src/baseline.rs`) drives it.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
 use crate::element::{BaselineSeal, ElementType, FrozenScope, RawElement, RawFrontmatter};
 use crate::resolver::Resolver;
-use crate::suspect::content_hash;
+use crate::suspect::{content_hash, resolve_target, trace_links};
 
 /// Manifest schema version (bump on a breaking manifest-format change).
 pub const MANIFEST_SCHEMA_VERSION: &str = "1.0";
@@ -33,13 +33,57 @@ pub fn element_key(e: &RawElement) -> String {
     e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())
 }
 
+// ── Trace closure (REQ-TRS-BL-012) ───────────────────────────────────────────
+
+/// The transitive trace closure of `seeds` over `base`: the seed elements plus
+/// every element reachable by following any trace link (REQ-TRS-SUS-LINKS-003) in
+/// **either direction**. Returns the set of member qualified names. Seeds that do
+/// not resolve within `base` contribute nothing.
+pub fn trace_closure(base: &[RawElement], seeds: &[String]) -> HashSet<String> {
+    let resolver = Resolver::new(base);
+    // Bidirectional trace adjacency, by qualified name.
+    let mut adj: HashMap<String, Vec<String>> = HashMap::new();
+    for e in base {
+        for (_kind, r) in trace_links(&e.frontmatter) {
+            if let Some(t) = resolve_target(base, &resolver, &r) {
+                let (a, b) = (e.qualified_name.clone(), t.qualified_name.clone());
+                adj.entry(a.clone()).or_default().push(b.clone());
+                adj.entry(b).or_default().push(a);
+            }
+        }
+    }
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut queue: VecDeque<String> = VecDeque::new();
+    for s in seeds {
+        if let Some(e) = resolve_target(base, &resolver, s) {
+            if seen.insert(e.qualified_name.clone()) {
+                queue.push_back(e.qualified_name.clone());
+            }
+        }
+    }
+    while let Some(cur) = queue.pop_front() {
+        if let Some(neighbors) = adj.get(&cur) {
+            for n in neighbors {
+                if seen.insert(n.clone()) {
+                    queue.push_back(n.clone());
+                }
+            }
+        }
+    }
+    seen
+}
+
 // ── Scope resolution (REQ-TRS-BL-003) ────────────────────────────────────────
 
 /// Resolve a `FrozenScope` to the in-scope elements, sorted by stable key.
 /// `Baseline` elements are always excluded (REQ-TRS-BL-002), so sealing one
 /// baseline never perturbs another. Filters compose as a logical AND; an absent
-/// `package` means the whole model.
+/// `package` means the whole model. `closureFrom` (REQ-TRS-BL-012) restricts to the
+/// trace closure of its seeds computed over `elements` (already config-projected by
+/// the caller when a `config` is set).
 pub fn resolve_scope<'a>(elements: &'a [RawElement], scope: &FrozenScope) -> Vec<&'a RawElement> {
+    let closure: Option<HashSet<String>> =
+        scope.closure_from.as_ref().map(|seeds| trace_closure(elements, seeds));
     let mut out: Vec<&RawElement> = elements
         .iter()
         .filter(|e| {
@@ -51,6 +95,11 @@ pub fn resolve_scope<'a>(elements: &'a [RawElement], scope: &FrozenScope) -> Vec
             // A package/namespace node with no own element (empty qname root) is skipped.
             if e.qualified_name.is_empty() {
                 return false;
+            }
+            if let Some(cl) = &closure {
+                if !cl.contains(&e.qualified_name) {
+                    return false;
+                }
             }
             if let Some(pkg) = &scope.package {
                 let prefix = format!("{pkg}::");

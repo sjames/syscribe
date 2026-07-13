@@ -94,11 +94,12 @@ fn parse_scope(sel: &str) -> Result<FrozenScope, String> {
         let list = || val.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
         match key.trim() {
             "config" => scope.config = Some(val.trim().to_string()),
+            "closureFrom" => scope.closure_from = Some(list()),
             "package" => scope.package = Some(val.trim().to_string()),
             "types" => scope.types = Some(list()),
             "status" => scope.status = Some(list()),
             "tags" => scope.tags = Some(list()),
-            other => return Err(format!("unknown scope key `{other}` (expected config|package|types|status|tags)")),
+            other => return Err(format!("unknown scope key `{other}` (expected config|closureFrom|package|types|status|tags)")),
         }
     }
     Ok(scope)
@@ -547,6 +548,9 @@ fn scope_summary(scope: &FrozenScope) -> String {
     let mut parts = Vec::new();
     if let Some(c) = &scope.config {
         parts.push(format!("config={c}"));
+    }
+    if let Some(s) = &scope.closure_from {
+        parts.push(format!("closureFrom={}", s.join(",")));
     }
     if let Some(p) = &scope.package {
         parts.push(format!("package={p}"));

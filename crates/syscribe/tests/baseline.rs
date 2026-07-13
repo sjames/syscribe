@@ -303,6 +303,67 @@ fn unresolvable_config_is_refused() {
     let _ = repo;
 }
 
+/// A git model with a small trace graph: REQ-GOAL-001 ← REQ-CHILD-001 (derivedFrom)
+/// ← TC-CHILD-001 (verifies), plus an unrelated REQ-OTHER-001.
+fn new_trace_model() -> (PathBuf, PathBuf) {
+    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+    let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let repo = std::env::temp_dir().join(format!("syscribe-blt-{}-{}-{}", std::process::id(), nanos, n));
+    let model = repo.join("model");
+    std::fs::create_dir_all(model.join("Requirements")).unwrap();
+    write(&model, "_index.md", "---\ntype: Package\nname: M\n---\n\nroot\n");
+    write(&model, "Decisions/ADR-M-001.md", "---\ntype: ADR\nid: ADR-M-001\nname: \"ADR\"\nstatus: accepted\n---\n\nDecision.\n");
+    write_req(&model, "REQ-GOAL-001", "Top goal requirement.");
+    write(&model, "Requirements/REQ-CHILD-001.md",
+        "---\ntype: Requirement\nid: REQ-CHILD-001\nname: \"child\"\nstatus: approved\nreqDomain: software\nreqClass: system\nderivedFrom: [REQ-GOAL-001]\nbreakdownAdr: ADR-M-001\n---\n\nChild requirement.\n");
+    write(&model, "Verification/TC-CHILD-001.md",
+        "---\ntype: TestCase\nid: TC-CHILD-001\nname: \"tc\"\nstatus: active\ntestLevel: L2\nverifies:\n  - REQ-CHILD-001\n---\n\n```gherkin\nFeature: c\n  Scenario: s\n    Given x\n    Then y\n```\n");
+    write_req(&model, "REQ-OTHER-001", "Unrelated requirement.");
+    git(&repo, &["init", "-q"]);
+    git(&repo, &["config", "user.email", "t@t"]);
+    git(&repo, &["config", "user.name", "t"]);
+    git(&repo, &["add", "-A"]);
+    git(&repo, &["commit", "-qm", "init"]);
+    (repo, model)
+}
+
+// TC-TRS-BL-012 — closure scope seals the goal's trace component only.
+#[test]
+fn closure_scope_seals_the_trace_component() {
+    let (repo, model) = new_trace_model();
+    let (o, _e, code) = create(&repo, &model, "REL-2026-06", &["--frozen-scope", "closureFrom=REQ-GOAL-001"]);
+    assert_eq!(code, 0, "closure create exits 0: {o}");
+    let m = read(&repo, "baselines/BL-2026-06.manifest.json");
+    for id in ["REQ-GOAL-001", "REQ-CHILD-001", "TC-CHILD-001"] {
+        assert!(m.contains(id), "closure includes {id}:\n{m}");
+    }
+    assert!(!m.contains("REQ-OTHER-001"), "closure excludes the unrelated requirement:\n{m}");
+}
+
+// TC-TRS-BL-012 — drift follows the closure; out-of-closure change does not drift.
+#[test]
+fn closure_scope_drift_follows_the_component() {
+    let (repo, model) = new_trace_model();
+    create(&repo, &model, "REL-2026-06", &["--frozen-scope", "closureFrom=REQ-GOAL-001"]);
+    set_status(&model, "BL-2026-06", "released");
+    // change the unrelated requirement → no drift
+    write_req(&model, "REQ-OTHER-001", "CHANGED but outside the closure.");
+    assert!(!validate_out(&model).contains("E520"), "out-of-closure change must not drift");
+    // change a closure member → drift
+    write(&model, "Requirements/REQ-CHILD-001.md",
+        "---\ntype: Requirement\nid: REQ-CHILD-001\nname: \"child\"\nstatus: approved\nreqDomain: software\nreqClass: system\nderivedFrom: [REQ-GOAL-001]\nbreakdownAdr: ADR-M-001\n---\n\nCHANGED child.\n");
+    assert!(validate_out(&model).contains("E520"), "in-closure change must drift");
+}
+
+// TC-TRS-BL-012 — an empty closure (unresolvable seed) is refused.
+#[test]
+fn empty_closure_is_refused() {
+    let (_repo, model) = new_trace_model();
+    let (_o, _e, code) = run(&model, &["baseline", "create", "--tag", "REL-2026-06", "--frozen-scope", "closureFrom=REQ-NOPE-001"]);
+    assert_ne!(code, 0, "empty closure refused");
+    assert!(!model.join("Baselines/BL-2026-06.md").exists(), "nothing written");
+}
+
 // TC-TRS-BL-010 — [baselines] config redirects element and manifest output.
 #[test]
 fn configured_dirs_redirect_output() {

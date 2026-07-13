@@ -35,6 +35,12 @@ inactive under it — and the remaining filters apply over the variant. Drift-ch
 `verify` re-project, so a change to the variant's active content (or to the Configuration's
 selections) is detected. Example: `--frozen-scope "config=CONF-ABS;status=approved"`.
 
+A `closureFrom=<seed>[,<seed>]` clause freezes the **trace closure** of the seeds — a goal or
+requirement plus every element transitively connected to it by trace links, in either
+direction (the safety case for one goal). Drift-checking recomputes the closure, so any change
+within the goal's trace component drifts the baseline. Intended for top-level goals/requirements.
+Example: `--frozen-scope "closureFrom=SG-BRAKE-001"`.
+
 ## OUTPUT LOCATIONS
 By default the element goes to `model/Baselines/<id>.md` and the manifest to
 `<git-root>/baselines/<id>.manifest.json`. A `[baselines]` table in `.syscribe.toml`
