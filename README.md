@@ -1,6 +1,6 @@
 # Syscribe
 
-> Markdown-native SysMLv2 modeling — human-readable, LLM-friendly, version-controlled, fully traceable.
+> Markdown-native SysMLv2 modeling — human-readable, agent-native, version-controlled, and traceable across the whole life of a program.
 
 **[Documentation →](https://sjames.github.io/syscribe)**
 
@@ -67,6 +67,45 @@ The safety monitor shall perform a complete supervision cycle within 100 ms...
 - **IEC 62443 zones & conduits**, **review records**, **trade studies**, and **state-machine / sequence completeness** checks
 - **Seven §12 traceability rules** enforced by the validator: OSLC link direction, breakdown ADR, leaf assignment, domain classification, HW/SW independence, deployment allocation, implementation trace (`implementedBy:`)
 - **200+ validation rules** across parse-time, cross-reference, safety/security, behavior, and composition: cross-reference resolution, integrity level consistency, diagram annotation, documentation completeness
+- **Suspect links** — content-baseline (`traceBaselines:`, BLAKE3) detection of *stale* trace links: when a reviewed relationship's target changes, it surfaces as `W090` and is cleared by re-review (`suspect accept`)
+- **Release baselines** — first-class, git-anchored, content-hashed frozen release snapshots (`Baseline`, `BL-*`) with drift detection, scoped to the whole model, a package, a product-line variant, or a safety goal's trace closure
+- **MCP server** — `syscribe mcp` exposes 48 tools to LLM agents: read/query/trace/validate plus *guarded* writes (dry-run → validation delta → referential-integrity commit gate)
+- **Diagrams** — server-rendered SVG, client-side Mermaid, an interactive canvas, and PlantUML companion generation/rendering
+- **Coverage & product-line matrices** — Requirement × Configuration coverage grids, variant-aware verification depth, SAT-backed feature analysis
+- **LLM-scale corpus tools** — `stats` / `digest` / `search-text` / `summarize` / `topics` / `clusters` for navigating large models, plus `impact` change analysis and ReqIF/SBOM export
+
+## Traceability That Survives Change
+
+Static validation answers *"is the model internally consistent right now?"* Syscribe also answers the two questions that matter across the life of a safety program.
+
+**Has a reviewed link gone stale?** A trace link (`verifies`, `derivedFrom`, `satisfies`, …) asserts a relationship that was valid *when a human reviewed it*. `suspect accept` captures a BLAKE3 hash of the target's normative content; if the target later changes, the link surfaces as `W090` (*suspect*) so it can be re-reviewed. Editorial edits are excluded, so the signal is low-noise and version-control-agnostic — a precise flag that one specific reviewed relationship needs re-confirmation.
+
+```bash
+syscribe -m model_auto/ suspect list                          # suspect + un-baselined links
+syscribe -m model_auto/ suspect accept TC-ENG-SAFE-002 REQ-ENG-SAFE-001
+syscribe -m model_auto/ validate --deny W090                  # gate CI on stale links
+```
+
+**What exactly was released, and can you prove it hasn't changed?** A `Baseline` (`BL-*`) freezes a scope of the model into a git-anchored, content-hashed release an assessor can point to directly. The scope is the whole model, a package subtree, a projected product-line variant (`config=`), or the trace closure of one safety goal (`closureFrom=`). A **released** baseline is frozen: any change to its sealed content is a hard error (`E520`); `verify` re-proves the content hash *and* the git tag↔commit; `diff` shows exactly what changed between two releases.
+
+```bash
+syscribe -m model_auto/ baseline create --tag REL-2026-07 --approver "J. Roe"
+syscribe -m model_auto/ baseline verify --all                 # CI gate: content + git proof
+syscribe -m model_auto/ baseline diff BL-2026-06 BL-2026-07   # what changed between releases
+```
+
+Together these turn a git-controlled model into an **audit trail**: every relationship is either confirmed-current or flagged for review, and every release is a provable, comparable snapshot.
+
+## Agent-Native — the MCP Server
+
+Syscribe is a [Model Context Protocol](https://modelcontextprotocol.io) server, so an LLM agent works with the model as a first-class client — reading, analyzing, and *safely writing* it — not just generating files from a prompt.
+
+```bash
+syscribe -m model_auto/ mcp                # stdio MCP server (48 tools)
+syscribe -m model_auto/ mcp --read-only    # analysis only; write tools hidden & refused
+```
+
+Read tools cover retrieval, fuzzy search, the containment/graph, `trace` / `impact`, validation, coverage, and the suspect/baseline surfaces. **Writes are guarded**: every `create_element` / `update_element` / `move_element` / `delete_element` / `apply_changes` call defaults to `dry_run: true`, returns the **validation delta** the change would cause (newly introduced and resolved errors and warnings), and refuses to commit anything that would break referential integrity — so an agent can propose a change, inspect its exact effect, and only then commit it. Sealing a release stays a deliberate CLI/CI action.
 
 ## Repository Structure
 
@@ -78,6 +117,7 @@ crates/
 model/                # UAV autonomous flight system demo model
 model_auto/           # Engine ECU demo model (ISO 26262 / ISO/SAE 21434)
 model_sil/            # SIL 4 railway interlocking demo model (IEC 61508 / EN 50128)
+model_mg/             # EV DC fast-charging station demo model (MagicGrid)
 prompts/              # LLM authoring prompt (embedded in the CLI binary)
 spec/                 # Syscribe format specification
 docs/                 # MkDocs documentation source
@@ -137,6 +177,12 @@ syscribe -m model_auto/ next-id REQ-ENG-SAFE
 
 # Fuzzy search across names, IDs, and docs
 syscribe -m model_auto/ find throttle
+
+# Requirement × Configuration coverage grid (variant-aware)
+syscribe -m model_auto/ matrix
+
+# Upstream / downstream impact of changing an element
+syscribe -m model_auto/ impact REQ-ENG-SAFE-001
 ```
 
 ### Refactor: move an element or package
@@ -165,6 +211,17 @@ syscribe -m model_auto/ export --ndjson
 ```
 
 Each element carries `qname`, `file`, `id`, `type`, `name`, its typed `frontmatter`, and — for requirements — a `computed` block with the resolved `verifiedBy` and `derivedChildren` reverse indices.
+
+### Diagrams
+
+```bash
+# Generate PlantUML companion files, then render them to SVG
+# (needs `plantuml` on PATH or PLANTUML_JAR set)
+syscribe -m model_auto/ plantuml
+syscribe -m model_auto/ plantuml render
+```
+
+Diagrams also render live in the web UI — server-side SVG plus client-side Mermaid — and on the interactive canvas.
 
 ### Browse in a web UI
 
@@ -212,7 +269,7 @@ syscribe --agent-instructions
 syscribe --agent-instructions | llm "Create a brake-by-wire model for ISO 26262 ASIL D"
 ```
 
-The prompt and the validator are always in sync — `--agent-instructions` is embedded at compile time from `prompts/create-model.md`. See the [LLM Workflow guide](https://sjames.github.io/syscribe/model-guide/llm-workflow/) for the full incremental authoring workflow.
+The prompt and the validator are always in sync — `--agent-instructions` is embedded at compile time from `prompts/create-model.md`. For interactive, guarded authoring where the agent inspects each change before committing, run the [MCP server](#agent-native--the-mcp-server) instead. See the [LLM Workflow guide](https://sjames.github.io/syscribe/model-guide/llm-workflow/) for the full incremental authoring workflow.
 
 ## Prior Work
 
