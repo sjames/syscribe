@@ -29,6 +29,18 @@ single string of `;`-separated `key=value` clauses; multi-valued keys take a `,`
 
 Omitting it ⇒ the whole model. `Baseline` elements are always excluded from a seal.
 
+## OUTPUT LOCATIONS
+By default the element goes to `model/Baselines/<id>.md` and the manifest to
+`<git-root>/baselines/<id>.manifest.json`. A `[baselines]` table in `.syscribe.toml`
+redirects both:
+
+    [baselines]
+    element_dir  = "Releases"    # under the model root (must stay within the model tree)
+    manifest_dir = "evidence"    # under the git root (may be anywhere)
+
+The manifest path is self-recorded in the element's `seal`, so `verify` and drift-checking
+resolve it wherever it lives.
+
 ## GIT
 `create` records the current `HEAD` as `gitCommit` and expects a **clean** working tree
 (`--allow-dirty` to override). It does **not** create the git tag — tag the release

@@ -223,6 +223,36 @@ fn list_and_show_are_read_only() {
     assert!(read(&model, "Baselines/BL-2026-06.md").contains("status: draft"), "list/show mutate nothing");
 }
 
+// TC-TRS-BL-010 — [baselines] config redirects element and manifest output.
+#[test]
+fn configured_dirs_redirect_output() {
+    let (repo, model) = new_git_model();
+    write(&model, ".syscribe.toml", "[baselines]\nelement_dir = \"Releases\"\nmanifest_dir = \"evidence\"\n");
+    git(&repo, &["add", "-A"]);
+    let _ = Command::new("git").arg("-C").arg(&repo).args(["commit", "-qm", "cfg"]).output();
+    let (o, _e, code) = run(&model, &["baseline", "create", "--tag", "REL-2026-06"]);
+    assert_eq!(code, 0, "create with configured dirs exits 0: {o}");
+    assert!(model.join("Releases/BL-2026-06.md").exists(), "element under configured Releases/");
+    assert!(repo.join("evidence/BL-2026-06.manifest.json").exists(), "manifest under configured evidence/");
+    assert!(!model.join("Baselines").exists(), "default Baselines/ not used");
+    // Self-recorded manifest → verify resolves it.
+    let (_o2, _e2, code2) = run(&model, &["baseline", "verify", "BL-2026-06"]);
+    assert_eq!(code2, 0, "verify resolves the redirected manifest");
+}
+
+// TC-TRS-BL-010 — an element_dir escaping the model root is rejected.
+#[test]
+fn escaping_element_dir_is_rejected() {
+    let (repo, model) = new_git_model();
+    write(&model, ".syscribe.toml", "[baselines]\nelement_dir = \"../outside\"\n");
+    git(&repo, &["add", "-A"]);
+    let _ = Command::new("git").arg("-C").arg(&repo).args(["commit", "-qm", "cfg"]).output();
+    let (_o, e, code) = run(&model, &["baseline", "create", "--tag", "REL-2026-06"]);
+    assert_ne!(code, 0, "escaping element_dir is refused");
+    assert!(e.contains("escapes the model root"), "clear error: {e}");
+    assert!(!repo.join("outside").exists(), "nothing written outside");
+}
+
 // TC-TRS-BL-001 — a malformed BL id is rejected.
 #[test]
 fn malformed_bl_id_is_rejected() {

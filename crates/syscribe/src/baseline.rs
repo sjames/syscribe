@@ -12,7 +12,7 @@ use serde::Serialize;
 use syscribe_model::baseline::{
     self, aggregate, element_key, manifest_path, resolve_scope, Manifest,
 };
-use syscribe_model::config::{detect_git_root, git_output, ValidateConfig};
+use syscribe_model::config::{detect_git_root, git_output, load_baseline_config, ValidateConfig};
 use syscribe_model::element::{BaselineSeal, FrozenScope, RawElement};
 use syscribe_model::resolver::Resolver;
 use syscribe_model::suspect::{self, LinkState};
@@ -63,6 +63,24 @@ fn positionals(rest: &[String]) -> Vec<&str> {
         } else {
             out.push(a.as_str());
             i += 1;
+        }
+    }
+    out
+}
+
+/// Resolve a configured directory against `base` (relative → joined; absolute → as-is),
+/// lexically normalizing `.`/`..` so an escape can be detected without touching disk.
+fn resolve_dir(base: &Path, dir: &str) -> PathBuf {
+    let p = Path::new(dir);
+    let joined = if p.is_absolute() { p.to_path_buf() } else { base.join(p) };
+    let mut out = PathBuf::new();
+    for c in joined.components() {
+        match c {
+            std::path::Component::ParentDir => {
+                out.pop();
+            }
+            std::path::Component::CurDir => {}
+            other => out.push(other.as_os_str()),
         }
     }
     out
@@ -164,12 +182,36 @@ fn cmd_create(elems: &[RawElement], resolver: &Resolver, model_root: &Path, rest
         return 1;
     }
     let git_root = detect_git_root(model_root);
-    let manifest_rel = format!("baselines/{id}.manifest.json");
-    let manifest_abs = git_root
-        .as_ref()
-        .map(|r| r.join(&manifest_rel))
-        .unwrap_or_else(|| model_root.join(&manifest_rel));
-    let element_abs = model_root.join(format!("Baselines/{id}.md"));
+    // Output locations (REQ-TRS-BL-010): [baselines] element_dir / manifest_dir, defaults
+    // `Baselines` (under the model root) and `baselines` (under the git root).
+    let bcfg = load_baseline_config(model_root);
+    let cmr = std::fs::canonicalize(model_root).unwrap_or_else(|_| model_root.to_path_buf());
+    let element_dir = resolve_dir(&cmr, bcfg.element_dir.as_deref().unwrap_or("Baselines"));
+    if !element_dir.starts_with(&cmr) {
+        eprintln!(
+            "error: [baselines] element_dir `{}` escapes the model root — the Baseline element must live within the model tree",
+            element_dir.display()
+        );
+        return 1;
+    }
+    let element_abs = element_dir.join(format!("{id}.md"));
+
+    let mbase = std::fs::canonicalize(git_root.clone().unwrap_or_else(|| cmr.clone()))
+        .unwrap_or_else(|_| cmr.clone());
+    let manifest_abs =
+        resolve_dir(&mbase, bcfg.manifest_dir.as_deref().unwrap_or("baselines")).join(format!("{id}.manifest.json"));
+    // Stored seal path: git-root-relative when under the git root (portable), else absolute.
+    let manifest_rel = match &git_root {
+        Some(gr) => {
+            let grc = std::fs::canonicalize(gr).unwrap_or_else(|_| gr.clone());
+            match manifest_abs.strip_prefix(&grc) {
+                Ok(rel) => rel.to_string_lossy().replace('\\', "/"),
+                Err(_) => manifest_abs.to_string_lossy().to_string(),
+            }
+        }
+        None => manifest_abs.to_string_lossy().to_string(),
+    };
+
     if manifest_abs.exists() || element_abs.exists() {
         eprintln!("error: baseline `{id}` already has an element or manifest on disk");
         return 1;
