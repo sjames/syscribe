@@ -334,3 +334,91 @@ pub fn scan(elements: &[RawElement], resolver: &Resolver, model_root: &Path) -> 
 pub fn is_baseline(fm: &RawFrontmatter) -> bool {
     matches!(fm.element_type, Some(ElementType::Baseline))
 }
+
+// ── Shared diff / verify (used by both the CLI and MCP, REQ-TRS-BL-006/008) ──
+
+/// Element-level difference between two baseline manifests, keyed by stable id
+/// (falling back to qualified name so it survives file moves).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BaselineDiff {
+    pub from: String,
+    pub to: String,
+    pub aggregate_identical: bool,
+    pub added: Vec<ManifestElement>,
+    pub removed: Vec<ManifestElement>,
+    /// The `to`-side of each changed element (its `hash` differs from the `from` side).
+    pub changed: Vec<ManifestElement>,
+}
+
+fn manifest_key(e: &ManifestElement) -> String {
+    e.id.clone().unwrap_or_else(|| e.qname.clone())
+}
+
+/// Compare two manifests into added / removed / changed sets.
+pub fn diff_manifests(a: &Manifest, b: &Manifest) -> BaselineDiff {
+    let ma: BTreeMap<String, &ManifestElement> =
+        a.elements.iter().map(|e| (manifest_key(e), e)).collect();
+    let mb: BTreeMap<String, &ManifestElement> =
+        b.elements.iter().map(|e| (manifest_key(e), e)).collect();
+    let mut added = Vec::new();
+    let mut changed = Vec::new();
+    for (k, eb) in &mb {
+        match ma.get(k) {
+            None => added.push((*eb).clone()),
+            Some(ea) if ea.hash != eb.hash => changed.push((*eb).clone()),
+            Some(_) => {}
+        }
+    }
+    let removed: Vec<ManifestElement> =
+        ma.iter().filter(|(k, _)| !mb.contains_key(*k)).map(|(_, e)| (*e).clone()).collect();
+    BaselineDiff {
+        from: a.baseline.clone(),
+        to: b.baseline.clone(),
+        aggregate_identical: a.aggregate_hash == b.aggregate_hash,
+        added,
+        removed,
+        changed,
+    }
+}
+
+/// The outcome of verifying one baseline (REQ-TRS-BL-008): the content proof and
+/// git tag↔commit consistency, with a boolean `passed` and any failure messages.
+#[derive(Debug, Clone, Serialize)]
+pub struct VerifyResult {
+    pub id: String,
+    pub passed: bool,
+    pub messages: Vec<String>,
+}
+
+/// Verify a single `Baseline` element against the current model and git state.
+pub fn verify_baseline(elements: &[RawElement], b: &RawElement, model_root: &Path) -> VerifyResult {
+    let id = element_key(b);
+    let fm = &b.frontmatter;
+    let mut messages = Vec::new();
+    let Some(seal) = &fm.seal else {
+        return VerifyResult { id, passed: false, messages: vec!["no seal".to_string()] };
+    };
+    let scope = fm.frozen_scope.clone().unwrap_or_default();
+    let (current, _n) = aggregate_for_scope(elements, &scope);
+    if current != seal.aggregate_hash {
+        messages.push("content drift (recomputed aggregate ≠ seal)".to_string());
+    }
+    if let Some(m) = Manifest::from_file(&manifest_path(model_root, seal)) {
+        if m.aggregate_hash != seal.aggregate_hash {
+            messages.push("manifest aggregate ≠ seal".to_string());
+        }
+    }
+    if let (Some(root), Some(tag), Some(commit)) = (
+        crate::config::detect_git_root(model_root),
+        fm.git_tag.as_deref(),
+        fm.git_commit.as_deref(),
+    ) {
+        match crate::config::git_output(&root, &["rev-parse", &format!("{tag}^{{commit}}")]) {
+            Some(tc) if tc == commit => {}
+            Some(_) => messages.push(format!("gitTag `{tag}` resolves to a different commit than gitCommit")),
+            None => {} // tag not present yet — informational, not a failure
+        }
+    }
+    VerifyResult { id, passed: messages.is_empty(), messages }
+}
