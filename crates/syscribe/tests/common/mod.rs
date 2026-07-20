@@ -1,12 +1,13 @@
-//! Shared harness for the `syscribe mcp` integration tests.
+//! Shared harness for the `syscribe mcp` and `syscribe lsp` integration tests.
 //!
-//! Spawns the `syscribe mcp` subcommand as a subprocess and drives it over the
-//! MCP stdio transport (newline-delimited JSON-RPC 2.0). These tests are written
-//! before the implementation exists — until `syscribe mcp` is implemented they
-//! fail (the process errors out and stdout closes), which is the intended red state.
+//! Spawns the subcommand as a subprocess and drives it over its stdio transport:
+//! MCP uses newline-delimited JSON-RPC 2.0 (`Mcp`), LSP uses `Content-Length`-framed
+//! JSON-RPC 2.0 (`Lsp`). These tests are written before the implementation exists —
+//! until the subcommand is implemented they fail (the process errors out and stdout
+//! closes, or the framing never matches), which is the intended red state.
 #![allow(dead_code)]
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -250,4 +251,241 @@ pub fn dir_hash(root: &Path) -> u64 {
     let mut h = std::collections::hash_map::DefaultHasher::new();
     entries.hash(&mut h);
     h.finish()
+}
+
+/// Convert a filesystem path to a `file://` URI (test-only; no percent-encoding —
+/// fixture paths under the OS temp dir don't contain characters that need it).
+pub fn file_uri(path: &Path) -> String {
+    format!("file://{}", path.to_string_lossy())
+}
+
+/// A minimal LSP client over a subprocess's stdio, using `Content-Length`-framed
+/// JSON-RPC 2.0 (the standard LSP transport), for driving `syscribe lsp`.
+pub struct Lsp {
+    child: Child,
+    /// `None` once `shutdown()` has closed it — tower-lsp's read loop only stops on
+    /// stdin EOF (processing the `exit` notification alone does not end the process),
+    /// so the client must close its write end to let the server terminate.
+    stdin: Option<ChildStdin>,
+    reader: BufReader<std::process::ChildStdout>,
+    next_id: i64,
+    pub model_root: PathBuf,
+    /// Server-initiated notifications observed while awaiting a response (includes
+    /// `textDocument/publishDiagnostics`).
+    pub notifications: Vec<Value>,
+}
+
+impl Lsp {
+    /// Spawn `syscribe lsp -m <model_root>` and return the client.
+    pub fn start(model_root: &Path) -> Lsp {
+        let child = Command::new(env!("CARGO_BIN_EXE_syscribe"))
+            .arg("lsp")
+            .arg("-m")
+            .arg(model_root)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("spawn syscribe lsp");
+        let mut child = child;
+        let stdin = child.stdin.take().unwrap();
+        let reader = BufReader::new(child.stdout.take().unwrap());
+        Lsp { child, stdin: Some(stdin), reader, next_id: 1, model_root: model_root.to_path_buf(), notifications: Vec::new() }
+    }
+
+    fn send(&mut self, msg: &Value) {
+        let body = serde_json::to_vec(msg).unwrap();
+        let header = format!("Content-Length: {}\r\n\r\n", body.len());
+        let stdin = self.stdin.as_mut().expect("stdin not yet closed");
+        stdin.write_all(header.as_bytes()).unwrap();
+        stdin.write_all(&body).unwrap();
+        stdin.flush().unwrap();
+    }
+
+    /// Read one `Content-Length`-framed JSON-RPC message.
+    fn read_message(&mut self) -> Value {
+        let mut content_length: Option<usize> = None;
+        loop {
+            let mut line = String::new();
+            let n = self.reader.read_line(&mut line).expect("read lsp header line");
+            if n == 0 {
+                panic!("EOF from lsp server while reading headers (server not implemented yet?)");
+            }
+            let line = line.trim_end_matches(['\r', '\n']);
+            if line.is_empty() {
+                break;
+            }
+            if let Some(v) = line.strip_prefix("Content-Length:") {
+                content_length = v.trim().parse().ok();
+            }
+        }
+        let len = content_length.expect("Content-Length header present in lsp response");
+        let mut buf = vec![0u8; len];
+        self.reader.read_exact(&mut buf).expect("read lsp message body");
+        serde_json::from_slice(&buf).expect("parse lsp message body as JSON")
+    }
+
+    /// Read messages until one carries the given id; returns its `result` (panics on
+    /// a JSON-RPC error or EOF). Notifications seen along the way are recorded.
+    fn read_result(&mut self, id: i64) -> Value {
+        loop {
+            let v = self.read_message();
+            if v.get("id").and_then(|x| x.as_i64()) == Some(id) {
+                if let Some(err) = v.get("error") {
+                    panic!("JSON-RPC error for id {id}: {err}");
+                }
+                return v.get("result").cloned().unwrap_or(Value::Null);
+            }
+            if v.get("id").is_none() && v.get("method").is_some() {
+                self.notifications.push(v);
+            }
+        }
+    }
+
+    /// Read (and consume) the next unconsumed notification with the given method —
+    /// first from already-buffered notifications (FIFO), else by reading new messages.
+    /// Returns its `params`. Panics on EOF. Consuming lets a test wait for a *second*
+    /// occurrence of the same method (e.g. two publishDiagnostics rounds) without the
+    /// first match short-circuiting every later call.
+    pub fn wait_for_notification(&mut self, method: &str) -> Value {
+        if let Some(pos) = self.notifications.iter().position(|n| n.get("method").and_then(|m| m.as_str()) == Some(method)) {
+            return self.notifications.remove(pos).get("params").cloned().unwrap_or(Value::Null);
+        }
+        loop {
+            let v = self.read_message();
+            if v.get("id").is_none() && v.get("method").and_then(|m| m.as_str()) == Some(method) {
+                return v.get("params").cloned().unwrap_or(Value::Null);
+            }
+            if v.get("id").is_none() && v.get("method").is_some() {
+                self.notifications.push(v);
+            }
+        }
+    }
+
+    fn request(&mut self, method: &str, params: Value) -> Value {
+        let id = self.next_id;
+        self.next_id += 1;
+        let mut msg = json!({"jsonrpc": "2.0", "id": id, "method": method});
+        // Omit `params` entirely for parameterless methods (e.g. `shutdown`) — a
+        // strict server (tower-lsp) rejects an explicit `"params": null`.
+        if !params.is_null() {
+            msg["params"] = params;
+        }
+        self.send(&msg);
+        self.read_result(id)
+    }
+
+    fn notify(&mut self, method: &str, params: Value) {
+        let mut msg = json!({"jsonrpc": "2.0", "method": method});
+        if !params.is_null() {
+            msg["params"] = params;
+        }
+        self.send(&msg);
+    }
+
+    /// Perform the `initialize`/`initialized` handshake; returns the `initialize` result.
+    pub fn initialize(&mut self) -> Value {
+        let root_uri = file_uri(&self.model_root);
+        let res = self.request(
+            "initialize",
+            json!({
+                "processId": std::process::id(),
+                "rootUri": root_uri,
+                "capabilities": {},
+                "clientInfo": {"name": "syscribe-test", "version": "0"}
+            }),
+        );
+        self.notify("initialized", json!({}));
+        res
+    }
+
+    pub fn did_open(&mut self, path: &Path, language_id: &str, text: &str) {
+        self.notify(
+            "textDocument/didOpen",
+            json!({
+                "textDocument": {
+                    "uri": file_uri(path),
+                    "languageId": language_id,
+                    "version": 1,
+                    "text": text,
+                }
+            }),
+        );
+    }
+
+    pub fn did_change(&mut self, path: &Path, version: i64, text: &str) {
+        self.notify(
+            "textDocument/didChange",
+            json!({
+                "textDocument": {"uri": file_uri(path), "version": version},
+                "contentChanges": [{"text": text}]
+            }),
+        );
+    }
+
+    pub fn did_save(&mut self, path: &Path, text: Option<&str>) {
+        let mut params = json!({"textDocument": {"uri": file_uri(path)}});
+        if let Some(text) = text {
+            params["text"] = json!(text);
+        }
+        self.notify("textDocument/didSave", params);
+    }
+
+    pub fn did_change_watched_files(&mut self, path: &Path, change_type: u32) {
+        self.notify(
+            "workspace/didChangeWatchedFiles",
+            json!({"changes": [{"uri": file_uri(path), "type": change_type}]}),
+        );
+    }
+
+    pub fn hover(&mut self, path: &Path, line: u32, character: u32) -> Value {
+        self.request(
+            "textDocument/hover",
+            json!({"textDocument": {"uri": file_uri(path)}, "position": {"line": line, "character": character}}),
+        )
+    }
+
+    pub fn definition(&mut self, path: &Path, line: u32, character: u32) -> Value {
+        self.request(
+            "textDocument/definition",
+            json!({"textDocument": {"uri": file_uri(path)}, "position": {"line": line, "character": character}}),
+        )
+    }
+
+    pub fn references(&mut self, path: &Path, line: u32, character: u32) -> Value {
+        self.request(
+            "textDocument/references",
+            json!({
+                "textDocument": {"uri": file_uri(path)},
+                "position": {"line": line, "character": character},
+                "context": {"includeDeclaration": true}
+            }),
+        )
+    }
+
+    pub fn workspace_symbol(&mut self, query: &str) -> Value {
+        self.request("workspace/symbol", json!({"query": query}))
+    }
+
+    /// True while the spawned server process is still running (no exit status yet).
+    pub fn is_alive(&mut self) -> bool {
+        matches!(self.child.try_wait(), Ok(None))
+    }
+
+    /// Send `shutdown` followed by `exit`, close stdin (tower-lsp's read loop only
+    /// stops on EOF — the `exit` notification alone does not end the process), and
+    /// wait for the process to terminate, returning its exit code.
+    pub fn shutdown(&mut self) -> Option<i32> {
+        self.request("shutdown", Value::Null);
+        self.notify("exit", Value::Null);
+        self.stdin.take(); // drop closes the pipe, sending EOF
+        self.child.wait().ok().and_then(|s| s.code())
+    }
+}
+
+impl Drop for Lsp {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
 }

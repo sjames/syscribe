@@ -19,6 +19,7 @@ mod ftsearch;
 mod help;
 mod ingest;
 mod lint_docs;
+mod lsp;
 mod matrix;
 mod mcp;
 mod metrics_cmd;
@@ -611,12 +612,20 @@ fn main() {
         std::process::exit(1);
     }
 
-    // `mcp` owns model loading (it builds a long-lived, reloadable store), so dispatch
-    // it before the eager `walk_model` below to avoid loading the model twice.
+    // `mcp` and `lsp` each own model loading (they build a long-lived, reloadable
+    // store), so dispatch them before the eager `walk_model` below to avoid loading
+    // the model twice.
     if subcommand_args.first().map(String::as_str) == Some("mcp") {
         let read_only = subcommand_args.iter().any(|a| a == "--read-only");
         if let Err(e) = mcp::cmd_mcp(model_root, read_only) {
             eprintln!("Error: mcp server failed: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
+    if subcommand_args.first().map(String::as_str) == Some("lsp") {
+        if let Err(e) = lsp::cmd_lsp(model_root) {
+            eprintln!("Error: lsp server failed: {e}");
             std::process::exit(1);
         }
         return;

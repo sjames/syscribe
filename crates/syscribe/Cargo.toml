@@ -29,6 +29,7 @@ schemars = "1"
 tokio = { workspace = true }
 anyhow = { workspace = true }
 petgraph = { workspace = true }
+tower-lsp = "0.20.0"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
