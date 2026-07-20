@@ -23,9 +23,9 @@ Feature: LSP server startup and handshake
     When syscribe lsp -m <fixture> is spawned and an initialize request is sent on stdin
     Then a JSON-RPC initialize response is returned on stdout
     And the response's capabilities include textDocumentSync, hoverProvider,
-      definitionProvider, referencesProvider, and workspaceSymbolProvider
-    And the response's capabilities do not include completionProvider, renameProvider,
-      codeLensProvider, or codeActionProvider
+      definitionProvider, referencesProvider, workspaceSymbolProvider,
+      completionProvider, renameProvider, codeLensProvider, codeActionProvider, and
+      executeCommandProvider (the full v1+v2+v3 set implemented as of ADR-SYS-LSP-003)
     And no protocol bytes are written to stderr
 
   Scenario: no custom JSON-RPC methods are required

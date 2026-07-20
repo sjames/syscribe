@@ -467,6 +467,52 @@ impl Lsp {
         self.request("workspace/symbol", json!({"query": query}))
     }
 
+    pub fn completion(&mut self, path: &Path, line: u32, character: u32) -> Value {
+        self.request(
+            "textDocument/completion",
+            json!({"textDocument": {"uri": file_uri(path)}, "position": {"line": line, "character": character}}),
+        )
+    }
+
+    pub fn prepare_rename(&mut self, path: &Path, line: u32, character: u32) -> Value {
+        self.request(
+            "textDocument/prepareRename",
+            json!({"textDocument": {"uri": file_uri(path)}, "position": {"line": line, "character": character}}),
+        )
+    }
+
+    pub fn rename(&mut self, path: &Path, line: u32, character: u32, new_name: &str) -> Value {
+        self.request(
+            "textDocument/rename",
+            json!({
+                "textDocument": {"uri": file_uri(path)},
+                "position": {"line": line, "character": character},
+                "newName": new_name
+            }),
+        )
+    }
+
+    pub fn code_lens(&mut self, path: &Path) -> Value {
+        self.request("textDocument/codeLens", json!({"textDocument": {"uri": file_uri(path)}}))
+    }
+
+    /// `range` covering the whole frontmatter block is enough for these tests — pass
+    /// `(0, 0)`..`(end_line, 0)`.
+    pub fn code_action(&mut self, path: &Path, start_line: u32, end_line: u32) -> Value {
+        self.request(
+            "textDocument/codeAction",
+            json!({
+                "textDocument": {"uri": file_uri(path)},
+                "range": {"start": {"line": start_line, "character": 0}, "end": {"line": end_line, "character": 0}},
+                "context": {"diagnostics": []}
+            }),
+        )
+    }
+
+    pub fn execute_command(&mut self, command: &str, arguments: Value) -> Value {
+        self.request("workspace/executeCommand", json!({"command": command, "arguments": arguments}))
+    }
+
     /// True while the spawned server process is still running (no exit status yet).
     pub fn is_alive(&mut self) -> bool {
         matches!(self.child.try_wait(), Ok(None))

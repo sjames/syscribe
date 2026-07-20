@@ -633,7 +633,7 @@ fn field_spec(name: &str, required: bool, ty: &str, domain: Option<&[&str]>) -> 
 /// The field schema for a type. Enum domains mirror the validator (E007 etc.).
 /// Known id-identified types report their `id`/`name`/`status` triplet; the
 /// Requirement schema is the most detailed (its `status` enum is contract-tested).
-fn type_field_specs(type_name: &str) -> Vec<Value> {
+pub(crate) fn type_field_specs(type_name: &str) -> Vec<Value> {
     let req_status: &[&str] = &["draft", "review", "approved", "implemented", "verified"];
     let domain: &[&str] = &["system", "hardware", "software"];
     let req_class: &[&str] = &["stakeholder", "system", "derived"];
@@ -678,7 +678,7 @@ fn is_stable_id_type(type_name: &str) -> bool {
 }
 
 /// The set of recognised element-type names (for `describe_type` enumeration).
-fn known_type_names() -> Vec<&'static str> {
+pub(crate) fn known_type_names() -> Vec<&'static str> {
     let mut names: Vec<&'static str> = vec![
         "PartDef", "Part", "ItemDef", "Item", "PortDef", "Port", "ConnectionDef",
         "Connection", "InterfaceDef", "Interface", "ActionDef", "Action", "ConstraintDef",

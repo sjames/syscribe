@@ -1,13 +1,22 @@
-//! `syscribe lsp` — a Language Server Protocol server over stdio (ADR-SYS-LSP-001).
+//! `syscribe lsp` — a Language Server Protocol server over stdio.
 //!
-//! v1 scope only: diagnostics, go-to-definition, find-references, hover, and
-//! workspace/symbol — every capability advertised in `initialize` maps onto
-//! structure `syscribe-model` already computes (validator findings, the id/qname
-//! resolver). No custom (non-LSP) methods, no completion/rename/codeLens/codeAction
-//! yet (ADR-SYS-LSP-001's v2/v3). The store is disk-backed and full-reload only
-//! (REQ-TRS-LSP-007): `textDocument/didChange` never triggers reparsing or
-//! diagnostics — v1 validates saved content, not unsaved buffers.
+//! v1 (`ADR-SYS-LSP-001`): diagnostics, go-to-definition, find-references, hover,
+//! workspace/symbol — every capability maps onto structure `syscribe-model` already
+//! computes. v2 (`ADR-SYS-LSP-002`): field-aware/enum completion, plus a
+//! `WorkspaceEdit`-based rename scoped to stable ids (the server never writes to
+//! disk for a rename). v3 (`ADR-SYS-LSP-003`): display-only `codeLens` counts, plus
+//! `codeAction` quick-fixes for exactly `E310` and `W090` (the latter executed
+//! server-side via `workspace/executeCommand`, since it's a real disk-write side
+//! effect, not a client-applicable edit). No custom (non-LSP) methods anywhere.
+//!
+//! The store is disk-backed and full-reload only (REQ-TRS-LSP-007):
+//! `textDocument/didChange` never triggers reparsing or diagnostics — only
+//! `completion`/`hover`/`definition`/`references`/`prepareRename`/`rename`/`codeLens`/
+//! `codeAction` read live off already-saved disk state.
 
+mod actions;
+mod completion;
+mod rename;
 mod store;
 
 use std::collections::HashSet;
@@ -15,7 +24,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use tokio::sync::RwLock;
-use tower_lsp::jsonrpc::Result as LspResult;
+use tower_lsp::jsonrpc::{Error as LspError, Result as LspResult};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
@@ -78,38 +87,54 @@ fn finding_to_diagnostic(f: &Finding) -> Diagnostic {
     }
 }
 
+/// True for characters that make up an id/qname token (`is_tok` in the informal
+/// sense used throughout this module — alphanumerics, `_`, `:` for `::`-qnames, `-`
+/// for stable ids).
+fn is_tok_char(c: char) -> bool {
+    c.is_ascii_alphanumeric() || c == '_' || c == ':' || c == '-'
+}
+
 /// Extract the identifier-like token at `character` in `line` (byte/char index —
 /// model ids and qnames are ASCII, so LSP's UTF-16 `character` and a char count
-/// coincide for the content this targets).
-fn token_at(line: &str, character: usize) -> Option<String> {
+/// coincide for the content this targets), along with its `[start, end)` char range.
+fn token_at_with_range(line: &str, character: usize) -> Option<(String, usize, usize)> {
     let chars: Vec<char> = line.chars().collect();
     if chars.is_empty() {
         return None;
     }
-    let is_tok = |c: char| c.is_ascii_alphanumeric() || c == '_' || c == ':' || c == '-';
     let mut start = character.min(chars.len());
-    if start == chars.len() || !is_tok(chars[start]) {
-        if start > 0 && is_tok(chars[start - 1]) {
+    if start == chars.len() || !is_tok_char(chars[start]) {
+        if start > 0 && is_tok_char(chars[start - 1]) {
             start -= 1;
         } else {
             return None;
         }
     }
     let mut s = start;
-    while s > 0 && is_tok(chars[s - 1]) {
+    while s > 0 && is_tok_char(chars[s - 1]) {
         s -= 1;
     }
     let mut e = start;
-    while e < chars.len() && is_tok(chars[e]) {
+    while e < chars.len() && is_tok_char(chars[e]) {
         e += 1;
     }
-    let tok: String = chars[s..e].iter().collect();
-    let tok = tok.trim_matches(':');
+    // Trim stray leading/trailing colons (a bare YAML key's trailing `:`, e.g.
+    // `supertype:`) from the token but keep the reported range untrimmed — the
+    // caller (prepareRename) wants the exact on-screen span.
+    let raw: String = chars[s..e].iter().collect();
+    let tok = raw.trim_matches(':');
     if tok.is_empty() {
         None
+    } else if tok.len() == raw.len() {
+        Some((tok.to_string(), s, e))
     } else {
-        Some(tok.to_string())
+        let lead_trim = raw.len() - raw.trim_start_matches(':').len();
+        Some((tok.to_string(), s + lead_trim, s + lead_trim + tok.len()))
     }
+}
+
+fn token_at(line: &str, character: usize) -> Option<String> {
+    token_at_with_range(line, character).map(|(t, _, _)| t)
 }
 
 fn resolve_token_element<'a>(store: &'a LspStore, path: &Path, position: Position) -> Option<&'a RawElement> {
@@ -213,6 +238,21 @@ impl LanguageServer for Backend {
                 definition_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
                 workspace_symbol_provider: Some(OneOf::Left(true)),
+                completion_provider: Some(CompletionOptions::default()),
+                rename_provider: Some(OneOf::Right(RenameOptions {
+                    prepare_provider: Some(true),
+                    work_done_progress_options: Default::default(),
+                })),
+                code_lens_provider: Some(CodeLensOptions { resolve_provider: None }),
+                code_action_provider: Some(CodeActionProviderCapability::Options(CodeActionOptions {
+                    code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+                    resolve_provider: None,
+                    work_done_progress_options: Default::default(),
+                })),
+                execute_command_provider: Some(ExecuteCommandOptions {
+                    commands: vec!["syscribe.suspectAccept".to_string()],
+                    work_done_progress_options: Default::default(),
+                }),
                 ..ServerCapabilities::default()
             },
             ..Default::default()
@@ -326,6 +366,62 @@ impl LanguageServer for Backend {
             })
             .collect();
         Ok(Some(results))
+    }
+
+    async fn completion(&self, params: CompletionParams) -> LspResult<Option<CompletionResponse>> {
+        let uri = params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let Ok(path) = uri.to_file_path() else { return Ok(None) };
+        let store = self.store.read().await;
+        Ok(completion::candidates(&store, &path, position))
+    }
+
+    async fn prepare_rename(&self, params: TextDocumentPositionParams) -> LspResult<Option<PrepareRenameResponse>> {
+        let Ok(path) = params.text_document.uri.to_file_path() else { return Ok(None) };
+        let store = self.store.read().await;
+        rename::prepare(&store, &path, params.position).map(Some).map_err(LspError::invalid_params)
+    }
+
+    async fn rename(&self, params: RenameParams) -> LspResult<Option<WorkspaceEdit>> {
+        let uri = params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let Ok(path) = uri.to_file_path() else { return Ok(None) };
+        let store = self.store.read().await;
+        rename::compute(&store, &path, position, &params.new_name).map(Some).map_err(LspError::invalid_params)
+    }
+
+    async fn code_lens(&self, params: CodeLensParams) -> LspResult<Option<Vec<CodeLens>>> {
+        let Ok(path) = params.text_document.uri.to_file_path() else { return Ok(None) };
+        let store = self.store.read().await;
+        Ok(Some(actions::lenses_for(&store, &path)))
+    }
+
+    async fn code_action(&self, params: CodeActionParams) -> LspResult<Option<CodeActionResponse>> {
+        let Ok(path) = params.text_document.uri.to_file_path() else { return Ok(None) };
+        let store = self.store.read().await;
+        Ok(Some(actions::actions_for(&store, &path, &params.range)))
+    }
+
+    async fn execute_command(&self, params: ExecuteCommandParams) -> LspResult<Option<serde_json::Value>> {
+        if params.command != "syscribe.suspectAccept" {
+            return Err(LspError::method_not_found());
+        }
+        let source = params.arguments.first().and_then(|v| v.as_str()).unwrap_or_default().to_string();
+        let target = params.arguments.get(1).and_then(|v| v.as_str()).unwrap_or_default().to_string();
+
+        let mut store = self.store.write().await;
+        let result = actions::execute_suspect_accept(&store, &source, &target);
+        match result {
+            Ok(()) => {
+                if let Err(e) = store.reload() {
+                    self.client.log_message(MessageType::ERROR, format!("model reload failed, keeping prior state: {e}")).await;
+                }
+                drop(store);
+                self.publish_for_all_open().await;
+                Ok(Some(serde_json::json!({"accepted": true})))
+            }
+            Err(e) => Err(LspError::invalid_params(e)),
+        }
     }
 }
 
