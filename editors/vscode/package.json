@@ -1,0 +1,48 @@
+{
+  "name": "syscribe-lsp",
+  "displayName": "Syscribe",
+  "description": "LSP client for the Syscribe model format — diagnostics, navigation, completion, and rename over `syscribe lsp`.",
+  "version": "0.1.0",
+  "publisher": "syscribe",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Syscribe",
+      "properties": {
+        "syscribe.serverPath": {
+          "type": "string",
+          "default": "syscribe",
+          "description": "Path to the syscribe binary (must be built with the `lsp` subcommand). Defaults to `syscribe` on PATH."
+        },
+        "syscribe.modelRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Model root passed as `-m <path>` (relative to the workspace folder). Leave empty to let the server auto-discover it (--model flag > SYSCRIBE_MODEL env > walk-up to the nearest .syscribe.toml > \"model\")."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}
