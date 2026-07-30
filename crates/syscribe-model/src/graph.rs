@@ -296,33 +296,17 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
             }
         };
 
-        // Collect a single connection entry's resolved endpoints, given the YAML
-        // field names that hold its endpoint chains.
+        // Collect a single connection entry's resolved endpoints. Chain
+        // extraction (which YAML keys count as endpoints) lives in
+        // `crate::connections::parse_entry`, shared with the diagram-editor's
+        // connection add/remove helpers so the two can never disagree on shape.
         let entry_endpoints = |entry: &serde_yaml::Value| -> Vec<NodeIndex> {
-            let serde_yaml::Value::Mapping(m) = entry else { return vec![] };
-            let mut chains: Vec<String> = Vec::new();
-            // binary forms
-            for key in ["from", "to", "left", "right"] {
-                if let Some(s) = m.get(serde_yaml::Value::from(key)).and_then(|v| v.as_str()) {
-                    chains.push(s.to_string());
-                }
-            }
-            // n-ary form: ends: [{ binds: <chain> }, …]
-            if let Some(serde_yaml::Value::Sequence(seq)) =
-                m.get(serde_yaml::Value::from("ends"))
-            {
-                for e in seq {
-                    if let serde_yaml::Value::Mapping(em) = e {
-                        if let Some(s) = em
-                            .get(serde_yaml::Value::from("binds"))
-                            .and_then(|v| v.as_str())
-                        {
-                            chains.push(s.to_string());
-                        }
-                    }
-                }
-            }
-            chains.iter().filter_map(|c| resolve_endpoint(c)).collect()
+            let Some(parsed) = crate::connections::parse_entry(entry) else { return vec![] };
+            parsed
+                .endpoints
+                .iter()
+                .filter_map(|ep| resolve_endpoint(&ep.chain))
+                .collect()
         };
 
         for (list, kind) in [

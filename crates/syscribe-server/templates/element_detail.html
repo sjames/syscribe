@@ -43,6 +43,11 @@
     <label>Documentation</label>
     <textarea id="edit-doc" rows="7">{{ doc_raw }}</textarea>
   </div>
+  <div class="edit-field">
+    <label>Other Fields (YAML)</label>
+    <textarea id="edit-extra" rows="8" spellcheck="false">{{ extra_yaml }}</textarea>
+  </div>
+  <div id="edit-error" class="edit-error" style="display:none"></div>
   <div class="edit-actions">
     <button class="btn-primary" onclick="saveElement()">Save</button>
     <button class="btn-cancel" onclick="hideEditForm()">Cancel</button>

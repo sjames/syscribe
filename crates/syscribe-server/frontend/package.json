@@ -1,0 +1,19 @@
+{
+  "name": "syscribe-diagram-editor",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Sprotty-based editable diagram client for syscribe-server (ADR-SYS-DE-001, REQ-TRS-DE-004). Dev-time build only; output is a single static JS file served by syscribe-server's rust_embed static pipeline.",
+  "scripts": {
+    "build": "tsc --noEmit -p . && node esbuild.config.mjs",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "sprotty": "^1.4.0",
+    "inversify": "^6.0.2",
+    "reflect-metadata": "^0.2.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "typescript": "^5.6.3"
+  }
+}

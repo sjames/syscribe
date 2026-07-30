@@ -3,7 +3,6 @@
 //! Exposes a curated set of read tools and guarded-write tools over an in-memory
 //! [`McpStore`], plus the format spec as resources and the authoring prompt.
 
-mod diff;
 mod store;
 mod util;
 mod variability;
@@ -37,7 +36,8 @@ use tokio::sync::RwLock;
 
 use syscribe_model::element::{ElementType, RawElement};
 use syscribe_model::graph::{children_of, EdgeKind};
-use syscribe_model::resolver::{is_stable_id, Resolver, STABLE_ID_KINDS};
+use syscribe_model::mutate::{plan_create, write_confined};
+use syscribe_model::resolver::{Resolver, STABLE_ID_KINDS};
 use syscribe_model::validator::validate_with_config;
 use syscribe_model::walker::walk_model;
 
@@ -49,7 +49,7 @@ use crate::spec;
 use syscribe_model::plantuml::render_plantuml;
 use syscribe_model::results::{FnVerdict, ResultsData};
 use store::McpStore;
-use util::{elem_detail, elem_summary, finding_json, json_to_yaml, rel_file, severity_str};
+use util::{elem_detail, elem_summary, finding_json, rel_file, severity_str};
 use write::{guarded_write, refuse};
 
 /// Schema for a free-form frontmatter map. `serde_json::Value` makes schemars
@@ -606,15 +606,6 @@ fn ref_entry(store: &McpStore, key: &str) -> Value {
     }
 }
 
-/// The built-in stable-id prefix for an id-identified element type (e.g. `REQ`).
-fn builtin_prefix(et: &ElementType) -> Option<&'static str> {
-    let label = type_label(et);
-    STABLE_ID_KINDS
-        .iter()
-        .find(|(ty, _, _)| *ty == label)
-        .map(|(_, p, _)| *p)
-}
-
 /// One field descriptor for `describe_type`.
 fn field_spec(name: &str, required: bool, ty: &str, domain: Option<&[&str]>) -> Value {
     let mut o = serde_json::Map::new();
@@ -722,117 +713,16 @@ fn explain_code(code: &str) -> Option<String> {
     None
 }
 
-/// Apply a frontmatter-only / body update to a single file, mirroring the
-/// server's `put_element` round-trip (preserve unknown keys + body).
+/// Apply a frontmatter-only / body update to a single file (preserve unknown
+/// keys + body). Delegates the merge/split/reassemble mechanics to the shared
+/// `syscribe_model::mutate::apply_update_fields` (also used by
+/// `syscribe-server`'s `PUT /api/elements/{*qname}` handler) — this function
+/// is now just the file I/O wrapper around it.
 fn apply_update(path: &Path, fields: Option<&Value>, doc: Option<&str>) -> Result<(), String> {
-    use syscribe_model::frontmatter::split_frontmatter;
     let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-    let (fm_opt, body) = split_frontmatter(&content);
-    let mut yaml_val: serde_yaml::Value = match fm_opt {
-        Some(s) => serde_yaml::from_str(s)
-            .unwrap_or_else(|_| serde_yaml::Value::Mapping(serde_yaml::Mapping::new())),
-        None => serde_yaml::Value::Mapping(serde_yaml::Mapping::new()),
-    };
-    if let (Some(Value::Object(o)), serde_yaml::Value::Mapping(map)) = (fields, &mut yaml_val) {
-        for (k, v) in o {
-            let key = serde_yaml::Value::String(k.clone());
-            if v.is_null() {
-                map.remove(&key);
-            } else {
-                map.insert(key, json_to_yaml(v));
-            }
-        }
-    }
-    let new_yaml = serde_yaml::to_string(&yaml_val).map_err(|e| e.to_string())?;
-    let final_body = doc.unwrap_or(body);
-    let new_content = format!("---\n{}---\n\n{}", new_yaml, final_body);
+    let new_content = syscribe_model::mutate::apply_update_fields(&content, fields, doc)
+        .map_err(|e| e.to_string())?;
     std::fs::write(path, new_content).map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-/// A planned new-element write: where to write it, the file content, and the
-/// reported id (auto-allocated for id-identified types, or the explicit one).
-struct CreatePlan {
-    rel: String,
-    content: String,
-    id: Value,
-}
-
-/// Validate inputs and build the file content for a `create` (single tool or a
-/// batch op). Returns `Err` on an already-existing or syntactically invalid qname.
-fn plan_create(
-    elements: &[RawElement],
-    qname_raw: &str,
-    type_name: &str,
-    fields: Option<&Value>,
-    doc: Option<&str>,
-) -> Result<CreatePlan, String> {
-    let qname = qname_raw.replace('/', "::");
-    if elements.iter().any(|e| e.qualified_name == qname) {
-        return Err("an element with this qualified name already exists".into());
-    }
-    if !mv::valid_qname(&qname) {
-        return Err("not a valid basic qualified name".into());
-    }
-    let etype: ElementType = serde_yaml::from_value(serde_yaml::Value::String(type_name.to_string()))
-        .unwrap_or(ElementType::Unknown);
-    let fields_obj = fields.and_then(|v| v.as_object());
-    let explicit_id = fields_obj
-        .and_then(|o| o.get("id"))
-        .and_then(|v| v.as_str())
-        .map(String::from);
-
-    let mut allocated_id: Option<String> = None;
-    if etype.is_id_identified() && explicit_id.is_none() {
-        if let Some(prefix) = builtin_prefix(&etype) {
-            let mut n = 1u32;
-            let id = loop {
-                let cand = format!("{prefix}-GEN-{n:03}");
-                let taken = elements
-                    .iter()
-                    .any(|e| e.frontmatter.id.as_deref() == Some(cand.as_str()));
-                if !taken && is_stable_id(&cand) {
-                    break cand;
-                }
-                n += 1;
-            };
-            allocated_id = Some(id);
-        }
-    }
-
-    let mut map = serde_yaml::Mapping::new();
-    map.insert("type".into(), serde_yaml::Value::String(type_name.to_string()));
-    if let Some(id) = &allocated_id {
-        map.insert("id".into(), serde_yaml::Value::String(id.clone()));
-    }
-    if let Some(o) = fields_obj {
-        for (k, v) in o {
-            map.insert(serde_yaml::Value::String(k.clone()), json_to_yaml(v));
-        }
-    }
-    let yaml = serde_yaml::to_string(&serde_yaml::Value::Mapping(map)).unwrap_or_default();
-    let content = format!("---\n{yaml}---\n\n{}\n", doc.unwrap_or(""));
-    let rel = format!("{}.md", qname.replace("::", "/"));
-    let id = allocated_id
-        .or(explicit_id)
-        .map(Value::String)
-        .unwrap_or(Value::Null);
-    Ok(CreatePlan { rel, content, id })
-}
-
-/// Write `content` to `<root>/<rel>`, confirming the resolved parent stays within
-/// the canonicalized model root (defeats `..`/symlink traversal).
-fn write_confined(root: &Path, rel: &str, content: &str) -> Result<(), String> {
-    let target = root.join(rel);
-    let canon_root = std::fs::canonicalize(root).map_err(|e| e.to_string())?;
-    if let Some(parent) = target.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-        let canon_parent = std::fs::canonicalize(parent).map_err(|e| e.to_string())?;
-        if !canon_parent.starts_with(&canon_root) {
-            return Err("resolved path escapes the model root".into());
-        }
-    }
-    std::fs::write(&target, content).map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -844,8 +734,9 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             let qname = op.qname.as_deref().ok_or("create op missing `qname`")?;
             let ty = op.r#type.as_deref().ok_or("create op missing `type`")?;
             let elems = walk_model(root).map_err(|e| e.to_string())?;
-            let plan = plan_create(&elems, qname, ty, op.fields.as_ref(), op.doc.as_deref())?;
-            write_confined(root, &plan.rel, &plan.content)
+            let plan = plan_create(&elems, qname, ty, op.fields.as_ref(), op.doc.as_deref())
+                .map_err(|e| e.to_string())?;
+            write_confined(root, &plan.rel, &plan.content).map_err(|e| e.to_string())
         }
         "update" => {
             let r = op.r#ref.as_deref().ok_or("update op missing `ref`")?;
@@ -2333,13 +2224,15 @@ impl SyscribeMcp {
             args.doc.as_deref(),
         ) {
             Ok(p) => p,
-            Err(e) => return ok(refuse(extra, &e)),
+            Err(e) => return ok(refuse(extra, &e.to_string())),
         };
         extra.insert("id".into(), plan.id.clone());
 
         let rel = plan.rel.clone();
         let content = plan.content.clone();
-        let apply = move |root: &Path| -> Result<(), String> { write_confined(root, &rel, &content) };
+        let apply = move |root: &Path| -> Result<(), String> {
+            write_confined(root, &rel, &content).map_err(|e| e.to_string())
+        };
 
         let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
         drop(store);

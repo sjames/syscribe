@@ -36,37 +36,19 @@ async fn main() -> Result<()> {
     let elements = walk_model(&model_root)?;
     info!("Loaded {} elements", elements.len());
 
-    let symbol_defs = load_symbol_defs(&model_root);
+    let symbol_defs = syscribe_server::state::load_symbol_defs(&model_root);
     let config = ValidateConfig::with_model_root(&model_root);
-    let (shared, reload_tx) = new_state(elements, symbol_defs, config);
+    let (shared, reload_tx) = new_state(elements, symbol_defs, config, model_root.clone());
 
     spawn_watcher(model_root.clone(), shared.clone(), reload_tx.clone());
 
     let app = build_router(shared, reload_tx);
 
     info!("Listening on http://{}", cli.bind);
-    println!("\n  Model browser: http://{}/", cli.bind);
-    println!("  Canvas:        http://{}/canvas\n", cli.bind);
+    println!("\n  Model browser: http://{}/\n", cli.bind);
     let listener = tokio::net::TcpListener::bind(&cli.bind).await?;
     axum::serve(listener, app).await?;
     Ok(())
-}
-
-/// Extract the `<defs>…</defs>` block from `_diagram-symbols.svg` in the
-/// model root. Returns an empty string if the file is absent or malformed.
-fn load_symbol_defs(model_root: &std::path::Path) -> String {
-    let path = model_root.join("_diagram-symbols.svg");
-    let Ok(content) = std::fs::read_to_string(&path) else {
-        tracing::warn!("_diagram-symbols.svg not found at {:?}", path);
-        return String::new();
-    };
-    // Extract the <defs>…</defs> block
-    if let (Some(start), Some(end)) = (content.find("<defs>"), content.find("</defs>")) {
-        content[start..end + 7].to_string() // 7 = len("</defs>")
-    } else {
-        tracing::warn!("No <defs> block found in _diagram-symbols.svg");
-        String::new()
-    }
 }
 
 fn spawn_watcher(model_root: PathBuf, state: SharedState, reload_tx: ReloadTx) {
@@ -93,30 +75,16 @@ fn spawn_watcher(model_root: PathBuf, state: SharedState, reload_tx: ReloadTx) {
                 std::thread::sleep(std::time::Duration::from_millis(500));
                 while rx.try_recv().is_ok() {}
 
-                // Reload model from disk
-                match walk_model(&model_root) {
-                    Ok(elements) => {
-                        let (graph, node_idx) =
-                            syscribe_model::graph::build_graph(&elements);
-                        let resolver =
-                            syscribe_model::resolver::Resolver::new(&elements);
-                        let symbol_defs = load_symbol_defs(&model_root);
-                        // Reload `[links]` too: editing `.syscribe.toml` should
-                        // toggle the detail-panel source-link (REQ-TRS-LINK-005).
-                        let config = ValidateConfig::with_model_root(&model_root);
-
-                        // Write into the shared store from inside the blocking thread
-                        let rt = tokio::runtime::Handle::current();
-                        rt.block_on(async {
-                            let mut store = state.write().await;
-                            store.elements = elements;
-                            store.graph = graph;
-                            store.node_idx = node_idx;
-                            store.resolver = resolver;
-                            store.symbol_defs = symbol_defs;
-                            store.config = config;
-                        });
-
+                // Reload model from disk via the one shared rebuild path
+                // (`ModelStore::reload`) — the same method the guarded-write
+                // mutation routes call after a successful commit.
+                let rt = tokio::runtime::Handle::current();
+                let result = rt.block_on(async {
+                    let mut store = state.write().await;
+                    store.reload()
+                });
+                match result {
+                    Ok(()) => {
                         let _ = reload_tx.send(r#"{"event":"reload"}"#.to_string());
                         tracing::info!("Model reloaded");
                     }
