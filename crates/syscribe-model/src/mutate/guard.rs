@@ -91,6 +91,32 @@ fn yaml_strings(v: &serde_yaml::Value) -> Vec<String> {
     }
 }
 
+/// `allocatedFrom`/`allocatedTo` references declared inside a `type: Allocation`
+/// element's `features:` list entries (`REQ-TRS-MCP-047`) — the conventional
+/// shape for grouping many allocation pairs under one `Allocation` element
+/// (see `model/Allocations/*.md`), distinct from the top-level scalar/list
+/// `allocatedFrom:`/`allocatedTo:` fields already scanned above.
+fn nested_allocation_refs(e: &RawElement) -> Vec<(&'static str, String)> {
+    let Some(features) = &e.frontmatter.features else { return Vec::new() };
+    let mut refs = Vec::new();
+    for feature in features {
+        let serde_yaml::Value::Mapping(m) = feature else { continue };
+        let is_allocation = m
+            .get(serde_yaml::Value::from("type"))
+            .and_then(|v| v.as_str())
+            == Some("Allocation");
+        if !is_allocation {
+            continue;
+        }
+        for field in ["allocatedFrom", "allocatedTo"] {
+            if let Some(s) = m.get(serde_yaml::Value::from(field)).and_then(|v| v.as_str()) {
+                refs.push((field, s.to_string()));
+            }
+        }
+    }
+    refs
+}
+
 /// Every cross-reference string an element holds, paired with its field name.
 pub fn element_ref_strings(e: &RawElement) -> Vec<(&'static str, String)> {
     let fm = &e.frontmatter;
@@ -120,6 +146,7 @@ pub fn element_ref_strings(e: &RawElement) -> Vec<(&'static str, String)> {
             }
         }
     }
+    refs.extend(nested_allocation_refs(e));
     refs
 }
 
@@ -308,4 +335,100 @@ where
     }
     outcome.written = true;
     outcome
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::element::RawFrontmatter;
+
+    fn elem(qname: &str, fm: RawFrontmatter) -> RawElement {
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: format!("/model/{}.md", qname.replace("::", "/")),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None,
+            derived: Default::default(),
+            derive_findings: Vec::new(),
+        }
+    }
+
+    fn allocation_elem(qname: &str, allocated_from: &str, allocated_to: &str) -> RawElement {
+        let feature: serde_yaml::Value = serde_yaml::from_str(&format!(
+            "name: someAllocation\ntype: Allocation\nallocatedFrom: {allocated_from}\nallocatedTo: {allocated_to}\n"
+        ))
+        .unwrap();
+        elem(
+            qname,
+            RawFrontmatter {
+                features: Some(vec![feature]),
+                ..Default::default()
+            },
+        )
+    }
+
+    #[test]
+    fn nested_allocation_refs_extracted_from_allocation_typed_feature() {
+        let e = allocation_elem("Allocations::Foo", "Requirements::Req1", "UAV::Target");
+        let refs = nested_allocation_refs(&e);
+        assert_eq!(
+            refs,
+            vec![
+                ("allocatedFrom", "Requirements::Req1".to_string()),
+                ("allocatedTo", "UAV::Target".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn nested_allocation_refs_ignored_for_non_allocation_feature() {
+        let feature: serde_yaml::Value =
+            serde_yaml::from_str("name: port\ntype: Port\nallocatedTo: UAV::Target\n").unwrap();
+        let e = elem(
+            "Foo::Bar",
+            RawFrontmatter {
+                features: Some(vec![feature]),
+                ..Default::default()
+            },
+        );
+        assert!(nested_allocation_refs(&e).is_empty());
+    }
+
+    /// REQ-TRS-MCP-047 / TC-TRS-MCP-048, scenario 1: deleting an element
+    /// referenced only via a nested allocation entry is blocked.
+    #[test]
+    fn referrers_sees_nested_allocation_reference() {
+        let target = elem("UAV::Target", RawFrontmatter::default());
+        let allocation = allocation_elem("Allocations::Foo", "Requirements::Req1", "UAV::Target");
+        let elements = vec![target, allocation];
+
+        let refs = referrers(&elements, "UAV::Target");
+        assert_eq!(refs.len(), 1);
+        assert_eq!(refs[0].0, "Allocations::Foo");
+    }
+
+    /// TC-TRS-MCP-048, scenario 3: a nested `allocatedTo` pointing at a
+    /// nonexistent qname raises an EREF finding, same as a top-level one.
+    #[test]
+    fn ref_errors_flags_dangling_nested_allocation_reference() {
+        let allocation = allocation_elem("Allocations::Foo", "Requirements::Req1", "Nonexistent::Ghost");
+        let elements = vec![allocation];
+
+        let errors = ref_errors(&elements, Path::new("/model"));
+        assert!(
+            errors.iter().any(|(code, _, msg)| code == "EREF"
+                && msg.contains("allocatedTo")
+                && msg.contains("Nonexistent::Ghost")),
+            "expected an EREF for the dangling nested allocatedTo, got {errors:?}"
+        );
+    }
+
+    #[test]
+    fn referrers_unaffected_by_unrelated_elements() {
+        let target = elem("UAV::Target", RawFrontmatter::default());
+        let unrelated = elem("Other::Thing", RawFrontmatter::default());
+        let elements = vec![target, unrelated];
+        assert!(referrers(&elements, "UAV::Target").is_empty());
+    }
 }
