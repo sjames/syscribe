@@ -6,3 +6,11 @@ site/
 
 # Local Claude Code plan scratch files (ephemeral, never committed)
 .claude/plans/
+
+# WASM plugin example/fixture build artifacts (ADR-SYS-PLUGIN-001) — the
+# compiled fixtures used by tests are checked in separately under
+# crates/syscribe-model/tests/fixtures/plugins/, not here.
+examples/wasm-plugins/*/node_modules/
+examples/wasm-plugins/*/dist/
+crates/syscribe-model/tests/fixtures/plugins-src/*/node_modules/
+crates/syscribe-model/tests/fixtures/plugins-src/*/dist/

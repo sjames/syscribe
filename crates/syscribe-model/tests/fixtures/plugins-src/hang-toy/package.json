@@ -1,0 +1,13 @@
+{
+  "name": "hang-toy-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Test-only fixture: a plugin whose parse() never returns, used to prove timeout_ms/fuel actually interrupt a hung plugin (ADR-SYS-PLUGIN-001, REQ-TRS-PLUGIN-003). Not an authoring example — see examples/wasm-plugins/sysmlv2-toy/ for that.",
+  "scripts": {
+    "build": "node esbuild.js && extism-js dist/index.js -i src/plugin.d.ts -o dist/plugin.wasm"
+  },
+  "devDependencies": {
+    "@extism/js-pdk": "1.1.1",
+    "esbuild": "^0.24.0"
+  }
+}

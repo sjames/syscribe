@@ -19,3 +19,12 @@ quick-xml = { workspace = true }
 batsat = "=0.6.0"
 # Content-baseline digest for suspect-link detection (§SuspectLinks; MIT/Apache, pure Rust).
 blake3 = "1"
+# Pinned: WASM plugin host runtime for foreign-format ingestion (ADR-SYS-PLUGIN-001).
+# Exact-pinned like rhai/batsat — a wasmtime-major-version bump inside extism is an
+# ABI-relevant surprise, not a routine patch bump.
+extism = { version = "=1.30.0", optional = true }
+
+[features]
+# Off by default so `cargo check -p syscribe-model` stays free of the wasmtime
+# dependency tree; syscribe/syscribe-server enable it by default (ADR-SYS-PLUGIN-001).
+wasm-plugins = ["dep:extism"]

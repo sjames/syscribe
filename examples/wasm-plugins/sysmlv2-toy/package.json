@@ -1,0 +1,14 @@
+{
+  "name": "sysmlv2-toy-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Toy SysMLv2-textual-subset parser — Syscribe WASM foreign-format plugin example (ADR-SYS-PLUGIN-001).",
+  "scripts": {
+    "build": "node esbuild.js && extism-js dist/index.js -i src/plugin.d.ts -o dist/plugin.wasm"
+  },
+  "devDependencies": {
+    "@extism/js-pdk": "1.1.1",
+    "esbuild": "^0.24.0",
+    "typescript": "^5.5.0"
+  }
+}

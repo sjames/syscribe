@@ -14,6 +14,7 @@ pub mod graph;
 pub mod matchers;
 pub mod metrics;
 pub mod mutate;
+pub mod plugins;
 pub mod projection;
 pub mod remote;
 pub mod plantuml;

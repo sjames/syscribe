@@ -710,12 +710,18 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
 pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) -> ValidationResult {
     let mut findings: Vec<Finding> = Vec::new();
 
-    // Collect derive pass findings (E500, E501, E502) stored by the derive pass in walker.
+    // Collect derive pass findings (E500, E501, E502, stored by the derive pass
+    // in walker) and WASM foreign-format plugin findings (E530/E532/W530/W532-534,
+    // stored by `plugins::apply_foreign_plugins` on the owning package — §Plugins,
+    // ADR-SYS-PLUGIN-001). Both reuse the same element-carried finding channel.
     for elem in elements {
         for (code, file, message) in &elem.derive_findings {
             let sev = if code.starts_with('E') { Severity::Error } else { Severity::Warning };
             let static_code: &'static str = match code.as_str() {
                 "E500" => "E500", "E501" => "E501", "E502" => "E502",
+                "E530" => "E530", "E532" => "E532",
+                "W530" => "W530", "W532" => "W532",
+                "W533" => "W533", "W534" => "W534",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });
@@ -3524,6 +3530,27 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         &format!("duplicate id '{}' (first seen in {})", id, prev_file),
                     ));
                 }
+            }
+        }
+    }
+
+    // E108: duplicate qualified name. Origin-agnostic — catches two native files
+    // that happen to derive the same qname just as readily as a WASM plugin
+    // (§Plugins, ADR-SYS-PLUGIN-001) re-emitting one qname twice or colliding
+    // with a native element. `Resolver::new` otherwise silently keeps only the
+    // last-inserted element for a given qname with no diagnostic (REQ-TRS-PLUGIN-004).
+    {
+        let mut seen_qnames: HashMap<&str, &str> = HashMap::new();
+        for elem in elements {
+            if let Some(prev_file) = seen_qnames.insert(elem.qualified_name.as_str(), elem.file_path.as_str()) {
+                findings.push(error(
+                    "E108",
+                    &elem.file_path,
+                    &format!(
+                        "duplicate qualified name '{}' (first seen in {})",
+                        elem.qualified_name, prev_file
+                    ),
+                ));
             }
         }
     }
@@ -7183,6 +7210,67 @@ mod custom_field_shape_tests {
         let inner = serde_yaml::Value::Sequence(vec![scalar("x")]);
         let v = serde_yaml::Value::Sequence(vec![scalar("ok"), inner]);
         assert!(!is_custom_field_shape_ok(&v));
+    }
+}
+
+#[cfg(test)]
+mod e108_duplicate_qname_tests {
+    use super::*;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, file_path: &str, yaml: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    #[test]
+    fn two_elements_sharing_a_qname_is_e108() {
+        let elems = vec![
+            make_elem("Pkg::Foo", "Pkg/Foo.md", "type: PartDef\nname: Foo\n"),
+            make_elem("Pkg::Foo", "Pkg/FooAgain.md", "type: PartDef\nname: FooAgain\n"),
+        ];
+        let result = validate(&elems);
+        let hits: Vec<_> = result.findings.iter().filter(|f| f.code == "E108").collect();
+        assert_eq!(hits.len(), 1, "expected exactly one E108, got: {hits:#?}");
+        assert!(hits[0].message.contains("Pkg::Foo"));
+        assert!(
+            hits[0].message.contains("Pkg/Foo.md"),
+            "should name the first-seen file: {}",
+            hits[0].message
+        );
+    }
+
+    #[test]
+    fn three_way_collision_is_reported_per_extra_occurrence() {
+        // First occurrence establishes the qname; each later one is its own
+        // finding — origin-agnostic, so this also covers a plugin re-emitting a
+        // qname twice (REQ-TRS-PLUGIN-004).
+        let elems = vec![
+            make_elem("Pkg::Foo", "Pkg/A.md", "type: PartDef\nname: A\n"),
+            make_elem("Pkg::Foo", "Pkg/B.md", "type: PartDef\nname: B\n"),
+            make_elem("Pkg::Foo", "Pkg/C.md", "type: PartDef\nname: C\n"),
+        ];
+        let result = validate(&elems);
+        let hits: Vec<_> = result.findings.iter().filter(|f| f.code == "E108").collect();
+        assert_eq!(hits.len(), 2, "two later duplicates of the same qname, got: {hits:#?}");
+    }
+
+    #[test]
+    fn distinct_qnames_produce_no_e108() {
+        let elems = vec![
+            make_elem("Pkg::Foo", "Pkg/Foo.md", "type: PartDef\nname: Foo\n"),
+            make_elem("Pkg::Bar", "Pkg/Bar.md", "type: PartDef\nname: Bar\n"),
+        ];
+        let result = validate(&elems);
+        assert!(result.findings.iter().all(|f| f.code != "E108"));
     }
 }
 

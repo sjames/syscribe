@@ -8,7 +8,7 @@ name = "syscribe"
 path = "src/main.rs"
 
 [dependencies]
-syscribe-model = { path = "../syscribe-model" }
+syscribe-model = { path = "../syscribe-model", features = ["wasm-plugins"] }
 serde_yaml = { workspace = true }
 quick-xml = { workspace = true }
 regex = { workspace = true }
