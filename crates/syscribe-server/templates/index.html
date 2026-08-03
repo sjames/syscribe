@@ -19,26 +19,27 @@
     <div id="canvas-tabs-inner"></div>
   </div>
 
-  <div id="canvas-viewport">
-    <div id="canvas-world">
-      <div id="canvas-diagram"></div>
+  <!-- Mermaid diagram view: plain scrollable container, no custom pan/zoom
+       (native browser scrolling only). activateTab() in base.html injects
+       the fetched /ui/diagram/{id} HTML here and calls mermaid.run(...). -->
+  <div id="mermaid-view"></div>
+
+  <!-- Sprotty-based editable diagram (ADR-SYS-DE-001, REQ-TRS-DE-004).
+       Persistent host div — never innerHTML'd — shown/hidden by
+       activateTab() in base.html depending on the active tab's diagram
+       kind. Mermaid-kind diagrams keep using #mermaid-view above. -->
+  <div id="sprotty-viewport">
+    <div id="sprotty-host"></div>
+
+    <div class="sprotty-toolbar">
+      <button class="canvas-btn" onclick="window.DiagramEditor && window.DiagramEditor.addNode()" title="Add node">+</button>
+      <button class="canvas-btn" onclick="window.DiagramEditor && window.DiagramEditor.deleteSelected()" title="Delete selected node (Del)">&#x2715;</button>
+      <button class="canvas-btn" id="connect-mode-btn"
+              onclick="window.DiagramEditor && (this.classList.toggle('active', window.DiagramEditor.toggleConnectMode()))"
+              title="Connect mode: click a source shape, then a target shape">&#x2194;</button>
     </div>
 
-    <!-- Shown when no diagram is open -->
-    <div id="canvas-hint">
-      <div class="hint-main">No diagram open</div>
-      <div class="hint-sub">Select a diagram &#x25C8; from the model browser</div>
-    </div>
-
-    <!-- Zoom controls -->
-    <div class="canvas-controls">
-      <button class="canvas-btn" onclick="zoomIn()" title="Zoom in (scroll up)">+</button>
-      <button class="canvas-btn" onclick="zoomOut()" title="Zoom out (scroll down)">&minus;</button>
-      <button class="canvas-btn separator" onclick="fitDiagramToCanvas()" title="Fit to window (F)" style="font-size:13px">&#x25A1;</button>
-      <button class="canvas-btn" onclick="resetView()" title="Reset view" style="font-size:13px">&#x21BA;</button>
-    </div>
-
-    <div id="zoom-label">100%</div>
+    <div id="sprotty-toast"></div>
   </div>
 
 </div>

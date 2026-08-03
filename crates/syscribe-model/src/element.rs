@@ -553,6 +553,13 @@ pub struct RawFrontmatter {
     /// `{repo, qname, as}` mounting a sub-tree from a peer repo declared in
     /// `[repos]`. Untyped here; the validator reads the `repo`/`qname`/`as` keys.
     pub repo_imports: Option<Vec<serde_yaml::Value>>,
+    /// REQ-TRS-PLUGIN-001 — marks this package's subtree as owned by a WASM
+    /// foreign-format plugin. Value is the `[plugins.<alias>]` key in
+    /// `.syscribe.toml`. Only meaningful on an `_index.md` (a `Package`); every
+    /// other file under that directory is excluded from native parsing and its
+    /// elements are supplied instead by `crate::plugins::apply_foreign_plugins`.
+    #[serde(rename = "foreignFormat")]
+    pub foreign_format: Option<String>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
     pub return_type: Option<String>,

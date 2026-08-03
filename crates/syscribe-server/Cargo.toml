@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 askama = { workspace = true }
-syscribe-model = { path = "../syscribe-model" }
+syscribe-model = { path = "../syscribe-model", features = ["wasm-plugins"] }
 serde = { workspace = true }
 serde_yaml = { workspace = true }
 serde_json = { workspace = true }

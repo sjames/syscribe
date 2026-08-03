@@ -147,6 +147,9 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
 
     explode_fmea_entries(&mut elements);
     explode_tara_entries(&mut elements);
+    // WASM foreign-format plugins (ADR-SYS-PLUGIN-001): runs before derive_pass
+    // so a `derive:` block can reference plugin-emitted elements uniformly.
+    crate::plugins::apply_foreign_plugins(&mut elements, model_root);
     // Derive pass: evaluate `derive:` blocks; findings stored in each element's derive_findings.
     crate::derive::derive_pass(&mut elements);
     Ok(elements)

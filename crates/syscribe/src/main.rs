@@ -29,6 +29,7 @@ mod bcov;
 mod impact;
 mod n2;
 mod plantuml;
+mod plugins;
 mod query;
 mod render;
 mod reqif;
@@ -1321,6 +1322,31 @@ fn main() {
                     _ => {
                         repos::cmd_list(&vcfg, json);
                         0
+                    }
+                };
+                std::process::exit(code);
+            }
+            "plugins" => {
+                // WASM foreign-format plugins (ADR-SYS-PLUGIN-001). Execution
+                // itself is automatic (inside walk_model); this is the debug
+                // surface — `plugins run <alias> --dry-run` prints the raw
+                // envelope without merging it into the graph.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let sub = rest.first().map(|s| s.as_str());
+                let code = match sub {
+                    Some("run") => {
+                        let alias = rest.get(1).filter(|a| !a.starts_with("--")).map(|s| s.as_str());
+                        match alias {
+                            Some(alias) => plugins::cmd_run(model_root, &elems, alias),
+                            None => {
+                                eprintln!("Usage: syscribe --model <root> plugins run <alias> --dry-run");
+                                2
+                            }
+                        }
+                    }
+                    _ => {
+                        eprintln!("Usage: syscribe --model <root> plugins run <alias> --dry-run");
+                        2
                     }
                 };
                 std::process::exit(code);

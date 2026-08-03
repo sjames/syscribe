@@ -1,37 +1,8 @@
 use std::collections::HashMap;
-use serde::Deserialize;
 
+use crate::diagram::{default_size, parse_edges, parse_layout, parse_shapes};
 use crate::element::RawElement;
 use crate::resolver::Resolver;
-
-// ---------------------------------------------------------------------------
-// Data structures for deserialization from serde_yaml::Value
-// ---------------------------------------------------------------------------
-
-#[derive(Debug, Deserialize)]
-struct DiagramShape {
-    #[serde(rename = "ref")]
-    element_ref: String,
-    kind: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct DiagramEdge {
-    #[serde(rename = "ref")]
-    #[allow(dead_code)]
-    element_ref: Option<String>,
-    source: String,
-    target: String,
-    kind: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct ShapeLayout {
-    x: f64,
-    y: f64,
-    w: Option<f64>,
-    h: Option<f64>,
-}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -53,17 +24,6 @@ fn truncate_str(s: &str, max_chars: usize) -> String {
         format!("{}\u{2026}", collected)
     } else {
         collected
-    }
-}
-
-/// Default (w, h) per element kind.
-fn default_size(kind: &str) -> (f64, f64) {
-    match kind {
-        "RequirementDef" => (240.0, 56.0),
-        "Requirement" => (240.0, 70.0),
-        "TestCase" => (200.0, 56.0),
-        "PartDef" | "Part" => (160.0, 46.0),
-        _ => (200.0, 50.0),
     }
 }
 
@@ -280,25 +240,10 @@ pub fn render_diagram(
     // Require a layout block
     let layout_val = element.frontmatter.layout.as_ref()?;
 
-    // Parse shapes
-    let shapes: HashMap<String, DiagramShape> = element
-        .frontmatter
-        .shapes
-        .as_ref()
-        .and_then(|v| serde_yaml::from_value(v.clone()).ok())
-        .unwrap_or_default();
-
-    // Parse edges
-    let edges: HashMap<String, DiagramEdge> = element
-        .frontmatter
-        .edges
-        .as_ref()
-        .and_then(|v| serde_yaml::from_value(v.clone()).ok())
-        .unwrap_or_default();
-
-    // Parse layout
-    let layout: HashMap<String, ShapeLayout> =
-        serde_yaml::from_value(layout_val.clone()).ok().unwrap_or_default();
+    // Parse shapes / edges / layout via the shared syscribe_model::diagram helpers.
+    let shapes = parse_shapes(element.frontmatter.shapes.as_ref());
+    let edges = parse_edges(element.frontmatter.edges.as_ref());
+    let layout = parse_layout(Some(layout_val));
 
     // Build element lookup by qualified name
     let elem_by_qname: HashMap<&str, &RawElement> = elements

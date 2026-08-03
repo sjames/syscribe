@@ -4,6 +4,7 @@ use syscribe_model::validator::{self, Severity};
 use crate::state::SharedState;
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FindingDto {
     pub code: &'static str,
     pub severity: &'static str,
@@ -13,12 +14,14 @@ pub struct FindingDto {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CoverageEntry {
     pub req_id: String,
     pub test_case_ids: Vec<String>,
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ValidationResponse {
     pub element_count: usize,
     pub error_count: usize,

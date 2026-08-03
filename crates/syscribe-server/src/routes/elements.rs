@@ -15,11 +15,28 @@ pub struct ElementsQuery {
 
 /// Summary view for list responses.
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ElementSummary {
     pub qualified_name: String,
     pub name: Option<String>,
     pub element_type: Option<String>,
     pub file_path: String,
+}
+
+/// Detail view for `GET /api/elements/{*qname}` — replaces the previous
+/// hand-built `serde_json::json!{}` literal so this route uses the same
+/// typed-struct + blanket-derive convention as every other JSON route
+/// (`ElementSummary` above, `ChildSummary`/`ConnectionsResponse` in
+/// `api_graph.rs`, the `validation.rs` DTOs).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ElementDetail {
+    pub qualified_name: String,
+    pub file_path: String,
+    #[serde(rename = "type")]
+    pub element_type: Option<String>,
+    pub name: Option<String>,
+    pub doc: String,
 }
 
 fn to_summary(e: &RawElement) -> ElementSummary {
@@ -59,7 +76,7 @@ pub async fn list_elements(
 pub async fn get_element(
     State(state): State<SharedState>,
     Path(qname): Path<String>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<ElementDetail>, StatusCode> {
     let store = state.read().await;
     // Path segments use `/` — convert to `::`
     let qname_norm = qname.replace('/', "::");
@@ -69,11 +86,11 @@ pub async fn get_element(
         .find(|e| e.qualified_name == qname_norm)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    Ok(Json(serde_json::json!({
-        "qualifiedName": element.qualified_name,
-        "filePath": element.file_path,
-        "type": element.frontmatter.element_type.as_ref().map(|t| format!("{:?}", t)),
-        "name": element.frontmatter.name,
-        "doc": element.doc,
-    })))
+    Ok(Json(ElementDetail {
+        qualified_name: element.qualified_name.clone(),
+        file_path: element.file_path.clone(),
+        element_type: element.frontmatter.element_type.as_ref().map(|t| format!("{:?}", t)),
+        name: element.frontmatter.name.clone(),
+        doc: element.doc.clone(),
+    }))
 }

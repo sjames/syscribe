@@ -63,6 +63,7 @@ nav:
       - Variability & Product Lines: model-guide/variability.md
       - Build System Integration: model-guide/build-export.md
       - Multi-Repository Composition: model-guide/multi-repo.md
+      - WASM Foreign-Format Plugins: model-guide/wasm-plugins.md
       - MagicGrid: model-guide/magicgrid.md
       - Custom Fields: model-guide/custom-fields.md
       - LLM-Assisted Modeling: model-guide/llm-workflow.md

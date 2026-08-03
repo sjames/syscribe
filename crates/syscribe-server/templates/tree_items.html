@@ -36,7 +36,8 @@
    href="#"
    data-diagram-id="{{ item.url_path }}"
    data-diagram-name="{{ item.display_name }}"
-   onclick="openDiagram(this.dataset.diagramId, this.dataset.diagramName); setActiveTreeItem(this); return false;">
+   data-diagram-kind="{{ item.diagram_kind }}"
+   onclick="openDiagram(this.dataset.diagramId, this.dataset.diagramName, this.dataset.diagramKind); setActiveTreeItem(this); return false;">
   <span class="tree-item-icon">&#x25C8;</span>
   {{ item.display_name }}
   <span class="type-badge">{{ item.element_type }}</span>

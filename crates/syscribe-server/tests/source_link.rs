@@ -31,7 +31,7 @@ async fn detail_html(model_rel: &str, qname: &str) -> String {
     let model_root = fixture(model_rel);
     let elements = walk_model(&model_root).expect("walk fixture model");
     let config = ValidateConfig::with_model_root(&model_root);
-    let (shared, reload_tx) = new_state(elements, String::new(), config);
+    let (shared, reload_tx) = new_state(elements, String::new(), config, model_root.clone());
     let app = build_router(shared, reload_tx);
 
     let uri = format!("/ui/detail/{}", qname);
