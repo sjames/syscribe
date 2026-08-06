@@ -78,6 +78,91 @@ fn nested_sysml_packages_derive_a_double_colon_qname() {
 }
 
 #[test]
+fn part_def_and_nested_part_usage_map_with_supertype_and_typed_by() {
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Vehicle.sysml",
+        "package Vehicle {\n\
+         part def Engine :> PowerSource {\n\
+         part cylinder1 : Cylinder;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+
+    let engine = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Vehicle::Engine")
+        .unwrap_or_else(|| {
+            panic!(
+                "expected SysML2Legacy::Vehicle::Engine, got: {:#?}",
+                elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(engine.frontmatter.element_type, Some(ElementType::PartDef));
+    assert!(engine.file_path.ends_with("Vehicle.sysml"));
+    assert_eq!(
+        engine.frontmatter.supertype.as_ref().and_then(|v| v.as_str()),
+        Some("PowerSource")
+    );
+
+    let cylinder = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Vehicle::Engine::cylinder1")
+        .unwrap_or_else(|| {
+            panic!(
+                "expected nested part usage cylinder1, got: {:#?}",
+                elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(cylinder.frontmatter.element_type, Some(ElementType::Part));
+    assert_eq!(
+        cylinder.frontmatter.typed_by.as_ref().and_then(|v| v.as_str()),
+        Some("Cylinder")
+    );
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
+fn variation_part_def_carries_is_variation() {
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Config.sysml",
+        "package Config {\n variation part def RotorConfig;\n }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+
+    let rotor = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Config::RotorConfig")
+        .unwrap_or_else(|| {
+            panic!(
+                "expected RotorConfig, got: {:#?}",
+                elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(rotor.frontmatter.is_variation, Some(true));
+}
+
+#[test]
 fn two_files_declaring_the_same_package_merge_into_one_namespace() {
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");

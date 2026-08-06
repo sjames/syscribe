@@ -139,43 +139,159 @@ fn ident_name(id: &sysml_v2_parser::Identification) -> Option<String> {
     id.name.clone().or_else(|| id.short_name.clone())
 }
 
-/// Walk the merged package tree, emitting `RawElement`s under `qname`.
-fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>) {
-    for (_elem, _file_path) in &merged.body {
-        // Element-kind mapping (Part, Attribute, Port, ...) lands in later commits.
-    }
-    for (name, child) in &merged.children {
-        let child_qname = format!("{qname}::{name}");
-        let file_path = child.declared_in.as_deref().unwrap_or(qname);
-        out.push(synth(&child_qname, file_path, ElementType::Package, name, None, None));
-        convert_merged(child, &child_qname, out);
-    }
+/// Fields common to every synthesized SysMLv2-originated `RawElement`.
+/// `supertype` carries a Def's `:>` specialization target; `typed_by` carries a
+/// Usage's `:` typing target — kept distinct exactly like hand-authored
+/// frontmatter does. `is_variant`/`variant_of` are `REQ-TRS-SYSMLV2-007`'s
+/// "variation/variant membership" recognition.
+#[derive(Default)]
+struct Spec {
+    supertype: Option<String>,
+    typed_by: Option<String>,
+    is_variation: Option<bool>,
+    is_variant: Option<bool>,
+    variant_of: Option<String>,
 }
 
-/// Build one synthesized `RawElement`. `supertype` carries a Def's `:>`
-/// specialization target; `typed_by` carries a Usage's `:` typing target — the two
-/// are kept distinct exactly like hand-authored frontmatter does.
-fn synth(
+fn push_synth(
+    out: &mut Vec<RawElement>,
     qname: &str,
     file_path: &str,
     ty: ElementType,
     name: &str,
-    supertype: Option<String>,
-    typed_by: Option<String>,
-) -> RawElement {
-    RawElement {
+    spec: Spec,
+) {
+    out.push(RawElement {
         qualified_name: qname.to_string(),
         file_path: file_path.to_string(),
         frontmatter: RawFrontmatter {
             element_type: Some(ty),
             name: Some(name.to_string()),
-            supertype: supertype.map(serde_yaml::Value::String),
-            typed_by: typed_by.map(serde_yaml::Value::String),
+            supertype: spec.supertype.map(serde_yaml::Value::String),
+            typed_by: spec.typed_by.map(serde_yaml::Value::String),
+            is_variation: spec.is_variation,
+            is_variant: spec.is_variant,
+            variant_of: spec.variant_of,
             ..Default::default()
         },
         doc: String::new(),
         parse_issue: None,
         derived: Default::default(),
         derive_findings: Vec::new(),
+    });
+}
+
+/// Walk the merged package tree, emitting `RawElement`s under `qname`.
+fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>) {
+    for (elem, file_path) in &merged.body {
+        convert_package_body_element(elem, qname, file_path, out);
     }
+    for (name, child) in &merged.children {
+        let child_qname = format!("{qname}::{name}");
+        let file_path = child.declared_in.as_deref().unwrap_or(qname);
+        push_synth(out, &child_qname, file_path, ElementType::Package, name, Spec::default());
+        convert_merged(child, &child_qname, out);
+    }
+}
+
+/// Dispatch one top-level (package-body) member. Only the kinds in
+/// `REQ-TRS-SYSMLV2-007`'s fixed set are mapped; everything else is silently
+/// invisible (parse-broad, map-narrow).
+fn convert_package_body_element(
+    elem: &sysml_v2_parser::PackageBodyElement,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    use sysml_v2_parser::PackageBodyElement as E;
+    match elem {
+        E::PartDef(node) => convert_part_def(&node.value, qname, file_path, out),
+        E::PartUsage(node) => convert_part_usage(&node.value, qname, file_path, out),
+        _ => {} // remaining fixed-set kinds land in a later commit
+    }
+}
+
+fn convert_part_def(
+    part: &sysml_v2_parser::PartDef,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    let Some(name) = ident_name(&part.identification) else {
+        return; // anonymous part def: no identity to qname against
+    };
+    let part_qname = format!("{qname}::{name}");
+    let spec = Spec {
+        supertype: part.specializes.as_ref().map(|t| t.value.target_display()),
+        is_variation: is_variation_prefix(&part.definition_prefix),
+        ..Default::default()
+    };
+    push_synth(out, &part_qname, file_path, ElementType::PartDef, &name, spec);
+    if let sysml_v2_parser::PartDefBody::Brace { elements } = &part.body {
+        for node in elements {
+            convert_part_def_body_element(&node.value, &part_qname, file_path, out);
+        }
+    }
+}
+
+fn convert_part_usage(
+    part: &sysml_v2_parser::PartUsage,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    if part.name.is_empty() {
+        return; // anonymous usage: no identity to qname against
+    }
+    let part_qname = format!("{qname}::{}", part.name);
+    let spec = Spec {
+        typed_by: (!part.type_name.is_empty()).then(|| part.type_name.clone()),
+        is_variation: is_variation_prefix(&part.usage_prefix),
+        ..Default::default()
+    };
+    push_synth(out, &part_qname, file_path, ElementType::Part, &part.name, spec);
+    if let sysml_v2_parser::PartUsageBody::Brace { elements } = &part.body {
+        for node in elements {
+            convert_part_usage_body_element(&node.value, &part_qname, file_path, out);
+        }
+    }
+}
+
+/// Dispatch one member of a `part def` body. Recurses into nested
+/// `PartDef`/`PartUsage` so a realistic containment tree (a part containing
+/// attributes/ports/nested parts) is fully walked, not just one level deep.
+fn convert_part_def_body_element(
+    elem: &sysml_v2_parser::PartDefBodyElement,
+    part_qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    use sysml_v2_parser::PartDefBodyElement as E;
+    match elem {
+        E::PartDef(node) => convert_part_def(&node.value, part_qname, file_path, out),
+        E::PartUsage(node) => convert_part_usage(&node.value, part_qname, file_path, out),
+        _ => {} // remaining fixed-set kinds land in a later commit
+    }
+}
+
+/// Dispatch one member of a `part` usage body. See
+/// [`convert_part_def_body_element`]. Note: unlike `PartDefBodyElement`, the
+/// parser's `PartUsageBodyElement` has no nested-`PartDef` variant (only a
+/// nested `PartUsage`) — a `part def` cannot be declared directly inside a
+/// `part` usage body per this grammar.
+fn convert_part_usage_body_element(
+    elem: &sysml_v2_parser::PartUsageBodyElement,
+    part_qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    use sysml_v2_parser::PartUsageBodyElement as E;
+    match elem {
+        E::PartUsage(node) => convert_part_usage(&node.value, part_qname, file_path, out),
+        _ => {} // remaining fixed-set kinds land in a later commit
+    }
+}
+
+fn is_variation_prefix(prefix: &Option<sysml_v2_parser::ast::DefinitionPrefix>) -> Option<bool> {
+    matches!(prefix, Some(sysml_v2_parser::ast::DefinitionPrefix::Variation)).then_some(true)
 }
