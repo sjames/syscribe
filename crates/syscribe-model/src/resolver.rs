@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::RwLock;
 use crate::element::{ElementType, RawElement};
 
@@ -551,6 +551,57 @@ impl Resolver {
                 .as_deref()
                 .map(is_req_id)
                 .unwrap_or(false)
+    }
+
+    /// True if `elem` is a legal `verifies:` target (`E104`): a native
+    /// Requirement (the original, unchanged rule — untouched by anything
+    /// below), or an element that both (a) is one of the SysMLv2 submodel's
+    /// `REQ-TRS-SYSMLV2-007` fixed mapped element kinds and (b) was actually
+    /// synthesized by SysMLv2 ingestion, per `sysmlv2_qnames`
+    /// (`REQ-TRS-SYSMLV2-004`) — a `TestCase` can verify a SysMLv2-authored
+    /// Part/Attribute/Port/Connection/Interface/Item/Allocation/Requirement
+    /// exactly like it verifies a native Requirement today.
+    ///
+    /// `RawElement` itself carries no origin marker — SysMLv2-synthesized and
+    /// hand-authored elements stay deliberately indistinguishable once in the
+    /// graph, the same origin-agnostic design `REQ-TRS-SYSMLV2-002`'s
+    /// rationale already establishes for `RawElement`/`Resolver`. So origin
+    /// is decided here via `sysmlv2_qnames`, a side-channel provenance set
+    /// the caller supplies — see [`crate::sysmlv2::synthesized_qnames`] and
+    /// its doc comment for how it's derived and why this mirrors, rather than
+    /// literally copies, the multi-repo `LoadedRepo::qnames` precedent.
+    /// Gating on element *kind* alone (this function's previous shape) was
+    /// wrong: it silently loosened `E104` for hand-authored native elements
+    /// of these kinds too, in every model, not just SysMLv2 ones. A `type:
+    /// Requirement`/`RequirementDef` target that fails `is_native_requirement`
+    /// (e.g. a hand-authored one missing a `REQ-*` id) is *not* rescued by
+    /// membership in `sysmlv2_qnames` unless it actually is one — the set only
+    /// ever contains real SysMLv2-synthesized qnames.
+    pub fn is_verify_target(elem: &RawElement, sysmlv2_qnames: &HashSet<String>) -> bool {
+        if Self::is_native_requirement(elem) {
+            return true;
+        }
+        if !sysmlv2_qnames.contains(&elem.qualified_name) {
+            return false;
+        }
+        matches!(
+            elem.frontmatter.element_type,
+            Some(ElementType::PartDef)
+                | Some(ElementType::Part)
+                | Some(ElementType::AttributeDef)
+                | Some(ElementType::Attribute)
+                | Some(ElementType::PortDef)
+                | Some(ElementType::Port)
+                | Some(ElementType::ConnectionDef)
+                | Some(ElementType::Connection)
+                | Some(ElementType::InterfaceDef)
+                | Some(ElementType::Interface)
+                | Some(ElementType::ItemDef)
+                | Some(ElementType::Item)
+                | Some(ElementType::Allocation)
+                | Some(ElementType::RequirementDef)
+                | Some(ElementType::Requirement)
+        )
     }
 
     /// True if `elem` is a native TestCase (type: TestCase with a TC-* id).

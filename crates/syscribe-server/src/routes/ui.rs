@@ -4,7 +4,8 @@ use axum::{
 };
 use askama::Template;
 use serde::Deserialize;
-use syscribe_model::renderer::render_diagram;
+use syscribe_model::diagram::DEFAULT_DIAGRAM_KIND;
+use syscribe_model::frontmatter::split_frontmatter;
 use crate::state::SharedState;
 
 /// Extract the content of the first fenced code block with the given language tag.
@@ -78,6 +79,12 @@ pub struct TreeNode {
     pub element_type: String,
     pub is_package: bool,
     pub is_diagram: bool,
+    /// `diagramKind` frontmatter (e.g. `Mermaid`, `BDD`, `Requirement`, …),
+    /// defaulted to `"SVG"` like `routes::ui::diagram`'s own fallback. Lets
+    /// the client (`openDiagram` in `base.html`) decide, without an extra
+    /// round trip, whether to mount the sprotty editor (any non-`Mermaid`
+    /// kind, `REQ-TRS-DE-004`) or keep using the legacy Mermaid HTML path.
+    pub diagram_kind: String,
     pub url_path: String,
 }
 
@@ -109,6 +116,32 @@ pub struct ElementDetailTemplate {
     /// `Some` only when `[links]` is configured and the element is file-backed;
     /// drives the conditional "view source" icon in the detail panel header.
     pub source_url: Option<String>,
+    /// Phase 8 (`ADR-SYS-DE-001` follow-on) — the element's on-disk
+    /// frontmatter, minus `name` (edited via its own field), rendered as YAML
+    /// text for the edit-mode `#edit-extra` textarea. Empty when the file has
+    /// no frontmatter or couldn't be read.
+    pub extra_yaml: String,
+}
+
+/// Serialize an element's on-disk frontmatter minus the `name` key as YAML
+/// text, for the edit-mode `#edit-extra` textarea. Reads the file directly
+/// (rather than re-serializing the typed `RawFrontmatter`, which would round-
+/// trip every unset field as an explicit `null`) so the textarea shows
+/// exactly what's on disk today.
+fn extra_frontmatter_yaml(file_path: &str) -> String {
+    let Ok(content) = std::fs::read_to_string(file_path) else {
+        return String::new();
+    };
+    let (fm_opt, _) = split_frontmatter(&content);
+    let mut yaml_val: serde_yaml::Value = match fm_opt {
+        Some(s) => serde_yaml::from_str(s)
+            .unwrap_or_else(|_| serde_yaml::Value::Mapping(serde_yaml::Mapping::new())),
+        None => serde_yaml::Value::Mapping(serde_yaml::Mapping::new()),
+    };
+    if let serde_yaml::Value::Mapping(ref mut map) = yaml_val {
+        map.remove("name");
+    }
+    serde_yaml::to_string(&yaml_val).unwrap_or_default()
 }
 
 /// Render a single YAML scalar (string/number/bool/null) as plain text.
@@ -132,12 +165,6 @@ fn custom_field_display(v: &serde_yaml::Value) -> String {
             .join(", "),
         other => yaml_scalar_string(other),
     }
-}
-
-#[derive(Template)]
-#[template(path = "canvas.html")]
-pub struct CanvasTemplate {
-    pub title: String,
 }
 
 #[derive(Deserialize)]
@@ -164,13 +191,6 @@ fn badge_class_for(element_type: &str) -> String {
 
 pub async fn index() -> Html<String> {
     let tmpl = IndexTemplate {};
-    Html(tmpl.render().unwrap_or_default())
-}
-
-pub async fn canvas() -> Html<String> {
-    let tmpl = CanvasTemplate {
-        title: "Model Graph Canvas".to_string(),
-    };
     Html(tmpl.render().unwrap_or_default())
 }
 
@@ -220,6 +240,11 @@ pub async fn tree_items(
             );
             let is_diagram = et == "Diagram";
             let url_path = e.qualified_name.replace("::", "/");
+            let diagram_kind = e
+                .frontmatter
+                .diagram_kind
+                .clone()
+                .unwrap_or_else(|| DEFAULT_DIAGRAM_KIND.to_string());
             TreeNode {
                 display_name: e
                     .frontmatter
@@ -230,6 +255,7 @@ pub async fn tree_items(
                 element_type: et,
                 is_package,
                 is_diagram,
+                diagram_kind,
                 url_path,
             }
         })
@@ -286,6 +312,7 @@ pub async fn element_detail(
                     .map(|(k, v)| (k.clone(), custom_field_display(v)))
                     .collect(),
                 source_url,
+                extra_yaml: extra_frontmatter_yaml(&e.file_path),
             };
             Html(tmpl.render().unwrap_or_default())
         }
@@ -315,7 +342,7 @@ pub async fn diagram(
         );
     }
 
-    let kind = element.frontmatter.diagram_kind.as_deref().unwrap_or("SVG");
+    let kind = element.frontmatter.diagram_kind.as_deref().unwrap_or(DEFAULT_DIAGRAM_KIND);
     match kind {
         "Mermaid" => {
             let src = extract_fenced_block(&element.doc, "mermaid").unwrap_or_default();
@@ -325,17 +352,18 @@ pub async fn diagram(
             ))
         }
         _ => {
-            // SVG / BDD / IBD / StateMachine — existing path
-            match render_diagram(element, &store.resolver, &store.elements) {
-                Some(svg) => Html(format!(
-                    r#"<div class="diagram-svg-wrapper">{}</div>"#,
-                    svg
-                )),
-                None => Html(
-                    r#"<p class="diagram-empty">No layout defined for this diagram.</p>"#
-                        .to_string(),
-                ),
-            }
+            // SVG / BDD / IBD / StateMachine — no longer served over this HTML
+            // route now that the sprotty editor claims every non-Mermaid
+            // `diagram_kind` (opened via `/api/diagrams/model/{*qname}`
+            // instead). `syscribe_model::renderer::render_diagram` itself is
+            // still used by the CLI's HTML export
+            // (`crates/syscribe/src/export_html.rs`) — only this HTTP branch
+            // is retired. A direct hit here (e.g. a stale bookmark) gets a
+            // plain fallback rather than a panic.
+            Html(
+                r#"<p class="diagram-empty">This diagram type isn't served here — open it as a diagram tab.</p>"#
+                    .to_string(),
+            )
         }
     }
 }

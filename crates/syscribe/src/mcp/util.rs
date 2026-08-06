@@ -1,5 +1,5 @@
 //! Shared JSON-shaping helpers for the MCP tools: element summaries, findings,
-//! path normalisation, and JSON→YAML value conversion.
+//! and path normalisation.
 
 use std::path::Path;
 
@@ -59,9 +59,4 @@ pub fn finding_json(f: &Finding, root: &Path) -> Value {
         "file": rel_file(&f.file, root),
         "message": f.message,
     })
-}
-
-/// Convert a `serde_json::Value` to a `serde_yaml::Value` for frontmatter writes.
-pub fn json_to_yaml(v: &Value) -> serde_yaml::Value {
-    serde_yaml::to_value(v).unwrap_or(serde_yaml::Value::Null)
 }

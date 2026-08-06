@@ -1,9 +1,9 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.26.41  
+**Version:** syscribe 0.32.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-06-22  
+**Date:** 2026-08-06  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 247 |
-| Passed | 247 |
+| Total test cases | 254 |
+| Passed | 254 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2215,6 +2215,83 @@
 | Scenario | Result |
 |---|---|
 | spec types distinguishes the constructs | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-001 — Verify sysmlSubmodel: true scopes a subtree out of native parsing: subtree excluded, stray nested _index.md warned, .md siblings still parse, no-marker baseline unaffected.
+
+**Verifies:** REQ-TRS-SYSMLV2-001  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a model with no sysmlSubmodel package is unaffected | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-002 — Verify native SysMLv2 parsing + qname-mapped merge: multi-file package merge, qname derivation, and parse-failure isolation.
+
+**Verifies:** REQ-TRS-SYSMLV2-002  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a parse failure in one file does not abort the rest of the subtree | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-003 — Verify a SysMLv2 element's satisfy/verify resolves against a native Requirement by both quoted-id and qualified-name form.
+
+**Verifies:** REQ-TRS-SYSMLV2-003  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| verify targets a native Requirement | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-004 — Verify a native TestCase's verifies: field resolves against a SysMLv2-mapped element by qname, and still works unchanged against a native Requirement.
+
+**Verifies:** REQ-TRS-SYSMLV2-004  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| verifying a hand-authored non-Requirement element is still rejected | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-005 — Verify @SyscribeFeature lifts a SysMLv2 variant into appliesWhen, feature-check --deep/--config project it correctly, and a no-annotation variant stays purely structural.
+
+**Verifies:** REQ-TRS-SYSMLV2-005  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an unresolvable featureId is a dangling-reference finding | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-006 — Verify a malformed sysmlSubmodel: value, a .sysml parse failure, and an unmapped construct each degrade gracefully without aborting validate.
+
+**Verifies:** REQ-TRS-SYSMLV2-006  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an unmapped construct produces no finding at all | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-007 — Verify a file mixing mapped and unmapped SysMLv2 constructs parses fully and keeps only the mapped elements.
+
+**Verifies:** REQ-TRS-SYSMLV2-007  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| the unmapped construct contributes nothing | ✓ PASS |
 
 ---
 

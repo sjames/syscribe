@@ -1,0 +1,228 @@
+# SysMLv2 Submodel Example
+
+A small, standalone drone-propulsion model demonstrating every capability of
+native SysML v2/KerML submodel ingestion (`ADR-SYS-SYSMLV2-001`,
+`REQ-TRS-SYSMLV2-000` through `-006`) in one coherent scenario. It is a
+separate model root from this repository's own `model/` — running validation
+here never affects that model's baseline.
+
+## Running it
+
+```bash
+cargo build --workspace   # once, if you haven't already
+./target/debug/syscribe -m examples/sysmlv2-submodel/model
+./target/debug/syscribe -m examples/sysmlv2-submodel/model feature-check --deep
+./target/debug/syscribe -m examples/sysmlv2-submodel/model validate --config CONF-QUAD-DRONE-001
+./target/debug/syscribe -m examples/sysmlv2-submodel/model why-active PropulsionSubsystem::Propulsion::RotorConfigChoice::quadConfig --config CONF-HEX-DRONE-001
+```
+
+Current output: **0 errors, 12 warnings** on the base `validate` report (all
+expected/documented below); `feature-check --deep` is **0 errors, 1 warning**
+(also documented below), reports both `Configuration`s as valid models of the
+feature model, and `void model: false`.
+
+## Scenario
+
+A drone's propulsion subsystem is authored natively in SysML v2 text
+(`PropulsionSubsystem/*.sysml`) and cross-references hand-authored native
+Syscribe `Requirement`s, `TestCase`s, and a `FeatureDef`/`Configuration` pair
+sitting alongside it in the same model.
+
+## File layout
+
+```
+model/
+  _index.md                          Root package
+  Requirements/
+    REQ-DRONE-ENDUR-001.md           satisfy target (quoted-id form)
+    REQ-DRONE-THRUST-001.md          satisfy target (qname form)
+    REQ-DRONE-VERIFY-001.md          verify target (SysMLv2 element's own `verify`)
+  Tests/
+    TC-DRONE-ENDUR-001.md            native TestCase -> native Requirement (ordinary)
+    TC-DRONE-THRUST-001.md           native TestCase -> native Requirement (ordinary)
+    TC-DRONE-ROTOR-001.md            native TestCase -> SysMLv2 element (REQ-TRS-SYSMLV2-004)
+  Features/
+    RotorConfig/
+      _index.md                      FeatureDef FEAT-ROTOR-CONFIG (mandatory XOR group)
+      Quad.md                        FeatureDef FEAT-ROTOR-QUAD (child)
+      Hex.md                         FeatureDef FEAT-ROTOR-HEX (child)
+  Configurations/
+    CONF-QUAD-DRONE-001.md           selects Quad
+    CONF-HEX-DRONE-001.md            selects Hex
+  PropulsionSubsystem/
+    _index.md                        type: Package, sysmlSubmodel: true — the only native
+                                      element in this directory
+    Structure.sysml                  file 1 of the `Propulsion` SysML v2 package
+    Interfaces.sysml                 file 2 of the same `Propulsion` package (multi-file merge)
+    Behavior.sysml                   file 3: unmapped constructs (coverage-boundary demo)
+```
+
+## What each `.sysml` file demonstrates
+
+**`Structure.sysml`** — `package Propulsion { ... }`, part 1 of the multi-file
+merge (`REQ-TRS-SYSMLV2-002`):
+
+- `item def Fuel;` — **ItemDef**
+- `port def PowerPort;` / `port def FuelPort;` — **PortDef**
+- `attribute def ThrustRating;` — **AttributeDef**
+- `part def RotorAssembly { port fuelSupplyPort : FuelPort; item fuelItem :
+  Fuel; attribute thrustReading : ThrustRating; satisfy
+  'REQ-DRONE-ENDUR-001'; }` — **PartDef** containing a **Port usage**, an
+  **Item usage**, an **Attribute usage** (all nested-in-a-part-body forms),
+  and a `satisfy` targeting a native `Requirement` by its quoted `REQ-*` id
+  (`REQ-TRS-SYSMLV2-003`, id form)
+- `variation part def RotorConfigChoice { variant part quadConfig :
+  RotorAssembly { @SyscribeFeature { featureId = 'FEAT-ROTOR-QUAD'; } }
+  variant part hexConfig : RotorAssembly { @SyscribeFeature { featureId =
+  'FEAT-ROTOR-HEX'; } } }` — the **variation/variant** pair, each carrying a
+  `@SyscribeFeature` metadata annotation targeting a real `FeatureDef`
+  (`REQ-TRS-SYSMLV2-005`)
+
+**`Interfaces.sysml`** — same `Propulsion` package, part 2 of the merge —
+contributes different members than `Structure.sysml` (no name collisions):
+
+- `connection def PowerLink;` — **ConnectionDef**
+- `interface def PowerInterface { port supplyPort : PowerPort; }` —
+  **InterfaceDef** with a nested **Port usage**
+- `requirement def RotorThrustReqDef;` — **RequirementDef**
+- `part def Drone { port powerPort : PowerPort; interface powerIface :
+  PowerInterface; connection powerLink : PowerLink; part rotorConfig :
+  RotorConfigChoice; allocation motorAlloc : RotorAssembly; requirement
+  thrustCheck : RotorThrustReqDef { verify 'REQ-DRONE-VERIFY-001'; } satisfy
+  Requirements::'REQ-DRONE-THRUST-001'; }` — a **PartDef** containing an
+  **Interface usage**, a **Connection usage**, a **Part usage** (typed by the
+  variation point above), an **AllocationUsage**, a **Requirement usage**
+  whose own `verify` targets a native `Requirement` by qname
+  (`REQ-TRS-SYSMLV2-003`, `verify` keyword), and a `satisfy` targeting a
+  different native `Requirement` by its Syscribe qualified name
+  (`REQ-TRS-SYSMLV2-003`, qname form)
+- `part droneInstance : Drone;` — a package-level **Part usage** of `Drone`
+  (keeps `Drone` genuinely referenced as a type, matching how everything else
+  in this example is used somewhere)
+
+Between the two files, every one of `REQ-TRS-SYSMLV2-007`'s fixed mapped
+kinds appears at least once: `Package`, `Part(Def/Usage)`,
+`Attribute(Def/Usage)`, `Port(Def/Usage)`, `Connection(Def/Usage)`,
+`Interface(Def/Usage)`, `Item(Def/Usage)`, `Requirement(Def/Usage)`,
+`AllocationUsage`, and `variation`/`variant`.
+
+**`Behavior.sysml`** — coverage-boundary demonstration
+(`REQ-TRS-SYSMLV2-007`): `state def RotorHealthState;` and `action def
+MonitorRotorHealth;` are real, legally-parsed SysML v2 constructs that
+coexist in the same `Propulsion` package as the mapped structural content
+above, but behavior modeling is outside the fixed mapped-element set. Run
+`syscribe -m examples/sysmlv2-submodel/model export` and confirm there is
+**no** `RotorHealthState` or `MonitorRotorHealth` anywhere in the output —
+they parse without error and contribute nothing to the graph. Parse-broad,
+map-narrow.
+
+## Cross-reference summary
+
+| Direction | Source | Target |
+|---|---|---|
+| `satisfy` (quoted id) | `RotorAssembly` (SysMLv2) | `REQ-DRONE-ENDUR-001` (native) |
+| `satisfy` (qname) | `Drone` (SysMLv2) | `Requirements::REQ-DRONE-THRUST-001` (native) |
+| `verify` | `Drone::thrustCheck` (SysMLv2) | `REQ-DRONE-VERIFY-001` (native) |
+| `TestCase.verifies:` | `TC-DRONE-ENDUR-001` (native) | `REQ-DRONE-ENDUR-001` (native, ordinary) |
+| `TestCase.verifies:` | `TC-DRONE-THRUST-001` (native) | `REQ-DRONE-THRUST-001` (native, ordinary) |
+| `TestCase.verifies:` | `TC-DRONE-ROTOR-001` (native) | `RotorAssembly` (SysMLv2, `REQ-TRS-SYSMLV2-004`) |
+| `@SyscribeFeature` | `quadConfig` variant (SysMLv2) | `FEAT-ROTOR-QUAD` (native `FeatureDef`) |
+| `@SyscribeFeature` | `hexConfig` variant (SysMLv2) | `FEAT-ROTOR-HEX` (native `FeatureDef`) |
+
+## Feature model / configuration
+
+`Features::RotorConfig` is a mandatory XOR group with two children, `Quad`
+and `Hex`. `CONF-QUAD-DRONE-001` selects `Quad`; `CONF-HEX-DRONE-001` selects
+`Hex`. Both variant parts' `@SyscribeFeature` annotations lift straight into
+`appliesWhen:`, so projection genuinely differs per configuration:
+
+```
+$ ./target/debug/syscribe -m examples/sysmlv2-submodel/model why-active \
+    PropulsionSubsystem::Propulsion::RotorConfigChoice::quadConfig --config CONF-QUAD-DRONE-001
+Verdict: active
+
+$ ./target/debug/syscribe -m examples/sysmlv2-submodel/model why-active \
+    PropulsionSubsystem::Propulsion::RotorConfigChoice::quadConfig --config CONF-HEX-DRONE-001
+Verdict: inactive
+```
+
+`feature-check --deep` reports `void model: false`, `core features:
+Features::RotorConfig` (it's mandatory), no dead/false-optional features, and
+both configurations as valid models — exactly what a two-way mandatory XOR
+group driven partly from the SysMLv2 side should look like.
+
+## Expected / documented warnings
+
+Every warning below is understood and either inherent to this feature as
+currently scoped, or an ordinary artifact of a deliberately small demo model
+— none is a defect in this example.
+
+- **`W600` × 7 ("PartDef/Part has an empty documentation body")** — the
+  SysMLv2 mapper does not currently lift `doc /* ... */` comments out of the
+  parsed AST into the synthesized element's `doc:` body (`REQ-TRS-SYSMLV2-002`
+  never required this). Every SysMLv2-originated `PartDef`/`Part` in *any*
+  model built with this feature will carry an empty doc body and trip this
+  warning — it is not specific to this example. Candidate follow-on scope,
+  not something this example works around.
+- **`W005` × 3 ("no derivedFrom and no derivedChildren — possible orphan")**
+  — ordinary consequence of this being a small, flat demo with no requirement
+  breakdown hierarchy; unrelated to SysMLv2.
+- **`W015`/`W022` ("requirement ...::thrustCheck is active ... but covered in
+  none")** — the SysMLv2 `thrustCheck` requirement usage is a `type:
+  Requirement` element with no `status:` (the mapper never sets one), so the
+  native "is this requirement covered per configuration" checks treat it as
+  an ordinary non-draft requirement needing V&V closure, even though it's
+  really just a carrier for the `verify` statement demonstrated above. This
+  is a genuine, worth-knowing edge of the origin-agnostic design (there is no
+  way, by design, to tell these checks "this one is different") — see the
+  Surprises section below.
+
+## Surprises a real example surfaced that unit tests didn't
+
+- **The `@SyscribeFeature`/feature-model wiring only works if the
+  `FeatureDef` hierarchy is nested correctly.** An earlier draft of this
+  example put the mandatory XOR-group `FeatureDef` directly on
+  `Features/_index.md` (qname `Features`) and had `Configuration`s select
+  `Features::RotorConfig: true` — a qname that didn't exist. That silently
+  produced `E225` ("configuration is not a valid model of the feature model:
+  root feature 'Features' is mandatory") for *both* configurations. The fix
+  was mirroring this repository's own `model/Features/Propulsion/` layout
+  exactly: the mandatory group lives at `Features/RotorConfig/_index.md`
+  (qname `Features::RotorConfig`), with `Quad.md`/`Hex.md` beside it as
+  children — `Features/` itself carries no `_index.md` at all, exactly like
+  the main model. Nothing about this is SysMLv2-specific; it would have bitten
+  a hand-authored `FeatureDef` hierarchy identically. Pure unit tests never
+  caught it because they always built single, already-correct `FeatureDef`
+  fixtures directly.
+- **The qname-form `satisfy` target is invisible in the validate report's
+  §7 "Elements with `satisfies`" table**, even though it resolves correctly
+  and genuinely suppresses `W300`. `crates/syscribe/src/main.rs`'s report
+  builder filters that column through `is_req_id(s)`, which only recognizes
+  bare `REQ-*` ids — a qname like `Requirements::REQ-DRONE-THRUST-001` (a
+  fully legitimate, documented `REQ-TRS-SYSMLV2-003` form) gets silently
+  dropped from display, showing "—" for `Drone` even though it has a real
+  satisfies link. `syscribe why PropulsionSubsystem::Propulsion::Drone`
+  shows it correctly. This is a pre-existing report-rendering limitation
+  (the column was never written expecting anything but a bare id), exposed
+  — not caused — by exercising the qname form of `satisfy` for real. No
+  Rust code changed to build this example; noting it here for a future fix.
+- **`syscribe types`/`list` mislabel every `Attribute` (usage) element as
+  `"Other"`.** `crates/syscribe/src/query.rs`'s `type_label` function has an
+  explicit match arm for `ElementType::AttributeDef` but none for
+  `ElementType::Attribute`, so it falls through to the catch-all. This
+  example's `thrustReading` attribute usage — a completely ordinary,
+  correctly-typed element (`syscribe export`/`show`/`why` all report it
+  correctly as `Attribute`) — shows up as `Other` in `syscribe types`'s
+  count table. Pre-existing, general, and not SysMLv2-specific (a
+  hand-authored native `Attribute` usage hits the identical gap); flagging
+  here since a real example is what surfaced it.
+- **Bare (no `def` keyword) declarations disambiguate to different
+  Def/Usage forms depending on nesting**, confirmed again while writing this
+  example: `attribute`/`port`/`item` default to the *Def* form at package
+  level but the *Usage* form when nested inside another construct's body
+  (e.g. inside a `part def`'s body), while `connection`/`requirement`/
+  `allocation` default to *Usage* in both positions. This was already known
+  from earlier unit-test work, but a full, multi-file, realistic model made
+  it very easy to accidentally get the "wrong" (but still legally-parsed)
+  kind by not paying attention to nesting — worth calling out for anyone
+  hand-authoring `.sysml` content for this feature.

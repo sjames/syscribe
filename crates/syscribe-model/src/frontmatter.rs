@@ -1,6 +1,13 @@
 use anyhow::{Context, Result};
 use crate::element::RawFrontmatter;
 
+/// Failure reassembling a `.md` file's frontmatter + body after a mutation.
+#[derive(Debug, thiserror::Error)]
+pub enum PatchFrontmatterError {
+    #[error("failed to serialize frontmatter YAML: {0}")]
+    Yaml(#[from] serde_yaml::Error),
+}
+
 /// Split a `.md` file content into (frontmatter_yaml, markdown_body).
 /// Returns (None, full_content) if no YAML front matter block found.
 pub fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
@@ -25,6 +32,38 @@ pub fn split_frontmatter(content: &str) -> (Option<&str>, &str) {
 /// Parse YAML frontmatter string into `RawFrontmatter`.
 pub fn parse_frontmatter(yaml: &str) -> Result<RawFrontmatter> {
     serde_yaml::from_str(yaml).context("Failed to parse YAML frontmatter")
+}
+
+/// Split `content`'s frontmatter, apply `mutate` to the parsed YAML mapping
+/// (falling back to an empty mapping when there was none, or it failed to
+/// parse), and reassemble. `body_override`, if given, replaces the Markdown
+/// body; otherwise the original body is kept verbatim.
+///
+/// `mutate` is only invoked when the frontmatter parses to a YAML *mapping*
+/// (the overwhelmingly common case); a frontmatter block that parses to some
+/// other YAML shape is passed through untouched, matching the historical
+/// `apply_update` behaviour this helper replaces.
+///
+/// This is the shared "split frontmatter / mutate mapping / reassemble,
+/// preserving unknown keys and the body" primitive behind `syscribe mcp
+/// update_element` and the `apply_changes` batch `update` op.
+pub fn patch_frontmatter(
+    content: &str,
+    body_override: Option<&str>,
+    mutate: impl FnOnce(&mut serde_yaml::Mapping),
+) -> std::result::Result<String, PatchFrontmatterError> {
+    let (fm_opt, body) = split_frontmatter(content);
+    let mut yaml_val: serde_yaml::Value = match fm_opt {
+        Some(s) => serde_yaml::from_str(s)
+            .unwrap_or_else(|_| serde_yaml::Value::Mapping(serde_yaml::Mapping::new())),
+        None => serde_yaml::Value::Mapping(serde_yaml::Mapping::new()),
+    };
+    if let serde_yaml::Value::Mapping(map) = &mut yaml_val {
+        mutate(map);
+    }
+    let new_yaml = serde_yaml::to_string(&yaml_val)?;
+    let final_body = body_override.unwrap_or(body);
+    Ok(format!("---\n{new_yaml}---\n\n{final_body}"))
 }
 
 #[cfg(test)]

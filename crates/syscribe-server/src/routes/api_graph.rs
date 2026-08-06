@@ -9,10 +9,29 @@ use syscribe_model::graph::children_of;
 use crate::state::SharedState;
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ChildSummary {
     pub qualified_name: String,
     pub name: Option<String>,
     pub element_type: Option<String>,
+}
+
+/// `GET /api/connections`'s response — replaces the previous hand-built
+/// `serde_json::json!{}` literal so this route uses the same typed-struct +
+/// blanket-derive convention as every other JSON route. Field types mirror
+/// `RawFrontmatter`'s untyped connection fields (`syscribe_model::element`)
+/// verbatim; `serde_yaml::Value` serializes to JSON structurally identically
+/// to how the retired `json!{}` literal serialized it (via `serde_json::
+/// to_value` on the same `Serialize` impl), so this is not a wire change.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConnectionsResponse {
+    pub qualified_name: String,
+    pub connections: Option<Vec<serde_yaml::Value>>,
+    pub flow_connections: Option<Vec<serde_yaml::Value>>,
+    pub binding_connections: Option<Vec<serde_yaml::Value>>,
+    pub succession_connections: Option<Vec<serde_yaml::Value>>,
+    pub exhibits_states: Option<Vec<String>>,
 }
 
 /// GET /api/children?of=<qualifiedName>
@@ -54,7 +73,7 @@ pub async fn get_children(
 pub async fn get_connections(
     State(state): State<SharedState>,
     Query(params): Query<HashMap<String, String>>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
+) -> Result<Json<ConnectionsResponse>, StatusCode> {
     let qname_raw = params.get("of").ok_or(StatusCode::BAD_REQUEST)?.clone();
     let qname_norm = qname_raw.replace('/', "::");
 
@@ -65,14 +84,12 @@ pub async fn get_connections(
         .get(&store.elements, &qname_norm)
         .ok_or(StatusCode::NOT_FOUND)?;
 
-    let connections = serde_json::json!({
-        "qualifiedName": element.qualified_name,
-        "connections": element.frontmatter.connections,
-        "flowConnections": element.frontmatter.flow_connections,
-        "bindingConnections": element.frontmatter.binding_connections,
-        "successionConnections": element.frontmatter.succession_connections,
-        "exhibitsStates": element.frontmatter.exhibits_states,
-    });
-
-    Ok(Json(connections))
+    Ok(Json(ConnectionsResponse {
+        qualified_name: element.qualified_name.clone(),
+        connections: element.frontmatter.connections.clone(),
+        flow_connections: element.frontmatter.flow_connections.clone(),
+        binding_connections: element.frontmatter.binding_connections.clone(),
+        succession_connections: element.frontmatter.succession_connections.clone(),
+        exhibits_states: element.frontmatter.exhibits_states.clone(),
+    }))
 }

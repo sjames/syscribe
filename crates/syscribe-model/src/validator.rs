@@ -53,7 +53,16 @@ impl std::fmt::Display for Finding {
 
 pub struct ValidationResult {
     pub findings: Vec<Finding>,
-    /// verifiedBy[req_id] = list of tc ids that have status:active
+    /// verifiedBy[target_id_or_qname] = ids of the (native TestCase) elements
+    /// whose `verifies:` resolves to that target. Only recorded when the
+    /// verifying element itself carries a stable id — in practice always a
+    /// native TestCase, the only source type `REQ-TRS-SYSMLV2-004` concerns.
+    /// The target key is the target's stable id when present, else its
+    /// qualified name (`REQ-TRS-SYSMLV2-004`: a SysMLv2-mapped target has no
+    /// id) — matching the id-else-qname convention `refined_by`/
+    /// `allocated_from`/etc. already use. Consumers that specifically want
+    /// "active TestCase" coverage (W002/W003) filter this list themselves by
+    /// looking up each id's `status`.
     pub verified_by: HashMap<String, Vec<String>>,
     /// derived_children[req_id] = list of child req ids
     pub derived_children: HashMap<String, Vec<String>>,
@@ -710,12 +719,21 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
 pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) -> ValidationResult {
     let mut findings: Vec<Finding> = Vec::new();
 
-    // Collect derive pass findings (E500, E501, E502) stored by the derive pass in walker.
+    // Collect findings stashed on `RawElement.derive_findings` by more than one
+    // walker post-processing pass: the derive pass (E500-E502) and native
+    // SysMLv2 submodel ingestion (W540) both share this one vector — see that
+    // field's doc comment in element.rs.
     for elem in elements {
         for (code, file, message) in &elem.derive_findings {
             let sev = if code.starts_with('E') { Severity::Error } else { Severity::Warning };
             let static_code: &'static str = match code.as_str() {
                 "E500" => "E500", "E501" => "E501", "E502" => "E502",
+                // Native SysML v2/KerML submodel ingestion (ADR-SYS-SYSMLV2-001,
+                // REQ-TRS-SYSMLV2-006) — its own code range, distinct from the
+                // WASM-plugin family. W541 is a placeholder pending REQ-TRS-SYSMLV2-006's
+                // formal dedicated range.
+                "W540" => "W540",
+                "W541" => "W541",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });
@@ -3561,6 +3579,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // Build verified_by and derived_children reverse indices, and check E102–E105
     let mut verified_by: HashMap<String, Vec<String>> = HashMap::new();
     let mut derived_children: HashMap<String, Vec<String>> = HashMap::new();
+    // REQ-TRS-SYSMLV2-004 — side-channel provenance set: which qnames were
+    // actually synthesized by SysMLv2 ingestion, consulted by
+    // `Resolver::is_verify_target` so the E104 widening only ever applies to
+    // real SysMLv2-originated targets, never to hand-authored native elements
+    // of the same kind. See `sysmlv2::synthesized_qnames`'s doc comment.
+    let sysmlv2_qnames = crate::sysmlv2::synthesized_qnames(elements);
 
     for elem in elements {
         let fm = &elem.frontmatter;
@@ -3584,21 +3608,41 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         &format!("unresolved verifies reference '{}'", v),
                     )),
                     Some(target) => {
-                        // E104: target must be a native Requirement
-                        if !Resolver::is_native_requirement(target) {
+                        // E104: target must be a native Requirement, or (REQ-TRS-SYSMLV2-004)
+                        // a *bona fide SysMLv2-synthesized* element of one of the submodel's
+                        // fixed mapped kinds — gated on `sysmlv2_qnames`, not kind alone, so a
+                        // hand-authored native Part/etc. is never rescued by this widening.
+                        if !Resolver::is_verify_target(target, &sysmlv2_qnames) {
                             findings.push(error(
                                 "E104",
                                 &elem.file_path,
                                 &format!("'{}' does not resolve to a native Requirement", v),
                             ));
-                        } else if let Some(ref req_id) = target.frontmatter.id {
-                            // Build reverse index
-                            if let Some(ref tc_id) = elem.frontmatter.id {
-                                verified_by
-                                    .entry(req_id.clone())
-                                    .or_default()
-                                    .push(tc_id.clone());
-                            }
+                        } else if let Some(ref tc_id) = elem.frontmatter.id {
+                            // Build reverse index — keyed by the target's stable id when
+                            // present, else its qualified name (REQ-TRS-SYSMLV2-004: a
+                            // SysMLv2-mapped target has no id, matching the id-else-qname
+                            // convention `refined_by`/`allocated_from`/etc. already use).
+                            //
+                            // The verifying element's own label is deliberately NOT given the
+                            // same id-else-qname fallback: only a `verifies:`-carrying element
+                            // that itself has a stable id (in practice, always a native
+                            // TestCase — the only source type REQ-TRS-SYSMLV2-004 is about)
+                            // is recorded here, exactly as before this feature touched this
+                            // code. Falling back to qname on this side previously let ANY
+                            // `verifies:`-carrying, id-less element in (including a SysMLv2
+                            // `RequirementUsage`'s own `verify:` from REQ-TRS-SYSMLV2-003),
+                            // polluting `verified_by` for the server's `/api/validation`,
+                            // `syscribe export`/`export-html`, `query`, the LSP CodeLens count,
+                            // the Rhai `verified_by` property, and — worst — the MCP `evidence`
+                            // tool's verification-chain output, none of which expect (or
+                            // filter for) a non-TestCase entry here.
+                            let target_key = target
+                                .frontmatter
+                                .id
+                                .clone()
+                                .unwrap_or_else(|| target.qualified_name.clone());
+                            verified_by.entry(target_key).or_default().push(tc_id.clone());
                         }
                     }
                 }

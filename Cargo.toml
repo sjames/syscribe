@@ -20,6 +20,7 @@ petgraph = "0.8"
 notify = "6"
 futures-util = "0.3"
 regex = "1"
+thiserror = "2"
 toml = "1"
 quick-xml = "0.40"
 clap = { version = "4", features = ["derive", "env"] }

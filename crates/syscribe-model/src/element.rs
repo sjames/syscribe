@@ -553,6 +553,11 @@ pub struct RawFrontmatter {
     /// `{repo, qname, as}` mounting a sub-tree from a peer repo declared in
     /// `[repos]`. Untyped here; the validator reads the `repo`/`qname`/`as` keys.
     pub repo_imports: Option<Vec<serde_yaml::Value>>,
+    /// `sysmlSubmodel: true` on a Package `_index.md` (`ADR-SYS-SYSMLV2-001`,
+    /// `REQ-TRS-SYSMLV2-001`): every `.sysml`/`.kerml` file anywhere in that
+    /// directory's subtree is parsed as native SysML v2/KerML textual notation
+    /// instead of Markdown+YAML frontmatter. Handled by `crate::sysmlv2`.
+    pub sysml_submodel: Option<bool>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
     pub return_type: Option<String>,
@@ -924,7 +929,11 @@ pub struct RawElement {
     /// Populated by `derive::derive_pass` after walking; visible to validator and query.
     #[serde(skip_serializing_if = "std::collections::HashMap::is_empty", default)]
     pub derived: std::collections::HashMap<String, serde_yaml::Value>,
-    /// Findings produced by the derive pass (E501, E502). Gathered by the validator.
+    /// Findings gathered by the validator, contributed by more than one
+    /// walker post-processing pass sharing this one vector: the derive pass
+    /// (E500-E502; `crate::derive`) and native SysMLv2 submodel ingestion
+    /// (W540; `crate::sysmlv2`), which runs earlier in `walker::walk_model`.
+    /// Despite the field's name, it is not exclusively "derive pass" output.
     #[serde(skip)]
     pub derive_findings: Vec<(String, String, String)>, // (code, file, message)
 }
