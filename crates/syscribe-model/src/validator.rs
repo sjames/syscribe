@@ -9,6 +9,7 @@ use crate::resolver::{
     is_adr_id, is_asset_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
     is_cd_id, is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
     is_zn_id,
+    is_pi_id,
     is_req_id, is_rr_id, is_sc_id, is_sg_id, is_stable_id, is_tara_id, is_tc_id, is_test_plan_id, is_trd_id, is_ts_id,
     is_vr_id, Resolver,
 };
@@ -2268,6 +2269,48 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 const ADR_STATUSES: &[&str] = &["proposed", "accepted", "deprecated", "superseded"];
                 if !ADR_STATUSES.contains(&status.as_str()) {
                     findings.push(error("E304", &file, &format!("unknown ADR status '{}'", status)));
+                }
+            }
+        }
+
+        // ── PlanningItem (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-001) ────────
+        // Schema-only scope for this requirement: stable id, required `name`/`status`,
+        // and an optional `itemType`. Hierarchy/achieves/evidence/appliesWhen are
+        // separate follow-on requirements (REQ-TRS-PLANITEM-002..006) and are
+        // deliberately not checked here.
+        if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
+            // E706: id pattern.
+            if let Some(ref id) = fm.id {
+                if !is_pi_id(id) {
+                    findings.push(error("E706", &file, &format!("`id` '{}' does not match PI-* pattern", id)));
+                }
+            }
+            // E707: required fields.
+            if fm.id.is_none() {
+                findings.push(error("E707", &file, "`id` is required on PlanningItem"));
+            }
+            if fm.name.is_none() {
+                findings.push(error("E707", &file, "`name` is required on PlanningItem"));
+            }
+            if fm.status.is_none() {
+                findings.push(error("E707", &file, "`status` is required on PlanningItem"));
+            }
+            // E708: status enum — GitHub Projects' three defaults plus `blocked`
+            // (ADR-SYS-PLANITEM-001 decision 4).
+            if let Some(ref status) = fm.status {
+                const PI_STATUSES: &[&str] = &["todo", "in_progress", "blocked", "done"];
+                if !PI_STATUSES.contains(&status.as_str()) {
+                    findings.push(error("E708", &file, &format!("unknown PlanningItem status '{}'", status)));
+                }
+            }
+            // E709: itemType enum (optional field) — GitHub's default Issue Types
+            // (ADR-SYS-PLANITEM-001 decision 4). No inheritance/matching constraint
+            // against a parent's itemType is imposed — there is no hierarchy check
+            // here at all (REQ-TRS-PLANITEM-001 scope note).
+            if let Some(ref item_type) = fm.item_type {
+                const PI_ITEM_TYPES: &[&str] = &["bug", "task", "feature"];
+                if !PI_ITEM_TYPES.contains(&item_type.as_str()) {
+                    findings.push(error("E709", &file, &format!("unknown PlanningItem itemType '{}'", item_type)));
                 }
             }
         }
@@ -7432,5 +7475,131 @@ mod w023_implemented_by_tests {
         let result = validate_with_config(&[elem], &cfg_with_root(&dir));
         assert!(w023_count(&result.findings) == 0,
             "W023 must not fire for non-architecture element types");
+    }
+}
+
+// ── PlanningItem (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-001) ────────────────
+
+#[cfg(test)]
+mod planning_item_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn valid_planning_item_with_status_and_no_item_type_validates_cleanly() {
+        let elem = make_elem(
+            "Planning::DoTheThing",
+            "type: PlanningItem\nid: PI-SCHED-001\nname: Do the thing\nstatus: todo\n",
+            "model/Planning/DoTheThing.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn valid_planning_item_with_valid_item_type_validates_cleanly() {
+        let elem = make_elem(
+            "Planning::FixTheBug",
+            "type: PlanningItem\nid: PI-SCHED-002\nname: Fix the bug\nstatus: in_progress\nitemType: bug\n",
+            "model/Planning/FixTheBug.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn invalid_id_shape_is_rejected() {
+        let elem = make_elem(
+            "Planning::BadId",
+            "type: PlanningItem\nid: PI-bad-id\nname: Bad id\nstatus: todo\n",
+            "model/Planning/BadId.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E706"), "expected E706: {:?}", result.findings);
+    }
+
+    #[test]
+    fn missing_name_is_rejected() {
+        let elem = make_elem(
+            "Planning::NoName",
+            "type: PlanningItem\nid: PI-SCHED-003\nstatus: todo\n",
+            "model/Planning/NoName.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E707"), "expected E707: {:?}", result.findings);
+    }
+
+    #[test]
+    fn missing_status_is_rejected() {
+        let elem = make_elem(
+            "Planning::NoStatus",
+            "type: PlanningItem\nid: PI-SCHED-004\nname: No status\n",
+            "model/Planning/NoStatus.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E707"), "expected E707: {:?}", result.findings);
+    }
+
+    #[test]
+    fn out_of_vocabulary_status_is_rejected() {
+        let elem = make_elem(
+            "Planning::BadStatus",
+            "type: PlanningItem\nid: PI-SCHED-005\nname: Bad status\nstatus: wontfix\n",
+            "model/Planning/BadStatus.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E708"), "expected E708: {:?}", result.findings);
+    }
+
+    #[test]
+    fn out_of_vocabulary_item_type_is_rejected() {
+        let elem = make_elem(
+            "Planning::BadItemType",
+            "type: PlanningItem\nid: PI-SCHED-006\nname: Bad item type\nstatus: todo\nitemType: epic\n",
+            "model/Planning/BadItemType.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E709"), "expected E709: {:?}", result.findings);
+    }
+
+    #[test]
+    fn absent_item_type_validates_cleanly() {
+        let elem = make_elem(
+            "Planning::NoItemType",
+            "type: PlanningItem\nid: PI-SCHED-007\nname: No item type\nstatus: done\n",
+            "model/Planning/NoItemType.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E709"),
+            "absent itemType must not raise E709: {:?}",
+            result.findings
+        );
     }
 }
