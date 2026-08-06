@@ -53,7 +53,15 @@ impl std::fmt::Display for Finding {
 
 pub struct ValidationResult {
     pub findings: Vec<Finding>,
-    /// verifiedBy[req_id] = list of tc ids that have status:active
+    /// verifiedBy[target_id_or_qname] = elements whose `verifies:` resolves to
+    /// that target, labelled by their own stable id else qname. Historically
+    /// only ever a native Requirement verified by native TestCases (both
+    /// always id-identified, so this was always id-keyed in practice); now
+    /// also includes SysMLv2-mapped `verifies:` targets, which have no id and
+    /// so are qname-keyed (`REQ-TRS-SYSMLV2-004`) — matching the id-else-qname
+    /// convention `refined_by`/`allocated_from`/etc. already use. Consumers
+    /// that specifically want "active TestCase" coverage (W002/W003) filter
+    /// this list themselves by looking up each label's `status`.
     pub verified_by: HashMap<String, Vec<String>>,
     /// derived_children[req_id] = list of child req ids
     pub derived_children: HashMap<String, Vec<String>>,
@@ -3593,21 +3601,31 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         &format!("unresolved verifies reference '{}'", v),
                     )),
                     Some(target) => {
-                        // E104: target must be a native Requirement
-                        if !Resolver::is_native_requirement(target) {
+                        // E104: target must be a native Requirement, or (REQ-TRS-SYSMLV2-004)
+                        // one of the SysMLv2 submodel's fixed mapped element kinds.
+                        if !Resolver::is_verify_target(target) {
                             findings.push(error(
                                 "E104",
                                 &elem.file_path,
                                 &format!("'{}' does not resolve to a native Requirement", v),
                             ));
-                        } else if let Some(ref req_id) = target.frontmatter.id {
-                            // Build reverse index
-                            if let Some(ref tc_id) = elem.frontmatter.id {
-                                verified_by
-                                    .entry(req_id.clone())
-                                    .or_default()
-                                    .push(tc_id.clone());
-                            }
+                        } else {
+                            // Build reverse index — keyed by the target's stable id when
+                            // present, else its qualified name (REQ-TRS-SYSMLV2-004: a
+                            // SysMLv2-mapped target has no id, matching the id-else-qname
+                            // convention `refined_by`/`allocated_from`/etc. already use).
+                            // Same for the verifying element's own label.
+                            let target_key = target
+                                .frontmatter
+                                .id
+                                .clone()
+                                .unwrap_or_else(|| target.qualified_name.clone());
+                            let source_label = elem
+                                .frontmatter
+                                .id
+                                .clone()
+                                .unwrap_or_else(|| elem.qualified_name.clone());
+                            verified_by.entry(target_key).or_default().push(source_label);
                         }
                     }
                 }

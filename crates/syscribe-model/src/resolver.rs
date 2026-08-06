@@ -553,6 +553,44 @@ impl Resolver {
                 .unwrap_or(false)
     }
 
+    /// True if `elem` is a legal `verifies:` target (`E104`): a native
+    /// Requirement (the original, unchanged rule), or one of the SysMLv2
+    /// submodel's `REQ-TRS-SYSMLV2-007` fixed mapped element kinds
+    /// (`REQ-TRS-SYSMLV2-004`) — a `TestCase` can verify a SysMLv2-authored
+    /// Part/Attribute/Port/Connection/Interface/Item/Allocation exactly like
+    /// it verifies a native Requirement today.
+    ///
+    /// `RawElement` carries no origin marker (SysMLv2-synthesized and
+    /// hand-authored elements are deliberately indistinguishable once in the
+    /// graph — the same origin-agnostic design `REQ-TRS-SYSMLV2-002`'s
+    /// rationale already establishes for `RawElement`/`Resolver`), so this
+    /// widens by *element kind*, not by where the element came from: any
+    /// element of one of these kinds is a legal `verifies:` target, whether
+    /// it was declared in a `.sysml` file or hand-authored `.md`. A `type:
+    /// Requirement`/`RequirementDef` target still must pass the unchanged
+    /// `is_native_requirement` check above — this does not loosen that path.
+    pub fn is_verify_target(elem: &RawElement) -> bool {
+        if Self::is_native_requirement(elem) {
+            return true;
+        }
+        matches!(
+            elem.frontmatter.element_type,
+            Some(ElementType::PartDef)
+                | Some(ElementType::Part)
+                | Some(ElementType::AttributeDef)
+                | Some(ElementType::Attribute)
+                | Some(ElementType::PortDef)
+                | Some(ElementType::Port)
+                | Some(ElementType::ConnectionDef)
+                | Some(ElementType::Connection)
+                | Some(ElementType::InterfaceDef)
+                | Some(ElementType::Interface)
+                | Some(ElementType::ItemDef)
+                | Some(ElementType::Item)
+                | Some(ElementType::Allocation)
+        )
+    }
+
     /// True if `elem` is a native TestCase (type: TestCase with a TC-* id).
     pub fn is_native_testcase(elem: &RawElement) -> bool {
         matches!(elem.frontmatter.element_type, Some(ElementType::TestCase))
