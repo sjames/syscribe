@@ -287,6 +287,52 @@ fn variant_membership_inside_a_variation_part_def_maps_with_variant_of() {
 }
 
 #[test]
+fn a_file_mixing_mapped_and_unmapped_constructs_parses_fully_and_keeps_the_mapped_ones() {
+    // REQ-TRS-SYSMLV2-007: full-grammar parsing, fixed-set mapping.
+    // `state def`/`action def` (behavior constructs, explicitly outside the
+    // fixed set) must not fail the parse or drop the file — they are simply
+    // invisible, while a mapped `part def` in the very same file/package
+    // still comes through.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Mixed.sysml",
+        "package Boundary {\n\
+         part def Vehicle;\n\
+         state def Idle;\n\
+         action def DoNothing;\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+
+    // The mapped PartDef came through despite the unmapped siblings.
+    assert!(
+        elements
+            .iter()
+            .any(|e| e.qualified_name == "SysML2Legacy::Boundary::Vehicle"),
+        "mapped PartDef should survive alongside unmapped constructs: {:#?}",
+        elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+    );
+    // None of the unmapped constructs synthesized an element.
+    assert!(!elements.iter().any(|e| e.qualified_name.contains("Idle")));
+    assert!(!elements.iter().any(|e| e.qualified_name.contains("DoNothing")));
+
+    // No parse failure was recorded for the file — it's a fully successful
+    // parse, just with a narrower mapped-element yield than its full content.
+    let result = validate(&elements);
+    let w541: Vec<_> = result.findings.iter().filter(|f| f.code == "W541").collect();
+    assert!(w541.is_empty(), "unmapped constructs must not be parse failures: {w541:#?}");
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
 fn two_files_declaring_the_same_package_merge_into_one_namespace() {
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
