@@ -710,7 +710,10 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
 pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) -> ValidationResult {
     let mut findings: Vec<Finding> = Vec::new();
 
-    // Collect derive pass findings (E500, E501, E502) stored by the derive pass in walker.
+    // Collect findings stashed on `RawElement.derive_findings` by more than one
+    // walker post-processing pass: the derive pass (E500-E502) and native
+    // SysMLv2 submodel ingestion (W540) both share this one vector — see that
+    // field's doc comment in element.rs.
     for elem in elements {
         for (code, file, message) in &elem.derive_findings {
             let sev = if code.starts_with('E') { Severity::Error } else { Severity::Warning };

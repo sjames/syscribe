@@ -13,9 +13,13 @@
 
 use crate::element::RawElement;
 
-type Finding = (String, String, String); // (code, file, message)
+/// `(code, file, message)`. Shared shape for `RawElement.derive_findings`,
+/// which now carries findings from more than just this module's derive pass
+/// (see that field's doc comment) — other passes reuse this constructor
+/// instead of hand-rolling the tuple.
+pub(crate) type Finding = (String, String, String);
 
-fn finding(code: &str, file: &str, message: &str) -> Finding {
+pub(crate) fn finding(code: &str, file: &str, message: &str) -> Finding {
     (code.to_string(), file.to_string(), message.to_string())
 }
 

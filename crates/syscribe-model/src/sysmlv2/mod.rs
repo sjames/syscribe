@@ -26,6 +26,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::derive::finding;
 use crate::element::RawElement;
 
 /// Apply `sysmlSubmodel: true` subtree scoping to `elements` in place.
@@ -35,73 +36,85 @@ use crate::element::RawElement;
 /// from the graph (it is not a package — nested subdirectories inside a
 /// `sysmlSubmodel` subtree carry no namespace meaning of their own) and
 /// replaced with a `W540` finding attached to the declaring package.
+///
+/// Anchors are confirmed shallowest-first: a `_index.md` that *itself*
+/// declares `sysmlSubmodel: true` but sits inside an already-confirmed
+/// anchor's subtree does not get to start its own subtree — it is just
+/// another stray, exactly like a plain nested `_index.md` would be. Otherwise
+/// a `sysmlSubmodel: true` package nested inside another one would escape
+/// exclusion entirely (the inner anchor "claims" itself before the outer
+/// anchor's sweep ever sees it).
 pub fn apply_sysmlv2_submodels(elements: &mut Vec<RawElement>, _model_root: &Path) {
-    // Every sysmlSubmodel package is anchored at its own `_index.md`.
-    let anchors: Vec<(usize, PathBuf, String)> = elements
+    // Every `_index.md`, marked or not, is a candidate — sorted shallowest
+    // (fewest path components) first so outer packages are confirmed before
+    // any package nested inside them is considered.
+    let mut candidates: Vec<(usize, PathBuf, String, bool)> = elements
         .iter()
         .enumerate()
         .filter_map(|(i, e)| {
-            if e.frontmatter.sysml_submodel != Some(true) || !e.file_path.ends_with("_index.md") {
+            if !e.file_path.ends_with("_index.md") {
                 return None;
             }
             let dir = Path::new(&e.file_path)
                 .parent()
                 .map(|p| p.to_path_buf())
                 .unwrap_or_default();
-            Some((i, dir, e.file_path.clone()))
+            Some((i, dir, e.file_path.clone(), e.frontmatter.sysml_submodel == Some(true)))
         })
         .collect();
+    candidates.sort_by_key(|(_, dir, _, _)| dir.components().count());
 
-    if anchors.is_empty() {
+    let mut confirmed: Vec<(usize, PathBuf)> = Vec::new(); // (owner idx, dir)
+    let mut strays: Vec<(usize, String)> = Vec::new(); // (owner idx, stray file path)
+
+    for (idx, dir, file_path, is_marked) in &candidates {
+        let owner = confirmed
+            .iter()
+            .filter(|(_, anchor_dir)| under_dir(file_path, anchor_dir))
+            .max_by_key(|(_, anchor_dir)| anchor_dir.components().count());
+
+        match owner {
+            Some((owner_idx, _)) => {
+                // Inside an already-confirmed subtree: always a stray, even if
+                // it declares `sysmlSubmodel: true` itself — it never gets to
+                // start its own subtree.
+                strays.push((*owner_idx, file_path.clone()));
+            }
+            None if *is_marked => {
+                // Not inside anything already confirmed, and marked: a new anchor.
+                confirmed.push((*idx, dir.clone()));
+            }
+            None => {
+                // An ordinary, unmarked package outside every marked subtree.
+            }
+        }
+    }
+
+    if strays.is_empty() {
         return;
     }
 
-    // Find every stray `_index.md` inside a marked subtree (anywhere, however
-    // nested), owned by its deepest-matching marked ancestor.
-    let mut strays: Vec<(usize, String)> = Vec::new(); // (owner anchor index, stray file path)
-    for elem in elements.iter() {
-        if !elem.file_path.ends_with("_index.md") {
-            continue;
-        }
-        if anchors.iter().any(|(_, _, anchor_path)| anchor_path == &elem.file_path) {
-            continue; // the package's own anchor — always a normal native element
-        }
-        let owner = anchors
-            .iter()
-            .filter(|(_, dir, _)| under_dir(&elem.file_path, dir))
-            .max_by_key(|(_, dir, _)| dir.components().count());
-        if let Some((owner_idx, _, _)) = owner {
-            strays.push((*owner_idx, elem.file_path.clone()));
-        }
-    }
-
     for (owner_idx, stray_path) in &strays {
-        push_finding(
-            &mut elements[*owner_idx],
+        elements[*owner_idx].derive_findings.push(finding(
             "W540",
             stray_path,
             &format!(
                 "'{stray_path}' ignored — inside a sysmlSubmodel subtree (nested _index.md files carry no namespace meaning there)"
             ),
-        );
+        ));
     }
 
-    if !strays.is_empty() {
-        let stray_paths: Vec<&str> = strays.iter().map(|(_, p)| p.as_str()).collect();
-        elements.retain(|e| !stray_paths.contains(&e.file_path.as_str()));
-    }
+    let stray_paths: Vec<&str> = strays.iter().map(|(_, p)| p.as_str()).collect();
+    elements.retain(|e| !stray_paths.contains(&e.file_path.as_str()));
 }
 
-/// True if `file_path` lies inside `dir` (component-wise, not a string prefix).
-/// Callers exclude the anchor's own `_index.md` separately.
+/// True if `file_path` lies inside `dir` (component-wise, not a string
+/// prefix). Every `_index.md` lives in its own distinct directory, so this
+/// only ever matches a *different* file's path against a confirmed anchor's
+/// directory — never an anchor against its own directory.
 fn under_dir(file_path: &str, dir: &Path) -> bool {
     if dir.as_os_str().is_empty() {
         return false;
     }
     Path::new(file_path).starts_with(dir)
-}
-
-fn push_finding(elem: &mut RawElement, code: &str, file: &str, message: &str) {
-    elem.derive_findings
-        .push((code.to_string(), file.to_string(), message.to_string()));
 }
