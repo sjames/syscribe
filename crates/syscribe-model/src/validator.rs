@@ -173,6 +173,65 @@ fn yaml_field<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a serde_yaml:
     m.get(serde_yaml::Value::String(k.to_string()))
 }
 
+// ── PlanningItem evidence: resolution primitives (REQ-TRS-PLANITEM-005/006) ──
+//
+// Single source of truth for "does this evidence: entry's own target resolve"
+// so the per-entry E716/E717 checks and REQ-TRS-PLANITEM-006's leaf-evidence
+// rule (E719) never disagree — the latter is built directly on top of the
+// former rather than re-deriving resolution logic.
+
+/// True when a PlanningItem evidence: `ref:` value resolves to any known
+/// element — unrestricted by kind (ADR-SYS-PLANITEM-001 Decision 3).
+fn evidence_ref_resolves(elements: &[RawElement], resolver: &Resolver, r: &str) -> bool {
+    resolver.resolve_ref(elements, r).is_some()
+}
+
+/// True when a PlanningItem evidence: `path:` value resolves, reusing
+/// `implementedBy:`'s exact `classify_source` semantics: a local path must
+/// exist on disk, a remote URI is accepted as external with no local check.
+fn evidence_path_resolves(config: &ValidateConfig, p: &str) -> bool {
+    match config.classify_source(p) {
+        crate::config::SourceLocation::Local(pb) => pb.exists(),
+        crate::config::SourceLocation::Remote(_) => true,
+    }
+}
+
+/// Whether a single evidence: entry's own `ref:`/`path:` target resolves,
+/// ignoring any `rationale:` waiver entirely (waiver semantics are the
+/// caller's concern — E716/E717 use a waiver to skip *flagging* an entry;
+/// REQ-TRS-PLANITEM-006's leaf rule uses it to exclude the entry from
+/// *counting* as proof — two different questions over the same primitive).
+fn evidence_entry_target_resolves(
+    entry: &serde_yaml::Value,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    config: &ValidateConfig,
+) -> bool {
+    let Some(m) = entry.as_mapping() else { return false };
+    if let Some(r) = yaml_field(m, "ref").and_then(|v| v.as_str()) {
+        if evidence_ref_resolves(elements, resolver, r) {
+            return true;
+        }
+    }
+    if let Some(p) = yaml_field(m, "path").and_then(|v| v.as_str()) {
+        if evidence_path_resolves(config, p) {
+            return true;
+        }
+    }
+    false
+}
+
+/// True when an evidence: entry's own `rationale:` is a non-empty string,
+/// mirroring `ffi_rationale`'s co-located waiver pattern (documents *and*
+/// waives that one entry).
+fn evidence_entry_is_waived(entry: &serde_yaml::Value) -> bool {
+    entry
+        .as_mapping()
+        .and_then(|m| yaml_field(m, "rationale"))
+        .and_then(|v| v.as_str())
+        .is_some_and(|r| !r.trim().is_empty())
+}
+
 /// Extract the transition edges contributed by a substate roster (each substate's
 /// nested `transitions:`, with the substate as implicit source) plus an optional
 /// top-level/region-level `transitions:` list (explicit source). Normalizes the
@@ -3858,11 +3917,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if let Some(ref ev) = fm.evidence {
                 for entry in ev {
                     let Some(m) = entry.as_mapping() else { continue };
-                    let rationale = yaml_field(m, "rationale").and_then(|v| v.as_str());
-                    let waived = rationale.is_some_and(|r| !r.trim().is_empty());
+                    let waived = evidence_entry_is_waived(entry);
 
                     if let Some(r) = yaml_field(m, "ref").and_then(|v| v.as_str()) {
-                        if !waived && resolver.resolve_ref(elements, r).is_none() {
+                        if !waived && !evidence_ref_resolves(elements, &resolver, r) {
                             findings.push(error(
                                 "E716",
                                 &elem.file_path,
@@ -3871,16 +3929,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         }
                     }
                     if let Some(p) = yaml_field(m, "path").and_then(|v| v.as_str()) {
-                        if !waived {
-                            if let crate::config::SourceLocation::Local(pb) = config.classify_source(p) {
-                                if !pb.exists() {
-                                    findings.push(error(
-                                        "E717",
-                                        &elem.file_path,
-                                        &format!("PlanningItem evidence `path` '{}' does not exist on disk", p),
-                                    ));
-                                }
-                            }
+                        if !waived && !evidence_path_resolves(config, p) {
+                            findings.push(error(
+                                "E717",
+                                &elem.file_path,
+                                &format!("PlanningItem evidence `path` '{}' does not exist on disk", p),
+                            ));
                         }
                     }
                 }
@@ -3910,6 +3964,47 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     }
                 }
             }
+        }
+    }
+
+    // E719: a leaf PlanningItem (REQ-TRS-PLANITEM-002: empty computed
+    // `children`) at `status: done` must have at least one non-waived,
+    // resolving `evidence:` entry (REQ-TRS-PLANITEM-006). Reuses task #15's
+    // `planning_children` (now fully populated — this runs after the loop
+    // that built it) for leaf detection and task #18's
+    // `evidence_entry_target_resolves`/`evidence_entry_is_waived` primitives
+    // for per-entry resolution, rather than re-deriving either. Harder
+    // severity than the analogous Requirement rule (`W300`, a warning):
+    // claiming `done` with zero resolvable evidence is a correctness defect,
+    // not a time-bound gap. A non-leaf (has children) is not constrained by
+    // this rule at all, regardless of its own status/evidence — its
+    // completion is a function of its children, not its own evidence list.
+    // A waived-only list still fails this: a rationale excuses one entry's
+    // *check*, it does not manufacture a passing entry.
+    for elem in elements {
+        if !matches!(elem.frontmatter.element_type, Some(ElementType::PlanningItem)) {
+            continue;
+        }
+        if elem.frontmatter.status.as_deref() != Some("done") {
+            continue;
+        }
+        let pi_id = elem.frontmatter.id.as_deref().unwrap_or("");
+        let is_leaf = planning_children.get(pi_id).is_none_or(|c| c.is_empty());
+        if !is_leaf {
+            continue;
+        }
+        let has_resolving_evidence = elem.frontmatter.evidence.as_ref().is_some_and(|ev| {
+            ev.iter().any(|entry| {
+                !evidence_entry_is_waived(entry)
+                    && evidence_entry_target_resolves(entry, elements, &resolver, config)
+            })
+        });
+        if !has_resolving_evidence {
+            findings.push(error(
+                "E719",
+                &elem.file_path,
+                "leaf PlanningItem is `status: done` but has no non-waived, resolving `evidence:` entry",
+            ));
         }
     }
 
@@ -8249,8 +8344,12 @@ mod planning_item_evidence_tests {
                 "model/Decisions/SomeAdr.md",
             ),
             make_elem(
+                // status: in_progress (not done) -- this element's own leaf/
+                // evidence state is incidental to this test, which only cares
+                // that it's a valid ref: target of kind PlanningItem. `done`
+                // would additionally trip REQ-TRS-PLANITEM-006's E719.
                 "Planning::OtherItem",
-                "type: PlanningItem\nid: PI-EV-002\nname: Other\nstatus: done\nparent: PI-EV-001\n",
+                "type: PlanningItem\nid: PI-EV-002\nname: Other\nstatus: in_progress\nparent: PI-EV-001\n",
                 "model/Planning/OtherItem.md",
             ),
             pi_with_evidence(
