@@ -41,6 +41,9 @@ static ASSET_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static FEAT_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 // Baseline stable-ID pattern (FEAT-style, no trailing numeric suffix; REQ-TRS-BL-001)
 static BL_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+// PlanningItem stable-ID pattern (REQ/TC/ADR-style, requires trailing numeric suffix;
+// REQ-TRS-PLANITEM-001)
+static PI_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
 fn req_re() -> &'static regex::Regex {
     REQ_RE.get_or_init(|| regex::Regex::new(r"^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
@@ -141,6 +144,17 @@ pub fn is_baseline_id(s: &str) -> bool {
     bl_re().is_match(s) || extra_matches("BL", s)
 }
 
+fn pi_re() -> &'static regex::Regex {
+    // PI ids require a trailing numeric segment (REQ/TC/ADR-style, unlike FEAT/BL):
+    // e.g. `PI-SCHED-001`. Each segment is [A-Z0-9]{2,12}.
+    PI_RE.get_or_init(|| regex::Regex::new(r"^PI(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+}
+
+/// Returns true for PI-* IDs (PlanningItem, REQ-TRS-PLANITEM-001).
+pub fn is_pi_id(s: &str) -> bool {
+    pi_re().is_match(s) || extra_matches("PI", s)
+}
+
 // ── Configurable additional stable-ID prefixes (REQ-TRS-ID-007) ──────────────────
 //
 // Each id-identified type has a fixed built-in prefix; a project may declare *extra*
@@ -186,6 +200,7 @@ pub const STABLE_ID_KINDS: &[(&str, &str, bool)] = &[
     ("AssumptionOfUse", "AOU", true),
     ("FeatureDef", "FEAT", false),
     ("Baseline", "BL", false),
+    ("PlanningItem", "PI", true),
 ];
 
 static PREFIX_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
@@ -354,6 +369,7 @@ pub fn is_stable_id(s: &str) -> bool {
         || aou_re().is_match(s)
         || feat_re().is_match(s)
         || bl_re().is_match(s)
+        || pi_re().is_match(s)
         || any_extra_matches(s)
 }
 

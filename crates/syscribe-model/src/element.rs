@@ -126,6 +126,7 @@ pub enum ElementType {
     TestPlan,         // TP-* — configuration-bound test campaign (GH #38)
     ADR,              // Architecture Decision Record (§8.17)
     Baseline,         // BL-* — frozen release snapshot (ADR-SYS-BASELINE-001)
+    PlanningItem,     // PI-* — native planning/tracking work item (ADR-SYS-PLANITEM-001)
     ReviewRecord,     // RR-* — formal review event + traceability (§19, GH #71)
     TradeStudy,       // TRD-* — weighted-criteria evaluation of alternatives (§15, GH #63)
     Zone,             // ZN-* — IEC 62443 security zone (§13, GH #61)
@@ -193,6 +194,7 @@ impl ElementType {
                 | ElementType::Configuration
                 | ElementType::ADR
                 | ElementType::Baseline
+                | ElementType::PlanningItem
                 | ElementType::ReviewRecord
                 | ElementType::TradeStudy
                 | ElementType::Zone
