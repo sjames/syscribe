@@ -207,7 +207,20 @@ fn convert_package_body_element(
     match elem {
         E::PartDef(node) => convert_part_def(&node.value, qname, file_path, out),
         E::PartUsage(node) => convert_part_usage(&node.value, qname, file_path, out),
-        _ => {} // remaining fixed-set kinds land in a later commit
+        E::AttributeDef(node) => convert_attribute_def(&node.value, qname, file_path, out),
+        E::AttributeUsage(node) => convert_attribute_usage(&node.value, qname, file_path, out),
+        E::PortDef(node) => convert_port_def(&node.value, qname, file_path, out),
+        E::PortUsage(node) => convert_port_usage(&node.value, qname, file_path, out),
+        E::ConnectionDef(node) => convert_connection_def(&node.value, qname, file_path, out),
+        E::ConnectionUsage(node) => convert_connection_usage(&node.value, qname, file_path, out),
+        E::InterfaceDef(node) => convert_interface_def(&node.value, qname, file_path, out),
+        E::InterfaceUsage(node) => convert_interface_usage(&node.value, qname, file_path, out),
+        E::ItemDef(node) => convert_item_def(&node.value, qname, file_path, out),
+        E::ItemUsage(node) => convert_item_usage(&node.value, qname, file_path, out),
+        E::RequirementDef(node) => convert_requirement_def(&node.value, qname, file_path, out),
+        E::RequirementUsage(node) => convert_requirement_usage(&node.value, qname, file_path, out),
+        E::AllocationUsage(node) => convert_allocation_usage(&node.value, qname, file_path, out),
+        _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
 
@@ -260,6 +273,8 @@ fn convert_part_usage(
 /// Dispatch one member of a `part def` body. Recurses into nested
 /// `PartDef`/`PartUsage` so a realistic containment tree (a part containing
 /// attributes/ports/nested parts) is fully walked, not just one level deep.
+/// Note: the parser names this enum's plain-connection-usage variant
+/// `Connection`, not `ConnectionUsage` (that name is `PackageBodyElement`'s).
 fn convert_part_def_body_element(
     elem: &sysml_v2_parser::PartDefBodyElement,
     part_qname: &str,
@@ -270,15 +285,29 @@ fn convert_part_def_body_element(
     match elem {
         E::PartDef(node) => convert_part_def(&node.value, part_qname, file_path, out),
         E::PartUsage(node) => convert_part_usage(&node.value, part_qname, file_path, out),
-        _ => {} // remaining fixed-set kinds land in a later commit
+        E::AttributeDef(node) => convert_attribute_def(&node.value, part_qname, file_path, out),
+        E::AttributeUsage(node) => convert_attribute_usage(&node.value, part_qname, file_path, out),
+        E::PortDef(node) => convert_port_def(&node.value, part_qname, file_path, out),
+        E::PortUsage(node) => convert_port_usage(&node.value, part_qname, file_path, out),
+        E::ConnectionDef(node) => convert_connection_def(&node.value, part_qname, file_path, out),
+        E::Connection(node) => convert_connection_usage(&node.value, part_qname, file_path, out),
+        E::InterfaceDef(node) => convert_interface_def(&node.value, part_qname, file_path, out),
+        E::InterfaceUsage(node) => convert_interface_usage(&node.value, part_qname, file_path, out),
+        E::ItemDef(node) => convert_item_def(&node.value, part_qname, file_path, out),
+        E::ItemUsage(node) => convert_item_usage(&node.value, part_qname, file_path, out),
+        E::RequirementDef(node) => convert_requirement_def(&node.value, part_qname, file_path, out),
+        E::RequirementUsage(node) => convert_requirement_usage(&node.value, part_qname, file_path, out),
+        E::AllocationUsage(node) => convert_allocation_usage(&node.value, part_qname, file_path, out),
+        E::VariantUsage(node) => convert_variant_usage(&node.value, part_qname, file_path, out),
+        _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
 
 /// Dispatch one member of a `part` usage body. See
-/// [`convert_part_def_body_element`]. Note: unlike `PartDefBodyElement`, the
-/// parser's `PartUsageBodyElement` has no nested-`PartDef` variant (only a
-/// nested `PartUsage`) — a `part def` cannot be declared directly inside a
-/// `part` usage body per this grammar.
+/// [`convert_part_def_body_element`]. Note: unlike `PartDefBodyElement`, this
+/// enum has no nested-`PartDef` or `AllocationUsage` variant at all — a `part
+/// def`/named `allocation` cannot be declared directly inside a `part` usage
+/// body per this grammar.
 fn convert_part_usage_body_element(
     elem: &sysml_v2_parser::PartUsageBodyElement,
     part_qname: &str,
@@ -288,10 +317,316 @@ fn convert_part_usage_body_element(
     use sysml_v2_parser::PartUsageBodyElement as E;
     match elem {
         E::PartUsage(node) => convert_part_usage(&node.value, part_qname, file_path, out),
-        _ => {} // remaining fixed-set kinds land in a later commit
+        E::AttributeUsage(node) => convert_attribute_usage(&node.value, part_qname, file_path, out),
+        E::PortDef(node) => convert_port_def(&node.value, part_qname, file_path, out),
+        E::PortUsage(node) => convert_port_usage(&node.value, part_qname, file_path, out),
+        E::ConnectionDef(node) => convert_connection_def(&node.value, part_qname, file_path, out),
+        E::Connection(node) => convert_connection_usage(&node.value, part_qname, file_path, out),
+        E::InterfaceUsage(node) => convert_interface_usage(&node.value, part_qname, file_path, out),
+        E::ItemDef(node) => convert_item_def(&node.value, part_qname, file_path, out),
+        E::ItemUsage(node) => convert_item_usage(&node.value, part_qname, file_path, out),
+        E::RequirementDef(node) => convert_requirement_def(&node.value, part_qname, file_path, out),
+        E::RequirementUsage(node) => convert_requirement_usage(&node.value, part_qname, file_path, out),
+        E::VariantUsage(node) => convert_variant_usage(&node.value, part_qname, file_path, out),
+        _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
 
 fn is_variation_prefix(prefix: &Option<sysml_v2_parser::ast::DefinitionPrefix>) -> Option<bool> {
     matches!(prefix, Some(sysml_v2_parser::ast::DefinitionPrefix::Variation)).then_some(true)
+}
+
+/// `None` for an empty string — several usage structs carry `type_name: String`
+/// (not `Option<String>`) that's simply empty when no `:`/`typed by` clause was
+/// written.
+fn nonempty(s: String) -> Option<String> {
+    (!s.is_empty()).then_some(s)
+}
+
+fn convert_attribute_def(
+    a: &sysml_v2_parser::AttributeDef,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    if a.name.is_empty() {
+        return;
+    }
+    let elem_qname = format!("{qname}::{}", a.name);
+    // AttributeDef's `:>` specialization target is (inconsistently, upstream)
+    // named `typing` rather than `specializes` like the other Def structs, but
+    // it's the same semantic — a Def's supertype, not a Usage's typed-by.
+    let spec = Spec {
+        supertype: a.typing.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::AttributeDef, &a.name, spec);
+}
+
+fn convert_attribute_usage(
+    a: &sysml_v2_parser::AttributeUsage,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    if a.name.is_empty() {
+        return;
+    }
+    let elem_qname = format!("{qname}::{}", a.name);
+    let spec = Spec {
+        typed_by: a.typing.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::Attribute, &a.name, spec);
+}
+
+fn convert_port_def(
+    p: &sysml_v2_parser::PortDef,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    let Some(name) = ident_name(&p.identification) else {
+        return;
+    };
+    let elem_qname = format!("{qname}::{name}");
+    let spec = Spec {
+        supertype: p.specializes.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::PortDef, &name, spec);
+}
+
+fn convert_port_usage(
+    p: &sysml_v2_parser::PortUsage,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    if p.name.is_empty() {
+        return;
+    }
+    let elem_qname = format!("{qname}::{}", p.name);
+    let spec = Spec {
+        typed_by: p.type_name.clone(),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::Port, &p.name, spec);
+}
+
+fn convert_connection_def(
+    c: &sysml_v2_parser::ConnectionDef,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    let Some(name) = ident_name(&c.identification) else {
+        return;
+    };
+    let elem_qname = format!("{qname}::{name}");
+    let spec = Spec {
+        supertype: c.specializes.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::ConnectionDef, &name, spec);
+}
+
+fn convert_connection_usage(
+    c: &sysml_v2_parser::ast::ConnectionUsageMember,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    let Some(name) = c.name.clone().filter(|n| !n.is_empty()) else {
+        return; // anonymous connection usage: no identity to qname against
+    };
+    let elem_qname = format!("{qname}::{name}");
+    let spec = Spec {
+        typed_by: c.type_name.clone(),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::Connection, &name, spec);
+}
+
+fn convert_interface_def(
+    i: &sysml_v2_parser::InterfaceDef,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    let Some(name) = ident_name(&i.identification) else {
+        return;
+    };
+    let elem_qname = format!("{qname}::{name}");
+    let spec = Spec {
+        supertype: i.specializes.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::InterfaceDef, &name, spec);
+}
+
+/// Only the `Declaration` variant carries a name — `TypedConnect`/`Connection`
+/// are anonymous binary connectors between two endpoints (no identity to
+/// qname against), so they contribute nothing here.
+fn convert_interface_usage(
+    i: &sysml_v2_parser::InterfaceUsage,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    if let sysml_v2_parser::InterfaceUsage::Declaration {
+        name: Some(name),
+        interface_type,
+        ..
+    } = i
+    {
+        if name.is_empty() {
+            return;
+        }
+        let elem_qname = format!("{qname}::{name}");
+        let spec = Spec {
+            typed_by: interface_type.clone(),
+            ..Default::default()
+        };
+        push_synth(out, &elem_qname, file_path, ElementType::Interface, name, spec);
+    }
+}
+
+fn convert_item_def(
+    i: &sysml_v2_parser::ast::ItemDef,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    let Some(name) = ident_name(&i.identification) else {
+        return;
+    };
+    let elem_qname = format!("{qname}::{name}");
+    let spec = Spec {
+        supertype: i.specializes.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::ItemDef, &name, spec);
+}
+
+fn convert_item_usage(
+    i: &sysml_v2_parser::ItemUsage,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    if i.name.is_empty() {
+        return; // anonymous redefinition form (`item :>> shape ...`): skip
+    }
+    let elem_qname = format!("{qname}::{}", i.name);
+    let spec = Spec {
+        typed_by: i.type_name.clone(),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::Item, &i.name, spec);
+}
+
+fn convert_requirement_def(
+    r: &sysml_v2_parser::RequirementDef,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    let Some(name) = ident_name(&r.identification) else {
+        return;
+    };
+    let elem_qname = format!("{qname}::{name}");
+    let spec = Spec {
+        supertype: r.specializes.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::RequirementDef, &name, spec);
+}
+
+fn convert_requirement_usage(
+    r: &sysml_v2_parser::RequirementUsage,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    if r.name.is_empty() {
+        return;
+    }
+    let elem_qname = format!("{qname}::{}", r.name);
+    let spec = Spec {
+        typed_by: r.type_name.clone(),
+        is_variation: (r.is_variation).then_some(true),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::Requirement, &r.name, spec);
+}
+
+fn convert_allocation_usage(
+    a: &sysml_v2_parser::AllocationUsage,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    if a.name.is_empty() {
+        return;
+    }
+    let elem_qname = format!("{qname}::{}", a.name);
+    let spec = Spec {
+        typed_by: a.type_name.clone(),
+        ..Default::default()
+    };
+    push_synth(out, &elem_qname, file_path, ElementType::Allocation, &a.name, spec);
+}
+
+/// `variant name;` / `variant part name : Type { ... }` member of a
+/// `variation` def/usage body (`REQ-TRS-SYSMLV2-007`'s "variation/variant
+/// membership"). The element kind follows the typed form when present
+/// (`Part`/`Attribute`/`Item`/`Port`); the untyped bare-reference form
+/// (`variant name;`, referring to a usage declared elsewhere by that name) and
+/// the `Perform`-typed form (behavior-related, outside the fixed set) default
+/// to a plain `Part` placeholder and are skipped respectively — see this
+/// function's judgment calls in the task report.
+fn convert_variant_usage(
+    v: &sysml_v2_parser::ast::VariantUsage,
+    part_qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    if v.name.is_empty() {
+        return;
+    }
+    let elem_qname = format!("{part_qname}::{}", v.name);
+    let base_spec = || Spec {
+        is_variant: Some(true),
+        variant_of: Some(part_qname.to_string()),
+        ..Default::default()
+    };
+    match &v.typed {
+        None => {
+            push_synth(out, &elem_qname, file_path, ElementType::Part, &v.name, base_spec());
+        }
+        Some(sysml_v2_parser::ast::VariantTypedUsage::Part(pu)) => {
+            let mut spec = base_spec();
+            spec.typed_by = nonempty(pu.value.type_name.clone());
+            push_synth(out, &elem_qname, file_path, ElementType::Part, &v.name, spec);
+        }
+        Some(sysml_v2_parser::ast::VariantTypedUsage::Attribute(au)) => {
+            let mut spec = base_spec();
+            spec.typed_by = au.value.typing.as_ref().map(|t| t.value.target_display());
+            push_synth(out, &elem_qname, file_path, ElementType::Attribute, &v.name, spec);
+        }
+        Some(sysml_v2_parser::ast::VariantTypedUsage::Item(iu)) => {
+            let mut spec = base_spec();
+            spec.typed_by = iu.value.type_name.clone();
+            push_synth(out, &elem_qname, file_path, ElementType::Item, &v.name, spec);
+        }
+        Some(sysml_v2_parser::ast::VariantTypedUsage::Port(pu)) => {
+            let mut spec = base_spec();
+            spec.typed_by = pu.value.type_name.clone();
+            push_synth(out, &elem_qname, file_path, ElementType::Port, &v.name, spec);
+        }
+        Some(sysml_v2_parser::ast::VariantTypedUsage::Perform(_)) => {
+            // Behavior-related, outside REQ-TRS-SYSMLV2-007's fixed set.
+        }
+    }
 }

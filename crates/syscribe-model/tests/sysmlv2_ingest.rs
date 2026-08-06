@@ -163,6 +163,130 @@ fn variation_part_def_carries_is_variation() {
 }
 
 #[test]
+fn remaining_fixed_set_kinds_map_attribute_port_connection_interface_item_requirement_allocation() {
+    // What syntax without an explicit `def` keyword resolves to (`*Def` vs.
+    // `*Usage`) is the parser's own disambiguation call, confirmed against its
+    // actual AST output rather than assumed: bare `attribute`/`port`/
+    // `interface`/`item` land as `*Def` (their "def" keyword is optional to
+    // this parser), while bare `connection`/`requirement`/`allocation` land as
+    // `*Usage`. Either way, a Def's `:`/`:>` clause maps to `supertype` and a
+    // Usage's maps to `typed_by` — this test locks in that observed mapping.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Mixed.sysml",
+        "package Mixed {\n\
+         attribute mass : Real;\n\
+         port fuelPort : FuelPort;\n\
+         connection wiring : Wire;\n\
+         interface iface : SomeInterface;\n\
+         item fuel : Fuel;\n\
+         requirement enduranceReq : EnduranceReqType;\n\
+         allocation allocA : AllocKind;\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let qnames: Vec<&String> = elements.iter().map(|e| &e.qualified_name).collect();
+
+    let find = |qname: &str| {
+        elements
+            .iter()
+            .find(|e| e.qualified_name == qname)
+            .unwrap_or_else(|| panic!("expected {qname}, got: {qnames:#?}"))
+    };
+    let expect_supertype = |qname: &str, ty: ElementType, supertype: &str| {
+        let e = find(qname);
+        assert_eq!(e.frontmatter.element_type, Some(ty), "wrong type for {qname}");
+        assert_eq!(
+            e.frontmatter.supertype.as_ref().and_then(|v| v.as_str()),
+            Some(supertype),
+            "wrong supertype for {qname}"
+        );
+    };
+    let expect_typed_by = |qname: &str, ty: ElementType, typed_by: &str| {
+        let e = find(qname);
+        assert_eq!(e.frontmatter.element_type, Some(ty), "wrong type for {qname}");
+        assert_eq!(
+            e.frontmatter.typed_by.as_ref().and_then(|v| v.as_str()),
+            Some(typed_by),
+            "wrong typed_by for {qname}"
+        );
+    };
+
+    expect_supertype("SysML2Legacy::Mixed::mass", ElementType::AttributeDef, "Real");
+    expect_supertype("SysML2Legacy::Mixed::fuelPort", ElementType::PortDef, "FuelPort");
+    expect_typed_by("SysML2Legacy::Mixed::wiring", ElementType::Connection, "Wire");
+    expect_supertype("SysML2Legacy::Mixed::iface", ElementType::InterfaceDef, "SomeInterface");
+    expect_supertype("SysML2Legacy::Mixed::fuel", ElementType::ItemDef, "Fuel");
+    expect_typed_by(
+        "SysML2Legacy::Mixed::enduranceReq",
+        ElementType::Requirement,
+        "EnduranceReqType",
+    );
+    expect_typed_by("SysML2Legacy::Mixed::allocA", ElementType::Allocation, "AllocKind");
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
+fn variant_membership_inside_a_variation_part_def_maps_with_variant_of() {
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Variants.sysml",
+        "package Variants {\n\
+         variation part def RotorConfig {\n\
+         variant part quad : QuadRotor;\n\
+         variant part hex : HexRotor;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+
+    let quad = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Variants::RotorConfig::quad")
+        .unwrap_or_else(|| {
+            panic!(
+                "expected variant 'quad', got: {:#?}",
+                elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(quad.frontmatter.element_type, Some(ElementType::Part));
+    assert_eq!(quad.frontmatter.is_variant, Some(true));
+    assert_eq!(
+        quad.frontmatter.variant_of.as_deref(),
+        Some("SysML2Legacy::Variants::RotorConfig")
+    );
+    assert_eq!(
+        quad.frontmatter.typed_by.as_ref().and_then(|v| v.as_str()),
+        Some("QuadRotor")
+    );
+
+    assert!(elements
+        .iter()
+        .any(|e| e.qualified_name == "SysML2Legacy::Variants::RotorConfig::hex"));
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
 fn two_files_declaring_the_same_package_merge_into_one_namespace() {
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
