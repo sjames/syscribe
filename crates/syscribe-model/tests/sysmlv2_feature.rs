@@ -335,15 +335,13 @@ fn feature_referenced_only_via_a_sysmlv2_element_is_not_flagged_orphan() {
     // must NOT fire, exactly as it wouldn't for a native referencing element.
     //
     // Uses the qualified-name form of featureId (`Config::Rotor`) rather than
-    // the bare FEAT-* id: a real, pre-existing, origin-independent quirk was
-    // found in W024's own check (it doesn't canonicalize an id-form
-    // appliesWhen: operand to the FeatureDef's qualified name before
-    // comparing — confirmed to reproduce identically for a hand-authored
-    // native element using `appliesWhen: FEAT-ROTOR`, so it is not a SysMLv2
-    // defect and out of this task's scope to fix). The qname form sidesteps
-    // that pre-existing gap and still fully proves this task's actual claim:
-    // the SysMLv2-lifted `applies_when` is read by W024's check exactly like
-    // any other element's.
+    // the bare FEAT-* id. (Historical note: at the time this test was written,
+    // W024's own check didn't canonicalize an id-form appliesWhen: operand to
+    // the FeatureDef's qualified name before comparing, an origin-independent
+    // gap since fixed — see `feature_model_orphan.rs` for the bare-id
+    // regression coverage.) The qname form still fully proves this task's
+    // actual claim: the SysMLv2-lifted `applies_when` is read by W024's check
+    // exactly like any other element's.
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
     write(
