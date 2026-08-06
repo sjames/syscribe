@@ -181,8 +181,13 @@ fn yaml_strings(v: &serde_yaml::Value) -> Vec<String> {
 // ── Custom fields (GH #39) ─────────────────────────────────────────────────────
 
 /// Render a single YAML *scalar* (string/number/bool/null) as its plain string
-/// form. Non-scalars fall back to `serde_yaml`'s compact representation (used only
-/// as a defensive default — well-shaped custom fields are scalars or lists thereof).
+/// form. Non-scalars fall back to `serde_yaml`'s compact representation (used
+/// as a defensive default — well-shaped custom fields are scalars or lists
+/// thereof, but this is also reused for `evidence:`, which may legitimately
+/// carry a `ref:`/`path:`/`rationale:` mapping entry). Callers print this
+/// inline in a `|`-delimited markdown table cell, so the fallback's multi-line
+/// YAML dump is collapsed onto one line — a raw embedded newline would break
+/// the table row.
 fn yaml_scalar_string(v: &serde_yaml::Value) -> String {
     match v {
         serde_yaml::Value::Null => "null".to_string(),
@@ -192,7 +197,7 @@ fn yaml_scalar_string(v: &serde_yaml::Value) -> String {
         other => serde_yaml::to_string(other)
             .unwrap_or_default()
             .trim()
-            .to_string(),
+            .replace('\n', "; "),
     }
 }
 
@@ -3938,6 +3943,20 @@ mod custom_where_tests {
     }
     fn list(vs: &[&str]) -> serde_yaml::Value {
         serde_yaml::Value::Sequence(vs.iter().map(|x| s(x)).collect())
+    }
+
+    #[test]
+    fn yaml_scalar_string_collapses_multiline_mapping_fallback() {
+        // A non-scalar entry (e.g. a PlanningItem-shaped evidence: mapping)
+        // must render as a single line -- callers embed this in a `|`-delimited
+        // markdown table cell, where a raw newline breaks the row.
+        let mut m = serde_yaml::Mapping::new();
+        m.insert(s("ref"), s("NotAScalar"));
+        m.insert(s("rationale"), s("tracked externally"));
+        let rendered = yaml_scalar_string(&serde_yaml::Value::Mapping(m));
+        assert!(!rendered.contains('\n'), "rendered value must not contain a raw newline: {:?}", rendered);
+        assert!(rendered.contains("ref: NotAScalar"), "rendered value should still be informative: {:?}", rendered);
+        assert!(rendered.contains("rationale"), "rendered value should still be informative: {:?}", rendered);
     }
 
     #[test]
