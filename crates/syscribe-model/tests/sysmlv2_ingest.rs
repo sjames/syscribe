@@ -411,6 +411,137 @@ fn a_file_mixing_mapped_and_unmapped_constructs_parses_fully_and_keeps_the_mappe
 }
 
 #[test]
+fn a_named_port_nested_inside_an_interface_def_is_mapped() {
+    // Regression: InterfaceDef/ConnectionDef/ItemDef/PortDef bodies were not
+    // recursed into at all, so a named port declared directly on an interface
+    // def (real, common SysML v2 usage) was silently invisible — never a
+    // cross-reference target, no diagnostic.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Power.sysml",
+        "package Power {\n\
+         interface def PowerInterface {\n\
+         port supplyPort : PowerOutPort;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+
+    let port = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Power::PowerInterface::supplyPort")
+        .unwrap_or_else(|| {
+            panic!(
+                "expected PowerInterface::supplyPort, got: {:#?}",
+                elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(port.frontmatter.element_type, Some(ElementType::Port));
+    assert_eq!(
+        port.frontmatter.typed_by.as_ref().and_then(|v| v.as_str()),
+        Some("PowerOutPort")
+    );
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
+fn an_attribute_nested_inside_an_item_def_is_mapped() {
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Fuel.sysml",
+        "package Fuel {\n\
+         item def FuelItem {\n\
+         attribute quantity : Real;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+
+    let attr = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Fuel::FuelItem::quantity")
+        .unwrap_or_else(|| {
+            panic!(
+                "expected FuelItem::quantity, got: {:#?}",
+                elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+            )
+        });
+    // Bare `attribute quantity : Real;` resolves to AttributeUsage inside an
+    // item def body (the parser's own def/usage disambiguation differs by
+    // body context — see `remaining_fixed_set_kinds_map_...`'s note for the
+    // package-level case, which resolves the same bare syntax to AttributeDef).
+    assert_eq!(attr.frontmatter.element_type, Some(ElementType::Attribute));
+    assert_eq!(
+        attr.frontmatter.typed_by.as_ref().and_then(|v| v.as_str()),
+        Some("Real")
+    );
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
+fn nested_members_of_connection_def_and_port_def_are_mapped() {
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Wiring.sysml",
+        "package Wiring {\n\
+         connection def Harness {\n\
+         item pin : Pin;\n\
+         }\n\
+         port def SignalPort {\n\
+         attribute level : Real;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+
+    assert!(
+        elements
+            .iter()
+            .any(|e| e.qualified_name == "SysML2Legacy::Wiring::Harness::pin"),
+        "expected Harness::pin, got: {:#?}",
+        elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+    );
+    assert!(
+        elements
+            .iter()
+            .any(|e| e.qualified_name == "SysML2Legacy::Wiring::SignalPort::level"),
+        "expected SignalPort::level, got: {:#?}",
+        elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+    );
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
 fn two_files_declaring_the_same_package_merge_into_one_namespace() {
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");

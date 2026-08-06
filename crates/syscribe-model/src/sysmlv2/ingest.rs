@@ -395,6 +395,29 @@ fn convert_port_def(
         ..Default::default()
     };
     push_synth(out, &elem_qname, file_path, ElementType::PortDef, &name, spec);
+    if let sysml_v2_parser::PortDefBody::Brace { elements } = &p.body {
+        for node in elements {
+            convert_port_def_body_element(&node.value, &elem_qname, file_path, out);
+        }
+    }
+}
+
+/// Dispatch a member of a `port def` body — nested attributes/items only
+/// (this enum has no nested port/interface variant).
+fn convert_port_def_body_element(
+    elem: &sysml_v2_parser::PortDefBodyElement,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    use sysml_v2_parser::PortDefBodyElement as E;
+    match elem {
+        E::AttributeDef(node) => convert_attribute_def(&node.value, qname, file_path, out),
+        E::AttributeUsage(node) => convert_attribute_usage(&node.value, qname, file_path, out),
+        E::ItemDef(node) => convert_item_def(&node.value, qname, file_path, out),
+        E::ItemUsage(node) => convert_item_usage(&node.value, qname, file_path, out),
+        _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
+    }
 }
 
 fn convert_port_usage(
@@ -429,6 +452,32 @@ fn convert_connection_def(
         ..Default::default()
     };
     push_synth(out, &elem_qname, file_path, ElementType::ConnectionDef, &name, spec);
+    if let sysml_v2_parser::ConnectionDefBody::Brace { elements } = &c.body {
+        for node in elements {
+            convert_connection_def_body_element(&node.value, &elem_qname, file_path, out);
+        }
+    }
+}
+
+/// Dispatch a member of a `connection def` body — real SysML v2 source uses
+/// this to give a connection named ports/attributes/items
+/// (`REQ-TRS-SYSMLV2-007`'s "reasonable structural browsing" goal).
+fn convert_connection_def_body_element(
+    elem: &sysml_v2_parser::ConnectionDefBodyElement,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    use sysml_v2_parser::ConnectionDefBodyElement as E;
+    match elem {
+        E::AttributeDef(node) => convert_attribute_def(&node.value, qname, file_path, out),
+        E::AttributeUsage(node) => convert_attribute_usage(&node.value, qname, file_path, out),
+        E::ItemDef(node) => convert_item_def(&node.value, qname, file_path, out),
+        E::ItemUsage(node) => convert_item_usage(&node.value, qname, file_path, out),
+        E::PortDef(node) => convert_port_def(&node.value, qname, file_path, out),
+        E::PortUsage(node) => convert_port_usage(&node.value, qname, file_path, out),
+        _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
+    }
 }
 
 fn convert_connection_usage(
@@ -463,6 +512,31 @@ fn convert_interface_def(
         ..Default::default()
     };
     push_synth(out, &elem_qname, file_path, ElementType::InterfaceDef, &name, spec);
+    if let sysml_v2_parser::InterfaceDefBody::Brace { elements } = &i.body {
+        for node in elements {
+            convert_interface_def_body_element(&node.value, &elem_qname, file_path, out);
+        }
+    }
+}
+
+/// Dispatch a member of an `interface def` body — e.g. a named port on the
+/// interface (`interface def PowerInterface { port supplyPort : ...; }`).
+fn convert_interface_def_body_element(
+    elem: &sysml_v2_parser::InterfaceDefBodyElement,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    use sysml_v2_parser::InterfaceDefBodyElement as E;
+    match elem {
+        E::AttributeDef(node) => convert_attribute_def(&node.value, qname, file_path, out),
+        E::AttributeUsage(node) => convert_attribute_usage(&node.value, qname, file_path, out),
+        E::ItemDef(node) => convert_item_def(&node.value, qname, file_path, out),
+        E::ItemUsage(node) => convert_item_usage(&node.value, qname, file_path, out),
+        E::PortDef(node) => convert_port_def(&node.value, qname, file_path, out),
+        E::PortUsage(node) => convert_port_usage(&node.value, qname, file_path, out),
+        _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
+    }
 }
 
 /// Only the `Declaration` variant carries a name — `TypedConnect`/`Connection`
@@ -507,6 +581,28 @@ fn convert_item_def(
         ..Default::default()
     };
     push_synth(out, &elem_qname, file_path, ElementType::ItemDef, &name, spec);
+    // ItemDef's body is a plain AttributeBody (shared with attribute def/usage
+    // bodies) — only nested attributes are legal there, no ports/items.
+    if let sysml_v2_parser::AttributeBody::Brace { elements } = &i.body {
+        for node in elements {
+            convert_attribute_body_element(&node.value, &elem_qname, file_path, out);
+        }
+    }
+}
+
+/// Dispatch a member of an `item def` body — e.g. a named attribute on the item.
+fn convert_attribute_body_element(
+    elem: &sysml_v2_parser::ast::AttributeBodyElement,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    use sysml_v2_parser::ast::AttributeBodyElement as E;
+    match elem {
+        E::AttributeDef(node) => convert_attribute_def(&node.value, qname, file_path, out),
+        E::AttributeUsage(node) => convert_attribute_usage(&node.value, qname, file_path, out),
+        _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
+    }
 }
 
 fn convert_item_usage(
