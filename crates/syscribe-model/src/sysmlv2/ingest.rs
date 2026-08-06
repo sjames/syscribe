@@ -582,10 +582,19 @@ fn convert_allocation_usage(
 /// `variation` def/usage body (`REQ-TRS-SYSMLV2-007`'s "variation/variant
 /// membership"). The element kind follows the typed form when present
 /// (`Part`/`Attribute`/`Item`/`Port`); the untyped bare-reference form
-/// (`variant name;`, referring to a usage declared elsewhere by that name) and
-/// the `Perform`-typed form (behavior-related, outside the fixed set) default
-/// to a plain `Part` placeholder and are skipped respectively — see this
-/// function's judgment calls in the task report.
+/// (`variant name;`) and the `Perform`-typed form (behavior-related, outside
+/// the fixed set) synthesize nothing.
+///
+/// The untyped form doesn't declare anything new — per SysML v2 semantics it
+/// just marks an *already-declared* sibling usage (elsewhere in the same
+/// body) as a variant. Synthesizing a fresh placeholder for it would create a
+/// second `RawElement` at the exact qname the real usage already occupies,
+/// silently shadowing it in any qname-keyed index (no `E108`-style duplicate
+/// diagnostic exists to catch this on this branch). Full variant-membership
+/// linkage back to the real sibling usage is `REQ-TRS-SYSMLV2-005`'s job
+/// (`@SyscribeFeature`-adjacent follow-on), not this one — so for now the
+/// untyped form is simply invisible, exactly like a dangling reference to a
+/// name that doesn't exist at all would be.
 fn convert_variant_usage(
     v: &sysml_v2_parser::ast::VariantUsage,
     part_qname: &str,
@@ -603,7 +612,8 @@ fn convert_variant_usage(
     };
     match &v.typed {
         None => {
-            push_synth(out, &elem_qname, file_path, ElementType::Part, &v.name, base_spec());
+            // Bare reference to an already-declared sibling usage: nothing to
+            // synthesize here (see doc comment above).
         }
         Some(sysml_v2_parser::ast::VariantTypedUsage::Part(pu)) => {
             let mut spec = base_spec();

@@ -287,6 +287,84 @@ fn variant_membership_inside_a_variation_part_def_maps_with_variant_of() {
 }
 
 #[test]
+fn bare_variant_reference_to_a_sibling_usage_does_not_shadow_it() {
+    // Regression: `variant quad;` (the untyped bare-reference form) used to
+    // synthesize a second, hollow `RawElement` at the exact same qname as the
+    // real `part quad : QuadRotor;` usage declared alongside it, silently
+    // shadowing the real one in any qname-keyed lookup.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Variants.sysml",
+        "package Variants {\n\
+         variation part def Config {\n\
+         part quad : QuadRotor;\n\
+         variant quad;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let matches: Vec<_> = elements
+        .iter()
+        .filter(|e| e.qualified_name == "SysML2Legacy::Variants::Config::quad")
+        .collect();
+
+    // Exactly one element at that qname — the real usage, untouched.
+    assert_eq!(
+        matches.len(),
+        1,
+        "bare `variant quad;` must not create a duplicate/shadow element: {matches:#?}"
+    );
+    assert_eq!(matches[0].frontmatter.element_type, Some(ElementType::Part));
+    assert_eq!(
+        matches[0].frontmatter.typed_by.as_ref().and_then(|v| v.as_str()),
+        Some("QuadRotor")
+    );
+    // The real usage is not itself marked as a variant by this bare reference
+    // (that linkage is a later task's job) — it stays exactly what it was.
+    assert_eq!(matches[0].frontmatter.is_variant, None);
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
+fn dangling_bare_variant_reference_synthesizes_nothing() {
+    // A bare `variant` reference to a name that doesn't exist anywhere in the
+    // body: no diagnostic code is invented for this yet, it's simply invisible.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Variants.sysml",
+        "package Variants {\n\
+         variation part def Config {\n\
+         variant ghost;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+
+    assert!(!elements.iter().any(|e| e.qualified_name.contains("ghost")));
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
 fn a_file_mixing_mapped_and_unmapped_constructs_parses_fully_and_keeps_the_mapped_ones() {
     // REQ-TRS-SYSMLV2-007: full-grammar parsing, fixed-set mapping.
     // `state def`/`action def` (behavior constructs, explicitly outside the
