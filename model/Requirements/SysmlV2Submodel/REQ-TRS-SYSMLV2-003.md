@@ -27,9 +27,14 @@ already expresses natively.
 
 ## Scope
 
-- A `satisfy`/`verify` target that resolves to neither a real id nor a real qname is a
-  dangling-reference finding — the same class already raised for any other unresolved
-  `satisfies:`/`verifies:` today. No new diagnostic code is introduced for this.
+- A `verify` target that resolves to neither a real id nor a real qname is a dangling-reference
+  finding (`E102`) — the same diagnostic already raised for any other unresolved `verifies:` today.
+  No new diagnostic code is introduced for this.
+- A `satisfy` target that fails to resolve currently raises **no** finding at all: `validator.rs`
+  has no dangling-reference check for `satisfies:` outside multi-repo mode (`E512`, gated on
+  `[repos]` being configured), and this holds equally for hand-authored and SysMLv2-originated
+  elements. This is a pre-existing gap in the general Requirement-traceability validation, not
+  something this mapping introduces; closing it generically is out of scope here.
 - Direction follows the existing OSLC link-direction rule (`CLAUDE.md` §12.1): the SysMLv2 artifact
   holds the reference; the target `Requirement` does not reference back.
 - This requirement covers `Requirement` targets only; a `TestCase` verifying a SysMLv2 element is
