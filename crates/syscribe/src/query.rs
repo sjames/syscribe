@@ -485,7 +485,13 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
         for s in ss { out.push(("supports".into(), s.clone())); }
     }
     if let Some(ref ev) = fm.evidence {
-        for s in ev { out.push(("evidence".into(), s.clone())); }
+        // Argument.evidence entries are scalar refs; PlanningItem.evidence
+        // entries are ref:/path:/rationale: mappings, not cross-reference
+        // strings in their own right, so they are skipped here (this listing
+        // is specifically the element's outbound scalar cross-references).
+        for s in ev.iter().filter_map(|v| v.as_str()) {
+            out.push(("evidence".into(), s.to_string()));
+        }
     }
     if let Some(ref at) = fm.applies_to {
         for s in at { out.push(("appliesTo".into(), s.clone())); }
@@ -623,7 +629,15 @@ pub fn cmd_show(
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
     if let Some(ref at) = fm.argument_type { println!("| **argumentType** | {} |", at); }
     if let Some(ref ss) = fm.supports { if !ss.is_empty() { println!("| **supports** | {} |", ss.join(", ")); } }
-    if let Some(ref ev) = fm.evidence { if !ev.is_empty() { println!("| **evidence** | {} |", ev.join(", ")); } }
+    if let Some(ref ev) = fm.evidence {
+        // Argument.evidence entries are scalars; PlanningItem.evidence entries
+        // are ref:/path:/rationale: mappings — yaml_scalar_string renders both
+        // (a mapping falls through to its compact YAML dump).
+        if !ev.is_empty() {
+            let rendered: Vec<String> = ev.iter().map(yaml_scalar_string).collect();
+            println!("| **evidence** | {} |", rendered.join(", "));
+        }
+    }
     if let Some(ref at) = fm.applies_to { if !at.is_empty() { println!("| **appliesTo** | {} |", at.join(", ")); } }
     if let Some(ref f) = fm.feature_model { println!("| **featureModel** | {} |", f); }
     if let Some(ref aw) = fm.applies_when {

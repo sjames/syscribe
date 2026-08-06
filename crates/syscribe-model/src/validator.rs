@@ -1706,7 +1706,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             if let Some(ref refs) = fm.evidence {
-                for r in refs {
+                // Argument.evidence is a flat list of scalar element refs; a
+                // non-string entry here would be a PlanningItem-shaped mapping,
+                // which cannot appear on an Argument (E855 is Argument-only).
+                for r in refs.iter().filter_map(|v| v.as_str()) {
                     if resolver.resolve_ref(elements, r).is_none() {
                         findings.push(error("E855", &file, &format!("Argument.evidence '{}' does not resolve to any model element", r)));
                     }

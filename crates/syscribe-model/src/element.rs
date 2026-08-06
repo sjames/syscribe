@@ -32,6 +32,28 @@ mod string_or_vec {
     }
 }
 
+/// Serde helper: accept either a single YAML value or a sequence of values,
+/// normalizing to `Vec<serde_yaml::Value>`. Used by fields whose entries may be
+/// heterogeneous by design — e.g. `evidence:`, shared between GSN `Argument`
+/// (a flat list of scalar element refs, §8.18) and `PlanningItem` (a list of
+/// duck-typed `ref:`/`path:`/`rationale:` mappings, REQ-TRS-PLANITEM-005).
+/// A bare scalar (`evidence: TC-001`) still normalizes to a one-element list,
+/// preserving `Argument.evidence`'s existing scalar-or-list acceptance.
+mod value_or_vec {
+    use serde::{Deserialize, Deserializer};
+    pub fn deserialize<'de, D>(d: D) -> Result<Option<Vec<serde_yaml::Value>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v: Option<serde_yaml::Value> = Option::deserialize(d)?;
+        match v {
+            None | Some(serde_yaml::Value::Null) => Ok(None),
+            Some(serde_yaml::Value::Sequence(seq)) => Ok(Some(seq)),
+            Some(other) => Ok(Some(vec![other])),
+        }
+    }
+}
+
 /// Serde helper for the `features:` key, which is overloaded:
 ///   * a **sequence** of inline feature declarations (§3.6), or
 ///   * a **map** of `FeatureDef qname: bool` selections on a `Configuration` (§9.8).
@@ -814,11 +836,23 @@ pub struct RawFrontmatter {
     /// via the Resolver (else E855).
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub supports: Option<Vec<String>>,
-    /// `Argument.evidence` (YAML: evidence) — refs to supporting Requirement /
-    /// TestCase / sub-Argument / AssumptionOfUse (the GSN children). String or list;
-    /// each ref resolves via the Resolver (else E855).
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
-    pub evidence: Option<Vec<String>>,
+    /// `evidence` — a shared YAML key with two independent shapes, kept as one
+    /// `Vec<serde_yaml::Value>` field (via [`value_or_vec`]) since a flat struct
+    /// can only bind one Rust field per YAML key:
+    ///   - `Argument.evidence` (§8.18) — refs to supporting Requirement /
+    ///     TestCase / sub-Argument / AssumptionOfUse (the GSN children); each
+    ///     entry a scalar string, resolved via the Resolver (else E855).
+    ///   - `PlanningItem.evidence` (REQ-TRS-PLANITEM-005) — a list of duck-typed
+    ///     `ref:`/`path:`/`rationale:` mappings (see the `PlanningItem` section
+    ///     below for the full shape). Recognised by which key an entry carries,
+    ///     not a `type:` tag — the same idiom the `Allocation` `features:`-list
+    ///     convention already establishes (an entry with both
+    ///     `allocatedFrom`+`allocatedTo` is an edge regardless of any per-entry
+    ///     `type:`).
+    /// Scalar or list accepted for either shape (`value_or_vec`), matching
+    /// `Argument.evidence`'s pre-existing acceptance.
+    #[serde(default, deserialize_with = "value_or_vec::deserialize")]
+    pub evidence: Option<Vec<serde_yaml::Value>>,
     /// `AssumptionOfUse.appliesTo` (YAML: appliesTo) — the SafetyGoal / Argument /
     /// Requirement this SRAC constrains. String or list; each ref resolves via the
     /// Resolver (else E858).

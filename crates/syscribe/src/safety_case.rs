@@ -280,7 +280,7 @@ fn print_argument(
         .as_deref()
         .unwrap_or(&[])
         .iter()
-        .map(|s| s.as_str())
+        .filter_map(|s| s.as_str())
         .collect();
     let assumps = assumptions_for(elements, disp_id(arg), &arg.qualified_name);
     let total = ev.len() + assumps.len();
@@ -426,7 +426,7 @@ fn argument_json(
     let mut tcs: Vec<serde_json::Value> = Vec::new();
     let mut others: Vec<serde_json::Value> = Vec::new();
 
-    for r in arg.frontmatter.evidence.as_deref().unwrap_or(&[]) {
+    for r in arg.frontmatter.evidence.as_deref().unwrap_or(&[]).iter().filter_map(|v| v.as_str()) {
         match resolver.resolve_ref(elements, r) {
             None => others.push(serde_json::json!({ "ref": r, "resolved": false })),
             Some(target) => match classify(target) {
