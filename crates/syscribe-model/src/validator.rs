@@ -67,6 +67,12 @@ pub struct ValidationResult {
     pub verified_by: HashMap<String, Vec<String>>,
     /// derived_children[req_id] = list of child req ids
     pub derived_children: HashMap<String, Vec<String>>,
+    /// REQ-TRS-PLANITEM-002 — planning_children[pi_id] = ids of the PlanningItems
+    /// naming it via `parent:`. A PlanningItem with an empty (absent-key) entry
+    /// here is a **leaf** (REQ-TRS-PLANITEM-002's definition, consumed by the
+    /// evidence rule in REQ-TRS-PLANITEM-006); one with no `parent:` at all is
+    /// **top-level**. The two are independent: a lone PlanningItem is both.
+    pub planning_children: HashMap<String, Vec<String>>,
     /// REQ-TRS-MG-001 — refinedBy[req_id_or_qname] = use cases that `refines:` it.
     /// Keyed by the requirement's stable id when present, else its qualified name.
     pub refined_by: HashMap<String, Vec<String>>,
@@ -3622,6 +3628,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // Build verified_by and derived_children reverse indices, and check E102–E105
     let mut verified_by: HashMap<String, Vec<String>> = HashMap::new();
     let mut derived_children: HashMap<String, Vec<String>> = HashMap::new();
+    // REQ-TRS-PLANITEM-002 — children[parent_id] = ids of PlanningItems naming it
+    // via `parent:`. Keyed by the parent's stable id (PlanningItem is always
+    // id-identified, so unlike derived_children/verified_by there is no
+    // id-else-qname fallback needed here).
+    let mut planning_children: HashMap<String, Vec<String>> = HashMap::new();
     // REQ-TRS-SYSMLV2-004 — side-channel provenance set: which qnames were
     // actually synthesized by SysMLv2 ingestion, consulted by
     // `Resolver::is_verify_target` so the E104 widening only ever applies to
@@ -3721,6 +3732,38 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         } else if let Some(ref parent_id) = target.frontmatter.id {
                             if let Some(ref child_id) = elem.frontmatter.id {
                                 derived_children
+                                    .entry(parent_id.clone())
+                                    .or_default()
+                                    .push(child_id.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // parent: cross-reference check (REQ-TRS-PLANITEM-002). Only meaningful on
+        // a PlanningItem; a `parent:` value on any other type is simply an
+        // unrecognized field for that type (rejected earlier, E003-style) and never
+        // reaches here. Cycle detection is a separate, graph-wide pass below (E712).
+        if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
+            if let Some(ref p) = fm.parent {
+                match resolver.resolve_ref(elements, p) {
+                    None => findings.push(error(
+                        "E710",
+                        &elem.file_path,
+                        &format!("unresolved PlanningItem parent reference '{}'", p),
+                    )),
+                    Some(target) => {
+                        if !Resolver::is_planning_item(target) {
+                            findings.push(error(
+                                "E711",
+                                &elem.file_path,
+                                &format!("PlanningItem `parent` '{}' does not resolve to a PlanningItem", p),
+                            ));
+                        } else if let Some(ref parent_id) = target.frontmatter.id {
+                            if let Some(ref child_id) = fm.id {
+                                planning_children
                                     .entry(parent_id.clone())
                                     .or_default()
                                     .push(child_id.clone());
@@ -5784,6 +5827,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // E107 (GH #25): typedBy was previously excluded — a usage typed by
             // itself (length-1 cycle) or a typedBy cycle was silently accepted.
             ("E107", EdgeKind::TypedBy, "typedBy cycle detected (a usage cannot be typed by itself, directly or transitively)"),
+            // E712 (REQ-TRS-PLANITEM-002): a PlanningItem `parent:` chain that
+            // cycles back to itself. Same posture as E017 (derivedFrom cycle) —
+            // reported gracefully via toposort, never a panic or infinite loop.
+            ("E712", EdgeKind::PlanningParent, "PlanningItem parent cycle detected"),
         ];
 
         for (code, kind, label) in checks {
@@ -6650,6 +6697,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         findings,
         verified_by,
         derived_children,
+        planning_children,
         refined_by,
         actor_in,
         mop_refined_by,
@@ -7601,5 +7649,146 @@ mod planning_item_tests {
             "absent itemType must not raise E709: {:?}",
             result.findings
         );
+    }
+}
+
+// ── PlanningItem hierarchy (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-002) ──────
+
+#[cfg(test)]
+mod planning_item_hierarchy_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn pi(qname: &str, id: &str, name: &str, parent: Option<&str>) -> RawElement {
+        let parent_line = parent.map(|p| format!("parent: {p}\n")).unwrap_or_default();
+        make_elem(
+            qname,
+            &format!("type: PlanningItem\nid: {id}\nname: {name}\nstatus: todo\n{parent_line}"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        )
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn three_level_chain_resolves_and_computes_children() {
+        let elements = vec![
+            pi("Planning::Top", "PI-TOP-001", "Top", None),
+            pi("Planning::Mid", "PI-MID-001", "Mid", Some("PI-TOP-001")),
+            pi("Planning::Leaf", "PI-LEAF-001", "Leaf", Some("PI-MID-001")),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+        assert_eq!(
+            result.planning_children.get("PI-TOP-001").map(|v| v.as_slice()),
+            Some(["PI-MID-001".to_string()].as_slice())
+        );
+        assert_eq!(
+            result.planning_children.get("PI-MID-001").map(|v| v.as_slice()),
+            Some(["PI-LEAF-001".to_string()].as_slice())
+        );
+        // The deepest node has no children -> leaf.
+        assert!(result.planning_children.get("PI-LEAF-001").is_none_or(|v| v.is_empty()));
+    }
+
+    #[test]
+    fn parent_naming_non_planning_item_is_rejected() {
+        let elements = vec![
+            make_elem(
+                "Requirements::SomeReq",
+                "type: Requirement\nid: REQ-SYS-001\nname: Some requirement\nstatus: draft\n",
+                "model/Requirements/SomeReq.md",
+            ),
+            pi("Planning::Child", "PI-CHILD-001", "Child", Some("REQ-SYS-001")),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E711"), "expected E711: {:?}", result.findings);
+    }
+
+    #[test]
+    fn parent_naming_nothing_resolvable_is_rejected() {
+        let elements = vec![pi("Planning::Child", "PI-CHILD-002", "Child", Some("PI-NOPE-999"))];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E710"), "expected E710: {:?}", result.findings);
+    }
+
+    #[test]
+    fn two_node_cycle_is_detected_gracefully() {
+        let elements = vec![
+            pi("Planning::A", "PI-AA-001", "A", Some("PI-BB-001")),
+            pi("Planning::B", "PI-BB-001", "B", Some("PI-AA-001")),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E712"), "expected E712: {:?}", result.findings);
+    }
+
+    #[test]
+    fn three_node_cycle_is_detected_gracefully() {
+        let elements = vec![
+            pi("Planning::A", "PI-AA-002", "A", Some("PI-BB-002")),
+            pi("Planning::B", "PI-BB-002", "B", Some("PI-CC-002")),
+            pi("Planning::C", "PI-CC-002", "C", Some("PI-AA-002")),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E712"), "expected E712: {:?}", result.findings);
+    }
+
+    #[test]
+    fn no_parent_is_top_level() {
+        let elements = vec![pi("Planning::Solo", "PI-SOLO-001", "Solo", None)];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+        // Top-level: the element itself carries no `parent:` (checked at the
+        // frontmatter level — the map only tells us about children).
+        assert!(elements[0].frontmatter.parent.is_none());
+    }
+
+    #[test]
+    fn item_with_children_is_not_a_leaf() {
+        let elements = vec![
+            pi("Planning::Parent", "PI-PARENT-001", "Parent", None),
+            pi("Planning::Child", "PI-CHILD-003", "Child", Some("PI-PARENT-001")),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let is_leaf = result.planning_children.get("PI-PARENT-001").is_none_or(|v| v.is_empty());
+        assert!(!is_leaf, "a PlanningItem with a child must not be a leaf");
+    }
+
+    #[test]
+    fn lone_item_with_no_parent_and_no_children_is_top_level_and_leaf() {
+        let elements = vec![pi("Planning::Lone", "PI-LONE-001", "Lone", None)];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "a lone PlanningItem must validate cleanly: {:?}",
+            result.findings
+        );
+        let is_top_level = elements[0].frontmatter.parent.is_none();
+        let is_leaf = result.planning_children.get("PI-LONE-001").is_none_or(|v| v.is_empty());
+        assert!(is_top_level && is_leaf, "a lone PlanningItem must be both top-level and a leaf");
     }
 }
