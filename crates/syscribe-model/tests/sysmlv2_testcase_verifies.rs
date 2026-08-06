@@ -204,3 +204,196 @@ fn testcase_still_verifies_a_native_requirement_unchanged() {
         Some(&vec!["TC-SCHED-004".to_string()])
     );
 }
+
+// ── Review-finding regressions ──────────────────────────────────────────────
+// A first version of this widening was reviewed and found to have real blast
+// radius beyond SysMLv2 (see the task report for full detail). These three
+// tests each lock in the specific fix for one finding.
+
+#[test]
+fn e104_still_rejects_a_hand_authored_native_part_target() {
+    // Finding #1 (SEVERE): the widened E104 branch must be gated on actual
+    // SysMLv2 origin (`sysmlv2_qnames`), not element kind alone. A plain
+    // hand-authored model with zero SysMLv2 involvement, `verifies:`
+    // targeting an ordinary native `PartDef`, must still fail E104 exactly as
+    // it did before this feature ever existed.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "Arch/Engine.md",
+        "---\ntype: PartDef\nname: Engine\n---\nAn engine.\n",
+    );
+    write(
+        &root,
+        "Tests/TC-ARCH-001.md",
+        &format!(
+            "---\ntype: TestCase\nid: TC-ARCH-001\nname: Bad verifies target\nstatus: active\ntestLevel: L2\nverifies: [Arch::Engine]\n---\n{}",
+            gherkin_body()
+        ),
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate(&elements);
+
+    let e104: Vec<_> = result.findings.iter().filter(|f| f.code == "E104").collect();
+    assert_eq!(
+        e104.len(),
+        1,
+        "a hand-authored native PartDef target must still fail E104: {:#?}",
+        result.findings
+    );
+    assert!(
+        !result.verified_by.contains_key("Arch::Engine"),
+        "a rejected target must not appear in verified_by: {:#?}",
+        result.verified_by
+    );
+}
+
+#[test]
+fn testcase_verifies_a_sysmlv2_requirement_def_target() {
+    // Finding #2 (MEDIUM): REQ-TRS-SYSMLV2-007's fixed set includes
+    // Requirement(Def/Usage), but a SysMLv2-synthesized one never has an id,
+    // so it can never pass `is_native_requirement`. It must still be a legal
+    // verifies: target via the provenance-gated widened set.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Safety.sysml",
+        "package Safety {\n\
+         requirement def SafetyReq;\n\
+         }\n",
+    );
+    write(
+        &root,
+        "Tests/TC-SAFE-001.md",
+        &format!(
+            "---\ntype: TestCase\nid: TC-SAFE-001\nname: Safety req check\nstatus: active\ntestLevel: L2\nverifies: [SysML2Legacy::Safety::SafetyReq]\n---\n{}",
+            gherkin_body()
+        ),
+    );
+
+    let elements = walk_model(&root).unwrap();
+    assert!(elements
+        .iter()
+        .any(|e| e.qualified_name == "SysML2Legacy::Safety::SafetyReq"));
+
+    let result = validate(&elements);
+    assert!(
+        !result.findings.iter().any(|f| f.code == "E102" || f.code == "E104"),
+        "unexpected dangling/wrong-type finding: {:#?}",
+        result.findings
+    );
+    assert_eq!(
+        result.verified_by.get("SysML2Legacy::Safety::SafetyReq"),
+        Some(&vec!["TC-SAFE-001".to_string()])
+    );
+}
+
+#[test]
+fn testcase_verifies_a_sysmlv2_requirement_usage_target() {
+    // Same as above, the bare (no `def`) requirement-usage form.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Safety.sysml",
+        "package Safety {\n\
+         requirement checkSafety : SafetyReqType;\n\
+         }\n",
+    );
+    write(
+        &root,
+        "Tests/TC-SAFE-002.md",
+        &format!(
+            "---\ntype: TestCase\nid: TC-SAFE-002\nname: Safety usage check\nstatus: active\ntestLevel: L2\nverifies: [SysML2Legacy::Safety::checkSafety]\n---\n{}",
+            gherkin_body()
+        ),
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate(&elements);
+    assert!(
+        !result.findings.iter().any(|f| f.code == "E102" || f.code == "E104"),
+        "unexpected dangling/wrong-type finding: {:#?}",
+        result.findings
+    );
+    assert_eq!(
+        result.verified_by.get("SysML2Legacy::Safety::checkSafety"),
+        Some(&vec!["TC-SAFE-002".to_string()])
+    );
+}
+
+#[test]
+fn sysmlv2_elements_own_verify_does_not_pollute_verified_by() {
+    // Finding #3 (HIGH): REQ-TRS-SYSMLV2-003's SysMLv2 element with its own
+    // `verify:` (e.g. `requirement checkReq { verify 'REQ-X'; }`) must NOT
+    // appear in `verified_by` — only an element that itself carries a stable
+    // id (in practice, always a native TestCase) is recorded there. Before
+    // this fix, the id-else-qname fallback on the *source* side let this
+    // SysMLv2 element's own qname in, polluting every `verified_by` consumer
+    // (the web server's /api/validation, `export`/`export-html`, `query`,
+    // the LSP CodeLens count, the Rhai property, and the MCP `evidence` tool).
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "Requirements/REQ-POLLUTE-001.md",
+        "---\ntype: Requirement\nid: REQ-POLLUTE-001\nname: Pollute req\nstatus: approved\nreqDomain: software\n---\nThe system shall not be polluted.\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Checks.sysml",
+        "package Checks {\n\
+         requirement checkReq {\n\
+         verify 'REQ-POLLUTE-001';\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    // Sanity: the SysMLv2 element really does carry the verify: reference.
+    let checker = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Checks::checkReq")
+        .unwrap();
+    assert_eq!(checker.frontmatter.verifies, Some(vec!["REQ-POLLUTE-001".to_string()]));
+
+    let result = validate(&elements);
+
+    let verifiers = result.verified_by.get("REQ-POLLUTE-001");
+    assert!(
+        verifiers.is_none_or(|v| v.is_empty()),
+        "the SysMLv2 element's own verify: must not pollute verified_by: {:#?}",
+        result.verified_by
+    );
+
+    // Broader net: no value anywhere in verified_by is qname-shaped (contains
+    // "::") — every recorded entry must be a real stable id, never a qname
+    // fallback for a source lacking one.
+    for (key, sources) in &result.verified_by {
+        for s in sources {
+            assert!(
+                !s.contains("::"),
+                "verified_by[{key}] contains a qname-shaped (non-id) source '{s}': {:#?}",
+                result.verified_by
+            );
+        }
+    }
+}
