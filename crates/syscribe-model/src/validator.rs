@@ -7885,3 +7885,207 @@ mod planning_item_hierarchy_tests {
         assert!(is_top_level && is_leaf, "a lone PlanningItem must be both top-level and a leaf");
     }
 }
+
+// ── PlanningItem achieves (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-003) ───────
+
+#[cfg(test)]
+mod planning_item_achieves_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn req(id: &str, qname: &str, extra: &str) -> RawElement {
+        let status_line = if extra.contains("status:") { "" } else { "status: draft\n" };
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\n{status_line}{extra}"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn top_level_single_achieves_id_form_validates_cleanly() {
+        let elements = vec![
+            req("REQ-ACH-001", "Requirements::AchReq1", ""),
+            make_elem(
+                "Planning::Top",
+                "type: PlanningItem\nid: PI-ACH-001\nname: Top\nstatus: todo\nachieves: REQ-ACH-001\n",
+                "model/Planning/Top.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn top_level_multi_achieves_list_validates_cleanly() {
+        let elements = vec![
+            req("REQ-ACH-002", "Requirements::AchReq2", ""),
+            req("REQ-ACH-003", "Requirements::AchReq3", ""),
+            make_elem(
+                "Planning::Top2",
+                "type: PlanningItem\nid: PI-ACH-002\nname: Top2\nstatus: todo\nachieves: [REQ-ACH-002, REQ-ACH-003]\n",
+                "model/Planning/Top2.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn top_level_empty_achieves_is_rejected() {
+        let elem = make_elem(
+            "Planning::EmptyAch",
+            "type: PlanningItem\nid: PI-ACH-004\nname: Empty\nstatus: todo\nachieves: []\n",
+            "model/Planning/EmptyAch.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E713"), "expected E713: {:?}", result.findings);
+    }
+
+    #[test]
+    fn top_level_absent_achieves_is_rejected() {
+        let elem = make_elem(
+            "Planning::NoAch",
+            "type: PlanningItem\nid: PI-ACH-005\nname: NoAch\nstatus: todo\n",
+            "model/Planning/NoAch.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E713"), "expected E713: {:?}", result.findings);
+    }
+
+    #[test]
+    fn non_top_level_with_no_achieves_validates_cleanly() {
+        let elements = vec![
+            req("REQ-ACH-006", "Requirements::AchReq6", ""),
+            make_elem(
+                "Planning::TopWithAch",
+                "type: PlanningItem\nid: PI-ACH-006\nname: TopWithAch\nstatus: todo\nachieves: REQ-ACH-006\n",
+                "model/Planning/TopWithAch.md",
+            ),
+            make_elem(
+                "Planning::Child",
+                "type: PlanningItem\nid: PI-ACH-007\nname: Child\nstatus: todo\nparent: PI-ACH-006\n",
+                "model/Planning/Child.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "a non-top-level item with no achieves must validate cleanly: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn dangling_achieves_target_is_rejected() {
+        // Empirically confirmed (see commit history): before E714 existed, this
+        // produced ZERO findings — no generic cross-reference infrastructure
+        // catches a dangling `achieves:` target on its own (unlike verifies/
+        // derivedFrom's E102/E103; matching satisfies:'s silence instead).
+        let elem = make_elem(
+            "Planning::Dangling",
+            "type: PlanningItem\nid: PI-ACH-008\nname: Dangling\nstatus: todo\nachieves: REQ-NOPE-999\n",
+            "model/Planning/Dangling.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E714"), "expected E714: {:?}", result.findings);
+    }
+
+    #[test]
+    fn achieves_target_wrong_type_is_rejected() {
+        let elements = vec![
+            make_elem(
+                "Planning::OtherItem",
+                "type: PlanningItem\nid: PI-ACH-009\nname: OtherItem\nstatus: todo\nachieves: REQ-ACH-010\n",
+                "model/Planning/OtherItem.md",
+            ),
+            req("REQ-ACH-010", "Requirements::AchReq10", ""),
+            make_elem(
+                "Planning::WrongTarget",
+                "type: PlanningItem\nid: PI-ACH-011\nname: WrongTarget\nstatus: todo\nachieves: PI-ACH-009\n",
+                "model/Planning/WrongTarget.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E715"), "expected E715: {:?}", result.findings);
+    }
+
+    #[test]
+    fn achieves_does_not_suppress_w300_on_target_requirement() {
+        // A leaf, approved Requirement named only via `achieves:` (never `satisfies:`)
+        // must still raise W300 — achieves must not be treated as a satisfier.
+        let elements = vec![
+            req("REQ-ACH-020", "Requirements::LeafReq", "status: approved\n"),
+            make_elem(
+                "Planning::AchievesLeaf",
+                "type: PlanningItem\nid: PI-ACH-020\nname: AchievesLeaf\nstatus: todo\nachieves: REQ-ACH-020\n",
+                "model/Planning/AchievesLeaf.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"W300"), "expected W300 still fires: {:?}", result.findings);
+    }
+
+    #[test]
+    fn achieves_does_not_trigger_e312_on_parent_requirement() {
+        // A parent Requirement (has derivedChildren) named only via `achieves:`
+        // (never `satisfies:`) must NOT raise E312 -- that rule stays scoped to
+        // `satisfies:` only.
+        let elements = vec![
+            make_elem(
+                "Decisions::SomeAdr",
+                "type: ADR\nid: ADR-ACH-001\nname: Some decision\nstatus: accepted\n",
+                "model/Decisions/SomeAdr.md",
+            ),
+            req(
+                "REQ-ACH-030",
+                "Requirements::ParentReq",
+                "breakdownAdr: ADR-ACH-001\n",
+            ),
+            req(
+                "REQ-ACH-031",
+                "Requirements::ChildReq",
+                "derivedFrom: [REQ-ACH-030]\nbreakdownAdr: ADR-ACH-001\n",
+            ),
+            make_elem(
+                "Planning::AchievesParent",
+                "type: PlanningItem\nid: PI-ACH-030\nname: AchievesParent\nstatus: todo\nachieves: REQ-ACH-030\n",
+                "model/Planning/AchievesParent.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E312"),
+            "achieves: must not trigger E312 on its target: {:?}",
+            result.findings
+        );
+    }
+}
