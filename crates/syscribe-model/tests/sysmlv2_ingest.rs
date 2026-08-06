@@ -78,6 +78,40 @@ fn nested_sysml_packages_derive_a_double_colon_qname() {
 }
 
 #[test]
+fn two_files_declaring_the_same_package_merge_into_one_namespace() {
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    // Two separate files both contribute to the same `Shared` SysML v2 package.
+    write(&root, "SysML2Legacy/PartA.sysml", "package Shared { package Left { } }\n");
+    write(&root, "SysML2Legacy/PartB.sysml", "package Shared { package Right { } }\n");
+
+    let elements = walk_model(&root).unwrap();
+
+    // Exactly one Shared package element — not two colliding on qname.
+    let shared: Vec<_> = elements
+        .iter()
+        .filter(|e| e.qualified_name == "SysML2Legacy::Shared")
+        .collect();
+    assert_eq!(
+        shared.len(),
+        1,
+        "same-named package across two files should merge into one element, got: {:#?}",
+        elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+    );
+    // Both files' nested content landed inside the merged namespace.
+    assert!(elements.iter().any(|e| e.qualified_name == "SysML2Legacy::Shared::Left"));
+    assert!(elements.iter().any(|e| e.qualified_name == "SysML2Legacy::Shared::Right"));
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors (e.g. a spurious E108): {:#?}", result.findings);
+}
+
+#[test]
 fn a_parse_failure_in_one_file_does_not_abort_the_rest_of_the_subtree() {
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");

@@ -5,12 +5,32 @@
 //! formalizes the dedicated error/warning code range for this subsystem later;
 //! don't read anything permanent into the exact number yet.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use walkdir::WalkDir;
 
 use crate::derive::finding;
 use crate::element::{ElementType, RawElement, RawFrontmatter};
+
+/// A SysML v2 `package`, merged across every `.sysml`/`.kerml` file in the
+/// subtree that contributes to it by name (`REQ-TRS-SYSMLV2-002`'s multi-file
+/// merge: two files each declaring `package Foo { ... }` combine into one
+/// `Foo` namespace instead of colliding on qname).
+#[derive(Default)]
+struct MergedPackage {
+    /// The file that first introduced this package name at this nesting
+    /// position — used as the synthesized `Package` element's own `file_path`.
+    /// Not meaningful beyond "some real contributing file"; a package merged
+    /// from several files doesn't have one canonical owner.
+    declared_in: Option<String>,
+    /// Non-`Package` body elements contributed by any file, paired with the
+    /// source file each came from (so a synthesized element's own `file_path`
+    /// reflects where it was actually declared, not just the owning package).
+    body: Vec<(sysml_v2_parser::PackageBodyElement, String)>,
+    /// Nested packages, keyed by name and merged the same way as this level.
+    children: BTreeMap<String, MergedPackage>,
+}
 
 /// Every `.sysml`/`.kerml` file under `dir`, recursively — however nested, since a
 /// `sysmlSubmodel` subtree's directory layout below the marked root carries no
@@ -32,12 +52,13 @@ fn find_sysml_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// Parse every `.sysml`/`.kerml` file under `dir` and convert the mapped element
-/// kinds into `RawElement`s owned by `pkg_qname`. A read or parse failure pushes a
-/// `W541` finding onto `owner` (the package's own `_index.md` element) and
-/// contributes zero elements from that file — never aborts the rest of the subtree.
+/// Parse every `.sysml`/`.kerml` file under `dir`, merge same-named packages
+/// across files, and convert the mapped element kinds into `RawElement`s owned
+/// by `pkg_qname`. A read or parse failure pushes a `W541` finding onto `owner`
+/// (the package's own `_index.md` element) and contributes zero elements from
+/// that file — never aborts the rest of the subtree.
 pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Vec<RawElement> {
-    let mut out = Vec::new();
+    let mut merged = MergedPackage::default();
     for path in find_sysml_files(dir) {
         let file_path = path.display().to_string();
         let content = match std::fs::read_to_string(&path) {
@@ -52,7 +73,7 @@ pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Ve
             }
         };
         match sysml_v2_parser::parse(&content) {
-            Ok(root) => convert_root(root, pkg_qname, &file_path, &mut out),
+            Ok(root) => merge_root(&mut merged, root, &file_path),
             Err(e) => {
                 owner.derive_findings.push(finding(
                     "W541",
@@ -62,49 +83,73 @@ pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Ve
             }
         }
     }
+
+    let mut out = Vec::new();
+    convert_merged(&merged, pkg_qname, &mut out);
     out
 }
 
-/// Walk one file's already-parsed root namespace, emitting mapped elements under
-/// `qname`. Only `Package` is handled so far — `REQ-TRS-SYSMLV2-007`'s remaining
-/// fixed kinds land in later commits; everything else is silently invisible for now
-/// (parse-broad, map-narrow — same posture the full mapping will keep for
-/// constructs outside the fixed set).
-fn convert_root(
-    root: sysml_v2_parser::RootNamespace,
-    qname: &str,
-    file_path: &str,
-    out: &mut Vec<RawElement>,
-) {
+/// Merge one file's already-parsed root namespace into `target`. Only
+/// `Package` is handled so far — `REQ-TRS-SYSMLV2-007`'s remaining fixed kinds
+/// land in later commits; everything else (bare root members, `library
+/// package`, `namespace`, imports) is silently invisible for now (parse-broad,
+/// map-narrow — same posture the full mapping will keep for constructs outside
+/// the fixed set).
+fn merge_root(target: &mut MergedPackage, root: sysml_v2_parser::RootNamespace, file_path: &str) {
     for node in root.elements {
         if let sysml_v2_parser::RootElement::Package(pkg_node) = node.value {
-            convert_package(pkg_node.value, qname, file_path, out);
+            merge_package(target, pkg_node.value, file_path);
         }
     }
 }
 
-fn convert_package(
-    pkg: sysml_v2_parser::Package,
-    qname: &str,
-    file_path: &str,
-    out: &mut Vec<RawElement>,
-) {
+/// Merge one `package` declaration into `target.children`, combining with
+/// whatever a same-named package already contributed (from this file or an
+/// earlier one).
+fn merge_package(target: &mut MergedPackage, pkg: sysml_v2_parser::Package, file_path: &str) {
     let Some(name) = ident_name(&pkg.identification) else {
-        return; // anonymous package: no identity to qname against, skip
+        return; // anonymous package: no identity to qname or merge against
     };
-    let child_qname = format!("{qname}::{name}");
-    out.push(synth(&child_qname, file_path, ElementType::Package, &name, None, None));
+    let is_new = !target.children.contains_key(&name);
+    let entry = target.children.entry(name).or_default();
+    if is_new {
+        entry.declared_in = Some(file_path.to_string());
+    }
     if let sysml_v2_parser::PackageBody::Brace { elements } = pkg.body {
-        for node in elements {
-            if let sysml_v2_parser::PackageBodyElement::Package(inner) = node.value {
-                convert_package(inner.value, &child_qname, file_path, out);
+        merge_package_body(entry, elements, file_path);
+    }
+}
+
+fn merge_package_body(
+    target: &mut MergedPackage,
+    elements: Vec<sysml_v2_parser::Node<sysml_v2_parser::PackageBodyElement>>,
+    file_path: &str,
+) {
+    for node in elements {
+        match node.value {
+            sysml_v2_parser::PackageBodyElement::Package(inner) => {
+                merge_package(target, inner.value, file_path);
             }
+            other => target.body.push((other, file_path.to_string())),
         }
     }
 }
 
 fn ident_name(id: &sysml_v2_parser::Identification) -> Option<String> {
     id.name.clone().or_else(|| id.short_name.clone())
+}
+
+/// Walk the merged package tree, emitting `RawElement`s under `qname`.
+fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>) {
+    for (_elem, _file_path) in &merged.body {
+        // Element-kind mapping (Part, Attribute, Port, ...) lands in later commits.
+    }
+    for (name, child) in &merged.children {
+        let child_qname = format!("{qname}::{name}");
+        let file_path = child.declared_in.as_deref().unwrap_or(qname);
+        out.push(synth(&child_qname, file_path, ElementType::Package, name, None, None));
+        convert_merged(child, &child_qname, out);
+    }
 }
 
 /// Build one synthesized `RawElement`. `supertype` carries a Def's `:>`
