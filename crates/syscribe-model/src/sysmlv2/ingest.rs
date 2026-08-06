@@ -147,7 +147,10 @@ fn ident_name(id: &sysml_v2_parser::Identification) -> Option<String> {
 /// `REQ-TRS-SYSMLV2-003`'s native `satisfy`/`verify` relationship targets,
 /// carried verbatim (quoted or unquoted, already quote-stripped by the
 /// parser's own lexer) — resolution is the existing id-or-qname resolver,
-/// unchanged.
+/// unchanged. `applies_when` is `REQ-TRS-SYSMLV2-005`'s `@SyscribeFeature {
+/// featureId = '...'; }` lift — written into the exact same field a native
+/// element's `appliesWhen:` uses, so the feature-model/SAT engine needs no
+/// changes at all to reason about it.
 #[derive(Default)]
 struct Spec {
     supertype: Option<String>,
@@ -157,6 +160,7 @@ struct Spec {
     variant_of: Option<String>,
     satisfies: Option<Vec<String>>,
     verifies: Option<Vec<String>>,
+    applies_when: Option<String>,
 }
 
 fn push_synth(
@@ -180,6 +184,7 @@ fn push_synth(
             variant_of: spec.variant_of,
             satisfies: spec.satisfies,
             verifies: spec.verifies,
+            applies_when: spec.applies_when.map(serde_yaml::Value::String),
             ..Default::default()
         },
         doc: String::new(),
@@ -225,6 +230,67 @@ fn satisfy_target(s: &sysml_v2_parser::ast::Satisfy) -> Option<String> {
 /// (`target` is `None` there), so it isn't mapped.
 fn verify_target(v: &sysml_v2_parser::ast::VerifyRequirementMember) -> Option<String> {
     v.target.clone()
+}
+
+/// The `FeatureDef` reference from a `@SyscribeFeature { featureId = '...';
+/// }` metadata annotation (`REQ-TRS-SYSMLV2-005`), or `None` if `m` isn't one
+/// (wrong name) or carries no `featureId` member.
+///
+/// Confirmed against the parser's actual AST: `@Name { ... }` is a real,
+/// structurally parseable `MetadataAnnotation` (`name`, `body: AttributeBody`)
+/// — not a comment convention — and `featureId = '<FEAT-id>'` inside it is an
+/// ordinary `AttributeUsage` whose value expression is a quote-stripped
+/// `FeatureRef`, exactly like a `satisfy`/`verify` shorthand target.
+fn syscribe_feature_id(m: &sysml_v2_parser::ast::MetadataAnnotation) -> Option<String> {
+    if m.name != "SyscribeFeature" {
+        return None;
+    }
+    let sysml_v2_parser::AttributeBody::Brace { elements } = &m.body else {
+        return None;
+    };
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::ast::AttributeBodyElement::AttributeUsage(a)
+            if a.value.name == "featureId" =>
+        {
+            a.value
+                .value
+                .as_ref()
+                .and_then(|fv| feature_ref_string(&fv.value.expression.value))
+        }
+        _ => None,
+    })
+}
+
+/// `@SyscribeFeature` search over a `part def` body's already-sliced members.
+///
+/// Only `PartDefBodyElement`/`PartUsageBodyElement` (below) carry a
+/// `MetadataAnnotation` variant at all in this parser version — confirmed by
+/// reading every other body-element enum a variation/variant could plausibly
+/// use (`AttributeBodyElement`, `PortBodyElement`): neither has one, only the
+/// unrelated `#keyword`-style `MetadataKeywordUsage`. Since `variation`/
+/// `variant` are themselves Part-only constructs in this grammar (only
+/// `PartDef`/`PartUsage` carry a `definition_prefix`/`usage_prefix` of
+/// `Variation` at all — confirmed during `REQ-TRS-SYSMLV2-002`), this isn't a
+/// gap: `@SyscribeFeature` is reachable everywhere a variation/variant
+/// actually can be.
+fn part_def_syscribe_feature_id(
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>],
+) -> Option<String> {
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::PartDefBodyElement::MetadataAnnotation(m) => syscribe_feature_id(&m.value),
+        _ => None,
+    })
+}
+
+/// `@SyscribeFeature` search over a `part` usage body's already-sliced
+/// members. See [`part_def_syscribe_feature_id`].
+fn part_usage_syscribe_feature_id(
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>],
+) -> Option<String> {
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::PartUsageBodyElement::MetadataAnnotation(m) => syscribe_feature_id(&m.value),
+        _ => None,
+    })
 }
 
 /// Walk the merged package tree, emitting `RawElement`s under `qname`.
@@ -297,6 +363,7 @@ fn convert_part_def(
         supertype: part.specializes.as_ref().map(|t| t.value.target_display()),
         is_variation: is_variation_prefix(&part.definition_prefix),
         satisfies,
+        applies_when: part_def_syscribe_feature_id(elements),
         ..Default::default()
     };
     push_synth(out, &part_qname, file_path, ElementType::PartDef, &name, spec);
@@ -332,6 +399,7 @@ fn convert_part_usage(
         typed_by: (!part.type_name.is_empty()).then(|| part.type_name.clone()),
         is_variation: is_variation_prefix(&part.usage_prefix),
         satisfies,
+        applies_when: part_usage_syscribe_feature_id(elements),
         ..Default::default()
     };
     push_synth(out, &part_qname, file_path, ElementType::Part, &part.name, spec);
@@ -811,6 +879,9 @@ fn convert_variant_usage(
         Some(sysml_v2_parser::ast::VariantTypedUsage::Part(pu)) => {
             let mut spec = base_spec();
             spec.typed_by = nonempty(pu.value.type_name.clone());
+            if let sysml_v2_parser::PartUsageBody::Brace { elements } = &pu.value.body {
+                spec.applies_when = part_usage_syscribe_feature_id(elements);
+            }
             push_synth(out, &elem_qname, file_path, ElementType::Part, &v.name, spec);
         }
         Some(sysml_v2_parser::ast::VariantTypedUsage::Attribute(au)) => {
