@@ -1,0 +1,18 @@
+Return-to-Home trigger logic and flight-path design note
+=========================================================
+
+Trigger logic:
+  - Sample battery level once per control cycle.
+  - Debounce over a rolling 5-sample window (REQ-RTH-003) before declaring
+    the critical threshold crossed.
+  - On confirmed crossing, hand off to the flight-path replanner.
+
+Flight-path replanning:
+  - Compute the direct-line path back to the last recorded home position.
+  - Re-plan around any no-fly zones active for the current mission.
+  - Descend and land autonomously once over the home position.
+
+This file is intentionally a plain-text design note, not a Syscribe model
+element (no `.md` extension, so the walker never treats it as one) — it
+exists purely to be a real, resolvable `path:` target for
+`Planning::PI-RTH-DESIGN-001`'s `evidence:` list.
