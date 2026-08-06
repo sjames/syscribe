@@ -669,12 +669,18 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     // ── W024: orphan FeatureDef ──────────────────────────────────────────────
     // A FeatureDef is an orphan when it is referenced by NO element's
     // `appliesWhen:` AND selected `true` by NO Configuration. feature-check-only.
+    // Operands keyed by a FEAT-* id are normalized to the FeatureDef qname
+    // before insertion, matching the sibling appliesWhen consumers above
+    // (W014's `aw_expr` and the deep-analysis `elem_aw`) — otherwise a bare-id
+    // `appliesWhen: FEAT-ROTOR` never matches `fd.qualified_name` and the
+    // FeatureDef is false-flagged as orphaned.
     let mut referenced_by_applies_when: HashSet<String> = HashSet::new();
     for e in elements {
         if let Some(aw) = &e.frontmatter.applies_when {
             if let Ok(Some(expr)) = crate::variability::applies_when_expr(aw) {
                 for op in expr.operands() {
-                    referenced_by_applies_when.insert(op);
+                    referenced_by_applies_when
+                        .insert(crate::variability::canon_feature_ref(&op, &feat_alias));
                 }
             }
         }
