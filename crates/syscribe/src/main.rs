@@ -2124,19 +2124,23 @@ fn main() {
         for e in sorted_ws {
             let qn = &e.qualified_name;
             let domain = e.frontmatter.domain.as_deref().unwrap_or("—");
-            let req_satisfies: Vec<&str> = e
+            // Display every satisfies target regardless of id-form vs qname-form —
+            // `is_req_id` is a shape check meant for id-based cross-reference
+            // resolution, not a display gate. Filtering on it here silently hid
+            // qname-form targets even though they resolve correctly and correctly
+            // suppress W300 elsewhere.
+            let satisfies_targets: Vec<&str> = e
                 .frontmatter
                 .satisfies
                 .as_ref()
                 .unwrap()
                 .iter()
-                .filter(|s| is_req_id(s))
                 .map(|s| s.as_str())
                 .collect();
-            let sat_str = if req_satisfies.is_empty() {
+            let sat_str = if satisfies_targets.is_empty() {
                 "—".to_string()
             } else {
-                req_satisfies.join(", ")
+                satisfies_targets.join(", ")
             };
             println!("| {} | {} | {} |", linked_label(qn, e, &vcfg), domain, sat_str);
         }
