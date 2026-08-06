@@ -27,6 +27,7 @@ pub enum EdgeKind {
     AllocatedTo,           // allocation → target element
     ConditionalOn,         // element → FeatureDef (appliesWhen:)
     Satisfies,             // Part/Config → Requirement/FeatureDef (satisfies:)
+    PlanningParent,        // PlanningItem child → parent (ADR-SYS-PLANITEM-001)
     // Part-to-part wiring (resolved from connection feature chains; issue #26)
     Connection,            // connections:        (from/to or ends[].binds)
     Flow,                  // flowConnections:    (from/to)
@@ -68,6 +69,7 @@ impl EdgeKind {
             EdgeKind::AllocatedTo => "allocatedTo",
             EdgeKind::ConditionalOn => "conditionalOn",
             EdgeKind::Satisfies => "satisfies",
+            EdgeKind::PlanningParent => "planningParent",
             EdgeKind::Connection => "connection",
             EdgeKind::Flow => "flow",
             EdgeKind::Binding => "binding",
@@ -205,6 +207,15 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
                 if let Some(dst) = resolve_to_idx(df) {
                     graph.add_edge(src, dst, EdgeKind::DerivedFrom);
                 }
+            }
+        }
+
+        // PlanningItem parent — child → parent, ID-based resolution
+        // (ADR-SYS-PLANITEM-001 / REQ-TRS-PLANITEM-002). A single scalar, unlike
+        // derivedFrom's list: strictly single-parent.
+        if let Some(ref p) = fm.parent {
+            if let Some(dst) = resolve_to_idx(p) {
+                graph.add_edge(src, dst, EdgeKind::PlanningParent);
             }
         }
 

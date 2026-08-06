@@ -569,6 +569,19 @@ impl Resolver {
                 .unwrap_or(false)
     }
 
+    /// True if `elem` is a native PlanningItem (type: PlanningItem with a PI-* id),
+    /// the `parent:` cross-reference target check (REQ-TRS-PLANITEM-002), mirroring
+    /// [`Self::is_native_requirement`].
+    pub fn is_planning_item(elem: &RawElement) -> bool {
+        matches!(elem.frontmatter.element_type, Some(ElementType::PlanningItem))
+            && elem
+                .frontmatter
+                .id
+                .as_deref()
+                .map(is_pi_id)
+                .unwrap_or(false)
+    }
+
     /// True if `elem` is a legal `verifies:` target (`E104`): a native
     /// Requirement (the original, unchanged rule — untouched by anything
     /// below), or an element that both (a) is one of the SysMLv2 submodel's

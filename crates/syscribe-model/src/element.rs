@@ -492,6 +492,15 @@ pub struct RawFrontmatter {
     /// suspect-tracked trace link.
     pub supersedes: Option<String>,
 
+    // §PlanningItem (ADR-SYS-PLANITEM-001) — native planning/tracking hierarchy.
+    /// `parent:` — at most one other `PlanningItem` (REQ-TRS-PLANITEM-002). A
+    /// single scalar reference, deliberately unlike `Requirement.derivedFrom`'s
+    /// list: `PlanningItem` is a strict single-parent tree, not a DAG. A
+    /// `PlanningItem` with no `parent:` is top-level. Resolved like `derivedFrom`
+    /// (id-or-qname); the reverse `children` index and cycle detection are
+    /// computed the same way `derivedChildren`/`E017` are for `Requirement`.
+    pub parent: Option<String>,
+
     /// §3 — external reference(s): this element represents an artifact managed in
     /// another tool (a DNG requirement, a SysML-tool element, …). Opaque strings
     /// (URI or tool-qualified token); string or list. Never a model cross-ref target.
