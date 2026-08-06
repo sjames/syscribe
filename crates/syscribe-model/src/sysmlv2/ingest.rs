@@ -263,16 +263,19 @@ fn syscribe_feature_id(m: &sysml_v2_parser::ast::MetadataAnnotation) -> Option<S
 
 /// `@SyscribeFeature` search over a `part def` body's already-sliced members.
 ///
-/// Only `PartDefBodyElement`/`PartUsageBodyElement` (below) carry a
-/// `MetadataAnnotation` variant at all in this parser version — confirmed by
-/// reading every other body-element enum a variation/variant could plausibly
-/// use (`AttributeBodyElement`, `PortBodyElement`): neither has one, only the
-/// unrelated `#keyword`-style `MetadataKeywordUsage`. Since `variation`/
-/// `variant` are themselves Part-only constructs in this grammar (only
-/// `PartDef`/`PartUsage` carry a `definition_prefix`/`usage_prefix` of
-/// `Variation` at all — confirmed during `REQ-TRS-SYSMLV2-002`), this isn't a
-/// gap: `@SyscribeFeature` is reachable everywhere a variation/variant
-/// actually can be.
+/// Variation is **not** Part-exclusive in this grammar — that was this
+/// function's original assumption and it was wrong: `RequirementUsage` also
+/// carries an independent `is_variation: bool` (see
+/// [`requirement_body_syscribe_feature_id`], which mirrors this function for
+/// the requirement-body case; a review caught the gap where it was missing).
+/// What *is* still true, checked per body-element enum rather than assumed:
+/// `PartDefBodyElement`/`PartUsageBodyElement`/`RequirementDefBodyElement`
+/// each genuinely carry a `MetadataAnnotation` variant, while
+/// `AttributeBodyElement`/`PortBodyElement` do not (only the unrelated
+/// `#keyword`-style `MetadataKeywordUsage`) — so `@SyscribeFeature` on a
+/// `variant attribute`/`variant port` typed-usage form has nowhere to attach
+/// per this grammar version, not because those forms can't vary, but because
+/// their body shape doesn't carry this AST node at all.
 fn part_def_syscribe_feature_id(
     elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>],
 ) -> Option<String> {
@@ -779,6 +782,16 @@ fn convert_requirement_def(
     let spec = Spec {
         supertype: r.specializes.as_ref().map(|t| t.value.target_display()),
         verifies: nonempty_vec(requirement_verify_targets(&r.body)),
+        // RequirementDef itself has no variation-prefix field at all in this
+        // parser version (confirmed: no `DefinitionPrefix`/`is_variation`-like
+        // member on the `RequirementDef` struct) — a `variation requirement
+        // def ...` isn't parseable as a variation point per this grammar, so
+        // unlike `RequirementUsage` below there's no `is_variation` to set
+        // here. The `@SyscribeFeature` search still applies unconditionally,
+        // though, matching the same policy `convert_part_def` uses: any
+        // element carrying the annotation gets applies_when regardless of
+        // whether it's specifically a variation/variant.
+        applies_when: requirement_body_syscribe_feature_id(&r.body),
         ..Default::default()
     };
     push_synth(out, &elem_qname, file_path, ElementType::RequirementDef, &name, spec);
@@ -798,6 +811,14 @@ fn convert_requirement_usage(
         typed_by: r.type_name.clone(),
         is_variation: (r.is_variation).then_some(true),
         verifies: nonempty_vec(requirement_verify_targets(&r.body)),
+        // REQ-TRS-SYSMLV2-005: `RequirementUsage` carries its own independent
+        // `is_variation: bool` ("variation requirement ..." — a variation
+        // point whose body holds `variant` members), unrelated to
+        // `PartDef`/`PartUsage`'s `DefinitionPrefix`. Its shared
+        // `RequirementDefBody` genuinely carries a `MetadataAnnotation`
+        // variant, so `@SyscribeFeature{ featureId = '...'; }` is reachable
+        // here exactly like it is on a Part.
+        applies_when: requirement_body_syscribe_feature_id(&r.body),
         ..Default::default()
     };
     push_synth(out, &elem_qname, file_path, ElementType::Requirement, &r.name, spec);
@@ -820,6 +841,24 @@ fn requirement_verify_targets(body: &sysml_v2_parser::RequirementDefBody) -> Vec
             _ => None,
         })
         .collect()
+}
+
+/// `@SyscribeFeature` search over a `requirement def`/`requirement` usage
+/// body (`REQ-TRS-SYSMLV2-005`) — both `RequirementDef` and `RequirementUsage`
+/// share this `RequirementDefBody`/`RequirementDefBodyElement` shape, which
+/// carries a real `MetadataAnnotation` variant. See [`syscribe_feature_id`].
+fn requirement_body_syscribe_feature_id(
+    body: &sysml_v2_parser::RequirementDefBody,
+) -> Option<String> {
+    let sysml_v2_parser::RequirementDefBody::Brace { elements } = body else {
+        return None;
+    };
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::RequirementDefBodyElement::MetadataAnnotation(m) => {
+            syscribe_feature_id(&m.value)
+        }
+        _ => None,
+    })
 }
 
 fn convert_allocation_usage(
@@ -900,7 +939,12 @@ fn convert_variant_usage(
             push_synth(out, &elem_qname, file_path, ElementType::Port, &v.name, spec);
         }
         Some(sysml_v2_parser::ast::VariantTypedUsage::Perform(_)) => {
-            // Behavior-related, outside REQ-TRS-SYSMLV2-007's fixed set.
+            // A `perform` variant is action/behavior-shaped — not in
+            // REQ-TRS-SYSMLV2-007's fixed mapped set at all, regardless of
+            // variation status, so it's never dispatched to a `push_synth`
+            // call here (unlike Part/Attribute/Item/Port above, whose *kind*
+            // is mapped even when the specific instance carries no
+            // `@SyscribeFeature`).
         }
     }
 }
