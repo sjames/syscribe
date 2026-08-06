@@ -1706,12 +1706,30 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             if let Some(ref refs) = fm.evidence {
-                // Argument.evidence is a flat list of scalar element refs; a
-                // non-string entry here would be a PlanningItem-shaped mapping,
-                // which cannot appear on an Argument (E855 is Argument-only).
-                for r in refs.iter().filter_map(|v| v.as_str()) {
-                    if resolver.resolve_ref(elements, r).is_none() {
-                        findings.push(error("E855", &file, &format!("Argument.evidence '{}' does not resolve to any model element", r)));
+                // Argument.evidence is a flat list of scalar element refs. A
+                // non-scalar entry (e.g. a PlanningItem-shaped `ref:`/`path:`
+                // mapping, which cannot appear on an Argument) previously failed
+                // the whole file's YAML parse outright (a loud E002) back when
+                // this field was Vec<String>; broadening it to Vec<Value> for
+                // PlanningItem's benefit means such an entry now parses cleanly
+                // but silently contributes nothing anywhere (validate,
+                // safety-case, suspect list) unless flagged here explicitly —
+                // E718 keeps this a loud, caught error again instead of a
+                // silent data-loss regression.
+                for r in refs {
+                    match r.as_str() {
+                        Some(s) => {
+                            if resolver.resolve_ref(elements, s).is_none() {
+                                findings.push(error("E855", &file, &format!("Argument.evidence '{}' does not resolve to any model element", s)));
+                            }
+                        }
+                        None => {
+                            findings.push(error(
+                                "E718",
+                                &file,
+                                "Argument evidence entry is not a scalar reference (expected a string id/qname)",
+                            ));
+                        }
                     }
                 }
             }
@@ -8381,5 +8399,103 @@ mod planning_item_evidence_tests {
         let cs = codes(&result.findings);
         assert!(!cs.contains(&"E717"), "the waived path entry must not be flagged: {:?}", result.findings);
         assert!(cs.contains(&"E716"), "the unwaived ref entry must still be flagged: {:?}", result.findings);
+    }
+}
+
+// ── Argument.evidence regression (review of 96b0bba/d6d8dc8) ────────────────
+//
+// Broadening the shared `evidence` field to `Vec<serde_yaml::Value>` (for
+// PlanningItem's ref:/path:/rationale: mappings) meant a non-scalar
+// Argument.evidence: entry, which previously failed the whole file's YAML
+// parse outright (E002, back when the field was Vec<String>), now parses
+// cleanly but silently vanished from every consumer (validate, safety-case,
+// suspect list) with zero diagnostic. E718 closes that gap at the source
+// (validate) — the other consumers intentionally keep filtering silently,
+// since validate is where malformed-frontmatter diagnostics belong.
+
+#[cfg(test)]
+mod argument_evidence_regression_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn nonscalar_argument_evidence_entry_raises_e718() {
+        // The exact adversarial fixture from the review: a mix of a real scalar
+        // ref and a PlanningItem-shaped mapping entry in one Argument.evidence:.
+        let elements = vec![
+            {
+                let mut e = make_elem(
+                    "Requirements::SomeReq",
+                    "type: Requirement\nid: REQ-ARGEV-001\nname: Some requirement\nstatus: draft\n",
+                    "model/Requirements/SomeReq.md",
+                );
+                e.doc = "The system shall do the thing.".to_string();
+                e
+            },
+            make_elem(
+                "Safety::SomeArgument",
+                "type: Argument\nid: ARG-EV-001\nname: Some argument\nstatus: draft\nevidence:\n  - REQ-ARGEV-001\n  - ref: NotAScalar\n    rationale: \"planning-item-shaped entry, must not silently vanish\"\n",
+                "model/Safety/SomeArgument.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            codes(&result.findings).contains(&"E718"),
+            "expected E718 for the non-scalar evidence entry: {:?}",
+            result.findings
+        );
+        // The real scalar entry must still resolve cleanly -- E718 doesn't
+        // blanket-suppress the rest of the list's normal checks.
+        assert!(
+            !codes(&result.findings).contains(&"E855"),
+            "the valid scalar entry must not spuriously raise E855: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn all_scalar_argument_evidence_validates_cleanly() {
+        // Regression guard the other way: a normal, all-scalar evidence: list
+        // must not spuriously raise E718.
+        let elements = vec![
+            {
+                let mut e = make_elem(
+                    "Requirements::SomeReq2",
+                    "type: Requirement\nid: REQ-ARGEV-002\nname: Some requirement\nstatus: draft\n",
+                    "model/Requirements/SomeReq2.md",
+                );
+                e.doc = "The system shall do the thing.".to_string();
+                e
+            },
+            make_elem(
+                "Safety::SomeArgument2",
+                "type: Argument\nid: ARG-EV-002\nname: Some argument\nstatus: draft\nevidence: REQ-ARGEV-002\n",
+                "model/Safety/SomeArgument2.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E718"),
+            "an all-scalar evidence: list must not raise E718: {:?}",
+            result.findings
+        );
     }
 }
