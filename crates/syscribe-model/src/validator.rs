@@ -3821,6 +3821,54 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // evidence: cross-reference / path-existence check (REQ-TRS-PLANITEM-005).
+        // Each entry is duck-typed — recognised by which key it carries, not a
+        // `type:` tag, the same idiom the Allocation `features:`-list convention
+        // already establishes:
+        //   - `ref:` — any resolvable element, unrestricted by kind (no
+        //     Resolver::is_native_requirement-style gate — ADR-SYS-PLANITEM-001
+        //     Decision 3 is explicit that this is NOT a fixed allowed-kind list).
+        //   - `path:` — resolved exactly like `implementedBy:` (reusing
+        //     config.classify_source, not reimplementing it): a local path is
+        //     checked to exist, a remote URI is accepted as external.
+        // Either form's own `rationale:` (a non-empty string) waives that one
+        // entry's check — mirroring ffi_rationale's co-located waiver pattern.
+        // Every other entry in the same list is still checked normally (no
+        // blanket suppression). This task authors/validates evidence: in
+        // isolation only; the "leaf needs evidence" rule is REQ-TRS-PLANITEM-006.
+        if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
+            if let Some(ref ev) = fm.evidence {
+                for entry in ev {
+                    let Some(m) = entry.as_mapping() else { continue };
+                    let rationale = yaml_field(m, "rationale").and_then(|v| v.as_str());
+                    let waived = rationale.is_some_and(|r| !r.trim().is_empty());
+
+                    if let Some(r) = yaml_field(m, "ref").and_then(|v| v.as_str()) {
+                        if !waived && resolver.resolve_ref(elements, r).is_none() {
+                            findings.push(error(
+                                "E716",
+                                &elem.file_path,
+                                &format!("PlanningItem evidence `ref` '{}' does not resolve to any model element", r),
+                            ));
+                        }
+                    }
+                    if let Some(p) = yaml_field(m, "path").and_then(|v| v.as_str()) {
+                        if !waived {
+                            if let crate::config::SourceLocation::Local(pb) = config.classify_source(p) {
+                                if !pb.exists() {
+                                    findings.push(error(
+                                        "E717",
+                                        &elem.file_path,
+                                        &format!("PlanningItem evidence `path` '{}' does not exist on disk", p),
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // E106: testFunctions[].scenario must match a Gherkin scenario title
         if let Some(ref fns) = fm.test_functions {
             let scenarios = extract_gherkin_scenarios(&elem.doc);
@@ -8090,5 +8138,248 @@ mod planning_item_achieves_tests {
             "achieves: must not trigger E312 on its target: {:?}",
             result.findings
         );
+    }
+}
+
+// ── PlanningItem evidence (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-005) ───────
+
+#[cfg(test)]
+mod planning_item_evidence_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+    use std::fs;
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn req(id: &str, qname: &str) -> RawElement {
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nstatus: draft\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    /// A minimally-valid top-level PlanningItem (satisfies E713 via a
+    /// companion, always-resolvable `achieves:` Requirement) carrying the
+    /// given raw `evidence:` YAML block.
+    fn pi_with_evidence(qname: &str, id: &str, achieves_req_id: &str, evidence_yaml: &str) -> RawElement {
+        make_elem(
+            qname,
+            &format!(
+                "type: PlanningItem\nid: {id}\nname: PI\nstatus: todo\nachieves: {achieves_req_id}\n{evidence_yaml}"
+            ),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        )
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    fn cfg_with_root(root: &std::path::Path) -> ValidateConfig {
+        ValidateConfig {
+            model_root: Some(root.to_path_buf()),
+            repo_root: Some(root.to_path_buf()),
+            ..ValidateConfig::default()
+        }
+    }
+
+    fn tempdir() -> std::path::PathBuf {
+        let p = std::env::temp_dir().join(format!(
+            "syscribe-planitem-evidence-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_nanos()
+        ));
+        fs::create_dir_all(&p).unwrap();
+        p
+    }
+
+    #[test]
+    fn ref_entries_of_different_kinds_validate_cleanly() {
+        // Prove ref: is genuinely unrestricted by kind (ADR-SYS-PLANITEM-001
+        // Decision 3): a Part, a TestCase, another PlanningItem, and an ADR all
+        // resolve cleanly with zero type gating.
+        let elements = vec![
+            req("REQ-EV-001", "Requirements::EvReq1"),
+            make_elem("Arch::SomePart", "type: Part\nname: SomePart\n", "model/Arch/SomePart.md"),
+            {
+                let mut e = make_elem(
+                    "Verification::SomeTest",
+                    "type: TestCase\nid: TC-EV-001\nname: A test\nstatus: draft\ntestLevel: L1\nverifies: [REQ-EV-001]\n",
+                    "model/Verification/SomeTest.md",
+                );
+                e.doc = "```gherkin\nFeature: A test\nScenario: it works\n  Given a thing\n  When it happens\n  Then it works\n```\n".to_string();
+                e
+            },
+            make_elem(
+                "Decisions::SomeAdr",
+                "type: ADR\nid: ADR-EV-001\nname: Some decision\nstatus: accepted\n",
+                "model/Decisions/SomeAdr.md",
+            ),
+            make_elem(
+                "Planning::OtherItem",
+                "type: PlanningItem\nid: PI-EV-002\nname: Other\nstatus: done\nparent: PI-EV-001\n",
+                "model/Planning/OtherItem.md",
+            ),
+            pi_with_evidence(
+                "Planning::MainItem",
+                "PI-EV-001",
+                "REQ-EV-001",
+                "evidence:\n  - ref: Arch::SomePart\n  - ref: TC-EV-001\n  - ref: ADR-EV-001\n  - ref: PI-EV-002\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn unresolved_ref_without_rationale_is_rejected() {
+        let elements = vec![
+            req("REQ-EV-010", "Requirements::EvReq10"),
+            pi_with_evidence(
+                "Planning::Item10",
+                "PI-EV-010",
+                "REQ-EV-010",
+                "evidence:\n  - ref: PI-NOPE-999\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E716"), "expected E716: {:?}", result.findings);
+    }
+
+    #[test]
+    fn unresolved_ref_with_rationale_is_waived() {
+        let elements = vec![
+            req("REQ-EV-011", "Requirements::EvReq11"),
+            pi_with_evidence(
+                "Planning::Item11",
+                "PI-EV-011",
+                "REQ-EV-011",
+                "evidence:\n  - ref: PI-NOPE-999\n    rationale: tracked externally, not yet in the model\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E716"),
+            "a rationale-carrying entry must waive the check: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn path_entry_pointing_at_a_real_file_validates_cleanly() {
+        let dir = tempdir();
+        fs::write(dir.join("proof.md"), "proof").unwrap();
+        let elements = vec![
+            req("REQ-EV-020", "Requirements::EvReq20"),
+            pi_with_evidence(
+                "Planning::Item20",
+                "PI-EV-020",
+                "REQ-EV-020",
+                "evidence:\n  - path: proof.md\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &cfg_with_root(&dir));
+        assert!(
+            !codes(&result.findings).contains(&"E717"),
+            "unexpected E717 for an existing path: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn path_entry_pointing_at_a_missing_file_without_rationale_is_rejected() {
+        let dir = tempdir();
+        let elements = vec![
+            req("REQ-EV-021", "Requirements::EvReq21"),
+            pi_with_evidence(
+                "Planning::Item21",
+                "PI-EV-021",
+                "REQ-EV-021",
+                "evidence:\n  - path: does-not-exist.md\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &cfg_with_root(&dir));
+        assert!(codes(&result.findings).contains(&"E717"), "expected E717: {:?}", result.findings);
+    }
+
+    #[test]
+    fn path_entry_pointing_at_a_missing_file_with_rationale_is_waived() {
+        let dir = tempdir();
+        let elements = vec![
+            req("REQ-EV-022", "Requirements::EvReq22"),
+            pi_with_evidence(
+                "Planning::Item22",
+                "PI-EV-022",
+                "REQ-EV-022",
+                "evidence:\n  - path: does-not-exist.md\n    rationale: proof lives in an external system, path is a placeholder\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &cfg_with_root(&dir));
+        assert!(
+            !codes(&result.findings).contains(&"E717"),
+            "a rationale-carrying entry must waive the check: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn remote_uri_path_entry_is_accepted_without_local_check() {
+        let dir = tempdir();
+        let elements = vec![
+            req("REQ-EV-023", "Requirements::EvReq23"),
+            pi_with_evidence(
+                "Planning::Item23",
+                "PI-EV-023",
+                "REQ-EV-023",
+                "evidence:\n  - path: https://example.com/proof.pdf\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &cfg_with_root(&dir));
+        assert!(
+            !codes(&result.findings).contains(&"E717"),
+            "a remote URI must not be checked locally: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn waiver_is_per_entry_not_blanket() {
+        // Two problem entries in one list: the first is rationale-waived, the
+        // second is a genuinely unresolved ref with no rationale. Only the
+        // second must be flagged -- proving the waiver doesn't leak across
+        // entries.
+        let dir = tempdir();
+        let elements = vec![
+            req("REQ-EV-030", "Requirements::EvReq30"),
+            pi_with_evidence(
+                "Planning::Item30",
+                "PI-EV-030",
+                "REQ-EV-030",
+                "evidence:\n  - path: does-not-exist.md\n    rationale: placeholder, tracked externally\n  - ref: PI-NOPE-ALSO-999\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &cfg_with_root(&dir));
+        let cs = codes(&result.findings);
+        assert!(!cs.contains(&"E717"), "the waived path entry must not be flagged: {:?}", result.findings);
+        assert!(cs.contains(&"E716"), "the unwaived ref entry must still be flagged: {:?}", result.findings);
     }
 }
