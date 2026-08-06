@@ -8598,3 +8598,151 @@ mod argument_evidence_regression_tests {
         );
     }
 }
+
+// ── PlanningItem leaf-evidence rule (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-006) ──
+
+#[cfg(test)]
+mod planning_item_leaf_evidence_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn req(id: &str, qname: &str) -> RawElement {
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nstatus: draft\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    /// A top-level (no `parent:`) leaf PlanningItem with the given `status:`
+    /// and raw `evidence:` YAML block, plus a companion, always-resolvable
+    /// `achieves:` Requirement (so E713 never interferes with these tests).
+    fn leaf_pi(qname: &str, id: &str, achieves_req_id: &str, status: &str, evidence_yaml: &str) -> RawElement {
+        make_elem(
+            qname,
+            &format!(
+                "type: PlanningItem\nid: {id}\nname: Leaf\nstatus: {status}\nachieves: {achieves_req_id}\n{evidence_yaml}"
+            ),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        )
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn leaf_done_with_resolving_evidence_validates_cleanly() {
+        let elements = vec![
+            req("REQ-LE-001", "Requirements::LeReq1"),
+            leaf_pi(
+                "Planning::Leaf1",
+                "PI-LE-001",
+                "REQ-LE-001",
+                "done",
+                "evidence:\n  - ref: REQ-LE-001\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E719"),
+            "unexpected E719: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn leaf_done_with_no_evidence_is_rejected() {
+        let elements = vec![
+            req("REQ-LE-002", "Requirements::LeReq2"),
+            leaf_pi("Planning::Leaf2", "PI-LE-002", "REQ-LE-002", "done", ""),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E719"), "expected E719: {:?}", result.findings);
+    }
+
+    #[test]
+    fn leaf_done_with_only_waived_evidence_is_still_rejected() {
+        // Every entry carries rationale: -- none of them counts as proof, so
+        // this must still fail even though the list is non-empty.
+        let elements = vec![
+            req("REQ-LE-003", "Requirements::LeReq3"),
+            leaf_pi(
+                "Planning::Leaf3",
+                "PI-LE-003",
+                "REQ-LE-003",
+                "done",
+                "evidence:\n  - ref: PI-NOPE-999\n    rationale: not tracked in model yet\n  - path: does-not-exist.md\n    rationale: external artifact placeholder\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            codes(&result.findings).contains(&"E719"),
+            "a waived-only evidence list must not satisfy the rule: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn leaf_in_non_done_statuses_with_no_evidence_raises_nothing() {
+        // (status, id-safe tag) -- REQ-*/PI-* ids require uppercase-alnum
+        // segments, so the raw status string (e.g. "in_progress") can't be
+        // used directly in an id.
+        for (status, tag) in [("todo", "TODO"), ("in_progress", "INPROG"), ("blocked", "BLK")] {
+            let elements = vec![
+                req(&format!("REQ-LE-{tag}-001"), &format!("Requirements::LeReq{tag}")),
+                leaf_pi(
+                    &format!("Planning::Leaf{tag}"),
+                    &format!("PI-LE-{tag}-001"),
+                    &format!("REQ-LE-{tag}-001"),
+                    status,
+                    "",
+                ),
+            ];
+            let result = validate_with_config(&elements, &ValidateConfig::default());
+            assert!(
+                !codes(&result.findings).contains(&"E719"),
+                "status '{}' must not raise E719 regardless of missing evidence: {:?}",
+                status,
+                result.findings
+            );
+        }
+    }
+
+    #[test]
+    fn non_leaf_done_with_no_evidence_raises_nothing() {
+        // A parent PlanningItem (has a child) is not constrained by this rule
+        // at all -- status: done and zero evidence of its own must not fire.
+        let elements = vec![
+            req("REQ-LE-010", "Requirements::LeReq10"),
+            leaf_pi("Planning::Parent10", "PI-LE-010", "REQ-LE-010", "done", ""),
+            make_elem(
+                "Planning::Child10",
+                "type: PlanningItem\nid: PI-LE-011\nname: Child\nstatus: todo\nparent: PI-LE-010\n",
+                "model/Planning/Child10.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E719"),
+            "a non-leaf must never be constrained by this rule: {:?}",
+            result.findings
+        );
+    }
+}
