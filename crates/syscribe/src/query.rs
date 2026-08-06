@@ -91,6 +91,7 @@ pub fn type_label(et: &ElementType) -> &'static str {
         ElementType::FlowDef => "FlowDef",
         ElementType::EnumerationDef => "EnumerationDef",
         ElementType::AttributeDef => "AttributeDef",
+        ElementType::Attribute => "Attribute",
         ElementType::FeatureDef => "FeatureDef",
         ElementType::Configuration => "Configuration",
         ElementType::StateDef => "StateDef",
