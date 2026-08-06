@@ -500,6 +500,14 @@ pub struct RawFrontmatter {
     /// (id-or-qname); the reverse `children` index and cycle detection are
     /// computed the same way `derivedChildren`/`E017` are for `Requirement`.
     pub parent: Option<String>,
+    /// `achieves:` — one or more native `Requirement`s this `PlanningItem` exists
+    /// to achieve (REQ-TRS-PLANITEM-003). Unlike `parent:`, legitimately a list
+    /// (scalar or list accepted, like `derivedFrom`). Required (non-empty) on a
+    /// top-level item (no `parent:`); optional otherwise. A distinct field from
+    /// `satisfies:` — deliberately does not participate in that field's
+    /// `W300`/`E312` architecture-satisfaction machinery.
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub achieves: Option<Vec<String>>,
 
     /// §3 — external reference(s): this element represents an artifact managed in
     /// another tool (a DNG requirement, a SysML-tool element, …). Opaque strings

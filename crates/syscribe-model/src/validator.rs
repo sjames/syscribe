@@ -2280,10 +2280,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
 
         // ── PlanningItem (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-001) ────────
-        // Schema-only scope for this requirement: stable id, required `name`/`status`,
-        // and an optional `itemType`. Hierarchy/achieves/evidence/appliesWhen are
-        // separate follow-on requirements (REQ-TRS-PLANITEM-002..006) and are
-        // deliberately not checked here.
+        // Schema-only scope for REQ-TRS-PLANITEM-001: stable id, required
+        // `name`/`status`, and an optional `itemType`. Hierarchy (`parent:`) is
+        // checked in the cross-reference pass below (REQ-TRS-PLANITEM-002); the
+        // structural half of `achieves:` (required on a top-level item) is
+        // checked here since it needs no cross-reference resolution, while its
+        // resolve/type check lives in the cross-reference pass alongside
+        // `parent:` (REQ-TRS-PLANITEM-003). Evidence/appliesWhen remain separate
+        // follow-on requirements (REQ-TRS-PLANITEM-004..006), not checked here.
         if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
             // E706: id pattern.
             if let Some(ref id) = fm.id {
@@ -2318,6 +2322,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 if !PI_ITEM_TYPES.contains(&item_type.as_str()) {
                     findings.push(error("E709", &file, &format!("unknown PlanningItem itemType '{}'", item_type)));
                 }
+            }
+            // E713: a top-level PlanningItem (no `parent:`) must set at least one
+            // `achieves:` entry — its reason for existing (REQ-TRS-PLANITEM-003).
+            // A non-top-level item is not required to (its purpose is inherited
+            // in spirit from its ancestry, per the requirement's rationale).
+            if fm.parent.is_none() && fm.achieves.as_ref().is_none_or(|a| a.is_empty()) {
+                findings.push(error(
+                    "E713",
+                    &file,
+                    "top-level PlanningItem (no `parent`) must set at least one `achieves` entry",
+                ));
             }
         }
 
@@ -3769,6 +3784,35 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                     .push(child_id.clone());
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // achieves: cross-reference check (REQ-TRS-PLANITEM-003). Empirically
+        // confirmed (not assumed — cf. the SysMLv2 satisfy/verify asymmetry) that
+        // no generic cross-reference-resolution infrastructure catches a dangling
+        // `achieves:` target on its own; unlike verifies/derivedFrom (E102/E103)
+        // it needed its own explicit dangling check here. Deliberately separate
+        // from `satisfies:`'s machinery (E312/W300 stay scoped to architecture
+        // satisfies, never see `achieves:`).
+        if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
+            if let Some(ref ach) = fm.achieves {
+                for a in ach {
+                    match resolver.resolve_ref(elements, a) {
+                        None => findings.push(error(
+                            "E714",
+                            &elem.file_path,
+                            &format!("unresolved PlanningItem achieves reference '{}'", a),
+                        )),
+                        Some(target) if !Resolver::is_native_requirement(target) => {
+                            findings.push(error(
+                                "E715",
+                                &elem.file_path,
+                                &format!("PlanningItem `achieves` '{}' does not resolve to a native Requirement", a),
+                            ));
+                        }
+                        Some(_) => {}
                     }
                 }
             }
@@ -7551,14 +7595,27 @@ mod planning_item_tests {
         findings.iter().map(|f| f.code).collect()
     }
 
+    fn req(id: &str, qname: &str) -> RawElement {
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nstatus: draft\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
     #[test]
     fn valid_planning_item_with_status_and_no_item_type_validates_cleanly() {
-        let elem = make_elem(
-            "Planning::DoTheThing",
-            "type: PlanningItem\nid: PI-SCHED-001\nname: Do the thing\nstatus: todo\n",
-            "model/Planning/DoTheThing.md",
-        );
-        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        let elements = vec![
+            req("REQ-SCHED-001", "Requirements::SchedReq"),
+            make_elem(
+                "Planning::DoTheThing",
+                "type: PlanningItem\nid: PI-SCHED-001\nname: Do the thing\nstatus: todo\nachieves: REQ-SCHED-001\n",
+                "model/Planning/DoTheThing.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
         assert!(
             !codes(&result.findings).iter().any(|c| c.starts_with('E')),
             "unexpected errors: {:?}",
@@ -7568,12 +7625,15 @@ mod planning_item_tests {
 
     #[test]
     fn valid_planning_item_with_valid_item_type_validates_cleanly() {
-        let elem = make_elem(
-            "Planning::FixTheBug",
-            "type: PlanningItem\nid: PI-SCHED-002\nname: Fix the bug\nstatus: in_progress\nitemType: bug\n",
-            "model/Planning/FixTheBug.md",
-        );
-        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        let elements = vec![
+            req("REQ-SCHED-002", "Requirements::SchedReq2"),
+            make_elem(
+                "Planning::FixTheBug",
+                "type: PlanningItem\nid: PI-SCHED-002\nname: Fix the bug\nstatus: in_progress\nitemType: bug\nachieves: REQ-SCHED-002\n",
+                "model/Planning/FixTheBug.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
         assert!(
             !codes(&result.findings).iter().any(|c| c.starts_with('E')),
             "unexpected errors: {:?}",
@@ -7673,6 +7733,20 @@ mod planning_item_hierarchy_tests {
         }
     }
 
+    fn req(id: &str, qname: &str) -> RawElement {
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nstatus: draft\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    /// A `PlanningItem` with the given `parent:` (task #15). `achieves:` is left
+    /// unset — callers that need a clean, error-free top-level item (no `parent`)
+    /// use [`pi_ach`], which also supplies a resolvable `Requirement` companion
+    /// element (REQ-TRS-PLANITEM-003's required-on-top-level rule, `E713`).
     fn pi(qname: &str, id: &str, name: &str, parent: Option<&str>) -> RawElement {
         let parent_line = parent.map(|p| format!("parent: {p}\n")).unwrap_or_default();
         make_elem(
@@ -7682,14 +7756,29 @@ mod planning_item_hierarchy_tests {
         )
     }
 
+    /// A top-level (no `parent`) `PlanningItem` plus a resolvable `Requirement`
+    /// companion element for its `achieves:`. Returns `(planning_item, requirement)`
+    /// — both must be included in the test's element slice.
+    fn pi_ach(qname: &str, id: &str, name: &str, achieves_req_id: &str) -> (RawElement, RawElement) {
+        let elem = make_elem(
+            qname,
+            &format!("type: PlanningItem\nid: {id}\nname: {name}\nstatus: todo\nachieves: {achieves_req_id}\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        let req_qname = format!("{qname}AchievesReq");
+        (elem, req(achieves_req_id, &req_qname))
+    }
+
     fn codes(findings: &[Finding]) -> Vec<&str> {
         findings.iter().map(|f| f.code).collect()
     }
 
     #[test]
     fn three_level_chain_resolves_and_computes_children() {
+        let (top, top_req) = pi_ach("Planning::Top", "PI-TOP-001", "Top", "REQ-TOP-001");
         let elements = vec![
-            pi("Planning::Top", "PI-TOP-001", "Top", None),
+            top,
+            top_req,
             pi("Planning::Mid", "PI-MID-001", "Mid", Some("PI-TOP-001")),
             pi("Planning::Leaf", "PI-LEAF-001", "Leaf", Some("PI-MID-001")),
         ];
@@ -7755,7 +7844,8 @@ mod planning_item_hierarchy_tests {
 
     #[test]
     fn no_parent_is_top_level() {
-        let elements = vec![pi("Planning::Solo", "PI-SOLO-001", "Solo", None)];
+        let (solo, solo_req) = pi_ach("Planning::Solo", "PI-SOLO-001", "Solo", "REQ-SOLO-001");
+        let elements = vec![solo, solo_req];
         let result = validate_with_config(&elements, &ValidateConfig::default());
         assert!(
             !codes(&result.findings).iter().any(|c| c.starts_with('E')),
@@ -7769,8 +7859,10 @@ mod planning_item_hierarchy_tests {
 
     #[test]
     fn item_with_children_is_not_a_leaf() {
+        let (parent, parent_req) = pi_ach("Planning::Parent", "PI-PARENT-001", "Parent", "REQ-PARENT-001");
         let elements = vec![
-            pi("Planning::Parent", "PI-PARENT-001", "Parent", None),
+            parent,
+            parent_req,
             pi("Planning::Child", "PI-CHILD-003", "Child", Some("PI-PARENT-001")),
         ];
         let result = validate_with_config(&elements, &ValidateConfig::default());
@@ -7780,7 +7872,8 @@ mod planning_item_hierarchy_tests {
 
     #[test]
     fn lone_item_with_no_parent_and_no_children_is_top_level_and_leaf() {
-        let elements = vec![pi("Planning::Lone", "PI-LONE-001", "Lone", None)];
+        let (lone, lone_req) = pi_ach("Planning::Lone", "PI-LONE-001", "Lone", "REQ-LONE-001");
+        let elements = vec![lone, lone_req];
         let result = validate_with_config(&elements, &ValidateConfig::default());
         assert!(
             !codes(&result.findings).iter().any(|c| c.starts_with('E')),
