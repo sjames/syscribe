@@ -125,6 +125,60 @@ fn syscribe_feature_on_a_typed_variant_lifts_into_applies_when() {
 }
 
 #[test]
+fn syscribe_feature_on_a_variation_requirement_usage_lifts_into_applies_when() {
+    // Regression: RequirementUsage carries its own independent `is_variation`
+    // ("variation requirement ..."), unrelated to PartDef/PartUsage's
+    // variation prefix. A review found the first version of this feature
+    // silently dropped @SyscribeFeature here, contradicting REQ-TRS-SYSMLV2-005's
+    // own generic ("variation/variant element", not Part-scoped) wording.
+    // Real-world syntax per the OMG spec Annex `7b-Variant Configurations.sysml`
+    // (confirmed in the parser's own doc comment): `variation requirement
+    // engineRqtChoice : EnginePerformanceRequirement { ... }`.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "Features/Rotor.md",
+        "---\ntype: FeatureDef\nid: FEAT-ROTOR\nname: Rotor\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Config.sysml",
+        "package Config {\n\
+         variation requirement reqFoo : ReqChoice {\n\
+         @SyscribeFeature {\n\
+         featureId = 'FEAT-ROTOR';\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let req = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Config::reqFoo")
+        .unwrap_or_else(|| {
+            panic!(
+                "expected reqFoo, got: {:#?}",
+                elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(req.frontmatter.is_variation, Some(true));
+    assert_eq!(
+        req.frontmatter.applies_when,
+        Some(serde_yaml::Value::String("FEAT-ROTOR".to_string()))
+    );
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
 fn no_annotation_means_purely_structural_no_feature_participation() {
     // REQ-TRS-SYSMLV2-005's stated scope: a variation/variant with no
     // @SyscribeFeature is ingested normally and simply doesn't participate in
