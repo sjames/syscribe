@@ -1,0 +1,1 @@
+A real local file used as a resolving `path:` evidence target.
