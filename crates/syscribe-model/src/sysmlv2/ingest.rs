@@ -143,7 +143,11 @@ fn ident_name(id: &sysml_v2_parser::Identification) -> Option<String> {
 /// `supertype` carries a Def's `:>` specialization target; `typed_by` carries a
 /// Usage's `:` typing target — kept distinct exactly like hand-authored
 /// frontmatter does. `is_variant`/`variant_of` are `REQ-TRS-SYSMLV2-007`'s
-/// "variation/variant membership" recognition.
+/// "variation/variant membership" recognition. `satisfies`/`verifies` are
+/// `REQ-TRS-SYSMLV2-003`'s native `satisfy`/`verify` relationship targets,
+/// carried verbatim (quoted or unquoted, already quote-stripped by the
+/// parser's own lexer) — resolution is the existing id-or-qname resolver,
+/// unchanged.
 #[derive(Default)]
 struct Spec {
     supertype: Option<String>,
@@ -151,6 +155,8 @@ struct Spec {
     is_variation: Option<bool>,
     is_variant: Option<bool>,
     variant_of: Option<String>,
+    satisfies: Option<Vec<String>>,
+    verifies: Option<Vec<String>>,
 }
 
 fn push_synth(
@@ -172,6 +178,8 @@ fn push_synth(
             is_variation: spec.is_variation,
             is_variant: spec.is_variant,
             variant_of: spec.variant_of,
+            satisfies: spec.satisfies,
+            verifies: spec.verifies,
             ..Default::default()
         },
         doc: String::new(),
@@ -179,6 +187,44 @@ fn push_synth(
         derived: Default::default(),
         derive_findings: Vec::new(),
     });
+}
+
+/// A `satisfy`/`verify` relationship target from a plain `Expression` — only
+/// the common `FeatureRef` shape (a single quoted/unquoted name, or a
+/// `::`-qualified name, already quote-stripped by the parser's lexer) is
+/// recognized; other expression shapes aren't meaningful reference targets
+/// here and are left unmapped.
+fn feature_ref_string(e: &sysml_v2_parser::Expression) -> Option<String> {
+    match e {
+        sysml_v2_parser::Expression::FeatureRef(s) => Some(s.clone()),
+        _ => None,
+    }
+}
+
+/// The `Requirement` reference a `satisfy` statement targets, or `None` if
+/// this one isn't a simple reference we map.
+///
+/// Whichever form is used — `satisfy 'REQ-X';` (shorthand, no `by` clause) or
+/// `satisfy 'REQ-X' by subject;` (fuller form) — the parser's `source` field
+/// always holds the requirement-being-satisfied expression (`target` holds
+/// the post-`by` subject in the fuller form, or mirrors `source` for the
+/// shorthand). A negated (`not satisfy ...`) or inline-declared
+/// (`satisfy requirement myReq : Type ...`) statement isn't a reference to an
+/// existing target, so neither maps here.
+fn satisfy_target(s: &sysml_v2_parser::ast::Satisfy) -> Option<String> {
+    if s.is_negated || s.inline_requirement.is_some() {
+        return None;
+    }
+    feature_ref_string(&s.source.value)
+}
+
+/// The `Requirement` reference a `verify` statement targets — the shorthand
+/// `verify 'REQ-X';` form's `target` field is already a plain, quote-stripped
+/// string. The fuller `verify requirement <inline> : Type ...` form declares
+/// a fresh inline requirement usage rather than referencing an existing one
+/// (`target` is `None` there), so it isn't mapped.
+fn verify_target(v: &sysml_v2_parser::ast::VerifyRequirementMember) -> Option<String> {
+    v.target.clone()
 }
 
 /// Walk the merged package tree, emitting `RawElement`s under `qname`.
@@ -234,16 +280,28 @@ fn convert_part_def(
         return; // anonymous part def: no identity to qname against
     };
     let part_qname = format!("{qname}::{name}");
+    let elements = match &part.body {
+        sysml_v2_parser::PartDefBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::PartDefBody::Semicolon => &[],
+    };
+    let satisfies = nonempty_vec(
+        elements
+            .iter()
+            .filter_map(|n| match &n.value {
+                sysml_v2_parser::PartDefBodyElement::Satisfy(s) => satisfy_target(&s.value),
+                _ => None,
+            })
+            .collect(),
+    );
     let spec = Spec {
         supertype: part.specializes.as_ref().map(|t| t.value.target_display()),
         is_variation: is_variation_prefix(&part.definition_prefix),
+        satisfies,
         ..Default::default()
     };
     push_synth(out, &part_qname, file_path, ElementType::PartDef, &name, spec);
-    if let sysml_v2_parser::PartDefBody::Brace { elements } = &part.body {
-        for node in elements {
-            convert_part_def_body_element(&node.value, &part_qname, file_path, out);
-        }
+    for node in elements {
+        convert_part_def_body_element(&node.value, &part_qname, file_path, out);
     }
 }
 
@@ -257,17 +315,35 @@ fn convert_part_usage(
         return; // anonymous usage: no identity to qname against
     }
     let part_qname = format!("{qname}::{}", part.name);
+    let elements = match &part.body {
+        sysml_v2_parser::PartUsageBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::PartUsageBody::Semicolon => &[],
+    };
+    let satisfies = nonempty_vec(
+        elements
+            .iter()
+            .filter_map(|n| match &n.value {
+                sysml_v2_parser::PartUsageBodyElement::Satisfy(s) => satisfy_target(&s.value),
+                _ => None,
+            })
+            .collect(),
+    );
     let spec = Spec {
         typed_by: (!part.type_name.is_empty()).then(|| part.type_name.clone()),
         is_variation: is_variation_prefix(&part.usage_prefix),
+        satisfies,
         ..Default::default()
     };
     push_synth(out, &part_qname, file_path, ElementType::Part, &part.name, spec);
-    if let sysml_v2_parser::PartUsageBody::Brace { elements } = &part.body {
-        for node in elements {
-            convert_part_usage_body_element(&node.value, &part_qname, file_path, out);
-        }
+    for node in elements {
+        convert_part_usage_body_element(&node.value, &part_qname, file_path, out);
     }
+}
+
+/// `None` for an empty `Vec` — several `Spec` fields are `Option<Vec<String>>`
+/// and an absent relationship should serialize as `None`, not `Some(vec![])`.
+fn nonempty_vec(v: Vec<String>) -> Option<Vec<String>> {
+    (!v.is_empty()).then_some(v)
 }
 
 /// Dispatch one member of a `part def` body. Recurses into nested
@@ -634,6 +710,7 @@ fn convert_requirement_def(
     let elem_qname = format!("{qname}::{name}");
     let spec = Spec {
         supertype: r.specializes.as_ref().map(|t| t.value.target_display()),
+        verifies: nonempty_vec(requirement_verify_targets(&r.body)),
         ..Default::default()
     };
     push_synth(out, &elem_qname, file_path, ElementType::RequirementDef, &name, spec);
@@ -652,9 +729,29 @@ fn convert_requirement_usage(
     let spec = Spec {
         typed_by: r.type_name.clone(),
         is_variation: (r.is_variation).then_some(true),
+        verifies: nonempty_vec(requirement_verify_targets(&r.body)),
         ..Default::default()
     };
     push_synth(out, &elem_qname, file_path, ElementType::Requirement, &r.name, spec);
+}
+
+/// `verify` targets nested directly inside a `requirement def`/`requirement`
+/// body (`REQ-TRS-SYSMLV2-003`) — the only body context this parser version
+/// recognizes the `verify` keyword in at all (see this task's report for the
+/// judgment call this reflects).
+fn requirement_verify_targets(body: &sysml_v2_parser::RequirementDefBody) -> Vec<String> {
+    let sysml_v2_parser::RequirementDefBody::Brace { elements } = body else {
+        return Vec::new();
+    };
+    elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::RequirementDefBodyElement::VerifyRequirement(v) => {
+                verify_target(&v.value)
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 fn convert_allocation_usage(
