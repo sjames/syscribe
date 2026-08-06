@@ -150,6 +150,9 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
     // Native SysML v2/KerML submodel scoping (ADR-SYS-SYSMLV2-001): strip stray
     // nested `_index.md`s out of any `sysmlSubmodel: true` package's subtree.
     crate::sysmlv2::apply_sysmlv2_submodels(&mut elements, model_root);
+    // Parse and merge `.sysml`/`.kerml` content in each surviving subtree into
+    // real RawElements (REQ-TRS-SYSMLV2-002).
+    crate::sysmlv2::ingest_sysml_submodels(&mut elements, model_root);
     // Derive pass: evaluate `derive:` blocks; findings stored in each element's derive_findings.
     crate::derive::derive_pass(&mut elements);
     Ok(elements)

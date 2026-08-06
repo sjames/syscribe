@@ -721,8 +721,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 "E500" => "E500", "E501" => "E501", "E502" => "E502",
                 // Native SysML v2/KerML submodel ingestion (ADR-SYS-SYSMLV2-001,
                 // REQ-TRS-SYSMLV2-006) — its own code range, distinct from the
-                // WASM-plugin family.
+                // WASM-plugin family. W541 is a placeholder pending REQ-TRS-SYSMLV2-006's
+                // formal dedicated range.
                 "W540" => "W540",
+                "W541" => "W541",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });

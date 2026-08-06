@@ -1,5 +1,6 @@
-//! Integration tests for native SysML v2/KerML submodel scoping
-//! (`ADR-SYS-SYSMLV2-001`, `REQ-TRS-SYSMLV2-001`).
+//! Integration tests for native SysML v2/KerML submodel scoping and ingestion
+//! (`ADR-SYS-SYSMLV2-001`, `REQ-TRS-SYSMLV2-001`, `REQ-TRS-SYSMLV2-002`,
+//! `REQ-TRS-SYSMLV2-007`).
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -27,7 +28,14 @@ fn write(root: &Path, rel: &str, content: &str) {
 }
 
 #[test]
-fn sysml_and_kerml_files_are_invisible_to_the_graph() {
+fn unmapped_sysml_constructs_stay_invisible_while_the_package_anchor_still_parses() {
+    // REQ-TRS-SYSMLV2-007's fixed mapped set is Package, Part(Def/Usage),
+    // Attribute(Def/Usage), Port(Def/Usage), Connection(Def/Usage),
+    // Interface(Def/Usage), Item(Def/Usage), Requirement(Def/Usage),
+    // AllocationUsage, and variation/variant membership. `state def`/`action def`
+    // at file root are legal SysML v2 but outside that set — this fixture must
+    // keep synthesizing zero elements from the .sysml/.kerml content no matter
+    // how much of the fixed set later commits in this task add support for.
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
     write(
@@ -35,28 +43,21 @@ fn sysml_and_kerml_files_are_invisible_to_the_graph() {
         "SysML2Legacy/_index.md",
         "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
     );
-    write(
-        &root,
-        "SysML2Legacy/Sensor.sysml",
-        "part def PressureSensor {\n  doc \"Measures cabin pressure.\"\n}\n",
-    );
-    write(
-        &root,
-        "SysML2Legacy/Extra.kerml",
-        "package Extra { }\n",
-    );
+    write(&root, "SysML2Legacy/Sensor.sysml", "state def Idle;\n");
+    write(&root, "SysML2Legacy/Extra.kerml", "action def DoNothing;\n");
 
     let elements = walk_model(&root).unwrap();
 
-    // Nothing is synthesized from .sysml/.kerml content yet — REQ-TRS-SYSMLV2-001
-    // explicitly scopes that out; only the qualified name / file path space is affected.
     assert!(
         elements.iter().all(|e| !e.file_path.ends_with(".sysml") && !e.file_path.ends_with(".kerml")),
-        "no element should originate from a .sysml/.kerml file yet: {:#?}",
+        "no element should originate from a .sysml/.kerml file for unmapped constructs: {:#?}",
         elements.iter().map(|e| &e.file_path).collect::<Vec<_>>()
     );
     // The package's own _index.md is still a normal native element.
     assert!(elements.iter().any(|e| e.qualified_name == "SysML2Legacy"));
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
 }
 
 #[test]

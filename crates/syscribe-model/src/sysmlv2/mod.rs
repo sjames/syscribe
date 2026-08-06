@@ -14,15 +14,17 @@
 //! (`REQ-TRS-SYSMLV2-000`).
 //!
 //! `.sysml`/`.kerml` files are never collected by [`crate::walker::walk_model`]
-//! in the first place (it only walks `.md` files), so they are already
-//! invisible to the graph with no special handling needed here — this module
-//! does not yet synthesize any `RawElement`s from them (`REQ-TRS-SYSMLV2-001`
-//! scopes that out; a later requirement covers real ingestion). What this
-//! module *does* handle is the one thing native `.md` walking gets wrong
-//! inside a marked subtree: a stray nested `_index.md` would otherwise be
-//! parsed as an ordinary package. Hand-authored non-index `.md` element files
-//! inside the subtree are left completely alone — they keep participating in
-//! the namespace exactly as they would outside a `sysmlSubmodel` package.
+//! in the first place (it only walks `.md` files) — this module handles two
+//! things `.md` walking gets wrong or misses entirely inside a marked
+//! subtree: a stray nested `_index.md` would otherwise be parsed as an
+//! ordinary package ([`apply_sysmlv2_submodels`]), and the `.sysml`/`.kerml`
+//! content itself needs its own parse-and-merge pass to become real
+//! `RawElement`s ([`ingest_sysml_submodels`], `REQ-TRS-SYSMLV2-002`). Hand-
+//! authored non-index `.md` element files inside the subtree are left
+//! completely alone — they keep participating in the namespace exactly as
+//! they would outside a `sysmlSubmodel` package.
+
+pub mod ingest;
 
 use std::path::{Path, PathBuf};
 
@@ -117,4 +119,38 @@ fn under_dir(file_path: &str, dir: &Path) -> bool {
         return false;
     }
     Path::new(file_path).starts_with(dir)
+}
+
+/// Parse and merge every `.sysml`/`.kerml` file in each `sysmlSubmodel: true`
+/// subtree into the graph as ordinary `RawElement`s (`REQ-TRS-SYSMLV2-002`).
+///
+/// Must run after [`apply_sysmlv2_submodels`] so any stray nested `_index.md`
+/// anchors have already been stripped out — this pass only needs to find the
+/// surviving, confirmed anchors, with no re-derivation of the stray/shallowest-
+/// first logic that lives there.
+pub fn ingest_sysml_submodels(elements: &mut Vec<RawElement>, _model_root: &Path) {
+    let anchors: Vec<(usize, PathBuf, String)> = elements
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| {
+            if e.frontmatter.sysml_submodel != Some(true) || !e.file_path.ends_with("_index.md") {
+                return None;
+            }
+            let dir = Path::new(&e.file_path)
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_default();
+            Some((i, dir, e.qualified_name.clone()))
+        })
+        .collect();
+
+    if anchors.is_empty() {
+        return;
+    }
+
+    let mut synthetic = Vec::new();
+    for (idx, dir, pkg_qname) in anchors {
+        synthetic.extend(ingest::ingest_subtree(&mut elements[idx], &pkg_qname, &dir));
+    }
+    elements.extend(synthetic);
 }
