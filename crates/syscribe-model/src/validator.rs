@@ -716,6 +716,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             let sev = if code.starts_with('E') { Severity::Error } else { Severity::Warning };
             let static_code: &'static str = match code.as_str() {
                 "E500" => "E500", "E501" => "E501", "E502" => "E502",
+                // Native SysML v2/KerML submodel ingestion (ADR-SYS-SYSMLV2-001,
+                // REQ-TRS-SYSMLV2-006) — its own code range, distinct from the
+                // WASM-plugin family.
+                "W540" => "W540",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });

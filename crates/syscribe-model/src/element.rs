@@ -553,6 +553,11 @@ pub struct RawFrontmatter {
     /// `{repo, qname, as}` mounting a sub-tree from a peer repo declared in
     /// `[repos]`. Untyped here; the validator reads the `repo`/`qname`/`as` keys.
     pub repo_imports: Option<Vec<serde_yaml::Value>>,
+    /// `sysmlSubmodel: true` on a Package `_index.md` (`ADR-SYS-SYSMLV2-001`,
+    /// `REQ-TRS-SYSMLV2-001`): every `.sysml`/`.kerml` file anywhere in that
+    /// directory's subtree is parsed as native SysML v2/KerML textual notation
+    /// instead of Markdown+YAML frontmatter. Handled by `crate::sysmlv2`.
+    pub sysml_submodel: Option<bool>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
     pub return_type: Option<String>,
