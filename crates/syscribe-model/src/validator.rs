@@ -53,15 +53,16 @@ impl std::fmt::Display for Finding {
 
 pub struct ValidationResult {
     pub findings: Vec<Finding>,
-    /// verifiedBy[target_id_or_qname] = elements whose `verifies:` resolves to
-    /// that target, labelled by their own stable id else qname. Historically
-    /// only ever a native Requirement verified by native TestCases (both
-    /// always id-identified, so this was always id-keyed in practice); now
-    /// also includes SysMLv2-mapped `verifies:` targets, which have no id and
-    /// so are qname-keyed (`REQ-TRS-SYSMLV2-004`) — matching the id-else-qname
-    /// convention `refined_by`/`allocated_from`/etc. already use. Consumers
-    /// that specifically want "active TestCase" coverage (W002/W003) filter
-    /// this list themselves by looking up each label's `status`.
+    /// verifiedBy[target_id_or_qname] = ids of the (native TestCase) elements
+    /// whose `verifies:` resolves to that target. Only recorded when the
+    /// verifying element itself carries a stable id — in practice always a
+    /// native TestCase, the only source type `REQ-TRS-SYSMLV2-004` concerns.
+    /// The target key is the target's stable id when present, else its
+    /// qualified name (`REQ-TRS-SYSMLV2-004`: a SysMLv2-mapped target has no
+    /// id) — matching the id-else-qname convention `refined_by`/
+    /// `allocated_from`/etc. already use. Consumers that specifically want
+    /// "active TestCase" coverage (W002/W003) filter this list themselves by
+    /// looking up each id's `status`.
     pub verified_by: HashMap<String, Vec<String>>,
     /// derived_children[req_id] = list of child req ids
     pub derived_children: HashMap<String, Vec<String>>,
@@ -3578,6 +3579,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // Build verified_by and derived_children reverse indices, and check E102–E105
     let mut verified_by: HashMap<String, Vec<String>> = HashMap::new();
     let mut derived_children: HashMap<String, Vec<String>> = HashMap::new();
+    // REQ-TRS-SYSMLV2-004 — side-channel provenance set: which qnames were
+    // actually synthesized by SysMLv2 ingestion, consulted by
+    // `Resolver::is_verify_target` so the E104 widening only ever applies to
+    // real SysMLv2-originated targets, never to hand-authored native elements
+    // of the same kind. See `sysmlv2::synthesized_qnames`'s doc comment.
+    let sysmlv2_qnames = crate::sysmlv2::synthesized_qnames(elements);
 
     for elem in elements {
         let fm = &elem.frontmatter;
@@ -3602,30 +3609,40 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     )),
                     Some(target) => {
                         // E104: target must be a native Requirement, or (REQ-TRS-SYSMLV2-004)
-                        // one of the SysMLv2 submodel's fixed mapped element kinds.
-                        if !Resolver::is_verify_target(target) {
+                        // a *bona fide SysMLv2-synthesized* element of one of the submodel's
+                        // fixed mapped kinds — gated on `sysmlv2_qnames`, not kind alone, so a
+                        // hand-authored native Part/etc. is never rescued by this widening.
+                        if !Resolver::is_verify_target(target, &sysmlv2_qnames) {
                             findings.push(error(
                                 "E104",
                                 &elem.file_path,
                                 &format!("'{}' does not resolve to a native Requirement", v),
                             ));
-                        } else {
+                        } else if let Some(ref tc_id) = elem.frontmatter.id {
                             // Build reverse index — keyed by the target's stable id when
                             // present, else its qualified name (REQ-TRS-SYSMLV2-004: a
                             // SysMLv2-mapped target has no id, matching the id-else-qname
                             // convention `refined_by`/`allocated_from`/etc. already use).
-                            // Same for the verifying element's own label.
+                            //
+                            // The verifying element's own label is deliberately NOT given the
+                            // same id-else-qname fallback: only a `verifies:`-carrying element
+                            // that itself has a stable id (in practice, always a native
+                            // TestCase — the only source type REQ-TRS-SYSMLV2-004 is about)
+                            // is recorded here, exactly as before this feature touched this
+                            // code. Falling back to qname on this side previously let ANY
+                            // `verifies:`-carrying, id-less element in (including a SysMLv2
+                            // `RequirementUsage`'s own `verify:` from REQ-TRS-SYSMLV2-003),
+                            // polluting `verified_by` for the server's `/api/validation`,
+                            // `syscribe export`/`export-html`, `query`, the LSP CodeLens count,
+                            // the Rhai `verified_by` property, and — worst — the MCP `evidence`
+                            // tool's verification-chain output, none of which expect (or
+                            // filter for) a non-TestCase entry here.
                             let target_key = target
                                 .frontmatter
                                 .id
                                 .clone()
                                 .unwrap_or_else(|| target.qualified_name.clone());
-                            let source_label = elem
-                                .frontmatter
-                                .id
-                                .clone()
-                                .unwrap_or_else(|| elem.qualified_name.clone());
-                            verified_by.entry(target_key).or_default().push(source_label);
+                            verified_by.entry(target_key).or_default().push(tc_id.clone());
                         }
                     }
                 }

@@ -154,3 +154,40 @@ pub fn ingest_sysml_submodels(elements: &mut Vec<RawElement>, _model_root: &Path
     }
     elements.extend(synthetic);
 }
+
+/// The qualified names of every `RawElement` synthesized by SysMLv2 ingestion
+/// (`REQ-TRS-SYSMLV2-002`), for validator policy decisions that must be
+/// gated on actual SysMLv2 origin rather than element kind alone
+/// (`REQ-TRS-SYSMLV2-004`, `Resolver::is_verify_target`).
+///
+/// `RawElement` deliberately carries no origin field — see
+/// [`ingest_sysml_submodels`]'s module doc and `REQ-TRS-SYSMLV2-002`'s
+/// rationale for why SysMLv2-synthesized and hand-authored elements must stay
+/// indistinguishable once merged into the graph. This function is the
+/// side-channel provenance set that lets *validator policy* (not the graph
+/// itself) still ask "did this specific one come from SysMLv2 ingestion?" —
+/// the same shape of answer `crate::config::LoadedRepo::qnames` gives
+/// multi-repo composition for "is this qname known to a peer repo?", without
+/// touching `RawElement`.
+///
+/// Unlike `LoadedRepo` (whose peer elements aren't in `elements` at all, so
+/// its qname index has to come from an independent walk of the peer's model
+/// root at config-load time), every SysMLv2-synthesized element already *is*
+/// in `elements` by the time `validate_with_config` runs — so rather than
+/// threading a second return value out of [`ingest::ingest_subtree`] through
+/// [`crate::walker::walk_model`]'s signature (and every one of its ~20
+/// existing callers across the CLI/MCP/LSP/web server, exactly the
+/// per-call-site wiring risk `ADR-SYS-PLUGIN-001` avoided for the WASM-plugin
+/// merge), this derives the set fresh from `elements` itself: every
+/// SysMLv2-synthesized `RawElement`'s `file_path` is, by construction, the
+/// actual `.sysml`/`.kerml` source file it came from (`push_synth` in
+/// `ingest.rs` never sets it to anything else) — a real, already-recorded
+/// fact about the element, not a heuristic. O(n) in the element count; cheap
+/// enough to call once per `validate_with_config` run.
+pub fn synthesized_qnames(elements: &[RawElement]) -> std::collections::HashSet<String> {
+    elements
+        .iter()
+        .filter(|e| e.file_path.ends_with(".sysml") || e.file_path.ends_with(".kerml"))
+        .map(|e| e.qualified_name.clone())
+        .collect()
+}
