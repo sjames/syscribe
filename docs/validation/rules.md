@@ -359,6 +359,18 @@ A model composes peer repositories declared in the `[repos]` table of the model-
 | W511 | A peer repo's git `HEAD` has drifted from its configured `ref:` — checkout is not at the pinned snapshot. Never raised when drift cannot be determined (no git, not a work tree, ref unresolved). Opt-in; `--deny W511` for a CI reproducibility gate. |
 | W512 | A peer repo's `path` is a **git submodule** of the composing model's repo, and its `ref:` resolves to a different commit than the gitlink the parent repo records — `.syscribe.toml` disagrees with `.gitmodules`. Independent of `W511` (gitlink pin vs ref, not checkout vs ref). Never raised when `path` is not a submodule. Opt-in; `--deny W512`. |
 
+## Hierarchical product-line composition (E516–E518, REQ-TRS-HPLE-001, ADR-SYS-HPLE-001)
+
+A `Configuration` may declare `subConfigurations:` naming one or more other `Configuration` elements it consolidates — reachable locally or, in the common case, via a peer repo mounted through `[repos]` (§14). Each entry resolves like any other cross-reference: the local model first, then each loaded repo in declaration order. **Dormant unless some `Configuration` declares `subConfigurations:`** — a model with none anywhere is unaffected.
+
+| Code | Condition |
+|---|---|
+| E516 | A `subConfigurations:` entry does not resolve to any element, locally or in a loaded peer repo (dangling). |
+| E517 | A `subConfigurations:` entry resolves to a real element that is not a `Configuration`. |
+| E518 | A `subConfigurations:` entry resolves to a `Configuration` that is not itself internally valid — a validation error already on it (local target) or found by validating it independently (peer target), the feature model it belongs to is void, or it is not a valid model of that feature model (`feature-check --deep`'s `E225`). Also raised, naming the exceeded bound, if a consolidation chain recurses past a fixed depth (`HPLE_MAX_DEPTH`) — a defense against a circular `subConfigurations` chain across repos (a genuine cycle here almost always also trips `E510`, since it requires the underlying `[repos]` tables to point at each other too). |
+
+For a peer entry, `E518` genuinely walks and parses that repo's model (not just the existence-only qname/id index `[repos]` otherwise uses) and validates it independently, so "internally valid" means what it says — a peer `Configuration` with its own validation errors, or that fails its own SAT check, is caught, not just confirmed to exist by name.
+
 ## Build-system integration (E050, W050, §9.9)
 
 A `FeatureDef` or `Configuration` may declare `buildExports:` mapping selected features to build-system variables, with `buildOverrides:` resolving conflicts. **Opt-in** — the pass runs only when at least one element declares `buildExports:` or `buildOverrides:`.

@@ -146,6 +146,59 @@ fn local_non_configuration_target_is_e517() {
     assert!(codes(&result).contains(&"E517"), "expected E517: {:#?}", result.findings);
 }
 
+/// Local-vs-peer parity (fix for the confirmed asymmetry gap): a local target
+/// with an ordinary *structural* error (`E201` missing `status:` — something
+/// `check_feature_model_deep` has no way to see, since it only reasons about
+/// the Boolean feature layer) must surface as an `E518` on the consolidator,
+/// exactly as a peer target with a validation error already does. Before the
+/// fix this produced nothing at all on the consolidator.
+#[test]
+fn local_target_with_ordinary_structural_error_is_e518() {
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "Features/_index.md",
+        "---\ntype: FeatureDef\nid: FEAT-ROOT\nname: Root\ngroupKind: mandatory\n---\n",
+    );
+    // Missing `status:` -> E201, a plain structural error with nothing to do
+    // with SAT/feature-model semantics.
+    write(
+        &root,
+        "Configurations/BadSub.md",
+        "---\ntype: Configuration\nid: CONF-BADSUB-001\nname: Bad Sub\nfeatureModel: Features\nfeatures:\n  Features: true\n---\n",
+    );
+    write(
+        &root,
+        "Configurations/Main.md",
+        "---\ntype: Configuration\nid: CONF-MAIN-004\nname: Main\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features: true\nsubConfigurations: CONF-BADSUB-001\n---\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate_with_config(&elements, &cfg_with_root(&root));
+
+    // The target itself still gets its own ordinary E201.
+    let e201 = result.findings.iter().find(|f| f.code == "E201");
+    assert!(e201.is_some(), "expected the target's own E201: {:#?}", result.findings);
+    assert!(e201.unwrap().file.ends_with("Configurations/BadSub.md"));
+
+    // ...and the consolidator now also gets an E518 naming it.
+    let e518 = result
+        .findings
+        .iter()
+        .find(|f| f.code == "E518" && f.file.ends_with("Configurations/Main.md"));
+    assert!(
+        e518.is_some(),
+        "expected E518 on the consolidator for a locally-resolved, structurally-invalid target: {:#?}",
+        result.findings
+    );
+    assert!(
+        e518.unwrap().message.contains("CONF-BADSUB-001"),
+        "E518 message should name the failing local target: {}",
+        e518.unwrap().message
+    );
+}
+
 // ── Peer resolution (§14 [repos]) ───────────────────────────────────────────
 
 /// Writes a peer repo whose model root is `<peer_dir>/model/`, and returns

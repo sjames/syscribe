@@ -4516,11 +4516,6 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
-    // ── HPLE `subConfigurations:` (REQ-TRS-HPLE-001, ADR-SYS-HPLE-001) ───────
-    // Active whenever any Configuration declares `subConfigurations:`, whether
-    // or not `[repos]` is configured — a purely-local hierarchy is valid too.
-    findings.extend(sub_configuration_findings(elements, config, &resolver));
-
     // W007: *Def element never used as supertype: or typedBy: anywhere in the model.
     // Scans top-level fields AND typedBy inside features/connections/performs sub-objects
     // and exhibitsStates lists, so that elements referenced only in those positions are
@@ -6906,6 +6901,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // ── HPLE `subConfigurations:` (REQ-TRS-HPLE-001, ADR-SYS-HPLE-001) ───────
+    // Active whenever any Configuration declares `subConfigurations:`, whether
+    // or not `[repos]` is configured — a purely-local hierarchy is valid too.
+    // Runs last, after every ordinary per-element check above has populated
+    // `findings`, so a local target's validity can be read off of what this
+    // same pass already computed for it instead of re-validating (see the
+    // function doc comment for why that matters).
+    findings.extend(sub_configuration_findings(elements, config, &resolver, &findings));
+
     ValidationResult {
         findings,
         verified_by,
@@ -7078,6 +7082,14 @@ thread_local! {
     static HPLE_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }
 
+/// Human-readable label for an element's `type:` in a diagnostic message.
+fn element_type_label(t: &Option<ElementType>) -> String {
+    match t {
+        Some(ty) => format!("{ty:?}"),
+        None => "untyped element".to_string(),
+    }
+}
+
 /// Run `validate_with_config` + `check_feature_model_deep` against a peer's
 /// elements on a dedicated thread carrying a generous, fixed-size stack
 /// ([`HPLE_PEER_STACK_SIZE`]) rather than whatever stack the caller happens
@@ -7111,14 +7123,6 @@ fn run_peer_validation_on_dedicated_thread(
     })
 }
 
-/// Human-readable label for an element's `type:` in a diagnostic message.
-fn element_type_label(t: &Option<ElementType>) -> String {
-    match t {
-        Some(ty) => format!("{ty:?}"),
-        None => "untyped element".to_string(),
-    }
-}
-
 /// `subConfigurations:` resolution + peer-validity gate (REQ-TRS-HPLE-001,
 /// `ADR-SYS-HPLE-001`). A `Configuration` may consolidate one or more other
 /// `Configuration` elements, reachable locally or via a loaded peer repo
@@ -7136,12 +7140,27 @@ fn element_type_label(t: &Option<ElementType>) -> String {
 /// those sets do not carry (`ADR-SYS-HPLE-001` Decision 1's "correction found
 /// during implementation scoping").
 ///
+/// `prior_findings` is the full `findings` vec already accumulated by every
+/// *other* check in this same `validate_with_config` pass (this function is
+/// called last, precisely so this is complete). A **local** target's
+/// validity is read off of that — any error-severity finding already
+/// attached to the target's own file — rather than re-validating it, which
+/// would mean recursing into `validate_with_config` on the very same
+/// `elements` slice this call is itself part of. This gives a local target
+/// the same "clean and error-free" bar a peer target is held to (peer
+/// targets get a genuine, independent `validate_with_config` run; a local
+/// target's independent run is simply this one, already done) without the
+/// self-recursion that would otherwise risk. `check_feature_model_deep` is
+/// still consulted directly for the SAT-semantics half, since deep
+/// feature-model analysis is not part of the ordinary per-element passes.
+///
 /// Dormant (returns empty) unless some `Configuration` actually declares
 /// `subConfigurations:`, so a model with none anywhere is unaffected.
 pub fn sub_configuration_findings(
     elements: &[RawElement],
     config: &ValidateConfig,
     resolver: &Resolver,
+    prior_findings: &[Finding],
 ) -> Vec<Finding> {
     let mut findings: Vec<Finding> = Vec::new();
 
@@ -7187,13 +7206,42 @@ pub fn sub_configuration_findings(
                     ));
                     continue;
                 }
-                let rep = local_deep
-                    .get_or_insert_with(|| crate::feature_model::check_feature_model_deep(elements));
                 let tgt_id = target
                     .frontmatter
                     .id
                     .clone()
                     .unwrap_or_else(|| target.qualified_name.clone());
+
+                // Ordinary structural validity: any error already raised
+                // against the target's own file by the rest of this pass
+                // (e.g. a plain E201 missing-required-field, which
+                // check_feature_model_deep has no way to see).
+                let existing_errors: Vec<&Finding> = prior_findings
+                    .iter()
+                    .filter(|f| f.severity == Severity::Error && f.file == target.file_path)
+                    .collect();
+                if !existing_errors.is_empty() {
+                    findings.push(error(
+                        "E518",
+                        &cfg.file_path,
+                        &format!(
+                            "subConfigurations '{}' names local Configuration '{}', which is not internally valid: {} validation error(s) already found on it (e.g. {}: {})",
+                            sc,
+                            tgt_id,
+                            existing_errors.len(),
+                            existing_errors[0].code,
+                            existing_errors[0].message
+                        ),
+                    ));
+                    continue;
+                }
+
+                // SAT-semantics validity: deep feature-model analysis is not
+                // one of the ordinary per-element passes, so it is run
+                // directly here (on this same, already-in-hand `elements`
+                // slice — no recursion).
+                let rep = local_deep
+                    .get_or_insert_with(|| crate::feature_model::check_feature_model_deep(elements));
                 if rep.void {
                     findings.push(error(
                         "E518",
