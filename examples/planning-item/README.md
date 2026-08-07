@@ -51,6 +51,7 @@ each a child (or grandchild) `PlanningItem`, at a mix of `status` values and
 examples/planning-item/
   README.md                          This file
   model/                             Main example — clean, 0 errors
+    .syscribe.toml                   [users] roster: alice, bob (REQ-TRS-PLANITEM-008)
     _index.md                        Root package
     Decisions/
       ADR-RTH-001.md                 breakdownAdr target for REQ-RTH-002/003
@@ -73,13 +74,13 @@ examples/planning-item/
     Planning/
       PI-RTH-001.md                  top-level, itemType: feature, non-leaf
       PI-RTH-DESIGN-001.md           child, task, leaf, done (path: + waived ref:)
-      PI-RTH-IMPL-001.md             child, task, non-leaf (has grandchildren)
+      PI-RTH-IMPL-001.md             child, task, non-leaf (has grandchildren); assignedTo: alice
       PI-RTH-IMPL-SW-001.md          grandchild, task, leaf, done (ref: evidence)
       PI-RTH-IMPL-SW-002.md          grandchild, task, leaf, todo (no evidence)
       PI-RTH-TEST-001.md             child, task, leaf, blocked (blockedBy: PI-RTH-IMPL-001, no evidence)
       PI-RTH-DOCS-001.md             child, task, leaf, todo (no evidence)
       PI-RTH-BUGFIX-001.md           child, bug, leaf, done (ref: + remote path:)
-      PI-RTH-CLOUDLOG-001.md         child, task, leaf, todo, appliesWhen: FEAT-CLOUD-SYNC
+      PI-RTH-CLOUDLOG-001.md         child, task, leaf, todo, appliesWhen: FEAT-CLOUD-SYNC, assignedTo: bob
   error-demo/
     model/
       _index.md                      Root package (isolated, deliberately-broken)
@@ -96,13 +97,13 @@ examples/planning-item/
 |---|---|---|---|---|---|
 | `PI-RTH-001` | in_progress | feature | — (top-level) | no (5 children) | `achieves:` required + set on a top-level item (id-form list, `REQ-TRS-PLANITEM-003`) |
 | `PI-RTH-DESIGN-001` | done | task | `PI-RTH-001` | yes | leaf-evidence rule satisfied by a real local `path:`; a second, `rationale:`-waived, deliberately-dangling `ref:` entry alongside it |
-| `PI-RTH-IMPL-001` | in_progress | task | `PI-RTH-001` | no (2 children) | non-leaf: no evidence required regardless of status |
+| `PI-RTH-IMPL-001` | in_progress | task | `PI-RTH-001` | no (2 children) | non-leaf: no evidence required regardless of status; `assignedTo: alice` (`REQ-TRS-PLANITEM-008`), resolves to "Alice Nakamura" in `show` |
 | `PI-RTH-IMPL-SW-001` | done | task | `PI-RTH-IMPL-001` | yes | 3-level-deep grandchild leaf; `ref:` evidence to a real `TestCase` |
 | `PI-RTH-IMPL-SW-002` | todo | task | `PI-RTH-IMPL-001` | yes | leaf with **no** evidence at all — fine, not `done` |
 | `PI-RTH-TEST-001` | blocked | task | `PI-RTH-001` | yes | leaf with no evidence — fine, `blocked` isn't `done`; `blockedBy: PI-RTH-IMPL-001` (`REQ-TRS-PLANITEM-007`) |
 | `PI-RTH-DOCS-001` | todo | task | `PI-RTH-001` | yes | leaf with no evidence — fine, `todo` isn't `done` |
 | `PI-RTH-BUGFIX-001` | done | **bug** | `PI-RTH-001` | yes | `itemType` independent of task-typed siblings; own `achieves:` (qname form, optional on non-top-level); `ref:` + remote-URI `path:` evidence |
-| `PI-RTH-CLOUDLOG-001` | todo | task | `PI-RTH-001` | yes | `appliesWhen: FEAT-CLOUD-SYNC` — product-line gating |
+| `PI-RTH-CLOUDLOG-001` | todo | task | `PI-RTH-001` | yes | `appliesWhen: FEAT-CLOUD-SYNC` — product-line gating; `assignedTo: bob` (`REQ-TRS-PLANITEM-008`), resolves to "Bob Patel" |
 
 Every `status` value (`todo`/`in_progress`/`blocked`/`done`) and all three
 `itemType` values (`task`/`bug`/`feature`) appear at least once.
@@ -155,6 +156,27 @@ inventing one just to model an external scheduling fact would be over-fitting). 
 finishes and `PI-RTH-TEST-001`'s own `status:` is never updated to reflect it, that drift becomes
 exactly the `W308` this rule exists to catch — the field is a plain, author-maintained
 cross-reference, not computed from anything.
+
+## `assignedTo:` (`REQ-TRS-PLANITEM-008`)
+
+`model/.syscribe.toml` declares a `[users]` roster:
+
+```toml
+[users]
+alice = "Alice Nakamura"
+bob = "Bob Patel"
+```
+
+`PI-RTH-IMPL-001` sets `assignedTo: alice`; `PI-RTH-CLOUDLOG-001` sets `assignedTo: bob`. Both are
+well-formed Unix-style usernames (`^[a-z_][a-z0-9_-]{0,31}$`, checked unconditionally — `E723`) and
+both are declared keys in the roster above, so neither raises `E722` either.
+`syscribe show Planning::PI-RTH-IMPL-001` resolves and prints the declared display name alongside
+the raw username (`alice (Alice Nakamura)`) — the one display-side effect of the roster being
+configured; everything else about `assignedTo:` is schema + validation only, same posture as the
+rest of `PlanningItem`. Deleting `.syscribe.toml` from this example (try it) makes roster
+membership dormant — both assignments would still validate cleanly on username format alone, with
+no `E722` even though nothing is declared, and `show` would print the bare username with no
+resolved display name.
 
 ## `evidence:` (`REQ-TRS-PLANITEM-005`)
 

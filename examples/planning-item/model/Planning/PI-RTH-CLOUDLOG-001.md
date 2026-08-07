@@ -6,6 +6,7 @@ status: todo
 itemType: task
 parent: PI-RTH-001
 appliesWhen: FEAT-CLOUD-SYNC
+assignedTo: bob
 tags:
   - rth
   - logging
