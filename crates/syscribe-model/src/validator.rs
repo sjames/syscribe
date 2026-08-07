@@ -3898,6 +3898,41 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // blockedBy: cross-reference check (REQ-TRS-PLANITEM-007). Permissive,
+        // unrestricted by kind — same posture as evidence.ref: (REQ-TRS-PLANITEM-005):
+        // an undecided ADR or any other unmet model dependency is as legitimate a
+        // blocker as another PlanningItem, so there is no "must resolve to a
+        // PlanningItem" analogue of E715 here. Cycle detection is a separate,
+        // graph-wide pass below (E721), mirroring parent:'s E712.
+        if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
+            if let Some(ref bs) = fm.blocked_by {
+                for b in bs {
+                    if resolver.resolve_ref(elements, b).is_none() {
+                        findings.push(error(
+                            "E720",
+                            &elem.file_path,
+                            &format!("unresolved PlanningItem blockedBy reference '{}'", b),
+                        ));
+                    }
+                }
+                // W308: a non-empty blockedBy: on an item whose status isn't
+                // `blocked` is likely stale (the blocker was resolved and
+                // `status:` was never updated) — a warning, not an error, since
+                // the two fields are independently author-maintained and neither
+                // is computed from the other.
+                if !bs.is_empty() && fm.status.as_deref() != Some("blocked") {
+                    findings.push(warning(
+                        "W308",
+                        &elem.file_path,
+                        &format!(
+                            "PlanningItem has a non-empty `blockedBy:` but `status` is '{}', not 'blocked' — likely stale",
+                            fm.status.as_deref().unwrap_or("(unset)")
+                        ),
+                    ));
+                }
+            }
+        }
+
         // evidence: cross-reference / path-existence check (REQ-TRS-PLANITEM-005).
         // Each entry is duck-typed — recognised by which key it carries, not a
         // `type:` tag, the same idiom the Allocation `features:`-list convention
@@ -6039,6 +6074,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // cycles back to itself. Same posture as E017 (derivedFrom cycle) —
             // reported gracefully via toposort, never a panic or infinite loop.
             ("E712", EdgeKind::PlanningParent, "PlanningItem parent cycle detected"),
+            // E721 (REQ-TRS-PLANITEM-007): a PlanningItem blockedBy chain that
+            // cycles back to itself, directly or through other PlanningItems.
+            // Same posture as E712.
+            ("E721", EdgeKind::PlanningBlockedBy, "PlanningItem blockedBy cycle detected"),
         ];
 
         for (code, kind, label) in checks {
@@ -9647,6 +9686,201 @@ mod planning_item_leaf_evidence_tests {
         assert!(
             !codes(&result.findings).contains(&"E719"),
             "a non-leaf must never be constrained by this rule: {:?}",
+            result.findings
+        );
+    }
+}
+
+// ── PlanningItem blockedBy (ADR-SYS-PLANITEM-001 addendum, REQ-TRS-PLANITEM-007) ──
+
+#[cfg(test)]
+mod planning_item_blocked_by_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn req(id: &str, qname: &str) -> RawElement {
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nstatus: draft\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    /// A top-level (no `parent:`) PlanningItem with the given `status:` and raw
+    /// `blockedBy:` YAML line, plus a companion, always-resolvable `achieves:`
+    /// Requirement (so E713 never interferes with these tests).
+    fn pi(qname: &str, id: &str, achieves_req_id: &str, status: &str, blocked_by_yaml: &str) -> RawElement {
+        make_elem(
+            qname,
+            &format!(
+                "type: PlanningItem\nid: {id}\nname: Item\nstatus: {status}\nachieves: {achieves_req_id}\n{blocked_by_yaml}"
+            ),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        )
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn resolving_blocked_by_on_another_planning_item_validates_cleanly() {
+        let elements = vec![
+            req("REQ-BB-001", "Requirements::BbReq1"),
+            req("REQ-BB-002", "Requirements::BbReq2"),
+            pi("Planning::Blocker", "PI-BB-001", "REQ-BB-001", "todo", ""),
+            pi(
+                "Planning::Blocked",
+                "PI-BB-002",
+                "REQ-BB-002",
+                "blocked",
+                "blockedBy: PI-BB-001\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+        assert!(!codes(&result.findings).contains(&"W308"), "{:?}", result.findings);
+    }
+
+    #[test]
+    fn blocked_by_an_unresolved_target_is_e720() {
+        let elements = vec![
+            req("REQ-BB-003", "Requirements::BbReq3"),
+            pi(
+                "Planning::Blocked3",
+                "PI-BB-003",
+                "REQ-BB-003",
+                "blocked",
+                "blockedBy: PI-DOES-NOT-EXIST-999\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E720"), "expected E720: {:?}", result.findings);
+    }
+
+    #[test]
+    fn blocked_by_a_non_planning_item_still_resolves_cleanly() {
+        // Permissive, unrestricted-by-kind resolution (matches evidence.ref:) --
+        // an undecided ADR (or any other element) is a legitimate blocker, not
+        // just another PlanningItem. No E715-style "wrong kind" check exists
+        // for blockedBy:.
+        let elements = vec![
+            req("REQ-BB-004", "Requirements::BbReq4"),
+            make_elem(
+                "Decisions::PendingAdr",
+                "type: ADR\nid: ADR-BB-001\nname: Pending decision\nstatus: proposed\n",
+                "model/Decisions/PendingAdr.md",
+            ),
+            pi(
+                "Planning::Blocked4",
+                "PI-BB-004",
+                "REQ-BB-004",
+                "blocked",
+                "blockedBy: ADR-BB-001\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn two_node_blocked_by_cycle_is_e721() {
+        let elements = vec![
+            req("REQ-BB-005", "Requirements::BbReq5"),
+            req("REQ-BB-006", "Requirements::BbReq6"),
+            pi(
+                "Planning::CycleA",
+                "PI-BB-005",
+                "REQ-BB-005",
+                "blocked",
+                "blockedBy: PI-BB-006\n",
+            ),
+            pi(
+                "Planning::CycleB",
+                "PI-BB-006",
+                "REQ-BB-006",
+                "blocked",
+                "blockedBy: PI-BB-005\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E721"), "expected E721: {:?}", result.findings);
+    }
+
+    #[test]
+    fn self_blocked_by_is_e721() {
+        let elements = vec![
+            req("REQ-BB-007", "Requirements::BbReq7"),
+            pi(
+                "Planning::SelfBlocked",
+                "PI-BB-007",
+                "REQ-BB-007",
+                "blocked",
+                "blockedBy: PI-BB-007\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E721"), "expected E721: {:?}", result.findings);
+    }
+
+    #[test]
+    fn non_empty_blocked_by_while_not_blocked_is_w308() {
+        let elements = vec![
+            req("REQ-BB-008", "Requirements::BbReq8"),
+            req("REQ-BB-009", "Requirements::BbReq9"),
+            pi("Planning::Blocker8", "PI-BB-008", "REQ-BB-008", "todo", ""),
+            pi(
+                "Planning::Stale9",
+                "PI-BB-009",
+                "REQ-BB-009",
+                "in_progress",
+                "blockedBy: PI-BB-008\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"W308"), "expected W308: {:?}", result.findings);
+        // Never escalated to an error just because the status looks stale.
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn status_blocked_with_empty_blocked_by_raises_nothing() {
+        let elements = vec![
+            req("REQ-BB-010", "Requirements::BbReq10"),
+            pi("Planning::Blocked10", "PI-BB-010", "REQ-BB-010", "blocked", ""),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c == &"E720" || c == &"W308"),
+            "blocked with no blockedBy: is a legitimate transient state: {:?}",
             result.findings
         );
     }

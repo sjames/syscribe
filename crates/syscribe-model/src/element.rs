@@ -530,6 +530,18 @@ pub struct RawFrontmatter {
     /// `W300`/`E312` architecture-satisfaction machinery.
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub achieves: Option<Vec<String>>,
+    /// `blockedBy:` — one or more elements this `PlanningItem` is waiting on before
+    /// it can proceed (REQ-TRS-PLANITEM-007). Most commonly another `PlanningItem`,
+    /// but resolved permissively, unrestricted by kind — exactly like
+    /// `evidence.ref:` (REQ-TRS-PLANITEM-005) — since an undecided `ADR` or any
+    /// other unmet model dependency is an equally legitimate blocker. A dangling
+    /// entry is an error; a `blockedBy:` chain (through other `PlanningItem`s) that
+    /// cycles back to itself is an error, same posture as `parent:`
+    /// (REQ-TRS-PLANITEM-002). Deliberately not required to be non-empty when
+    /// `status: blocked` (unlike `evidence:` on a `done` leaf) — see the ADR
+    /// addendum.
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub blocked_by: Option<Vec<String>>,
 
     /// §3 — external reference(s): this element represents an artifact managed in
     /// another tool (a DNG requirement, a SysML-tool element, …). Opaque strings

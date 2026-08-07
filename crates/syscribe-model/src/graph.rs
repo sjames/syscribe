@@ -28,6 +28,7 @@ pub enum EdgeKind {
     ConditionalOn,         // element → FeatureDef (appliesWhen:)
     Satisfies,             // Part/Config → Requirement/FeatureDef (satisfies:)
     PlanningParent,        // PlanningItem child → parent (ADR-SYS-PLANITEM-001)
+    PlanningBlockedBy,     // PlanningItem → element it's waiting on (REQ-TRS-PLANITEM-007)
     // Part-to-part wiring (resolved from connection feature chains; issue #26)
     Connection,            // connections:        (from/to or ends[].binds)
     Flow,                  // flowConnections:    (from/to)
@@ -70,6 +71,7 @@ impl EdgeKind {
             EdgeKind::ConditionalOn => "conditionalOn",
             EdgeKind::Satisfies => "satisfies",
             EdgeKind::PlanningParent => "planningParent",
+            EdgeKind::PlanningBlockedBy => "planningBlockedBy",
             EdgeKind::Connection => "connection",
             EdgeKind::Flow => "flow",
             EdgeKind::Binding => "binding",
@@ -216,6 +218,20 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
         if let Some(ref p) = fm.parent {
             if let Some(dst) = resolve_to_idx(p) {
                 graph.add_edge(src, dst, EdgeKind::PlanningParent);
+            }
+        }
+
+        // PlanningItem blockedBy — element(s) it's waiting on, permissively
+        // resolved (any element, not restricted to PlanningItem), for cycle
+        // detection (REQ-TRS-PLANITEM-007). Dangling entries are handled
+        // separately as a validation finding (E720), not here — this pass
+        // only ever adds an edge when the target actually resolves, exactly
+        // like every other edge kind in this function.
+        if let Some(ref bs) = fm.blocked_by {
+            for b in bs {
+                if let Some(dst) = resolve_to_idx(b) {
+                    graph.add_edge(src, dst, EdgeKind::PlanningBlockedBy);
+                }
             }
         }
 

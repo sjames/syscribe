@@ -497,6 +497,9 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     if let Some(ref ach) = fm.achieves {
         for s in ach { out.push(("achieves".into(), s.clone())); }
     }
+    if let Some(ref bs) = fm.blocked_by {
+        for s in bs { out.push(("blockedBy".into(), s.clone())); }
+    }
     if let Some(ref ev) = fm.evidence {
         // Argument.evidence entries are scalar refs; PlanningItem.evidence
         // entries are ref:/path:/rationale: mappings, not cross-reference
@@ -638,6 +641,13 @@ pub fn cmd_show(
     if let Some(ref mul) = fm.multiplicity { println!("| **multiplicity** | {} |", mul); }
     if let Some(ref dir) = fm.direction { println!("| **direction** | {} |", dir); }
     if let Some(ref s) = fm.breakdown_adr { println!("| **breakdownAdr** | {} |", s); }
+    // PlanningItem (ADR-SYS-PLANITEM-001): itemType/parent/achieves/blockedBy
+    // were previously absent from `show`'s field dump entirely (evidence: and
+    // status: were already generic; these were not).
+    if let Some(ref it) = fm.item_type { println!("| **itemType** | {} |", it); }
+    if let Some(ref p) = fm.parent { println!("| **parent** | {} |", p); }
+    if let Some(ref ach) = fm.achieves { if !ach.is_empty() { println!("| **achieves** | {} |", ach.join(", ")); } }
+    if let Some(ref bs) = fm.blocked_by { if !bs.is_empty() { println!("| **blockedBy** | {} |", bs.join(", ")); } }
     if let Some(ref g) = fm.derived_from_cybersecurity_goal { println!("| **derivedFromCybersecurityGoal** | {} |", g); }
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
     if let Some(ref at) = fm.argument_type { println!("| **argumentType** | {} |", at); }

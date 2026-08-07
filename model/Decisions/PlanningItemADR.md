@@ -117,6 +117,19 @@ product-line feature simply sets `appliesWhen:` like any other element; `feature
   (closer to what LangGraph does at runtime) and is deliberately deferred until the schema itself
   has been used and proven.
 
+## Addendum: `blockedBy:` (REQ-TRS-PLANITEM-007)
+
+`REQ-TRS-PLANITEM-000` already named "dependency" as something this feature exists to make
+resolvable in-graph, alongside breakdown and completion evidence, but no field ever implemented
+it — `status: blocked` could be declared with nothing saying *what* it's blocked on. Found and
+closed as a direct follow-on, not a course correction: a `blockedBy:` field, resolved exactly like
+`evidence.ref:` (any element, unrestricted by kind — an undecided `ADR` or an external dependency
+is as legitimate a blocker as another `PlanningItem`), with a cycle-detection posture matching
+`parent:`. Deliberately **not** required to be non-empty when `status: blocked` (unlike
+`evidence:` on a `done` leaf) — being blocked is a transient working state that needs no proof,
+only completion does; a stale `blockedBy:` left over after `status:` moves on is instead a warning,
+not an error, since the two fields are independently author-maintained.
+
 ## Consequences
 
 - A model with no `PlanningItem` elements is completely unaffected.
