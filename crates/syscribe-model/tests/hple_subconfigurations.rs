@@ -269,3 +269,182 @@ fn peer_non_configuration_target_is_e517() {
 
     assert!(codes(&result).contains(&"E517"), "expected E517: {:#?}", result.findings);
 }
+
+// ── Stack safety under a genuine cross-repo cycle ───────────────────────────
+
+/// A real cross-repo mutual cycle (repo A's Configuration consolidates repo
+/// B's, and repo B's consolidates repo A's back) validated from a thread with
+/// a **constrained, 2 MiB stack** — Tokio's documented worker-thread default,
+/// and exactly the stack every `validate_with_config` call from
+/// `crates/syscribe/src/mcp/mod.rs` / `crates/syscribe/src/lsp/mod.rs` runs
+/// on in production. Before the stack-safety fix (dedicated large-stack
+/// thread per peer-recursion step), this reliably crashed the whole process
+/// with SIGABRT (stack overflow) before any finding could ever be produced —
+/// this test is the regression guard for that failure mode: it must return
+/// normally (not abort) and report an error, not silently succeed.
+///
+/// Note on *which* error: because a genuine cross-repo `subConfigurations`
+/// cycle can only exist when both repos' `[repos]` tables also point at each
+/// other (that mutual `[repos]` entry is what makes each repo resolvable as
+/// the other's peer in the first place), the *pre-existing*, independent
+/// `E510` circular-`[repos]`-import check (`chain_reaches`, unrelated to
+/// `subConfigurations`) legitimately also fires here, at the very first
+/// recursion step — so this fixture's failure is reported as `E518`
+/// "not internally valid" (citing that `E510`), not the `HPLE_MAX_DEPTH`
+/// message. The depth guard itself — for a chain with no `[repos]`-level
+/// cycle for `E510` to catch — is exercised in isolation by
+/// `deep_acyclic_subconfigurations_chain_hits_the_bounded_depth_guard_without_crashing`
+/// below. What both tests share, and what actually matters here, is: no
+/// crash, and a reported error rather than a silent "valid".
+#[test]
+fn cross_repo_cyclic_subconfigurations_reports_e518_even_on_a_constrained_stack() {
+    let repo_a = tempdir();
+    let a_root = repo_a.join("model");
+    let repo_b = tempdir();
+    let b_root = repo_b.join("model");
+
+    write(&a_root, "_index.md", "---\ntype: Package\nname: RepoA\n---\n");
+    write(
+        &a_root,
+        "Features/_index.md",
+        "---\ntype: FeatureDef\nid: FEAT-AREPO-ROOT\nname: Root\ngroupKind: mandatory\n---\n",
+    );
+    write(
+        &a_root,
+        "Configurations/Main.md",
+        "---\ntype: Configuration\nid: CONF-AREPO-001\nname: A Main\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features: true\nsubConfigurations: CONF-BREPO-001\n---\n",
+    );
+    write(
+        &a_root,
+        ".syscribe.toml",
+        &format!("[repos.b]\npath = \"{}\"\n", repo_b.display()),
+    );
+
+    write(&b_root, "_index.md", "---\ntype: Package\nname: RepoB\n---\n");
+    write(
+        &b_root,
+        "Features/_index.md",
+        "---\ntype: FeatureDef\nid: FEAT-BREPO-ROOT\nname: Root\ngroupKind: mandatory\n---\n",
+    );
+    write(
+        &b_root,
+        "Configurations/Main.md",
+        "---\ntype: Configuration\nid: CONF-BREPO-001\nname: B Main\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features: true\nsubConfigurations: CONF-AREPO-001\n---\n",
+    );
+    write(
+        &b_root,
+        ".syscribe.toml",
+        &format!("[repos.a]\npath = \"{}\"\n", repo_a.display()),
+    );
+
+    // Tokio's documented default worker-thread stack size — the exact
+    // adversarial condition the reviewer reproduced a SIGABRT under.
+    const CONSTRAINED_STACK: usize = 2 * 1024 * 1024;
+
+    let handle = std::thread::Builder::new()
+        .stack_size(CONSTRAINED_STACK)
+        .spawn(move || {
+            let elements = walk_model(&a_root).unwrap();
+            let cfg = ValidateConfig::with_model_root(a_root.clone());
+            validate_with_config(&elements, &cfg)
+        })
+        .expect("failed to spawn the constrained-stack test thread");
+
+    let result = handle.join().expect(
+        "validating a genuine cross-repo circular subConfigurations chain must return \
+         normally, not abort the process, even from a 2 MiB stack",
+    );
+
+    assert!(
+        result.findings.iter().any(|f| f.code == "E518"),
+        "expected an E518 on the consolidator: {:#?}",
+        result.findings
+    );
+}
+
+/// Exercises the `HPLE_MAX_DEPTH` bound itself, in isolation from the
+/// pre-existing `E510` circular-`[repos]`-import check: a **strictly
+/// forward** chain of repos (repo *i*'s `[repos]` table points only to repo
+/// *i+1*, never backward) has no cycle anywhere in its `[repos]` graph for
+/// `chain_reaches` to catch, yet is deep enough (more hops than
+/// `HPLE_MAX_DEPTH`) that the recursive peer-validity walk must still
+/// terminate on its own bound rather than recursing indefinitely. Run from
+/// the same constrained, 2 MiB stack as the mutual-cycle test above, since a
+/// long genuine recursion is exactly what the dedicated-thread fix has to
+/// keep stack-safe for its whole depth, not just a two-hop bounce.
+#[test]
+fn deep_acyclic_subconfigurations_chain_hits_the_bounded_depth_guard_without_crashing() {
+    const HOPS: usize = 20; // > HPLE_MAX_DEPTH (16), with margin.
+
+    let repos: Vec<PathBuf> = (0..HOPS).map(|_| tempdir()).collect();
+    let model_roots: Vec<PathBuf> = repos.iter().map(|r| r.join("model")).collect();
+
+    for i in 0..HOPS {
+        let mroot = &model_roots[i];
+        write(mroot, "_index.md", &format!("---\ntype: Package\nname: Repo{i}\n---\n"));
+        write(
+            mroot,
+            "Features/_index.md",
+            &format!(
+                "---\ntype: FeatureDef\nid: FEAT-CHAIN{i}-ROOT\nname: Root\ngroupKind: mandatory\n---\n"
+            ),
+        );
+        if i + 1 < HOPS {
+            write(
+                mroot,
+                "Configurations/Main.md",
+                &format!(
+                    "---\ntype: Configuration\nid: CONF-CHAIN{i}-001\nname: Chain {i}\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features: true\nsubConfigurations: CONF-CHAIN{}-001\n---\n",
+                    i + 1
+                ),
+            );
+            write(
+                mroot,
+                ".syscribe.toml",
+                &format!("[repos.next]\npath = \"{}\"\n", repos[i + 1].display()),
+            );
+        } else {
+            // The last link: a plain, valid leaf Configuration, no further hop.
+            write(
+                mroot,
+                "Configurations/Main.md",
+                &format!(
+                    "---\ntype: Configuration\nid: CONF-CHAIN{i}-001\nname: Chain {i}\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features: true\n---\n"
+                ),
+            );
+        }
+    }
+
+    const CONSTRAINED_STACK: usize = 2 * 1024 * 1024;
+    let root0 = model_roots[0].clone();
+    let handle = std::thread::Builder::new()
+        .stack_size(CONSTRAINED_STACK)
+        .spawn(move || {
+            let elements = walk_model(&root0).unwrap();
+            let cfg = ValidateConfig::with_model_root(root0.clone());
+            validate_with_config(&elements, &cfg)
+        })
+        .expect("failed to spawn the constrained-stack test thread");
+
+    let result = handle.join().expect(
+        "a deep (> HPLE_MAX_DEPTH), but genuinely acyclic, subConfigurations chain must return \
+         normally, not abort the process, even from a 2 MiB stack",
+    );
+
+    // No [repos]-level cycle exists anywhere in this strictly-forward chain,
+    // so E510 must not fire -- confirming the failure below is genuinely the
+    // depth guard, not a rediscovery of the unrelated circular-import check.
+    assert!(
+        !result.findings.iter().any(|f| f.code == "E510"),
+        "this fixture is a strictly forward chain -- no E510 should fire: {:#?}",
+        result.findings
+    );
+    assert!(
+        result
+            .findings
+            .iter()
+            .any(|f| f.code == "E518" && f.message.contains("consolidation depth")),
+        "expected an E518 naming the exceeded consolidation depth: {:#?}",
+        result.findings
+    );
+}

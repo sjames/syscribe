@@ -7057,13 +7057,58 @@ fn is_type_def(elem: &RawElement) -> bool {
 /// `subConfigurations:` — re-enters [`sub_configuration_findings`] again for
 /// the next tier down. A genuine multi-tier hierarchy is shallow (a handful of
 /// tiers at most); this guard only exists so an authoring mistake that forms
-/// an actual cycle across repos degrades to a reported `E518` rather than a
-/// stack overflow, matching this codebase's standing "report, never panic"
+/// an actual cycle across repos degrades to a reported `E518` rather than
+/// recursing forever, matching this codebase's standing "report, never panic"
 /// rule for circular references.
 const HPLE_MAX_DEPTH: u32 = 16;
 
+/// Stack size for the dedicated thread each peer-validity recursion runs on
+/// (below). `validate_with_config` is a large function; re-entering it
+/// recursively (peer → its own `subConfigurations` → its peer → …) on
+/// whatever stack the *caller* happens to have is not safe — measured at
+/// 150+ KB per level, even a handful of levels can exceed a constrained
+/// stack (notably Tokio's 2 MiB default worker-thread stack, which both the
+/// MCP server and the LSP server validate from). Each recursive step
+/// therefore runs on a freshly spawned thread sized generously enough that
+/// the full `HPLE_MAX_DEPTH` bound is comfortably safe regardless of the
+/// calling thread's own stack size.
+const HPLE_PEER_STACK_SIZE: usize = 32 * 1024 * 1024;
+
 thread_local! {
     static HPLE_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Run `validate_with_config` + `check_feature_model_deep` against a peer's
+/// elements on a dedicated thread carrying a generous, fixed-size stack
+/// ([`HPLE_PEER_STACK_SIZE`]) rather than whatever stack the caller happens
+/// to have — see that constant's doc comment. `next_depth` seeds the new
+/// thread's *own* [`HPLE_DEPTH`] (thread-locals do not propagate across a
+/// thread spawn) so the bounded-recursion guard still applies however many
+/// tiers deep this goes.
+///
+/// Returns `(error_findings, void, invalid_configs)` — plain owned data, not
+/// a borrowed `ValidationResult`/`DeepReport`, so nothing here needs to
+/// outlive the joined thread. A panic on that thread (should not happen: the
+/// stack is sized well beyond the bounded depth) is caught and reported as a
+/// failed check rather than propagated — a validity *gate* must fail closed.
+fn run_peer_validation_on_dedicated_thread(
+    peer_elements: &[RawElement],
+    peer_config: &ValidateConfig,
+    next_depth: u32,
+) -> Result<(Vec<Finding>, bool, Vec<String>), ()> {
+    std::thread::scope(|scope| {
+        let handle = std::thread::Builder::new()
+            .stack_size(HPLE_PEER_STACK_SIZE)
+            .spawn_scoped(scope, move || {
+                HPLE_DEPTH.with(|d| d.set(next_depth));
+                let peer_result = validate_with_config(peer_elements, peer_config);
+                let errors: Vec<Finding> = peer_result.errors().cloned().collect();
+                let peer_deep = crate::feature_model::check_feature_model_deep(peer_elements);
+                (errors, peer_deep.void, peer_deep.invalid_configs)
+            })
+            .expect("failed to spawn HPLE peer-validation thread");
+        handle.join().map_err(|_| ())
+    })
 }
 
 /// Human-readable label for an element's `type:` in a diagnostic message.
@@ -7240,6 +7285,9 @@ pub fn sub_configuration_findings(
                     .unwrap_or_else(|| target.qualified_name.clone());
 
                 // Bounded recursion guard (see HPLE_MAX_DEPTH doc comment).
+                // Read on *this* thread; the recursive step below seeds the
+                // *new* thread's own copy from `next_depth` (thread-locals do
+                // not propagate across a thread spawn).
                 let depth = HPLE_DEPTH.with(|d| d.get());
                 if depth >= HPLE_MAX_DEPTH {
                     findings.push(error(
@@ -7252,45 +7300,55 @@ pub fn sub_configuration_findings(
                     ));
                     break;
                 }
-                HPLE_DEPTH.with(|d| d.set(depth + 1));
                 let peer_config = ValidateConfig::with_model_root(repo.model_root.clone());
-                let peer_result = validate_with_config(peer_elements, &peer_config);
-                let peer_deep = crate::feature_model::check_feature_model_deep(peer_elements);
-                HPLE_DEPTH.with(|d| d.set(depth));
-
-                let peer_errors: Vec<&Finding> = peer_result.errors().collect();
-                if !peer_errors.is_empty() {
-                    findings.push(error(
-                        "E518",
-                        &cfg.file_path,
-                        &format!(
-                            "subConfigurations '{}' names Configuration '{}' in repo '{}', which is not internally valid: {} validation error(s) in that repo (e.g. {}: {})",
-                            sc,
-                            tgt_id,
-                            repo.alias,
-                            peer_errors.len(),
-                            peer_errors[0].code,
-                            peer_errors[0].message
-                        ),
-                    ));
-                } else if peer_deep.void {
-                    findings.push(error(
-                        "E518",
-                        &cfg.file_path,
-                        &format!(
-                            "subConfigurations '{}' names Configuration '{}' in repo '{}', but that repo's feature model is void (no valid configuration exists)",
-                            sc, tgt_id, repo.alias
-                        ),
-                    ));
-                } else if peer_deep.invalid_configs.contains(&tgt_id) {
-                    findings.push(error(
-                        "E518",
-                        &cfg.file_path,
-                        &format!(
-                            "subConfigurations '{}' names Configuration '{}' in repo '{}', which is not a valid model of that repo's feature model (feature-check --deep: E225)",
-                            sc, tgt_id, repo.alias
-                        ),
-                    ));
+                match run_peer_validation_on_dedicated_thread(peer_elements, &peer_config, depth + 1) {
+                    Ok((peer_errors, peer_void, peer_invalid_configs)) => {
+                        if !peer_errors.is_empty() {
+                            findings.push(error(
+                                "E518",
+                                &cfg.file_path,
+                                &format!(
+                                    "subConfigurations '{}' names Configuration '{}' in repo '{}', which is not internally valid: {} validation error(s) in that repo (e.g. {}: {})",
+                                    sc,
+                                    tgt_id,
+                                    repo.alias,
+                                    peer_errors.len(),
+                                    peer_errors[0].code,
+                                    peer_errors[0].message
+                                ),
+                            ));
+                        } else if peer_void {
+                            findings.push(error(
+                                "E518",
+                                &cfg.file_path,
+                                &format!(
+                                    "subConfigurations '{}' names Configuration '{}' in repo '{}', but that repo's feature model is void (no valid configuration exists)",
+                                    sc, tgt_id, repo.alias
+                                ),
+                            ));
+                        } else if peer_invalid_configs.contains(&tgt_id) {
+                            findings.push(error(
+                                "E518",
+                                &cfg.file_path,
+                                &format!(
+                                    "subConfigurations '{}' names Configuration '{}' in repo '{}', which is not a valid model of that repo's feature model (feature-check --deep: E225)",
+                                    sc, tgt_id, repo.alias
+                                ),
+                            ));
+                        }
+                    }
+                    Err(()) => {
+                        // Fail closed: a validity gate that cannot confirm
+                        // validity must not silently treat the target as valid.
+                        findings.push(error(
+                            "E518",
+                            &cfg.file_path,
+                            &format!(
+                                "subConfigurations '{}' names Configuration '{}' in repo '{}', but validating it failed unexpectedly — treating as not internally valid",
+                                sc, tgt_id, repo.alias
+                            ),
+                        ));
+                    }
                 }
                 break;
             }
