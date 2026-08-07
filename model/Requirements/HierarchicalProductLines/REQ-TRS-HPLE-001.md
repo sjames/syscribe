@@ -28,6 +28,20 @@ in declaration order (§14.4). Requiring the named `Configuration` to be indepen
 it can be consolidated is what makes "consolidation of *configured* lower level models" a real
 guarantee rather than a name that happens to resolve to something broken.
 
+**Correction found during implementation scoping** (the ADR's Decision 1 originally overstated
+this): existing multi-repo composition's qname reach is real but shallow — `LoadedRepo` indexes a
+peer into two flat `HashSet<String>`s (qnames, stable ids) purely for existence-checking, exactly
+as `ADR-SYS-PLUGIN-001` documents ("it never builds real graph nodes for peer content"). That is
+sufficient for confirming a `subConfigurations:` entry's qname *exists*, but not for reading the
+peer `Configuration`'s actual selected features or their parameter metadata (`isFixed`, `range`,
+`isRequired`) — which `REQ-TRS-HPLE-002`'s cross-tier `parameterBindings:` validation genuinely
+needs. Resolving *that* requires actually loading and parsing the referenced peer's relevant
+elements (at minimum, the named `Configuration` and the `FeatureDef`s it selects), not merely
+checking that a name exists — the same shape of upgrade `ADR-SYS-PLUGIN-001` made for foreign-format
+content, applied here to a peer repo's own native elements instead. This requirement's "SAT-clean"
+check is exactly the forcing function for that loading step: confirming a peer `Configuration` is
+internally valid already requires reading its real feature/parameter structure, not just its name.
+
 ## Scope
 
 - `subConfigurations:` is valid at any tier. It is naturally empty or absent at a leaf tier (one

@@ -2,7 +2,7 @@
 type: PlanningItem
 id: PI-HPLE-SUBCONFIG-001
 name: "subConfigurations: field, resolution, and peer-Configuration validity gate"
-status: todo
+status: in_progress
 itemType: task
 parent: PI-HPLE-001
 achieves: [REQ-TRS-HPLE-001]

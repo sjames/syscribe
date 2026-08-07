@@ -2,7 +2,7 @@
 type: PlanningItem
 id: PI-HPLE-001
 name: "Implement hierarchical product-line composition (subConfigurations)"
-status: todo
+status: in_progress
 itemType: feature
 achieves: [REQ-TRS-HPLE-000]
 tags:
