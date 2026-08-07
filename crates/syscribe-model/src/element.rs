@@ -695,6 +695,18 @@ pub struct RawFrontmatter {
     #[serde(rename = "buildOverrides", default, skip_serializing_if = "Option::is_none")]
     pub build_overrides: Option<serde_yaml::Value>,
 
+    /// `subConfigurations:` (REQ-TRS-HPLE-001, ADR-SYS-HPLE-001) — on a
+    /// `Configuration`: one or more other `Configuration` elements (qname or
+    /// stable `CONF-*` id) this `Configuration` consolidates — a hierarchical
+    /// product-line composition. Each entry resolves like any other
+    /// cross-reference: the local model first, then each loaded peer repo in
+    /// declaration order (§14.4). Scalar or list, following the
+    /// `derivedFrom`/`achieves` convention. Naturally empty/absent at a leaf
+    /// tier with no lower-tier product lines to consolidate. Resolution and
+    /// the peer-validity gate are a validator pass, not a parse-time concern.
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub sub_configurations: Option<Vec<String>>,
+
     // §9.10 — PLE conditioning (any element)
     pub applies_when: Option<serde_yaml::Value>,
 
