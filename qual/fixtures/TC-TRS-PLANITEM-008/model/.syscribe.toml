@@ -1,0 +1,4 @@
+[users]
+alice = "Alice Nakamura"
+bob = "Bob Patel"
+Not-Valid = "Malformed key, should be ignored with a warning"
