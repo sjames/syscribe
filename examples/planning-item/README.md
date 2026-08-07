@@ -76,7 +76,7 @@ examples/planning-item/
       PI-RTH-IMPL-001.md             child, task, non-leaf (has grandchildren)
       PI-RTH-IMPL-SW-001.md          grandchild, task, leaf, done (ref: evidence)
       PI-RTH-IMPL-SW-002.md          grandchild, task, leaf, todo (no evidence)
-      PI-RTH-TEST-001.md             child, task, leaf, blocked (no evidence)
+      PI-RTH-TEST-001.md             child, task, leaf, blocked (blockedBy: PI-RTH-IMPL-001, no evidence)
       PI-RTH-DOCS-001.md             child, task, leaf, todo (no evidence)
       PI-RTH-BUGFIX-001.md           child, bug, leaf, done (ref: + remote path:)
       PI-RTH-CLOUDLOG-001.md         child, task, leaf, todo, appliesWhen: FEAT-CLOUD-SYNC
@@ -99,7 +99,7 @@ examples/planning-item/
 | `PI-RTH-IMPL-001` | in_progress | task | `PI-RTH-001` | no (2 children) | non-leaf: no evidence required regardless of status |
 | `PI-RTH-IMPL-SW-001` | done | task | `PI-RTH-IMPL-001` | yes | 3-level-deep grandchild leaf; `ref:` evidence to a real `TestCase` |
 | `PI-RTH-IMPL-SW-002` | todo | task | `PI-RTH-IMPL-001` | yes | leaf with **no** evidence at all — fine, not `done` |
-| `PI-RTH-TEST-001` | blocked | task | `PI-RTH-001` | yes | leaf with no evidence — fine, `blocked` isn't `done` |
+| `PI-RTH-TEST-001` | blocked | task | `PI-RTH-001` | yes | leaf with no evidence — fine, `blocked` isn't `done`; `blockedBy: PI-RTH-IMPL-001` (`REQ-TRS-PLANITEM-007`) |
 | `PI-RTH-DOCS-001` | todo | task | `PI-RTH-001` | yes | leaf with no evidence — fine, `todo` isn't `done` |
 | `PI-RTH-BUGFIX-001` | done | **bug** | `PI-RTH-001` | yes | `itemType` independent of task-typed siblings; own `achieves:` (qname form, optional on non-top-level); `ref:` + remote-URI `path:` evidence |
 | `PI-RTH-CLOUDLOG-001` | todo | task | `PI-RTH-001` | yes | `appliesWhen: FEAT-CLOUD-SYNC` — product-line gating |
@@ -142,6 +142,19 @@ separation between `achieves:` and `satisfies:` (`ADR-SYS-PLANITEM-001`
 Decision 2), demonstrated live rather than just asserted: `achieves:` never
 suppresses `W300`, and never risks tripping `E312` either (no `PlanningItem`
 here ever appears in a `satisfies:` list).
+
+## `blockedBy:` (`REQ-TRS-PLANITEM-007`)
+
+`PI-RTH-TEST-001` (`status: blocked`) sets `blockedBy: PI-RTH-IMPL-001` — the hardware-in-the-loop
+verification can't run until the controller logic it exercises is actually done, so the blocker is
+the real, structural dependency (`PI-RTH-IMPL-001`, itself `status: in_progress`), not the
+hardware-rig-availability detail mentioned in the body text (which names no model element and so
+isn't, and shouldn't be, expressed as a `blockedBy:` — resolution requires a real element, and
+inventing one just to model an external scheduling fact would be over-fitting). `status` and
+`blockedBy:` agree here (`blocked` / non-empty), so this raises no `W308`; if `PI-RTH-IMPL-001`
+finishes and `PI-RTH-TEST-001`'s own `status:` is never updated to reflect it, that drift becomes
+exactly the `W308` this rule exists to catch — the field is a plain, author-maintained
+cross-reference, not computed from anything.
 
 ## `evidence:` (`REQ-TRS-PLANITEM-005`)
 
