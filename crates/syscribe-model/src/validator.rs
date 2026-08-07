@@ -7100,16 +7100,21 @@ fn element_type_label(t: &Option<ElementType>) -> String {
 ///
 /// Returns `(error_findings, void, invalid_configs)` — plain owned data, not
 /// a borrowed `ValidationResult`/`DeepReport`, so nothing here needs to
-/// outlive the joined thread. A panic on that thread (should not happen: the
-/// stack is sized well beyond the bounded depth) is caught and reported as a
-/// failed check rather than propagated — a validity *gate* must fail closed.
+/// outlive the joined thread. Two distinct failure modes are both handled as
+/// `Err(())` rather than ever propagating a panic to the calling thread — a
+/// validity *gate* must fail closed either way:
+///   - OS thread creation itself fails (`spawn_scoped` returns `Err`) —
+///     plausible resource exhaustion under concurrent load in a long-running
+///     MCP/LSP server recursing through several 32 MiB-stack levels at once.
+///   - The spawned thread panics (should not happen: the stack is sized well
+///     beyond the bounded depth) — caught via `join()`.
 fn run_peer_validation_on_dedicated_thread(
     peer_elements: &[RawElement],
     peer_config: &ValidateConfig,
     next_depth: u32,
 ) -> Result<(Vec<Finding>, bool, Vec<String>), ()> {
     std::thread::scope(|scope| {
-        let handle = std::thread::Builder::new()
+        let spawned = std::thread::Builder::new()
             .stack_size(HPLE_PEER_STACK_SIZE)
             .spawn_scoped(scope, move || {
                 HPLE_DEPTH.with(|d| d.set(next_depth));
@@ -7117,8 +7122,8 @@ fn run_peer_validation_on_dedicated_thread(
                 let errors: Vec<Finding> = peer_result.errors().cloned().collect();
                 let peer_deep = crate::feature_model::check_feature_model_deep(peer_elements);
                 (errors, peer_deep.void, peer_deep.invalid_configs)
-            })
-            .expect("failed to spawn HPLE peer-validation thread");
+            });
+        let handle = spawned.map_err(|_| ())?;
         handle.join().map_err(|_| ())
     })
 }
