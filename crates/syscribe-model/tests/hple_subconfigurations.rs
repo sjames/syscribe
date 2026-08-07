@@ -501,3 +501,165 @@ fn deep_acyclic_subconfigurations_chain_hits_the_bounded_depth_guard_without_cra
         result.findings
     );
 }
+
+// ── Transitive propagation through local chains 3+ tiers deep ──────────────
+//
+// Confirmed regression (second review round): `sub_configuration_findings`
+// took `prior_findings` as a *fixed snapshot* captured once, before the pass
+// started. Within that same pass, a freshly-generated local E518 (e.g. B
+// consolidating broken C) went into the function's own output vector but was
+// never fed back into `prior_findings` for A, which is *also* checked in
+// that same pass and consolidates B. So C's own E201 correctly propagated one
+// level to B (E518 naming C), but never a second level to A -- A saw B as
+// clean. This is structural (any single fixed-snapshot pass can only ever
+// propagate one level, regardless of iteration order), not an ordering
+// fluke, so the fix is a dependency-ordered (topological) pass over the
+// local subConfigurations graph with a single *growing* accumulator, not a
+// reordering trick. These tests build the chain with the file-naming order
+// deliberately working *against* the natural qname/alphabetical walk order
+// (leaf named so it would sort last, root so it would sort first) so passing
+// is not an artifact of `elements` happening to already be dependency-ordered.
+
+/// Write one local Configuration file. `sub_of` is the (already-created)
+/// target's own id, when this Configuration consolidates it.
+fn write_chain_link(root: &Path, qname: &str, id: &str, sub_of: Option<&str>) {
+    let sub_line = sub_of
+        .map(|t| format!("subConfigurations: {t}\n"))
+        .unwrap_or_default();
+    write(
+        root,
+        &format!("{qname}.md"),
+        &format!(
+            "---\ntype: Configuration\nid: {id}\nname: {id}\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features: true\n{sub_line}---\n"
+        ),
+    );
+}
+
+#[test]
+fn three_level_local_chain_propagates_transitively() {
+    // Z (broken: missing status -> E201) <- Y (subConfigurations: Z) <- X (subConfigurations: Y).
+    // File/qname naming deliberately reversed vs. dependency order (the
+    // *last*-created link, Z, is alphabetically *first*) so a plain
+    // `elements` iteration order is not accidentally dependency order.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "Features/_index.md",
+        "---\ntype: FeatureDef\nid: FEAT-ROOT\nname: Root\ngroupKind: mandatory\n---\n",
+    );
+    // Z: broken -- missing `status:`.
+    write(
+        &root,
+        "Configurations/AAA_Z.md",
+        "---\ntype: Configuration\nid: CONF-CHAINZ-001\nname: Z\nfeatureModel: Features\nfeatures:\n  Features: true\n---\n",
+    );
+    write_chain_link(&root, "Configurations/BBB_Y", "CONF-CHAINY-001", Some("CONF-CHAINZ-001"));
+    write_chain_link(&root, "Configurations/CCC_X", "CONF-CHAINX-001", Some("CONF-CHAINY-001"));
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate_with_config(&elements, &cfg_with_root(&root));
+
+    let e201 = result.findings.iter().find(|f| f.code == "E201");
+    assert!(e201.is_some(), "expected Z's own E201: {:#?}", result.findings);
+
+    let y_e518 = result
+        .findings
+        .iter()
+        .find(|f| f.code == "E518" && f.file.ends_with("BBB_Y.md"));
+    assert!(y_e518.is_some(), "expected Y (consolidates broken Z) to get E518: {:#?}", result.findings);
+    assert!(y_e518.unwrap().message.contains("CONF-CHAINZ-001"));
+
+    // This is the level that was silently missing before the fix.
+    let x_e518 = result
+        .findings
+        .iter()
+        .find(|f| f.code == "E518" && f.file.ends_with("CCC_X.md"));
+    assert!(
+        x_e518.is_some(),
+        "expected X (consolidates Y, which is itself invalid) to ALSO get E518 -- transitive propagation must reach 2 levels up, not just 1: {:#?}",
+        result.findings
+    );
+    assert!(
+        x_e518.unwrap().message.contains("CONF-CHAINY-001"),
+        "X's E518 should name Y, the immediate (broken) target: {}",
+        x_e518.unwrap().message
+    );
+}
+
+#[test]
+fn four_level_local_chain_propagates_transitively() {
+    // W (broken) <- Z (sub: W) <- Y (sub: Z) <- X (sub: Y). Confirms the fix
+    // is genuinely general (a topological pass), not merely deep enough to
+    // cover the specific 3-level case that was reported.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "Features/_index.md",
+        "---\ntype: FeatureDef\nid: FEAT-ROOT\nname: Root\ngroupKind: mandatory\n---\n",
+    );
+    // W: broken -- missing `status:`.
+    write(
+        &root,
+        "Configurations/AAA_W.md",
+        "---\ntype: Configuration\nid: CONF-CHAINW-001\nname: W\nfeatureModel: Features\nfeatures:\n  Features: true\n---\n",
+    );
+    write_chain_link(&root, "Configurations/BBB_Z", "CONF-CHAINZ2-001", Some("CONF-CHAINW-001"));
+    write_chain_link(&root, "Configurations/CCC_Y", "CONF-CHAINY2-001", Some("CONF-CHAINZ2-001"));
+    write_chain_link(&root, "Configurations/DDD_X", "CONF-CHAINX2-001", Some("CONF-CHAINY2-001"));
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate_with_config(&elements, &cfg_with_root(&root));
+
+    assert!(
+        result.findings.iter().any(|f| f.code == "E201"),
+        "expected W's own E201: {:#?}",
+        result.findings
+    );
+
+    let z_e518 = result.findings.iter().find(|f| f.code == "E518" && f.file.ends_with("BBB_Z.md"));
+    assert!(z_e518.is_some(), "expected Z (consolidates broken W) to get E518: {:#?}", result.findings);
+
+    let y_e518 = result.findings.iter().find(|f| f.code == "E518" && f.file.ends_with("CCC_Y.md"));
+    assert!(
+        y_e518.is_some(),
+        "expected Y (consolidates Z, itself invalid) to get E518 -- level 2: {:#?}",
+        result.findings
+    );
+
+    let x_e518 = result.findings.iter().find(|f| f.code == "E518" && f.file.ends_with("DDD_X.md"));
+    assert!(
+        x_e518.is_some(),
+        "expected X (consolidates Y, itself invalid) to get E518 -- level 3, the deepest link: {:#?}",
+        result.findings
+    );
+}
+
+/// A local subConfigurations cycle (A -> B -> A) has no topological order.
+/// Sanity check for the leftover/cycle-detection path the topo-sort fix
+/// introduces: this must degrade gracefully (report, no panic, no infinite
+/// loop) exactly like every other circular-reference case in this codebase,
+/// not silently validate clean.
+#[test]
+fn local_cycle_degrades_gracefully_without_panicking() {
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "Features/_index.md",
+        "---\ntype: FeatureDef\nid: FEAT-ROOT\nname: Root\ngroupKind: mandatory\n---\n",
+    );
+    write_chain_link(&root, "Configurations/A", "CONF-CYCLEA-001", Some("CONF-CYCLEB-001"));
+    write_chain_link(&root, "Configurations/B", "CONF-CYCLEB-001", Some("CONF-CYCLEA-001"));
+
+    let elements = walk_model(&root).unwrap();
+    // The important assertion is simply that this returns at all.
+    let result = validate_with_config(&elements, &cfg_with_root(&root));
+
+    assert!(
+        result.findings.iter().any(|f| f.code == "E518"),
+        "expected the circular local chain to be reported, not silently accepted: {:#?}",
+        result.findings
+    );
+}

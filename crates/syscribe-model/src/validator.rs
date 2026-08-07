@@ -7148,16 +7148,38 @@ fn run_peer_validation_on_dedicated_thread(
 /// `prior_findings` is the full `findings` vec already accumulated by every
 /// *other* check in this same `validate_with_config` pass (this function is
 /// called last, precisely so this is complete). A **local** target's
-/// validity is read off of that — any error-severity finding already
-/// attached to the target's own file — rather than re-validating it, which
-/// would mean recursing into `validate_with_config` on the very same
-/// `elements` slice this call is itself part of. This gives a local target
-/// the same "clean and error-free" bar a peer target is held to (peer
-/// targets get a genuine, independent `validate_with_config` run; a local
-/// target's independent run is simply this one, already done) without the
-/// self-recursion that would otherwise risk. `check_feature_model_deep` is
-/// still consulted directly for the SAT-semantics half, since deep
-/// feature-model analysis is not part of the ordinary per-element passes.
+/// validity is read off of that plus every HPLE finding already produced
+/// *within this same call* for other local configs — see "processing order"
+/// below — rather than re-validating it, which would mean recursing into
+/// `validate_with_config` on the very same `elements` slice this call is
+/// itself part of. This gives a local target the same "clean and
+/// error-free" bar a peer target is held to (peer targets get a genuine,
+/// independent `validate_with_config` run; a local target's independent run
+/// is simply this one, already done) without the self-recursion that would
+/// otherwise risk. `check_feature_model_deep` is still consulted directly
+/// for the SAT-semantics half, since deep feature-model analysis is not
+/// part of the ordinary per-element passes.
+///
+/// **Processing order.** Local configs are *not* walked in `elements` order
+/// against one frozen snapshot — a single fixed snapshot can only ever
+/// propagate a freshly-found problem one level up a chain, no matter how
+/// that walk is ordered (confirmed: a 3-tier chain A → B → C with a plain
+/// structural error on C correctly flagged B, since B's own error came from
+/// the snapshot, but never flagged A, since B's *freshly generated* finding
+/// never fed back into anything). Instead, local configs are processed in
+/// dependency order — a topological sort over the local `subConfigurations`
+/// graph, leaves (configs with no further local targets) first — threading
+/// one single, *growing* findings accumulator through the walk. By the time
+/// a config is processed, every local config it depends on has already been
+/// processed and its findings are already in the accumulator, however many
+/// local tiers deep that chain goes. A local cycle has no topological order;
+/// the configs involved are processed last, in a deterministic order, and
+/// any entry naming a target that is itself part of the unresolved cycle is
+/// reported directly (its accumulated findings cannot be trusted — no valid
+/// processing order put them there first) rather than silently read off of
+/// an order-dependent partial result — degrading gracefully, never looping
+/// or panicking, matching this codebase's standing rule for circular
+/// references.
 ///
 /// Dormant (returns empty) unless some `Configuration` actually declares
 /// `subConfigurations:`, so a model with none anywhere is unaffected.
@@ -7167,7 +7189,7 @@ pub fn sub_configuration_findings(
     resolver: &Resolver,
     prior_findings: &[Finding],
 ) -> Vec<Finding> {
-    let mut findings: Vec<Finding> = Vec::new();
+    let mut own_findings: Vec<Finding> = Vec::new();
 
     let configs: Vec<&RawElement> = elements
         .iter()
@@ -7177,8 +7199,74 @@ pub fn sub_configuration_findings(
         .iter()
         .all(|c| c.frontmatter.sub_configurations.is_none())
     {
-        return findings;
+        return own_findings;
     }
+
+    // ── Dependency order: topological sort over the *local* subConfigurations
+    // graph (edges: config i -> local Configuration target j it names), leaves
+    // first, so a chain of any local depth propagates in one pass. ──────────
+    let index_of: HashMap<&str, usize> = configs
+        .iter()
+        .enumerate()
+        .map(|(i, c)| (c.qualified_name.as_str(), i))
+        .collect();
+    let mut depends_on: Vec<HashSet<usize>> = vec![HashSet::new(); configs.len()];
+    for (i, cfg) in configs.iter().enumerate() {
+        let Some(entries) = &cfg.frontmatter.sub_configurations else {
+            continue;
+        };
+        for raw_sc in entries {
+            let sc = raw_sc.trim();
+            if sc.is_empty() {
+                continue;
+            }
+            if let Some(target) = resolver.resolve_ref(elements, sc) {
+                if matches!(target.frontmatter.element_type, Some(ElementType::Configuration)) {
+                    if let Some(&j) = index_of.get(target.qualified_name.as_str()) {
+                        // Self-references (j == i) are kept, not skipped: a
+                        // config cannot depend on its own not-yet-computed
+                        // result, so this correctly forces it into the
+                        // leftover/cycle set below rather than pretending it
+                        // has a valid position.
+                        depends_on[i].insert(j);
+                    }
+                }
+            }
+        }
+    }
+    let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); configs.len()];
+    for (i, deps) in depends_on.iter().enumerate() {
+        for &j in deps {
+            dependents[j].push(i);
+        }
+    }
+    let mut remaining: Vec<HashSet<usize>> = depends_on.clone();
+    let mut queue: std::collections::VecDeque<usize> = (0..configs.len())
+        .filter(|&i| remaining[i].is_empty())
+        .collect();
+    let mut processed = vec![false; configs.len()];
+    let mut order: Vec<usize> = Vec::with_capacity(configs.len());
+    while let Some(i) = queue.pop_front() {
+        if processed[i] {
+            continue;
+        }
+        processed[i] = true;
+        order.push(i);
+        for &d in &dependents[i] {
+            remaining[d].remove(&i);
+            if !processed[d] && remaining[d].is_empty() {
+                queue.push_back(d);
+            }
+        }
+    }
+    // Leftover: part of (or depends on) a local subConfigurations cycle, for
+    // which no topological order exists. Processed last, in a deterministic
+    // (qname-sorted) order, so this never loops or panics — see the function
+    // doc comment.
+    let mut leftover: Vec<usize> = (0..configs.len()).filter(|&i| !processed[i]).collect();
+    leftover.sort_by_key(|&i| configs[i].qualified_name.clone());
+    let in_cycle: HashSet<usize> = leftover.iter().copied().collect();
+    order.extend(leftover);
 
     // This model's own deep report, computed at most once and only if some
     // entry actually resolves locally (a purely-peer hierarchy never needs it).
@@ -7187,7 +7275,14 @@ pub fn sub_configuration_findings(
     // repo only walk it once.
     let mut peer_cache: HashMap<std::path::PathBuf, Option<Vec<RawElement>>> = HashMap::new();
 
-    for cfg in &configs {
+    // The growing accumulator: `prior_findings` plus every HPLE finding
+    // produced so far *in this call*, for local configs already processed
+    // (dependency order guarantees a local target is always processed before
+    // whatever consolidates it, so its entry here is always final by then).
+    let mut effective: Vec<Finding> = prior_findings.to_vec();
+
+    for &ci in &order {
+        let cfg = configs[ci];
         let Some(entries) = &cfg.frontmatter.sub_configurations else {
             continue;
         };
@@ -7200,7 +7295,7 @@ pub fn sub_configuration_findings(
             // 1. Local resolution first (§14.4 order).
             if let Some(target) = resolver.resolve_ref(elements, sc) {
                 if !matches!(target.frontmatter.element_type, Some(ElementType::Configuration)) {
-                    findings.push(error(
+                    let f = error(
                         "E517",
                         &cfg.file_path,
                         &format!(
@@ -7208,7 +7303,9 @@ pub fn sub_configuration_findings(
                             sc,
                             element_type_label(&target.frontmatter.element_type)
                         ),
-                    ));
+                    );
+                    effective.push(f.clone());
+                    own_findings.push(f);
                     continue;
                 }
                 let tgt_id = target
@@ -7217,16 +7314,38 @@ pub fn sub_configuration_findings(
                     .clone()
                     .unwrap_or_else(|| target.qualified_name.clone());
 
+                // A target that is itself part of an unresolved local cycle
+                // has no findings this pass can trust (no valid processing
+                // order exists for it) -- report the circularity directly
+                // rather than reading an order-dependent partial result.
+                if let Some(&tj) = index_of.get(target.qualified_name.as_str()) {
+                    if in_cycle.contains(&tj) {
+                        let f = error(
+                            "E518",
+                            &cfg.file_path,
+                            &format!(
+                                "subConfigurations '{}' names local Configuration '{}', which is part of a circular local subConfigurations chain — its internal validity cannot be confirmed",
+                                sc, tgt_id
+                            ),
+                        );
+                        effective.push(f.clone());
+                        own_findings.push(f);
+                        continue;
+                    }
+                }
+
                 // Ordinary structural validity: any error already raised
-                // against the target's own file by the rest of this pass
-                // (e.g. a plain E201 missing-required-field, which
-                // check_feature_model_deep has no way to see).
-                let existing_errors: Vec<&Finding> = prior_findings
+                // against the target's own file, either by the rest of this
+                // pass (e.g. a plain E201 missing-required-field, which
+                // check_feature_model_deep has no way to see) or by this same
+                // function for a local target processed earlier in
+                // dependency order (so a chain 3+ tiers deep propagates).
+                let existing_errors: Vec<&Finding> = effective
                     .iter()
                     .filter(|f| f.severity == Severity::Error && f.file == target.file_path)
                     .collect();
                 if !existing_errors.is_empty() {
-                    findings.push(error(
+                    let f = error(
                         "E518",
                         &cfg.file_path,
                         &format!(
@@ -7237,7 +7356,9 @@ pub fn sub_configuration_findings(
                             existing_errors[0].code,
                             existing_errors[0].message
                         ),
-                    ));
+                    );
+                    effective.push(f.clone());
+                    own_findings.push(f);
                     continue;
                 }
 
@@ -7248,23 +7369,27 @@ pub fn sub_configuration_findings(
                 let rep = local_deep
                     .get_or_insert_with(|| crate::feature_model::check_feature_model_deep(elements));
                 if rep.void {
-                    findings.push(error(
+                    let f = error(
                         "E518",
                         &cfg.file_path,
                         &format!(
                             "subConfigurations '{}' names local Configuration '{}', but this model's feature model is void (no valid configuration exists) — it cannot be consolidated",
                             sc, tgt_id
                         ),
-                    ));
+                    );
+                    effective.push(f.clone());
+                    own_findings.push(f);
                 } else if rep.invalid_configs.contains(&tgt_id) {
-                    findings.push(error(
+                    let f = error(
                         "E518",
                         &cfg.file_path,
                         &format!(
                             "subConfigurations '{}' names local Configuration '{}', which is not a valid model of the feature model (feature-check --deep: E225)",
                             sc, tgt_id
                         ),
-                    ));
+                    );
+                    effective.push(f.clone());
+                    own_findings.push(f);
                 }
                 continue;
             }
@@ -7291,14 +7416,16 @@ pub fn sub_configuration_findings(
                     .or_insert_with(|| crate::walker::walk_model(&repo.model_root).ok());
 
                 let Some(peer_elements) = peer_elements else {
-                    findings.push(error(
+                    let f = error(
                         "E516",
                         &cfg.file_path,
                         &format!(
                             "subConfigurations '{}' names a Configuration in repo '{}', but the repo could not be loaded",
                             sc, repo.alias
                         ),
-                    ));
+                    );
+                    effective.push(f.clone());
+                    own_findings.push(f);
                     break;
                 };
 
@@ -7306,19 +7433,21 @@ pub fn sub_configuration_findings(
                 let Some(target) = peer_resolver.resolve_ref(peer_elements, sc) else {
                     // The shallow index said it exists but the real parse
                     // disagrees — degrade to dangling rather than accepting it.
-                    findings.push(error(
+                    let f = error(
                         "E516",
                         &cfg.file_path,
                         &format!(
                             "subConfigurations '{}' does not resolve to any element in repo '{}'",
                             sc, repo.alias
                         ),
-                    ));
+                    );
+                    effective.push(f.clone());
+                    own_findings.push(f);
                     break;
                 };
 
                 if !matches!(target.frontmatter.element_type, Some(ElementType::Configuration)) {
-                    findings.push(error(
+                    let f = error(
                         "E517",
                         &cfg.file_path,
                         &format!(
@@ -7327,7 +7456,9 @@ pub fn sub_configuration_findings(
                             element_type_label(&target.frontmatter.element_type),
                             repo.alias
                         ),
-                    ));
+                    );
+                    effective.push(f.clone());
+                    own_findings.push(f);
                     break;
                 }
 
@@ -7343,21 +7474,23 @@ pub fn sub_configuration_findings(
                 // not propagate across a thread spawn).
                 let depth = HPLE_DEPTH.with(|d| d.get());
                 if depth >= HPLE_MAX_DEPTH {
-                    findings.push(error(
+                    let f = error(
                         "E518",
                         &cfg.file_path,
                         &format!(
                             "subConfigurations '{}' (Configuration '{}' in repo '{}') exceeds the maximum consolidation depth ({}) — check for a circular subConfigurations chain",
                             sc, tgt_id, repo.alias, HPLE_MAX_DEPTH
                         ),
-                    ));
+                    );
+                    effective.push(f.clone());
+                    own_findings.push(f);
                     break;
                 }
                 let peer_config = ValidateConfig::with_model_root(repo.model_root.clone());
                 match run_peer_validation_on_dedicated_thread(peer_elements, &peer_config, depth + 1) {
                     Ok((peer_errors, peer_void, peer_invalid_configs)) => {
                         if !peer_errors.is_empty() {
-                            findings.push(error(
+                            let f = error(
                                 "E518",
                                 &cfg.file_path,
                                 &format!(
@@ -7369,57 +7502,67 @@ pub fn sub_configuration_findings(
                                     peer_errors[0].code,
                                     peer_errors[0].message
                                 ),
-                            ));
+                            );
+                            effective.push(f.clone());
+                            own_findings.push(f);
                         } else if peer_void {
-                            findings.push(error(
+                            let f = error(
                                 "E518",
                                 &cfg.file_path,
                                 &format!(
                                     "subConfigurations '{}' names Configuration '{}' in repo '{}', but that repo's feature model is void (no valid configuration exists)",
                                     sc, tgt_id, repo.alias
                                 ),
-                            ));
+                            );
+                            effective.push(f.clone());
+                            own_findings.push(f);
                         } else if peer_invalid_configs.contains(&tgt_id) {
-                            findings.push(error(
+                            let f = error(
                                 "E518",
                                 &cfg.file_path,
                                 &format!(
                                     "subConfigurations '{}' names Configuration '{}' in repo '{}', which is not a valid model of that repo's feature model (feature-check --deep: E225)",
                                     sc, tgt_id, repo.alias
                                 ),
-                            ));
+                            );
+                            effective.push(f.clone());
+                            own_findings.push(f);
                         }
                     }
                     Err(()) => {
                         // Fail closed: a validity gate that cannot confirm
                         // validity must not silently treat the target as valid.
-                        findings.push(error(
+                        let f = error(
                             "E518",
                             &cfg.file_path,
                             &format!(
                                 "subConfigurations '{}' names Configuration '{}' in repo '{}', but validating it failed unexpectedly — treating as not internally valid",
                                 sc, tgt_id, repo.alias
                             ),
-                        ));
+                        );
+                        effective.push(f.clone());
+                        own_findings.push(f);
                     }
                 }
                 break;
             }
 
             if !resolved_in_repo {
-                findings.push(error(
+                let f = error(
                     "E516",
                     &cfg.file_path,
                     &format!(
                         "subConfigurations '{}' does not resolve to any element, locally or in a loaded peer repo",
                         sc
                     ),
-                ));
+                );
+                effective.push(f.clone());
+                own_findings.push(f);
             }
         }
     }
 
-    findings
+    own_findings
 }
 
 /// FeatureDef parameter-binding validation (§9.7): E203–E206, E222, W017.
