@@ -193,7 +193,16 @@ pub fn trace_links(fm: &RawFrontmatter) -> Vec<(&'static str, String)> {
     push_list("hazardRef", &fm.hazard_ref);
     push_list("mitigatedBy", &fm.mitigated_by);
     push_list("supports", &fm.supports);
-    push_list("evidence", &fm.evidence);
+    // Argument.evidence is a flat list of scalar element refs (suspect-trackable
+    // like any other trace link); PlanningItem.evidence's ref:/path:/rationale:
+    // mappings share the same YAML key/field but are not scalar refs, so they
+    // are filtered out here (out of scope for suspect-link baselining) before
+    // reusing push_list's Vec<String> shape.
+    let evidence_refs: Option<Vec<String>> = fm
+        .evidence
+        .as_ref()
+        .map(|ev| ev.iter().filter_map(|v| v.as_str().map(str::to_string)).collect());
+    push_list("evidence", &evidence_refs);
     push_list("confirms", &fm.confirms);
 
     // Structural links carried as `serde_yaml::Value` (string or list).

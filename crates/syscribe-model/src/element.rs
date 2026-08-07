@@ -32,6 +32,28 @@ mod string_or_vec {
     }
 }
 
+/// Serde helper: accept either a single YAML value or a sequence of values,
+/// normalizing to `Vec<serde_yaml::Value>`. Used by fields whose entries may be
+/// heterogeneous by design — e.g. `evidence:`, shared between GSN `Argument`
+/// (a flat list of scalar element refs, §8.18) and `PlanningItem` (a list of
+/// duck-typed `ref:`/`path:`/`rationale:` mappings, REQ-TRS-PLANITEM-005).
+/// A bare scalar (`evidence: TC-001`) still normalizes to a one-element list,
+/// preserving `Argument.evidence`'s existing scalar-or-list acceptance.
+mod value_or_vec {
+    use serde::{Deserialize, Deserializer};
+    pub fn deserialize<'de, D>(d: D) -> Result<Option<Vec<serde_yaml::Value>>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v: Option<serde_yaml::Value> = Option::deserialize(d)?;
+        match v {
+            None | Some(serde_yaml::Value::Null) => Ok(None),
+            Some(serde_yaml::Value::Sequence(seq)) => Ok(Some(seq)),
+            Some(other) => Ok(Some(vec![other])),
+        }
+    }
+}
+
 /// Serde helper for the `features:` key, which is overloaded:
 ///   * a **sequence** of inline feature declarations (§3.6), or
 ///   * a **map** of `FeatureDef qname: bool` selections on a `Configuration` (§9.8).
@@ -126,6 +148,7 @@ pub enum ElementType {
     TestPlan,         // TP-* — configuration-bound test campaign (GH #38)
     ADR,              // Architecture Decision Record (§8.17)
     Baseline,         // BL-* — frozen release snapshot (ADR-SYS-BASELINE-001)
+    PlanningItem,     // PI-* — native planning/tracking work item (ADR-SYS-PLANITEM-001)
     ReviewRecord,     // RR-* — formal review event + traceability (§19, GH #71)
     TradeStudy,       // TRD-* — weighted-criteria evaluation of alternatives (§15, GH #63)
     Zone,             // ZN-* — IEC 62443 security zone (§13, GH #61)
@@ -193,6 +216,7 @@ impl ElementType {
                 | ElementType::Configuration
                 | ElementType::ADR
                 | ElementType::Baseline
+                | ElementType::PlanningItem
                 | ElementType::ReviewRecord
                 | ElementType::TradeStudy
                 | ElementType::Zone
@@ -489,6 +513,23 @@ pub struct RawFrontmatter {
     /// The `Baseline` this one replaces (REQ-TRS-BL-005). Resolver-checked, not a
     /// suspect-tracked trace link.
     pub supersedes: Option<String>,
+
+    // §PlanningItem (ADR-SYS-PLANITEM-001) — native planning/tracking hierarchy.
+    /// `parent:` — at most one other `PlanningItem` (REQ-TRS-PLANITEM-002). A
+    /// single scalar reference, deliberately unlike `Requirement.derivedFrom`'s
+    /// list: `PlanningItem` is a strict single-parent tree, not a DAG. A
+    /// `PlanningItem` with no `parent:` is top-level. Resolved like `derivedFrom`
+    /// (id-or-qname); the reverse `children` index and cycle detection are
+    /// computed the same way `derivedChildren`/`E017` are for `Requirement`.
+    pub parent: Option<String>,
+    /// `achieves:` — one or more native `Requirement`s this `PlanningItem` exists
+    /// to achieve (REQ-TRS-PLANITEM-003). Unlike `parent:`, legitimately a list
+    /// (scalar or list accepted, like `derivedFrom`). Required (non-empty) on a
+    /// top-level item (no `parent:`); optional otherwise. A distinct field from
+    /// `satisfies:` — deliberately does not participate in that field's
+    /// `W300`/`E312` architecture-satisfaction machinery.
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub achieves: Option<Vec<String>>,
 
     /// §3 — external reference(s): this element represents an artifact managed in
     /// another tool (a DNG requirement, a SysML-tool element, …). Opaque strings
@@ -795,11 +836,23 @@ pub struct RawFrontmatter {
     /// via the Resolver (else E855).
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub supports: Option<Vec<String>>,
-    /// `Argument.evidence` (YAML: evidence) — refs to supporting Requirement /
-    /// TestCase / sub-Argument / AssumptionOfUse (the GSN children). String or list;
-    /// each ref resolves via the Resolver (else E855).
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
-    pub evidence: Option<Vec<String>>,
+    /// `evidence` — a shared YAML key with two independent shapes, kept as one
+    /// `Vec<serde_yaml::Value>` field (via [`value_or_vec`]) since a flat struct
+    /// can only bind one Rust field per YAML key:
+    ///   - `Argument.evidence` (§8.18) — refs to supporting Requirement /
+    ///     TestCase / sub-Argument / AssumptionOfUse (the GSN children); each
+    ///     entry a scalar string, resolved via the Resolver (else E855).
+    ///   - `PlanningItem.evidence` (REQ-TRS-PLANITEM-005) — a list of duck-typed
+    ///     `ref:`/`path:`/`rationale:` mappings (see the `PlanningItem` section
+    ///     below for the full shape). Recognised by which key an entry carries,
+    ///     not a `type:` tag — the same idiom the `Allocation` `features:`-list
+    ///     convention already establishes (an entry with both
+    ///     `allocatedFrom`+`allocatedTo` is an edge regardless of any per-entry
+    ///     `type:`).
+    /// Scalar or list accepted for either shape (`value_or_vec`), matching
+    /// `Argument.evidence`'s pre-existing acceptance.
+    #[serde(default, deserialize_with = "value_or_vec::deserialize")]
+    pub evidence: Option<Vec<serde_yaml::Value>>,
     /// `AssumptionOfUse.appliesTo` (YAML: appliesTo) — the SafetyGoal / Argument /
     /// Requirement this SRAC constrains. String or list; each ref resolves via the
     /// Resolver (else E858).

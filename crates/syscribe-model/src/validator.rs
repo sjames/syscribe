@@ -9,6 +9,7 @@ use crate::resolver::{
     is_adr_id, is_asset_id, is_aou_id, is_arg_id, is_at_id, is_atg_id, is_ats_id, is_basic_name, is_cm_id,
     is_cd_id, is_conf_id, is_csg_id, is_ds_id, is_fm_id, is_fmea_id, is_ft_id, is_fte_id, is_ftg_id, is_he_id,
     is_zn_id,
+    is_pi_id,
     is_req_id, is_rr_id, is_sc_id, is_sg_id, is_stable_id, is_tara_id, is_tc_id, is_test_plan_id, is_trd_id, is_ts_id,
     is_vr_id, Resolver,
 };
@@ -66,6 +67,12 @@ pub struct ValidationResult {
     pub verified_by: HashMap<String, Vec<String>>,
     /// derived_children[req_id] = list of child req ids
     pub derived_children: HashMap<String, Vec<String>>,
+    /// REQ-TRS-PLANITEM-002 — planning_children[pi_id] = ids of the PlanningItems
+    /// naming it via `parent:`. A PlanningItem with an empty (absent-key) entry
+    /// here is a **leaf** (REQ-TRS-PLANITEM-002's definition, consumed by the
+    /// evidence rule in REQ-TRS-PLANITEM-006); one with no `parent:` at all is
+    /// **top-level**. The two are independent: a lone PlanningItem is both.
+    pub planning_children: HashMap<String, Vec<String>>,
     /// REQ-TRS-MG-001 — refinedBy[req_id_or_qname] = use cases that `refines:` it.
     /// Keyed by the requirement's stable id when present, else its qualified name.
     pub refined_by: HashMap<String, Vec<String>>,
@@ -164,6 +171,65 @@ struct StateEdge {
 /// Read a string-keyed field from a YAML mapping.
 fn yaml_field<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a serde_yaml::Value> {
     m.get(serde_yaml::Value::String(k.to_string()))
+}
+
+// ── PlanningItem evidence: resolution primitives (REQ-TRS-PLANITEM-005/006) ──
+//
+// Single source of truth for "does this evidence: entry's own target resolve"
+// so the per-entry E716/E717 checks and REQ-TRS-PLANITEM-006's leaf-evidence
+// rule (E719) never disagree — the latter is built directly on top of the
+// former rather than re-deriving resolution logic.
+
+/// True when a PlanningItem evidence: `ref:` value resolves to any known
+/// element — unrestricted by kind (ADR-SYS-PLANITEM-001 Decision 3).
+fn evidence_ref_resolves(elements: &[RawElement], resolver: &Resolver, r: &str) -> bool {
+    resolver.resolve_ref(elements, r).is_some()
+}
+
+/// True when a PlanningItem evidence: `path:` value resolves, reusing
+/// `implementedBy:`'s exact `classify_source` semantics: a local path must
+/// exist on disk, a remote URI is accepted as external with no local check.
+fn evidence_path_resolves(config: &ValidateConfig, p: &str) -> bool {
+    match config.classify_source(p) {
+        crate::config::SourceLocation::Local(pb) => pb.exists(),
+        crate::config::SourceLocation::Remote(_) => true,
+    }
+}
+
+/// Whether a single evidence: entry's own `ref:`/`path:` target resolves,
+/// ignoring any `rationale:` waiver entirely (waiver semantics are the
+/// caller's concern — E716/E717 use a waiver to skip *flagging* an entry;
+/// REQ-TRS-PLANITEM-006's leaf rule uses it to exclude the entry from
+/// *counting* as proof — two different questions over the same primitive).
+fn evidence_entry_target_resolves(
+    entry: &serde_yaml::Value,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    config: &ValidateConfig,
+) -> bool {
+    let Some(m) = entry.as_mapping() else { return false };
+    if let Some(r) = yaml_field(m, "ref").and_then(|v| v.as_str()) {
+        if evidence_ref_resolves(elements, resolver, r) {
+            return true;
+        }
+    }
+    if let Some(p) = yaml_field(m, "path").and_then(|v| v.as_str()) {
+        if evidence_path_resolves(config, p) {
+            return true;
+        }
+    }
+    false
+}
+
+/// True when an evidence: entry's own `rationale:` is a non-empty string,
+/// mirroring `ffi_rationale`'s co-located waiver pattern (documents *and*
+/// waives that one entry).
+fn evidence_entry_is_waived(entry: &serde_yaml::Value) -> bool {
+    entry
+        .as_mapping()
+        .and_then(|m| yaml_field(m, "rationale"))
+        .and_then(|v| v.as_str())
+        .is_some_and(|r| !r.trim().is_empty())
 }
 
 /// Extract the transition edges contributed by a substate roster (each substate's
@@ -1699,9 +1765,30 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             if let Some(ref refs) = fm.evidence {
+                // Argument.evidence is a flat list of scalar element refs. A
+                // non-scalar entry (e.g. a PlanningItem-shaped `ref:`/`path:`
+                // mapping, which cannot appear on an Argument) previously failed
+                // the whole file's YAML parse outright (a loud E002) back when
+                // this field was Vec<String>; broadening it to Vec<Value> for
+                // PlanningItem's benefit means such an entry now parses cleanly
+                // but silently contributes nothing anywhere (validate,
+                // safety-case, suspect list) unless flagged here explicitly —
+                // E718 keeps this a loud, caught error again instead of a
+                // silent data-loss regression.
                 for r in refs {
-                    if resolver.resolve_ref(elements, r).is_none() {
-                        findings.push(error("E855", &file, &format!("Argument.evidence '{}' does not resolve to any model element", r)));
+                    match r.as_str() {
+                        Some(s) => {
+                            if resolver.resolve_ref(elements, s).is_none() {
+                                findings.push(error("E855", &file, &format!("Argument.evidence '{}' does not resolve to any model element", s)));
+                            }
+                        }
+                        None => {
+                            findings.push(error(
+                                "E718",
+                                &file,
+                                "Argument evidence entry is not a scalar reference (expected a string id/qname)",
+                            ));
+                        }
                     }
                 }
             }
@@ -2269,6 +2356,63 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 if !ADR_STATUSES.contains(&status.as_str()) {
                     findings.push(error("E304", &file, &format!("unknown ADR status '{}'", status)));
                 }
+            }
+        }
+
+        // ── PlanningItem (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-001) ────────
+        // Schema-only scope for REQ-TRS-PLANITEM-001: stable id, required
+        // `name`/`status`, and an optional `itemType`. Hierarchy (`parent:`) is
+        // checked in the cross-reference pass below (REQ-TRS-PLANITEM-002); the
+        // structural half of `achieves:` (required on a top-level item) is
+        // checked here since it needs no cross-reference resolution, while its
+        // resolve/type check lives in the cross-reference pass alongside
+        // `parent:` (REQ-TRS-PLANITEM-003). Evidence/appliesWhen remain separate
+        // follow-on requirements (REQ-TRS-PLANITEM-004..006), not checked here.
+        if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
+            // E706: id pattern.
+            if let Some(ref id) = fm.id {
+                if !is_pi_id(id) {
+                    findings.push(error("E706", &file, &format!("`id` '{}' does not match PI-* pattern", id)));
+                }
+            }
+            // E707: required fields.
+            if fm.id.is_none() {
+                findings.push(error("E707", &file, "`id` is required on PlanningItem"));
+            }
+            if fm.name.is_none() {
+                findings.push(error("E707", &file, "`name` is required on PlanningItem"));
+            }
+            if fm.status.is_none() {
+                findings.push(error("E707", &file, "`status` is required on PlanningItem"));
+            }
+            // E708: status enum — GitHub Projects' three defaults plus `blocked`
+            // (ADR-SYS-PLANITEM-001 decision 4).
+            if let Some(ref status) = fm.status {
+                const PI_STATUSES: &[&str] = &["todo", "in_progress", "blocked", "done"];
+                if !PI_STATUSES.contains(&status.as_str()) {
+                    findings.push(error("E708", &file, &format!("unknown PlanningItem status '{}'", status)));
+                }
+            }
+            // E709: itemType enum (optional field) — GitHub's default Issue Types
+            // (ADR-SYS-PLANITEM-001 decision 4). No inheritance/matching constraint
+            // against a parent's itemType is imposed — there is no hierarchy check
+            // here at all (REQ-TRS-PLANITEM-001 scope note).
+            if let Some(ref item_type) = fm.item_type {
+                const PI_ITEM_TYPES: &[&str] = &["bug", "task", "feature"];
+                if !PI_ITEM_TYPES.contains(&item_type.as_str()) {
+                    findings.push(error("E709", &file, &format!("unknown PlanningItem itemType '{}'", item_type)));
+                }
+            }
+            // E713: a top-level PlanningItem (no `parent:`) must set at least one
+            // `achieves:` entry — its reason for existing (REQ-TRS-PLANITEM-003).
+            // A non-top-level item is not required to (its purpose is inherited
+            // in spirit from its ancestry, per the requirement's rationale).
+            if fm.parent.is_none() && fm.achieves.as_ref().is_none_or(|a| a.is_empty()) {
+                findings.push(error(
+                    "E713",
+                    &file,
+                    "top-level PlanningItem (no `parent`) must set at least one `achieves` entry",
+                ));
             }
         }
 
@@ -3579,6 +3723,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // Build verified_by and derived_children reverse indices, and check E102–E105
     let mut verified_by: HashMap<String, Vec<String>> = HashMap::new();
     let mut derived_children: HashMap<String, Vec<String>> = HashMap::new();
+    // REQ-TRS-PLANITEM-002 — children[parent_id] = ids of PlanningItems naming it
+    // via `parent:`. Keyed by the parent's stable id (PlanningItem is always
+    // id-identified, so unlike derived_children/verified_by there is no
+    // id-else-qname fallback needed here).
+    let mut planning_children: HashMap<String, Vec<String>> = HashMap::new();
     // REQ-TRS-SYSMLV2-004 — side-channel provenance set: which qnames were
     // actually synthesized by SysMLv2 ingestion, consulted by
     // `Resolver::is_verify_target` so the E104 widening only ever applies to
@@ -3688,6 +3837,110 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // parent: cross-reference check (REQ-TRS-PLANITEM-002). Only meaningful on
+        // a PlanningItem; a `parent:` value on any other type is simply an
+        // unrecognized field for that type (rejected earlier, E003-style) and never
+        // reaches here. Cycle detection is a separate, graph-wide pass below (E712).
+        if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
+            if let Some(ref p) = fm.parent {
+                match resolver.resolve_ref(elements, p) {
+                    None => findings.push(error(
+                        "E710",
+                        &elem.file_path,
+                        &format!("unresolved PlanningItem parent reference '{}'", p),
+                    )),
+                    Some(target) => {
+                        if !Resolver::is_planning_item(target) {
+                            findings.push(error(
+                                "E711",
+                                &elem.file_path,
+                                &format!("PlanningItem `parent` '{}' does not resolve to a PlanningItem", p),
+                            ));
+                        } else if let Some(ref parent_id) = target.frontmatter.id {
+                            if let Some(ref child_id) = fm.id {
+                                planning_children
+                                    .entry(parent_id.clone())
+                                    .or_default()
+                                    .push(child_id.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // achieves: cross-reference check (REQ-TRS-PLANITEM-003). Empirically
+        // confirmed (not assumed — cf. the SysMLv2 satisfy/verify asymmetry) that
+        // no generic cross-reference-resolution infrastructure catches a dangling
+        // `achieves:` target on its own; unlike verifies/derivedFrom (E102/E103)
+        // it needed its own explicit dangling check here. Deliberately separate
+        // from `satisfies:`'s machinery (E312/W300 stay scoped to architecture
+        // satisfies, never see `achieves:`).
+        if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
+            if let Some(ref ach) = fm.achieves {
+                for a in ach {
+                    match resolver.resolve_ref(elements, a) {
+                        None => findings.push(error(
+                            "E714",
+                            &elem.file_path,
+                            &format!("unresolved PlanningItem achieves reference '{}'", a),
+                        )),
+                        Some(target) if !Resolver::is_native_requirement(target) => {
+                            findings.push(error(
+                                "E715",
+                                &elem.file_path,
+                                &format!("PlanningItem `achieves` '{}' does not resolve to a native Requirement", a),
+                            ));
+                        }
+                        Some(_) => {}
+                    }
+                }
+            }
+        }
+
+        // evidence: cross-reference / path-existence check (REQ-TRS-PLANITEM-005).
+        // Each entry is duck-typed — recognised by which key it carries, not a
+        // `type:` tag, the same idiom the Allocation `features:`-list convention
+        // already establishes:
+        //   - `ref:` — any resolvable element, unrestricted by kind (no
+        //     Resolver::is_native_requirement-style gate — ADR-SYS-PLANITEM-001
+        //     Decision 3 is explicit that this is NOT a fixed allowed-kind list).
+        //   - `path:` — resolved exactly like `implementedBy:` (reusing
+        //     config.classify_source, not reimplementing it): a local path is
+        //     checked to exist, a remote URI is accepted as external.
+        // Either form's own `rationale:` (a non-empty string) waives that one
+        // entry's check — mirroring ffi_rationale's co-located waiver pattern.
+        // Every other entry in the same list is still checked normally (no
+        // blanket suppression). This task authors/validates evidence: in
+        // isolation only; the "leaf needs evidence" rule is REQ-TRS-PLANITEM-006.
+        if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
+            if let Some(ref ev) = fm.evidence {
+                for entry in ev {
+                    let Some(m) = entry.as_mapping() else { continue };
+                    let waived = evidence_entry_is_waived(entry);
+
+                    if let Some(r) = yaml_field(m, "ref").and_then(|v| v.as_str()) {
+                        if !waived && !evidence_ref_resolves(elements, &resolver, r) {
+                            findings.push(error(
+                                "E716",
+                                &elem.file_path,
+                                &format!("PlanningItem evidence `ref` '{}' does not resolve to any model element", r),
+                            ));
+                        }
+                    }
+                    if let Some(p) = yaml_field(m, "path").and_then(|v| v.as_str()) {
+                        if !waived && !evidence_path_resolves(config, p) {
+                            findings.push(error(
+                                "E717",
+                                &elem.file_path,
+                                &format!("PlanningItem evidence `path` '{}' does not exist on disk", p),
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+
         // E106: testFunctions[].scenario must match a Gherkin scenario title
         if let Some(ref fns) = fm.test_functions {
             let scenarios = extract_gherkin_scenarios(&elem.doc);
@@ -3711,6 +3964,47 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     }
                 }
             }
+        }
+    }
+
+    // E719: a leaf PlanningItem (REQ-TRS-PLANITEM-002: empty computed
+    // `children`) at `status: done` must have at least one non-waived,
+    // resolving `evidence:` entry (REQ-TRS-PLANITEM-006). Reuses task #15's
+    // `planning_children` (now fully populated — this runs after the loop
+    // that built it) for leaf detection and task #18's
+    // `evidence_entry_target_resolves`/`evidence_entry_is_waived` primitives
+    // for per-entry resolution, rather than re-deriving either. Harder
+    // severity than the analogous Requirement rule (`W300`, a warning):
+    // claiming `done` with zero resolvable evidence is a correctness defect,
+    // not a time-bound gap. A non-leaf (has children) is not constrained by
+    // this rule at all, regardless of its own status/evidence — its
+    // completion is a function of its children, not its own evidence list.
+    // A waived-only list still fails this: a rationale excuses one entry's
+    // *check*, it does not manufacture a passing entry.
+    for elem in elements {
+        if !matches!(elem.frontmatter.element_type, Some(ElementType::PlanningItem)) {
+            continue;
+        }
+        if elem.frontmatter.status.as_deref() != Some("done") {
+            continue;
+        }
+        let pi_id = elem.frontmatter.id.as_deref().unwrap_or("");
+        let is_leaf = planning_children.get(pi_id).is_none_or(|c| c.is_empty());
+        if !is_leaf {
+            continue;
+        }
+        let has_resolving_evidence = elem.frontmatter.evidence.as_ref().is_some_and(|ev| {
+            ev.iter().any(|entry| {
+                !evidence_entry_is_waived(entry)
+                    && evidence_entry_target_resolves(entry, elements, &resolver, config)
+            })
+        });
+        if !has_resolving_evidence {
+            findings.push(error(
+                "E719",
+                &elem.file_path,
+                "leaf PlanningItem is `status: done` but has no non-waived, resolving `evidence:` entry",
+            ));
         }
     }
 
@@ -5741,6 +6035,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // E107 (GH #25): typedBy was previously excluded — a usage typed by
             // itself (length-1 cycle) or a typedBy cycle was silently accepted.
             ("E107", EdgeKind::TypedBy, "typedBy cycle detected (a usage cannot be typed by itself, directly or transitively)"),
+            // E712 (REQ-TRS-PLANITEM-002): a PlanningItem `parent:` chain that
+            // cycles back to itself. Same posture as E017 (derivedFrom cycle) —
+            // reported gracefully via toposort, never a panic or infinite loop.
+            ("E712", EdgeKind::PlanningParent, "PlanningItem parent cycle detected"),
         ];
 
         for (code, kind, label) in checks {
@@ -6607,6 +6905,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         findings,
         verified_by,
         derived_children,
+        planning_children,
         refined_by,
         actor_in,
         mop_refined_by,
@@ -7432,5 +7731,1018 @@ mod w023_implemented_by_tests {
         let result = validate_with_config(&[elem], &cfg_with_root(&dir));
         assert!(w023_count(&result.findings) == 0,
             "W023 must not fire for non-architecture element types");
+    }
+}
+
+// ── PlanningItem (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-001) ────────────────
+
+#[cfg(test)]
+mod planning_item_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    fn req(id: &str, qname: &str) -> RawElement {
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nstatus: draft\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    #[test]
+    fn valid_planning_item_with_status_and_no_item_type_validates_cleanly() {
+        let elements = vec![
+            req("REQ-SCHED-001", "Requirements::SchedReq"),
+            make_elem(
+                "Planning::DoTheThing",
+                "type: PlanningItem\nid: PI-SCHED-001\nname: Do the thing\nstatus: todo\nachieves: REQ-SCHED-001\n",
+                "model/Planning/DoTheThing.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn valid_planning_item_with_valid_item_type_validates_cleanly() {
+        let elements = vec![
+            req("REQ-SCHED-002", "Requirements::SchedReq2"),
+            make_elem(
+                "Planning::FixTheBug",
+                "type: PlanningItem\nid: PI-SCHED-002\nname: Fix the bug\nstatus: in_progress\nitemType: bug\nachieves: REQ-SCHED-002\n",
+                "model/Planning/FixTheBug.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn invalid_id_shape_is_rejected() {
+        let elem = make_elem(
+            "Planning::BadId",
+            "type: PlanningItem\nid: PI-bad-id\nname: Bad id\nstatus: todo\n",
+            "model/Planning/BadId.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E706"), "expected E706: {:?}", result.findings);
+    }
+
+    #[test]
+    fn missing_name_is_rejected() {
+        let elem = make_elem(
+            "Planning::NoName",
+            "type: PlanningItem\nid: PI-SCHED-003\nstatus: todo\n",
+            "model/Planning/NoName.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E707"), "expected E707: {:?}", result.findings);
+    }
+
+    #[test]
+    fn missing_status_is_rejected() {
+        let elem = make_elem(
+            "Planning::NoStatus",
+            "type: PlanningItem\nid: PI-SCHED-004\nname: No status\n",
+            "model/Planning/NoStatus.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E707"), "expected E707: {:?}", result.findings);
+    }
+
+    #[test]
+    fn out_of_vocabulary_status_is_rejected() {
+        let elem = make_elem(
+            "Planning::BadStatus",
+            "type: PlanningItem\nid: PI-SCHED-005\nname: Bad status\nstatus: wontfix\n",
+            "model/Planning/BadStatus.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E708"), "expected E708: {:?}", result.findings);
+    }
+
+    #[test]
+    fn out_of_vocabulary_item_type_is_rejected() {
+        let elem = make_elem(
+            "Planning::BadItemType",
+            "type: PlanningItem\nid: PI-SCHED-006\nname: Bad item type\nstatus: todo\nitemType: epic\n",
+            "model/Planning/BadItemType.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E709"), "expected E709: {:?}", result.findings);
+    }
+
+    #[test]
+    fn absent_item_type_validates_cleanly() {
+        let elem = make_elem(
+            "Planning::NoItemType",
+            "type: PlanningItem\nid: PI-SCHED-007\nname: No item type\nstatus: done\n",
+            "model/Planning/NoItemType.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E709"),
+            "absent itemType must not raise E709: {:?}",
+            result.findings
+        );
+    }
+}
+
+// ── PlanningItem hierarchy (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-002) ──────
+
+#[cfg(test)]
+mod planning_item_hierarchy_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn req(id: &str, qname: &str) -> RawElement {
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nstatus: draft\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    /// A `PlanningItem` with the given `parent:` (task #15). `achieves:` is left
+    /// unset — callers that need a clean, error-free top-level item (no `parent`)
+    /// use [`pi_ach`], which also supplies a resolvable `Requirement` companion
+    /// element (REQ-TRS-PLANITEM-003's required-on-top-level rule, `E713`).
+    fn pi(qname: &str, id: &str, name: &str, parent: Option<&str>) -> RawElement {
+        let parent_line = parent.map(|p| format!("parent: {p}\n")).unwrap_or_default();
+        make_elem(
+            qname,
+            &format!("type: PlanningItem\nid: {id}\nname: {name}\nstatus: todo\n{parent_line}"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        )
+    }
+
+    /// A top-level (no `parent`) `PlanningItem` plus a resolvable `Requirement`
+    /// companion element for its `achieves:`. Returns `(planning_item, requirement)`
+    /// — both must be included in the test's element slice.
+    fn pi_ach(qname: &str, id: &str, name: &str, achieves_req_id: &str) -> (RawElement, RawElement) {
+        let elem = make_elem(
+            qname,
+            &format!("type: PlanningItem\nid: {id}\nname: {name}\nstatus: todo\nachieves: {achieves_req_id}\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        let req_qname = format!("{qname}AchievesReq");
+        (elem, req(achieves_req_id, &req_qname))
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn three_level_chain_resolves_and_computes_children() {
+        let (top, top_req) = pi_ach("Planning::Top", "PI-TOP-001", "Top", "REQ-TOP-001");
+        let elements = vec![
+            top,
+            top_req,
+            pi("Planning::Mid", "PI-MID-001", "Mid", Some("PI-TOP-001")),
+            pi("Planning::Leaf", "PI-LEAF-001", "Leaf", Some("PI-MID-001")),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+        assert_eq!(
+            result.planning_children.get("PI-TOP-001").map(|v| v.as_slice()),
+            Some(["PI-MID-001".to_string()].as_slice())
+        );
+        assert_eq!(
+            result.planning_children.get("PI-MID-001").map(|v| v.as_slice()),
+            Some(["PI-LEAF-001".to_string()].as_slice())
+        );
+        // The deepest node has no children -> leaf.
+        assert!(result.planning_children.get("PI-LEAF-001").is_none_or(|v| v.is_empty()));
+    }
+
+    #[test]
+    fn parent_naming_non_planning_item_is_rejected() {
+        let elements = vec![
+            make_elem(
+                "Requirements::SomeReq",
+                "type: Requirement\nid: REQ-SYS-001\nname: Some requirement\nstatus: draft\n",
+                "model/Requirements/SomeReq.md",
+            ),
+            pi("Planning::Child", "PI-CHILD-001", "Child", Some("REQ-SYS-001")),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E711"), "expected E711: {:?}", result.findings);
+    }
+
+    #[test]
+    fn parent_naming_nothing_resolvable_is_rejected() {
+        let elements = vec![pi("Planning::Child", "PI-CHILD-002", "Child", Some("PI-NOPE-999"))];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E710"), "expected E710: {:?}", result.findings);
+    }
+
+    #[test]
+    fn two_node_cycle_is_detected_gracefully() {
+        let elements = vec![
+            pi("Planning::A", "PI-AA-001", "A", Some("PI-BB-001")),
+            pi("Planning::B", "PI-BB-001", "B", Some("PI-AA-001")),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E712"), "expected E712: {:?}", result.findings);
+    }
+
+    #[test]
+    fn three_node_cycle_is_detected_gracefully() {
+        let elements = vec![
+            pi("Planning::A", "PI-AA-002", "A", Some("PI-BB-002")),
+            pi("Planning::B", "PI-BB-002", "B", Some("PI-CC-002")),
+            pi("Planning::C", "PI-CC-002", "C", Some("PI-AA-002")),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E712"), "expected E712: {:?}", result.findings);
+    }
+
+    #[test]
+    fn no_parent_is_top_level() {
+        let (solo, solo_req) = pi_ach("Planning::Solo", "PI-SOLO-001", "Solo", "REQ-SOLO-001");
+        let elements = vec![solo, solo_req];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+        // Top-level: the element itself carries no `parent:` (checked at the
+        // frontmatter level — the map only tells us about children).
+        assert!(elements[0].frontmatter.parent.is_none());
+    }
+
+    #[test]
+    fn item_with_children_is_not_a_leaf() {
+        let (parent, parent_req) = pi_ach("Planning::Parent", "PI-PARENT-001", "Parent", "REQ-PARENT-001");
+        let elements = vec![
+            parent,
+            parent_req,
+            pi("Planning::Child", "PI-CHILD-003", "Child", Some("PI-PARENT-001")),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let is_leaf = result.planning_children.get("PI-PARENT-001").is_none_or(|v| v.is_empty());
+        assert!(!is_leaf, "a PlanningItem with a child must not be a leaf");
+    }
+
+    #[test]
+    fn lone_item_with_no_parent_and_no_children_is_top_level_and_leaf() {
+        let (lone, lone_req) = pi_ach("Planning::Lone", "PI-LONE-001", "Lone", "REQ-LONE-001");
+        let elements = vec![lone, lone_req];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "a lone PlanningItem must validate cleanly: {:?}",
+            result.findings
+        );
+        let is_top_level = elements[0].frontmatter.parent.is_none();
+        let is_leaf = result.planning_children.get("PI-LONE-001").is_none_or(|v| v.is_empty());
+        assert!(is_top_level && is_leaf, "a lone PlanningItem must be both top-level and a leaf");
+    }
+}
+
+// ── PlanningItem achieves (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-003) ───────
+
+#[cfg(test)]
+mod planning_item_achieves_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn req(id: &str, qname: &str, extra: &str) -> RawElement {
+        let status_line = if extra.contains("status:") { "" } else { "status: draft\n" };
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\n{status_line}{extra}"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn top_level_single_achieves_id_form_validates_cleanly() {
+        let elements = vec![
+            req("REQ-ACH-001", "Requirements::AchReq1", ""),
+            make_elem(
+                "Planning::Top",
+                "type: PlanningItem\nid: PI-ACH-001\nname: Top\nstatus: todo\nachieves: REQ-ACH-001\n",
+                "model/Planning/Top.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn top_level_multi_achieves_list_validates_cleanly() {
+        let elements = vec![
+            req("REQ-ACH-002", "Requirements::AchReq2", ""),
+            req("REQ-ACH-003", "Requirements::AchReq3", ""),
+            make_elem(
+                "Planning::Top2",
+                "type: PlanningItem\nid: PI-ACH-002\nname: Top2\nstatus: todo\nachieves: [REQ-ACH-002, REQ-ACH-003]\n",
+                "model/Planning/Top2.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn top_level_empty_achieves_is_rejected() {
+        let elem = make_elem(
+            "Planning::EmptyAch",
+            "type: PlanningItem\nid: PI-ACH-004\nname: Empty\nstatus: todo\nachieves: []\n",
+            "model/Planning/EmptyAch.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E713"), "expected E713: {:?}", result.findings);
+    }
+
+    #[test]
+    fn top_level_absent_achieves_is_rejected() {
+        let elem = make_elem(
+            "Planning::NoAch",
+            "type: PlanningItem\nid: PI-ACH-005\nname: NoAch\nstatus: todo\n",
+            "model/Planning/NoAch.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E713"), "expected E713: {:?}", result.findings);
+    }
+
+    #[test]
+    fn non_top_level_with_no_achieves_validates_cleanly() {
+        let elements = vec![
+            req("REQ-ACH-006", "Requirements::AchReq6", ""),
+            make_elem(
+                "Planning::TopWithAch",
+                "type: PlanningItem\nid: PI-ACH-006\nname: TopWithAch\nstatus: todo\nachieves: REQ-ACH-006\n",
+                "model/Planning/TopWithAch.md",
+            ),
+            make_elem(
+                "Planning::Child",
+                "type: PlanningItem\nid: PI-ACH-007\nname: Child\nstatus: todo\nparent: PI-ACH-006\n",
+                "model/Planning/Child.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "a non-top-level item with no achieves must validate cleanly: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn dangling_achieves_target_is_rejected() {
+        // Empirically confirmed (see commit history): before E714 existed, this
+        // produced ZERO findings — no generic cross-reference infrastructure
+        // catches a dangling `achieves:` target on its own (unlike verifies/
+        // derivedFrom's E102/E103; matching satisfies:'s silence instead).
+        let elem = make_elem(
+            "Planning::Dangling",
+            "type: PlanningItem\nid: PI-ACH-008\nname: Dangling\nstatus: todo\nachieves: REQ-NOPE-999\n",
+            "model/Planning/Dangling.md",
+        );
+        let result = validate_with_config(&[elem], &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E714"), "expected E714: {:?}", result.findings);
+    }
+
+    #[test]
+    fn achieves_target_wrong_type_is_rejected() {
+        let elements = vec![
+            make_elem(
+                "Planning::OtherItem",
+                "type: PlanningItem\nid: PI-ACH-009\nname: OtherItem\nstatus: todo\nachieves: REQ-ACH-010\n",
+                "model/Planning/OtherItem.md",
+            ),
+            req("REQ-ACH-010", "Requirements::AchReq10", ""),
+            make_elem(
+                "Planning::WrongTarget",
+                "type: PlanningItem\nid: PI-ACH-011\nname: WrongTarget\nstatus: todo\nachieves: PI-ACH-009\n",
+                "model/Planning/WrongTarget.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E715"), "expected E715: {:?}", result.findings);
+    }
+
+    #[test]
+    fn achieves_does_not_suppress_w300_on_target_requirement() {
+        // A leaf, approved Requirement named only via `achieves:` (never `satisfies:`)
+        // must still raise W300 — achieves must not be treated as a satisfier.
+        let elements = vec![
+            req("REQ-ACH-020", "Requirements::LeafReq", "status: approved\n"),
+            make_elem(
+                "Planning::AchievesLeaf",
+                "type: PlanningItem\nid: PI-ACH-020\nname: AchievesLeaf\nstatus: todo\nachieves: REQ-ACH-020\n",
+                "model/Planning/AchievesLeaf.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"W300"), "expected W300 still fires: {:?}", result.findings);
+    }
+
+    #[test]
+    fn achieves_does_not_trigger_e312_on_parent_requirement() {
+        // A parent Requirement (has derivedChildren) named only via `achieves:`
+        // (never `satisfies:`) must NOT raise E312 -- that rule stays scoped to
+        // `satisfies:` only.
+        let elements = vec![
+            make_elem(
+                "Decisions::SomeAdr",
+                "type: ADR\nid: ADR-ACH-001\nname: Some decision\nstatus: accepted\n",
+                "model/Decisions/SomeAdr.md",
+            ),
+            req(
+                "REQ-ACH-030",
+                "Requirements::ParentReq",
+                "breakdownAdr: ADR-ACH-001\n",
+            ),
+            req(
+                "REQ-ACH-031",
+                "Requirements::ChildReq",
+                "derivedFrom: [REQ-ACH-030]\nbreakdownAdr: ADR-ACH-001\n",
+            ),
+            make_elem(
+                "Planning::AchievesParent",
+                "type: PlanningItem\nid: PI-ACH-030\nname: AchievesParent\nstatus: todo\nachieves: REQ-ACH-030\n",
+                "model/Planning/AchievesParent.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E312"),
+            "achieves: must not trigger E312 on its target: {:?}",
+            result.findings
+        );
+    }
+}
+
+// ── PlanningItem evidence (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-005) ───────
+
+#[cfg(test)]
+mod planning_item_evidence_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+    use std::fs;
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn req(id: &str, qname: &str) -> RawElement {
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nstatus: draft\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    /// A minimally-valid top-level PlanningItem (satisfies E713 via a
+    /// companion, always-resolvable `achieves:` Requirement) carrying the
+    /// given raw `evidence:` YAML block.
+    fn pi_with_evidence(qname: &str, id: &str, achieves_req_id: &str, evidence_yaml: &str) -> RawElement {
+        make_elem(
+            qname,
+            &format!(
+                "type: PlanningItem\nid: {id}\nname: PI\nstatus: todo\nachieves: {achieves_req_id}\n{evidence_yaml}"
+            ),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        )
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    fn cfg_with_root(root: &std::path::Path) -> ValidateConfig {
+        ValidateConfig {
+            model_root: Some(root.to_path_buf()),
+            repo_root: Some(root.to_path_buf()),
+            ..ValidateConfig::default()
+        }
+    }
+
+    fn tempdir() -> std::path::PathBuf {
+        let p = std::env::temp_dir().join(format!(
+            "syscribe-planitem-evidence-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_nanos()
+        ));
+        fs::create_dir_all(&p).unwrap();
+        p
+    }
+
+    #[test]
+    fn ref_entries_of_different_kinds_validate_cleanly() {
+        // Prove ref: is genuinely unrestricted by kind (ADR-SYS-PLANITEM-001
+        // Decision 3): a Part, a TestCase, another PlanningItem, and an ADR all
+        // resolve cleanly with zero type gating.
+        let elements = vec![
+            req("REQ-EV-001", "Requirements::EvReq1"),
+            make_elem("Arch::SomePart", "type: Part\nname: SomePart\n", "model/Arch/SomePart.md"),
+            {
+                let mut e = make_elem(
+                    "Verification::SomeTest",
+                    "type: TestCase\nid: TC-EV-001\nname: A test\nstatus: draft\ntestLevel: L1\nverifies: [REQ-EV-001]\n",
+                    "model/Verification/SomeTest.md",
+                );
+                e.doc = "```gherkin\nFeature: A test\nScenario: it works\n  Given a thing\n  When it happens\n  Then it works\n```\n".to_string();
+                e
+            },
+            make_elem(
+                "Decisions::SomeAdr",
+                "type: ADR\nid: ADR-EV-001\nname: Some decision\nstatus: accepted\n",
+                "model/Decisions/SomeAdr.md",
+            ),
+            make_elem(
+                // status: in_progress (not done) -- this element's own leaf/
+                // evidence state is incidental to this test, which only cares
+                // that it's a valid ref: target of kind PlanningItem. `done`
+                // would additionally trip REQ-TRS-PLANITEM-006's E719.
+                "Planning::OtherItem",
+                "type: PlanningItem\nid: PI-EV-002\nname: Other\nstatus: in_progress\nparent: PI-EV-001\n",
+                "model/Planning/OtherItem.md",
+            ),
+            pi_with_evidence(
+                "Planning::MainItem",
+                "PI-EV-001",
+                "REQ-EV-001",
+                "evidence:\n  - ref: Arch::SomePart\n  - ref: TC-EV-001\n  - ref: ADR-EV-001\n  - ref: PI-EV-002\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c.starts_with('E')),
+            "unexpected errors: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn unresolved_ref_without_rationale_is_rejected() {
+        let elements = vec![
+            req("REQ-EV-010", "Requirements::EvReq10"),
+            pi_with_evidence(
+                "Planning::Item10",
+                "PI-EV-010",
+                "REQ-EV-010",
+                "evidence:\n  - ref: PI-NOPE-999\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E716"), "expected E716: {:?}", result.findings);
+    }
+
+    #[test]
+    fn unresolved_ref_with_rationale_is_waived() {
+        let elements = vec![
+            req("REQ-EV-011", "Requirements::EvReq11"),
+            pi_with_evidence(
+                "Planning::Item11",
+                "PI-EV-011",
+                "REQ-EV-011",
+                "evidence:\n  - ref: PI-NOPE-999\n    rationale: tracked externally, not yet in the model\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E716"),
+            "a rationale-carrying entry must waive the check: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn path_entry_pointing_at_a_real_file_validates_cleanly() {
+        let dir = tempdir();
+        fs::write(dir.join("proof.md"), "proof").unwrap();
+        let elements = vec![
+            req("REQ-EV-020", "Requirements::EvReq20"),
+            pi_with_evidence(
+                "Planning::Item20",
+                "PI-EV-020",
+                "REQ-EV-020",
+                "evidence:\n  - path: proof.md\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &cfg_with_root(&dir));
+        assert!(
+            !codes(&result.findings).contains(&"E717"),
+            "unexpected E717 for an existing path: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn path_entry_pointing_at_a_missing_file_without_rationale_is_rejected() {
+        let dir = tempdir();
+        let elements = vec![
+            req("REQ-EV-021", "Requirements::EvReq21"),
+            pi_with_evidence(
+                "Planning::Item21",
+                "PI-EV-021",
+                "REQ-EV-021",
+                "evidence:\n  - path: does-not-exist.md\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &cfg_with_root(&dir));
+        assert!(codes(&result.findings).contains(&"E717"), "expected E717: {:?}", result.findings);
+    }
+
+    #[test]
+    fn path_entry_pointing_at_a_missing_file_with_rationale_is_waived() {
+        let dir = tempdir();
+        let elements = vec![
+            req("REQ-EV-022", "Requirements::EvReq22"),
+            pi_with_evidence(
+                "Planning::Item22",
+                "PI-EV-022",
+                "REQ-EV-022",
+                "evidence:\n  - path: does-not-exist.md\n    rationale: proof lives in an external system, path is a placeholder\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &cfg_with_root(&dir));
+        assert!(
+            !codes(&result.findings).contains(&"E717"),
+            "a rationale-carrying entry must waive the check: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn remote_uri_path_entry_is_accepted_without_local_check() {
+        let dir = tempdir();
+        let elements = vec![
+            req("REQ-EV-023", "Requirements::EvReq23"),
+            pi_with_evidence(
+                "Planning::Item23",
+                "PI-EV-023",
+                "REQ-EV-023",
+                "evidence:\n  - path: https://example.com/proof.pdf\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &cfg_with_root(&dir));
+        assert!(
+            !codes(&result.findings).contains(&"E717"),
+            "a remote URI must not be checked locally: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn waiver_is_per_entry_not_blanket() {
+        // Two problem entries in one list: the first is rationale-waived, the
+        // second is a genuinely unresolved ref with no rationale. Only the
+        // second must be flagged -- proving the waiver doesn't leak across
+        // entries.
+        let dir = tempdir();
+        let elements = vec![
+            req("REQ-EV-030", "Requirements::EvReq30"),
+            pi_with_evidence(
+                "Planning::Item30",
+                "PI-EV-030",
+                "REQ-EV-030",
+                "evidence:\n  - path: does-not-exist.md\n    rationale: placeholder, tracked externally\n  - ref: PI-NOPE-ALSO-999\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &cfg_with_root(&dir));
+        let cs = codes(&result.findings);
+        assert!(!cs.contains(&"E717"), "the waived path entry must not be flagged: {:?}", result.findings);
+        assert!(cs.contains(&"E716"), "the unwaived ref entry must still be flagged: {:?}", result.findings);
+    }
+}
+
+// ── Argument.evidence regression (review of 96b0bba/d6d8dc8) ────────────────
+//
+// Broadening the shared `evidence` field to `Vec<serde_yaml::Value>` (for
+// PlanningItem's ref:/path:/rationale: mappings) meant a non-scalar
+// Argument.evidence: entry, which previously failed the whole file's YAML
+// parse outright (E002, back when the field was Vec<String>), now parses
+// cleanly but silently vanished from every consumer (validate, safety-case,
+// suspect list) with zero diagnostic. E718 closes that gap at the source
+// (validate) — the other consumers intentionally keep filtering silently,
+// since validate is where malformed-frontmatter diagnostics belong.
+
+#[cfg(test)]
+mod argument_evidence_regression_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn nonscalar_argument_evidence_entry_raises_e718() {
+        // The exact adversarial fixture from the review: a mix of a real scalar
+        // ref and a PlanningItem-shaped mapping entry in one Argument.evidence:.
+        let elements = vec![
+            {
+                let mut e = make_elem(
+                    "Requirements::SomeReq",
+                    "type: Requirement\nid: REQ-ARGEV-001\nname: Some requirement\nstatus: draft\n",
+                    "model/Requirements/SomeReq.md",
+                );
+                e.doc = "The system shall do the thing.".to_string();
+                e
+            },
+            make_elem(
+                "Safety::SomeArgument",
+                "type: Argument\nid: ARG-EV-001\nname: Some argument\nstatus: draft\nevidence:\n  - REQ-ARGEV-001\n  - ref: NotAScalar\n    rationale: \"planning-item-shaped entry, must not silently vanish\"\n",
+                "model/Safety/SomeArgument.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            codes(&result.findings).contains(&"E718"),
+            "expected E718 for the non-scalar evidence entry: {:?}",
+            result.findings
+        );
+        // The real scalar entry must still resolve cleanly -- E718 doesn't
+        // blanket-suppress the rest of the list's normal checks.
+        assert!(
+            !codes(&result.findings).contains(&"E855"),
+            "the valid scalar entry must not spuriously raise E855: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn all_scalar_argument_evidence_validates_cleanly() {
+        // Regression guard the other way: a normal, all-scalar evidence: list
+        // must not spuriously raise E718.
+        let elements = vec![
+            {
+                let mut e = make_elem(
+                    "Requirements::SomeReq2",
+                    "type: Requirement\nid: REQ-ARGEV-002\nname: Some requirement\nstatus: draft\n",
+                    "model/Requirements/SomeReq2.md",
+                );
+                e.doc = "The system shall do the thing.".to_string();
+                e
+            },
+            make_elem(
+                "Safety::SomeArgument2",
+                "type: Argument\nid: ARG-EV-002\nname: Some argument\nstatus: draft\nevidence: REQ-ARGEV-002\n",
+                "model/Safety/SomeArgument2.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E718"),
+            "an all-scalar evidence: list must not raise E718: {:?}",
+            result.findings
+        );
+    }
+}
+
+// ── PlanningItem leaf-evidence rule (ADR-SYS-PLANITEM-001, REQ-TRS-PLANITEM-006) ──
+
+#[cfg(test)]
+mod planning_item_leaf_evidence_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn req(id: &str, qname: &str) -> RawElement {
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nstatus: draft\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    /// A top-level (no `parent:`) leaf PlanningItem with the given `status:`
+    /// and raw `evidence:` YAML block, plus a companion, always-resolvable
+    /// `achieves:` Requirement (so E713 never interferes with these tests).
+    fn leaf_pi(qname: &str, id: &str, achieves_req_id: &str, status: &str, evidence_yaml: &str) -> RawElement {
+        make_elem(
+            qname,
+            &format!(
+                "type: PlanningItem\nid: {id}\nname: Leaf\nstatus: {status}\nachieves: {achieves_req_id}\n{evidence_yaml}"
+            ),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        )
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn leaf_done_with_resolving_evidence_validates_cleanly() {
+        let elements = vec![
+            req("REQ-LE-001", "Requirements::LeReq1"),
+            leaf_pi(
+                "Planning::Leaf1",
+                "PI-LE-001",
+                "REQ-LE-001",
+                "done",
+                "evidence:\n  - ref: REQ-LE-001\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E719"),
+            "unexpected E719: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn leaf_done_with_no_evidence_is_rejected() {
+        let elements = vec![
+            req("REQ-LE-002", "Requirements::LeReq2"),
+            leaf_pi("Planning::Leaf2", "PI-LE-002", "REQ-LE-002", "done", ""),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E719"), "expected E719: {:?}", result.findings);
+    }
+
+    #[test]
+    fn leaf_done_with_only_waived_evidence_is_still_rejected() {
+        // Every entry carries rationale: -- none of them counts as proof, so
+        // this must still fail even though the list is non-empty.
+        let elements = vec![
+            req("REQ-LE-003", "Requirements::LeReq3"),
+            leaf_pi(
+                "Planning::Leaf3",
+                "PI-LE-003",
+                "REQ-LE-003",
+                "done",
+                "evidence:\n  - ref: PI-NOPE-999\n    rationale: not tracked in model yet\n  - path: does-not-exist.md\n    rationale: external artifact placeholder\n",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            codes(&result.findings).contains(&"E719"),
+            "a waived-only evidence list must not satisfy the rule: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn leaf_in_non_done_statuses_with_no_evidence_raises_nothing() {
+        // (status, id-safe tag) -- REQ-*/PI-* ids require uppercase-alnum
+        // segments, so the raw status string (e.g. "in_progress") can't be
+        // used directly in an id.
+        for (status, tag) in [("todo", "TODO"), ("in_progress", "INPROG"), ("blocked", "BLK")] {
+            let elements = vec![
+                req(&format!("REQ-LE-{tag}-001"), &format!("Requirements::LeReq{tag}")),
+                leaf_pi(
+                    &format!("Planning::Leaf{tag}"),
+                    &format!("PI-LE-{tag}-001"),
+                    &format!("REQ-LE-{tag}-001"),
+                    status,
+                    "",
+                ),
+            ];
+            let result = validate_with_config(&elements, &ValidateConfig::default());
+            assert!(
+                !codes(&result.findings).contains(&"E719"),
+                "status '{}' must not raise E719 regardless of missing evidence: {:?}",
+                status,
+                result.findings
+            );
+        }
+    }
+
+    #[test]
+    fn non_leaf_done_with_no_evidence_raises_nothing() {
+        // A parent PlanningItem (has a child) is not constrained by this rule
+        // at all -- status: done and zero evidence of its own must not fire.
+        let elements = vec![
+            req("REQ-LE-010", "Requirements::LeReq10"),
+            leaf_pi("Planning::Parent10", "PI-LE-010", "REQ-LE-010", "done", ""),
+            make_elem(
+                "Planning::Child10",
+                "type: PlanningItem\nid: PI-LE-011\nname: Child\nstatus: todo\nparent: PI-LE-010\n",
+                "model/Planning/Child10.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E719"),
+            "a non-leaf must never be constrained by this rule: {:?}",
+            result.findings
+        );
     }
 }

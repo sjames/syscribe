@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 254 |
-| Passed | 254 |
+| Total test cases | 260 |
+| Passed | 260 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1630,6 +1630,72 @@
 | Scenario | Result |
 |---|---|
 | audit --plan scopes the verdict to the plan (no escaping-ref artifacts) | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-001 — Verify PlanningItem's PI-* id pattern and its status/itemType vocabularies are each independently enforced.
+
+**Verifies:** REQ-TRS-PLANITEM-001  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an out-of-vocabulary itemType is rejected | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-002 — Verify PlanningItem's single-parent hierarchy resolves across multiple levels, rejects a dangling or wrong-type parent, and detects cycles gracefully.
+
+**Verifies:** REQ-TRS-PLANITEM-002  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a 3-node parent cycle is detected gracefully | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-003 — Verify achieves: is required on a top-level PlanningItem, rejects a dangling/wrong-type target, and never participates in W300/E312.
+
+**Verifies:** REQ-TRS-PLANITEM-003  
+**Result:** ✓ PASS (6 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| achieves: never triggers E312 | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-004 — Verify a PlanningItem gated by appliesWhen: projects in/out across Configurations, and the feature model stays sound.
+
+**Verifies:** REQ-TRS-PLANITEM-004  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| feature-check --deep reports the feature model as sound | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-005 — Verify PlanningItem evidence: ref:/path: entries resolve correctly, a rationale: waives one entry only, and remote paths skip the local check.
+
+**Verifies:** REQ-TRS-PLANITEM-005  
+**Result:** ✓ PASS (9 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a waiver is per-entry, not blanket | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-006 — Verify the leaf-evidence rule fires only for a leaf PlanningItem at status: done with no non-waived, resolving evidence, and never for a non-leaf.
+
+**Verifies:** REQ-TRS-PLANITEM-006  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a non-leaf item marked done raises nothing regardless of its own evidence | ✓ PASS |
 
 ---
 

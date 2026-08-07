@@ -85,6 +85,7 @@ pub fn type_label(et: &ElementType) -> &'static str {
         ElementType::TestCase => "TestCase",
         ElementType::ADR => "ADR",
         ElementType::Baseline => "Baseline",
+        ElementType::PlanningItem => "PlanningItem",
         ElementType::Package => "Package",
         ElementType::Allocation => "Allocation",
         ElementType::AllocationDef => "AllocationDef",
@@ -180,8 +181,13 @@ fn yaml_strings(v: &serde_yaml::Value) -> Vec<String> {
 // ── Custom fields (GH #39) ─────────────────────────────────────────────────────
 
 /// Render a single YAML *scalar* (string/number/bool/null) as its plain string
-/// form. Non-scalars fall back to `serde_yaml`'s compact representation (used only
-/// as a defensive default — well-shaped custom fields are scalars or lists thereof).
+/// form. Non-scalars fall back to `serde_yaml`'s compact representation (used
+/// as a defensive default — well-shaped custom fields are scalars or lists
+/// thereof, but this is also reused for `evidence:`, which may legitimately
+/// carry a `ref:`/`path:`/`rationale:` mapping entry). Callers print this
+/// inline in a `|`-delimited markdown table cell, so the fallback's multi-line
+/// YAML dump is collapsed onto one line — a raw embedded newline would break
+/// the table row.
 fn yaml_scalar_string(v: &serde_yaml::Value) -> String {
     match v {
         serde_yaml::Value::Null => "null".to_string(),
@@ -191,7 +197,7 @@ fn yaml_scalar_string(v: &serde_yaml::Value) -> String {
         other => serde_yaml::to_string(other)
             .unwrap_or_default()
             .trim()
-            .to_string(),
+            .replace('\n', "; "),
     }
 }
 
@@ -484,7 +490,13 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
         for s in ss { out.push(("supports".into(), s.clone())); }
     }
     if let Some(ref ev) = fm.evidence {
-        for s in ev { out.push(("evidence".into(), s.clone())); }
+        // Argument.evidence entries are scalar refs; PlanningItem.evidence
+        // entries are ref:/path:/rationale: mappings, not cross-reference
+        // strings in their own right, so they are skipped here (this listing
+        // is specifically the element's outbound scalar cross-references).
+        for s in ev.iter().filter_map(|v| v.as_str()) {
+            out.push(("evidence".into(), s.to_string()));
+        }
     }
     if let Some(ref at) = fm.applies_to {
         for s in at { out.push(("appliesTo".into(), s.clone())); }
@@ -622,7 +634,15 @@ pub fn cmd_show(
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
     if let Some(ref at) = fm.argument_type { println!("| **argumentType** | {} |", at); }
     if let Some(ref ss) = fm.supports { if !ss.is_empty() { println!("| **supports** | {} |", ss.join(", ")); } }
-    if let Some(ref ev) = fm.evidence { if !ev.is_empty() { println!("| **evidence** | {} |", ev.join(", ")); } }
+    if let Some(ref ev) = fm.evidence {
+        // Argument.evidence entries are scalars; PlanningItem.evidence entries
+        // are ref:/path:/rationale: mappings — yaml_scalar_string renders both
+        // (a mapping falls through to its compact YAML dump).
+        if !ev.is_empty() {
+            let rendered: Vec<String> = ev.iter().map(yaml_scalar_string).collect();
+            println!("| **evidence** | {} |", rendered.join(", "));
+        }
+    }
     if let Some(ref at) = fm.applies_to { if !at.is_empty() { println!("| **appliesTo** | {} |", at.join(", ")); } }
     if let Some(ref f) = fm.feature_model { println!("| **featureModel** | {} |", f); }
     if let Some(ref aw) = fm.applies_when {
@@ -3923,6 +3943,20 @@ mod custom_where_tests {
     }
     fn list(vs: &[&str]) -> serde_yaml::Value {
         serde_yaml::Value::Sequence(vs.iter().map(|x| s(x)).collect())
+    }
+
+    #[test]
+    fn yaml_scalar_string_collapses_multiline_mapping_fallback() {
+        // A non-scalar entry (e.g. a PlanningItem-shaped evidence: mapping)
+        // must render as a single line -- callers embed this in a `|`-delimited
+        // markdown table cell, where a raw newline breaks the row.
+        let mut m = serde_yaml::Mapping::new();
+        m.insert(s("ref"), s("NotAScalar"));
+        m.insert(s("rationale"), s("tracked externally"));
+        let rendered = yaml_scalar_string(&serde_yaml::Value::Mapping(m));
+        assert!(!rendered.contains('\n'), "rendered value must not contain a raw newline: {:?}", rendered);
+        assert!(rendered.contains("ref: NotAScalar"), "rendered value should still be informative: {:?}", rendered);
+        assert!(rendered.contains("rationale"), "rendered value should still be informative: {:?}", rendered);
     }
 
     #[test]
