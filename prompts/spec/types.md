@@ -253,15 +253,24 @@ itemType: task                # optional; bug | task | feature
 parent: PI-RTH-IMPL-001       # optional; single scalar (strict single-parent tree, not a DAG)
 achieves: [REQ-RTH-002]       # required (non-empty) when parent: is absent (top-level)
 blockedBy: PI-RTH-DESIGN-001  # optional; any element, unrestricted by kind (like evidence.ref: below)
+assignedTo: alice             # optional; Unix-style username (^[a-z_][a-z0-9_-]{0,31}$), always format-checked
 evidence:
   - ref: TC-RTH-BATT-001                          # any resolvable element, unrestricted by kind
   - path: "repo:crates/syscribe/src/rth/mod.rs"    # local path checked to exist, or remote URI
   - path: "docs/design/rth-timing.pdf"
     rationale: "not yet committed; reviewed in RR-RTH-001"   # waives this one entry's own check
 ```
+```toml
+# .syscribe.toml — optional [users] roster; assignedTo: is checked against it
+# only when non-empty (dormant otherwise). Maps username -> display name.
+[users]
+alice = "Alice Nakamura"
+```
 A **leaf** item (empty computed `children` — no other `PlanningItem` names it via `parent:`) at
 `status: done` needs at least one non-waived, resolving `evidence:` entry (`E719`); a non-empty
 `blockedBy:` while `status` isn't `blocked` warns (likely stale), but `status: blocked` with no
-`blockedBy:` raises nothing — being blocked needs no proof, unlike claiming done. No dedicated
+`blockedBy:` raises nothing — being blocked needs no proof, unlike claiming done. `assignedTo:`
+must be username-shaped regardless of `[users]` (`E723`), and additionally a declared roster
+member when `[users]` is non-empty (`E722`); `show` prints the resolved display name. No dedicated
 CLI subcommand yet — use `list`/`show`/`ls`/`find`/`refs` (§23, `ADR-SYS-PLANITEM-001`). Validation:
-`E706`–`E717`, `E719`–`E721`, `W308`.
+`E706`–`E717`, `E719`–`E723`, `W308`–`W309`.

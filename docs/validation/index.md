@@ -57,7 +57,7 @@ Errors block a clean build. Warnings are advisory.
 | E940–E941, W905 | Tier 4 — TARA | TARASheet required fields, ID pattern, empty sheet |
 | E600–E606, W610–W616 | TestPlan | TestPlan required fields, ID pattern, member resolution, scope/coverage |
 | E700–E705, W700, W704 | Review records | ReviewRecord required fields, ID/status/type enums, reviewed-element resolution, dispositions |
-| E706–E717, E719–E721, W308 | PlanningItem (§23) | ID/required-field/status/itemType, parent resolution + cycle, top-level achieves, evidence ref/path resolution, leaf-done-needs-evidence, blockedBy resolution + cycle + stale-status warning |
+| E706–E717, E719–E723, W308–W309 | PlanningItem (§23) | ID/required-field/status/itemType, parent resolution + cycle, top-level achieves, evidence ref/path resolution, leaf-done-needs-evidence, blockedBy resolution + cycle + stale-status warning, assignedTo username format + roster check, malformed [users] key |
 | E510–E515, W510–W512 | Multi-repository (§14) | Circular import, missing path, cross-repo ref resolution, import alias/qname, duplicate stable ID, ref-pin / drift / submodule-gitlink reproducibility |
 | E516–E518 | Hierarchical product lines (REQ-TRS-HPLE-001) | `subConfigurations:` dangling / wrong-type / not-internally-valid (local or genuinely re-validated peer `Configuration`, or exceeded consolidation depth) |
 | E519, E523 | Hierarchical product lines (REQ-TRS-HPLE-003) | Cross-tier `parameterBindings:` targets a feature the owning tier doesn't select, or double-binds a parameter a nearer tier already closed |

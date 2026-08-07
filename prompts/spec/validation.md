@@ -331,7 +331,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W700` | A `status: closed` review has an `items[]` with `disposition: open` |
 | `W704` | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (opt-in; `--deny W704`) |
 
-## Native PlanningItem (E706–E717, E719–E721, W308, §23, ADR-SYS-PLANITEM-001)
+## Native PlanningItem (E706–E717, E719–E723, W308–W309, §23, ADR-SYS-PLANITEM-001)
 
 | Code | Condition |
 |---|---|
@@ -351,6 +351,9 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E720` | A `blockedBy:` entry does not resolve to any model element |
 | `E721` | A `blockedBy:` chain forms a cycle (directly or through other PlanningItems) |
 | `W308` | A non-empty `blockedBy:` while `status` is not `blocked` — likely stale. The converse (`status: blocked` with empty `blockedBy:`) raises nothing — being blocked needs no proof, unlike claiming done. |
+| `E722` | `assignedTo:` names a username not present in the declared `[users]` roster (checked only when non-empty) |
+| `E723` | `assignedTo:` is not a valid Unix-style username `^[a-z_][a-z0-9_-]{0,31}$` (checked unconditionally) |
+| `W309` | A `[users]` key in `.syscribe.toml` is not a valid username — entry ignored, excluded from the roster |
 
 No dedicated CLI subcommand or MCP tool yet — query via `list`/`show`/`ls`/`find`/`refs`; write via the generic MCP element tools.
 

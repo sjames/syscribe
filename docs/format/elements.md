@@ -94,10 +94,17 @@ resolvable element, unrestricted by kind) or `path:` (a file/doc, resolved like 
 each with an optional `rationale:` that waives that one entry's own check. A **leaf** item (no
 children) claiming `status: done` must have at least one non-waived, resolving `evidence:` entry —
 graded harder than the analogous `Requirement` rule (`W300`, a warning) since claiming done with no
-proof is a correctness defect, not a time-bound gap. No dedicated CLI subcommand or MCP tool yet —
-queried via the generic `list`/`show`/`ls`/`find`/`refs` commands, and gets a working guarded MCP
-write path for free via the existing `create_element`/`update_element`/etc. tools. Validation
-`E706`–`E717`, `E719`–`E721`, `W308`. See `examples/planning-item/` for a complete worked example.
+proof is a correctness defect, not a time-bound gap. `assignedTo:` names a single Unix-style
+username — not a cross-reference (users aren't model elements) — always format-checked
+(`^[a-z_][a-z0-9_-]{0,31}$`, `E723`), and additionally checked against a project-declared roster
+(`[users]` in `.syscribe.toml`, mapping username → display name) only when that roster is
+non-empty (`E722`); roster membership is dormant otherwise, matching every other opt-in
+`.syscribe.toml`-configured table — a malformed roster key is `W309` and excluded from the
+effective roster. `show` resolves and prints the declared display name alongside the username.
+No dedicated CLI subcommand or MCP tool yet — queried via the generic
+`list`/`show`/`ls`/`find`/`refs` commands, and gets a working guarded MCP write path for free via
+the existing `create_element`/`update_element`/etc. tools. Validation `E706`–`E717`, `E719`–`E723`,
+`W308`, `W309`. See `examples/planning-item/` for a complete worked example.
 
 ## Tier 2 — Safety & cybersecurity elements (own schema)
 

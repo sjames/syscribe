@@ -7265,6 +7265,7 @@ Examples: `PI-HPLE-001`, `PI-RTH-IMPL-SW-002`
 | `achieves` | string or list | conditionally required | absent | One or more native `Requirement`s (id or qname) this branch of work exists to realise. **Required (non-empty) on a top-level item** (no `parent:`); optional on a non-top-level item. Deliberately a distinct field from `satisfies:`, which carries architecture-specific machinery (`E312`–`E315`) that does not apply here. |
 | `blockedBy` | string or list | optional | absent | One or more elements this item is waiting on before it can proceed — most commonly another `PlanningItem`, but resolved permissively like `evidence.ref:` (§23.3), unrestricted by kind. A dangling entry or a cycle (through other `PlanningItem`s, back to itself) is an error; a non-empty `blockedBy:` while `status` isn't `blocked` is a warning (likely stale). `status: blocked` with an empty/absent `blockedBy:` raises nothing — see §23.4. |
 | `evidence` | list | optional | absent | Duck-typed entries proving completion — see §23.3. |
+| `assignedTo` | string | optional | absent | A single Unix-style username responsible for this item — see §23.7. Not a cross-reference; format is always checked (`E723`), roster membership only when `[users]` is configured (`E722`). |
 | `tags` | list of strings | optional | absent | Free labels. |
 
 `appliesWhen:` (product-line gating) needs no new mechanism — it is already a universal, type-agnostic field; a `PlanningItem` implementing a product-line feature sets it exactly like any other element.
@@ -7307,6 +7308,8 @@ evidence:
 | `E720` | A `blockedBy:` entry does not resolve to any model element |
 | `E721` | A `blockedBy:` chain forms a cycle (directly or through other `PlanningItem`s) |
 | `W308` | A non-empty `blockedBy:` on an item whose `status` is not `blocked` — likely stale (the blocker was resolved and `status:` was never updated) |
+| `E722` | `assignedTo:` names a username not present in the declared `[users]` roster (only checked when that roster is non-empty — see §23.7) |
+| `E723` | `assignedTo:` is not a valid Unix-style username (checked unconditionally, regardless of `[users]` — see §23.7) |
 
 `E719` is graded harder than the analogous `Requirement` rule (`W300`, a warning): claiming `done` with zero resolvable evidence is a correctness defect, not a soft, time-bound gap the way an unassigned-but-still-`approved` leaf `Requirement` is. A non-leaf item (has children) is unconstrained by `E719` regardless of its own status or evidence — its completion is a function of its children, not its own evidence list. A waived-only evidence list still fails the rule: a `rationale:` excuses one entry's *check*, it does not manufacture a passing entry.
 
@@ -7327,5 +7330,28 @@ No dedicated CLI subcommand or MCP tool exists yet — deliberately: the ADR hol
 - The MCP server's existing guarded-write tools (`create_element`/`update_element`/`move_element`/`delete_element`/`apply_changes`) already support `PlanningItem` with zero additional code, since any recognised `ElementType` gets a working, guarded write path for free.
 
 **Explicitly out of scope** (tracked as follow-on only if a concrete need arises): MCP tools that actively drive an LLM through a `PlanningItem` graph (`next_actionable_item`, `mark_evidence`, etc.), a formal state-machine-backed status model, and any Jira/GitHub sync or `extRef:` convention specific to planning items. See `examples/planning-item/` for a complete worked example (a Return-to-Home feature broken into design/impl/test items across two `Configuration`s).
+
+### 23.7 `assignedTo:` and the `[users]` Roster
+
+`assignedTo:` (`REQ-TRS-PLANITEM-008`) names a single user responsible for a `PlanningItem` — a Unix-style username (e.g. `alice`), deliberately a scalar rather than a list, unlike `achieves:`/`blockedBy:` (mirrors `parent:`'s "one at a time" shape; the ADR addendum records the rejected multi-assignee alternative). It is **not** a cross-reference: a user is organizational metadata, not a model element the resolver can find, so there is deliberately no `type: User` element — see the ADR addendum's rejected alternative.
+
+**Format (`E723`, always checked).** The value must match `^[a-z_][a-z0-9_-]{0,31}$` — lowercase, starting with a letter or underscore, then lowercase letters/digits/underscore/hyphen, 1–32 characters — the same shape `useradd`/`adduser` enforce by default. This check is **unconditional**: it applies whether or not `[users]` is configured at all, the same way an id-pattern check doesn't wait on anything else being true first.
+
+**Roster (`E722`, opt-in).** A project declares its valid users once, in `<model_root>/.syscribe.toml`, mapping each username to its display name:
+
+```toml
+[users]
+alice = "Alice Nakamura"
+bob = "Bob Patel"
+```
+
+| Behavior | Condition |
+|---|---|
+| Dormant | `[users]` absent, or empty — `assignedTo:` roster membership is unchecked (format is still always checked). |
+| Checked | `[users]` non-empty — `assignedTo:` must be a key in it (`E722` otherwise). A value that already fails the format check (`E723`) is not also reported as undeclared — one finding per defect. |
+
+A key in `[users]` that is not itself a valid username is reported as `W309` (attached to `.syscribe.toml`) and excluded from the effective roster — one malformed entry doesn't invalidate every other, well-formed one, mirroring `[ids.prefixes]`'s `W046` posture exactly.
+
+An absent `assignedTo:` never raises anything, regardless of whether a roster is configured. `syscribe show <PI-id>` resolves and prints the declared display name alongside the raw username when the roster is configured. Otherwise this is schema + validation only, matching `ADR-SYS-PLANITEM-001`'s own posture for the rest of `PlanningItem` — no CLI filtering/listing by assignee in this phase.
 
 `W080` is **draft-suppressed** (not emitted for `Sequence` diagrams with `status: draft`). Gateable with `--deny W080`.
