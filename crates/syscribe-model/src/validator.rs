@@ -4516,6 +4516,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // ── HPLE `subConfigurations:` (REQ-TRS-HPLE-001, ADR-SYS-HPLE-001) ───────
+    // Active whenever any Configuration declares `subConfigurations:`, whether
+    // or not `[repos]` is configured — a purely-local hierarchy is valid too.
+    findings.extend(sub_configuration_findings(elements, config, &resolver));
+
     // W007: *Def element never used as supertype: or typedBy: anywhere in the model.
     // Scans top-level fields AND typedBy inside features/connections/performs sub-objects
     // and exhibitsStates lists, so that elements referenced only in those positions are
@@ -7044,6 +7049,266 @@ fn is_type_def(elem: &RawElement) -> bool {
             | ElementType::AllocationDef
         )
     )
+}
+
+/// Bounded recursion depth for the `subConfigurations:` peer-validity gate
+/// (below). Validating a peer re-enters `validate_with_config` on the peer's
+/// own elements, which — if that peer's own `Configuration` also declares
+/// `subConfigurations:` — re-enters [`sub_configuration_findings`] again for
+/// the next tier down. A genuine multi-tier hierarchy is shallow (a handful of
+/// tiers at most); this guard only exists so an authoring mistake that forms
+/// an actual cycle across repos degrades to a reported `E518` rather than a
+/// stack overflow, matching this codebase's standing "report, never panic"
+/// rule for circular references.
+const HPLE_MAX_DEPTH: u32 = 16;
+
+thread_local! {
+    static HPLE_DEPTH: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+/// Human-readable label for an element's `type:` in a diagnostic message.
+fn element_type_label(t: &Option<ElementType>) -> String {
+    match t {
+        Some(ty) => format!("{ty:?}"),
+        None => "untyped element".to_string(),
+    }
+}
+
+/// `subConfigurations:` resolution + peer-validity gate (REQ-TRS-HPLE-001,
+/// `ADR-SYS-HPLE-001`). A `Configuration` may consolidate one or more other
+/// `Configuration` elements, reachable locally or via a loaded peer repo
+/// (§14) — the local model is searched first, then each loaded repo in
+/// declaration order, mirroring the existing `verifies:`/`derivedFrom:`
+/// cross-repo resolution order (§14.4).
+///
+/// Each entry must resolve to a real element (else `E516`, dangling) that is
+/// a `Configuration` (else `E517`, wrong type) which is itself internally
+/// valid — SAT-satisfiable and error-free (else `E518`). For a peer entry
+/// this genuinely loads and parses the peer's model via [`crate::walker::walk_model`]
+/// rather than trusting the existence-only qname/id `HashSet`s on
+/// [`crate::config::LoadedRepo`] — confirming a peer `Configuration`'s
+/// validity requires reading its real feature/parameter structure, which
+/// those sets do not carry (`ADR-SYS-HPLE-001` Decision 1's "correction found
+/// during implementation scoping").
+///
+/// Dormant (returns empty) unless some `Configuration` actually declares
+/// `subConfigurations:`, so a model with none anywhere is unaffected.
+pub fn sub_configuration_findings(
+    elements: &[RawElement],
+    config: &ValidateConfig,
+    resolver: &Resolver,
+) -> Vec<Finding> {
+    let mut findings: Vec<Finding> = Vec::new();
+
+    let configs: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
+        .collect();
+    if configs
+        .iter()
+        .all(|c| c.frontmatter.sub_configurations.is_none())
+    {
+        return findings;
+    }
+
+    // This model's own deep report, computed at most once and only if some
+    // entry actually resolves locally (a purely-peer hierarchy never needs it).
+    let mut local_deep: Option<crate::feature_model::DeepReport> = None;
+    // Peer walks are cached per repo model root so N entries into the same
+    // repo only walk it once.
+    let mut peer_cache: HashMap<std::path::PathBuf, Option<Vec<RawElement>>> = HashMap::new();
+
+    for cfg in &configs {
+        let Some(entries) = &cfg.frontmatter.sub_configurations else {
+            continue;
+        };
+        for raw_sc in entries {
+            let sc = raw_sc.trim();
+            if sc.is_empty() {
+                continue;
+            }
+
+            // 1. Local resolution first (§14.4 order).
+            if let Some(target) = resolver.resolve_ref(elements, sc) {
+                if !matches!(target.frontmatter.element_type, Some(ElementType::Configuration)) {
+                    findings.push(error(
+                        "E517",
+                        &cfg.file_path,
+                        &format!(
+                            "subConfigurations '{}' resolves to a {}, not a Configuration",
+                            sc,
+                            element_type_label(&target.frontmatter.element_type)
+                        ),
+                    ));
+                    continue;
+                }
+                let rep = local_deep
+                    .get_or_insert_with(|| crate::feature_model::check_feature_model_deep(elements));
+                let tgt_id = target
+                    .frontmatter
+                    .id
+                    .clone()
+                    .unwrap_or_else(|| target.qualified_name.clone());
+                if rep.void {
+                    findings.push(error(
+                        "E518",
+                        &cfg.file_path,
+                        &format!(
+                            "subConfigurations '{}' names local Configuration '{}', but this model's feature model is void (no valid configuration exists) — it cannot be consolidated",
+                            sc, tgt_id
+                        ),
+                    ));
+                } else if rep.invalid_configs.contains(&tgt_id) {
+                    findings.push(error(
+                        "E518",
+                        &cfg.file_path,
+                        &format!(
+                            "subConfigurations '{}' names local Configuration '{}', which is not a valid model of the feature model (feature-check --deep: E225)",
+                            sc, tgt_id
+                        ),
+                    ));
+                }
+                continue;
+            }
+
+            // 2. Each loaded peer repo, in declaration order.
+            let mut resolved_in_repo = false;
+            for repo in &config.repos {
+                if !repo.exists {
+                    continue;
+                }
+                let suffix = format!("::{sc}");
+                let quick_match = repo.stable_ids.contains(sc)
+                    || repo.qnames.contains(sc)
+                    || repo.qnames.iter().any(|q| q.ends_with(&suffix));
+                if !quick_match {
+                    continue;
+                }
+                resolved_in_repo = true;
+
+                // Genuinely load and parse the peer — the shallow qname/id
+                // index only proves existence (ADR-SYS-HPLE-001 Decision 1).
+                let peer_elements = peer_cache
+                    .entry(repo.model_root.clone())
+                    .or_insert_with(|| crate::walker::walk_model(&repo.model_root).ok());
+
+                let Some(peer_elements) = peer_elements else {
+                    findings.push(error(
+                        "E516",
+                        &cfg.file_path,
+                        &format!(
+                            "subConfigurations '{}' names a Configuration in repo '{}', but the repo could not be loaded",
+                            sc, repo.alias
+                        ),
+                    ));
+                    break;
+                };
+
+                let peer_resolver = Resolver::new(peer_elements);
+                let Some(target) = peer_resolver.resolve_ref(peer_elements, sc) else {
+                    // The shallow index said it exists but the real parse
+                    // disagrees — degrade to dangling rather than accepting it.
+                    findings.push(error(
+                        "E516",
+                        &cfg.file_path,
+                        &format!(
+                            "subConfigurations '{}' does not resolve to any element in repo '{}'",
+                            sc, repo.alias
+                        ),
+                    ));
+                    break;
+                };
+
+                if !matches!(target.frontmatter.element_type, Some(ElementType::Configuration)) {
+                    findings.push(error(
+                        "E517",
+                        &cfg.file_path,
+                        &format!(
+                            "subConfigurations '{}' resolves to a {} in repo '{}', not a Configuration",
+                            sc,
+                            element_type_label(&target.frontmatter.element_type),
+                            repo.alias
+                        ),
+                    ));
+                    break;
+                }
+
+                let tgt_id = target
+                    .frontmatter
+                    .id
+                    .clone()
+                    .unwrap_or_else(|| target.qualified_name.clone());
+
+                // Bounded recursion guard (see HPLE_MAX_DEPTH doc comment).
+                let depth = HPLE_DEPTH.with(|d| d.get());
+                if depth >= HPLE_MAX_DEPTH {
+                    findings.push(error(
+                        "E518",
+                        &cfg.file_path,
+                        &format!(
+                            "subConfigurations '{}' (Configuration '{}' in repo '{}') exceeds the maximum consolidation depth ({}) — check for a circular subConfigurations chain",
+                            sc, tgt_id, repo.alias, HPLE_MAX_DEPTH
+                        ),
+                    ));
+                    break;
+                }
+                HPLE_DEPTH.with(|d| d.set(depth + 1));
+                let peer_config = ValidateConfig::with_model_root(repo.model_root.clone());
+                let peer_result = validate_with_config(peer_elements, &peer_config);
+                let peer_deep = crate::feature_model::check_feature_model_deep(peer_elements);
+                HPLE_DEPTH.with(|d| d.set(depth));
+
+                let peer_errors: Vec<&Finding> = peer_result.errors().collect();
+                if !peer_errors.is_empty() {
+                    findings.push(error(
+                        "E518",
+                        &cfg.file_path,
+                        &format!(
+                            "subConfigurations '{}' names Configuration '{}' in repo '{}', which is not internally valid: {} validation error(s) in that repo (e.g. {}: {})",
+                            sc,
+                            tgt_id,
+                            repo.alias,
+                            peer_errors.len(),
+                            peer_errors[0].code,
+                            peer_errors[0].message
+                        ),
+                    ));
+                } else if peer_deep.void {
+                    findings.push(error(
+                        "E518",
+                        &cfg.file_path,
+                        &format!(
+                            "subConfigurations '{}' names Configuration '{}' in repo '{}', but that repo's feature model is void (no valid configuration exists)",
+                            sc, tgt_id, repo.alias
+                        ),
+                    ));
+                } else if peer_deep.invalid_configs.contains(&tgt_id) {
+                    findings.push(error(
+                        "E518",
+                        &cfg.file_path,
+                        &format!(
+                            "subConfigurations '{}' names Configuration '{}' in repo '{}', which is not a valid model of that repo's feature model (feature-check --deep: E225)",
+                            sc, tgt_id, repo.alias
+                        ),
+                    ));
+                }
+                break;
+            }
+
+            if !resolved_in_repo {
+                findings.push(error(
+                    "E516",
+                    &cfg.file_path,
+                    &format!(
+                        "subConfigurations '{}' does not resolve to any element, locally or in a loaded peer repo",
+                        sc
+                    ),
+                ));
+            }
+        }
+    }
+
+    findings
 }
 
 /// FeatureDef parameter-binding validation (§9.7): E203–E206, E222, W017.
