@@ -331,7 +331,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W700` | A `status: closed` review has an `items[]` with `disposition: open` |
 | `W704` | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (opt-in; `--deny W704`) |
 
-## Native PlanningItem (E706–E717, E719, §23, ADR-SYS-PLANITEM-001)
+## Native PlanningItem (E706–E717, E719–E721, W308, §23, ADR-SYS-PLANITEM-001)
 
 | Code | Condition |
 |---|---|
@@ -348,6 +348,9 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E716` | An `evidence[].ref` does not resolve (and is not waived by that entry's own `rationale:`) |
 | `E717` | An `evidence[].path` does not exist on disk (and is not waived) |
 | `E719` | A leaf item (empty computed `children`) at `status: done` has no non-waived, resolving `evidence:` entry — graded harder than the analogous `W300` (a warning), since claiming done with no proof is a correctness defect |
+| `E720` | A `blockedBy:` entry does not resolve to any model element |
+| `E721` | A `blockedBy:` chain forms a cycle (directly or through other PlanningItems) |
+| `W308` | A non-empty `blockedBy:` while `status` is not `blocked` — likely stale. The converse (`status: blocked` with empty `blockedBy:`) raises nothing — being blocked needs no proof, unlike claiming done. |
 
 No dedicated CLI subcommand or MCP tool yet — query via `list`/`show`/`ls`/`find`/`refs`; write via the generic MCP element tools.
 

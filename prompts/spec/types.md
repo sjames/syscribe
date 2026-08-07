@@ -252,6 +252,7 @@ status: in_progress          # required; todo | in_progress | blocked | done
 itemType: task                # optional; bug | task | feature
 parent: PI-RTH-IMPL-001       # optional; single scalar (strict single-parent tree, not a DAG)
 achieves: [REQ-RTH-002]       # required (non-empty) when parent: is absent (top-level)
+blockedBy: PI-RTH-DESIGN-001  # optional; any element, unrestricted by kind (like evidence.ref: below)
 evidence:
   - ref: TC-RTH-BATT-001                          # any resolvable element, unrestricted by kind
   - path: "repo:crates/syscribe/src/rth/mod.rs"    # local path checked to exist, or remote URI
@@ -259,6 +260,8 @@ evidence:
     rationale: "not yet committed; reviewed in RR-RTH-001"   # waives this one entry's own check
 ```
 A **leaf** item (empty computed `children` — no other `PlanningItem` names it via `parent:`) at
-`status: done` needs at least one non-waived, resolving `evidence:` entry (`E719`). No dedicated
+`status: done` needs at least one non-waived, resolving `evidence:` entry (`E719`); a non-empty
+`blockedBy:` while `status` isn't `blocked` warns (likely stale), but `status: blocked` with no
+`blockedBy:` raises nothing — being blocked needs no proof, unlike claiming done. No dedicated
 CLI subcommand yet — use `list`/`show`/`ls`/`find`/`refs` (§23, `ADR-SYS-PLANITEM-001`). Validation:
-`E706`–`E717`, `E719`.
+`E706`–`E717`, `E719`–`E721`, `W308`.

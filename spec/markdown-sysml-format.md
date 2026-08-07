@@ -7263,6 +7263,7 @@ Examples: `PI-HPLE-001`, `PI-RTH-IMPL-SW-002`
 | `itemType` | enum | optional | absent | `bug` / `task` / `feature` — exactly GitHub's own current default Issue Types. |
 | `parent` | string | optional | absent | A single other `PlanningItem` (id or qname) this one is a child of. Absent means top-level. Resolved like `derivedFrom:`; cycles are detected the same way. |
 | `achieves` | string or list | conditionally required | absent | One or more native `Requirement`s (id or qname) this branch of work exists to realise. **Required (non-empty) on a top-level item** (no `parent:`); optional on a non-top-level item. Deliberately a distinct field from `satisfies:`, which carries architecture-specific machinery (`E312`–`E315`) that does not apply here. |
+| `blockedBy` | string or list | optional | absent | One or more elements this item is waiting on before it can proceed — most commonly another `PlanningItem`, but resolved permissively like `evidence.ref:` (§23.3), unrestricted by kind. A dangling entry or a cycle (through other `PlanningItem`s, back to itself) is an error; a non-empty `blockedBy:` while `status` isn't `blocked` is a warning (likely stale). `status: blocked` with an empty/absent `blockedBy:` raises nothing — see §23.4. |
 | `evidence` | list | optional | absent | Duck-typed entries proving completion — see §23.3. |
 | `tags` | list of strings | optional | absent | Free labels. |
 
@@ -7303,14 +7304,19 @@ evidence:
 | `E716` | An `evidence[].ref` does not resolve to any model element (and is not waived) |
 | `E717` | An `evidence[].path` does not exist on disk (and is not waived) |
 | `E719` | A **leaf** `PlanningItem` (empty computed `children` — see §23.5) at `status: done` has no non-waived, resolving `evidence:` entry |
+| `E720` | A `blockedBy:` entry does not resolve to any model element |
+| `E721` | A `blockedBy:` chain forms a cycle (directly or through other `PlanningItem`s) |
+| `W308` | A non-empty `blockedBy:` on an item whose `status` is not `blocked` — likely stale (the blocker was resolved and `status:` was never updated) |
 
 `E719` is graded harder than the analogous `Requirement` rule (`W300`, a warning): claiming `done` with zero resolvable evidence is a correctness defect, not a soft, time-bound gap the way an unassigned-but-still-`approved` leaf `Requirement` is. A non-leaf item (has children) is unconstrained by `E719` regardless of its own status or evidence — its completion is a function of its children, not its own evidence list. A waived-only evidence list still fails the rule: a `rationale:` excuses one entry's *check*, it does not manufacture a passing entry.
+
+`blockedBy:` and `evidence:` are deliberately graded oppositely: `status: blocked` needs no proof (an empty `blockedBy:` raises nothing — being blocked is a transient working state), while `status: done` on a leaf does (`E719`) — completion is a claim that needs evidence, being blocked is not.
 
 (`E718` — a non-scalar `Argument.evidence` entry — shares the same underlying `evidence:` field broadened for `PlanningItem`'s benefit, but is not itself a `PlanningItem` rule; see §8.18.)
 
 ### 23.5 Computed Reverse Index
 
-Mirroring `Requirement.derivedChildren`, the validator computes `children` for every `PlanningItem` — the set of other `PlanningItem`s whose `parent:` names it. A **leaf** is a `PlanningItem` with an empty (or absent) computed `children` set; "leaf" is not a declared schema concept, it falls out structurally, exactly as elsewhere in this format. `refs <PlanningItem>` (§10, generic inbound-reference query) lists both a `PlanningItem`'s children (`parent` relationship) and, for a `Requirement`, which `PlanningItem`s `achieves` it.
+Mirroring `Requirement.derivedChildren`, the validator computes `children` for every `PlanningItem` — the set of other `PlanningItem`s whose `parent:` names it. A **leaf** is a `PlanningItem` with an empty (or absent) computed `children` set; "leaf" is not a declared schema concept, it falls out structurally, exactly as elsewhere in this format. `refs <PlanningItem>` (§10, generic inbound-reference query) lists a `PlanningItem`'s children (`parent` relationship), what it blocks (`blockedBy` relationship, inbound), and, for a `Requirement`, which `PlanningItem`s `achieves` it.
 
 ### 23.6 CLI and MCP Surface
 

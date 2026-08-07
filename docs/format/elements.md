@@ -85,7 +85,11 @@ A strict **single-parent tree** (`parent:`, at most one — not a DAG); a top-le
 `parent:`) must set `achieves:` (one or more `Requirement`s this branch of work exists to realise,
 deliberately a separate field from `satisfies:`, which stays scoped to architecture semantics).
 `status` (`todo`/`in_progress`/`blocked`/`done`) and `itemType` (`bug`/`task`/`feature`) reuse
-GitHub's own current vocabulary verbatim. `evidence:` is a list of duck-typed entries — `ref:` (any
+GitHub's own current vocabulary verbatim. `blockedBy:` names one or more elements it's waiting on —
+resolved permissively like `evidence.ref:` below, not restricted to `PlanningItem` — with dangling
+and cycle checks; a non-empty `blockedBy:` while `status` isn't `blocked` warns (likely stale), but
+`status: blocked` with an empty `blockedBy:` raises nothing — being blocked needs no proof, unlike
+claiming done. `evidence:` is a list of duck-typed entries — `ref:` (any
 resolvable element, unrestricted by kind) or `path:` (a file/doc, resolved like `implementedBy:`) —
 each with an optional `rationale:` that waives that one entry's own check. A **leaf** item (no
 children) claiming `status: done` must have at least one non-waived, resolving `evidence:` entry —
@@ -93,7 +97,7 @@ graded harder than the analogous `Requirement` rule (`W300`, a warning) since cl
 proof is a correctness defect, not a time-bound gap. No dedicated CLI subcommand or MCP tool yet —
 queried via the generic `list`/`show`/`ls`/`find`/`refs` commands, and gets a working guarded MCP
 write path for free via the existing `create_element`/`update_element`/etc. tools. Validation
-`E706`–`E717`, `E719`. See `examples/planning-item/` for a complete worked example.
+`E706`–`E717`, `E719`–`E721`, `W308`. See `examples/planning-item/` for a complete worked example.
 
 ## Tier 2 — Safety & cybersecurity elements (own schema)
 
