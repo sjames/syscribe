@@ -585,6 +585,7 @@ pub fn cmd_show(
     elements: &[RawElement],
     resolver: &Resolver,
     val: &ValidationResult,
+    config: &syscribe_model::config::ValidateConfig,
     key: &str,
 ) {
     let Some(elem) = resolve(elements, resolver, key) else {
@@ -648,6 +649,12 @@ pub fn cmd_show(
     if let Some(ref p) = fm.parent { println!("| **parent** | {} |", p); }
     if let Some(ref ach) = fm.achieves { if !ach.is_empty() { println!("| **achieves** | {} |", ach.join(", ")); } }
     if let Some(ref bs) = fm.blocked_by { if !bs.is_empty() { println!("| **blockedBy** | {} |", bs.join(", ")); } }
+    if let Some(ref who) = fm.assigned_to {
+        match config.users.get(who) {
+            Some(display_name) => println!("| **assignedTo** | {} ({}) |", who, display_name),
+            None => println!("| **assignedTo** | {} |", who),
+        }
+    }
     if let Some(ref g) = fm.derived_from_cybersecurity_goal { println!("| **derivedFromCybersecurityGoal** | {} |", g); }
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
     if let Some(ref at) = fm.argument_type { println!("| **argumentType** | {} |", at); }

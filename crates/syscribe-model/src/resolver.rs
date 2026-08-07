@@ -214,6 +214,20 @@ pub fn is_valid_id_prefix(s: &str) -> bool {
         .is_match(s)
 }
 
+static USERNAME_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+
+/// True when `s` has the shape of a Unix-style username (REQ-TRS-PLANITEM-008):
+/// lowercase, starting with a letter or underscore, followed by lowercase
+/// letters/digits/underscore/hyphen, 1–32 characters total
+/// (`^[a-z_][a-z0-9_-]{0,31}$`) — the same convention `useradd`/`adduser` enforce
+/// by default. Governs both `PlanningItem.assignedTo:` and the declared keys of
+/// `[users]` in `.syscribe.toml`.
+pub fn is_valid_username(s: &str) -> bool {
+    USERNAME_RE
+        .get_or_init(|| regex::Regex::new(r"^[a-z_][a-z0-9_-]{0,31}$").unwrap())
+        .is_match(s)
+}
+
 /// True when `name` is an element-type name that carries a stable id (an accepted
 /// `[ids.prefixes]` key).
 pub fn is_stable_id_type_name(name: &str) -> bool {

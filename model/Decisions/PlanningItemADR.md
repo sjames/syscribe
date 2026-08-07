@@ -130,6 +130,57 @@ is as legitimate a blocker as another `PlanningItem`), with a cycle-detection po
 only completion does; a stale `blockedBy:` left over after `status:` moves on is instead a warning,
 not an error, since the two fields are independently author-maintained.
 
+## Addendum: `assignedTo:` (REQ-TRS-PLANITEM-008)
+
+A `PlanningItem` may declare `assignedTo: <username>` — a Unix-style username, format-checked
+unconditionally — optionally checked for roster membership against a `[users]` table declared once
+per project in `.syscribe.toml`, mapping each username to its display name, rather than accepting
+any string or introducing a new `type: User` model element.
+
+- **Config-declared roster over a new element type.** *Rejected:* a native `User` element
+  (`id`, `name`, …), which would let `assignedTo:` resolve through the ordinary cross-reference
+  machinery like `parent:` does. Rejected because a user is organizational metadata, not part of
+  the traceability graph this format exists to model — adding an element type for it would put a
+  person in the same namespace as requirements, tests, and architecture for no traceability
+  benefit, and would need its own id scheme, file, and directory placement for what is, in every
+  project this was scoped against, a short, rarely-changing list better declared once in config
+  (the same reasoning `[ids.prefixes]` and `[repos]` already establish for other project-wide,
+  non-traceability configuration).
+- **Unix-style username shape, checked unconditionally, not gated by roster configuration.**
+  Refined mid-implementation from an initial "any string" design: a `PlanningItem` field standing
+  in for a person's identity benefits from the same well-known, restrictive shape a real system
+  account name has (`^[a-z_][a-z0-9_-]{0,31}$`, matching `useradd`/`adduser`'s own default policy)
+  — lowercase, no spaces, no punctuation beyond `_`/`-`. This check is independent of whether
+  `[users]` is configured at all, unlike roster *membership*: a value that isn't even
+  username-shaped (a display name typed directly into `assignedTo:`, stray whitespace, mixed case)
+  is a defect regardless of whether a roster exists yet to check it against, the same way an
+  id-pattern check doesn't wait for anything else to be true first.
+- **`[users]` maps username → display name, over a flat `ids`-only array.** Refined from an
+  initial flat-array design once "the actual [display] name can be specified in the .syscribe
+  config" was confirmed as a real requirement, not a deferred nice-to-have: `[users]` is a plain
+  `<username> = "<display name>"` table (`HashMap<String, String>` — no nested per-user sub-table),
+  the minimal shape that satisfies both "ids must be declared" and "the display name lives in
+  config, not in every frontmatter file that assigns work." `show` resolves and prints the display
+  name alongside the raw username when available.
+- **A malformed `[users]` key is a config-level warning (`W309`) and is excluded from the roster,
+  not a hard failure of the whole table.** Mirrors `[ids.prefixes]`/`W046`'s exact posture: one
+  badly-formed entry in a project's own configuration shouldn't take down every other, well-formed
+  entry's checking — the malformed one is reported and ignored, not silently accepted nor allowed
+  to break the rest.
+- **Single scalar over a list (multi-assignee).** *Rejected:* GitHub Issues' own multi-assignee
+  model, which `status`/`itemType` otherwise pattern themselves on verbatim. `assignedTo:` mirrors
+  `parent:`'s single-scalar shape instead — one person accountable, not a set — since the concrete
+  ask was "assignable to *a* user." Widening to a list later is additive, not breaking, if a real
+  multi-assignee need surfaces.
+- **Roster membership dormant when `[users]` is unconfigured, error (not warning) once it isn't.**
+  Matches the opt-in posture every other `.syscribe.toml`-configured table already uses in this
+  codebase (`[repos]`, `[ids.prefixes]`, `[matchers]`, …): a project that hasn't declared a roster
+  is simply not using that half of the feature (format checking still applies regardless — see
+  above). Once a roster *is* declared, an undeclared value is graded as an error, not a warning
+  (unlike `blockedBy:`'s staleness `W308`) — there is no legitimate "reference something not yet
+  declared" case analogous to staged deferral; an unrecognised assignee is a typo or an out-of-date
+  roster, either way a defect worth blocking on.
+
 ## Consequences
 
 - A model with no `PlanningItem` elements is completely unaffected.

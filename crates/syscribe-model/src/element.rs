@@ -542,6 +542,16 @@ pub struct RawFrontmatter {
     /// addendum.
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub blocked_by: Option<Vec<String>>,
+    /// `assignedTo:` — the single user this `PlanningItem` is assigned to
+    /// (REQ-TRS-PLANITEM-008), a plain id string, not a cross-reference (users
+    /// are not model elements). A single scalar, deliberately unlike
+    /// `achieves:`/`blockedBy:` — mirrors `parent:`'s "one at a time" shape
+    /// rather than GitHub's own multi-assignee model; see the ADR addendum for
+    /// the rejected multi-assignee alternative. Checked against the declared
+    /// roster (`[users] ids` in `.syscribe.toml`, `ValidateConfig::users`) only
+    /// when that roster is non-empty — dormant, like every other config-gated
+    /// check, when `[users]` is not configured at all.
+    pub assigned_to: Option<String>,
 
     /// §3 — external reference(s): this element represents an artifact managed in
     /// another tool (a DNG requirement, a SysML-tool element, …). Opaque strings

@@ -862,6 +862,33 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // W309: malformed `[users]` key (REQ-TRS-PLANITEM-008). A key that isn't a
+    // well-formed username is ignored by the E722 roster check (it can never
+    // match a format-valid `assignedTo:`, which E723 already governs
+    // separately) — surface it so the author knows the entry isn't in effect.
+    // Keys sorted for stable output, same posture as the W046 block above.
+    if !config.users.is_empty() {
+        let cfg_file = config
+            .model_root
+            .as_ref()
+            .map(|r| r.join(".syscribe.toml").display().to_string())
+            .unwrap_or_else(|| ".syscribe.toml".to_string());
+        let mut names: Vec<&String> = config.users.keys().collect();
+        names.sort();
+        for name in names {
+            if !crate::resolver::is_valid_username(name) {
+                findings.push(warning(
+                    "W309",
+                    &cfg_file,
+                    &format!(
+                        "[users] key '{}' is not a valid username (expected: lowercase, starting with a letter or underscore, then lowercase letters/digits/underscore/hyphen, max 32 chars) — entry ignored",
+                        name
+                    ),
+                ));
+            }
+        }
+    }
+
     let resolver = Resolver::new(elements);
 
     // Segments some element claims as its own name (covers element names and
@@ -3927,6 +3954,42 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         &format!(
                             "PlanningItem has a non-empty `blockedBy:` but `status` is '{}', not 'blocked' — likely stale",
                             fm.status.as_deref().unwrap_or("(unset)")
+                        ),
+                    ));
+                }
+            }
+        }
+
+        // assignedTo: format + roster check (REQ-TRS-PLANITEM-008). Not a
+        // cross-reference (users are declared strings, not model elements) —
+        // checked against `config.users` instead of the resolver.
+        //
+        // E723 (format) is always checked, independent of whether any roster
+        // is configured — a Unix-style username shape (REQ-TRS-PLANITEM-008)
+        // is an intrinsic constraint on the field, like an id pattern, not a
+        // roster-membership rule. E722 (declared-in-roster) stays dormant,
+        // like every other config-gated check, when `[users]` is empty; when
+        // it's configured, an already-format-valid value is checked against
+        // it — a malformed value is only reported once (E723), not doubled up
+        // with a redundant "not declared" finding for the same defect.
+        if matches!(fm.element_type, Some(ElementType::PlanningItem)) {
+            if let Some(ref who) = fm.assigned_to {
+                if !crate::resolver::is_valid_username(who) {
+                    findings.push(error(
+                        "E723",
+                        &elem.file_path,
+                        &format!(
+                            "PlanningItem assignedTo '{}' is not a valid username (expected: lowercase, starting with a letter or underscore, then lowercase letters/digits/underscore/hyphen, max 32 chars)",
+                            who
+                        ),
+                    ));
+                } else if !config.users.is_empty() && !config.users.contains_key(who) {
+                    findings.push(error(
+                        "E722",
+                        &elem.file_path,
+                        &format!(
+                            "PlanningItem assignedTo '{}' is not a declared user — add it to [users] in .syscribe.toml",
+                            who
                         ),
                     ));
                 }
@@ -9883,5 +9946,142 @@ mod planning_item_blocked_by_tests {
             "blocked with no blockedBy: is a legitimate transient state: {:?}",
             result.findings
         );
+    }
+}
+
+// ── PlanningItem assignedTo (REQ-TRS-PLANITEM-008) ──────────────────────────
+
+#[cfg(test)]
+mod planning_item_assigned_to_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn req(id: &str, qname: &str) -> RawElement {
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nstatus: draft\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    /// A top-level (no `parent:`) PlanningItem with the given `assignedTo:`
+    /// (raw YAML value, unquoted), plus a companion, always-resolvable
+    /// `achieves:` Requirement (so E713 never interferes with these tests).
+    fn pi(qname: &str, id: &str, achieves_req_id: &str, assigned_to: &str) -> RawElement {
+        make_elem(
+            qname,
+            &format!(
+                "type: PlanningItem\nid: {id}\nname: Item\nstatus: todo\nachieves: {achieves_req_id}\nassignedTo: {assigned_to}\n"
+            ),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        )
+    }
+
+    fn users(ids: &[&str]) -> ValidateConfig {
+        ValidateConfig {
+            users: ids.iter().map(|s| (s.to_string(), format!("{s} display name"))).collect(),
+            ..ValidateConfig::default()
+        }
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn assigned_to_a_declared_user_validates_cleanly() {
+        let elements = vec![
+            req("REQ-AT-001", "Requirements::AtReq1"),
+            pi("Planning::Assigned1", "PI-AT-001", "REQ-AT-001", "alice"),
+        ];
+        let result = validate_with_config(&elements, &users(&["alice", "bob"]));
+        assert!(!codes(&result.findings).contains(&"E722"), "{:?}", result.findings);
+    }
+
+    #[test]
+    fn assigned_to_an_undeclared_user_is_e722() {
+        let elements = vec![
+            req("REQ-AT-002", "Requirements::AtReq2"),
+            pi("Planning::Assigned2", "PI-AT-002", "REQ-AT-002", "mallory"),
+        ];
+        let result = validate_with_config(&elements, &users(&["alice", "bob"]));
+        assert!(codes(&result.findings).contains(&"E722"), "expected E722: {:?}", result.findings);
+    }
+
+    #[test]
+    fn assigned_to_is_dormant_when_users_is_not_configured() {
+        // No [users] table at all (default ValidateConfig has an empty roster)
+        // -- assignedTo: is accepted unchecked (for roster membership;
+        // format is still always checked -- "anyone-at-all" is valid format).
+        let elements = vec![
+            req("REQ-AT-003", "Requirements::AtReq3"),
+            pi("Planning::Assigned3", "PI-AT-003", "REQ-AT-003", "anyone-at-all"),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).iter().any(|c| c == &"E722" || c == &"E723"),
+            "{:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn assigned_to_a_malformed_username_is_e723_regardless_of_roster() {
+        // Uppercase, spaces -- not a Unix-style username. Checked even with
+        // no [users] table configured at all (format is an intrinsic
+        // constraint, not a roster-membership one).
+        let elements = vec![
+            req("REQ-AT-005", "Requirements::AtReq5"),
+            pi("Planning::Assigned5", "PI-AT-005", "REQ-AT-005", "\"Alice Nakamura\""),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E723"), "expected E723: {:?}", result.findings);
+        // Not doubled up with E722 for the same underlying defect.
+        assert!(!codes(&result.findings).contains(&"E722"), "{:?}", result.findings);
+    }
+
+    #[test]
+    fn malformed_users_key_is_w309_and_excluded_from_the_roster() {
+        let elements = vec![
+            req("REQ-AT-006", "Requirements::AtReq6"),
+            pi("Planning::Assigned6", "PI-AT-006", "REQ-AT-006", "alice"),
+        ];
+        let mut cfg = users(&["alice"]);
+        cfg.users.insert("Not-A-Valid-Key".to_string(), "Someone".to_string());
+        let result = validate_with_config(&elements, &cfg);
+        assert!(codes(&result.findings).contains(&"W309"), "expected W309: {:?}", result.findings);
+        // The well-formed "alice" entry still works normally alongside the
+        // malformed one -- one bad entry doesn't take down the whole roster.
+        assert!(!codes(&result.findings).contains(&"E722"), "{:?}", result.findings);
+    }
+
+    #[test]
+    fn no_assigned_to_never_raises_e722_regardless_of_roster() {
+        let elements = vec![
+            req("REQ-AT-004", "Requirements::AtReq4"),
+            make_elem(
+                "Planning::Unassigned4",
+                "type: PlanningItem\nid: PI-AT-004\nname: Item\nstatus: todo\nachieves: REQ-AT-004\n",
+                "model/Planning/Unassigned4.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &users(&["alice"]));
+        assert!(!codes(&result.findings).contains(&"E722"), "{:?}", result.findings);
     }
 }

@@ -657,7 +657,7 @@ fn main() {
                 let mut show_cfg = vcfg.clone();
                 show_cfg.magicgrid = true;
                 let result = validator::validate_with_config(&elems, &show_cfg);
-                query::cmd_show(&elems, &resolver, &result, key);
+                query::cmd_show(&elems, &resolver, &result, &show_cfg, key);
             }
             "ls" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

@@ -93,6 +93,17 @@ pub struct ValidateConfig {
     /// `W046`; [`Self::with_model_root`] also installs the well-formed entries into
     /// the resolver so every `is_*_id` check recognises them.
     pub id_extra_prefixes: HashMap<String, Vec<String>>,
+
+    /// REQ-TRS-PLANITEM-008 — declared users for `PlanningItem.assignedTo:`,
+    /// from the `[users]` table of `<model_root>/.syscribe.toml`: `<username> =
+    /// "<display name>"`. Raw and unfiltered, exactly like
+    /// [`Self::id_extra_prefixes`] — the validator reports a key that isn't a
+    /// well-formed username (`crate::resolver::is_valid_username`) as `W309`
+    /// and excludes it from the effective roster used by `E722`/`E723`. Empty
+    /// (the default) means the feature is dormant: `assignedTo:` is accepted
+    /// but never checked against a roster — same opt-in posture as
+    /// `[repos]`/`[ids.prefixes]`/every other config-gated table.
+    pub users: HashMap<String, String>,
 }
 
 /// One entry in the `[repos]` table of `.syscribe.toml` (§14.2, REQ-TRS-TYPE-021).
@@ -234,6 +245,26 @@ pub fn load_baseline_config(model_root: &Path) -> BaselineConfig {
         .map(|r| r.baselines)
         .unwrap_or_default();
     BaselineConfig { element_dir: cfg.element_dir, manifest_dir: cfg.manifest_dir }
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct UsersRootToml {
+    #[serde(default)]
+    users: HashMap<String, String>,
+}
+
+/// Load the `[users]` table (`<username> = "<display name>"`) from
+/// `<model_root>/.syscribe.toml` (REQ-TRS-PLANITEM-008). Returns an empty map
+/// when the file is absent, unparseable, or has no `[users]` table — the
+/// feature stays dormant. Raw and unfiltered — the validator reports a
+/// malformed key as `W309` (mirroring `[ids.prefixes]`/`W046`'s split between
+/// "load raw here" and "validate + filter in `validator.rs`").
+fn load_users(model_root: &Path) -> HashMap<String, String> {
+    std::fs::read_to_string(model_root.join(".syscribe.toml"))
+        .ok()
+        .and_then(|text| toml::from_str::<UsersRootToml>(&text).ok())
+        .map(|r| r.users)
+        .unwrap_or_default()
 }
 
 impl LinkConfig {
@@ -460,6 +491,7 @@ impl ValidateConfig {
         let links = load_links(&root);
         let scripts_dir = Some(resolve_scripts_dir(&root));
         let repos = load_repos(&root);
+        let users = load_users(&root);
         Self {
             model_root: Some(root),
             repo_root,
@@ -473,6 +505,7 @@ impl ValidateConfig {
             scripts_dir,
             repos,
             id_extra_prefixes,
+            users,
         }
     }
 
