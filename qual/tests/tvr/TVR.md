@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.32.0  
+**Version:** syscribe 0.33.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-08-07  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 266 |
-| Passed | 266 |
+| Total test cases | 267 |
+| Passed | 267 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1762,6 +1762,17 @@
 | Scenario | Result |
 |---|---|
 | status: blocked with no blockedBy raises nothing | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-008 — Verify PlanningItem's assignedTo: enforces a Unix-style username format unconditionally, and checks roster membership only when [users] is configured, without double-reporting a single defect.
+
+**Verifies:** REQ-TRS-PLANITEM-008  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a malformed [users] key is flagged and excluded from the roster | ✓ PASS |
 
 ---
 
