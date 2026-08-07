@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 265 |
-| Passed | 265 |
+| Total test cases | 266 |
+| Passed | 266 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1751,6 +1751,17 @@
 | Scenario | Result |
 |---|---|
 | a non-leaf item marked done raises nothing regardless of its own evidence | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-007 — Verify PlanningItem's blockedBy: resolves permissively (any element kind), rejects a dangling target or a cycle, and flags status/field staleness correctly in both directions.
+
+**Verifies:** REQ-TRS-PLANITEM-007  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| status: blocked with no blockedBy raises nothing | ✓ PASS |
 
 ---
 
