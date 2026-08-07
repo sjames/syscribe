@@ -489,6 +489,14 @@ fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     if let Some(ref ss) = fm.supports {
         for s in ss { out.push(("supports".into(), s.clone())); }
     }
+    // PlanningItem (ADR-SYS-PLANITEM-001): parent: (single scalar — the strict
+    // single-parent tree) and achieves: (one or more Requirements). Both are
+    // ordinary outbound cross-references; without these, `refs <target>` never
+    // surfaces a PlanningItem's children or which items achieve a Requirement.
+    if let Some(ref p) = fm.parent { out.push(("parent".into(), p.clone())); }
+    if let Some(ref ach) = fm.achieves {
+        for s in ach { out.push(("achieves".into(), s.clone())); }
+    }
     if let Some(ref ev) = fm.evidence {
         // Argument.evidence entries are scalar refs; PlanningItem.evidence
         // entries are ref:/path:/rationale: mappings, not cross-reference

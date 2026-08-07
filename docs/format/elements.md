@@ -57,6 +57,7 @@ These are not standard SysML usages — they carry a stable opaque identifier an
 | `ADR` | `ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status` |
 | `ReviewRecord` | `RR(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `reviewType`, `reviews` |
 | `TradeStudy` | `TRD(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `criteria`, `alternatives`, `scores` |
+| `PlanningItem` | `PI(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status` |
 | `Zone` | `ZN(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `targetSL` |
 | `Conduit` | `CD(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `fromZone`, `toZone` |
 | `Configuration` | `CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `featureModel` |
@@ -76,6 +77,23 @@ GitHub PR). Validation `E700`–`E705`, `W700`, `W704`; commands `reviews`, `rev
 (`criteria` with weight + `maximize`/`minimize`, `alternatives`, a `scores` matrix, optional
 `objective`/`decision`). The tool computes — never writes — normalised/weighted scores and
 rankings. Validation `E869`–`E877`, `W061`–`W064`; command `trade-study`.
+
+**`PlanningItem`** (`ADR-SYS-PLANITEM-001`) is the model's native representation of the day-to-day
+work of getting from `Requirement` to satisfied/verified — the shape a Jira epic/story/task or a
+GitHub issue hierarchy fills today, made durable and structurally part of the traceability graph.
+A strict **single-parent tree** (`parent:`, at most one — not a DAG); a top-level item (no
+`parent:`) must set `achieves:` (one or more `Requirement`s this branch of work exists to realise,
+deliberately a separate field from `satisfies:`, which stays scoped to architecture semantics).
+`status` (`todo`/`in_progress`/`blocked`/`done`) and `itemType` (`bug`/`task`/`feature`) reuse
+GitHub's own current vocabulary verbatim. `evidence:` is a list of duck-typed entries — `ref:` (any
+resolvable element, unrestricted by kind) or `path:` (a file/doc, resolved like `implementedBy:`) —
+each with an optional `rationale:` that waives that one entry's own check. A **leaf** item (no
+children) claiming `status: done` must have at least one non-waived, resolving `evidence:` entry —
+graded harder than the analogous `Requirement` rule (`W300`, a warning) since claiming done with no
+proof is a correctness defect, not a time-bound gap. No dedicated CLI subcommand or MCP tool yet —
+queried via the generic `list`/`show`/`ls`/`find`/`refs` commands, and gets a working guarded MCP
+write path for free via the existing `create_element`/`update_element`/etc. tools. Validation
+`E706`–`E717`, `E719`. See `examples/planning-item/` for a complete worked example.
 
 ## Tier 2 — Safety & cybersecurity elements (own schema)
 

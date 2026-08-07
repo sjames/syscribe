@@ -152,6 +152,27 @@ If there are errors, the LLM fixes them in the same response before declaring th
 
 ---
 
+## Tracking the Work Itself — `PlanningItem`
+
+The eight batches above are a plan for building the model; `PlanningItem` (`ADR-SYS-PLANITEM-001`, format spec §23) is how that plan — and any later change request — can be made durable and checked into the model itself, instead of living only in an ephemeral session-scoped todo list. It's the same shape of thing as a GitHub issue hierarchy: a strict single-parent tree (`parent:`), a top-level item states which `Requirement`(s) it `achieves:`, and a leaf item claiming `status: done` needs at least one resolving `evidence:` entry (a `ref:` to a real element, or a `path:` to the code/test that proves it) before the validator will accept it.
+
+This is optional — nothing about the eight-batch workflow requires it. It's most valuable for a multi-session or multi-agent effort, where "what's left, what's blocked, what counts as proof of done" needs to survive between sessions the same way the model itself does. This repository's own `model/Planning/` tracks its own feature work this way (see e.g. `PI-HPLE-001` and its children); `examples/planning-item/` is a complete standalone worked example.
+
+```yaml
+# model/Planning/MyFeature/PI-MYFEATURE-001.md — one PlanningItem per unit of work
+type: PlanningItem
+id: PI-MYFEATURE-001
+name: "Add the thing"
+status: done
+itemType: feature
+achieves: [REQ-MYFEATURE-001]
+evidence:
+  - path: "repo:crates/syscribe-model/tests/myfeature.rs"
+---
+```
+
+---
+
 ## Diagram Generation
 
 The prompt includes full diagram instructions. The LLM generates two kinds of diagrams, both embedded directly in the `.md` file body.

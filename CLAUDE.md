@@ -72,6 +72,8 @@ Release baselines (`ADR-SYS-BASELINE-001`; `crates/syscribe-model/src/baseline.r
 
 Suspect links (`ADR-SYS-SUSLINK-001`; `crates/syscribe-model/src/suspect.rs`) detect when a trace-link target changed since review. The source stores a `traceBaselines:` map (target id → `blake3:<hex>` of the target's normative projection — body + normative frontmatter, excluding editorial fields). Validation recomputes and compares; a mismatch is `W090`. Opt-in/additive: unbaselined links stay silent in `validate` and are surfaced only by `suspect list`. Baselines are captured/refreshed with `suspect accept` (single link or `--all` over the suspect set); `suspect accept --all-unbaselined` is the one-time onboarding switch that baselines every link with no baseline yet without ever overwriting an existing one. The MCP server exposes `suspect_list` (read) and the guarded `suspect_accept` (write, dry-run/delta/commit; clearing a link shows its W090 under `resolvedWarnings`).
 
+Native `PlanningItem` (`ADR-SYS-PLANITEM-001`; `PI-*`, `type: PlanningItem`) is the model's own representation of the day-to-day work of getting from `Requirement` to satisfied/verified — a durable, versioned analogue of a Jira epic/story/task or GitHub issue hierarchy, structurally part of the traceability graph rather than living in an external tracker. Strict single-parent tree (`parent:`, at most one — not a DAG, with cycle detection `E712`); a top-level item (no `parent:`) must set `achieves:` (one or more `Requirement`s, `E713`/`E714`/`E715` — deliberately not `satisfies:`, which stays scoped to architecture semantics). `status`/`itemType` reuse GitHub's own vocabulary verbatim (`E708`/`E709`). `evidence:` is duck-typed `ref:`/`path:` entries with a per-entry waiving `rationale:`; a leaf item (no children) claiming `status: done` needs at least one non-waived, resolving entry or it's `E719` (harder than the analogous `Requirement` rule `W300`, a warning — claiming done with no proof is a correctness defect). No dedicated CLI subcommand or MCP tool yet — queried via `list`/`show`/`ls`/`find`, written via the generic MCP `create_element`/`update_element`/etc. tools for free. This repo's own `model/Planning/` uses it to track its own feature work (first real, non-`examples/` use); see `examples/planning-item/` for the dedicated worked example.
+
 ---
 
 ## Part 1 — Syscribe Format
@@ -97,6 +99,7 @@ Each model element is a `.md` file. The **directory path** encodes namespace/own
 | — (native TestCase) | `.md` file, `type: TestCase` — dedicated handler, TC-* id |
 | — (native TestPlan) | `.md` file, `type: TestPlan` — dedicated handler, TP-* id; groups TestCases by configuration/scope |
 | — (Architecture Decision Record) | `.md` file, `type: ADR` — dedicated handler, ADR-* id |
+| — (native PlanningItem) | `.md` file, `type: PlanningItem` — dedicated handler, PI-* id; single-parent work-item tree tracking a `Requirement`'s `achieves:`, no dedicated CLI subcommand |
 | `allocation` | `.md` file, `type: Allocation` |
 | `view def` / `view` | `.md` file, `type: ViewDef` / `View` |
 
@@ -189,6 +192,10 @@ SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file pat
 **Baseline ID pattern** — `^BL(-[A-Z0-9]{2,12})+$`
 - Prefix `BL`, id-identified (`type: Baseline`; release snapshots, `ADR-SYS-BASELINE-001`). Like `FeatureDef`, a baseline id **need not** end in a number, so a release-style id such as `BL-2026-07` is valid. The `id` is the model identity and is **distinct** from the version-control tag string carried in `gitTag:` (e.g. `gitTag: REL-2026-07`). Files live under `model/Baselines/`.
 - Examples: `BL-2026-07`, `BL-QUARTERLY-001`, `BL-SAFETY-REL-03`
+
+**PlanningItem ID pattern** — `^PI(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
+- Same segment rules as `Requirement`/`TestCase`/`ADR`, prefix `PI`. `type: PlanningItem`, native work-item tracking (`ADR-SYS-PLANITEM-001`) — see below.
+- Examples: `PI-HPLE-001`, `PI-RTH-IMPL-SW-002`
 
 Both the `id` field and the qualified name (path-derived) are valid cross-reference targets in `verifies:` and `derivedFrom:`.
 

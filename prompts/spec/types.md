@@ -76,6 +76,7 @@
 | `ADR` | Record | Architecture Decision Record — stable `ADR-*` ID |
 | `ReviewRecord` | Record | Formal review event + traceability anchor — stable `RR-*` ID |
 | `TradeStudy` | Record | Weighted-criteria evaluation of alternatives — stable `TRD-*` ID |
+| `PlanningItem` | Record | Native work-item tracking (§23) — stable `PI-*` ID; single-parent tree, `achieves:` a Requirement, `evidence:` proves `status: done` |
 | `Package` | Namespace | Named container; `_index.md` in a directory |
 | `LibraryPackage` | Namespace | Package marked as a model library |
 | `Namespace` | Namespace | Root namespace; `_index.md` at model root |
@@ -240,3 +241,24 @@ selection:                        # optional additive query (unioned with testCa
 Effective members = `testCases` ∪ `selection` matches. Run `testplan` (list/detail/`--json`)
 and use the `--plan TP-X` lens on `matrix`/`verification-depth`/`audit`. Validation:
 `E600`–`E606`, `W610`–`W616` (duplicate id is `E101`).
+
+### native PlanningItem
+
+```yaml
+type: PlanningItem
+id: PI-RTH-IMPL-SW-002       # required; PI(-[A-Z0-9]{2,12})+-[0-9]{3,8}
+name: "..."                 # required
+status: in_progress          # required; todo | in_progress | blocked | done
+itemType: task                # optional; bug | task | feature
+parent: PI-RTH-IMPL-001       # optional; single scalar (strict single-parent tree, not a DAG)
+achieves: [REQ-RTH-002]       # required (non-empty) when parent: is absent (top-level)
+evidence:
+  - ref: TC-RTH-BATT-001                          # any resolvable element, unrestricted by kind
+  - path: "repo:crates/syscribe/src/rth/mod.rs"    # local path checked to exist, or remote URI
+  - path: "docs/design/rth-timing.pdf"
+    rationale: "not yet committed; reviewed in RR-RTH-001"   # waives this one entry's own check
+```
+A **leaf** item (empty computed `children` — no other `PlanningItem` names it via `parent:`) at
+`status: done` needs at least one non-waived, resolving `evidence:` entry (`E719`). No dedicated
+CLI subcommand yet — use `list`/`show`/`ls`/`find`/`refs` (§23, `ADR-SYS-PLANITEM-001`). Validation:
+`E706`–`E717`, `E719`.

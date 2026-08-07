@@ -7237,4 +7237,89 @@ The completeness rule described in §8.16.8.3 for `Sequence` diagrams is now nor
 |---|---|
 | `W080` | A `Sequence` diagram's `subject:` `ActionDef` has a `SendAction` or `AcceptAction` in its sub-action tree that is not referenced by any entry in the diagram's `edges:` list — the sequence diagram is missing an edge for a known message event |
 
+---
+
+## 23 Native PlanningItem: Work-Item Tracking
+
+### 23.1 Overview
+
+Syscribe models trace `Requirement → Architecture → Test`, but nothing in the base format represents the *work* of getting there — the day-to-day breakdown a team (or an LLM being guided through development) actually executes, the shape a Jira epic/story/task or a GitHub issue hierarchy fills today. `PlanningItem` (`ADR-SYS-PLANITEM-001`) is that same shape of thing made durable, checked into git, and structurally part of the traceability graph rather than living entirely in an external tracker disconnected from `derivedFrom`/`satisfies`/`verifies` resolution.
+
+`PlanningItem` is a **strict single-parent tree**, not a DAG: a child declares at most one `parent:`, mirroring `Requirement.derivedFrom`/`derivedChildren` rather than the more general convergent-evidence structure Graph-of-Thoughts-style planning would allow (deliberately rejected — see the ADR's Decision 1; two independent items may still cite the same evidence *by value*, which needs no DAG).
+
+### 23.2 `PlanningItem` Element
+
+**ID pattern:** `^PI(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
+Examples: `PI-HPLE-001`, `PI-RTH-IMPL-SW-002`
+
+**Frontmatter schema:**
+
+| Field | YAML type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | literal `PlanningItem` | **Required** | — | Discriminator. |
+| `id` | string | **Required** | — | Stable ID matching `PI-*` pattern. |
+| `name` | string | **Required** | — | Free-prose label. |
+| `status` | enum | **Required** | — | `todo` / `in_progress` / `blocked` / `done` — GitHub Projects' three built-in defaults plus `blocked`, needed so a consumer (human or LLM) can distinguish "not started" from "can't proceed." |
+| `itemType` | enum | optional | absent | `bug` / `task` / `feature` — exactly GitHub's own current default Issue Types. |
+| `parent` | string | optional | absent | A single other `PlanningItem` (id or qname) this one is a child of. Absent means top-level. Resolved like `derivedFrom:`; cycles are detected the same way. |
+| `achieves` | string or list | conditionally required | absent | One or more native `Requirement`s (id or qname) this branch of work exists to realise. **Required (non-empty) on a top-level item** (no `parent:`); optional on a non-top-level item. Deliberately a distinct field from `satisfies:`, which carries architecture-specific machinery (`E312`–`E315`) that does not apply here. |
+| `evidence` | list | optional | absent | Duck-typed entries proving completion — see §23.3. |
+| `tags` | list of strings | optional | absent | Free labels. |
+
+`appliesWhen:` (product-line gating) needs no new mechanism — it is already a universal, type-agnostic field; a `PlanningItem` implementing a product-line feature sets it exactly like any other element.
+
+### 23.3 `evidence:` Sub-Schema
+
+Each entry is **duck-typed** — recognised by which key it carries, not a `type:` discriminator tag (the same idiom the `Allocation` `features:`-list convention already establishes):
+
+| Field | Type | Description |
+|---|---|---|
+| `ref` | string | Any resolvable model element (id or qname), unrestricted by kind — not limited to architecture or `TestCase`. |
+| `path` | string | A file/doc path, resolved exactly like `implementedBy:` (§12.8): a local path is checked to exist, a remote URI is accepted as external. `repo:`-prefixed paths resolve relative to the git root. |
+| `rationale` | string | Optional, on either form. A non-empty `rationale:` **waives** that one entry's own resolution check — the entry still counts toward "has evidence," it just isn't itself verified. Mirrors the `ffiRationale` co-located-waiver pattern. Every other entry in the same list is still checked normally; there is no blanket suppression. |
+
+```yaml
+evidence:
+  - path: "repo:crates/syscribe-model/tests/hple_subconfigurations.rs"
+  - ref: TC-RTH-BATT-001
+  - path: "docs/design/rth-timing-analysis.pdf"
+    rationale: "External PDF not yet committed; reviewed in RR-RTH-001"
+```
+
+### 23.4 Validation Rules
+
+| Code | Condition |
+|---|---|
+| `E706` | `PlanningItem.id` does not match the `PI-*` pattern |
+| `E707` | `PlanningItem` missing `id:`, `name:`, or `status:` |
+| `E708` | `PlanningItem.status` not in `todo \| in_progress \| blocked \| done` |
+| `E709` | `PlanningItem.itemType` (if present) not in `bug \| task \| feature` |
+| `E710` | `parent:` reference does not resolve to any element |
+| `E711` | `parent:` resolves to a real element that is not a `PlanningItem` |
+| `E712` | A `parent:` chain forms a cycle |
+| `E713` | A top-level `PlanningItem` (no `parent:`) has no `achieves:` entry |
+| `E714` | An `achieves:` entry does not resolve to any element |
+| `E715` | An `achieves:` entry resolves to a real element that is not a native `Requirement` |
+| `E716` | An `evidence[].ref` does not resolve to any model element (and is not waived) |
+| `E717` | An `evidence[].path` does not exist on disk (and is not waived) |
+| `E719` | A **leaf** `PlanningItem` (empty computed `children` — see §23.5) at `status: done` has no non-waived, resolving `evidence:` entry |
+
+`E719` is graded harder than the analogous `Requirement` rule (`W300`, a warning): claiming `done` with zero resolvable evidence is a correctness defect, not a soft, time-bound gap the way an unassigned-but-still-`approved` leaf `Requirement` is. A non-leaf item (has children) is unconstrained by `E719` regardless of its own status or evidence — its completion is a function of its children, not its own evidence list. A waived-only evidence list still fails the rule: a `rationale:` excuses one entry's *check*, it does not manufacture a passing entry.
+
+(`E718` — a non-scalar `Argument.evidence` entry — shares the same underlying `evidence:` field broadened for `PlanningItem`'s benefit, but is not itself a `PlanningItem` rule; see §8.18.)
+
+### 23.5 Computed Reverse Index
+
+Mirroring `Requirement.derivedChildren`, the validator computes `children` for every `PlanningItem` — the set of other `PlanningItem`s whose `parent:` names it. A **leaf** is a `PlanningItem` with an empty (or absent) computed `children` set; "leaf" is not a declared schema concept, it falls out structurally, exactly as elsewhere in this format. `refs <PlanningItem>` (§10, generic inbound-reference query) lists both a `PlanningItem`'s children (`parent` relationship) and, for a `Requirement`, which `PlanningItem`s `achieves` it.
+
+### 23.6 CLI and MCP Surface
+
+No dedicated CLI subcommand or MCP tool exists yet — deliberately: the ADR holds this feature to schema + validation only until the shape has been used and proven. A `PlanningItem` is authored, listed, and inspected via the existing generic surface:
+
+- `syscribe list PlanningItem` / `syscribe show <PI-id>` / `syscribe ls Planning` / `syscribe find <text>` — discovery and inspection, same as any other element type.
+- `syscribe refs <PI-id-or-Requirement-id>` — inbound `parent:`/`achieves:` references (§23.5).
+- The MCP server's existing guarded-write tools (`create_element`/`update_element`/`move_element`/`delete_element`/`apply_changes`) already support `PlanningItem` with zero additional code, since any recognised `ElementType` gets a working, guarded write path for free.
+
+**Explicitly out of scope** (tracked as follow-on only if a concrete need arises): MCP tools that actively drive an LLM through a `PlanningItem` graph (`next_actionable_item`, `mark_evidence`, etc.), a formal state-machine-backed status model, and any Jira/GitHub sync or `extRef:` convention specific to planning items. See `examples/planning-item/` for a complete worked example (a Return-to-Home feature broken into design/impl/test items across two `Configuration`s).
+
 `W080` is **draft-suppressed** (not emitted for `Sequence` diagrams with `status: draft`). Gateable with `--deny W080`.
