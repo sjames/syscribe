@@ -6910,6 +6910,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // function doc comment for why that matters).
     findings.extend(sub_configuration_findings(elements, config, &resolver, &findings));
 
+    // ── HPLE open-parameter completeness (REQ-TRS-HPLE-004, `W513`) ──────────
+    // Dormant unless some Configuration declares `subConfigurations:`, same as
+    // the checks above.
+    findings.extend(open_parameter_findings(elements, config, &resolver));
+
     ValidationResult {
         findings,
         verified_by,
@@ -8013,6 +8018,87 @@ pub fn parameter_binding_findings(
                             "required parameter '{}' of selected feature '{}' is not bound (and has no default)", path, feat)));
                     }
                 }
+            }
+        }
+    }
+    findings
+}
+
+/// `W513` (REQ-TRS-HPLE-004, `PI-HPLE-OPENPARAM-001`): the transitive closure
+/// of every `isRequired: true`, no-`default:` parameter — of every
+/// `FeatureDef` actually selected anywhere in a `Configuration`'s
+/// `subConfigurations:` subtree, at any depth — that remains unbound after
+/// applying every `parameterBindings:` entry from that `Configuration` down
+/// through every tier already resolved beneath it. Opt-in and `--deny`-
+/// gateable, following the same posture as `W510`/`W511`/`W512`/`W023`/`W090`
+/// — reported as a warning, **never** escalated to a hard error purely
+/// because one tier's own isolated validation still finds it open (only the
+/// repo actually positioned as the point of final assembly can correctly
+/// decide "still open" means "genuinely incomplete" rather than "deliberately
+/// deferred further up").
+///
+/// Reuses [`collect_reachable_feature_params`]'s walk directly — a parameter
+/// only ever appears in `out` tagged `selected_by_owner` at the hop that
+/// structurally owns its `FeatureDef` (a peer target's own model), and
+/// `already_bound_by` already reflects every tier on the path, local or
+/// peer, that supplies it via its own `parameterBindings:` — so "still open"
+/// here is exactly "selected, required, no default, not runtime-bound, and
+/// `already_bound_by` is still `None`, and not bound by this `Configuration`'s
+/// own `parameterBindings:` either" (the walk itself never inspects `cfg`'s
+/// own bindings — that check is added here). A purely local
+/// `subConfigurations:` chain never contributes anything to `out` at all (see
+/// that function's doc comment), so this stays silent for it too — a single,
+/// shared feature model has no "some tier's job to eventually decide" concept
+/// (an unbound required parameter there is already `W017`, unconditionally).
+pub fn open_parameter_findings(
+    elements: &[RawElement],
+    config: &ValidateConfig,
+    resolver: &Resolver,
+) -> Vec<Finding> {
+    let mut findings: Vec<Finding> = Vec::new();
+    for cfg in elements
+        .iter()
+        .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
+    {
+        if cfg.frontmatter.sub_configurations.is_none() {
+            continue;
+        }
+        let mut table: HashMap<String, HashMap<String, TransitiveParamStatus>> = HashMap::new();
+        let mut visiting: HashSet<String> = HashSet::new();
+        collect_reachable_feature_params(elements, resolver, cfg, &config.repos, 0, &mut visiting, &mut table);
+        if table.is_empty() {
+            continue; // purely local chain — see doc comment.
+        }
+        let own_bound: HashSet<String> = match &cfg.frontmatter.parameter_bindings {
+            Some(serde_yaml::Value::Mapping(m)) => {
+                m.keys().filter_map(|k| k.as_str()).map(|s| s.to_string()).collect()
+            }
+            _ => HashSet::new(),
+        };
+
+        let mut fnames: Vec<&String> = table.keys().collect();
+        fnames.sort();
+        for fname in fnames {
+            let pmap = &table[fname];
+            let mut pnames: Vec<&String> = pmap.keys().collect();
+            pnames.sort();
+            for pname in pnames {
+                let status = &pmap[pname];
+                if !status.selected_by_owner
+                    || status.meta.is_fixed
+                    || !status.meta.is_required
+                    || status.meta.has_default
+                    || status.meta.binding_time == Some(2) // runtime — REQ-TRS-PARAM-004
+                    || status.already_bound_by.is_some()
+                {
+                    continue;
+                }
+                let path = format!("{fname}.{pname}");
+                if own_bound.contains(&path) {
+                    continue;
+                }
+                findings.push(warning("W513", &cfg.file_path, &format!(
+                    "required parameter '{}' of a feature selected somewhere in the subConfigurations subtree remains unbound after applying every parameterBindings: entry down through this Configuration's subtree", path)));
             }
         }
     }

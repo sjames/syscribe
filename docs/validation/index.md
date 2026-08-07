@@ -60,6 +60,7 @@ Errors block a clean build. Warnings are advisory.
 | E510–E515, W510–W512 | Multi-repository (§14) | Circular import, missing path, cross-repo ref resolution, import alias/qname, duplicate stable ID, ref-pin / drift / submodule-gitlink reproducibility |
 | E516–E518 | Hierarchical product lines (REQ-TRS-HPLE-001) | `subConfigurations:` dangling / wrong-type / not-internally-valid (local or genuinely re-validated peer `Configuration`, or exceeded consolidation depth) |
 | E519, E523 | Hierarchical product lines (REQ-TRS-HPLE-003) | Cross-tier `parameterBindings:` targets a feature the owning tier doesn't select, or double-binds a parameter a nearer tier already closed |
+| W513 | Hierarchical product lines (REQ-TRS-HPLE-004) | Opt-in, `--deny`-gateable: a required parameter anywhere in a consolidated `subConfigurations:` subtree remains unbound after every tier's own `parameterBindings:` |
 | E865, E866–E868, W060, W860 | Decomposition & budgets (§22.2) | Sibling-satisfy decomposition, budget expression syntax/rollup |
 | E869–E877, W061–W064 | Trade studies (§15) | TradeStudy required fields, criteria/alternatives/scores matrix, weights, objective/decision |
 | E950–E956, W950–W953 | IEC 62443 (§13) | Zone/Conduit required fields, ID patterns, zone/member/conduit resolution, Security-Level gaps |

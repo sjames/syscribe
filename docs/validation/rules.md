@@ -382,6 +382,16 @@ A `Configuration.parameterBindings:` dotted key resolves through `subConfigurati
 
 Dormant under the same condition as `E516`–`E518` (some `Configuration` declares `subConfigurations:`), and further gated to bindings that actually resolve transitively — a purely local hierarchy never triggers `E519`/`E523` (its `FeatureDef`s stay governed by ordinary `E203`).
 
+### Open-parameter completeness across a consolidated subtree (W513, REQ-TRS-HPLE-004)
+
+For a `Configuration` with `subConfigurations:`, the transitive closure of every `isRequired: true`, no-`default:` parameter — of every `FeatureDef` actually selected anywhere in the subtree, at any depth — that remains unbound after applying every `parameterBindings:` entry from that `Configuration` down through every tier already resolved beneath it.
+
+| Code | Condition |
+|---|---|
+| W513 | A parameter is selected, required, has no default, is not `bindingTime: runtime` (REQ-TRS-PARAM-004's carve-out, mirroring `W017`), and no tier along the path — this `Configuration` itself, an intermediate consolidator, or the owning tier — supplies it. |
+
+**Opt-in and `--deny`-gateable, never a hard error** — following the same posture as `W510`/`W511`/`W512`/`W023`/`W090`. An open required parameter at an intermediate tier is not a defect on its own; it is the mechanism by which staged, multi-party configuration across independently-developed product lines works. Only the repo actually positioned as the point of final assembly can correctly decide, via its own CI's `--deny W513`, that "still open" now means "genuinely incomplete." Dormant for a purely local `subConfigurations:` chain (one shared feature model per repo has no "some tier's job to eventually decide" concept — an unbound required local parameter there is already `W017`, unconditionally).
+
 ## Build-system integration (E050, W050, §9.9)
 
 A `FeatureDef` or `Configuration` may declare `buildExports:` mapping selected features to build-system variables, with `buildOverrides:` resolving conflicts. **Opt-in** — the pass runs only when at least one element declares `buildExports:` or `buildOverrides:`.
