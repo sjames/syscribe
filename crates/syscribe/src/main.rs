@@ -1445,7 +1445,7 @@ fn main() {
                     .find(|w| w[0] == "--prove")
                     .map(|w| w[1].as_str());
                 let gate = parse_gate_options(rest);
-                query::cmd_feature_check(&elems, json, deep, count, enumerate, prove, &gate);
+                query::cmd_feature_check(&elems, &vcfg, &resolver, json, deep, count, enumerate, prove, &gate);
             }
             "features" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

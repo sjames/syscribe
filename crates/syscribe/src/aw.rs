@@ -120,9 +120,11 @@ fn splice_frontmatter(content: &str, yaml: &str, new_fm: &str) -> String {
 /// Run the deep feature-model bad-configuration analysis and exit with its code
 /// (non-zero on void / dead / invalid configurations). Exits `0` when there is no
 /// feature model to check.
-fn feature_check_and_exit(elements: &[RawElement]) -> ! {
+fn feature_check_and_exit(elements: &[RawElement], model_root: &Path) -> ! {
     let gate = GateOptions::default();
-    query::cmd_feature_check(elements, false, true, false, false, None, &gate);
+    let vcfg = ValidateConfig::with_model_root(model_root);
+    let resolver = Resolver::new(elements);
+    query::cmd_feature_check(elements, &vcfg, &resolver, false, true, false, false, None, &gate);
     std::process::exit(0);
 }
 
@@ -236,7 +238,7 @@ pub fn cmd_applies_when(
         println!("[dry-run] would set on {qname} ({file_path}):  appliesWhen: {}", yaml_scalar(expr));
         println!("[dry-run] feature-model bad-configuration check on the result:");
         println!();
-        feature_check_and_exit(&clones);
+        feature_check_and_exit(&clones, model_root);
     }
 
     let new_content = splice_frontmatter(&content, yaml, &new_fm);
@@ -248,5 +250,5 @@ pub fn cmd_applies_when(
     println!();
     println!("Validating the feature model for bad configurations…");
     println!();
-    feature_check_and_exit(&clones);
+    feature_check_and_exit(&clones, model_root);
 }

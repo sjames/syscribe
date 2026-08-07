@@ -4678,7 +4678,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // E203–E206 / E222 / W017: FeatureDef parameter binding validation (§9.7).
     // Shared with `feature-check` so a product line validated holistically gets
     // the same binding/range enforcement (GH #14).
-    findings.extend(parameter_binding_findings(elements));
+    findings.extend(parameter_binding_findings(elements, config, &resolver));
 
     // W028: duplicate external references (§3, REQ-TRS-EXTREF-001).
     findings.extend(ext_ref_duplicate_findings(elements));
@@ -7565,37 +7565,38 @@ pub fn sub_configuration_findings(
     own_findings
 }
 
-/// FeatureDef parameter-binding validation (§9.7): E203–E206, E222, W017.
-/// Shared by the main `validate` pass and by `feature-check`, so a product line
-/// checked holistically gets the same binding/range enforcement (GH #14).
-/// Dormant unless at least one `FeatureDef` exists.
-pub fn parameter_binding_findings(elements: &[RawElement]) -> Vec<Finding> {
-    let mut findings: Vec<Finding> = Vec::new();
-    let has_feature_def = elements
-        .iter()
-        .any(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef)));
-    if !has_feature_def {
-        return findings;
-    }
-    struct ParamMeta {
-        is_fixed: bool,
-        range: Option<(f64, f64)>,
-        enum_values: Option<Vec<String>>,
-        is_required: bool,
-        has_default: bool,
-        /// Binding-time rank (compile=0, load=1, runtime=2); `None` when `bindingTime:`
-        /// is absent (unspecified — the parameter opts out of binding-time checks).
-        binding_time: Option<u8>,
-    }
-    let parse_range = |s: &str| -> Option<(f64, f64)> {
-        // Accept both "min..max" and inclusive "min..=max".
-        let (lo, hi) = s.split_once("..")?;
-        let hi = hi.trim();
-        let hi = hi.strip_prefix('=').unwrap_or(hi).trim();
-        Some((lo.trim().parse().ok()?, hi.parse().ok()?))
-    };
-    let num = |v: &serde_yaml::Value| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64));
+/// Per-parameter metadata read off a `FeatureDef`'s `parameters:` entry, used
+/// by [`parameter_binding_findings`] and its HPLE transitive-lookup helper
+/// [`collect_reachable_feature_params`] below.
+struct ParamMeta {
+    is_fixed: bool,
+    range: Option<(f64, f64)>,
+    enum_values: Option<Vec<String>>,
+    is_required: bool,
+    has_default: bool,
+    /// Binding-time rank (compile=0, load=1, runtime=2); `None` when `bindingTime:`
+    /// is absent (unspecified — the parameter opts out of binding-time checks).
+    binding_time: Option<u8>,
+}
 
+/// Parse a `range:` string ("min..max" or inclusive "min..=max").
+fn parse_param_range(s: &str) -> Option<(f64, f64)> {
+    let (lo, hi) = s.split_once("..")?;
+    let hi = hi.trim();
+    let hi = hi.strip_prefix('=').unwrap_or(hi).trim();
+    Some((lo.trim().parse().ok()?, hi.parse().ok()?))
+}
+
+/// Build the `<FeatureDef qname> -> <param name> -> ParamMeta` table for every
+/// `FeatureDef` in `elements`, plus any `E230` (malformed `bindingTime:`)
+/// findings raised along the way. Shared by [`parameter_binding_findings`]
+/// for the local model and by [`collect_reachable_feature_params`] for each
+/// peer model reached through `subConfigurations:` — a peer's own `E230`s are
+/// its own model's problem (caught when that model is itself validated), so
+/// callers scanning a peer discard the returned findings rather than folding
+/// them into the consolidating model's report.
+fn build_feature_params(elements: &[RawElement]) -> (HashMap<String, HashMap<String, ParamMeta>>, Vec<Finding>) {
+    let mut findings: Vec<Finding> = Vec::new();
     let mut feature_params: HashMap<String, HashMap<String, ParamMeta>> = HashMap::new();
     for fd in elements
         .iter()
@@ -7610,7 +7611,7 @@ pub fn parameter_binding_findings(elements: &[RawElement]) -> Vec<Finding> {
                 let is_fixed = get("isFixed").and_then(|v| v.as_bool()).unwrap_or(false)
                     || get("derivedFrom").is_some()
                     || get("value").is_some();
-                let range = get("range").and_then(|v| v.as_str()).and_then(parse_range);
+                let range = get("range").and_then(|v| v.as_str()).and_then(parse_param_range);
                 let enum_values = get("enumValues")
                     .map(|v| yaml_strings(v).into_iter().map(|s| s.to_string()).collect::<Vec<_>>());
                 let is_required = get("isRequired").and_then(|v| v.as_bool()).unwrap_or(false);
@@ -7636,6 +7637,147 @@ pub fn parameter_binding_findings(elements: &[RawElement]) -> Vec<Finding> {
         }
         feature_params.insert(fd.qualified_name.clone(), params);
     }
+    (feature_params, findings)
+}
+
+/// Recursively gather `<FeatureDef qname> -> <param name> -> ParamMeta` for
+/// every `FeatureDef` reachable from `cfg` through `subConfigurations:`, at
+/// any depth — local targets and, transitively, each tier's own configured
+/// peer repos (REQ-TRS-HPLE-002, `ADR-SYS-HPLE-001`). A local target's own
+/// `FeatureDef`s live in the same `elements` slice as the caller (already
+/// covered by the caller's own top-level [`build_feature_params`] call), so
+/// this only needs to *recurse* through a local target's `subConfigurations:`
+/// to reach whatever peer repos *it* consolidates — never re-walk `elements`
+/// itself. A peer target's `FeatureDef`s are genuinely absent from `elements`
+/// (§14's `LoadedRepo` only indexes peer qnames for existence-checking, per
+/// `ADR-SYS-HPLE-001` Decision 1), so those are merged into `out` directly.
+///
+/// Resolution failures (dangling reference, wrong type, unreachable repo) are
+/// silently skipped here — [`sub_configuration_findings`] already reports
+/// those against `subConfigurations:` itself; this walk exists only to widen
+/// what a *parameter* dotted key can resolve against, not to re-report
+/// `subConfigurations:` errors a second time.
+///
+/// `visiting` guards against a `subConfigurations:` cycle (local or
+/// cross-repo) sending this into an infinite walk; `depth` additionally caps
+/// it at [`HPLE_MAX_DEPTH`], mirroring the peer-validity gate's own bound.
+#[allow(clippy::too_many_arguments)]
+fn collect_reachable_feature_params(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cfg: &RawElement,
+    repos: &[crate::config::LoadedRepo],
+    depth: u32,
+    visiting: &mut HashSet<String>,
+    out: &mut HashMap<String, HashMap<String, ParamMeta>>,
+) {
+    if depth > HPLE_MAX_DEPTH {
+        return;
+    }
+    let Some(entries) = &cfg.frontmatter.sub_configurations else {
+        return;
+    };
+    for raw_sc in entries {
+        let sc = raw_sc.trim();
+        if sc.is_empty() {
+            continue;
+        }
+
+        // 1. Local resolution first (§14.4 order), mirroring `sub_configuration_findings`.
+        if let Some(target) = resolver.resolve_ref(elements, sc) {
+            if !matches!(target.frontmatter.element_type, Some(ElementType::Configuration)) {
+                continue;
+            }
+            let key = format!("local:{}", target.qualified_name);
+            if !visiting.insert(key.clone()) {
+                continue; // already on the walk stack — local cycle, skip.
+            }
+            collect_reachable_feature_params(elements, resolver, target, repos, depth + 1, visiting, out);
+            visiting.remove(&key);
+            continue;
+        }
+
+        // 2. Each configured peer repo, in declaration order.
+        for repo in repos {
+            if !repo.exists {
+                continue;
+            }
+            let suffix = format!("::{sc}");
+            let quick_match = repo.stable_ids.contains(sc)
+                || repo.qnames.contains(sc)
+                || repo.qnames.iter().any(|q| q.ends_with(&suffix));
+            if !quick_match {
+                continue;
+            }
+            let Ok(peer_elements) = crate::walker::walk_model(&repo.model_root) else {
+                break;
+            };
+            let peer_resolver = Resolver::new(&peer_elements);
+            let Some(target) = peer_resolver.resolve_ref(&peer_elements, sc) else {
+                break;
+            };
+            if !matches!(target.frontmatter.element_type, Some(ElementType::Configuration)) {
+                break;
+            }
+            let key = format!("{}::{}", repo.model_root.display(), target.qualified_name);
+            if !visiting.insert(key.clone()) {
+                break; // already on the walk stack — cross-repo cycle, skip.
+            }
+            let (peer_params, _peer_findings) = build_feature_params(&peer_elements);
+            for (fname, pmap) in peer_params {
+                out.entry(fname).or_insert(pmap);
+            }
+            // Recurse using *this peer's own* configured `[repos]` — each
+            // tier's peers are declared in that tier's own `.syscribe.toml`,
+            // never inherited from the caller.
+            let peer_config = ValidateConfig::with_model_root(repo.model_root.clone());
+            collect_reachable_feature_params(
+                &peer_elements,
+                &peer_resolver,
+                target,
+                &peer_config.repos,
+                depth + 1,
+                visiting,
+                out,
+            );
+            visiting.remove(&key);
+            break;
+        }
+    }
+}
+
+/// FeatureDef parameter-binding validation (§9.7): E203–E206, E222, W017.
+/// Shared by the main `validate` pass and by `feature-check`, so a product line
+/// checked holistically gets the same binding/range enforcement (GH #14).
+/// Dormant unless at least one `FeatureDef` exists.
+///
+/// `config`/`resolver` extend the dotted `<FeatureDef>.<param>` lookup through
+/// `subConfigurations:` (REQ-TRS-HPLE-002) — see [`collect_reachable_feature_params`].
+/// The intrinsic per-parameter checks (`E204` fixed, `E205` range, `E206` enum,
+/// `W027` runtime binding-time) apply identically whether the target parameter
+/// is local or reached transitively. `E203` (feature not selected) and the
+/// required-and-unbound `W017` sweep intentionally stay scoped to *this*
+/// `Configuration`'s own local `feature_params` — a transitively-reached
+/// parameter's selection state belongs to the peer tier that actually selects
+/// it, not to this one, and which cross-tier bindings are *permitted* (as
+/// opposed to merely *resolvable*) is `PI-HPLE-BINDGUARD-001`'s job
+/// (REQ-TRS-HPLE-003), not this function's.
+pub fn parameter_binding_findings(
+    elements: &[RawElement],
+    config: &ValidateConfig,
+    resolver: &Resolver,
+) -> Vec<Finding> {
+    let mut findings: Vec<Finding> = Vec::new();
+    let has_feature_def = elements
+        .iter()
+        .any(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef)));
+    if !has_feature_def {
+        return findings;
+    }
+    let num = |v: &serde_yaml::Value| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64));
+
+    let (feature_params, param_meta_findings) = build_feature_params(elements);
+    findings.extend(param_meta_findings);
 
     for cfg in elements
         .iter()
@@ -7648,6 +7790,10 @@ pub fn parameter_binding_findings(elements: &[RawElement]) -> Vec<Finding> {
         let is_selected = |feat: &str| sel.get(feat).copied().unwrap_or(false);
         let file = &cfg.file_path;
         let mut bound: HashSet<String> = HashSet::new();
+        // Populated lazily — only the first time a dotted key doesn't resolve
+        // locally and this Configuration actually has `subConfigurations:` —
+        // so a config with no hierarchy at all pays nothing extra.
+        let mut transitive_params: Option<HashMap<String, HashMap<String, ParamMeta>>> = None;
 
         if let Some(serde_yaml::Value::Mapping(bindings)) = &cfg.frontmatter.parameter_bindings {
             for (k, val) in bindings {
@@ -7658,17 +7804,44 @@ pub fn parameter_binding_findings(elements: &[RawElement]) -> Vec<Finding> {
                     continue;
                 };
                 bound.insert(path.to_string());
-                let Some(params) = feature_params.get(feat) else {
-                    findings.push(error("E222", file, &format!(
-                        "parameterBindings path '{}' references unknown FeatureDef '{}'", path, feat)));
+
+                // Local lookup first; fall back to the subConfigurations
+                // subtree (REQ-TRS-HPLE-002) only when this Configuration
+                // actually declares one and the key isn't local.
+                let local_meta = feature_params.get(feat).and_then(|p| p.get(pname));
+                let is_local = feature_params.contains_key(feat);
+                let meta = if local_meta.is_some() {
+                    local_meta
+                } else if !is_local && cfg.frontmatter.sub_configurations.is_some() {
+                    let table = transitive_params.get_or_insert_with(|| {
+                        let mut table = HashMap::new();
+                        let mut visiting = HashSet::new();
+                        collect_reachable_feature_params(
+                            elements, resolver, cfg, &config.repos, 0, &mut visiting, &mut table,
+                        );
+                        table
+                    });
+                    table.get(feat).and_then(|p| p.get(pname))
+                } else {
+                    None
+                };
+
+                let is_transitive = local_meta.is_none() && meta.is_some();
+
+                let Some(meta) = meta else {
+                    if is_local {
+                        findings.push(error("E222", file, &format!(
+                            "parameterBindings path '{}' references undeclared parameter '{}' on '{}'", path, pname, feat)));
+                    } else {
+                        findings.push(error("E222", file, &format!(
+                            "parameterBindings path '{}' references unknown FeatureDef '{}'", path, feat)));
+                    }
                     continue;
                 };
-                let Some(meta) = params.get(pname) else {
-                    findings.push(error("E222", file, &format!(
-                        "parameterBindings path '{}' references undeclared parameter '{}' on '{}'", path, pname, feat)));
-                    continue;
-                };
-                if !is_selected(feat) {
+
+                // E203 (not selected) is scoped to local features only — see
+                // this function's doc comment.
+                if !is_transitive && !is_selected(feat) {
                     findings.push(error("E203", file, &format!(
                         "parameterBindings binds '{}' but feature '{}' is not selected", path, feat)));
                 }

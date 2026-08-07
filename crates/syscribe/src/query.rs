@@ -1987,8 +1987,11 @@ pub fn profile_promoted<'a>(
 /// analyses (void/dead/core/false-optional/configuration-validity). Exit `0` when
 /// there are no error-severity findings, `1` otherwise. Dormant (exit 0 with a
 /// notice) when no FeatureDef.
+#[allow(clippy::too_many_arguments)]
 pub fn cmd_feature_check(
     elements: &[RawElement],
+    config: &syscribe_model::config::ValidateConfig,
+    resolver: &Resolver,
     json: bool,
     deep: bool,
     count: bool,
@@ -2011,8 +2014,9 @@ pub fn cmd_feature_check(
 
     let mut findings = feature_model::check_feature_model(elements);
     // Parameter-binding validation (E203–E206/E222/W017) is shared with `validate`
-    // so a product line checked holistically also gets range/binding enforcement (GH #14).
-    findings.extend(syscribe_model::validator::parameter_binding_findings(elements));
+    // so a product line checked holistically also gets range/binding enforcement
+    // (GH #14), including the HPLE transitive-lookup extension (REQ-TRS-HPLE-002).
+    findings.extend(syscribe_model::validator::parameter_binding_findings(elements, config, resolver));
     let deep_rep = if deep {
         Some(feature_model::check_feature_model_deep(elements))
     } else {
