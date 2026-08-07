@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** syscribe 0.32.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-08-06  
+**Date:** 2026-08-07  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 260 |
-| Passed | 260 |
+| Total test cases | 265 |
+| Passed | 265 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -675,6 +675,61 @@
 | trigger E909 | ✓ PASS |
 | trigger W900 | ✓ PASS |
 | trigger W901 | ✓ PASS |
+
+---
+
+### TC-TRS-HPLE-001 — Verify subConfigurations resolves a named Configuration and gates on its internal validity (dangling, wrong-type, SAT-invalid).
+
+**Verifies:** REQ-TRS-HPLE-001  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a subConfigurations name resolving to a SAT-invalid Configuration is rejected | ✓ PASS |
+
+---
+
+### TC-TRS-HPLE-002 — Verify parameterBindings reaches a parameter belonging to a peer FeatureDef reachable through subConfigurations, using its ordinary qname.
+
+**Verifies:** REQ-TRS-HPLE-002  
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a dotted key naming a FeatureDef unreachable by any means is still rejected | ✓ PASS |
+
+---
+
+### TC-TRS-HPLE-003 — Verify a cross-tier parameterBindings entry is rejected when the owning tier doesn't select the feature, or when a nearer tier already bound it.
+
+**Verifies:** REQ-TRS-HPLE-003  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| double-binding a parameter a nearer tier already closed is rejected | ✓ PASS |
+
+---
+
+### TC-TRS-HPLE-004 — Verify an unresolved required parameter anywhere in a consolidated subtree is reported as an opt-in warning, gateable via --deny, never a hard error.
+
+**Verifies:** REQ-TRS-HPLE-004  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a fully-closed subtree raises no such warning | ✓ PASS |
+
+---
+
+### TC-TRS-HPLE-005 — Verify a lower tier's bindTo: cannot be repurposed to reach a higher tier's parameters, in either direction, while still working correctly within one model.
+
+**Verifies:** REQ-TRS-HPLE-005  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a higher tier's binding never leaks down into the lower tier's own validation | ✓ PASS |
 
 ---
 
