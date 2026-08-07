@@ -57,11 +57,18 @@ fn write_peer_repo(conf_id: &str) -> PathBuf {
         "Features/Cargo.md",
         "---\ntype: FeatureDef\nid: FEAT-PEER-CARGO\nname: Cargo\ngroupKind: optional\nparameters:\n  - name: capacityKg\n    type: ScalarValues::Real\n    range: \"0.5..5.0\"\n    isRequired: true\n  - name: mode\n    type: ScalarValues::String\n    enumValues: [eco, fast]\n    isRequired: true\n  - name: fixedRate\n    type: ScalarValues::Real\n    value: 1.0\n---\n",
     );
+    // The peer's own Configuration deliberately leaves `capacityKg`/`mode`
+    // unbound (isRequired, no default: — ADR-SYS-HPLE-001 Decision 3's
+    // "descendant declares an open parameter with no upward-pointing field")
+    // so a consolidator above it can legally supply them. A required-and-
+    // unbound param is only ever W017 (warning), never an error, so this
+    // still validates cleanly on its own (REQ-TRS-HPLE-001's peer-validity
+    // gate only checks `.errors()`).
     write(
         &mroot,
         "Configurations/PeerConf.md",
         &format!(
-            "---\ntype: Configuration\nid: {conf_id}\nname: Peer configuration\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features: true\n  Features::Cargo: true\nparameterBindings:\n  Features::Cargo.capacityKg: 2.0\n  Features::Cargo.mode: eco\n---\n"
+            "---\ntype: Configuration\nid: {conf_id}\nname: Peer configuration\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features: true\n  Features::Cargo: true\n---\n"
         ),
     );
     peer_dir

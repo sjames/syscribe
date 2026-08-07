@@ -371,6 +371,17 @@ A `Configuration` may declare `subConfigurations:` naming one or more other `Con
 
 For a peer entry, `E518` genuinely walks and parses that repo's model (not just the existence-only qname/id index `[repos]` otherwise uses) and validates it independently, so "internally valid" means what it says — a peer `Configuration` with its own validation errors, or that fails its own SAT check, is caught, not just confirmed to exist by name.
 
+### Cross-tier `parameterBindings:` (E519, E523, REQ-TRS-HPLE-002/003)
+
+A `Configuration.parameterBindings:` dotted key resolves through `subConfigurations:` at any depth, using the parameter's ordinary, already-mounted qname — a local target's `FeatureDef`s are already visible (same model, one shared feature model per repo, so `E203`/`E204`/`W017` already apply unchanged); a peer target's are genuinely loaded and parsed (mirroring `E518`'s peer walk). The usual per-parameter checks (`E204` fixed, `E205` range, `E206` enum, `W027` runtime `bindingTime:`) apply identically whether the target is local or transitively resolved; **`E203`** (feature not selected) stays scoped to a `Configuration`'s own local selection — a transitively-reached parameter's selection state is checked against its own owning tier instead, via `E519` below.
+
+| Code | Condition |
+|---|---|
+| E519 | A transitively-resolved `parameterBindings:` entry targets a `FeatureDef` that the peer `Configuration` owning it does not itself select — the cross-tier extension of `E203`. |
+| E523 | A transitively-resolved `parameterBindings:` entry double-binds a parameter some nearer tier on the path down to it — local or peer, the owning tier itself or an intermediate consolidator — already supplies via its own `parameterBindings:`. A parameter may legally be closed by exactly one tier along the chain from where it's declared open up to wherever it's finally supplied; only supplying it twice is illegal. |
+
+Dormant under the same condition as `E516`–`E518` (some `Configuration` declares `subConfigurations:`), and further gated to bindings that actually resolve transitively — a purely local hierarchy never triggers `E519`/`E523` (its `FeatureDef`s stay governed by ordinary `E203`).
+
 ## Build-system integration (E050, W050, §9.9)
 
 A `FeatureDef` or `Configuration` may declare `buildExports:` mapping selected features to build-system variables, with `buildOverrides:` resolving conflicts. **Opt-in** — the pass runs only when at least one element declares `buildExports:` or `buildOverrides:`.

@@ -7579,6 +7579,46 @@ struct ParamMeta {
     binding_time: Option<u8>,
 }
 
+/// A `FeatureDef` parameter reached through `subConfigurations:`, plus the
+/// extra per-parameter status `REQ-TRS-HPLE-003` needs to decide whether a
+/// cross-tier `parameterBindings:` entry targeting it is genuinely open
+/// (`PI-HPLE-BINDGUARD-001`) — layered on top of `REQ-TRS-HPLE-002`'s plain
+/// resolution (`ParamMeta`).
+struct TransitiveParamStatus {
+    meta: ParamMeta,
+    /// Whether the peer `Configuration` that actually owns this `FeatureDef`
+    /// (the one whose own model declares it) selects it. `E519` fires when
+    /// this is `false` — the cross-tier extension of `E203`.
+    selected_by_owner: bool,
+    /// A human-readable label for the *nearest-to-the-querying-Configuration*
+    /// tier on the walked path — owner-inclusive — whose own
+    /// `parameterBindings:` already supplies this exact `<feat>.<param>` key,
+    /// if any. `E523` fires when this is `Some` — double-binding something a
+    /// nearer tier already closed.
+    already_bound_by: Option<String>,
+}
+
+/// A parameter resolved by [`parameter_binding_findings`]'s dotted-key
+/// lookup — either genuinely local (`ParamMeta` from this model's own
+/// `feature_params`) or reached transitively through `subConfigurations:`
+/// (`TransitiveParamStatus`, carrying the extra cross-tier status
+/// `REQ-TRS-HPLE-003` needs). Unifies the two so the shared per-parameter
+/// checks (`E204`/`E205`/`E206`/`W027`) read one `ParamMeta` regardless of
+/// which source it came from.
+enum ResolvedParam<'a> {
+    Local(&'a ParamMeta),
+    Transitive(&'a TransitiveParamStatus),
+}
+
+impl ResolvedParam<'_> {
+    fn meta(&self) -> &ParamMeta {
+        match self {
+            ResolvedParam::Local(m) => m,
+            ResolvedParam::Transitive(s) => &s.meta,
+        }
+    }
+}
+
 /// Parse a `range:` string ("min..max" or inclusive "min..=max").
 fn parse_param_range(s: &str) -> Option<(f64, f64)> {
     let (lo, hi) = s.split_once("..")?;
@@ -7640,17 +7680,65 @@ fn build_feature_params(elements: &[RawElement]) -> (HashMap<String, HashMap<Str
     (feature_params, findings)
 }
 
-/// Recursively gather `<FeatureDef qname> -> <param name> -> ParamMeta` for
-/// every `FeatureDef` reachable from `cfg` through `subConfigurations:`, at
+/// Human-readable label for a `Configuration` reached by the walk below, used
+/// in `E519`/`E523` messages — its `id` (or qname, if unset), suffixed with
+/// the owning repo alias for a peer target.
+fn config_label(cfg: &RawElement, repo_alias: Option<&str>) -> String {
+    let name = cfg.frontmatter.id.clone().unwrap_or_else(|| cfg.qualified_name.clone());
+    match repo_alias {
+        Some(alias) => format!("{name} (in repo '{alias}')"),
+        None => name,
+    }
+}
+
+/// A tier's own `parameterBindings:` may already close a param that a deeper
+/// tier's recursion just found reachable — checked *after* recursing into
+/// `target`, so a nearer-to-the-original-querying-Configuration tier
+/// (checked later, as recursion unwinds) overwrites a farther one, matching
+/// `REQ-TRS-HPLE-003`'s "any one tier along the path" phrasing: whichever
+/// binding is closest to the top wins the label, though only *whether* one
+/// exists (`Some`/`None`) actually drives `E523`.
+fn mark_already_bound_by(
+    target: &RawElement,
+    label: &str,
+    out: &mut HashMap<String, HashMap<String, TransitiveParamStatus>>,
+) {
+    let Some(serde_yaml::Value::Mapping(m)) = &target.frontmatter.parameter_bindings else {
+        return;
+    };
+    let own_keys: HashSet<&str> = m.keys().filter_map(|k| k.as_str()).collect();
+    for (fname, pmap) in out.iter_mut() {
+        for (pname, status) in pmap.iter_mut() {
+            if own_keys.contains(format!("{fname}.{pname}").as_str()) {
+                status.already_bound_by = Some(label.to_string());
+            }
+        }
+    }
+}
+
+/// Recursively gather `<FeatureDef qname> -> <param name> -> TransitiveParamStatus`
+/// for every `FeatureDef` reachable from `cfg` through `subConfigurations:`, at
 /// any depth — local targets and, transitively, each tier's own configured
-/// peer repos (REQ-TRS-HPLE-002, `ADR-SYS-HPLE-001`). A local target's own
+/// peer repos (REQ-TRS-HPLE-002/003, `ADR-SYS-HPLE-001`). A local target's own
 /// `FeatureDef`s live in the same `elements` slice as the caller (already
 /// covered by the caller's own top-level [`build_feature_params`] call), so
 /// this only needs to *recurse* through a local target's `subConfigurations:`
 /// to reach whatever peer repos *it* consolidates — never re-walk `elements`
 /// itself. A peer target's `FeatureDef`s are genuinely absent from `elements`
 /// (§14's `LoadedRepo` only indexes peer qnames for existence-checking, per
-/// `ADR-SYS-HPLE-001` Decision 1), so those are merged into `out` directly.
+/// `ADR-SYS-HPLE-001` Decision 1), so those are merged into `out` directly,
+/// tagged with whether *that peer's own* `Configuration` selects the feature
+/// (`selected_by_owner`) — the cross-tier stand-in for `E203`, since the
+/// querying `Configuration` structurally cannot select a peer's own features.
+///
+/// Every hop on the way down — local or peer, whether or not it turns out to
+/// be the `FeatureDef`'s actual owner — also gets a chance, via
+/// [`mark_already_bound_by`] run right after its own recursive call returns,
+/// to close out anything the deeper walk found still open: `REQ-TRS-HPLE-003`
+/// permits *any single* tier along the path to supply a value, so a tier
+/// nearer the top closing something a farther tier left open is exactly the
+/// legitimate "deferral" this feature exists for — it is only a second
+/// binding of the *same* parameter that's illegal (`E523`).
 ///
 /// Resolution failures (dangling reference, wrong type, unreachable repo) are
 /// silently skipped here — [`sub_configuration_findings`] already reports
@@ -7669,7 +7757,7 @@ fn collect_reachable_feature_params(
     repos: &[crate::config::LoadedRepo],
     depth: u32,
     visiting: &mut HashSet<String>,
-    out: &mut HashMap<String, HashMap<String, ParamMeta>>,
+    out: &mut HashMap<String, HashMap<String, TransitiveParamStatus>>,
 ) {
     if depth > HPLE_MAX_DEPTH {
         return;
@@ -7693,6 +7781,7 @@ fn collect_reachable_feature_params(
                 continue; // already on the walk stack — local cycle, skip.
             }
             collect_reachable_feature_params(elements, resolver, target, repos, depth + 1, visiting, out);
+            mark_already_bound_by(target, &config_label(target, None), out);
             visiting.remove(&key);
             continue;
         }
@@ -7724,8 +7813,20 @@ fn collect_reachable_feature_params(
                 break; // already on the walk stack — cross-repo cycle, skip.
             }
             let (peer_params, _peer_findings) = build_feature_params(&peer_elements);
+            let peer_sel = crate::variability::canon_selection(
+                &target.frontmatter.feature_selections(),
+                &crate::variability::feature_id_to_qname(&peer_elements),
+            );
             for (fname, pmap) in peer_params {
-                out.entry(fname).or_insert(pmap);
+                let selected_by_owner = peer_sel.get(&fname).copied().unwrap_or(false);
+                let entry = out.entry(fname).or_default();
+                for (pname, meta) in pmap {
+                    entry.entry(pname).or_insert(TransitiveParamStatus {
+                        meta,
+                        selected_by_owner,
+                        already_bound_by: None,
+                    });
+                }
             }
             // Recurse using *this peer's own* configured `[repos]` — each
             // tier's peers are declared in that tier's own `.syscribe.toml`,
@@ -7740,28 +7841,35 @@ fn collect_reachable_feature_params(
                 visiting,
                 out,
             );
+            mark_already_bound_by(target, &config_label(target, Some(&repo.alias)), out);
             visiting.remove(&key);
             break;
         }
     }
 }
 
-/// FeatureDef parameter-binding validation (§9.7): E203–E206, E222, W017.
-/// Shared by the main `validate` pass and by `feature-check`, so a product line
-/// checked holistically gets the same binding/range enforcement (GH #14).
-/// Dormant unless at least one `FeatureDef` exists.
+/// FeatureDef parameter-binding validation (§9.7): E203–E206, E222, W027,
+/// W017, plus the HPLE cross-tier extensions E519/E523. Shared by the main
+/// `validate` pass and by `feature-check`, so a product line checked
+/// holistically gets the same binding/range enforcement (GH #14). Dormant
+/// unless at least one `FeatureDef` exists.
 ///
 /// `config`/`resolver` extend the dotted `<FeatureDef>.<param>` lookup through
 /// `subConfigurations:` (REQ-TRS-HPLE-002) — see [`collect_reachable_feature_params`].
 /// The intrinsic per-parameter checks (`E204` fixed, `E205` range, `E206` enum,
 /// `W027` runtime binding-time) apply identically whether the target parameter
-/// is local or reached transitively. `E203` (feature not selected) and the
-/// required-and-unbound `W017` sweep intentionally stay scoped to *this*
-/// `Configuration`'s own local `feature_params` — a transitively-reached
-/// parameter's selection state belongs to the peer tier that actually selects
-/// it, not to this one, and which cross-tier bindings are *permitted* (as
-/// opposed to merely *resolvable*) is `PI-HPLE-BINDGUARD-001`'s job
-/// (REQ-TRS-HPLE-003), not this function's.
+/// is local or reached transitively. `E203` (feature not selected) stays
+/// scoped to *this* `Configuration`'s own local `feature_params` — a
+/// transitively-reached parameter's selection state is instead checked
+/// against *its own owning tier's* selection via `E519`
+/// (`PI-HPLE-BINDGUARD-001`, `REQ-TRS-HPLE-003`), the cross-tier extension of
+/// the same reasoning. `E523` rejects a transitively-resolved binding that
+/// some nearer tier on the path already supplies — REQ-TRS-HPLE-003's "only
+/// one tier may close it" rule. The required-and-unbound `W017` sweep stays
+/// scoped to local `feature_params` unchanged (whether a still-open
+/// transitively-reachable parameter should escalate is `PI-HPLE-OPENPARAM-001`'s
+/// completeness check, `REQ-TRS-HPLE-004` — a distinct, aggregate question
+/// from any *individual* binding's legality here).
 pub fn parameter_binding_findings(
     elements: &[RawElement],
     config: &ValidateConfig,
@@ -7793,7 +7901,7 @@ pub fn parameter_binding_findings(
         // Populated lazily — only the first time a dotted key doesn't resolve
         // locally and this Configuration actually has `subConfigurations:` —
         // so a config with no hierarchy at all pays nothing extra.
-        let mut transitive_params: Option<HashMap<String, HashMap<String, ParamMeta>>> = None;
+        let mut transitive_params: Option<HashMap<String, HashMap<String, TransitiveParamStatus>>> = None;
 
         if let Some(serde_yaml::Value::Mapping(bindings)) = &cfg.frontmatter.parameter_bindings {
             for (k, val) in bindings {
@@ -7806,12 +7914,12 @@ pub fn parameter_binding_findings(
                 bound.insert(path.to_string());
 
                 // Local lookup first; fall back to the subConfigurations
-                // subtree (REQ-TRS-HPLE-002) only when this Configuration
+                // subtree (REQ-TRS-HPLE-002/003) only when this Configuration
                 // actually declares one and the key isn't local.
                 let local_meta = feature_params.get(feat).and_then(|p| p.get(pname));
                 let is_local = feature_params.contains_key(feat);
-                let meta = if local_meta.is_some() {
-                    local_meta
+                let transitive_status = if local_meta.is_some() {
+                    None
                 } else if !is_local && cfg.frontmatter.sub_configurations.is_some() {
                     let table = transitive_params.get_or_insert_with(|| {
                         let mut table = HashMap::new();
@@ -7826,9 +7934,12 @@ pub fn parameter_binding_findings(
                     None
                 };
 
-                let is_transitive = local_meta.is_none() && meta.is_some();
+                let resolved = local_meta
+                    .map(ResolvedParam::Local)
+                    .or_else(|| transitive_status.map(ResolvedParam::Transitive));
+                let is_transitive = matches!(resolved, Some(ResolvedParam::Transitive(_)));
 
-                let Some(meta) = meta else {
+                let Some(resolved) = resolved else {
                     if is_local {
                         findings.push(error("E222", file, &format!(
                             "parameterBindings path '{}' references undeclared parameter '{}' on '{}'", path, pname, feat)));
@@ -7838,12 +7949,28 @@ pub fn parameter_binding_findings(
                     }
                     continue;
                 };
+                let meta = resolved.meta();
 
-                // E203 (not selected) is scoped to local features only — see
-                // this function's doc comment.
+                // E203 (not selected) is scoped to local features only — a
+                // transitively-resolved parameter is instead checked against
+                // *its own owning tier's* selection via `E519` below (see
+                // this function's doc comment).
                 if !is_transitive && !is_selected(feat) {
                     findings.push(error("E203", file, &format!(
                         "parameterBindings binds '{}' but feature '{}' is not selected", path, feat)));
+                }
+                // E519/E523 (REQ-TRS-HPLE-003, PI-HPLE-BINDGUARD-001): the
+                // cross-tier extension of E203, plus rejecting a double-bind
+                // of something a nearer tier already closed.
+                if let ResolvedParam::Transitive(status) = resolved {
+                    if !status.selected_by_owner {
+                        findings.push(error("E519", file, &format!(
+                            "parameterBindings binds '{}' but feature '{}' is not selected by the Configuration that owns it — a cross-tier binding must target a feature the owning tier actually selects", path, feat)));
+                    }
+                    if let Some(who) = &status.already_bound_by {
+                        findings.push(error("E523", file, &format!(
+                            "parameterBindings binds '{}' but it is already bound by a nearer tier's Configuration '{}' — a parameter may be closed by only one tier along the path down to it", path, who)));
+                    }
                 }
                 if meta.is_fixed {
                     findings.push(error("E204", file, &format!(
