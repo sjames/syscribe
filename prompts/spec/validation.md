@@ -363,6 +363,21 @@ Active only when `[repos]` is configured in `.syscribe.toml`.
 | `W511` | A peer repo's git `HEAD` has drifted from its configured `ref:` (opt-in; `--deny W511`) |
 | `W512` | A peer submodule's gitlink disagrees with its configured `ref:` (opt-in; `--deny W512`) |
 
+## Hierarchical product-line composition (E516–E519, E523, W513, §14, ADR-SYS-HPLE-001)
+
+A `Configuration` may declare `subConfigurations:` naming one or more other `Configuration`s it consolidates — reachable locally or via `[repos]`, at any depth. Dormant unless some `Configuration` declares `subConfigurations:`.
+
+| Code | Condition |
+|---|---|
+| `E516` | A `subConfigurations:` entry does not resolve to any element, locally or in a loaded peer repo |
+| `E517` | A `subConfigurations:` entry resolves to a real element that is not a `Configuration` |
+| `E518` | A `subConfigurations:` entry resolves to a `Configuration` that is not itself internally valid (a validation error, a void feature model, or `feature-check --deep`'s `E225`) — or the chain exceeds the bounded consolidation depth |
+| `E519` | A `parameterBindings:` entry resolved transitively through `subConfigurations:` targets a `FeatureDef` the owning peer `Configuration` does not itself select — the cross-tier extension of `E203` |
+| `E523` | A transitively-resolved `parameterBindings:` entry double-binds a parameter some nearer tier on the path — local or peer, the owner itself or an intermediate consolidator — already supplies |
+| `W513` | Opt-in, `--deny`-gateable: a selected, required, no-default parameter anywhere in a consolidated `subConfigurations:` subtree remains unbound after every tier's own `parameterBindings:` — never a hard error, since deferral to a still-higher tier is the deliberate mechanism this feature exists for |
+
+`parameterBindings:` itself is reused unchanged, extended to resolve transitively through `subConfigurations:` at any depth using a parameter's ordinary, already-mounted qname (no new addressing syntax); its existing intrinsic checks (`E204` fixed, `E205` range, `E206` enum, `E222` unresolved, `W027` runtime `bindingTime:`) apply identically whether the target is local or reached transitively. `E203` (feature not selected) and `W017` (required-and-unbound) stay scoped to a `Configuration`'s own local selection — the cross-tier equivalents are `E519` and `W513` respectively. A lower tier carries zero awareness of, or reference to, whoever consolidates it: `bindTo:` (component→system propagation) is explicitly not the mechanism here and continues to resolve purely within its own model.
+
 ## Documentation linting (W099–W102, `lint-docs`)
 
 The `lint-docs` command scans external `.md`/`.svg` docs for references that no longer resolve.

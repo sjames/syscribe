@@ -219,7 +219,8 @@ Opt-in: ignored when the model declares no `FeatureDef`. See the [Variability gu
 | `parameters` | `FeatureDef` | Typed parameters: each `{name, type, range:"min..max", enumValues, default, isFixed, isRequired, value}` (§9.7) |
 | `featureModel` | `Configuration`, `FeatureDef` | Qualified name of the feature-model package |
 | `features` | `Configuration` | **Map** of `<FeatureDef qname>: true/false` (the selection; absent = deselected) |
-| `parameterBindings` | `Configuration` | Map of `<FeatureDef qname>::<param>: <value>` |
+| `parameterBindings` | `Configuration` | Map of `<FeatureDef qname>::<param>: <value>`. Resolves transitively through `subConfigurations:` at any depth (§14.7). |
+| `subConfigurations` | `Configuration` | String or list of `Configuration` id/qnames this one consolidates — local or via `[repos]` (§14.7, `ADR-SYS-HPLE-001`); see the [Multi-Repository guide](../model-guide/multi-repo.md) |
 | `parameterConstraints` | package `_index.md` | List of cross-feature constraints `{id, expression, severity, appliesWhen}` |
 | `tags` | any element | Free-text labels; filter with `--tag` (orthogonal to the feature model) |
 

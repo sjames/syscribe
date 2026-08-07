@@ -763,6 +763,19 @@ pub fn cmd_show(
         }
     }
 
+    // subConfigurations (§14.7, ADR-SYS-HPLE-001) — the other Configuration(s)
+    // this one consolidates, local or via a loaded peer repo.
+    if let Some(ref subs) = fm.sub_configurations {
+        if !subs.is_empty() {
+            println!();
+            println!("## subConfigurations");
+            println!();
+            for sc in subs {
+                println!("- {}", sc);
+            }
+        }
+    }
+
     // Features table (inline feature declarations — not Configuration selections)
     if fm.element_type.as_ref() != Some(&ElementType::Configuration) {
     if let Some(ref feats) = fm.features {

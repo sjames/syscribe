@@ -4,12 +4,13 @@
 
 Syscribe models a whole **product line** as one repository — the **150% model** — and projects it onto individual products (**100% models**) on demand. Everything in this guide is **opt-in**: a model with no `FeatureDef` behaves exactly as a single-product model, and none of these rules or commands change its output.
 
-The capability has four layers, each building on the last:
+The capability has four layers, each building on the last, plus an optional fifth for multi-repo product lines:
 
 1. **Feature model** — what can vary (`FeatureDef`, `Configuration`).
 2. **Conditioning** — which elements belong to which variants (`appliesWhen:`).
 3. **Analysis** — is the variability sound? (`feature-check`, `feature-check --deep`).
 4. **Projection** — view and validate one variant (`--config`).
+5. **Hierarchical composition** — consolidate other, already-configured product lines (`subConfigurations:`; opt-in, §5 below).
 
 ---
 
@@ -231,6 +232,33 @@ syscribe -m model/ diff --config CONF-UAV-SURVEY-001 \
 
 ---
 
+## 5. Hierarchical composition — `subConfigurations:`
+
+`ADR-SYS-HPLE-001`. A `Configuration` can consolidate one or more other, already-configured `Configuration`s into its own — a product-line-of-product-lines: an OEM vehicle line built by picking one already-configured variant from each of several independently-developed, independently-versioned lower-tier lines (a battery-pack line, an infotainment line), each maintained by a different team or supplier, typically in its own repo (see the [Multi-Repository guide](multi-repo.md) for `[repos]`). "Tier" isn't a declared schema concept — it falls out structurally from whether a repo happens to import others.
+
+```yaml
+# vehicle/model/Configurations/CONF-VEHICLE-001.md
+type: Configuration
+id: CONF-VEHICLE-001
+featureModel: Features
+features: { Features: true }
+subConfigurations: CONF-BATTERY-PACK-001   # a Configuration in [repos.battery_pack], or local
+parameterBindings:
+  Features::Cell.manufacturingSiteCode: US  # reaches two tiers down, straight past battery-pack
+```
+
+Each `subConfigurations:` entry resolves like any other cross-reference — local first, then each loaded repo in declaration order — and must name a real `Configuration` (`E517` otherwise) that is itself internally valid: SAT-satisfiable and error-free (`E516` dangling, `E518` not internally valid; for a peer entry this genuinely loads and validates that repo's model, not just an existence check).
+
+**`parameterBindings:` reaches transitively.** The same field used within one model (§1 above) resolves against any `FeatureDef` reachable through `subConfigurations:`, at any depth, using the parameter's ordinary, already-mounted qname — no new addressing syntax. Its usual checks (`E204`/`E205`/`E206`/`E222`/`W027`) apply unchanged whether the target is local or transitively resolved.
+
+**Cross-tier binding legality.** A transitively-resolved binding must target a parameter that's genuinely open: selected by the tier that owns it (`E519` — the cross-tier form of `E203`, which stays scoped to a `Configuration`'s own local selection) and not already closed by a nearer tier on the path (`E523` — a parameter may be closed by exactly one tier along the chain, never twice).
+
+**Open-parameter completeness.** A selected, required, no-`default:` parameter left unbound anywhere in the consolidated subtree is `W513` — opt-in, silent by default, `--deny`-gateable, following the same posture as `W510`/`W023`/`W090`. It's **never** a hard error just because one tier's own isolated `validate` run still finds it open: an intermediate tier can't know whether it's the actual top of the hierarchy or will itself be consolidated further by something it's never seen. Only whichever repo is actually the point of final assembly can decide, via its own CI's `--deny W513`.
+
+**Zero upward awareness.** A lower tier requires no authoring change, field, or foreknowledge to be consolidated — a descendant parameter that needs an external value just declares `isRequired: true`, no `default:`, exactly as it would in an ordinary single-model `Configuration`. `bindTo:` (component→system propagation) is explicitly not this mechanism and never crosses a `subConfigurations:` boundary.
+
+See `examples/hple-multitier/` for a complete 3-tier worked example (vehicle ← battery-pack ← battery-cell), including the fully-closed and deliberately-incomplete (`W513`-demonstrating) cases.
+
 ## Qualification angle
 
 Safety standards certify a **product**, not a superset. The 150% model is the reusable asset; `validate --config <C>` is the per-variant evidence — *this product's* requirements are covered by *this product's* tests and satisfied by *this product's* architecture. `validate --all-configs` makes that a CI gate across the family.
@@ -239,4 +267,6 @@ Safety standards certify a **product**, not a superset. The 150% model is the re
 
 - [CLI Reference](../cli/index.md) — all flags and examples
 - [Rule Reference](../validation/rules.md) — every code (E2xx PLE, projection, deep)
-- Format spec §9 (`syscribe spec validation`, `syscribe spec fields`)
+- Format spec §9 (`syscribe spec validation`, `syscribe spec fields`), §14.7 for `subConfigurations:`
+- [Multi-Repository guide](multi-repo.md) — the `[repos]`/`repoImports:` mechanism `subConfigurations:` builds on
+- `examples/hple-multitier/` — 3-tier hierarchical composition worked example

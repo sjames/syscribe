@@ -126,3 +126,9 @@ syscribe -m model/ repos sync [--all | <alias>]   # git fetch + checkout <ref> (
 | `W512` | A submodule peer's `ref:` disagrees with the parent's `.gitmodules` gitlink. |
 
 See the [Rule Reference](../validation/rules.md#multi-repository-composition-e510e515-w510w512-14) for the canonical table, and §14 of the [Full Specification](../format/spec.md) for the normative definition.
+
+---
+
+## 7. Building a product line *of* product lines — `subConfigurations:`
+
+`[repos]`/`repoImports:` above let one model *reference* elements in a peer repo. A `Configuration` can additionally *consolidate* another repo's already-configured product line into its own via `subConfigurations:` — a prime integrator assembling a vehicle line from a battery-pack line, itself assembled from a cell-chemistry line, each maintained independently. This is a distinct, opt-in capability layered on top of everything above it (§9.7/§14.7 in the spec); see the [Variability guide §5](variability.md#5-hierarchical-composition--subconfigurations) for the full treatment and `examples/hple-multitier/` for a worked example.
