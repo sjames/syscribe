@@ -171,17 +171,17 @@ Every element type — `Requirement`, `TestCase`, `ADR`, `PartDef`, `Package`, `
 
 SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file path if omitted. `Requirement` and `TestCase` carry a **stable opaque identifier** that must be explicitly set and never changes.
 
-**Requirement ID pattern** — `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
-- Prefix `REQ`, one or more uppercase-alphanumeric segments (2–12 chars), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
-- Examples: `REQ-SCHED-001`, `REQ-SCHED-BITMAP-001`, `REQ-PORT-CTX-001`
+**Requirement ID pattern** — `^REQ(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
+- Prefix `REQ`, zero or more uppercase-alphanumeric category segments (2–12 chars each, optional), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3). A bare `REQ-<digits>` with no category segment is valid.
+- Examples: `REQ-001`, `REQ-SCHED-001`, `REQ-SCHED-BITMAP-001`, `REQ-PORT-CTX-001`
 
-**TestCase ID pattern** — `^TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
+**TestCase ID pattern** — `^TC(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
 - Same segment rules, prefix `TC`. Test level is not encoded in the ID (lives in `testLevel:`).
-- Examples: `TC-SCHED-BITMAP-001`, `TC-SYNC-SEM-002`
+- Examples: `TC-001`, `TC-SCHED-BITMAP-001`, `TC-SYNC-SEM-002`
 
-**ADR ID pattern** — `^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
+**ADR ID pattern** — `^ADR(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
 - Same segment rules, prefix `ADR`. Statuses: `proposed | accepted | deprecated | superseded`.
-- Examples: `ADR-SYS-001`, `ADR-SW-SCHED-001`
+- Examples: `ADR-001`, `ADR-SYS-001`, `ADR-SW-SCHED-001`
 
 **FeatureDef ID pattern** — `^FEAT(-[A-Z0-9]{2,12})+$`
 - Prefix `FEAT`, **mandatory** on every `FeatureDef` (a feature with no `id` is `E201`). Unlike other stable ids, a feature id **need not** end in a number — `FEAT-ABS` and `FEAT-ABS-001` are both valid. The feature stays name-identified (label/qname = `name`); the id is a stable reference usable in `appliesWhen:` and `Configuration` `features:` keys interchangeably with the qname.
@@ -193,9 +193,9 @@ SysML elements (`PartDef`, `Port`, etc.) use `id` auto-derived from the file pat
 - Prefix `BL`, id-identified (`type: Baseline`; release snapshots, `ADR-SYS-BASELINE-001`). Like `FeatureDef`, a baseline id **need not** end in a number, so a release-style id such as `BL-2026-07` is valid. The `id` is the model identity and is **distinct** from the version-control tag string carried in `gitTag:` (e.g. `gitTag: REL-2026-07`). Files live under `model/Baselines/`.
 - Examples: `BL-2026-07`, `BL-QUARTERLY-001`, `BL-SAFETY-REL-03`
 
-**PlanningItem ID pattern** — `^PI(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
+**PlanningItem ID pattern** — `^PI(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
 - Same segment rules as `Requirement`/`TestCase`/`ADR`, prefix `PI`. `type: PlanningItem`, native work-item tracking (`ADR-SYS-PLANITEM-001`) — see below.
-- Examples: `PI-HPLE-001`, `PI-RTH-IMPL-SW-002`
+- Examples: `PI-001`, `PI-HPLE-001`, `PI-RTH-IMPL-SW-002`
 
 Both the `id` field and the qualified name (path-derived) are valid cross-reference targets in `verifies:` and `derivedFrom:`.
 

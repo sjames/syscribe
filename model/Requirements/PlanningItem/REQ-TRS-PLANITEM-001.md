@@ -12,7 +12,7 @@ tags:
 ---
 
 A `PlanningItem` shall be an id-identified native element type, following the same conventions as
-`Requirement`/`TestCase`/`ADR`: a stable `PI-*` id (pattern `^PI(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`,
+`Requirement`/`TestCase`/`ADR`: a stable `PI-*` id (pattern `^PI(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`,
 matching the shared id-scheme grammar), a required free-prose `name` label, and two additional
 required/optional fields:
 

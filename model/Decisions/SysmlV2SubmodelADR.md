@@ -110,3 +110,33 @@ Four sub-decisions, each with a rejected alternative:
 - **Explicitly out of scope**, tracked as follow-on if a concrete need arises: a writer/serializer
   back into `.sysml`/`.kerml` text, two-way round-trip authoring, and full SysML v2 static semantic
   validation (type-checking, multiplicity legality, standard-library-aware inheritance).
+
+## Addendum: `@Syscribe*` fixed-field metadata annotations (`REQ-TRS-SYSMLV2-008`)
+
+Sub-decision 3 above deliberately drew the mapped-element-kind boundary narrow; this addendum
+draws an analogous boundary for a different axis — the *fields* a mapped `part def`/`part` can
+carry, not which element kinds get mapped at all.
+
+- **A fixed, named annotation per field group, not a generic `@Syscribe*` → `custom_fields:`
+  passthrough.** Rejected for the same reason sub-decision 3 rejected open-ended element mapping:
+  an unbounded surface with no natural stopping point, versus four names
+  (`@SyscribeDomain`/`@SyscribeIntegrity`/`@SyscribeShortName`/`@SyscribeImplementedBy`) matched
+  to exactly the fields real safety-relevant architecture authoring needs and nothing else. Growing
+  this set later is expected to extend the fixed list, not replace the principle.
+- **`@SyscribeIntegrity` bundles `asil`/`sil`/`pl` into one annotation name, not three.** These
+  three fields are mutually-exclusive alternatives on a native element already (ISO 26262 vs. IEC
+  61508 vs. ISO 13849-1 integrity scales) — one annotation with three optional keys mirrors that
+  relationship directly, and lets the pre-existing `silLevel`/`asilLevel` mutual-exclusion warning
+  (`W006`) do the "don't set more than one" enforcement with zero new validation code, rather than
+  inventing a parallel check for the SysMLv2-originated path.
+- **Lift-only: no new validation, no origin-aware branching.** Every field this addendum lifts —
+  `domain:`, `asilLevel:`/`silLevel:`/`plLevel:`, `shortName:`, `implementedBy:` — already exists
+  on `RawFrontmatter`. The mapper's entire job is writing the same field a hand-authored `.md` file
+  would; the validator needs no changes at all, exactly like `@SyscribeFeature` → `appliesWhen:`
+  needed none of the feature-model/SAT engine. This is a claim about the mapper, not a claim that
+  every lifted field is fully validated on a `PartDef`/`Part` today — a review caught an
+  overstatement in an earlier draft, which listed `W701` (`Requirement`-scoped) and `E837`
+  (`SafetyGoal`-scoped) as "reused" against `asilLevel:`/`plLevel:` on a `PartDef`, where neither
+  actually fires. Both gaps are pre-existing and identical for a hand-authored `PartDef` — this
+  addendum doesn't introduce or worsen them — but the requirement's validation-reuse table
+  (`REQ-TRS-SYSMLV2-008`) is corrected to say so exactly, rather than aspirationally.

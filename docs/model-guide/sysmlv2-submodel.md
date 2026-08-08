@@ -169,6 +169,53 @@ purely structural element; it simply doesn't participate in the feature-model gr
 unresolvable `featureId` is the same `E209` already raised for any other unresolved `appliesWhen:`
 reference.
 
+### `@SyscribeDomain`/`@SyscribeIntegrity`/`@SyscribeShortName`/`@SyscribeImplementedBy` → fixed fields
+
+A fixed, named set of four `@Syscribe*` metadata annotations lift onto a `part def`/`part`
+(including a `variant part` usage) exactly like `@SyscribeFeature` does, into the fields a
+safety-relevant architecture needs most and that have no expressible form in real `.sysml` text
+otherwise (`REQ-TRS-SYSMLV2-008`):
+
+```sysml
+part def CarSafetyServices {
+    @SyscribeDomain {
+        value = 'software';
+    }
+    @SyscribeIntegrity {
+        asil = 'B';
+    }
+    @SyscribeShortName {
+        value = 'car-safety-services';
+    }
+    @SyscribeImplementedBy {
+        path = 'services/car-safety-services/';
+    }
+}
+```
+
+| Annotation | Field lifted | Existing validation reused |
+|---|---|---|
+| `@SyscribeDomain { value = '...'; }` | `domain:` | E303, E315, E313 |
+| `@SyscribeIntegrity { asil = '...'; }` | `asilLevel:` | E010, E841–E843, W808 |
+| `@SyscribeIntegrity { sil = ...; }` | `silLevel:` (bare integer, not quoted) | E009, W006, E841–E843, W808 |
+| `@SyscribeIntegrity { pl = '...'; }` | `plLevel:` | — (format-checked only on `SafetyGoal` today, via `E837`; on a `part def`/`part` it's carried but unvalidated — same as a hand-authored one) |
+| `@SyscribeShortName { value = '...'; }` | `shortName:` | — (display only) |
+| `@SyscribeImplementedBy { path = '...'; }` | `implementedBy:` | W023 |
+
+Every field lifted here already exists on the frontmatter schema and is already validated for a
+hand-authored element (to whatever extent the existing validator actually checks that field on a
+`PartDef`/`Part` — the "reused" column above is exact, not aspirational) — the mapper's entire job
+is writing the same field a `.md` file would; **no validator changes** exist for this, exactly
+like `@SyscribeFeature`. Note in particular that `W701` (integrity level should imply a
+`verificationMethod`) is scoped to `type: Requirement` in the existing validator, so it never
+fires here — not on a SysMLv2-lifted `PartDef`, and not on a hand-authored one either.
+`@SyscribeIntegrity` may carry any of its three keys; more than one present on the same
+annotation isn't specially rejected by the mapper — both fields are simply written, and the
+pre-existing `asilLevel`/
+`silLevel` mutual-exclusion warning (`W006`) fires on them exactly as it would for a hand-authored
+element carrying both. A `part def`/`part` with none of these annotations is unaffected — no
+regression versus today's behavior.
+
 ## 4. Validation
 
 | Code | Condition |

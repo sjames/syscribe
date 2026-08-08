@@ -179,7 +179,7 @@ On architecture elements: `allocatedFrom: SC-001` (or list) references upstream 
 
 ```yaml
 type: Requirement
-id: REQ-UAV-FC-001           # required; REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}
+id: REQ-UAV-FC-001           # required; REQ(-[A-Z0-9]{2,12})*-[0-9]{3,8}
 name: "..."                 # required
 status: approved             # draft | review | approved | implemented | verified
 reqDomain: software          # system | hardware | software
@@ -198,7 +198,7 @@ Body must contain at least one `shall` statement (W001 if absent).
 
 ```yaml
 type: TestCase
-id: TC-UAV-FC-001            # required; TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}
+id: TC-UAV-FC-001            # required; TC(-[A-Z0-9]{2,12})*-[0-9]{3,8}
 name: "..."                 # required
 status: active               # draft | review | approved | active | retired
 testLevel: L2                # L1–L5
@@ -216,7 +216,7 @@ Body must contain at least one ` ```gherkin ` fenced block (E011).
 
 ```yaml
 type: ADR
-id: ADR-SW-SCHED-001         # required; ADR(-[A-Z0-9]{2,12})+-[0-9]{3,8}
+id: ADR-SW-SCHED-001         # required; ADR(-[A-Z0-9]{2,12})*-[0-9]{3,8}
 name: "..."                 # required
 status: accepted             # proposed | accepted | deprecated | superseded
 ```
@@ -246,7 +246,7 @@ and use the `--plan TP-X` lens on `matrix`/`verification-depth`/`audit`. Validat
 
 ```yaml
 type: PlanningItem
-id: PI-RTH-IMPL-SW-002       # required; PI(-[A-Z0-9]{2,12})+-[0-9]{3,8}
+id: PI-RTH-IMPL-SW-002       # required; PI(-[A-Z0-9]{2,12})*-[0-9]{3,8}
 name: "..."                 # required
 status: in_progress          # required; todo | in_progress | blocked | done
 itemType: task                # optional; bug | task | feature

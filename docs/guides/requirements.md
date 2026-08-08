@@ -33,7 +33,7 @@ mechanism.
 **Mandatory fields**: `type`, `id`, `name`, `status`. The body must contain at least one
 `shall` — W001 fires if absent.
 
-**ID pattern**: `REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}`. Use `next-id` to avoid clashes:
+**ID pattern**: `REQ(-[A-Z0-9]{2,12})*-[0-9]{3,8}`. Use `next-id` to avoid clashes:
 
 ```bash
 syscribe -m model next-id REQ-SCHED

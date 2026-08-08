@@ -2,7 +2,7 @@
 
 A small, standalone drone-propulsion model demonstrating every capability of
 native SysML v2/KerML submodel ingestion (`ADR-SYS-SYSMLV2-001`,
-`REQ-TRS-SYSMLV2-000` through `-006`) in one coherent scenario. It is a
+`REQ-TRS-SYSMLV2-000` through `-008`) in one coherent scenario. It is a
 separate model root from this repository's own `model/` — running validation
 here never affects that model's baseline.
 
@@ -66,11 +66,16 @@ merge (`REQ-TRS-SYSMLV2-002`):
 - `port def PowerPort;` / `port def FuelPort;` — **PortDef**
 - `attribute def ThrustRating;` — **AttributeDef**
 - `part def RotorAssembly { port fuelSupplyPort : FuelPort; item fuelItem :
-  Fuel; attribute thrustReading : ThrustRating; satisfy
-  'REQ-DRONE-ENDUR-001'; }` — **PartDef** containing a **Port usage**, an
-  **Item usage**, an **Attribute usage** (all nested-in-a-part-body forms),
-  and a `satisfy` targeting a native `Requirement` by its quoted `REQ-*` id
-  (`REQ-TRS-SYSMLV2-003`, id form)
+  Fuel; attribute thrustReading : ThrustRating; @SyscribeDomain { value =
+  'hardware'; } @SyscribeIntegrity { asil = 'B'; } @SyscribeShortName {
+  value = 'rotor-assembly'; } satisfy 'REQ-DRONE-ENDUR-001'; }` —
+  **PartDef** containing a **Port usage**, an **Item usage**, an
+  **Attribute usage** (all nested-in-a-part-body forms), three
+  `@Syscribe*` fixed-field metadata annotations lifting `domain:
+  hardware`/`asilLevel: B`/`shortName: rotor-assembly` onto the
+  synthesized element (`REQ-TRS-SYSMLV2-008`), and a `satisfy` targeting a
+  native `Requirement` by its quoted `REQ-*` id (`REQ-TRS-SYSMLV2-003`, id
+  form)
 - `variation part def RotorConfigChoice { variant part quadConfig :
   RotorAssembly { @SyscribeFeature { featureId = 'FEAT-ROTOR-QUAD'; } }
   variant part hexConfig : RotorAssembly { @SyscribeFeature { featureId =
@@ -128,6 +133,27 @@ map-narrow.
 | `TestCase.verifies:` | `TC-DRONE-ROTOR-001` (native) | `RotorAssembly` (SysMLv2, `REQ-TRS-SYSMLV2-004`) |
 | `@SyscribeFeature` | `quadConfig` variant (SysMLv2) | `FEAT-ROTOR-QUAD` (native `FeatureDef`) |
 | `@SyscribeFeature` | `hexConfig` variant (SysMLv2) | `FEAT-ROTOR-HEX` (native `FeatureDef`) |
+
+## Fixed `@Syscribe*` field annotations (`REQ-TRS-SYSMLV2-008`)
+
+`RotorAssembly` also carries `@SyscribeDomain`, `@SyscribeIntegrity`, and `@SyscribeShortName` —
+lifting straight onto the synthesized element's `domain:`/`asilLevel:`/`shortName:` fields exactly
+as if hand-authored, no different from the `@SyscribeFeature` → `appliesWhen:` lift above:
+
+```
+$ ./target/debug/syscribe -m examples/sysmlv2-submodel/model export --ndjson | \
+    grep '"name":"RotorAssembly"'
+{"frontmatter":{"asilLevel":"B","domain":"hardware","shortName":"rotor-assembly", ...
+```
+
+`domain: hardware` matches `REQ-DRONE-ENDUR-001`'s own `reqDomain: hardware`, so no `E313`
+domain-mismatch fires; `asilLevel: B` has no `derivedFromSafetyGoal`/`derivedFrom` chain to
+propagate through, so `E841`/`E842` don't apply here either — both are exercised for real (firing,
+not just staying silent) in `qual/fixtures/TC-TRS-SYSMLV2-008/`, which is the deliberately
+adversarial half of this feature's coverage; this worked example instead shows the everyday,
+validates-clean case. `@SyscribeImplementedBy` is demonstrated only in the qual fixture, not here,
+since a path that doesn't resolve on disk would add a `W023` to this example's otherwise-clean
+warning list for no explanatory benefit.
 
 ## Feature model / configuration
 

@@ -9,7 +9,7 @@ verificationMethod: test
 
 A `PlanningItem` **shall** be an id-identified native element type following the shared stable-id
 convention (`REQ`/`TC`/`ADR`-style): a `PI-*` id matching
-`^PI(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`, a required `name`, and a required `status` drawn from
+`^PI(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`, a required `name`, and a required `status` drawn from
 `todo | in_progress | blocked | done`. It **shall** additionally accept an optional `itemType`
 drawn from `bug | task | feature`.
 

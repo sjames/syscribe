@@ -1,9 +1,9 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.33.0  
+**Version:** syscribe 0.34.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-08-07  
+**Date:** 2026-08-08  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 267 |
-| Passed | 267 |
+| Total test cases | 268 |
+| Passed | 268 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2435,6 +2435,17 @@
 | Scenario | Result |
 |---|---|
 | the unmapped construct contributes nothing | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-008 — Verify @SyscribeDomain/@SyscribeIntegrity/@SyscribeShortName/@SyscribeImplementedBy lift onto a SysMLv2 part def/part, existing validation fires unchanged, and a no-annotation part is unaffected.
+
+**Verifies:** REQ-TRS-SYSMLV2-008  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a part def with no annotation carries no lifted fields | ✓ PASS |
 
 ---
 

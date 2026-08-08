@@ -7,8 +7,8 @@ reqDomain: software
 verificationMethod: test
 ---
 
-The tool **shall** validate that every element with `type: TestCase` carries an `id:` field matching the pattern `^TC(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`. Failure to match **shall** produce error `E006`.
+The tool **shall** validate that every element with `type: TestCase` carries an `id:` field matching the pattern `^TC(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`. Failure to match **shall** produce error `E006`.
 
 **Source:** §11.12 `E006`; CLAUDE.md §ID Scheme
 
-**Acceptance criteria:** A `TestCase` with `id: TC-TRS-PARSE-001` passes; `id: TC-001` (too short) produces `E006`.
+**Acceptance criteria:** A `TestCase` with `id: TC-TRS-PARSE-001` passes; `id: TC-001` (no category segment) also passes, since the category segment(s) before the numeric suffix are optional; `id: TC-01` (numeric suffix too short, below the 3-digit minimum) produces `E006`.
