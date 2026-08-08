@@ -4,6 +4,16 @@
 //! `W541` (parse/read failure) is a **placeholder** code — `REQ-TRS-SYSMLV2-006`
 //! formalizes the dedicated error/warning code range for this subsystem later;
 //! don't read anything permanent into the exact number yet.
+//!
+//! **Known residual gap (`REQ-TRS-SYSMLV2-008`'s `@Syscribe*` fixed-field lift):**
+//! an annotation member whose value doesn't match any recognized expression
+//! shape for that field (e.g. `sil = 2.5;`, a non-integer numeric form) is
+//! indistinguishable, downstream, from the annotation not being written at
+//! all — no field is lifted and no diagnostic is raised. This mirrors the
+//! module's existing parse-broad/map-narrow posture (an unmapped *construct*
+//! is silently invisible too, `ADR-SYS-SYSMLV2-001` sub-decision 3) rather
+//! than extending it with new validation machinery, but it's a real,
+//! user-reachable authoring trap worth knowing about if this set grows.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -293,8 +303,17 @@ fn attribute_body_string(body: &sysml_v2_parser::AttributeBody, key: &str) -> Op
 }
 
 /// The integer value of the member named `key` inside an `AttributeBody` —
-/// e.g. `sil = 2;`. Unlike [`attribute_body_string`]'s quoted/restricted-name
-/// values, a bare `silLevel`-style integer parses as `Expression::LiteralInteger`.
+/// e.g. `sil = 2;` or `sil = -1;`. Unlike [`attribute_body_string`]'s
+/// quoted/restricted-name values, a bare integer parses as
+/// `Expression::LiteralInteger`; a negative one parses one level deeper, as
+/// `Expression::UnaryOp { op: Minus, operand: LiteralInteger }` — the parser
+/// has no negative-integer-literal token of its own, only unary minus
+/// applied to a positive one. A non-integer numeric form (`sil = 2.5;`,
+/// `Expression::LiteralReal`) isn't handled: `silLevel` is inherently an
+/// integer scale (1-4), so there's no sensible truncate-or-round value to
+/// recover, and it's left to silently produce no `silLevel:` — same as any
+/// other malformed/unrecognized annotation value (see module-level note on
+/// this class of gap).
 fn attribute_body_i64(body: &sysml_v2_parser::AttributeBody, key: &str) -> Option<i64> {
     let sysml_v2_parser::AttributeBody::Brace { elements } = body else {
         return None;
@@ -303,6 +322,13 @@ fn attribute_body_i64(body: &sysml_v2_parser::AttributeBody, key: &str) -> Optio
         sysml_v2_parser::ast::AttributeBodyElement::AttributeUsage(a) if a.value.name == key => {
             a.value.value.as_ref().and_then(|fv| match &fv.value.expression.value {
                 sysml_v2_parser::Expression::LiteralInteger(i) => Some(*i),
+                sysml_v2_parser::Expression::UnaryOp {
+                    op: sysml_v2_parser::ast::UnaryOperator::Minus,
+                    operand,
+                } => match &operand.value {
+                    sysml_v2_parser::Expression::LiteralInteger(i) => Some(-*i),
+                    _ => None,
+                },
                 _ => None,
             })
         }

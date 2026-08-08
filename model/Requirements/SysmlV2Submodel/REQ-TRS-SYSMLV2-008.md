@@ -9,7 +9,7 @@ derivedFrom: [REQ-TRS-SYSMLV2-000]
 breakdownAdr: Decisions::SysmlV2SubmodelADR
 tags:
   - sysmlv2
-  - traceability
+  - safety
 ---
 
 A SysMLv2 `part def`/`part` shall be able to declare a fixed, named set of `@Syscribe*` metadata
@@ -20,15 +20,19 @@ annotations that lift onto the synthesized element's frontmatter fields exactly 
 | Annotation | Field(s) lifted | Existing validation reused |
 |---|---|---|
 | `@SyscribeDomain { value = '...'; }` | `domain:` | E303, E315, E313 |
-| `@SyscribeIntegrity { asil = '...'; }` | `asilLevel:` | E010, E841–E843, W701, W808 |
-| `@SyscribeIntegrity { sil = ...; }` | `silLevel:` | E009, W006 |
-| `@SyscribeIntegrity { pl = '...'; }` | `plLevel:` | E837 |
+| `@SyscribeIntegrity { asil = '...'; }` | `asilLevel:` | E010, E841–E843, W808 |
+| `@SyscribeIntegrity { sil = ...; }` | `silLevel:` | E009, W006, E841–E843, W808 |
+| `@SyscribeIntegrity { pl = '...'; }` | `plLevel:` | — (format-checked only on `SafetyGoal` today, via `E837`; a `part def`/`part`'s `plLevel:` is carried but unvalidated, same as a hand-authored one) |
 | `@SyscribeShortName { value = '...'; }` | `shortName:` | — (display only) |
 | `@SyscribeImplementedBy { path = '...'; }` | `implementedBy:` | W023 |
 
 Once lifted, the field is indistinguishable from a hand-authored one to every downstream
 consumer — the existing validation rules in the "reused" column apply unchanged, with no
-SysMLv2-origin-aware branching anywhere in the validator.
+SysMLv2-origin-aware branching anywhere in the validator. Note that `W701` (integrity level
+should imply a `verificationMethod`) is scoped to `type: Requirement` in the existing validator
+and so, like on a hand-authored `PartDef`, never fires on the `part def`/`part` this requirement
+targets — it does not belong in the "reused" column above; an earlier draft of this requirement
+incorrectly listed it.
 
 ## Rationale
 

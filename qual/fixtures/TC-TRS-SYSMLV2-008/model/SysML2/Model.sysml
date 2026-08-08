@@ -19,5 +19,11 @@ package Demo {
             sil = 2;
         }
     }
+    part def MismatchedDomainPart {
+        @SyscribeDomain {
+            value = 'software';
+        }
+        satisfy 'REQ-DOMAIN-001';
+    }
     part def PlainPart;
 }

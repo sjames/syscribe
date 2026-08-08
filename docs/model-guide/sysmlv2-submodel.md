@@ -196,17 +196,22 @@ part def CarSafetyServices {
 | Annotation | Field lifted | Existing validation reused |
 |---|---|---|
 | `@SyscribeDomain { value = '...'; }` | `domain:` | E303, E315, E313 |
-| `@SyscribeIntegrity { asil = '...'; }` | `asilLevel:` | E010, E841–E843, W701, W808 |
-| `@SyscribeIntegrity { sil = ...; }` | `silLevel:` (bare integer, not quoted) | E009, W006 |
-| `@SyscribeIntegrity { pl = '...'; }` | `plLevel:` | E837 |
+| `@SyscribeIntegrity { asil = '...'; }` | `asilLevel:` | E010, E841–E843, W808 |
+| `@SyscribeIntegrity { sil = ...; }` | `silLevel:` (bare integer, not quoted) | E009, W006, E841–E843, W808 |
+| `@SyscribeIntegrity { pl = '...'; }` | `plLevel:` | — (format-checked only on `SafetyGoal` today, via `E837`; on a `part def`/`part` it's carried but unvalidated — same as a hand-authored one) |
 | `@SyscribeShortName { value = '...'; }` | `shortName:` | — (display only) |
 | `@SyscribeImplementedBy { path = '...'; }` | `implementedBy:` | W023 |
 
 Every field lifted here already exists on the frontmatter schema and is already validated for a
-hand-authored element — the mapper's entire job is writing the same field a `.md` file would;
-**no validator changes** exist for this, exactly like `@SyscribeFeature`. `@SyscribeIntegrity` may
-carry any of its three keys; more than one present on the same annotation isn't specially
-rejected by the mapper — both fields are simply written, and the pre-existing `asilLevel`/
+hand-authored element (to whatever extent the existing validator actually checks that field on a
+`PartDef`/`Part` — the "reused" column above is exact, not aspirational) — the mapper's entire job
+is writing the same field a `.md` file would; **no validator changes** exist for this, exactly
+like `@SyscribeFeature`. Note in particular that `W701` (integrity level should imply a
+`verificationMethod`) is scoped to `type: Requirement` in the existing validator, so it never
+fires here — not on a SysMLv2-lifted `PartDef`, and not on a hand-authored one either.
+`@SyscribeIntegrity` may carry any of its three keys; more than one present on the same
+annotation isn't specially rejected by the mapper — both fields are simply written, and the
+pre-existing `asilLevel`/
 `silLevel` mutual-exclusion warning (`W006`) fires on them exactly as it would for a hand-authored
 element carrying both. A `part def`/`part` with none of these annotations is unaffected — no
 regression versus today's behavior.

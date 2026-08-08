@@ -20,6 +20,16 @@ Feature: fixed @Syscribe* field annotations lift onto a part def/part
     When the model is validated
     Then the existing W006 asilLevel/silLevel mutual-exclusion warning is raised exactly once
 
+  Scenario: a @SyscribeDomain-lifted domain genuinely drives the existing domain-compatibility check
+    Given a SysMLv2 part def carrying @SyscribeDomain { value = 'software'; } and satisfying a native Requirement with reqDomain: hardware
+    When the model is validated
+    Then the existing E313 domain-mismatch error is raised
+
+  Scenario: a @SyscribeImplementedBy-lifted path genuinely drives the existing disk-check
+    Given a SysMLv2 part def carrying @SyscribeImplementedBy { path = '...'; } naming a path that does not exist on disk
+    When the model is validated
+    Then the existing W023 warning is raised
+
   Scenario: a part def with no annotation is unaffected
     Given a SysMLv2 part def with none of the four annotations
     When the model is exported

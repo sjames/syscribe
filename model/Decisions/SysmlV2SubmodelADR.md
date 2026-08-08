@@ -131,6 +131,12 @@ carry, not which element kinds get mapped at all.
   inventing a parallel check for the SysMLv2-originated path.
 - **Lift-only: no new validation, no origin-aware branching.** Every field this addendum lifts —
   `domain:`, `asilLevel:`/`silLevel:`/`plLevel:`, `shortName:`, `implementedBy:` — already exists
-  on `RawFrontmatter` and is already validated for a hand-authored element. The mapper's entire job
-  is writing the same field a hand-authored `.md` file would; the validator needs no changes at
-  all, exactly like `@SyscribeFeature` → `appliesWhen:` needed none of the feature-model/SAT engine.
+  on `RawFrontmatter`. The mapper's entire job is writing the same field a hand-authored `.md` file
+  would; the validator needs no changes at all, exactly like `@SyscribeFeature` → `appliesWhen:`
+  needed none of the feature-model/SAT engine. This is a claim about the mapper, not a claim that
+  every lifted field is fully validated on a `PartDef`/`Part` today — a review caught an
+  overstatement in an earlier draft, which listed `W701` (`Requirement`-scoped) and `E837`
+  (`SafetyGoal`-scoped) as "reused" against `asilLevel:`/`plLevel:` on a `PartDef`, where neither
+  actually fires. Both gaps are pre-existing and identical for a hand-authored `PartDef` — this
+  addendum doesn't introduce or worsen them — but the requirement's validation-reuse table
+  (`REQ-TRS-SYSMLV2-008`) is corrected to say so exactly, rather than aspirationally.

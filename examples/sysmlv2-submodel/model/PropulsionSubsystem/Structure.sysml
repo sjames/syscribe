@@ -12,6 +12,16 @@ part def RotorAssembly {
     item fuelItem : Fuel;
     attribute thrustReading : ThrustRating;
 
+    @SyscribeDomain {
+        value = 'hardware';
+    }
+    @SyscribeIntegrity {
+        asil = 'B';
+    }
+    @SyscribeShortName {
+        value = 'rotor-assembly';
+    }
+
     satisfy 'REQ-DRONE-ENDUR-001';
 }
 

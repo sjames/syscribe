@@ -373,3 +373,142 @@ fn syscribe_feature_and_the_fixed_field_set_coexist_on_the_same_part() {
     let result = validate(&elements);
     assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
 }
+
+#[test]
+fn syscribe_domain_alone_lifts_with_no_other_annotation_present() {
+    // Every other test in this file bundles two or more annotations on the
+    // same part def — this one isolates @SyscribeDomain to confirm it lifts
+    // correctly with nothing else present (not just "domain ends up right
+    // when three other annotations are also being folded in the same pass").
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def DomainOnlyPart {\n\
+         @SyscribeDomain {\n\
+         value = 'hardware';\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let part = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::DomainOnlyPart")
+        .unwrap();
+    assert_eq!(part.frontmatter.domain.as_deref(), Some("hardware"));
+    assert_eq!(part.frontmatter.asil_level, None);
+    assert_eq!(part.frontmatter.sil_level, None);
+    assert_eq!(part.frontmatter.pl_level, None);
+    assert_eq!(part.frontmatter.short_name, None);
+    assert_eq!(part.frontmatter.implemented_by, None);
+}
+
+#[test]
+fn a_negative_sil_saturates_via_unary_minus_and_still_raises_e009() {
+    // Regression: sysml-v2-parser has no negative-integer-literal token of
+    // its own — `sil = -1;` parses one level deeper, as
+    // Expression::UnaryOp { op: Minus, operand: LiteralInteger(1) }, not a
+    // single LiteralInteger(-1). An earlier version of attribute_body_i64
+    // only matched LiteralInteger directly, so this silently produced no
+    // silLevel: and no diagnostic at all. Fixed by also matching the
+    // UnaryOp/Minus/LiteralInteger shape and clamping into u8 range (same
+    // saturate-so-E009-still-catches-it strategy as the too-large case).
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def NegSilPart {\n\
+         @SyscribeIntegrity {\n\
+         sil = -1;\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let part = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::NegSilPart")
+        .unwrap();
+    assert_eq!(part.frontmatter.sil_level, Some(0));
+
+    let result = validate(&elements);
+    let e009: Vec<_> = result.findings.iter().filter(|f| f.code == "E009").collect();
+    assert_eq!(e009.len(), 1, "expected exactly one E009, got: {:#?}", result.findings);
+}
+
+#[test]
+fn a_non_integer_sil_is_a_documented_silent_gap_not_a_crash() {
+    // A float value (Expression::LiteralReal) isn't a shape
+    // attribute_body_i64 recognizes at all — silLevel is inherently an
+    // integer scale (1-4), so there's no sensible truncate-or-round
+    // recovery. Pinning current (documented, module-level-noted) behavior:
+    // no silLevel: is lifted, no diagnostic is raised, and — most
+    // importantly — ingestion doesn't panic or otherwise misbehave on a
+    // legally-parsed-but-unrecognized value shape.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def FloatSilPart {\n\
+         @SyscribeIntegrity {\n\
+         sil = 2.5;\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let part = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::FloatSilPart")
+        .unwrap();
+    assert_eq!(part.frontmatter.sil_level, None);
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
+fn a_requirement_usage_does_not_pick_up_the_fixed_field_set() {
+    // Scope check: unlike @SyscribeFeature (which reaches into
+    // RequirementDef/RequirementUsage bodies too, since variation isn't
+    // Part-exclusive), REQ-TRS-SYSMLV2-008's fixed four are dispatched only
+    // from convert_part_def/convert_part_usage/the variant-part branch —
+    // convert_requirement_def/convert_requirement_usage never call
+    // fold_syscribe_meta_annotation. A RequirementUsage carrying
+    // @SyscribeDomain should be ingested as an ordinary Requirement with no
+    // domain: field at all, not silently coerced into one.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/Config.sysml",
+        "package Config {\n\
+         requirement reqFoo : ReqChoice {\n\
+         @SyscribeDomain {\n\
+         value = 'software';\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let req = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Config::reqFoo")
+        .unwrap();
+    assert_eq!(req.frontmatter.element_type, Some(syscribe_model::element::ElementType::Requirement));
+    assert_eq!(
+        req.frontmatter.domain, None,
+        "@SyscribeDomain on a RequirementUsage should not lift a domain: field"
+    );
+}

@@ -2441,7 +2441,7 @@
 ### TC-TRS-SYSMLV2-008 — Verify @SyscribeDomain/@SyscribeIntegrity/@SyscribeShortName/@SyscribeImplementedBy lift onto a SysMLv2 part def/part, existing validation fires unchanged, and a no-annotation part is unaffected.
 
 **Verifies:** REQ-TRS-SYSMLV2-008  
-**Result:** ✓ PASS (6 passed, 0 failed)
+**Result:** ✓ PASS (8 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
