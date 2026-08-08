@@ -297,6 +297,79 @@ Full narrative + rules: `syscribe spec safety`.
 | `cvssScore` | VulnerabilityReport | float | 0.0–10.0 (`E824` if out of range) |
 | `cveId` | VulnerabilityReport | string | `CVE-YYYY-NNNNN` |
 | `affectedElements` | VulnerabilityReport | list | QNames of affected model elements |
+
+## `.syscribe.toml` — project configuration reference
+
+Everything below lives in **one file**, `<model_root>/.syscribe.toml`, never in model frontmatter.
+Every table is **opt-in**: absent means built-in defaults, and a model with no `.syscribe.toml` at
+all behaves identically to one with an empty file. Malformed individual entries are reported (a
+warning, naming the file) and excluded rather than failing the whole table — the same posture
+`W046` (`[ids.prefixes]`) and `W309` (`[users]`) both follow.
+
+| Table / Key | Field | Type | Default | Notes |
+|---|---|---|---|---|
+| *(top-level)* | `repo_root` (alias `repoRoot`) | string | auto-detected (walks up for `.git`) | Git repo root; `repo:`-prefixed `sourceFile:`/`implementedBy:`/evidence `path:` values resolve against it. |
+| `[ids]` | `max_digits` (alias `maxDigits`) | int | `8` | Max digits in a stable-ID numeric suffix (min `3`), §11, REQ-TRS-ID-005. |
+| `[ids.prefixes]` | `<TypeName> = [<prefix>, ...]` | map → list of strings | `{}` | Extra stable-ID prefixes per element type, additive to the built-in (`REQ`/`TC`/`ADR`/…). Each prefix must match `^[A-Z][A-Z0-9]{1,11}$`; a malformed prefix or unknown type key is `W046` and ignored. REQ-TRS-ID-007. |
+| `[repos]` | `<alias> = { path, root, ref }` | table of tables | `{}` | Peer repos for multi-repo composition (§14). `path` **required** (relative to `.syscribe.toml`); `root` default `"model/"`; `ref` (tag/branch/SHA) optional — absent pins nothing (`W510`). Drives `repoImports:`, `subConfigurations:` (§14.7), and cross-repo `verifies:`/`derivedFrom:`/etc. resolution. |
+| `[links]` | `base_url` (alias `baseUrl`) | string | unset | Hosted-source URL template, simple form: `<base_url>/<path>`. REQ-TRS-LINK-001. |
+| `[links]` | `url_template` (alias `urlTemplate`) | string | unset | Escape-hatch template: `{path}`/`{qname}`/`{id}`/`{ref}` placeholders. |
+| `[links]` | `ref` | string | `""` | Substituted for `{ref}` in `url_template`. |
+| `[scripts]` | `path` | string | `.syscribe/scripts/` | Rhai extension-scripts directory, relative to the model root. REQ-TRS-SCRIPT-001. |
+| `[plantuml]` | `theme` | string | unset | `!theme <name>` emitted into generated `.puml` files. |
+| `[plantuml]` | `style_file` | string | unset | `!include <path>`; takes precedence over `theme`. REQ-TRS-PUML-040. |
+| `[plantuml]` | `base_url` | string | `http://localhost:3000` | Base URL for clickable element links; `""` suppresses links. |
+| `[plantuml]` | `jar` | string | unset | Path to a PlantUML `.jar` for `plantuml render`. REQ-TRS-PUML-051. |
+| `[baselines]` | `element_dir` (alias `elementDir`) | string | `model/Baselines` | Output dir for the sealed `type: Baseline` element. REQ-TRS-BL-010. |
+| `[baselines]` | `manifest_dir` (alias `manifestDir`) | string | `<git-root>/baselines` | Output dir for the JSON manifest. |
+| `[users]` | `<username> = "<display name>"` | map | `{}` | Roster for `PlanningItem.assignedTo:` (§23.7). A key not matching the Unix-style username shape `^[a-z_][a-z0-9_-]{0,31}$` is `W309` and excluded from the roster. REQ-TRS-PLANITEM-008. |
+| `[profiles]` | `<name> = { promote, sil, status, tag, magicgrid }` | table of tables | `{}` | Named `--profile <name>` gate presets: `promote` (warning codes to gate on), `sil`/`status`/`tag` (optional scope filters — unscoped promotes everywhere), `magicgrid` (bool, runs the gated MagicGrid pass). |
+| `[matchers]` | `<extension> = [<regex>, ...]` | map → list of strings | built-ins for Rust/Java/C/C++/Kotlin/shell | Per-extension function-definition patterns for `W009`; an override **replaces** the built-in list for that extension, not merges with it. |
+| `[remote]` | `download` | string | unset | `sh -c` command template (`{url}`/`{dest}` placeholders) to fetch a remote `sourceFile:`. Only runs under the explicit `validate --fetch-remote` flag — configuring it alone never executes anything. |
+| `[remote]` | `cache_dir` (alias `cacheDir`) | string | `.syscribe/cache` | Where fetched remote sources are cached, relative to the model root. |
+
+```toml
+# .syscribe.toml — everything is optional; this shows every table at once
+repo_root = "."
+
+[ids]
+max_digits = 6
+
+[ids.prefixes]
+Requirement = ["STK", "SYS"]
+
+[repos]
+avionics = { path = "../avionics-model", root = "model/", ref = "v2.1.0" }
+
+[links]
+base_url = "https://github.com/acme/model/blob/main"
+
+[scripts]
+path = ".syscribe/scripts"
+
+[plantuml]
+theme = "plain"
+base_url = "https://model.internal:3000"
+
+[baselines]
+element_dir = "model/Baselines"
+manifest_dir = "baselines"
+
+[users]
+alice = "Alice Nakamura"
+bob = "Bob Patel"
+
+[profiles.ci]
+promote = ["W015", "W300"]
+status = "approved"
+
+[matchers]
+rs = ["fn\\s+(\\w+)\\s*\\("]
+
+[remote]
+download = "curl -sSfL {url} -o {dest}"
+cache_dir = ".syscribe/cache"
+```
 | `mitigatedBy` | VulnerabilityReport | list | `SecurityControl` id/QName refs |
 | `derivedFromSecurityGoal` | Requirement | string | `CSG-*` that generated this requirement |
 | `derivedFromSafetyGoal` | Requirement | string | `SG-*` that generated this requirement |
