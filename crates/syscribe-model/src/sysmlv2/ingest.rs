@@ -150,7 +150,10 @@ fn ident_name(id: &sysml_v2_parser::Identification) -> Option<String> {
 /// unchanged. `applies_when` is `REQ-TRS-SYSMLV2-005`'s `@SyscribeFeature {
 /// featureId = '...'; }` lift — written into the exact same field a native
 /// element's `appliesWhen:` uses, so the feature-model/SAT engine needs no
-/// changes at all to reason about it.
+/// changes at all to reason about it. `domain`/`asil_level`/`sil_level`/
+/// `pl_level`/`short_name`/`implemented_by` are `REQ-TRS-SYSMLV2-008`'s fixed
+/// `@Syscribe*` annotation lift — same posture: written into the exact fields
+/// a hand-authored element uses, no validator changes.
 #[derive(Default)]
 struct Spec {
     supertype: Option<String>,
@@ -161,6 +164,27 @@ struct Spec {
     satisfies: Option<Vec<String>>,
     verifies: Option<Vec<String>>,
     applies_when: Option<String>,
+    domain: Option<String>,
+    asil_level: Option<String>,
+    sil_level: Option<u8>,
+    pl_level: Option<String>,
+    short_name: Option<String>,
+    implemented_by: Option<Vec<String>>,
+}
+
+impl Spec {
+    /// Copy `REQ-TRS-SYSMLV2-008`'s six lifted fields from `meta` onto `self`.
+    /// A small builder rather than six repeated assignments at each of the
+    /// three call sites (`part def`, `part` usage, `variant part` usage).
+    fn with_syscribe_meta(mut self, meta: SyscribeMeta) -> Self {
+        self.domain = meta.domain;
+        self.asil_level = meta.asil_level;
+        self.sil_level = meta.sil_level;
+        self.pl_level = meta.pl_level;
+        self.short_name = meta.short_name;
+        self.implemented_by = meta.implemented_by;
+        self
+    }
 }
 
 fn push_synth(
@@ -185,6 +209,12 @@ fn push_synth(
             satisfies: spec.satisfies,
             verifies: spec.verifies,
             applies_when: spec.applies_when.map(serde_yaml::Value::String),
+            domain: spec.domain,
+            asil_level: spec.asil_level,
+            sil_level: spec.sil_level,
+            pl_level: spec.pl_level,
+            short_name: spec.short_name,
+            implemented_by: spec.implemented_by,
             ..Default::default()
         },
         doc: String::new(),
@@ -232,6 +262,45 @@ fn verify_target(v: &sysml_v2_parser::ast::VerifyRequirementMember) -> Option<St
     v.target.clone()
 }
 
+/// The quote-stripped-string-or-identifier value of the member named `key`
+/// inside an `AttributeBody` — e.g. `value = 'software';` or `featureId =
+/// 'FEAT-ROTOR';`. Shared by every `@Syscribe*` annotation reader below: a
+/// single-quoted SysML v2 value is a "restricted name" token per the grammar
+/// (parsed as `Expression::FeatureRef`, already quote-stripped by the
+/// parser's own lexer), the same shape a `satisfy`/`verify` shorthand target
+/// uses — not a `LiteralString`, which is reserved for double-quoted text.
+fn attribute_body_string(body: &sysml_v2_parser::AttributeBody, key: &str) -> Option<String> {
+    let sysml_v2_parser::AttributeBody::Brace { elements } = body else {
+        return None;
+    };
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::ast::AttributeBodyElement::AttributeUsage(a) if a.value.name == key => a
+            .value
+            .value
+            .as_ref()
+            .and_then(|fv| feature_ref_string(&fv.value.expression.value)),
+        _ => None,
+    })
+}
+
+/// The integer value of the member named `key` inside an `AttributeBody` —
+/// e.g. `sil = 2;`. Unlike [`attribute_body_string`]'s quoted/restricted-name
+/// values, a bare `silLevel`-style integer parses as `Expression::LiteralInteger`.
+fn attribute_body_i64(body: &sysml_v2_parser::AttributeBody, key: &str) -> Option<i64> {
+    let sysml_v2_parser::AttributeBody::Brace { elements } = body else {
+        return None;
+    };
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::ast::AttributeBodyElement::AttributeUsage(a) if a.value.name == key => {
+            a.value.value.as_ref().and_then(|fv| match &fv.value.expression.value {
+                sysml_v2_parser::Expression::LiteralInteger(i) => Some(*i),
+                _ => None,
+            })
+        }
+        _ => None,
+    })
+}
+
 /// The `FeatureDef` reference from a `@SyscribeFeature { featureId = '...';
 /// }` metadata annotation (`REQ-TRS-SYSMLV2-005`), or `None` if `m` isn't one
 /// (wrong name) or carries no `featureId` member.
@@ -245,20 +314,64 @@ fn syscribe_feature_id(m: &sysml_v2_parser::ast::MetadataAnnotation) -> Option<S
     if m.name != "SyscribeFeature" {
         return None;
     }
-    let sysml_v2_parser::AttributeBody::Brace { elements } = &m.body else {
-        return None;
-    };
-    elements.iter().find_map(|n| match &n.value {
-        sysml_v2_parser::ast::AttributeBodyElement::AttributeUsage(a)
-            if a.value.name == "featureId" =>
-        {
-            a.value
-                .value
-                .as_ref()
-                .and_then(|fv| feature_ref_string(&fv.value.expression.value))
+    attribute_body_string(&m.body, "featureId")
+}
+
+/// Fields lifted from a fixed set of `@Syscribe*` metadata annotations on a
+/// `part def`/`part` body (`REQ-TRS-SYSMLV2-008`) — domain classification,
+/// integrity level, a display shortName, and an implementedBy source path.
+/// Mirrors `@SyscribeFeature`'s precedent (same `MetadataAnnotation` AST
+/// node, matched by name) but as a fixed, named set rather than a single
+/// field, per `ADR-SYS-SYSMLV2-001`'s addendum.
+#[derive(Default)]
+struct SyscribeMeta {
+    domain: Option<String>,
+    asil_level: Option<String>,
+    sil_level: Option<u8>,
+    pl_level: Option<String>,
+    short_name: Option<String>,
+    implemented_by: Option<Vec<String>>,
+}
+
+/// Fold one metadata annotation into `meta` if its name matches one of the
+/// four `REQ-TRS-SYSMLV2-008` annotations; any other name (including
+/// `@SyscribeFeature`, handled separately by [`syscribe_feature_id`])
+/// contributes nothing. `@SyscribeIntegrity` reads all three of
+/// `asil`/`sil`/`pl` independently — more than one present on the same
+/// annotation is not rejected here; it's caught downstream by the exact same
+/// `W006` `asilLevel`/`silLevel` mutual-exclusion check a hand-authored
+/// element gets today, since both fields land on the synthesized element's
+/// frontmatter exactly like a native one would.
+fn fold_syscribe_meta_annotation(m: &sysml_v2_parser::ast::MetadataAnnotation, meta: &mut SyscribeMeta) {
+    match m.name.as_str() {
+        "SyscribeDomain" => {
+            if let Some(v) = attribute_body_string(&m.body, "value") {
+                meta.domain = Some(v);
+            }
         }
-        _ => None,
-    })
+        "SyscribeIntegrity" => {
+            if let Some(v) = attribute_body_string(&m.body, "asil") {
+                meta.asil_level = Some(v);
+            }
+            if let Some(v) = attribute_body_i64(&m.body, "sil") {
+                meta.sil_level = u8::try_from(v).ok();
+            }
+            if let Some(v) = attribute_body_string(&m.body, "pl") {
+                meta.pl_level = Some(v);
+            }
+        }
+        "SyscribeShortName" => {
+            if let Some(v) = attribute_body_string(&m.body, "value") {
+                meta.short_name = Some(v);
+            }
+        }
+        "SyscribeImplementedBy" => {
+            if let Some(v) = attribute_body_string(&m.body, "path") {
+                meta.implemented_by = Some(vec![v]);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// `@SyscribeFeature` search over a `part def` body's already-sliced members.
@@ -294,6 +407,36 @@ fn part_usage_syscribe_feature_id(
         sysml_v2_parser::PartUsageBodyElement::MetadataAnnotation(m) => syscribe_feature_id(&m.value),
         _ => None,
     })
+}
+
+/// `REQ-TRS-SYSMLV2-008` `@Syscribe*` fixed-field search over a `part def`
+/// body's already-sliced members — scans every `MetadataAnnotation` rather
+/// than stopping at the first match, since a real `part def` may carry
+/// several of these (plus `@SyscribeFeature`) side by side.
+fn part_def_syscribe_meta(
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>],
+) -> SyscribeMeta {
+    let mut meta = SyscribeMeta::default();
+    for n in elements {
+        if let sysml_v2_parser::PartDefBodyElement::MetadataAnnotation(m) = &n.value {
+            fold_syscribe_meta_annotation(&m.value, &mut meta);
+        }
+    }
+    meta
+}
+
+/// `REQ-TRS-SYSMLV2-008` `@Syscribe*` fixed-field search over a `part` usage
+/// body's already-sliced members. See [`part_def_syscribe_meta`].
+fn part_usage_syscribe_meta(
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>],
+) -> SyscribeMeta {
+    let mut meta = SyscribeMeta::default();
+    for n in elements {
+        if let sysml_v2_parser::PartUsageBodyElement::MetadataAnnotation(m) = &n.value {
+            fold_syscribe_meta_annotation(&m.value, &mut meta);
+        }
+    }
+    meta
 }
 
 /// Walk the merged package tree, emitting `RawElement`s under `qname`.
@@ -368,7 +511,8 @@ fn convert_part_def(
         satisfies,
         applies_when: part_def_syscribe_feature_id(elements),
         ..Default::default()
-    };
+    }
+    .with_syscribe_meta(part_def_syscribe_meta(elements));
     push_synth(out, &part_qname, file_path, ElementType::PartDef, &name, spec);
     for node in elements {
         convert_part_def_body_element(&node.value, &part_qname, file_path, out);
@@ -404,7 +548,8 @@ fn convert_part_usage(
         satisfies,
         applies_when: part_usage_syscribe_feature_id(elements),
         ..Default::default()
-    };
+    }
+    .with_syscribe_meta(part_usage_syscribe_meta(elements));
     push_synth(out, &part_qname, file_path, ElementType::Part, &part.name, spec);
     for node in elements {
         convert_part_usage_body_element(&node.value, &part_qname, file_path, out);
@@ -920,6 +1065,7 @@ fn convert_variant_usage(
             spec.typed_by = nonempty(pu.value.type_name.clone());
             if let sysml_v2_parser::PartUsageBody::Brace { elements } = &pu.value.body {
                 spec.applies_when = part_usage_syscribe_feature_id(elements);
+                spec = spec.with_syscribe_meta(part_usage_syscribe_meta(elements));
             }
             push_synth(out, &elem_qname, file_path, ElementType::Part, &v.name, spec);
         }
