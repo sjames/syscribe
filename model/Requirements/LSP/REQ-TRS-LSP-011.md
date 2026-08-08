@@ -25,7 +25,7 @@ The server shall implement `textDocument/rename`. Given a position that `prepare
 - The server does not write any file itself; the returned edit is applied by the client (to
   open buffers and on-disk files alike, per the `WorkspaceEdit` contract) and saved by the
   client.
-- The new id must match the target type's stable-id pattern (e.g. `^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
+- The new id must match the target type's stable-id pattern (e.g. `^REQ(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
   for a `Requirement`); an id that doesn't match its type's pattern is refused with an LSP
   error before any edit is computed.
 - A new id that collides with an existing element's id is refused with an LSP error.

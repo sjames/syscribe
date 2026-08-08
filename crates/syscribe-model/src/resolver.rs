@@ -46,11 +46,15 @@ static BL_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 static PI_RE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
 
 fn req_re() -> &'static regex::Regex {
-    REQ_RE.get_or_init(|| regex::Regex::new(r"^REQ(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+    // Category segment(s) before the numeric suffix are optional (`*`, not `+`):
+    // `REQ-042` is as valid as `REQ-SCHED-042`. Purely additive — every id that
+    // matched the old `+`-only pattern still matches this one.
+    REQ_RE.get_or_init(|| regex::Regex::new(r"^REQ(-[A-Z0-9]{2,12})*-[0-9]{3,}$").unwrap())
 }
 
 fn tc_re() -> &'static regex::Regex {
-    TC_RE.get_or_init(|| regex::Regex::new(r"^TC(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+    // Same relaxation as `req_re` — see its comment.
+    TC_RE.get_or_init(|| regex::Regex::new(r"^TC(-[A-Z0-9]{2,12})*-[0-9]{3,}$").unwrap())
 }
 
 fn tp_re() -> &'static regex::Regex {
@@ -62,7 +66,8 @@ fn conf_re() -> &'static regex::Regex {
 }
 
 fn adr_re() -> &'static regex::Regex {
-    ADR_RE.get_or_init(|| regex::Regex::new(r"^ADR(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+    // Same relaxation as `req_re` — see its comment.
+    ADR_RE.get_or_init(|| regex::Regex::new(r"^ADR(-[A-Z0-9]{2,12})*-[0-9]{3,}$").unwrap())
 }
 
 fn rr_re() -> &'static regex::Regex {
@@ -146,8 +151,10 @@ pub fn is_baseline_id(s: &str) -> bool {
 
 fn pi_re() -> &'static regex::Regex {
     // PI ids require a trailing numeric segment (REQ/TC/ADR-style, unlike FEAT/BL):
-    // e.g. `PI-SCHED-001`. Each segment is [A-Z0-9]{2,12}.
-    PI_RE.get_or_init(|| regex::Regex::new(r"^PI(-[A-Z0-9]{2,12})+-[0-9]{3,}$").unwrap())
+    // e.g. `PI-SCHED-001`. Each segment is [A-Z0-9]{2,12}. Category segment(s)
+    // before it are optional (`*`, not `+`) — `PI-042` is as valid as
+    // `PI-SCHED-042`; see `req_re`'s comment.
+    PI_RE.get_or_init(|| regex::Regex::new(r"^PI(-[A-Z0-9]{2,12})*-[0-9]{3,}$").unwrap())
 }
 
 /// Returns true for PI-* IDs (PlanningItem, REQ-TRS-PLANITEM-001).
