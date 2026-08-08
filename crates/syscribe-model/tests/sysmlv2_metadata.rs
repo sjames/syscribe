@@ -171,6 +171,74 @@ fn syscribe_integrity_sil_and_pl_forms_parse_independently() {
 }
 
 #[test]
+fn double_quoted_string_values_lift_the_same_as_single_quoted() {
+    // Regression: an earlier version of attribute_body_string only handled
+    // Expression::FeatureRef (single-quoted "restricted name" tokens), so a
+    // syntactically valid double-quoted SysML v2 string literal
+    // (Expression::LiteralString) silently produced no lifted field and no
+    // diagnostic at all. Found by manual smoke-testing, fixed before this
+    // test was written.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def DoubleQuotedPart {\n\
+         @SyscribeDomain {\n\
+         value = \"software\";\n\
+         }\n\
+         @SyscribeShortName {\n\
+         value = \"double-quoted-part\";\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let part = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::DoubleQuotedPart")
+        .unwrap();
+    assert_eq!(part.frontmatter.domain.as_deref(), Some("software"));
+    assert_eq!(part.frontmatter.short_name.as_deref(), Some("double-quoted-part"));
+}
+
+#[test]
+fn an_out_of_range_sil_saturates_and_still_raises_e009() {
+    // Regression: an earlier version wrote `u8::try_from(v).ok()`, which
+    // silently dropped the entire field (no silLevel:, no diagnostic at all)
+    // for any sil value outside 0..=255 — worse than a hand-authored
+    // `silLevel: 999`, which at least reaches the existing E009 "out of
+    // range 1-4" check. Saturating instead means the value still lands on
+    // frontmatter and the existing check still catches it.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def OutOfRangeSilPart {\n\
+         @SyscribeIntegrity {\n\
+         sil = 999;\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let part = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::OutOfRangeSilPart")
+        .unwrap();
+    assert_eq!(part.frontmatter.sil_level, Some(255));
+
+    let result = validate(&elements);
+    let e009: Vec<_> = result.findings.iter().filter(|f| f.code == "E009").collect();
+    assert_eq!(e009.len(), 1, "expected exactly one E009, got: {:#?}", result.findings);
+}
+
+#[test]
 fn syscribe_integrity_with_both_asil_and_sil_raises_the_existing_w006() {
     // REQ-TRS-SYSMLV2-008's acceptance criterion: more than one of
     // asil/sil/pl on the same @SyscribeIntegrity annotation is not specially

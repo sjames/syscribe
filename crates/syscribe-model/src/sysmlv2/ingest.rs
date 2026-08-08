@@ -262,13 +262,19 @@ fn verify_target(v: &sysml_v2_parser::ast::VerifyRequirementMember) -> Option<St
     v.target.clone()
 }
 
-/// The quote-stripped-string-or-identifier value of the member named `key`
-/// inside an `AttributeBody` — e.g. `value = 'software';` or `featureId =
-/// 'FEAT-ROTOR';`. Shared by every `@Syscribe*` annotation reader below: a
-/// single-quoted SysML v2 value is a "restricted name" token per the grammar
-/// (parsed as `Expression::FeatureRef`, already quote-stripped by the
-/// parser's own lexer), the same shape a `satisfy`/`verify` shorthand target
-/// uses — not a `LiteralString`, which is reserved for double-quoted text.
+/// The string value of the member named `key` inside an `AttributeBody` —
+/// e.g. `value = 'software';` or `value = "software";` or `featureId =
+/// 'FEAT-ROTOR';`. Shared by every `@Syscribe*` annotation reader below.
+/// Accepts both forms a real `.sysml` author might reach for: a
+/// single-quoted "restricted name" token (`Expression::FeatureRef`, already
+/// quote-stripped by the parser's own lexer — the same shape a
+/// `satisfy`/`verify` shorthand target uses) and an ordinary double-quoted
+/// string literal (`Expression::LiteralString`). `featureId` has only ever
+/// been written single-quoted in this codebase's own examples/tests, but
+/// nothing in the SysML v2 grammar forbids the double-quoted form for any of
+/// these annotations, and silently dropping a syntactically valid value
+/// (confirmed empirically: `value = "software";` produced no `domain:` and
+/// no diagnostic at all before this fixed) would be a usability trap.
 fn attribute_body_string(body: &sysml_v2_parser::AttributeBody, key: &str) -> Option<String> {
     let sysml_v2_parser::AttributeBody::Brace { elements } = body else {
         return None;
@@ -278,7 +284,10 @@ fn attribute_body_string(body: &sysml_v2_parser::AttributeBody, key: &str) -> Op
             .value
             .value
             .as_ref()
-            .and_then(|fv| feature_ref_string(&fv.value.expression.value)),
+            .and_then(|fv| match &fv.value.expression.value {
+                sysml_v2_parser::Expression::LiteralString(s) => Some(s.clone()),
+                other => feature_ref_string(other),
+            }),
         _ => None,
     })
 }
@@ -354,7 +363,15 @@ fn fold_syscribe_meta_annotation(m: &sysml_v2_parser::ast::MetadataAnnotation, m
                 meta.asil_level = Some(v);
             }
             if let Some(v) = attribute_body_i64(&m.body, "sil") {
-                meta.sil_level = u8::try_from(v).ok();
+                // Saturate rather than `u8::try_from(v).ok()`, which would
+                // silently drop the whole field for any out-of-`u8`-range
+                // value (confirmed empirically: `sil = 999;` produced no
+                // `silLevel:` and no diagnostic at all before this fix) — a
+                // hand-authored `silLevel: 999` at least reaches the
+                // existing `E009` "out of range 1-4" check downstream, and
+                // saturating here lets a too-large SysMLv2-authored value
+                // reach that same check instead of vanishing.
+                meta.sil_level = Some(v.clamp(0, u8::MAX as i64) as u8);
             }
             if let Some(v) = attribute_body_string(&m.body, "pl") {
                 meta.pl_level = Some(v);
