@@ -11,7 +11,7 @@ requirement def RotorThrustReqDef;
 part def Drone {
     port powerPort : PowerPort;
     interface powerIface : PowerInterface;
-    connection powerLink : PowerLink;
+    connection powerLink : PowerLink connect powerPort to rotorConfig;
     part rotorConfig : RotorConfigChoice;
     allocation motorAlloc : RotorAssembly;
 

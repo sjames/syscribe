@@ -262,6 +262,97 @@ Explicitly out of scope, tracked as follow-on if a concrete need arises:
   standard-library-aware inheritance. The AST-only parser used here resolves cross-boundary
   references through Syscribe's own resolver, not SysML v2 semantic legality; that stays a
   standards-compliant tool's (e.g. `spec42`) job, run separately.
-- **`doc` comment extraction** — a SysMLv2-synthesized element's `doc:` body is currently always
-  empty (`W600` fires for every one of them); the mapper does not yet lift `doc /* ... */`
-  comments out of the parsed AST.
+- **`doc /* ... */` comment lift on `Package`/`Requirement`** — §7 below covers every other
+  mapped element kind, but a nested `package Inner { doc /* ... */ ... }` or a `requirement`/
+  `requirement def`'s own doc block is not lifted; a deliberate, matching-issue-scope descope
+  (`REQ-TRS-SYSMLV2-009`'s Scope section), not an oversight.
+
+## 7. `doc /* ... */` comment lift
+
+A `part def`/`part`/`interface def`/`interface` (usage)/`port def`/`port`/`connection def`/
+`attribute def`/`attribute`/`item def`/`item` may declare one or more `doc /* ... */` members.
+The text lifts into the synthesized element's `doc` body — the same field a hand-authored `.md`
+file's body below its `---` closer populates (`REQ-TRS-SYSMLV2-009`):
+
+```sysml
+part def RotorAssembly {
+    doc /* The primary rotor/motor/battery propulsion chain. */
+
+    port fuelSupplyPort : FuelPort;
+}
+```
+
+`W600`/`W601`-style empty-doc-body warnings apply unchanged: this `RotorAssembly` clears `W600`
+exactly as a hand-authored `PartDef` with the same body text would. A `part def`/etc. with no
+`doc` member is unaffected — `doc: ""`, `W600` still fires, no regression.
+
+**Multiple `doc` blocks concatenate**, in source order, joined by a blank line — the grammar
+permits several, and there's no reason to silently drop any of them:
+
+```sysml
+part def CarSafetyServices {
+    doc /* First paragraph. */
+    doc /* Second paragraph. */
+}
+```
+
+lifts to `doc: "First paragraph.\n\nSecond paragraph."`. Each block's own text is trimmed of the
+incidental whitespace directly adjacent to `/*`/`*/` (delimiter padding, not content) before
+joining, and a block that trims to nothing (`doc /* */`) is dropped rather than leaving a stray
+blank line; internal formatting within a single block is left untouched — otherwise verbatim, no
+Markdown rendering or reflow.
+
+`variant part`/`variant attribute`/`variant port`/`variant item` usages, a plain `item` usage, and
+a plain `interface` usage all lift their own `doc` block the same way their def counterparts do:
+`ItemUsage.body` is an `AttributeBody`, the same shared shape `AttributeDef`/`AttributeUsage`/
+`ItemDef` already use, and `InterfaceUsage`'s own `body_elements` carries its own
+`InterfaceUsageBodyElement::Doc` variant, distinct from (but handled the same way as)
+`InterfaceDef`'s `InterfaceDefBodyElement::Doc`.
+
+## 8. Connection-endpoint lift
+
+A `part def`/`part`'s named `connection name : Type connect a to b (, c)*;` usage member lifts its
+endpoints onto the **owning** `part def`/`part`'s `connections:` field — the same field a
+hand-authored `.md` file's `connections:` populates — so `connectivity` (and unscoped `n2`; see
+the limitation disclosed below) show real, resolvable wiring for a `sysmlSubmodel: true` subtree
+(`REQ-TRS-SYSMLV2-010`). Covers a `connection` nested inside a `variant part` usage too, lifting
+onto that usage's own `connections:` the same way an ordinary `part`/`part def` does.
+
+```sysml
+part def Holder {
+    part a : Ecu;
+    part b : Ecu;
+
+    connection c : SomeConnDef connect a.p1 to b.p1;
+}
+```
+
+lifts a `connections: [{typedBy: SomeConnDef, from: <qname>::a, to: <qname>::b}]` entry onto
+`Holder` — **not** onto the nested `c` element, which is still synthesized unchanged
+(`REQ-TRS-SYSMLV2-007`'s existing mapping). The n-ary `connect (a, b, c)` form lifts to the same
+`ends: [{binds: ...}, ...]` shape a hand-authored n-ary entry already uses.
+
+**Endpoints are qualified to `<owning qname>::<head>`, not carried verbatim.** A literal
+`{from: "a.p1", ...}` — what the `.sysml` source text itself says — never resolves to a graph
+edge in this codebase (confirmed by investigation before implementing, not assumed): the
+connection-edge resolver only matches an exact full qname or a `features:`-declared head, neither
+of which a SysMLv2-synthesized part ever has. Only the chain's first segment is kept — `a.p1`
+under `Holder` becomes `Holder::a`, dropping `.p1` — matching this same resolver's own existing
+precedent for `features:`-declared endpoints exactly (head resolved, everything past it
+discarded). See `ADR-SYS-SYSMLV2-001`'s addendum for the full two-round investigation. One
+consequence: a trailing segment is *always* discarded, not resolved when it happens to be
+possible — this is a deliberate instance-level (not port-level) granularity choice.
+
+A named connection usage with no `connect` clause (`connection c : SomeConnDef;`) contributes no
+entry, unaffected. The anonymous binary-connector form (no `connection name :` prefix) stays
+unmapped — no identity to synthesize an entry against, consistent with the module's existing
+precedent for other anonymous forms.
+
+**Disclosed limitation:** `n2 <qname>`, **scoped** to a specific element, builds its axis
+exclusively from the scope element's own `features:` list — a SysMLv2-synthesized part never
+populates `features:`, so scoped `n2` on any SysMLv2 subtree still reports no parts at all,
+regardless of this lift. Only **unscoped** `n2` (the bare `n2` command) and `connectivity` benefit.
+`n2`'s own edge-collection also reads only the first two ends of any n-ary connection (native or
+SysMLv2-lifted alike), so a three-way `connect (a, b, c)` shows `a`↔`b` but not `a`↔`c` in `n2`;
+`connectivity` correctly builds the full star. Both are pre-existing `n2.rs` characteristics this
+requirement doesn't touch.

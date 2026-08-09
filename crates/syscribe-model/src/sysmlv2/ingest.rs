@@ -180,6 +180,18 @@ struct Spec {
     pl_level: Option<String>,
     short_name: Option<String>,
     implemented_by: Option<Vec<String>>,
+    /// `REQ-TRS-SYSMLV2-009`'s `doc /* ... */` lift — written into
+    /// `RawElement.doc` (not `RawFrontmatter`, unlike every other field
+    /// here; see `push_synth`) the same way a hand-authored `.md` file's
+    /// body below its `---` closer populates it. Empty string, not
+    /// `Option`, since that's `RawElement.doc`'s own type — "no doc member"
+    /// and "" are the same thing.
+    doc: String,
+    /// `REQ-TRS-SYSMLV2-010`'s connection-endpoint lift -- the *owning*
+    /// `part def`/`part`'s own `connections:` YAML entries (not the nested
+    /// `Connection` element's own `Spec`; see `connection_usage_entry` for
+    /// why entries are qualified-qname, not literal chain text).
+    connections: Option<Vec<serde_yaml::Value>>,
 }
 
 impl Spec {
@@ -193,6 +205,18 @@ impl Spec {
         self.pl_level = meta.pl_level;
         self.short_name = meta.short_name;
         self.implemented_by = meta.implemented_by;
+        self
+    }
+
+    /// Set `REQ-TRS-SYSMLV2-009`'s lifted `doc` text.
+    fn with_doc(mut self, doc: String) -> Self {
+        self.doc = doc;
+        self
+    }
+
+    /// Set `REQ-TRS-SYSMLV2-010`'s lifted `connections:` entries.
+    fn with_connections(mut self, connections: Vec<serde_yaml::Value>) -> Self {
+        self.connections = nonempty_vec(connections);
         self
     }
 }
@@ -225,9 +249,10 @@ fn push_synth(
             pl_level: spec.pl_level,
             short_name: spec.short_name,
             implemented_by: spec.implemented_by,
+            connections: spec.connections,
             ..Default::default()
         },
-        doc: String::new(),
+        doc: spec.doc,
         parse_issue: None,
         derived: Default::default(),
         derive_findings: Vec::new(),
@@ -417,6 +442,238 @@ fn fold_syscribe_meta_annotation(m: &sysml_v2_parser::ast::MetadataAnnotation, m
     }
 }
 
+/// Concatenate every `doc /* ... */` member's text found in `elements`, in
+/// source order, joined by a blank line — `REQ-TRS-SYSMLV2-009`'s
+/// requirement that a second/third `doc` block accumulates rather than only
+/// the first (or last) winning. `as_doc` extracts the doc text from one
+/// body-element node's value; each of the several relevant body-element
+/// enums below is a structurally distinct Rust type sharing this one
+/// `Doc(Node<DocComment>)` variant shape, not a common trait, so each gets
+/// its own thin one-line wrapper around this shared fold.
+///
+/// Each block's text is `.trim()`ed individually before joining —
+/// `sysml-v2-parser` includes the incidental whitespace directly adjacent to
+/// `/*`/`*/` verbatim (e.g. `doc /* Explanation. */` parses to `"
+/// Explanation. "`, not `"Explanation."`), which is delimiter padding, not
+/// meaningful content; internal formatting/newlines within a single block
+/// are left untouched. A block that trims to nothing (`doc /* */`, or
+/// whitespace-only) is dropped entirely, not kept as an empty entry — a
+/// review caught that the naive version left a stray leading/embedded blank
+/// line (`"\n\nReal text."`) when an earlier block trimmed empty, which
+/// would have been a real, if minor, defect in the lifted `doc` field.
+fn collect_doc<T>(elements: &[sysml_v2_parser::Node<T>], as_doc: impl Fn(&T) -> Option<&str>) -> String {
+    elements
+        .iter()
+        .filter_map(|n| as_doc(&n.value))
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n")
+}
+
+/// `doc /* ... */` lift over a `part def` body's already-sliced members.
+fn part_def_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::PartDefBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over a `part` usage body's already-sliced members.
+fn part_usage_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::PartUsageBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over a `port def` body's already-sliced members.
+fn port_def_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::PortDefBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::PortDefBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over a `port` usage body's already-sliced members.
+fn port_usage_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::PortBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::PortBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over an `interface` usage's already-sliced
+/// `body_elements` — a review caught this one missing entirely from the
+/// first version of this module: `InterfaceUsageBodyElement` carries its own
+/// `Doc` variant (distinct from `InterfaceDefBodyElement`, which
+/// [`interface_def_doc`] handles), and `InterfaceUsage`'s three variants
+/// (`TypedConnect`/`Connection`/`Declaration`) all carry `body_elements` of
+/// this type — but only `Declaration` is a synthesized element at all
+/// (`TypedConnect`/`Connection` are anonymous binary connectors, out of
+/// scope per [`convert_interface_usage`]'s own doc comment).
+fn interface_usage_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::InterfaceUsageBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::InterfaceUsageBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over a `connection def` body's already-sliced members.
+fn connection_def_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ConnectionDefBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::ConnectionDefBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over an `interface def` body's already-sliced members.
+fn interface_def_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::InterfaceDefBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::InterfaceDefBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over an `AttributeBody`'s already-sliced members —
+/// shared by `attribute def`, `attribute` usage, and `item def`, which all
+/// three use this exact enum for their own body (`ItemDef.body`'s doc
+/// comment confirmed: `AttributeBody`/`AttributeBodyElement` shared with
+/// `AttributeDef`/`AttributeUsage`, not a distinct item-specific shape).
+fn attribute_body_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::AttributeBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::ast::AttributeBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// A `connect`-clause endpoint's dotted display text, e.g. `a` or `a.p1` —
+/// `REQ-TRS-SYSMLV2-010`. A single, unchained name parses as
+/// `Expression::FeatureRef`; a genuine multi-segment dotted chain parses as
+/// `Expression::FeatureChainRef` (confirmed against the parser's own AST and
+/// its own doc comments: `path_expression`, used for `connect` endpoints
+/// specifically, produces `FeatureChainRef` rather than folding into nested
+/// `MemberAccess` the way the general value-expression grammar's postfix `.`
+/// chaining does). Other expression shapes aren't meaningful connect
+/// endpoints and aren't mapped here, matching `feature_ref_string`'s
+/// existing posture for `satisfy`/`verify` targets.
+fn connection_end_display(expr: &sysml_v2_parser::Expression) -> Option<String> {
+    match expr {
+        sysml_v2_parser::Expression::FeatureRef(s) => Some(s.clone()),
+        sysml_v2_parser::Expression::FeatureChainRef(chain) => Some(chain.segments.join(".")),
+        _ => None,
+    }
+}
+
+/// Rewrite a `connect`-clause endpoint's dotted chain text into the
+/// fully-qualified qname `REQ-TRS-SYSMLV2-010`'s `connections:` lift
+/// actually needs — see the `ADR-SYS-SYSMLV2-001` addendum for the full
+/// investigation (two rounds of it: a literal, unqualified `"a.p1"` never
+/// resolves at all; a full `"a.p1"` → `"Holder::a::p1"` conversion mostly
+/// doesn't either, since `p1` is overwhelmingly a port *inherited* from
+/// `a`'s type rather than redeclared on the usage itself, and this module
+/// does no inheritance resolution — so `Holder::a::p1` isn't a real
+/// synthesized child in the common case). Only the **head** segment (before
+/// the first `.`) is kept: `a.p1` under the owning part `Holder` becomes
+/// `Holder::a`, matching this module's connection graph's own existing
+/// precedent for `features:`-declared endpoints (`graph.rs::resolve_endpoint`
+/// — "NOTE (deferred, issue #26 MVP): edges carry `kind` only", resolving
+/// only the head, discarding the rest of the chain) — confirmed empirically
+/// to produce a real edge, unlike either of the finer-grained forms tried
+/// first.
+fn qualify_connection_end(owning_qname: &str, chain: &str) -> String {
+    let head = chain.split('.').next().unwrap_or(chain);
+    format!("{owning_qname}::{head}")
+}
+
+/// One `connections:`-shaped YAML entry for a single named `connection name
+/// : Type connect a to b (, c)*;` usage — `REQ-TRS-SYSMLV2-010`. `None` for
+/// a connection usage with no `connect` clause at all (`connect_from` is
+/// `None`) or whose `connect_from`/`connect_to` expression isn't a mapped
+/// shape (see [`connection_end_display`]) — either way, no regression: the
+/// same "nothing to contribute" outcome a plain `connection c : SomeConnDef;`
+/// declaration already has. Binary form (no `connect_extra_ends`) reuses
+/// `crate::connections::add_connection` so the emitted shape can never drift
+/// from the hand-authored binary convention; the n-ary form
+/// (`connect (a, b, c)`) is built directly in the `ends:` shape
+/// `crate::connections::parse_entry` already reads back, since
+/// `add_connection` only ever writes the binary form.
+fn connection_usage_entry(
+    owning_qname: &str,
+    c: &sysml_v2_parser::ast::ConnectionUsageMember,
+) -> Option<serde_yaml::Value> {
+    let from = connection_end_display(&c.connect_from.as_ref()?.value.expression.value)?;
+    let to = connection_end_display(&c.connect_to.as_ref()?.value.expression.value)?;
+    let extras: Vec<String> = c
+        .connect_extra_ends
+        .iter()
+        .filter_map(|n| connection_end_display(&n.value.expression.value))
+        .collect();
+    let typed_by = c.type_name.clone().and_then(nonempty);
+
+    let from_q = qualify_connection_end(owning_qname, &from);
+    let to_q = qualify_connection_end(owning_qname, &to);
+
+    if extras.is_empty() {
+        let mut tmp = Vec::new();
+        crate::connections::add_connection(&mut tmp, &from_q, &to_q, typed_by.as_deref());
+        tmp.pop()
+    } else {
+        let mut ends: Vec<serde_yaml::Value> = [from_q, to_q]
+            .into_iter()
+            .chain(extras.iter().map(|e| qualify_connection_end(owning_qname, e)))
+            .map(|chain| {
+                let mut em = serde_yaml::Mapping::new();
+                em.insert(serde_yaml::Value::from("binds"), serde_yaml::Value::from(chain));
+                serde_yaml::Value::Mapping(em)
+            })
+            .collect();
+        let mut m = serde_yaml::Mapping::new();
+        if let Some(tb) = &typed_by {
+            m.insert(serde_yaml::Value::from("typedBy"), serde_yaml::Value::from(tb.as_str()));
+        }
+        m.insert(serde_yaml::Value::from("ends"), serde_yaml::Value::Sequence(std::mem::take(&mut ends)));
+        Some(serde_yaml::Value::Mapping(m))
+    }
+}
+
+/// `connections:` entries over a `part def` body's already-sliced members —
+/// scans every `PartDefBodyElement::Connection` (the named `connection` form
+/// — a distinct AST variant from the anonymous `PartDefBodyElement::Connect`,
+/// which stays unmapped: no identity to synthesize an owning-part-relative
+/// entry against, `REQ-TRS-SYSMLV2-010`'s Scope).
+fn part_def_connection_entries(
+    owning_qname: &str,
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>],
+) -> Vec<serde_yaml::Value> {
+    elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::PartDefBodyElement::Connection(node) => {
+                connection_usage_entry(owning_qname, &node.value)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// `connections:` entries over a `part` usage body's already-sliced members.
+/// See [`part_def_connection_entries`].
+fn part_usage_connection_entries(
+    owning_qname: &str,
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>],
+) -> Vec<serde_yaml::Value> {
+    elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::PartUsageBodyElement::Connection(node) => {
+                connection_usage_entry(owning_qname, &node.value)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 /// `@SyscribeFeature` search over a `part def` body's already-sliced members.
 ///
 /// Variation is **not** Part-exclusive in this grammar — that was this
@@ -555,7 +812,9 @@ fn convert_part_def(
         applies_when: part_def_syscribe_feature_id(elements),
         ..Default::default()
     }
-    .with_syscribe_meta(part_def_syscribe_meta(elements));
+    .with_syscribe_meta(part_def_syscribe_meta(elements))
+    .with_doc(part_def_doc(elements))
+    .with_connections(part_def_connection_entries(&part_qname, elements));
     push_synth(out, &part_qname, file_path, ElementType::PartDef, &name, spec);
     for node in elements {
         convert_part_def_body_element(&node.value, &part_qname, file_path, out);
@@ -592,16 +851,21 @@ fn convert_part_usage(
         applies_when: part_usage_syscribe_feature_id(elements),
         ..Default::default()
     }
-    .with_syscribe_meta(part_usage_syscribe_meta(elements));
+    .with_syscribe_meta(part_usage_syscribe_meta(elements))
+    .with_doc(part_usage_doc(elements))
+    .with_connections(part_usage_connection_entries(&part_qname, elements));
     push_synth(out, &part_qname, file_path, ElementType::Part, &part.name, spec);
     for node in elements {
         convert_part_usage_body_element(&node.value, &part_qname, file_path, out);
     }
 }
 
-/// `None` for an empty `Vec` — several `Spec` fields are `Option<Vec<String>>`
-/// and an absent relationship should serialize as `None`, not `Some(vec![])`.
-fn nonempty_vec(v: Vec<String>) -> Option<Vec<String>> {
+/// `None` for an empty `Vec` — several `Spec` fields are `Option<Vec<T>>`
+/// and an absent relationship/entry list should serialize as `None`, not
+/// `Some(vec![])`. Generic since `REQ-TRS-SYSMLV2-010` reuses this for
+/// `Vec<serde_yaml::Value>` `connections:` entries alongside the existing
+/// `Vec<String>` uses (`satisfies`/`verifies`).
+fn nonempty_vec<T>(v: Vec<T>) -> Option<Vec<T>> {
     (!v.is_empty()).then_some(v)
 }
 
@@ -688,13 +952,18 @@ fn convert_attribute_def(
         return;
     }
     let elem_qname = format!("{qname}::{}", a.name);
+    let elements = match &a.body {
+        sysml_v2_parser::AttributeBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::AttributeBody::Semicolon => &[],
+    };
     // AttributeDef's `:>` specialization target is (inconsistently, upstream)
     // named `typing` rather than `specializes` like the other Def structs, but
     // it's the same semantic — a Def's supertype, not a Usage's typed-by.
     let spec = Spec {
         supertype: a.typing.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
-    };
+    }
+    .with_doc(attribute_body_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::AttributeDef, &a.name, spec);
 }
 
@@ -708,10 +977,15 @@ fn convert_attribute_usage(
         return;
     }
     let elem_qname = format!("{qname}::{}", a.name);
+    let elements = match &a.body {
+        sysml_v2_parser::AttributeBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::AttributeBody::Semicolon => &[],
+    };
     let spec = Spec {
         typed_by: a.typing.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
-    };
+    }
+    .with_doc(attribute_body_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::Attribute, &a.name, spec);
 }
 
@@ -725,15 +999,18 @@ fn convert_port_def(
         return;
     };
     let elem_qname = format!("{qname}::{name}");
+    let elements = match &p.body {
+        sysml_v2_parser::PortDefBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::PortDefBody::Semicolon => &[],
+    };
     let spec = Spec {
         supertype: p.specializes.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
-    };
+    }
+    .with_doc(port_def_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::PortDef, &name, spec);
-    if let sysml_v2_parser::PortDefBody::Brace { elements } = &p.body {
-        for node in elements {
-            convert_port_def_body_element(&node.value, &elem_qname, file_path, out);
-        }
+    for node in elements {
+        convert_port_def_body_element(&node.value, &elem_qname, file_path, out);
     }
 }
 
@@ -765,10 +1042,20 @@ fn convert_port_usage(
         return;
     }
     let elem_qname = format!("{qname}::{}", p.name);
+    // Unlike every other Usage's body in this module, `p.body` was never
+    // read here at all before `REQ-TRS-SYSMLV2-009` — its nested
+    // `AttributeUsage`/`ItemUsage` members stay unmapped exactly as before
+    // (out of scope for this requirement, which is doc-lifting only); only
+    // the `doc` extraction is new.
+    let elements = match &p.body {
+        sysml_v2_parser::PortBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::PortBody::Semicolon => &[],
+    };
     let spec = Spec {
         typed_by: p.type_name.clone(),
         ..Default::default()
-    };
+    }
+    .with_doc(port_usage_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::Port, &p.name, spec);
 }
 
@@ -782,15 +1069,18 @@ fn convert_connection_def(
         return;
     };
     let elem_qname = format!("{qname}::{name}");
+    let elements = match &c.body {
+        sysml_v2_parser::ConnectionDefBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::ConnectionDefBody::Semicolon => &[],
+    };
     let spec = Spec {
         supertype: c.specializes.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
-    };
+    }
+    .with_doc(connection_def_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::ConnectionDef, &name, spec);
-    if let sysml_v2_parser::ConnectionDefBody::Brace { elements } = &c.body {
-        for node in elements {
-            convert_connection_def_body_element(&node.value, &elem_qname, file_path, out);
-        }
+    for node in elements {
+        convert_connection_def_body_element(&node.value, &elem_qname, file_path, out);
     }
 }
 
@@ -842,15 +1132,18 @@ fn convert_interface_def(
         return;
     };
     let elem_qname = format!("{qname}::{name}");
+    let elements = match &i.body {
+        sysml_v2_parser::InterfaceDefBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::InterfaceDefBody::Semicolon => &[],
+    };
     let spec = Spec {
         supertype: i.specializes.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
-    };
+    }
+    .with_doc(interface_def_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::InterfaceDef, &name, spec);
-    if let sysml_v2_parser::InterfaceDefBody::Brace { elements } = &i.body {
-        for node in elements {
-            convert_interface_def_body_element(&node.value, &elem_qname, file_path, out);
-        }
+    for node in elements {
+        convert_interface_def_body_element(&node.value, &elem_qname, file_path, out);
     }
 }
 
@@ -886,6 +1179,7 @@ fn convert_interface_usage(
     if let sysml_v2_parser::InterfaceUsage::Declaration {
         name: Some(name),
         interface_type,
+        body_elements,
         ..
     } = i
     {
@@ -896,7 +1190,8 @@ fn convert_interface_usage(
         let spec = Spec {
             typed_by: interface_type.clone(),
             ..Default::default()
-        };
+        }
+        .with_doc(interface_usage_doc(body_elements));
         push_synth(out, &elem_qname, file_path, ElementType::Interface, name, spec);
     }
 }
@@ -911,17 +1206,20 @@ fn convert_item_def(
         return;
     };
     let elem_qname = format!("{qname}::{name}");
+    // ItemDef's body is a plain AttributeBody (shared with attribute def/usage
+    // bodies) — only nested attributes are legal there, no ports/items.
+    let elements = match &i.body {
+        sysml_v2_parser::AttributeBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::AttributeBody::Semicolon => &[],
+    };
     let spec = Spec {
         supertype: i.specializes.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
-    };
+    }
+    .with_doc(attribute_body_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::ItemDef, &name, spec);
-    // ItemDef's body is a plain AttributeBody (shared with attribute def/usage
-    // bodies) — only nested attributes are legal there, no ports/items.
-    if let sysml_v2_parser::AttributeBody::Brace { elements } = &i.body {
-        for node in elements {
-            convert_attribute_body_element(&node.value, &elem_qname, file_path, out);
-        }
+    for node in elements {
+        convert_attribute_body_element(&node.value, &elem_qname, file_path, out);
     }
 }
 
@@ -950,10 +1248,21 @@ fn convert_item_usage(
         return; // anonymous redefinition form (`item :>> shape ...`): skip
     }
     let elem_qname = format!("{qname}::{}", i.name);
+    // ItemUsage.body IS an AttributeBody, the same shared shape
+    // attribute_body_doc already handles for AttributeDef/AttributeUsage/
+    // ItemDef — a review caught an earlier claim in this module that
+    // ItemUsage "carries no body field," which was wrong (confirmed against
+    // the parser's own struct definition and its own item-usage-with-body
+    // test coverage); doc-lifting was silently missing here as a result.
+    let elements = match &i.body {
+        sysml_v2_parser::AttributeBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::AttributeBody::Semicolon => &[],
+    };
     let spec = Spec {
         typed_by: i.type_name.clone(),
         ..Default::default()
-    };
+    }
+    .with_doc(attribute_body_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::Item, &i.name, spec);
 }
 
@@ -1108,23 +1417,35 @@ fn convert_variant_usage(
             spec.typed_by = nonempty(pu.value.type_name.clone());
             if let sysml_v2_parser::PartUsageBody::Brace { elements } = &pu.value.body {
                 spec.applies_when = part_usage_syscribe_feature_id(elements);
-                spec = spec.with_syscribe_meta(part_usage_syscribe_meta(elements));
+                spec = spec
+                    .with_syscribe_meta(part_usage_syscribe_meta(elements))
+                    .with_doc(part_usage_doc(elements))
+                    .with_connections(part_usage_connection_entries(&elem_qname, elements));
             }
             push_synth(out, &elem_qname, file_path, ElementType::Part, &v.name, spec);
         }
         Some(sysml_v2_parser::ast::VariantTypedUsage::Attribute(au)) => {
             let mut spec = base_spec();
             spec.typed_by = au.value.typing.as_ref().map(|t| t.value.target_display());
+            if let sysml_v2_parser::AttributeBody::Brace { elements } = &au.value.body {
+                spec = spec.with_doc(attribute_body_doc(elements));
+            }
             push_synth(out, &elem_qname, file_path, ElementType::Attribute, &v.name, spec);
         }
         Some(sysml_v2_parser::ast::VariantTypedUsage::Item(iu)) => {
             let mut spec = base_spec();
             spec.typed_by = iu.value.type_name.clone();
+            if let sysml_v2_parser::AttributeBody::Brace { elements } = &iu.value.body {
+                spec = spec.with_doc(attribute_body_doc(elements));
+            }
             push_synth(out, &elem_qname, file_path, ElementType::Item, &v.name, spec);
         }
         Some(sysml_v2_parser::ast::VariantTypedUsage::Port(pu)) => {
             let mut spec = base_spec();
             spec.typed_by = pu.value.type_name.clone();
+            if let sysml_v2_parser::PortBody::Brace { elements } = &pu.value.body {
+                spec = spec.with_doc(port_usage_doc(elements));
+            }
             push_synth(out, &elem_qname, file_path, ElementType::Port, &v.name, spec);
         }
         Some(sysml_v2_parser::ast::VariantTypedUsage::Perform(_)) => {

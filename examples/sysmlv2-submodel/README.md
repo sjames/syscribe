@@ -2,7 +2,7 @@
 
 A small, standalone drone-propulsion model demonstrating every capability of
 native SysML v2/KerML submodel ingestion (`ADR-SYS-SYSMLV2-001`,
-`REQ-TRS-SYSMLV2-000` through `-008`) in one coherent scenario. It is a
+`REQ-TRS-SYSMLV2-000` through `-010`) in one coherent scenario. It is a
 separate model root from this repository's own `model/` — running validation
 here never affects that model's baseline.
 
@@ -16,7 +16,7 @@ cargo build --workspace   # once, if you haven't already
 ./target/debug/syscribe -m examples/sysmlv2-submodel/model why-active PropulsionSubsystem::Propulsion::RotorConfigChoice::quadConfig --config CONF-HEX-DRONE-001
 ```
 
-Current output: **0 errors, 12 warnings** on the base `validate` report (all
+Current output: **0 errors, 11 warnings** on the base `validate` report (all
 expected/documented below); `feature-check --deep` is **0 errors, 1 warning**
 (also documented below), reports both `Configuration`s as valid models of the
 feature model, and `void model: false`.
@@ -65,17 +65,19 @@ merge (`REQ-TRS-SYSMLV2-002`):
 - `item def Fuel;` — **ItemDef**
 - `port def PowerPort;` / `port def FuelPort;` — **PortDef**
 - `attribute def ThrustRating;` — **AttributeDef**
-- `part def RotorAssembly { port fuelSupplyPort : FuelPort; item fuelItem :
-  Fuel; attribute thrustReading : ThrustRating; @SyscribeDomain { value =
-  'hardware'; } @SyscribeIntegrity { asil = 'B'; } @SyscribeShortName {
-  value = 'rotor-assembly'; } satisfy 'REQ-DRONE-ENDUR-001'; }` —
-  **PartDef** containing a **Port usage**, an **Item usage**, an
-  **Attribute usage** (all nested-in-a-part-body forms), three
-  `@Syscribe*` fixed-field metadata annotations lifting `domain:
-  hardware`/`asilLevel: B`/`shortName: rotor-assembly` onto the
-  synthesized element (`REQ-TRS-SYSMLV2-008`), and a `satisfy` targeting a
-  native `Requirement` by its quoted `REQ-*` id (`REQ-TRS-SYSMLV2-003`, id
-  form)
+- `part def RotorAssembly { doc /* ... */ port fuelSupplyPort : FuelPort;
+  item fuelItem : Fuel; attribute thrustReading : ThrustRating;
+  @SyscribeDomain { value = 'hardware'; } @SyscribeIntegrity { asil = 'B'; }
+  @SyscribeShortName { value = 'rotor-assembly'; } satisfy
+  'REQ-DRONE-ENDUR-001'; }` — **PartDef** containing a `doc /* ... */`
+  member lifting straight into the synthesized element's `doc` body
+  (`REQ-TRS-SYSMLV2-009`; this is the one `PartDef`/`Part` in this model
+  that clears `W600`), a **Port usage**, an **Item usage**, an **Attribute
+  usage** (all nested-in-a-part-body forms), three `@Syscribe*` fixed-field
+  metadata annotations lifting `domain: hardware`/`asilLevel:
+  B`/`shortName: rotor-assembly` onto the synthesized element
+  (`REQ-TRS-SYSMLV2-008`), and a `satisfy` targeting a native `Requirement`
+  by its quoted `REQ-*` id (`REQ-TRS-SYSMLV2-003`, id form)
 - `variation part def RotorConfigChoice { variant part quadConfig :
   RotorAssembly { @SyscribeFeature { featureId = 'FEAT-ROTOR-QUAD'; } }
   variant part hexConfig : RotorAssembly { @SyscribeFeature { featureId =
@@ -91,16 +93,18 @@ contributes different members than `Structure.sysml` (no name collisions):
   **InterfaceDef** with a nested **Port usage**
 - `requirement def RotorThrustReqDef;` — **RequirementDef**
 - `part def Drone { port powerPort : PowerPort; interface powerIface :
-  PowerInterface; connection powerLink : PowerLink; part rotorConfig :
-  RotorConfigChoice; allocation motorAlloc : RotorAssembly; requirement
-  thrustCheck : RotorThrustReqDef { verify 'REQ-DRONE-VERIFY-001'; } satisfy
-  Requirements::'REQ-DRONE-THRUST-001'; }` — a **PartDef** containing an
-  **Interface usage**, a **Connection usage**, a **Part usage** (typed by the
-  variation point above), an **AllocationUsage**, a **Requirement usage**
-  whose own `verify` targets a native `Requirement` by qname
-  (`REQ-TRS-SYSMLV2-003`, `verify` keyword), and a `satisfy` targeting a
-  different native `Requirement` by its Syscribe qualified name
-  (`REQ-TRS-SYSMLV2-003`, qname form)
+  PowerInterface; connection powerLink : PowerLink connect powerPort to
+  rotorConfig; part rotorConfig : RotorConfigChoice; allocation motorAlloc :
+  RotorAssembly; requirement thrustCheck : RotorThrustReqDef { verify
+  'REQ-DRONE-VERIFY-001'; } satisfy Requirements::'REQ-DRONE-THRUST-001'; }`
+  — a **PartDef** containing an **Interface usage**, a **Connection usage**
+  whose `connect powerPort to rotorConfig;` clause lifts onto `Drone`'s own
+  `connections:` field as a real, resolvable `connectivity` edge
+  (`REQ-TRS-SYSMLV2-010`), a **Part usage** (typed by the variation point
+  above), an **AllocationUsage**, a **Requirement usage** whose own `verify`
+  targets a native `Requirement` by qname (`REQ-TRS-SYSMLV2-003`, `verify`
+  keyword), and a `satisfy` targeting a different native `Requirement` by
+  its Syscribe qualified name (`REQ-TRS-SYSMLV2-003`, qname form)
 - `part droneInstance : Drone;` — a package-level **Part usage** of `Drone`
   (keeps `Drone` genuinely referenced as a type, matching how everything else
   in this example is used somewhere)
@@ -155,6 +159,59 @@ validates-clean case. `@SyscribeImplementedBy` is demonstrated only in the qual 
 since a path that doesn't resolve on disk would add a `W023` to this example's otherwise-clean
 warning list for no explanatory benefit.
 
+## `doc /* ... */` comment lift (`REQ-TRS-SYSMLV2-009`)
+
+`RotorAssembly` also carries a `doc /* ... */` member — lifting straight into the synthesized
+element's `doc` body, the same field a hand-authored `.md` file's body below its `---` closer
+populates:
+
+```
+$ ./target/debug/syscribe -m examples/sysmlv2-submodel/model show \
+    PropulsionSubsystem::Propulsion::RotorAssembly
+...
+## Documentation
+
+The primary rotor/motor/battery propulsion chain — the physical assembly whose endurance
+REQ-DRONE-ENDUR-001 constrains.
+```
+
+This is why `RotorAssembly` doesn't appear among the `W600` elements below, unlike the other six
+`PartDef`/`Part` elements in this model — a `doc` member clears `W600` exactly as a hand-authored
+element's non-empty body would.
+
+## Connection-endpoint lift (`REQ-TRS-SYSMLV2-010`)
+
+`Drone`'s `connection powerLink : PowerLink connect powerPort to rotorConfig;` lifts onto
+`Drone`'s own `connections:` field — not onto the nested `powerLink` element — as a real,
+resolvable graph edge between two of `Drone`'s own direct children:
+
+```
+$ ./target/debug/syscribe -m examples/sysmlv2-submodel/model connectivity \
+    PropulsionSubsystem::Propulsion::Drone::powerPort --format json
+{
+  "edges": [
+    {
+      "from": "PropulsionSubsystem::Propulsion::Drone::powerPort",
+      "kind": "connection",
+      "to": "PropulsionSubsystem::Propulsion::Drone::rotorConfig"
+    }
+  ],
+  ...
+}
+```
+
+Both `powerPort` and `rotorConfig` are bare (unchained) names here — no `.` segment to drop — so
+this demonstrates the common case cleanly; see `qual/fixtures/TC-TRS-SYSMLV2-010/` for the dotted
+(`a.p1`) and n-ary (`connect (a, b, c)`) forms, and `ADR-SYS-SYSMLV2-001`'s addendum for why a
+dotted chain's trailing segment is deliberately dropped rather than resolved. This particular edge
+is visible via `connectivity` but not `n2` — **unscoped** `n2` (the bare `n2` command) doesn't
+include `Port`-typed elements as rows/columns at all, by its own pre-existing design unrelated to
+this feature, so `powerPort` never appears there regardless; a `connect` between two `Part`-typed
+siblings would show up in unscoped `n2` too. **Scoped** `n2 <qname>` doesn't benefit from this
+lift at all, for either kind of endpoint — its axis comes from `features:` alone, which no
+SysMLv2-synthesized part ever populates (see `REQ-TRS-SYSMLV2-010`'s Rationale for the full
+disclosure); try `n2 PropulsionSubsystem::Propulsion::Drone` here to see it firsthand.
+
 ## Feature model / configuration
 
 `Features::RotorConfig` is a mandatory XOR group with two children, `Quad`
@@ -183,13 +240,15 @@ Every warning below is understood and either inherent to this feature as
 currently scoped, or an ordinary artifact of a deliberately small demo model
 — none is a defect in this example.
 
-- **`W600` × 7 ("PartDef/Part has an empty documentation body")** — the
-  SysMLv2 mapper does not currently lift `doc /* ... */` comments out of the
-  parsed AST into the synthesized element's `doc:` body (`REQ-TRS-SYSMLV2-002`
-  never required this). Every SysMLv2-originated `PartDef`/`Part` in *any*
-  model built with this feature will carry an empty doc body and trip this
-  warning — it is not specific to this example. Candidate follow-on scope,
-  not something this example works around.
+- **`W600` × 6 ("PartDef/Part has an empty documentation body")** — the
+  remaining six `PartDef`/`Part` elements in `PropulsionSubsystem/*.sysml`
+  carry no `doc /* ... */` member, so they get an empty `doc:` body exactly
+  like a hand-authored element with no body text would (`REQ-TRS-SYSMLV2-009`
+  lifts `doc` comments where they're written; it doesn't invent documentation
+  for elements that have none). `RotorAssembly` demonstrates the lift itself
+  — see the "`doc /* ... */` comment lift" section below — and no longer
+  trips this warning, which is why the count dropped from 7 to 6 once that
+  landed.
 - **`W005` × 3 ("no derivedFrom and no derivedChildren — possible orphan")**
   — ordinary consequence of this being a small, flat demo with no requirement
   breakdown hierarchy; unrelated to SysMLv2.
