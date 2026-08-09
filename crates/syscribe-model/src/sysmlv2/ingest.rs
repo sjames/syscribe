@@ -444,12 +444,17 @@ fn fold_syscribe_meta_annotation(m: &sysml_v2_parser::ast::MetadataAnnotation, m
 /// `/*`/`*/` verbatim (e.g. `doc /* Explanation. */` parses to `"
 /// Explanation. "`, not `"Explanation."`), which is delimiter padding, not
 /// meaningful content; internal formatting/newlines within a single block
-/// are left untouched.
+/// are left untouched. A block that trims to nothing (`doc /* */`, or
+/// whitespace-only) is dropped entirely, not kept as an empty entry — a
+/// review caught that the naive version left a stray leading/embedded blank
+/// line (`"\n\nReal text."`) when an earlier block trimmed empty, which
+/// would have been a real, if minor, defect in the lifted `doc` field.
 fn collect_doc<T>(elements: &[sysml_v2_parser::Node<T>], as_doc: impl Fn(&T) -> Option<&str>) -> String {
     elements
         .iter()
         .filter_map(|n| as_doc(&n.value))
         .map(str::trim)
+        .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("\n\n")
 }
@@ -482,6 +487,22 @@ fn port_def_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::PortDefBodyEl
 fn port_usage_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::PortBodyElement>]) -> String {
     collect_doc(elements, |e| match e {
         sysml_v2_parser::PortBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over an `interface` usage's already-sliced
+/// `body_elements` — a review caught this one missing entirely from the
+/// first version of this module: `InterfaceUsageBodyElement` carries its own
+/// `Doc` variant (distinct from `InterfaceDefBodyElement`, which
+/// [`interface_def_doc`] handles), and `InterfaceUsage`'s three variants
+/// (`TypedConnect`/`Connection`/`Declaration`) all carry `body_elements` of
+/// this type — but only `Declaration` is a synthesized element at all
+/// (`TypedConnect`/`Connection` are anonymous binary connectors, out of
+/// scope per [`convert_interface_usage`]'s own doc comment).
+fn interface_usage_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::InterfaceUsageBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::InterfaceUsageBodyElement::Doc(d) => Some(d.value.text.as_str()),
         _ => None,
     })
 }
@@ -1014,6 +1035,7 @@ fn convert_interface_usage(
     if let sysml_v2_parser::InterfaceUsage::Declaration {
         name: Some(name),
         interface_type,
+        body_elements,
         ..
     } = i
     {
@@ -1024,7 +1046,8 @@ fn convert_interface_usage(
         let spec = Spec {
             typed_by: interface_type.clone(),
             ..Default::default()
-        };
+        }
+        .with_doc(interface_usage_doc(body_elements));
         push_synth(out, &elem_qname, file_path, ElementType::Interface, name, spec);
     }
 }
@@ -1081,10 +1104,21 @@ fn convert_item_usage(
         return; // anonymous redefinition form (`item :>> shape ...`): skip
     }
     let elem_qname = format!("{qname}::{}", i.name);
+    // ItemUsage.body IS an AttributeBody, the same shared shape
+    // attribute_body_doc already handles for AttributeDef/AttributeUsage/
+    // ItemDef — a review caught an earlier claim in this module that
+    // ItemUsage "carries no body field," which was wrong (confirmed against
+    // the parser's own struct definition and its own item-usage-with-body
+    // test coverage); doc-lifting was silently missing here as a result.
+    let elements = match &i.body {
+        sysml_v2_parser::AttributeBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::AttributeBody::Semicolon => &[],
+    };
     let spec = Spec {
         typed_by: i.type_name.clone(),
         ..Default::default()
-    };
+    }
+    .with_doc(attribute_body_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::Item, &i.name, spec);
 }
 
@@ -1254,9 +1288,9 @@ fn convert_variant_usage(
         Some(sysml_v2_parser::ast::VariantTypedUsage::Item(iu)) => {
             let mut spec = base_spec();
             spec.typed_by = iu.value.type_name.clone();
-            // ItemUsage carries no `body` field in this grammar (unlike
-            // ItemDef) — nowhere for a `doc` member to attach; see
-            // REQ-TRS-SYSMLV2-009's Scope note.
+            if let sysml_v2_parser::AttributeBody::Brace { elements } = &iu.value.body {
+                spec = spec.with_doc(attribute_body_doc(elements));
+            }
             push_synth(out, &elem_qname, file_path, ElementType::Item, &v.name, spec);
         }
         Some(sysml_v2_parser::ast::VariantTypedUsage::Port(pu)) => {

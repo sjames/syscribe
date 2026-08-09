@@ -3,7 +3,7 @@ id: TC-TRS-SYSMLV2-009
 type: TestCase
 testLevel: L3
 status: draft
-name: "Verify SysML v2 doc /* ... */ comments lift into the synthesized element's doc body, concatenate across multiple blocks, clear W600, and a no-doc element is unaffected."
+name: "Verify SysML v2 doc /* ... */ comments lift into the synthesized element's doc body across part def/port def/interface usage, concatenate across multiple blocks, clear W600, and a no-doc element is unaffected."
 verifies:
   - REQ-TRS-SYSMLV2-009
 ---
@@ -24,4 +24,9 @@ Feature: doc /* ... */ comments lift into the synthesized element's doc body
     Given a SysMLv2 part def with no doc /* ... */ member
     When the model is validated
     Then the synthesized element's doc body is empty and W600 still fires
+
+  Scenario: the lift also reaches element kinds beyond part def
+    Given a SysMLv2 port def and an interface usage, each carrying one doc /* ... */ member
+    When the model is exported
+    Then each synthesized element's doc body matches its own comment text
 ```

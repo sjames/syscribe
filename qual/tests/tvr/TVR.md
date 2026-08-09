@@ -2449,14 +2449,14 @@
 
 ---
 
-### TC-TRS-SYSMLV2-009 — Verify SysML v2 doc /* ... */ comments lift into the synthesized element's doc body, concatenate across multiple blocks, clear W600, and a no-doc element is unaffected.
+### TC-TRS-SYSMLV2-009 — Verify SysML v2 doc /* ... */ comments lift into the synthesized element's doc body across part def/port def/interface usage, concatenate across multiple blocks, clear W600, and a no-doc element is unaffected.
 
 **Verifies:** REQ-TRS-SYSMLV2-009  
-**Result:** ✓ PASS (4 passed, 0 failed)
+**Result:** ✓ PASS (6 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
-| a part def with no doc member is unaffected | ✓ PASS |
+| an interface usage lifts its own doc block | ✓ PASS |
 
 ---
 

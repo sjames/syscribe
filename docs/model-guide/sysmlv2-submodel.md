@@ -265,13 +265,17 @@ Explicitly out of scope, tracked as follow-on if a concrete need arises:
 - **Connection endpoints** — a named `connection c : SomeConnDef connect a.x to b.y;` usage's
   `connect_from`/`connect_to` fields are parsed but not yet lifted into resolvable graph edges, so
   `n2`/`connectivity` show no off-diagonal wiring for a `sysmlSubmodel: true` subtree today.
+- **`doc /* ... */` comment lift on `Package`/`Requirement`** — §7 below covers every other
+  mapped element kind, but a nested `package Inner { doc /* ... */ ... }` or a `requirement`/
+  `requirement def`'s own doc block is not lifted; a deliberate, matching-issue-scope descope
+  (`REQ-TRS-SYSMLV2-009`'s Scope section), not an oversight.
 
 ## 7. `doc /* ... */` comment lift
 
-A `part def`/`part`/`interface def`/`port def`/`port`/`connection def`/`attribute def`/
-`attribute`/`item def` may declare one or more `doc /* ... */` members. The text lifts into the
-synthesized element's `doc` body — the same field a hand-authored `.md` file's body below its
-`---` closer populates (`REQ-TRS-SYSMLV2-009`):
+A `part def`/`part`/`interface def`/`interface` (usage)/`port def`/`port`/`connection def`/
+`attribute def`/`attribute`/`item def`/`item` may declare one or more `doc /* ... */` members.
+The text lifts into the synthesized element's `doc` body — the same field a hand-authored `.md`
+file's body below its `---` closer populates (`REQ-TRS-SYSMLV2-009`):
 
 ```sysml
 part def RotorAssembly {
@@ -297,10 +301,13 @@ part def CarSafetyServices {
 
 lifts to `doc: "First paragraph.\n\nSecond paragraph."`. Each block's own text is trimmed of the
 incidental whitespace directly adjacent to `/*`/`*/` (delimiter padding, not content) before
-joining; internal formatting within a single block is left untouched — otherwise verbatim, no
+joining, and a block that trims to nothing (`doc /* */`) is dropped rather than leaving a stray
+blank line; internal formatting within a single block is left untouched — otherwise verbatim, no
 Markdown rendering or reflow.
 
-`variant part`/`variant attribute`/`variant port` usages lift their own `doc` block the same way
-their non-variant counterparts do. `ItemUsage` carries no body at all in this grammar (unlike
-`ItemDef`), so it has nowhere for a `doc` member to attach — not a gap, just a shape this
-particular SysML v2 construct doesn't have.
+`variant part`/`variant attribute`/`variant port`/`variant item` usages, a plain `item` usage, and
+a plain `interface` usage all lift their own `doc` block the same way their def counterparts do:
+`ItemUsage.body` is an `AttributeBody`, the same shared shape `AttributeDef`/`AttributeUsage`/
+`ItemDef` already use, and `InterfaceUsage`'s own `body_elements` carries its own
+`InterfaceUsageBodyElement::Doc` variant, distinct from (but handled the same way as)
+`InterfaceDef`'s `InterfaceDefBodyElement::Doc`.

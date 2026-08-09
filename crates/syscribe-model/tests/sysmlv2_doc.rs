@@ -142,6 +142,37 @@ fn a_part_usage_also_lifts_its_own_doc_block() {
 }
 
 #[test]
+fn an_interface_usage_lifts_its_own_doc_block() {
+    // Regression: a review caught this one missing entirely from the first
+    // version of this module — InterfaceUsageBodyElement carries its own
+    // Doc variant (distinct from InterfaceDefBodyElement), and
+    // convert_interface_usage's Declaration-variant `body_elements` was
+    // never read at all, silently dropping any doc text with no warning of
+    // any kind (W600 doesn't cover Interface).
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         interface def IFaceDef;\n\
+         part def Holder {\n\
+         interface myIface : IFaceDef {\n\
+         doc /* interface usage doc. */\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let iface = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::Holder::myIface")
+        .unwrap();
+    assert_eq!(iface.doc, "interface usage doc.");
+}
+
+#[test]
 fn port_def_port_usage_connection_def_interface_def_attribute_def_and_item_def_all_lift_their_own_doc() {
     // One test covering every remaining element kind REQ-TRS-SYSMLV2-009
     // scopes in, rather than six near-duplicate tests.
@@ -234,11 +265,43 @@ fn a_variant_part_attribute_and_port_usage_each_lift_their_own_doc() {
 }
 
 #[test]
-fn an_item_usage_has_nowhere_for_doc_to_attach_and_stays_empty() {
-    // ItemUsage carries no `body` field in this grammar (unlike ItemDef) —
-    // there's nowhere for a `doc` member to attach at all. Pinning that this
-    // is a real grammar limitation, not a mapper oversight: an ItemUsage
-    // simply has no doc, always, regardless of this feature.
+fn an_item_usage_with_a_brace_body_lifts_its_own_doc_block() {
+    // Regression: an earlier version of this module (and this very test)
+    // claimed ItemUsage "carries no body field in this grammar" and so could
+    // never lift a doc block. A review caught that this was false —
+    // ItemUsage.body IS an AttributeBody, the same shared shape
+    // AttributeDef/AttributeUsage/ItemDef already use — confirmed against
+    // the parser's own struct definition, and doc-lifting was silently
+    // missing here as a result until fixed.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         item def Fuel;\n\
+         part def Tank {\n\
+         item fuelItem : Fuel {\n\
+         doc /* Fuel item doc. */\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let item = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::Tank::fuelItem")
+        .unwrap();
+    assert_eq!(item.doc, "Fuel item doc.");
+}
+
+#[test]
+fn an_item_usage_with_the_semicolon_form_has_no_doc_no_regression() {
+    // The ordinary, no-body `item name : Type;` form (this module's original
+    // and still most common shape) has no doc member to lift — this is the
+    // legitimate "nothing written" case, distinct from the false "nowhere to
+    // attach it" claim the previous version of this test made.
     let root = tempdir();
     base_model(&root);
     write(
@@ -258,4 +321,152 @@ fn an_item_usage_has_nowhere_for_doc_to_attach_and_stays_empty() {
         .find(|e| e.qualified_name == "SysML2Legacy::CarOS::Tank::fuelItem")
         .unwrap();
     assert_eq!(item.doc, "");
+}
+
+#[test]
+fn a_variant_item_usage_with_a_brace_body_lifts_its_own_doc_block() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/Config.sysml",
+        "package Config {\n\
+         variation part def RotorConfig {\n\
+         variant item quadItem : Fuel {\n\
+         doc /* item variant doc. */\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let item = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Config::RotorConfig::quadItem")
+        .unwrap();
+    assert_eq!(item.doc, "item variant doc.");
+}
+
+#[test]
+fn a_whitespace_only_doc_block_is_dropped_not_kept_as_a_blank_line() {
+    // Regression: an earlier version of collect_doc trimmed each block's
+    // text but never filtered out a block that trimmed to nothing, so
+    // ["", "Real text."].join("\n\n") produced a stray leading "\n\n" before
+    // the real text. A review caught this before it shipped.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def BlankFirstPart {\n\
+         doc /* */\n\
+         doc /* Real text. */\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let part = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::BlankFirstPart")
+        .unwrap();
+    assert_eq!(part.doc, "Real text.");
+
+    // Still trips W600 if the *only* block present is whitespace-only.
+    let root2 = tempdir();
+    base_model(&root2);
+    write(
+        &root2,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def OnlyBlankPart {\n\
+         doc /*    */\n\
+         }\n\
+         }\n",
+    );
+    let elements2 = walk_model(&root2).unwrap();
+    let part2 = elements2
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::OnlyBlankPart")
+        .unwrap();
+    assert_eq!(part2.doc, "");
+    let result = validate(&elements2);
+    assert!(
+        result.findings.iter().any(|f| f.code == "W600"),
+        "expected W600 for a whitespace-only doc block (equivalent to no doc): {:#?}",
+        result.findings
+    );
+}
+
+#[test]
+fn a_package_level_doc_block_is_not_lifted_anywhere() {
+    // Packages are synthesized via Spec::default() (ingest.rs's
+    // convert_merged), never reading PackageBodyElement::Doc even though
+    // that variant exists on the enum — packages aren't in
+    // REQ-TRS-SYSMLV2-009's scope. Pinning this as deliberate, not an
+    // oversight the next reader should "fix."
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         doc /* Package-level doc — out of scope. */\n\
+         part def Plain;\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let pkg = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS")
+        .unwrap();
+    assert_eq!(pkg.doc, "");
+}
+
+#[test]
+fn a_connection_def_doc_block_coexists_with_recursion_into_nested_members() {
+    // convert_connection_def (like convert_port_def/convert_interface_def)
+    // was restructured to bind `elements` before push_synth instead of
+    // after, purely to make the same slice available to both the new doc
+    // lift and the pre-existing nested-member recursion. This is the one
+    // test in the file that exercises both at once, to catch a regression
+    // where the restructuring broke the recursion rather than just adding
+    // the doc lift alongside it.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         port def FuelPort;\n\
+         connection def DocConnDef {\n\
+         doc /* connection def doc. */\n\
+         port supplyPort : FuelPort;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let conn = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::DocConnDef")
+        .unwrap();
+    assert_eq!(conn.doc, "connection def doc.");
+    let port = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::DocConnDef::supplyPort")
+        .unwrap_or_else(|| {
+            panic!(
+                "nested port usage should still be recursed into: {:#?}",
+                elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+            )
+        });
+    assert_eq!(port.frontmatter.element_type, Some(syscribe_model::element::ElementType::Port));
 }

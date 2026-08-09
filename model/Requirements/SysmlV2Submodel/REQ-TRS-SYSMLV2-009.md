@@ -11,11 +11,11 @@ tags:
   - sysmlv2
 ---
 
-A `part def`/`part`/`interface def`/`port def`/`port`/`connection def`/`attribute def`/
-`attribute`/`item def` shall be able to declare one or more `doc /* ... */` members. Syscribe
-shall lift their text, concatenated in source order, into the synthesized element's `doc` field —
-the same field a hand-authored `.md` file's body populates below its `---` closer — exactly as it
-would for a hand-authored element carrying the same text.
+A `part def`/`part`/`interface def`/`interface` (usage)/`port def`/`port`/`connection def`/
+`attribute def`/`attribute`/`item def`/`item` shall be able to declare one or more `doc /* ... */`
+members. Syscribe shall lift their text, concatenated in source order, into the synthesized
+element's `doc` field — the same field a hand-authored `.md` file's body populates below its
+`---` closer — exactly as it would for a hand-authored element carrying the same text.
 
 ## Rationale
 
@@ -32,10 +32,21 @@ missing mapper coverage, not a parser limitation — the exact same posture `REQ
 
 - Covers the element kinds whose own body-element enum carries a `Doc` variant **and** which are
   already synthesized into a first-class element by `REQ-TRS-SYSMLV2-007`'s fixed set: `PartDef`,
-  `Part`, `InterfaceDef`, `PortDef`, `Port`, `ConnectionDef`, `AttributeDef`, `Attribute`,
-  `ItemDef` (including a `variant part`/`variant attribute`/`variant port` usage, which share the
-  same body shapes as their non-variant counterparts). `ItemUsage` carries no body of its own in
-  this grammar, so it has nowhere for a `doc` member to attach — unaffected, not a gap.
+  `Part`, `InterfaceDef`, `Interface`, `PortDef`, `Port`, `ConnectionDef`, `AttributeDef`,
+  `Attribute`, `Item`, `ItemDef` (including a `variant part`/`variant attribute`/`variant
+  port`/`variant item` usage, which share the same body shapes as their non-variant counterparts).
+  `Item`'s own body is an `AttributeBody` — the same shared shape `AttributeDef`/`AttributeUsage`/
+  `ItemDef` already use; `Interface`'s own `body_elements` is an `InterfaceUsageBodyElement`
+  list, distinct from `InterfaceDef`'s `InterfaceDefBodyElement` — both confirmed against the
+  parser's own struct definitions after two review rounds each caught one of these as incorrectly
+  believed out of reach (an earlier draft claimed `ItemUsage` carries no body at all; a still
+  earlier version of the implementation omitted `InterfaceUsageBodyElement::Doc` entirely,
+  unnoticed until reviewed).
+- Does **not** extend to `Package` or `Requirement`/`RequirementDef`/`RequirementUsage`, even
+  though both are members of `REQ-TRS-SYSMLV2-007`'s fixed set and both have their own
+  `Doc`-carrying body-element enum (`PackageBodyElement`, `RequirementDefBodyElement`) — a
+  deliberate, matching-issue-scope descope, not an oversight; extending to either is candidate
+  follow-on if a concrete need arises.
 - Does **not** extend to constructs outside `REQ-TRS-SYSMLV2-007`'s mapped set (`state def`,
   `calc`, `perform`, …) — those synthesize no element at all, so there is nothing to attach lifted
   text to. Consistent with the module's existing parse-broad/map-narrow posture
@@ -46,7 +57,12 @@ missing mapper coverage, not a parser limitation — the exact same posture `REQ
 - `identification`/`locale` on `DocComment` are not surfaced anywhere else in the frontmatter
   schema and are ignored by this requirement — only `text` matters.
 - Text is carried verbatim — no Markdown rendering, reformatting, or reflow, exactly like a native
-  element's body is carried verbatim.
+  element's body is carried verbatim — except that each individual `doc` block's own text is
+  trimmed of the incidental whitespace directly adjacent to `/*`/`*/` (`sysml-v2-parser` includes
+  it verbatim, e.g. `doc /* x */` parses to `" x "` not `"x"`; that padding is delimiter noise, not
+  authored content). Internal formatting/newlines within a single block are left untouched. A
+  `doc` block whose entire text is whitespace (`doc /* */`) contributes nothing to the join, the
+  same as if it weren't written at all.
 - `W600`/`W601`-style empty-doc-body warnings apply unchanged: a SysMLv2-sourced element with a
   non-empty lifted `doc` clears them exactly like a hand-authored one would; an element with no
   `doc` member still gets `doc: ""` and still trips them — no regression.

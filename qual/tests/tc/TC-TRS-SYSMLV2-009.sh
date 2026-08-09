@@ -11,8 +11,12 @@ tc_TRS_SYSMLV2_009() {
 
     local vout; vout=$("$SYSCRIBE" -m "$M" validate 2>&1 || true)
     local w600_count; w600_count=$(printf '%s' "$vout" | grep -c 'W600' || true)
-    [ "$w600_count" -eq 1 ] && pass "exactly one W600 raised (PlainPart only)" \
-        || fail "W600 count=$w600_count (expected 1 — SingleDocPart/TwoDocPart should be clear)"
+    # W600 only fires for PartDef/Part — PlainPart (no doc) and Holder (a
+    # part def with no doc block of its own; its documented member is a
+    # nested interface usage, not Holder itself) are the two that still trip
+    # it. SingleDocPart/TwoDocPart should be clear.
+    [ "$w600_count" -eq 2 ] && pass "exactly two W600 raised (PlainPart, Holder)" \
+        || fail "W600 count=$w600_count (expected 2 — SingleDocPart/TwoDocPart should be clear)"
 
     # 2. two doc blocks concatenate in source order
     _scn "two doc blocks concatenate in source order"
@@ -33,4 +37,16 @@ tc_TRS_SYSMLV2_009() {
     printf '%s' "$plain_out" | grep -q '## Documentation' \
         && fail "PlainPart unexpectedly has a Documentation section: $plain_out" \
         || pass "PlainPart has no Documentation section (empty doc, no regression)"
+
+    # 4. the lift also reaches element kinds beyond part def — port def and
+    # an interface usage — not just the one kind scenarios 1-3 exercise.
+    _scn "a port def lifts its own doc block"
+    local port_out; port_out=$("$SYSCRIBE" -m "$M" show SysML2::Demo::DocPortDef 2>&1)
+    printf '%s' "$port_out" | grep -q '^port def doc\.$' \
+        && pass "DocPortDef's doc body is 'port def doc.'" || fail "DocPortDef's doc body did not match: $port_out"
+
+    _scn "an interface usage lifts its own doc block"
+    local iface_out; iface_out=$("$SYSCRIBE" -m "$M" show SysML2::Demo::Holder::myIface 2>&1)
+    printf '%s' "$iface_out" | grep -q '^interface usage doc\.$' \
+        && pass "myIface's doc body is 'interface usage doc.'" || fail "myIface's doc body did not match: $iface_out"
 }
