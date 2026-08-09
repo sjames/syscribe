@@ -140,3 +140,60 @@ carry, not which element kinds get mapped at all.
   actually fires. Both gaps are pre-existing and identical for a hand-authored `PartDef` — this
   addendum doesn't introduce or worsen them — but the requirement's validation-reuse table
   (`REQ-TRS-SYSMLV2-008`) is corrected to say so exactly, rather than aspirationally.
+
+## Addendum: connection-endpoint qualification (`REQ-TRS-SYSMLV2-010`)
+
+`REQ-TRS-SYSMLV2-010`'s originating issue proposed lifting `connect a.x to b.y;` endpoints
+verbatim into a `connections:` entry — `{from: "a.x", to: "b.y"}`, textually identical to what a
+hand-author might type. Investigation before implementing (and a second round after the first
+fix's own empirical check surfaced a further gap) found this doesn't work, and explains why the
+implementation instead writes a qualified, head-only qname.
+
+- **Round 1 — empirically confirmed a literal chain never resolves at all.** A hand-authored
+  `PartDef` with `connections: [{from: "a.p1", to: "b.p1"}]` and no `features:` entry produces
+  **zero** `n2`/`connectivity` edges. `graph.rs::build_graph`'s `resolve_endpoint` (its own code
+  comment: "NOTE (deferred, issue #26 MVP): edges carry `kind` only") resolves a chain exactly two
+  ways: an exact match against *this element's own* `features:` list (`{name: <head>, typedBy:
+  <Type>}` — head only, matched to the *type*, everything past the first `.` discarded), or the
+  whole chain treated as an exact qname/id/display-name. A SysMLv2-synthesized `part def`/`part`
+  never populates `features:` (its subparts are separate synthesized child elements,
+  `REQ-TRS-SYSMLV2-002`'s existing mapping), and a bare `"a.p1"` string is never anyone's exact
+  qname (real qnames join with `::`). Literal transcription would satisfy the letter of "lift the
+  endpoints" while producing a `connections:` field that looks complete but is functionally inert
+  — exactly the kind of gap this session's review passes on `#92`/`#94` kept catching, caught here
+  proactively during design instead of after.
+- **Round 1's first fix — full-chain qualification — was itself still wrong, caught by the same
+  discipline before it shipped.** The first attempt rewrote the *whole* chain, `.`→`::`, prefixed
+  with the owning qname (`a.p1` → `Holder::a::p1`), reasoning that a subpart usage's qname is
+  always `<owning qname>::<its name>`. True for the head (`Holder::a` always exists), but `p1` is
+  overwhelmingly a port *inherited* from `a`'s type (`Ecu`) rather than redeclared on the usage —
+  and this module does no inheritance resolution (sub-decision 2 above), so `Holder::a::p1` isn't
+  actually a synthesized element in the common case either. A second empirical check (fixture +
+  `n2`, deliberately re-run after the "fix" rather than trusted on reasoning alone) confirmed this
+  produced the same zero-edges outcome as round 1, just via a different, more-qualified-looking
+  string.
+- **Final fix: qualify to the head segment only** (`<owning qname>::<head>`, e.g. `a.p1` →
+  `Holder::a`) — matching this same connection graph's own existing precedent for
+  `features:`-declared endpoints exactly (head-only resolution, rest of the chain discarded), just
+  reached via the resolver's *other* existing path (exact-qname match against a real synthesized
+  instance) instead of a `features:` declaration SysMLv2 content never has reason to carry.
+  Confirmed empirically — fixture + both `n2` **and** `connectivity --format json` (the former
+  turned out to have its own unrelated, pre-existing limitation only showing one off-diagonal
+  edge per matrix cell even for a native n-ary `ends:` entry with three real resolvable endpoints;
+  `connectivity` confirmed the graph itself genuinely holds every edge) — to produce real, visible
+  wiring for the realistic, common case.
+- **Rejected: also synthesizing matching `features:` entries**, to route through the *same*
+  resolution path a hand-authored model would use. Rejected because it would (a) duplicate data
+  already present in a different, already-correct form (each subpart's own synthesized child
+  element and its `typedBy:`), inviting the two representations to drift, and (b) only resolve at
+  *type* granularity (collapsing every instance of the same `PartDef` onto one shared node,
+  `resolve_endpoint`'s own behavior for the `features:` path) — strictly less precise than
+  qualifying directly to the *instance* qname, which resolves distinct subpart usages to distinct
+  nodes even when they share a type.
+- **Consequence, disclosed rather than silently accepted:** port-level (or deeper)
+  specificity is lost — two different ports on the same pair of subparts collapse onto the same
+  instance-level edge. This is the identical granularity loss `resolve_endpoint`'s own
+  `features:` path already has for a hand-authored model (deliberate MVP scope, sub-decision
+  above, not a new gap this requirement introduces); reaching finer-than-instance precision would
+  require this module to also resolve inheritance to know which ports a usage actually has, which
+  `ADR-SYS-SYSMLV2-001` sub-decision 2 already, deliberately, doesn't attempt.

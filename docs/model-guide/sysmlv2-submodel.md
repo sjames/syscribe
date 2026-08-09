@@ -262,9 +262,6 @@ Explicitly out of scope, tracked as follow-on if a concrete need arises:
   standard-library-aware inheritance. The AST-only parser used here resolves cross-boundary
   references through Syscribe's own resolver, not SysML v2 semantic legality; that stays a
   standards-compliant tool's (e.g. `spec42`) job, run separately.
-- **Connection endpoints** — a named `connection c : SomeConnDef connect a.x to b.y;` usage's
-  `connect_from`/`connect_to` fields are parsed but not yet lifted into resolvable graph edges, so
-  `n2`/`connectivity` show no off-diagonal wiring for a `sysmlSubmodel: true` subtree today.
 - **`doc /* ... */` comment lift on `Package`/`Requirement`** — §7 below covers every other
   mapped element kind, but a nested `package Inner { doc /* ... */ ... }` or a `requirement`/
   `requirement def`'s own doc block is not lifted; a deliberate, matching-issue-scope descope
@@ -311,3 +308,40 @@ a plain `interface` usage all lift their own `doc` block the same way their def 
 `ItemDef` already use, and `InterfaceUsage`'s own `body_elements` carries its own
 `InterfaceUsageBodyElement::Doc` variant, distinct from (but handled the same way as)
 `InterfaceDef`'s `InterfaceDefBodyElement::Doc`.
+
+## 8. Connection-endpoint lift
+
+A `part def`/`part`'s named `connection name : Type connect a to b (, c)*;` usage member lifts its
+endpoints onto the **owning** `part def`/`part`'s `connections:` field — the same field a
+hand-authored `.md` file's `connections:` populates — so `n2`/`connectivity` show real,
+resolvable wiring for a `sysmlSubmodel: true` subtree (`REQ-TRS-SYSMLV2-010`):
+
+```sysml
+part def Holder {
+    part a : Ecu;
+    part b : Ecu;
+
+    connection c : SomeConnDef connect a.p1 to b.p1;
+}
+```
+
+lifts a `connections: [{typedBy: SomeConnDef, from: <qname>::a, to: <qname>::b}]` entry onto
+`Holder` — **not** onto the nested `c` element, which is still synthesized unchanged
+(`REQ-TRS-SYSMLV2-007`'s existing mapping). The n-ary `connect (a, b, c)` form lifts to the same
+`ends: [{binds: ...}, ...]` shape a hand-authored n-ary entry already uses.
+
+**Endpoints are qualified to `<owning qname>::<head>`, not carried verbatim.** A literal
+`{from: "a.p1", ...}` — what the `.sysml` source text itself says — never resolves to a graph
+edge in this codebase (confirmed by investigation before implementing, not assumed): the
+connection-edge resolver only matches an exact full qname or a `features:`-declared head, neither
+of which a SysMLv2-synthesized part ever has. Only the chain's first segment is kept — `a.p1`
+under `Holder` becomes `Holder::a`, dropping `.p1` — matching this same resolver's own existing
+precedent for `features:`-declared endpoints exactly (head resolved, everything past it
+discarded). See `ADR-SYS-SYSMLV2-001`'s addendum for the full two-round investigation. One
+consequence: a trailing segment is *always* discarded, not resolved when it happens to be
+possible — this is a deliberate instance-level (not port-level) granularity choice.
+
+A named connection usage with no `connect` clause (`connection c : SomeConnDef;`) contributes no
+entry, unaffected. The anonymous binary-connector form (no `connection name :` prefix) stays
+unmapped — no identity to synthesize an entry against, consistent with the module's existing
+precedent for other anonymous forms.

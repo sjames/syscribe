@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 269 |
-| Passed | 269 |
+| Total test cases | 270 |
+| Passed | 270 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2457,6 +2457,17 @@
 | Scenario | Result |
 |---|---|
 | an interface usage lifts its own doc block | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-010 — Verify a named SysML v2 connection usage's connect endpoints lift onto the owning part's connections: field and resolve to real connectivity edges, both binary and n-ary form, with no regression for connect-less usages.
+
+**Verifies:** REQ-TRS-SYSMLV2-010  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a connection usage with no connect clause contributes no entry | ✓ PASS |
 
 ---
 

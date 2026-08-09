@@ -187,6 +187,11 @@ struct Spec {
     /// `Option`, since that's `RawElement.doc`'s own type — "no doc member"
     /// and "" are the same thing.
     doc: String,
+    /// `REQ-TRS-SYSMLV2-010`'s connection-endpoint lift -- the *owning*
+    /// `part def`/`part`'s own `connections:` YAML entries (not the nested
+    /// `Connection` element's own `Spec`; see `connection_usage_entry` for
+    /// why entries are qualified-qname, not literal chain text).
+    connections: Option<Vec<serde_yaml::Value>>,
 }
 
 impl Spec {
@@ -206,6 +211,12 @@ impl Spec {
     /// Set `REQ-TRS-SYSMLV2-009`'s lifted `doc` text.
     fn with_doc(mut self, doc: String) -> Self {
         self.doc = doc;
+        self
+    }
+
+    /// Set `REQ-TRS-SYSMLV2-010`'s lifted `connections:` entries.
+    fn with_connections(mut self, connections: Vec<serde_yaml::Value>) -> Self {
+        self.connections = nonempty_vec(connections);
         self
     }
 }
@@ -238,6 +249,7 @@ fn push_synth(
             pl_level: spec.pl_level,
             short_name: spec.short_name,
             implemented_by: spec.implemented_by,
+            connections: spec.connections,
             ..Default::default()
         },
         doc: spec.doc,
@@ -535,6 +547,133 @@ fn attribute_body_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::At
     })
 }
 
+/// A `connect`-clause endpoint's dotted display text, e.g. `a` or `a.p1` —
+/// `REQ-TRS-SYSMLV2-010`. A single, unchained name parses as
+/// `Expression::FeatureRef`; a genuine multi-segment dotted chain parses as
+/// `Expression::FeatureChainRef` (confirmed against the parser's own AST and
+/// its own doc comments: `path_expression`, used for `connect` endpoints
+/// specifically, produces `FeatureChainRef` rather than folding into nested
+/// `MemberAccess` the way the general value-expression grammar's postfix `.`
+/// chaining does). Other expression shapes aren't meaningful connect
+/// endpoints and aren't mapped here, matching `feature_ref_string`'s
+/// existing posture for `satisfy`/`verify` targets.
+fn connection_end_display(expr: &sysml_v2_parser::Expression) -> Option<String> {
+    match expr {
+        sysml_v2_parser::Expression::FeatureRef(s) => Some(s.clone()),
+        sysml_v2_parser::Expression::FeatureChainRef(chain) => Some(chain.segments.join(".")),
+        _ => None,
+    }
+}
+
+/// Rewrite a `connect`-clause endpoint's dotted chain text into the
+/// fully-qualified qname `REQ-TRS-SYSMLV2-010`'s `connections:` lift
+/// actually needs — see the `ADR-SYS-SYSMLV2-001` addendum for the full
+/// investigation (two rounds of it: a literal, unqualified `"a.p1"` never
+/// resolves at all; a full `"a.p1"` → `"Holder::a::p1"` conversion mostly
+/// doesn't either, since `p1` is overwhelmingly a port *inherited* from
+/// `a`'s type rather than redeclared on the usage itself, and this module
+/// does no inheritance resolution — so `Holder::a::p1` isn't a real
+/// synthesized child in the common case). Only the **head** segment (before
+/// the first `.`) is kept: `a.p1` under the owning part `Holder` becomes
+/// `Holder::a`, matching this module's connection graph's own existing
+/// precedent for `features:`-declared endpoints (`graph.rs::resolve_endpoint`
+/// — "NOTE (deferred, issue #26 MVP): edges carry `kind` only", resolving
+/// only the head, discarding the rest of the chain) — confirmed empirically
+/// to produce a real edge, unlike either of the finer-grained forms tried
+/// first.
+fn qualify_connection_end(owning_qname: &str, chain: &str) -> String {
+    let head = chain.split('.').next().unwrap_or(chain);
+    format!("{owning_qname}::{head}")
+}
+
+/// One `connections:`-shaped YAML entry for a single named `connection name
+/// : Type connect a to b (, c)*;` usage — `REQ-TRS-SYSMLV2-010`. `None` for
+/// a connection usage with no `connect` clause at all (`connect_from` is
+/// `None`) or whose `connect_from`/`connect_to` expression isn't a mapped
+/// shape (see [`connection_end_display`]) — either way, no regression: the
+/// same "nothing to contribute" outcome a plain `connection c : SomeConnDef;`
+/// declaration already has. Binary form (no `connect_extra_ends`) reuses
+/// `crate::connections::add_connection` so the emitted shape can never drift
+/// from the hand-authored binary convention; the n-ary form
+/// (`connect (a, b, c)`) is built directly in the `ends:` shape
+/// `crate::connections::parse_entry` already reads back, since
+/// `add_connection` only ever writes the binary form.
+fn connection_usage_entry(
+    owning_qname: &str,
+    c: &sysml_v2_parser::ast::ConnectionUsageMember,
+) -> Option<serde_yaml::Value> {
+    let from = connection_end_display(&c.connect_from.as_ref()?.value.expression.value)?;
+    let to = connection_end_display(&c.connect_to.as_ref()?.value.expression.value)?;
+    let extras: Vec<String> = c
+        .connect_extra_ends
+        .iter()
+        .filter_map(|n| connection_end_display(&n.value.expression.value))
+        .collect();
+    let typed_by = c.type_name.clone().and_then(nonempty);
+
+    let from_q = qualify_connection_end(owning_qname, &from);
+    let to_q = qualify_connection_end(owning_qname, &to);
+
+    if extras.is_empty() {
+        let mut tmp = Vec::new();
+        crate::connections::add_connection(&mut tmp, &from_q, &to_q, typed_by.as_deref());
+        tmp.pop()
+    } else {
+        let mut ends: Vec<serde_yaml::Value> = [from_q, to_q]
+            .into_iter()
+            .chain(extras.iter().map(|e| qualify_connection_end(owning_qname, e)))
+            .map(|chain| {
+                let mut em = serde_yaml::Mapping::new();
+                em.insert(serde_yaml::Value::from("binds"), serde_yaml::Value::from(chain));
+                serde_yaml::Value::Mapping(em)
+            })
+            .collect();
+        let mut m = serde_yaml::Mapping::new();
+        if let Some(tb) = &typed_by {
+            m.insert(serde_yaml::Value::from("typedBy"), serde_yaml::Value::from(tb.as_str()));
+        }
+        m.insert(serde_yaml::Value::from("ends"), serde_yaml::Value::Sequence(std::mem::take(&mut ends)));
+        Some(serde_yaml::Value::Mapping(m))
+    }
+}
+
+/// `connections:` entries over a `part def` body's already-sliced members —
+/// scans every `PartDefBodyElement::Connection` (the named `connection` form
+/// — a distinct AST variant from the anonymous `PartDefBodyElement::Connect`,
+/// which stays unmapped: no identity to synthesize an owning-part-relative
+/// entry against, `REQ-TRS-SYSMLV2-010`'s Scope).
+fn part_def_connection_entries(
+    owning_qname: &str,
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>],
+) -> Vec<serde_yaml::Value> {
+    elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::PartDefBodyElement::Connection(node) => {
+                connection_usage_entry(owning_qname, &node.value)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// `connections:` entries over a `part` usage body's already-sliced members.
+/// See [`part_def_connection_entries`].
+fn part_usage_connection_entries(
+    owning_qname: &str,
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>],
+) -> Vec<serde_yaml::Value> {
+    elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::PartUsageBodyElement::Connection(node) => {
+                connection_usage_entry(owning_qname, &node.value)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 /// `@SyscribeFeature` search over a `part def` body's already-sliced members.
 ///
 /// Variation is **not** Part-exclusive in this grammar — that was this
@@ -674,7 +813,8 @@ fn convert_part_def(
         ..Default::default()
     }
     .with_syscribe_meta(part_def_syscribe_meta(elements))
-    .with_doc(part_def_doc(elements));
+    .with_doc(part_def_doc(elements))
+    .with_connections(part_def_connection_entries(&part_qname, elements));
     push_synth(out, &part_qname, file_path, ElementType::PartDef, &name, spec);
     for node in elements {
         convert_part_def_body_element(&node.value, &part_qname, file_path, out);
@@ -712,16 +852,20 @@ fn convert_part_usage(
         ..Default::default()
     }
     .with_syscribe_meta(part_usage_syscribe_meta(elements))
-    .with_doc(part_usage_doc(elements));
+    .with_doc(part_usage_doc(elements))
+    .with_connections(part_usage_connection_entries(&part_qname, elements));
     push_synth(out, &part_qname, file_path, ElementType::Part, &part.name, spec);
     for node in elements {
         convert_part_usage_body_element(&node.value, &part_qname, file_path, out);
     }
 }
 
-/// `None` for an empty `Vec` — several `Spec` fields are `Option<Vec<String>>`
-/// and an absent relationship should serialize as `None`, not `Some(vec![])`.
-fn nonempty_vec(v: Vec<String>) -> Option<Vec<String>> {
+/// `None` for an empty `Vec` — several `Spec` fields are `Option<Vec<T>>`
+/// and an absent relationship/entry list should serialize as `None`, not
+/// `Some(vec![])`. Generic since `REQ-TRS-SYSMLV2-010` reuses this for
+/// `Vec<serde_yaml::Value>` `connections:` entries alongside the existing
+/// `Vec<String>` uses (`satisfies`/`verifies`).
+fn nonempty_vec<T>(v: Vec<T>) -> Option<Vec<T>> {
     (!v.is_empty()).then_some(v)
 }
 

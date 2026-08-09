@@ -2,7 +2,7 @@
 
 A small, standalone drone-propulsion model demonstrating every capability of
 native SysML v2/KerML submodel ingestion (`ADR-SYS-SYSMLV2-001`,
-`REQ-TRS-SYSMLV2-000` through `-009`) in one coherent scenario. It is a
+`REQ-TRS-SYSMLV2-000` through `-010`) in one coherent scenario. It is a
 separate model root from this repository's own `model/` — running validation
 here never affects that model's baseline.
 
@@ -93,16 +93,18 @@ contributes different members than `Structure.sysml` (no name collisions):
   **InterfaceDef** with a nested **Port usage**
 - `requirement def RotorThrustReqDef;` — **RequirementDef**
 - `part def Drone { port powerPort : PowerPort; interface powerIface :
-  PowerInterface; connection powerLink : PowerLink; part rotorConfig :
-  RotorConfigChoice; allocation motorAlloc : RotorAssembly; requirement
-  thrustCheck : RotorThrustReqDef { verify 'REQ-DRONE-VERIFY-001'; } satisfy
-  Requirements::'REQ-DRONE-THRUST-001'; }` — a **PartDef** containing an
-  **Interface usage**, a **Connection usage**, a **Part usage** (typed by the
-  variation point above), an **AllocationUsage**, a **Requirement usage**
-  whose own `verify` targets a native `Requirement` by qname
-  (`REQ-TRS-SYSMLV2-003`, `verify` keyword), and a `satisfy` targeting a
-  different native `Requirement` by its Syscribe qualified name
-  (`REQ-TRS-SYSMLV2-003`, qname form)
+  PowerInterface; connection powerLink : PowerLink connect powerPort to
+  rotorConfig; part rotorConfig : RotorConfigChoice; allocation motorAlloc :
+  RotorAssembly; requirement thrustCheck : RotorThrustReqDef { verify
+  'REQ-DRONE-VERIFY-001'; } satisfy Requirements::'REQ-DRONE-THRUST-001'; }`
+  — a **PartDef** containing an **Interface usage**, a **Connection usage**
+  whose `connect powerPort to rotorConfig;` clause lifts onto `Drone`'s own
+  `connections:` field as a real, resolvable `connectivity` edge
+  (`REQ-TRS-SYSMLV2-010`), a **Part usage** (typed by the variation point
+  above), an **AllocationUsage**, a **Requirement usage** whose own `verify`
+  targets a native `Requirement` by qname (`REQ-TRS-SYSMLV2-003`, `verify`
+  keyword), and a `satisfy` targeting a different native `Requirement` by
+  its Syscribe qualified name (`REQ-TRS-SYSMLV2-003`, qname form)
 - `part droneInstance : Drone;` — a package-level **Part usage** of `Drone`
   (keeps `Drone` genuinely referenced as a type, matching how everything else
   in this example is used somewhere)
@@ -176,6 +178,35 @@ REQ-DRONE-ENDUR-001 constrains.
 This is why `RotorAssembly` doesn't appear among the `W600` elements below, unlike the other six
 `PartDef`/`Part` elements in this model — a `doc` member clears `W600` exactly as a hand-authored
 element's non-empty body would.
+
+## Connection-endpoint lift (`REQ-TRS-SYSMLV2-010`)
+
+`Drone`'s `connection powerLink : PowerLink connect powerPort to rotorConfig;` lifts onto
+`Drone`'s own `connections:` field — not onto the nested `powerLink` element — as a real,
+resolvable graph edge between two of `Drone`'s own direct children:
+
+```
+$ ./target/debug/syscribe -m examples/sysmlv2-submodel/model connectivity \
+    PropulsionSubsystem::Propulsion::Drone::powerPort --format json
+{
+  "edges": [
+    {
+      "from": "PropulsionSubsystem::Propulsion::Drone::powerPort",
+      "kind": "connection",
+      "to": "PropulsionSubsystem::Propulsion::Drone::rotorConfig"
+    }
+  ],
+  ...
+}
+```
+
+Both `powerPort` and `rotorConfig` are bare (unchained) names here — no `.` segment to drop — so
+this demonstrates the common case cleanly; see `qual/fixtures/TC-TRS-SYSMLV2-010/` for the dotted
+(`a.p1`) and n-ary (`connect (a, b, c)`) forms, and `ADR-SYS-SYSMLV2-001`'s addendum for why a
+dotted chain's trailing segment is deliberately dropped rather than resolved. (`n2`'s own matrix
+doesn't include `Port`-typed elements as rows/columns at all, by its own pre-existing design —
+unrelated to this feature — so this particular edge is visible via `connectivity` here, not `n2`;
+a `connect` between two `Part`-typed siblings would show up in both.)
 
 ## Feature model / configuration
 
