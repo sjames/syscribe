@@ -313,8 +313,10 @@ a plain `interface` usage all lift their own `doc` block the same way their def 
 
 A `part def`/`part`'s named `connection name : Type connect a to b (, c)*;` usage member lifts its
 endpoints onto the **owning** `part def`/`part`'s `connections:` field — the same field a
-hand-authored `.md` file's `connections:` populates — so `n2`/`connectivity` show real,
-resolvable wiring for a `sysmlSubmodel: true` subtree (`REQ-TRS-SYSMLV2-010`):
+hand-authored `.md` file's `connections:` populates — so `connectivity` (and unscoped `n2`; see
+the limitation disclosed below) show real, resolvable wiring for a `sysmlSubmodel: true` subtree
+(`REQ-TRS-SYSMLV2-010`). Covers a `connection` nested inside a `variant part` usage too, lifting
+onto that usage's own `connections:` the same way an ordinary `part`/`part def` does.
 
 ```sysml
 part def Holder {
@@ -345,3 +347,12 @@ A named connection usage with no `connect` clause (`connection c : SomeConnDef;`
 entry, unaffected. The anonymous binary-connector form (no `connection name :` prefix) stays
 unmapped — no identity to synthesize an entry against, consistent with the module's existing
 precedent for other anonymous forms.
+
+**Disclosed limitation:** `n2 <qname>`, **scoped** to a specific element, builds its axis
+exclusively from the scope element's own `features:` list — a SysMLv2-synthesized part never
+populates `features:`, so scoped `n2` on any SysMLv2 subtree still reports no parts at all,
+regardless of this lift. Only **unscoped** `n2` (the bare `n2` command) and `connectivity` benefit.
+`n2`'s own edge-collection also reads only the first two ends of any n-ary connection (native or
+SysMLv2-lifted alike), so a three-way `connect (a, b, c)` shows `a`↔`b` but not `a`↔`c` in `n2`;
+`connectivity` correctly builds the full star. Both are pre-existing `n2.rs` characteristics this
+requirement doesn't touch.

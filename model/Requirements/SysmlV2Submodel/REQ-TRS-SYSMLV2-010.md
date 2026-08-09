@@ -9,24 +9,34 @@ derivedFrom: [REQ-TRS-SYSMLV2-000]
 breakdownAdr: Decisions::SysmlV2SubmodelADR
 tags:
   - sysmlv2
-  - traceability
+  - connectivity
 ---
 
 A `part def`/`part`'s named `connection name : Type connect a to b (, c)*;` usage member shall
 have its `connect_from`/`connect_to`/`connect_extra_ends` endpoints lifted onto the **owning**
 `part def`/`part`'s `connections:` field — the same field a hand-authored `.md` file's
-`connections: [{from, to}]`/`connections: [{ends: [...]}]` populates — so `n2`/`connectivity`
-show real, resolvable off-diagonal wiring for a `sysmlSubmodel: true` subtree, not just an empty
-matrix.
+`connections: [{from, to}]`/`connections: [{ends: [...]}]` populates — so `connectivity` (and
+unscoped `n2`; see the Rationale's disclosed limitation) show real, resolvable off-diagonal wiring
+for a `sysmlSubmodel: true` subtree, not just missing data.
 
 ## Rationale
 
 Real SysML v2 architecture is fundamentally about *interfaces between* components, not just the
 components themselves. A `sysmlSubmodel: true` package can already carry every structural element
-(`REQ-TRS-SYSMLV2-007`) but, until this requirement, none of the wiring between them — `n2 <pkg>`
-renders every off-diagonal cell empty regardless of how many `connect` clauses the source actually
-contains, because `ConnectionUsageMember.connect_from`/`connect_to`/`connect_extra_ends` are fully
-parsed by `sysml-v2-parser` and simply never read.
+(`REQ-TRS-SYSMLV2-007`) but, until this requirement, none of the wiring between them —
+`connectivity`/`n2` show no wiring at all regardless of how many `connect` clauses the source
+actually contains, because `ConnectionUsageMember.connect_from`/`connect_to`/`connect_extra_ends`
+are fully parsed by `sysml-v2-parser` and simply never read.
+
+**Disclosed limitation, not fixed by this requirement:** `n2 <qname>` (**scoped** to a specific
+element) builds its row/column axis from the scope element's own `features:` list
+(`crates/syscribe/src/n2.rs::subpart_axis`) exclusively — a SysMLv2-synthesized `part def`/`part`
+never populates `features:` (its subparts are separate synthesized children,
+`REQ-TRS-SYSMLV2-002`), so scoped `n2` on any SysMLv2 subtree reports `(no parts in scope)`
+regardless of this requirement. Only **unscoped** `n2` (the bare `n2` command, whose axis is every
+`PartDef`/`Part` in the whole model, not `features:`-derived) and `connectivity` benefit from this
+lift. This is a pre-existing `n2.rs` limitation this requirement doesn't touch and isn't its job
+to fix — disclosed here rather than left to be discovered as a surprise.
 
 ## Scope
 
@@ -41,6 +51,9 @@ parsed by `sysml-v2-parser` and simply never read.
 - The synthesized standalone `Connection` element itself (`REQ-TRS-SYSMLV2-007`'s existing
   structural-browsing mapping) is unchanged by this requirement — the lifted endpoints attach to
   the **owning** `part def`/`part`, not to the nested `Connection` element.
+- Covers a `connection` usage nested inside a `variant part` usage the same way it covers an
+  ordinary `part def`/`part` — `variant part quadConfig : T { connection c : Def connect a to b;
+  }` lifts onto `quadConfig`'s own `connections:` exactly like a non-variant part usage would.
 - **Endpoint qualification (the one deliberate divergence from a literal transcription of the
   `.sysml` source text — see the `ADR-SYS-SYSMLV2-001` addendum for the full, two-round
   investigation):** each endpoint's dotted feature-chain text (e.g. `a.p1`) is rewritten into a
@@ -67,9 +80,12 @@ parsed by `sysml-v2-parser` and simply never read.
 
 **Acceptance criteria:** `part def Foo { part a : Ecu; part b : Ecu; connection c : SomeConnDef
 connect a.p1 to b.p1; }` produces a `connections:` entry on `Foo` resolving to a real
-`connectivity`/`n2` edge between `Foo::a` and `Foo::b`; the n-ary `connect (a, b, c)` form
-produces an `ends:`-shaped entry with all ends present, each verified resolvable via
-`connectivity` (`n2`'s own matrix has a pre-existing, unrelated quirk of showing only one edge
-per off-diagonal cell even for a native n-ary entry — not this requirement's regression, and not
-its job to fix); a named connection usage with no `connect` clause contributes no entry (no
-regression); the anonymous (no `connection name :` prefix) form remains unmapped.
+`connectivity` edge between `Foo::a` and `Foo::b`; the n-ary `connect (a, b, c)` form produces an
+`ends:`-shaped entry with all ends present, each verified resolvable via `connectivity` (`n2`'s
+own edge-collection reads only the first two `ends:` entries for any n-ary connection, native or
+SysMLv2-lifted alike — a pre-existing, unrelated `n2.rs::collect_edges` limitation, not this
+requirement's regression, and not its job to fix — so `connectivity`, which correctly builds a
+full star over every end, is the acceptance-criteria tool of record for the n-ary case); a named
+connection usage with no `connect` clause contributes no entry (no regression); the anonymous (no
+`connection name :` prefix) form remains unmapped; a `connection` usage nested inside a `variant
+part` usage lifts onto that usage's own `connections:` the same way.

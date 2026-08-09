@@ -1417,7 +1417,10 @@ fn convert_variant_usage(
             spec.typed_by = nonempty(pu.value.type_name.clone());
             if let sysml_v2_parser::PartUsageBody::Brace { elements } = &pu.value.body {
                 spec.applies_when = part_usage_syscribe_feature_id(elements);
-                spec = spec.with_syscribe_meta(part_usage_syscribe_meta(elements)).with_doc(part_usage_doc(elements));
+                spec = spec
+                    .with_syscribe_meta(part_usage_syscribe_meta(elements))
+                    .with_doc(part_usage_doc(elements))
+                    .with_connections(part_usage_connection_entries(&elem_qname, elements));
             }
             push_synth(out, &elem_qname, file_path, ElementType::Part, &v.name, spec);
         }

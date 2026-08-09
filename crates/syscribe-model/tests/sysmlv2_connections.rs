@@ -275,3 +275,113 @@ fn a_bare_unchained_connect_endpoint_also_resolves() {
     assert_eq!(m.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Holder::a"));
     assert_eq!(m.get("to").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Holder::b"));
 }
+
+#[test]
+fn a_connect_endpoint_with_no_matching_sibling_writes_a_non_resolving_entry_not_a_crash() {
+    // Regression: a review asked whether an endpoint whose qualified head
+    // doesn't correspond to any real sibling is handled safely. It is --
+    // the entry is still written (qualify_connection_end has no way to know
+    // in advance whether a head will resolve, by design: it's a pure string
+    // transform, not a lookup), and it simply never becomes a graph edge,
+    // the same silent-unresolved posture as any other dangling
+    // cross-boundary reference in this module. Pinning both halves: the
+    // entry exists, and no edge exists for it.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def Ecu;\n\
+         part def Holder {\n\
+         part a : Ecu;\n\
+         connection c : SomeConnDef connect a to nonexistent;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let holder = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::Holder")
+        .unwrap();
+    let conns = holder.frontmatter.connections.as_ref().unwrap();
+    let m = conns[0].as_mapping().unwrap();
+    assert_eq!(m.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Holder::a"));
+    assert_eq!(
+        m.get("to").and_then(|v| v.as_str()),
+        Some("SysML2Legacy::CarOS::Holder::nonexistent")
+    );
+
+    let (graph, idx) = build_graph(&elements);
+    let a = *idx.get("SysML2Legacy::CarOS::Holder::a").unwrap();
+    // No node exists for the unresolved endpoint at all, so there is
+    // nothing for `a` to have an edge to; walking a's outgoing edges should
+    // find no Connection edge.
+    let has_edge = graph.edges(a).any(|e| *e.weight() == EdgeKind::Connection);
+    assert!(!has_edge, "expected no edge for an unresolvable endpoint, found one");
+
+    // Doesn't crash validate either.
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
+fn a_connect_inside_a_variant_part_usage_also_lifts() {
+    // Regression: convert_variant_usage's VariantTypedUsage::Part branch
+    // called .with_syscribe_meta(...)/.with_doc(...) but not
+    // .with_connections(...) in an earlier version -- a review caught the
+    // gap. A named connection usage nested inside a `variant part` body
+    // should lift exactly like it does inside an ordinary part def/usage.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/Config.sysml",
+        "package Config {\n\
+         part def Ecu;\n\
+         variation part def RotorConfig {\n\
+         variant part quadConfig : QuadRotor {\n\
+         part a : Ecu;\n\
+         part b : Ecu;\n\
+         connection c : SomeConnDef connect a to b;\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let quad = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Config::RotorConfig::quadConfig")
+        .unwrap();
+    let conns = quad
+        .frontmatter
+        .connections
+        .as_ref()
+        .expect("variant part usage should carry connections:");
+    let m = conns[0].as_mapping().unwrap();
+    assert_eq!(
+        m.get("from").and_then(|v| v.as_str()),
+        Some("SysML2Legacy::Config::RotorConfig::quadConfig::a")
+    );
+    assert_eq!(
+        m.get("to").and_then(|v| v.as_str()),
+        Some("SysML2Legacy::Config::RotorConfig::quadConfig::b")
+    );
+
+    // Note: unlike an ordinary `part def`/`part` usage, `convert_variant_usage`'s
+    // `Part` branch doesn't recurse into nested body elements at all (a
+    // separate, pre-existing limitation predating this feature — nested
+    // `a`/`b` inside a `variant part` body were never synthesized as their
+    // own elements even before REQ-TRS-SYSMLV2-010 existed). So the
+    // `connections:` entry above is correctly computed and lifted (this
+    // test's actual point — the gap a review caught was the *lift* being
+    // silently skipped, not this recursion limitation), but there's no
+    // graph node for `a`/`b` to resolve to yet. Confirmed here rather than
+    // asserted away, so a future fix to that recursion gap doesn't silently
+    // break this test's assumptions.
+    let (graph, idx) = build_graph(&elements);
+    assert!(idx.get("SysML2Legacy::Config::RotorConfig::quadConfig::a").is_none());
+    let _ = graph;
+}

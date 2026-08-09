@@ -203,10 +203,14 @@ $ ./target/debug/syscribe -m examples/sysmlv2-submodel/model connectivity \
 Both `powerPort` and `rotorConfig` are bare (unchained) names here — no `.` segment to drop — so
 this demonstrates the common case cleanly; see `qual/fixtures/TC-TRS-SYSMLV2-010/` for the dotted
 (`a.p1`) and n-ary (`connect (a, b, c)`) forms, and `ADR-SYS-SYSMLV2-001`'s addendum for why a
-dotted chain's trailing segment is deliberately dropped rather than resolved. (`n2`'s own matrix
-doesn't include `Port`-typed elements as rows/columns at all, by its own pre-existing design —
-unrelated to this feature — so this particular edge is visible via `connectivity` here, not `n2`;
-a `connect` between two `Part`-typed siblings would show up in both.)
+dotted chain's trailing segment is deliberately dropped rather than resolved. This particular edge
+is visible via `connectivity` but not `n2` — **unscoped** `n2` (the bare `n2` command) doesn't
+include `Port`-typed elements as rows/columns at all, by its own pre-existing design unrelated to
+this feature, so `powerPort` never appears there regardless; a `connect` between two `Part`-typed
+siblings would show up in unscoped `n2` too. **Scoped** `n2 <qname>` doesn't benefit from this
+lift at all, for either kind of endpoint — its axis comes from `features:` alone, which no
+SysMLv2-synthesized part ever populates (see `REQ-TRS-SYSMLV2-010`'s Rationale for the full
+disclosure); try `n2 PropulsionSubsystem::Propulsion::Drone` here to see it firsthand.
 
 ## Feature model / configuration
 

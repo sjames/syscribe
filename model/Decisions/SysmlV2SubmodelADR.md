@@ -177,11 +177,20 @@ implementation instead writes a qualified, head-only qname.
   `features:`-declared endpoints exactly (head-only resolution, rest of the chain discarded), just
   reached via the resolver's *other* existing path (exact-qname match against a real synthesized
   instance) instead of a `features:` declaration SysMLv2 content never has reason to carry.
-  Confirmed empirically — fixture + both `n2` **and** `connectivity --format json` (the former
-  turned out to have its own unrelated, pre-existing limitation only showing one off-diagonal
-  edge per matrix cell even for a native n-ary `ends:` entry with three real resolvable endpoints;
-  `connectivity` confirmed the graph itself genuinely holds every edge) — to produce real, visible
-  wiring for the realistic, common case.
+  Confirmed empirically — fixture + both `n2` **and** `connectivity --format json` — to produce
+  real, visible wiring for the realistic, common case. `n2` turned out to have two of its own
+  unrelated, pre-existing limitations, found while cross-checking rather than trusting one tool's
+  output alone (both in `crates/syscribe/src/n2.rs`, neither touched by this requirement, neither
+  this requirement's job to fix): its `collect_edges` reads only the first two `ends:` entries of
+  any n-ary connection — native or SysMLv2-lifted alike — so a three-way `connect (a, b, c)` never
+  shows the `a`↔`c` edge in `n2`, only `a`↔`b` (root-caused by reading; an earlier draft of this
+  addendum mischaracterized this as a display-only "one edge per matrix cell" quirk before the
+  actual `collect_edges` code was read closely enough to find the real cause); and its **scoped**
+  `n2 <qname>` builds its axis exclusively from `features:` (`subpart_axis`), which a
+  SysMLv2-synthesized part never populates, so `n2` scoped to any SysMLv2 subtree reports no parts
+  at all regardless of this requirement — only unscoped `n2` (whole-model axis, built differently)
+  and `connectivity` benefit from this lift. `connectivity` correctly builds a full star over
+  every end and was the tool actually used to confirm the n-ary case end-to-end.
 - **Rejected: also synthesizing matching `features:` entries**, to route through the *same*
   resolution path a hand-authored model would use. Rejected because it would (a) duplicate data
   already present in a different, already-correct form (each subpart's own synthesized child
@@ -197,3 +206,10 @@ implementation instead writes a qualified, head-only qname.
   above, not a new gap this requirement introduces); reaching finer-than-instance precision would
   require this module to also resolve inheritance to know which ports a usage actually has, which
   `ADR-SYS-SYSMLV2-001` sub-decision 2 already, deliberately, doesn't attempt.
+- **`variant part` coverage was silently missing from an earlier draft, caught by review.** The
+  lift was first wired only into `convert_part_def`/`convert_part_usage`, not into
+  `convert_variant_usage`'s `Part` branch — a genuine, undisclosed gap (unlike the deliberate
+  `Package`/`Requirement` descope `REQ-TRS-SYSMLV2-009` states explicitly), since a `variant part`
+  usage shares the identical `PartUsageBody` shape `REQ-TRS-SYSMLV2-008`/`-009` already extended
+  their own lifts to. Fixed by wiring `part_usage_connection_entries` into that branch too, the
+  same way `with_syscribe_meta`/`with_doc` already were.

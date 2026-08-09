@@ -15,8 +15,12 @@ All requirements derive from `REQ-TRS-SYSMLV2-000` and are governed by `ADR-SYS-
 (`REQ-TRS-SYSMLV2-003`), a native `TestCase`'s `verifies:` targeting a SysMLv2 element
 (`REQ-TRS-SYSMLV2-004`), a SysMLv2 variation point targeting a native `FeatureDef`
 (`REQ-TRS-SYSMLV2-005`), graceful degradation under a dedicated error/warning code range
-(`REQ-TRS-SYSMLV2-006`), and the parse-broad/map-narrow element-coverage boundary
-(`REQ-TRS-SYSMLV2-007`).
+(`REQ-TRS-SYSMLV2-006`), the parse-broad/map-narrow element-coverage boundary
+(`REQ-TRS-SYSMLV2-007`), a fixed set of `@Syscribe*` metadata annotations for
+`domain:`/integrity-level/`shortName:`/`implementedBy:` (`REQ-TRS-SYSMLV2-008`), `doc /* ... */`
+comment lifting into the synthesized element's `doc` body (`REQ-TRS-SYSMLV2-009`), and a named
+connection usage's `connect` endpoints lifting onto the owning part's `connections:` field
+(`REQ-TRS-SYSMLV2-010`).
 
 This is a read-only validator: the submodel's `.sysml`/`.kerml` files stay authoritative and are
 edited by their own native tooling, never by Syscribe's web UI or mutate commands. A
