@@ -262,6 +262,45 @@ Explicitly out of scope, tracked as follow-on if a concrete need arises:
   standard-library-aware inheritance. The AST-only parser used here resolves cross-boundary
   references through Syscribe's own resolver, not SysML v2 semantic legality; that stays a
   standards-compliant tool's (e.g. `spec42`) job, run separately.
-- **`doc` comment extraction** — a SysMLv2-synthesized element's `doc:` body is currently always
-  empty (`W600` fires for every one of them); the mapper does not yet lift `doc /* ... */`
-  comments out of the parsed AST.
+- **Connection endpoints** — a named `connection c : SomeConnDef connect a.x to b.y;` usage's
+  `connect_from`/`connect_to` fields are parsed but not yet lifted into resolvable graph edges, so
+  `n2`/`connectivity` show no off-diagonal wiring for a `sysmlSubmodel: true` subtree today.
+
+## 7. `doc /* ... */` comment lift
+
+A `part def`/`part`/`interface def`/`port def`/`port`/`connection def`/`attribute def`/
+`attribute`/`item def` may declare one or more `doc /* ... */` members. The text lifts into the
+synthesized element's `doc` body — the same field a hand-authored `.md` file's body below its
+`---` closer populates (`REQ-TRS-SYSMLV2-009`):
+
+```sysml
+part def RotorAssembly {
+    doc /* The primary rotor/motor/battery propulsion chain. */
+
+    port fuelSupplyPort : FuelPort;
+}
+```
+
+`W600`/`W601`-style empty-doc-body warnings apply unchanged: this `RotorAssembly` clears `W600`
+exactly as a hand-authored `PartDef` with the same body text would. A `part def`/etc. with no
+`doc` member is unaffected — `doc: ""`, `W600` still fires, no regression.
+
+**Multiple `doc` blocks concatenate**, in source order, joined by a blank line — the grammar
+permits several, and there's no reason to silently drop any of them:
+
+```sysml
+part def CarSafetyServices {
+    doc /* First paragraph. */
+    doc /* Second paragraph. */
+}
+```
+
+lifts to `doc: "First paragraph.\n\nSecond paragraph."`. Each block's own text is trimmed of the
+incidental whitespace directly adjacent to `/*`/`*/` (delimiter padding, not content) before
+joining; internal formatting within a single block is left untouched — otherwise verbatim, no
+Markdown rendering or reflow.
+
+`variant part`/`variant attribute`/`variant port` usages lift their own `doc` block the same way
+their non-variant counterparts do. `ItemUsage` carries no body at all in this grammar (unlike
+`ItemDef`), so it has nowhere for a `doc` member to attach — not a gap, just a shape this
+particular SysML v2 construct doesn't have.

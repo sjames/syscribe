@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** syscribe 0.34.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-08-08  
+**Date:** 2026-08-09  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 268 |
-| Passed | 268 |
+| Total test cases | 269 |
+| Passed | 269 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2446,6 +2446,17 @@
 | Scenario | Result |
 |---|---|
 | a part def with no annotation carries no lifted fields | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-009 — Verify SysML v2 doc /* ... */ comments lift into the synthesized element's doc body, concatenate across multiple blocks, clear W600, and a no-doc element is unaffected.
+
+**Verifies:** REQ-TRS-SYSMLV2-009  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a part def with no doc member is unaffected | ✓ PASS |
 
 ---
 

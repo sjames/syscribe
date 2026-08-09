@@ -8,6 +8,8 @@ port def FuelPort;
 attribute def ThrustRating;
 
 part def RotorAssembly {
+    doc /* The primary rotor/motor/battery propulsion chain — the physical assembly whose endurance REQ-DRONE-ENDUR-001 constrains. */
+
     port fuelSupplyPort : FuelPort;
     item fuelItem : Fuel;
     attribute thrustReading : ThrustRating;
