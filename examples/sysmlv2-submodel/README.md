@@ -2,7 +2,7 @@
 
 A small, standalone drone-propulsion model demonstrating every capability of
 native SysML v2/KerML submodel ingestion (`ADR-SYS-SYSMLV2-001`,
-`REQ-TRS-SYSMLV2-000` through `-012`) in one coherent scenario. It is a
+`REQ-TRS-SYSMLV2-000` through `-014`) in one coherent scenario. It is a
 separate model root from this repository's own `model/` — running validation
 here never affects that model's baseline.
 
@@ -89,8 +89,13 @@ merge (`REQ-TRS-SYSMLV2-002`):
 contributes different members than `Structure.sysml` (no name collisions):
 
 - `connection def PowerLink;` — **ConnectionDef**
-- `interface def PowerInterface { port supplyPort : PowerPort; }` —
-  **InterfaceDef** with a nested **Port usage**
+- `interface def PowerInterface { doc /* @SyscribeShortName: power-if */
+  port supplyPort : PowerPort; }` — **InterfaceDef** with a nested **Port
+  usage**, and a `doc`-comment `@SyscribeShortName:` directive lifting
+  `shortName: power-if` onto the synthesized element
+  (`REQ-TRS-SYSMLV2-014`) — `InterfaceDefBodyElement` carries no
+  `MetadataAnnotation` variant, so this is the only spelling that reaches an
+  `interface def` at all; see the dedicated section below
 - `requirement def RotorThrustReqDef;` — **RequirementDef**
 - `part def Drone { port powerPort : PowerPort; interface powerIface :
   PowerInterface; connection powerLink : PowerLink connect powerPort to
@@ -162,6 +167,28 @@ adversarial half of this feature's coverage; this worked example instead shows t
 validates-clean case. `@SyscribeImplementedBy` is demonstrated only in the qual fixture, not here,
 since a path that doesn't resolve on disk would add a `W023` to this example's otherwise-clean
 warning list for no explanatory benefit.
+
+## Doc-comment `@Syscribe*` directives on interface def/port def/connection def (`REQ-TRS-SYSMLV2-014`)
+
+`InterfaceDefBodyElement`/`PortDefBodyElement`/`ConnectionDefBodyElement` carry no
+`MetadataAnnotation` variant in the vendored `sysml-v2-parser` grammar (confirmed by direct source
+inspection — issue #100), so the real `@Name { field = value; }` form above is unreachable on
+`PowerInterface` (an `interface def`). `PowerInterface` instead carries a structured
+`@SyscribeShortName: power-if` **directive line** inside its `doc /* ... */` comment — a different,
+doc-comment-based spelling of the same fixed field set, recognized and stripped out of the lifted
+`doc:` text:
+
+```
+$ ./target/debug/syscribe -m examples/sysmlv2-submodel/model export --ndjson | \
+    grep '"name":"PowerInterface"'
+{"frontmatter":{"name":"PowerInterface","shortName":"power-if","type":"InterfaceDef"}, ...}
+```
+
+`@SyscribeImplementedBy:` (also recognized, and equally usable on a `port def`/`connection def`) is
+demonstrated only in `qual/fixtures/TC-TRS-SYSMLV2-014/`, not here, for the same reason
+`@SyscribeImplementedBy` itself is kept out of this example above — a path that doesn't resolve on
+disk would add a `W023` to this example's otherwise-clean, carefully-counted warning list for no
+explanatory benefit.
 
 ## `doc /* ... */` comment lift (`REQ-TRS-SYSMLV2-009`)
 

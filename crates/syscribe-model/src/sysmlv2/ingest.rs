@@ -442,6 +442,108 @@ fn fold_syscribe_meta_annotation(m: &sysml_v2_parser::ast::MetadataAnnotation, m
     }
 }
 
+/// A recognized `REQ-TRS-SYSMLV2-014` doc-comment directive prefix (with its
+/// trailing colon) for `interface def`/`port def`/`connection def` — the
+/// three element kinds whose body grammars carry no `MetadataAnnotation`
+/// slot for the real `@Name { field = value; }` form `REQ-TRS-SYSMLV2-008`
+/// establishes for `part def`/`part` (confirmed by direct inspection of the
+/// vendored `sysml-v2-parser` source; see the ADR addendum). A directive line
+/// spells the same four field names as a colon-suffixed comment line instead
+/// of a structural annotation.
+const DOC_DIRECTIVE_PREFIXES: &[&str] =
+    &["@SyscribeDomain:", "@SyscribeIntegrity:", "@SyscribeShortName:", "@SyscribeImplementedBy:"];
+
+/// Fold one recognized `REQ-TRS-SYSMLV2-014` doc-comment directive's value
+/// into `meta`. `prefix` is one of [`DOC_DIRECTIVE_PREFIXES`]; `value` is the
+/// raw text after the colon (not yet trimmed). Mirrors
+/// `fold_syscribe_meta_annotation`'s per-name field semantics, reading a
+/// plain string value instead of an `AttributeBody`. `@SyscribeIntegrity`
+/// accepts a comma-separated `key=value` list (`asil`/`sil`/`pl`), the
+/// doc-comment analogue of that annotation's three independent keys; an
+/// unparseable `sil=...` (non-integer) is silently skipped, same posture as
+/// `attribute_body_i64` returning `None` for the real-annotation form.
+fn fold_syscribe_doc_directive(prefix: &str, value: &str, meta: &mut SyscribeMeta) {
+    let value = value.trim();
+    if value.is_empty() {
+        return;
+    }
+    match prefix {
+        "@SyscribeDomain:" => meta.domain = Some(value.to_string()),
+        "@SyscribeShortName:" => meta.short_name = Some(value.to_string()),
+        "@SyscribeImplementedBy:" => meta.implemented_by = Some(vec![value.to_string()]),
+        "@SyscribeIntegrity:" => {
+            for kv in value.split(',') {
+                let Some((k, v)) = kv.split_once('=') else { continue };
+                let (k, v) = (k.trim(), v.trim());
+                if v.is_empty() {
+                    continue;
+                }
+                match k {
+                    "asil" => meta.asil_level = Some(v.to_string()),
+                    // Saturate rather than drop, mirroring `attribute_body_i64`'s
+                    // own `sil = 999;` handling: let an out-of-range value reach
+                    // the existing E009 check downstream instead of vanishing.
+                    "sil" => {
+                        if let Ok(n) = v.parse::<i64>() {
+                            meta.sil_level = Some(n.clamp(0, u8::MAX as i64) as u8);
+                        }
+                    }
+                    "pl" => meta.pl_level = Some(v.to_string()),
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Collapse runs of 2+ consecutive blank lines down to exactly one — tidies
+/// up the gap a removed directive line can leave behind in
+/// [`extract_syscribe_doc_directives`]'s output (a directive on its own line
+/// between two prose paragraphs would otherwise leave a double blank line
+/// once stripped).
+fn collapse_blank_lines(s: &str) -> String {
+    let mut out = String::new();
+    let mut blank_run = false;
+    for line in s.lines() {
+        let is_blank = line.trim().is_empty();
+        if is_blank {
+            if blank_run {
+                continue;
+            }
+            blank_run = true;
+        } else {
+            blank_run = false;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
+/// `REQ-TRS-SYSMLV2-014`: scan already-lifted `doc` text (the output of
+/// `REQ-TRS-SYSMLV2-009`'s `collect_doc`) for directive lines, stripping each
+/// recognized one out of the returned doc text and folding its value into a
+/// `SyscribeMeta`. A line that doesn't start with one of
+/// [`DOC_DIRECTIVE_PREFIXES`] (after trimming) is left in the doc text
+/// untouched — it's prose, not a directive. A later directive line for the
+/// same field overrides an earlier one, matching
+/// `fold_syscribe_meta_annotation`'s last-annotation-wins behavior for the
+/// real annotation form.
+fn extract_syscribe_doc_directives(doc: &str) -> (String, SyscribeMeta) {
+    let mut meta = SyscribeMeta::default();
+    let mut kept_lines: Vec<&str> = Vec::new();
+    for line in doc.lines() {
+        let trimmed = line.trim();
+        if let Some(prefix) = DOC_DIRECTIVE_PREFIXES.iter().find(|p| trimmed.starts_with(**p)) {
+            fold_syscribe_doc_directive(prefix, &trimmed[prefix.len()..], &mut meta);
+            continue;
+        }
+        kept_lines.push(line);
+    }
+    (collapse_blank_lines(&kept_lines.join("\n")).trim().to_string(), meta)
+}
+
 /// Concatenate every `doc /* ... */` member's text found in `elements`, in
 /// source order, joined by a blank line — `REQ-TRS-SYSMLV2-009`'s
 /// requirement that a second/third `doc` block accumulates rather than only
@@ -1086,11 +1188,16 @@ fn convert_port_def(
         sysml_v2_parser::PortDefBody::Brace { elements } => elements.as_slice(),
         sysml_v2_parser::PortDefBody::Semicolon => &[],
     };
+    // REQ-TRS-SYSMLV2-014: PortDefBodyElement has no MetadataAnnotation
+    // variant, so @Syscribe* fields reach a port def only via a doc-comment
+    // directive, extracted from the already-lifted doc text.
+    let (doc, meta) = extract_syscribe_doc_directives(&port_def_doc(elements));
     let spec = Spec {
         supertype: p.specializes.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
     }
-    .with_doc(port_def_doc(elements));
+    .with_doc(doc)
+    .with_syscribe_meta(meta);
     push_synth(out, &elem_qname, file_path, ElementType::PortDef, &name, spec);
     for node in elements {
         convert_port_def_body_element(&node.value, &elem_qname, file_path, out);
@@ -1156,11 +1263,16 @@ fn convert_connection_def(
         sysml_v2_parser::ConnectionDefBody::Brace { elements } => elements.as_slice(),
         sysml_v2_parser::ConnectionDefBody::Semicolon => &[],
     };
+    // REQ-TRS-SYSMLV2-014: ConnectionDefBodyElement has no MetadataAnnotation
+    // variant, so @Syscribe* fields reach a connection def only via a
+    // doc-comment directive, extracted from the already-lifted doc text.
+    let (doc, meta) = extract_syscribe_doc_directives(&connection_def_doc(elements));
     let spec = Spec {
         supertype: c.specializes.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
     }
-    .with_doc(connection_def_doc(elements));
+    .with_doc(doc)
+    .with_syscribe_meta(meta);
     push_synth(out, &elem_qname, file_path, ElementType::ConnectionDef, &name, spec);
     for node in elements {
         convert_connection_def_body_element(&node.value, &elem_qname, file_path, out);
@@ -1228,11 +1340,16 @@ fn convert_interface_def(
         sysml_v2_parser::InterfaceDefBody::Brace { elements } => elements.as_slice(),
         sysml_v2_parser::InterfaceDefBody::Semicolon => &[],
     };
+    // REQ-TRS-SYSMLV2-014: InterfaceDefBodyElement has no MetadataAnnotation
+    // variant, so @Syscribe* fields reach an interface def only via a
+    // doc-comment directive, extracted from the already-lifted doc text.
+    let (doc, meta) = extract_syscribe_doc_directives(&interface_def_doc(elements));
     let spec = Spec {
         supertype: i.specializes.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
     }
-    .with_doc(interface_def_doc(elements));
+    .with_doc(doc)
+    .with_syscribe_meta(meta);
     push_synth(out, &elem_qname, file_path, ElementType::InterfaceDef, &name, spec);
     for node in elements {
         convert_interface_def_body_element(&node.value, &elem_qname, file_path, out);

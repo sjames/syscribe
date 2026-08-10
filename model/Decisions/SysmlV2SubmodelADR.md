@@ -284,3 +284,46 @@ that head-only qualification was discarding unconditionally.
   at all in this grammar version, unlike `PartDefBodyElement`'s — so a `part` usage genuinely
   cannot declare a nested `item` usage in the first place, verified against the parser's own enum
   definition rather than inferred from the absence of test coverage.
+
+## Addendum: doc-comment `@Syscribe*` directives for `interface def`/`port def`/`connection def` (`REQ-TRS-SYSMLV2-014`)
+
+Issue #100 asked for `REQ-TRS-SYSMLV2-008`'s real `@Name { field = value; }` metadata annotations
+to widen from `part def`/`part` to `interface def`/`port def`/`connection def`. Investigated
+before implementing, per this module's own established discipline (the same two-round pattern
+`REQ-TRS-SYSMLV2-013`'s addendum above used): confirmed by direct inspection of the vendored
+`sysml-v2-parser` source, in both the pinned 0.53.0 and the latest 0.54.0, that
+`InterfaceDefBodyElement`, `PortDefBodyElement`, and `ConnectionDefBodyElement` carry **no
+`MetadataAnnotation` variant at all** — not a missing `ingest.rs` dispatch arm the way an unmapped
+element kind is, but a genuine absence in the grammar production for these three body kinds.
+`@SyscribeImplementedBy { path = '...'; }` inside an `interface def { }` is a hard parse error
+(`W541`), confirmed empirically, exactly matching the issue's own reported evidence.
+
+- **Real fix requires an upstream parser change, which this repository doesn't own.**
+  `sysml-v2-parser` is a plain crates.io version dependency (`sub-decision 2` above), not a
+  vendored/forked local copy. Widening these three enums to accept `@Name { ... }` is a grammar
+  change in a crate this repository doesn't control the source of (`elan8/sysml-v2-parser`).
+  Forking/vendoring the parser to make that change locally was considered and rejected — it would
+  reverse sub-decision 2's deliberate architectural choice (a trusted, non-executing, compile-time
+  dependency over owning a semantic engine) for the sake of one field-lift issue, a much larger and
+  higher-risk change than the problem warrants.
+- **Doc-comment-embedded directive lines as a deliberate, different, substitute syntax.**
+  `REQ-TRS-SYSMLV2-014` recognizes `@SyscribeDomain: ...`/`@SyscribeIntegrity:
+  ...`/`@SyscribeShortName: ...`/`@SyscribeImplementedBy: ...` lines inside the `doc /* ... */`
+  comment these three element kinds already support (`REQ-TRS-SYSMLV2-009`), stripping a
+  recognized line out of the lifted `doc:` text and writing the corresponding frontmatter field
+  instead — landing on exactly the same fields `REQ-TRS-SYSMLV2-008` lifts, through a text-scan of
+  already-lifted doc content rather than a second `MetadataAnnotation`-walking function. This is
+  explicitly **not** presented as the same syntax as the real `@Name{...}` annotation form — a
+  `.sysml` author writing `interface def`/`port def`/`connection def` metadata uses a visibly
+  different spelling (a colon-suffixed line inside a comment, not a structural annotation before a
+  member) specifically because the real form has nowhere to parse to for these three kinds. Should
+  upstream ever add the missing `MetadataAnnotation` coverage (issue #100's suggested path 1), this
+  directive mechanism is not retired — it becomes a second, always-available spelling, the same way
+  a stable `id` and a qualified name are both valid cross-reference targets today.
+- **Reuses the lifted doc string, not a second AST walk.** The directive scanner runs over the
+  text `doc_lift` (`REQ-TRS-SYSMLV2-009`) already produced for that element, rather than
+  re-inspecting `DocComment` AST nodes directly — one text-processing step, not a duplicate
+  traversal of the body-element list already walked once for the doc lift itself.
+- **Last directive wins per field**, matching `REQ-TRS-SYSMLV2-008`'s existing behavior for
+  multiple real `@Syscribe*` annotations of the same name on one element — no new "which one
+  applies" rule invented for the doc-comment form.

@@ -3,6 +3,7 @@ package Propulsion {
 connection def PowerLink;
 
 interface def PowerInterface {
+    doc /* @SyscribeShortName: power-if */
     port supplyPort : PowerPort;
 }
 

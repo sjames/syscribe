@@ -216,6 +216,46 @@ pre-existing `asilLevel`/
 element carrying both. A `part def`/`part` with none of these annotations is unaffected — no
 regression versus today's behavior.
 
+### Doc-comment `@Syscribe*:` directives on `interface def`/`port def`/`connection def`
+
+The `@Name { field = value; }` annotation form above depends on a real `MetadataAnnotation` AST
+node — and `InterfaceDefBodyElement`, `PortDefBodyElement`, and `ConnectionDefBodyElement` carry no
+such variant at all in the vendored `sysml-v2-parser` grammar (confirmed by direct source
+inspection, both the pinned and the latest release). `@SyscribeImplementedBy { path = '...'; }`
+inside an `interface def { }` is a hard parse error, not silently dropped. For exactly these three
+element kinds, the same fixed field set is instead reachable through a **structured directive line
+inside the element's own `doc /* ... */` comment** (`REQ-TRS-SYSMLV2-014`):
+
+```sysml
+interface def IPowerInterface {
+    doc /*
+    Real documentation prose stays here.
+    @SyscribeShortName: power-if
+    @SyscribeImplementedBy: aidl/interfaces/car/power/IPowerInterface.aidl
+    */
+}
+```
+
+| Directive | Field(s) lifted |
+|---|---|
+| `@SyscribeShortName: <value>` | `shortName:` |
+| `@SyscribeImplementedBy: <path>` | `implementedBy:` (drives `W023` exactly like the real annotation form) |
+| `@SyscribeDomain: <value>` | `domain:` |
+| `@SyscribeIntegrity: <key>=<value>[, <key>=<value>...]` (keys `asil`/`sil`/`pl`) | `asilLevel:`/`silLevel:`/`plLevel:` |
+
+A recognized directive line is stripped out of the text that lands in the element's `doc:` field —
+it's metadata, not documentation prose, exactly as a real annotation never appears in a `part
+def`/`part`'s lifted `doc:` either. An unrecognized `@Something: ...` line is left in the doc text
+untouched. A later directive for the same field overrides an earlier one, matching the real
+annotation form's own last-wins behavior for repeated `@Syscribe*` annotations.
+
+This is a **deliberately different spelling**, not an alternative parse of the same syntax — a
+`.sysml` author writing metadata on these three element kinds uses a colon-suffixed comment line
+specifically because the real `@Name{...}` form has nowhere to parse to here. Scoped to `interface
+def`/`port def`/`connection def` only (not their usage counterparts) — see `examples/sysmlv2-submodel/`
+and `ADR-SYS-SYSMLV2-001`'s addendum for the full design rationale, including why forking/vendoring
+the parser to add real support was considered and rejected.
+
 ## 4. Validation
 
 | Code | Condition |

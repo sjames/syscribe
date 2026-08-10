@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 275 |
-| Passed | 275 |
+| Total test cases | 276 |
+| Passed | 276 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2512,6 +2512,17 @@
 | Scenario | Result |
 |---|---|
 | a three-segment chain always falls back to head-only | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-014 — Verify a doc-comment @Syscribe*: directive lifts shortName/implementedBy onto an interface def and domain/asilLevel onto a port def, drives W023, strips the directive line from doc:, and leaves an unrecognized @...: line and a plain interface def unaffected.
+
+**Verifies:** REQ-TRS-SYSMLV2-014  
+**Result:** ✓ PASS (11 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an interface def with no doc comment is unaffected | ✓ PASS |
 
 ---
 
