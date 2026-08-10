@@ -565,24 +565,104 @@ fn connection_end_display(expr: &sysml_v2_parser::Expression) -> Option<String> 
     }
 }
 
+/// The `part` usage struct (name + own body) a `sysml_v2_parser::PartUsage`
+/// carries, regardless of which body-element enum wrapped it —
+/// `PartDefBodyElement::PartUsage`/`PartUsageBodyElement::PartUsage` both
+/// wrap `Box<Node<PartUsage>>`, the exact same type, so once found the rest
+/// of the lookahead logic doesn't care which enclosing body it came from.
+type PartUsageSibling<'a> = &'a sysml_v2_parser::PartUsage;
+
+/// Find a `part` usage named `head` directly in `elements` (a `part def`
+/// body's already-sliced members) — `REQ-TRS-SYSMLV2-013`'s local
+/// lookahead, step 1: is the connect endpoint's head itself a `part` usage
+/// declared in the same enclosing body as the `connection` usage?
+fn find_part_usage_in_part_def_body<'a>(
+    elements: &'a [sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>],
+    head: &str,
+) -> Option<PartUsageSibling<'a>> {
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::PartDefBodyElement::PartUsage(pu) if pu.value.name == head => Some(&pu.value),
+        _ => None,
+    })
+}
+
+/// Find a `part` usage named `head` directly in `elements` (a `part` usage
+/// body's already-sliced members). See [`find_part_usage_in_part_def_body`].
+fn find_part_usage_in_part_usage_body<'a>(
+    elements: &'a [sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>],
+    head: &str,
+) -> Option<PartUsageSibling<'a>> {
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::PartUsageBodyElement::PartUsage(pu) if pu.value.name == head => Some(&pu.value),
+        _ => None,
+    })
+}
+
+/// Whether `pu`'s own body declares a direct child named `tail` — a
+/// `port`/`attribute`/`interface` usage, or a nested `part` usage —
+/// `REQ-TRS-SYSMLV2-013`'s local lookahead, step 2. No `item` usage arm:
+/// `PartUsageBodyElement` (a `part` *usage*'s own body-element enum, unlike
+/// `part def`'s) carries no `ItemUsage` variant in this grammar at all, so a
+/// `part` usage cannot declare a nested `item` usage to begin with —
+/// confirmed against the parser's own enum definition, not an oversight.
+fn part_usage_has_named_child(pu: PartUsageSibling<'_>, tail: &str) -> bool {
+    let sysml_v2_parser::PartUsageBody::Brace { elements } = &pu.body else {
+        return false;
+    };
+    elements.iter().any(|n| match &n.value {
+        sysml_v2_parser::PartUsageBodyElement::PortUsage(p) => p.value.name == tail,
+        sysml_v2_parser::PartUsageBodyElement::AttributeUsage(a) => a.value.name == tail,
+        sysml_v2_parser::PartUsageBodyElement::PartUsage(p) => p.value.name == tail,
+        sysml_v2_parser::PartUsageBodyElement::InterfaceUsage(iface) => matches!(
+            &iface.value,
+            sysml_v2_parser::InterfaceUsage::Declaration { name: Some(n), .. } if n == tail
+        ),
+        _ => false,
+    })
+}
+
 /// Rewrite a `connect`-clause endpoint's dotted chain text into the
-/// fully-qualified qname `REQ-TRS-SYSMLV2-010`'s `connections:` lift
-/// actually needs — see the `ADR-SYS-SYSMLV2-001` addendum for the full
+/// qualified qname `REQ-TRS-SYSMLV2-010`'s `connections:` lift actually
+/// needs — see the `ADR-SYS-SYSMLV2-001` addendum for the full
 /// investigation (two rounds of it: a literal, unqualified `"a.p1"` never
 /// resolves at all; a full `"a.p1"` → `"Holder::a::p1"` conversion mostly
 /// doesn't either, since `p1` is overwhelmingly a port *inherited* from
 /// `a`'s type rather than redeclared on the usage itself, and this module
 /// does no inheritance resolution — so `Holder::a::p1` isn't a real
-/// synthesized child in the common case). Only the **head** segment (before
-/// the first `.`) is kept: `a.p1` under the owning part `Holder` becomes
+/// synthesized child in the common case).
+///
+/// Default (and fallback) behavior: only the **head** segment (before the
+/// first `.`) is kept — `a.p1` under the owning part `Holder` becomes
 /// `Holder::a`, matching this module's connection graph's own existing
 /// precedent for `features:`-declared endpoints (`graph.rs::resolve_endpoint`
 /// — "NOTE (deferred, issue #26 MVP): edges carry `kind` only", resolving
-/// only the head, discarding the rest of the chain) — confirmed empirically
-/// to produce a real edge, unlike either of the finer-grained forms tried
-/// first.
-fn qualify_connection_end(owning_qname: &str, chain: &str) -> String {
-    let head = chain.split('.').next().unwrap_or(chain);
+/// only the head, discarding the rest of the chain).
+///
+/// `REQ-TRS-SYSMLV2-013` widens this one step: for a genuinely two-segment
+/// chain (`head.tail`, no further `.`), `find_sibling(head)` — a pure,
+/// local AST lookahead into the *same enclosing body*, no resolver, no
+/// global element list — is tried; if it finds a `part` usage sibling whose
+/// own body declares a direct child named by `tail`
+/// ([`part_usage_has_named_child`]), the *full* chain qualifies instead:
+/// `Holder::a::p1`. Any other outcome (three-plus segments, no matching
+/// sibling, sibling has no matching child) falls back to head-only —
+/// a strict widening, never a new failure mode.
+fn qualify_connection_end<'a>(
+    owning_qname: &str,
+    chain: &str,
+    find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
+) -> String {
+    let mut segments = chain.splitn(2, '.');
+    let head = segments.next().unwrap_or(chain);
+    if let Some(tail) = segments.next() {
+        if !tail.contains('.') {
+            if let Some(pu) = find_sibling(head) {
+                if part_usage_has_named_child(pu, tail) {
+                    return format!("{owning_qname}::{head}::{tail}");
+                }
+            }
+        }
+    }
     format!("{owning_qname}::{head}")
 }
 
@@ -598,9 +678,10 @@ fn qualify_connection_end(owning_qname: &str, chain: &str) -> String {
 /// (`connect (a, b, c)`) is built directly in the `ends:` shape
 /// `crate::connections::parse_entry` already reads back, since
 /// `add_connection` only ever writes the binary form.
-fn connection_usage_entry(
+fn connection_usage_entry<'a>(
     owning_qname: &str,
     c: &sysml_v2_parser::ast::ConnectionUsageMember,
+    find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
 ) -> Option<serde_yaml::Value> {
     let from = connection_end_display(&c.connect_from.as_ref()?.value.expression.value)?;
     let to = connection_end_display(&c.connect_to.as_ref()?.value.expression.value)?;
@@ -611,8 +692,8 @@ fn connection_usage_entry(
         .collect();
     let typed_by = c.type_name.clone().and_then(nonempty);
 
-    let from_q = qualify_connection_end(owning_qname, &from);
-    let to_q = qualify_connection_end(owning_qname, &to);
+    let from_q = qualify_connection_end(owning_qname, &from, find_sibling);
+    let to_q = qualify_connection_end(owning_qname, &to, find_sibling);
 
     if extras.is_empty() {
         let mut tmp = Vec::new();
@@ -621,7 +702,7 @@ fn connection_usage_entry(
     } else {
         let mut ends: Vec<serde_yaml::Value> = [from_q, to_q]
             .into_iter()
-            .chain(extras.iter().map(|e| qualify_connection_end(owning_qname, e)))
+            .chain(extras.iter().map(|e| qualify_connection_end(owning_qname, e, find_sibling)))
             .map(|chain| {
                 let mut em = serde_yaml::Mapping::new();
                 em.insert(serde_yaml::Value::from("binds"), serde_yaml::Value::from(chain));
@@ -646,11 +727,12 @@ fn part_def_connection_entries(
     owning_qname: &str,
     elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>],
 ) -> Vec<serde_yaml::Value> {
+    let find_sibling = |head: &str| find_part_usage_in_part_def_body(elements, head);
     elements
         .iter()
         .filter_map(|n| match &n.value {
             sysml_v2_parser::PartDefBodyElement::Connection(node) => {
-                connection_usage_entry(owning_qname, &node.value)
+                connection_usage_entry(owning_qname, &node.value, &find_sibling)
             }
             _ => None,
         })
@@ -663,11 +745,12 @@ fn part_usage_connection_entries(
     owning_qname: &str,
     elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>],
 ) -> Vec<serde_yaml::Value> {
+    let find_sibling = |head: &str| find_part_usage_in_part_usage_body(elements, head);
     elements
         .iter()
         .filter_map(|n| match &n.value {
             sysml_v2_parser::PartUsageBodyElement::Connection(node) => {
-                connection_usage_entry(owning_qname, &node.value)
+                connection_usage_entry(owning_qname, &node.value, &find_sibling)
             }
             _ => None,
         })

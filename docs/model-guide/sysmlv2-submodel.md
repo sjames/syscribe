@@ -353,9 +353,9 @@ connection-edge resolver only matches an exact full qname or a `features:`-decla
 of which a SysMLv2-synthesized part ever has. Only the chain's first segment is kept — `a.p1`
 under `Holder` becomes `Holder::a`, dropping `.p1` — matching this same resolver's own existing
 precedent for `features:`-declared endpoints exactly (head resolved, everything past it
-discarded). See `ADR-SYS-SYSMLV2-001`'s addendum for the full two-round investigation. One
-consequence: a trailing segment is *always* discarded, not resolved when it happens to be
-possible — this is a deliberate instance-level (not port-level) granularity choice.
+discarded). See `ADR-SYS-SYSMLV2-001`'s addendum for the full two-round investigation. (§10 below
+widens this one step further — a trailing segment isn't *always* discarded any more, only when
+nothing local resolves it.)
 
 A named connection usage with no `connect` clause (`connection c : SomeConnDef;`) contributes no
 entry, unaffected. The anonymous binary-connector form (no `connection name :` prefix) stays
@@ -395,3 +395,33 @@ Unscoped `n2` (already `Part`/`PartDef`-inclusive regardless of origin) and a `f
 hand-authored model are both unaffected — this is a strict widening, not a SysMLv2-only special
 case (a hand-authored model that happens to nest a `PartDef`/`Part` as a real child file, rather
 than an inline `features:` entry, gains the same axis inclusion).
+
+## 10. Resolving a dotted `connect` endpoint to a redeclared nested feature
+
+§8's head-only qualification is the reliable default, but it's needlessly lossy when a `.sysml`
+author explicitly redeclares the referenced feature on the usage itself, rather than only
+inheriting it from the type (`REQ-TRS-SYSMLV2-013`):
+
+```sysml
+part def Top {
+    part a : A {
+        interface fooProvider : IFoo;
+    }
+    part b : B {
+        interface fooClient : IFoo;
+    }
+
+    connection link1 : Link connect a.fooProvider to b.fooClient;
+}
+```
+
+lifts the full-precision edge `Top::a::fooProvider -> Top::b::fooClient` — not just
+`Top::a -> Top::b` — because `a`'s own body genuinely redeclares `fooProvider`, and `b`'s own body
+genuinely redeclares `fooClient`. This resolution is purely **local**: for a two-segment chain
+(`head.tail`, no further `.`), the owning body is searched for a `part` usage named by the head,
+and *that* usage's own already-parsed body is searched for a direct
+`port`/`attribute`/`interface`/nested-`part` child named by the tail — no resolver, no global
+element list, no inheritance reasoning of any kind. Whenever that lookahead doesn't find a match
+(the overwhelmingly common case — an inherited-only feature, a chain of three or more segments, or
+a head that isn't itself a `part` usage in the same body), the endpoint falls back to §8's
+existing head-only qualification exactly as before — a strict widening, never a new failure mode.

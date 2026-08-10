@@ -244,3 +244,43 @@ closes that gap, choosing the fix mechanism deliberately.
   rotorConfig;`) still never appears on `n2`'s axis — widening `is_part` itself, or teaching `n2`
   to resolve a `Port` endpoint up to its owning `Part`, is a different, unscoped concern this
   requirement doesn't attempt.
+
+## Addendum: local, lookahead-only resolution of a two-segment `connect` endpoint (`REQ-TRS-SYSMLV2-013`)
+
+`REQ-TRS-SYSMLV2-010`'s head-only qualification is correct but lossy when a `.sysml` author
+explicitly redeclares the referenced feature on the usage itself, rather than only inheriting it
+from the type — `connect a.fooProvider to b.fooClient;` where `a`'s own body genuinely declares
+`interface fooProvider : IFoo;` has a real, already-parsed answer sitting right there in the AST
+that head-only qualification was discarding unconditionally.
+
+- **Resolution stays purely local — no resolver, no global element list, no inheritance
+  reasoning.** `find_sibling(head)` searches only the *same enclosing body* the `connection` usage
+  itself lives in, for a `part` usage named by the head; if found, that usage's own already-parsed
+  body (not a separately-synthesized `RawElement` — this all happens before any child conversion
+  for that usage has occurred) is searched for a direct child named by the tail. This is
+  deliberately narrower than "resolve like any other cross-reference" (the originating issue's own
+  phrasing) — a real resolver-based approach would need the complete, cross-file element graph,
+  which doesn't exist yet at the point `ingest_subtree` is converting one file's own AST. Rejected
+  for the same reason a global lookup was rejected everywhere else in this module: this feature
+  doesn't need it, and reaching for it would be a much larger, cross-cutting change (deferring
+  connection-entry construction to a second pass after the whole model is known) for a case that's
+  fully answerable from the AST already in hand.
+- **Only a genuinely two-segment chain is eligible; three-plus segments always fall back.**
+  Extending the lookahead to walk multiple levels deep (`a.b.c`, matching a nested `part` usage's
+  own nested child) was considered and rejected as unnecessary complexity for a case the
+  originating issue's own acceptance criteria didn't ask for — `REQ-TRS-SYSMLV2-013`'s own worked
+  example is two segments (`a.fooProvider`), and every real motivating case found in practice was
+  as well. A future requirement can widen the recursion depth if a concrete need for it surfaces;
+  the one-level lookahead doesn't need restructuring to get there, just a loop instead of a single
+  step.
+- **The head must be a `part` usage specifically — not a `port`/`attribute` sibling, not a `part
+  def`.** A connect endpoint's head is, definitionally, the thing that structurally *has* the
+  nested feature the tail names; a `port`/`attribute` sibling has no body of its own to search
+  (its shape doesn't carry nested named children the way a `part` usage's does), and a `part def`
+  isn't the local usage instance a `connect` clause actually wires. Both fall back to head-only,
+  same as any other non-match.
+- **No `item` usage arm in the tail-matching search — confirmed, not assumed, to be correct.**
+  `PartUsageBodyElement` (a `part` *usage*'s own body-element enum) carries no `ItemUsage` variant
+  at all in this grammar version, unlike `PartDefBodyElement`'s — so a `part` usage genuinely
+  cannot declare a nested `item` usage in the first place, verified against the parser's own enum
+  definition rather than inferred from the absence of test coverage.

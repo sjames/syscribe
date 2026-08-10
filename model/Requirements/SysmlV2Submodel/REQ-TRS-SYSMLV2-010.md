@@ -70,9 +70,12 @@ as a surprise — and was closed shortly after by `REQ-TRS-SYSMLV2-011`, which w
   existing precedent for `features:`-declared endpoints exactly (head resolved, rest of the chain
   discarded) — reached via the resolver's exact-qname match against a real synthesized instance
   instead, with no resolver changes.
-- A trailing segment past the head is therefore always discarded, not just when it happens not to
-  resolve — this is a deliberate granularity choice (instance-level, not port-level), not a
-  best-effort resolution attempt that sometimes succeeds. Not itself a validation finding.
+- As shipped, a trailing segment past the head is always discarded — a deliberate granularity
+  choice (instance-level, not port-level), not a best-effort resolution attempt. `REQ-TRS-SYSMLV2-013`
+  later widens this narrowly: a genuinely two-segment chain whose tail is explicitly redeclared on
+  the head (not merely inherited) resolves to the finer-grained edge instead; every other case
+  still falls back to this requirement's head-only behavior unchanged. Not itself a validation
+  finding either way.
 - The n-ary `connect (a, b, c)` form (`connect_extra_ends` non-empty) lifts to the same `ends:
   [{binds: ...}, ...]` shape a hand-authored n-ary `connections:` entry already uses (no
   role labels — SysML v2's own `connect` grammar carries no per-end role name to preserve).

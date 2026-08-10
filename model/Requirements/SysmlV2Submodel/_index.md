@@ -23,7 +23,9 @@ connection usage's `connect` endpoints lifting onto the owning part's `connectio
 (`REQ-TRS-SYSMLV2-010`), and `n2`'s scoped subpart axis including SysMLv2-synthesized children by
 qname containment, not only `features:`-declared ones (`REQ-TRS-SYSMLV2-011`), and a named
 connection usage's own trailing `doc /* ... */` body lifting onto the synthesized `Connection`
-element (`REQ-TRS-SYSMLV2-012`).
+element (`REQ-TRS-SYSMLV2-012`), and resolving a two-segment `connect` endpoint to a redeclared
+nested feature of its head when one is actually declared, falling back to the head-only edge
+otherwise (`REQ-TRS-SYSMLV2-013`).
 
 This is a read-only validator: the submodel's `.sysml`/`.kerml` files stay authoritative and are
 edited by their own native tooling, never by Syscribe's web UI or mutate commands. A

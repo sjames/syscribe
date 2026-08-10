@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 272 |
-| Passed | 272 |
+| Total test cases | 273 |
+| Passed | 273 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2490,6 +2490,17 @@
 | Scenario | Result |
 |---|---|
 | a connection usage with no trailing body is unaffected | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-013 — Verify a two-segment connect endpoint resolves to a redeclared nested feature when one exists, falls back to head-only otherwise, and a three-segment chain always falls back.
+
+**Verifies:** REQ-TRS-SYSMLV2-013  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a three-segment chain always falls back to head-only | ✓ PASS |
 
 ---
 
