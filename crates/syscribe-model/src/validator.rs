@@ -3680,13 +3680,31 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // W600: PartDef and Part elements should have non-empty documentation
+        // W600: PartDef and Part elements should have non-empty documentation.
+        // REQ-TRS-VAL-017: suppressed on a Part usage whose typedBy: target
+        // itself carries non-empty documentation -- a bare `part x :
+        // SomeDocumentedPartDef;` isn't actually missing documentation, it's
+        // one lookup away. A PartDef itself always fires regardless (it's
+        // the type being referenced, nothing further to fall back to); a
+        // Part usage whose typedBy: doesn't resolve, or resolves to an
+        // equally-undocumented target, still fires exactly as before.
         if matches!(
             fm.element_type,
             Some(ElementType::PartDef) | Some(ElementType::Part)
         ) && elem.doc.trim().is_empty()
         {
-            findings.push(warning("W600", &file, "PartDef/Part has an empty documentation body"));
+            let documented_via_type = matches!(fm.element_type, Some(ElementType::Part))
+                && fm
+                    .typed_by
+                    .as_ref()
+                    .map(yaml_strings)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|tb| resolver.resolve_ref(elements, tb))
+                    .any(|target| !target.doc.trim().is_empty());
+            if !documented_via_type {
+                findings.push(warning("W600", &file, "PartDef/Part has an empty documentation body"));
+            }
         }
 
         // W601: ActionDef and Action elements should have non-empty documentation
@@ -10083,5 +10101,95 @@ mod planning_item_assigned_to_tests {
         ];
         let result = validate_with_config(&elements, &users(&["alice"]));
         assert!(!codes(&result.findings).contains(&"E722"), "{:?}", result.findings);
+    }
+}
+
+// ── W600 typedBy: documentation fallback (REQ-TRS-VAL-017) ──────────────────
+
+#[cfg(test)]
+mod w600_typed_by_documentation_tests {
+    use super::*;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str, doc: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: doc.to_string(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn part_usage_typed_by_a_documented_partdef_raises_no_w600() {
+        let elements = vec![
+            make_elem(
+                "DocumentedDef",
+                "type: PartDef\nname: DocumentedDef\n",
+                "model/DocumentedDef.md",
+                "Real documentation here.",
+            ),
+            make_elem(
+                "x",
+                "type: Part\nname: x\ntypedBy: DocumentedDef\n",
+                "model/x.md",
+                "",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(!codes(&result.findings).contains(&"W600"), "{:?}", result.findings);
+    }
+
+    #[test]
+    fn a_partdef_itself_still_raises_w600_regardless_of_anything_else() {
+        let elements = vec![make_elem(
+            "UndocumentedDef",
+            "type: PartDef\nname: UndocumentedDef\n",
+            "model/UndocumentedDef.md",
+            "",
+        )];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"W600"), "{:?}", result.findings);
+    }
+
+    #[test]
+    fn part_usage_typed_by_an_equally_undocumented_partdef_still_raises_w600() {
+        let elements = vec![
+            make_elem(
+                "UndocumentedDef2",
+                "type: PartDef\nname: UndocumentedDef2\n",
+                "model/UndocumentedDef2.md",
+                "",
+            ),
+            make_elem(
+                "y",
+                "type: Part\nname: y\ntypedBy: UndocumentedDef2\n",
+                "model/y.md",
+                "",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let w600_count = codes(&result.findings).iter().filter(|c| **c == "W600").count();
+        assert_eq!(w600_count, 2, "expected W600 for both the def and the usage: {:?}", result.findings);
+    }
+
+    #[test]
+    fn part_usage_with_unresolvable_typed_by_still_raises_w600() {
+        let elements = vec![make_elem(
+            "z",
+            "type: Part\nname: z\ntypedBy: NoSuchThing\n",
+            "model/z.md",
+            "",
+        )];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"W600"), "{:?}", result.findings);
     }
 }

@@ -16,7 +16,7 @@ cargo build --workspace   # once, if you haven't already
 ./target/debug/syscribe -m examples/sysmlv2-submodel/model why-active PropulsionSubsystem::Propulsion::RotorConfigChoice::quadConfig --config CONF-HEX-DRONE-001
 ```
 
-Current output: **0 errors, 11 warnings** on the base `validate` report (all
+Current output: **0 errors, 9 warnings** on the base `validate` report (all
 expected/documented below); `feature-check --deep` is **0 errors, 1 warning**
 (also documented below), reports both `Configuration`s as valid models of the
 feature model, and `void model: false`.
@@ -179,9 +179,12 @@ The primary rotor/motor/battery propulsion chain — the physical assembly whose
 REQ-DRONE-ENDUR-001 constrains.
 ```
 
-This is why `RotorAssembly` doesn't appear among the `W600` elements below, unlike the other six
-`PartDef`/`Part` elements in this model — a `doc` member clears `W600` exactly as a hand-authored
-element's non-empty body would.
+This is why `RotorAssembly` doesn't appear among the `W600` elements below — a `doc` member clears
+`W600` exactly as a hand-authored element's non-empty body would. It also has a second-order
+effect: `quadConfig`/`hexConfig` (both `typedBy: RotorAssembly`) don't appear among the `W600`
+elements either, once `REQ-TRS-VAL-017` (see "Expected / documented warnings" below) started
+suppressing `W600` on a `Part` usage whose *type* is documented, even when the usage itself carries
+no `doc` of its own.
 
 ## Connection-endpoint lift (`REQ-TRS-SYSMLV2-010`)
 
@@ -278,17 +281,22 @@ group driven partly from the SysMLv2 side should look like.
 
 Every warning below is understood and either inherent to this feature as
 currently scoped, or an ordinary artifact of a deliberately small demo model
-— none is a defect in this example.
+— none is a defect in this example. (`REQ-TRS-VAL-017` is a general validator
+refinement, not SysMLv2-specific, but this composition-heavy example is
+exactly the kind of model it was motivated by — see the `W600` entry below.)
 
-- **`W600` × 6 ("PartDef/Part has an empty documentation body")** — the
-  remaining six `PartDef`/`Part` elements in `PropulsionSubsystem/*.sysml`
-  carry no `doc /* ... */` member, so they get an empty `doc:` body exactly
-  like a hand-authored element with no body text would (`REQ-TRS-SYSMLV2-009`
-  lifts `doc` comments where they're written; it doesn't invent documentation
-  for elements that have none). `RotorAssembly` demonstrates the lift itself
-  — see the "`doc /* ... */` comment lift" section below — and no longer
-  trips this warning, which is why the count dropped from 7 to 6 once that
-  landed.
+- **`W600` × 4 ("PartDef/Part has an empty documentation body")** — the
+  remaining four `PartDef`/`Part` elements in `PropulsionSubsystem/*.sysml`
+  carry no `doc /* ... */` member *and* have no documented `typedBy:` target
+  to fall back on, so they get an empty `doc:` body exactly like a
+  hand-authored element with no body text would (`REQ-TRS-SYSMLV2-009` lifts
+  `doc` comments where they're written; it doesn't invent documentation for
+  elements that have none). `RotorAssembly` demonstrates the lift itself —
+  see the "`doc /* ... */` comment lift" section below — and no longer trips
+  this warning, which is why the count dropped from 7 to 6 once that landed;
+  it dropped again to 4 once `REQ-TRS-VAL-017` started suppressing `W600` on
+  a `Part` usage whose `typedBy:` target is itself documented — `quadConfig`
+  and `hexConfig` (both `typedBy: RotorAssembly`) are exactly that case.
 - **`W005` × 3 ("no derivedFrom and no derivedChildren — possible orphan")**
   — ordinary consequence of this being a small, flat demo with no requirement
   breakdown hierarchy; unrelated to SysMLv2.

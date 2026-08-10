@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 273 |
-| Passed | 273 |
+| Total test cases | 274 |
+| Passed | 274 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -3203,6 +3203,17 @@
 | list --has-wcet --json includes wcet | ✓ PASS |
 | SIL requirement with wcet, no measuring test produces W029 | ✓ PASS |
 | W029 is gateable with --deny | ✓ PASS |
+
+---
+
+### TC-TRS-VAL-017 — Verify W600 is suppressed on a Part usage whose typedBy: target already carries non-empty documentation, and still fires for a PartDef itself, a Part typed by an equally-undocumented target, and a Part with an unresolvable typedBy:.
+
+**Verifies:** REQ-TRS-VAL-017  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a Part with an unresolvable typedBy: still raises W600 | ✓ PASS |
 
 ---
 
