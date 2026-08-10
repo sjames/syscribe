@@ -512,3 +512,184 @@ fn a_requirement_usage_does_not_pick_up_the_fixed_field_set() {
         "@SyscribeDomain on a RequirementUsage should not lift a domain: field"
     );
 }
+
+// ── REQ-TRS-SYSMLV2-014: doc-comment directives for interface def/port def/ ──
+// ── connection def, since their body grammars carry no MetadataAnnotation ───
+// ── slot for the real @Name{...} form (#100).                              ──
+
+#[test]
+fn a_doc_directive_lifts_implemented_by_onto_an_interface_def() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         interface def IPowerInterface {\n\
+         doc /*\n\
+         Real prose stays.\n\
+         @SyscribeShortName: power-if\n\
+         @SyscribeImplementedBy: aidl/interfaces/car/power/IPowerInterface.aidl\n\
+         More prose after.\n\
+         */\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let iface = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::IPowerInterface")
+        .unwrap();
+
+    assert_eq!(iface.frontmatter.short_name.as_deref(), Some("power-if"));
+    assert_eq!(
+        iface.frontmatter.implemented_by,
+        Some(vec!["aidl/interfaces/car/power/IPowerInterface.aidl".to_string()])
+    );
+    // Directive lines are stripped; surrounding prose survives, with no
+    // stray double-blank-line left where they were removed.
+    assert!(iface.doc.contains("Real prose stays."));
+    assert!(iface.doc.contains("More prose after."));
+    assert!(!iface.doc.contains("@SyscribeShortName"));
+    assert!(!iface.doc.contains("@SyscribeImplementedBy"));
+    assert!(!iface.doc.contains("\n\n\n"), "no stray triple-newline: {:?}", iface.doc);
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+    assert!(
+        result.findings.iter().any(|f| f.code == "W023"),
+        "expected W023 to fire on the lifted implementedBy path exactly like the real-annotation form: {:#?}",
+        result.findings
+    );
+}
+
+#[test]
+fn a_doc_directive_lifts_domain_and_integrity_onto_a_port_def() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         port def PowerPort {\n\
+         doc /* @SyscribeDomain: hardware\n\
+         @SyscribeIntegrity: asil=D, sil=3 */\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let port = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::PowerPort")
+        .unwrap();
+
+    assert_eq!(port.frontmatter.domain.as_deref(), Some("hardware"));
+    assert_eq!(port.frontmatter.asil_level.as_deref(), Some("D"));
+    assert_eq!(port.frontmatter.sil_level, Some(3));
+
+    // W006: asilLevel and silLevel together fire the same mutual-exclusion
+    // warning a hand-authored element carrying both would — no new
+    // validation code, exactly as REQ-TRS-SYSMLV2-008's addendum establishes
+    // for the real-annotation form.
+    let result = validate(&elements);
+    assert!(
+        result.findings.iter().any(|f| f.code == "W006"),
+        "expected W006 for asilLevel+silLevel both set: {:#?}",
+        result.findings
+    );
+}
+
+#[test]
+fn a_doc_directive_lifts_short_name_onto_a_connection_def() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         connection def PowerLink {\n\
+         doc /* @SyscribeShortName: power-link */\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let conn = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::PowerLink")
+        .unwrap();
+    assert_eq!(conn.frontmatter.short_name.as_deref(), Some("power-link"));
+    assert_eq!(conn.doc, "", "a doc block that is only a directive line leaves no doc text");
+}
+
+#[test]
+fn an_unrecognized_at_line_is_left_in_the_doc_text_untouched() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         interface def IFoo {\n\
+         doc /* @SomethingElse: not a directive */\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let iface = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::IFoo")
+        .unwrap();
+    assert_eq!(iface.doc, "@SomethingElse: not a directive");
+    assert_eq!(iface.frontmatter.short_name, None);
+    assert_eq!(iface.frontmatter.implemented_by, None);
+}
+
+#[test]
+fn a_later_directive_for_the_same_field_wins_over_an_earlier_one() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         interface def IFoo {\n\
+         doc /* @SyscribeShortName: first\n\
+         @SyscribeShortName: second */\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let iface = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::IFoo")
+        .unwrap();
+    assert_eq!(iface.frontmatter.short_name.as_deref(), Some("second"));
+}
+
+#[test]
+fn an_interface_def_with_no_doc_comment_at_all_is_unaffected_no_regression() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         interface def IPlain;\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let iface = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::IPlain")
+        .unwrap();
+    assert_eq!(iface.doc, "");
+    assert_eq!(iface.frontmatter.short_name, None);
+    assert_eq!(iface.frontmatter.implemented_by, None);
+    assert_eq!(iface.frontmatter.domain, None);
+}

@@ -59,6 +59,19 @@ fn template_unknown_type_is_error() {
     assert_eq!(res.get("isError").and_then(|e| e.as_bool()), Some(true), "unknown type errors: {res}");
 }
 
+// Regression for #102: PlanningItem was a fully working native type (list/types/
+// validate all handled it) but was missing from template's dispatch entirely.
+#[test]
+fn template_returns_skeleton_for_planning_item() {
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let res = mcp.call_tool("template", json!({"type": "PlanningItem"}));
+    let content = res.get("content").and_then(|c| c.as_str()).expect("content string");
+    assert!(content.contains("type: PlanningItem"), "skeleton sets the type; got {content}");
+    assert!(content.contains("id: PI-"), "skeleton seeds a PI-* id; got {content}");
+}
+
 // ---- TC-TRS-MCP-014: explain_finding ----------------------------------------
 
 #[test]

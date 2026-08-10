@@ -216,6 +216,46 @@ pre-existing `asilLevel`/
 element carrying both. A `part def`/`part` with none of these annotations is unaffected — no
 regression versus today's behavior.
 
+### Doc-comment `@Syscribe*:` directives on `interface def`/`port def`/`connection def`
+
+The `@Name { field = value; }` annotation form above depends on a real `MetadataAnnotation` AST
+node — and `InterfaceDefBodyElement`, `PortDefBodyElement`, and `ConnectionDefBodyElement` carry no
+such variant at all in the vendored `sysml-v2-parser` grammar (confirmed by direct source
+inspection, both the pinned and the latest release). `@SyscribeImplementedBy { path = '...'; }`
+inside an `interface def { }` is a hard parse error, not silently dropped. For exactly these three
+element kinds, the same fixed field set is instead reachable through a **structured directive line
+inside the element's own `doc /* ... */` comment** (`REQ-TRS-SYSMLV2-014`):
+
+```sysml
+interface def IPowerInterface {
+    doc /*
+    Real documentation prose stays here.
+    @SyscribeShortName: power-if
+    @SyscribeImplementedBy: aidl/interfaces/car/power/IPowerInterface.aidl
+    */
+}
+```
+
+| Directive | Field(s) lifted |
+|---|---|
+| `@SyscribeShortName: <value>` | `shortName:` |
+| `@SyscribeImplementedBy: <path>` | `implementedBy:` (drives `W023` exactly like the real annotation form) |
+| `@SyscribeDomain: <value>` | `domain:` |
+| `@SyscribeIntegrity: <key>=<value>[, <key>=<value>...]` (keys `asil`/`sil`/`pl`) | `asilLevel:`/`silLevel:`/`plLevel:` |
+
+A recognized directive line is stripped out of the text that lands in the element's `doc:` field —
+it's metadata, not documentation prose, exactly as a real annotation never appears in a `part
+def`/`part`'s lifted `doc:` either. An unrecognized `@Something: ...` line is left in the doc text
+untouched. A later directive for the same field overrides an earlier one, matching the real
+annotation form's own last-wins behavior for repeated `@Syscribe*` annotations.
+
+This is a **deliberately different spelling**, not an alternative parse of the same syntax — a
+`.sysml` author writing metadata on these three element kinds uses a colon-suffixed comment line
+specifically because the real `@Name{...}` form has nowhere to parse to here. Scoped to `interface
+def`/`port def`/`connection def` only (not their usage counterparts) — see `examples/sysmlv2-submodel/`
+and `ADR-SYS-SYSMLV2-001`'s addendum for the full design rationale, including why forking/vendoring
+the parser to add real support was considered and rejected.
+
 ## 4. Validation
 
 | Code | Condition |
@@ -309,6 +349,20 @@ a plain `interface` usage all lift their own `doc` block the same way their def 
 `InterfaceUsageBodyElement::Doc` variant, distinct from (but handled the same way as)
 `InterfaceDef`'s `InterfaceDefBodyElement::Doc`.
 
+A named `connection name : Type connect a to b { doc /* ... */ }` usage's own trailing body lifts
+the same way (`REQ-TRS-SYSMLV2-012`) — reusing `connection def { }`'s own doc-reading logic
+unchanged, since `ConnectionUsageMember.body` is the identical `ConnectionDefBody` shape:
+
+```sysml
+connection carDisplayToCompositor : DisplayLink connect carDisplayService to compositor {
+    doc /* Over Interfaces::Display::ICompositorControl. */
+}
+```
+
+lifts onto the synthesized `Connection` element, not the owning part — distinct from, and
+independent of, `REQ-TRS-SYSMLV2-010`'s endpoint lift onto the *owning part's* `connections:`
+field. A connection usage with no trailing body is unaffected.
+
 ## 8. Connection-endpoint lift
 
 A `part def`/`part`'s named `connection name : Type connect a to b (, c)*;` usage member lifts its
@@ -339,20 +393,75 @@ connection-edge resolver only matches an exact full qname or a `features:`-decla
 of which a SysMLv2-synthesized part ever has. Only the chain's first segment is kept — `a.p1`
 under `Holder` becomes `Holder::a`, dropping `.p1` — matching this same resolver's own existing
 precedent for `features:`-declared endpoints exactly (head resolved, everything past it
-discarded). See `ADR-SYS-SYSMLV2-001`'s addendum for the full two-round investigation. One
-consequence: a trailing segment is *always* discarded, not resolved when it happens to be
-possible — this is a deliberate instance-level (not port-level) granularity choice.
+discarded). See `ADR-SYS-SYSMLV2-001`'s addendum for the full two-round investigation. (§10 below
+widens this one step further — a trailing segment isn't *always* discarded any more, only when
+nothing local resolves it.)
 
 A named connection usage with no `connect` clause (`connection c : SomeConnDef;`) contributes no
 entry, unaffected. The anonymous binary-connector form (no `connection name :` prefix) stays
 unmapped — no identity to synthesize an entry against, consistent with the module's existing
 precedent for other anonymous forms.
 
-**Disclosed limitation:** `n2 <qname>`, **scoped** to a specific element, builds its axis
-exclusively from the scope element's own `features:` list — a SysMLv2-synthesized part never
-populates `features:`, so scoped `n2` on any SysMLv2 subtree still reports no parts at all,
-regardless of this lift. Only **unscoped** `n2` (the bare `n2` command) and `connectivity` benefit.
-`n2`'s own edge-collection also reads only the first two ends of any n-ary connection (native or
-SysMLv2-lifted alike), so a three-way `connect (a, b, c)` shows `a`↔`b` but not `a`↔`c` in `n2`;
-`connectivity` correctly builds the full star. Both are pre-existing `n2.rs` characteristics this
-requirement doesn't touch.
+**Remaining disclosed limitation:** `n2`'s own edge-collection reads only the first two ends of
+any n-ary connection (native or SysMLv2-lifted alike), so a three-way `connect (a, b, c)` shows
+`a`↔`b` but not `a`↔`c` in `n2`; `connectivity` correctly builds the full star. A pre-existing
+`n2.rs` characteristic this requirement doesn't touch. (An earlier, now-resolved limitation —
+scoped `n2 <qname>` reporting no parts at all for any SysMLv2 subtree — is fixed by
+`REQ-TRS-SYSMLV2-011`, §9 below.)
+
+## 9. `n2`'s scoped axis includes SysMLv2-synthesized children
+
+`n2 <qname>`'s subpart axis previously came exclusively from the scope element's own `features:`
+list — the native-Markdown convention for declaring inline-typed subparts. A SysMLv2 element's
+subparts are separate, qname-nested elements instead (§2's containment mapping), never
+`features:` entries, so scoped `n2` on any SysMLv2 subtree reported `(no parts in scope)`
+regardless of how much real `connection` wiring it contained (`REQ-TRS-SYSMLV2-011`):
+
+```
+$ ./target/debug/syscribe -m examples/sysmlv2-submodel/model n2 \
+    PropulsionSubsystem::Propulsion::Drone
+N² Interface Matrix — PropulsionSubsystem::Propulsion::Drone (depth 1)
+
+               rotorConfig
+rotorConfig    ■
+```
+
+`n2`'s axis-selection now additionally includes every direct-child `PartDef`/`Part` by qname
+containment, alongside the existing `features:` source (the two are additive and de-duplicated).
+`powerPort` still doesn't appear — `n2`'s axis stays `PartDef`/`Part`-only, unchanged; a `Port`
+was never in scope for it. A `REQ-TRS-SYSMLV2-010`-lifted connection between two qname-contained
+parts now populates the off-diagonal cell the same way a `features:`-declared one always did.
+Unscoped `n2` (already `Part`/`PartDef`-inclusive regardless of origin) and a `features:`-only
+hand-authored model are both unaffected — this is a strict widening, not a SysMLv2-only special
+case (a hand-authored model that happens to nest a `PartDef`/`Part` as a real child file, rather
+than an inline `features:` entry, gains the same axis inclusion).
+
+## 10. Resolving a dotted `connect` endpoint to a redeclared nested feature
+
+§8's head-only qualification is the reliable default, but it's needlessly lossy when a `.sysml`
+author explicitly redeclares the referenced feature on the usage itself, rather than only
+inheriting it from the type (`REQ-TRS-SYSMLV2-013`):
+
+```sysml
+part def Top {
+    part a : A {
+        interface fooProvider : IFoo;
+    }
+    part b : B {
+        interface fooClient : IFoo;
+    }
+
+    connection link1 : Link connect a.fooProvider to b.fooClient;
+}
+```
+
+lifts the full-precision edge `Top::a::fooProvider -> Top::b::fooClient` — not just
+`Top::a -> Top::b` — because `a`'s own body genuinely redeclares `fooProvider`, and `b`'s own body
+genuinely redeclares `fooClient`. This resolution is purely **local**: for a two-segment chain
+(`head.tail`, no further `.`), the owning body is searched for a `part` usage named by the head,
+and *that* usage's own already-parsed body is searched for a direct
+`port`/`attribute`/`interface`/nested-`part` child named by the tail — no resolver, no global
+element list, no inheritance reasoning of any kind. Whenever that lookahead doesn't find a match
+(the overwhelmingly common case — an inherited-only feature, a chain of three or more segments, or
+a head that isn't itself a `part` usage in the same body), the endpoint falls back to §8's
+existing head-only qualification exactly as before — a strict widening, never a new failure mode.

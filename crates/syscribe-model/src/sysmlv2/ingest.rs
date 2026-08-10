@@ -442,6 +442,108 @@ fn fold_syscribe_meta_annotation(m: &sysml_v2_parser::ast::MetadataAnnotation, m
     }
 }
 
+/// A recognized `REQ-TRS-SYSMLV2-014` doc-comment directive prefix (with its
+/// trailing colon) for `interface def`/`port def`/`connection def` — the
+/// three element kinds whose body grammars carry no `MetadataAnnotation`
+/// slot for the real `@Name { field = value; }` form `REQ-TRS-SYSMLV2-008`
+/// establishes for `part def`/`part` (confirmed by direct inspection of the
+/// vendored `sysml-v2-parser` source; see the ADR addendum). A directive line
+/// spells the same four field names as a colon-suffixed comment line instead
+/// of a structural annotation.
+const DOC_DIRECTIVE_PREFIXES: &[&str] =
+    &["@SyscribeDomain:", "@SyscribeIntegrity:", "@SyscribeShortName:", "@SyscribeImplementedBy:"];
+
+/// Fold one recognized `REQ-TRS-SYSMLV2-014` doc-comment directive's value
+/// into `meta`. `prefix` is one of [`DOC_DIRECTIVE_PREFIXES`]; `value` is the
+/// raw text after the colon (not yet trimmed). Mirrors
+/// `fold_syscribe_meta_annotation`'s per-name field semantics, reading a
+/// plain string value instead of an `AttributeBody`. `@SyscribeIntegrity`
+/// accepts a comma-separated `key=value` list (`asil`/`sil`/`pl`), the
+/// doc-comment analogue of that annotation's three independent keys; an
+/// unparseable `sil=...` (non-integer) is silently skipped, same posture as
+/// `attribute_body_i64` returning `None` for the real-annotation form.
+fn fold_syscribe_doc_directive(prefix: &str, value: &str, meta: &mut SyscribeMeta) {
+    let value = value.trim();
+    if value.is_empty() {
+        return;
+    }
+    match prefix {
+        "@SyscribeDomain:" => meta.domain = Some(value.to_string()),
+        "@SyscribeShortName:" => meta.short_name = Some(value.to_string()),
+        "@SyscribeImplementedBy:" => meta.implemented_by = Some(vec![value.to_string()]),
+        "@SyscribeIntegrity:" => {
+            for kv in value.split(',') {
+                let Some((k, v)) = kv.split_once('=') else { continue };
+                let (k, v) = (k.trim(), v.trim());
+                if v.is_empty() {
+                    continue;
+                }
+                match k {
+                    "asil" => meta.asil_level = Some(v.to_string()),
+                    // Saturate rather than drop, mirroring `attribute_body_i64`'s
+                    // own `sil = 999;` handling: let an out-of-range value reach
+                    // the existing E009 check downstream instead of vanishing.
+                    "sil" => {
+                        if let Ok(n) = v.parse::<i64>() {
+                            meta.sil_level = Some(n.clamp(0, u8::MAX as i64) as u8);
+                        }
+                    }
+                    "pl" => meta.pl_level = Some(v.to_string()),
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Collapse runs of 2+ consecutive blank lines down to exactly one — tidies
+/// up the gap a removed directive line can leave behind in
+/// [`extract_syscribe_doc_directives`]'s output (a directive on its own line
+/// between two prose paragraphs would otherwise leave a double blank line
+/// once stripped).
+fn collapse_blank_lines(s: &str) -> String {
+    let mut out = String::new();
+    let mut blank_run = false;
+    for line in s.lines() {
+        let is_blank = line.trim().is_empty();
+        if is_blank {
+            if blank_run {
+                continue;
+            }
+            blank_run = true;
+        } else {
+            blank_run = false;
+        }
+        out.push_str(line);
+        out.push('\n');
+    }
+    out
+}
+
+/// `REQ-TRS-SYSMLV2-014`: scan already-lifted `doc` text (the output of
+/// `REQ-TRS-SYSMLV2-009`'s `collect_doc`) for directive lines, stripping each
+/// recognized one out of the returned doc text and folding its value into a
+/// `SyscribeMeta`. A line that doesn't start with one of
+/// [`DOC_DIRECTIVE_PREFIXES`] (after trimming) is left in the doc text
+/// untouched — it's prose, not a directive. A later directive line for the
+/// same field overrides an earlier one, matching
+/// `fold_syscribe_meta_annotation`'s last-annotation-wins behavior for the
+/// real annotation form.
+fn extract_syscribe_doc_directives(doc: &str) -> (String, SyscribeMeta) {
+    let mut meta = SyscribeMeta::default();
+    let mut kept_lines: Vec<&str> = Vec::new();
+    for line in doc.lines() {
+        let trimmed = line.trim();
+        if let Some(prefix) = DOC_DIRECTIVE_PREFIXES.iter().find(|p| trimmed.starts_with(**p)) {
+            fold_syscribe_doc_directive(prefix, &trimmed[prefix.len()..], &mut meta);
+            continue;
+        }
+        kept_lines.push(line);
+    }
+    (collapse_blank_lines(&kept_lines.join("\n")).trim().to_string(), meta)
+}
+
 /// Concatenate every `doc /* ... */` member's text found in `elements`, in
 /// source order, joined by a blank line — `REQ-TRS-SYSMLV2-009`'s
 /// requirement that a second/third `doc` block accumulates rather than only
@@ -565,24 +667,104 @@ fn connection_end_display(expr: &sysml_v2_parser::Expression) -> Option<String> 
     }
 }
 
+/// The `part` usage struct (name + own body) a `sysml_v2_parser::PartUsage`
+/// carries, regardless of which body-element enum wrapped it —
+/// `PartDefBodyElement::PartUsage`/`PartUsageBodyElement::PartUsage` both
+/// wrap `Box<Node<PartUsage>>`, the exact same type, so once found the rest
+/// of the lookahead logic doesn't care which enclosing body it came from.
+type PartUsageSibling<'a> = &'a sysml_v2_parser::PartUsage;
+
+/// Find a `part` usage named `head` directly in `elements` (a `part def`
+/// body's already-sliced members) — `REQ-TRS-SYSMLV2-013`'s local
+/// lookahead, step 1: is the connect endpoint's head itself a `part` usage
+/// declared in the same enclosing body as the `connection` usage?
+fn find_part_usage_in_part_def_body<'a>(
+    elements: &'a [sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>],
+    head: &str,
+) -> Option<PartUsageSibling<'a>> {
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::PartDefBodyElement::PartUsage(pu) if pu.value.name == head => Some(&pu.value),
+        _ => None,
+    })
+}
+
+/// Find a `part` usage named `head` directly in `elements` (a `part` usage
+/// body's already-sliced members). See [`find_part_usage_in_part_def_body`].
+fn find_part_usage_in_part_usage_body<'a>(
+    elements: &'a [sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>],
+    head: &str,
+) -> Option<PartUsageSibling<'a>> {
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::PartUsageBodyElement::PartUsage(pu) if pu.value.name == head => Some(&pu.value),
+        _ => None,
+    })
+}
+
+/// Whether `pu`'s own body declares a direct child named `tail` — a
+/// `port`/`attribute`/`interface` usage, or a nested `part` usage —
+/// `REQ-TRS-SYSMLV2-013`'s local lookahead, step 2. No `item` usage arm:
+/// `PartUsageBodyElement` (a `part` *usage*'s own body-element enum, unlike
+/// `part def`'s) carries no `ItemUsage` variant in this grammar at all, so a
+/// `part` usage cannot declare a nested `item` usage to begin with —
+/// confirmed against the parser's own enum definition, not an oversight.
+fn part_usage_has_named_child(pu: PartUsageSibling<'_>, tail: &str) -> bool {
+    let sysml_v2_parser::PartUsageBody::Brace { elements } = &pu.body else {
+        return false;
+    };
+    elements.iter().any(|n| match &n.value {
+        sysml_v2_parser::PartUsageBodyElement::PortUsage(p) => p.value.name == tail,
+        sysml_v2_parser::PartUsageBodyElement::AttributeUsage(a) => a.value.name == tail,
+        sysml_v2_parser::PartUsageBodyElement::PartUsage(p) => p.value.name == tail,
+        sysml_v2_parser::PartUsageBodyElement::InterfaceUsage(iface) => matches!(
+            &iface.value,
+            sysml_v2_parser::InterfaceUsage::Declaration { name: Some(n), .. } if n == tail
+        ),
+        _ => false,
+    })
+}
+
 /// Rewrite a `connect`-clause endpoint's dotted chain text into the
-/// fully-qualified qname `REQ-TRS-SYSMLV2-010`'s `connections:` lift
-/// actually needs — see the `ADR-SYS-SYSMLV2-001` addendum for the full
+/// qualified qname `REQ-TRS-SYSMLV2-010`'s `connections:` lift actually
+/// needs — see the `ADR-SYS-SYSMLV2-001` addendum for the full
 /// investigation (two rounds of it: a literal, unqualified `"a.p1"` never
 /// resolves at all; a full `"a.p1"` → `"Holder::a::p1"` conversion mostly
 /// doesn't either, since `p1` is overwhelmingly a port *inherited* from
 /// `a`'s type rather than redeclared on the usage itself, and this module
 /// does no inheritance resolution — so `Holder::a::p1` isn't a real
-/// synthesized child in the common case). Only the **head** segment (before
-/// the first `.`) is kept: `a.p1` under the owning part `Holder` becomes
+/// synthesized child in the common case).
+///
+/// Default (and fallback) behavior: only the **head** segment (before the
+/// first `.`) is kept — `a.p1` under the owning part `Holder` becomes
 /// `Holder::a`, matching this module's connection graph's own existing
 /// precedent for `features:`-declared endpoints (`graph.rs::resolve_endpoint`
 /// — "NOTE (deferred, issue #26 MVP): edges carry `kind` only", resolving
-/// only the head, discarding the rest of the chain) — confirmed empirically
-/// to produce a real edge, unlike either of the finer-grained forms tried
-/// first.
-fn qualify_connection_end(owning_qname: &str, chain: &str) -> String {
-    let head = chain.split('.').next().unwrap_or(chain);
+/// only the head, discarding the rest of the chain).
+///
+/// `REQ-TRS-SYSMLV2-013` widens this one step: for a genuinely two-segment
+/// chain (`head.tail`, no further `.`), `find_sibling(head)` — a pure,
+/// local AST lookahead into the *same enclosing body*, no resolver, no
+/// global element list — is tried; if it finds a `part` usage sibling whose
+/// own body declares a direct child named by `tail`
+/// ([`part_usage_has_named_child`]), the *full* chain qualifies instead:
+/// `Holder::a::p1`. Any other outcome (three-plus segments, no matching
+/// sibling, sibling has no matching child) falls back to head-only —
+/// a strict widening, never a new failure mode.
+fn qualify_connection_end<'a>(
+    owning_qname: &str,
+    chain: &str,
+    find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
+) -> String {
+    let mut segments = chain.splitn(2, '.');
+    let head = segments.next().unwrap_or(chain);
+    if let Some(tail) = segments.next() {
+        if !tail.contains('.') {
+            if let Some(pu) = find_sibling(head) {
+                if part_usage_has_named_child(pu, tail) {
+                    return format!("{owning_qname}::{head}::{tail}");
+                }
+            }
+        }
+    }
     format!("{owning_qname}::{head}")
 }
 
@@ -598,9 +780,10 @@ fn qualify_connection_end(owning_qname: &str, chain: &str) -> String {
 /// (`connect (a, b, c)`) is built directly in the `ends:` shape
 /// `crate::connections::parse_entry` already reads back, since
 /// `add_connection` only ever writes the binary form.
-fn connection_usage_entry(
+fn connection_usage_entry<'a>(
     owning_qname: &str,
     c: &sysml_v2_parser::ast::ConnectionUsageMember,
+    find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
 ) -> Option<serde_yaml::Value> {
     let from = connection_end_display(&c.connect_from.as_ref()?.value.expression.value)?;
     let to = connection_end_display(&c.connect_to.as_ref()?.value.expression.value)?;
@@ -611,8 +794,8 @@ fn connection_usage_entry(
         .collect();
     let typed_by = c.type_name.clone().and_then(nonempty);
 
-    let from_q = qualify_connection_end(owning_qname, &from);
-    let to_q = qualify_connection_end(owning_qname, &to);
+    let from_q = qualify_connection_end(owning_qname, &from, find_sibling);
+    let to_q = qualify_connection_end(owning_qname, &to, find_sibling);
 
     if extras.is_empty() {
         let mut tmp = Vec::new();
@@ -621,7 +804,7 @@ fn connection_usage_entry(
     } else {
         let mut ends: Vec<serde_yaml::Value> = [from_q, to_q]
             .into_iter()
-            .chain(extras.iter().map(|e| qualify_connection_end(owning_qname, e)))
+            .chain(extras.iter().map(|e| qualify_connection_end(owning_qname, e, find_sibling)))
             .map(|chain| {
                 let mut em = serde_yaml::Mapping::new();
                 em.insert(serde_yaml::Value::from("binds"), serde_yaml::Value::from(chain));
@@ -646,11 +829,12 @@ fn part_def_connection_entries(
     owning_qname: &str,
     elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>],
 ) -> Vec<serde_yaml::Value> {
+    let find_sibling = |head: &str| find_part_usage_in_part_def_body(elements, head);
     elements
         .iter()
         .filter_map(|n| match &n.value {
             sysml_v2_parser::PartDefBodyElement::Connection(node) => {
-                connection_usage_entry(owning_qname, &node.value)
+                connection_usage_entry(owning_qname, &node.value, &find_sibling)
             }
             _ => None,
         })
@@ -663,11 +847,12 @@ fn part_usage_connection_entries(
     owning_qname: &str,
     elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>],
 ) -> Vec<serde_yaml::Value> {
+    let find_sibling = |head: &str| find_part_usage_in_part_usage_body(elements, head);
     elements
         .iter()
         .filter_map(|n| match &n.value {
             sysml_v2_parser::PartUsageBodyElement::Connection(node) => {
-                connection_usage_entry(owning_qname, &node.value)
+                connection_usage_entry(owning_qname, &node.value, &find_sibling)
             }
             _ => None,
         })
@@ -1003,11 +1188,16 @@ fn convert_port_def(
         sysml_v2_parser::PortDefBody::Brace { elements } => elements.as_slice(),
         sysml_v2_parser::PortDefBody::Semicolon => &[],
     };
+    // REQ-TRS-SYSMLV2-014: PortDefBodyElement has no MetadataAnnotation
+    // variant, so @Syscribe* fields reach a port def only via a doc-comment
+    // directive, extracted from the already-lifted doc text.
+    let (doc, meta) = extract_syscribe_doc_directives(&port_def_doc(elements));
     let spec = Spec {
         supertype: p.specializes.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
     }
-    .with_doc(port_def_doc(elements));
+    .with_doc(doc)
+    .with_syscribe_meta(meta);
     push_synth(out, &elem_qname, file_path, ElementType::PortDef, &name, spec);
     for node in elements {
         convert_port_def_body_element(&node.value, &elem_qname, file_path, out);
@@ -1073,11 +1263,16 @@ fn convert_connection_def(
         sysml_v2_parser::ConnectionDefBody::Brace { elements } => elements.as_slice(),
         sysml_v2_parser::ConnectionDefBody::Semicolon => &[],
     };
+    // REQ-TRS-SYSMLV2-014: ConnectionDefBodyElement has no MetadataAnnotation
+    // variant, so @Syscribe* fields reach a connection def only via a
+    // doc-comment directive, extracted from the already-lifted doc text.
+    let (doc, meta) = extract_syscribe_doc_directives(&connection_def_doc(elements));
     let spec = Spec {
         supertype: c.specializes.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
     }
-    .with_doc(connection_def_doc(elements));
+    .with_doc(doc)
+    .with_syscribe_meta(meta);
     push_synth(out, &elem_qname, file_path, ElementType::ConnectionDef, &name, spec);
     for node in elements {
         convert_connection_def_body_element(&node.value, &elem_qname, file_path, out);
@@ -1115,10 +1310,19 @@ fn convert_connection_usage(
         return; // anonymous connection usage: no identity to qname against
     };
     let elem_qname = format!("{qname}::{name}");
+    // c.body is the same ConnectionDefBody/ConnectionDefBodyElement shape
+    // convert_connection_def already reads its own body through — reused
+    // unchanged here, REQ-TRS-SYSMLV2-012 (the sibling usage-body doc lift
+    // REQ-TRS-SYSMLV2-009 didn't reach).
+    let doc = match &c.body {
+        sysml_v2_parser::ConnectionDefBody::Brace { elements } => connection_def_doc(elements),
+        sysml_v2_parser::ConnectionDefBody::Semicolon => String::new(),
+    };
     let spec = Spec {
         typed_by: c.type_name.clone(),
         ..Default::default()
-    };
+    }
+    .with_doc(doc);
     push_synth(out, &elem_qname, file_path, ElementType::Connection, &name, spec);
 }
 
@@ -1136,11 +1340,16 @@ fn convert_interface_def(
         sysml_v2_parser::InterfaceDefBody::Brace { elements } => elements.as_slice(),
         sysml_v2_parser::InterfaceDefBody::Semicolon => &[],
     };
+    // REQ-TRS-SYSMLV2-014: InterfaceDefBodyElement has no MetadataAnnotation
+    // variant, so @Syscribe* fields reach an interface def only via a
+    // doc-comment directive, extracted from the already-lifted doc text.
+    let (doc, meta) = extract_syscribe_doc_directives(&interface_def_doc(elements));
     let spec = Spec {
         supertype: i.specializes.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
     }
-    .with_doc(interface_def_doc(elements));
+    .with_doc(doc)
+    .with_syscribe_meta(meta);
     push_synth(out, &elem_qname, file_path, ElementType::InterfaceDef, &name, spec);
     for node in elements {
         convert_interface_def_body_element(&node.value, &elem_qname, file_path, out);

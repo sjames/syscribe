@@ -28,15 +28,17 @@ components themselves. A `sysmlSubmodel: true` package can already carry every s
 actually contains, because `ConnectionUsageMember.connect_from`/`connect_to`/`connect_extra_ends`
 are fully parsed by `sysml-v2-parser` and simply never read.
 
-**Disclosed limitation, not fixed by this requirement:** `n2 <qname>` (**scoped** to a specific
-element) builds its row/column axis from the scope element's own `features:` list
-(`crates/syscribe/src/n2.rs::subpart_axis`) exclusively — a SysMLv2-synthesized `part def`/`part`
-never populates `features:` (its subparts are separate synthesized children,
-`REQ-TRS-SYSMLV2-002`), so scoped `n2` on any SysMLv2 subtree reports `(no parts in scope)`
-regardless of this requirement. Only **unscoped** `n2` (the bare `n2` command, whose axis is every
-`PartDef`/`Part` in the whole model, not `features:`-derived) and `connectivity` benefit from this
-lift. This is a pre-existing `n2.rs` limitation this requirement doesn't touch and isn't its job
-to fix — disclosed here rather than left to be discovered as a surprise.
+**Disclosed limitation, not fixed by this requirement (resolved by `REQ-TRS-SYSMLV2-011`):**
+`n2 <qname>` (**scoped** to a specific element) builds its row/column axis from the scope
+element's own `features:` list (`crates/syscribe/src/n2.rs::subpart_axis`) exclusively — a
+SysMLv2-synthesized `part def`/`part` never populates `features:` (its subparts are separate
+synthesized children, `REQ-TRS-SYSMLV2-002`), so scoped `n2` on any SysMLv2 subtree reports `(no
+parts in scope)` regardless of this requirement. Only **unscoped** `n2` (the bare `n2` command,
+whose axis is every `PartDef`/`Part` in the whole model, not `features:`-derived) and
+`connectivity` benefit from this lift as originally shipped. This was a pre-existing `n2.rs`
+limitation out of this requirement's own scope — disclosed here rather than left to be discovered
+as a surprise — and was closed shortly after by `REQ-TRS-SYSMLV2-011`, which widens
+`subpart_axis` to also include SysMLv2-synthesized children by qname containment.
 
 ## Scope
 
@@ -68,9 +70,12 @@ to fix — disclosed here rather than left to be discovered as a surprise.
   existing precedent for `features:`-declared endpoints exactly (head resolved, rest of the chain
   discarded) — reached via the resolver's exact-qname match against a real synthesized instance
   instead, with no resolver changes.
-- A trailing segment past the head is therefore always discarded, not just when it happens not to
-  resolve — this is a deliberate granularity choice (instance-level, not port-level), not a
-  best-effort resolution attempt that sometimes succeeds. Not itself a validation finding.
+- As shipped, a trailing segment past the head is always discarded — a deliberate granularity
+  choice (instance-level, not port-level), not a best-effort resolution attempt. `REQ-TRS-SYSMLV2-013`
+  later widens this narrowly: a genuinely two-segment chain whose tail is explicitly redeclared on
+  the head (not merely inherited) resolves to the finer-grained edge instead; every other case
+  still falls back to this requirement's head-only behavior unchanged. Not itself a validation
+  finding either way.
 - The n-ary `connect (a, b, c)` form (`connect_extra_ends` non-empty) lifts to the same `ends:
   [{binds: ...}, ...]` shape a hand-authored n-ary `connections:` entry already uses (no
   role labels — SysML v2's own `connect` grammar carries no per-end role name to preserve).

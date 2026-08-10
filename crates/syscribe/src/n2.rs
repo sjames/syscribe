@@ -59,8 +59,27 @@ struct Edge {
     name: String,
 }
 
-/// Collect the subpart-type elements of `scope` recursively to `depth` (features typed
-/// by a Part/PartDef), de-duplicated by qualified name.
+/// True if `child`'s qualified name is a *direct* child of `parent_qname` —
+/// `<parent_qname>::<name>`, no further `::` segments. This is how a
+/// SysMLv2-synthesized subpart relates to its owning part
+/// (`REQ-TRS-SYSMLV2-002`'s qname-containment mapping — never expressed via
+/// `features:`), and equally how a hand-authored model that nests a
+/// `PartDef`/`Part` as a real child file (rather than declaring it inline
+/// via `features:`) already related to its parent — this check doesn't
+/// distinguish the two, by design (`REQ-TRS-SYSMLV2-011`).
+fn is_direct_child(parent_qname: &str, child_qname: &str) -> bool {
+    child_qname
+        .strip_prefix(parent_qname)
+        .and_then(|rest| rest.strip_prefix("::"))
+        .is_some_and(|rest| !rest.is_empty() && !rest.contains("::"))
+}
+
+/// Collect the subpart-type elements of `scope` recursively to `depth`, from
+/// two additive sources — `features:`-typed subparts (the native-Markdown
+/// convention) and direct-child containment by qname
+/// (`REQ-TRS-SYSMLV2-011`, the SysMLv2-synthesized-child shape, harmlessly
+/// also matching a hand-authored model's own nested-file `Part`/`PartDef`
+/// children if it has any) — de-duplicated by qualified name.
 fn subpart_axis<'a>(
     scope: &'a RawElement,
     depth: usize,
@@ -81,6 +100,15 @@ fn subpart_axis<'a>(
                         out.push(t);
                         next.push(t);
                     }
+                }
+            }
+            for cand in elements {
+                if is_part(cand)
+                    && is_direct_child(&e.qualified_name, &cand.qualified_name)
+                    && seen.insert(cand.qualified_name.clone())
+                {
+                    out.push(cand);
+                    next.push(cand);
                 }
             }
         }

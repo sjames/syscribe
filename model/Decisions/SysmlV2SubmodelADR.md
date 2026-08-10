@@ -187,10 +187,13 @@ implementation instead writes a qualified, head-only qname.
   addendum mischaracterized this as a display-only "one edge per matrix cell" quirk before the
   actual `collect_edges` code was read closely enough to find the real cause); and its **scoped**
   `n2 <qname>` builds its axis exclusively from `features:` (`subpart_axis`), which a
-  SysMLv2-synthesized part never populates, so `n2` scoped to any SysMLv2 subtree reports no parts
-  at all regardless of this requirement — only unscoped `n2` (whole-model axis, built differently)
-  and `connectivity` benefit from this lift. `connectivity` correctly builds a full star over
-  every end and was the tool actually used to confirm the n-ary case end-to-end.
+  SysMLv2-synthesized part never populates, so `n2` scoped to any SysMLv2 subtree reported no
+  parts at all regardless of this requirement as originally shipped — only unscoped `n2`
+  (whole-model axis, built differently) and `connectivity` benefited from this lift at first.
+  `connectivity` correctly builds a full star over every end and was the tool actually used to
+  confirm the n-ary case end-to-end. (The scoped-`n2` gap was closed shortly after by
+  `REQ-TRS-SYSMLV2-011`'s own addendum below, which widens `subpart_axis` itself; the n-ary
+  `collect_edges` limitation remains open.)
 - **Rejected: also synthesizing matching `features:` entries**, to route through the *same*
   resolution path a hand-authored model would use. Rejected because it would (a) duplicate data
   already present in a different, already-correct form (each subpart's own synthesized child
@@ -213,3 +216,114 @@ implementation instead writes a qualified, head-only qname.
   usage shares the identical `PartUsageBody` shape `REQ-TRS-SYSMLV2-008`/`-009` already extended
   their own lifts to. Fixed by wiring `part_usage_connection_entries` into that branch too, the
   same way `with_syscribe_meta`/`with_doc` already were.
+
+## Addendum: `n2`'s scoped axis widened to include SysMLv2 children (`REQ-TRS-SYSMLV2-011`)
+
+`REQ-TRS-SYSMLV2-010`'s addendum above already disclosed that `n2 <qname>`'s axis (`n2.rs`'s
+`subpart_axis`) is `features:`-only, so scoped `n2` never sees a SysMLv2 subtree. This addendum
+closes that gap, choosing the fix mechanism deliberately.
+
+- **Widen `subpart_axis` to add qname-containment as a second, additive source — not a new
+  `sysmlSubmodel:`-aware code path.** `subpart_axis` gains one more per-element check: is a
+  candidate's qname a direct child (`<scope>::<name>`, no further `::`) of the current frontier
+  element? This has nothing SysMLv2-specific in it — it's the same containment relationship
+  `graph.rs`'s `Contains` edge already establishes for every element in the model, regardless of
+  origin. **Rejected:** gating the new check behind `sysmlSubmodel: true`, which would have made
+  the fix a special case rather than a general one, and would have missed the (admittedly rarer,
+  but real) case of a hand-authored model that nests a `PartDef`/`Part` as a real child file
+  instead of an inline `features:` entry — that shape gets the exact same, pre-existing "invisible
+  to scoped `n2`" gap today, for the identical reason, and deserves the identical fix.
+- **Rejected: synthesizing `features:` entries during ingestion instead of touching `n2.rs`
+  directly**, mirroring `REQ-TRS-SYSMLV2-010`'s own earlier rejection of the same idea for
+  `graph.rs`'s connection-edge resolver. Same two reasons apply again: duplicated data inviting
+  drift, and `features:`-path resolution in `n2.rs` (like `graph.rs`) only resolves to the
+  *type*, not the instance — `n2`'s axis would still be less precise (type-collapsed) than
+  containment-based inclusion gives it directly.
+- **`is_part`'s existing `PartDef`/`Part`-only filter is unchanged, deliberately.** A `Port`
+  endpoint (e.g. this repository's own worked-example `powerLink connect powerPort to
+  rotorConfig;`) still never appears on `n2`'s axis — widening `is_part` itself, or teaching `n2`
+  to resolve a `Port` endpoint up to its owning `Part`, is a different, unscoped concern this
+  requirement doesn't attempt.
+
+## Addendum: local, lookahead-only resolution of a two-segment `connect` endpoint (`REQ-TRS-SYSMLV2-013`)
+
+`REQ-TRS-SYSMLV2-010`'s head-only qualification is correct but lossy when a `.sysml` author
+explicitly redeclares the referenced feature on the usage itself, rather than only inheriting it
+from the type — `connect a.fooProvider to b.fooClient;` where `a`'s own body genuinely declares
+`interface fooProvider : IFoo;` has a real, already-parsed answer sitting right there in the AST
+that head-only qualification was discarding unconditionally.
+
+- **Resolution stays purely local — no resolver, no global element list, no inheritance
+  reasoning.** `find_sibling(head)` searches only the *same enclosing body* the `connection` usage
+  itself lives in, for a `part` usage named by the head; if found, that usage's own already-parsed
+  body (not a separately-synthesized `RawElement` — this all happens before any child conversion
+  for that usage has occurred) is searched for a direct child named by the tail. This is
+  deliberately narrower than "resolve like any other cross-reference" (the originating issue's own
+  phrasing) — a real resolver-based approach would need the complete, cross-file element graph,
+  which doesn't exist yet at the point `ingest_subtree` is converting one file's own AST. Rejected
+  for the same reason a global lookup was rejected everywhere else in this module: this feature
+  doesn't need it, and reaching for it would be a much larger, cross-cutting change (deferring
+  connection-entry construction to a second pass after the whole model is known) for a case that's
+  fully answerable from the AST already in hand.
+- **Only a genuinely two-segment chain is eligible; three-plus segments always fall back.**
+  Extending the lookahead to walk multiple levels deep (`a.b.c`, matching a nested `part` usage's
+  own nested child) was considered and rejected as unnecessary complexity for a case the
+  originating issue's own acceptance criteria didn't ask for — `REQ-TRS-SYSMLV2-013`'s own worked
+  example is two segments (`a.fooProvider`), and every real motivating case found in practice was
+  as well. A future requirement can widen the recursion depth if a concrete need for it surfaces;
+  the one-level lookahead doesn't need restructuring to get there, just a loop instead of a single
+  step.
+- **The head must be a `part` usage specifically — not a `port`/`attribute` sibling, not a `part
+  def`.** A connect endpoint's head is, definitionally, the thing that structurally *has* the
+  nested feature the tail names; a `port`/`attribute` sibling has no body of its own to search
+  (its shape doesn't carry nested named children the way a `part` usage's does), and a `part def`
+  isn't the local usage instance a `connect` clause actually wires. Both fall back to head-only,
+  same as any other non-match.
+- **No `item` usage arm in the tail-matching search — confirmed, not assumed, to be correct.**
+  `PartUsageBodyElement` (a `part` *usage*'s own body-element enum) carries no `ItemUsage` variant
+  at all in this grammar version, unlike `PartDefBodyElement`'s — so a `part` usage genuinely
+  cannot declare a nested `item` usage in the first place, verified against the parser's own enum
+  definition rather than inferred from the absence of test coverage.
+
+## Addendum: doc-comment `@Syscribe*` directives for `interface def`/`port def`/`connection def` (`REQ-TRS-SYSMLV2-014`)
+
+Issue #100 asked for `REQ-TRS-SYSMLV2-008`'s real `@Name { field = value; }` metadata annotations
+to widen from `part def`/`part` to `interface def`/`port def`/`connection def`. Investigated
+before implementing, per this module's own established discipline (the same two-round pattern
+`REQ-TRS-SYSMLV2-013`'s addendum above used): confirmed by direct inspection of the vendored
+`sysml-v2-parser` source, in both the pinned 0.53.0 and the latest 0.54.0, that
+`InterfaceDefBodyElement`, `PortDefBodyElement`, and `ConnectionDefBodyElement` carry **no
+`MetadataAnnotation` variant at all** — not a missing `ingest.rs` dispatch arm the way an unmapped
+element kind is, but a genuine absence in the grammar production for these three body kinds.
+`@SyscribeImplementedBy { path = '...'; }` inside an `interface def { }` is a hard parse error
+(`W541`), confirmed empirically, exactly matching the issue's own reported evidence.
+
+- **Real fix requires an upstream parser change, which this repository doesn't own.**
+  `sysml-v2-parser` is a plain crates.io version dependency (`sub-decision 2` above), not a
+  vendored/forked local copy. Widening these three enums to accept `@Name { ... }` is a grammar
+  change in a crate this repository doesn't control the source of (`elan8/sysml-v2-parser`).
+  Forking/vendoring the parser to make that change locally was considered and rejected — it would
+  reverse sub-decision 2's deliberate architectural choice (a trusted, non-executing, compile-time
+  dependency over owning a semantic engine) for the sake of one field-lift issue, a much larger and
+  higher-risk change than the problem warrants.
+- **Doc-comment-embedded directive lines as a deliberate, different, substitute syntax.**
+  `REQ-TRS-SYSMLV2-014` recognizes `@SyscribeDomain: ...`/`@SyscribeIntegrity:
+  ...`/`@SyscribeShortName: ...`/`@SyscribeImplementedBy: ...` lines inside the `doc /* ... */`
+  comment these three element kinds already support (`REQ-TRS-SYSMLV2-009`), stripping a
+  recognized line out of the lifted `doc:` text and writing the corresponding frontmatter field
+  instead — landing on exactly the same fields `REQ-TRS-SYSMLV2-008` lifts, through a text-scan of
+  already-lifted doc content rather than a second `MetadataAnnotation`-walking function. This is
+  explicitly **not** presented as the same syntax as the real `@Name{...}` annotation form — a
+  `.sysml` author writing `interface def`/`port def`/`connection def` metadata uses a visibly
+  different spelling (a colon-suffixed line inside a comment, not a structural annotation before a
+  member) specifically because the real form has nowhere to parse to for these three kinds. Should
+  upstream ever add the missing `MetadataAnnotation` coverage (issue #100's suggested path 1), this
+  directive mechanism is not retired — it becomes a second, always-available spelling, the same way
+  a stable `id` and a qualified name are both valid cross-reference targets today.
+- **Reuses the lifted doc string, not a second AST walk.** The directive scanner runs over the
+  text `doc_lift` (`REQ-TRS-SYSMLV2-009`) already produced for that element, rather than
+  re-inspecting `DocComment` AST nodes directly — one text-processing step, not a duplicate
+  traversal of the body-element list already walked once for the doc lift itself.
+- **Last directive wins per field**, matching `REQ-TRS-SYSMLV2-008`'s existing behavior for
+  multiple real `@Syscribe*` annotations of the same name on one element — no new "which one
+  applies" rule invented for the doc-comment form.

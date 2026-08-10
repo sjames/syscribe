@@ -470,3 +470,61 @@ fn a_connection_def_doc_block_coexists_with_recursion_into_nested_members() {
         });
     assert_eq!(port.frontmatter.element_type, Some(syscribe_model::element::ElementType::Port));
 }
+
+#[test]
+fn a_named_connection_usage_lifts_its_own_trailing_doc_body() {
+    // REQ-TRS-SYSMLV2-012: a named `connection name : Type connect a to b {
+    // doc /* ... */ }` usage's own trailing body was never read at all by
+    // convert_connection_usage -- the sibling gap to REQ-TRS-SYSMLV2-009's
+    // connection def lift, closed here by reusing connection_def_doc
+    // unchanged (ConnectionUsageMember.body is the same ConnectionDefBody
+    // shape).
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def Ecu;\n\
+         part def Holder {\n\
+         part a : Ecu;\n\
+         part b : Ecu;\n\
+         connection c : SomeConnDef connect a to b {\n\
+         doc /* Explanation. */\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let conn = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::Holder::c")
+        .unwrap();
+    assert_eq!(conn.doc, "Explanation.");
+}
+
+#[test]
+fn a_named_connection_usage_with_no_trailing_body_is_unaffected_no_regression() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def Ecu;\n\
+         part def Holder {\n\
+         part a : Ecu;\n\
+         part b : Ecu;\n\
+         connection c : SomeConnDef connect a to b;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let conn = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::Holder::c")
+        .unwrap();
+    assert_eq!(conn.doc, "");
+}

@@ -18,9 +18,17 @@ All requirements derive from `REQ-TRS-SYSMLV2-000` and are governed by `ADR-SYS-
 (`REQ-TRS-SYSMLV2-006`), the parse-broad/map-narrow element-coverage boundary
 (`REQ-TRS-SYSMLV2-007`), a fixed set of `@Syscribe*` metadata annotations for
 `domain:`/integrity-level/`shortName:`/`implementedBy:` (`REQ-TRS-SYSMLV2-008`), `doc /* ... */`
-comment lifting into the synthesized element's `doc` body (`REQ-TRS-SYSMLV2-009`), and a named
+comment lifting into the synthesized element's `doc` body (`REQ-TRS-SYSMLV2-009`), a named
 connection usage's `connect` endpoints lifting onto the owning part's `connections:` field
-(`REQ-TRS-SYSMLV2-010`).
+(`REQ-TRS-SYSMLV2-010`), and `n2`'s scoped subpart axis including SysMLv2-synthesized children by
+qname containment, not only `features:`-declared ones (`REQ-TRS-SYSMLV2-011`), and a named
+connection usage's own trailing `doc /* ... */` body lifting onto the synthesized `Connection`
+element (`REQ-TRS-SYSMLV2-012`), and resolving a two-segment `connect` endpoint to a redeclared
+nested feature of its head when one is actually declared, falling back to the head-only edge
+otherwise (`REQ-TRS-SYSMLV2-013`), and a doc-comment-embedded `@Syscribe*` directive syntax
+lifting the same fixed field set onto `interface def`/`port def`/`connection def` — element kinds
+whose body grammars carry no `MetadataAnnotation` slot for the real `@Name{...}` form
+(`REQ-TRS-SYSMLV2-014`).
 
 This is a read-only validator: the submodel's `.sysml`/`.kerml` files stay authoritative and are
 edited by their own native tooling, never by Syscribe's web UI or mutate commands. A

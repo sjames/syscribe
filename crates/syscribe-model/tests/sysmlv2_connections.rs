@@ -385,3 +385,178 @@ fn a_connect_inside_a_variant_part_usage_also_lifts() {
     assert!(idx.get("SysML2Legacy::Config::RotorConfig::quadConfig::a").is_none());
     let _ = graph;
 }
+
+#[test]
+fn a_two_segment_endpoint_resolves_to_the_redeclared_nested_feature() {
+    // REQ-TRS-SYSMLV2-013: when the head's own body explicitly redeclares
+    // the feature the tail names, the full chain qualifies -- not just the
+    // head -- and it's a real, resolvable graph edge at feature granularity.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         interface def IFoo;\n\
+         part def A;\n\
+         part def B;\n\
+         part def Top {\n\
+         part a : A {\n\
+         interface fooProvider : IFoo;\n\
+         }\n\
+         part b : B {\n\
+         interface fooClient : IFoo;\n\
+         }\n\
+         connection link1 : Link connect a.fooProvider to b.fooClient;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let top = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::Top")
+        .unwrap();
+    let conns = top.frontmatter.connections.as_ref().unwrap();
+    let m = conns[0].as_mapping().unwrap();
+    assert_eq!(
+        m.get("from").and_then(|v| v.as_str()),
+        Some("SysML2Legacy::CarOS::Top::a::fooProvider")
+    );
+    assert_eq!(
+        m.get("to").and_then(|v| v.as_str()),
+        Some("SysML2Legacy::CarOS::Top::b::fooClient")
+    );
+
+    let (graph, idx) = build_graph(&elements);
+    let from = *idx.get("SysML2Legacy::CarOS::Top::a::fooProvider").unwrap();
+    let to = *idx.get("SysML2Legacy::CarOS::Top::b::fooClient").unwrap();
+    assert!(graph.edges_connecting(from, to).any(|e| *e.weight() == EdgeKind::Connection));
+}
+
+#[test]
+fn a_two_segment_endpoint_with_no_matching_redeclaration_falls_back_to_head_only() {
+    // The common, inherited-feature case REQ-TRS-SYSMLV2-010 already
+    // handled: `a`'s own body doesn't redeclare `noSuchThing`, so the
+    // endpoint falls back to head-only exactly as before this requirement.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def Ecu {\n\
+         port p1 : SomePort;\n\
+         }\n\
+         part def Top {\n\
+         part a : Ecu;\n\
+         part b : Ecu;\n\
+         connection c : Link connect a.p1 to b.p1;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let top = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::Top")
+        .unwrap();
+    let conns = top.frontmatter.connections.as_ref().unwrap();
+    let m = conns[0].as_mapping().unwrap();
+    assert_eq!(m.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::a"));
+    assert_eq!(m.get("to").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::b"));
+}
+
+#[test]
+fn a_three_segment_endpoint_falls_back_to_head_only() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         interface def IFoo;\n\
+         part def A;\n\
+         part def B;\n\
+         part def Top {\n\
+         part a : A {\n\
+         interface fooProvider : IFoo;\n\
+         }\n\
+         part b : B;\n\
+         connection c : Link connect a.fooProvider.deep to b;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let top = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::Top")
+        .unwrap();
+    let conns = top.frontmatter.connections.as_ref().unwrap();
+    let m = conns[0].as_mapping().unwrap();
+    assert_eq!(
+        m.get("from").and_then(|v| v.as_str()),
+        Some("SysML2Legacy::CarOS::Top::a"),
+        "a three-segment chain should fall back to head-only, not attempt any deeper resolution"
+    );
+}
+
+#[test]
+fn a_bare_endpoint_is_still_unaffected_by_the_two_segment_resolution_logic() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def Ecu;\n\
+         part def Top {\n\
+         part a : Ecu;\n\
+         part b : Ecu;\n\
+         connection c : Link connect a to b;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let top = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::Top")
+        .unwrap();
+    let conns = top.frontmatter.connections.as_ref().unwrap();
+    let m = conns[0].as_mapping().unwrap();
+    assert_eq!(m.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::a"));
+    assert_eq!(m.get("to").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::b"));
+}
+
+#[test]
+fn a_head_that_is_not_a_part_usage_sibling_falls_back_to_head_only() {
+    // The head resolves to something other than a `part` usage in the same
+    // body (here, a's own connect target is a port sibling directly, no
+    // enclosing part usage named "p1") -- find_sibling correctly finds
+    // nothing and falls back, rather than panicking or mis-resolving.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def Top {\n\
+         port p1 : SomePort;\n\
+         part b : Ecu;\n\
+         connection c : Link connect p1.deep to b;\n\
+         }\n\
+         part def Ecu;\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let top = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::CarOS::Top")
+        .unwrap();
+    let conns = top.frontmatter.connections.as_ref().unwrap();
+    let m = conns[0].as_mapping().unwrap();
+    assert_eq!(m.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::p1"));
+}

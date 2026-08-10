@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** syscribe 0.34.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-08-09  
+**Date:** 2026-08-10  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 270 |
-| Passed | 270 |
+| Total test cases | 276 |
+| Passed | 276 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1776,6 +1776,17 @@
 
 ---
 
+### TC-TRS-PLANITEM-009 — Verify `template PlanningItem` prints a ready-to-fill skeleton, and PlanningItem is listed among the Known types shown for an unrecognized template argument.
+
+**Verifies:** REQ-TRS-PLANITEM-009  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| PlanningItem is listed as a known native type | ✓ PASS |
+
+---
+
 ### TC-TRS-PROJ-001 — Verify the --config projection lens: stored + ad-hoc selection, dormancy, unresolved error.
 
 **Verifies:** REQ-TRS-PROJ-001  
@@ -2468,6 +2479,50 @@
 | Scenario | Result |
 |---|---|
 | a connection usage with no connect clause contributes no entry | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-011 — Verify n2's scoped subpart axis includes SysMLv2-synthesized direct children and a lifted connection populates the off-diagonal cell, with no regression to unscoped n2 or the existing features:-only native n2 behavior.
+
+**Verifies:** REQ-TRS-SYSMLV2-011  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| unscoped n2 is unaffected | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-012 — Verify a named connection usage's own trailing doc /* ... */ body lifts into the synthesized Connection element's doc field, with no regression for a connection usage with no trailing body.
+
+**Verifies:** REQ-TRS-SYSMLV2-012  
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a connection usage with no trailing body is unaffected | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-013 — Verify a two-segment connect endpoint resolves to a redeclared nested feature when one exists, falls back to head-only otherwise, and a three-segment chain always falls back.
+
+**Verifies:** REQ-TRS-SYSMLV2-013  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a three-segment chain always falls back to head-only | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-014 — Verify a doc-comment @Syscribe*: directive lifts shortName/implementedBy onto an interface def and domain/asilLevel onto a port def, drives W023, strips the directive line from doc:, and leaves an unrecognized @...: line and a plain interface def unaffected.
+
+**Verifies:** REQ-TRS-SYSMLV2-014  
+**Result:** ✓ PASS (11 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an interface def with no doc comment is unaffected | ✓ PASS |
 
 ---
 
@@ -3170,6 +3225,17 @@
 | list --has-wcet --json includes wcet | ✓ PASS |
 | SIL requirement with wcet, no measuring test produces W029 | ✓ PASS |
 | W029 is gateable with --deny | ✓ PASS |
+
+---
+
+### TC-TRS-VAL-017 — Verify W600 is suppressed on a Part usage whose typedBy: target already carries non-empty documentation, and still fires for a PartDef itself, a Part typed by an equally-undocumented target, and a Part with an unresolvable typedBy:.
+
+**Verifies:** REQ-TRS-VAL-017  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a Part with an unresolvable typedBy: still raises W600 | ✓ PASS |
 
 ---
 
