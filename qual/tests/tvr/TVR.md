@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 271 |
-| Passed | 271 |
+| Total test cases | 272 |
+| Passed | 272 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2479,6 +2479,17 @@
 | Scenario | Result |
 |---|---|
 | unscoped n2 is unaffected | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-012 — Verify a named connection usage's own trailing doc /* ... */ body lifts into the synthesized Connection element's doc field, with no regression for a connection usage with no trailing body.
+
+**Verifies:** REQ-TRS-SYSMLV2-012  
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a connection usage with no trailing body is unaffected | ✓ PASS |
 
 ---
 

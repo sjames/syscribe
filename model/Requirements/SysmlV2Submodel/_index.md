@@ -21,7 +21,9 @@ All requirements derive from `REQ-TRS-SYSMLV2-000` and are governed by `ADR-SYS-
 comment lifting into the synthesized element's `doc` body (`REQ-TRS-SYSMLV2-009`), a named
 connection usage's `connect` endpoints lifting onto the owning part's `connections:` field
 (`REQ-TRS-SYSMLV2-010`), and `n2`'s scoped subpart axis including SysMLv2-synthesized children by
-qname containment, not only `features:`-declared ones (`REQ-TRS-SYSMLV2-011`).
+qname containment, not only `features:`-declared ones (`REQ-TRS-SYSMLV2-011`), and a named
+connection usage's own trailing `doc /* ... */` body lifting onto the synthesized `Connection`
+element (`REQ-TRS-SYSMLV2-012`).
 
 This is a read-only validator: the submodel's `.sysml`/`.kerml` files stay authoritative and are
 edited by their own native tooling, never by Syscribe's web UI or mutate commands. A

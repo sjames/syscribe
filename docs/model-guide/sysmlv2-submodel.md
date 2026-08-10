@@ -309,6 +309,20 @@ a plain `interface` usage all lift their own `doc` block the same way their def 
 `InterfaceUsageBodyElement::Doc` variant, distinct from (but handled the same way as)
 `InterfaceDef`'s `InterfaceDefBodyElement::Doc`.
 
+A named `connection name : Type connect a to b { doc /* ... */ }` usage's own trailing body lifts
+the same way (`REQ-TRS-SYSMLV2-012`) — reusing `connection def { }`'s own doc-reading logic
+unchanged, since `ConnectionUsageMember.body` is the identical `ConnectionDefBody` shape:
+
+```sysml
+connection carDisplayToCompositor : DisplayLink connect carDisplayService to compositor {
+    doc /* Over Interfaces::Display::ICompositorControl. */
+}
+```
+
+lifts onto the synthesized `Connection` element, not the owning part — distinct from, and
+independent of, `REQ-TRS-SYSMLV2-010`'s endpoint lift onto the *owning part's* `connections:`
+field. A connection usage with no trailing body is unaffected.
+
 ## 8. Connection-endpoint lift
 
 A `part def`/`part`'s named `connection name : Type connect a to b (, c)*;` usage member lifts its

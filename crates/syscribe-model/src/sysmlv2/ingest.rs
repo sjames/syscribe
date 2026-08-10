@@ -1115,10 +1115,19 @@ fn convert_connection_usage(
         return; // anonymous connection usage: no identity to qname against
     };
     let elem_qname = format!("{qname}::{name}");
+    // c.body is the same ConnectionDefBody/ConnectionDefBodyElement shape
+    // convert_connection_def already reads its own body through — reused
+    // unchanged here, REQ-TRS-SYSMLV2-012 (the sibling usage-body doc lift
+    // REQ-TRS-SYSMLV2-009 didn't reach).
+    let doc = match &c.body {
+        sysml_v2_parser::ConnectionDefBody::Brace { elements } => connection_def_doc(elements),
+        sysml_v2_parser::ConnectionDefBody::Semicolon => String::new(),
+    };
     let spec = Spec {
         typed_by: c.type_name.clone(),
         ..Default::default()
-    };
+    }
+    .with_doc(doc);
     push_synth(out, &elem_qname, file_path, ElementType::Connection, &name, spec);
 }
 

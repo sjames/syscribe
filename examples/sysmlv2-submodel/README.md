@@ -2,7 +2,7 @@
 
 A small, standalone drone-propulsion model demonstrating every capability of
 native SysML v2/KerML submodel ingestion (`ADR-SYS-SYSMLV2-001`,
-`REQ-TRS-SYSMLV2-000` through `-011`) in one coherent scenario. It is a
+`REQ-TRS-SYSMLV2-000` through `-012`) in one coherent scenario. It is a
 separate model root from this repository's own `model/` — running validation
 here never affects that model's baseline.
 
@@ -94,16 +94,20 @@ contributes different members than `Structure.sysml` (no name collisions):
 - `requirement def RotorThrustReqDef;` — **RequirementDef**
 - `part def Drone { port powerPort : PowerPort; interface powerIface :
   PowerInterface; connection powerLink : PowerLink connect powerPort to
-  rotorConfig; part rotorConfig : RotorConfigChoice; allocation motorAlloc :
-  RotorAssembly; requirement thrustCheck : RotorThrustReqDef { verify
-  'REQ-DRONE-VERIFY-001'; } satisfy Requirements::'REQ-DRONE-THRUST-001'; }`
-  — a **PartDef** containing an **Interface usage**, a **Connection usage**
-  whose `connect powerPort to rotorConfig;` clause lifts onto `Drone`'s own
-  `connections:` field as a real, resolvable `connectivity` edge
-  (`REQ-TRS-SYSMLV2-010`), a **Part usage** (typed by the variation point
-  above), an **AllocationUsage**, a **Requirement usage** whose own `verify`
-  targets a native `Requirement` by qname (`REQ-TRS-SYSMLV2-003`, `verify`
-  keyword), and a `satisfy` targeting a different native `Requirement` by
+  rotorConfig { doc /* ... */ } part rotorConfig : RotorConfigChoice;
+  allocation motorAlloc : RotorAssembly; requirement thrustCheck :
+  RotorThrustReqDef { verify 'REQ-DRONE-VERIFY-001'; } satisfy
+  Requirements::'REQ-DRONE-THRUST-001'; }` — a **PartDef** containing an
+  **Interface usage**, a **Connection usage** whose `connect powerPort to
+  rotorConfig;` clause lifts onto `Drone`'s own `connections:` field as a
+  real, resolvable `connectivity` edge (`REQ-TRS-SYSMLV2-010`), and whose own
+  trailing `{ doc /* ... */ }` body lifts onto the synthesized `powerLink`
+  element itself (`REQ-TRS-SYSMLV2-012`) — two independent lifts from the
+  same usage, onto two different elements — a **Part usage** (typed by the
+  variation point above), an **AllocationUsage**, a **Requirement usage**
+  whose own `verify` targets a native `Requirement` by qname
+  (`REQ-TRS-SYSMLV2-003`, `verify` keyword), and a `satisfy` targeting a
+  different native `Requirement` by
   its Syscribe qualified name (`REQ-TRS-SYSMLV2-003`, qname form)
 - `part droneInstance : Drone;` — a package-level **Part usage** of `Drone`
   (keeps `Drone` genuinely referenced as a type, matching how everything else
@@ -181,9 +185,9 @@ element's non-empty body would.
 
 ## Connection-endpoint lift (`REQ-TRS-SYSMLV2-010`)
 
-`Drone`'s `connection powerLink : PowerLink connect powerPort to rotorConfig;` lifts onto
-`Drone`'s own `connections:` field — not onto the nested `powerLink` element — as a real,
-resolvable graph edge between two of `Drone`'s own direct children:
+`Drone`'s `connection powerLink : PowerLink connect powerPort to rotorConfig { doc /* ... */ }`
+lifts onto `Drone`'s own `connections:` field — not onto the nested `powerLink` element — as a
+real, resolvable graph edge between two of `Drone`'s own direct children:
 
 ```
 $ ./target/debug/syscribe -m examples/sysmlv2-submodel/model connectivity \
@@ -207,6 +211,26 @@ dotted chain's trailing segment is deliberately dropped rather than resolved. Th
 is visible via `connectivity` but not `n2` — `n2`'s axis stays `PartDef`/`Part`-only, by its own
 pre-existing design unrelated to this feature, so `powerPort` (a `Port`) never appears there
 regardless, scoped or unscoped.
+
+## Connection-usage doc lift (`REQ-TRS-SYSMLV2-012`)
+
+That same `powerLink` usage's trailing `{ doc /* ... */ }` body lifts independently, onto the
+synthesized `powerLink` element itself this time — not onto `Drone`'s `connections:`:
+
+```
+$ ./target/debug/syscribe -m examples/sysmlv2-submodel/model show \
+    PropulsionSubsystem::Propulsion::Drone::powerLink
+...
+## Documentation
+
+Primary power feed from the airframe bus to the active rotor configuration.
+```
+
+Two independent lifts read the same `connection powerLink : PowerLink connect powerPort to
+rotorConfig { doc /* ... */ }` statement: `REQ-TRS-SYSMLV2-010` reads `connect_from`/`connect_to`
+onto the *owning part* (`Drone`); `REQ-TRS-SYSMLV2-012` reads the trailing `{ }` body onto
+`powerLink` *itself*. Neither depends on the other — a connection usage can carry either, both, or
+neither.
 
 ## `n2`'s scoped axis (`REQ-TRS-SYSMLV2-011`)
 
