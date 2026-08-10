@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 274 |
-| Passed | 274 |
+| Total test cases | 275 |
+| Passed | 275 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1773,6 +1773,17 @@
 | Scenario | Result |
 |---|---|
 | a malformed [users] key is flagged and excluded from the roster | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-009 — Verify `template PlanningItem` prints a ready-to-fill skeleton, and PlanningItem is listed among the Known types shown for an unrecognized template argument.
+
+**Verifies:** REQ-TRS-PLANITEM-009  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| PlanningItem is listed as a known native type | ✓ PASS |
 
 ---
 

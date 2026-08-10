@@ -2763,6 +2763,28 @@ What was decided.
 
 What are the results of this decision?
 "#,
+        "planningitem" => r#"---
+type: PlanningItem
+id: PI-PREFIX-001
+name: "Short description of the work"
+status: todo               # todo | in_progress | blocked | done
+itemType: task              # bug | task | feature (optional)
+# A top-level item (no parent:) MUST set achieves: (E713/E714/E715).
+achieves:
+  - REQ-PREFIX-001
+# A child item sets parent: instead of achieves: (single-parent tree, E712 cycle check).
+# parent: PI-PREFIX-001
+# blockedBy:                # what this item is waiting on; permissively resolved like evidence.ref
+#   - PI-PREFIX-002
+# assignedTo: jdoe           # single Unix-style username (E723; optionally checked against [users] in .syscribe.toml)
+# evidence:                 # required (non-waived, resolving) on a leaf item claiming status: done (E719)
+#   - ref: TC-PREFIX-001
+#   - path: src/some_file.rs
+#     rationale: "Why this entry is waived instead of resolving"
+---
+
+Describe the work item. Inspect with `syscribe -m model/ show PI-PREFIX-001`.
+"#,
         "zone" => r#"---
 type: Zone
 id: ZN-PREFIX-001
@@ -3685,7 +3707,7 @@ pub fn cmd_template(type_name: &str) {
         Some(out) => print!("{}", out),
         None => {
             eprintln!("Unknown type '{}'. Known types:", type_name);
-            eprintln!("  Native elements:  Requirement, TestCase, TestPlan, ADR");
+            eprintln!("  Native elements:  Requirement, TestCase, TestPlan, ADR, PlanningItem");
             eprintln!("  Structural:       PartDef, Part, ItemDef, Item");
             eprintln!("  Interfaces:       PortDef, Port, InterfaceDef, Interface");
             eprintln!("  Connections:      ConnectionDef, Connection");
@@ -4093,5 +4115,26 @@ mod custom_where_tests {
         let e = elem_with(&[("reviewCycle", serde_yaml::Value::Number(3.into()))]);
         assert!(custom_field_matches(&e, &parse_custom_where("custom.reviewCycle=3").unwrap()));
         assert_eq!(custom_field_display(&serde_yaml::Value::Number(3.into())), "3");
+    }
+}
+
+// Regression for #102: PlanningItem was a fully working native type (list/types/
+// validate all handled it) but template's dispatch had never been updated for it.
+#[cfg(test)]
+mod planning_item_template_tests {
+    use super::*;
+
+    #[test]
+    fn planning_item_has_a_template() {
+        let out = template_str("PlanningItem").expect("PlanningItem template");
+        assert!(out.contains("type: PlanningItem"));
+        assert!(out.contains("id: PI-"));
+        assert!(out.contains("status:"));
+    }
+
+    #[test]
+    fn planning_item_lookup_is_case_insensitive() {
+        assert!(template_str("planningitem").is_some());
+        assert!(template_str("PLANNINGITEM").is_some());
     }
 }
