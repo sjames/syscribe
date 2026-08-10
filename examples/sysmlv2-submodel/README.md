@@ -2,7 +2,7 @@
 
 A small, standalone drone-propulsion model demonstrating every capability of
 native SysML v2/KerML submodel ingestion (`ADR-SYS-SYSMLV2-001`,
-`REQ-TRS-SYSMLV2-000` through `-010`) in one coherent scenario. It is a
+`REQ-TRS-SYSMLV2-000` through `-011`) in one coherent scenario. It is a
 separate model root from this repository's own `model/` — running validation
 here never affects that model's baseline.
 
@@ -204,13 +204,29 @@ Both `powerPort` and `rotorConfig` are bare (unchained) names here — no `.` se
 this demonstrates the common case cleanly; see `qual/fixtures/TC-TRS-SYSMLV2-010/` for the dotted
 (`a.p1`) and n-ary (`connect (a, b, c)`) forms, and `ADR-SYS-SYSMLV2-001`'s addendum for why a
 dotted chain's trailing segment is deliberately dropped rather than resolved. This particular edge
-is visible via `connectivity` but not `n2` — **unscoped** `n2` (the bare `n2` command) doesn't
-include `Port`-typed elements as rows/columns at all, by its own pre-existing design unrelated to
-this feature, so `powerPort` never appears there regardless; a `connect` between two `Part`-typed
-siblings would show up in unscoped `n2` too. **Scoped** `n2 <qname>` doesn't benefit from this
-lift at all, for either kind of endpoint — its axis comes from `features:` alone, which no
-SysMLv2-synthesized part ever populates (see `REQ-TRS-SYSMLV2-010`'s Rationale for the full
-disclosure); try `n2 PropulsionSubsystem::Propulsion::Drone` here to see it firsthand.
+is visible via `connectivity` but not `n2` — `n2`'s axis stays `PartDef`/`Part`-only, by its own
+pre-existing design unrelated to this feature, so `powerPort` (a `Port`) never appears there
+regardless, scoped or unscoped.
+
+## `n2`'s scoped axis (`REQ-TRS-SYSMLV2-011`)
+
+`n2 PropulsionSubsystem::Propulsion::Drone` used to report `(no parts in scope)` — its axis came
+exclusively from `features:`, which no SysMLv2-synthesized part populates. It now also includes
+direct-child containment, so `Drone`'s one `Part`-typed direct child shows up:
+
+```
+$ ./target/debug/syscribe -m examples/sysmlv2-submodel/model n2 \
+    PropulsionSubsystem::Propulsion::Drone
+N² Interface Matrix — PropulsionSubsystem::Propulsion::Drone (depth 1)
+
+               rotorConfig
+rotorConfig    ■
+```
+
+Only `rotorConfig` appears — `powerPort` still doesn't, for the reason above (`n2`'s axis is
+`Part`/`PartDef`-only, unrelated to this fix), and there's no *other* `Part`-typed sibling for
+`rotorConfig` to show a wired cell against here. See `qual/fixtures/TC-TRS-SYSMLV2-011/` for a
+scoped `n2` run with two wired `Part`-typed siblings, where the off-diagonal cell does populate.
 
 ## Feature model / configuration
 

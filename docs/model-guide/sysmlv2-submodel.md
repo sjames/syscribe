@@ -348,11 +348,36 @@ entry, unaffected. The anonymous binary-connector form (no `connection name :` p
 unmapped — no identity to synthesize an entry against, consistent with the module's existing
 precedent for other anonymous forms.
 
-**Disclosed limitation:** `n2 <qname>`, **scoped** to a specific element, builds its axis
-exclusively from the scope element's own `features:` list — a SysMLv2-synthesized part never
-populates `features:`, so scoped `n2` on any SysMLv2 subtree still reports no parts at all,
-regardless of this lift. Only **unscoped** `n2` (the bare `n2` command) and `connectivity` benefit.
-`n2`'s own edge-collection also reads only the first two ends of any n-ary connection (native or
-SysMLv2-lifted alike), so a three-way `connect (a, b, c)` shows `a`↔`b` but not `a`↔`c` in `n2`;
-`connectivity` correctly builds the full star. Both are pre-existing `n2.rs` characteristics this
-requirement doesn't touch.
+**Remaining disclosed limitation:** `n2`'s own edge-collection reads only the first two ends of
+any n-ary connection (native or SysMLv2-lifted alike), so a three-way `connect (a, b, c)` shows
+`a`↔`b` but not `a`↔`c` in `n2`; `connectivity` correctly builds the full star. A pre-existing
+`n2.rs` characteristic this requirement doesn't touch. (An earlier, now-resolved limitation —
+scoped `n2 <qname>` reporting no parts at all for any SysMLv2 subtree — is fixed by
+`REQ-TRS-SYSMLV2-011`, §9 below.)
+
+## 9. `n2`'s scoped axis includes SysMLv2-synthesized children
+
+`n2 <qname>`'s subpart axis previously came exclusively from the scope element's own `features:`
+list — the native-Markdown convention for declaring inline-typed subparts. A SysMLv2 element's
+subparts are separate, qname-nested elements instead (§2's containment mapping), never
+`features:` entries, so scoped `n2` on any SysMLv2 subtree reported `(no parts in scope)`
+regardless of how much real `connection` wiring it contained (`REQ-TRS-SYSMLV2-011`):
+
+```
+$ ./target/debug/syscribe -m examples/sysmlv2-submodel/model n2 \
+    PropulsionSubsystem::Propulsion::Drone
+N² Interface Matrix — PropulsionSubsystem::Propulsion::Drone (depth 1)
+
+               rotorConfig
+rotorConfig    ■
+```
+
+`n2`'s axis-selection now additionally includes every direct-child `PartDef`/`Part` by qname
+containment, alongside the existing `features:` source (the two are additive and de-duplicated).
+`powerPort` still doesn't appear — `n2`'s axis stays `PartDef`/`Part`-only, unchanged; a `Port`
+was never in scope for it. A `REQ-TRS-SYSMLV2-010`-lifted connection between two qname-contained
+parts now populates the off-diagonal cell the same way a `features:`-declared one always did.
+Unscoped `n2` (already `Part`/`PartDef`-inclusive regardless of origin) and a `features:`-only
+hand-authored model are both unaffected — this is a strict widening, not a SysMLv2-only special
+case (a hand-authored model that happens to nest a `PartDef`/`Part` as a real child file, rather
+than an inline `features:` entry, gains the same axis inclusion).

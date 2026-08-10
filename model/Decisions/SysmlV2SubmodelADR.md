@@ -187,10 +187,13 @@ implementation instead writes a qualified, head-only qname.
   addendum mischaracterized this as a display-only "one edge per matrix cell" quirk before the
   actual `collect_edges` code was read closely enough to find the real cause); and its **scoped**
   `n2 <qname>` builds its axis exclusively from `features:` (`subpart_axis`), which a
-  SysMLv2-synthesized part never populates, so `n2` scoped to any SysMLv2 subtree reports no parts
-  at all regardless of this requirement — only unscoped `n2` (whole-model axis, built differently)
-  and `connectivity` benefit from this lift. `connectivity` correctly builds a full star over
-  every end and was the tool actually used to confirm the n-ary case end-to-end.
+  SysMLv2-synthesized part never populates, so `n2` scoped to any SysMLv2 subtree reported no
+  parts at all regardless of this requirement as originally shipped — only unscoped `n2`
+  (whole-model axis, built differently) and `connectivity` benefited from this lift at first.
+  `connectivity` correctly builds a full star over every end and was the tool actually used to
+  confirm the n-ary case end-to-end. (The scoped-`n2` gap was closed shortly after by
+  `REQ-TRS-SYSMLV2-011`'s own addendum below, which widens `subpart_axis` itself; the n-ary
+  `collect_edges` limitation remains open.)
 - **Rejected: also synthesizing matching `features:` entries**, to route through the *same*
   resolution path a hand-authored model would use. Rejected because it would (a) duplicate data
   already present in a different, already-correct form (each subpart's own synthesized child
@@ -213,3 +216,31 @@ implementation instead writes a qualified, head-only qname.
   usage shares the identical `PartUsageBody` shape `REQ-TRS-SYSMLV2-008`/`-009` already extended
   their own lifts to. Fixed by wiring `part_usage_connection_entries` into that branch too, the
   same way `with_syscribe_meta`/`with_doc` already were.
+
+## Addendum: `n2`'s scoped axis widened to include SysMLv2 children (`REQ-TRS-SYSMLV2-011`)
+
+`REQ-TRS-SYSMLV2-010`'s addendum above already disclosed that `n2 <qname>`'s axis (`n2.rs`'s
+`subpart_axis`) is `features:`-only, so scoped `n2` never sees a SysMLv2 subtree. This addendum
+closes that gap, choosing the fix mechanism deliberately.
+
+- **Widen `subpart_axis` to add qname-containment as a second, additive source — not a new
+  `sysmlSubmodel:`-aware code path.** `subpart_axis` gains one more per-element check: is a
+  candidate's qname a direct child (`<scope>::<name>`, no further `::`) of the current frontier
+  element? This has nothing SysMLv2-specific in it — it's the same containment relationship
+  `graph.rs`'s `Contains` edge already establishes for every element in the model, regardless of
+  origin. **Rejected:** gating the new check behind `sysmlSubmodel: true`, which would have made
+  the fix a special case rather than a general one, and would have missed the (admittedly rarer,
+  but real) case of a hand-authored model that nests a `PartDef`/`Part` as a real child file
+  instead of an inline `features:` entry — that shape gets the exact same, pre-existing "invisible
+  to scoped `n2`" gap today, for the identical reason, and deserves the identical fix.
+- **Rejected: synthesizing `features:` entries during ingestion instead of touching `n2.rs`
+  directly**, mirroring `REQ-TRS-SYSMLV2-010`'s own earlier rejection of the same idea for
+  `graph.rs`'s connection-edge resolver. Same two reasons apply again: duplicated data inviting
+  drift, and `features:`-path resolution in `n2.rs` (like `graph.rs`) only resolves to the
+  *type*, not the instance — `n2`'s axis would still be less precise (type-collapsed) than
+  containment-based inclusion gives it directly.
+- **`is_part`'s existing `PartDef`/`Part`-only filter is unchanged, deliberately.** A `Port`
+  endpoint (e.g. this repository's own worked-example `powerLink connect powerPort to
+  rotorConfig;`) still never appears on `n2`'s axis — widening `is_part` itself, or teaching `n2`
+  to resolve a `Port` endpoint up to its owning `Part`, is a different, unscoped concern this
+  requirement doesn't attempt.

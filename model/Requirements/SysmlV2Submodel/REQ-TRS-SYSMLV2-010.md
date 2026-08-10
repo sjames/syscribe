@@ -28,15 +28,17 @@ components themselves. A `sysmlSubmodel: true` package can already carry every s
 actually contains, because `ConnectionUsageMember.connect_from`/`connect_to`/`connect_extra_ends`
 are fully parsed by `sysml-v2-parser` and simply never read.
 
-**Disclosed limitation, not fixed by this requirement:** `n2 <qname>` (**scoped** to a specific
-element) builds its row/column axis from the scope element's own `features:` list
-(`crates/syscribe/src/n2.rs::subpart_axis`) exclusively — a SysMLv2-synthesized `part def`/`part`
-never populates `features:` (its subparts are separate synthesized children,
-`REQ-TRS-SYSMLV2-002`), so scoped `n2` on any SysMLv2 subtree reports `(no parts in scope)`
-regardless of this requirement. Only **unscoped** `n2` (the bare `n2` command, whose axis is every
-`PartDef`/`Part` in the whole model, not `features:`-derived) and `connectivity` benefit from this
-lift. This is a pre-existing `n2.rs` limitation this requirement doesn't touch and isn't its job
-to fix — disclosed here rather than left to be discovered as a surprise.
+**Disclosed limitation, not fixed by this requirement (resolved by `REQ-TRS-SYSMLV2-011`):**
+`n2 <qname>` (**scoped** to a specific element) builds its row/column axis from the scope
+element's own `features:` list (`crates/syscribe/src/n2.rs::subpart_axis`) exclusively — a
+SysMLv2-synthesized `part def`/`part` never populates `features:` (its subparts are separate
+synthesized children, `REQ-TRS-SYSMLV2-002`), so scoped `n2` on any SysMLv2 subtree reports `(no
+parts in scope)` regardless of this requirement. Only **unscoped** `n2` (the bare `n2` command,
+whose axis is every `PartDef`/`Part` in the whole model, not `features:`-derived) and
+`connectivity` benefit from this lift as originally shipped. This was a pre-existing `n2.rs`
+limitation out of this requirement's own scope — disclosed here rather than left to be discovered
+as a surprise — and was closed shortly after by `REQ-TRS-SYSMLV2-011`, which widens
+`subpart_axis` to also include SysMLv2-synthesized children by qname containment.
 
 ## Scope
 

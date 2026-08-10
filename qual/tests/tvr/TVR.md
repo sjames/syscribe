@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** syscribe 0.34.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-08-09  
+**Date:** 2026-08-10  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 270 |
-| Passed | 270 |
+| Total test cases | 271 |
+| Passed | 271 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2468,6 +2468,17 @@
 | Scenario | Result |
 |---|---|
 | a connection usage with no connect clause contributes no entry | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-011 — Verify n2's scoped subpart axis includes SysMLv2-synthesized direct children and a lifted connection populates the off-diagonal cell, with no regression to unscoped n2 or the existing features:-only native n2 behavior.
+
+**Verifies:** REQ-TRS-SYSMLV2-011  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| unscoped n2 is unaffected | ✓ PASS |
 
 ---
 
