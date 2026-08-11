@@ -32,9 +32,13 @@ type is the norm rather than the exception.
 - A `PartDef` itself is unaffected — `W600` on a `PartDef` with an empty `doc` fires regardless of
   anything else, since a `PartDef` is the type being referenced, not a usage of one; there is
   nothing further to fall back to.
-- The `typedBy:` lookup reuses the existing `Resolver` unchanged — no new resolution logic, and no
-  new finding when `typedBy:` fails to resolve (that's already a separate, existing concern; this
-  requirement's suppression simply doesn't apply in that case, `W600` still fires).
+- The `typedBy:` lookup reuses the existing `Resolver` — originally its plain, exact-match
+  `resolve_ref`; widened to the scoped, outward-searching `resolve_scoped_ref` by
+  `REQ-TRS-SYSMLV2-016` once a package-relative SysMLv2-authored `typedBy:` reference (common the
+  moment a submodel spans more than one `.sysml` package) was found not to resolve via the plain
+  lookup — see that requirement for the full account. No new finding when `typedBy:` fails to
+  resolve, however it's looked up (that's already a separate, existing concern; this requirement's
+  suppression simply doesn't apply in that case, `W600` still fires).
 - Does not change `W601` (`ActionDef`/`Action` documentation) or any other empty-documentation
   check — scoped to `W600` specifically.
 

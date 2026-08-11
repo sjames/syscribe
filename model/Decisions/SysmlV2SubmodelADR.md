@@ -285,6 +285,40 @@ that head-only qualification was discarding unconditionally.
   cannot declare a nested `item` usage in the first place, verified against the parser's own enum
   definition rather than inferred from the absence of test coverage.
 
+## Addendum: `W542` truncation warning for a genuinely two-segment, non-redeclared `connect` endpoint (`REQ-TRS-SYSMLV2-015`)
+
+Issue #104: `REQ-TRS-SYSMLV2-013`'s local-redeclaration lookahead only reaches a feature explicitly
+redeclared on the usage — the far more common case, a feature *inherited* from the head's type and
+never redeclared, still silently truncates to the head-only edge, with nothing in `validate`
+output distinguishing "resolved" from "silently dropped." Confirmed against a real, multi-file
+CarOS submodel: every ordinary composed `part` reference hit this path, none of them redeclaring.
+
+- **Full resolution through the inherited type was rejected as out of scope, for the same reason
+  `REQ-TRS-SYSMLV2-013` itself stayed AST-local.** Resolving `a.fooProvider` when `fooProvider` is
+  declared on `a`'s *type* (`A`), not on `a`'s own usage body, needs that type's full definition —
+  which may live in a different file, processed before or after this one, and isn't available as a
+  `RawElement` yet at the single-file, ingest-time point `qualify_connection_end` runs at. Deferring
+  connection-entry construction to a second pass after the whole model is known (so a real resolver
+  could run) was considered and rejected as a much larger, cross-cutting restructuring for a
+  narrower problem than it would solve — the same reasoning `REQ-TRS-SYSMLV2-013`'s own addendum
+  above already applied to rejecting a global resolver for this exact call site.
+- **A warning instead: `W542` fires exactly when `qualify_connection_end` falls back to head-only
+  for a genuinely two-segment chain** — the identical condition its own lookahead logic already
+  isolates, so detecting "was this truncated" costs nothing beyond returning the fact alongside the
+  qname it already computes. No new AST traversal, no new resolver, no new global state.
+- **Attached to the owning part element via `RawElement.derive_findings`, computed *before* that
+  element exists as a `RawElement`.** `part_def_connection_entries`/`part_usage_connection_entries`
+  run inside `convert_part_def`/`convert_part_usage`/`convert_variant_usage`, before `push_synth`
+  creates the owning element — so truncation messages are threaded back as plain `Vec<String>`
+  alongside the `connections:` YAML value, and attached to `out.last_mut()` (the element `push_synth`
+  just pushed) one statement later, via a small shared `push_connection_truncation_findings` helper
+  used at all three call sites. This mirrors `W540`'s existing pattern of a post-hoc
+  `derive_findings.push` onto an already-synthesized element, not a new plumbing mechanism.
+- **Three-plus-segment chains stay silent, unchanged.** `REQ-TRS-SYSMLV2-013`'s addendum above
+  already documents, as a deliberate decision, that a chain beyond two segments always falls back
+  to head-only with no attempt at resolution — that decision isn't revisited here; `W542` fires
+  only for the narrower two-segment case this issue actually reported.
+
 ## Addendum: doc-comment `@Syscribe*` directives for `interface def`/`port def`/`connection def` (`REQ-TRS-SYSMLV2-014`)
 
 Issue #100 asked for `REQ-TRS-SYSMLV2-008`'s real `@Name { field = value; }` metadata annotations
@@ -327,3 +361,45 @@ element kind is, but a genuine absence in the grammar production for these three
 - **Last directive wins per field**, matching `REQ-TRS-SYSMLV2-008`'s existing behavior for
   multiple real `@Syscribe*` annotations of the same name on one element — no new "which one
   applies" rule invented for the doc-comment form.
+
+## Addendum: scoped `typedBy:` resolution for `W600` (`REQ-TRS-SYSMLV2-016`)
+
+Issue #105 reported that `REQ-TRS-VAL-017`'s `W600` suppression (a `Part` usage whose `typedBy:`
+target itself carries documentation) only fired for a same-package reference — a cross-package
+`part x : Services::Documented;`, `Documented` declared in a *different* `package` than `x`, still
+raised `W600` even though the reference resolves correctly everywhere a human reads it (`links`,
+`show`) and the target genuinely has documentation.
+
+- **Root cause confirmed by direct inspection, not assumed from the issue's own diagnosis.** The
+  issue's own "Proposed approach" assumed a working, scope-aware resolver already exists elsewhere
+  in the codebase (citing `contains`/`featureTyped`/`connection` edges and cross-file package
+  merging as evidence) and asked for the `W600` check to reuse it. That resolver doesn't actually
+  exist: `graph.rs`'s `TypedBy` edge does an exact-index lookup with no fallback at all, and
+  `Resolver::resolve_ref` (what `REQ-TRS-VAL-017` actually used) does exact qname / stable-ID /
+  display-name matching only — no scope-relative resolution. `links`' apparent success at
+  resolving `Services::Documented` (the CLI's `(matched: ...)` line) turned out to be a **fuzzy
+  string-similarity fallback** in `query.rs::resolve`, a display-only heuristic that happened to
+  score the real target highest for this particular input, not a real namespace resolver.
+  Confirmed by reproducing the exact issue scenario and testing `connectivity`/`check-ref`/the
+  `TypedBy` graph edge directly: none of them resolve the cross-package reference either. This
+  changed the fix from "route through an existing mechanism" to "build the missing mechanism."
+- **`Resolver::resolve_scoped_ref` implements real, minimal scoped-namespace lookup**: given the
+  referencing element's own qname, it tries the reference prefixed by each enclosing package in
+  turn — innermost first, walking outward one `::`-segment at a time (the same prefix-walk
+  `graph.rs`'s `Contains` edge already establishes as this codebase's convention for "enclosing
+  scope") — down to the model root, then falls back to the existing `resolve_ref` unchanged. This
+  mirrors real SysML v2 namespace-lookup semantics (search the local scope, then each enclosing
+  scope outward) closely enough for `typedBy:`/`supertype:` purposes without building a full
+  semantic-scoping engine.
+- **Wired into `W600`'s suppression check only, not into `graph.rs`'s `TypedBy` edge, the
+  dangling-`typedBy:` check, or `W007`'s "never used as a supertype or type" tracking** — all four
+  share the identical root cause (a package-relative SysMLv2-authored reference not resolving via
+  plain `resolve_ref`), confirmed empirically in the same repro this addendum used. Widening every
+  one of them was considered and rejected for this issue specifically: `#105`'s filed defect and
+  acceptance criteria are `W600`-scoped, each of the other three call sites has its own blast
+  radius (a `connectivity`/`n2` edge silently appearing where none did before is a more
+  consequential behavior change than a warning going quiet), and `resolve_scoped_ref` is written as
+  a general, reusable `Resolver` method precisely so a future issue can widen any of those three
+  without re-deriving the resolution logic. Scope creep beyond one filed, well-bounded defect was
+  deliberately avoided, the same discipline `REQ-TRS-SYSMLV2-013`'s addendum above applied to its
+  own local-lookahead widening.

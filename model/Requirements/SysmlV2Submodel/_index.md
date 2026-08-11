@@ -25,10 +25,14 @@ qname containment, not only `features:`-declared ones (`REQ-TRS-SYSMLV2-011`), a
 connection usage's own trailing `doc /* ... */` body lifting onto the synthesized `Connection`
 element (`REQ-TRS-SYSMLV2-012`), and resolving a two-segment `connect` endpoint to a redeclared
 nested feature of its head when one is actually declared, falling back to the head-only edge
-otherwise (`REQ-TRS-SYSMLV2-013`), and a doc-comment-embedded `@Syscribe*` directive syntax
+otherwise (`REQ-TRS-SYSMLV2-013`), a doc-comment-embedded `@Syscribe*` directive syntax
 lifting the same fixed field set onto `interface def`/`port def`/`connection def` — element kinds
 whose body grammars carry no `MetadataAnnotation` slot for the real `@Name{...}` form
-(`REQ-TRS-SYSMLV2-014`).
+(`REQ-TRS-SYSMLV2-014`), a `W542` warning identifying a genuinely two-segment `connect` endpoint
+that fell back to head-only because the tail isn't a locally-redeclared feature
+(`REQ-TRS-SYSMLV2-015`), and `W600`'s `typedBy:` documentation-fallback lookup resolving a
+package-relative SysMLv2-authored reference, not only one already equal to the target's full
+model-root qname (`REQ-TRS-SYSMLV2-016`).
 
 This is a read-only validator: the submodel's `.sysml`/`.kerml` files stay authoritative and are
 edited by their own native tooling, never by Syscribe's web UI or mutate commands. A

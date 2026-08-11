@@ -51,7 +51,13 @@ case this module can resolve locally, with no inheritance reasoning at all.
   head-only qualification — the same outcome as today.
 - A trailing segment that doesn't match anything in the head's own body (the common,
   inherited-feature case `REQ-TRS-SYSMLV2-010` already handles) falls back to head-only
-  qualification exactly as before — not an error, not a warning, no new diagnostic.
+  qualification exactly as before — not an error, and not a new *structural* failure mode. It does
+  raise a `W542` warning identifying the dropped segment as of `REQ-TRS-SYSMLV2-015`, correcting
+  this bullet's original "no new diagnostic" claim — silent truncation turned out to be a real,
+  filed defect (#104) once this feature was used against a real, deeply-composed multi-package
+  submodel, where every ordinary `part x : SomePartDef;` composition (the ordinary case, not the
+  redeclared exception) hit it. A genuinely three-or-more-segment chain (the bullet below) is
+  unaffected — it stays silent, `REQ-TRS-SYSMLV2-015`'s own deliberate scope limit.
 - Still no inheritance resolution of any kind — this requirement only reaches a feature that is
   *explicitly* redeclared on the usage, never one inherited from a type.
 

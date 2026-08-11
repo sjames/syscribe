@@ -259,6 +259,26 @@ fn push_synth(
     });
 }
 
+/// Push each of `REQ-TRS-SYSMLV2-015`'s connect-endpoint truncation messages
+/// as a `W542` finding onto the element `push_synth` just pushed. Called
+/// immediately after `push_synth` for a `part def`/`part`/`variant part`
+/// usage whose `connections:` lift produced one: `part_def_connection_entries`/
+/// `part_usage_connection_entries` run *before* the owning element exists as
+/// a `RawElement` to attach findings to directly (they only compute the
+/// `connections:` YAML value that later goes into that element's `Spec`), so
+/// the findings are attached here, one statement after `push_synth`, via
+/// `out.last_mut()` rather than threaded back through `Spec` itself.
+fn push_connection_truncation_findings(out: &mut [RawElement], file_path: &str, truncations: Vec<String>) {
+    if truncations.is_empty() {
+        return;
+    }
+    if let Some(last) = out.last_mut() {
+        for msg in truncations {
+            last.derive_findings.push(finding("W542", file_path, &msg));
+        }
+    }
+}
+
 /// A `satisfy`/`verify` relationship target from a plain `Expression` — only
 /// the common `FeatureRef` shape (a single quoted/unquoted name, or a
 /// `::`-qualified name, already quote-stripped by the parser's lexer) is
@@ -749,23 +769,41 @@ fn part_usage_has_named_child(pu: PartUsageSibling<'_>, tail: &str) -> bool {
 /// `Holder::a::p1`. Any other outcome (three-plus segments, no matching
 /// sibling, sibling has no matching child) falls back to head-only —
 /// a strict widening, never a new failure mode.
+///
+/// Returns `(qualified qname, truncation message)` — `REQ-TRS-SYSMLV2-015`.
+/// The message is `Some` exactly when a genuinely two-segment chain existed
+/// but wasn't resolved to a redeclared nested feature (the common case: the
+/// tail is a feature *inherited* from the head's type, never redeclared on
+/// the usage, which this module still can't verify without a full-model
+/// resolver — see the `ADR-SYS-SYSMLV2-001` addendum). `None` for a bare,
+/// undotted endpoint and for a three-plus-segment chain — the latter is
+/// `REQ-TRS-SYSMLV2-013`'s own, separately-documented, deliberately
+/// unwarned fallback, not this requirement's concern.
 fn qualify_connection_end<'a>(
     owning_qname: &str,
     chain: &str,
     find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
-) -> String {
+) -> (String, Option<String>) {
     let mut segments = chain.splitn(2, '.');
     let head = segments.next().unwrap_or(chain);
     if let Some(tail) = segments.next() {
         if !tail.contains('.') {
             if let Some(pu) = find_sibling(head) {
                 if part_usage_has_named_child(pu, tail) {
-                    return format!("{owning_qname}::{head}::{tail}");
+                    return (format!("{owning_qname}::{head}::{tail}"), None);
                 }
             }
+            let qname = format!("{owning_qname}::{head}");
+            let message = format!(
+                "connect endpoint '{chain}' has no locally-redeclared '{tail}' feature on \
+                 '{head}' -- truncated to the head-only edge '{qname}' (a feature inherited from \
+                 '{head}'s type, rather than redeclared on the usage, cannot be verified without \
+                 a full-model resolver; see REQ-TRS-SYSMLV2-013/-015)"
+            );
+            return (qname, Some(message));
         }
     }
-    format!("{owning_qname}::{head}")
+    (format!("{owning_qname}::{head}"), None)
 }
 
 /// One `connections:`-shaped YAML entry for a single named `connection name
@@ -784,6 +822,7 @@ fn connection_usage_entry<'a>(
     owning_qname: &str,
     c: &sysml_v2_parser::ast::ConnectionUsageMember,
     find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
+    truncations: &mut Vec<String>,
 ) -> Option<serde_yaml::Value> {
     let from = connection_end_display(&c.connect_from.as_ref()?.value.expression.value)?;
     let to = connection_end_display(&c.connect_to.as_ref()?.value.expression.value)?;
@@ -794,17 +833,27 @@ fn connection_usage_entry<'a>(
         .collect();
     let typed_by = c.type_name.clone().and_then(nonempty);
 
-    let from_q = qualify_connection_end(owning_qname, &from, find_sibling);
-    let to_q = qualify_connection_end(owning_qname, &to, find_sibling);
+    let (from_q, from_trunc) = qualify_connection_end(owning_qname, &from, find_sibling);
+    let (to_q, to_trunc) = qualify_connection_end(owning_qname, &to, find_sibling);
+    truncations.extend(from_trunc);
+    truncations.extend(to_trunc);
 
     if extras.is_empty() {
         let mut tmp = Vec::new();
         crate::connections::add_connection(&mut tmp, &from_q, &to_q, typed_by.as_deref());
         tmp.pop()
     } else {
+        let extras_q: Vec<String> = extras
+            .iter()
+            .map(|e| {
+                let (q, trunc) = qualify_connection_end(owning_qname, e, find_sibling);
+                truncations.extend(trunc);
+                q
+            })
+            .collect();
         let mut ends: Vec<serde_yaml::Value> = [from_q, to_q]
             .into_iter()
-            .chain(extras.iter().map(|e| qualify_connection_end(owning_qname, e, find_sibling)))
+            .chain(extras_q)
             .map(|chain| {
                 let mut em = serde_yaml::Mapping::new();
                 em.insert(serde_yaml::Value::from("binds"), serde_yaml::Value::from(chain));
@@ -824,21 +873,26 @@ fn connection_usage_entry<'a>(
 /// scans every `PartDefBodyElement::Connection` (the named `connection` form
 /// — a distinct AST variant from the anonymous `PartDefBodyElement::Connect`,
 /// which stays unmapped: no identity to synthesize an owning-part-relative
-/// entry against, `REQ-TRS-SYSMLV2-010`'s Scope).
+/// entry against, `REQ-TRS-SYSMLV2-010`'s Scope). Second element of the
+/// return tuple is `REQ-TRS-SYSMLV2-015`'s truncation messages, one per
+/// connect endpoint whose genuinely two-segment chain fell back to
+/// head-only.
 fn part_def_connection_entries(
     owning_qname: &str,
     elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>],
-) -> Vec<serde_yaml::Value> {
+) -> (Vec<serde_yaml::Value>, Vec<String>) {
     let find_sibling = |head: &str| find_part_usage_in_part_def_body(elements, head);
-    elements
+    let mut truncations = Vec::new();
+    let entries = elements
         .iter()
         .filter_map(|n| match &n.value {
             sysml_v2_parser::PartDefBodyElement::Connection(node) => {
-                connection_usage_entry(owning_qname, &node.value, &find_sibling)
+                connection_usage_entry(owning_qname, &node.value, &find_sibling, &mut truncations)
             }
             _ => None,
         })
-        .collect()
+        .collect();
+    (entries, truncations)
 }
 
 /// `connections:` entries over a `part` usage body's already-sliced members.
@@ -846,17 +900,19 @@ fn part_def_connection_entries(
 fn part_usage_connection_entries(
     owning_qname: &str,
     elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>],
-) -> Vec<serde_yaml::Value> {
+) -> (Vec<serde_yaml::Value>, Vec<String>) {
     let find_sibling = |head: &str| find_part_usage_in_part_usage_body(elements, head);
-    elements
+    let mut truncations = Vec::new();
+    let entries = elements
         .iter()
         .filter_map(|n| match &n.value {
             sysml_v2_parser::PartUsageBodyElement::Connection(node) => {
-                connection_usage_entry(owning_qname, &node.value, &find_sibling)
+                connection_usage_entry(owning_qname, &node.value, &find_sibling, &mut truncations)
             }
             _ => None,
         })
-        .collect()
+        .collect();
+    (entries, truncations)
 }
 
 /// `@SyscribeFeature` search over a `part def` body's already-sliced members.
@@ -990,6 +1046,7 @@ fn convert_part_def(
             })
             .collect(),
     );
+    let (connections, truncations) = part_def_connection_entries(&part_qname, elements);
     let spec = Spec {
         supertype: part.specializes.as_ref().map(|t| t.value.target_display()),
         is_variation: is_variation_prefix(&part.definition_prefix),
@@ -999,8 +1056,9 @@ fn convert_part_def(
     }
     .with_syscribe_meta(part_def_syscribe_meta(elements))
     .with_doc(part_def_doc(elements))
-    .with_connections(part_def_connection_entries(&part_qname, elements));
+    .with_connections(connections);
     push_synth(out, &part_qname, file_path, ElementType::PartDef, &name, spec);
+    push_connection_truncation_findings(out, file_path, truncations);
     for node in elements {
         convert_part_def_body_element(&node.value, &part_qname, file_path, out);
     }
@@ -1029,6 +1087,7 @@ fn convert_part_usage(
             })
             .collect(),
     );
+    let (connections, truncations) = part_usage_connection_entries(&part_qname, elements);
     let spec = Spec {
         typed_by: (!part.type_name.is_empty()).then(|| part.type_name.clone()),
         is_variation: is_variation_prefix(&part.usage_prefix),
@@ -1038,8 +1097,9 @@ fn convert_part_usage(
     }
     .with_syscribe_meta(part_usage_syscribe_meta(elements))
     .with_doc(part_usage_doc(elements))
-    .with_connections(part_usage_connection_entries(&part_qname, elements));
+    .with_connections(connections);
     push_synth(out, &part_qname, file_path, ElementType::Part, &part.name, spec);
+    push_connection_truncation_findings(out, file_path, truncations);
     for node in elements {
         convert_part_usage_body_element(&node.value, &part_qname, file_path, out);
     }
@@ -1624,14 +1684,18 @@ fn convert_variant_usage(
         Some(sysml_v2_parser::ast::VariantTypedUsage::Part(pu)) => {
             let mut spec = base_spec();
             spec.typed_by = nonempty(pu.value.type_name.clone());
+            let mut truncations = Vec::new();
             if let sysml_v2_parser::PartUsageBody::Brace { elements } = &pu.value.body {
                 spec.applies_when = part_usage_syscribe_feature_id(elements);
+                let (connections, t) = part_usage_connection_entries(&elem_qname, elements);
+                truncations = t;
                 spec = spec
                     .with_syscribe_meta(part_usage_syscribe_meta(elements))
                     .with_doc(part_usage_doc(elements))
-                    .with_connections(part_usage_connection_entries(&elem_qname, elements));
+                    .with_connections(connections);
             }
             push_synth(out, &elem_qname, file_path, ElementType::Part, &v.name, spec);
+            push_connection_truncation_findings(out, file_path, truncations);
         }
         Some(sysml_v2_parser::ast::VariantTypedUsage::Attribute(au)) => {
             let mut spec = base_spec();

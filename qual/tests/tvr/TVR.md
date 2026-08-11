@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** syscribe 0.34.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-08-10  
+**Date:** 2026-08-11  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 276 |
-| Passed | 276 |
+| Total test cases | 278 |
+| Passed | 278 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2523,6 +2523,28 @@
 | Scenario | Result |
 |---|---|
 | an interface def with no doc comment is unaffected | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-015 — Verify a genuinely two-segment, non-redeclared connect endpoint raises W542 for each truncated end, while a redeclared endpoint, a bare endpoint, and a three-segment endpoint all raise none.
+
+**Verifies:** REQ-TRS-SYSMLV2-015  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a bare endpoint raises no W542 and a three-segment endpoint raises no W542 | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-016 — Verify a package-relative typedBy: reference to a documented target across SysMLv2 packages suppresses W600, an equally-undocumented cross-package target still raises it, and the total W600 count matches exactly the elements expected to still fire.
+
+**Verifies:** REQ-TRS-SYSMLV2-016  
+**Result:** ✓ PASS (2 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| the documented, cross-package-referenced target itself raises no W600 | ✓ PASS |
 
 ---
 

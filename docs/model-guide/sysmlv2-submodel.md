@@ -262,8 +262,9 @@ the parser to add real support was considered and rejected.
 |---|---|
 | `W540` | A `_index.md` found anywhere inside a `sysmlSubmodel: true` package's subtree, other than that package's own anchor `_index.md` |
 | `W541` | Either a `.sysml`/`.kerml` file failed to read (e.g. invalid UTF-8), or `sysml-v2-parser` failed to parse its contents |
+| `W542` | A `connect` endpoint's genuinely two-segment chain fell back to a head-only edge because the tail isn't a locally-redeclared feature (§8's redeclaration lookahead didn't match) — identifies the dropped segment |
 
-Both are a **dedicated code range**, distinct from the WASM-plugin family (`E530`–`E532`/
+All three share a **dedicated code range**, distinct from the WASM-plugin family (`E530`–`E532`/
 `W530`–`W534`) — this is native, always-on ingestion of a trusted, compile-time dependency, not
 plugin execution, and conflating the two ranges would misattribute the failure mode to anyone
 grepping a validation report.
@@ -465,3 +466,53 @@ element list, no inheritance reasoning of any kind. Whenever that lookahead does
 (the overwhelmingly common case — an inherited-only feature, a chain of three or more segments, or
 a head that isn't itself a `part` usage in the same body), the endpoint falls back to §8's
 existing head-only qualification exactly as before — a strict widening, never a new failure mode.
+
+## 11. `W542` — a truncated `connect` endpoint is no longer silent
+
+§10's redeclaration lookahead only reaches a feature *explicitly redeclared* on the usage — the
+far more common case (a feature *inherited* from the head's type, e.g. `part carDisplayService :
+Services::CarDisplayService;` where `CarDisplayService` declares the interface, never redeclared
+on the usage) still falls back to §8's head-only qualification, exactly as before. As of
+`REQ-TRS-SYSMLV2-015`, that fallback is no longer silent: whenever a genuinely two-segment chain
+(`head.tail`, no further `.`) can't be resolved via §10's lookahead, a `W542` finding identifies
+the dropped segment:
+
+```
+$ ./target/debug/syscribe -m <model> validate
+| W542 | .../Model.sysml | connect endpoint 'a.p1' has no locally-redeclared 'p1' feature on 'a'
+                            -- truncated to the head-only edge 'Top::a' (a feature inherited from
+                            'a's type, rather than redeclared on the usage, cannot be verified
+                            without a full-model resolver; see REQ-TRS-SYSMLV2-013/-015) |
+```
+
+A chain that resolves via §10's lookahead, a bare (undotted) endpoint, and a three-or-more-segment
+chain all raise no `W542` — the three-plus-segment case is §10's own separate, deliberate,
+still-unwarned fallback (extending the lookahead to walk multiple levels was rejected as
+unnecessary complexity), not something this requirement revisits. Full resolution through the
+inherited type (rather than only warning) was considered and rejected: it needs the head's type's
+full definition, which may live in a different file and isn't available as a synthesized element
+yet at the single-file, ingest-time point this resolution runs at — the same reason §10's own
+lookahead stayed purely local rather than reaching for a resolver.
+
+## 12. Scoped resolution for `typedBy:` — `W600`'s documentation fallback across packages
+
+The general validator's `W600` ("PartDef/Part has an empty documentation body") suppression — a
+`Part` usage whose `typedBy:` target itself carries documentation doesn't also need its own —
+originally only resolved a `typedBy:` reference by an exact, already-fully-qualified qname match.
+A SysMLv2-authored `part x : Services::Documented;` written inside `package System { ... }`
+produces the literal, *package-relative* text `"Services::Documented"` on `x`'s `typedBy:` — not
+`Documented`'s real full qname (`SysML2::Services::Documented`) — since `ingest.rs` performs no
+resolution of its own at parse time. The exact-match lookup only happened to succeed when a
+`.sysml` file's content stayed in a single package; the moment SysMLv2 content spans more than one
+package (the ordinary shape of a real, multi-file architecture submodel), the suppression stopped
+firing where it should (`REQ-TRS-SYSMLV2-016`).
+
+`Resolver::resolve_scoped_ref` now searches outward through the referencing element's own
+enclosing-package scope chain — innermost first, down to the model root — before falling back to
+the original exact/id/display-name lookup, so `Services::Documented` written inside `System`
+resolves to `SysML2::Services::Documented` correctly. Scoped narrowly to `W600`'s suppression check
+for this fix; the same underlying gap in `graph.rs`'s `TypedBy` edge, the dangling-`typedBy:`
+check, and `W007`'s "never used as a supertype or type" tracking is a separate, not-yet-widened
+concern (see `ADR-SYS-SYSMLV2-001`'s addendum) — `resolve_scoped_ref` is written as a general,
+reusable `Resolver` method precisely so those can be widened later without re-deriving the
+resolution logic.
