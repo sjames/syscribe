@@ -560,3 +560,199 @@ fn a_head_that_is_not_a_part_usage_sibling_falls_back_to_head_only() {
     let m = conns[0].as_mapping().unwrap();
     assert_eq!(m.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::p1"));
 }
+
+// ── REQ-TRS-SYSMLV2-015: W542 truncation warning (#104) ──────────────────────
+
+#[test]
+fn a_two_segment_endpoint_with_no_redeclaration_raises_w542_for_both_ends() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def Ecu {\n\
+         port p1 : SomePort;\n\
+         }\n\
+         part def Top {\n\
+         part a : Ecu;\n\
+         part b : Ecu;\n\
+         connection c : Link connect a.p1 to b.p1;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate(&elements);
+    let w542: Vec<_> = result.findings.iter().filter(|f| f.code == "W542").collect();
+    assert_eq!(w542.len(), 2, "expected one W542 per truncated endpoint: {:#?}", result.findings);
+    assert!(w542[0].message.contains("a.p1"), "{:#?}", w542);
+    assert!(w542[1].message.contains("b.p1"), "{:#?}", w542);
+}
+
+#[test]
+fn a_two_segment_endpoint_that_resolves_via_redeclaration_raises_no_w542() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         interface def IFoo;\n\
+         part def A;\n\
+         part def B;\n\
+         part def Top {\n\
+         part a : A {\n\
+         interface fooProvider : IFoo;\n\
+         }\n\
+         part b : B {\n\
+         interface fooClient : IFoo;\n\
+         }\n\
+         connection c : Link connect a.fooProvider to b.fooClient;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate(&elements);
+    assert!(
+        !result.findings.iter().any(|f| f.code == "W542"),
+        "a resolved endpoint should not raise a truncation warning: {:#?}",
+        result.findings
+    );
+}
+
+#[test]
+fn a_bare_undotted_endpoint_raises_no_w542() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def Ecu;\n\
+         part def Top {\n\
+         part a : Ecu;\n\
+         part b : Ecu;\n\
+         connection c : Link connect a to b;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate(&elements);
+    assert!(!result.findings.iter().any(|f| f.code == "W542"), "{:#?}", result.findings);
+}
+
+#[test]
+fn a_three_segment_endpoint_raises_no_w542_its_own_deliberate_unwarned_fallback() {
+    // REQ-TRS-SYSMLV2-013's own documented scope: a three-plus-segment chain
+    // always falls back to head-only, silently -- that's a separate,
+    // deliberate design decision this requirement doesn't touch.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         interface def IFoo;\n\
+         part def A;\n\
+         part def B;\n\
+         part def Top {\n\
+         part a : A {\n\
+         interface fooProvider : IFoo;\n\
+         }\n\
+         part b : B;\n\
+         connection c : Link connect a.fooProvider.deep to b;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate(&elements);
+    assert!(!result.findings.iter().any(|f| f.code == "W542"), "{:#?}", result.findings);
+}
+
+#[test]
+fn a_truncated_endpoint_inside_a_part_usage_body_also_raises_w542() {
+    // The part-usage call site (convert_part_usage), not the part-def one
+    // the tests above exercise -- push_connection_truncation_findings must
+    // be wired at all three call sites, not just the first one.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def Ecu {\n\
+         port p1 : SomePort;\n\
+         }\n\
+         part def HolderDef;\n\
+         part holder : HolderDef {\n\
+         part a : Ecu;\n\
+         part b : Ecu;\n\
+         connection c : SomeConnDef connect a.p1 to b.p1;\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate(&elements);
+    let w542_count = result.findings.iter().filter(|f| f.code == "W542").count();
+    assert_eq!(w542_count, 2, "{:#?}", result.findings);
+}
+
+#[test]
+fn a_truncated_endpoint_inside_a_variant_part_usage_also_raises_w542() {
+    // The variant-part-usage call site (convert_variant_usage), the third
+    // and last of the three connection-entry call sites.
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/Config.sysml",
+        "package Config {\n\
+         part def Ecu {\n\
+         port p1 : SomePort;\n\
+         }\n\
+         variation part def RotorConfig {\n\
+         variant part quadConfig : QuadRotor {\n\
+         part a : Ecu;\n\
+         part b : Ecu;\n\
+         connection c : SomeConnDef connect a.p1 to b.p1;\n\
+         }\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate(&elements);
+    let w542_count = result.findings.iter().filter(|f| f.code == "W542").count();
+    assert_eq!(w542_count, 2, "{:#?}", result.findings);
+}
+
+#[test]
+fn an_nary_connect_endpoint_that_truncates_also_raises_w542() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def Ecu {\n\
+         port p1 : SomePort;\n\
+         }\n\
+         part def Top {\n\
+         part a : Ecu;\n\
+         part b : Ecu;\n\
+         part c : Ecu;\n\
+         connection link1 : Link connect (a.p1, b.p1, c.p1);\n\
+         }\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let result = validate(&elements);
+    let w542_count = result.findings.iter().filter(|f| f.code == "W542").count();
+    assert_eq!(w542_count, 3, "one W542 per n-ary end that truncates: {:#?}", result.findings);
+}

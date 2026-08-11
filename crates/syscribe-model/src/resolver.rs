@@ -579,6 +579,56 @@ impl Resolver {
         self.by_name.get(r).map(|&i| &elements[i])
     }
 
+    /// Resolve `r` relative to the enclosing-package scope chain of
+    /// `from_qname`, walking outward — the namespace-lookup order a
+    /// SysML v2-authored `typedBy:`/`supertype:` value needs when it was
+    /// written as a name relative to its own declaring package, not the
+    /// from-model-root qualified form this format's hand-authored
+    /// convention otherwise always uses (`REQ-TRS-SYSMLV2-016`). A `.sysml`
+    /// author writing `part x : Services::Documented;` inside `package
+    /// System { ... }` produces the *relative* string `"Services::Documented"`
+    /// verbatim on `x`'s `typedBy:` — `ingest.rs` does no resolution of its
+    /// own at parse time — so a plain [`Self::resolve_ref`] exact-qname
+    /// lookup fails unless the reference happens to already equal the real,
+    /// full qname from the model root.
+    ///
+    /// Tries, innermost scope first: `<from_qname>::<r>`, then each
+    /// enclosing package in turn (walking up one `::`-segment at a time, the
+    /// same prefix-walk `graph.rs`'s `Contains` edge already uses), down to
+    /// the model root (`<r>` itself, unprefixed) — real namespace-shadowing
+    /// semantics, nearest scope wins. Falls back to [`Self::resolve_ref`]'s
+    /// plain id/qname/display-name resolution if no scoped candidate
+    /// matches, so an already-fully-qualified qname, a stable ID, or a bare
+    /// display-name reference all keep resolving exactly as before — this
+    /// is a strict widening, never a new failure mode. A stable-ID `r`
+    /// (`REQ-*`, `CONF-*`, …) skips the scoped walk entirely and goes
+    /// straight to `resolve_ref`, since stable IDs are already global and
+    /// package-scope-independent.
+    pub fn resolve_scoped_ref<'a>(
+        &self,
+        elements: &'a [RawElement],
+        from_qname: &str,
+        r: &str,
+    ) -> Option<&'a RawElement> {
+        if !is_stable_id(r) {
+            let mut scope = from_qname;
+            loop {
+                let candidate = if scope.is_empty() { r.to_string() } else { format!("{scope}::{r}") };
+                if let Some(elem) = self.get(elements, &candidate) {
+                    return Some(elem);
+                }
+                if scope.is_empty() {
+                    break;
+                }
+                scope = match scope.rfind("::") {
+                    Some(sep) => &scope[..sep],
+                    None => "",
+                };
+            }
+        }
+        self.resolve_ref(elements, r)
+    }
+
     /// True if `elem` is a native Requirement (type: Requirement with a REQ-* id).
     pub fn is_native_requirement(elem: &RawElement) -> bool {
         matches!(elem.frontmatter.element_type, Some(ElementType::Requirement))
@@ -751,5 +801,100 @@ impl Resolver {
 
     pub fn is_asset(elem: &RawElement) -> bool {
         matches!(elem.frontmatter.element_type, Some(ElementType::Asset))
+    }
+}
+
+// ── resolve_scoped_ref (REQ-TRS-SYSMLV2-016) ────────────────────────────────
+
+#[cfg(test)]
+mod resolve_scoped_ref_tests {
+    use super::*;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: format!("{qname}.md"),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    #[test]
+    fn a_package_relative_reference_resolves_via_the_nearest_enclosing_scope() {
+        let elements = vec![
+            make_elem("SysML2::Services::Documented", "type: PartDef\nname: Documented\n"),
+            make_elem("SysML2::System::Top", "type: PartDef\nname: Top\n"),
+            make_elem("SysML2::System::Top::x", "type: Part\nname: x\n"),
+        ];
+        let resolver = Resolver::new(&elements);
+        let found = resolver.resolve_scoped_ref(&elements, "SysML2::System::Top::x", "Services::Documented");
+        assert_eq!(
+            found.map(|e| e.qualified_name.as_str()),
+            Some("SysML2::Services::Documented"),
+            "should resolve via the SysML2-level scope, walking outward from x's own qname"
+        );
+    }
+
+    #[test]
+    fn a_nearer_scope_shadows_a_farther_one_with_the_same_relative_name() {
+        // Both "Outer::Services::Documented" and "Outer::Mid::Services::Documented"
+        // exist; from "Outer::Mid::Inner", "Services::Documented" should resolve
+        // to the *nearer* one (Outer::Mid::...), not the farther Outer::... one.
+        let elements = vec![
+            make_elem("Outer::Services::Documented", "type: PartDef\nname: Documented\n"),
+            make_elem("Outer::Mid::Services::Documented", "type: PartDef\nname: Documented\n"),
+            make_elem("Outer::Mid::Inner", "type: Part\nname: Inner\n"),
+        ];
+        let resolver = Resolver::new(&elements);
+        let found = resolver.resolve_scoped_ref(&elements, "Outer::Mid::Inner", "Services::Documented");
+        assert_eq!(found.map(|e| e.qualified_name.as_str()), Some("Outer::Mid::Services::Documented"));
+    }
+
+    #[test]
+    fn an_already_fully_qualified_reference_still_resolves() {
+        let elements = vec![
+            make_elem("A::B::Target", "type: PartDef\nname: Target\n"),
+            make_elem("A::C::Usage", "type: Part\nname: Usage\n"),
+        ];
+        let resolver = Resolver::new(&elements);
+        let found = resolver.resolve_scoped_ref(&elements, "A::C::Usage", "A::B::Target");
+        assert_eq!(found.map(|e| e.qualified_name.as_str()), Some("A::B::Target"));
+    }
+
+    #[test]
+    fn a_stable_id_reference_bypasses_the_scoped_walk_and_still_resolves() {
+        let elements = vec![
+            make_elem("Requirements::Req", "type: Requirement\nname: Req\nid: REQ-001\n"),
+            make_elem("A::B::Usage", "type: Part\nname: Usage\n"),
+        ];
+        let resolver = Resolver::new(&elements);
+        let found = resolver.resolve_scoped_ref(&elements, "A::B::Usage", "REQ-001");
+        assert_eq!(found.map(|e| e.qualified_name.as_str()), Some("Requirements::Req"));
+    }
+
+    #[test]
+    fn an_unresolvable_reference_still_returns_none() {
+        let elements = vec![make_elem("A::B::Usage", "type: Part\nname: Usage\n")];
+        let resolver = Resolver::new(&elements);
+        assert!(resolver.resolve_scoped_ref(&elements, "A::B::Usage", "NoSuchThing").is_none());
+    }
+
+    #[test]
+    fn a_display_name_fallback_still_works_via_the_final_resolve_ref_delegation() {
+        let elements = vec![
+            make_elem("A::B::HwBase", "type: PartDef\nname: HwBase\n"),
+            make_elem("A::C::Usage", "type: Part\nname: Usage\n"),
+        ];
+        let resolver = Resolver::new(&elements);
+        // "HwBase" doesn't match any scoped-prefix candidate (A::C::HwBase, A::HwBase,
+        // HwBase all miss the real qname A::B::HwBase) -- only the by_name fallback
+        // resolve_ref delegates to at the end finds it.
+        let found = resolver.resolve_scoped_ref(&elements, "A::C::Usage", "HwBase");
+        assert_eq!(found.map(|e| e.qualified_name.as_str()), Some("A::B::HwBase"));
     }
 }

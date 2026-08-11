@@ -800,6 +800,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 // formal dedicated range.
                 "W540" => "W540",
                 "W541" => "W541",
+                // REQ-TRS-SYSMLV2-015: a connect endpoint's genuinely
+                // two-segment chain fell back to a head-only edge because
+                // the tail wasn't a locally-redeclared feature -- same
+                // dedicated code range as W540/W541.
+                "W542" => "W542",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });
@@ -3688,6 +3693,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // the type being referenced, nothing further to fall back to); a
         // Part usage whose typedBy: doesn't resolve, or resolves to an
         // equally-undocumented target, still fires exactly as before.
+        // REQ-TRS-SYSMLV2-016: the typedBy: lookup goes through
+        // resolve_scoped_ref, not the plain resolve_ref this check used at
+        // first -- a SysMLv2-authored typedBy: is frequently a *relative*
+        // name (e.g. "Services::Documented" written inside `package System`)
+        // that only resolves once searched outward through the referencing
+        // element's own enclosing-package scope chain; a hand-authored
+        // typedBy: (always written fully qualified from the model root, by
+        // this format's own convention) resolves identically either way.
         if matches!(
             fm.element_type,
             Some(ElementType::PartDef) | Some(ElementType::Part)
@@ -3700,7 +3713,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     .map(yaml_strings)
                     .into_iter()
                     .flatten()
-                    .filter_map(|tb| resolver.resolve_ref(elements, tb))
+                    .filter_map(|tb| resolver.resolve_scoped_ref(elements, &elem.qualified_name, tb))
                     .any(|target| !target.doc.trim().is_empty());
             if !documented_via_type {
                 findings.push(warning("W600", &file, "PartDef/Part has an empty documentation body"));
@@ -10191,5 +10204,53 @@ mod w600_typed_by_documentation_tests {
         )];
         let result = validate_with_config(&elements, &ValidateConfig::default());
         assert!(codes(&result.findings).contains(&"W600"), "{:?}", result.findings);
+    }
+
+    // ── cross-package typedBy: (REQ-TRS-SYSMLV2-016) ────────────────────────
+
+    #[test]
+    fn a_package_relative_typed_by_reference_across_packages_raises_no_w600() {
+        // "SysML2::Services::Documented" is the real qname; "x" (declared
+        // inside SysML2::System) carries the literal, package-relative
+        // typedBy: text a .sysml author actually wrote -- "Services::Documented",
+        // not the full qname. Before REQ-TRS-SYSMLV2-016 this never resolved
+        // via the plain resolve_ref, so W600 fired incorrectly.
+        let elements = vec![
+            make_elem(
+                "SysML2::Services::Documented",
+                "type: PartDef\nname: Documented\n",
+                "model/SysML2/Services.md",
+                "Real documentation here.",
+            ),
+            make_elem(
+                "SysML2::System::x",
+                "type: Part\nname: x\ntypedBy: Services::Documented\n",
+                "model/SysML2/System.md",
+                "",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(!codes(&result.findings).contains(&"W600"), "{:?}", result.findings);
+    }
+
+    #[test]
+    fn a_package_relative_typed_by_reference_to_an_undocumented_target_still_raises_w600() {
+        let elements = vec![
+            make_elem(
+                "SysML2::Services::Undocumented",
+                "type: PartDef\nname: Undocumented\n",
+                "model/SysML2/Services.md",
+                "",
+            ),
+            make_elem(
+                "SysML2::System::y",
+                "type: Part\nname: y\ntypedBy: Services::Undocumented\n",
+                "model/SysML2/System.md",
+                "",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let w600_count = codes(&result.findings).iter().filter(|c| **c == "W600").count();
+        assert_eq!(w600_count, 2, "expected W600 for both the def and the usage: {:?}", result.findings);
     }
 }
