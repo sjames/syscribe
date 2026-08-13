@@ -50,6 +50,12 @@ every reference crossed a package boundary).
   assessing on its own, and this requirement's job is closing the specific, filed defect
   (`REQ-TRS-VAL-017`'s suppression not firing where it should), not auditing every `typedBy:`
   consumer in one pass.
+  **Correction (`REQ-TRS-SYSMLV2-017`, issue #107):** the `W007` and `graph.rs`'s `TypedBy` edge
+  gaps this bullet scoped out are now closed — `REQ-TRS-SYSMLV2-017` widened both to
+  `resolve_scoped_ref`, confirmed against the same live CarOS/`sabaton-caros` submodel this
+  requirement's own Rationale cites (35 of 36 `W007` warnings there were this exact false
+  positive). The `mutate::guard` dangling-`typedBy:` check (`EREF`) remains open, tracked
+  separately.
 - The already-correct same-package suppression case, and the "target has no doc"/"typedBy: doesn't
   resolve at all" still-fires cases, are unaffected — no regression.
 - `resolve_scoped_ref` is a general `Resolver` capability (documented and tested as such), not a

@@ -4649,6 +4649,16 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // Scans top-level fields AND typedBy inside features/connections/performs sub-objects
     // and exhibitsStates lists, so that elements referenced only in those positions are
     // not incorrectly flagged.
+    // REQ-TRS-SYSMLV2-017: the top-level supertype:/typedBy: lookup and the nested
+    // typedBy: lookup (features/connections/performs/ports) go through
+    // resolve_scoped_ref, not the plain resolve_ref this check used at first — the
+    // same widening REQ-TRS-SYSMLV2-016 made for W600's suppression check, applied
+    // to the other call site its own Scope bullet named as sharing the identical
+    // root cause: a SysMLv2-authored, package-relative supertype:/typedBy: value
+    // only resolves once searched outward through the referencing element's own
+    // enclosing-package scope chain. exhibitsStates is left on plain resolve_ref —
+    // it is never synthesized by SysMLv2 ingestion, so it is always written fully
+    // qualified from the model root by this format's own hand-authored convention.
     {
         let mut referenced_defs: HashSet<String> = HashSet::new();
         for elem in elements.iter() {
@@ -4657,7 +4667,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // Top-level supertype and typedBy
             for field in [fm.supertype.as_ref(), fm.typed_by.as_ref()].into_iter().flatten() {
                 for s in yaml_strings(field) {
-                    if let Some(target) = resolver.resolve_ref(elements, s) {
+                    if let Some(target) = resolver.resolve_scoped_ref(elements, &elem.qualified_name, s) {
                         referenced_defs.insert(target.qualified_name.clone());
                     }
                 }
@@ -4683,7 +4693,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             .into_iter()
             .flatten()
             {
-                collect_typed_by_refs(list, elements, &resolver, &mut referenced_defs);
+                collect_typed_by_refs(list, elements, &resolver, &elem.qualified_name, &mut referenced_defs);
             }
         }
         for elem in elements {
@@ -7147,6 +7157,7 @@ fn collect_typed_by_refs(
     list: &[serde_yaml::Value],
     elements: &[RawElement],
     resolver: &Resolver,
+    from_qname: &str,
     out: &mut HashSet<String>,
 ) {
     let key_typed_by = serde_yaml::Value::String("typedBy".into());
@@ -7155,14 +7166,14 @@ fn collect_typed_by_refs(
         if let serde_yaml::Value::Mapping(map) = item {
             if let Some(v) = map.get(&key_typed_by) {
                 for s in yaml_strings(v) {
-                    if let Some(target) = resolver.resolve_ref(elements, s) {
+                    if let Some(target) = resolver.resolve_scoped_ref(elements, from_qname, s) {
                         out.insert(target.qualified_name.clone());
                     }
                 }
             }
             // Recurse into nested ports: sub-key
             if let Some(serde_yaml::Value::Sequence(ports)) = map.get(&key_ports) {
-                collect_typed_by_refs(ports, elements, resolver, out);
+                collect_typed_by_refs(ports, elements, resolver, from_qname, out);
             }
         }
     }
@@ -10252,5 +10263,162 @@ mod w600_typed_by_documentation_tests {
         let result = validate_with_config(&elements, &ValidateConfig::default());
         let w600_count = codes(&result.findings).iter().filter(|c| **c == "W600").count();
         assert_eq!(w600_count, 2, "expected W600 for both the def and the usage: {:?}", result.findings);
+    }
+}
+
+// ── W007 scoped supertype:/typedBy: usage tracking (REQ-TRS-SYSMLV2-017) ────
+
+#[cfg(test)]
+mod w007_scoped_usage_tracking_tests {
+    use super::*;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: "some documentation".to_string(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    /// True if a `W007` finding names `qname` as the unused element (matching
+    /// its message, since `W007`'s file is always the reporting element's own
+    /// file — the assertion has to key off the message, not the file, when a
+    /// test's element list has more than one `*Def`).
+    fn w007_fires_for(findings: &[Finding], qname: &str) -> bool {
+        findings
+            .iter()
+            .any(|f| f.code == "W007" && f.message.contains(&format!("'{}'", qname)))
+    }
+
+    /// Issue #107's own minimal repro: `Documented`, declared in `Services`, is
+    /// used only via a package-relative `typedBy:` written from `System` — the
+    /// literal text a `.sysml` author produces (`ingest.rs` does no resolution
+    /// of its own), not `Documented`'s real full qname. Before this fix, only
+    /// an exact-match `resolve_ref` was tried, so this counted as unused.
+    #[test]
+    fn a_package_relative_typed_by_reference_across_packages_counts_as_usage() {
+        let elements = vec![
+            make_elem(
+                "Services::Documented",
+                "type: PartDef\nname: Documented\n",
+                "model/Services.md",
+            ),
+            make_elem(
+                "System::Top",
+                "type: PartDef\nname: Top\n",
+                "model/System.md",
+            ),
+            make_elem(
+                "System::Top::x",
+                "type: Part\nname: x\ntypedBy: Services::Documented\n",
+                "model/System.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !w007_fires_for(&result.findings, "Services::Documented"),
+            "{:?}",
+            result.findings
+        );
+    }
+
+    /// The same widening applies to `supertype:` (specialization), not only
+    /// `typedBy:` — `W007` tracks both as "used as a supertype or type".
+    #[test]
+    fn a_package_relative_supertype_reference_across_packages_counts_as_usage() {
+        let elements = vec![
+            make_elem(
+                "Services::Base",
+                "type: PartDef\nname: Base\n",
+                "model/Services.md",
+            ),
+            make_elem(
+                "System::Top",
+                "type: PartDef\nname: Top\n",
+                "model/System.md",
+            ),
+            make_elem(
+                "System::Derived",
+                "type: PartDef\nname: Derived\nsupertype: Services::Base\n",
+                "model/System.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !w007_fires_for(&result.findings, "Services::Base"),
+            "{:?}",
+            result.findings
+        );
+    }
+
+    /// A genuinely unused *Def (nothing anywhere references it as
+    /// supertype:/typedBy:) still fires W007 — the widening is additive, not a
+    /// blanket suppression.
+    #[test]
+    fn a_genuinely_unused_def_still_raises_w007() {
+        let elements = vec![make_elem(
+            "Services::Orphan",
+            "type: PartDef\nname: Orphan\n",
+            "model/Services.md",
+        )];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            w007_fires_for(&result.findings, "Services::Orphan"),
+            "{:?}",
+            result.findings
+        );
+    }
+
+    /// Same-package resolution (already working before this fix) is unaffected.
+    #[test]
+    fn a_same_package_typed_by_reference_still_counts_as_usage() {
+        let elements = vec![
+            make_elem(
+                "Services::Documented",
+                "type: PartDef\nname: Documented\n",
+                "model/Services.md",
+            ),
+            make_elem(
+                "Services::x",
+                "type: Part\nname: x\ntypedBy: Documented\n",
+                "model/Services.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !w007_fires_for(&result.findings, "Services::Documented"),
+            "{:?}",
+            result.findings
+        );
+    }
+
+    /// A `typedBy:` nested inside a `features:` entry is scoped the same way as
+    /// a top-level one (both go through `collect_typed_by_refs`).
+    #[test]
+    fn a_package_relative_feature_typed_by_reference_across_packages_counts_as_usage() {
+        let elements = vec![
+            make_elem(
+                "Services::Documented",
+                "type: PartDef\nname: Documented\n",
+                "model/Services.md",
+            ),
+            make_elem(
+                "System::Top",
+                "type: PartDef\nname: Top\nfeatures:\n  - name: sub\n    typedBy: Services::Documented\n",
+                "model/System.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !w007_fires_for(&result.findings, "Services::Documented"),
+            "{:?}",
+            result.findings
+        );
     }
 }

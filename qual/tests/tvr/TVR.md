@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** syscribe 0.34.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-08-11  
+**Date:** 2026-08-13  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 278 |
-| Passed | 278 |
+| Total test cases | 279 |
+| Passed | 279 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -2545,6 +2545,17 @@
 | Scenario | Result |
 |---|---|
 | the documented, cross-package-referenced target itself raises no W600 | ✓ PASS |
+
+---
+
+### TC-TRS-SYSMLV2-017 — Verify a package-relative typedBy: reference across SysMLv2 packages suppresses W007 on the referenced def, is a real connectivity-visible TypedBy edge, and a genuinely unused def still raises W007.
+
+**Verifies:** REQ-TRS-SYSMLV2-017  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a genuinely unused PartDef in the same model still raises W007 | ✓ PASS |
 
 ---
 

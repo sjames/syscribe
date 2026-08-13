@@ -147,10 +147,21 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
             }
         }
 
-        // TypedBy — may be a string or a sequence
+        // TypedBy — may be a string or a sequence. Resolved via resolve_scoped_ref,
+        // not a plain idx.get exact-qname lookup (REQ-TRS-SYSMLV2-017) — a
+        // SysMLv2-authored typedBy: is frequently a *relative* name (e.g.
+        // "Services::Documented" written inside `package System`) that only
+        // resolves once searched outward through the referencing element's own
+        // enclosing-package scope chain; a hand-authored typedBy: (always written
+        // fully qualified from the model root, by this format's own convention)
+        // resolves identically either way.
         if let Some(ref tb) = fm.typed_by {
             for s in yaml_strings(tb) {
-                if let Some(dst) = idx.get(s).copied() {
+                if let Some(dst) = resolver
+                    .resolve_scoped_ref(elements, &elem.qualified_name, s)
+                    .and_then(|e| idx.get(&e.qualified_name))
+                    .copied()
+                {
                     graph.add_edge(src, dst, EdgeKind::TypedBy);
                 }
             }
