@@ -510,9 +510,27 @@ firing where it should (`REQ-TRS-SYSMLV2-016`).
 `Resolver::resolve_scoped_ref` now searches outward through the referencing element's own
 enclosing-package scope chain — innermost first, down to the model root — before falling back to
 the original exact/id/display-name lookup, so `Services::Documented` written inside `System`
-resolves to `SysML2::Services::Documented` correctly. Scoped narrowly to `W600`'s suppression check
-for this fix; the same underlying gap in `graph.rs`'s `TypedBy` edge, the dangling-`typedBy:`
-check, and `W007`'s "never used as a supertype or type" tracking is a separate, not-yet-widened
-concern (see `ADR-SYS-SYSMLV2-001`'s addendum) — `resolve_scoped_ref` is written as a general,
-reusable `Resolver` method precisely so those can be widened later without re-deriving the
-resolution logic.
+resolves to `SysML2::Services::Documented` correctly. Originally scoped narrowly to `W600`'s
+suppression check; `graph.rs`'s `TypedBy` edge and `W007`'s "never used as a supertype or type"
+tracking were widened the same way next (`REQ-TRS-SYSMLV2-017`, below). The `mutate::guard`
+dangling-`typedBy:` check (`EREF`) remains on the plain, unscoped lookup — see
+`ADR-SYS-SYSMLV2-001`'s addenda for why each call site was widened (or deliberately deferred) on
+its own.
+
+## 13. Widening scoped resolution to `W007` and `graph.rs`'s `TypedBy` edge
+
+A real, multi-file `.sysml` submodel — where splitting interfaces, services, and system
+composition into separate packages is the normal, encouraged shape — hit the same root cause as
+§12 in two more places: `W007` ("defined but never used as a supertype or type") flagged a `*Def`
+as unused whenever its only reference was a cross-package, package-relative `typedBy:`/`supertype:`
+(confirmed against a real CarOS/`sabaton-caros` conversion: 35 of 36 `W007` warnings there were
+this exact false positive), and `graph.rs`'s `TypedBy` edge — which did a bare exact-qname
+`idx.get` lookup, narrower even than plain `resolve_ref` — silently produced no edge at all for the
+same reference, so `connectivity`/`n2`/`impact` never traversed it.
+
+`REQ-TRS-SYSMLV2-017` routes both through `resolve_scoped_ref`, the same widening §12 already made
+for `W600`. `exhibitsStates:` is deliberately left on the plain `resolve_ref` — it is never
+synthesized by SysMLv2 ingestion, so it is always already fully qualified from the model root. The
+`Supertype` graph edge and the `mutate::guard` dangling-`typedBy:` check (`EREF`, gating MCP
+guarded-write commits) are not widened by this requirement — a write-path guard rail deserves its
+own scrutiny, separate from a read-path validator warning or graph traversal.

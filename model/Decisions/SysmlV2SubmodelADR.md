@@ -403,3 +403,48 @@ raised `W600` even though the reference resolves correctly everywhere a human re
   without re-deriving the resolution logic. Scope creep beyond one filed, well-bounded defect was
   deliberately avoided, the same discipline `REQ-TRS-SYSMLV2-013`'s addendum above applied to its
   own local-lookahead widening.
+
+## Addendum: widening scoped resolution to `W007` and `graph.rs`'s `TypedBy` edge (`REQ-TRS-SYSMLV2-017`)
+
+Issue #107 followed directly on the previous addendum's own deferred scope: it confirmed, against
+the same live CarOS (`sabaton-caros`) architecture submodel, that 35 of 36 `W007` ("defined but
+never used as a supertype or type") warnings there were false positives, all sharing the identical
+root cause `REQ-TRS-SYSMLV2-016` had already diagnosed and fixed for `W600` — a `.sysml`-authored
+`typedBy:`/`supertype:` value is frequently package-relative text (e.g. `Services::Documented`
+written from inside a different package), which the plain `Resolver::resolve_ref` only resolves
+when it happens to already equal the target's full model-root qname. Only the top-of-hierarchy
+`CarOS` element itself was a genuine unused type.
+
+- **`W007` widened.** Both the top-level `supertype:`/`typedBy:` scan and the nested `typedBy:`
+  scan (`collect_typed_by_refs`, walking `features:`/`connections:`/`flowConnections:`/
+  `bindingConnections:`/`successionConnections:`/`performs:`/nested `ports:`) now resolve through
+  `resolve_scoped_ref(elements, <referencing element's own qname>, r)` instead of the plain
+  `resolve_ref`. `exhibitsStates:` is deliberately left alone — it is never synthesized by SysMLv2
+  ingestion (no `.sysml` construct maps to it), so it is always already fully qualified from the
+  model root by this format's own hand-authored convention, and widening it would be a no-op at
+  best and untested surface at worst.
+- **`graph.rs`'s `TypedBy` edge widened too**, judged safe to include in the same change unlike the
+  previous addendum's "each has its own blast radius" caution: on inspection, the edge's *previous*
+  behavior was not merely unscoped but strictly narrower than `resolve_ref` — a bare `idx.get(s)`
+  exact-qname lookup, with no id/display-name fallback at all. So the previous addendum's worry
+  ("a `connectivity`/`n2` edge silently appearing where none did before is a more consequential
+  behavior change than a warning going quiet") was re-examined and found to cut the other way here:
+  every edge this widening adds is one that was semantically real all along (SysML v2's own
+  namespace-scoping rules already make the reference resolve) and simply never appeared due to the
+  bug, confirmed directly — `connectivity` on the issue's own repro showed a bare, edgeless node
+  before this fix and the correct `[typedBy]` edge after. No case was found, in the existing test
+  suite or by construction, where this widening could turn an *incorrect* non-edge into an
+  incorrect edge: `resolve_scoped_ref` only ever produces a match that real SysML v2 namespace
+  lookup would also produce.
+- **Left open, same posture as before:** the `Supertype` edge in `graph.rs` (only `TypedBy` was
+  named in scope by both the issue and this requirement) and `mutate::guard`'s dangling-`typedBy:`
+  check (`EREF`, gating MCP guarded-write commits) — a write-path guard rail widening deserves its
+  own scrutiny (a previously-refused commit becoming silently accepted is a different risk profile
+  than a validator warning going quiet or a read-only graph traversal gaining an edge), not folded
+  into a read-path fix. Tracked as a future issue if a concrete need arises.
+- Not independently re-run against the real, external CarOS/`sabaton-caros` submodel from inside
+  this repo (it lives outside this tree) — the fix is instead verified against the issue's own
+  minimal two-package repro, reproduced faithfully as `REQ-TRS-SYSMLV2-017`'s qual test case
+  (`TC-TRS-SYSMLV2-017`) and as a `syscribe-model` integration test driving the real SysMLv2 ingest
+  pipeline end-to-end (`sysmlv2_typed_by_scoped.rs`), both confirming the exact false-positive
+  pattern the issue described is gone while a genuinely unused `*Def` still fires.

@@ -30,9 +30,11 @@ lifting the same fixed field set onto `interface def`/`port def`/`connection def
 whose body grammars carry no `MetadataAnnotation` slot for the real `@Name{...}` form
 (`REQ-TRS-SYSMLV2-014`), a `W542` warning identifying a genuinely two-segment `connect` endpoint
 that fell back to head-only because the tail isn't a locally-redeclared feature
-(`REQ-TRS-SYSMLV2-015`), and `W600`'s `typedBy:` documentation-fallback lookup resolving a
+(`REQ-TRS-SYSMLV2-015`), `W600`'s `typedBy:` documentation-fallback lookup resolving a
 package-relative SysMLv2-authored reference, not only one already equal to the target's full
-model-root qname (`REQ-TRS-SYSMLV2-016`).
+model-root qname (`REQ-TRS-SYSMLV2-016`), and the same scoped resolution widened to `W007`'s
+usage-tracking lookup and `graph.rs`'s `TypedBy` edge, so a `*Def` used only via a cross-package
+reference counts as used and is a real, traversable graph edge (`REQ-TRS-SYSMLV2-017`).
 
 This is a read-only validator: the submodel's `.sysml`/`.kerml` files stay authoritative and are
 edited by their own native tooling, never by Syscribe's web UI or mutate commands. A
