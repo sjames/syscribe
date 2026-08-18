@@ -678,7 +678,7 @@ pub(crate) fn known_type_names() -> Vec<&'static str> {
         "UseCase", "ViewDef", "View", "ViewpointDef", "MetadataDef", "Metadata",
         "VerificationCaseDef", "VerificationCase", "AnalysisCaseDef", "AnalysisCase",
         "AllocationDef", "Allocation", "Diagram", "Package", "LibraryPackage", "Namespace",
-        "Dependency", "FeatureDef", "Configuration", "Requirement", "TestCase", "TestPlan",
+        "Dependency", "FeatureDef", "FeatureModel", "Configuration", "Requirement", "TestCase", "TestPlan",
         "ADR",
     ];
     for (ty, _, _) in STABLE_ID_KINDS {

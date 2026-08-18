@@ -898,14 +898,11 @@ type: FeatureModel
 name: Features
 featureTree:
   - name: Platform
-    id: FEAT-PLATFORM-001
     mandatory: true
     groupKind: alternative
   - name: Platform.CortexM      # dotted path relative to this sheet → Features::Platform::CortexM
-    id: FEAT-CORTEXM-001
     groupKind: optional
   - name: Wdt
-    id: FEAT-WDT-001
     groupKind: optional
 crossTreeConstraints:           # requires:/excludes: as one section (inline requires:/excludes: on an entry still works too)
   - feature: Wdt
@@ -917,7 +914,7 @@ parameterConstraints:           # §9.7 cross-feature numeric constraints belong
 ---
 ```
 
-An entry's `name:` is a dotted path, **not** a single basic name — the synthesized `FeatureDef`'s own `name:` becomes just the last segment. An entry with no `name:` (or an empty path segment) is `E231`; a duplicate resolved qname is `E232`; a `crossTreeConstraints:` entry whose `feature:` isn't defined in this same sheet's `featureTree:` is `E233`; `featureTree:` on anything but `type: FeatureModel` is `W048`. `Configuration` needs no equivalent — it's already one file.
+An entry's `name:` is a dotted path, **not** a single basic name — the synthesized `FeatureDef`'s own `name:` becomes just the last segment. `id:` is optional here (unlike a plain per-file `FeatureDef`, where it's still mandatory) — omitted, it's derived from the entry's own dotted path (`Platform.CortexM` → `FEAT-PLATFORM-CORTEXM`); an explicit `id:` always wins. An entry with no `name:` (or an empty path segment) is `E231`; a duplicate resolved qname is `E232`; a derived (or hand-typed) id that collides with another id in the model is `E101`, and one that fails the `FEAT-*` pattern is `E006` — the same codes a hand-authored `FeatureDef` would get; a `crossTreeConstraints:` entry whose `feature:` isn't defined in this same sheet's `featureTree:` is `E233`; `featureTree:` on anything but `type: FeatureModel` is `W048`. `Configuration` needs no equivalent — it's already one file.
 
 **`appliesWhen:` forms** — a bare QName, a list (AND), or an expression with `and`/`or`/`not`/parentheses:
 

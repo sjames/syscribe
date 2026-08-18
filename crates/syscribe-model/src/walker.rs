@@ -553,6 +553,29 @@ fn explode_feature_entry(
         return;
     }
 
+    // REQ-TRS-FM-006: `id:` is optional on a featureTree: entry — unlike a
+    // plain per-file FeatureDef, where E201 still requires one — because
+    // retyping one per entry is where a flat, potentially large list stings
+    // most. When absent (missing, `null`, or empty string; anything else,
+    // e.g. a non-string value, is left alone and handled by the normal
+    // deserialize path below), derive one from the entry's own dotted path:
+    // segments uppercased, non-[A-Z0-9] characters stripped (so a basic-name
+    // underscore is dropped, not preserved), joined with `-`, prefixed
+    // `FEAT-`. The result is assigned exactly as if hand-authored, so E006
+    // (grammar) and E101 (duplicate) already apply with no new code needed.
+    let id_absent = match map.get("id") {
+        None | Some(serde_yaml::Value::Null) => true,
+        Some(serde_yaml::Value::String(s)) => s.is_empty(),
+        Some(_) => false,
+    };
+    if id_absent {
+        let seg_id = |s: &str| -> String {
+            s.chars().filter(|c| c.is_ascii_alphanumeric()).collect::<String>().to_uppercase()
+        };
+        let derived_id = format!("FEAT-{}", segments.iter().map(|s| seg_id(s)).collect::<Vec<_>>().join("-"));
+        map.insert("id".into(), derived_id.into());
+    }
+
     map.insert("name".into(), leaf_name.into());
     // A type-mismatched field anywhere in the entry (e.g. `mandatory: "yes"`)
     // fails the *whole* deserialize — `unwrap_or_default()` would silently

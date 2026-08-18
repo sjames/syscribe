@@ -72,22 +72,21 @@ type: FeatureModel
 name: Features
 featureTree:
   - name: Platform
-    id: FEAT-PLATFORM-001
     mandatory: true
     groupKind: alternative
   - name: Platform.CortexM      # dotted path relative to this sheet, not a single basic name
-    id: FEAT-CORTEXM-001
     groupKind: optional
   - name: Platform.RiscV
-    id: FEAT-RISCV-001
     groupKind: optional
   - name: Wdt
-    id: FEAT-WDT-001
+    id: FEAT-WDT-LEGACY         # explicit id: still honored, e.g. to keep a pre-existing one stable
     groupKind: optional
 ---
 ```
 
 Each entry's `name:` is a **dot-separated path relative to the sheet**, not a single basic name: `Platform.CortexM` explodes to qname `Features::Platform::CortexM` — exactly what the two-file layout above produces — and the synthesized `FeatureDef`'s own `name:` is rewritten to just the last segment (`CortexM`), same as a real file's leaf label. There's no nesting/`children:` in the YAML shape itself and no recursion: the list is flat, and an ancestor path prefix needs no entry of its own (`Platform.CortexM` works even without a standalone `Platform` entry — it just means no parent membership/grouping is enforced on it, exactly as an ancestor directory that isn't itself a `FeatureDef` implies no parent today). Every other `FeatureDef` field — `mandatory`, `groupKind`, `cardinality`, `parentFeature`, `contributesTo`, `parameters`, `buildExports`, inline `requires`/`excludes` — is carried through unchanged, and an optional `doc:` string on an entry becomes that `FeatureDef`'s Markdown body. Once exploded, these are ordinary `FeatureDef` elements — every consumer (`validate`, `feature-check`, `matrix`, `configure`, the web UI) sees the same thing either way, and the two forms can be mixed across a model (some packages per-file, others single-sheet).
+
+**`id:` is optional here** (REQ-TRS-FM-006) — unlike a plain per-file `FeatureDef`, where it stays mandatory (`E201`). Retyping a `FEAT-*` id on every entry of what can be a long flat list is exactly the friction this form should remove. When an entry omits `id:` (absent, `null`, or `""`), one is derived from its own dotted `name:`: segments uppercased, non-`[A-Z0-9]` characters stripped, joined with `-`, prefixed `FEAT-` — `Platform.CortexM` → `FEAT-PLATFORM-CORTEXM`. An explicit `id:` always wins. The derived id is assigned exactly as if hand-typed, so nothing new is checked for it: a segment that strips to fewer than 2 or more than 12 characters still fails the ordinary `FEAT-*` pattern check (`E006`), and a collision with another id anywhere in the model — hand-authored or itself derived — is still the ordinary duplicate-id check (`E101`). One trade-off worth having eyes open about: a derived id changes if the entry's `name:` is later renamed, so an `appliesWhen:`/`Configuration.features:`/`crossTreeConstraints:` reference that names the feature *by id* would need updating too — the same cost a rename already has on every qname-based reference to that feature. Give a feature an explicit `id:` if you need it to survive a rename.
 
 **Cross-tree constraints** can live inline (`requires:`/`excludes:` on a `featureTree:` entry, as always) or be pulled into a separate, more reviewable `crossTreeConstraints:` list on the same sheet:
 

@@ -373,3 +373,146 @@ featureTree:
         "a broken entry must not be synthesized as a (corrupted) FeatureDef"
     );
 }
+
+// ── REQ-TRS-FM-006: auto-derived FEAT-* id on a featureTree: entry ─────────
+
+/// A single-segment name derives a simple id; a multi-segment dotted name
+/// derives one joined with `-`; an explicit `id:` always overrides derivation.
+#[test]
+fn feature_tree_entry_derives_id_from_name_when_absent() {
+    let root = tempdir();
+    write(
+        &root,
+        "Features/_index.md",
+        r#"---
+type: FeatureModel
+name: Features
+featureTree:
+  - name: Wdt
+    groupKind: optional
+  - name: Platform.CortexM
+    groupKind: optional
+  - name: Custom
+    id: FEAT-CUSTOM-001
+    groupKind: optional
+---
+"#,
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let findings = validator::validate(&elements);
+    assert!(errors_of(&findings).is_empty(), "unexpected errors: {:#?}", errors_of(&findings));
+
+    let id_of = |q: &str| -> Option<String> {
+        elements.iter().find(|e| e.qualified_name == q)?.frontmatter.id.clone()
+    };
+    assert_eq!(id_of("Features::Wdt").as_deref(), Some("FEAT-WDT"));
+    assert_eq!(id_of("Features::Platform::CortexM").as_deref(), Some("FEAT-PLATFORM-CORTEXM"));
+    assert_eq!(id_of("Features::Custom").as_deref(), Some("FEAT-CUSTOM-001"), "explicit id: must win over derivation");
+}
+
+/// A basic-name underscore is stripped (not preserved) when deriving, since
+/// `_` is not in the FEAT-* grammar's `[A-Z0-9]` segment alphabet.
+#[test]
+fn feature_tree_entry_derivation_strips_underscores() {
+    let root = tempdir();
+    write(
+        &root,
+        "Features/_index.md",
+        r#"---
+type: FeatureModel
+name: Features
+featureTree:
+  - name: Cortex_M
+    groupKind: optional
+---
+"#,
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let cortex = elements.iter().find(|e| e.qualified_name == "Features::Cortex_M").unwrap();
+    assert_eq!(cortex.frontmatter.id.as_deref(), Some("FEAT-CORTEXM"));
+}
+
+/// A derived id that fails the FEAT-* grammar (segment too short) surfaces
+/// the existing E006 — no new code, no silent drop.
+#[test]
+fn grammar_invalid_derived_id_is_e006() {
+    let root = tempdir();
+    write(
+        &root,
+        "Features/_index.md",
+        r#"---
+type: FeatureModel
+name: Features
+featureTree:
+  - name: X
+    groupKind: optional
+---
+"#,
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let findings = validator::validate(&elements);
+    assert!(has_code(&findings.findings, "E006"), "expected E006: {:#?}", findings.findings);
+    // Still synthesized (not silently dropped) with the (invalid) derived id.
+    let x = elements.iter().find(|e| e.qualified_name == "Features::X").unwrap();
+    assert_eq!(x.frontmatter.id.as_deref(), Some("FEAT-X"));
+}
+
+/// Two featureTree: entries (in different sheets) deriving to the same id
+/// collide as the existing E101 — same as two hand-authored FeatureDefs
+/// sharing an id.
+#[test]
+fn duplicate_derived_id_across_sheets_is_e101() {
+    let root = tempdir();
+    write(
+        &root,
+        "A/_index.md",
+        r#"---
+type: FeatureModel
+name: A
+featureTree:
+  - name: Wdt
+    groupKind: optional
+---
+"#,
+    );
+    write(
+        &root,
+        "B/_index.md",
+        r#"---
+type: FeatureModel
+name: B
+featureTree:
+  - name: Wdt
+    groupKind: optional
+---
+"#,
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let findings = validator::validate(&elements);
+    assert!(has_code(&findings.findings, "E101"), "expected E101: {:#?}", findings.findings);
+}
+
+/// A plain per-file FeatureDef is unaffected by REQ-TRS-FM-006 — a missing
+/// id: there is still E201, exactly as before.
+#[test]
+fn per_file_feature_def_without_id_is_still_e201() {
+    let root = tempdir();
+    write(
+        &root,
+        "Features/NoId.md",
+        r#"---
+type: FeatureDef
+name: NoId
+groupKind: optional
+---
+"#,
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let findings = validator::validate(&elements);
+    assert!(has_code(&findings.findings, "E201"), "expected E201: {:#?}", findings.findings);
+}

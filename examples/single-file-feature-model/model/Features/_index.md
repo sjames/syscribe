@@ -3,44 +3,39 @@ type: FeatureModel
 name: Features
 featureTree:
   # ── Platform: mandatory XOR group, 3 levels deep ──────────────────────────
+  # No id: on most entries below — REQ-TRS-FM-006 derives one from the dotted
+  # name (e.g. Platform.CortexM.Fpu -> FEAT-PLATFORM-CORTEXM-FPU). Wdt keeps
+  # an explicit id: to demonstrate that it always overrides derivation.
   - name: Platform
-    id: FEAT-PLATFORM-001
     mandatory: true
     groupKind: alternative
     doc: "Every product picks exactly one compute platform."
   - name: Platform.CortexM
-    id: FEAT-CORTEXM-001
     groupKind: optional
     buildExports:
       - var: ENABLE_CORTEXM
         whenSelected: 1
         whenDeselected: 0
   - name: Platform.CortexM.Fpu
-    id: FEAT-FPU-001
     groupKind: optional
     doc: "Hardware floating point unit — only meaningful under CortexM."
   - name: Platform.RiscV
-    id: FEAT-RISCV-001
     groupKind: optional
 
   # ── Sensors: mandatory OR group (>=1 child) ───────────────────────────────
   - name: Sensors
-    id: FEAT-SENSORS-001
     mandatory: true
     groupKind: or
   - name: Sensors.IMU
-    id: FEAT-IMU-001
     groupKind: optional
   - name: Sensors.GPS
-    id: FEAT-GPS-001
     groupKind: optional
   - name: Sensors.Lidar
-    id: FEAT-LIDAR-001
     groupKind: optional
 
   # ── Wdt: optional, typed parameters, a child, and a relocated feature ────
   - name: Wdt
-    id: FEAT-WDT-001
+    id: FEAT-WDT-PINNED      # explicit id: — kept stable across any future rename
     groupKind: optional
     parameters:
       - name: timeoutMs
@@ -56,25 +51,22 @@ featureTree:
         value: "simple"
         isFixed: true
   - name: Wdt.WindowMode
-    id: FEAT-WDT-WINDOW-001
     groupKind: optional
   - name: OrphanRelocated
-    id: FEAT-RELOCATED-001
+    id: FEAT-RELOCATED      # explicit id: needed — "OrphanRelocated" derives to a
+                            # 15-char segment, over the FEAT-* pattern's 12-char cap (E006)
     groupKind: optional
     parentFeature: Features::Wdt
     doc: "Demonstrates the parentFeature: override — logically a Wdt child despite a top-level dotted name."
 
   # ── DataLink: mandatory XOR group ─────────────────────────────────────────
   - name: DataLink
-    id: FEAT-DATALINK-001
     mandatory: true
     groupKind: alternative
     contributesTo: SystemFeatures::Comms
   - name: DataLink.Lora
-    id: FEAT-LORA-001
     groupKind: optional
   - name: DataLink.Wifi
-    id: FEAT-WIFI-001
     groupKind: optional
 
 crossTreeConstraints:

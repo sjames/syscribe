@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.36.0  
+**Version:** syscribe 0.36.1  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-08-18  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 280 |
-| Passed | 280 |
+| Total test cases | 281 |
+| Passed | 281 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -504,6 +504,17 @@
 | Scenario | Result |
 |---|---|
 | featureTree on a non-FeatureModel type flagged W048 | ✓ PASS |
+
+---
+
+### TC-TRS-FM-006 — Verify featureTree: entries auto-derive a FEAT-* id from name when id: is omitted
+
+**Verifies:** REQ-TRS-FM-006  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a plain per-file FeatureDef with no id: is unaffected — still E201 | ✓ PASS |
 
 ---
 
