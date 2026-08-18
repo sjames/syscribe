@@ -20,4 +20,4 @@ batsat = "=0.6.0"
 # Content-baseline digest for suspect-link detection (§SuspectLinks; MIT/Apache, pure Rust).
 blake3 = "1"
 # Native SysML v2/KerML textual-notation AST parser (MIT, pure Rust; ADR-SYS-SYSMLV2-001).
-sysml-v2-parser = "0.53.0"
+sysml-v2-parser = "0.54.0"

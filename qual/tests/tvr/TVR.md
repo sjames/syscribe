@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.35.0  
+**Version:** syscribe 0.36.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-08-18  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
