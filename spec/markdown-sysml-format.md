@@ -47,6 +47,7 @@
    - 9.1–9.4 [Structural Variation (isVariation / isVariant)](#91-variation-definitions)
    - 9.5 [Product Line Engineering Overview](#95-product-line-engineering-overview)
    - 9.6 [`FeatureDef`: Feature Model Element](#96-featuredef-feature-model-element)
+   - 9.6a [Single-file authoring: `type: FeatureModel`](#96a-single-file-authoring-type-featuremodel-req-trs-fm-005)
    - 9.7 [Feature Parametrization](#97-feature-parametrization)
    - 9.8 [`Configuration`: Feature Selection](#98-configuration-feature-selection)
    - 9.9 [Two-Level Feature Models](#99-two-level-feature-models)
@@ -198,6 +199,7 @@ Every `.md` file must have a `type:` field drawn from the following table. The `
 | `TestCase` | *(native)* | Native test-case element with stable ID, lifecycle status, and Gherkin scenarios. See §8.12.5. |
 | `FeatureDef` | *(PLE native)* | Feature model node — a named, selectable characteristic with grouping semantics and optional typed parameters. See §9.6. |
 | `Configuration` | *(PLE native)* | A complete feature selection with parameter bindings; produces one concrete product variant. See §9.8. |
+| `FeatureModel` | *(PLE native)* | Single-file, additive alternative to a `FeatureDef`-per-file layout: a sheet whose `featureTree:`/`crossTreeConstraints:` explode into ordinary `FeatureDef` elements. See §9.6a. |
 
 ### 2.6 Record Types
 
@@ -4292,6 +4294,65 @@ thrust margin and payload capacity at the cost of increased mass and power.
 
 ---
 
+### 9.6a Single-file authoring: `type: FeatureModel` (REQ-TRS-FM-005)
+
+A `FeatureDef`-per-file layout is heavyweight for a large or fast-iterating feature model. As an **additive, opt-in alternative**, a whole feature model may be authored in **one file** whose `type:` is `FeatureModel`, carrying the tree as a flat `featureTree:` list. The walker explodes each entry into an ordinary `FeatureDef` `RawElement` before validation, so every downstream consumer sees the same kind of element regardless of authoring form; the two forms may be mixed within one model.
+
+| Field | YAML type | Required | Default | Description |
+|---|---|---|---|---|
+| `type` | literal `FeatureModel` | **Required** | — | Discriminator. |
+| `featureTree` | list of feature maps | optional | absent | Flat list of `FeatureDef`-shaped entries. |
+| `crossTreeConstraints` | list of constraint maps | optional | absent | Flat `{ feature, requires, excludes }` list, kept separate from the structural tree (§9.6a.2). |
+| `parameterConstraints` | list of constraint maps | optional | absent | §9.7's cross-feature numeric constraints — accepted here directly, in addition to a `Package`/`LibraryPackage`/`Namespace` `_index.md`. |
+
+#### 9.6a.1 `featureTree:` — the flat, dot-named structural list
+
+Each `featureTree:` entry is shaped exactly like a `FeatureDef`'s own frontmatter (`id`, `mandatory`, `groupKind`, `cardinality`, `parentFeature`, `contributesTo`, `requires`, `excludes`, `parameters`, `buildExports`), plus an optional `doc:` string — **except** that its `name:` is a **dot-separated path relative to the sheet**, not a single basic name. Splitting that path on `.` and joining with `::` under the sheet's own qualified name reproduces exactly the qname a directory-per-feature layout would produce; the synthesized `FeatureDef`'s own `name:` is then rewritten to just the last path segment (the same leaf label a real file would carry). There is no `children:`/nesting in the YAML shape and no recursion — the list is flat — and an ancestor path prefix needs no entry of its own (it simply implies no parent membership/grouping is enforced, exactly as an ancestor directory that is not itself a `FeatureDef` does today).
+
+```yaml
+# SystemFeatures/_index.md
+---
+type: FeatureModel
+name: SystemFeatures
+featureTree:
+  - name: Propulsion
+    id: FEAT-PROPULSION-001
+    mandatory: true
+    groupKind: alternative
+  - name: Propulsion.QuadRotor       # → SystemFeatures::Propulsion::QuadRotor
+    id: FEAT-QUADROTOR-001
+    groupKind: optional
+  - name: Propulsion.HexRotor        # → SystemFeatures::Propulsion::HexRotor
+    id: FEAT-HEXROTOR-001
+    groupKind: optional
+---
+```
+
+#### 9.6a.2 `crossTreeConstraints:` — requires/excludes as one section
+
+Inline `requires:`/`excludes:` on a `featureTree:` entry still works. `crossTreeConstraints:` is an additive alternative that keeps every requires/excludes edge in one reviewable list:
+
+```yaml
+crossTreeConstraints:
+  - feature: Propulsion.HexRotor
+    excludes: [Propulsion.QuadRotor]
+```
+
+`feature`/`requires`/`excludes` values all resolve the same way: containing `::` → an already-absolute qname; starting with `FEAT` → a stable id; otherwise → a dot-separated path relative to the sheet, resolved exactly like a `featureTree:` entry's `name:`. Each entry's resolved `requires`/`excludes` merge into the matching synthesized `FeatureDef`'s own field.
+
+#### 9.6a.3 Validation
+
+| Code | Condition |
+|---|---|
+| `E231` | A `featureTree:` entry is not a mapping, has no `name:`, or its dotted path has an empty segment (leading, trailing, or doubled `.`) — the entry is dropped |
+| `E232` | Two `featureTree:` entries (within one sheet or across sheets in the same model) resolve to the same qualified name |
+| `E233` | A `crossTreeConstraints:` entry is malformed (not a mapping, no `feature:`, or a reference with an empty path segment), or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:` |
+| `W048` | `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — inert, ignored |
+
+`Configuration` needs no single-file equivalent: it is already exactly one file (§9.8), and addresses features purely by qname/id with no dependency on how the `FeatureDef` was authored.
+
+---
+
 ## 9.7 Feature Parametrization
 
 Feature parameters allow a `FeatureDef` to carry typed, named values that must be bound to concrete values in any `Configuration` that selects the feature. This is the mechanism for quantitative variability — not just *whether* a feature is selected, but *how* it is configured.
@@ -4786,6 +4847,9 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E228` | Invalid `appliesWhen:` placement (§9.10): a declaration nested under a package that already declares `appliesWhen:`; or on a `FeatureDef`/`Configuration`, a package whose subtree contains one, or the model-root package. |
 | `E229` | A parameter's `bindingTime:` is **earlier** than that of a `derivedFrom`/`bindTo` source it depends on — an impossible ordering (§9.7). Checked only when both endpoints declare a `bindingTime:`. Emitted by `feature-check`. |
 | `E230` | A parameter declares a `bindingTime:` value that is not one of `compile`/`load`/`runtime` (§9.7). Emitted by `validate`. |
+| `E231` | (§9.6a) A `featureTree:` entry is not a mapping, has no `name:`, or its dot-separated path has an empty segment — the entry is dropped. |
+| `E232` | (§9.6a) Two `featureTree:` entries resolve to the same qualified name. |
+| `E233` | (§9.6a) A `crossTreeConstraints:` entry is malformed, or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:`. |
 
 ### Warnings
 
@@ -4804,6 +4868,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W026` | A `Package` declares `appliesWhen:` but its subtree contains no projectable element (it gates nothing). Gate with `--deny W026`. |
 | `W027` | A `Configuration` binds a parameter whose `bindingTime: runtime` — resolved by the running system, not at configuration time (§9.7). Gate with `--deny W027`. |
 | `W028` | The same `extRef` external reference is declared by two or more elements (§3). One finding per duplicated value. Gate with `--deny W028`. |
+| `W048` | (§9.6a) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — inert, ignored. |
 
 > **Implementation note.** Rules split across commands/modes:
 > - **`validate`** (per-element, always on) enforces the single-level parameter binding rules `E203`–`E206`, the unresolved-path error `E222`, `W017`, and the binding-time rules `E230` (invalid value) and `W027` (Configuration binds a `runtime` parameter; `W017` is suppressed for `runtime`).

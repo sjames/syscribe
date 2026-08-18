@@ -805,6 +805,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 // the tail wasn't a locally-redeclared feature -- same
                 // dedicated code range as W540/W541.
                 "W542" => "W542",
+                // REQ-TRS-FM-005: single-file `featureTree:` sheet explosion
+                // (`walker::explode_feature_model_trees`) — a node with no
+                // `name:` (E231), a qname collision (E232), or `featureTree:`
+                // declared on a non-`FeatureModel` element (W048).
+                "E231" => "E231",
+                "E232" => "E232",
+                "E233" => "E233",
+                "W048" => "W048",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });
@@ -923,6 +931,30 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     &format!("custom field '{}' must be a scalar or a list of scalars", key),
                 ));
             }
+        }
+
+        // W048 (REQ-TRS-FM-005 review): `parameterConstraints:` is a typed
+        // field (promoted off the `extra` catch-all so declaring it no longer
+        // falsely raises W047 on the element that hosts it — see
+        // `RawFrontmatter::parameter_constraints`), which means a misplaced
+        // block is otherwise now completely silent instead of at least
+        // getting the old, if confusingly-worded, W047. `feature_model.rs`
+        // only ever reads it off Package/LibraryPackage/Namespace/
+        // FeatureModel; flag it here on any other type.
+        if fm.parameter_constraints.is_some()
+            && !matches!(
+                fm.element_type,
+                Some(ElementType::Package)
+                    | Some(ElementType::LibraryPackage)
+                    | Some(ElementType::Namespace)
+                    | Some(ElementType::FeatureModel)
+            )
+        {
+            findings.push(warning(
+                "W048",
+                &file,
+                "'parameterConstraints:' is only recognized on a Package/LibraryPackage/Namespace or a FeatureModel sheet; ignored here",
+            ));
         }
 
         // W047 (REQ-TRS-SCHEMA-001): unrecognised top-level frontmatter field. Any key

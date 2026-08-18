@@ -370,14 +370,19 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     };
 
     // ── E212: requires/excludes entries resolve to a FeatureDef ──────────────
+    // A requires:/excludes: entry may be a FEAT-* stable id (e.g. via
+    // crossTreeConstraints:, REQ-TRS-FM-005) rather than a qname — canonicalize
+    // through the same id→qname alias `appliesWhen:`/`Configuration.features:`
+    // already use (REQ-TRS-ID-006) before resolving and storing.
     let mut req: HashMap<&str, Vec<String>> = HashMap::new();
     let mut exc: HashMap<&str, Vec<String>> = HashMap::new();
     for fd in &fdefs {
         let mut requires = Vec::new();
         if let Some(r) = &fd.frontmatter.requires {
-            requires = strings_from_seq(r);
+            requires = strings_from_seq(r).into_iter().map(|r| crate::variability::canon_feature_ref(&r, &feat_alias)).collect();
         }
-        let excludes = fd.frontmatter.excludes.clone().unwrap_or_default();
+        let excludes: Vec<String> = fd.frontmatter.excludes.clone().unwrap_or_default()
+            .into_iter().map(|x| crate::variability::canon_feature_ref(&x, &feat_alias)).collect();
         for r in requires.iter().chain(excludes.iter()) {
             if !fnames.contains(r.as_str()) {
                 f.push(err("E212", &fd.file_path,
@@ -555,12 +560,16 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     for pkg in elements.iter().filter(|e| {
         matches!(
             e.frontmatter.element_type,
-            Some(ElementType::Package) | Some(ElementType::LibraryPackage) | Some(ElementType::Namespace)
+            Some(ElementType::Package)
+                | Some(ElementType::LibraryPackage)
+                | Some(ElementType::Namespace)
+                // REQ-TRS-FM-005: a single-file `FeatureModel` sheet is the
+                // feature model's own home for `parameterConstraints:`, not
+                // just a `Package` `_index.md`.
+                | Some(ElementType::FeatureModel)
         )
     }) {
-        let Some(serde_yaml::Value::Sequence(cons)) =
-            pkg.frontmatter.extra.get("parameterConstraints")
-        else {
+        let Some(cons) = pkg.frontmatter.parameter_constraints.as_deref() else {
             continue;
         };
         for c in cons {
@@ -910,6 +919,20 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
         fdefs.iter().map(|e| (e.qualified_name.as_str(), *e)).collect();
     let files: HashMap<String, String> =
         fdefs.iter().map(|e| (e.qualified_name.clone(), e.file_path.clone())).collect();
+    // A requires:/excludes: entry may be a FEAT-* stable id (e.g. via
+    // crossTreeConstraints:, REQ-TRS-FM-005) rather than a qname — canonicalize
+    // before matching against fdef_set, same alias `check_feature_model`'s
+    // E212 pass and `appliesWhen:`/`Configuration.features:` already use.
+    let feat_alias: HashMap<&str, &str> = fdefs
+        .iter()
+        .filter_map(|e| {
+            e.frontmatter
+                .id
+                .as_deref()
+                .filter(|id| crate::resolver::is_feat_id(id))
+                .map(|id| (id, e.qualified_name.as_str()))
+        })
+        .collect();
 
     let parent_of = |q: &str| -> Option<String> {
         let e = by_name[q];
@@ -1015,23 +1038,25 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
         }
 
         if let Some(r) = &e.frontmatter.requires {
-            for r in strings_from_seq(r) {
-                if fdef_set.contains(r.as_str()) {
+            for raw in strings_from_seq(r) {
+                let rq: &str = feat_alias.get(raw.as_str()).copied().unwrap_or(raw.as_str());
+                if fdef_set.contains(rq) {
                     cons.push(Constraint {
                         kind: CKind::Requires,
-                        label: format!("'{}' requires '{}'", n, r),
-                        clauses: vec![vec![nv(n), v(&r)]],
+                        label: format!("'{}' requires '{}'", n, rq),
+                        clauses: vec![vec![nv(n), v(rq)]],
                     });
                 }
             }
         }
         if let Some(x) = &e.frontmatter.excludes {
-            for x in x {
-                if fdef_set.contains(x.as_str()) {
+            for raw in x {
+                let xq: &str = feat_alias.get(raw.as_str()).copied().unwrap_or(raw.as_str());
+                if fdef_set.contains(xq) {
                     cons.push(Constraint {
                         kind: CKind::Excludes,
-                        label: format!("'{}' excludes '{}'", n, x),
-                        clauses: vec![vec![nv(n), nv(x)]],
+                        label: format!("'{}' excludes '{}'", n, xq),
+                        clauses: vec![vec![nv(n), nv(xq)]],
                     });
                 }
             }

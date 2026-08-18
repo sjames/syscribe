@@ -20,6 +20,7 @@ use std::path::{Path, PathBuf};
 use crate::element::RawElement;
 use crate::frontmatter::split_frontmatter;
 use crate::resolver::Resolver;
+use crate::walker::is_synthesized;
 
 /// Free-text frontmatter keys whose scalar values are never qualified-name
 /// references (so a display name equal to a qname is not rewritten).
@@ -40,6 +41,8 @@ pub enum MoveError {
     SourceNotFound(String),
     #[error("Source '{0}' has no file to move.")]
     SourceHasNoFile(String),
+    #[error("Source '{qname}' is synthesized from a shared sheet file ({file}) — moving it would relocate every sibling entry in that file; edit the sheet directly instead.")]
+    SourceIsSynthesized { qname: String, file: String },
     #[error("Invalid destination qualified name: '{0}'")]
     InvalidDestination(String),
     #[error("Destination equals source ('{0}') — nothing to do.")]
@@ -247,19 +250,31 @@ pub fn move_element(
     dry_run: bool,
 ) -> Result<MoveReport, MoveError> {
     // ── Resolve the source (element id/qname, or an implicit package directory) ──
-    let (old, src_file): (String, Option<PathBuf>) =
-        match resolver.resolve_ref(elements, source_key) {
-            Some(e) => (e.qualified_name.clone(), Some(PathBuf::from(&e.file_path))),
-            None => {
-                let norm = source_key.replace('/', "::");
-                let dir = model_root.join(norm.replace("::", "/"));
-                if dir.is_dir() {
-                    (norm, None)
-                } else {
-                    return Err(MoveError::SourceNotFound(source_key.to_string()));
-                }
+    let resolved = resolver.resolve_ref(elements, source_key);
+    let (old, src_file): (String, Option<PathBuf>) = match resolved {
+        Some(e) => (e.qualified_name.clone(), Some(PathBuf::from(&e.file_path))),
+        None => {
+            let norm = source_key.replace('/', "::");
+            let dir = model_root.join(norm.replace("::", "/"));
+            if dir.is_dir() {
+                (norm, None)
+            } else {
+                return Err(MoveError::SourceNotFound(source_key.to_string()));
             }
-        };
+        }
+    };
+
+    // A synthesized element (an FMEA/TARA entry, or — REQ-TRS-FM-005 — a
+    // FeatureModel sheet's featureTree: entry) has no file of its own: its
+    // `file_path` is the *sheet's* file, shared with every sibling entry.
+    // Moving it by that path would relocate the whole sheet, mislabeled as
+    // renaming one entry — refuse instead of silently doing that.
+    if let (Some(e), Some(f)) = (resolved, &src_file) {
+        let rel = f.strip_prefix(model_root).unwrap_or(f);
+        if is_synthesized(e, rel) {
+            return Err(MoveError::SourceIsSynthesized { qname: old, file: e.file_path.clone() });
+        }
+    }
 
     let new = dest.replace('/', "::");
 

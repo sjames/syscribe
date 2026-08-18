@@ -162,6 +162,15 @@ fn blocked(reason: impl Into<String>, blocked_by: Vec<BlockedByEntry>) -> WriteR
     }
 }
 
+/// `update_element`/`delete_element` refuse a synthesized element (see their
+/// call sites) — same posture as the unresolved-reference refusal they
+/// already return, no new response shape needed. See
+/// `syscribe_model::walker::is_synthesized`'s doc comment for why.
+fn is_synthesized(elem: &syscribe_model::element::RawElement, model_root: &Path) -> bool {
+    let rel = rel_to_root(&elem.file_path, model_root);
+    syscribe_model::walker::is_synthesized(elem, Path::new(&rel))
+}
+
 /// Normalise a `RawElement::file_path` (always rooted at whatever `model_root`
 /// the store was loaded from) to a path relative to that root, for joining
 /// against a *different* root (the guarded-write candidate copy) later.
@@ -600,6 +609,12 @@ pub async fn delete_element(
         Some(e) => e.clone(),
         None => return Json(refused(format!("unresolved reference: {qname_norm}"))),
     };
+    if is_synthesized(&target, &store.model_root) {
+        return Json(refused(format!(
+            "'{qname_norm}' is synthesized from a shared sheet file ({}) — deleting it would delete every sibling entry in that file; edit the sheet directly instead",
+            target.file_path
+        )));
+    }
 
     if !q.force {
         let refs = referrers(&store.elements, &target.qualified_name);
@@ -707,11 +722,17 @@ pub async fn update_element(
     let mut store = state.write().await;
     let qname_norm = qname.replace('/', "::");
 
-    let file_path = match store.elements.iter().find(|e| e.qualified_name == qname_norm) {
-        Some(e) => e.file_path.clone(),
+    let target = match store.elements.iter().find(|e| e.qualified_name == qname_norm) {
+        Some(e) => e.clone(),
         None => return Json(refused(format!("unresolved reference: {qname_norm}"))),
     };
-    let rel = rel_to_root(&file_path, &store.model_root);
+    if is_synthesized(&target, &store.model_root) {
+        return Json(refused(format!(
+            "'{qname_norm}' is synthesized from a shared sheet file ({}) — a field update here would patch the sheet's own top-level frontmatter, not this entry; edit the sheet directly instead",
+            target.file_path
+        )));
+    }
+    let rel = rel_to_root(&target.file_path, &store.model_root);
 
     let fields = match merge_extra_yaml(req.fields.clone(), req.extra_yaml.as_deref()) {
         Ok(f) => f,

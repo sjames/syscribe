@@ -1,9 +1,9 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.34.0  
+**Version:** syscribe 0.35.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-08-13  
+**Date:** 2026-08-18  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 279 |
-| Passed | 279 |
+| Total test cases | 280 |
+| Passed | 280 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -493,6 +493,17 @@
 | Scenario | Result |
 |---|---|
 | legacy groupKind: mandatory child still treated as forced | ✓ PASS |
+
+---
+
+### TC-TRS-FM-005 — Verify single-file, flat/dotted featureTree: sheet — structural tree, crossTreeConstraints:, and parameterConstraints: on FeatureModel
+
+**Verifies:** REQ-TRS-FM-005  
+**Result:** ✓ PASS (9 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| featureTree on a non-FeatureModel type flagged W048 | ✓ PASS |
 
 ---
 
