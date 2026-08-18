@@ -87,6 +87,9 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E209 | `appliesWhen:` is malformed, or an operand does not resolve to a FeatureDef. `appliesWhen:` accepts a bare QName, a list (AND), or a boolean expression (`and`/`or`/`not`/parentheses); every operand is checked. |
 | E222 | A `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path — including the legacy all-`::` member form `Features::Feature::param`, which must be the dotted `Features::Feature.param` — unknown feature, or undeclared parameter) |
 | E230 | A parameter declares a `bindingTime:` value other than `compile`/`load`/`runtime` (§9.7) |
+| E231 | (single-file feature model, REQ-TRS-FM-005) A `type: FeatureModel` sheet's `featureTree:` entry is not a mapping, has no `name:`, or its dot-separated path has an empty segment (leading, trailing, or doubled `.`) — the entry is dropped |
+| E232 | (single-file feature model) Two `featureTree:` entries — within one sheet or across sheets in the same model — resolve to the same qualified name |
+| E233 | (single-file feature model) A `crossTreeConstraints:` entry is malformed (not a mapping, no `feature:`, or a reference with an empty path segment), or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:` |
 
 ## PLE warnings (W015–W017)
 
@@ -883,6 +886,7 @@ under `custom_fields:` (which is exempt). Advisory; gate with `--deny W047`.
 | Code | Condition |
 |---|---|
 | W047 | A top-level frontmatter key is not a recognized schema field and is not `custom_fields`. One finding per key, naming the key and file, pointing to `custom_fields:`. Keys under `custom_fields:` and all recognized fields are exempt. |
+| W048 | (single-file feature model, REQ-TRS-FM-005) `featureTree:` is declared on an element whose `type:` is not `FeatureModel` — the field is silently inert there, so this names the mistake |
 
 ## MagicGrid overlay (E316, W307, MG010–MG070)
 

@@ -94,6 +94,7 @@ pub fn type_label(et: &ElementType) -> &'static str {
         ElementType::AttributeDef => "AttributeDef",
         ElementType::Attribute => "Attribute",
         ElementType::FeatureDef => "FeatureDef",
+        ElementType::FeatureModel => "FeatureModel",
         ElementType::Configuration => "Configuration",
         ElementType::StateDef => "StateDef",
         ElementType::UseCaseDef => "UseCaseDef",
@@ -3129,6 +3130,53 @@ groupKind: optional
 
 Description of this feature definition.
 "#,
+        "featuremodel" => r#"---
+type: FeatureModel
+name: Features
+# Whole feature model authored as one flat sheet (REQ-TRS-FM-005), exploded
+# into ordinary FeatureDef elements — an alternative to one file per feature.
+# Each entry's `name:` is a DOT-separated path relative to this sheet, not a
+# single basic name: "Platform.CortexM" explodes to qname
+# Features::Platform::CortexM (the exploded element's own `name:` becomes just
+# "CortexM" — the leaf). An ancestor path prefix needs no entry of its own.
+featureTree:
+  - name: Platform
+    id: FEAT-PLATFORM-001
+    mandatory: true          # every product has a platform...
+    groupKind: alternative   # ...and picks exactly one child (XOR)
+    doc: "Optional prose — becomes this entry's Markdown body."
+  - name: Platform.CortexM
+    id: FEAT-CORTEXM-001
+    groupKind: optional
+  - name: Platform.RiscV
+    id: FEAT-RISCV-001
+    groupKind: optional
+  - name: Wdt
+    id: FEAT-WDT-001
+    groupKind: optional
+    parameters:
+      - { name: timeoutMs, type: ScalarValues::Integer, range: "10..=5000" }
+
+# Cross-tree requires/excludes edges, kept as one reviewable section instead
+# of scattered across featureTree: entries (inline requires:/excludes: on an
+# entry above still works too — this is additive). `feature`/`requires`/
+# `excludes` resolve the same way: containing "::" = absolute qname; starting
+# with "FEAT" = stable id; otherwise a dotted path relative to this sheet.
+crossTreeConstraints:
+  - feature: Wdt
+    requires: [Platform.CortexM]
+
+# Cross-feature numeric constraints (§9.7) now belong directly on this sheet
+# too, instead of only on a plain Package _index.md:
+# parameterConstraints:
+#   - id: PC-EXAMPLE
+#     expression: "Features::Wdt.timeoutMs <= 5000"
+#     appliesWhen: Features::Wdt
+#     severity: error
+---
+
+Description of this feature model.
+"#,
         "itemdef" => r#"---
 type: ItemDef
 name: MyItemDef
@@ -3725,7 +3773,7 @@ pub fn cmd_template(type_name: &str) {
             eprintln!("  Views:            ViewDef, View, ViewpointDef, Diagram");
             eprintln!("  Metadata:         MetadataDef, Metadata");
             eprintln!("  Packages:         Package, LibraryPackage, Namespace");
-            eprintln!("  PLE:              FeatureDef, Configuration");
+            eprintln!("  PLE:              FeatureDef, FeatureModel, Configuration");
             eprintln!("  Misc:             Dependency");
             eprintln!("  Safety (HARA):    HazardousEvent, SafetyGoal");
             eprintln!("  Security (TARA):  Asset, DamageScenario, ThreatScenario, CybersecurityGoal,");

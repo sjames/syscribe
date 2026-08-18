@@ -61,6 +61,58 @@ features:
 
 > **Footgun guard (`W016`):** the selection block must be the `features:` **map**. A legacy `selections:` list is ignored and flagged — `syscribe show <CONF>` displays the parsed selections so you can see exactly what was read.
 
+### Single-file authoring — `featureTree:` (REQ-TRS-FM-005)
+
+A `FeatureDef`-per-file layout is heavyweight for a large or fast-iterating feature model. As an **additive, opt-in alternative**, a whole feature model can be authored in **one file** — `type: FeatureModel` — as a **flat** `featureTree:` list. The mandatory-XOR-group example above becomes:
+
+```yaml
+# Features/_index.md
+---
+type: FeatureModel
+name: Features
+featureTree:
+  - name: Platform
+    id: FEAT-PLATFORM-001
+    mandatory: true
+    groupKind: alternative
+  - name: Platform.CortexM      # dotted path relative to this sheet, not a single basic name
+    id: FEAT-CORTEXM-001
+    groupKind: optional
+  - name: Platform.RiscV
+    id: FEAT-RISCV-001
+    groupKind: optional
+  - name: Wdt
+    id: FEAT-WDT-001
+    groupKind: optional
+---
+```
+
+Each entry's `name:` is a **dot-separated path relative to the sheet**, not a single basic name: `Platform.CortexM` explodes to qname `Features::Platform::CortexM` — exactly what the two-file layout above produces — and the synthesized `FeatureDef`'s own `name:` is rewritten to just the last segment (`CortexM`), same as a real file's leaf label. There's no nesting/`children:` in the YAML shape itself and no recursion: the list is flat, and an ancestor path prefix needs no entry of its own (`Platform.CortexM` works even without a standalone `Platform` entry — it just means no parent membership/grouping is enforced on it, exactly as an ancestor directory that isn't itself a `FeatureDef` implies no parent today). Every other `FeatureDef` field — `mandatory`, `groupKind`, `cardinality`, `parentFeature`, `contributesTo`, `parameters`, `buildExports`, inline `requires`/`excludes` — is carried through unchanged, and an optional `doc:` string on an entry becomes that `FeatureDef`'s Markdown body. Once exploded, these are ordinary `FeatureDef` elements — every consumer (`validate`, `feature-check`, `matrix`, `configure`, the web UI) sees the same thing either way, and the two forms can be mixed across a model (some packages per-file, others single-sheet).
+
+**Cross-tree constraints** can live inline (`requires:`/`excludes:` on a `featureTree:` entry, as always) or be pulled into a separate, more reviewable `crossTreeConstraints:` list on the same sheet:
+
+```yaml
+crossTreeConstraints:
+  - feature: Wdt
+    requires: [Platform.CortexM]
+  - feature: Platform.RiscV
+    excludes: [Wdt]
+```
+
+`feature`/`requires`/`excludes` values resolve the same way everywhere in this section: a value containing `::` is already an absolute qname; one starting with `FEAT` is a stable id; anything else is a dotted path relative to the sheet, resolved exactly like a `featureTree:` entry's `name:`. A `feature:` that doesn't resolve to a `FeatureDef` synthesized from *this sheet's own* `featureTree:` is `E233` — there's nothing local to attach the constraint to.
+
+**`parameterConstraints:`** (§9.7's cross-feature numeric constraints, normally on a `Package`/`LibraryPackage`/`Namespace` `_index.md`) can also be declared directly on the `FeatureModel` sheet — the natural single home for everything about this feature model:
+
+```yaml
+parameterConstraints:
+  - id: PC-AMP-MIN
+    expression: "Features::Topology.maxCpus >= 2"
+    appliesWhen: "Features::Cpu::CortexA and Features::Topology::Amp"
+    severity: error
+```
+
+New findings specific to this form: `E231` (an entry has no `name:`, isn't a mapping, or its dotted path has an empty segment — the entry is dropped), `E232` (two entries resolve to the same qname), `E233` (a `crossTreeConstraints:` entry is malformed or its `feature:` doesn't resolve within the sheet), `W048` (`featureTree:` declared on anything other than `type: FeatureModel` — inert, ignored). `Configuration` needs no equivalent — it's already exactly one file, and addresses features purely by qname/id with no dependency on how the `FeatureDef` was authored.
+
 ---
 
 ## 2. Conditioning elements — `appliesWhen:`

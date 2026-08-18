@@ -320,7 +320,7 @@ fn node_style(et: &ElementType) -> NodeStyle {
         FeatureDef => ("diamond", "", "#F3E5F5", "#8E24AA"),
         Configuration => ("box3d", "", "#F3E5F5", "#8E24AA"),
         // Packaging
-        Package | LibraryPackage | Namespace => ("folder", "", "#F5F5F5", "#9E9E9E"),
+        Package | LibraryPackage | Namespace | FeatureModel => ("folder", "", "#F5F5F5", "#9E9E9E"),
         // Safety
         SafetyGoal => ("doubleoctagon", "", "#FCE8E6", "#C5221F"),
         HazardousEvent | FMEASheet | FMEAEntry | FaultTree | FaultTreeGate | FaultTreeEvent => {

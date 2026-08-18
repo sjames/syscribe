@@ -1,3 +1,4 @@
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use anyhow::Result;
 use walkdir::WalkDir;
@@ -147,6 +148,7 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
 
     explode_fmea_entries(&mut elements);
     explode_tara_entries(&mut elements);
+    explode_feature_model_trees(&mut elements);
     // Native SysML v2/KerML submodel scoping (ADR-SYS-SYSMLV2-001): strip stray
     // nested `_index.md`s out of any `sysmlSubmodel: true` package's subtree.
     crate::sysmlv2::apply_sysmlv2_submodels(&mut elements, model_root);
@@ -339,4 +341,286 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
     }
 
     elements.extend(synthetic);
+}
+
+
+/// Post-processing pass (REQ-TRS-FM-005): for each `type: FeatureModel` sheet,
+/// explode its **flat** `featureTree:` list into ordinary `FeatureDef`
+/// `RawElement`s — one per entry — so a whole feature model can be authored as
+/// one file instead of a directory-per-feature tree. An entry's `name:` is a
+/// **dot-separated relative path** from the sheet (e.g. `Platform.CortexM`,
+/// not a single basic name); splitting it on `.` and joining with `::` under
+/// the sheet's own qname produces exactly the qname a directory-per-feature
+/// layout would produce for the same tree shape (`Features::Platform::CortexM`).
+/// The synthesized element's own `name:` is rewritten to just the last path
+/// segment — the same leaf label a per-file `FeatureDef` would carry — so every
+/// downstream consumer (validator, `feature-check`, `matrix`, the web UI) sees
+/// the same kind of `FeatureDef` element either way. An ancestor path prefix
+/// need not have its own entry, exactly as an ancestor directory need not be a
+/// `FeatureDef` today: `feature_model::parent_of` already treats "no FeatureDef
+/// at that qname" as "no parent", so this flat form and the multi-file form
+/// share that same fallback with no extra logic here.
+///
+/// An entry with no `name:`, or whose path has an empty segment (leading,
+/// trailing, or doubled `.`), cannot be placed in the qname tree; it is dropped
+/// and flagged `E231` on the sheet. Two entries that resolve to the same
+/// qualified name are flagged `E232`. `featureTree:` declared on any element
+/// type other than `FeatureModel` is inert and flagged `W048`.
+///
+/// A sheet may also declare `crossTreeConstraints:` — a flat list of
+/// `{ feature, requires, excludes }` entries, kept separate from the
+/// structural `featureTree:` so requires/excludes edges can be reviewed as one
+/// section (see `RawFrontmatter::cross_tree_constraints`'s doc comment for the
+/// reference-resolution rule). Each entry's resolved `requires`/`excludes` are
+/// merged into the matching synthesized `FeatureDef`'s own field; a `feature:`
+/// that doesn't resolve to a `FeatureDef` synthesized from *this* sheet is
+/// `E233`.
+fn explode_feature_model_trees(elements: &mut Vec<RawElement>) {
+    let mut synthetic: Vec<RawElement> = Vec::new();
+    // (sheet index, code, message) — folded into that sheet's `derive_findings`
+    // once the borrow over `elements` for reading is done.
+    let mut findings: Vec<(usize, &'static str, String)> = Vec::new();
+    // Every qname already in use — pre-existing elements plus whatever this
+    // pass has synthesized so far — so cross-sheet collisions are caught too.
+    let mut seen_qnames: HashSet<String> =
+        elements.iter().map(|e| e.qualified_name.clone()).collect();
+
+    for (idx, sheet) in elements.iter().enumerate() {
+        let is_feature_model = sheet.frontmatter.element_type == Some(ElementType::FeatureModel);
+        let has_tree = sheet.frontmatter.feature_tree.is_some();
+        let has_constraints = sheet.frontmatter.cross_tree_constraints.is_some();
+        if !has_tree && !has_constraints {
+            continue;
+        }
+
+        if !is_feature_model {
+            if has_tree {
+                findings.push((
+                    idx,
+                    "W048",
+                    "'featureTree:' is only recognized on a 'type: FeatureModel' element; ignored here".to_string(),
+                ));
+            }
+            continue;
+        }
+
+        // This sheet's own entries land at `synthetic[sheet_start..]` — that
+        // range is what `crossTreeConstraints:` below is allowed to attach to.
+        let sheet_start = synthetic.len();
+        if let Some(tree) = &sheet.frontmatter.feature_tree {
+            for entry in tree {
+                explode_feature_entry(
+                    entry,
+                    &sheet.qualified_name,
+                    &sheet.file_path,
+                    idx,
+                    &mut seen_qnames,
+                    &mut synthetic,
+                    &mut findings,
+                );
+            }
+        }
+
+        if let Some(constraints) = &sheet.frontmatter.cross_tree_constraints {
+            let by_qname: HashMap<String, usize> = synthetic[sheet_start..]
+                .iter()
+                .enumerate()
+                .map(|(i, e)| (e.qualified_name.clone(), sheet_start + i))
+                .collect();
+            for c in constraints {
+                apply_cross_tree_constraint(c, &sheet.qualified_name, idx, &by_qname, &mut synthetic, &mut findings);
+            }
+        }
+    }
+
+    for (idx, code, message) in findings {
+        let file = elements[idx].file_path.clone();
+        elements[idx].derive_findings.push((code.to_string(), file, message));
+    }
+    elements.extend(synthetic);
+}
+
+/// Resolve one `featureTree:`/`crossTreeConstraints:` reference string:
+/// containing `::` → already an absolute qname; starting with `FEAT` → a
+/// stable id; otherwise → a dot-separated path relative to `sheet_qname`.
+/// Returns `None` for a relative path with an empty segment.
+fn resolve_feature_ref(raw: &str, sheet_qname: &str) -> Option<String> {
+    if raw.contains("::") || raw.starts_with("FEAT") {
+        return Some(raw.to_string());
+    }
+    let segments: Vec<&str> = raw.split('.').collect();
+    if raw.is_empty() || segments.iter().any(|s| s.is_empty()) {
+        return None;
+    }
+    Some(format!("{}::{}", sheet_qname, segments.join("::")))
+}
+
+/// Explode one flat `featureTree:` entry into a synthetic `FeatureDef`
+/// `RawElement`, appending to `synthetic`/`findings`.
+fn explode_feature_entry(
+    entry: &serde_yaml::Value,
+    sheet_qname: &str,
+    sheet_file: &str,
+    sheet_idx: usize,
+    seen_qnames: &mut HashSet<String>,
+    synthetic: &mut Vec<RawElement>,
+    findings: &mut Vec<(usize, &'static str, String)>,
+) {
+    let serde_yaml::Value::Mapping(map) = entry else {
+        findings.push((
+            sheet_idx,
+            "E231",
+            format!("a featureTree: entry under '{}' is not a mapping — skipped", sheet_qname),
+        ));
+        return;
+    };
+    let mut map = map.clone();
+    let doc = map
+        .remove("doc")
+        .and_then(|v| v.as_str().map(|s| s.to_string()))
+        .unwrap_or_default();
+
+    let raw_name = map.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let Some(raw_name) = raw_name else {
+        findings.push((
+            sheet_idx,
+            "E231",
+            format!(
+                "a featureTree: entry under '{}' has no 'name:' — cannot be placed in the qualified-name tree",
+                sheet_qname
+            ),
+        ));
+        return;
+    };
+
+    let segments: Vec<&str> = raw_name.split('.').collect();
+    if segments.iter().any(|s| s.is_empty()) {
+        findings.push((
+            sheet_idx,
+            "E231",
+            format!(
+                "featureTree: entry name '{}' under '{}' has an empty path segment (leading, trailing, or doubled '.')",
+                raw_name, sheet_qname
+            ),
+        ));
+        return;
+    }
+
+    let qname = format!("{}::{}", sheet_qname, segments.join("::"));
+    let leaf_name = *segments.last().unwrap();
+
+    if !seen_qnames.insert(qname.clone()) {
+        findings.push((
+            sheet_idx,
+            "E232",
+            format!("featureTree: entry '{}' collides with an existing element of the same qualified name", qname),
+        ));
+        return;
+    }
+
+    map.insert("name".into(), leaf_name.into());
+    let mut fm: RawFrontmatter =
+        serde_yaml::from_value(serde_yaml::Value::Mapping(map)).unwrap_or_default();
+    fm.element_type = Some(ElementType::FeatureDef);
+
+    synthetic.push(RawElement {
+        qualified_name: qname,
+        file_path: sheet_file.to_string(),
+        frontmatter: fm,
+        doc,
+        parse_issue: None,
+        derived: Default::default(),
+        derive_findings: Vec::new(),
+    });
+}
+
+/// Merge one `crossTreeConstraints:` entry's `requires`/`excludes` into the
+/// matching synthesized `FeatureDef`'s own field, or flag `E233` when its
+/// `feature:` doesn't resolve within this sheet.
+fn apply_cross_tree_constraint(
+    c: &serde_yaml::Value,
+    sheet_qname: &str,
+    sheet_idx: usize,
+    by_qname: &HashMap<String, usize>,
+    synthetic: &mut [RawElement],
+    findings: &mut Vec<(usize, &'static str, String)>,
+) {
+    let serde_yaml::Value::Mapping(map) = c else {
+        findings.push((
+            sheet_idx,
+            "E233",
+            format!("a crossTreeConstraints: entry under '{}' is not a mapping — skipped", sheet_qname),
+        ));
+        return;
+    };
+
+    let strings_of = |key: &str| -> Vec<String> {
+        match map.get(key) {
+            Some(serde_yaml::Value::String(s)) => vec![s.clone()],
+            Some(serde_yaml::Value::Sequence(seq)) => {
+                seq.iter().filter_map(|v| v.as_str().map(String::from)).collect()
+            }
+            _ => Vec::new(),
+        }
+    };
+
+    let Some(raw_feature) = map.get("feature").and_then(|v| v.as_str()) else {
+        findings.push((
+            sheet_idx,
+            "E233",
+            format!("a crossTreeConstraints: entry under '{}' has no 'feature:'", sheet_qname),
+        ));
+        return;
+    };
+    let Some(feature_qname) = resolve_feature_ref(raw_feature, sheet_qname) else {
+        findings.push((
+            sheet_idx,
+            "E233",
+            format!("crossTreeConstraints: 'feature: {}' under '{}' has an empty path segment", raw_feature, sheet_qname),
+        ));
+        return;
+    };
+    let Some(&target_idx) = by_qname.get(&feature_qname) else {
+        findings.push((
+            sheet_idx,
+            "E233",
+            format!(
+                "crossTreeConstraints: feature '{}' does not resolve to a FeatureDef synthesized from this sheet's own featureTree:",
+                feature_qname
+            ),
+        ));
+        return;
+    };
+
+    let mut requires: Vec<String> = Vec::new();
+    for r in strings_of("requires") {
+        match resolve_feature_ref(&r, sheet_qname) {
+            Some(resolved) => requires.push(resolved),
+            None => findings.push((
+                sheet_idx,
+                "E233",
+                format!("crossTreeConstraints: 'requires: {}' under '{}' has an empty path segment", r, sheet_qname),
+            )),
+        }
+    }
+    let mut excludes: Vec<String> = Vec::new();
+    for x in strings_of("excludes") {
+        match resolve_feature_ref(&x, sheet_qname) {
+            Some(resolved) => excludes.push(resolved),
+            None => findings.push((
+                sheet_idx,
+                "E233",
+                format!("crossTreeConstraints: 'excludes: {}' under '{}' has an empty path segment", x, sheet_qname),
+            )),
+        }
+    }
+
+    let target = &mut synthetic[target_idx];
+    if !requires.is_empty() {
+        let list = target.frontmatter.requires.get_or_insert_with(Vec::new);
+        list.extend(requires.into_iter().map(serde_yaml::Value::String));
+    }
+    if !excludes.is_empty() {
+        target.frontmatter.excludes.get_or_insert_with(Vec::new).extend(excludes);
+    }
 }

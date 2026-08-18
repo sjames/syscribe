@@ -182,6 +182,10 @@ pub enum ElementType {
     AssumptionOfUse,  // AOU-* — safety-related application condition (SRAC)
     // TARA container (ISO/SAE 21434) — exploded by walker into Tier-2 types
     TARASheet,
+    // Single-file feature model (REQ-TRS-FM-005) — a `featureTree:` sheet
+    // exploded by the walker into ordinary `FeatureDef` elements, one per
+    // tree node, mirroring the multi-file (directory-per-feature) form.
+    FeatureModel,
     // Namespace
     Package,
     LibraryPackage,
@@ -696,6 +700,49 @@ pub struct RawFrontmatter {
     // §9.7 — FeatureDef parameters (also used by ActionDef/CalculationDef as a
     // generic typed-parameter list; only FeatureDef parameters are validated).
     pub parameters: Option<Vec<serde_yaml::Value>>,
+
+    /// `featureTree:` (REQ-TRS-FM-005) — on a `type: FeatureModel` sheet: the
+    /// whole feature model as one **flat** list. Each entry is shaped like a
+    /// `FeatureDef`'s own frontmatter (`id`, `mandatory`, `groupKind`,
+    /// `cardinality`, `requires`, `excludes`, `parameters`, `buildExports`, an
+    /// optional `doc:` body), but its `name:` is a **dot-separated relative
+    /// path** from the sheet — e.g. `Platform.CortexM` — rather than a single
+    /// basic name. This is a mini-DSL scoped to `featureTree:` entries only; it
+    /// does not change `name:`'s meaning anywhere else in the format.
+    ///
+    /// The walker's explode pass (`walker::explode_feature_model_trees`) turns
+    /// each entry into a synthetic `FeatureDef` `RawElement`: the dotted path is
+    /// split on `.`, each segment becomes one `::`-joined qname component under
+    /// the sheet's own qname (so `Platform.CortexM` under sheet `Features`
+    /// yields `Features::Platform::CortexM` — exactly the qname a
+    /// directory-per-feature layout would produce for the same tree shape), and
+    /// the synthesized element's own `name:` is rewritten to just the last path
+    /// segment (`CortexM`) — the same leaf label a per-file `FeatureDef` would
+    /// carry. An ancestor segment need not have its own entry (mirrors today's
+    /// multi-file behavior: a qname prefix that is not itself a `FeatureDef`
+    /// simply implies no parent). Every downstream consumer (validator,
+    /// `feature-check`, `matrix`, the web UI) sees the same kind of `FeatureDef`
+    /// element either way. Purely additive/opt-in: unrelated to the existing
+    /// per-attribute `features:` field.
+    #[serde(rename = "featureTree")]
+    pub feature_tree: Option<Vec<serde_yaml::Value>>,
+
+    /// `crossTreeConstraints:` (REQ-TRS-FM-005) — on a `type: FeatureModel`
+    /// sheet: a flat list of `{ feature, requires, excludes }` entries, kept
+    /// separate from the `featureTree:` structural list so the model's
+    /// requires/excludes edges can be reviewed as one section instead of
+    /// scattered across entries (inline `requires:`/`excludes:` on a
+    /// `featureTree:` entry still works too — this section is additive).
+    /// `feature`/`requires`/`excludes` values resolve the same way: containing
+    /// `::` → already an absolute qname; starting with `FEAT` → a stable id;
+    /// otherwise → a dot-separated path relative to this sheet, resolved
+    /// exactly like a `featureTree:` entry's `name:`. The walker's explode pass
+    /// merges each resolved `requires`/`excludes` into the matching synthesized
+    /// `FeatureDef`'s own field. A `feature:` that doesn't resolve to a
+    /// `FeatureDef` synthesized from this same sheet is `E233` — there is
+    /// nothing local to attach the constraint to.
+    #[serde(rename = "crossTreeConstraints")]
+    pub cross_tree_constraints: Option<Vec<serde_yaml::Value>>,
 
     // §9.9 — Build-system integration (build-config command)
     /// `buildExports:` — on a `FeatureDef`: a list of `{var, whenSelected, whenDeselected}`

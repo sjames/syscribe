@@ -805,6 +805,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 // the tail wasn't a locally-redeclared feature -- same
                 // dedicated code range as W540/W541.
                 "W542" => "W542",
+                // REQ-TRS-FM-005: single-file `featureTree:` sheet explosion
+                // (`walker::explode_feature_model_trees`) — a node with no
+                // `name:` (E231), a qname collision (E232), or `featureTree:`
+                // declared on a non-`FeatureModel` element (W048).
+                "E231" => "E231",
+                "E232" => "E232",
+                "E233" => "E233",
+                "W048" => "W048",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });

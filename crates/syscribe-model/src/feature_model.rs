@@ -555,7 +555,13 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     for pkg in elements.iter().filter(|e| {
         matches!(
             e.frontmatter.element_type,
-            Some(ElementType::Package) | Some(ElementType::LibraryPackage) | Some(ElementType::Namespace)
+            Some(ElementType::Package)
+                | Some(ElementType::LibraryPackage)
+                | Some(ElementType::Namespace)
+                // REQ-TRS-FM-005: a single-file `FeatureModel` sheet is the
+                // feature model's own home for `parameterConstraints:`, not
+                // just a `Package` `_index.md`.
+                | Some(ElementType::FeatureModel)
         )
     }) {
         let Some(serde_yaml::Value::Sequence(cons)) =
