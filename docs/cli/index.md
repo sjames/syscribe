@@ -672,6 +672,36 @@ appliesWhen: "not Features::Smp"
 
 A `TestCase` *runs in* a `Configuration` iff its `appliesWhen:` is satisfied by that configuration's `features:` selections (no `appliesWhen:` ⇒ runs everywhere). There is no `runsIn` field.
 
+### Single-file feature models — `type: FeatureModel`
+
+A `FeatureDef`-per-file layout doesn't scale well to a large feature tree. `template FeatureModel` prints a ready-to-fill skeleton for the additive, opt-in alternative: one file whose `featureTree:` is a **flat**, dot-named list, exploded into ordinary `FeatureDef` elements before validation — every other command (`validate`, `feature-check`, `matrix`, `configure`, `--config`) treats the result identically to a hand-authored multi-file tree.
+
+```
+$ syscribe -m model_auto/ template FeatureModel
+```
+
+```yaml
+type: FeatureModel
+name: Features
+featureTree:
+  - name: Platform
+    id: FEAT-PLATFORM-001
+    mandatory: true
+    groupKind: alternative
+  - name: Platform.CortexM        # dotted path, relative to this sheet → Features::Platform::CortexM
+    id: FEAT-CORTEXM-001
+    groupKind: optional
+crossTreeConstraints:             # requires:/excludes: as one reviewable section (inline still works too)
+  - feature: Wdt
+    requires: [Platform.CortexM]
+parameterConstraints:             # §9.7 cross-feature numeric constraints, now also directly on the sheet
+  - id: PC-EXAMPLE
+    expression: "Features::Wdt.timeoutMs <= 5000"
+    severity: error
+```
+
+New findings specific to this form: `E231` (an entry has no `name:`, or its dotted path has an empty segment), `E232` (two entries resolve to the same qname), `E233` (a `crossTreeConstraints:` entry is malformed or its `feature:` doesn't resolve within the same sheet), `W048` (`featureTree:` declared on anything other than `type: FeatureModel`). See §9.6a of the format spec for the full reference.
+
 ### Coverage matrix
 
 `matrix` emits a Requirement × Configuration grid. Columns are the model's `Configuration` elements; cells are covered (`✓`), gap (`✗`), or N/A (`—`, requirement not active in that variant):

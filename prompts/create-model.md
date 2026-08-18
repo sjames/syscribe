@@ -889,6 +889,36 @@ Three building blocks:
 | `type: Configuration` | A named product variant. `id:` matches `CONF-*`; `featureModel:` names the feature package; `features:` is a **map** of `<FeatureDef QName>: true/false`. Optional `subConfigurations:` consolidates other, already-configured `Configuration`s — see below. |
 | `appliesWhen:` | On *any* element (including a `TestCase`): conditions it on a boolean expression over `FeatureDef` QNames. |
 
+**Single-file alternative — `type: FeatureModel` (§9.6a).** A `FeatureDef`-per-file layout doesn't scale to a large feature tree. Prefer one `type: FeatureModel` sheet with a **flat**, dot-named `featureTree:` list instead — it's exploded into ordinary `FeatureDef` elements before validation, so every other rule/command treats it identically:
+
+```yaml
+# Features/_index.md
+---
+type: FeatureModel
+name: Features
+featureTree:
+  - name: Platform
+    id: FEAT-PLATFORM-001
+    mandatory: true
+    groupKind: alternative
+  - name: Platform.CortexM      # dotted path relative to this sheet → Features::Platform::CortexM
+    id: FEAT-CORTEXM-001
+    groupKind: optional
+  - name: Wdt
+    id: FEAT-WDT-001
+    groupKind: optional
+crossTreeConstraints:           # requires:/excludes: as one section (inline requires:/excludes: on an entry still works too)
+  - feature: Wdt
+    requires: [Platform.CortexM]
+parameterConstraints:           # §9.7 cross-feature numeric constraints belong directly on this sheet too
+  - id: PC-EXAMPLE
+    expression: "Features::Wdt.timeoutMs <= 5000"
+    severity: error
+---
+```
+
+An entry's `name:` is a dotted path, **not** a single basic name — the synthesized `FeatureDef`'s own `name:` becomes just the last segment. An entry with no `name:` (or an empty path segment) is `E231`; a duplicate resolved qname is `E232`; a `crossTreeConstraints:` entry whose `feature:` isn't defined in this same sheet's `featureTree:` is `E233`; `featureTree:` on anything but `type: FeatureModel` is `W048`. `Configuration` needs no equivalent — it's already one file.
+
 **`appliesWhen:` forms** — a bare QName, a list (AND), or an expression with `and`/`or`/`not`/parentheses:
 
 ```yaml
