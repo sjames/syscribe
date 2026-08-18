@@ -14,6 +14,7 @@ dot-named `featureTree:`, plus `crossTreeConstraints:` and a sheet-level
 | Capability | Where |
 |---|---|
 | 3-level dotted nesting | `Platform` → `Platform.CortexM` → `Platform.CortexM.Fpu` |
+| Auto-derived `FEAT-*` id from the dotted `name:` (`id:` omitted) | every entry except `Wdt` (pins `id: FEAT-WDT-PINNED`) and `OrphanRelocated` (needs an explicit id — its derived segment is over the 12-char cap, `E006`) |
 | `mandatory: true` + `groupKind: alternative` (mandatory XOR group) | `Platform`, `DataLink` |
 | `mandatory: true` + `groupKind: or` (mandatory, ≥1-of-N group) | `Sensors` |
 | Typed `parameters:` — `range`, `default`, `isRequired`, `bindingTime`, `buildVar`, `enumValues`, `isFixed` | `Wdt.timeoutMs`, `Wdt.mode` |

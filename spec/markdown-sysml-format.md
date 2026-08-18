@@ -4316,17 +4316,16 @@ type: FeatureModel
 name: SystemFeatures
 featureTree:
   - name: Propulsion
-    id: FEAT-PROPULSION-001
     mandatory: true
     groupKind: alternative
   - name: Propulsion.QuadRotor       # → SystemFeatures::Propulsion::QuadRotor
-    id: FEAT-QUADROTOR-001
     groupKind: optional
   - name: Propulsion.HexRotor        # → SystemFeatures::Propulsion::HexRotor
-    id: FEAT-HEXROTOR-001
     groupKind: optional
 ---
 ```
+
+**`id:` is optional here** (REQ-TRS-FM-006), unlike a plain per-file `FeatureDef` (`E201` still requires one there). Omitted, it is derived from the entry's own dotted `name:`: segments uppercased, non-`[A-Z0-9]` characters stripped, joined with `-`, prefixed `FEAT-` — `Propulsion.QuadRotor` → `FEAT-PROPULSION-QUADROTOR`. An explicit `id:` always wins over derivation. The result is assigned exactly as if hand-typed: a derived id that fails the `FEAT-*` pattern (a segment under 2 or over 12 characters) is the ordinary `E006`, and a collision with any other id in the model is the ordinary `E101` — no new codes. A derived id changes if the entry is later renamed, the same cost a rename already imposes on every qname-based reference to the feature; give a feature an explicit `id:` where that matters.
 
 #### 9.6a.2 `crossTreeConstraints:` — requires/excludes as one section
 

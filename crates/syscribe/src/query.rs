@@ -3139,20 +3139,21 @@ name: Features
 # single basic name: "Platform.CortexM" explodes to qname
 # Features::Platform::CortexM (the exploded element's own `name:` becomes just
 # "CortexM" — the leaf). An ancestor path prefix needs no entry of its own.
+# `id:` is optional here (unlike a plain per-file FeatureDef, still mandatory
+# there) — omitted, it's derived from the dotted name (e.g. FEAT-PLATFORM-
+# CORTEXM below); give an entry an explicit id: only where it needs to survive
+# a rename.
 featureTree:
   - name: Platform
-    id: FEAT-PLATFORM-001
     mandatory: true          # every product has a platform...
     groupKind: alternative   # ...and picks exactly one child (XOR)
     doc: "Optional prose — becomes this entry's Markdown body."
   - name: Platform.CortexM
-    id: FEAT-CORTEXM-001
     groupKind: optional
   - name: Platform.RiscV
-    id: FEAT-RISCV-001
     groupKind: optional
   - name: Wdt
-    id: FEAT-WDT-001
+    id: FEAT-WDT-LEGACY      # explicit id: overrides derivation
     groupKind: optional
     parameters:
       - { name: timeoutMs, type: ScalarValues::Integer, range: "10..=5000" }

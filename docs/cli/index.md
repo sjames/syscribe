@@ -685,11 +685,9 @@ type: FeatureModel
 name: Features
 featureTree:
   - name: Platform
-    id: FEAT-PLATFORM-001
     mandatory: true
     groupKind: alternative
   - name: Platform.CortexM        # dotted path, relative to this sheet → Features::Platform::CortexM
-    id: FEAT-CORTEXM-001
     groupKind: optional
 crossTreeConstraints:             # requires:/excludes: as one reviewable section (inline still works too)
   - feature: Wdt
@@ -699,6 +697,8 @@ parameterConstraints:             # §9.7 cross-feature numeric constraints, now
     expression: "Features::Wdt.timeoutMs <= 5000"
     severity: error
 ```
+
+`id:` is optional on a `featureTree:` entry (unlike a plain per-file `FeatureDef`, where `E201` still requires one): omitted, it's derived from the entry's own dotted `name:` — `Platform.CortexM` → `FEAT-PLATFORM-CORTEXM` — assigned exactly as if hand-typed, so a grammar-invalid or colliding derived id is the ordinary `E006`/`E101`, no new code. An explicit `id:` always wins over derivation.
 
 New findings specific to this form: `E231` (an entry has no `name:`, or its dotted path has an empty segment), `E232` (two entries resolve to the same qname), `E233` (a `crossTreeConstraints:` entry is malformed or its `feature:` doesn't resolve within the same sheet), `W048` (`featureTree:`/`crossTreeConstraints:` declared on anything other than `type: FeatureModel`, or `parameterConstraints:` misplaced likewise). See §9.6a of the format spec for the full reference.
 
