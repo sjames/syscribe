@@ -4347,7 +4347,7 @@ crossTreeConstraints:
 | `E231` | A `featureTree:` entry is not a mapping, has no `name:`, or its dotted path has an empty segment (leading, trailing, or doubled `.`) — the entry is dropped |
 | `E232` | Two `featureTree:` entries (within one sheet or across sheets in the same model) resolve to the same qualified name |
 | `E233` | A `crossTreeConstraints:` entry is malformed (not a mapping, no `feature:`, or a reference with an empty path segment), or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:` |
-| `W048` | `featureTree:` is declared on an element whose `type:` is not `FeatureModel` — inert, ignored |
+| `W048` | `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — inert, ignored |
 
 `Configuration` needs no single-file equivalent: it is already exactly one file (§9.8), and addresses features purely by qname/id with no dependency on how the `FeatureDef` was authored.
 
@@ -4868,7 +4868,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W026` | A `Package` declares `appliesWhen:` but its subtree contains no projectable element (it gates nothing). Gate with `--deny W026`. |
 | `W027` | A `Configuration` binds a parameter whose `bindingTime: runtime` — resolved by the running system, not at configuration time (§9.7). Gate with `--deny W027`. |
 | `W028` | The same `extRef` external reference is declared by two or more elements (§3). One finding per duplicated value. Gate with `--deny W028`. |
-| `W048` | (§9.6a) `featureTree:` is declared on an element whose `type:` is not `FeatureModel` — inert, ignored. |
+| `W048` | (§9.6a) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — inert, ignored. |
 
 > **Implementation note.** Rules split across commands/modes:
 > - **`validate`** (per-element, always on) enforces the single-level parameter binding rules `E203`–`E206`, the unresolved-path error `E222`, `W017`, and the binding-time rules `E230` (invalid value) and `W027` (Configuration binds a `runtime` parameter; `W017` is suppressed for `runtime`).

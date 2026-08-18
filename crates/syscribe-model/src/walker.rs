@@ -32,6 +32,26 @@ pub fn derive_qname(rel_path: &Path) -> String {
     parts.join("::")
 }
 
+/// True when `elem` was synthesized from a multi-element sheet (an FMEA/TARA
+/// entry, or — REQ-TRS-FM-005 — a `FeatureModel` sheet's `featureTree:`
+/// entry) rather than being that file's own 1:1 element: its qualified name
+/// doesn't match what [`derive_qname`] on `rel_path` (its own `file_path`,
+/// already made relative to the model root by the caller) would produce,
+/// because that file's *real*, path-derived qname belongs to the sheet, not
+/// to this entry.
+///
+/// A single-file-at-a-time write (find an element's `file_path` by qname,
+/// then rewrite or remove that whole file — `update_element`, `move_element`,
+/// `delete_element` in both `syscribe-server`'s routes and the MCP tools)
+/// must refuse when this is true: pointed at a synthesized element it would
+/// otherwise silently patch/move/delete the *sheet's* file — wrong field for
+/// an update (patches the sheet's own top-level frontmatter, not the buried
+/// list entry), and every sibling entry lost for a delete or move (the whole
+/// sheet file is removed/relocated).
+pub fn is_synthesized(elem: &RawElement, rel_path: &Path) -> bool {
+    derive_qname(rel_path) != elem.qualified_name
+}
+
 /// Load ignore patterns from `<model_root>/.sysmlignore` (one gitignore-style pattern per line).
 fn load_sysmlignore(model_root: &Path) -> Vec<String> {
     let path = model_root.join(".sysmlignore");
@@ -394,13 +414,17 @@ fn explode_feature_model_trees(elements: &mut Vec<RawElement>) {
         }
 
         if !is_feature_model {
-            if has_tree {
-                findings.push((
-                    idx,
-                    "W048",
-                    "'featureTree:' is only recognized on a 'type: FeatureModel' element; ignored here".to_string(),
-                ));
-            }
+            let field = match (has_tree, has_constraints) {
+                (true, true) => "'featureTree:'/'crossTreeConstraints:' are",
+                (true, false) => "'featureTree:' is",
+                (false, true) => "'crossTreeConstraints:' is",
+                (false, false) => unreachable!("guarded by the has_tree/has_constraints check above"),
+            };
+            findings.push((
+                idx,
+                "W048",
+                format!("{} only recognized on a 'type: FeatureModel' element; ignored here", field),
+            ));
             continue;
         }
 
@@ -440,6 +464,17 @@ fn explode_feature_model_trees(elements: &mut Vec<RawElement>) {
     elements.extend(synthetic);
 }
 
+/// Join a sheet's qname with a relative suffix without introducing a leading
+/// `::` when the sheet sits at the model root (qname `""` — a `FeatureModel`
+/// `_index.md` placed directly at the model root, no wrapping directory).
+fn join_under_sheet(sheet_qname: &str, suffix: &str) -> String {
+    if sheet_qname.is_empty() {
+        suffix.to_string()
+    } else {
+        format!("{}::{}", sheet_qname, suffix)
+    }
+}
+
 /// Resolve one `featureTree:`/`crossTreeConstraints:` reference string:
 /// containing `::` → already an absolute qname; starting with `FEAT` → a
 /// stable id; otherwise → a dot-separated path relative to `sheet_qname`.
@@ -452,7 +487,7 @@ fn resolve_feature_ref(raw: &str, sheet_qname: &str) -> Option<String> {
     if raw.is_empty() || segments.iter().any(|s| s.is_empty()) {
         return None;
     }
-    Some(format!("{}::{}", sheet_qname, segments.join("::")))
+    Some(join_under_sheet(sheet_qname, &segments.join("::")))
 }
 
 /// Explode one flat `featureTree:` entry into a synthetic `FeatureDef`
@@ -506,7 +541,7 @@ fn explode_feature_entry(
         return;
     }
 
-    let qname = format!("{}::{}", sheet_qname, segments.join("::"));
+    let qname = join_under_sheet(sheet_qname, &segments.join("::"));
     let leaf_name = *segments.last().unwrap();
 
     if !seen_qnames.insert(qname.clone()) {
@@ -519,19 +554,38 @@ fn explode_feature_entry(
     }
 
     map.insert("name".into(), leaf_name.into());
-    let mut fm: RawFrontmatter =
-        serde_yaml::from_value(serde_yaml::Value::Mapping(map)).unwrap_or_default();
-    fm.element_type = Some(ElementType::FeatureDef);
-
-    synthetic.push(RawElement {
-        qualified_name: qname,
-        file_path: sheet_file.to_string(),
-        frontmatter: fm,
-        doc,
-        parse_issue: None,
-        derived: Default::default(),
-        derive_findings: Vec::new(),
-    });
+    // A type-mismatched field anywhere in the entry (e.g. `mandatory: "yes"`)
+    // fails the *whole* deserialize — `unwrap_or_default()` would silently
+    // discard every other field (id, groupKind, requires, ...) with no
+    // diagnostic beyond a confusing downstream `E201`. Surface it exactly as
+    // a real malformed `.md` file would: `parse_issue: YamlError` → the
+    // existing generic `E002`, naming this entry's qname and the concrete
+    // deserialize error, and skip synthesizing a FeatureDef we can't trust.
+    match serde_yaml::from_value::<RawFrontmatter>(serde_yaml::Value::Mapping(map)) {
+        Ok(mut fm) => {
+            fm.element_type = Some(ElementType::FeatureDef);
+            synthetic.push(RawElement {
+                qualified_name: qname,
+                file_path: sheet_file.to_string(),
+                frontmatter: fm,
+                doc,
+                parse_issue: None,
+                derived: Default::default(),
+                derive_findings: Vec::new(),
+            });
+        }
+        Err(e) => {
+            synthetic.push(RawElement {
+                qualified_name: qname,
+                file_path: sheet_file.to_string(),
+                frontmatter: RawFrontmatter::default(),
+                doc,
+                parse_issue: Some(ParseIssue::YamlError(format!("featureTree: entry '{}': {}", raw_name, e))),
+                derived: Default::default(),
+                derive_findings: Vec::new(),
+            });
+        }
+    }
 }
 
 /// Merge one `crossTreeConstraints:` entry's `requires`/`excludes` into the

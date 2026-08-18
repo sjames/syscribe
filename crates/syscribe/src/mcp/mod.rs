@@ -2250,11 +2250,17 @@ impl SyscribeMcp {
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
-        let file = match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
-            Some(e) => e.file_path.clone(),
+        let target = match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
+            Some(e) => e.clone(),
             None => return tool_error(format!("unresolved reference: {}", args.r#ref)),
         };
-        let rel = rel_file(&file, &store.model_root);
+        let rel = rel_file(&target.file_path, &store.model_root);
+        if syscribe_model::walker::is_synthesized(&target, Path::new(&rel)) {
+            return tool_error(format!(
+                "'{}' is synthesized from a shared sheet file ({}) — a field update here would patch the sheet's own top-level frontmatter, not this entry; edit the sheet directly instead",
+                args.r#ref, target.file_path
+            ));
+        }
         let extra = extra_map(json!({ "ref": args.r#ref }));
         let fields = args.fields.clone();
         let doc = args.doc.clone();
@@ -2282,6 +2288,10 @@ impl SyscribeMcp {
         if !mv::valid_qname(&dest) {
             return ok(refuse(extra, "not a valid basic destination qualified name"));
         }
+        // `mv::move_element` itself refuses a synthesized source (an FMEA/TARA
+        // entry or a FeatureModel sheet's featureTree: entry) — no separate
+        // pre-check needed here, one authoritative place for both this tool
+        // and the CLI `move` command.
         let source = args.r#ref.clone();
         let dest_c = dest.clone();
         let apply = move |root: &Path| -> Result<(), String> {
@@ -2306,13 +2316,18 @@ impl SyscribeMcp {
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
-        let (target_qname, rel) = match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
-            Some(e) => (
-                e.qualified_name.clone(),
-                rel_file(&e.file_path, &store.model_root),
-            ),
+        let target = match store.resolver.resolve_ref(&store.elements, &args.r#ref) {
+            Some(e) => e.clone(),
             None => return tool_error(format!("unresolved reference: {}", args.r#ref)),
         };
+        let target_qname = target.qualified_name.clone();
+        let rel = rel_file(&target.file_path, &store.model_root);
+        if syscribe_model::walker::is_synthesized(&target, Path::new(&rel)) {
+            return tool_error(format!(
+                "'{}' is synthesized from a shared sheet file ({}) — deleting it would delete every sibling entry in that file; edit the sheet directly instead",
+                args.r#ref, target.file_path
+            ));
+        }
 
         if !args.force {
             let refs = write::referrers(&store.elements, &target_qname);

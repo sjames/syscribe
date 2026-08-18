@@ -933,6 +933,30 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // W048 (REQ-TRS-FM-005 review): `parameterConstraints:` is a typed
+        // field (promoted off the `extra` catch-all so declaring it no longer
+        // falsely raises W047 on the element that hosts it — see
+        // `RawFrontmatter::parameter_constraints`), which means a misplaced
+        // block is otherwise now completely silent instead of at least
+        // getting the old, if confusingly-worded, W047. `feature_model.rs`
+        // only ever reads it off Package/LibraryPackage/Namespace/
+        // FeatureModel; flag it here on any other type.
+        if fm.parameter_constraints.is_some()
+            && !matches!(
+                fm.element_type,
+                Some(ElementType::Package)
+                    | Some(ElementType::LibraryPackage)
+                    | Some(ElementType::Namespace)
+                    | Some(ElementType::FeatureModel)
+            )
+        {
+            findings.push(warning(
+                "W048",
+                &file,
+                "'parameterConstraints:' is only recognized on a Package/LibraryPackage/Namespace or a FeatureModel sheet; ignored here",
+            ));
+        }
+
         // W047 (REQ-TRS-SCHEMA-001): unrecognised top-level frontmatter field. Any key
         // not bound to a recognised schema field lands in the `extra` catch-all and is
         // otherwise silently discarded — a hazard for typos (`reqDomian`, `verifis`).

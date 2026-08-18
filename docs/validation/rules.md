@@ -886,7 +886,7 @@ under `custom_fields:` (which is exempt). Advisory; gate with `--deny W047`.
 | Code | Condition |
 |---|---|
 | W047 | A top-level frontmatter key is not a recognized schema field and is not `custom_fields`. One finding per key, naming the key and file, pointing to `custom_fields:`. Keys under `custom_fields:` and all recognized fields are exempt. |
-| W048 | (single-file feature model, REQ-TRS-FM-005) `featureTree:` is declared on an element whose `type:` is not `FeatureModel` — the field is silently inert there, so this names the mistake |
+| W048 | (single-file feature model, REQ-TRS-FM-005) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — the field is silently inert there, so this names the mistake |
 
 ## MagicGrid overlay (E316, W307, MG010–MG070)
 

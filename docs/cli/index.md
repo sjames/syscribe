@@ -700,7 +700,7 @@ parameterConstraints:             # §9.7 cross-feature numeric constraints, now
     severity: error
 ```
 
-New findings specific to this form: `E231` (an entry has no `name:`, or its dotted path has an empty segment), `E232` (two entries resolve to the same qname), `E233` (a `crossTreeConstraints:` entry is malformed or its `feature:` doesn't resolve within the same sheet), `W048` (`featureTree:` declared on anything other than `type: FeatureModel`). See §9.6a of the format spec for the full reference.
+New findings specific to this form: `E231` (an entry has no `name:`, or its dotted path has an empty segment), `E232` (two entries resolve to the same qname), `E233` (a `crossTreeConstraints:` entry is malformed or its `feature:` doesn't resolve within the same sheet), `W048` (`featureTree:`/`crossTreeConstraints:` declared on anything other than `type: FeatureModel`, or `parameterConstraints:` misplaced likewise). See §9.6a of the format spec for the full reference.
 
 ### Coverage matrix
 

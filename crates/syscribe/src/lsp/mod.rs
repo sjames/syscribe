@@ -28,7 +28,7 @@ use tower_lsp::jsonrpc::{Error as LspError, Result as LspResult};
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
 
-use syscribe_model::element::RawElement;
+use syscribe_model::element::{ElementType, RawElement};
 use syscribe_model::validator::{validate_with_config, Finding, Severity};
 
 use crate::query::type_label;
@@ -67,6 +67,65 @@ fn frontmatter_range(path: &Path) -> Range {
         }
     }
     Range::new(Position::new(0, 0), Position::new(1, 0))
+}
+
+/// `elem`'s own line within its `file_path`, refined past `zero_range()` for a
+/// `FeatureDef` synthesized from a `FeatureModel` sheet's flat `featureTree:`
+/// (REQ-TRS-FM-005 corner-case review): every other element type — and a
+/// synthesized `FeatureDef` whose entry can't be located textually — still
+/// resolves to `zero_range()`, exactly as before. Without this, go-to-
+/// definition/references/workspace-symbol on any of a sheet's N features all
+/// land on line 0, indistinguishable from each other in a sheet with more
+/// than a couple of entries.
+///
+/// Recomputes the entry's dotted `featureTree:` name from `elem.qualified_name`
+/// (the inverse of `walker::explode_feature_model_trees`'s own construction —
+/// no extra state needs to survive the explode pass) and does a best-effort
+/// textual search for `- name: <dotted>` inside the sheet's `featureTree:`
+/// block, the same "best effort, never a hard error" posture `frontmatter_range`
+/// already uses for diagnostics.
+fn definition_range(store: &LspStore, elem: &RawElement) -> Range {
+    (|| {
+        if elem.frontmatter.element_type != Some(ElementType::FeatureDef) {
+            return None;
+        }
+        let sheet = store.elements.iter().find(|e| {
+            e.file_path == elem.file_path && e.frontmatter.element_type == Some(ElementType::FeatureModel)
+        })?;
+        let rest = if sheet.qualified_name.is_empty() {
+            elem.qualified_name.as_str()
+        } else {
+            elem.qualified_name.strip_prefix(&sheet.qualified_name)?.strip_prefix("::")?
+        };
+        let dotted = rest.replace("::", ".");
+        let text = std::fs::read_to_string(&elem.file_path).ok()?;
+        let mut in_tree = false;
+        for (i, line) in text.lines().enumerate() {
+            let trimmed = line.trim_start();
+            if !in_tree {
+                if trimmed.starts_with("featureTree:") {
+                    in_tree = true;
+                }
+                continue;
+            }
+            // A subsequent top-level (column-0) key ends the featureTree: block.
+            if !line.starts_with(' ') && !line.starts_with('-') && line.contains(':') {
+                return None;
+            }
+            let after_dash = trimmed.strip_prefix('-').map(str::trim_start).unwrap_or(trimmed);
+            let quoted = [format!("\"{dotted}\""), format!("'{dotted}'")];
+            let matches = after_dash
+                .strip_prefix("name:")
+                .map(str::trim_start)
+                .map(|v| v == dotted || quoted.iter().any(|q| v == q))
+                .unwrap_or(false);
+            if matches {
+                return Some(Range::new(Position::new(i as u32, 0), Position::new(i as u32, 0)));
+            }
+        }
+        None
+    })()
+    .unwrap_or_else(zero_range)
 }
 
 fn finding_to_diagnostic(f: &Finding) -> Diagnostic {
@@ -312,7 +371,8 @@ impl LanguageServer for Backend {
         let store = self.store.read().await;
         let Some(elem) = resolve_token_element(&store, &path, position) else { return Ok(None) };
         let Some(target_uri) = path_to_uri(&elem.file_path) else { return Ok(None) };
-        Ok(Some(GotoDefinitionResponse::Scalar(Location { uri: target_uri, range: zero_range() })))
+        let range = definition_range(&store, elem);
+        Ok(Some(GotoDefinitionResponse::Scalar(Location { uri: target_uri, range })))
     }
 
     async fn references(&self, params: ReferenceParams) -> LspResult<Option<Vec<Location>>> {
@@ -327,11 +387,11 @@ impl LanguageServer for Backend {
             .elements
             .iter()
             .filter(|elem| elem.qualified_name != target.qualified_name && element_references(elem, target))
-            .filter_map(|elem| path_to_uri(&elem.file_path).map(|uri| Location { uri, range: zero_range() }))
+            .filter_map(|elem| path_to_uri(&elem.file_path).map(|uri| Location { uri, range: definition_range(&store, elem) }))
             .collect();
         if include_declaration {
             if let Some(uri) = path_to_uri(&target.file_path) {
-                locations.push(Location { uri, range: zero_range() });
+                locations.push(Location { uri, range: definition_range(&store, target) });
             }
         }
         Ok(Some(locations))
@@ -360,7 +420,7 @@ impl LanguageServer for Backend {
                     kind: SymbolKind::OBJECT,
                     tags: None,
                     deprecated: None,
-                    location: Location { uri, range: zero_range() },
+                    location: Location { uri, range: definition_range(&store, elem) },
                     container_name: None,
                 })
             })

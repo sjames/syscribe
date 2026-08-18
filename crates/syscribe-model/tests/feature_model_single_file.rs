@@ -303,3 +303,73 @@ parameterConstraints:
         findings
     );
 }
+
+/// Corner case (review pass): a `FeatureModel` sheet placed directly at the
+/// model root has qname `""` — `featureTree:` entries must not pick up a
+/// leading `::` from naively joining onto that empty prefix.
+#[test]
+fn feature_model_sheet_at_model_root_produces_clean_qnames() {
+    let root = tempdir();
+    write(
+        &root,
+        "_index.md",
+        r#"---
+type: FeatureModel
+name: Root
+featureTree:
+  - name: Wdt
+    id: FEAT-WDT-001
+    groupKind: optional
+---
+"#,
+    );
+
+    let elements = walk_model(&root).unwrap();
+    assert!(
+        elements.iter().any(|e| e.qualified_name == "Wdt"),
+        "expected qname 'Wdt', not '::Wdt' or similar: {:?}",
+        elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
+    );
+    let findings = validator::validate(&elements);
+    let errors = errors_of(&findings);
+    assert!(errors.is_empty(), "unexpected errors: {errors:#?}");
+}
+
+/// Corner case (review pass): a type-mismatched field anywhere in a
+/// `featureTree:` entry (e.g. `mandatory: "yes"`, a string not a bool) must
+/// not silently discard every other field in that entry via a swallowed
+/// deserialize error — it surfaces as the same `E002` a malformed real `.md`
+/// file would, naming the entry and the concrete error, and the entry is not
+/// synthesized with corrupted (all-default) data.
+#[test]
+fn type_mismatched_field_in_entry_is_e002_not_silently_discarded() {
+    let root = tempdir();
+    write(
+        &root,
+        "Features/_index.md",
+        r#"---
+type: FeatureModel
+name: Features
+featureTree:
+  - name: Wdt
+    id: FEAT-WDT-001
+    groupKind: optional
+    mandatory: "yes"
+---
+"#,
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let findings = validator::validate(&elements);
+    assert!(has_code(&findings.findings, "E002"), "expected E002: {:#?}", findings.findings);
+    assert!(
+        !has_code(&findings.findings, "E201"),
+        "must not fall through to the confusing 'id is required' symptom: {:#?}",
+        findings.findings
+    );
+    let wdt = elements.iter().find(|e| e.qualified_name == "Features::Wdt");
+    assert!(
+        wdt.is_none() || wdt.unwrap().frontmatter.element_type != Some(ElementType::FeatureDef),
+        "a broken entry must not be synthesized as a (corrupted) FeatureDef"
+    );
+}
