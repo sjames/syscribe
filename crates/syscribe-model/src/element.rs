@@ -744,6 +744,15 @@ pub struct RawFrontmatter {
     #[serde(rename = "crossTreeConstraints")]
     pub cross_tree_constraints: Option<Vec<serde_yaml::Value>>,
 
+    /// `parameterConstraints:` (§9.7) — cross-feature numeric constraints,
+    /// declared on a `Package`/`LibraryPackage`/`Namespace` `_index.md` or
+    /// (REQ-TRS-FM-005) directly on a `type: FeatureModel` sheet. Evaluated by
+    /// `feature-check` (`E213`/`E221`/`W014`/`W025`). Promoted to a typed field
+    /// (previously read out of the `extra` catch-all) so declaring it no
+    /// longer falsely raises `W047` on the very element type that hosts it.
+    #[serde(rename = "parameterConstraints")]
+    pub parameter_constraints: Option<Vec<serde_yaml::Value>>,
+
     // §9.9 — Build-system integration (build-config command)
     /// `buildExports:` — on a `FeatureDef`: a list of `{var, whenSelected, whenDeselected}`
     /// entries. Each entry declares a build variable emitted based on whether the feature
