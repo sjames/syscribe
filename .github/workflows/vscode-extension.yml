@@ -38,6 +38,8 @@ jobs:
 
       - run: npm ci
 
+      - run: npm run compile-tests
+
       - run: npm run compile
 
       - name: Unit tests
