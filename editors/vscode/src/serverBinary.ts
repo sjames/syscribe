@@ -18,28 +18,39 @@ function commandWorks(command: string): Promise<boolean> {
   });
 }
 
-/** GET a URL following redirects, returning the final response (caller must consume/pipe it). */
+const REQUEST_TIMEOUT_MS = 10000;
+
+/**
+ * GET a URL following redirects, returning the final response (caller must
+ * consume/pipe it). Guards against a stalled connect/response with an
+ * explicit timeout — a hung network call must fail, not hang `activate()`.
+ */
 function httpGet(url: string, headers: Record<string, string> = {}, redirectsLeft = 5): Promise<IncomingMessage> {
   return new Promise((resolve, reject) => {
-    const req = https.get(url, { headers: { "User-Agent": USER_AGENT, ...headers } }, (res) => {
-      const status = res.statusCode ?? 0;
-      if (status >= 300 && status < 400 && res.headers.location) {
-        res.resume();
-        if (redirectsLeft <= 0) {
-          reject(new Error(`too many redirects fetching ${url}`));
+    const req = https.get(
+      url,
+      { headers: { "User-Agent": USER_AGENT, ...headers }, timeout: REQUEST_TIMEOUT_MS },
+      (res) => {
+        const status = res.statusCode ?? 0;
+        if (status >= 300 && status < 400 && res.headers.location) {
+          res.resume();
+          if (redirectsLeft <= 0) {
+            reject(new Error(`too many redirects fetching ${url}`));
+            return;
+          }
+          httpGet(res.headers.location, headers, redirectsLeft - 1).then(resolve, reject);
           return;
         }
-        httpGet(res.headers.location, headers, redirectsLeft - 1).then(resolve, reject);
-        return;
-      }
-      if (status < 200 || status >= 300) {
-        res.resume();
-        reject(new Error(`GET ${url} -> HTTP ${status}`));
-        return;
-      }
-      resolve(res);
-    });
+        if (status < 200 || status >= 300) {
+          res.resume();
+          reject(new Error(`GET ${url} -> HTTP ${status}`));
+          return;
+        }
+        resolve(res);
+      },
+    );
     req.on("error", reject);
+    req.on("timeout", () => req.destroy(new Error(`GET ${url} timed out after ${REQUEST_TIMEOUT_MS}ms`)));
   });
 }
 

@@ -13,6 +13,10 @@ All notable changes to the Syscribe VS Code extension are documented here.
 - Marketplace packaging: icon, license, repository metadata, `.vscodeignore`.
 - Bundled with esbuild (`dist/extension.js`) instead of shipping raw `tsc` output plus
   `node_modules` — cuts the packaged `.vsix` from 334 files / ~493 KB down to 8 files / ~94 KB.
+- Activation is now bounded: a 15s timeout wraps the LSP handshake, and startup-failure
+  notifications are no longer awaited (a real user ignoring the toast, or a headless host with
+  no one to click it, would otherwise hang activation indefinitely). A network request timeout
+  was added to the release-download path for the same reason.
 
 [sjames/syscribe]: https://github.com/sjames/syscribe
 

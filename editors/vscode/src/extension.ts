@@ -9,6 +9,54 @@ import { resolveServerCommand } from "./serverBinary";
 
 let client: LanguageClient | undefined;
 
+/**
+ * Show a startup-failure notification without blocking on it. `activate()`
+ * must not `await` this: `showErrorMessage` only resolves once a human
+ * clicks a button or dismisses it, and in a headless/automated host (or a
+ * real user who just ignores the toast) nothing ever does — awaiting it
+ * would hang activation indefinitely instead of just failing cleanly.
+ */
+function reportStartupError(log: vscode.OutputChannel, message: string, settingKey: string): void {
+  log.appendLine(message);
+  void vscode.window.showErrorMessage(message, "Open Settings", "Show Output").then((choice) => {
+    if (choice === "Open Settings") {
+      void vscode.commands.executeCommand("workbench.action.openSettings", settingKey);
+    } else if (choice === "Show Output") {
+      log.show();
+    }
+  });
+}
+
+const START_TIMEOUT_MS = 15000;
+
+/**
+ * `client.start()` awaits the LSP `initialize` handshake, which should be
+ * near-instant for a local stdio process. It's not supposed to be able to
+ * hang, but internal error-recovery paths in the client library can, in
+ * practice, leave its own promise unsettled instead of rejecting (observed:
+ * a close-handler-triggered `stop()` throwing "client not running" as a
+ * *separate* unhandled rejection instead of propagating into `start()`'s
+ * promise). Activation must never hang indefinitely on that, so bound it here.
+ */
+function withStartTimeout<T>(promise: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`timed out after ${START_TIMEOUT_MS}ms waiting for the LSP handshake`)),
+      START_TIMEOUT_MS,
+    );
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
+}
+
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const log = vscode.window.createOutputChannel("Syscribe");
   context.subscriptions.push(log);
@@ -20,14 +68,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   try {
     serverCommand = await resolveServerCommand(context, log);
   } catch (err) {
-    const message = `Syscribe: could not start the language server. ${String(err)}`;
-    log.appendLine(message);
-    const choice = await vscode.window.showErrorMessage(message, "Open Settings", "Show Output");
-    if (choice === "Open Settings") {
-      void vscode.commands.executeCommand("workbench.action.openSettings", "syscribe.serverPath");
-    } else if (choice === "Show Output") {
-      log.show();
-    }
+    reportStartupError(
+      log,
+      `Syscribe: could not start the language server. ${String(err)}`,
+      "syscribe.serverPath",
+    );
     return;
   }
 
@@ -67,23 +112,22 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
 
   try {
-    await client.start();
+    await withStartTimeout(client.start());
   } catch (err) {
     // Most commonly: the resolved binary ran but exited immediately (e.g. no
     // discoverable model root — `syscribe lsp` requires one) before completing
     // the LSP handshake. Fail the same clean way as an unresolvable binary
     // rather than letting VS Code surface a raw activation-rejection stack.
-    const message =
-      `Syscribe: the language server process did not start correctly ` +
-      `(command: "${serverCommand}"). ${String(err)}`;
-    log.appendLine(message);
+    const failedClient = client;
     client = undefined;
-    const choice = await vscode.window.showErrorMessage(message, "Open Settings", "Show Output");
-    if (choice === "Open Settings") {
-      void vscode.commands.executeCommand("workbench.action.openSettings", "syscribe.modelRoot");
-    } else if (choice === "Show Output") {
-      log.show();
-    }
+    // Best-effort cleanup only on the timeout path — start() may still be
+    // retrying internally; swallow any error since we've already given up on it.
+    void failedClient.stop().then(undefined, () => undefined);
+    reportStartupError(
+      log,
+      `Syscribe: the language server process did not start correctly (command: "${serverCommand}"). ${String(err)}`,
+      "syscribe.modelRoot",
+    );
     return;
   }
   context.subscriptions.push({ dispose: () => void client?.stop() });
