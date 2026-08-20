@@ -1,0 +1,11 @@
+.vscode/**
+.gitignore
+src/**
+out/**
+node_modules/**
+esbuild.js
+tsconfig.json
+**/*.map
+**/.mocharc*
+.github/**
+.vscodeignore

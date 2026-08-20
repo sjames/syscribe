@@ -2,27 +2,52 @@
   "name": "syscribe-lsp",
   "displayName": "Syscribe",
   "description": "LSP client for the Syscribe model format — diagnostics, navigation, completion, and rename over `syscribe lsp`.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "syscribe",
-  "private": true,
+  "license": "Apache-2.0",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sjames/syscribe.git",
+    "directory": "editors/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/sjames/syscribe/issues"
+  },
+  "homepage": "https://github.com/sjames/syscribe#readme",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Linters"
+  ],
+  "keywords": [
+    "sysml",
+    "sysmlv2",
+    "systems engineering",
+    "requirements",
+    "model-based systems engineering",
+    "mbse",
+    "traceability"
   ],
   "activationEvents": [
     "onLanguage:markdown"
   ],
-  "main": "./out/extension.js",
+  "main": "./dist/extension.js",
   "contributes": {
     "configuration": {
       "title": "Syscribe",
       "properties": {
         "syscribe.serverPath": {
           "type": "string",
-          "default": "syscribe",
-          "description": "Path to the syscribe binary (must be built with the `lsp` subcommand). Defaults to `syscribe` on PATH."
+          "default": "",
+          "description": "Path to the syscribe binary (must be built with the `lsp` subcommand). Leave empty to auto-resolve: `syscribe` on PATH, else a managed copy downloaded from the sjames/syscribe GitHub releases (see syscribe.version)."
+        },
+        "syscribe.version": {
+          "type": "string",
+          "default": "latest",
+          "description": "Release tag (e.g. \"v0.37.0\") of the managed syscribe binary to download when no syscribe.serverPath is set and no syscribe is found on PATH. \"latest\" always resolves to the newest GitHub release."
         },
         "syscribe.modelRoot": {
           "type": "string",
@@ -33,16 +58,30 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "vscode:prepublish": "npm run package",
+    "check-types": "tsc --noEmit -p ./",
+    "compile": "npm run check-types && node esbuild.js",
+    "watch": "node esbuild.js --watch",
+    "compile-tests": "tsc -p ./",
+    "pretest": "npm run compile-tests && npm run compile",
+    "test:unit": "mocha --ui tdd out/test/unit/**/*.test.js",
+    "test:integration": "node ./out/test/integration/runTest.js",
+    "test": "npm run test:unit",
+    "package": "npm run check-types && node esbuild.js --production",
+    "build:vsix": "vsce package"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.6",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
+    "@vscode/test-electron": "^2.3.9",
+    "@vscode/vsce": "^2.24.0",
+    "esbuild": "^0.28.2",
+    "glob": "^10.3.10",
+    "mocha": "^10.3.0",
     "typescript": "^5.4.0"
   }
 }
