@@ -94,6 +94,16 @@ pub struct ValidateConfig {
     /// the resolver so every `is_*_id` check recognises them.
     pub id_extra_prefixes: HashMap<String, Vec<String>>,
 
+    /// `ADR-SYS-PLUGIN-002` — the `[plugins.<alias>]` table of
+    /// `<model_root>/.syscribe.toml`, keyed by alias. Empty (the default)
+    /// means no stdio-subprocess plugins are configured; a `foreignFormat:`
+    /// package with no matching entry here is `E551`. The walker hook
+    /// (`crate::plugins::apply_foreign_plugins`) reads `.syscribe.toml`
+    /// directly and doesn't need this field — it exists so CLI commands that
+    /// already hold a `&ValidateConfig` (e.g. `plugins run`) don't have to
+    /// re-parse the TOML themselves.
+    pub plugins: std::collections::BTreeMap<String, crate::plugins::config::PluginEntry>,
+
     /// REQ-TRS-PLANITEM-008 — declared users for `PlanningItem.assignedTo:`,
     /// from the `[users]` table of `<model_root>/.syscribe.toml`: `<username> =
     /// "<display name>"`. Raw and unfiltered, exactly like
@@ -491,6 +501,7 @@ impl ValidateConfig {
         let links = load_links(&root);
         let scripts_dir = Some(resolve_scripts_dir(&root));
         let repos = load_repos(&root);
+        let plugins = crate::plugins::config::load_plugins(&root);
         let users = load_users(&root);
         Self {
             model_root: Some(root),
@@ -504,6 +515,7 @@ impl ValidateConfig {
             links,
             scripts_dir,
             repos,
+            plugins,
             id_extra_prefixes,
             users,
         }

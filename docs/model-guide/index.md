@@ -110,4 +110,5 @@ Its shape:
 - [Variability & Product Lines](variability.md) — feature models, `appliesWhen`, `matrix`, `feature-check`, the `--config` lens
 - [Multi-Repository Composition](multi-repo.md) — `[repos]`, `repoImports:`, cross-repo resolution, the `E510`–`E515`/`W510`–`W512` reproducibility gates, git-submodule integration
 - [Native SysMLv2 Submodels](sysmlv2-submodel.md) — `sysmlSubmodel: true`, in-process `.sysml`/`.kerml` parsing, `satisfy`/`verify`/`@SyscribeFeature` cross-references, the `W540`/`W541` diagnostics
+- [Foreign-Format Plugins (stdio)](stdio-plugins.md) — `foreignFormat:`, `[plugins.<alias>]`, the JSON stdio envelope, `E550`/`E551`/`W550`–`W553`/`E108`
 - [MagicGrid](magicgrid.md) — the B/W/S × 1-4 overlay (`mg_` custom fields), MoEs/MoPs, logical/physical layers, the `magicgrid` / `trade-study` reports

@@ -1,0 +1,4 @@
+[plugins.toydsl]
+command = "python3"
+args = ["../plugin.py"]
+timeout_ms = 10000

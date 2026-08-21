@@ -1,0 +1,10 @@
+# A tiny made-up DSL — one `part <Name>: <Type>` declaration per line.
+# Parsed by ../../plugin.py, not by Syscribe's native Markdown+YAML parser.
+
+part PressureSensor: PartDef, doc="Measures cabin pressure."
+part SamplingRate: RequirementDef, id=REQ-TOY-001, doc="The sensor shall sample at 10 Hz or faster."
+
+# `satisfies=` links this foreign-model element to a native Syscribe
+# Requirement (../../Requirements/REQ-TOY-100.md) — resolved normally by
+# Syscribe's validator after the merge, no special handling needed.
+part FlowController: PartDef, satisfies=REQ-TOY-100, doc="Regulates coolant flow."

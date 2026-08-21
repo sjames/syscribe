@@ -14,9 +14,9 @@ before, and none of this runs.
 This is **read-only ingestion**. The `.sysml`/`.kerml` subtree stays authoritative and is edited
 by its own native tooling — Syscribe never writes into it.
 
-Unlike WASM foreign-format plugins (a separate, sandboxed third-party-plugin mechanism —
-see its own model-guide page once that feature lands on this checkout), this is a dedicated,
-always-on **native** subsystem: there is no `[plugins.<alias>]` config, no alias, and no sandbox.
+Unlike [stdio-subprocess foreign-format plugins](stdio-plugins.md) (a separate, third-party-plugin
+mechanism), this is a dedicated, always-on **native** subsystem: there is no `[plugins.<alias>]`
+config, no alias, and no plugin process to spawn.
 `sysml-v2-parser` (the crate doing the parsing) is a trusted, compile-time Rust dependency, not
 arbitrary executable code — see `ADR-SYS-SYSMLV2-001`'s sub-decision 1 for why that distinction
 matters enough to warrant a separate mechanism instead of a third `[plugins.<alias>]` engine
@@ -264,10 +264,10 @@ the parser to add real support was considered and rejected.
 | `W541` | Either a `.sysml`/`.kerml` file failed to read (e.g. invalid UTF-8), or `sysml-v2-parser` failed to parse its contents |
 | `W542` | A `connect` endpoint's genuinely two-segment chain fell back to a head-only edge because the tail isn't a locally-redeclared feature (§8's redeclaration lookahead didn't match) — identifies the dropped segment |
 
-All three share a **dedicated code range**, distinct from the WASM-plugin family (`E530`–`E532`/
-`W530`–`W534`) — this is native, always-on ingestion of a trusted, compile-time dependency, not
-plugin execution, and conflating the two ranges would misattribute the failure mode to anyone
-grepping a validation report.
+All three share a **dedicated code range**, distinct from the [stdio-subprocess plugin
+family](stdio-plugins.md) (`E550`/`E551`/`W550`–`W553`) — this is native, always-on ingestion of a
+trusted, compile-time dependency, not plugin execution, and conflating the two ranges would
+misattribute the failure mode to anyone grepping a validation report.
 
 A `W541` (either kind) downgrades only the affected file's contribution — fewer or no elements
 from it — while every other file in the subtree, and the rest of the model, validates normally.

@@ -5386,7 +5386,17 @@ For a reference string `R` in a `verifies:` or `derivedFrom:` list:
 
 **Additional cross-reference validation:**
 
-- If `verifies:` resolves to an element that is not a native `Requirement`, emit `E104`.
+- A `verifies:` reference must resolve to either (a) a native `Requirement`, or (b) an element of a
+  fixed requirement/architecture-shaped kind (`PartDef`, `Part`, `AttributeDef`, `Attribute`,
+  `PortDef`, `Port`, `ConnectionDef`, `Connection`, `InterfaceDef`, `Interface`, `ItemDef`, `Item`,
+  `Allocation`, `RequirementDef`) that was itself synthesized by native SysMLv2/KerML submodel
+  ingestion (a `sysmlSubmodel: true` package — `ADR-SYS-SYSMLV2-001`) or by a stdio-subprocess
+  foreign-format plugin (a `foreignFormat: <alias>` package — `ADR-SYS-PLUGIN-002`) — never a
+  hand-authored element of the same kind outside either mechanism. Otherwise emit `E104`. A
+  conformant tool tracks synthesis origin via an internal provenance set per mechanism; the element
+  representation itself carries no origin field. These two mechanisms are documented in
+  `docs/model-guide/sysmlv2-submodel.md` and `docs/model-guide/stdio-plugins.md` respectively, not
+  elsewhere in this specification.
 - If `derivedFrom:` resolves to an element that is not a native `Requirement`, emit `E105`.
 - A `TestCase` with an empty `verifies:` list emits `E013`.
 
@@ -5395,7 +5405,7 @@ For a reference string `R` in a `verifies:` or `derivedFrom:` list:
 After all files are loaded and cross-references resolved, a conformant tool MUST build the following in-memory indices. These are never written to disk.
 
 **`verifiedBy: Map<RequirementId, List<TestCaseId>>`**
-For each native `Requirement`, the list of native `TestCase` ids whose `verifies:` includes this requirement's id.
+For each native `Requirement`, the list of native `TestCase` ids whose `verifies:` includes this requirement's id. A verify target widened per §11.10 (SysMLv2- or plugin-synthesized, not a native `Requirement`) is keyed by its qualified name instead, since it has no stable id — the verifying `TestCase`'s own id is still the list value.
 
 **`derivedChildren: Map<RequirementId, List<RequirementId>>`**
 For each native `Requirement`, the list of native `Requirement` ids whose `derivedFrom:` includes this requirement's id.
@@ -5445,13 +5455,13 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E101` | Two elements have the same `id:` value |
 | `E102` | A reference in `verifies:` cannot be resolved (no element with matching id or qualified name) |
 | `E103` | A reference in `derivedFrom:` cannot be resolved |
-| `E104` | A `verifies:` reference resolves to an element that is not a native `Requirement` |
+| `E104` | A `verifies:` reference resolves to an element that is neither a native `Requirement` nor a requirement/architecture-shaped element actually synthesized by SysMLv2 submodel ingestion or a stdio foreign-format plugin (§11.10) |
 | `E105` | A `derivedFrom:` reference resolves to an element that is not a native `Requirement` |
 | `E106` | A `testFunctions[].scenario` string does not match any `Scenario:` or `Scenario Outline:` title in this file's Gherkin blocks |
 | `E310` | Native `Requirement` has `derivedFrom:` entries but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved, or resolves to an element that is not an `ADR` |
 | `E312` | A parent `Requirement` (one with `derivedChildren`) appears in a `satisfies:` list |
-| `E313` | A `satisfies:` link connects an architecture element and a requirement whose `domain` / `reqDomain` values are incompatible (e.g., a `software` element satisfying a `hardware` requirement) |
+| `E313` | A `satisfies:` link connects an element (not type-restricted — §12.3) and a requirement whose `domain` / `reqDomain` values are incompatible (e.g., a `software` element satisfying a `hardware` requirement) |
 | `E314` | A `Part` or `PartDef` with `isDeploymentPackage: true` has no `Allocation` to a `hardware` element |
 | `E315` | An element with `domain: software` has a `supertype:` or `typedBy:` reference that resolves to an element with `domain: hardware`, or vice versa — cross-domain direct reference; use `Allocation` instead |
 | `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` — or on a behavioral definition `ActionDef`/`Action`/`StateDef`/`State` (REQ-TRS-MG-010) — does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef` (names the offending operand, owning element, and resolved type). Base-format check — runs regardless of the MagicGrid profile (REQ-TRS-MG-001). The `refinedBy` reverse index includes refining behavioral elements alongside refining use cases; the `W307` "missing refines" warning stays scoped to `UseCaseDef` |
@@ -5469,8 +5479,8 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W007` | Frontmatter contains an unrecognised key (lenient mode; key is preserved in the element's extra-fields map) |
 | `W009` | A `testFunctions[].function` does not resolve to a definition in its (existing) `sourceFile` — function-level traceability drift (renamed/deleted test). Emitted only for `TestCase`s with `status: active` (see *TestCase drift scoping*). See *Function matchers* below. |
 | `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results. See *Test result ingestion* below. Inert unless results have been ingested. |
-| `W300` | Leaf `Requirement` at `status: approved` or `status: implemented` has no satisfying architecture element (no element has `satisfies:` pointing to it) |
-| `W301` | Leaf `Requirement` is satisfied by more than one architecture element — only one expected at leaf level |
+| `W300` | Leaf `Requirement` at `status: approved` or `status: implemented` has no satisfying element (no element — structural or behavioral — has `satisfies:` pointing to it) |
+| `W301` | Leaf `Requirement` is satisfied by more than one element — only one expected at leaf level, regardless of whether the multiple satisfiers are structural, behavioral, or a mix |
 | `W302` | Leaf `Requirement` at `status: implemented` or `status: verified` still has `reqDomain: system` — refine to `hardware` or `software` |
 | `W303` | `breakdownAdr:` references an ADR with `status: proposed`, but the `Requirement` itself has `status: approved` or higher |
 | `W304` | `isDeploymentPackage: true` combined with `domain: hardware` — deployment packages must be software |
@@ -5913,7 +5923,7 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `concerns` | Req/Viewpoint | list | absent | 8.11.1, 8.14.1 |
 | `framedConcerns` | RequirementDef | list | absent | 8.11.1 |
 | `derivedFrom` | RequirementDef/Requirement | list | absent | 8.11.1 |
-| `satisfies` | Part/PartDef/etc. | list | absent | 8.11.4 |
+| `satisfies` | Part/PartDef is the common case; not type-restricted — see §12.3 for the full endorsed shape list | list | absent | 8.11.4, 12.3 |
 | `implementedBy` | Part/PartDef | string or list | absent | 8.11.4 / 12.8 |
 | `verifiedBy` | Requirement | list | absent | 8.11.4 |
 | `verifies` | VerificationCase | list | absent | 8.12.3 |
@@ -6047,7 +6057,7 @@ All traceability links in Markdown-SysML follow OSLC (Open Services for Lifecycl
 |---|---|---|
 | `derivedFrom:` | child → parent | This requirement was broken down from the parent |
 | `verifies:` | test → requirement | This test case verifies the requirement |
-| `satisfies:` | architecture element → requirement | This element implements the requirement |
+| `satisfies:` | element → requirement | This element implements the requirement — not type-restricted (§12.3) |
 | `allocatedTo:` / `allocatedFrom:` | downstream → upstream | The architecture element (downstream, realising party) holds `allocatedFrom:` referencing the upstream logical or security artifact; `allocatedTo:` is used on `Allocation` elements |
 | `breakdownAdr:` | requirement → ADR | This requirement's breakdown is documented in the ADR |
 
@@ -6086,15 +6096,21 @@ breakdownAdr: ADR-SW-SCHED-001
 
 A requirement is a **leaf requirement** when no other requirement has `derivedFrom:` pointing to it (i.e., the computed `derivedChildren` index is empty for this requirement's id).
 
-**Rule R-003:** A leaf requirement at `status: approved` or higher must be assigned to exactly one architecture element — meaning exactly one `Part` or `PartDef` element must have `satisfies:` referencing this requirement.
+**Rule R-003:** A leaf requirement at `status: approved` or higher must be assigned to exactly one element — meaning exactly one element must have `satisfies:` referencing this requirement. `Part`/`PartDef` is the common case, but `satisfies:` is not type-restricted. The following count identically to a `Part`/`PartDef` satisfier:
+
+- A behavioral definition (`StateDef`/`ActionDef`) — a state machine or an activity can be the artifact directly responsible for fulfilling a requirement, not only the structural element that owns it.
+- `Connection`/`ConnectionDef`, `Interface`/`InterfaceDef`, `Item`/`ItemDef`, `Attribute`/`AttributeDef`, `Port`/`PortDef`, `Allocation` — the same fixed set of requirement/architecture-shaped kinds `E104` (§11.10) already recognises as legal `verifies:` targets when synthesized by SysMLv2 submodel ingestion or a stdio-subprocess plugin; extended here for consistency, since the natural direction of the claim (an architecture element declaring what it satisfies) is the mirror image of that check.
+- `Flow`/`FlowDef` — not in `E104`'s fixed kind list, but the same "artifact that can fulfil a requirement" reasoning applies to an item flow.
+
+No other element kind is restricted from declaring `satisfies:` either — the validator never gates on the *source* element's type — but only the kinds above are formally endorsed and regression-tested; anything else is permitted by absence of a check, not by design.
 
 - Zero satisfying elements → warning `W300`
-- More than one satisfying element → warning `W301`
+- More than one satisfying element → warning `W301` (regardless of whether the multiple satisfiers are structural, behavioral, or a mix)
 
 The assignment can evolve iteratively:
 1. Initially, assign to a higher-level block (`satisfies: UAV::FlightController`).
-2. When the internal design of that block is defined, update the `satisfies:` to the specific sub-element (`satisfies: UAV::FlightController::SchedulingModule`).
-3. A requirement's `satisfies:` should point to the **deepest** known architecture element that is responsible for fulfilling it.
+2. When the internal design of that block is defined, update the `satisfies:` to the specific sub-element (`satisfies: UAV::FlightController::SchedulingModule`) — or to the behavioral definition that actually implements it (`satisfies: UAV::FlightController::SchedulingModule::ModeTransitionSM`, a `StateDef`).
+3. A requirement's `satisfies:` should point to the **deepest** known element — structural or behavioral — that is responsible for fulfilling it.
 
 ---
 
@@ -6118,7 +6134,7 @@ Native `Requirement` elements carry a `reqDomain:` field (§8.11.6) indicating w
 | `hardware` | The requirement governs a hardware element (physical component, board, sensor, actuator). |
 | `software` | The requirement governs a software element (module, binary, firmware, algorithm). |
 
-**Rule R-005a:** A leaf requirement must be satisfied only by an architecture element whose `domain:` matches the requirement's `reqDomain:`, unless either is `system`. (Error `E313`.)
+**Rule R-005a:** A leaf requirement must be satisfied only by an element (structural or behavioral — §12.3) whose `domain:` matches the requirement's `reqDomain:`, unless either is `system`. (Error `E313`.)
 
 **Rule R-005b:** A leaf requirement at `status: implemented` or `status: verified` that still has `reqDomain: system` should be refined to `hardware` or `software`. (Warning `W302`.)
 
@@ -6160,7 +6176,7 @@ allocateTo: Hardware::FlightComputer
 ---
 ```
 
-**Rule R-006c (requirement domain consistency):** Hardware requirements must be satisfied by hardware architecture elements; software requirements must be satisfied by software architecture elements. This is enforced by Rule R-005a (§12.5).
+**Rule R-006c (requirement domain consistency):** Hardware requirements must be satisfied by `domain: hardware` elements; software requirements must be satisfied by `domain: software` elements — structural or behavioral (§12.3). This is enforced by Rule R-005a (§12.5).
 
 #### ADR for deployment decisions
 
@@ -6808,7 +6824,7 @@ This is a read-only analysis command. It does not modify the model.
 | `derivedFrom` | Parent requirements |
 | `verifies` | Requirements this TestCase verifies |
 | `derivedFromSafetyGoal` | Safety goal tracing |
-| `satisfies` | Requirements this architecture element satisfies |
+| `satisfies` | Requirements this element satisfies (structural or behavioral — §12.3) |
 | `allocatedTo` | Allocation targets of this element |
 
 **Text output:**
@@ -7275,7 +7291,7 @@ The following extends Section 12.7 Rule R-007 with an additional structural chec
 
 **Rule R-007b — Decomposition pair completeness.** When a `Requirement` with `asilLevel: D` (or `silLevel: 4`) has two or more `derivedChildren` all carrying strictly lower integrity levels (forming a decomposition claim per ISO 26262-9 §5 / IEC 61508-2 §7.4.9), the following structural conditions must hold:
 
-1. **Distinct satisfaction targets.** No two decomposition sibling requirements (children with lower integrity levels) may name the same architecture element in their `satisfies:` list. Sharing a satisfying element means the decomposition is not architecturally independent.
+1. **Distinct satisfaction targets.** No two decomposition sibling requirements (children with lower integrity levels) may name the same element — structural or behavioral (§12.3) — in their `satisfies:` list. Sharing a satisfying element means the decomposition is not architecturally independent.
 2. **Breakdown ADR required.** Each sibling must carry `breakdownAdr:` referencing the same `accepted` ADR as the parent (or its own accepted ADR), containing the freedom-from-interference argument.
 
 **New frontmatter field on `Requirement`:**
@@ -7288,7 +7304,7 @@ The following extends Section 12.7 Rule R-007 with an additional structural chec
 
 | Code | Condition |
 |---|---|
-| `E865` | ASIL/SIL decomposition siblings (children of a higher-level requirement with uniformly lower levels) share a `satisfies:` target — the decomposed channels must satisfy distinct architecture elements. (Drafted as `E860`; reassigned to `E865` because `E860` is already in use.) |
+| `E865` | ASIL/SIL decomposition siblings (children of a higher-level requirement with uniformly lower levels) share a `satisfies:` target — the decomposed channels must satisfy distinct elements. (Drafted as `E860`; reassigned to `E865` because `E860` is already in use.) |
 | `W860` | A `Requirement` at `asilLevel: D` or `silLevel: 4` has `derivedChildren` at a uniformly lower level but fewer than two children — a single-child ASIL D decomposition is structurally incomplete |
 
 ### 22.4 Sequence Diagram Send/Receive Completeness (extends §8.16.8.3)

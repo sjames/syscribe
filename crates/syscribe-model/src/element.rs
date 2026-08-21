@@ -625,6 +625,11 @@ pub struct RawFrontmatter {
     /// directory's subtree is parsed as native SysML v2/KerML textual notation
     /// instead of Markdown+YAML frontmatter. Handled by `crate::sysmlv2`.
     pub sysml_submodel: Option<bool>,
+    /// `foreignFormat: <alias>` on a Package `_index.md` (`ADR-SYS-PLUGIN-002`):
+    /// hands the package's entire directory subtree to the stdio-subprocess
+    /// plugin named by `[plugins.<alias>]` in `.syscribe.toml`. Handled by
+    /// `crate::plugins`.
+    pub foreign_format: Option<String>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
     pub return_type: Option<String>,

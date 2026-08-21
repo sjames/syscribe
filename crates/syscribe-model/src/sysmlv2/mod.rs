@@ -177,8 +177,8 @@ pub fn ingest_sysml_submodels(elements: &mut Vec<RawElement>, _model_root: &Path
 /// threading a second return value out of [`ingest::ingest_subtree`] through
 /// [`crate::walker::walk_model`]'s signature (and every one of its ~20
 /// existing callers across the CLI/MCP/LSP/web server, exactly the
-/// per-call-site wiring risk `ADR-SYS-PLUGIN-001` avoided for the WASM-plugin
-/// merge), this derives the set fresh from `elements` itself: every
+/// per-call-site wiring risk `ADR-SYS-PLUGIN-002` avoids for the
+/// stdio-subprocess plugin merge), this derives the set fresh from `elements` itself: every
 /// SysMLv2-synthesized `RawElement`'s `file_path` is, by construction, the
 /// actual `.sysml`/`.kerml` source file it came from (`push_synth` in
 /// `ingest.rs` never sets it to anything else) — a real, already-recorded

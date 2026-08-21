@@ -34,5 +34,6 @@ a `TestCase`'s `verifies:`, an `Allocation` cannot target it).
   (type-checking, multiplicity legality, standard-library-aware inheritance) — deferred
   indefinitely absent a concrete need.
 - That this is implemented as a native, in-process Rust integration (`sysml-v2-parser`) rather
-  than routed through the sandboxed WASM plugin mechanism of `ADR-SYS-PLUGIN-001` is an
+  than routed through the stdio-subprocess plugin mechanism of `ADR-SYS-PLUGIN-002` (formerly
+  planned as a sandboxed WASM mechanism under the never-shipped `ADR-SYS-PLUGIN-001`) is an
   architectural decision, not part of this requirement (`ADR-SYS-SYSMLV2-001`).

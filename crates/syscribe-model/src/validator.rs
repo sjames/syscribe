@@ -813,6 +813,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 "E232" => "E232",
                 "E233" => "E233",
                 "W048" => "W048",
+                // Foreign-format ingestion via stdio-subprocess plugins
+                // (ADR-SYS-PLUGIN-002) — its own dedicated code range,
+                // distinct from the temporary SysMLv2 placeholder range
+                // (W540-W542) and from the never-shipped WASM-plugin family
+                // (E530/E532/W530/W532-534, `feat/wasm-plugins`, unmerged).
+                "E550" => "E550",
+                "E551" => "E551",
+                "W550" => "W550",
+                "W551" => "W551",
+                "W552" => "W552",
+                "W553" => "W553",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });
@@ -3780,6 +3791,28 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // E108: duplicate qualified name, any origin (hand-authored, FMEA/TARA row
+    // explosion, SysMLv2 ingestion, or a stdio plugin's envelope) — the
+    // origin-agnostic sibling of E101 (duplicate id). `Resolver::by_qname`
+    // still silently keeps the last-inserted element on a collision
+    // (unchanged here, a separate concern); this only adds the missing
+    // diagnostic so the collision itself isn't invisible.
+    {
+        let mut seen_qnames: HashMap<&str, &str> = HashMap::new();
+        for elem in elements {
+            if let Some(prev_file) = seen_qnames.insert(elem.qualified_name.as_str(), elem.file_path.as_str()) {
+                findings.push(error(
+                    "E108",
+                    &elem.file_path,
+                    &format!(
+                        "duplicate qualified name '{}' (first seen in {})",
+                        elem.qualified_name, prev_file
+                    ),
+                ));
+            }
+        }
+    }
+
     // W616: two TestPlans with an identical (configurations, scope) pair.
     // The config set is the resolved/declared bound configurations (qualified
     // names, order-independent); absent `configurations:` (config-agnostic) is its
@@ -3818,12 +3851,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // id-identified, so unlike derived_children/verified_by there is no
     // id-else-qname fallback needed here).
     let mut planning_children: HashMap<String, Vec<String>> = HashMap::new();
-    // REQ-TRS-SYSMLV2-004 — side-channel provenance set: which qnames were
-    // actually synthesized by SysMLv2 ingestion, consulted by
-    // `Resolver::is_verify_target` so the E104 widening only ever applies to
-    // real SysMLv2-originated targets, never to hand-authored native elements
-    // of the same kind. See `sysmlv2::synthesized_qnames`'s doc comment.
+    // REQ-TRS-SYSMLV2-004 / ADR-SYS-PLUGIN-002 — side-channel provenance sets:
+    // which qnames were actually synthesized by SysMLv2 ingestion vs. by a
+    // stdio plugin, consulted by `Resolver::is_verify_target` so the E104
+    // widening only ever applies to real synthesized targets of the matching
+    // origin, never to hand-authored native elements of the same kind. See
+    // `sysmlv2::synthesized_qnames`'s and `plugins::synthesized_qnames`'s doc
+    // comments.
     let sysmlv2_qnames = crate::sysmlv2::synthesized_qnames(elements);
+    let plugin_qnames = crate::plugins::synthesized_qnames(elements);
 
     for elem in elements {
         let fm = &elem.frontmatter;
@@ -3847,11 +3883,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         &format!("unresolved verifies reference '{}'", v),
                     )),
                     Some(target) => {
-                        // E104: target must be a native Requirement, or (REQ-TRS-SYSMLV2-004)
-                        // a *bona fide SysMLv2-synthesized* element of one of the submodel's
-                        // fixed mapped kinds — gated on `sysmlv2_qnames`, not kind alone, so a
+                        // E104: target must be a native Requirement, or a *bona fide*
+                        // SysMLv2-synthesized (REQ-TRS-SYSMLV2-004) or plugin-synthesized
+                        // (ADR-SYS-PLUGIN-002) element of one of the fixed mapped kinds —
+                        // gated on `sysmlv2_qnames`/`plugin_qnames`, not kind alone, so a
                         // hand-authored native Part/etc. is never rescued by this widening.
-                        if !Resolver::is_verify_target(target, &sysmlv2_qnames) {
+                        if !Resolver::is_verify_target(target, &sysmlv2_qnames, &plugin_qnames) {
                             findings.push(error(
                                 "E104",
                                 &elem.file_path,
@@ -5667,7 +5704,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
     // ── Traceability checks (§12) ─────────────────────────────────────────────
 
-    // Build reverse index: satisfied_reqs[req_qname_or_id] = list of satisfying element qnames
+    // Build reverse index: satisfied_reqs[req_qname_or_id] = list of satisfying element qnames.
+    // Deliberately built from every element's `satisfies:`, not filtered to
+    // Part/PartDef — feeds W300/W301's leaf-assignment coverage count, which
+    // must credit any endorsed satisfying shape (Part/PartDef; a behavioral
+    // definition StateDef/ActionDef; or one of Connection/ConnectionDef,
+    // Interface/InterfaceDef, Item/ItemDef, Attribute/AttributeDef,
+    // Port/PortDef, Allocation, Flow/FlowDef) exactly like a Part/PartDef
+    // satisfier (see the E313 comment below for the full rationale).
     let mut satisfied_reqs: HashMap<String, Vec<String>> = HashMap::new();
     for elem in elements {
         if let Some(ref sat) = elem.frontmatter.satisfies {
@@ -5833,7 +5877,20 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // E313: satisfies domain mismatch — architecture element domain vs requirement reqDomain
+        // E313: satisfies domain mismatch — element domain vs requirement reqDomain.
+        // Deliberately not gated on `elem`'s type: `satisfies:` isn't restricted to
+        // Part/PartDef (§12.5's own wording only names them as the common case).
+        // A behavioral definition (StateDef/ActionDef) satisfying a requirement
+        // is an equally legitimate claim — the same reasoning `refines:`'s E316
+        // already made explicit for behavioral definitions vs UseCaseDef
+        // (REQ-TRS-MG-010). Extended for consistency to every other kind
+        // `Resolver::is_verify_target`/E104 already treats as
+        // requirement/architecture-shaped for SysMLv2/plugin-synthesized
+        // elements — Connection/ConnectionDef, Interface/InterfaceDef,
+        // Item/ItemDef, Attribute/AttributeDef, Port/PortDef, Allocation — plus
+        // Flow/FlowDef (not in E104's list, but the same "artifact that can
+        // fulfil a requirement" reasoning applies to item flow). See
+        // `satisfies_shape_tests`.
         if let Some(ref sat) = fm.satisfies {
             let elem_domain = fm.domain.as_deref().unwrap_or("system");
             for s in sat {
@@ -5925,7 +5982,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // E843 / W808: satisfies — architecture element must inherit integrity level
+        // E843 / W808: satisfies — satisfying element must inherit integrity level.
+        // Same deliberately type-agnostic posture as E313/W300/W301 above — any
+        // endorsed satisfying shape is held to the same rule as a Part/PartDef
+        // would be.
         if let Some(ref sat) = fm.satisfies {
             for s in sat {
                 if let Some(target) = resolver.resolve_ref(elements, s) {
@@ -10450,6 +10510,263 @@ mod w007_scoped_usage_tracking_tests {
         assert!(
             !w007_fires_for(&result.findings, "Services::Documented"),
             "{:?}",
+            result.findings
+        );
+    }
+}
+
+/// `satisfies:` — E313 (domain mismatch), E843/W808 (integrity-level inheritance),
+/// and the W300/W301 leaf-assignment coverage count are deliberately
+/// type-agnostic on the *source* element: `Part`/`PartDef` is the common case,
+/// but every other kind `Resolver::is_verify_target`/E104 already treats as
+/// requirement/architecture-shaped for a SysMLv2- or plugin-synthesized
+/// `verifies:` target — `StateDef`/`ActionDef` (a behavioral definition, the
+/// same claim `refines:`'s `E316` already made explicit, `REQ-TRS-MG-010`),
+/// `Connection`/`ConnectionDef`, `Interface`/`InterfaceDef`, `Item`/`ItemDef`,
+/// `Attribute`/`AttributeDef`, `Port`/`PortDef`, `Allocation` — satisfies a
+/// requirement equally legitimately. `Flow`/`FlowDef` is included too, on the
+/// same "artifact that can fulfil a requirement" reasoning, even though it
+/// isn't in E104's fixed kind list. These tests pin that behavior down so a
+/// future refactor doesn't accidentally narrow it back to Part/PartDef only.
+#[cfg(test)]
+mod satisfies_shape_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: "Some documentation.".to_string(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    fn req(id: &str, qname: &str, extra: &str) -> RawElement {
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nstatus: approved\nreqDomain: software\n{extra}"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    #[test]
+    fn statedef_satisfies_domain_mismatch_raises_e313_same_as_partdef_would() {
+        let elements = vec![
+            req("REQ-SM-001", "Requirements::SmReq", ""),
+            make_elem(
+                "Behavior::FlightModeSM",
+                "type: StateDef\nname: FlightModeSM\ndomain: hardware\nsatisfies:\n  - REQ-SM-001\n",
+                "model/Behavior/FlightModeSM.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E313"), "expected E313: {:?}", result.findings);
+    }
+
+    #[test]
+    fn actiondef_satisfies_matching_domain_raises_no_e313() {
+        let elements = vec![
+            req("REQ-ACT-001", "Requirements::ActReq", ""),
+            make_elem(
+                "Behavior::ArmMotors",
+                "type: ActionDef\nname: ArmMotors\ndomain: software\nsatisfies:\n  - REQ-ACT-001\n",
+                "model/Behavior/ArmMotors.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E313"),
+            "matching domain must not raise E313: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn statedef_satisfies_missing_integrity_level_raises_e843_same_as_partdef_would() {
+        let elements = vec![
+            req("REQ-SM-002", "Requirements::SmReq2", "asilLevel: C\n"),
+            make_elem(
+                "Behavior::FlightModeSM2",
+                "type: StateDef\nname: FlightModeSM2\nsatisfies:\n  - REQ-SM-002\n",
+                "model/Behavior/FlightModeSM2.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E843"), "expected E843: {:?}", result.findings);
+    }
+
+    #[test]
+    fn actiondef_satisfies_matching_integrity_level_raises_no_e843() {
+        let elements = vec![
+            req("REQ-ACT-002", "Requirements::ActReq2", "asilLevel: B\n"),
+            make_elem(
+                "Behavior::ArmMotors2",
+                "type: ActionDef\nname: ArmMotors2\nasilLevel: B\nsatisfies:\n  - REQ-ACT-002\n",
+                "model/Behavior/ArmMotors2.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"E843"),
+            "matching integrity level must not raise E843: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn statedef_satisfier_counts_toward_w300_leaf_assignment_coverage() {
+        let elements = vec![
+            req("REQ-SM-003", "Requirements::SmReq3", ""),
+            make_elem(
+                "Behavior::FlightModeSM3",
+                "type: StateDef\nname: FlightModeSM3\ndomain: software\nsatisfies:\n  - REQ-SM-003\n",
+                "model/Behavior/FlightModeSM3.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"W300"),
+            "a StateDef satisfier must count as coverage, same as a PartDef would: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn one_partdef_and_one_statedef_both_satisfying_the_same_requirement_raises_w301() {
+        let elements = vec![
+            req("REQ-SM-004", "Requirements::SmReq4", ""),
+            make_elem(
+                "Arch::FlowController",
+                "type: PartDef\nname: FlowController\ndomain: software\nsatisfies:\n  - REQ-SM-004\n",
+                "model/Arch/FlowController.md",
+            ),
+            make_elem(
+                "Behavior::FlightModeSM4",
+                "type: StateDef\nname: FlightModeSM4\ndomain: software\nsatisfies:\n  - REQ-SM-004\n",
+                "model/Behavior/FlightModeSM4.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            codes(&result.findings).contains(&"W301"),
+            "two satisfiers of any mix of shapes should raise W301: {:?}",
+            result.findings
+        );
+    }
+
+    /// Every kind `is_verify_target`/E104 already treats as
+    /// requirement/architecture-shaped (Connection/ConnectionDef,
+    /// Interface/InterfaceDef, Item/ItemDef, Attribute/AttributeDef,
+    /// Port/PortDef, Allocation), plus Flow/FlowDef on the same reasoning,
+    /// is credited as a leaf requirement's satisfier — no W300 for any of them.
+    #[test]
+    fn every_endorsed_shape_counts_toward_w300_leaf_assignment_coverage() {
+        let shapes: &[(&str, &str)] = &[
+            ("REQ-SH-001", "Connection"),
+            ("REQ-SH-002", "ConnectionDef"),
+            ("REQ-SH-003", "Interface"),
+            ("REQ-SH-004", "InterfaceDef"),
+            ("REQ-SH-005", "Item"),
+            ("REQ-SH-006", "ItemDef"),
+            ("REQ-SH-007", "Attribute"),
+            ("REQ-SH-008", "AttributeDef"),
+            ("REQ-SH-009", "Port"),
+            ("REQ-SH-010", "PortDef"),
+            ("REQ-SH-011", "Allocation"),
+            ("REQ-SH-012", "Flow"),
+            ("REQ-SH-013", "FlowDef"),
+        ];
+        let mut elements = Vec::new();
+        for (req_id, kind) in shapes {
+            let req_qname = format!("Requirements::{}", req_id.replace('-', "_"));
+            elements.push(req(req_id, &req_qname, ""));
+            elements.push(make_elem(
+                &format!("Arch::Satisfier{kind}"),
+                &format!("type: {kind}\nname: Satisfier{kind}\ndomain: software\nsatisfies:\n  - {req_id}\n"),
+                &format!("model/Arch/Satisfier{kind}.md"),
+            ));
+        }
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            !codes(&result.findings).contains(&"W300"),
+            "every endorsed shape should count as a satisfier, no W300 expected: {:?}",
+            result.findings
+        );
+    }
+
+    #[test]
+    fn connection_and_flow_satisfies_domain_mismatch_raises_e313() {
+        let elements = vec![
+            req("REQ-CF-001", "Requirements::CfReq1", ""),
+            make_elem(
+                "Arch::DataLink",
+                "type: Connection\nname: DataLink\ndomain: hardware\nsatisfies:\n  - REQ-CF-001\n",
+                "model/Arch/DataLink.md",
+            ),
+            req("REQ-CF-002", "Requirements::CfReq2", ""),
+            make_elem(
+                "Arch::TelemetryFlow",
+                "type: Flow\nname: TelemetryFlow\ndomain: hardware\nsatisfies:\n  - REQ-CF-002\n",
+                "model/Arch/TelemetryFlow.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let e313_count = codes(&result.findings).iter().filter(|c| **c == "E313").count();
+        assert_eq!(e313_count, 2, "expected E313 for both the Connection and the Flow: {:?}", result.findings);
+    }
+
+    #[test]
+    fn interface_and_allocation_satisfies_missing_integrity_level_raises_e843() {
+        let elements = vec![
+            req("REQ-IA-001", "Requirements::IaReq1", "asilLevel: B\n"),
+            make_elem(
+                "Arch::TelemetryIface",
+                "type: Interface\nname: TelemetryIface\nsatisfies:\n  - REQ-IA-001\n",
+                "model/Arch/TelemetryIface.md",
+            ),
+            req("REQ-IA-002", "Requirements::IaReq2", "silLevel: 2\n"),
+            make_elem(
+                "Arch::PowerAllocation",
+                "type: Allocation\nname: PowerAllocation\nsatisfies:\n  - REQ-IA-002\n",
+                "model/Arch/PowerAllocation.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let e843_count = codes(&result.findings).iter().filter(|c| **c == "E843").count();
+        assert_eq!(e843_count, 2, "expected E843 for both the Interface and the Allocation: {:?}", result.findings);
+    }
+
+    #[test]
+    fn a_partdef_and_an_item_both_satisfying_the_same_requirement_raises_w301() {
+        let elements = vec![
+            req("REQ-MIX-001", "Requirements::MixReq", ""),
+            make_elem(
+                "Arch::FlowController",
+                "type: PartDef\nname: FlowController\ndomain: software\nsatisfies:\n  - REQ-MIX-001\n",
+                "model/Arch/FlowController.md",
+            ),
+            make_elem(
+                "Arch::TelemetryPacket",
+                "type: Item\nname: TelemetryPacket\ndomain: software\nsatisfies:\n  - REQ-MIX-001\n",
+                "model/Arch/TelemetryPacket.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(
+            codes(&result.findings).contains(&"W301"),
+            "a PartDef and an Item both satisfying the same requirement should raise W301: {:?}",
             result.findings
         );
     }

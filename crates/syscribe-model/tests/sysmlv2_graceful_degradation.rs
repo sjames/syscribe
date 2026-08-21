@@ -5,9 +5,8 @@
 //! This is deliberately an *audit*, not new feature work — `W540` (stray
 //! nested `_index.md`, `sysmlv2/mod.rs`) and `W541` (parse/read failure,
 //! `sysmlv2/ingest.rs`) already existed and are already distinct from the
-//! WASM-plugin family (`E530`–`E532`/`W530`–`W534`, which don't even exist on
-//! this branch — that family shipped on `feat/wasm-plugins`, a separate,
-//! unmerged branch this one forked before). These tests confirm the existing
+//! stdio-subprocess plugin family's own range (`E550`/`E551`/`W550`–`W553`,
+//! `ADR-SYS-PLUGIN-002`, `crate::plugins`). These tests confirm the existing
 //! mechanisms actually hold rather than building anything new.
 
 use std::path::{Path, PathBuf};
@@ -171,17 +170,12 @@ fn invalid_utf8_file_degrades_via_w541_read_error_not_the_parse_error_branch() {
 }
 
 #[test]
-fn multi_file_merge_can_silently_duplicate_a_qname_known_gap_not_fixed_here() {
-    // Explicitly out of scope for REQ-TRS-SYSMLV2-006 (per this task's
-    // instructions): `E108` (duplicate qname, any origin) doesn't exist on
-    // this branch at all -- it shipped with the WASM-plugin feature on a
-    // separate, unmerged branch this one forked before. This test documents
-    // a genuine duplicate-qname collision possible purely within SysMLv2
-    // multi-file merge itself (two files each contributing a same-named
-    // `part def` to the same merged package produce two `RawElement`s at the
-    // identical qname, with nothing today to catch it) as a known finding
-    // for later -- NOT a regression to fix as part of this task. It does not
-    // panic or abort validate either way.
+fn multi_file_merge_duplicate_qname_is_caught_by_e108() {
+    // `E108` (duplicate qname, any origin — `ADR-SYS-PLUGIN-002`) now exists
+    // and is origin-agnostic by design, so it catches this collision too even
+    // though it wasn't built for SysMLv2 specifically: two files each
+    // contributing a same-named `part def` to the same merged package produce
+    // two `RawElement`s at the identical qname, which `E108` now reports.
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
     write(
@@ -200,17 +194,15 @@ fn multi_file_merge_can_silently_duplicate_a_qname_known_gap_not_fixed_here() {
     assert_eq!(
         matches.len(),
         2,
-        "documents the known gap: two files each contributing 'part def Bar' \
-         under the same merged package currently produce two elements at the \
-         same qname with no diagnostic; got: {matches:#?}"
+        "two files each contributing 'part def Bar' under the same merged \
+         package produce two elements at the same qname; got: {matches:#?}"
     );
 
-    // Whatever the eventual fix, it must not panic today.
     let result = validate(&elements);
+    let e108_count = result.findings.iter().filter(|f| f.code == "E108").count();
     assert_eq!(
-        result.errors().count(),
-        0,
-        "no error is currently raised for this collision (that's the gap): {:#?}",
+        e108_count, 1,
+        "E108 should catch the qname collision exactly once: {:#?}",
         result.findings
     );
 }

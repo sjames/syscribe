@@ -45,6 +45,7 @@ mod textstats;
 mod topics;
 mod tradestudy;
 mod repos;
+mod plugins;
 mod zones;
 mod vdepth;
 mod spec;
@@ -1321,6 +1322,34 @@ fn main() {
                     _ => {
                         repos::cmd_list(&vcfg, json);
                         0
+                    }
+                };
+                std::process::exit(code);
+            }
+            "plugins" => {
+                // stdio-subprocess foreign-format plugins (ADR-SYS-PLUGIN-002).
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let sub = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
+                let code = match sub {
+                    Some("run") => {
+                        let alias = rest
+                            .iter()
+                            .skip_while(|a| a.as_str() != "run")
+                            .nth(1)
+                            .filter(|a| !a.starts_with("--"))
+                            .map(|s| s.as_str());
+                        let dry_run = rest.iter().any(|a| a == "--dry-run");
+                        match alias {
+                            Some(a) if dry_run => plugins::cmd_run(&vcfg, model_root, a),
+                            _ => {
+                                eprintln!("Usage: plugins run <alias> --dry-run");
+                                1
+                            }
+                        }
+                    }
+                    _ => {
+                        eprintln!("Usage: plugins run <alias> --dry-run");
+                        1
                     }
                 };
                 std::process::exit(code);

@@ -64,6 +64,7 @@ nav:
       - Build System Integration: model-guide/build-export.md
       - Multi-Repository Composition: model-guide/multi-repo.md
       - Native SysMLv2 Submodels: model-guide/sysmlv2-submodel.md
+      - Foreign-Format Plugins (stdio): model-guide/stdio-plugins.md
       - MagicGrid: model-guide/magicgrid.md
       - Custom Fields: model-guide/custom-fields.md
       - LLM-Assisted Modeling: model-guide/llm-workflow.md

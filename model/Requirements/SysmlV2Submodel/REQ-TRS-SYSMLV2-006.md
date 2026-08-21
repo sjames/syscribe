@@ -17,13 +17,14 @@ construct shall never abort the rest of `validate`. Each failure downgrades only
 file's (or subtree's) contribution — fewer or no elements from that file, plus a `Finding` in the
 normal validate report — while every other native and SysMLv2-originated element in the model
 validates normally. This subsystem uses its own dedicated error/warning code range, distinct from
-the WASM-plugin family (`E530`–`E532`/`W530`–`W534`), since it is not a plugin.
+the stdio-subprocess plugin family (`E550`/`E551`/`W550`–`W553`, `ADR-SYS-PLUGIN-002`), since it
+is not a plugin.
 
 ## Rationale
 
 Matches the graceful-degradation posture already established for multi-repository composition
-(`RefState::Unknown`) and for WASM plugins (`ADR-SYS-PLUGIN-001`) — a broken subtree is loudly
-flagged, and gateable via `--deny`, without taking down validation of everything else in the model.
+(`RefState::Unknown`) and for stdio-subprocess plugins (`ADR-SYS-PLUGIN-002`) — a broken subtree is
+loudly flagged, and gateable via `--deny`, without taking down validation of everything else in the model.
 A dedicated code range keeps diagnostics honestly labeled: these are native-parser/mapping
 failures, not plugin-execution failures, and conflating the two ranges would misattribute the
 failure mode to anyone grepping a validation report.

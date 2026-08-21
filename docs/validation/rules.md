@@ -51,7 +51,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E101 | Duplicate `id` across two elements |
 | E102 | `verifies:` entry does not resolve |
 | E103 | `derivedFrom:` entry does not resolve |
-| E104 | `verifies:` target is not a native Requirement |
+| E104 | `verifies:` target is not a native Requirement — also widened (`Resolver::is_verify_target`) to accept a requirement/architecture-shaped element (`Part`/`PartDef`/`Attribute`/… — `REQ-TRS-SYSMLV2-007`'s fixed kind list) that was actually synthesized by native SysMLv2 ingestion or a stdio plugin, never a hand-authored element of the same kind |
 | E105 | `derivedFrom:` target is not a native Requirement |
 | E106 | `testFunctions[].scenario` name not found in Gherkin blocks |
 
@@ -393,6 +393,42 @@ A model composes peer repositories declared in the `[repos]` table of the model-
 | W510 | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; `--deny W510`). |
 | W511 | A peer repo's git `HEAD` has drifted from its configured `ref:` — checkout is not at the pinned snapshot. Never raised when drift cannot be determined (no git, not a work tree, ref unresolved). Opt-in; `--deny W511` for a CI reproducibility gate. |
 | W512 | A peer repo's `path` is a **git submodule** of the composing model's repo, and its `ref:` resolves to a different commit than the gitlink the parent repo records — `.syscribe.toml` disagrees with `.gitmodules`. Independent of `W511` (gitlink pin vs ref, not checkout vs ref). Never raised when `path` is not a submodule. Opt-in; `--deny W512`. |
+
+## Foreign-format ingestion via stdio-subprocess plugins (E550–E551, W550–W553, E108, ADR-SYS-PLUGIN-002)
+
+A package `_index.md` may declare `foreignFormat: <alias>`, handing its subtree to an external
+process named by the `[plugins.<alias>]` table of the model-root `.syscribe.toml`. Syscribe spawns
+it, sends one JSON request on stdin, and reads one JSON `{elements, diagnostics}` envelope from
+stdout; the elements are merged into the graph as ordinary `RawElement`s. **Active only when a
+package declares `foreignFormat:`** — a model with none is unaffected.
+
+| Code | Condition |
+|---|---|
+| E108 | Two elements — any origin (hand-authored, FMEA/TARA row explosion, SysMLv2 ingestion, or plugin-synthesized) — share a qualified name. |
+| E550 | `[plugins.<alias>].command` cannot be resolved — not found on `PATH`, or (given as a path) does not exist / is not executable. |
+| E551 | A package declares `foreignFormat: <alias>` with no matching `[plugins.<alias>]` entry in `.syscribe.toml`. |
+| W550 | Plugin process execution failed — spawn error, non-zero exit, or killed after exceeding `timeout_ms`. That package contributes zero elements this run. |
+| W551 | The plugin's stdout was not a well-formed envelope JSON object, or the plugin self-reported its own parse diagnostics (folded into this one finding). |
+| W552 | One element's frontmatter did not deserialize cleanly — that element dropped, siblings kept. |
+| W553 | One element's `type:` is not a recognised element type — that element dropped. |
+
+A plugin failure never aborts the rest of `validate` — it downgrades only that package's
+contribution, the same graceful-degradation posture multi-repo composition's `RefState::Unknown`
+and native SysMLv2 ingestion's `W541` already established. Gate CI on any of these with `validate
+--deny W550`, etc. `E108` is origin-agnostic — the sibling of `E101` (duplicate id) for qualified
+names — and fires regardless of which pass produced the collision.
+
+Cross-references between a plugin-synthesized element and the native model resolve in both
+directions with no special handling: a plugin-emitted element's `satisfies:`/`derivedFrom:`/
+`allocatedTo:`/`typedBy:`/`supertype:` pointing at a native id/qname, or a native element's own
+field pointing back into a plugin-emitted qname, both resolve like any other reference. The one
+exception is `verifies:` (`E104`, above) — a plugin-synthesized element only qualifies as a legal
+target when it is one of the fixed requirement/architecture-shaped kinds.
+
+A stdio plugin is a plain OS subprocess with **no sandbox**: configuring `[plugins.<alias>].command`
+means trusting that command, the same trust level already accepted for `[plantuml] jar`/`plantuml`
+on `PATH` and the `[remote]` `sh -c` hook. See `docs/model-guide/stdio-plugins.md` and
+`ADR-SYS-PLUGIN-002` for the full wire protocol and trust-model rationale.
 
 ## Hierarchical product-line composition (E516–E518, REQ-TRS-HPLE-001, ADR-SYS-HPLE-001)
 

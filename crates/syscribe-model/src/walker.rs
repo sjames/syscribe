@@ -175,6 +175,8 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
     // Parse and merge `.sysml`/`.kerml` content in each surviving subtree into
     // real RawElements (REQ-TRS-SYSMLV2-002).
     crate::sysmlv2::ingest_sysml_submodels(&mut elements, model_root);
+    // Foreign-format ingestion via stdio-subprocess plugins (ADR-SYS-PLUGIN-002).
+    crate::plugins::apply_foreign_plugins(&mut elements, model_root);
     // Derive pass: evaluate `derive:` blocks; findings stored in each element's derive_findings.
     crate::derive::derive_pass(&mut elements);
     Ok(elements)

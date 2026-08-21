@@ -21,17 +21,18 @@ qname>::<SysML v2 fully-qualified name>`, resolvable by `derivedFrom:`/`satisfie
 ## Rationale
 
 `RawElement`/`Resolver`/`validate_with_config` are already origin-agnostic — proven by the existing
-FMEA/TARA row-explosion passes in `walker.rs` and by the WASM-plugin merge (`ADR-SYS-PLUGIN-001`),
-which both synthesize sibling elements through the same injection point. Reusing it here means zero
-special-casing anywhere in the resolver or validator for SysMLv2-originated elements.
+FMEA/TARA row-explosion passes in `walker.rs` and reused unchanged by the stdio-subprocess plugin
+merge (`ADR-SYS-PLUGIN-002`), which both synthesize sibling elements through the same injection
+point. Reusing it here means zero special-casing anywhere in the resolver or validator for
+SysMLv2-originated elements.
 
 ## Scope
 
 - Which element kinds are actually synthesized (versus parsed-but-unmapped) is
   `REQ-TRS-SYSMLV2-007`, not this requirement.
 - A duplicate qname between a SysMLv2-originated element and any other element (hand-authored,
-  plugin-originated, or another SysMLv2-originated one) is `E108` — the existing, already
-  origin-agnostic diagnostic that shipped with `ADR-SYS-PLUGIN-001`. No new diagnostic is
-  introduced for this.
+  plugin-originated, or another SysMLv2-originated one) is `E108` — the origin-agnostic diagnostic
+  that shipped with `ADR-SYS-PLUGIN-002`. No new diagnostic is introduced for this requirement
+  specifically.
 - This requirement covers ingestion and graph merge only; the three cross-boundary trace-link
   directions are `REQ-TRS-SYSMLV2-003`/`004`/`005`.
