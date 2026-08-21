@@ -12,11 +12,12 @@ tags:
 ---
 
 Syscribe shall accept the full SysML v2/KerML textual grammar without failing to parse a file
-solely because it contains a construct outside the mapped element set (behavior bodies, `analysis`/
-`case`/`verification def`, `calc`/`constraint`, and similar). Only a fixed set of element kinds —
+solely because it contains a construct outside the mapped element set (`analysis`/`case`/
+`verification def`, `calc`/`constraint`, and similar). Only a fixed set of element kinds —
 `Package`, `Part(Def/Usage)`, `Attribute(Def/Usage)`, `Port(Def/Usage)`, `Connection(Def/Usage)`,
-`Interface(Def/Usage)`, `Item(Def/Usage)`, `Requirement(Def/Usage)`, `AllocationUsage`, and
-`variation`/`variant` membership — are synthesized into first-class, cross-referenceable
+`Interface(Def/Usage)`, `Item(Def/Usage)`, `Requirement(Def/Usage)`, `AllocationUsage`,
+`variation`/`variant` membership, and — as of `REQ-TRS-SYSMLV2-018`/`-019` —
+`State(Def/Usage)`/`Action(Def/Usage)` — are synthesized into first-class, cross-referenceable
 `RawElement`s. Constructs outside that set are counted and named for browsing but not deeply
 modeled.
 
@@ -30,8 +31,11 @@ what the three cross-reference directions this feature exists to serve
 
 ## Scope
 
-- Full semantic mapping of behavior/analysis/case/calc/constraint constructs is explicitly
-  deferred, tracked as follow-on scope, not required by this requirement or its siblings.
+- Full semantic mapping of analysis/case/calc/constraint constructs is explicitly deferred, tracked
+  as follow-on scope, not required by this requirement or its siblings. `REQ-TRS-SYSMLV2-018`/`-019`
+  moved State/Action out of that deferred set and into the fixed mapped list above — the parse-broad
+  boundary this requirement establishes never changed; only the mapped-set membership did, exactly
+  as the bullet below anticipates.
 - An unmapped construct is not itself an error or warning — it is simply invisible to the graph,
   the same way a native Markdown model has no way to express content that isn't frontmatter or
   documentation body.

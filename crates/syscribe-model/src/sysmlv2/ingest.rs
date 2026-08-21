@@ -192,6 +192,29 @@ struct Spec {
     /// `Connection` element's own `Spec`; see `connection_usage_entry` for
     /// why entries are qualified-qname, not literal chain text).
     connections: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-018` -- a `StateDef`/`StateUsage`'s own nested
+    /// substates, each carrying its own `transitions:`/`entryAction`/etc.
+    /// inline (never separate `RawElement`s -- see `convert_state_def`).
+    sub_states: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-018` -- transitions declared as siblings at this
+    /// state's own body level (as opposed to nested inside one of
+    /// `sub_states`' own entries) -- always carries an explicit `source:`.
+    transitions: Option<Vec<serde_yaml::Value>>,
+    entry_action: Option<serde_yaml::Value>,
+    do_action: Option<serde_yaml::Value>,
+    exit_action: Option<serde_yaml::Value>,
+    /// `REQ-TRS-SYSMLV2-019` -- an `ActionDef`/`ActionUsage`'s own nested,
+    /// `kind:`-tagged action tree (`PerformAction`/`IfAction`/`LoopAction`/
+    /// `AssignmentAction`/`TerminateAction`).
+    sub_actions: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-019` -- flat `{name, kind}` control-flow markers
+    /// (`ForkNode`/`JoinNode`/`DecisionNode`/`MergeNode`) with no recoverable
+    /// internal content -- the pinned parser discards `fork`/`join`/`decide`/
+    /// `merge` block bodies itself (`FirstMergeBody::Brace` carries no data).
+    control_nodes: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-019` -- flat `{after, before}` control-flow edges
+    /// lifted from `first`/`then` successions.
+    succession_connections: Option<Vec<serde_yaml::Value>>,
 }
 
 impl Spec {
@@ -217,6 +240,27 @@ impl Spec {
     /// Set `REQ-TRS-SYSMLV2-010`'s lifted `connections:` entries.
     fn with_connections(mut self, connections: Vec<serde_yaml::Value>) -> Self {
         self.connections = nonempty_vec(connections);
+        self
+    }
+
+    /// Set `REQ-TRS-SYSMLV2-018`'s lifted `subStates:`/`transitions:`.
+    fn with_state_machine(mut self, sub_states: Vec<serde_yaml::Value>, transitions: Vec<serde_yaml::Value>) -> Self {
+        self.sub_states = nonempty_vec(sub_states);
+        self.transitions = nonempty_vec(transitions);
+        self
+    }
+
+    /// Set `REQ-TRS-SYSMLV2-019`'s lifted `subActions:`/`controlNodes:`/
+    /// `successionConnections:`.
+    fn with_behavior(
+        mut self,
+        sub_actions: Vec<serde_yaml::Value>,
+        control_nodes: Vec<serde_yaml::Value>,
+        succession_connections: Vec<serde_yaml::Value>,
+    ) -> Self {
+        self.sub_actions = nonempty_vec(sub_actions);
+        self.control_nodes = nonempty_vec(control_nodes);
+        self.succession_connections = nonempty_vec(succession_connections);
         self
     }
 }
@@ -250,6 +294,14 @@ fn push_synth(
             short_name: spec.short_name,
             implemented_by: spec.implemented_by,
             connections: spec.connections,
+            sub_states: spec.sub_states,
+            transitions: spec.transitions,
+            entry_action: spec.entry_action,
+            do_action: spec.do_action,
+            exit_action: spec.exit_action,
+            sub_actions: spec.sub_actions,
+            control_nodes: spec.control_nodes,
+            succession_connections: spec.succession_connections,
             ..Default::default()
         },
         doc: spec.doc,
@@ -669,6 +721,74 @@ fn attribute_body_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::At
     })
 }
 
+/// `doc /* ... */` lift over a `state def`/`state` usage body's already-sliced
+/// members (`REQ-TRS-SYSMLV2-018`) — shared by both `StateDef` and
+/// `StateUsage`, since they use the same `StateDefBody`/`StateDefBodyElement`
+/// grammar (confirmed against the parser's AST: `StateUsage.body: StateDefBody`).
+fn state_def_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::StateDefBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::ast::StateDefBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `REQ-TRS-SYSMLV2-018` `@Syscribe*` fixed-field search over a `state
+/// def`/`state` usage body's already-sliced members. See
+/// [`part_def_syscribe_meta`].
+fn state_def_syscribe_meta(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::StateDefBodyElement>]) -> SyscribeMeta {
+    let mut meta = SyscribeMeta::default();
+    for n in elements {
+        if let sysml_v2_parser::ast::StateDefBodyElement::MetadataAnnotation(m) = &n.value {
+            fold_syscribe_meta_annotation(&m.value, &mut meta);
+        }
+    }
+    meta
+}
+
+/// `doc /* ... */` lift over an `action def` body's already-sliced members
+/// (`REQ-TRS-SYSMLV2-019`).
+fn action_def_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ActionDefBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::ActionDefBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `REQ-TRS-SYSMLV2-019` `@Syscribe*` fixed-field search over an `action def`
+/// body's already-sliced members.
+fn action_def_syscribe_meta(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ActionDefBodyElement>]) -> SyscribeMeta {
+    let mut meta = SyscribeMeta::default();
+    for n in elements {
+        if let sysml_v2_parser::ActionDefBodyElement::MetadataAnnotation(m) = &n.value {
+            fold_syscribe_meta_annotation(&m.value, &mut meta);
+        }
+    }
+    meta
+}
+
+/// `doc /* ... */` lift over an `action` usage body's already-sliced members
+/// (`REQ-TRS-SYSMLV2-019`) — `ActionUsageBodyElement` is a distinct Rust type
+/// from `ActionDefBodyElement` (structurally near-identical, but not shared),
+/// so this needs its own wrapper, mirroring `part_def_doc`/`part_usage_doc`.
+fn action_usage_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ActionUsageBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::ActionUsageBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `REQ-TRS-SYSMLV2-019` `@Syscribe*` fixed-field search over an `action`
+/// usage body's already-sliced members.
+fn action_usage_syscribe_meta(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ActionUsageBodyElement>]) -> SyscribeMeta {
+    let mut meta = SyscribeMeta::default();
+    for n in elements {
+        if let sysml_v2_parser::ActionUsageBodyElement::MetadataAnnotation(m) = &n.value {
+            fold_syscribe_meta_annotation(&m.value, &mut meta);
+        }
+    }
+    meta
+}
+
 /// A `connect`-clause endpoint's dotted display text, e.g. `a` or `a.p1` —
 /// `REQ-TRS-SYSMLV2-010`. A single, unchained name parses as
 /// `Expression::FeatureRef`; a genuine multi-segment dotted chain parses as
@@ -685,6 +805,385 @@ fn connection_end_display(expr: &sysml_v2_parser::Expression) -> Option<String> 
         sysml_v2_parser::Expression::FeatureChainRef(chain) => Some(chain.segments.join(".")),
         _ => None,
     }
+}
+
+/// Best-effort rendering of a general `Expression` to display text
+/// (`REQ-TRS-SYSMLV2-018`/`-019` guard/condition/assign-operand text).
+/// Unlike `feature_ref_string`/`connection_end_display` (which only
+/// recognize a reference shape and return `None` for anything else, since
+/// their callers treat "not a reference" as "not mapped here"), this always
+/// produces *some* non-empty text: a guard/condition must never silently
+/// vanish, since the existing `W072` non-determinism check and
+/// `docs/model-guide/state-machines.md`'s own contract depend only on the
+/// field being present and non-empty, not on it being a faithful
+/// re-rendering of the source. Recognized shapes render exactly (including
+/// operators via the parser's own `BinaryOperator`/`UnaryOperator::as_str()`,
+/// so `>=`/`and`/etc. spelling always matches the grammar exactly); the long
+/// tail (`Classification`/`MetaCast`/`TypeCheck`/`Select`/`Collect`/
+/// `CollectionOp`/`MetadataAccess`/`Conditional`/`Extent`) falls back to a
+/// fixed, kind-naming placeholder — a Syscribe-owned, revisitable-later
+/// limitation (see `ADR-SYS-SYSMLV2-001`'s addendum), explicitly distinct
+/// from the fork/join/decide/merge upstream parser ceiling.
+fn render_expression(e: &sysml_v2_parser::Expression) -> String {
+    use sysml_v2_parser::Expression as E;
+    match e {
+        E::LiteralInteger(i) => i.to_string(),
+        E::LiteralReal(s) => s.clone(),
+        E::LiteralString(s) => format!("\"{s}\""),
+        E::LiteralBoolean(b) => b.to_string(),
+        E::FeatureRef(s) => s.clone(),
+        E::MemberAccess(base, member) => format!("{}.{}", render_expression(&base.value), member),
+        E::FeatureChainRef(chain) => chain.segments.join("."),
+        E::Index { base, index } => format!("{}#({})", render_expression(&base.value), render_expression(&index.value)),
+        E::Bracket(inner) => format!("[{}]", render_expression(&inner.value)),
+        E::LiteralWithUnit { value, unit } => {
+            format!("{} [{}]", render_expression(&value.value), render_expression(&unit.value))
+        }
+        E::BinaryOp { op, left, right } => {
+            format!("{} {} {}", render_expression(&left.value), op.as_str(), render_expression(&right.value))
+        }
+        E::UnaryOp { op, operand } => format!("{}{}", op.as_str(), render_expression(&operand.value)),
+        E::Invocation { callee, args } => {
+            let rendered: Vec<String> = args.iter().map(render_argument).collect();
+            format!("{}({})", render_expression(&callee.value), rendered.join(", "))
+        }
+        E::Tuple(items) => {
+            let rendered: Vec<String> = items.iter().map(|n| render_expression(&n.value)).collect();
+            format!("({})", rendered.join(", "))
+        }
+        E::Parenthesized(inner) => format!("({})", render_expression(&inner.value)),
+        E::Constructor { type_name, args } => {
+            let rendered: Vec<String> = args.iter().map(render_argument).collect();
+            format!("new {type_name}({})", rendered.join(", "))
+        }
+        E::Extent { target } => format!("all {target}"),
+        E::Null => "null".to_string(),
+        E::Classification { .. } => "<classification expression>".to_string(),
+        E::MetaCast { .. } => "<meta-cast expression>".to_string(),
+        E::TypeCheck { .. } => "<type-check expression>".to_string(),
+        E::Select { .. } => "<select expression>".to_string(),
+        E::Collect { .. } => "<collect expression>".to_string(),
+        E::CollectionOp { .. } => "<collection-operator expression>".to_string(),
+        E::MetadataAccess(_) => "<metadata-access expression>".to_string(),
+        E::Conditional { .. } => "<conditional expression>".to_string(),
+    }
+}
+
+/// Render one call/constructor argument — `name = value` for a named
+/// argument, bare `value` for a positional one.
+fn render_argument(a: &sysml_v2_parser::Argument) -> String {
+    match &a.name {
+        Some(name) => format!("{name} = {}", render_expression(&a.value.value)),
+        None => render_expression(&a.value.value),
+    }
+}
+
+/// Shorthand for a YAML mapping key.
+fn ykey(s: &str) -> serde_yaml::Value {
+    serde_yaml::Value::String(s.to_string())
+}
+
+// ── State machine mapping (REQ-TRS-SYSMLV2-018) ────────────────────────────
+
+/// One recursion level's worth of state-machine content: `StateDef`'s and
+/// `StateUsage`'s shared `StateDefBody`/`StateDefBodyElement` grammar
+/// produces exactly these five things at any nesting depth.
+struct StateBody {
+    sub_states: Vec<serde_yaml::Value>,
+    transitions: Vec<serde_yaml::Value>,
+    entry_action: Option<serde_yaml::Value>,
+    do_action: Option<serde_yaml::Value>,
+    exit_action: Option<serde_yaml::Value>,
+}
+
+/// Walk one state's body-element slice, producing its `StateBody`.
+///
+/// Two passes, since `ThenStmt`/`FinalState` name a substate rather than
+/// flagging it directly (`REQ-TRS-SYSMLV2-018`): first collect nested
+/// `StateUsage` children (recursing into each's own body the same way —
+/// composite states nest arbitrarily deep) and the `Then`/`FinalState`
+/// siblings naming one of them; then apply `isInitial`/`isFinal` onto the
+/// matching child by name. A name matching no collected child is dropped
+/// silently, the module's established no-meaningful-mapping posture.
+///
+/// `require_explicit_source` distinguishes the two places `docs/model-guide/
+/// state-machines.md`'s canonical transition schema allows a `Transition` to
+/// live: `true` for the outermost `StateDef`/`StateUsage`'s own top-level
+/// body (a `source`-less transition there means nothing — dropped); `false`
+/// when recursing into a specific child `StateUsage`'s own body (that
+/// child's own `name:` already supplies the implicit source, exactly
+/// matching `validator.rs::transitions_from`'s `implicit_source` parameter).
+fn build_state_body(
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::StateDefBodyElement>],
+    require_explicit_source: bool,
+) -> StateBody {
+    use sysml_v2_parser::ast::StateDefBodyElement as E;
+
+    let mut children: Vec<(String, serde_yaml::Mapping)> = Vec::new();
+    let mut own_transitions = Vec::new();
+    let mut entry_action = None;
+    let mut do_action = None;
+    let mut exit_action = None;
+    let mut then_names: Vec<String> = Vec::new();
+    let mut final_names: Vec<String> = Vec::new();
+
+    for n in elements {
+        match &n.value {
+            E::StateUsage(su) => {
+                if su.value.name.is_empty() {
+                    continue; // anonymous nested state: no identity to key isInitial/isFinal against
+                }
+                let type_name = su.value.type_name.as_deref();
+                let body_elements = match &su.value.body {
+                    sysml_v2_parser::ast::StateDefBody::Brace { elements } => elements.as_slice(),
+                    sysml_v2_parser::ast::StateDefBody::Semicolon => &[],
+                };
+                let entry = state_usage_yaml_entry(&su.value.name, type_name, body_elements);
+                children.push((su.value.name.clone(), entry));
+            }
+            E::Entry(a) => entry_action = a.value.action_name.clone().map(serde_yaml::Value::String),
+            E::Do(a) => do_action = a.value.action_name.clone().map(serde_yaml::Value::String),
+            E::Exit(a) => exit_action = a.value.action_name.clone().map(serde_yaml::Value::String),
+            E::Then(t) => then_names.push(t.value.state_name.clone()),
+            E::FinalState(f) => final_names.push(f.value.state_name.clone()),
+            E::Transition(t) => {
+                if let Some(m) = render_transition(&t.value, require_explicit_source) {
+                    own_transitions.push(serde_yaml::Value::Mapping(m));
+                }
+            }
+            // InOutDecl, Ref, RequirementUsage, Annotation, MetadataKeywordUsage,
+            // Other, Error, MetadataAnnotation (handled separately by
+            // `state_def_syscribe_meta`) — outside REQ-TRS-SYSMLV2-018's fixed set.
+            _ => {}
+        }
+    }
+
+    for (name, mapping) in &mut children {
+        if then_names.iter().any(|n| n == name) {
+            mapping.insert(ykey("isInitial"), serde_yaml::Value::Bool(true));
+        }
+        if final_names.iter().any(|n| n == name) {
+            mapping.insert(ykey("isFinal"), serde_yaml::Value::Bool(true));
+        }
+    }
+
+    StateBody {
+        sub_states: children.into_iter().map(|(_, m)| serde_yaml::Value::Mapping(m)).collect(),
+        transitions: own_transitions,
+        entry_action,
+        do_action,
+        exit_action,
+    }
+}
+
+/// Build one nested `subStates:` entry (`REQ-TRS-SYSMLV2-018`) — does *not*
+/// set `isInitial`/`isFinal`; the caller ([`build_state_body`]) applies those
+/// from the enclosing `Then`/`FinalState` siblings, since a `StateUsage`
+/// carries no such information about itself.
+fn state_usage_yaml_entry(
+    name: &str,
+    type_name: Option<&str>,
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::StateDefBodyElement>],
+) -> serde_yaml::Mapping {
+    let body = build_state_body(elements, false);
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), serde_yaml::Value::String(name.to_string()));
+    if let Some(tb) = type_name {
+        m.insert(ykey("typedBy"), serde_yaml::Value::String(tb.to_string()));
+    }
+    if let Some(v) = body.entry_action {
+        m.insert(ykey("entryAction"), v);
+    }
+    if let Some(v) = body.do_action {
+        m.insert(ykey("doAction"), v);
+    }
+    if let Some(v) = body.exit_action {
+        m.insert(ykey("exitAction"), v);
+    }
+    if !body.sub_states.is_empty() {
+        m.insert(ykey("subStates"), serde_yaml::Value::Sequence(body.sub_states));
+    }
+    if !body.transitions.is_empty() {
+        m.insert(ykey("transitions"), serde_yaml::Value::Sequence(body.transitions));
+    }
+    m
+}
+
+/// Render one `Transition` into a `transitions:` entry — `None` when
+/// `require_explicit_source` is set and the AST carries no `source` (a
+/// top-level, source-less transition means nothing per the canonical
+/// schema). Field mapping matches `docs/model-guide/state-machines.md`'s
+/// canonical vocabulary exactly (`source`/`target`/`accept`/`guard`/`effect`)
+/// — never the deprecated `from`/`to`/`trigger` aliases, so `W075` never
+/// fires on SysMLv2-synthesized output.
+fn render_transition(t: &sysml_v2_parser::ast::Transition, require_explicit_source: bool) -> Option<serde_yaml::Mapping> {
+    let source_display = t
+        .source
+        .as_ref()
+        .map(|s| connection_end_display(&s.value).unwrap_or_else(|| render_expression(&s.value)));
+    if require_explicit_source && source_display.is_none() {
+        return None;
+    }
+
+    let mut m = serde_yaml::Mapping::new();
+    if let Some(s) = source_display {
+        m.insert(ykey("source"), serde_yaml::Value::String(s));
+    }
+    let target = connection_end_display(&t.target.value).unwrap_or_else(|| render_expression(&t.target.value));
+    m.insert(ykey("target"), serde_yaml::Value::String(target));
+    if let Some(accept) = &t.accept {
+        m.insert(ykey("accept"), render_transition_accept(accept));
+    }
+    if let Some(guard) = &t.guard {
+        let g = render_expression(&guard.value);
+        if !g.is_empty() {
+            m.insert(ykey("guard"), serde_yaml::Value::String(g));
+        }
+    }
+    if let Some(effect) = &t.effect {
+        if let Some(e) = render_transition_effect(effect) {
+            m.insert(ykey("effect"), e);
+        }
+    }
+    Some(m)
+}
+
+/// `accept:` value — plain string for the common shorthand-without-`via`
+/// case (matching `docs/model-guide/state-machines.md`'s own worked
+/// examples verbatim), `{payload, via}` map when a `via <port>` clause is
+/// present, or `{payload: "<at|when|after> <expr>"}` for a time trigger.
+fn render_transition_accept(a: &sysml_v2_parser::ast::TransitionAccept) -> serde_yaml::Value {
+    use sysml_v2_parser::ast::TransitionAccept as A;
+    match a {
+        A::Shorthand(expr, via) => {
+            let text = connection_end_display(&expr.value).unwrap_or_else(|| render_expression(&expr.value));
+            payload_with_via(text, via.as_ref())
+        }
+        A::Payload(payload, via) => {
+            let text = payload.type_name.clone().unwrap_or_else(|| payload.name.clone());
+            payload_with_via(text, via.as_ref())
+        }
+        A::TimeTrigger(kind, expr) => {
+            let kind_s = match kind {
+                sysml_v2_parser::ast::TriggerKind::At => "at",
+                sysml_v2_parser::ast::TriggerKind::When => "when",
+                sysml_v2_parser::ast::TriggerKind::After => "after",
+            };
+            let text = format!("{kind_s} {}", render_expression(&expr.value));
+            let mut m = serde_yaml::Mapping::new();
+            m.insert(ykey("payload"), serde_yaml::Value::String(text));
+            serde_yaml::Value::Mapping(m)
+        }
+    }
+}
+
+fn payload_with_via(payload_text: String, via: Option<&sysml_v2_parser::Node<sysml_v2_parser::Expression>>) -> serde_yaml::Value {
+    match via {
+        None => serde_yaml::Value::String(payload_text),
+        Some(via_expr) => {
+            let mut m = serde_yaml::Mapping::new();
+            m.insert(ykey("payload"), serde_yaml::Value::String(payload_text));
+            let v = connection_end_display(&via_expr.value).unwrap_or_else(|| render_expression(&via_expr.value));
+            m.insert(ykey("via"), serde_yaml::Value::String(v));
+            serde_yaml::Value::Mapping(m)
+        }
+    }
+}
+
+/// `effect:` value, matching `validator.rs::collect_state_refs`'s exact
+/// `W079` contract: a bare `String` is always resolved-checked; a `Mapping`
+/// is checked only via its `typedBy` key, never `name`. So a `Perform`/
+/// `Accept`/`Send` with a real `type_name` becomes `{name, typedBy}`
+/// (W079-checked, matching the documented worked example verbatim); with no
+/// `type_name` it becomes `{name}` only (deliberately *not* checked — a
+/// local label isn't necessarily a global qname). `Assign` is display-only,
+/// never checked. `Expression` becomes a plain, checked `String` when it's a
+/// genuine reference, else a `{name}` display fallback — avoiding spurious
+/// `W079` false positives either way. `None` when there is truly nothing to
+/// display (omits the `effect:` key entirely).
+fn render_transition_effect(e: &sysml_v2_parser::ast::TransitionEffect) -> Option<serde_yaml::Value> {
+    use sysml_v2_parser::ast::TransitionEffect as Eff;
+    match e {
+        Eff::Perform { name, type_name } => effect_name_typed(name.as_deref(), type_name.as_deref()),
+        Eff::Accept { payload, type_name, .. } => {
+            let name = connection_end_display(&payload.value).unwrap_or_else(|| render_expression(&payload.value));
+            effect_name_typed(Some(&name), type_name.as_deref())
+        }
+        Eff::Send { payload, type_name, .. } => {
+            let name = connection_end_display(&payload.value).unwrap_or_else(|| render_expression(&payload.value));
+            effect_name_typed(Some(&name), type_name.as_deref())
+        }
+        Eff::Assign { lhs, rhs } => {
+            let text = format!("{} := {}", render_expression(&lhs.value), render_expression(&rhs.value));
+            let mut m = serde_yaml::Mapping::new();
+            m.insert(ykey("name"), serde_yaml::Value::String(text));
+            Some(serde_yaml::Value::Mapping(m))
+        }
+        Eff::Expression(expr) => match connection_end_display(&expr.value) {
+            Some(s) => Some(serde_yaml::Value::String(s)),
+            None => {
+                let mut m = serde_yaml::Mapping::new();
+                m.insert(ykey("name"), serde_yaml::Value::String(render_expression(&expr.value)));
+                Some(serde_yaml::Value::Mapping(m))
+            }
+        },
+    }
+}
+
+fn effect_name_typed(name: Option<&str>, type_name: Option<&str>) -> Option<serde_yaml::Value> {
+    let name = name?;
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), serde_yaml::Value::String(name.to_string()));
+    if let Some(tb) = type_name {
+        m.insert(ykey("typedBy"), serde_yaml::Value::String(tb.to_string()));
+    }
+    Some(serde_yaml::Value::Mapping(m))
+}
+
+fn convert_state_def(s: &sysml_v2_parser::ast::StateDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&s.identification) else {
+        return; // anonymous state def: no identity to qname against
+    };
+    let state_qname = format!("{qname}::{name}");
+    let elements = match &s.body {
+        sysml_v2_parser::ast::StateDefBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::ast::StateDefBody::Semicolon => &[],
+    };
+    let body = build_state_body(elements, true);
+    let spec = Spec {
+        supertype: s.specializes.as_ref().map(|t| t.value.target_display()),
+        entry_action: body.entry_action,
+        do_action: body.do_action,
+        exit_action: body.exit_action,
+        ..Default::default()
+    }
+    .with_syscribe_meta(state_def_syscribe_meta(elements))
+    .with_doc(state_def_doc(elements))
+    .with_state_machine(body.sub_states, body.transitions);
+    push_synth(out, &state_qname, file_path, ElementType::StateDef, &name, spec);
+}
+
+fn convert_state_usage(s: &sysml_v2_parser::ast::StateUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if s.name.is_empty() {
+        return; // anonymous usage: no identity to qname against
+    }
+    let state_qname = format!("{qname}::{}", s.name);
+    let elements = match &s.body {
+        sysml_v2_parser::ast::StateDefBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::ast::StateDefBody::Semicolon => &[],
+    };
+    let body = build_state_body(elements, true);
+    let spec = Spec {
+        typed_by: s.type_name.clone(),
+        entry_action: body.entry_action,
+        do_action: body.do_action,
+        exit_action: body.exit_action,
+        ..Default::default()
+    }
+    .with_syscribe_meta(state_def_syscribe_meta(elements))
+    .with_doc(state_def_doc(elements))
+    .with_state_machine(body.sub_states, body.transitions);
+    push_synth(out, &state_qname, file_path, ElementType::State, &s.name, spec);
 }
 
 /// The `part` usage struct (name + own body) a `sysml_v2_parser::PartUsage`
@@ -980,6 +1479,441 @@ fn part_usage_syscribe_meta(
     meta
 }
 
+// ── Action mapping (REQ-TRS-SYSMLV2-019) ───────────────────────────────────
+
+/// Accumulated result of walking one action body.
+struct ActionBody {
+    sub_actions: Vec<serde_yaml::Value>,
+    control_nodes: Vec<serde_yaml::Value>,
+    succession_connections: Vec<serde_yaml::Value>,
+}
+
+/// Mutable accumulator while walking one action body. `last_named` tracks
+/// the most recently converted node's own name, for `ThenAction`'s implicit
+/// "after" side; `counters` synthesizes deterministic, stable names
+/// (`if_1`, `while_1`, ...) for constructs the grammar itself gives no name
+/// to (`IfStmt`/`WhileStmt`/`LoopStmt`/`ForLoop` carry no name field at all)
+/// — a Syscribe-owned naming convention, not a parser fact.
+#[derive(Default)]
+struct ActionBodyBuilder {
+    sub_actions: Vec<serde_yaml::Value>,
+    control_nodes: Vec<serde_yaml::Value>,
+    succession_connections: Vec<serde_yaml::Value>,
+    last_named: Option<String>,
+    counters: std::collections::HashMap<&'static str, u32>,
+}
+
+impl ActionBodyBuilder {
+    fn synth_name(&mut self, kind: &'static str) -> String {
+        let n = self.counters.entry(kind).or_insert(0);
+        *n += 1;
+        format!("{kind}_{n}")
+    }
+
+    fn push_sub_action(&mut self, name: String, entry: serde_yaml::Mapping) {
+        self.last_named = Some(name);
+        self.sub_actions.push(serde_yaml::Value::Mapping(entry));
+    }
+
+    /// `ForkNode`/`JoinNode`/`DecisionNode`/`MergeNode` — flat, `{name,
+    /// kind}` only, no recoverable internal content: the pinned parser
+    /// itself discards `fork`/`join`/`decide`/`merge` block bodies
+    /// (`FirstMergeBody::Brace` carries no data), so there is nothing to
+    /// recurse into even in principle. A non-negotiable upstream ceiling,
+    /// not a Syscribe scope choice (see `ADR-SYS-SYSMLV2-001`'s addendum).
+    fn push_control_node(&mut self, name: String, kind: &str) {
+        let mut m = serde_yaml::Mapping::new();
+        m.insert(ykey("name"), serde_yaml::Value::String(name.clone()));
+        m.insert(ykey("kind"), serde_yaml::Value::String(kind.to_string()));
+        self.last_named = Some(name);
+        self.control_nodes.push(serde_yaml::Value::Mapping(m));
+    }
+
+    fn push_succession(&mut self, after: String, before: String) {
+        let mut m = serde_yaml::Mapping::new();
+        m.insert(ykey("after"), serde_yaml::Value::String(after));
+        m.insert(ykey("before"), serde_yaml::Value::String(before));
+        self.succession_connections.push(serde_yaml::Value::Mapping(m));
+    }
+}
+
+/// Build and push one `PerformAction` `subActions:` entry, synthesizing a
+/// name when `action_name` is empty (an anonymous `perform action { ... }`).
+/// Returns the name actually used, so a caller building a
+/// `successionConnections:` edge to/from this node uses the same identifier.
+fn push_perform_entry(b: &mut ActionBodyBuilder, action_name: &str, type_name: Option<&str>) -> String {
+    let name = if action_name.is_empty() { b.synth_name("perform") } else { action_name.to_string() };
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), serde_yaml::Value::String(name.clone()));
+    m.insert(ykey("kind"), serde_yaml::Value::String("PerformAction".to_string()));
+    if let Some(tb) = type_name {
+        m.insert(ykey("typedBy"), serde_yaml::Value::String(tb.to_string()));
+    }
+    b.push_sub_action(name.clone(), m);
+    name
+}
+
+fn handle_perform_stmt(b: &mut ActionBodyBuilder, p: &sysml_v2_parser::ast::Perform) {
+    push_perform_entry(b, &p.action_name, p.type_name.as_deref());
+}
+
+/// A nested `ActionUsage` found inside an action body becomes a
+/// `PerformAction` `subActions:` entry referencing it by `typedBy:` — its
+/// own body content is intentionally not recursed into, matching the
+/// hand-authored convention already in this repo (`MissionExecution.md`'s
+/// `subActions:` reference sibling `ActionDef`s only via `typedBy:`, never
+/// inline their bodies). A documented, Syscribe-owned scope cut.
+fn handle_nested_action_usage(b: &mut ActionBodyBuilder, au: &sysml_v2_parser::ActionUsage) {
+    // `accept`/`send` aren't distinct body-element variants in this grammar
+    // — they're `ActionUsage.accept`/`.send: Option<PayloadClause>` fields on
+    // an ordinary action usage node. Check those first so `accept X;`/`send
+    // Y;` become `AcceptAction`/`SendAction` entries (matching
+    // `TakeoffAction.md`/`LandingAction.md`'s hand-authored convention),
+    // falling back to the default `PerformAction` otherwise.
+    if let Some(payload) = &au.accept {
+        push_payload_entry(b, payload, "AcceptAction");
+        return;
+    }
+    if let Some(payload) = &au.send {
+        push_payload_entry(b, payload, "SendAction");
+        return;
+    }
+    let type_name = (!au.type_name.is_empty()).then_some(au.type_name.as_str());
+    push_perform_entry(b, &au.name, type_name);
+}
+
+/// Build and push one `AcceptAction`/`SendAction` `subActions:` entry —
+/// `{name, kind, payload}`. Identified by the `PayloadClause`'s own name,
+/// not the enclosing `ActionUsage.name` — confirmed against the parser's
+/// actual output that a bare `accept cmd : StartCmd;`/`send ack : AckCmd;`
+/// (no separate action name given) sets `ActionUsage.name` to the literal
+/// keyword itself (`"accept"`/`"send"`), which would collide across
+/// multiple such statements in one body; the payload's own name is the
+/// semantically meaningful, and actually distinct, identity here.
+/// `payload:` is the `PayloadClause`'s own type (falling back to its bare
+/// name when untyped, same rule `render_transition_accept`'s `Payload` case
+/// already uses).
+fn push_payload_entry(b: &mut ActionBodyBuilder, payload: &sysml_v2_parser::ast::PayloadClause, kind: &str) {
+    let name = payload.name.clone();
+    let payload_text = payload.type_name.clone().unwrap_or_else(|| payload.name.clone());
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), serde_yaml::Value::String(name.clone()));
+    m.insert(ykey("kind"), serde_yaml::Value::String(kind.to_string()));
+    m.insert(ykey("payload"), serde_yaml::Value::String(payload_text));
+    b.push_sub_action(name, m);
+}
+
+fn handle_assign(b: &mut ActionBodyBuilder, a: &sysml_v2_parser::ast::AssignStmt) {
+    let name = b.synth_name("assign");
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), serde_yaml::Value::String(name.clone()));
+    m.insert(ykey("kind"), serde_yaml::Value::String("AssignmentAction".to_string()));
+    m.insert(ykey("target"), serde_yaml::Value::String(render_expression(&a.lhs.value)));
+    m.insert(ykey("value"), serde_yaml::Value::String(render_expression(&a.rhs.value)));
+    b.push_sub_action(name, m);
+}
+
+/// Fold a nested action-body's own control nodes/successions up onto `b` —
+/// `controlNodes:`/`successionConnections:` are flat, owning-`ActionDef`-wide
+/// lists (matching the hand-authored convention), never nested per branch,
+/// regardless of how deeply the `fork`/`join`/etc. is nested inside
+/// `if`/`while`/`loop`/`for` bodies.
+fn absorb(b: &mut ActionBodyBuilder, inner: ActionBody) -> Vec<serde_yaml::Value> {
+    b.control_nodes.extend(inner.control_nodes);
+    b.succession_connections.extend(inner.succession_connections);
+    inner.sub_actions
+}
+
+fn handle_while(b: &mut ActionBodyBuilder, w: &sysml_v2_parser::ast::WhileStmt) {
+    let name = b.synth_name("while");
+    let inner = build_action_def_body(action_def_body_elements(&w.body));
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), serde_yaml::Value::String(name.clone()));
+    m.insert(ykey("kind"), serde_yaml::Value::String("LoopAction".to_string()));
+    m.insert(ykey("loopKind"), serde_yaml::Value::String("while".to_string()));
+    m.insert(ykey("condition"), serde_yaml::Value::String(render_expression(&w.condition.value)));
+    let sub_actions = absorb(b, inner);
+    if !sub_actions.is_empty() {
+        m.insert(ykey("body"), serde_yaml::Value::Sequence(sub_actions));
+    }
+    b.push_sub_action(name, m);
+}
+
+fn handle_loop(b: &mut ActionBodyBuilder, l: &sysml_v2_parser::ast::LoopStmt) {
+    let name = b.synth_name("loop");
+    let inner = build_action_def_body(action_def_body_elements(&l.body));
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), serde_yaml::Value::String(name.clone()));
+    m.insert(ykey("kind"), serde_yaml::Value::String("LoopAction".to_string()));
+    m.insert(ykey("loopKind"), serde_yaml::Value::String("loop".to_string()));
+    let sub_actions = absorb(b, inner);
+    if !sub_actions.is_empty() {
+        m.insert(ykey("body"), serde_yaml::Value::Sequence(sub_actions));
+    }
+    b.push_sub_action(name, m);
+}
+
+fn handle_for_loop(b: &mut ActionBodyBuilder, f: &sysml_v2_parser::ast::ForLoop) {
+    let name = b.synth_name("for");
+    let inner = build_action_def_body(action_def_body_elements(&f.body));
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), serde_yaml::Value::String(name.clone()));
+    m.insert(ykey("kind"), serde_yaml::Value::String("LoopAction".to_string()));
+    m.insert(ykey("loopKind"), serde_yaml::Value::String("for".to_string()));
+    m.insert(ykey("variable"), serde_yaml::Value::String(f.var.clone()));
+    m.insert(ykey("sequence"), serde_yaml::Value::String(render_expression(&f.range.value)));
+    let sub_actions = absorb(b, inner);
+    if !sub_actions.is_empty() {
+        m.insert(ykey("body"), serde_yaml::Value::Sequence(sub_actions));
+    }
+    b.push_sub_action(name, m);
+}
+
+fn handle_if(b: &mut ActionBodyBuilder, i: &sysml_v2_parser::ast::IfStmt) {
+    let name = b.synth_name("if");
+    let then_inner = build_action_def_body(action_def_body_elements(&i.then_body));
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), serde_yaml::Value::String(name.clone()));
+    m.insert(ykey("kind"), serde_yaml::Value::String("IfAction".to_string()));
+    m.insert(ykey("condition"), serde_yaml::Value::String(render_expression(&i.condition.value)));
+    let then_actions = absorb(b, then_inner);
+    if !then_actions.is_empty() {
+        m.insert(ykey("then"), serde_yaml::Value::Sequence(then_actions));
+    }
+    if let Some(else_body) = &i.else_body {
+        let else_inner = build_action_def_body(action_def_body_elements(else_body));
+        let else_actions = absorb(b, else_inner);
+        if !else_actions.is_empty() {
+            m.insert(ykey("else"), serde_yaml::Value::Sequence(else_actions));
+        }
+    }
+    b.push_sub_action(name, m);
+}
+
+fn handle_terminate(b: &mut ActionBodyBuilder, t: &sysml_v2_parser::ast::TerminateStmt) {
+    let name = b.synth_name("terminate");
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), serde_yaml::Value::String(name.clone()));
+    m.insert(ykey("kind"), serde_yaml::Value::String("TerminateAction".to_string()));
+    if let Some(target) = &t.target {
+        let disp = connection_end_display(&target.value).unwrap_or_else(|| render_expression(&target.value));
+        m.insert(ykey("target"), serde_yaml::Value::String(disp));
+    }
+    b.push_sub_action(name, m);
+}
+
+fn handle_control_node(b: &mut ActionBodyBuilder, expr: &sysml_v2_parser::Expression, kind: &str) {
+    let name = connection_end_display(expr).unwrap_or_else(|| render_expression(expr));
+    b.push_control_node(name, kind);
+}
+
+/// `first X [then Y];` — the succession edge (`X` → `Y`). A bare `first X;`
+/// with no `then` is an entry-point marker with no edge to emit; there is no
+/// dedicated "entry point" field in this schema, so it's a documented no-op.
+fn handle_first_stmt(b: &mut ActionBodyBuilder, f: &sysml_v2_parser::ast::FirstStmt) {
+    let Some(then) = &f.then else { return };
+    let first_name = connection_end_display(&f.first.value).unwrap_or_else(|| render_expression(&f.first.value));
+    let then_name = connection_end_display(&then.value).unwrap_or_else(|| render_expression(&then.value));
+    b.push_succession(first_name, then_name);
+}
+
+/// `then <target>;` succession shorthand — connects from whatever node was
+/// most recently converted (`last_named`) to `target`. Silently dropped when
+/// there's no preceding node to connect from (e.g. the very first body
+/// element is a bare `then X;`, which isn't valid SysML v2 but stay
+/// defensive rather than panic).
+fn handle_then_action(b: &mut ActionBodyBuilder, t: &sysml_v2_parser::ast::ThenAction) {
+    use sysml_v2_parser::ast::ThenTarget as T;
+    let Some(after) = b.last_named.clone() else { return };
+    let before = match &t.target {
+        T::Action(au) => {
+            let type_name = (!au.value.type_name.is_empty()).then_some(au.value.type_name.as_str());
+            push_perform_entry(b, &au.value.name, type_name)
+        }
+        T::Perform(p) => push_perform_entry(b, &p.value.action_name, p.value.type_name.as_deref()),
+        T::Merge(m) => {
+            let name = connection_end_display(&m.value.merge.value).unwrap_or_else(|| render_expression(&m.value.merge.value));
+            b.last_named = Some(name.clone());
+            name
+        }
+        T::Feature(expr) => {
+            let name = connection_end_display(&expr.value).unwrap_or_else(|| render_expression(&expr.value));
+            b.last_named = Some(name.clone());
+            name
+        }
+    };
+    b.push_succession(after, before);
+}
+
+/// Extract a `Node<T>` body enum's already-sliced members, or `&[]` for the
+/// `;`-only form — `ActionDefBody` is the recursion target for *every*
+/// nested control-flow body (`IfStmt.then_body`/`.else_body`,
+/// `WhileStmt.body`, `LoopStmt.body`, `ForLoop.body` are all typed
+/// `ActionDefBody`, confirmed against the parser's AST, regardless of
+/// whether the enclosing construct itself was found inside an `ActionDef` or
+/// an `ActionUsage` body) — so this one helper covers every recursive case.
+fn action_def_body_elements(body: &sysml_v2_parser::ActionDefBody) -> &[sysml_v2_parser::Node<sysml_v2_parser::ActionDefBodyElement>] {
+    match body {
+        sysml_v2_parser::ActionDefBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::ActionDefBody::Semicolon => &[],
+    }
+}
+
+/// Walk one `action def` (or nested control-flow) body-element slice,
+/// producing its `ActionBody`. The single recursion point for every nested
+/// case (see [`action_def_body_elements`]'s doc comment for why one walker
+/// suffices for both enclosing-context kinds).
+fn build_action_def_body(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ActionDefBodyElement>]) -> ActionBody {
+    use sysml_v2_parser::ActionDefBodyElement as E;
+    let mut b = ActionBodyBuilder::default();
+    for n in elements {
+        match &n.value {
+            E::Perform(p) => handle_perform_stmt(&mut b, &p.value),
+            E::ActionUsage(au) => handle_nested_action_usage(&mut b, &au.value),
+            E::Assign(a) => handle_assign(&mut b, &a.value),
+            E::WhileStmt(w) => handle_while(&mut b, &w.value),
+            E::LoopStmt(l) => handle_loop(&mut b, &l.value),
+            E::ForLoop(f) => handle_for_loop(&mut b, &f.value),
+            E::IfStmt(i) => handle_if(&mut b, &i.value),
+            E::TerminateStmt(t) => handle_terminate(&mut b, &t.value),
+            E::ForkStmt(f) => handle_control_node(&mut b, &f.value.fork.value, "ForkNode"),
+            E::JoinStmt(j) => handle_control_node(&mut b, &j.value.join.value, "JoinNode"),
+            E::DecisionStmt(d) => handle_control_node(&mut b, &d.value.decide.value, "DecisionNode"),
+            E::MergeStmt(m) => handle_control_node(&mut b, &m.value.merge.value, "MergeNode"),
+            E::FirstStmt(f) => handle_first_stmt(&mut b, &f.value),
+            E::ThenAction(t) => handle_then_action(&mut b, &t.value),
+            // PartUsage/ItemUsage nested in an action body are structural,
+            // not behavioral — handled separately by
+            // `convert_action_def_body_element` (real, separate
+            // `RawElement`s), not here. Bind/FlowUsage/AssertConstraint/
+            // OccurrenceUsage/Decl/DefaultReferenceUsage/InOutDecl/RefDecl/
+            // StateUsage nested in an action body/Doc/Annotation/
+            // MetadataAnnotation (handled separately)/MetadataKeywordUsage/
+            // Error — outside REQ-TRS-SYSMLV2-019's fixed set.
+            _ => {}
+        }
+    }
+    ActionBody {
+        sub_actions: b.sub_actions,
+        control_nodes: b.control_nodes,
+        succession_connections: b.succession_connections,
+    }
+}
+
+/// Walk one `action` *usage*'s own top-level body-element slice.
+/// `ActionUsageBodyElement` is a distinct Rust type from
+/// `ActionDefBodyElement` (structurally near-identical, but no `Perform`
+/// variant — a nested `ActionUsage` covers that case here), so this needs
+/// its own top-level dispatch; every per-construct handler it calls is
+/// shared with [`build_action_def_body`] since the inner structs
+/// (`WhileStmt`/`IfStmt`/...) are the same types regardless of which body
+/// enum wraps them.
+fn build_action_usage_body(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ActionUsageBodyElement>]) -> ActionBody {
+    use sysml_v2_parser::ActionUsageBodyElement as E;
+    let mut b = ActionBodyBuilder::default();
+    for n in elements {
+        match &n.value {
+            E::ActionUsage(au) => handle_nested_action_usage(&mut b, &au.value),
+            E::Assign(a) => handle_assign(&mut b, &a.value),
+            E::WhileStmt(w) => handle_while(&mut b, &w.value),
+            E::LoopStmt(l) => handle_loop(&mut b, &l.value),
+            E::ForLoop(f) => handle_for_loop(&mut b, &f.value),
+            E::IfStmt(i) => handle_if(&mut b, &i.value),
+            E::TerminateStmt(t) => handle_terminate(&mut b, &t.value),
+            E::ForkStmt(f) => handle_control_node(&mut b, &f.value.fork.value, "ForkNode"),
+            E::JoinStmt(j) => handle_control_node(&mut b, &j.value.join.value, "JoinNode"),
+            E::DecisionStmt(d) => handle_control_node(&mut b, &d.value.decide.value, "DecisionNode"),
+            E::MergeStmt(m) => handle_control_node(&mut b, &m.value.merge.value, "MergeNode"),
+            E::FirstStmt(f) => handle_first_stmt(&mut b, &f.value),
+            E::ThenAction(t) => handle_then_action(&mut b, &t.value),
+            _ => {}
+        }
+    }
+    ActionBody {
+        sub_actions: b.sub_actions,
+        control_nodes: b.control_nodes,
+        succession_connections: b.succession_connections,
+    }
+}
+
+/// Recurse into a nested `part`/`item` usage inside an `action def` body —
+/// the only `ActionDefBodyElement` variants that produce a real, separate
+/// `RawElement` (structural, not behavioral). Everything else is either
+/// `subActions:`/`controlNodes:` data (see [`build_action_def_body`]) or
+/// outside REQ-TRS-SYSMLV2-019's fixed set.
+fn convert_action_def_body_element(
+    elem: &sysml_v2_parser::ActionDefBodyElement,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    use sysml_v2_parser::ActionDefBodyElement as E;
+    match elem {
+        E::PartUsage(node) => convert_part_usage(&node.value, qname, file_path, out),
+        E::ItemUsage(node) => convert_item_usage(&node.value, qname, file_path, out),
+        _ => {}
+    }
+}
+
+/// See [`convert_action_def_body_element`].
+fn convert_action_usage_body_element(
+    elem: &sysml_v2_parser::ActionUsageBodyElement,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    use sysml_v2_parser::ActionUsageBodyElement as E;
+    match elem {
+        E::PartUsage(node) => convert_part_usage(&node.value, qname, file_path, out),
+        E::ItemUsage(node) => convert_item_usage(&node.value, qname, file_path, out),
+        _ => {}
+    }
+}
+
+fn convert_action_def(a: &sysml_v2_parser::ActionDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&a.identification) else {
+        return; // anonymous action def: no identity to qname against
+    };
+    let action_qname = format!("{qname}::{name}");
+    let elements = action_def_body_elements(&a.body);
+    let body = build_action_def_body(elements);
+    let spec = Spec {
+        supertype: a.specializes.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    }
+    .with_syscribe_meta(action_def_syscribe_meta(elements))
+    .with_doc(action_def_doc(elements))
+    .with_behavior(body.sub_actions, body.control_nodes, body.succession_connections);
+    push_synth(out, &action_qname, file_path, ElementType::ActionDef, &name, spec);
+    for node in elements {
+        convert_action_def_body_element(&node.value, &action_qname, file_path, out);
+    }
+}
+
+fn convert_action_usage(a: &sysml_v2_parser::ActionUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if a.name.is_empty() {
+        return; // anonymous usage: no identity to qname against
+    }
+    let action_qname = format!("{qname}::{}", a.name);
+    let elements = match &a.body {
+        sysml_v2_parser::ActionUsageBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::ActionUsageBody::Semicolon => &[],
+    };
+    let body = build_action_usage_body(elements);
+    let spec = Spec {
+        typed_by: (!a.type_name.is_empty()).then(|| a.type_name.clone()),
+        is_variation: a.is_variation.then_some(true),
+        ..Default::default()
+    }
+    .with_syscribe_meta(action_usage_syscribe_meta(elements))
+    .with_doc(action_usage_doc(elements))
+    .with_behavior(body.sub_actions, body.control_nodes, body.succession_connections);
+    push_synth(out, &action_qname, file_path, ElementType::Action, &a.name, spec);
+    for node in elements {
+        convert_action_usage_body_element(&node.value, &action_qname, file_path, out);
+    }
+}
+
 /// Walk the merged package tree, emitting `RawElement`s under `qname`.
 fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>) {
     for (elem, file_path) in &merged.body {
@@ -1019,6 +1953,10 @@ fn convert_package_body_element(
         E::RequirementDef(node) => convert_requirement_def(&node.value, qname, file_path, out),
         E::RequirementUsage(node) => convert_requirement_usage(&node.value, qname, file_path, out),
         E::AllocationUsage(node) => convert_allocation_usage(&node.value, qname, file_path, out),
+        E::StateDef(node) => convert_state_def(&node.value, qname, file_path, out),
+        E::StateUsage(node) => convert_state_usage(&node.value, qname, file_path, out),
+        E::ActionDef(node) => convert_action_def(&node.value, qname, file_path, out),
+        E::ActionUsage(node) => convert_action_usage(&node.value, qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -1143,6 +2081,10 @@ fn convert_part_def_body_element(
         E::RequirementUsage(node) => convert_requirement_usage(&node.value, part_qname, file_path, out),
         E::AllocationUsage(node) => convert_allocation_usage(&node.value, part_qname, file_path, out),
         E::VariantUsage(node) => convert_variant_usage(&node.value, part_qname, file_path, out),
+        E::StateDef(node) => convert_state_def(&node.value, part_qname, file_path, out),
+        E::StateUsage(node) => convert_state_usage(&node.value, part_qname, file_path, out),
+        E::ActionDef(node) => convert_action_def(&node.value, part_qname, file_path, out),
+        E::ActionUsage(node) => convert_action_usage(&node.value, part_qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -1172,6 +2114,14 @@ fn convert_part_usage_body_element(
         E::RequirementDef(node) => convert_requirement_def(&node.value, part_qname, file_path, out),
         E::RequirementUsage(node) => convert_requirement_usage(&node.value, part_qname, file_path, out),
         E::VariantUsage(node) => convert_variant_usage(&node.value, part_qname, file_path, out),
+        E::StateDef(node) => convert_state_def(&node.value, part_qname, file_path, out),
+        E::StateUsage(node) => convert_state_usage(&node.value, part_qname, file_path, out),
+        // No `ActionDef` variant exists in this enum at all -- an `action
+        // def` cannot be declared directly inside a `part` usage body per
+        // this grammar (mirrors this same enum's pre-existing absence of
+        // `PartDef`/`AllocationUsage`, noted in this function's own doc
+        // comment above). Unchanged from before this feature: stays invisible.
+        E::ActionUsage(node) => convert_action_usage(&node.value, part_qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }

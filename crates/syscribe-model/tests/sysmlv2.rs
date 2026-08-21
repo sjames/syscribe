@@ -32,10 +32,17 @@ fn unmapped_sysml_constructs_stay_invisible_while_the_package_anchor_still_parse
     // REQ-TRS-SYSMLV2-007's fixed mapped set is Package, Part(Def/Usage),
     // Attribute(Def/Usage), Port(Def/Usage), Connection(Def/Usage),
     // Interface(Def/Usage), Item(Def/Usage), Requirement(Def/Usage),
-    // AllocationUsage, and variation/variant membership. `state def`/`action def`
-    // at file root are legal SysML v2 but outside that set — this fixture must
-    // keep synthesizing zero elements from the .sysml/.kerml content no matter
-    // how much of the fixed set later commits in this task add support for.
+    // AllocationUsage, variation/variant membership, and — as of
+    // REQ-TRS-SYSMLV2-018/-019 — State(Def/Usage)/Action(Def/Usage). `calc
+    // def`/`case def`/`analysis def`/`verification def`/`constraint def`
+    // stay outside that set (`REQ-TRS-SYSMLV2-000`'s explicitly deferred
+    // scope) — `calc def` here must keep synthesizing zero elements no
+    // matter how much of the fixed set later commits add support for.
+    // Wrapped in a real `package { ... }` (not bare file-root content) since
+    // `merge_root` only merges `RootElement::Package` in the first place —
+    // a bare root-level construct is invisible for that separate, unrelated
+    // reason regardless of its own kind, so it wouldn't isolate this test's
+    // actual subject (kind-mapping, not root-level wrapping).
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
     write(
@@ -43,18 +50,53 @@ fn unmapped_sysml_constructs_stay_invisible_while_the_package_anchor_still_parse
         "SysML2Legacy/_index.md",
         "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
     );
-    write(&root, "SysML2Legacy/Sensor.sysml", "state def Idle;\n");
-    write(&root, "SysML2Legacy/Extra.kerml", "action def DoNothing;\n");
+    write(
+        &root,
+        "SysML2Legacy/Sensor.sysml",
+        "package Behavior {\n    calc def ComputeMargin;\n}\n",
+    );
 
     let elements = walk_model(&root).unwrap();
 
     assert!(
-        elements.iter().all(|e| !e.file_path.ends_with(".sysml") && !e.file_path.ends_with(".kerml")),
-        "no element should originate from a .sysml/.kerml file for unmapped constructs: {:#?}",
-        elements.iter().map(|e| &e.file_path).collect::<Vec<_>>()
+        !elements.iter().any(|e| e.qualified_name.ends_with("ComputeMargin")),
+        "calc def is outside the fixed mapped set and must stay invisible: {:#?}",
+        elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
     );
-    // The package's own _index.md is still a normal native element.
+    // The package's own _index.md, and the Behavior package the calc def
+    // lives in, are still normal, fully-mapped elements.
     assert!(elements.iter().any(|e| e.qualified_name == "SysML2Legacy"));
+    assert!(elements.iter().any(|e| e.qualified_name == "SysML2Legacy::Behavior"));
+
+    let result = validate(&elements);
+    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+}
+
+#[test]
+fn state_def_and_action_def_are_now_mapped_when_package_wrapped() {
+    // The mirror image of the test above: REQ-TRS-SYSMLV2-018/-019 moved
+    // State/Action into the fixed mapped set, so — unlike `calc def` —
+    // these now synthesize real elements once actually reached (i.e. found
+    // inside a real `package { ... }`, not at bare file root; see the
+    // comment above on why bare-root content is invisible for an unrelated
+    // reason).
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &root,
+        "SysML2Legacy/_index.md",
+        "---\ntype: Package\nname: SysML2Legacy\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2Legacy/Behavior.sysml",
+        "package Behavior {\n    state def Idle;\n    action def DoNothing;\n}\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let qnames: Vec<&str> = elements.iter().map(|e| e.qualified_name.as_str()).collect();
+    assert!(qnames.contains(&"SysML2Legacy::Behavior::Idle"), "{qnames:#?}");
+    assert!(qnames.contains(&"SysML2Legacy::Behavior::DoNothing"), "{qnames:#?}");
 
     let result = validate(&elements);
     assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);

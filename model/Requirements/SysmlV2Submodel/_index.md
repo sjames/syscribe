@@ -34,7 +34,13 @@ that fell back to head-only because the tail isn't a locally-redeclared feature
 package-relative SysMLv2-authored reference, not only one already equal to the target's full
 model-root qname (`REQ-TRS-SYSMLV2-016`), and the same scoped resolution widened to `W007`'s
 usage-tracking lookup and `graph.rs`'s `TypedBy` edge, so a `*Def` used only via a cross-package
-reference counts as used and is a real, traversable graph edge (`REQ-TRS-SYSMLV2-017`).
+reference counts as used and is a real, traversable graph edge (`REQ-TRS-SYSMLV2-017`); `state
+def`/`state` mapping onto the native `StateDef`/`State` schema — `subStates:`, transitions with
+`guard`/`accept`/`effect`, entry/do/exit action names (`REQ-TRS-SYSMLV2-018`); and `action
+def`/`action` mapping onto the native `ActionDef`/`Action` schema — `subActions:`, `controlNodes:`,
+`successionConnections:`, real `if`/`while`/`loop`/`for` recursion, `fork`/`join`/`decide`/`merge`
+as name-only control nodes bounded by the pinned parser's own inability to retain their block-body
+contents (`REQ-TRS-SYSMLV2-019`).
 
 This is a read-only validator: the submodel's `.sysml`/`.kerml` files stay authoritative and are
 edited by their own native tooling, never by Syscribe's web UI or mutate commands. A

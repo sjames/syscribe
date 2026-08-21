@@ -47,10 +47,13 @@ missing mapper coverage, not a parser limitation — the exact same posture `REQ
   `Doc`-carrying body-element enum (`PackageBodyElement`, `RequirementDefBodyElement`) — a
   deliberate, matching-issue-scope descope, not an oversight; extending to either is candidate
   follow-on if a concrete need arises.
-- Does **not** extend to constructs outside `REQ-TRS-SYSMLV2-007`'s mapped set (`state def`,
-  `calc`, `perform`, …) — those synthesize no element at all, so there is nothing to attach lifted
-  text to. Consistent with the module's existing parse-broad/map-narrow posture
-  (`ADR-SYS-SYSMLV2-001` sub-decision 3), not a new exception to it.
+- Does **not** extend to constructs outside `REQ-TRS-SYSMLV2-007`'s mapped set (`calc`, `case`,
+  `analysis`/`verification def`, …) — those synthesize no element at all, so there is nothing to
+  attach lifted text to. Consistent with the module's existing parse-broad/map-narrow posture
+  (`ADR-SYS-SYSMLV2-001` sub-decision 3), not a new exception to it. `state def`/`action def`
+  moved into the mapped set as of `REQ-TRS-SYSMLV2-018`/`-019` and get their own doc lift there
+  (`state_def_doc`/`action_def_doc`/`action_usage_doc`), reusing this requirement's `collect_doc`
+  machinery unchanged.
 - Multiple `doc` blocks on the same element **shall** concatenate in source order (joined by a
   blank line) rather than only the first or last one winning — the grammar permits several, and
   there is no reason to silently drop any of them.

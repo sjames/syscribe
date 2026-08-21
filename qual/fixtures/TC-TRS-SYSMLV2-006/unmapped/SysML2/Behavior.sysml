@@ -1,4 +1,4 @@
 package Demo {
-    state def Idle;
-    action def DoThing;
+    calc def ComputeMargin;
+    case def InspectVehicle;
 }

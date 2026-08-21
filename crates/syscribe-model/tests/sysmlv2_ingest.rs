@@ -366,11 +366,13 @@ fn dangling_bare_variant_reference_synthesizes_nothing() {
 
 #[test]
 fn a_file_mixing_mapped_and_unmapped_constructs_parses_fully_and_keeps_the_mapped_ones() {
-    // REQ-TRS-SYSMLV2-007: full-grammar parsing, fixed-set mapping.
-    // `state def`/`action def` (behavior constructs, explicitly outside the
-    // fixed set) must not fail the parse or drop the file — they are simply
-    // invisible, while a mapped `part def` in the very same file/package
-    // still comes through.
+    // REQ-TRS-SYSMLV2-007: full-grammar parsing, fixed-set mapping. `calc
+    // def`/`case def` (still outside the fixed set even after
+    // REQ-TRS-SYSMLV2-018/-019 moved State/Action into it — see
+    // REQ-TRS-SYSMLV2-000's Scope, which explicitly keeps these deferred)
+    // must not fail the parse or drop the file — they are simply invisible,
+    // while a mapped `part def` in the very same file/package still comes
+    // through.
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
     write(
@@ -383,8 +385,8 @@ fn a_file_mixing_mapped_and_unmapped_constructs_parses_fully_and_keeps_the_mappe
         "SysML2Legacy/Mixed.sysml",
         "package Boundary {\n\
          part def Vehicle;\n\
-         state def Idle;\n\
-         action def DoNothing;\n\
+         calc def ComputeMargin;\n\
+         case def InspectVehicle;\n\
          }\n",
     );
 
@@ -399,8 +401,8 @@ fn a_file_mixing_mapped_and_unmapped_constructs_parses_fully_and_keeps_the_mappe
         elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
     );
     // None of the unmapped constructs synthesized an element.
-    assert!(!elements.iter().any(|e| e.qualified_name.contains("Idle")));
-    assert!(!elements.iter().any(|e| e.qualified_name.contains("DoNothing")));
+    assert!(!elements.iter().any(|e| e.qualified_name.contains("ComputeMargin")));
+    assert!(!elements.iter().any(|e| e.qualified_name.contains("InspectVehicle")));
 
     // No parse failure was recorded for the file — it's a fully successful
     // parse, just with a narrower mapped-element yield than its full content.

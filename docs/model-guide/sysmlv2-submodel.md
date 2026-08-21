@@ -81,17 +81,18 @@ cross-referenceable `RawElement`s:
 
 `Package`, `Part(Def/Usage)`, `Attribute(Def/Usage)`, `Port(Def/Usage)`,
 `Connection(Def/Usage)`, `Interface(Def/Usage)`, `Item(Def/Usage)`, `Requirement(Def/Usage)`,
-`AllocationUsage`, and `variation`/`variant` membership.
+`AllocationUsage`, `variation`/`variant` membership, and — as of `REQ-TRS-SYSMLV2-018`/`-019` —
+`State(Def/Usage)`/`Action(Def/Usage)` (§7, below).
 
-A construct outside that set — a behavior body, `analysis`/`case`/`verification def`,
-`calc`/`constraint`, and similar — parses without error but contributes **nothing** to the graph:
-no element, no `Finding`, invisible, the same way a native Markdown model has no way to express
-content that isn't frontmatter or documentation body. Parse-broad, map-narrow.
+A construct outside that set — `analysis`/`case`/`verification def`, `calc`/`constraint`, and
+similar — parses without error but contributes **nothing** to the graph: no element, no `Finding`,
+invisible, the same way a native Markdown model has no way to express content that isn't
+frontmatter or documentation body. Parse-broad, map-narrow.
 
 ```sysml
 package Propulsion {
     part def MappedPart;          // becomes SysML2::Propulsion::MappedPart
-    state def UnmappedState;      // parses fine, contributes nothing
+    calc def UnmappedCalc;        // parses fine, contributes nothing
 }
 ```
 
@@ -534,3 +535,41 @@ synthesized by SysMLv2 ingestion, so it is always already fully qualified from t
 `Supertype` graph edge and the `mutate::guard` dangling-`typedBy:` check (`EREF`, gating MCP
 guarded-write commits) are not widened by this requirement — a write-path guard rail deserves its
 own scrutiny, separate from a read-path validator warning or graph traversal.
+
+## 14. State machines and actions — `REQ-TRS-SYSMLV2-018`/`-019`
+
+`state def`/`state` and `action def`/`action` join the fixed mapped set, becoming real `StateDef`/
+`State`/`ActionDef`/`Action` elements — see [State Machines](state-machines.md) for the full native
+target schema this mapping produces. A top-level `state`/`action` usage (declared directly in a
+package or part) becomes its own real, qname-addressable element; a `state`/action-body construct
+found *nested inside* another `StateDef`/`ActionDef`'s own body becomes inline YAML data only
+(`subStates:`/`subActions:`/`controlNodes:`), never a separate element — matching how a
+hand-authored composite state machine or activity is already written.
+
+```sysml
+state def FlightStates {
+    state disarmed {
+        transition first disarmed accept StartCmd then armed;
+    }
+    state armed;
+    then disarmed;
+}
+action def MissionExecution {
+    action takeoff;
+    action navigate;
+    first takeoff then navigate;
+}
+```
+
+synthesizes `subStates:`/`transitions:` and `subActions:`/`successionConnections:` in exactly the
+shape a hand-authored `FlightStates.md`/`MissionExecution.md` would use — the existing `W070`–`W080`
+completeness checks apply identically, with no validator changes at all.
+
+**A real, non-negotiable ceiling**: `fork`/`join`/`decide`/`merge` block bodies are parsed by
+`sysml-v2-parser` and then discarded by the parser itself — their `{...}` contents carry no data to
+recover, at any pinned version. They become flat `controlNodes:` markers (`{name, kind}` only, no
+internal content) — not a Syscribe scope choice, an upstream parser fact. Guard/condition text for
+the long tail of `Expression` shapes this crate doesn't specially recognize (`Classification`/
+`Select`/`Collect`/`Conditional`/…) falls back to a fixed placeholder rather than vanishing — a
+Syscribe-owned, revisitable-later limitation, explicitly distinct from the fork/join ceiling above.
+See `ADR-SYS-SYSMLV2-001`'s addendum for the full rationale.

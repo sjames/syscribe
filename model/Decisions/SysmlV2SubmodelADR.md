@@ -448,3 +448,66 @@ when it happens to already equal the target's full model-root qname. Only the to
   (`TC-TRS-SYSMLV2-017`) and as a `syscribe-model` integration test driving the real SysMLv2 ingest
   pipeline end-to-end (`sysmlv2_typed_by_scoped.rs`), both confirming the exact false-positive
   pattern the issue described is gone while a genuinely unused `*Def` still fires.
+
+## Addendum: `state def`/`action def` mapping — partial reversal of sub-decision 3 (`REQ-TRS-SYSMLV2-018`/`-019`)
+
+Sub-decision 3 above drew the mapped-element-kind boundary narrow and named "behavior bodies" as
+its own canonical example of what stays outside it. This addendum moves `state`/`action`
+specifically out of that deferred set — not a reversal of the parse-broad/map-narrow *principle*
+(`REQ-TRS-SYSMLV2-007` still holds it, and still explicitly defers `calc`/`constraint`/`case`/
+`analysis`/`verification def`), but a boundary move for two kinds only, made possible by two things
+that weren't true when sub-decision 3 was written: `StateDef`/`ActionDef` now have real, tested
+`satisfies:`/`verifies:` traceability participation for hand-authored elements (this session's
+`satisfies:`-shape audit, itself mirroring `refines:`'s `E316`/`REQ-TRS-MG-010` precedent), and the
+target schema already exists, exercised by real hand-authored elements in this repo's own
+`model/Behavior/` — this addendum maps onto that existing schema, it does not invent one.
+
+- **A real, non-negotiable ceiling, not a Syscribe scope choice.** `fork`/`join`/`decide`/`merge`
+  block bodies are parsed by the pinned `sysml-v2-parser` (`= "0.54.0"`) and then discarded by the
+  parser itself: `FirstMergeBody`, the AST type backing all four, is `Semicolon | Brace` where
+  `Brace` carries **no data at all** — confirmed directly against the vendored crate's source, not
+  inferred. No mapping design on Syscribe's side, at this pinned version, can recover what a
+  `fork { ... }`/`join { ... }`/`decide { ... }`/`merge { ... }` block actually contains. These four
+  become flat `controlNodes:` markers (`{name, kind}` only) — the same shape the hand-authored
+  convention (`MissionExecution.md`'s `ForkNode`/`JoinNode`) already uses for exactly this reason:
+  a control node with no recoverable internal structure. *Rejected:* waiting for or forking the
+  parser to retain fork/join/decide/merge bodies — out of proportion for a capability this
+  requirement doesn't need (the point is state-machine/activity traceability participation, not
+  full activity-diagram fidelity), and upstream parser behavior is not this project's to fix.
+- **`if`/`while`/`loop`/`for` recurse for real**, unlike the four above — `IfStmt.then_body`/
+  `.else_body`, `WhileStmt.body`, `LoopStmt.body`, `ForLoop.body` are all typed `ActionDefBody`
+  (confirmed against the AST directly) and genuinely retain their nested content, so
+  `subActions:`'s `IfAction`/`LoopAction` entries carry a real, recursively-built `then:`/`else:`/
+  `body:` — matching `TakeoffAction.md`'s `LoopAction`/`MissionExecution.md`'s `IfAction` worked
+  examples exactly.
+- **Guard/condition rendering (`render_expression`) is Syscribe-owned and revisitable, explicitly
+  distinct from the ceiling above.** Transitions/conditions/assign operands are general
+  `Expression`s (23 variants); the common shapes (literals, references, binary/unary operators via
+  the parser's own `as_str()`) render exactly, but the long tail (`Classification`/`Select`/
+  `Collect`/`Conditional`/`MetaCast`/`TypeCheck`/`CollectionOp`/`MetadataAccess`/`Extent`) falls back
+  to a fixed, kind-naming placeholder rather than vanishing — a guard must never disappear, since
+  `W072`'s non-determinism check depends only on the field being present. *Rejected:* span-slicing
+  the original source text for a fully faithful rendering — would require threading file content
+  through every one of the ~20 existing conversion functions across the whole dispatch chain (none
+  of which carry it today, only the file *path*), for a benefit (verbatim guard text for
+  uncommon expression shapes) that doesn't change what any existing validator check actually does
+  with the field. Revisitable later without touching the ceiling above, since it's a Syscribe
+  rendering choice, not a parser fact.
+- **`entry`/`do`/`exit`'s own nested body content is not mapped**, only the referenced action's
+  name. `EntryAction`/`DoAction`/`ExitAction.body` is typed `StateDefBody` — the *state*-body
+  grammar, not an action-body grammar, confirmed a parser-leniency artifact rather than deliberate
+  per-action-body semantics — and the native schema has no field to hold nested content there
+  regardless (`entryAction:`/`doAction:`/`exitAction:` are `string | {name, typedBy}` only). A
+  deliberate, bounded gap, not an oversight.
+- **`isParallel:` is not representable in this parser version at all.** Neither `StateDef` nor
+  `StateUsage` carries a parallel/orthogonal-region flag (confirmed against both struct
+  definitions) — left unset, not defaulted to `false` (which would be a false claim, not an absence
+  of information).
+- **Naming synthesis for unnamed control-flow constructs** (`if_1`, `while_1`, `perform_1` for an
+  anonymous `perform action { ... }`, …) is a Syscribe-owned convention, not a parser fact — the
+  grammar itself gives `IfStmt`/`WhileStmt`/`LoopStmt`/`ForLoop` no name field at all, yet
+  `successionConnections:` needs a stable identifier to reference. Deterministic and stable across
+  re-ingestion of unchanged source (a per-enclosing-body, ordered counter), but not guaranteed
+  stable across an *edit* that reorders sibling constructs of the same kind — acceptable for a
+  read-only ingestion feature with no round-trip authoring, tracked here rather than silently
+  assumed.
