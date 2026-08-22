@@ -640,3 +640,64 @@ file exists anywhere in `model/`) nor SysMLv2 ingestion before this addendum —
   *should* move to qname references at all is a separate, real design question this addendum
   deliberately leaves open rather than forcing a hasty answer as a side effect of an unrelated
   mapping feature.
+
+## Addendum: `flow def`/`flow` mapping and the `flowConnections:` lift (`REQ-TRS-SYSMLV2-024`)
+
+Moves `flow def`/`flow` out of sub-decision 3's deferred set. Unlike Concern, `FlowDef`/`FlowUsage`
+were already reachable from all three dispatch enums this module cares about — no parser-level
+ceiling blocked the base mapping. The interesting content of this addendum is the
+`flowConnections:` lift, and one real, empirically-discovered AST fact this session's "verify
+against source, never assume" discipline caught mid-implementation.
+
+- **`FlowDef`/`FlowUsage` are two distinct AST structs, closer in shape to the View/Viewpoint/
+  Rendering precedent than to Concern's single-struct design.** `FlowDef { identification,
+  specializes, body: DefinitionBody, membership }` and `FlowUsage { kind: FlowUsageKind, name:
+  Option<String>, type_name: Option<String>, payload: Option<Node<PayloadFeature>>, from:
+  Option<Node<Expression>>, to: Option<Node<Expression>>, body: DefinitionBody, membership }`
+  (`sysml-v2-parser-0.54.0/src/ast/behavior.rs:349-389`) — two conversion functions,
+  `convert_flow_def`/`convert_flow_usage`.
+- **`ends:`/`itemType:` (§8.6.1, the shape `model/Flows/PowerFlowDef.md` uses) are not derivable
+  from a `flow def`'s body — a real ceiling, not an oversight.** `FlowDef.body`/`FlowUsage.body`
+  share a deliberately thin `DefinitionBody` (`DefinitionBodyElement`: `Error`/`Doc`/
+  `OccurrenceMember`/`Other` only). Real fixtures show a `flow def` body *can* nest `attribute`/
+  `part`/`flow` members (via the generic `OccurrenceMember(OccurrenceBodyElement)` variant), but
+  nothing marks any of them as "this is an end port" the way a nested `StateUsage` was unambiguous
+  for State. *Rejected:* guessing that the first nested `part`/`port` member is an end — no
+  spec-grounded basis for that guess, and wrong more often than right for a body that can equally
+  hold ordinary structural content.
+- **A doc comment inside a `flow def`/`flow` usage body is not a direct `DefinitionBodyElement::Doc`
+  — confirmed by parsing real source and inspecting the AST directly, not assumed from the enum
+  shape (the implementation's first attempt got this wrong and a test caught it immediately).** It
+  lands wrapped as `OccurrenceMember(OccurrenceBodyElement::Doc)` instead — `flow_body_doc` checks
+  both shapes; every other `OccurrenceBodyElement` variant stays unwalked per the point above.
+- **The `flowConnections:` lift mirrors `REQ-TRS-SYSMLV2-010`'s `connections:` lift almost exactly
+  — the same dual pattern, verified against the live `connection_usage_entry`/
+  `part_def_connection_entries`/`convert_connection_usage` code before writing a line of the flow
+  equivalent.** Every `FlowUsage` found directly in a `part def`/`part` usage body — named or
+  anonymous — is scanned into the owning part's `flowConnections:`; a *named* one additionally
+  becomes its own standalone `Flow` element. `item_type:` (never `typedBy:`) is populated from
+  `payload.type_name` (the `of` clause) or `type_name` (the bare `:` shorthand) — both item-shaped
+  per real parser fixtures showing the two forms as parallel, interchangeable ways to say *what
+  flows*, matching Syscribe's own spec framing of `itemType` as "shorthand: qualified name of the
+  ItemDef carried by this flow." There is no AST field distinct from that item-type source that
+  would represent "typed by an actual FlowDef", so `typedBy:` is never populated on a flow's own
+  element or its `flowConnections:` entry.
+- **A real, empirically-discovered AST fact that changed a shared helper, found only by testing
+  against real parsed output rather than trusting the plan's assumption.** The plan assumed
+  `connection_end_display` (the endpoint-to-string helper `REQ-TRS-SYSMLV2-010` already built) could
+  be reused unchanged for flow endpoints. The first test run proved otherwise: `FlowUsage.from`/`.to`
+  are typed as a general `Expression` (the value-expression grammar's postfix `.` chaining), *not*
+  the dedicated `path_expression` production `connect` endpoints use — so `a.x` parses as nested
+  `Expression::MemberAccess(FeatureRef("a"), "x")`, never `Expression::FeatureChainRef`.
+  `connection_end_display` gained a new, recursive `MemberAccess` arm to handle this. Confirmed, by
+  running the full existing connection-lift test suite afterward, not to change `connect` endpoint
+  behavior at all — real `connect` endpoints never produce `MemberAccess` in the first place, so the
+  new arm is purely additive for this module's existing callers.
+- **`payload.multiplicity` (the `of name : Type[mult]` cardinality) is out of scope** — no
+  multiplicity-to-string renderer exists anywhere in this module yet, the same class of descope as
+  Concern's `requires:`/`assume:`.
+- A `FlowUsage` nested inside an `ActionDef`/`ActionUsage` body stays excluded by
+  `REQ-TRS-SYSMLV2-019`'s own, separate, pre-existing action-body walker — this addendum doesn't
+  touch it. `InterfaceDefBodyElement`/`OccurrenceBodyElement`/`RequirementDefBodyElement` also carry
+  a `FlowUsage` variant per the AST, but none of those bodies are recursively walked for nested
+  elements anywhere in this module — unaffected, matching every other mapped kind's identical scope.

@@ -84,7 +84,8 @@ cross-referenceable `RawElement`s:
 `AllocationUsage`, `variation`/`variant` membership, — as of `REQ-TRS-SYSMLV2-018`/`-019` —
 `State(Def/Usage)`/`Action(Def/Usage)` (§14, below), — as of `REQ-TRS-SYSMLV2-020`/`-021`/
 `-022` — `View(Def/Usage)`, `ViewpointDef`, `ViewpointUsage`, `Rendering(Def/Usage)` (§15, below),
-and — as of `REQ-TRS-SYSMLV2-023` — `ConcernDef`/`Concern` (§16, below).
+— as of `REQ-TRS-SYSMLV2-023` — `ConcernDef`/`Concern` (§16, below), and — as of
+`REQ-TRS-SYSMLV2-024` — `FlowDef`/`Flow` (§17, below).
 
 A construct outside that set — `analysis`/`case`/`verification def`, `calc`/`constraint`, and
 similar — parses without error but contributes **nothing** to the graph: no element, no `Finding`,
@@ -655,3 +656,40 @@ work has been built for `RequireConstraint`'s nested content yet, for any elemen
 validator check resolves `concerns:` entries against real `ConcernDef`s — both existing
 hand-authored Viewpoint files write `concerns:` as free prose today, not qnames, so adding one now
 would immediately fire on correct, already-committed content.
+
+## 17. Flows — `REQ-TRS-SYSMLV2-024`
+
+`flow def`/`flow` joins the fixed mapped set — cross-referencing
+`model/Flows/PowerFlowDef.md`/`TelemetryFlowDef.md` as the target hand-authored shape.
+
+```sysml
+package Flows {
+    flow def PowerFlow;
+    part def Battery { port out; }
+    part def Motor { port in; }
+    part def Drone {
+        part battery : Battery;
+        part motor : Motor;
+        flow battery.out to motor.in;
+        message alertEvt : Fault from battery to motor;
+    }
+}
+```
+
+synthesizes a `FlowDef` (`PowerFlow`) and, on the owning `Drone` part, a `flowConnections:` list
+with two entries — one from the anonymous `flow battery.out to motor.in;` (`kind: streaming`, no
+`name:`) and one from the named `message alertEvt : Fault from battery to motor;` (`kind: message`,
+`name: alertEvt`, `item: Fault`) — matching §8.6.2's `flowConnections:` sub-schema exactly. Because
+the named one has a name, it *also* becomes its own standalone `Flow` element
+(`Drone::alertEvt`, `itemType: Fault`) — the same dual element-plus-lift pattern §8's `connections:`
+lift already established for named `connection` usages nested in a part.
+
+**A parser-grammar quirk worth knowing, found only by testing against real parsed output**: a
+`flow`/`message` endpoint like `battery.out` parses as `Expression::MemberAccess`, not
+`Expression::FeatureChainRef` — a different shape than a plain `connect` endpoint's identical-looking
+`a.p1` syntax uses (see `ADR-SYS-SYSMLV2-001`'s addendum). `ends:`/`itemType:` (§8.6.1's `FlowDef`
+fields, matching `model/Flows/PowerFlowDef.md`'s own shape) are **not** derived from a `flow def`'s
+own body — the vendored parser gives no unambiguous "this nested member is an end port" signal to
+extract them from. `payload.multiplicity` (`of qty : Payload[1..3]`) is not lifted either (no
+multiplicity-to-string renderer exists yet). A `flow` nested inside an `action def` body stays
+invisible, unchanged — already excluded by §14's own scope, not something this section touches.

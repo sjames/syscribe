@@ -239,6 +239,17 @@ struct Spec {
     /// builder -- set directly in the `Spec { ... }` literal like
     /// `supertype`/`typed_by`.
     subject: Option<String>,
+    /// `REQ-TRS-SYSMLV2-024` -- a `flow def`/`flow` usage's item type,
+    /// sourced from `FlowUsage.payload.type_name` (the `of` clause) or
+    /// `FlowUsage.type_name` (the bare `:` typing) -- both item-shaped, not
+    /// a `typedBy`-style supertype reference (see `flow_item_type`). Plain
+    /// field, no dedicated builder, like `subject`.
+    item_type: Option<String>,
+    /// `REQ-TRS-SYSMLV2-024` -- the *owning* `part def`/`part`'s own
+    /// `flowConnections:` YAML entries, lifted from every `FlowUsage` found
+    /// directly in its body (named or anonymous) -- mirrors `connections`
+    /// above exactly, one field per relationship kind.
+    flow_connections: Option<Vec<serde_yaml::Value>>,
 }
 
 impl Spec {
@@ -264,6 +275,12 @@ impl Spec {
     /// Set `REQ-TRS-SYSMLV2-010`'s lifted `connections:` entries.
     fn with_connections(mut self, connections: Vec<serde_yaml::Value>) -> Self {
         self.connections = nonempty_vec(connections);
+        self
+    }
+
+    /// Set `REQ-TRS-SYSMLV2-024`'s lifted `flowConnections:` entries.
+    fn with_flow_connections(mut self, flow_connections: Vec<serde_yaml::Value>) -> Self {
+        self.flow_connections = nonempty_vec(flow_connections);
         self
     }
 
@@ -349,6 +366,8 @@ fn push_synth(
             concerns: spec.concerns,
             rendering: spec.rendering,
             subject: spec.subject,
+            item_type: spec.item_type,
+            flow_connections: spec.flow_connections,
             ..Default::default()
         },
         doc: spec.doc,
@@ -1015,13 +1034,23 @@ fn concern_body_subject(body: &sysml_v2_parser::RequirementDefBody) -> Option<St
 /// its own doc comments: `path_expression`, used for `connect` endpoints
 /// specifically, produces `FeatureChainRef` rather than folding into nested
 /// `MemberAccess` the way the general value-expression grammar's postfix `.`
-/// chaining does). Other expression shapes aren't meaningful connect
+/// chaining does). `MemberAccess(base, member)` — confirmed empirically
+/// (`REQ-TRS-SYSMLV2-024`) to be the shape `FlowUsage.from`/`.to` actually
+/// use: unlike `connect`, a flow's endpoints are typed as a general
+/// `Expression` (the value-expression grammar's postfix `.` chaining),
+/// never the dedicated `path_expression` production, so a dotted flow
+/// endpoint (`a.x`) parses as nested `MemberAccess`, not
+/// `FeatureChainRef` — recursed here, since the base itself can be an
+/// arbitrarily long chain. Other expression shapes aren't meaningful
 /// endpoints and aren't mapped here, matching `feature_ref_string`'s
 /// existing posture for `satisfy`/`verify` targets.
 fn connection_end_display(expr: &sysml_v2_parser::Expression) -> Option<String> {
     match expr {
         sysml_v2_parser::Expression::FeatureRef(s) => Some(s.clone()),
         sysml_v2_parser::Expression::FeatureChainRef(chain) => Some(chain.segments.join(".")),
+        sysml_v2_parser::Expression::MemberAccess(base, member) => {
+            connection_end_display(&base.value).map(|b| format!("{b}.{member}"))
+        }
         _ => None,
     }
 }
@@ -1626,6 +1655,115 @@ fn part_usage_connection_entries(
         .filter_map(|n| match &n.value {
             sysml_v2_parser::PartUsageBodyElement::Connection(node) => {
                 connection_usage_entry(owning_qname, &node.value, &find_sibling, &mut truncations)
+            }
+            _ => None,
+        })
+        .collect();
+    (entries, truncations)
+}
+
+/// The item type a `flow`/`message`/`succession flow` usage carries —
+/// `REQ-TRS-SYSMLV2-024`. `FlowUsage.payload.type_name` (the explicit `of
+/// <name>? : <Type>` clause) and `FlowUsage.type_name` (the bare `:
+/// <Type>` shorthand with no `of` clause) are both item-shaped per the
+/// vendored parser's own real fixtures (`flow t of Payload from a to b;`
+/// and `flow t : Fuel from a to b;` are parallel, interchangeable forms
+/// for identifying *what flows* — matching Syscribe's own spec, which
+/// frames `itemType` as "shorthand: qualified name of the ItemDef carried
+/// by this flow", §8.6.1) — neither is a `typedBy`-style supertype
+/// reference. The `of` clause wins when both are somehow present (real
+/// grammar likely never has both at once).
+fn flow_item_type(f: &sysml_v2_parser::FlowUsage) -> Option<String> {
+    f.payload
+        .as_ref()
+        .and_then(|p| p.value.type_name.clone())
+        .or_else(|| f.type_name.clone())
+}
+
+/// `flowConnections:`'s `kind:` vocabulary — `REQ-TRS-SYSMLV2-024`, matching
+/// `spec/markdown-sysml-format.md` §8.6.2's kind-semantics table exactly.
+fn flow_kind_str(kind: sysml_v2_parser::FlowUsageKind) -> &'static str {
+    match kind {
+        sysml_v2_parser::FlowUsageKind::Flow => "streaming",
+        sysml_v2_parser::FlowUsageKind::Message => "message",
+        sysml_v2_parser::FlowUsageKind::SuccessionFlow => "succession",
+    }
+}
+
+/// One `flowConnections:`-shaped YAML entry for a single `flow`/`message`/
+/// `succession flow` usage — `REQ-TRS-SYSMLV2-024`, the exact `from`/`to`/
+/// `kind`/`item`/`name` sub-schema `spec/markdown-sysml-format.md` §8.6.2
+/// documents. Built regardless of whether `f.name` is set (mirrors
+/// `connection_usage_entry`'s identical "regardless of name" posture) — an
+/// anonymous `flow a.x to b.y;` statement contributes an entry here even
+/// though it never becomes its own `RawElement` (see `convert_flow_usage`).
+/// `None` when `from`/`to` isn't present or isn't a mapped `Expression`
+/// shape (see [`connection_end_display`]) — the same "nothing to
+/// contribute" outcome a bare `flow : SomeFlowDef;` (no endpoints at all)
+/// already has.
+fn flow_usage_entry<'a>(
+    owning_qname: &str,
+    f: &sysml_v2_parser::FlowUsage,
+    find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
+    truncations: &mut Vec<String>,
+) -> Option<serde_yaml::Value> {
+    let from = connection_end_display(&f.from.as_ref()?.value)?;
+    let to = connection_end_display(&f.to.as_ref()?.value)?;
+    let (from_q, from_trunc) = qualify_connection_end(owning_qname, &from, find_sibling);
+    let (to_q, to_trunc) = qualify_connection_end(owning_qname, &to, find_sibling);
+    truncations.extend(from_trunc);
+    truncations.extend(to_trunc);
+
+    let mut m = serde_yaml::Mapping::new();
+    if let Some(n) = f.name.clone().filter(|n| !n.is_empty()) {
+        m.insert(serde_yaml::Value::from("name"), serde_yaml::Value::from(n));
+    }
+    m.insert(serde_yaml::Value::from("from"), serde_yaml::Value::from(from_q));
+    m.insert(serde_yaml::Value::from("to"), serde_yaml::Value::from(to_q));
+    m.insert(serde_yaml::Value::from("kind"), serde_yaml::Value::from(flow_kind_str(f.kind)));
+    if let Some(item) = flow_item_type(f) {
+        m.insert(serde_yaml::Value::from("item"), serde_yaml::Value::from(item));
+    }
+    Some(serde_yaml::Value::Mapping(m))
+}
+
+/// `flowConnections:` entries over a `part def` body's already-sliced
+/// members — scans every `PartDefBodyElement::FlowUsage`, named or
+/// anonymous alike (mirrors [`part_def_connection_entries`] exactly, one
+/// field per relationship kind, `REQ-TRS-SYSMLV2-024`). Second element of
+/// the return tuple is the same `REQ-TRS-SYSMLV2-015`-style truncation
+/// messages, reusing `qualify_connection_end` unchanged.
+fn part_def_flow_entries(
+    owning_qname: &str,
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>],
+) -> (Vec<serde_yaml::Value>, Vec<String>) {
+    let find_sibling = |head: &str| find_part_usage_in_part_def_body(elements, head);
+    let mut truncations = Vec::new();
+    let entries = elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::PartDefBodyElement::FlowUsage(node) => {
+                flow_usage_entry(owning_qname, &node.value, &find_sibling, &mut truncations)
+            }
+            _ => None,
+        })
+        .collect();
+    (entries, truncations)
+}
+
+/// `flowConnections:` entries over a `part` usage body's already-sliced
+/// members. See [`part_def_flow_entries`].
+fn part_usage_flow_entries(
+    owning_qname: &str,
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>],
+) -> (Vec<serde_yaml::Value>, Vec<String>) {
+    let find_sibling = |head: &str| find_part_usage_in_part_usage_body(elements, head);
+    let mut truncations = Vec::new();
+    let entries = elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::PartUsageBodyElement::FlowUsage(node) => {
+                flow_usage_entry(owning_qname, &node.value, &find_sibling, &mut truncations)
             }
             _ => None,
         })
@@ -2367,6 +2505,15 @@ fn convert_package_body_element(
         // `part`/`part def` body is a genuine parse failure (`W541`), not a
         // silent per-kind skip.
         E::ConcernUsage(node) => convert_concern_usage(&node.value, qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-024`. A *named* flow becomes its own element
+        // here; every `FlowUsage` (named or anonymous) found nested inside
+        // a `part def`/`part` body is *also*, separately, lifted onto the
+        // owning part's `flowConnections:` (`part_def_flow_entries`/
+        // `part_usage_flow_entries`, called from `convert_part_def`/
+        // `convert_part_usage`, not from this dispatch) — the same dual
+        // pattern `Connection`/`REQ-TRS-SYSMLV2-010` already established.
+        E::FlowDef(node) => convert_flow_def(&node.value, qname, file_path, out),
+        E::FlowUsage(node) => convert_flow_usage(&node.value, qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2395,6 +2542,7 @@ fn convert_part_def(
             .collect(),
     );
     let (connections, truncations) = part_def_connection_entries(&part_qname, elements);
+    let (flow_connections, flow_truncations) = part_def_flow_entries(&part_qname, elements);
     let spec = Spec {
         supertype: part.specializes.as_ref().map(|t| t.value.target_display()),
         is_variation: is_variation_prefix(&part.definition_prefix),
@@ -2404,9 +2552,11 @@ fn convert_part_def(
     }
     .with_syscribe_meta(part_def_syscribe_meta(elements))
     .with_doc(part_def_doc(elements))
-    .with_connections(connections);
+    .with_connections(connections)
+    .with_flow_connections(flow_connections);
     push_synth(out, &part_qname, file_path, ElementType::PartDef, &name, spec);
     push_connection_truncation_findings(out, file_path, truncations);
+    push_connection_truncation_findings(out, file_path, flow_truncations);
     for node in elements {
         convert_part_def_body_element(&node.value, &part_qname, file_path, out);
     }
@@ -2436,6 +2586,7 @@ fn convert_part_usage(
             .collect(),
     );
     let (connections, truncations) = part_usage_connection_entries(&part_qname, elements);
+    let (flow_connections, flow_truncations) = part_usage_flow_entries(&part_qname, elements);
     let spec = Spec {
         typed_by: (!part.type_name.is_empty()).then(|| part.type_name.clone()),
         is_variation: is_variation_prefix(&part.usage_prefix),
@@ -2445,9 +2596,11 @@ fn convert_part_usage(
     }
     .with_syscribe_meta(part_usage_syscribe_meta(elements))
     .with_doc(part_usage_doc(elements))
-    .with_connections(connections);
+    .with_connections(connections)
+    .with_flow_connections(flow_connections);
     push_synth(out, &part_qname, file_path, ElementType::Part, &part.name, spec);
     push_connection_truncation_findings(out, file_path, truncations);
+    push_connection_truncation_findings(out, file_path, flow_truncations);
     for node in elements {
         convert_part_usage_body_element(&node.value, &part_qname, file_path, out);
     }
@@ -2501,6 +2654,10 @@ fn convert_part_def_body_element(
         E::ViewpointUsage(node) => convert_viewpoint_usage(&node.value, part_qname, file_path, out),
         E::RenderingDef(node) => convert_rendering_def(&node.value, part_qname, file_path, out),
         E::RenderingUsage(node) => convert_rendering_usage(&node.value, part_qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-024`. See the identical arm/comment in
+        // `convert_package_body_element`.
+        E::FlowDef(node) => convert_flow_def(&node.value, part_qname, file_path, out),
+        E::FlowUsage(node) => convert_flow_usage(&node.value, part_qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2544,6 +2701,11 @@ fn convert_part_usage_body_element(
         // directly inside a `part` usage body per this grammar
         // (`REQ-TRS-SYSMLV2-020`/`-021`/`-022`), mirroring this same enum's
         // pre-existing absence of `PartDef`/`AllocationUsage`/`ActionDef`.
+        // `REQ-TRS-SYSMLV2-024`. Unlike the view/viewpoint/rendering family
+        // above, both `FlowDef`/`FlowUsage` variants *do* exist in this enum
+        // — see the identical arm/comment in `convert_package_body_element`.
+        E::FlowDef(node) => convert_flow_def(&node.value, part_qname, file_path, out),
+        E::FlowUsage(node) => convert_flow_usage(&node.value, part_qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2756,6 +2918,74 @@ fn convert_connection_usage(
     }
     .with_doc(doc);
     push_synth(out, &elem_qname, file_path, ElementType::Connection, &name, spec);
+}
+
+/// `doc /* ... */` lift over a `flow def`/`flow` usage body's already-sliced
+/// members — `REQ-TRS-SYSMLV2-024`. Both `FlowDef.body` and `FlowUsage.body`
+/// share this exact `DefinitionBody`/`DefinitionBodyElement` type (confirmed
+/// against the parser's own AST) — a deliberately thin, generic body shape
+/// also shared by `AllocationDef`/`AllocationUsage`/`OccurrenceDef`. A `doc`
+/// member here is *not* a direct `DefinitionBodyElement::Doc` the way it is
+/// for every other body type in this file — confirmed empirically (parsing
+/// real source and inspecting the AST directly, not assumed from the enum
+/// shape): it lands wrapped as `OccurrenceMember(OccurrenceBodyElement::Doc)`
+/// instead, so both shapes are checked here. Every *other*
+/// `OccurrenceBodyElement` variant (`FlowUsage`, `PartUsage`, `EndDecl`, ...)
+/// is deliberately left unwalked — no unambiguous "this is an end port"
+/// signal exists to derive `ends:`/`itemType:` from (see
+/// `convert_flow_def`'s doc comment).
+fn flow_body_doc(body: &sysml_v2_parser::ast::DefinitionBody) -> String {
+    let sysml_v2_parser::ast::DefinitionBody::Brace { elements } = body else {
+        return String::new();
+    };
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::ast::DefinitionBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        sysml_v2_parser::ast::DefinitionBodyElement::OccurrenceMember(m) => match &m.value {
+            sysml_v2_parser::ast::OccurrenceBodyElement::Doc(d) => Some(d.value.text.as_str()),
+            _ => None,
+        },
+        _ => None,
+    })
+}
+
+/// `REQ-TRS-SYSMLV2-024` — a `flow def` synthesizes a real `FlowDef`.
+/// `ends:`/`itemType:` (§8.6.1, the shape `model/Flows/PowerFlowDef.md`
+/// uses) are deliberately **not** derived from the body: `DefinitionBody`'s
+/// only structured content beyond `Doc` reaches through the generic
+/// `OccurrenceMember(OccurrenceBodyElement)` variant, which gives no
+/// unambiguous "this nested member is an end port" signal the way a nested
+/// `StateUsage`/`ActionUsage` did for State/Action — an explicit descope,
+/// not an oversight (see the ADR addendum).
+fn convert_flow_def(f: &sysml_v2_parser::FlowDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&f.identification) else {
+        return; // anonymous flow def: no identity to qname against
+    };
+    let flow_qname = format!("{qname}::{name}");
+    let spec = Spec {
+        supertype: f.specializes.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    }
+    .with_doc(flow_body_doc(&f.body));
+    push_synth(out, &flow_qname, file_path, ElementType::FlowDef, &name, spec);
+}
+
+/// `REQ-TRS-SYSMLV2-024` — a *named* `flow`/`message`/`succession flow`
+/// usage synthesizes a real `Flow`. An anonymous one (`f.name` empty/`None`)
+/// has no identity to qname against and stays invisible as its own
+/// element — it is still, separately, scanned by `flow_usage_entry` into
+/// the owning part's `flowConnections:` (see `part_def_flow_entries`),
+/// mirroring `convert_connection_usage`'s identical dual pattern exactly.
+fn convert_flow_usage(f: &sysml_v2_parser::FlowUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = f.name.clone().filter(|n| !n.is_empty()) else {
+        return;
+    };
+    let flow_qname = format!("{qname}::{name}");
+    let spec = Spec {
+        item_type: flow_item_type(f),
+        ..Default::default()
+    }
+    .with_doc(flow_body_doc(&f.body));
+    push_synth(out, &flow_qname, file_path, ElementType::Flow, &name, spec);
 }
 
 fn convert_interface_def(

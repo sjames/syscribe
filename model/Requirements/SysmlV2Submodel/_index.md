@@ -46,9 +46,13 @@ schema — `rendering:`, and (usage only, since the grammar structurally cannot 
 `ViewpointDef` schema — `stakeholders:`/`concerns:` — with a `viewpoint` usage mapping onto `View`,
 since no dedicated `Viewpoint` usage type exists (`REQ-TRS-SYSMLV2-021`); `rendering
 def`/`rendering` mapping onto the native `RenderingDef`/`Rendering` schema (`REQ-TRS-SYSMLV2-022`);
-and `concern def`/`concern` mapping onto the native `ConcernDef`/`Concern` schema —
+`concern def`/`concern` mapping onto the native `ConcernDef`/`Concern` schema —
 `subject:`/`stakeholders:`, branching on the vendored parser's single `ConcernUsage` AST node's
-`is_definition` flag since no separate `ConcernDef` struct exists there (`REQ-TRS-SYSMLV2-023`).
+`is_definition` flag since no separate `ConcernDef` struct exists there (`REQ-TRS-SYSMLV2-023`); and
+`flow def`/`flow` mapping onto the native `FlowDef`/`Flow` schema — `itemType:` — with every
+`FlowUsage` nested in a `part def`/`part` body, named or anonymous, also lifting its
+`from`/`to`/`kind`/`item` onto the owning part's `flowConnections:`, the same dual pattern
+`REQ-TRS-SYSMLV2-010` established for `connections:` (`REQ-TRS-SYSMLV2-024`).
 
 This is a read-only validator: the submodel's `.sysml`/`.kerml` files stay authoritative and are
 edited by their own native tooling, never by Syscribe's web UI or mutate commands. A
