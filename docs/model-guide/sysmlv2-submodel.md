@@ -82,8 +82,9 @@ cross-referenceable `RawElement`s:
 `Package`, `Part(Def/Usage)`, `Attribute(Def/Usage)`, `Port(Def/Usage)`,
 `Connection(Def/Usage)`, `Interface(Def/Usage)`, `Item(Def/Usage)`, `Requirement(Def/Usage)`,
 `AllocationUsage`, `variation`/`variant` membership, — as of `REQ-TRS-SYSMLV2-018`/`-019` —
-`State(Def/Usage)`/`Action(Def/Usage)` (§14, below), and — as of `REQ-TRS-SYSMLV2-020`/`-021`/
-`-022` — `View(Def/Usage)`, `ViewpointDef`, `ViewpointUsage`, `Rendering(Def/Usage)` (§15, below).
+`State(Def/Usage)`/`Action(Def/Usage)` (§14, below), — as of `REQ-TRS-SYSMLV2-020`/`-021`/
+`-022` — `View(Def/Usage)`, `ViewpointDef`, `ViewpointUsage`, `Rendering(Def/Usage)` (§15, below),
+and — as of `REQ-TRS-SYSMLV2-023` — `ConcernDef`/`Concern` (§16, below).
 
 A construct outside that set — `analysis`/`case`/`verification def`, `calc`/`constraint`, and
 similar — parses without error but contributes **nothing** to the graph: no element, no `Finding`,
@@ -619,3 +620,38 @@ per §12.1's OSLC upstream-link-direction rule, not because the information is u
 `view`/`viewpoint`/`rendering` declared directly inside a `part` usage body doesn't just stay
 unmapped — it fails to parse outright, gracefully degrading to a `W541` finding (§4) rather than a
 crash, since `PartUsageBodyElement` carries no grammar production for the whole family at all.
+
+## 16. Concerns — `REQ-TRS-SYSMLV2-023`
+
+`concern def`/`concern` joins the fixed mapped set — the direct follow-on to §15's Viewpoint work:
+`ViewpointDef.concerns:`/`RequirementDef.concerns:` are native fields, but until this mapping
+nothing existed for them to reference. `ElementType::ConcernDef`/`ElementType::Concern` already
+existed in the native schema; this mapping is what finally makes them reachable.
+
+```sysml
+package Concerns {
+    concern def BaseConcern;
+    concern def MassConcern : BaseConcern {
+        subject vehicle : UAV::UAVSystem;
+        stakeholder ChiefEngineer;
+    }
+    concern massBudgetConcern : MassConcern;
+}
+```
+
+synthesizes a `ConcernDef` (`MassConcern`, `supertype: BaseConcern`, `subject: UAV::UAVSystem`,
+`stakeholders: [ChiefEngineer]`) and a `Concern` (`massBudgetConcern`, `typedBy: MassConcern`) —
+the existing hand-authored `ConcernDef`/`Concern` schema, just never previously exercised anywhere
+in `model/`.
+
+**A structural quirk worth knowing**: the vendored parser has no separate `ConcernDef` AST struct —
+one `ConcernUsage` node parses both `concern def X` and `concern x` forms, `is_definition`
+discriminating them, and the *same* `: Y` clause means a supertype for the definition form but a
+typedBy for the usage form (see `ADR-SYS-SYSMLV2-001`'s addendum for the full parser-level
+rationale). A `concern`/`concern def` declared inside *any* `part`/`part def` body — not just a
+`part` usage body, unlike View/Viewpoint/Rendering — fails to parse outright, degrading to `W541`
+(§4). `requires:`/`assume:`/`parameters:` are not lifted by this mapping (no expression-rendering
+work has been built for `RequireConstraint`'s nested content yet, for any element kind); and no new
+validator check resolves `concerns:` entries against real `ConcernDef`s — both existing
+hand-authored Viewpoint files write `concerns:` as free prose today, not qnames, so adding one now
+would immediately fire on correct, already-committed content.

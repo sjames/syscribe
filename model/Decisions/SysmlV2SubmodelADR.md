@@ -580,3 +580,63 @@ existing validator checks (`W500`, `W502`), both scoped to `ElementType::View` o
   representative of ordinary modeling, and there is no native "nested view" field on `RenderingDef`/
   `Rendering` to hold it regardless. *Rejected:* modeling it as a special-cased inline field —
   disproportionate for a single, standard-library-specific idiom.
+
+## Addendum: `concern def`/`concern` mapping — further reversal of sub-decision 3 (`REQ-TRS-SYSMLV2-023`)
+
+Direct follow-on to the previous addendum, moving `concern def`/`concern` out of sub-decision 3's
+deferred set. Native `ElementType::ConcernDef`/`ElementType::Concern` already existed
+(`element.rs:110,133`) but were reachable from neither hand-authored content (no `type: ConcernDef`
+file exists anywhere in `model/`) nor SysMLv2 ingestion before this addendum — this closes the gap
+`REQ-TRS-SYSMLV2-021`'s Viewpoint work opened but didn't need to close itself.
+
+- **No separate `ConcernDef` struct exists in the vendored parser at all — a real, structural
+  difference from View/Viewpoint/Rendering, not a smaller version of the same pattern.** A single
+  `ConcernUsage` AST node (confirmed directly against `sysml-v2-parser-0.54.0/src/ast/requirement.rs:305-320`)
+  parses both `concern def X` and `concern x` textual forms; `is_definition: bool` is the sole
+  discriminator, and the struct's own doc comment states outright that the BNF's `ConcernDefinition`
+  production "is not modeled as a distinct struct." Unlike the Viewpoint precedent (where Syscribe's
+  native schema was the *narrower* side — no dedicated `Viewpoint` usage `ElementType` existed, so
+  `ViewpointUsage` had to fold onto `View`), here Syscribe's native schema is the *richer* side: both
+  `ConcernDef` and `Concern` already existed, so one conversion function branching on `is_definition`
+  is the whole mapping — no folding, no invented element kind.
+- **`ConcernUsage.type_name` carries a double meaning the AST itself doesn't disambiguate — confirmed
+  by reading the parser function itself, not inferred from the struct shape.** `concern_usage`
+  (`.../src/parser/requirement.rs:901-919`) calls the exact same `feature_usage_header` regardless of
+  `is_definition`, populating one shared `type_name: Option<String>` field from whatever follows the
+  `:`. For `concern def X : Y` this is semantically a supertype; for a bare `concern x : Y` usage
+  it's semantically a typedBy — the same textual `:` syntax means two different relationships
+  depending on `is_definition`, and the AST gives the mapping code no help telling them apart beyond
+  that one boolean. `docs/PARSER_TECHNICAL_DEBT.md:64` (in the vendored crate) corroborates
+  independently: concern usage "routes through the shared `usage.rs` header-parsing... alongside
+  part/port/attribute/... usages" — i.e. `concern def` is parsed with the *usage* grammar, not a
+  dedicated definition grammar, which is *why* the field is shared in the first place.
+- **`ConcernUsage` is reachable only from `PackageBodyElement` — a strictly narrower surface than
+  View/Viewpoint/Rendering, not merely "also missing from PartUsageBodyElement."** Confirmed absent
+  from *both* `PartDefBodyElement` and `PartUsageBodyElement` (`grep -n "Concern"
+  src/ast/structure.rs` → zero hits, in both directions) — the View/Viewpoint/Rendering family, by
+  contrast, at least reached `PartDefBodyElement`. A `concern`/`concern def` nested inside *any*
+  `part`/`part def` body fails to parse outright at this pinned parser version, degrading via the
+  existing `W541` path, same posture as the narrower part-usage-only gap from the previous addendum
+  — just one enum broader here.
+- **`requires:`/`assume:`/`parameters:` are deliberately out of scope, not an oversight born of
+  running out of time.** A `RequireConstraint`'s actual constraint content
+  (`require`/`assume constraint <name> { ... }`) lives nested inside its own body's
+  `ConstraintDefBodyElement::Expression` — real, buildable, but requiring the same class of
+  expression-rendering work `render_expression` does for State/Action guards, and genuinely
+  unattempted anywhere in `ingest.rs` today, including for native `Requirement`/`RequirementDef`
+  (which share this exact same gap — `convert_requirement_def`/`convert_requirement_usage` don't
+  lift `subject:`/`requires:`/`assume:` either, confirmed by reading them directly). `parameters:` is
+  spec-documented (§8.11.5) but has no matching `RawFrontmatter` field at all today, for any element
+  kind — inventing one for this increment alone would be scope creep unconnected to what a
+  `concern`'s own AST can actually supply right now.
+- **No new validator check ties `ViewpointDef.concerns:`/`RequirementDef.concerns:` to real
+  `ConcernDef` elements — a deliberate deferral, not a missed opportunity.** The obvious next
+  question after making `ConcernDef` real is whether a `W500`-style resolution check should follow.
+  It doesn't, in this addendum, because both existing hand-authored Viewpoint files
+  (`model/Viewpoints/{SystemsEngineerViewpoint,SafetyEngineerViewpoint}.md`) write `concerns:` as
+  free descriptive prose today ("System-level architecture and decomposition", "Failure modes and
+  effects", ...), not qnames — a resolution check would immediately fire on real, correct,
+  already-committed content with no migration path offered in the same breath. Whether `concerns:`
+  *should* move to qname references at all is a separate, real design question this addendum
+  deliberately leaves open rather than forcing a hasty answer as a side effect of an unrelated
+  mapping feature.

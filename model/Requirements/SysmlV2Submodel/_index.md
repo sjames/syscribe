@@ -44,8 +44,11 @@ contents (`REQ-TRS-SYSMLV2-019`); `view def`/`view` mapping onto the native `Vie
 schema — `rendering:`, and (usage only, since the grammar structurally cannot carry them on a
 `view def`) `expose:`/`viewpoint:` (`REQ-TRS-SYSMLV2-020`); `viewpoint def` mapping onto the native
 `ViewpointDef` schema — `stakeholders:`/`concerns:` — with a `viewpoint` usage mapping onto `View`,
-since no dedicated `Viewpoint` usage type exists (`REQ-TRS-SYSMLV2-021`); and `rendering
-def`/`rendering` mapping onto the native `RenderingDef`/`Rendering` schema (`REQ-TRS-SYSMLV2-022`).
+since no dedicated `Viewpoint` usage type exists (`REQ-TRS-SYSMLV2-021`); `rendering
+def`/`rendering` mapping onto the native `RenderingDef`/`Rendering` schema (`REQ-TRS-SYSMLV2-022`);
+and `concern def`/`concern` mapping onto the native `ConcernDef`/`Concern` schema —
+`subject:`/`stakeholders:`, branching on the vendored parser's single `ConcernUsage` AST node's
+`is_definition` flag since no separate `ConcernDef` struct exists there (`REQ-TRS-SYSMLV2-023`).
 
 This is a read-only validator: the submodel's `.sysml`/`.kerml` files stay authoritative and are
 edited by their own native tooling, never by Syscribe's web UI or mutate commands. A

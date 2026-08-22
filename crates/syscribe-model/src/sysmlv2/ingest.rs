@@ -232,6 +232,13 @@ struct Spec {
     /// `REQ-TRS-SYSMLV2-020` -- a `view def`/`view` usage's own `render
     /// <name> [: <Type>];` clause, first one wins (single-string field).
     rendering: Option<String>,
+    /// `REQ-TRS-SYSMLV2-023` -- a `concern def`/`concern` usage's `subject
+    /// <name> : <Type>;` declaration (`SubjectDecl.type_name`). The bare
+    /// `subject;` shorthand (`SubjectRef`, an empty AST node) carries
+    /// nothing to extract and never sets this. Plain field, no dedicated
+    /// builder -- set directly in the `Spec { ... }` literal like
+    /// `supertype`/`typed_by`.
+    subject: Option<String>,
 }
 
 impl Spec {
@@ -289,8 +296,10 @@ impl Spec {
         self
     }
 
-    /// Set `REQ-TRS-SYSMLV2-021`'s lifted `stakeholders:`/`concerns:`.
-    fn with_viewpoint(mut self, stakeholders: Vec<String>, concerns: Vec<String>) -> Self {
+    /// Set the lifted `stakeholders:`/`concerns:` — originally
+    /// `REQ-TRS-SYSMLV2-021` (Viewpoint, both fields), generalized in name
+    /// only for `REQ-TRS-SYSMLV2-023` (Concern, `concerns` always empty).
+    fn with_stakeholders_concerns(mut self, stakeholders: Vec<String>, concerns: Vec<String>) -> Self {
         self.stakeholders = nonempty_vec(stakeholders);
         self.concerns = nonempty_vec(concerns);
         self
@@ -339,6 +348,7 @@ fn push_synth(
             stakeholders: spec.stakeholders,
             concerns: spec.concerns,
             rendering: spec.rendering,
+            subject: spec.subject,
             ..Default::default()
         },
         doc: spec.doc,
@@ -846,15 +856,17 @@ fn view_usage_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::ViewBo
     })
 }
 
-/// `doc /* ... */` lift over a `viewpoint def`/`viewpoint` usage body's
-/// already-sliced members (`REQ-TRS-SYSMLV2-021`) — both share
-/// `RequirementDefBody`/`RequirementDefBodyElement` (confirmed against the
-/// parser's own AST: `ViewpointDef.body`/`ViewpointUsage.body` are literally
-/// `RequirementDefBody`), the same shape a plain `requirement def` uses —
-/// but `REQ-TRS-SYSMLV2-009` deliberately did not extend doc-lifting to
-/// `Requirement`/`RequirementDef`/`RequirementUsage`, so there is no
-/// existing collector here to reuse; this one is new, scoped to Viewpoint.
-fn viewpoint_body_doc(body: &sysml_v2_parser::RequirementDefBody) -> String {
+/// `doc /* ... */` lift over any `RequirementDefBody`-shaped body —
+/// `viewpoint def`/`viewpoint` usage (`REQ-TRS-SYSMLV2-021`) and
+/// `concern def`/`concern` usage (`REQ-TRS-SYSMLV2-023`) both share this
+/// exact type (confirmed against the parser's own AST: `ViewpointDef.body`/
+/// `ViewpointUsage.body`/`ConcernUsage.body` are literally `RequirementDefBody`),
+/// the same shape a plain `requirement def` uses — but `REQ-TRS-SYSMLV2-009`
+/// deliberately did not extend doc-lifting to `Requirement`/`RequirementDef`/
+/// `RequirementUsage`, so there is no existing collector here to reuse; this
+/// one is new, originally scoped to Viewpoint and generalized in name only
+/// when Concern needed the exact same thing.
+fn requirement_def_body_doc(body: &sysml_v2_parser::RequirementDefBody) -> String {
     let sysml_v2_parser::RequirementDefBody::Brace { elements } = body else {
         return String::new();
     };
@@ -946,14 +958,18 @@ fn view_satisfy_viewpoint(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast
     })
 }
 
-/// `stakeholders:`/`concerns:` lifted from a `viewpoint def`/`viewpoint`
-/// usage body's `Stakeholder`/`Purpose` members — `REQ-TRS-SYSMLV2-021`.
-/// `StakeholderMember.name` only (`type_name`/`is_redefinition` have no
-/// native slot); `PurposeMember.target`, the closest AST equivalent to
-/// §8.14.1's "concerns (qnames of ConcernDefs)". `Frame` and every other
-/// `RequirementDefBodyElement` variant are unmapped here — no native
-/// "framed concern" field exists.
-fn collect_viewpoint_stakeholders_concerns(
+/// `stakeholders:`/`concerns:` lifted from any `RequirementDefBody`-shaped
+/// body's `Stakeholder`/`Purpose` members — originally `REQ-TRS-SYSMLV2-021`
+/// (`viewpoint def`/`viewpoint` usage, which uses both halves of the
+/// returned tuple), generalized in name only for `REQ-TRS-SYSMLV2-023`
+/// (`concern def`/`concern` usage, which uses only the `stakeholders` half —
+/// `ConcernDef` has no `concerns:` self-field per §8.11.5, so its caller
+/// discards the second element). `StakeholderMember.name` only (`type_name`/
+/// `is_redefinition` have no native slot); `PurposeMember.target`, the
+/// closest AST equivalent to §8.14.1's "concerns (qnames of ConcernDefs)".
+/// `Frame` and every other `RequirementDefBodyElement` variant are unmapped
+/// here — no native "framed concern" field exists.
+fn collect_requirement_body_stakeholders_concerns(
     body: &sysml_v2_parser::RequirementDefBody,
 ) -> (Vec<String>, Vec<String>) {
     let sysml_v2_parser::RequirementDefBody::Brace { elements } = body else {
@@ -973,6 +989,23 @@ fn collect_viewpoint_stakeholders_concerns(
         }
     }
     (stakeholders, concerns)
+}
+
+/// `subject:` lifted from a `concern def`/`concern` usage body's
+/// `SubjectDecl` member — `REQ-TRS-SYSMLV2-023`. Only the typed-declaration
+/// form (`subject <name> : <Type>;`) carries anything to extract
+/// (`SubjectDecl.type_name`); the bare `subject;` shorthand parses as an
+/// empty `SubjectRef` node with no data at all, and is left unmapped.
+fn concern_body_subject(body: &sysml_v2_parser::RequirementDefBody) -> Option<String> {
+    let sysml_v2_parser::RequirementDefBody::Brace { elements } = body else {
+        return None;
+    };
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::RequirementDefBodyElement::SubjectDecl(s) => {
+            nonempty(s.value.type_name.clone())
+        }
+        _ => None,
+    })
 }
 
 /// A `connect`-clause endpoint's dotted display text, e.g. `a` or `a.p1` —
@@ -2164,13 +2197,13 @@ fn convert_viewpoint_def(v: &sysml_v2_parser::ast::ViewpointDef, qname: &str, fi
         return;
     };
     let vp_qname = format!("{qname}::{name}");
-    let (stakeholders, concerns) = collect_viewpoint_stakeholders_concerns(&v.body);
+    let (stakeholders, concerns) = collect_requirement_body_stakeholders_concerns(&v.body);
     let spec = Spec {
         supertype: v.specializes.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
     }
-    .with_doc(viewpoint_body_doc(&v.body))
-    .with_viewpoint(stakeholders, concerns);
+    .with_doc(requirement_def_body_doc(&v.body))
+    .with_stakeholders_concerns(stakeholders, concerns);
     push_synth(out, &vp_qname, file_path, ElementType::ViewpointDef, &name, spec);
 }
 
@@ -2183,7 +2216,7 @@ fn convert_viewpoint_usage(v: &sysml_v2_parser::ast::ViewpointUsage, qname: &str
         return;
     }
     let vp_qname = format!("{qname}::{}", v.name);
-    let (stakeholders, concerns) = collect_viewpoint_stakeholders_concerns(&v.body);
+    let (stakeholders, concerns) = collect_requirement_body_stakeholders_concerns(&v.body);
     let spec = Spec {
         // `ViewpointUsage.type_name` is a non-`Option<String>` (empty-string
         // sentinel for "untyped"), unlike `ViewUsage.type_name`'s
@@ -2191,9 +2224,45 @@ fn convert_viewpoint_usage(v: &sysml_v2_parser::ast::ViewpointUsage, qname: &str
         typed_by: (!v.type_name.is_empty()).then(|| v.type_name.clone()),
         ..Default::default()
     }
-    .with_doc(viewpoint_body_doc(&v.body))
-    .with_viewpoint(stakeholders, concerns);
+    .with_doc(requirement_def_body_doc(&v.body))
+    .with_stakeholders_concerns(stakeholders, concerns);
     push_synth(out, &vp_qname, file_path, ElementType::View, &v.name, spec);
+}
+
+/// `REQ-TRS-SYSMLV2-023` — a `concern def`/`concern` usage synthesizes a
+/// real `ConcernDef`/`Concern`. Unlike View/Viewpoint/Rendering, the
+/// vendored parser has no separate `ConcernDef` struct at all: one
+/// `ConcernUsage` AST node parses both textual forms, `is_definition`
+/// the sole discriminator — this one function branches on it instead of
+/// having a `_def`/`_usage` pair.
+///
+/// `ConcernUsage.type_name` carries a double meaning the AST itself doesn't
+/// disambiguate: it comes from the *same* shared `feature_usage_header` the
+/// parser calls regardless of `is_definition` (confirmed against
+/// `concern_usage`'s own parser function). For `concern def X : Y` this is
+/// semantically a supertype ("X specializes Y"); for a bare `concern x : Y`
+/// usage it's semantically a typedBy. Exactly one of `supertype`/`typed_by`
+/// is ever set below, never both.
+fn convert_concern_usage(c: &sysml_v2_parser::ast::ConcernUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if c.name.is_empty() {
+        return; // anonymous concern/concern def: no identity to qname against
+    }
+    let concern_qname = format!("{qname}::{}", c.name);
+    let (stakeholders, _) = collect_requirement_body_stakeholders_concerns(&c.body);
+    let ty = if c.is_definition { ElementType::ConcernDef } else { ElementType::Concern };
+    let spec = Spec {
+        supertype: c.is_definition.then(|| c.type_name.clone()).flatten(),
+        typed_by: (!c.is_definition).then(|| c.type_name.clone()).flatten(),
+        subject: concern_body_subject(&c.body),
+        ..Default::default()
+    }
+    .with_doc(requirement_def_body_doc(&c.body))
+    // `ConcernDef` has no `concerns:` self-field (§8.11.5) -- only the
+    // stakeholders half of the tuple is used; `requires:`/`assume:`/
+    // `parameters:` are explicitly out of scope for this requirement (see
+    // `REQ-TRS-SYSMLV2-023`'s Scope section).
+    .with_stakeholders_concerns(stakeholders, Vec::new());
+    push_synth(out, &concern_qname, file_path, ty, &c.name, spec);
 }
 
 /// `REQ-TRS-SYSMLV2-022` — a `rendering def` synthesizes a real
@@ -2290,6 +2359,14 @@ fn convert_package_body_element(
         E::ViewpointUsage(node) => convert_viewpoint_usage(&node.value, qname, file_path, out),
         E::RenderingDef(node) => convert_rendering_def(&node.value, qname, file_path, out),
         E::RenderingUsage(node) => convert_rendering_usage(&node.value, qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-023`. `ConcernUsage` is reachable *only* from
+        // `PackageBodyElement` in this parser version -- confirmed absent
+        // from both `PartDefBodyElement` and `PartUsageBodyElement`, so
+        // there is no matching arm to add in either of those two dispatch
+        // functions below; a `concern`/`concern def` nested inside any
+        // `part`/`part def` body is a genuine parse failure (`W541`), not a
+        // silent per-kind skip.
+        E::ConcernUsage(node) => convert_concern_usage(&node.value, qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
