@@ -250,6 +250,11 @@ struct Spec {
     /// directly in its body (named or anonymous) -- mirrors `connections`
     /// above exactly, one field per relationship kind.
     flow_connections: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-025` -- an `enum def`'s literal values, each a
+    /// `{name: ...}` map (`EnumeratedValue` carries no other data -- see
+    /// `convert_enum_def`). Plain field, no dedicated builder, like
+    /// `item_type`.
+    values: Option<Vec<serde_yaml::Value>>,
 }
 
 impl Spec {
@@ -368,6 +373,7 @@ fn push_synth(
             subject: spec.subject,
             item_type: spec.item_type,
             flow_connections: spec.flow_connections,
+            values: spec.values,
             ..Default::default()
         },
         doc: spec.doc,
@@ -2514,6 +2520,10 @@ fn convert_package_body_element(
         // pattern `Connection`/`REQ-TRS-SYSMLV2-010` already established.
         E::FlowDef(node) => convert_flow_def(&node.value, qname, file_path, out),
         E::FlowUsage(node) => convert_flow_usage(&node.value, qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-025`. Reachable from all three dispatch enums
+        // this module cares about, same posture as Flow.
+        E::EnumDef(node) => convert_enum_def(&node.value, qname, file_path, out),
+        E::EnumerationUsage(node) => convert_enum_usage(&node.value, qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2658,6 +2668,10 @@ fn convert_part_def_body_element(
         // `convert_package_body_element`.
         E::FlowDef(node) => convert_flow_def(&node.value, part_qname, file_path, out),
         E::FlowUsage(node) => convert_flow_usage(&node.value, part_qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-025`. See the identical arm/comment in
+        // `convert_package_body_element`.
+        E::EnumDef(node) => convert_enum_def(&node.value, part_qname, file_path, out),
+        E::EnumerationUsage(node) => convert_enum_usage(&node.value, part_qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2706,6 +2720,11 @@ fn convert_part_usage_body_element(
         // — see the identical arm/comment in `convert_package_body_element`.
         E::FlowDef(node) => convert_flow_def(&node.value, part_qname, file_path, out),
         E::FlowUsage(node) => convert_flow_usage(&node.value, part_qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-025`. Both `EnumDef`/`EnumerationUsage` variants
+        // exist in this enum too — see the identical arm/comment in
+        // `convert_package_body_element`.
+        E::EnumDef(node) => convert_enum_def(&node.value, part_qname, file_path, out),
+        E::EnumerationUsage(node) => convert_enum_usage(&node.value, part_qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2986,6 +3005,70 @@ fn convert_flow_usage(f: &sysml_v2_parser::FlowUsage, qname: &str, file_path: &s
     }
     .with_doc(flow_body_doc(&f.body));
     push_synth(out, &flow_qname, file_path, ElementType::Flow, &name, spec);
+}
+
+/// `REQ-TRS-SYSMLV2-025` — an `enum def` synthesizes a real `EnumerationDef`.
+/// No `.with_doc(...)` call here at all, deliberately: `EnumDef.body` is
+/// `EnumerationBody::{Semicolon, Brace { values: Vec<EnumeratedValue> }}`
+/// (confirmed against the parser's own AST) — a flat list of literals with
+/// no `Doc` variant anywhere in that shape, unlike every other body type
+/// mapped elsewhere in this file. A `doc /* ... */` written inside an
+/// `enum def` genuinely has nowhere to land in this parser version; `doc`
+/// stays `""`, the same as any element with no doc member at all.
+/// `EnumeratedValue` itself carries only a `name` — any inline body or `=
+/// expr` initializer on a literal is parsed and discarded by the vendored
+/// crate before this crate ever sees it, so `values:` entries can only ever
+/// be `{name: ...}`, never the spec's optional `value:`/`valueKind:`/
+/// `unit:`/`metadata:` sub-fields (§8.5.2) — a real upstream ceiling, not a
+/// Syscribe choice.
+fn convert_enum_def(e: &sysml_v2_parser::ast::EnumDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&e.identification) else {
+        return; // anonymous enum def: no identity to qname against
+    };
+    let enum_qname = format!("{qname}::{name}");
+    let values = match &e.body {
+        sysml_v2_parser::ast::EnumerationBody::Brace { values } => values
+            .iter()
+            .map(|v| {
+                let mut m = serde_yaml::Mapping::new();
+                m.insert(serde_yaml::Value::from("name"), serde_yaml::Value::from(v.value.name.clone()));
+                serde_yaml::Value::Mapping(m)
+            })
+            .collect(),
+        sysml_v2_parser::ast::EnumerationBody::Semicolon => Vec::new(),
+    };
+    let spec = Spec {
+        supertype: e.specializes.as_ref().map(|t| t.value.target_display()),
+        values: nonempty_vec(values),
+        ..Default::default()
+    };
+    push_synth(out, &enum_qname, file_path, ElementType::EnumerationDef, &name, spec);
+}
+
+/// `REQ-TRS-SYSMLV2-025` — an `enum` usage synthesizes a real `Enumeration`.
+/// `EnumerationUsage.body` is exactly `AttributeBody` — the same shared
+/// type `AttributeDef`/`AttributeUsage`/`ItemDef` already use — so
+/// `attribute_body_doc` is reused unchanged, no new doc helper needed.
+/// `Enumeration` has no documented frontmatter schema of its own at all
+/// (the spec only lists it as "usage of an EnumerationDef" in the usage
+/// summary table) — `multiplicity`/`is_end` have no obvious native field to
+/// land in and stay unmapped, the same class of descope as Flow's
+/// `payload.multiplicity`.
+fn convert_enum_usage(e: &sysml_v2_parser::ast::EnumerationUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if e.name.is_empty() {
+        return; // anonymous enum usage: no identity to qname against
+    }
+    let enum_qname = format!("{qname}::{}", e.name);
+    let elements = match &e.body {
+        sysml_v2_parser::AttributeBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::AttributeBody::Semicolon => &[],
+    };
+    let spec = Spec {
+        typed_by: e.type_name.clone(),
+        ..Default::default()
+    }
+    .with_doc(attribute_body_doc(elements));
+    push_synth(out, &enum_qname, file_path, ElementType::Enumeration, &e.name, spec);
 }
 
 fn convert_interface_def(

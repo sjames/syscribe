@@ -52,7 +52,10 @@ def`/`rendering` mapping onto the native `RenderingDef`/`Rendering` schema (`REQ
 `flow def`/`flow` mapping onto the native `FlowDef`/`Flow` schema — `itemType:` — with every
 `FlowUsage` nested in a `part def`/`part` body, named or anonymous, also lifting its
 `from`/`to`/`kind`/`item` onto the owning part's `flowConnections:`, the same dual pattern
-`REQ-TRS-SYSMLV2-010` established for `connections:` (`REQ-TRS-SYSMLV2-024`).
+`REQ-TRS-SYSMLV2-010` established for `connections:` (`REQ-TRS-SYSMLV2-024`); and `enum def`/`enum`
+mapping onto the native `EnumerationDef`/`Enumeration` schema — `values:` (name-only, per the
+vendored parser's own `EnumeratedValue` ceiling), `supertype:`, `typedBy:` — the only mapped kind so
+far whose body carries no `doc /* ... */` capability at all (`REQ-TRS-SYSMLV2-025`).
 
 This is a read-only validator: the submodel's `.sysml`/`.kerml` files stay authoritative and are
 edited by their own native tooling, never by Syscribe's web UI or mutate commands. A

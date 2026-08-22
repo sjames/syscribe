@@ -84,8 +84,9 @@ cross-referenceable `RawElement`s:
 `AllocationUsage`, `variation`/`variant` membership, — as of `REQ-TRS-SYSMLV2-018`/`-019` —
 `State(Def/Usage)`/`Action(Def/Usage)` (§14, below), — as of `REQ-TRS-SYSMLV2-020`/`-021`/
 `-022` — `View(Def/Usage)`, `ViewpointDef`, `ViewpointUsage`, `Rendering(Def/Usage)` (§15, below),
-— as of `REQ-TRS-SYSMLV2-023` — `ConcernDef`/`Concern` (§16, below), and — as of
-`REQ-TRS-SYSMLV2-024` — `FlowDef`/`Flow` (§17, below).
+— as of `REQ-TRS-SYSMLV2-023` — `ConcernDef`/`Concern` (§16, below), — as of
+`REQ-TRS-SYSMLV2-024` — `FlowDef`/`Flow` (§17, below), and — as of `REQ-TRS-SYSMLV2-025` —
+`EnumerationDef`/`Enumeration` (§18, below).
 
 A construct outside that set — `analysis`/`case`/`verification def`, `calc`/`constraint`, and
 similar — parses without error but contributes **nothing** to the graph: no element, no `Finding`,
@@ -693,3 +694,37 @@ own body — the vendored parser gives no unambiguous "this nested member is an 
 extract them from. `payload.multiplicity` (`of qty : Payload[1..3]`) is not lifted either (no
 multiplicity-to-string renderer exists yet). A `flow` nested inside an `action def` body stays
 invisible, unchanged — already excluded by §14's own scope, not something this section touches.
+
+## 18. Enumerations — `REQ-TRS-SYSMLV2-025`
+
+`enum def`/`enum` joins the fixed mapped set — cross-referencing
+`model/Enumerations/ArmStatus.md`/`FlightMode.md` as the target hand-authored shape. The simplest
+mapping in this series: no cross-element lift like Flow, no struct-folding like Concern.
+
+```sysml
+package Enums {
+    enum def ArmStatus {
+        enum disarmed;
+        armed;
+        fault;
+    }
+    part def Vehicle {
+        enum armStatus : ArmStatus;
+    }
+}
+```
+
+synthesizes an `EnumerationDef` (`ArmStatus`, `values: [{name: disarmed}, {name: armed}, {name:
+fault}]` — the `enum` keyword prefix is optional per the grammar, both forms shown above) and, nested
+inside `Vehicle`, an `Enumeration` (`armStatus`, `typedBy: ArmStatus`) — the existing hand-authored
+`EnumerationDef`/`Enumeration` schema, just never previously exercised by SysMLv2 ingestion.
+
+**A first for this mapping series, worth knowing**: `enum def`'s body (`EnumerationBody`) carries no
+`doc /* ... */` capability at all — every other mapped kind so far had at least *some* path to a
+`Doc` variant in its body type, even Flow's indirect one. A `doc` comment written inside an `enum
+def` has nowhere to land in this parser version; the synthesized `EnumerationDef`'s `doc` stays
+empty, unconditionally. Each literal also carries only its `name` — an initializer
+(`low = 0.25;`) is parsed and discarded by the vendored parser itself, so a `values:` entry is
+always just `{name: ...}`, never the spec's richer optional `value:`/`valueKind:`/`unit:`/
+`metadata:` sub-fields. `Enumeration` (the usage) has no documented schema of its own beyond
+`typedBy:`/`doc` — `multiplicity`/the rare `end enum` prefix form aren't lifted.

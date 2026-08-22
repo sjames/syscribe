@@ -701,3 +701,48 @@ against source, never assume" discipline caught mid-implementation.
   touch it. `InterfaceDefBodyElement`/`OccurrenceBodyElement`/`RequirementDefBodyElement` also carry
   a `FlowUsage` variant per the AST, but none of those bodies are recursively walked for nested
   elements anywhere in this module — unaffected, matching every other mapped kind's identical scope.
+
+## Addendum: `enum def`/`enum` mapping — the simplest increment in this series (`REQ-TRS-SYSMLV2-025`)
+
+Moves `enum def`/`enum` out of sub-decision 3's deferred set — though it was never *named* there in
+the first place, unlike `analysis`/`case`/`calc`, which is itself worth noting: `EnumerationDef`/
+`Enumeration` were simply overlooked when the original deferred-set list was written, not
+deliberately excluded. `EnumDef`/`EnumerationUsage` are already reachable from all three dispatch
+enums this module cares about — no parser-level ceiling blocked the base mapping, the same posture
+as the Flow addendum above.
+
+- **`EnumDef` has a dedicated, non-shared body type — and, uniquely among every mapped kind so far,
+  that body type carries no `Doc` variant at all.** `EnumerationBody::{Semicolon, Brace { values:
+  Vec<EnumeratedValue> }}` (confirmed directly against `sysml-v2-parser-0.54.0/src/ast/structure.rs`)
+  is a flat list of literals with no room for an interspersed doc comment node — not even indirectly,
+  the way Flow's `DefinitionBody` required an extra `OccurrenceMember` unwrap to reach `Doc`. A `doc
+  /* ... */` written inside an `enum def` genuinely has nowhere to land in this parser version;
+  `convert_enum_def` makes no `.with_doc(...)` call at all, confirmed by test (writing a real `doc`
+  member into a fixture and asserting the synthesized element's `doc` stays `""`), not merely
+  asserted from the struct shape.
+- **`EnumeratedValue` carries only a `name` — a real, upstream parser ceiling against the spec's
+  richer §8.5.2 sub-schema.** Any inline body or `= expr` initializer on a literal
+  (`low = 0.25;`/`degraded { }`) is parsed and then discarded by the vendored crate itself before
+  this crate ever sees it. `values:` entries can therefore only ever be `{name: ...}` — never the
+  spec's optional `value:`/`valueKind:`/`unit:`/`metadata:` — confirmed by test against a fixture
+  whose literals *do* carry initializers, showing only `name:` survives.
+- **`EnumerationUsage.body` is exactly `AttributeBody`, the same shared type `AttributeDef`/
+  `AttributeUsage`/`ItemDef` already use** — the existing `attribute_body_doc` helper is reused
+  completely unchanged for `Enumeration`'s doc lift, the cleanest reuse win of this whole series (no
+  new doc-collector function needed at all, unlike every prior increment).
+- **`Enumeration` (the usage kind) has no documented frontmatter schema of its own anywhere in the
+  spec** — only listed in the usage-type summary table as "usage of an EnumerationDef", with no
+  dedicated subsection the way `Attribute` usage (§8.5.3) gets one. `EnumerationUsage.multiplicity`/
+  `.is_end` have no obvious native field to receive them and stay unmapped — the same class of
+  descope as Flow's `payload.multiplicity`.
+- **A real, pre-existing, unrelated validator gap, named here but deliberately not fixed.** Neither
+  of spec §11.7's two `EnumerationDef` MUST-report rules ("`supertype:` resolves to another
+  `EnumerationDef`", "`values:` absent") exist in `validator.rs` today, for any origin — confirmed by
+  `grep -n "EnumerationDef\|Enumeration\b" validator.rs` returning zero hits. Both existing
+  hand-authored files (`model/Enumerations/{ArmStatus,FlightMode}.md`) already happen to satisfy
+  both rules, so implementing them wouldn't break real content the way a new Concern-style check
+  would have — but it's general validator-compliance work unconnected to SysMLv2 mapping
+  specifically, and out of scope for this addendum. *Rejected:* picking it up anyway "since it's
+  free" — conflating two independent pieces of work just because neither happens to be risky isn't a
+  good reason to conflate them; a future increment can add these rules on their own merits, with
+  their own test coverage, if and when someone actually wants them enforced.
