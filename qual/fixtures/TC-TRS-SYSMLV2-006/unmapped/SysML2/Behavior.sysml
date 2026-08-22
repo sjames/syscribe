@@ -1,4 +1,4 @@
 package Demo {
     calc def ComputeMargin;
-    case def InspectVehicle;
+    use case def InspectVehicle;
 }

@@ -85,13 +85,15 @@ cross-referenceable `RawElement`s:
 `State(Def/Usage)`/`Action(Def/Usage)` (§14, below), — as of `REQ-TRS-SYSMLV2-020`/`-021`/
 `-022` — `View(Def/Usage)`, `ViewpointDef`, `ViewpointUsage`, `Rendering(Def/Usage)` (§15, below),
 — as of `REQ-TRS-SYSMLV2-023` — `ConcernDef`/`Concern` (§16, below), — as of
-`REQ-TRS-SYSMLV2-024` — `FlowDef`/`Flow` (§17, below), and — as of `REQ-TRS-SYSMLV2-025` —
-`EnumerationDef`/`Enumeration` (§18, below).
+`REQ-TRS-SYSMLV2-024` — `FlowDef`/`Flow` (§17, below), — as of `REQ-TRS-SYSMLV2-025` —
+`EnumerationDef`/`Enumeration` (§18, below), and — as of `REQ-TRS-SYSMLV2-026`/`-027`/`-028` —
+`CaseDef`/`Case`, `AnalysisCaseDef`/`AnalysisCase`, `VerificationCaseDef`/`VerificationCase` (§19,
+below; **not** `UseCaseDef`/`UseCase`, still deliberately unmapped).
 
-A construct outside that set — `analysis`/`case`/`verification def`, `calc`/`constraint`, and
-similar — parses without error but contributes **nothing** to the graph: no element, no `Finding`,
-invisible, the same way a native Markdown model has no way to express content that isn't
-frontmatter or documentation body. Parse-broad, map-narrow.
+A construct outside that set — `use case def`, `calc`/`constraint def`, and similar — parses without
+error but contributes **nothing** to the graph: no element, no `Finding`, invisible, the same way a
+native Markdown model has no way to express content that isn't frontmatter or documentation body.
+Parse-broad, map-narrow.
 
 ```sysml
 package Propulsion {
@@ -728,3 +730,45 @@ empty, unconditionally. Each literal also carries only its `name` — an initial
 always just `{name: ...}`, never the spec's richer optional `value:`/`valueKind:`/`unit:`/
 `metadata:` sub-fields. `Enumeration` (the usage) has no documented schema of its own beyond
 `typedBy:`/`doc` — `multiplicity`/the rare `end enum` prefix form aren't lifted.
+
+## 19. Cases, analysis cases, verification cases — `REQ-TRS-SYSMLV2-026`/`-027`/`-028`
+
+`case def`/`case`, `analysis def`/`analysis`, and `verification def`/`verification` join the fixed
+mapped set — the "case family" — deliberately **excluding** `use case def`/`use case`, which stays
+unmapped (see §2's example above).
+
+```sysml
+package Cases {
+    part def System;
+    part def Pilot;
+    attribute def VerdictKind;
+    verification def SafetyVerification {
+        doc /* Confirms the safety case holds. */
+        subject sys : System;
+        actor pilot : Pilot;
+        objective safetyObjective : VerdictKind;
+        return verdict : VerdictKind;
+    }
+    analysis def PerformanceAnalysis {
+        subject sys : System;
+        return thrust : System;
+    }
+}
+```
+
+synthesizes a `VerificationCaseDef` (`subject: System`, `actors: [Pilot]`, `objectives:
+[safetyObjective]`, `result: VerdictKind`, doc lifted) and an `AnalysisCaseDef` — the existing
+hand-authored `CaseDef`/`AnalysisCaseDef`/`VerificationCaseDef` schema (§8.12), never previously
+exercised by SysMLv2 ingestion and, unlike most kinds in this series, never exercised by a
+hand-authored `model/` example either — this mapping follows the spec text and the AST directly.
+
+**All six constructs (`Case`/`AnalysisCase`/`VerificationCase`, each Def and Usage) share exactly
+one AST body type** — a real, structural confirmation of SysMLv2's own specialization hierarchy
+(`AnalysisCase`/`VerificationCase` specialize `Case`), not a coincidental resemblance. **A real
+reachability asymmetry worth knowing**: only `analysis def`/`analysis` can be declared directly
+inside a `part` *usage* body — `case`/`verification` fail to parse there outright, degrading to
+`W541` (§4), the same posture Concern's Package-only gap established. `verifies:`/
+`verdictExpression:`/`verdictType:` (§8.12.3's `VerificationCaseDef`-specific fields) are **not**
+lifted — the grammar this pinned parser version implements for case bodies carries no verify-statement
+or verdict-semantics content at all, confirmed against the vendored crate's own compliance-matrix
+caveat marking this family's body-depth coverage `partial`.

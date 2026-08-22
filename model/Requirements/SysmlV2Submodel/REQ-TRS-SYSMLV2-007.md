@@ -20,9 +20,11 @@ solely because it contains a construct outside the mapped element set (`analysis
 `State(Def/Usage)`/`Action(Def/Usage)`, — as of `REQ-TRS-SYSMLV2-020`/`-021`/`-022` —
 `View(Def/Usage)`, `ViewpointDef`, `ViewpointUsage`, `Rendering(Def/Usage)`, — as of
 `REQ-TRS-SYSMLV2-023` — `ConcernDef`/`Concern`, — as of `REQ-TRS-SYSMLV2-024` —
-`FlowDef`/`Flow`, and — as of `REQ-TRS-SYSMLV2-025` — `EnumerationDef`/`Enumeration` — are
-synthesized into first-class, cross-referenceable `RawElement`s. Constructs outside that set are
-counted and named for browsing but not deeply modeled.
+`FlowDef`/`Flow`, — as of `REQ-TRS-SYSMLV2-025` — `EnumerationDef`/`Enumeration`, and — as of
+`REQ-TRS-SYSMLV2-026`/`-027`/`-028` — `CaseDef`/`Case`, `AnalysisCaseDef`/`AnalysisCase`,
+`VerificationCaseDef`/`VerificationCase` (but **not** `UseCaseDef`/`UseCase`, deliberately still
+excluded) — are synthesized into first-class, cross-referenceable `RawElement`s. Constructs outside
+that set are counted and named for browsing but not deeply modeled.
 
 ## Rationale
 
@@ -34,13 +36,14 @@ what the three cross-reference directions this feature exists to serve
 
 ## Scope
 
-- Full semantic mapping of analysis/case/calc/constraint constructs is explicitly deferred, tracked
-  as follow-on scope, not required by this requirement or its siblings. `REQ-TRS-SYSMLV2-018`/`-019`
+- Full semantic mapping of calc/constraint/use-case constructs is explicitly deferred, tracked as
+  follow-on scope, not required by this requirement or its siblings. `REQ-TRS-SYSMLV2-018`/`-019`
   moved State/Action, `REQ-TRS-SYSMLV2-020`/`-021`/`-022` moved View/Viewpoint/Rendering,
-  `REQ-TRS-SYSMLV2-023` moved Concern, `REQ-TRS-SYSMLV2-024` moved Flow, and `REQ-TRS-SYSMLV2-025`
-  moved Enumeration, out of that deferred set and into the fixed mapped list above — the parse-broad
-  boundary this requirement establishes never changed; only the mapped-set membership did, exactly
-  as the bullet below anticipates.
+  `REQ-TRS-SYSMLV2-023` moved Concern, `REQ-TRS-SYSMLV2-024` moved Flow, `REQ-TRS-SYSMLV2-025` moved
+  Enumeration, and `REQ-TRS-SYSMLV2-026`/`-027`/`-028` moved Case/AnalysisCase/VerificationCase
+  (deliberately *not* UseCase), out of that deferred set and into the fixed mapped list above — the
+  parse-broad boundary this requirement establishes never changed; only the mapped-set membership
+  did, exactly as the bullet below anticipates.
 - An unmapped construct is not itself an error or warning — it is simply invisible to the graph,
   the same way a native Markdown model has no way to express content that isn't frontmatter or
   documentation body.

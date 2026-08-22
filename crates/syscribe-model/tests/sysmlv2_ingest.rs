@@ -367,12 +367,12 @@ fn dangling_bare_variant_reference_synthesizes_nothing() {
 #[test]
 fn a_file_mixing_mapped_and_unmapped_constructs_parses_fully_and_keeps_the_mapped_ones() {
     // REQ-TRS-SYSMLV2-007: full-grammar parsing, fixed-set mapping. `calc
-    // def`/`case def` (still outside the fixed set even after
-    // REQ-TRS-SYSMLV2-018/-019 moved State/Action into it — see
-    // REQ-TRS-SYSMLV2-000's Scope, which explicitly keeps these deferred)
-    // must not fail the parse or drop the file — they are simply invisible,
-    // while a mapped `part def` in the very same file/package still comes
-    // through.
+    // def`/`use case def` (still outside the fixed set even after
+    // REQ-TRS-SYSMLV2-026/-027/-028 moved case/analysis/verification into
+    // it — `use case def` is deliberately excluded from that increment's
+    // scope, see its own ADR addendum) must not fail the parse or drop the
+    // file — they are simply invisible, while a mapped `part def` in the
+    // very same file/package still comes through.
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
     write(
@@ -386,7 +386,7 @@ fn a_file_mixing_mapped_and_unmapped_constructs_parses_fully_and_keeps_the_mappe
         "package Boundary {\n\
          part def Vehicle;\n\
          calc def ComputeMargin;\n\
-         case def InspectVehicle;\n\
+         use case def InspectVehicle;\n\
          }\n",
     );
 

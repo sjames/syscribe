@@ -255,6 +255,22 @@ struct Spec {
     /// `convert_enum_def`). Plain field, no dedicated builder, like
     /// `item_type`.
     values: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-026`/`-027`/`-028` -- a case/analysis-case/
+    /// verification-case's `actor <name> : <Type>;` members (`type_name`
+    /// only -- see `case_body_fields`).
+    actors: Option<Vec<String>>,
+    /// `REQ-TRS-SYSMLV2-026`/`-027`/`-028` -- a case family element's
+    /// `objective <name>? : <Type> { ... }` members, one plain-string entry
+    /// per objective (name, falling back to type when anonymous).
+    objectives: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-026`/`-027`/`-028` -- a case family element's first
+    /// `return [attribute|part] name : <Type>;` declaration's type -- first
+    /// one wins, the native `result:` field is a single string.
+    result_type: Option<String>,
+    /// `REQ-TRS-SYSMLV2-026`/`-027`/`-028` -- the AST's own `is_abstract`
+    /// bool, present on all six case-family Def/Usage structs. Plain field,
+    /// no dedicated builder, like `subject`.
+    is_abstract: Option<bool>,
 }
 
 impl Spec {
@@ -374,6 +390,10 @@ fn push_synth(
             item_type: spec.item_type,
             flow_connections: spec.flow_connections,
             values: spec.values,
+            actors: spec.actors,
+            objectives: spec.objectives,
+            result_type: spec.result_type,
+            is_abstract: spec.is_abstract,
             ..Default::default()
         },
         doc: spec.doc,
@@ -2524,6 +2544,15 @@ fn convert_package_body_element(
         // this module cares about, same posture as Flow.
         E::EnumDef(node) => convert_enum_def(&node.value, qname, file_path, out),
         E::EnumerationUsage(node) => convert_enum_usage(&node.value, qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-026`/`-027`/`-028`. All six reachable here (and
+        // from `convert_part_def_body_element`); `use case def`/`use case`
+        // deliberately stay out of scope for this increment.
+        E::CaseDef(node) => convert_case_def(&node.value, qname, file_path, out),
+        E::CaseUsage(node) => convert_case_usage(&node.value, qname, file_path, out),
+        E::AnalysisCaseDef(node) => convert_analysis_case_def(&node.value, qname, file_path, out),
+        E::AnalysisCaseUsage(node) => convert_analysis_case_usage(&node.value, qname, file_path, out),
+        E::VerificationCaseDef(node) => convert_verification_case_def(&node.value, qname, file_path, out),
+        E::VerificationCaseUsage(node) => convert_verification_case_usage(&node.value, qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2672,6 +2701,14 @@ fn convert_part_def_body_element(
         // `convert_package_body_element`.
         E::EnumDef(node) => convert_enum_def(&node.value, part_qname, file_path, out),
         E::EnumerationUsage(node) => convert_enum_usage(&node.value, part_qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-026`/`-027`/`-028`. See the identical arm/comment
+        // in `convert_package_body_element`.
+        E::CaseDef(node) => convert_case_def(&node.value, part_qname, file_path, out),
+        E::CaseUsage(node) => convert_case_usage(&node.value, part_qname, file_path, out),
+        E::AnalysisCaseDef(node) => convert_analysis_case_def(&node.value, part_qname, file_path, out),
+        E::AnalysisCaseUsage(node) => convert_analysis_case_usage(&node.value, part_qname, file_path, out),
+        E::VerificationCaseDef(node) => convert_verification_case_def(&node.value, part_qname, file_path, out),
+        E::VerificationCaseUsage(node) => convert_verification_case_usage(&node.value, part_qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2725,6 +2762,16 @@ fn convert_part_usage_body_element(
         // `convert_package_body_element`.
         E::EnumDef(node) => convert_enum_def(&node.value, part_qname, file_path, out),
         E::EnumerationUsage(node) => convert_enum_usage(&node.value, part_qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-026`/`-027`/`-028`. Unlike `PackageBodyElement`/
+        // `PartDefBodyElement`, this enum carries only `AnalysisCaseDef`/
+        // `AnalysisCaseUsage` -- `CaseDef`/`CaseUsage`/`VerificationCaseDef`/
+        // `VerificationCaseUsage` have no variant here at all (confirmed
+        // against the AST, not a choice): a `case`/`verification` declared
+        // directly inside a `part` usage body fails to parse outright,
+        // gracefully degrading to `W541`, the same posture Concern's
+        // single-enum gap used.
+        E::AnalysisCaseDef(node) => convert_analysis_case_def(&node.value, part_qname, file_path, out),
+        E::AnalysisCaseUsage(node) => convert_analysis_case_usage(&node.value, part_qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -3069,6 +3116,196 @@ fn convert_enum_usage(e: &sysml_v2_parser::ast::EnumerationUsage, qname: &str, f
     }
     .with_doc(attribute_body_doc(elements));
     push_synth(out, &enum_qname, file_path, ElementType::Enumeration, &e.name, spec);
+}
+
+/// The common fields shared by every `case`/`analysis`/`verification`
+/// Def/Usage body — `REQ-TRS-SYSMLV2-026`/`-027`/`-028`. All six AST
+/// structs (`CaseDef`/`CaseUsage`/`AnalysisCaseDef`/`AnalysisCaseUsage`/
+/// `VerificationCaseDef`/`VerificationCaseUsage`) share exactly one body
+/// type, `UseCaseDefBody` (confirmed directly against the parser's own AST
+/// — not `RequirementDefBody`, a genuinely distinct shape reflecting
+/// SysMLv2's own specialization hierarchy). `verifies:`/`verdictExpression:`/
+/// `verdictType:` (§8.12.3's `VerificationCaseDef`-specific fields) have no
+/// AST source here at all -- `UseCaseDefBodyElement` carries no
+/// verify-statement or verdict-semantics variant -- and are never
+/// populated by this helper or its callers.
+struct CaseBodyFields {
+    subject: Option<String>,
+    actors: Option<Vec<String>>,
+    objectives: Option<Vec<serde_yaml::Value>>,
+    result_type: Option<String>,
+    doc: String,
+}
+
+fn case_body_fields(body: &sysml_v2_parser::ast::UseCaseDefBody) -> CaseBodyFields {
+    let sysml_v2_parser::ast::UseCaseDefBody::Brace { elements } = body else {
+        return CaseBodyFields {
+            subject: None,
+            actors: None,
+            objectives: None,
+            result_type: None,
+            doc: String::new(),
+        };
+    };
+    let mut subject = None;
+    let mut actors = Vec::new();
+    let mut objectives = Vec::new();
+    let mut result_type = None;
+    for n in elements {
+        match &n.value {
+            sysml_v2_parser::ast::UseCaseDefBodyElement::SubjectDecl(s) => {
+                subject = subject.or_else(|| nonempty(s.value.type_name.clone()));
+            }
+            sysml_v2_parser::ast::UseCaseDefBodyElement::ActorUsage(a) => {
+                if let Some(t) = nonempty(a.value.type_name.clone()) {
+                    actors.push(t);
+                }
+            }
+            // `Objective.requirement` is itself a full nested `RequirementUsage`
+            // (name/type_name/... `body: RequirementDefBody`) -- only its own
+            // identity is lifted here, as a plain string, matching the native
+            // `objectives:` field's simpler documented form (§8.12.1); the
+            // objective's own inner body content is not recursed into.
+            sysml_v2_parser::ast::UseCaseDefBodyElement::Objective(o) => {
+                let r = &o.value.requirement.value;
+                if let Some(label) = nonempty(r.name.clone()).or_else(|| r.type_name.clone()) {
+                    objectives.push(serde_yaml::Value::from(label));
+                }
+            }
+            // Multiple `return` declarations are legal (real fixtures show up
+            // to three in one `verification def`) -- first one with a type
+            // wins, matching the native `result:` field's single-string shape.
+            sysml_v2_parser::ast::UseCaseDefBodyElement::CaseReturnDecl(r) => {
+                result_type = result_type.or_else(|| r.value.type_name.clone());
+            }
+            _ => {}
+        }
+    }
+    let doc = collect_doc(elements, |e| match e {
+        sysml_v2_parser::ast::UseCaseDefBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    });
+    CaseBodyFields {
+        subject,
+        actors: nonempty_vec(actors),
+        objectives: nonempty_vec(objectives),
+        result_type,
+        doc,
+    }
+}
+
+fn convert_case_def(c: &sysml_v2_parser::CaseDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&c.identification) else {
+        return; // anonymous case def: no identity to qname against
+    };
+    let case_qname = format!("{qname}::{name}");
+    let fields = case_body_fields(&c.body);
+    let spec = Spec {
+        supertype: c.specializes.as_ref().map(|t| t.value.target_display()),
+        is_abstract: c.is_abstract.then_some(true),
+        subject: fields.subject,
+        actors: fields.actors,
+        objectives: fields.objectives,
+        result_type: fields.result_type,
+        ..Default::default()
+    }
+    .with_doc(fields.doc);
+    push_synth(out, &case_qname, file_path, ElementType::CaseDef, &name, spec);
+}
+
+fn convert_case_usage(c: &sysml_v2_parser::CaseUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if c.name.is_empty() {
+        return; // anonymous case usage: no identity to qname against
+    }
+    let case_qname = format!("{qname}::{}", c.name);
+    let fields = case_body_fields(&c.body);
+    let spec = Spec {
+        typed_by: c.type_name.clone(),
+        is_abstract: c.is_abstract.then_some(true),
+        subject: fields.subject,
+        actors: fields.actors,
+        objectives: fields.objectives,
+        result_type: fields.result_type,
+        ..Default::default()
+    }
+    .with_doc(fields.doc);
+    push_synth(out, &case_qname, file_path, ElementType::Case, &c.name, spec);
+}
+
+fn convert_analysis_case_def(a: &sysml_v2_parser::AnalysisCaseDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&a.identification) else {
+        return;
+    };
+    let case_qname = format!("{qname}::{name}");
+    let fields = case_body_fields(&a.body);
+    let spec = Spec {
+        supertype: a.specializes.as_ref().map(|t| t.value.target_display()),
+        is_abstract: a.is_abstract.then_some(true),
+        subject: fields.subject,
+        actors: fields.actors,
+        objectives: fields.objectives,
+        result_type: fields.result_type,
+        ..Default::default()
+    }
+    .with_doc(fields.doc);
+    push_synth(out, &case_qname, file_path, ElementType::AnalysisCaseDef, &name, spec);
+}
+
+fn convert_analysis_case_usage(a: &sysml_v2_parser::AnalysisCaseUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if a.name.is_empty() {
+        return;
+    }
+    let case_qname = format!("{qname}::{}", a.name);
+    let fields = case_body_fields(&a.body);
+    let spec = Spec {
+        typed_by: a.type_name.clone(),
+        is_abstract: a.is_abstract.then_some(true),
+        subject: fields.subject,
+        actors: fields.actors,
+        objectives: fields.objectives,
+        result_type: fields.result_type,
+        ..Default::default()
+    }
+    .with_doc(fields.doc);
+    push_synth(out, &case_qname, file_path, ElementType::AnalysisCase, &a.name, spec);
+}
+
+fn convert_verification_case_def(v: &sysml_v2_parser::VerificationCaseDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&v.identification) else {
+        return;
+    };
+    let case_qname = format!("{qname}::{name}");
+    let fields = case_body_fields(&v.body);
+    let spec = Spec {
+        supertype: v.specializes.as_ref().map(|t| t.value.target_display()),
+        is_abstract: v.is_abstract.then_some(true),
+        subject: fields.subject,
+        actors: fields.actors,
+        objectives: fields.objectives,
+        result_type: fields.result_type,
+        ..Default::default()
+    }
+    .with_doc(fields.doc);
+    push_synth(out, &case_qname, file_path, ElementType::VerificationCaseDef, &name, spec);
+}
+
+fn convert_verification_case_usage(v: &sysml_v2_parser::VerificationCaseUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if v.name.is_empty() {
+        return;
+    }
+    let case_qname = format!("{qname}::{}", v.name);
+    let fields = case_body_fields(&v.body);
+    let spec = Spec {
+        typed_by: v.type_name.clone(),
+        is_abstract: v.is_abstract.then_some(true),
+        subject: fields.subject,
+        actors: fields.actors,
+        objectives: fields.objectives,
+        result_type: fields.result_type,
+        ..Default::default()
+    }
+    .with_doc(fields.doc);
+    push_synth(out, &case_qname, file_path, ElementType::VerificationCase, &v.name, spec);
 }
 
 fn convert_interface_def(

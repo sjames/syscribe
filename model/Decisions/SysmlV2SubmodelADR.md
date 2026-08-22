@@ -746,3 +746,60 @@ as the Flow addendum above.
   free" — conflating two independent pieces of work just because neither happens to be risky isn't a
   good reason to conflate them; a future increment can add these rules on their own merits, with
   their own test coverage, if and when someone actually wants them enforced.
+
+## Addendum: `case def`/`analysis def`/`verification def` mapping — the case family (`REQ-TRS-SYSMLV2-026`/`-027`/`-028`)
+
+Moves `case`/`analysis`/`verification` (the "case family") out of sub-decision 3's deferred set —
+`use case def`/`use case` deliberately stays deferred, per the user's own explicit scoping choice.
+Three requirements, one commit, one shared mechanism — mirroring the View/Viewpoint/Rendering split's
+precedent of one requirement per distinct `ElementType` pair even when the underlying code is shared.
+
+- **All six constructs share exactly one AST body type, `UseCaseDefBody` — not `RequirementDefBody`
+  like Concern/Viewpoint.** Confirmed directly against `sysml-v2-parser-0.54.0/src/ast/requirement.rs`:
+  `CaseDef`/`CaseUsage`/`AnalysisCaseDef`/`AnalysisCaseUsage`/`VerificationCaseDef`/
+  `VerificationCaseUsage` (and, out of this scope, `UseCaseDef`/`UseCaseUsage`) all declare
+  `body: UseCaseDefBody`. This is a genuine, structural confirmation of SysMLv2's own specialization
+  hierarchy (`AnalysisCase`/`VerificationCase` specialize `Case`), not a coincidental resemblance —
+  and it made a single shared `case_body_fields` extraction helper the obviously correct design,
+  called by all six thin `convert_*` functions rather than duplicating the body walk six times.
+- **`UseCaseDefBody` does carry a direct `Doc` variant — confirmed by reading the full
+  `UseCaseDefBodyElement` variant list before writing any doc-lifting code, not assumed.** The Enum
+  addendum's lesson (`EnumerationBody` has no `Doc` variant at all) made this an explicit
+  verification step rather than a default assumption for this increment; the case family's body type
+  turned out to behave like every increment before Enum, not like Enum itself.
+- **`verifies:`/`verdictExpression:`/`verdictType:` (§8.12.3's `VerificationCaseDef`-specific fields)
+  have no AST source at all — a real upstream ceiling, not a Syscribe choice.**
+  `UseCaseDefBodyElement` carries no verify-statement or verdict-semantics variant; the closest thing,
+  `RequirementUsage`, is documented in the parser's own source comment as a "directed `in requirement
+  …` parameter," structurally unrelated to a `verify <target>;` statement. This lines up exactly with
+  the vendored crate's own `docs/BNF_COMPLIANCE_MATRIX.md` caveat marking `case`/`analysis`/
+  `verification` (the body-depth productions, as opposed to the header-level `case usage` etc.,
+  separately marked `implemented`) as `partial`, "due to remaining body/member-depth gaps outside the
+  promoted productions" — this addendum's descope is exactly that gap, not a design choice made to
+  save effort.
+- **Dispatch reachability is the most asymmetric of any increment in this series: only two of six
+  kinds reach `PartUsageBodyElement`.** `PackageBodyElement` and `PartDefBodyElement` carry all six
+  variants unboxed. `PartUsageBodyElement` carries *only* `AnalysisCaseDef`/`AnalysisCaseUsage` —
+  `CaseDef`/`CaseUsage`/`VerificationCaseDef`/`VerificationCaseUsage` are confirmed absent from that
+  enum entirely. A `case`/`verification` declared directly inside a `part` usage body fails to parse
+  outright, degrading to `W541` — the same posture Concern's single-enum gap established, but here
+  two of the six kinds are spared rather than none.
+- **`use case def`/`use case` is deliberately out of scope — and a real correction to this session's
+  own earlier assumption is worth recording.** Prior, pre-series notes had assumed `UseCaseDef`/
+  `UseCase` was "already solved" because it has real, shipped validator coverage (`E316`, `W307`,
+  several MagicGrid rules — `validator.rs:6337-6501,6526-6555,6576-6589,6691-6703`). That coverage is
+  real, but it's entirely on the *native-model validation* side; at the *SysMLv2-ingestion* layer,
+  `UseCaseDef`/`UseCaseUsage` were exactly as unmapped as everything else in this series before this
+  addendum, and remain so after it — a clean, well-scoped follow-on candidate for a future increment,
+  not something this addendum silently picks up.
+- **`model/UseCases/*.md`'s three existing files are not schema-authoritative for this mapping** —
+  worth recording since they were the only case-family-adjacent ground truth available. They diverge
+  from §8.12's documented schema (`subject` expressed via a `features:` entry rather than a top-level
+  `subject:` string; `extensionPoints:` as `{name, description}` maps rather than the documented list
+  of strings; an undocumented `steps:` field used instead of `objectives:`). This mapping follows the
+  spec text and the AST directly rather than these three files' own conventions, since `CaseDef`/
+  `AnalysisCaseDef`/`VerificationCaseDef` themselves have no `model/` examples at all to check against.
+- **No new validator check** — `CaseDef`/`AnalysisCaseDef`/`VerificationCaseDef`/`VerificationCase`
+  have zero validation rules today, for any origin (confirmed: `grep -n "CaseDef\|AnalysisCase\|
+  VerificationCase" validator.rs` returns zero hits) — the same class of pre-existing, unrelated,
+  noted-but-not-fixed gap as Enumeration's missing §11.7 rules.

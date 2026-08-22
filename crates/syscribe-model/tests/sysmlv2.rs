@@ -32,12 +32,13 @@ fn unmapped_sysml_constructs_stay_invisible_while_the_package_anchor_still_parse
     // REQ-TRS-SYSMLV2-007's fixed mapped set is Package, Part(Def/Usage),
     // Attribute(Def/Usage), Port(Def/Usage), Connection(Def/Usage),
     // Interface(Def/Usage), Item(Def/Usage), Requirement(Def/Usage),
-    // AllocationUsage, variation/variant membership, and — as of
-    // REQ-TRS-SYSMLV2-018/-019 — State(Def/Usage)/Action(Def/Usage). `calc
-    // def`/`case def`/`analysis def`/`verification def`/`constraint def`
-    // stay outside that set (`REQ-TRS-SYSMLV2-000`'s explicitly deferred
-    // scope) — `calc def` here must keep synthesizing zero elements no
-    // matter how much of the fixed set later commits add support for.
+    // AllocationUsage, variation/variant membership, and — as of later
+    // commits — State/Action, View/Viewpoint/Rendering, Concern, Flow,
+    // Enumeration, and Case/AnalysisCase/VerificationCase (but not `use
+    // case`). `calc def`/`constraint def`/`use case def` stay outside that
+    // set (`REQ-TRS-SYSMLV2-000`'s explicitly deferred scope) — `calc def`
+    // here must keep synthesizing zero elements no matter how much of the
+    // fixed set later commits add support for.
     // Wrapped in a real `package { ... }` (not bare file-root content) since
     // `merge_root` only merges `RootElement::Package` in the first place —
     // a bare root-level construct is invisible for that separate, unrelated

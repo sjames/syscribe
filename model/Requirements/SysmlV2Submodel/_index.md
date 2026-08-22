@@ -55,7 +55,13 @@ def`/`rendering` mapping onto the native `RenderingDef`/`Rendering` schema (`REQ
 `REQ-TRS-SYSMLV2-010` established for `connections:` (`REQ-TRS-SYSMLV2-024`); and `enum def`/`enum`
 mapping onto the native `EnumerationDef`/`Enumeration` schema — `values:` (name-only, per the
 vendored parser's own `EnumeratedValue` ceiling), `supertype:`, `typedBy:` — the only mapped kind so
-far whose body carries no `doc /* ... */` capability at all (`REQ-TRS-SYSMLV2-025`).
+far whose body carries no `doc /* ... */` capability at all (`REQ-TRS-SYSMLV2-025`); and `case
+def`/`case`, `analysis def`/`analysis`, `verification def`/`verification` (the "case family",
+deliberately excluding `use case def`/`use case`) mapping onto the native `CaseDef`/`Case`,
+`AnalysisCaseDef`/`AnalysisCase`, `VerificationCaseDef`/`VerificationCase` schema — `subject:`/
+`actors:`/`objectives:`/`result:`/`isAbstract:`, sharing one AST body type across all six kinds, with
+`AnalysisCaseDef`/`AnalysisCaseUsage` uniquely also reachable inside a `part` usage body
+(`REQ-TRS-SYSMLV2-026`/`-027`/`-028`).
 
 This is a read-only validator: the submodel's `.sysml`/`.kerml` files stay authoritative and are
 edited by their own native tooling, never by Syscribe's web UI or mutate commands. A
