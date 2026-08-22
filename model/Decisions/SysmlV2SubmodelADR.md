@@ -511,3 +511,72 @@ target schema already exists, exercised by real hand-authored elements in this r
   stable across an *edit* that reorders sibling constructs of the same kind — acceptable for a
   read-only ingestion feature with no round-trip authoring, tracked here rather than silently
   assumed.
+
+## Addendum: `view def`/`viewpoint def`/`rendering def` mapping — further reversal of sub-decision 3 (`REQ-TRS-SYSMLV2-020`/`-021`/`-022`)
+
+Continuing the boundary-move pattern the previous addendum established for `state`/`action`, this
+addendum moves the six view-family kinds (`ViewDef`, `ViewUsage`, `ViewpointDef`, `ViewpointUsage`,
+`RenderingDef`, `RenderingUsage`) out of sub-decision 3's deferred set. Same posture: the
+parse-broad/map-narrow *principle* is untouched, only the mapped-set membership grows, and the
+target schema already exists — exercised by real hand-authored elements
+(`model/Viewpoints/SystemsEngineerViewpoint.md`, `model/Views/SystemArchitectureView.md`) and two
+existing validator checks (`W500`, `W502`), both scoped to `ElementType::View` only.
+
+- **`ViewDef` cannot syntactically carry `satisfies`/`expose` in this grammar, and that's not a
+  gap.** `ViewDefBodyElement` (confirmed against the vendored crate's own `src/ast/view.rs`) carries
+  `Doc`/`MetadataAnnotation`/`Filter`/`ViewRendering` only — no `Expose`/`Satisfy` variant at all.
+  Those two only exist on `ViewBodyElement`, a `view` *usage*'s own body. This lines up exactly with
+  `W500`/`W502` already being `View`-only, never `ViewDef`-only, so there is no tension to paper
+  over: the native schema's own validated shape already anticipated this asymmetry.
+- **`ExposeMember`/`SatisfyViewMember` body content is parsed and then discarded by the vendored
+  parser itself — a real, non-negotiable ceiling, the same class of fact as the previous addendum's
+  `FirstMergeBody` ceiling.** `ExposeMember.body`/`SatisfyViewMember.body` are both typed
+  `ConnectBody`, a bodyless `Semicolon | Brace` enum with no payload at all (confirmed directly
+  against the source). The BNF's optional `expose <target> [ <expr> ]` filter suffix is likewise
+  parsed and its span thrown away (`src/parser/view.rs::expose_member`'s own comment: "skip content
+  to reach body") — `ExposeMember` carries no `filter` field to receive it. Neither can be recovered
+  by any mapping design on Syscribe's side at this pinned parser version.
+- **`expose:` is always emitted as a flat plain string, never the richer `{ref, isRecursive,
+  filter}` map form — a deliberate choice, not a missed opportunity, and one that sidesteps a
+  pre-existing, unrelated bug rather than replicating it.** `ExposeMember.target` already includes
+  any `::*`/`::**` suffix textually (confirmed against the parser's own diagnostic tests — `vehicle`,
+  `vehicle::*`, `vehicle::**`, `vehicle::*::**`, dotted feature-chains all show up verbatim in
+  `target`), so a flat string loses nothing `is_import_all`/`is_recursive` would otherwise add. This
+  also happens to matches both real hand-authored `expose:` lists in `model/` (always flat qname
+  strings) and sidesteps a real, pre-existing inconsistency worth naming explicitly: `validator.rs`'s
+  `W502` map-form branch reads a `ref` key, while `spec/markdown-sysml-format.md` §8.14.3 documents
+  `target` as the schema key. Fixing that mismatch is out of scope for this requirement — it predates
+  this feature and affects hand-authored map-form `expose:` entries too, not just SysMLv2-sourced
+  ones — but emitting flat strings here means SysMLv2-synthesized `expose:` entries are never
+  affected by it either way.
+- **No dedicated `Viewpoint` usage `ElementType` exists, so `ViewpointUsage` maps onto `View`.** The
+  native schema's own documentation already frames `View` as "usage of a ViewDef or ViewpointDef" —
+  this requirement takes that framing literally rather than inventing a new element kind for a
+  usage-level distinction the schema itself doesn't draw.
+- **`ViewpointDef`/`ViewpointUsage` reuse `RequirementDefBody` verbatim — confirmed structural
+  identity, not a coincidental resemblance.** Both `ViewpointDef.body` and `ViewpointUsage.body` are
+  literally typed `RequirementDefBody` in the AST, and the parser's own `viewpoint_def`/
+  `viewpoint_usage` functions call straight into `requirement_def_body(...)`. `stakeholders:`/
+  `concerns:` come from the same `Stakeholder`/`Purpose` variants a plain `requirement def` already
+  exposes.
+- **`methods:`/`satisfiedBy:` on `ViewpointDef` are deliberately never computed — not an oversight,
+  and not merely "no AST source."** Even if a whole-model inversion pass were built (scanning every
+  `view`'s own `satisfy <viewpoint>;` clause and writing the result back onto the `ViewpointDef` it
+  names), doing so would point the link the wrong way per §12.1's OSLC upstream-link-direction rule:
+  the `View` should hold the reference to the `ViewpointDef` it satisfies, not the reverse. Leaving
+  these two fields unset is the traceability-correct choice, not just the cheaper one.
+- **`PartUsageBodyElement` has zero coverage for the whole family — and unlike the analogous
+  `ActionDef` gap in the previous addendum, this one is a genuine parser-level rejection, not a
+  silent per-kind skip.** A `view`/`viewpoint`/`rendering` declared directly inside a `part` usage
+  body fails to parse outright (confirmed empirically: the enclosing `.sysml` file's parse fails with
+  a real diagnostic, gracefully degrading to a `W541` finding per `REQ-TRS-SYSMLV2-006`, not a crash
+  and not a synthesized element) — stronger than "this dispatch site doesn't have an arm for it,"
+  because there is no arm *to* have; the grammar itself doesn't accept the construct in that
+  position.
+- **The narrow nested-`view` shape inside a `rendering`/`render` usage body is deliberately not
+  recursed into.** `RenderingUsageBodyElement::ViewUsage` exists specifically for the
+  `view :>> columnView[N] { render ...; }` redefinition pattern (confirmed against real SysML v2
+  standard-library fixtures — `Views Example.sysml`, `11a-View-Viewpoint.sysml`) — narrow, not
+  representative of ordinary modeling, and there is no native "nested view" field on `RenderingDef`/
+  `Rendering` to hold it regardless. *Rejected:* modeling it as a special-cased inline field —
+  disproportionate for a single, standard-library-specific idiom.

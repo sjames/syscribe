@@ -81,8 +81,9 @@ cross-referenceable `RawElement`s:
 
 `Package`, `Part(Def/Usage)`, `Attribute(Def/Usage)`, `Port(Def/Usage)`,
 `Connection(Def/Usage)`, `Interface(Def/Usage)`, `Item(Def/Usage)`, `Requirement(Def/Usage)`,
-`AllocationUsage`, `variation`/`variant` membership, and — as of `REQ-TRS-SYSMLV2-018`/`-019` —
-`State(Def/Usage)`/`Action(Def/Usage)` (§7, below).
+`AllocationUsage`, `variation`/`variant` membership, — as of `REQ-TRS-SYSMLV2-018`/`-019` —
+`State(Def/Usage)`/`Action(Def/Usage)` (§14, below), and — as of `REQ-TRS-SYSMLV2-020`/`-021`/
+`-022` — `View(Def/Usage)`, `ViewpointDef`, `ViewpointUsage`, `Rendering(Def/Usage)` (§15, below).
 
 A construct outside that set — `analysis`/`case`/`verification def`, `calc`/`constraint`, and
 similar — parses without error but contributes **nothing** to the graph: no element, no `Finding`,
@@ -573,3 +574,48 @@ the long tail of `Expression` shapes this crate doesn't specially recognize (`Cl
 `Select`/`Collect`/`Conditional`/…) falls back to a fixed placeholder rather than vanishing — a
 Syscribe-owned, revisitable-later limitation, explicitly distinct from the fork/join ceiling above.
 See `ADR-SYS-SYSMLV2-001`'s addendum for the full rationale.
+
+## 15. Views, viewpoints, and renderings — `REQ-TRS-SYSMLV2-020`/`-021`/`-022`
+
+`view def`/`view`, `viewpoint def`/`viewpoint`, and `rendering def`/`rendering` join the fixed
+mapped set — see [`model/Viewpoints/SystemsEngineerViewpoint.md`](../../model/Viewpoints/SystemsEngineerViewpoint.md)
+and [`model/Views/SystemArchitectureView.md`](../../model/Views/SystemArchitectureView.md) for the
+native target schema this mapping produces. Every one of the six kinds, wherever declared, becomes
+its own real, qname-addressable element — unlike state machines/activities, there's no "nested vs.
+top-level" split, since none of these six carry a further, separate `RawElement` inside their own
+body.
+
+```sysml
+package Views {
+    viewpoint def SafetyViewpoint {
+        stakeholder SafetyEngineer;
+        purpose SafetyCoverage;
+    }
+    rendering def TableRendering;
+    view def SystemView {
+        render asTable : TableRendering;
+    }
+    view archView : SystemView {
+        expose UAV::Airframe;
+        expose UAV::Propulsion::*;
+        satisfy SafetyViewpoint;
+    }
+}
+```
+
+synthesizes a `ViewpointDef` with `stakeholders:`/`concerns:`, a `RenderingDef`, a `ViewDef` with
+`rendering:`, and a `View` with `expose:`/`viewpoint:`/`rendering:` — exactly the shape a
+hand-authored `SystemArchitectureView.md` uses. `expose:` entries are always flat qname strings
+(never a `{ref, isRecursive, filter}` map), matching real hand-authored usage; the existing `W500`/
+`W502` cross-reference checks apply identically, with no validator changes at all.
+
+**Structural asymmetries, not oversights**: a `view def`'s own body cannot syntactically carry
+`expose`/`satisfy` at all — only a `view` usage can (see `ADR-SYS-SYSMLV2-001`'s addendum for why
+this lines up with `W500`/`W502`'s existing scope rather than fighting it). There is no dedicated
+`Viewpoint` usage element kind; a `viewpoint <name> defined by <Type>;` usage synthesizes a `View`,
+matching the native schema's own framing of `View` as "usage of a ViewDef or ViewpointDef".
+`ViewpointDef`'s `methods:`/`satisfiedBy:` fields are never populated by this mapping — deliberately,
+per §12.1's OSLC upstream-link-direction rule, not because the information is unavailable. A
+`view`/`viewpoint`/`rendering` declared directly inside a `part` usage body doesn't just stay
+unmapped — it fails to parse outright, gracefully degrading to a `W541` finding (§4) rather than a
+crash, since `PartUsageBodyElement` carries no grammar production for the whole family at all.

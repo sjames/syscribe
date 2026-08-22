@@ -215,6 +215,23 @@ struct Spec {
     /// `REQ-TRS-SYSMLV2-019` -- flat `{after, before}` control-flow edges
     /// lifted from `first`/`then` successions.
     succession_connections: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-020` -- a `view` usage's `expose <target>;` members,
+    /// always plain-string entries (never the richer `{ref, isRecursive,
+    /// filter}` map form -- see `view_expose_entries`). Never set for a
+    /// `view def` -- the grammar structurally cannot carry `expose` there.
+    expose: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-020` -- a `view` usage's `satisfy <viewpoint>;`
+    /// target. Never set for a `view def`, same reason as `expose` above.
+    viewpoint: Option<String>,
+    /// `REQ-TRS-SYSMLV2-021` -- a `viewpoint def`/`viewpoint` usage's
+    /// `stakeholder <name>;` members (name only).
+    stakeholders: Option<Vec<String>>,
+    /// `REQ-TRS-SYSMLV2-021` -- a `viewpoint def`/`viewpoint` usage's
+    /// `purpose <target>;` members.
+    concerns: Option<Vec<String>>,
+    /// `REQ-TRS-SYSMLV2-020` -- a `view def`/`view` usage's own `render
+    /// <name> [: <Type>];` clause, first one wins (single-string field).
+    rendering: Option<String>,
 }
 
 impl Spec {
@@ -263,6 +280,21 @@ impl Spec {
         self.succession_connections = nonempty_vec(succession_connections);
         self
     }
+
+    /// Set `REQ-TRS-SYSMLV2-020`'s lifted `expose:`/`viewpoint:`/`rendering:`.
+    fn with_view(mut self, expose: Vec<serde_yaml::Value>, viewpoint: Option<String>, rendering: Option<String>) -> Self {
+        self.expose = nonempty_vec(expose);
+        self.viewpoint = viewpoint;
+        self.rendering = rendering;
+        self
+    }
+
+    /// Set `REQ-TRS-SYSMLV2-021`'s lifted `stakeholders:`/`concerns:`.
+    fn with_viewpoint(mut self, stakeholders: Vec<String>, concerns: Vec<String>) -> Self {
+        self.stakeholders = nonempty_vec(stakeholders);
+        self.concerns = nonempty_vec(concerns);
+        self
+    }
 }
 
 fn push_synth(
@@ -302,6 +334,11 @@ fn push_synth(
             sub_actions: spec.sub_actions,
             control_nodes: spec.control_nodes,
             succession_connections: spec.succession_connections,
+            expose: spec.expose,
+            viewpoint: spec.viewpoint,
+            stakeholders: spec.stakeholders,
+            concerns: spec.concerns,
+            rendering: spec.rendering,
             ..Default::default()
         },
         doc: spec.doc,
@@ -787,6 +824,155 @@ fn action_usage_syscribe_meta(elements: &[sysml_v2_parser::Node<sysml_v2_parser:
         }
     }
     meta
+}
+
+/// `doc /* ... */` lift over a `view def` body's already-sliced members
+/// (`REQ-TRS-SYSMLV2-020`).
+fn view_def_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::ViewDefBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::ast::ViewDefBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over a `view` usage body's already-sliced members
+/// (`REQ-TRS-SYSMLV2-020`) — `ViewBodyElement` is a distinct Rust type from
+/// `ViewDefBodyElement` (structurally near-identical, but not shared), so
+/// this needs its own wrapper, mirroring `part_def_doc`/`part_usage_doc`.
+fn view_usage_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::ViewBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::ast::ViewBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over a `viewpoint def`/`viewpoint` usage body's
+/// already-sliced members (`REQ-TRS-SYSMLV2-021`) — both share
+/// `RequirementDefBody`/`RequirementDefBodyElement` (confirmed against the
+/// parser's own AST: `ViewpointDef.body`/`ViewpointUsage.body` are literally
+/// `RequirementDefBody`), the same shape a plain `requirement def` uses —
+/// but `REQ-TRS-SYSMLV2-009` deliberately did not extend doc-lifting to
+/// `Requirement`/`RequirementDef`/`RequirementUsage`, so there is no
+/// existing collector here to reuse; this one is new, scoped to Viewpoint.
+fn viewpoint_body_doc(body: &sysml_v2_parser::RequirementDefBody) -> String {
+    let sysml_v2_parser::RequirementDefBody::Brace { elements } = body else {
+        return String::new();
+    };
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::RequirementDefBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over a `rendering def` body's already-sliced members
+/// (`REQ-TRS-SYSMLV2-022`).
+fn rendering_def_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::RenderingDefBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::ast::RenderingDefBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// `doc /* ... */` lift over a `rendering` usage body's already-sliced
+/// members (`REQ-TRS-SYSMLV2-022`).
+fn rendering_usage_doc(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::RenderingUsageBodyElement>]) -> String {
+    collect_doc(elements, |e| match e {
+        sysml_v2_parser::ast::RenderingUsageBodyElement::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    })
+}
+
+/// The `rendering:` reference text a `render <name> [: <Type>]` clause
+/// contributes — `REQ-TRS-SYSMLV2-020`/`-022`. Prefers the referenced
+/// type's name (`type_name`); falls back to the render clause's own `name`
+/// when untyped (an inline/self-defining render). `None` for a fully
+/// anonymous, untyped render clause — nothing meaningful to reference.
+fn view_rendering_target(u: &sysml_v2_parser::ast::ViewRenderingUsage) -> Option<String> {
+    u.type_name.clone().or_else(|| (!u.name.is_empty()).then(|| u.name.clone()))
+}
+
+/// First `render` clause's target text found in a `view def` body's
+/// already-sliced members — `rendering:` is a single-string native field,
+/// so only the first `render` clause (in source order) can be represented;
+/// a second one is silently not represented, the same "single-string
+/// field, first wins" posture `view_satisfy_viewpoint` uses for multiple
+/// `satisfy` clauses.
+fn view_def_rendering(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::ViewDefBodyElement>]) -> Option<String> {
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::ast::ViewDefBodyElement::ViewRendering(r) => view_rendering_target(&r.value),
+        _ => None,
+    })
+}
+
+/// Same as [`view_def_rendering`], for a `view` usage body.
+fn view_usage_rendering(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::ViewBodyElement>]) -> Option<String> {
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::ast::ViewBodyElement::ViewRendering(r) => view_rendering_target(&r.value),
+        _ => None,
+    })
+}
+
+/// `expose:` entries lifted from a `view` usage body's `Expose` members —
+/// `REQ-TRS-SYSMLV2-020`. Always a flat plain-string entry using
+/// `ExposeMember.target` verbatim (which already includes any `::*`/`::**`
+/// suffix textually), never the richer `{ref, isRecursive, filter}` map
+/// form — matches both real hand-authored `expose:` lists in `model/`
+/// (`model/Views/SystemArchitectureView.md`) and sidesteps a pre-existing,
+/// unrelated `W502` inconsistency (its map-form branch reads a `ref` key,
+/// while `spec/markdown-sysml-format.md` §8.14.3 documents `target` — see
+/// this feature's ADR addendum). `ExposeMember.body`'s own brace content (if
+/// any) and the BNF's optional `[ expr ]` filter suffix are both parsed and
+/// discarded by the vendored parser itself before this crate ever sees them
+/// — nothing to recover.
+fn view_expose_entries(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::ViewBodyElement>]) -> Vec<serde_yaml::Value> {
+    elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::ast::ViewBodyElement::Expose(e) => {
+                Some(serde_yaml::Value::String(e.value.target.clone()))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// `viewpoint:` lifted from a `view` usage body's first `satisfy` clause —
+/// `REQ-TRS-SYSMLV2-020`. Multiple `satisfy` clauses: first one wins,
+/// matching the native field's own single-string shape.
+fn view_satisfy_viewpoint(elements: &[sysml_v2_parser::Node<sysml_v2_parser::ast::ViewBodyElement>]) -> Option<String> {
+    elements.iter().find_map(|n| match &n.value {
+        sysml_v2_parser::ast::ViewBodyElement::Satisfy(s) => Some(s.value.viewpoint_ref.clone()),
+        _ => None,
+    })
+}
+
+/// `stakeholders:`/`concerns:` lifted from a `viewpoint def`/`viewpoint`
+/// usage body's `Stakeholder`/`Purpose` members — `REQ-TRS-SYSMLV2-021`.
+/// `StakeholderMember.name` only (`type_name`/`is_redefinition` have no
+/// native slot); `PurposeMember.target`, the closest AST equivalent to
+/// §8.14.1's "concerns (qnames of ConcernDefs)". `Frame` and every other
+/// `RequirementDefBodyElement` variant are unmapped here — no native
+/// "framed concern" field exists.
+fn collect_viewpoint_stakeholders_concerns(
+    body: &sysml_v2_parser::RequirementDefBody,
+) -> (Vec<String>, Vec<String>) {
+    let sysml_v2_parser::RequirementDefBody::Brace { elements } = body else {
+        return (Vec::new(), Vec::new());
+    };
+    let mut stakeholders = Vec::new();
+    let mut concerns = Vec::new();
+    for n in elements {
+        match &n.value {
+            sysml_v2_parser::RequirementDefBodyElement::Stakeholder(s) => {
+                stakeholders.push(s.value.name.clone());
+            }
+            sysml_v2_parser::RequirementDefBodyElement::Purpose(p) => {
+                concerns.push(p.value.target.clone());
+            }
+            _ => {}
+        }
+    }
+    (stakeholders, concerns)
 }
 
 /// A `connect`-clause endpoint's dotted display text, e.g. `a` or `a.p1` —
@@ -1914,6 +2100,147 @@ fn convert_action_usage(a: &sysml_v2_parser::ActionUsage, qname: &str, file_path
     }
 }
 
+/// `REQ-TRS-SYSMLV2-020` — a `view def` synthesizes a real `ViewDef`.
+/// Unlike a `view` usage (see [`convert_view_usage`]), `ViewDefBodyElement`
+/// carries no `Expose`/`Satisfy` variant at all — the grammar structurally
+/// cannot carry `expose:`/`viewpoint:` here — so only `rendering:`/`doc` are
+/// ever populated. No recursion into nested elements: none of
+/// `ViewDefBodyElement`'s variants (`Doc`, `MetadataAnnotation`, `Filter`,
+/// `ViewRendering`) produce a further, separate `RawElement`.
+fn convert_view_def(v: &sysml_v2_parser::ast::ViewDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&v.identification) else {
+        return; // anonymous view def: no identity to qname against
+    };
+    let view_qname = format!("{qname}::{name}");
+    let elements = match &v.body {
+        sysml_v2_parser::ast::ViewDefBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::ast::ViewDefBody::Semicolon => &[],
+    };
+    let spec = Spec {
+        supertype: v.specializes.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    }
+    .with_doc(view_def_doc(elements))
+    .with_view(Vec::new(), None, view_def_rendering(elements));
+    push_synth(out, &view_qname, file_path, ElementType::ViewDef, &name, spec);
+}
+
+/// `REQ-TRS-SYSMLV2-020` — a `view` usage synthesizes a real `View`, the
+/// only place `expose:`/`viewpoint:` can actually be lifted from per this
+/// grammar (see [`convert_view_def`]'s note). No recursion: none of
+/// `ViewBodyElement`'s variants produce a further, separate `RawElement`.
+fn convert_view_usage(v: &sysml_v2_parser::ast::ViewUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if v.name.is_empty() {
+        return; // anonymous/redefinition-only usage: no identity to qname against
+    }
+    let view_qname = format!("{qname}::{}", v.name);
+    let elements = match &v.body {
+        sysml_v2_parser::ast::ViewBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::ast::ViewBody::Semicolon => &[],
+    };
+    let spec = Spec {
+        typed_by: v.type_name.clone(),
+        ..Default::default()
+    }
+    .with_doc(view_usage_doc(elements))
+    .with_view(
+        view_expose_entries(elements),
+        view_satisfy_viewpoint(elements),
+        view_usage_rendering(elements),
+    );
+    push_synth(out, &view_qname, file_path, ElementType::View, &v.name, spec);
+}
+
+/// `REQ-TRS-SYSMLV2-021` — a `viewpoint def` synthesizes a real
+/// `ViewpointDef`. `methods:`/`satisfiedBy:` are deliberately never
+/// populated — no AST source exists (the relationship only exists in the
+/// other direction, as a `view`'s own `satisfy <viewpoint>;` clause), and
+/// computing it here would point the link the wrong way per §12.1's OSLC
+/// upstream-link-direction rule. No recursion: `RequirementDefBody`'s own
+/// nested-element variants (`RequirementUsage`, `AttributeDef`, ...) are not
+/// walked here, matching `convert_requirement_def`'s own existing posture.
+fn convert_viewpoint_def(v: &sysml_v2_parser::ast::ViewpointDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&v.identification) else {
+        return;
+    };
+    let vp_qname = format!("{qname}::{name}");
+    let (stakeholders, concerns) = collect_viewpoint_stakeholders_concerns(&v.body);
+    let spec = Spec {
+        supertype: v.specializes.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    }
+    .with_doc(viewpoint_body_doc(&v.body))
+    .with_viewpoint(stakeholders, concerns);
+    push_synth(out, &vp_qname, file_path, ElementType::ViewpointDef, &name, spec);
+}
+
+/// `REQ-TRS-SYSMLV2-021` — a `viewpoint` usage synthesizes a real `View`.
+/// No dedicated `Viewpoint` usage `ElementType` exists in the native schema
+/// — this maps onto `ElementType::View`, matching the doc's own framing of
+/// `View` as "usage of a ViewDef or ViewpointDef".
+fn convert_viewpoint_usage(v: &sysml_v2_parser::ast::ViewpointUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if v.name.is_empty() {
+        return;
+    }
+    let vp_qname = format!("{qname}::{}", v.name);
+    let (stakeholders, concerns) = collect_viewpoint_stakeholders_concerns(&v.body);
+    let spec = Spec {
+        // `ViewpointUsage.type_name` is a non-`Option<String>` (empty-string
+        // sentinel for "untyped"), unlike `ViewUsage.type_name`'s
+        // `Option<String>` — treat "" as absent.
+        typed_by: (!v.type_name.is_empty()).then(|| v.type_name.clone()),
+        ..Default::default()
+    }
+    .with_doc(viewpoint_body_doc(&v.body))
+    .with_viewpoint(stakeholders, concerns);
+    push_synth(out, &vp_qname, file_path, ElementType::View, &v.name, spec);
+}
+
+/// `REQ-TRS-SYSMLV2-022` — a `rendering def` synthesizes a real
+/// `RenderingDef`. Thinnest of the six: `RenderingDefBodyElement` carries no
+/// field the native schema (§8.14.4: `supertype`, `features`) has room for
+/// beyond `doc`/`supertype` — `Filter`/nested `ViewRendering` stay unmapped,
+/// same "no native field" posture as `ViewDefBodyElement::Filter`.
+fn convert_rendering_def(r: &sysml_v2_parser::ast::RenderingDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&r.identification) else {
+        return;
+    };
+    let rendering_qname = format!("{qname}::{name}");
+    let elements = match &r.body {
+        sysml_v2_parser::ast::RenderingDefBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::ast::RenderingDefBody::Semicolon => &[],
+    };
+    let spec = Spec {
+        supertype: r.specializes.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    }
+    .with_doc(rendering_def_doc(elements));
+    push_synth(out, &rendering_qname, file_path, ElementType::RenderingDef, &name, spec);
+}
+
+/// `REQ-TRS-SYSMLV2-022` — a `rendering` usage synthesizes a real
+/// `Rendering`. `RenderingUsageBodyElement::ViewUsage` (the narrow nested
+/// `view :>> columnView[N] { render ...; }` redefinition shape, confirmed
+/// against real SysML v2 standard-library fixtures) is deliberately not
+/// recursed into — narrow, non-representative of ordinary modeling, and
+/// there is no native "nested view" field to hold it.
+fn convert_rendering_usage(r: &sysml_v2_parser::ast::RenderingUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if r.name.is_empty() {
+        return;
+    }
+    let rendering_qname = format!("{qname}::{}", r.name);
+    let elements = match &r.body {
+        sysml_v2_parser::ast::RenderingUsageBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::ast::RenderingUsageBody::Semicolon => &[],
+    };
+    let spec = Spec {
+        typed_by: r.type_name.clone(),
+        ..Default::default()
+    }
+    .with_doc(rendering_usage_doc(elements));
+    push_synth(out, &rendering_qname, file_path, ElementType::Rendering, &r.name, spec);
+}
+
 /// Walk the merged package tree, emitting `RawElement`s under `qname`.
 fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>) {
     for (elem, file_path) in &merged.body {
@@ -1957,6 +2284,12 @@ fn convert_package_body_element(
         E::StateUsage(node) => convert_state_usage(&node.value, qname, file_path, out),
         E::ActionDef(node) => convert_action_def(&node.value, qname, file_path, out),
         E::ActionUsage(node) => convert_action_usage(&node.value, qname, file_path, out),
+        E::ViewDef(node) => convert_view_def(&node.value, qname, file_path, out),
+        E::ViewUsage(node) => convert_view_usage(&node.value, qname, file_path, out),
+        E::ViewpointDef(node) => convert_viewpoint_def(&node.value, qname, file_path, out),
+        E::ViewpointUsage(node) => convert_viewpoint_usage(&node.value, qname, file_path, out),
+        E::RenderingDef(node) => convert_rendering_def(&node.value, qname, file_path, out),
+        E::RenderingUsage(node) => convert_rendering_usage(&node.value, qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2085,6 +2418,12 @@ fn convert_part_def_body_element(
         E::StateUsage(node) => convert_state_usage(&node.value, part_qname, file_path, out),
         E::ActionDef(node) => convert_action_def(&node.value, part_qname, file_path, out),
         E::ActionUsage(node) => convert_action_usage(&node.value, part_qname, file_path, out),
+        E::ViewDef(node) => convert_view_def(&node.value, part_qname, file_path, out),
+        E::ViewUsage(node) => convert_view_usage(&node.value, part_qname, file_path, out),
+        E::ViewpointDef(node) => convert_viewpoint_def(&node.value, part_qname, file_path, out),
+        E::ViewpointUsage(node) => convert_viewpoint_usage(&node.value, part_qname, file_path, out),
+        E::RenderingDef(node) => convert_rendering_def(&node.value, part_qname, file_path, out),
+        E::RenderingUsage(node) => convert_rendering_usage(&node.value, part_qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2122,6 +2461,12 @@ fn convert_part_usage_body_element(
         // `PartDef`/`AllocationUsage`, noted in this function's own doc
         // comment above). Unchanged from before this feature: stays invisible.
         E::ActionUsage(node) => convert_action_usage(&node.value, part_qname, file_path, out),
+        // No `ViewDef`/`ViewUsage`/`ViewpointDef`/`ViewpointUsage`/
+        // `RenderingDef`/`RenderingUsage` variant exists in this enum at all
+        // -- the whole view/viewpoint/rendering family cannot be declared
+        // directly inside a `part` usage body per this grammar
+        // (`REQ-TRS-SYSMLV2-020`/`-021`/`-022`), mirroring this same enum's
+        // pre-existing absence of `PartDef`/`AllocationUsage`/`ActionDef`.
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
