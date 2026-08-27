@@ -824,6 +824,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 "W551" => "W551",
                 "W552" => "W552",
                 "W553" => "W553",
+                // Annotated-source ingestion (ADR-SYS-ANNOTATE-001) — its own
+                // dedicated code range, distinct from the stdio-plugin family
+                // (E550/E551/W550-553) above.
+                "E560" => "E560",
+                "E561" => "E561",
+                "W560" => "W560",
+                "W561" => "W561",
+                "W562" => "W562",
+                "W563" => "W563",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });
@@ -3851,15 +3860,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // id-identified, so unlike derived_children/verified_by there is no
     // id-else-qname fallback needed here).
     let mut planning_children: HashMap<String, Vec<String>> = HashMap::new();
-    // REQ-TRS-SYSMLV2-004 / ADR-SYS-PLUGIN-002 — side-channel provenance sets:
-    // which qnames were actually synthesized by SysMLv2 ingestion vs. by a
-    // stdio plugin, consulted by `Resolver::is_verify_target` so the E104
-    // widening only ever applies to real synthesized targets of the matching
-    // origin, never to hand-authored native elements of the same kind. See
-    // `sysmlv2::synthesized_qnames`'s and `plugins::synthesized_qnames`'s doc
-    // comments.
+    // REQ-TRS-SYSMLV2-004 / ADR-SYS-PLUGIN-002 / ADR-SYS-ANNOTATE-001 —
+    // side-channel provenance sets: which qnames were actually synthesized by
+    // SysMLv2 ingestion vs. a stdio plugin vs. annotated-source scanning,
+    // consulted by `Resolver::is_verify_target` so the E104 widening only
+    // ever applies to real synthesized targets of the matching origin, never
+    // to hand-authored native elements of the same kind. See
+    // `sysmlv2::synthesized_qnames`'s, `plugins::synthesized_qnames`'s, and
+    // `annotations::synthesized_qnames`'s doc comments.
     let sysmlv2_qnames = crate::sysmlv2::synthesized_qnames(elements);
     let plugin_qnames = crate::plugins::synthesized_qnames(elements);
+    let annotation_qnames = crate::annotations::synthesized_qnames(elements);
 
     for elem in elements {
         let fm = &elem.frontmatter;
@@ -3884,11 +3895,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     )),
                     Some(target) => {
                         // E104: target must be a native Requirement, or a *bona fide*
-                        // SysMLv2-synthesized (REQ-TRS-SYSMLV2-004) or plugin-synthesized
-                        // (ADR-SYS-PLUGIN-002) element of one of the fixed mapped kinds —
-                        // gated on `sysmlv2_qnames`/`plugin_qnames`, not kind alone, so a
-                        // hand-authored native Part/etc. is never rescued by this widening.
-                        if !Resolver::is_verify_target(target, &sysmlv2_qnames, &plugin_qnames) {
+                        // SysMLv2-synthesized (REQ-TRS-SYSMLV2-004), plugin-synthesized
+                        // (ADR-SYS-PLUGIN-002), or annotation-synthesized
+                        // (ADR-SYS-ANNOTATE-001) element of one of the fixed mapped kinds —
+                        // gated on `sysmlv2_qnames`/`plugin_qnames`/`annotation_qnames`, not
+                        // kind alone, so a hand-authored native Part/etc. is never rescued by
+                        // this widening.
+                        if !Resolver::is_verify_target(target, &sysmlv2_qnames, &plugin_qnames, &annotation_qnames) {
                             findings.push(error(
                                 "E104",
                                 &elem.file_path,

@@ -657,22 +657,24 @@ impl Resolver {
     /// Requirement (the original, unchanged rule — untouched by anything
     /// below), or an element that both (a) is one of the fixed set of
     /// requirement/architecture-shaped element kinds (`REQ-TRS-SYSMLV2-007`'s
-    /// mapped-kind list, reused verbatim for plugin origin too) and (b) was
-    /// actually synthesized by SysMLv2 ingestion (per `sysmlv2_qnames`,
-    /// `REQ-TRS-SYSMLV2-004`) or by a stdio plugin (per `plugin_qnames`,
-    /// `ADR-SYS-PLUGIN-002`) — a `TestCase` can verify a SysMLv2-authored or
-    /// plugin-authored Part/Attribute/Port/Connection/Interface/Item/
-    /// Allocation/Requirement exactly like it verifies a native Requirement
-    /// today.
+    /// mapped-kind list, reused verbatim for plugin and annotation origin
+    /// too) and (b) was actually synthesized by SysMLv2 ingestion (per
+    /// `sysmlv2_qnames`, `REQ-TRS-SYSMLV2-004`), by a stdio plugin (per
+    /// `plugin_qnames`, `ADR-SYS-PLUGIN-002`), or by annotated-source scanning
+    /// (per `annotation_qnames`, `ADR-SYS-ANNOTATE-001`) — a `TestCase` can
+    /// verify a SysMLv2-authored, plugin-authored, or marker-authored
+    /// Part/Attribute/Port/Connection/Interface/Item/Allocation/Requirement
+    /// exactly like it verifies a native Requirement today.
     ///
     /// `RawElement` itself carries no origin marker — synthesized and
     /// hand-authored elements stay deliberately indistinguishable once in the
     /// graph, the same origin-agnostic design `REQ-TRS-SYSMLV2-002`'s
     /// rationale already establishes for `RawElement`/`Resolver`. So origin
-    /// is decided here via two independent side-channel provenance sets the
-    /// caller supplies — see [`crate::sysmlv2::synthesized_qnames`] and
-    /// [`crate::plugins::synthesized_qnames`] and their doc comments for how
-    /// each is derived. Kept as two separate sets, not merged into one,
+    /// is decided here via three independent side-channel provenance sets the
+    /// caller supplies — see [`crate::sysmlv2::synthesized_qnames`],
+    /// [`crate::plugins::synthesized_qnames`], and
+    /// [`crate::annotations::synthesized_qnames`] and their doc comments for
+    /// how each is derived. Kept as three separate sets, not merged into one,
     /// mirroring the SysMLv2 ADR's own reasoning: each origin's widening is a
     /// deliberate, independently-reasoned decision, not a blanket one.
     /// Gating on element *kind* alone (this function's original shape, before
@@ -680,18 +682,22 @@ impl Resolver {
     /// hand-authored native elements of these kinds too, in every model, not
     /// just SysMLv2 or plugin ones. A `type: Requirement`/`RequirementDef`
     /// target that fails `is_native_requirement` (e.g. a hand-authored one
-    /// missing a `REQ-*` id) is *not* rescued by membership in either
+    /// missing a `REQ-*` id) is *not* rescued by membership in any
     /// provenance set unless it actually is one — each set only ever contains
     /// qnames its own origin actually synthesized.
     pub fn is_verify_target(
         elem: &RawElement,
         sysmlv2_qnames: &HashSet<String>,
         plugin_qnames: &HashSet<String>,
+        annotation_qnames: &HashSet<String>,
     ) -> bool {
         if Self::is_native_requirement(elem) {
             return true;
         }
-        if !sysmlv2_qnames.contains(&elem.qualified_name) && !plugin_qnames.contains(&elem.qualified_name) {
+        if !sysmlv2_qnames.contains(&elem.qualified_name)
+            && !plugin_qnames.contains(&elem.qualified_name)
+            && !annotation_qnames.contains(&elem.qualified_name)
+        {
             return false;
         }
         matches!(

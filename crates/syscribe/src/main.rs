@@ -1,5 +1,6 @@
 #![deny(warnings)]
 
+mod annotations;
 mod audit;
 mod aw;
 mod baseline;
@@ -1349,6 +1350,34 @@ fn main() {
                     }
                     _ => {
                         eprintln!("Usage: plugins run <alias> --dry-run");
+                        1
+                    }
+                };
+                std::process::exit(code);
+            }
+            "annotations" => {
+                // Annotated-source comment-marker scanning (ADR-SYS-ANNOTATE-001).
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let sub = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str());
+                let code = match sub {
+                    Some("scan") => {
+                        let selector = rest
+                            .iter()
+                            .skip_while(|a| a.as_str() != "scan")
+                            .nth(1)
+                            .filter(|a| !a.starts_with("--"))
+                            .map(|s| s.as_str());
+                        let dry_run = rest.iter().any(|a| a == "--dry-run");
+                        match selector {
+                            Some(s) if dry_run => annotations::cmd_scan(model_root, s),
+                            _ => {
+                                eprintln!("Usage: annotations scan <qname-or-label> --dry-run");
+                                1
+                            }
+                        }
+                    }
+                    _ => {
+                        eprintln!("Usage: annotations scan <qname-or-label> --dry-run");
                         1
                     }
                 };

@@ -630,6 +630,23 @@ pub struct RawFrontmatter {
     /// plugin named by `[plugins.<alias>]` in `.syscribe.toml`. Handled by
     /// `crate::plugins`.
     pub foreign_format: Option<String>,
+    /// `annotationFormat: <label>` on a Package `_index.md` (`ADR-SYS-ANNOTATE-001`):
+    /// hands the package's entire directory subtree to the in-process
+    /// comment-marker scanner. `label` is a human-readable tag only (no
+    /// `.syscribe.toml` indirection, unlike `foreignFormat:`) — the scan
+    /// parameters (`marker`/`include`/`exclude`) live inline on this same
+    /// `_index.md`. Handled by `crate::annotations`.
+    pub annotation_format: Option<String>,
+    /// `marker:` — a regex matched against each line of every scanned file;
+    /// the first match on a line starts a marker block. Required when
+    /// `annotationFormat:` is set (`E560` otherwise).
+    pub marker: Option<String>,
+    /// `include:` — glob patterns (relative to this package's directory,
+    /// `**`/`*`/`?` supported) selecting which files are scanned for markers.
+    /// Required, non-empty, when `annotationFormat:` is set (`E560` otherwise).
+    pub include: Option<Vec<String>>,
+    /// `exclude:` — glob patterns excluded from `include:`'s matches.
+    pub exclude: Option<Vec<String>>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,
     pub return_type: Option<String>,
