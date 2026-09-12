@@ -588,6 +588,7 @@ pub fn cmd_show(
     val: &ValidationResult,
     config: &syscribe_model::config::ValidateConfig,
     key: &str,
+    show_related: bool,
 ) {
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
@@ -961,6 +962,63 @@ pub fn cmd_show(
         println!("## Documentation");
         println!();
         println!("{}", doc);
+    }
+
+    // Related commands footer (issue #117): re-surface the traceability
+    // commands that already exist and answer the natural next questions
+    // about this same element, right where an agent/human is already
+    // looking. Text-mode only (`show` has no `--json` mode to preserve);
+    // suppressible with `--no-related` for scripting/piping contexts.
+    if show_related {
+        let id = cfg_id(elem);
+        let related = related_commands(fm.element_type.as_ref());
+        if !related.is_empty() {
+            println!();
+            println!("Related:");
+            for (cmd, desc) in related {
+                println!("  syscribe {:<14} {:<20} {}", cmd, id, desc);
+            }
+        }
+    }
+}
+
+/// Type-appropriate follow-up commands for `show`'s "Related:" footer
+/// (issue #117): `trace`/`who-verifies` only make sense for a `Requirement`
+/// (they're req-id-shaped queries); `connectivity`/`n2` only for elements
+/// that actually sit on the connection/interface graph. `impact` and `refs`
+/// are graph-generic and offered for every type.
+fn related_commands(elem_type: Option<&ElementType>) -> Vec<(&'static str, &'static str)> {
+    match elem_type {
+        Some(ElementType::Requirement) => vec![
+            ("trace", "full traceability slice"),
+            ("who-verifies", "verifying TestCases"),
+            ("impact", "downstream/upstream change impact"),
+            ("refs", "inbound references"),
+        ],
+        Some(
+            ElementType::PartDef
+            | ElementType::Part
+            | ElementType::ItemDef
+            | ElementType::Item
+            | ElementType::PortDef
+            | ElementType::Port
+            | ElementType::ConnectionDef
+            | ElementType::Connection
+            | ElementType::InterfaceDef
+            | ElementType::Interface
+            | ElementType::ActionDef
+            | ElementType::Action,
+        ) => vec![
+            ("impact", "downstream/upstream change impact"),
+            ("connectivity", "connection-graph subgraph"),
+            ("n2", "N² interface matrix"),
+            ("refs", "inbound references"),
+        ],
+        Some(_) => vec![
+            ("impact", "downstream/upstream change impact"),
+            ("refs", "inbound references"),
+        ],
+        None => vec![],
     }
 }
 
