@@ -2285,14 +2285,20 @@ pub fn cmd_validate(
     let infos: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Info).copied().collect();
 
     // Gate evaluation (independent of output format). A selected `--profile`
-    // contributes its promoted findings additively with `--deny`/etc.
-    let mut denied = gate.denied(&warnings, &infos);
+    // contributes its promoted findings additively with `--deny`/etc. Kept
+    // separate from the flag-only denials so the text summary line (below)
+    // can attribute a gate trip to the mechanism that actually caused it,
+    // instead of always blaming `--deny`.
+    let denied_by_flags = gate.denied(&warnings, &infos);
+    let mut denied = denied_by_flags.clone();
+    let mut denied_by_profile: Vec<&syscribe_model::validator::Finding> = Vec::new();
     if let Some(p) = profile {
         let mut candidates = warnings.clone();
         candidates.extend(infos.iter().copied());
         for f in profile_promoted(p, elements, &candidates) {
             if !denied.iter().any(|d| std::ptr::eq(*d, f)) {
                 denied.push(f);
+                denied_by_profile.push(f);
             }
         }
     }
@@ -2336,6 +2342,40 @@ pub fn cmd_validate(
     if findings.is_empty() {
         println!("0 errors, 0 warnings — model is valid.");
         return;
+    }
+
+    // Leading pass/fail summary line (issue #116): always present in text
+    // mode, so "did this pass" is answerable from the first line instead of
+    // by the absence of an Errors section. Printed before the per-severity
+    // tables below, not after.
+    {
+        let mut summary = format!("{} errors, {} warnings", errors.len(), warnings.len());
+        let mut clauses: Vec<String> = Vec::new();
+        if !denied_by_flags.is_empty() {
+            if gate.warnings_as_errors {
+                clauses.push("all warnings promoted to errors (--warnings-as-errors)".to_string());
+            } else {
+                clauses.push(format!(
+                    "{} gated by --deny {}",
+                    denied_by_flags.len(),
+                    sorted_codes(&denied_by_flags).join(", ")
+                ));
+            }
+        }
+        if !denied_by_profile.is_empty() {
+            clauses.push(format!("{} gated by --profile", denied_by_profile.len()));
+        }
+        if over_max {
+            clauses.push(format!("exceeds --max-warnings {}", gate.max_warnings.unwrap()));
+        }
+        if !clauses.is_empty() {
+            summary.push_str(&format!(" ({})", clauses.join("; ")));
+        }
+        if !errors.is_empty() || gate_tripped {
+            summary.push_str(" — FAIL");
+        }
+        println!("{}", summary);
+        println!();
     }
 
     if !errors.is_empty() {

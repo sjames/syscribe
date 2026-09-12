@@ -66,16 +66,29 @@ Warnings (1):
 
 ### Findings only
 
-`validate` prints just the errors and warnings table — useful for quick iteration.
+`validate` prints just a leading pass/fail summary line followed by the errors and warnings table — useful for quick iteration. The summary line is always present in text mode (even on a clean run — see below), so "did this pass" is answerable from the first line without inferring it from the absence of an `Errors (N):` section.
 
 ```
 $ syscribe -m model_auto/ validate
+
+0 errors, 1 warnings
 
 Warnings (1):
 
 | Code | File | Message |
 |---|---|---|
 | W803 | model_auto/Security/VR-ENG-002.md | VulnerabilityReport has status: open — ensure it is being tracked and mitigated |
+```
+
+When a gating flag (below) trips the gate, the summary line names which one and ends in `— FAIL`:
+
+```
+$ syscribe -m model_auto/ validate --deny W803
+
+0 errors, 1 warnings (1 gated by --deny W803) — FAIL
+
+Warnings (1):
+...
 ```
 
 ### Scoped to a single file
