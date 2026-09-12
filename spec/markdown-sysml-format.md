@@ -5818,6 +5818,16 @@ An override **replaces** the built-in patterns for that extension. `W009` severi
 
 `syscribe ingest-results --format <cargo-json|junit> <file>` parses an external test report (libtest JSON or JUnit XML), reduces it to a per-test verdict keyed by the test's leaf name, and writes a sidecar at `<model_root>/.syscribe/results.json`. When that sidecar is present (or results are supplied ad-hoc with `validate --results <file>`), the validator emits `W010` for every `active` `TestCase` whose `testFunctions[].function` last **failed**, was **ignored/skipped**, or was **missing** from the run — so "verified" can mean "covered by a test that actually passed". Passing functions are silent, and `W010` is inert when no results have been ingested. Gate on it in CI with `--deny W010`.
 
+**`--format session-log`** (issue #113) is the manual/exploratory-verification counterpart, for a TestCase with **no** `testFunctions:` at all (the norm for a scenario verified via a live session — a curl/MQTT/CLI walkthrough — rather than a `#[test]` function). Input is a JSON array of per-Gherkin-scenario records:
+
+```json
+[{"testCase": "TC-WEB-011", "scenario": "An empty/unset allowlist denies everything",
+  "steps": [{"cmd": "curl -X POST ... -d command=restart_hmi", "expect_status": 400}],
+  "result": "pass", "timestamp": "2026-09-12T08:02:29Z"}]
+```
+
+reduced to a verdict keyed by `"{testCase}::{scenario}"` (`scenario` must match a `Scenario:`/`Scenario Outline:` title in that TestCase's body). Unlike `cargo-json`/`junit`'s tolerant line-skipping, a record with an empty/missing `testCase`, `scenario`, or `steps`, or an unrecognized `result` (must be `pass`/`fail`/`unknown`), is a **hard parse error** — nothing is written, and any existing sidecar is left untouched, rather than silently producing an empty result set. `matrix`/`trace`/`safety-case`/`testplan` roll a TestCase's session-log scenario verdicts up into the same `Pass`/`Fail`/`Unknown` annotation `testFunctions:`-sourced verdicts already get (`[pass]`/`[fail]`, `▣ covered, not passing`, …) — `Pass` only when every scenario in the body has a recorded `pass`, exactly mirroring the "every function must pass" rule for `testFunctions:`.
+
 #### Exit-code contract (CI gating)
 
 The `validate` subcommand exposes a stable exit-code contract so it can be used directly as a CI gate:

@@ -41,17 +41,41 @@ fn tc_function_refs(tc: &RawElement) -> Vec<String> {
 }
 
 /// Aggregate a TestCase's ingested verdict. `None` results → `Unknown`.
+///
+/// A TestCase with `testFunctions:` is scored against those (automated,
+/// `cargo-json`/`junit`-sourced verdicts). One with **no** `testFunctions` —
+/// the norm for a manually/exploratorily-verified scenario with no
+/// automatable equivalent — falls back to its Gherkin scenario titles against
+/// any `session-log`-ingested verdicts (issue #113), so "verified" can mean
+/// "covered by a recorded session that actually passed" there too, instead of
+/// this always reading `Unknown` for want of a `testFunctions:` entry.
 pub fn tc_verdict(tc: &RawElement, results: Option<&ResultsData>) -> TcVerdict {
     let Some(results) = results else {
         return TcVerdict::Unknown;
     };
     let funcs = tc_function_refs(tc);
-    if funcs.is_empty() {
+    if !funcs.is_empty() {
+        let mut all_pass = true;
+        for f in &funcs {
+            match results.verdict_for(f) {
+                FnVerdict::Fail => return TcVerdict::Fail,
+                FnVerdict::Pass => {}
+                FnVerdict::Ignored | FnVerdict::Missing => all_pass = false,
+            }
+        }
+        return if all_pass { TcVerdict::Pass } else { TcVerdict::Unknown };
+    }
+
+    let Some(tc_id) = tc.frontmatter.id.as_deref() else {
+        return TcVerdict::Unknown;
+    };
+    let scenarios = gherkin_scenario_titles(&tc.doc);
+    if scenarios.is_empty() {
         return TcVerdict::Unknown;
     }
     let mut all_pass = true;
-    for f in &funcs {
-        match results.verdict_for(f) {
+    for s in &scenarios {
+        match results.scenario_verdict(tc_id, s) {
             FnVerdict::Fail => return TcVerdict::Fail,
             FnVerdict::Pass => {}
             FnVerdict::Ignored | FnVerdict::Missing => all_pass = false,
@@ -342,6 +366,20 @@ fn gherkin_count(doc: &str) -> usize {
             t.starts_with("Scenario:") || t.starts_with("Scenario Outline:")
         })
         .count()
+}
+
+/// The exact `Scenario:`/`Scenario Outline:` titles declared in a TestCase's
+/// body, in document order — the identity a `session-log` record's `scenario`
+/// field names (issue #113).
+fn gherkin_scenario_titles(doc: &str) -> Vec<String> {
+    doc.lines()
+        .filter_map(|l| {
+            let t = l.trim();
+            t.strip_prefix("Scenario Outline:")
+                .or_else(|| t.strip_prefix("Scenario:"))
+                .map(|title| title.trim().to_string())
+        })
+        .collect()
 }
 
 /// Resolve by exact qname, then exact stable ID, then fuzzy best-match.
