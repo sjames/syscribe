@@ -4294,6 +4294,83 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // W311 (issue #115): claim-overlap check. Two PlanningItems that are both
+    // "active" (`status: in_progress`, or explicitly claimed via `claimedBy:`)
+    // and share either an `achieves:` Requirement or an `evidence[].path`
+    // resolving to the same repo-relative path are very likely two agents
+    // about to (or already) step on each other's work -- the two concrete
+    // overlap shapes that come up running several LLM agents against one
+    // model concurrently. Advisory only (a warning, not a filesystem lock):
+    // fires once per overlapping pair, per overlap kind, attached to the
+    // lexically-first item's file (by stable id) so re-running `validate`
+    // doesn't double up the same pair from each side.
+    {
+        let is_active = |e: &&RawElement| -> bool {
+            matches!(e.frontmatter.element_type, Some(ElementType::PlanningItem))
+                && (e.frontmatter.status.as_deref() == Some("in_progress")
+                    || e.frontmatter.claimed_by.as_deref().is_some_and(|s| !s.trim().is_empty()))
+        };
+        let active_items: Vec<&RawElement> = elements.iter().filter(is_active).collect();
+
+        let evidence_paths = |e: &RawElement| -> HashSet<String> {
+            e.frontmatter
+                .evidence
+                .as_ref()
+                .map(|ev| {
+                    ev.iter()
+                        .filter_map(|entry| {
+                            let serde_yaml::Value::Mapping(m) = entry else { return None };
+                            yaml_field(m, "path").and_then(|v| v.as_str()).map(String::from)
+                        })
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+
+        for i in 0..active_items.len() {
+            for j in (i + 1)..active_items.len() {
+                let (a, b) = (active_items[i], active_items[j]);
+                let a_id = a.frontmatter.id.as_deref().unwrap_or("");
+                let b_id = b.frontmatter.id.as_deref().unwrap_or("");
+                if a_id.is_empty() || b_id.is_empty() || a_id == b_id {
+                    continue;
+                }
+                let (first, second, first_id, second_id) =
+                    if a_id <= b_id { (a, b, a_id, b_id) } else { (b, a, b_id, a_id) };
+
+                let a_ach: HashSet<&str> =
+                    first.frontmatter.achieves.as_deref().unwrap_or(&[]).iter().map(String::as_str).collect();
+                let b_ach: HashSet<&str> =
+                    second.frontmatter.achieves.as_deref().unwrap_or(&[]).iter().map(String::as_str).collect();
+                let mut shared_achieves: Vec<&str> = a_ach.intersection(&b_ach).copied().collect();
+                shared_achieves.sort_unstable();
+                for shared in shared_achieves {
+                    findings.push(warning(
+                        "W311",
+                        &first.file_path,
+                        &format!(
+                            "PlanningItem '{first_id}' and '{second_id}' are both active (in_progress/claimed) and overlap by achieves '{shared}' — possible duplicate work"
+                        ),
+                    ));
+                }
+
+                let a_paths = evidence_paths(first);
+                let b_paths = evidence_paths(second);
+                let mut shared_paths: Vec<&String> = a_paths.intersection(&b_paths).collect();
+                shared_paths.sort_unstable();
+                for shared in shared_paths {
+                    findings.push(warning(
+                        "W311",
+                        &first.file_path,
+                        &format!(
+                            "PlanningItem '{first_id}' and '{second_id}' are both active (in_progress/claimed) and overlap by evidence.path '{shared}' — possible duplicate work"
+                        ),
+                    ));
+                }
+            }
+        }
+    }
+
     // W002/W003: coverage checks for native Requirements
     for elem in elements {
         if !Resolver::is_native_requirement(elem) {
@@ -9657,6 +9734,162 @@ mod planning_item_completion_w310_tests {
             .expect("W310 present");
         assert!(msg.contains("PI-W310-009"), "message should name the PlanningItem: {msg}");
         assert!(msg.contains("REQ-W310-040"), "message should name the Requirement: {msg}");
+    }
+}
+
+// ── PlanningItem claim-overlap check (issue #115, W311) ──────────────────────
+
+#[cfg(test)]
+mod planning_item_claim_overlap_w311_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn req(id: &str, qname: &str) -> RawElement {
+        make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nreqDomain: software\nstatus: approved\n"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        )
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    fn w311_messages(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().filter(|f| f.code == "W311").map(|f| f.message.as_str()).collect()
+    }
+
+    #[test]
+    fn two_in_progress_items_sharing_an_achieves_requirement_raise_w311() {
+        let elements = vec![
+            req("REQ-W311-001", "Requirements::Shared1"),
+            make_elem(
+                "Planning::ItemA",
+                "type: PlanningItem\nid: PI-W311-001\nname: A\nstatus: in_progress\nachieves: [REQ-W311-001]\n",
+                "model/Planning/ItemA.md",
+            ),
+            make_elem(
+                "Planning::ItemB",
+                "type: PlanningItem\nid: PI-W311-002\nname: B\nstatus: in_progress\nachieves: [REQ-W311-001]\n",
+                "model/Planning/ItemB.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"W311"), "{:?}", result.findings);
+        let msgs = w311_messages(&result.findings);
+        assert!(msgs.iter().any(|m| m.contains("PI-W311-001") && m.contains("PI-W311-002") && m.contains("REQ-W311-001")), "{msgs:?}");
+    }
+
+    #[test]
+    fn two_items_with_disjoint_achieves_raise_nothing() {
+        let elements = vec![
+            req("REQ-W311-010", "Requirements::Disjoint1"),
+            req("REQ-W311-011", "Requirements::Disjoint2"),
+            make_elem(
+                "Planning::ItemC",
+                "type: PlanningItem\nid: PI-W311-003\nname: C\nstatus: in_progress\nachieves: [REQ-W311-010]\n",
+                "model/Planning/ItemC.md",
+            ),
+            make_elem(
+                "Planning::ItemD",
+                "type: PlanningItem\nid: PI-W311-004\nname: D\nstatus: in_progress\nachieves: [REQ-W311-011]\n",
+                "model/Planning/ItemD.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(!codes(&result.findings).contains(&"W311"), "{:?}", result.findings);
+    }
+
+    #[test]
+    fn a_claimed_but_not_in_progress_item_still_counts_as_active() {
+        let elements = vec![
+            req("REQ-W311-020", "Requirements::Shared2"),
+            make_elem(
+                "Planning::ItemE",
+                "type: PlanningItem\nid: PI-W311-005\nname: E\nstatus: todo\nachieves: [REQ-W311-020]\nclaimedBy: agent-1\nclaimedAt: \"2026-09-13T00:00:00Z\"\n",
+                "model/Planning/ItemE.md",
+            ),
+            make_elem(
+                "Planning::ItemF",
+                "type: PlanningItem\nid: PI-W311-006\nname: F\nstatus: in_progress\nachieves: [REQ-W311-020]\n",
+                "model/Planning/ItemF.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"W311"), "a claimed todo item must still count as active: {:?}", result.findings);
+    }
+
+    #[test]
+    fn two_todo_unclaimed_items_sharing_achieves_raise_nothing() {
+        let elements = vec![
+            req("REQ-W311-030", "Requirements::Shared3"),
+            make_elem(
+                "Planning::ItemG",
+                "type: PlanningItem\nid: PI-W311-007\nname: G\nstatus: todo\nachieves: [REQ-W311-030]\n",
+                "model/Planning/ItemG.md",
+            ),
+            make_elem(
+                "Planning::ItemH",
+                "type: PlanningItem\nid: PI-W311-008\nname: H\nstatus: todo\nachieves: [REQ-W311-030]\n",
+                "model/Planning/ItemH.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(!codes(&result.findings).contains(&"W311"), "{:?}", result.findings);
+    }
+
+    #[test]
+    fn two_items_sharing_an_evidence_path_raise_w311() {
+        let elements = vec![
+            make_elem(
+                "Planning::ItemI",
+                "type: PlanningItem\nid: PI-W311-009\nname: I\nstatus: in_progress\nevidence:\n  - path: src/shared.rs\n",
+                "model/Planning/ItemI.md",
+            ),
+            make_elem(
+                "Planning::ItemJ",
+                "type: PlanningItem\nid: PI-W311-010\nname: J\nstatus: in_progress\nevidence:\n  - path: src/shared.rs\n",
+                "model/Planning/ItemJ.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let msgs = w311_messages(&result.findings);
+        assert!(msgs.iter().any(|m| m.contains("evidence.path") && m.contains("src/shared.rs")), "{msgs:?}");
+    }
+
+    #[test]
+    fn w311_fires_once_per_pair_not_once_per_side() {
+        let elements = vec![
+            req("REQ-W311-040", "Requirements::Shared4"),
+            make_elem(
+                "Planning::ItemK",
+                "type: PlanningItem\nid: PI-W311-011\nname: K\nstatus: in_progress\nachieves: [REQ-W311-040]\n",
+                "model/Planning/ItemK.md",
+            ),
+            make_elem(
+                "Planning::ItemL",
+                "type: PlanningItem\nid: PI-W311-012\nname: L\nstatus: in_progress\nachieves: [REQ-W311-040]\n",
+                "model/Planning/ItemL.md",
+            ),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let count = result.findings.iter().filter(|f| f.code == "W311").count();
+        assert_eq!(count, 1, "expected exactly one W311 for the pair, got {:?}", result.findings);
     }
 }
 

@@ -556,6 +556,17 @@ pub struct RawFrontmatter {
     /// when that roster is non-empty — dormant, like every other config-gated
     /// check, when `[users]` is not configured at all.
     pub assigned_to: Option<String>,
+    /// `claimedBy:` — an opaque agent/session id that has claimed this
+    /// `PlanningItem` for active work (issue #115), paired with `claimedAt:`
+    /// (an opaque ISO-8601-ish timestamp string, never itself format-validated
+    /// — same posture as `wcet:`/`extRef:`, free-text metadata rather than a
+    /// cross-reference or a parsed datetime). Advisory, not a filesystem lock:
+    /// the value is a coordination signal ("is anyone already on this?") for
+    /// an orchestrating process running multiple agents against one model,
+    /// written/cleared only by `syscribe claim`/`syscribe release` — never
+    /// hand-authored, though nothing stops it structurally.
+    pub claimed_by: Option<String>,
+    pub claimed_at: Option<String>,
 
     /// §3 — external reference(s): this element represents an artifact managed in
     /// another tool (a DNG requirement, a SysML-tool element, …). Opaque strings

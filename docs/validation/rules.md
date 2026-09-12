@@ -346,7 +346,7 @@ A `ReviewRecord` (`RR-*`) is a baselined, thin traceability anchor for a formal 
 | W700 | A `status: closed` review has an `items[]` with `disposition: open`. |
 | W704 | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (dormant unless ReviewRecords exist; `--deny W704`). |
 
-## Native PlanningItem (E706–E717, E719–E723, W308–W310, §23, ADR-SYS-PLANITEM-001)
+## Native PlanningItem (E706–E717, E719–E723, W308–W311, §23, ADR-SYS-PLANITEM-001)
 
 A `PlanningItem` (`PI-*`) is the model's native representation of planning/tracking work — a strict single-parent tree (`parent:`), with a top-level item required to set `achieves:` (the `Requirement`(s) it exists to realise) and, optionally, `blockedBy:` (what it's waiting on) and `evidence:` (proof of completion).
 
@@ -372,10 +372,18 @@ A `PlanningItem` (`PI-*`) is the model's native representation of planning/track
 | E723 | `assignedTo:` is not a valid Unix-style username (`^[a-z_][a-z0-9_-]{0,31}$`) — checked unconditionally, regardless of `[users]`. |
 | W309 | A `[users]` key in `.syscribe.toml` is not a valid username — the entry is ignored (excluded from the roster `E722` checks against). |
 | W310 | A `done` `PlanningItem`'s `achieves:` Requirement hasn't met the verification bar `validate` already applies to it directly on its own file — an active `TestCase` for a leaf Requirement, an active integration-level (`L3`/`L4`/`L5`) `TestCase` for a parent one (mirrors `W002`/`W305` exactly, just scoped to the specific `PlanningItem` about to claim `done` — a distinct finding, not a duplicate, since it lands on the `PlanningItem`'s own file). Never fires for `todo`/`in_progress`/`blocked`, and never re-flags an `E714`/`E715` target. |
+| W311 | Two `PlanningItem`s that are both "active" (`status: in_progress`, or explicitly claimed via `claimedBy:`) share an `achieves:` Requirement, or an `evidence[].path` resolving to the same repo-relative path — very likely two agents about to (or already) step on the same work. Fires once per overlapping pair, per overlap kind, attached to the lexically-first item's file (by stable id). |
 
 `blockedBy:` is resolved permissively, like `evidence.ref:` — any model element, not restricted to `PlanningItem` — since an undecided `ADR` or any other unmet dependency is an equally legitimate blocker. It is graded the opposite way from `evidence:`: `status: blocked` with an **empty** `blockedBy:` raises nothing (being blocked needs no proof), while `status: done` on a leaf with no evidence does (`E719`).
 
 `assignedTo:` is a plain username, not a cross-reference. Format (`E723`) is always checked; roster membership (`E722`) only when `[users]` (`<username> = "<display name>"` in `.syscribe.toml`) is non-empty — a value already flagged `E723` is not also reported as undeclared. `syscribe show <PI-id>` prints the declared display name alongside the username when the roster is configured.
+
+`claimedBy:`/`claimedAt:` (issue #115) are advisory ownership markers, not validated fields in
+their own right — `syscribe claim <PI-id> --by <agent-id>` sets both (refusing on an already-
+`done` item, or one already claimed by a *different* claimant), `syscribe release <PI-id>`
+clears both regardless of `status:`. Both are visible in `show <PI-id>` and
+`list PlanningItem --json`. `W311` is the validator-side counterpart: it fires whether or not
+anything was ever actually claimed, since `status: in_progress` alone already signals active work.
 
 No dedicated CLI subcommand or MCP tool — queried via the generic `list`/`show`/`ls`/`find`/`refs` commands; written via the generic MCP element tools. See `examples/planning-item/` for a worked example.
 

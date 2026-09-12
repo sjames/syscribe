@@ -36,6 +36,7 @@ mod reqif;
 mod reviews;
 mod safety_case;
 mod sbom;
+mod claim;
 mod scaffold;
 mod scripting;
 mod set;
@@ -1625,6 +1626,25 @@ fn main() {
                 let dry_run = rest.iter().any(|a| a == "--dry-run");
                 let op_args: Vec<&str> = rest.iter().map(|s| s.as_str()).filter(|a| *a != "--dry-run").collect();
                 set::cmd_set(model_root, &elems, &resolver, key, &op_args, dry_run);
+            }
+            "claim" => {
+                let rest = subcommand_args.get(2..).unwrap_or(&[]);
+                let by = rest.windows(2).find(|w| w[0] == "--by").map(|w| w[1].as_str());
+                if key.is_empty() || by.is_none() {
+                    eprintln!("Usage: syscribe --model <root> claim <PI-id> --by <agent-id> [--dry-run]");
+                    std::process::exit(1);
+                }
+                let dry_run = rest.iter().any(|a| a == "--dry-run");
+                claim::cmd_claim(model_root, &elems, &resolver, key, by.unwrap(), dry_run);
+            }
+            "release" => {
+                if key.is_empty() {
+                    eprintln!("Usage: syscribe --model <root> release <PI-id> [--dry-run]");
+                    std::process::exit(1);
+                }
+                let rest = subcommand_args.get(2..).unwrap_or(&[]);
+                let dry_run = rest.iter().any(|a| a == "--dry-run");
+                claim::cmd_release(model_root, &elems, &resolver, key, dry_run);
             }
             "applies-when" => {
                 if key.is_empty() {

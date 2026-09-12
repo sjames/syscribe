@@ -657,6 +657,10 @@ pub fn cmd_show(
             None => println!("| **assignedTo** | {} |", who),
         }
     }
+    // claimedBy/claimedAt (issue #115): advisory claim markers for concurrent
+    // multi-agent work, written/cleared by `syscribe claim`/`syscribe release`.
+    if let Some(ref who) = fm.claimed_by { println!("| **claimedBy** | {} |", who); }
+    if let Some(ref at) = fm.claimed_at { println!("| **claimedAt** | {} |", at); }
     if let Some(ref g) = fm.derived_from_cybersecurity_goal { println!("| **derivedFromCybersecurityGoal** | {} |", g); }
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
     if let Some(ref at) = fm.argument_type { println!("| **argumentType** | {} |", at); }
@@ -1213,6 +1217,7 @@ pub fn cmd_list(
 
     let is_testcase = type_filter_lc == "testcase";
     let is_aou = type_filter_lc == "assumptionofuse";
+    let is_planning_item = type_filter_lc == "planningitem";
 
     // `--json`: emit a JSON array of the (filtered) elements. TestCase gets
     // extra fields a CI runner needs (REQ-TRS-OUT-014); other types get the
@@ -1259,6 +1264,14 @@ pub fn cmd_list(
                     obj.as_object_mut().unwrap().extend([
                         ("appliesTo".into(), serde_json::json!(applies_to)),
                         ("body".into(), body),
+                    ]);
+                } else if is_planning_item {
+                    // `claimedBy`/`claimedAt` (issue #115): so an orchestrating process
+                    // can answer "is anyone already on this?" from `list PlanningItem
+                    // --status in_progress --json` without re-parsing every file.
+                    obj.as_object_mut().unwrap().extend([
+                        ("claimedBy".into(), serde_json::json!(e.frontmatter.claimed_by)),
+                        ("claimedAt".into(), serde_json::json!(e.frontmatter.claimed_at)),
                     ]);
                 }
                 obj

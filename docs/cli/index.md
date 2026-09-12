@@ -1178,6 +1178,25 @@ must resolve to a native Requirement; `evidence.add ref=` must resolve to some e
 `path=` must exist on disk or be an `http(s)://` URI). `--dry-run` previews the unified diff
 without writing.
 
+### Claim markers for concurrent multi-agent work (`claim` / `release`)
+
+Running several agents against one model, `claim`/`release` give an orchestrating process a
+place to answer "is anyone already on this?" instead of reconstructing it from `git status` or
+its own memory of what it dispatched:
+
+```bash
+syscribe -m model/ claim PI-HPLE-001 --by agent-session-01VRUS
+syscribe -m model/ release PI-HPLE-001
+```
+
+`claim` sets `claimedBy:`/`claimedAt:` on a `PlanningItem`, refusing when the item is already
+`status: done` (nothing to claim) or already claimed by a *different* `--by` value (re-claiming
+with the same value is allowed and refreshes `claimedAt:`). `release` clears both fields
+regardless of `status:`. Both resolve by qualified name or stable id, refuse on a
+non-`PlanningItem` target, and support `--dry-run`. `claimedBy` shows up in `show <PI-id>` and
+`list PlanningItem --json`. Two simultaneously-active (`in_progress` or claimed) PlanningItems
+that overlap by `achieves:` or `evidence[].path` raise `W311` on the next `validate`.
+
 ---
 
 ## Format spec browser

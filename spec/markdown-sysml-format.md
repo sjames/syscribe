@@ -7346,6 +7346,8 @@ Examples: `PI-HPLE-001`, `PI-RTH-IMPL-SW-002`
 | `blockedBy` | string or list | optional | absent | One or more elements this item is waiting on before it can proceed — most commonly another `PlanningItem`, but resolved permissively like `evidence.ref:` (§23.3), unrestricted by kind. A dangling entry or a cycle (through other `PlanningItem`s, back to itself) is an error; a non-empty `blockedBy:` while `status` isn't `blocked` is a warning (likely stale). `status: blocked` with an empty/absent `blockedBy:` raises nothing — see §23.4. |
 | `evidence` | list | optional | absent | Duck-typed entries proving completion — see §23.3. |
 | `assignedTo` | string | optional | absent | A single Unix-style username responsible for this item — see §23.7. Not a cross-reference; format is always checked (`E723`), roster membership only when `[users]` is configured (`E722`). |
+| `claimedBy` | string | optional | absent | Advisory claimant (agent/session) id — see §23.9. Never format-validated; written/cleared by `syscribe claim`/`syscribe release`. |
+| `claimedAt` | string | optional | absent | Opaque timestamp paired with `claimedBy` — see §23.9. Conventionally ISO-8601, never itself parsed/validated. |
 | `tags` | list of strings | optional | absent | Free labels. |
 
 `appliesWhen:` (product-line gating) needs no new mechanism — it is already a universal, type-agnostic field; a `PlanningItem` implementing a product-line feature sets it exactly like any other element.
@@ -7444,5 +7446,41 @@ For a `PlanningItem` at `status: done`, each `achieves:` entry that resolves to 
 - A **parent** Requirement (has `derivedChildren`) needs at least one **active, integration-level** (`testLevel: L3`, `L4`, or `L5`) `TestCase` directly on itself — `W305`'s bar; a parent's leaf descendants carrying their own coverage does not change what `W305` requires of the parent.
 
 `W310` fires once per (`PlanningItem`, `Requirement`) pair that fails its bar, attached to the `PlanningItem`'s file — a distinct finding from any `W002`/`W305` already present on the Requirement's own file, not a duplicate of it (different code, different file). It never fires for `todo`/`in_progress`/`blocked`, and applies at any tree position (leaf or non-leaf `PlanningItem`) — unlike `E719`, an `achieves:` claim's verification state does not depend on whether the claiming item itself has children.
+
+### 23.9 Claim Markers for Concurrent Multi-Agent Work (`claimedBy:`/`claimedAt:`, `W311`)
+
+`claimedBy:`/`claimedAt:` (issue #115) are optional, advisory ownership markers — a
+coordination signal ("is anyone already on this?") for an orchestrating process running
+several agents against one model concurrently, **not** a filesystem lock. Neither field is
+itself format-validated (`claimedAt:` is opaque free text, conventionally an ISO-8601-ish
+timestamp, the same posture as `wcet:`); nothing prevents hand-authoring them, though the
+intended path is the dedicated commands below.
+
+```yaml
+status: in_progress
+claimedBy: agent-session-01VRUS...
+claimedAt: 2026-09-12T08:00:00Z
+```
+
+**Commands.** `syscribe claim <PI-id> --by <agent-id>` sets both fields, refusing (no file
+written) when the item is already `status: done` (nothing to claim), or already `claimedBy:` a
+*different* value than `--by` — re-claiming with the same `--by` is allowed and refreshes
+`claimedAt:`. `syscribe release <PI-id>` clears both fields unconditionally, regardless of
+`status:` (a no-op, nothing written, when the item was not claimed). Both resolve their target
+by qualified name or stable id, support `--dry-run`, and refuse on a non-`PlanningItem` target.
+`claimedBy` is surfaced in `show <PI-id>` and in `list PlanningItem --json`.
+
+**`W311` (overlap check).** Two `PlanningItem`s are each "active" when `status: in_progress`
+**or** `claimedBy:` is non-empty (a claimed item not yet flipped to `in_progress`, or an
+`in_progress` item nobody ran `claim` on, both count). `W311` fires once per active pair that
+overlaps by:
+
+- a shared `achieves:` Requirement, or
+- an `evidence[].path` entry resolving to the same repo-relative path string.
+
+— attached to the lexically-first item's file (by stable id), so re-running `validate` reports
+each overlapping pair exactly once rather than once from each side. This is the validator-side
+counterpart to `claim`/`release`: it fires whether or not either item was ever actually claimed,
+since `status: in_progress` alone already signals active work.
 
 `W080` is **draft-suppressed** (not emitted for `Sequence` diagrams with `status: draft`). Gateable with `--deny W080`.
