@@ -75,6 +75,7 @@ const HELP: &[(&str, &str)] = &[
     ("check-ref", include_str!("../../../prompts/help/check-ref.md")),
     ("path-for", include_str!("../../../prompts/help/path-for.md")),
     ("move", include_str!("../../../prompts/help/move.md")),
+    ("set", include_str!("../../../prompts/help/set.md")),
     ("mcp", include_str!("../../../prompts/help/mcp.md")),
     ("lsp", include_str!("../../../prompts/help/lsp.md")),
     ("applies-when", include_str!("../../../prompts/help/applies-when.md")),

@@ -38,6 +38,7 @@ mod safety_case;
 mod sbom;
 mod scaffold;
 mod scripting;
+mod set;
 mod stats;
 mod summarize;
 mod suspect;
@@ -1614,6 +1615,16 @@ fn main() {
                 }
                 let fix = subcommand_args.iter().any(|a| a == "--fix");
                 scaffold::cmd_scaffold_gherkin(&elems, &resolver, key, fix);
+            }
+            "set" => {
+                let rest = subcommand_args.get(2..).unwrap_or(&[]);
+                if key.is_empty() || rest.is_empty() {
+                    eprintln!("Usage: syscribe --model <root> set <qname|id> status=<value> | evidence.add ref=<id>|path=<path> | achieves.add <req-id>  [--dry-run]");
+                    std::process::exit(1);
+                }
+                let dry_run = rest.iter().any(|a| a == "--dry-run");
+                let op_args: Vec<&str> = rest.iter().map(|s| s.as_str()).filter(|a| *a != "--dry-run").collect();
+                set::cmd_set(model_root, &elems, &resolver, key, &op_args, dry_run);
             }
             "applies-when" => {
                 if key.is_empty() {

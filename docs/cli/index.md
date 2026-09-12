@@ -1153,6 +1153,31 @@ syscribe -m model/ move System::Software::FuelControl System::Software::FuelGove
 
 The source resolves by qualified name or stable id; both positionals are required. `--dry-run` reports the file move plus every reference rewrite without touching disk.
 
+### Safe field mutation (`set`)
+
+`set <qname|id> <op>` mutates one field on an existing element — a narrow, schema-aware
+alternative to hand-editing YAML frontmatter, so an agent-authored typo (`status: verifed`, a
+dangling `achieves.add` target) is caught immediately, not only at the next full-model
+`validate`. Three operations:
+
+```bash
+syscribe -m model/ set REQ-UAV-NAV-001 status=approved
+syscribe -m model/ set TC-UAV-NAV-001 status=active --dry-run
+syscribe -m model/ set PI-HPLE-001 status=done            # W310 check if achieves: isn't verified yet
+syscribe -m model/ set PI-HPLE-001 achieves.add REQ-UAV-NAV-002
+syscribe -m model/ set PI-HPLE-001 evidence.add ref=TC-UAV-NAV-001
+syscribe -m model/ set PI-HPLE-001 evidence.add path=src/nav/controller.rs
+```
+
+`status=<value>` is checked against the target type's own enum when it has one
+(`Requirement`/`TestCase`/`TestPlan`/`ADR`/`PlanningItem`/`ReviewRecord`) — an invalid value is
+refused with the allowed list, no file written — and is a true single-line splice (byte-identical
+elsewhere), not a full YAML round-trip. `achieves.add`/`evidence.add` append to their list
+without disturbing existing order, each validated before anything is written (`achieves.add`
+must resolve to a native Requirement; `evidence.add ref=` must resolve to some element,
+`path=` must exist on disk or be an `http(s)://` URI). `--dry-run` previews the unified diff
+without writing.
+
 ---
 
 ## Format spec browser
