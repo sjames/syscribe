@@ -68,7 +68,7 @@ fn resolve_plan<'a>(
 ///   plus the transitive closure of its `derivedChildren` (computed from the
 ///   `derivedFrom:` reverse direction); plus, for each demonstrated
 ///   `SafetyGoal`/`CybersecurityGoal`, the requirements that
-///   `derivedFromSafetyGoal:`/`derivedFromSecurityGoal:` it (then their derived
+///   `derivedFromSafetyGoal:`/`derivedFromCybersecurityGoal:` it (then their derived
 ///   closure too). `Argument` targets contribute nothing directly for v1.
 /// * Without `demonstrates:` → the union of the `verifies:` targets (resolved to
 ///   Requirements) of the plan's effective TestCase set.
@@ -123,7 +123,7 @@ pub fn in_scope_requirements(
     out.into_iter().collect()
 }
 
-/// Requirements whose `derivedFromSafetyGoal:` / `derivedFromSecurityGoal:`
+/// Requirements whose `derivedFromSafetyGoal:` / `derivedFromCybersecurityGoal:`
 /// names `goal` (by stable id or qname).
 fn requirements_derived_from_goal<'a>(
     goal: &RawElement,

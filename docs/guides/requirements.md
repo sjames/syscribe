@@ -89,7 +89,7 @@ syscribe -m model audit
 | Requirement → parent requirement or goal | up | `derivedFrom:` | Yes (E/W) |
 | Requirement → architecture element | down | `satisfiedBy:` on the PartDef, OR `satisfies:` on the PartDef | Yes |
 | Requirement → safety goal | up | `derivedFromSafetyGoal:` | Yes |
-| Requirement → cybersecurity goal | up | `derivedFromSecurityGoal:` | Yes |
+| Requirement → cybersecurity goal | up | `derivedFromCybersecurityGoal:` | Yes |
 | Test case → requirement | up | `verifies:` on the TestCase | Yes |
 
 **Coverage gap**: W015 fires when a requirement is active in a configuration but no test case

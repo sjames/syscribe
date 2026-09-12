@@ -449,7 +449,7 @@ Place in the `AttackTreeName/` subdirectory.
 | Rule | Details |
 |---|---|
 | `Requirement` → `SafetyGoal` | `derivedFromSafetyGoal: SG-*`; integrity level must propagate (E841) |
-| `Requirement` → `CybersecurityGoal` | `derivedFromSecurityGoal: CSG-*`; `verificationMethod:` required (W807) |
+| `Requirement` → `CybersecurityGoal` | `derivedFromCybersecurityGoal: CSG-*`; `verificationMethod:` required (W807) |
 | `PartDef`/`Part` → `SecurityControl` | `allocatedFrom: SC-*` (or list); OSLC direction: arch element holds reference |
 | `FaultTree` → `SafetyGoal` | `topEvent: SG-*` |
 | `AttackTree` → `ThreatScenario` | `threatRef: TS-*` (E917); feasibility roll-up reconciled via W035 |

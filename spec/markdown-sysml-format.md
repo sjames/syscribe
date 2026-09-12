@@ -2413,7 +2413,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `asilLevel` | enum A\|B\|C\|D | optional | ISO 26262 ASIL level. Mutually exclusive with `silLevel` — do not set both (W006). |
 | `plLevel` | enum a\|b\|c\|d\|e | optional | ISO 13849-1 Performance Level. Mutually exclusive with `asilLevel`/`silLevel`. |
 | `derivedFromSafetyGoal` | string | optional | ID or qualified name of the `SafetyGoal` that motivated this requirement (§8.18.2). When set the SafetyGoal's integrity level must also appear on this element (E841). |
-| `derivedFromSecurityGoal` | string | optional | ID or qualified name of the `CybersecurityGoal` that motivated this requirement (§8.18.4). Implies `verificationMethod:` should be set (W807). |
+| `derivedFromCybersecurityGoal` | string | optional | ID or qualified name of the `CybersecurityGoal` that motivated this requirement (§8.18.4). Implies `verificationMethod:` should be set (W807). `derivedFromSecurityGoal` is a legacy serde alias for this same field, honored for backward compatibility (REQ-TRS-SEC-006). |
 | `verificationMethod` | enum | optional | How this requirement will be verified: `test`, `inspection`, `analysis`, or `demonstration`. Required for ASIL B/C/D requirements (W701). |
 | `wcet` | string | optional | WCET claim (opaque). E.g. `"O(1)"`, `"≤ 200 cycles @ 72 MHz"`. |
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
@@ -4040,7 +4040,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 | `VulnerabilityReport` | `VR-*` | A tracked vulnerability; carries `cvssScore:`, `mitigatedBy:`, and `affectedElements:`. |
 | `TARASheet` | `TARA-*` | An Option-B container: a single file whose `damageTable:`, `threatTable:`, `goalTable:`, and `controlTable:` sections are exploded at parse time into the individual Tier 2 element types above. |
 
-**Cross-reference rules:** A `Requirement` motivated by a cybersecurity goal should set `derivedFromSecurityGoal:` to the `CSG-*` ID, and must set `verificationMethod:` (W807). The OSLC link direction applies: the downstream element holds the reference.
+**Cross-reference rules:** A `Requirement` motivated by a cybersecurity goal should set `derivedFromCybersecurityGoal:` to the `CSG-*` ID, and must set `verificationMethod:` (W807). The OSLC link direction applies: the downstream element holds the reference.
 
 **Safety↔security co-engineering (ISO 26262 ⇄ ISO/SAE 21434):** A `DamageScenario`/`ThreatScenario` may declare `hazardRef:` (string or list) pointing to the `HazardousEvent`/`SafetyGoal` it endangers, resolved by `id` or qualified name. A `hazardRef` that does not resolve, or resolves to a non-`HazardousEvent`/non-`SafetyGoal` element, is an error (E844). A `DamageScenario` whose `impactCategories:` includes `safety` but has no `hazardRef` warns W030 (opt-in, gateable with `--deny W030`). The `co-analysis` command (§ CLI) reports, per safety goal/hazard, the cyber threats that can violate it.
 
@@ -5654,10 +5654,10 @@ Once any element in the traceability chain carries `asilLevel:`, `silLevel:`, or
 | `W801` | `SafetyGoal` has no integrity level — set `asilLevel` (ISO 26262), `silLevel` (IEC 61508), or `plLevel` (ISO 13849-1) |
 | `W802` | `CybersecurityGoal` is not implemented by any `SecurityControl.implementsGoals` |
 | `W803` | `VulnerabilityReport` has `status: open` |
-| `W804` | `CybersecurityGoal` has no `Requirement` with `derivedFromSecurityGoal:` pointing to it |
+| `W804` | `CybersecurityGoal` has no `Requirement` with `derivedFromCybersecurityGoal:` pointing to it |
 | `W805` | `SafetyGoal` has no `Requirement` with `derivedFromSafetyGoal:` pointing to it |
 | `W806` | `SafetyGoal` has no `hazardousEvents:` — not grounded in any hazard analysis |
-| `W807` | `Requirement` with `derivedFromSecurityGoal:` has no `verificationMethod:` |
+| `W807` | `Requirement` with `derivedFromCybersecurityGoal:` has no `verificationMethod:` |
 
 #### Safety↔security co-engineering (E844, W030)
 
@@ -5959,7 +5959,7 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `asilLevel` | native Requirement | string | absent | 8.11.6 |
 | `plLevel` | native Requirement / SafetyGoal | string | absent | 8.11.6, 8.18.1 |
 | `derivedFromSafetyGoal` | native Requirement | string | absent | 8.11.6, 8.18.1 |
-| `derivedFromSecurityGoal` | native Requirement | string | absent | 8.11.6, 8.18.2 |
+| `derivedFromCybersecurityGoal` | native Requirement | string | absent | 8.11.6, 8.18.2 |
 | `verificationMethod` | native Requirement | string | absent | 8.11.6 |
 | `wcet` | native Requirement | string | absent | 8.11.6 |
 | `allocatedFrom` | Any element | string or list | absent | 8.18.2 |

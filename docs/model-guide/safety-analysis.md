@@ -660,7 +660,7 @@ Once a `SafetyGoal` carries an integrity level (`asilLevel`, `silLevel`, or `plL
 
 **Lower level** — valid only when the architecture applies redundancy or independence arguments (ASIL decomposition per ISO 26262-9 or SIL decomposition per IEC 61508-2 §7.4.9). Set `breakdownAdr:` to an `accepted` ADR that documents the decomposition rationale.
 
-### Security requirements — `derivedFromSecurityGoal`
+### Security requirements — `derivedFromCybersecurityGoal`
 
 ```yaml
 type: Requirement
@@ -668,12 +668,13 @@ id: REQ-SEC-CAN-001
 name: "ECU shall authenticate all CAN frames on the safety bus using CMAC"
 reqDomain: software
 status: draft
-derivedFromSecurityGoal: CSG-SYS-001  # the CybersecurityGoal that motivated this requirement
+derivedFromCybersecurityGoal: CSG-SYS-001  # the CybersecurityGoal that motivated this requirement
 breakdownAdr: ADR-SEC-CAN-001
 ```
 
-- **E831** — `derivedFromSecurityGoal` must resolve to a `CybersecurityGoal` element.
+- **E831** — `derivedFromCybersecurityGoal` must resolve to a `CybersecurityGoal` element.
 - **W804** — fires on a `CybersecurityGoal` that has no `Requirement` pointing back to it.
+- `derivedFromSecurityGoal:` is a legacy alias for `derivedFromCybersecurityGoal:`, still honored for backward compatibility — use the current name in new models.
 
 ---
 
@@ -695,7 +696,7 @@ The full trace from a threat or hazard identification through to a verified impl
 ┌─────────────────────────────────────────────────────────────────── │ ┐
 │ Security (ISO/SAE 21434)                                           │  │
 │                                                                    │  │
-│  TARASheet → CybersecurityGoal ←── derivedFromSecurityGoal ───┐   │  │
+│  TARASheet → CybersecurityGoal ←── derivedFromCybersecurityGoal ───┐   │  │
 │               (CSG-*)                                          │   │  │
 │                  │ implementsGoals ←── SecurityControl         │   │  │
 └─────────────────────────────────────────────────────────────────── │ ┘
@@ -749,7 +750,7 @@ syscribe model/ refs CSG-SYS-001
 | E833–E836 | Error | IEC 61508 risk parameter out of valid range |
 | E837 | Error | SafetyGoal `plLevel` not in `a`–`e` |
 | E825 | Error | `hazardousEvents` ref does not resolve to a HazardousEvent |
-| E831 | Error | `derivedFromSecurityGoal` does not resolve to a CybersecurityGoal |
+| E831 | Error | `derivedFromCybersecurityGoal` does not resolve to a CybersecurityGoal |
 | E832 | Error | `derivedFromSafetyGoal` does not resolve to a SafetyGoal |
 | E841 | Error | Element linked via `derivedFromSafetyGoal` is missing `asilLevel`/`silLevel` when the SafetyGoal has one |
 | E842 | Error | Element linked via `derivedFrom` is missing `asilLevel`/`silLevel` when the parent carries one |
@@ -760,6 +761,6 @@ syscribe model/ refs CSG-SYS-001
 | W800 | Warning | HazardousEvent not referenced by any SafetyGoal |
 | W801 | Warning | SafetyGoal has no integrity level (`asilLevel`, `silLevel`, or `plLevel`) |
 | W806 | Warning | SafetyGoal has no `hazardousEvents` — not grounded in any hazard analysis |
-| W804 | Warning | CybersecurityGoal has no `Requirement` with `derivedFromSecurityGoal` |
+| W804 | Warning | CybersecurityGoal has no `Requirement` with `derivedFromCybersecurityGoal` |
 | W805 | Warning | SafetyGoal has no `Requirement` with `derivedFromSafetyGoal` |
 | W808 | Warning | Element's integrity level is lower than its source (`derivedFromSafetyGoal`, `derivedFrom`, or `satisfies`) but no `breakdownAdr` is set |

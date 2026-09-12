@@ -135,7 +135,7 @@ All frontmatter fields. Optional unless marked **required**.
 | `wcet` | string | Worst-case execution time budget |
 | `breakdownAdr` | string | ADR ID/QName for decomposition rationale (required when `derivedFrom` set) |
 | `derivedFromSafetyGoal` | string | SafetyGoal ID/QName |
-| `derivedFromSecurityGoal` | string | CybersecurityGoal ID/QName |
+| `derivedFromCybersecurityGoal` | string | CybersecurityGoal ID/QName |
 | `tags` | list | Free-form tags |
 
 ## Native TestCase extra fields
@@ -380,5 +380,5 @@ download = "curl -sSfL {url} -o {dest}"
 cache_dir = ".syscribe/cache"
 ```
 | `mitigatedBy` | VulnerabilityReport | list | `SecurityControl` id/QName refs |
-| `derivedFromSecurityGoal` | Requirement | string | `CSG-*` that generated this requirement |
+| `derivedFromCybersecurityGoal` | Requirement | string | `CSG-*` that generated this requirement |
 | `derivedFromSafetyGoal` | Requirement | string | `SG-*` that generated this requirement |

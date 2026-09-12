@@ -887,7 +887,7 @@ $ syscribe -m model/ testplan TP-DELIVERY-INTEGRATION-001 --json
 - **List** — one row per plan: id, title, scope, bound configurations, effective-TestCase count, coverage %, and verdict.
 - **Detail (`testplan TP-X`)** — the resolved member TestCases (each flagged `escaping` when active in **none** of the plan's configs), the **in-scope requirements**, a per-config coverage grid, and the roll-up verdict. An unknown id (or an id that is not a `TestPlan`) exits `1`.
 
-**In-scope requirements.** With `demonstrates:` set, the scope is the **goal-closure**: each demonstrated `Requirement` plus the transitive closure of its `derivedChildren`, and for a demonstrated `SafetyGoal`/`CybersecurityGoal`, the requirements that `derivedFromSafetyGoal:`/`derivedFromSecurityGoal:` it (and their closure). Without `demonstrates:`, the scope is the union of the `verifies:` targets of the effective TestCase set.
+**In-scope requirements.** With `demonstrates:` set, the scope is the **goal-closure**: each demonstrated `Requirement` plus the transitive closure of its `derivedChildren`, and for a demonstrated `SafetyGoal`/`CybersecurityGoal`, the requirements that `derivedFromSafetyGoal:`/`derivedFromCybersecurityGoal:` it (and their closure). Without `demonstrates:`, the scope is the union of the `verifies:` targets of the effective TestCase set.
 
 **Verdict** ∈ `pass | fail | incomplete | empty`: `empty` when the effective set is empty; `fail` when any member's ingested verdict is `Fail`; `pass` when every member passes; otherwise `incomplete` (no/partial results). Load results with `ingest-results`.
 

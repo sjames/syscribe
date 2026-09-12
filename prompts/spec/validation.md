@@ -164,7 +164,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E828` | `SecurityControl.implementsGoals` entry does not resolve to a `CybersecurityGoal` |
 | `E829` | `VulnerabilityReport.mitigatedBy` entry does not resolve to a `SecurityControl` |
 | `E830` | `VulnerabilityReport.affectedElements` entry does not resolve to any known element |
-| `E831` | `derivedFromSecurityGoal` does not resolve or resolves to a non-`CybersecurityGoal` |
+| `E831` | `derivedFromCybersecurityGoal` does not resolve or resolves to a non-`CybersecurityGoal` |
 | `E832` | `derivedFromSafetyGoal` does not resolve or resolves to a non-`SafetyGoal` |
 
 ## Tier 2 coverage warnings (W800–W808)
@@ -175,10 +175,10 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W801` | `SafetyGoal` has no integrity level (`asilLevel`, `silLevel`, or `plLevel`) |
 | `W802` | `CybersecurityGoal` not implemented by any `SecurityControl.implementsGoals` |
 | `W803` | `VulnerabilityReport` has `status: open` |
-| `W804` | `CybersecurityGoal` has no `Requirement` with `derivedFromSecurityGoal` pointing to it |
+| `W804` | `CybersecurityGoal` has no `Requirement` with `derivedFromCybersecurityGoal` pointing to it |
 | `W805` | `SafetyGoal` has no `Requirement` with `derivedFromSafetyGoal` pointing to it |
 | `W806` | `SafetyGoal` has no `hazardousEvents:` — not grounded in any hazard analysis |
-| `W807` | `Requirement` with `derivedFromSecurityGoal` has no `verificationMethod` |
+| `W807` | `Requirement` with `derivedFromCybersecurityGoal` has no `verificationMethod` |
 
 ## Quantitative HW safety metrics (E846, W033)
 

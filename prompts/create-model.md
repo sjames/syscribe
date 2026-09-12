@@ -457,7 +457,7 @@ custom_fields:
 | `asilLevel` | `A` · `B` · `C` · `D` (ISO 26262). Mutually exclusive with `silLevel`. |
 | `plLevel` | `a` · `b` · `c` · `d` · `e` (ISO 13849-1 Performance Level). Mutually exclusive with the above. |
 | `derivedFromSafetyGoal` | ID of the `SafetyGoal` that motivated this requirement. The SafetyGoal's integrity level must also be set on this element (E841). |
-| `derivedFromSecurityGoal` | ID of the `CybersecurityGoal` that motivated this requirement. Requires `verificationMethod:` (W807). |
+| `derivedFromCybersecurityGoal` | ID of the `CybersecurityGoal` that motivated this requirement. Requires `verificationMethod:` (W807). |
 | `verificationMethod` | `test` · `inspection` · `analysis` · `demonstration` — required for ASIL B/C/D (W701). |
 | `derivedFrom` | List of parent Requirement `id`s — triggers §12 rules |
 | `breakdownAdr` | Qualified name of an `accepted` ADR — **required whenever `derivedFrom` is set** (E310); also required when integrity level is lower than the source (W808) |
@@ -1117,7 +1117,7 @@ controlTable:
 
 **Template:** `syscribe model/ template TARASheet`
 
-After the TARASheet is in place, create `Requirement` elements with `derivedFromSecurityGoal: CSG-SYS-001` and set `verificationMethod:`.
+After the TARASheet is in place, create `Requirement` elements with `derivedFromCybersecurityGoal: CSG-SYS-001` and set `verificationMethod:`.
 
 **Binding a SecurityControl to an architecture element** (OSLC-compliant direction — architecture element holds the reference):
 
@@ -1322,7 +1322,7 @@ model/
 ### For every safety/security Requirement
 
 - [ ] If `derivedFromSafetyGoal:` is set → the same integrity level field is set on this element (E841)
-- [ ] If `derivedFromSecurityGoal:` is set → `verificationMethod:` is also set (W807)
+- [ ] If `derivedFromCybersecurityGoal:` is set → `verificationMethod:` is also set (W807)
 - [ ] If integrity level is lower than the source SafetyGoal/parent → `breakdownAdr:` is set (W808)
 - [ ] Do not set both `silLevel:` and `asilLevel:` — use one standard per element (W006)
 

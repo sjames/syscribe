@@ -506,7 +506,7 @@ These warnings apply to requirements carrying safety integrity level fields (`as
 | W701 | Requirement with `asilLevel: B`, `C`, or `D` has no `verificationMethod` — add `test`, `inspection`, `analysis`, or `demonstration` |
 | W702 | Requirement with `asilLevel: D` has no active TestCase at `testLevel: L5` (HIL) — ISO 26262-6 §9 requires hardware-in-the-loop testing for ASIL D |
 | W703 | Both `asilLevel` (ISO 26262) and `dalLevel` (DO-178C) are set on the same element — these are different standards; pick one or document the mapping |
-| W807 | `Requirement` with `derivedFromSecurityGoal` has no `verificationMethod` — security-derived requirements must specify how they will be tested or inspected |
+| W807 | `Requirement` with `derivedFromCybersecurityGoal` has no `verificationMethod` — security-derived requirements must specify how they will be tested or inspected |
 | W029 | Non-draft requirement with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no **active measuring** TestCase verifies it (testLevel `L5`, or tagged `timing`/`wcet`). The timing-evidence analog of `W702`. Gate with `--deny W029`. Query timing claims with `list --has-wcet`. |
 
 ## Tier 2 safety element errors (E800–E830)
@@ -593,7 +593,7 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 | E828 | `SecurityControl.implementsGoals` entry does not resolve to a CybersecurityGoal |
 | E829 | `VulnerabilityReport.mitigatedBy` entry does not resolve to a SecurityControl |
 | E830 | `VulnerabilityReport.affectedElements` entry does not resolve to any known element |
-| E831 | `derivedFromSecurityGoal` does not resolve, or does not resolve to a `CybersecurityGoal` |
+| E831 | `derivedFromCybersecurityGoal` does not resolve, or does not resolve to a `CybersecurityGoal` |
 | E832 | `derivedFromSafetyGoal` does not resolve, or does not resolve to a `SafetyGoal` |
 
 ## Tier 2 coverage and traceability warnings (W800–W808)
@@ -603,10 +603,10 @@ Tier 2 element types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Ea
 | W800 | HazardousEvent is not referenced by any `SafetyGoal.hazardousEvents` |
 | W802 | CybersecurityGoal is not implemented by any `SecurityControl.implementsGoals` |
 | W803 | VulnerabilityReport has `status: open` — ensure it is being tracked and mitigated |
-| W804 | CybersecurityGoal has no `Requirement` with `derivedFromSecurityGoal` pointing to it |
+| W804 | CybersecurityGoal has no `Requirement` with `derivedFromCybersecurityGoal` pointing to it |
 | W805 | SafetyGoal has no `Requirement` with `derivedFromSafetyGoal` pointing to it |
 | W806 | SafetyGoal has no `hazardousEvents` — not grounded in any hazard analysis |
-| W807 | `Requirement` with `derivedFromSecurityGoal` has no `verificationMethod` |
+| W807 | `Requirement` with `derivedFromCybersecurityGoal` has no `verificationMethod` |
 
 ## Asset identification — ISO/SAE 21434 §15.3 (E861–E864, W810)
 

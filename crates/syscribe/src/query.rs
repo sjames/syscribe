@@ -1460,7 +1460,7 @@ pub fn cmd_trace(
         println!();
     }
 
-    // ── Security Goal (derivedFromSecurityGoal) ──────────────────────────
+    // ── Security Goal (derivedFromCybersecurityGoal) ──────────────────────
     if let Some(ref csg_ref) = fm.derived_from_cybersecurity_goal {
         println!("## Security Goal (`derivedFromCybersecurityGoal`)");
         println!();
@@ -2682,7 +2682,7 @@ verificationMethod: test
 # breakdownAdr: ADR-XXX-001
 # decompositionKind: independent   # ASIL D / SIL 4 decomposition: independent | redundant | diverse
 # derivedFromSafetyGoal: SG-PREFIX-001
-# derivedFromSecurityGoal: CSG-PREFIX-001
+# derivedFromCybersecurityGoal: CSG-PREFIX-001
 ---
 
 The system shall ...
