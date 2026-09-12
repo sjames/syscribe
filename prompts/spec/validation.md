@@ -331,7 +331,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W700` | A `status: closed` review has an `items[]` with `disposition: open` |
 | `W704` | A non-`draft` native Requirement appears in no `ReviewRecord.reviews:` list (opt-in; `--deny W704`) |
 
-## Native PlanningItem (E706–E717, E719–E723, W308–W309, §23, ADR-SYS-PLANITEM-001)
+## Native PlanningItem (E706–E717, E719–E723, W308–W310, §23, ADR-SYS-PLANITEM-001)
 
 | Code | Condition |
 |---|---|
@@ -354,6 +354,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E722` | `assignedTo:` names a username not present in the declared `[users]` roster (checked only when non-empty) |
 | `E723` | `assignedTo:` is not a valid Unix-style username `^[a-z_][a-z0-9_-]{0,31}$` (checked unconditionally) |
 | `W309` | A `[users]` key in `.syscribe.toml` is not a valid username — entry ignored, excluded from the roster |
+| `W310` | A `done` `PlanningItem`'s `achieves:` Requirement hasn't met the verification bar `validate` already applies to it directly — an active TestCase for a leaf, an active integration-level (`L3`/`L4`/`L5`) TestCase for a parent (mirrors `W002`/`W305`, scoped to the specific PlanningItem, issue #114) |
 
 No dedicated CLI subcommand or MCP tool yet — query via `list`/`show`/`ls`/`find`/`refs`; write via the generic MCP element tools.
 

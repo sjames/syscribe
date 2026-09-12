@@ -7434,4 +7434,15 @@ A key in `[users]` that is not itself a valid username is reported as `W309` (at
 
 An absent `assignedTo:` never raises anything, regardless of whether a roster is configured. `syscribe show <PI-id>` resolves and prints the declared display name alongside the raw username when the roster is configured. Otherwise this is schema + validation only, matching `ADR-SYS-PLANITEM-001`'s own posture for the rest of `PlanningItem` — no CLI filtering/listing by assignee in this phase.
 
+### 23.8 Completion Check Against `achieves:` (`W310`)
+
+`W002`/`W003`/`W305` (§11) already warn, from a `Requirement`'s own file, when it lacks the verification coverage its `status` claims — but nothing ties "this specific `PlanningItem` you are about to mark `done`" to "here specifically are the `achieves:` requirements that are not actually backed by evidence yet" (`REQ-TRS-PLANITEM-010`). `W310` closes that gap, scoped to the `PlanningItem` rather than the model at large.
+
+For a `PlanningItem` at `status: done`, each `achieves:` entry that resolves to a native `Requirement` (a dangling or wrong-kind entry is left to `E714`/`E715`, never re-flagged here) is checked against the **exact same bar** `W002`/`W305` already apply to that Requirement, per its own kind:
+
+- A **leaf** Requirement (no `derivedChildren`) needs at least one **active** `TestCase` — `W002`'s bar.
+- A **parent** Requirement (has `derivedChildren`) needs at least one **active, integration-level** (`testLevel: L3`, `L4`, or `L5`) `TestCase` directly on itself — `W305`'s bar; a parent's leaf descendants carrying their own coverage does not change what `W305` requires of the parent.
+
+`W310` fires once per (`PlanningItem`, `Requirement`) pair that fails its bar, attached to the `PlanningItem`'s file — a distinct finding from any `W002`/`W305` already present on the Requirement's own file, not a duplicate of it (different code, different file). It never fires for `todo`/`in_progress`/`blocked`, and applies at any tree position (leaf or non-leaf `PlanningItem`) — unlike `E719`, an `achieves:` claim's verification state does not depend on whether the claiming item itself has children.
+
 `W080` is **draft-suppressed** (not emitted for `Sequence` diagrams with `status: draft`). Gateable with `--deny W080`.

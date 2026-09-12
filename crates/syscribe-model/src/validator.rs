@@ -4219,6 +4219,81 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // W310 (issue #114): PlanningItem-scoped completion check. W002/W003/W305
+    // already warn from the Requirement's own file when it lacks verification
+    // coverage, but nothing ties "this specific PlanningItem you're about to
+    // mark done" to "here specifically are the achieves: requirements that
+    // aren't actually backed by evidence yet" — the moment that distinction
+    // matters most. Deliberately reuses the *exact* bar W002/W305 already
+    // apply per requirement kind (any active TestCase for a leaf requirement;
+    // an active *integration-level* L3/L4/L5 TestCase for a parent one, since
+    // a parent's leaf descendants carrying coverage doesn't change what W305
+    // requires directly on the parent itself) so this never disagrees with
+    // what `validate` already says about the achieved Requirement on its own
+    // file — it just re-surfaces the same fact scoped to the PlanningItem,
+    // on the PlanningItem's own file (distinct finding, not a duplicate of
+    // W002/W305: different code, different file). Applies at any tree
+    // position, not just leaves (unlike E719): an achieves: claim's
+    // verification state doesn't depend on whether this item has children.
+    // A dangling (E714) or wrong-kind (E715) achieves: target is skipped
+    // here — those are reported once, already, by their own checks above.
+    for elem in elements {
+        if !matches!(elem.frontmatter.element_type, Some(ElementType::PlanningItem)) {
+            continue;
+        }
+        if elem.frontmatter.status.as_deref() != Some("done") {
+            continue;
+        }
+        let pi_id = elem.frontmatter.id.as_deref().unwrap_or("");
+        let Some(ach) = elem.frontmatter.achieves.as_ref() else { continue };
+        for a in ach {
+            let Some(target) = resolver.resolve_ref(elements, a) else { continue };
+            if !Resolver::is_native_requirement(target) {
+                continue;
+            }
+            let req_id = target.frontmatter.id.as_deref().unwrap_or(a.as_str());
+            let active_tcs: Vec<&String> = verified_by
+                .get(req_id)
+                .map(|tcs| {
+                    tcs.iter()
+                        .filter(|tc_id| {
+                            resolver
+                                .get_by_id(elements, tc_id)
+                                .and_then(|e| e.frontmatter.status.as_deref())
+                                == Some("active")
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let is_parent = derived_children.get(req_id).is_some_and(|v| !v.is_empty());
+            let covered = if is_parent {
+                active_tcs.iter().any(|tc_id| {
+                    resolver
+                        .get_by_id(elements, tc_id)
+                        .and_then(|e| e.frontmatter.test_level.as_deref())
+                        .is_some_and(|lvl| matches!(lvl, "L3" | "L4" | "L5"))
+                })
+            } else {
+                !active_tcs.is_empty()
+            };
+            if !covered {
+                let need = if is_parent {
+                    "active system-integration TestCase (testLevel L3, L4, or L5)"
+                } else {
+                    "active TestCase"
+                };
+                findings.push(warning(
+                    "W310",
+                    &elem.file_path,
+                    &format!(
+                        "PlanningItem '{}' is 'done', but achieves '{}' which has no {} (see also W002/W305 on the requirement itself)",
+                        pi_id, req_id, need
+                    ),
+                ));
+            }
+        }
+    }
+
     // W002/W003: coverage checks for native Requirements
     for elem in elements {
         if !Resolver::is_native_requirement(elem) {
@@ -9405,6 +9480,183 @@ mod planning_item_achieves_tests {
             "achieves: must not trigger E312 on its target: {:?}",
             result.findings
         );
+    }
+}
+
+// ── PlanningItem-scoped completion check (issue #114, REQ-TRS-PLANITEM-010) ──
+
+#[cfg(test)]
+mod planning_item_completion_w310_tests {
+    use super::*;
+    use crate::config::ValidateConfig;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str, file_path: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: file_path.to_string(),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn req(id: &str, qname: &str, extra: &str) -> RawElement {
+        let status_line = if extra.contains("status:") { "" } else { "status: approved\n" };
+        let mut e = make_elem(
+            qname,
+            &format!("type: Requirement\nid: {id}\nname: A requirement\nreqDomain: software\n{status_line}{extra}"),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        );
+        e.doc = "The system shall do the thing.".to_string();
+        e
+    }
+
+    fn tc(id: &str, qname: &str, verifies: &str, status: &str, test_level: &str) -> RawElement {
+        make_elem(
+            qname,
+            &format!(
+                "type: TestCase\nid: {id}\nname: A test\nstatus: {status}\ntestLevel: {test_level}\nverifies: [{verifies}]\n"
+            ),
+            &format!("model/{}.md", qname.replace("::", "/")),
+        )
+    }
+
+    fn pi(id: &str, qname: &str, status: &str, achieves: &str) -> RawElement {
+        make_elem(
+            qname,
+            &format!("type: PlanningItem\nid: {id}\nname: An item\nstatus: {status}\nachieves: [{achieves}]\n"),
+            &format!("model/Planning/{}.md", qname.replace("::", "/")),
+        )
+    }
+
+    fn codes(findings: &[Finding]) -> Vec<&str> {
+        findings.iter().map(|f| f.code).collect()
+    }
+
+    #[test]
+    fn done_item_achieving_a_leaf_requirement_with_no_active_testcase_raises_w310() {
+        let elements = vec![
+            req("REQ-W310-001", "Requirements::Leaf1", ""),
+            tc("TC-W310-001", "Tests::T1", "REQ-W310-001", "draft", "L1"),
+            pi("PI-W310-001", "Planning::Item1", "done", "REQ-W310-001"),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"W310"), "expected W310: {:?}", result.findings);
+    }
+
+    #[test]
+    fn done_item_achieving_a_leaf_requirement_with_an_active_testcase_raises_nothing() {
+        let elements = vec![
+            req("REQ-W310-002", "Requirements::Leaf2", ""),
+            tc("TC-W310-002", "Tests::T2", "REQ-W310-002", "active", "L1"),
+            pi("PI-W310-002", "Planning::Item2", "done", "REQ-W310-002"),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(!codes(&result.findings).contains(&"W310"), "expected no W310: {:?}", result.findings);
+    }
+
+    #[test]
+    fn done_item_achieving_a_parent_requirement_with_only_leaf_level_active_coverage_raises_w310() {
+        // Mirrors W305's own bar: a parent Requirement needs an *integration-level*
+        // (L3/L4/L5) active TestCase directly on itself -- an active L1 alone does
+        // not satisfy it, even though W002's "any active TestCase" bar would.
+        let elements = vec![
+            req("REQ-W310-010", "Requirements::Parent3", ""),
+            req(
+                "REQ-W310-011",
+                "Requirements::Child3",
+                "derivedFrom: [REQ-W310-010]\nbreakdownAdr: ADR-W310-001\n",
+            ),
+            make_elem(
+                "Decisions::AdrW310",
+                "type: ADR\nid: ADR-W310-001\nname: Some decision\nstatus: accepted\n",
+                "model/Decisions/AdrW310.md",
+            ),
+            tc("TC-W310-010", "Tests::T3", "REQ-W310-010", "active", "L1"),
+            pi("PI-W310-003", "Planning::Item3", "done", "REQ-W310-010"),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"W310"), "expected W310 on parent with only L1 coverage: {:?}", result.findings);
+    }
+
+    #[test]
+    fn done_item_achieving_a_parent_requirement_with_active_integration_level_coverage_raises_nothing() {
+        let elements = vec![
+            req("REQ-W310-020", "Requirements::Parent4", ""),
+            req(
+                "REQ-W310-021",
+                "Requirements::Child4",
+                "derivedFrom: [REQ-W310-020]\nbreakdownAdr: ADR-W310-002\n",
+            ),
+            make_elem(
+                "Decisions::AdrW310b",
+                "type: ADR\nid: ADR-W310-002\nname: Some decision\nstatus: accepted\n",
+                "model/Decisions/AdrW310b.md",
+            ),
+            tc("TC-W310-020", "Tests::T4", "REQ-W310-020", "active", "L3"),
+            pi("PI-W310-004", "Planning::Item4", "done", "REQ-W310-020"),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(!codes(&result.findings).contains(&"W310"), "expected no W310 on parent with L3 coverage: {:?}", result.findings);
+    }
+
+    #[test]
+    fn non_done_items_are_never_checked() {
+        for status in ["todo", "in_progress", "blocked"] {
+            let elements = vec![
+                req("REQ-W310-030", "Requirements::Leaf5", ""),
+                tc("TC-W310-030", "Tests::T5", "REQ-W310-030", "draft", "L1"),
+                pi("PI-W310-005", "Planning::Item5", status, "REQ-W310-030"),
+            ];
+            let result = validate_with_config(&elements, &ValidateConfig::default());
+            assert!(
+                !codes(&result.findings).contains(&"W310"),
+                "status {status} must not raise W310: {:?}",
+                result.findings
+            );
+        }
+    }
+
+    #[test]
+    fn dangling_achieves_target_is_not_also_flagged_by_w310() {
+        let elements = vec![pi("PI-W310-006", "Planning::Item6", "done", "REQ-W310-NONEXISTENT")];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E714"), "expected E714: {:?}", result.findings);
+        assert!(!codes(&result.findings).contains(&"W310"), "E714 target must not also raise W310: {:?}", result.findings);
+    }
+
+    #[test]
+    fn wrong_kind_achieves_target_is_not_also_flagged_by_w310() {
+        let elements = vec![
+            req("REQ-W310-050", "Requirements::Dummy7", ""),
+            pi("PI-W310-007", "Planning::Item7", "todo", "REQ-W310-050"),
+            pi("PI-W310-008", "Planning::Item8", "done", "PI-W310-007"),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        assert!(codes(&result.findings).contains(&"E715"), "expected E715: {:?}", result.findings);
+        assert!(!codes(&result.findings).contains(&"W310"), "E715 target must not also raise W310: {:?}", result.findings);
+    }
+
+    #[test]
+    fn w310_message_names_both_the_planning_item_and_the_requirement() {
+        let elements = vec![
+            req("REQ-W310-040", "Requirements::Leaf6", ""),
+            tc("TC-W310-040", "Tests::T6", "REQ-W310-040", "draft", "L1"),
+            pi("PI-W310-009", "Planning::Item9", "done", "REQ-W310-040"),
+        ];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let msg = result
+            .findings
+            .iter()
+            .find(|f| f.code == "W310")
+            .map(|f| f.message.clone())
+            .expect("W310 present");
+        assert!(msg.contains("PI-W310-009"), "message should name the PlanningItem: {msg}");
+        assert!(msg.contains("REQ-W310-040"), "message should name the Requirement: {msg}");
     }
 }
 
