@@ -75,6 +75,13 @@ syscribe -m model check-ref Safety::SG-X-001  # verify a reference resolves
 syscribe -m model move <src> <dst> --dry-run  # safe rename preview
 syscribe -m model move <src> <dst>       # rename + rewrite all references
 syscribe -m model extref "DOORS://..."   # find elements by external reference
+syscribe -m model set REQ-X-001 status=approved       # schema-checked field mutation
+syscribe -m model set PI-X-001 achieves.add REQ-X-002 # append, target validated first
+syscribe -m model ingest-results --format cargo-json test-output.json   # or junit | session-log
+
+# PlanningItem (multi-agent coordination)
+syscribe -m model claim PI-X-001 --by agent-session-01VRUS  # refuses if claimed by someone else
+syscribe -m model release PI-X-001                           # on completion or handoff
 ```
 
 ### Integrity level gating — what syscribe checks

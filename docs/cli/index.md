@@ -327,7 +327,17 @@ $ syscribe -m model_auto/ show System::Software::SafetyMonitor
 
 Safety monitoring software component (ASIL D). Supervises all safety-relevant
 inputs and function outputs...
+
+Related:
+  syscribe impact         System::Software::SafetyMonitor      downstream/upstream change impact
+  syscribe connectivity   System::Software::SafetyMonitor      connection-graph subgraph
+  syscribe n2             System::Software::SafetyMonitor      N² interface matrix
+  syscribe refs           System::Software::SafetyMonitor      inbound references
 ```
+
+The trailing "Related:" footer (suppress with `--no-related`) suggests the type-appropriate
+traceability follow-up commands — `trace`/`who-verifies`/`impact`/`refs` for a `Requirement`
+instead of the architecture set shown above (see [Full traceability slice](#traceability)).
 
 ### Element-type inventory
 
