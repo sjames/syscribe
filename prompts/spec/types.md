@@ -189,7 +189,7 @@ verificationMethod: test     # test | inspection | analysis | demonstration
 derivedFrom: [REQ-UAV-SAFE-000]
 breakdownAdr: ADR-UAV-001    # required when derivedFrom is set (E310)
 derivedFromSafetyGoal: SG-BRAKE-001
-derivedFromSecurityGoal: CSG-001
+derivedFromCybersecurityGoal: CSG-001
 tags: [safety, contingency]
 ```
 Body must contain at least one `shall` statement (W001 if absent).

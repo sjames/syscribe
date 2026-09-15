@@ -66,16 +66,29 @@ Warnings (1):
 
 ### Findings only
 
-`validate` prints just the errors and warnings table — useful for quick iteration.
+`validate` prints just a leading pass/fail summary line followed by the errors and warnings table — useful for quick iteration. The summary line is always present in text mode (even on a clean run — see below), so "did this pass" is answerable from the first line without inferring it from the absence of an `Errors (N):` section.
 
 ```
 $ syscribe -m model_auto/ validate
+
+0 errors, 1 warnings
 
 Warnings (1):
 
 | Code | File | Message |
 |---|---|---|
 | W803 | model_auto/Security/VR-ENG-002.md | VulnerabilityReport has status: open — ensure it is being tracked and mitigated |
+```
+
+When a gating flag (below) trips the gate, the summary line names which one and ends in `— FAIL`:
+
+```
+$ syscribe -m model_auto/ validate --deny W803
+
+0 errors, 1 warnings (1 gated by --deny W803) — FAIL
+
+Warnings (1):
+...
 ```
 
 ### Scoped to a single file
@@ -207,13 +220,15 @@ See `syscribe help scripts` for the full read-only model API.
 `ingest-results` parses a test runner's output into the results sidecar (`<model_root>/.syscribe/results.json`), which lights up the **executed-evidence** views (`matrix`/`trace`/`testplan`/`safety-case` reflect *passed* vs merely *linked* coverage, and validation can enforce the **W010** "linked test never executed" check).
 
 ```bash
-syscribe -m model/ ingest-results <file> [--format cargo-json|junit]
+syscribe -m model/ ingest-results <file> [--format cargo-json|junit|session-log]
 ```
 
 - **`<file>`** — the results file (required, first positional).
-- **`--format cargo-json|junit`** — the input format. When omitted it is **auto-detected** from the filename: a `.xml` suffix is parsed as JUnit, anything else as `cargo test --format json` output.
+- **`--format cargo-json|junit|session-log`** — the input format. `cargo-json`/`junit` are **auto-detected** from the filename when omitted (a `.xml` suffix is JUnit, anything else `cargo test --format json` output); `session-log` is never inferred and must always be named explicitly.
 
-Each parsed function maps to a `testFunctions[].function` so an active `TestCase` rolls up to a `Pass`/`Fail`/`Unknown` verdict. Once the sidecar exists, the coverage views fold it in automatically; pass `--linked-only` on a consuming command to ignore it for one run. `validate --results <file>` performs the same ingest for a single run *without* writing the sidecar.
+Each parsed function maps to a `testFunctions[].function` so an active `TestCase` rolls up to a `Pass`/`Fail`/`Unknown` verdict. `--format session-log` (issue #113) is the manual/exploratory-verification counterpart: a JSON array of per-**Gherkin-scenario** records (`{testCase, scenario, steps, result, timestamp}`) for a session run against a live system rather than a `#[test]` function — the only path today that gives a TestCase with **no** `testFunctions:` (the norm for a manually-verified one) a machine-checkable verdict at all, instead of unverifiable prose. A record's `scenario` must match a `Scenario:`/`Scenario Outline:` title in that TestCase's body; `steps` must be present and non-empty. Unlike `cargo-json`/`junit`'s tolerant line-skipping, a malformed `session-log` record (empty `testCase`/`scenario`/`steps`, or an unrecognized `result`) is a hard parse error — nothing is written, the existing sidecar is untouched.
+
+Once the sidecar exists, the coverage views fold it in automatically; pass `--linked-only` on a consuming command to ignore it for one run. `validate --results <file>` performs the same ingest for a single run *without* writing the sidecar.
 
 ### Label field: `name` is the universal label (E025; E024 retired)
 
@@ -312,7 +327,17 @@ $ syscribe -m model_auto/ show System::Software::SafetyMonitor
 
 Safety monitoring software component (ASIL D). Supervises all safety-relevant
 inputs and function outputs...
+
+Related:
+  syscribe impact         System::Software::SafetyMonitor      downstream/upstream change impact
+  syscribe connectivity   System::Software::SafetyMonitor      connection-graph subgraph
+  syscribe n2             System::Software::SafetyMonitor      N² interface matrix
+  syscribe refs           System::Software::SafetyMonitor      inbound references
 ```
+
+The trailing "Related:" footer (suppress with `--no-related`) suggests the type-appropriate
+traceability follow-up commands — `trace`/`who-verifies`/`impact`/`refs` for a `Requirement`
+instead of the architecture set shown above (see [Full traceability slice](#traceability)).
 
 ### Element-type inventory
 
@@ -718,7 +743,7 @@ $ syscribe -m model/ matrix --features        # Feature × Configuration grid (w
 
 - **`--status <s>`** restricts the requirement ROWS to those whose `status:` equals `<s>` (text and `--json`).
 - **`--gaps-only`** drops rows that are fully covered or all-N/A, keeping only rows with at least one `gap` cell (text and `--json`).
-- **Executed evidence (W010 results).** When a results sidecar (`<model_root>/.syscribe/results.json`, produced by [`ingest-results`](#validation)) is present, `matrix` reflects *executed-and-passed* evidence by default. Each covering TestCase is given an aggregate verdict over its `testFunctions[].function` (`Pass` if all passed, `Fail` if any failed, `Unknown` otherwise / when it declares no functions). A covered cell then becomes `✓` when at least one covering active TestCase that runs in that configuration passed, or `▣` (**covered, not passing**) when a linked TestCase runs there but none passed. The legend gains `▣ covered, not passing` and `--json` cells report `"passing"` vs `"covered"` (in addition to `"gap"`/`"na"`). With **no sidecar**, or under **`--linked-only`**, covered cells stay `✓` and the `--json` cell value stays `"covered"` exactly as before. The coverage-% footer always counts *linked* coverage (covered = linked), unchanged.
+- **Executed evidence (W010 results).** When a results sidecar (`<model_root>/.syscribe/results.json`, produced by [`ingest-results`](#validation)) is present, `matrix` reflects *executed-and-passed* evidence by default. Each covering TestCase is given an aggregate verdict over its `testFunctions[].function` (`Pass` if all passed, `Fail` if any failed) — or, when it declares **no** `testFunctions:` at all, over its Gherkin scenario titles against any `session-log`-ingested verdicts instead (issue #113); `Unknown` when neither source has anything recorded, or coverage is only partial. A covered cell then becomes `✓` when at least one covering active TestCase that runs in that configuration passed, or `▣` (**covered, not passing**) when a linked TestCase runs there but none passed. The legend gains `▣ covered, not passing` and `--json` cells report `"passing"` vs `"covered"` (in addition to `"gap"`/`"na"`). With **no sidecar**, or under **`--linked-only`**, covered cells stay `✓` and the `--json` cell value stays `"covered"` exactly as before. The coverage-% footer always counts *linked* coverage (covered = linked), unchanged.
 - Every run prints a **coverage footer**: per-configuration and overall `covered / applicable`, where `applicable = covered + gap` (N/A excluded) and the percentage is `covered*100/applicable` rounded to one decimal (`n/a` when nothing is applicable). Under `--json`, the same numbers appear in a `coverage` object: `{ "perConfig": { "<cfgId>": {"covered":N,"applicable":M,"pct":P}, ... }, "overall": {"covered":N,"applicable":M,"pct":P} }` (`pct` is `null` when `applicable == 0`). Coverage is plain/unweighted — SIL-weighted coverage is a planned follow-up.
 
 With no feature model present, `matrix` prints a notice and falls back to a flat requirement/testcase view (exit 0); `--status`, `--gaps-only` and the coverage footer still apply. `matrix --features` swaps the rows for `FeatureDef`s and the cells for selected (`✓`) / not-selected — the product map complementing the Requirement × Configuration view.
@@ -887,7 +912,7 @@ $ syscribe -m model/ testplan TP-DELIVERY-INTEGRATION-001 --json
 - **List** — one row per plan: id, title, scope, bound configurations, effective-TestCase count, coverage %, and verdict.
 - **Detail (`testplan TP-X`)** — the resolved member TestCases (each flagged `escaping` when active in **none** of the plan's configs), the **in-scope requirements**, a per-config coverage grid, and the roll-up verdict. An unknown id (or an id that is not a `TestPlan`) exits `1`.
 
-**In-scope requirements.** With `demonstrates:` set, the scope is the **goal-closure**: each demonstrated `Requirement` plus the transitive closure of its `derivedChildren`, and for a demonstrated `SafetyGoal`/`CybersecurityGoal`, the requirements that `derivedFromSafetyGoal:`/`derivedFromSecurityGoal:` it (and their closure). Without `demonstrates:`, the scope is the union of the `verifies:` targets of the effective TestCase set.
+**In-scope requirements.** With `demonstrates:` set, the scope is the **goal-closure**: each demonstrated `Requirement` plus the transitive closure of its `derivedChildren`, and for a demonstrated `SafetyGoal`/`CybersecurityGoal`, the requirements that `derivedFromSafetyGoal:`/`derivedFromCybersecurityGoal:` it (and their closure). Without `demonstrates:`, the scope is the union of the `verifies:` targets of the effective TestCase set.
 
 **Verdict** ∈ `pass | fail | incomplete | empty`: `empty` when the effective set is empty; `fail` when any member's ingested verdict is `Fail`; `pass` when every member passes; otherwise `incomplete` (no/partial results). Load results with `ingest-results`.
 
@@ -1139,6 +1164,50 @@ syscribe -m model/ move System::Software::FuelControl System::Software::FuelGove
 ```
 
 The source resolves by qualified name or stable id; both positionals are required. `--dry-run` reports the file move plus every reference rewrite without touching disk.
+
+### Safe field mutation (`set`)
+
+`set <qname|id> <op>` mutates one field on an existing element — a narrow, schema-aware
+alternative to hand-editing YAML frontmatter, so an agent-authored typo (`status: verifed`, a
+dangling `achieves.add` target) is caught immediately, not only at the next full-model
+`validate`. Three operations:
+
+```bash
+syscribe -m model/ set REQ-UAV-NAV-001 status=approved
+syscribe -m model/ set TC-UAV-NAV-001 status=active --dry-run
+syscribe -m model/ set PI-HPLE-001 status=done            # W310 check if achieves: isn't verified yet
+syscribe -m model/ set PI-HPLE-001 achieves.add REQ-UAV-NAV-002
+syscribe -m model/ set PI-HPLE-001 evidence.add ref=TC-UAV-NAV-001
+syscribe -m model/ set PI-HPLE-001 evidence.add path=src/nav/controller.rs
+```
+
+`status=<value>` is checked against the target type's own enum when it has one
+(`Requirement`/`TestCase`/`TestPlan`/`ADR`/`PlanningItem`/`ReviewRecord`) — an invalid value is
+refused with the allowed list, no file written — and is a true single-line splice (byte-identical
+elsewhere), not a full YAML round-trip. `achieves.add`/`evidence.add` append to their list
+without disturbing existing order, each validated before anything is written (`achieves.add`
+must resolve to a native Requirement; `evidence.add ref=` must resolve to some element,
+`path=` must exist on disk or be an `http(s)://` URI). `--dry-run` previews the unified diff
+without writing.
+
+### Claim markers for concurrent multi-agent work (`claim` / `release`)
+
+Running several agents against one model, `claim`/`release` give an orchestrating process a
+place to answer "is anyone already on this?" instead of reconstructing it from `git status` or
+its own memory of what it dispatched:
+
+```bash
+syscribe -m model/ claim PI-HPLE-001 --by agent-session-01VRUS
+syscribe -m model/ release PI-HPLE-001
+```
+
+`claim` sets `claimedBy:`/`claimedAt:` on a `PlanningItem`, refusing when the item is already
+`status: done` (nothing to claim) or already claimed by a *different* `--by` value (re-claiming
+with the same value is allowed and refreshes `claimedAt:`). `release` clears both fields
+regardless of `status:`. Both resolve by qualified name or stable id, refuse on a
+non-`PlanningItem` target, and support `--dry-run`. `claimedBy` shows up in `show <PI-id>` and
+`list PlanningItem --json`. Two simultaneously-active (`in_progress` or claimed) PlanningItems
+that overlap by `achieves:` or `evidence[].path` raise `W311` on the next `validate`.
 
 ---
 

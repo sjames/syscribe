@@ -145,4 +145,36 @@ syscribe -m model ingest-results --format cargo-json test-output.json
 
 This turns the matrix from a static traceability view into a live verification dashboard.
 
+### 4.7 Manual/exploratory verification (`session-log`)
+
+Not every scenario fits a `#[test]` function — verifying something that requires a live
+end-to-end session (server restarts, requests issued as different roles, a throwaway probe
+client, reading back stored rows) produces evidence `cargo test`/CI can't run standalone. Record
+it as a `session-log` instead of a hand-typed "Verified live: ..." sentence nothing can check:
+
+```json
+[
+  {
+    "testCase": "TC-WEB-011",
+    "scenario": "An empty/unset allowlist denies everything",
+    "steps": [
+      {"cmd": "curl -X POST .../admin/devices/x/commands -d command=restart_hmi", "expect_status": 400}
+    ],
+    "result": "pass",
+    "timestamp": "2026-09-12T08:02:29Z"
+  }
+]
+```
+
+```bash
+syscribe -m model ingest-results --format session-log session.json   # always explicit --format
+```
+
+`scenario` must match a `Scenario:`/`Scenario Outline:` title in that `TestCase`'s body exactly.
+A malformed record (empty `steps`, an unrecognized `result`) is a hard error — nothing is
+written, unlike `cargo-json`/`junit`'s tolerant line-skipping. Once ingested, a `TestCase` with
+**no** `testFunctions:` (the norm for a manually-verified one) gets the same `[pass]`/`[fail]`
+annotation in `trace`/`matrix`/`safety-case`/`testplan` an automated one gets — `Pass` only once
+every scenario in its body has a recorded pass, `Fail` if any recorded a fail.
+
 ---

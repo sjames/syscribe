@@ -2413,7 +2413,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `asilLevel` | enum A\|B\|C\|D | optional | ISO 26262 ASIL level. Mutually exclusive with `silLevel` — do not set both (W006). |
 | `plLevel` | enum a\|b\|c\|d\|e | optional | ISO 13849-1 Performance Level. Mutually exclusive with `asilLevel`/`silLevel`. |
 | `derivedFromSafetyGoal` | string | optional | ID or qualified name of the `SafetyGoal` that motivated this requirement (§8.18.2). When set the SafetyGoal's integrity level must also appear on this element (E841). |
-| `derivedFromSecurityGoal` | string | optional | ID or qualified name of the `CybersecurityGoal` that motivated this requirement (§8.18.4). Implies `verificationMethod:` should be set (W807). |
+| `derivedFromCybersecurityGoal` | string | optional | ID or qualified name of the `CybersecurityGoal` that motivated this requirement (§8.18.4). Implies `verificationMethod:` should be set (W807). `derivedFromSecurityGoal` is a legacy serde alias for this same field, honored for backward compatibility (REQ-TRS-SEC-006). |
 | `verificationMethod` | enum | optional | How this requirement will be verified: `test`, `inspection`, `analysis`, or `demonstration`. Required for ASIL B/C/D requirements (W701). |
 | `wcet` | string | optional | WCET claim (opaque). E.g. `"O(1)"`, `"≤ 200 cycles @ 72 MHz"`. |
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
@@ -4040,7 +4040,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 | `VulnerabilityReport` | `VR-*` | A tracked vulnerability; carries `cvssScore:`, `mitigatedBy:`, and `affectedElements:`. |
 | `TARASheet` | `TARA-*` | An Option-B container: a single file whose `damageTable:`, `threatTable:`, `goalTable:`, and `controlTable:` sections are exploded at parse time into the individual Tier 2 element types above. |
 
-**Cross-reference rules:** A `Requirement` motivated by a cybersecurity goal should set `derivedFromSecurityGoal:` to the `CSG-*` ID, and must set `verificationMethod:` (W807). The OSLC link direction applies: the downstream element holds the reference.
+**Cross-reference rules:** A `Requirement` motivated by a cybersecurity goal should set `derivedFromCybersecurityGoal:` to the `CSG-*` ID, and must set `verificationMethod:` (W807). The OSLC link direction applies: the downstream element holds the reference.
 
 **Safety↔security co-engineering (ISO 26262 ⇄ ISO/SAE 21434):** A `DamageScenario`/`ThreatScenario` may declare `hazardRef:` (string or list) pointing to the `HazardousEvent`/`SafetyGoal` it endangers, resolved by `id` or qualified name. A `hazardRef` that does not resolve, or resolves to a non-`HazardousEvent`/non-`SafetyGoal` element, is an error (E844). A `DamageScenario` whose `impactCategories:` includes `safety` but has no `hazardRef` warns W030 (opt-in, gateable with `--deny W030`). The `co-analysis` command (§ CLI) reports, per safety goal/hazard, the cyber threats that can violate it.
 
@@ -5654,10 +5654,10 @@ Once any element in the traceability chain carries `asilLevel:`, `silLevel:`, or
 | `W801` | `SafetyGoal` has no integrity level — set `asilLevel` (ISO 26262), `silLevel` (IEC 61508), or `plLevel` (ISO 13849-1) |
 | `W802` | `CybersecurityGoal` is not implemented by any `SecurityControl.implementsGoals` |
 | `W803` | `VulnerabilityReport` has `status: open` |
-| `W804` | `CybersecurityGoal` has no `Requirement` with `derivedFromSecurityGoal:` pointing to it |
+| `W804` | `CybersecurityGoal` has no `Requirement` with `derivedFromCybersecurityGoal:` pointing to it |
 | `W805` | `SafetyGoal` has no `Requirement` with `derivedFromSafetyGoal:` pointing to it |
 | `W806` | `SafetyGoal` has no `hazardousEvents:` — not grounded in any hazard analysis |
-| `W807` | `Requirement` with `derivedFromSecurityGoal:` has no `verificationMethod:` |
+| `W807` | `Requirement` with `derivedFromCybersecurityGoal:` has no `verificationMethod:` |
 
 #### Safety↔security co-engineering (E844, W030)
 
@@ -5818,6 +5818,16 @@ An override **replaces** the built-in patterns for that extension. `W009` severi
 
 `syscribe ingest-results --format <cargo-json|junit> <file>` parses an external test report (libtest JSON or JUnit XML), reduces it to a per-test verdict keyed by the test's leaf name, and writes a sidecar at `<model_root>/.syscribe/results.json`. When that sidecar is present (or results are supplied ad-hoc with `validate --results <file>`), the validator emits `W010` for every `active` `TestCase` whose `testFunctions[].function` last **failed**, was **ignored/skipped**, or was **missing** from the run — so "verified" can mean "covered by a test that actually passed". Passing functions are silent, and `W010` is inert when no results have been ingested. Gate on it in CI with `--deny W010`.
 
+**`--format session-log`** (issue #113) is the manual/exploratory-verification counterpart, for a TestCase with **no** `testFunctions:` at all (the norm for a scenario verified via a live session — a curl/MQTT/CLI walkthrough — rather than a `#[test]` function). Input is a JSON array of per-Gherkin-scenario records:
+
+```json
+[{"testCase": "TC-WEB-011", "scenario": "An empty/unset allowlist denies everything",
+  "steps": [{"cmd": "curl -X POST ... -d command=restart_hmi", "expect_status": 400}],
+  "result": "pass", "timestamp": "2026-09-12T08:02:29Z"}]
+```
+
+reduced to a verdict keyed by `"{testCase}::{scenario}"` (`scenario` must match a `Scenario:`/`Scenario Outline:` title in that TestCase's body). Unlike `cargo-json`/`junit`'s tolerant line-skipping, a record with an empty/missing `testCase`, `scenario`, or `steps`, or an unrecognized `result` (must be `pass`/`fail`/`unknown`), is a **hard parse error** — nothing is written, and any existing sidecar is left untouched, rather than silently producing an empty result set. `matrix`/`trace`/`safety-case`/`testplan` roll a TestCase's session-log scenario verdicts up into the same `Pass`/`Fail`/`Unknown` annotation `testFunctions:`-sourced verdicts already get (`[pass]`/`[fail]`, `▣ covered, not passing`, …) — `Pass` only when every scenario in the body has a recorded `pass`, exactly mirroring the "every function must pass" rule for `testFunctions:`.
+
 #### Exit-code contract (CI gating)
 
 The `validate` subcommand exposes a stable exit-code contract so it can be used directly as a CI gate:
@@ -5959,7 +5969,7 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `asilLevel` | native Requirement | string | absent | 8.11.6 |
 | `plLevel` | native Requirement / SafetyGoal | string | absent | 8.11.6, 8.18.1 |
 | `derivedFromSafetyGoal` | native Requirement | string | absent | 8.11.6, 8.18.1 |
-| `derivedFromSecurityGoal` | native Requirement | string | absent | 8.11.6, 8.18.2 |
+| `derivedFromCybersecurityGoal` | native Requirement | string | absent | 8.11.6, 8.18.2 |
 | `verificationMethod` | native Requirement | string | absent | 8.11.6 |
 | `wcet` | native Requirement | string | absent | 8.11.6 |
 | `allocatedFrom` | Any element | string or list | absent | 8.18.2 |
@@ -7346,6 +7356,8 @@ Examples: `PI-HPLE-001`, `PI-RTH-IMPL-SW-002`
 | `blockedBy` | string or list | optional | absent | One or more elements this item is waiting on before it can proceed — most commonly another `PlanningItem`, but resolved permissively like `evidence.ref:` (§23.3), unrestricted by kind. A dangling entry or a cycle (through other `PlanningItem`s, back to itself) is an error; a non-empty `blockedBy:` while `status` isn't `blocked` is a warning (likely stale). `status: blocked` with an empty/absent `blockedBy:` raises nothing — see §23.4. |
 | `evidence` | list | optional | absent | Duck-typed entries proving completion — see §23.3. |
 | `assignedTo` | string | optional | absent | A single Unix-style username responsible for this item — see §23.7. Not a cross-reference; format is always checked (`E723`), roster membership only when `[users]` is configured (`E722`). |
+| `claimedBy` | string | optional | absent | Advisory claimant (agent/session) id — see §23.9. Never format-validated; written/cleared by `syscribe claim`/`syscribe release`. |
+| `claimedAt` | string | optional | absent | Opaque timestamp paired with `claimedBy` — see §23.9. Conventionally ISO-8601, never itself parsed/validated. |
 | `tags` | list of strings | optional | absent | Free labels. |
 
 `appliesWhen:` (product-line gating) needs no new mechanism — it is already a universal, type-agnostic field; a `PlanningItem` implementing a product-line feature sets it exactly like any other element.
@@ -7433,5 +7445,52 @@ bob = "Bob Patel"
 A key in `[users]` that is not itself a valid username is reported as `W309` (attached to `.syscribe.toml`) and excluded from the effective roster — one malformed entry doesn't invalidate every other, well-formed one, mirroring `[ids.prefixes]`'s `W046` posture exactly.
 
 An absent `assignedTo:` never raises anything, regardless of whether a roster is configured. `syscribe show <PI-id>` resolves and prints the declared display name alongside the raw username when the roster is configured. Otherwise this is schema + validation only, matching `ADR-SYS-PLANITEM-001`'s own posture for the rest of `PlanningItem` — no CLI filtering/listing by assignee in this phase.
+
+### 23.8 Completion Check Against `achieves:` (`W310`)
+
+`W002`/`W003`/`W305` (§11) already warn, from a `Requirement`'s own file, when it lacks the verification coverage its `status` claims — but nothing ties "this specific `PlanningItem` you are about to mark `done`" to "here specifically are the `achieves:` requirements that are not actually backed by evidence yet" (`REQ-TRS-PLANITEM-010`). `W310` closes that gap, scoped to the `PlanningItem` rather than the model at large.
+
+For a `PlanningItem` at `status: done`, each `achieves:` entry that resolves to a native `Requirement` (a dangling or wrong-kind entry is left to `E714`/`E715`, never re-flagged here) is checked against the **exact same bar** `W002`/`W305` already apply to that Requirement, per its own kind:
+
+- A **leaf** Requirement (no `derivedChildren`) needs at least one **active** `TestCase` — `W002`'s bar.
+- A **parent** Requirement (has `derivedChildren`) needs at least one **active, integration-level** (`testLevel: L3`, `L4`, or `L5`) `TestCase` directly on itself — `W305`'s bar; a parent's leaf descendants carrying their own coverage does not change what `W305` requires of the parent.
+
+`W310` fires once per (`PlanningItem`, `Requirement`) pair that fails its bar, attached to the `PlanningItem`'s file — a distinct finding from any `W002`/`W305` already present on the Requirement's own file, not a duplicate of it (different code, different file). It never fires for `todo`/`in_progress`/`blocked`, and applies at any tree position (leaf or non-leaf `PlanningItem`) — unlike `E719`, an `achieves:` claim's verification state does not depend on whether the claiming item itself has children.
+
+### 23.9 Claim Markers for Concurrent Multi-Agent Work (`claimedBy:`/`claimedAt:`, `W311`)
+
+`claimedBy:`/`claimedAt:` (issue #115) are optional, advisory ownership markers — a
+coordination signal ("is anyone already on this?") for an orchestrating process running
+several agents against one model concurrently, **not** a filesystem lock. Neither field is
+itself format-validated (`claimedAt:` is opaque free text, conventionally an ISO-8601-ish
+timestamp, the same posture as `wcet:`); nothing prevents hand-authoring them, though the
+intended path is the dedicated commands below.
+
+```yaml
+status: in_progress
+claimedBy: agent-session-01VRUS...
+claimedAt: 2026-09-12T08:00:00Z
+```
+
+**Commands.** `syscribe claim <PI-id> --by <agent-id>` sets both fields, refusing (no file
+written) when the item is already `status: done` (nothing to claim), or already `claimedBy:` a
+*different* value than `--by` — re-claiming with the same `--by` is allowed and refreshes
+`claimedAt:`. `syscribe release <PI-id>` clears both fields unconditionally, regardless of
+`status:` (a no-op, nothing written, when the item was not claimed). Both resolve their target
+by qualified name or stable id, support `--dry-run`, and refuse on a non-`PlanningItem` target.
+`claimedBy` is surfaced in `show <PI-id>` and in `list PlanningItem --json`.
+
+**`W311` (overlap check).** Two `PlanningItem`s are each "active" when `status: in_progress`
+**or** `claimedBy:` is non-empty (a claimed item not yet flipped to `in_progress`, or an
+`in_progress` item nobody ran `claim` on, both count). `W311` fires once per active pair that
+overlaps by:
+
+- a shared `achieves:` Requirement, or
+- an `evidence[].path` entry resolving to the same repo-relative path string.
+
+— attached to the lexically-first item's file (by stable id), so re-running `validate` reports
+each overlapping pair exactly once rather than once from each side. This is the validator-side
+counterpart to `claim`/`release`: it fires whether or not either item was ever actually claimed,
+since `status: in_progress` alone already signals active work.
 
 `W080` is **draft-suppressed** (not emitted for `Sequence` diagrams with `status: draft`). Gateable with `--deny W080`.

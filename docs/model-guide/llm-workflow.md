@@ -171,6 +171,28 @@ evidence:
 ---
 ```
 
+Prefer `syscribe set`/`claim`/`release` over hand-editing these fields once a `PlanningItem` exists:
+
+```bash
+syscribe set PI-MYFEATURE-001 evidence.add path=crates/syscribe-model/tests/myfeature.rs
+syscribe set PI-MYFEATURE-001 status=done   # refuses a typo'd enum value outright; on a
+                                             # PlanningItem this also warns (non-blocking) if
+                                             # an achieves: Requirement isn't actually verified
+                                             # yet (W310), instead of that surfacing later,
+                                             # buried in a full-model `validate` run
+```
+
+For a multi-agent effort specifically, `claim`/`release` make "is anyone already on this?" answerable without reconstructing it from `git status` or an orchestrator's own memory of what it dispatched:
+
+```bash
+syscribe claim PI-MYFEATURE-001 --by agent-session-01VRUS   # refuses if claimed by someone else
+syscribe release PI-MYFEATURE-001                            # on completion or handoff
+```
+
+Two simultaneously-active (`in_progress` or claimed) `PlanningItem`s that overlap by `achieves:`
+or an `evidence[].path` raise `W311` on the next `validate` — the same signal, surfaced
+automatically even if `claim` was skipped.
+
 ---
 
 ## Diagram Generation

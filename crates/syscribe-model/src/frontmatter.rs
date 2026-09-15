@@ -34,6 +34,35 @@ pub fn parse_frontmatter(yaml: &str) -> Result<RawFrontmatter> {
     serde_yaml::from_str(yaml).context("Failed to parse YAML frontmatter")
 }
 
+/// Splice `new_fm` into `content` in place of the borrowed `yaml` region
+/// (as returned by [`split_frontmatter`]), leaving the `---` delimiters and
+/// the body byte-identical. Shared by every caller that edits frontmatter by
+/// rewriting individual lines rather than round-tripping the whole mapping
+/// through `serde_yaml` (which can reformat unrelated fields' quoting/style)
+/// — `applies-when --set/--clear` and `set status=` both need this "surgical
+/// edit" bar.
+pub fn splice_frontmatter(content: &str, yaml: &str, new_fm: &str) -> String {
+    let base = content.as_ptr() as usize;
+    let start = yaml.as_ptr() as usize - base;
+    let end = start + yaml.len();
+    format!("{}{}{}", &content[..start], new_fm, &content[end..])
+}
+
+/// Format a scalar as a YAML value: a bare token of letters/digits/`_`/`:`/`.`/`-`
+/// stays unquoted; anything else (spaces, quotes, other punctuation) is
+/// double-quoted with `\`/`"` escaped.
+pub fn yaml_scalar(value: &str) -> String {
+    let plain = !value.is_empty()
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | ':' | '.' | '-'));
+    if plain {
+        value.to_string()
+    } else {
+        format!("\"{}\"", value.replace('\\', "\\\\").replace('"', "\\\""))
+    }
+}
+
 /// Split `content`'s frontmatter, apply `mutate` to the parsed YAML mapping
 /// (falling back to an empty mapping when there was none, or it failed to
 /// parse), and reassemble. `body_override`, if given, replaces the Markdown
@@ -69,6 +98,30 @@ pub fn patch_frontmatter(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Promoted from `applies-when`'s own private copy (issue #112, `syscribe set`
+    // needed the same splice primitive) -- both callers now share one
+    // implementation instead of two copies that could drift apart.
+    #[test]
+    fn splice_frontmatter_replaces_only_the_yaml_region() {
+        let content = "---\ntype: Requirement\nstatus: draft\n---\n\nBody text.\n";
+        let (yaml, _body) = split_frontmatter(content);
+        let new_fm = "type: Requirement\nstatus: approved";
+        let out = splice_frontmatter(content, yaml.unwrap(), new_fm);
+        assert_eq!(out, "---\ntype: Requirement\nstatus: approved\n---\n\nBody text.\n");
+    }
+
+    #[test]
+    fn yaml_scalar_leaves_plain_tokens_unquoted() {
+        assert_eq!(yaml_scalar("approved"), "approved");
+        assert_eq!(yaml_scalar("FEAT-ABS-001"), "FEAT-ABS-001");
+    }
+
+    #[test]
+    fn yaml_scalar_quotes_and_escapes_anything_else() {
+        assert_eq!(yaml_scalar("has spaces"), "\"has spaces\"");
+        assert_eq!(yaml_scalar("a \"quoted\" word"), "\"a \\\"quoted\\\" word\"");
+    }
 
     // REQ-TRS-ORDER-001 — the generic `displayOrder` field parses as a first-class
     // numeric (integer or decimal), not swallowed into the `extra` catch-all.

@@ -24,7 +24,7 @@ unknown id, or an id that does not resolve to a TestPlan, is a usage error
 - With `demonstrates:` → the goal-closure: each demonstrated `Requirement` plus
   the transitive closure of its `derivedChildren`; for a demonstrated
   `SafetyGoal`/`CybersecurityGoal`, the requirements that
-  `derivedFromSafetyGoal:`/`derivedFromSecurityGoal:` it (and their closure).
+  `derivedFromSafetyGoal:`/`derivedFromCybersecurityGoal:` it (and their closure).
 - Without `demonstrates:` → the union of the `verifies:` targets of the plan's
   effective TestCase set.
 

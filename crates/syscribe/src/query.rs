@@ -41,17 +41,41 @@ fn tc_function_refs(tc: &RawElement) -> Vec<String> {
 }
 
 /// Aggregate a TestCase's ingested verdict. `None` results → `Unknown`.
+///
+/// A TestCase with `testFunctions:` is scored against those (automated,
+/// `cargo-json`/`junit`-sourced verdicts). One with **no** `testFunctions` —
+/// the norm for a manually/exploratorily-verified scenario with no
+/// automatable equivalent — falls back to its Gherkin scenario titles against
+/// any `session-log`-ingested verdicts (issue #113), so "verified" can mean
+/// "covered by a recorded session that actually passed" there too, instead of
+/// this always reading `Unknown` for want of a `testFunctions:` entry.
 pub fn tc_verdict(tc: &RawElement, results: Option<&ResultsData>) -> TcVerdict {
     let Some(results) = results else {
         return TcVerdict::Unknown;
     };
     let funcs = tc_function_refs(tc);
-    if funcs.is_empty() {
+    if !funcs.is_empty() {
+        let mut all_pass = true;
+        for f in &funcs {
+            match results.verdict_for(f) {
+                FnVerdict::Fail => return TcVerdict::Fail,
+                FnVerdict::Pass => {}
+                FnVerdict::Ignored | FnVerdict::Missing => all_pass = false,
+            }
+        }
+        return if all_pass { TcVerdict::Pass } else { TcVerdict::Unknown };
+    }
+
+    let Some(tc_id) = tc.frontmatter.id.as_deref() else {
+        return TcVerdict::Unknown;
+    };
+    let scenarios = gherkin_scenario_titles(&tc.doc);
+    if scenarios.is_empty() {
         return TcVerdict::Unknown;
     }
     let mut all_pass = true;
-    for f in &funcs {
-        match results.verdict_for(f) {
+    for s in &scenarios {
+        match results.scenario_verdict(tc_id, s) {
             FnVerdict::Fail => return TcVerdict::Fail,
             FnVerdict::Pass => {}
             FnVerdict::Ignored | FnVerdict::Missing => all_pass = false,
@@ -344,6 +368,20 @@ fn gherkin_count(doc: &str) -> usize {
         .count()
 }
 
+/// The exact `Scenario:`/`Scenario Outline:` titles declared in a TestCase's
+/// body, in document order — the identity a `session-log` record's `scenario`
+/// field names (issue #113).
+fn gherkin_scenario_titles(doc: &str) -> Vec<String> {
+    doc.lines()
+        .filter_map(|l| {
+            let t = l.trim();
+            t.strip_prefix("Scenario Outline:")
+                .or_else(|| t.strip_prefix("Scenario:"))
+                .map(|title| title.trim().to_string())
+        })
+        .collect()
+}
+
 /// Resolve by exact qname, then exact stable ID, then fuzzy best-match.
 fn resolve<'a>(elements: &'a [RawElement], resolver: &Resolver, key: &str) -> Option<&'a RawElement> {
     if let Some(e) = resolver.get(elements, key).or_else(|| resolver.get_by_id(elements, key)) {
@@ -588,6 +626,7 @@ pub fn cmd_show(
     val: &ValidationResult,
     config: &syscribe_model::config::ValidateConfig,
     key: &str,
+    show_related: bool,
 ) {
     let Some(elem) = resolve(elements, resolver, key) else {
         eprintln!("Element not found: {key}");
@@ -656,6 +695,10 @@ pub fn cmd_show(
             None => println!("| **assignedTo** | {} |", who),
         }
     }
+    // claimedBy/claimedAt (issue #115): advisory claim markers for concurrent
+    // multi-agent work, written/cleared by `syscribe claim`/`syscribe release`.
+    if let Some(ref who) = fm.claimed_by { println!("| **claimedBy** | {} |", who); }
+    if let Some(ref at) = fm.claimed_at { println!("| **claimedAt** | {} |", at); }
     if let Some(ref g) = fm.derived_from_cybersecurity_goal { println!("| **derivedFromCybersecurityGoal** | {} |", g); }
     if let Some(ref g) = fm.derived_from_safety_goal { println!("| **derivedFromSafetyGoal** | {} |", g); }
     if let Some(ref at) = fm.argument_type { println!("| **argumentType** | {} |", at); }
@@ -962,6 +1005,63 @@ pub fn cmd_show(
         println!();
         println!("{}", doc);
     }
+
+    // Related commands footer (issue #117): re-surface the traceability
+    // commands that already exist and answer the natural next questions
+    // about this same element, right where an agent/human is already
+    // looking. Text-mode only (`show` has no `--json` mode to preserve);
+    // suppressible with `--no-related` for scripting/piping contexts.
+    if show_related {
+        let id = cfg_id(elem);
+        let related = related_commands(fm.element_type.as_ref());
+        if !related.is_empty() {
+            println!();
+            println!("Related:");
+            for (cmd, desc) in related {
+                println!("  syscribe {:<14} {:<20} {}", cmd, id, desc);
+            }
+        }
+    }
+}
+
+/// Type-appropriate follow-up commands for `show`'s "Related:" footer
+/// (issue #117): `trace`/`who-verifies` only make sense for a `Requirement`
+/// (they're req-id-shaped queries); `connectivity`/`n2` only for elements
+/// that actually sit on the connection/interface graph. `impact` and `refs`
+/// are graph-generic and offered for every type.
+fn related_commands(elem_type: Option<&ElementType>) -> Vec<(&'static str, &'static str)> {
+    match elem_type {
+        Some(ElementType::Requirement) => vec![
+            ("trace", "full traceability slice"),
+            ("who-verifies", "verifying TestCases"),
+            ("impact", "downstream/upstream change impact"),
+            ("refs", "inbound references"),
+        ],
+        Some(
+            ElementType::PartDef
+            | ElementType::Part
+            | ElementType::ItemDef
+            | ElementType::Item
+            | ElementType::PortDef
+            | ElementType::Port
+            | ElementType::ConnectionDef
+            | ElementType::Connection
+            | ElementType::InterfaceDef
+            | ElementType::Interface
+            | ElementType::ActionDef
+            | ElementType::Action,
+        ) => vec![
+            ("impact", "downstream/upstream change impact"),
+            ("connectivity", "connection-graph subgraph"),
+            ("n2", "N² interface matrix"),
+            ("refs", "inbound references"),
+        ],
+        Some(_) => vec![
+            ("impact", "downstream/upstream change impact"),
+            ("refs", "inbound references"),
+        ],
+        None => vec![],
+    }
 }
 
 // ── cmd: ls ──────────────────────────────────────────────────────────────────
@@ -1155,6 +1255,7 @@ pub fn cmd_list(
 
     let is_testcase = type_filter_lc == "testcase";
     let is_aou = type_filter_lc == "assumptionofuse";
+    let is_planning_item = type_filter_lc == "planningitem";
 
     // `--json`: emit a JSON array of the (filtered) elements. TestCase gets
     // extra fields a CI runner needs (REQ-TRS-OUT-014); other types get the
@@ -1201,6 +1302,14 @@ pub fn cmd_list(
                     obj.as_object_mut().unwrap().extend([
                         ("appliesTo".into(), serde_json::json!(applies_to)),
                         ("body".into(), body),
+                    ]);
+                } else if is_planning_item {
+                    // `claimedBy`/`claimedAt` (issue #115): so an orchestrating process
+                    // can answer "is anyone already on this?" from `list PlanningItem
+                    // --status in_progress --json` without re-parsing every file.
+                    obj.as_object_mut().unwrap().extend([
+                        ("claimedBy".into(), serde_json::json!(e.frontmatter.claimed_by)),
+                        ("claimedAt".into(), serde_json::json!(e.frontmatter.claimed_at)),
                     ]);
                 }
                 obj
@@ -1460,7 +1569,7 @@ pub fn cmd_trace(
         println!();
     }
 
-    // ── Security Goal (derivedFromSecurityGoal) ──────────────────────────
+    // ── Security Goal (derivedFromCybersecurityGoal) ──────────────────────
     if let Some(ref csg_ref) = fm.derived_from_cybersecurity_goal {
         println!("## Security Goal (`derivedFromCybersecurityGoal`)");
         println!();
@@ -2285,14 +2394,20 @@ pub fn cmd_validate(
     let infos: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Info).copied().collect();
 
     // Gate evaluation (independent of output format). A selected `--profile`
-    // contributes its promoted findings additively with `--deny`/etc.
-    let mut denied = gate.denied(&warnings, &infos);
+    // contributes its promoted findings additively with `--deny`/etc. Kept
+    // separate from the flag-only denials so the text summary line (below)
+    // can attribute a gate trip to the mechanism that actually caused it,
+    // instead of always blaming `--deny`.
+    let denied_by_flags = gate.denied(&warnings, &infos);
+    let mut denied = denied_by_flags.clone();
+    let mut denied_by_profile: Vec<&syscribe_model::validator::Finding> = Vec::new();
     if let Some(p) = profile {
         let mut candidates = warnings.clone();
         candidates.extend(infos.iter().copied());
         for f in profile_promoted(p, elements, &candidates) {
             if !denied.iter().any(|d| std::ptr::eq(*d, f)) {
                 denied.push(f);
+                denied_by_profile.push(f);
             }
         }
     }
@@ -2336,6 +2451,40 @@ pub fn cmd_validate(
     if findings.is_empty() {
         println!("0 errors, 0 warnings — model is valid.");
         return;
+    }
+
+    // Leading pass/fail summary line (issue #116): always present in text
+    // mode, so "did this pass" is answerable from the first line instead of
+    // by the absence of an Errors section. Printed before the per-severity
+    // tables below, not after.
+    {
+        let mut summary = format!("{} errors, {} warnings", errors.len(), warnings.len());
+        let mut clauses: Vec<String> = Vec::new();
+        if !denied_by_flags.is_empty() {
+            if gate.warnings_as_errors {
+                clauses.push("all warnings promoted to errors (--warnings-as-errors)".to_string());
+            } else {
+                clauses.push(format!(
+                    "{} gated by --deny {}",
+                    denied_by_flags.len(),
+                    sorted_codes(&denied_by_flags).join(", ")
+                ));
+            }
+        }
+        if !denied_by_profile.is_empty() {
+            clauses.push(format!("{} gated by --profile", denied_by_profile.len()));
+        }
+        if over_max {
+            clauses.push(format!("exceeds --max-warnings {}", gate.max_warnings.unwrap()));
+        }
+        if !clauses.is_empty() {
+            summary.push_str(&format!(" ({})", clauses.join("; ")));
+        }
+        if !errors.is_empty() || gate_tripped {
+            summary.push_str(" — FAIL");
+        }
+        println!("{}", summary);
+        println!();
     }
 
     if !errors.is_empty() {
@@ -2682,7 +2831,7 @@ verificationMethod: test
 # breakdownAdr: ADR-XXX-001
 # decompositionKind: independent   # ASIL D / SIL 4 decomposition: independent | redundant | diverse
 # derivedFromSafetyGoal: SG-PREFIX-001
-# derivedFromSecurityGoal: CSG-PREFIX-001
+# derivedFromCybersecurityGoal: CSG-PREFIX-001
 ---
 
 The system shall ...

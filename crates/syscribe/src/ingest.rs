@@ -7,12 +7,16 @@ use std::path::Path;
 use syscribe_model::results::ResultsData;
 
 /// Parse `--format`, defaulting from the file extension when omitted.
+/// `session-log` (issue #113) is never inferred — its JSON shape isn't
+/// reliably distinguishable from `cargo-json`'s from the extension alone, so
+/// it must always be named explicitly.
 fn pick_format(explicit: Option<&str>, file: &str) -> Option<&'static str> {
     match explicit {
         Some("cargo-json") => Some("cargo-json"),
         Some("junit") => Some("junit"),
+        Some("session-log") => Some("session-log"),
         Some(other) => {
-            eprintln!("Unknown --format '{}': expected cargo-json | junit", other);
+            eprintln!("Unknown --format '{}': expected cargo-json | junit | session-log", other);
             None
         }
         None => {
@@ -37,11 +41,21 @@ pub fn parse_file(format: &str, file: &str) -> Option<ResultsData> {
             return None;
         }
     };
-    Some(match format {
-        "cargo-json" => ResultsData::parse_cargo_json(&text, file),
-        "junit" => ResultsData::parse_junit(&text, file),
-        _ => return None,
-    })
+    match format {
+        "cargo-json" => Some(ResultsData::parse_cargo_json(&text, file)),
+        "junit" => Some(ResultsData::parse_junit(&text, file)),
+        // Unlike cargo-json/junit's tolerant line-skipping, session-log is
+        // strict: a malformed record is a hard error here, not an empty
+        // result set (issue #113's own acceptance bar).
+        "session-log" => match ResultsData::parse_session_log(&text, file) {
+            Ok(d) => Some(d),
+            Err(e) => {
+                eprintln!("Cannot parse session-log results: {e}");
+                None
+            }
+        },
+        _ => None,
+    }
 }
 
 /// `ingest-results` subcommand: parse and write the sidecar under `model_root`.
@@ -56,15 +70,21 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str) {
     };
     match data.write_sidecar(model_root) {
         Ok(path) => {
-            let pass = data.by_leaf.values().filter(|v| matches!(v, syscribe_model::results::Verdict::Pass)).count();
-            let fail = data.by_leaf.values().filter(|v| matches!(v, syscribe_model::results::Verdict::Fail)).count();
-            let ign = data.by_leaf.values().filter(|v| matches!(v, syscribe_model::results::Verdict::Ignored)).count();
+            use syscribe_model::results::Verdict;
+            let verdicts = data.by_leaf.values().chain(data.by_scenario.values());
+            let pass = verdicts.clone().filter(|v| matches!(v, Verdict::Pass)).count();
+            let fail = verdicts.clone().filter(|v| matches!(v, Verdict::Fail)).count();
+            let ign = verdicts.filter(|v| matches!(v, Verdict::Ignored)).count();
             println!(
                 "Ingested {} test result(s) from {} ({}): {} pass, {} fail, {} ignored.",
                 data.count, file, fmt, pass, fail, ign
             );
             println!("Wrote sidecar: {}", path.display());
-            println!("Re-run `validate` (or `validate --deny W010`) to gate on failing/missing tests.");
+            if fmt == "session-log" {
+                println!("Re-run `trace`/`matrix`/`audit` to see scenarios annotated with their session-log verdict.");
+            } else {
+                println!("Re-run `validate` (or `validate --deny W010`) to gate on failing/missing tests.");
+            }
         }
         Err(e) => {
             eprintln!("Cannot write results sidecar: {}", e);

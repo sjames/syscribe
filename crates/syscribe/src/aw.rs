@@ -13,7 +13,7 @@ use std::path::Path;
 
 use syscribe_model::config::ValidateConfig;
 use syscribe_model::element::RawElement;
-use syscribe_model::frontmatter::split_frontmatter;
+use syscribe_model::frontmatter::{splice_frontmatter, split_frontmatter, yaml_scalar};
 use syscribe_model::resolver::Resolver;
 use syscribe_model::{validator, variability};
 
@@ -73,20 +73,6 @@ fn show_gate(elements: &[RawElement], target: &RawElement, json: bool) -> ! {
     std::process::exit(0);
 }
 
-/// Format an appliesWhen value as a YAML scalar: a single bare token stays plain;
-/// anything with spaces / operators / parentheses is double-quoted.
-fn yaml_scalar(expr: &str) -> String {
-    let plain = !expr.is_empty()
-        && expr
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | ':' | '.' | '-'));
-    if plain {
-        expr.to_string()
-    } else {
-        format!("\"{}\"", expr.replace('\\', "\\\\").replace('"', "\\\""))
-    }
-}
-
 /// Return the YAML lines with any top-level `appliesWhen:` key (and its indented
 /// continuation lines) removed.
 fn strip_applies_when(yaml: &str) -> Vec<String> {
@@ -106,15 +92,6 @@ fn strip_applies_when(yaml: &str) -> Vec<String> {
         out.push(line.to_string());
     }
     out
-}
-
-/// Splice `new_fm` into `content` in place of the borrowed `yaml` region, leaving
-/// the delimiters and body byte-identical.
-fn splice_frontmatter(content: &str, yaml: &str, new_fm: &str) -> String {
-    let base = content.as_ptr() as usize;
-    let start = yaml.as_ptr() as usize - base;
-    let end = start + yaml.len();
-    format!("{}{}{}", &content[..start], new_fm, &content[end..])
 }
 
 /// Run the deep feature-model bad-configuration analysis and exit with its code
