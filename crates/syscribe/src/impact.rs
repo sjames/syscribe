@@ -106,6 +106,19 @@ fn build_adjacency(
     (up, down)
 }
 
+/// The built-in base kinds `upstream_targets` emits — the `--kinds` vocabulary
+/// besides declared link types and their inverses.
+const BUILTIN_BASES: &[&str] = &[
+    "supertype",
+    "derivedFrom",
+    "verifies",
+    "satisfies",
+    "refines",
+    "allocatedTo",
+    "derivedFromSafetyGoal",
+    "appliesWhen",
+];
+
 pub struct ImpactOptions<'a> {
     pub root: &'a str,
     pub direction: Direction,
@@ -133,7 +146,33 @@ pub fn cmd_impact(elements: &[RawElement], opts: &ImpactOptions) {
     let root_q = root_el.qualified_name.clone();
     let (up, down) = build_adjacency(elements, &resolver);
 
-    let kind_ok = |base: &str| opts.kinds.as_ref().is_none_or(|ks| ks.iter().any(|k| k == base));
+    // `--kinds` names match an edge's base kind. A declared link type's `inverse`
+    // selects that type's edges too (REQ-TRS-LINKTYPE-009) — in addition to any
+    // built-in kind of the same name. An unknown name is warned about (stderr,
+    // exit status unchanged for backward compatibility).
+    let link_types = syscribe_model::link_types::active();
+    let kinds: Option<Vec<String>> = opts.kinds.as_ref().map(|ks| {
+        let mut out: Vec<String> = ks.clone();
+        for k in ks {
+            if let Some(decl) = link_types.by_inverse(k) {
+                out.push(decl.name.clone());
+            }
+        }
+        out
+    });
+    if let Some(ks) = &opts.kinds {
+        let mut valid: Vec<String> = BUILTIN_BASES.iter().map(|s| s.to_string()).collect();
+        for d in link_types.types() {
+            valid.push(d.name.clone());
+            if let Some(inv) = &d.inverse {
+                valid.push(inv.clone());
+            }
+        }
+        for k in ks.iter().filter(|k| !valid.contains(k)) {
+            eprintln!("impact: unknown --kinds name '{}' (valid: {})", k, valid.join(", "));
+        }
+    }
+    let kind_ok = |base: &str| kinds.as_ref().is_none_or(|ks| ks.iter().any(|k| k == base));
 
     // BFS spanning tree from the root in the chosen direction(s); cycle-safe via `seen`.
     let mut seen: HashSet<String> = HashSet::from([root_q.clone()]);

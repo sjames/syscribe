@@ -95,7 +95,9 @@ stable id, a qualified name, or a display name. List/grid tools accept
 All write tools default to `dry_run: true`: they report the validation delta of
 the proposed change without touching disk. Pass `dry_run: false` to commit. A
 commit that would introduce a *new* validation error is refused
-(`written: false`) unless `SYSCRIBE_MCP_ALLOW_NEW_ERRORS=1` is set; after a
+(`written: false`) unless `SYSCRIBE_MCP_ALLOW_NEW_ERRORS=1` is set — a new
+unresolved reference (`EREF`) or a new user-defined-link error (`E630`–`E636`,
+e.g. an undeclared link type, whose message names the declared ones); after a
 successful commit the in-memory store is rebuilt. Writes are confined to the
 model root. (Hidden under `--read-only`.)
 

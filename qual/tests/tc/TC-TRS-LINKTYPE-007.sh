@@ -14,6 +14,9 @@ tc_TRS_LINKTYPE_007() {
     _scn "depth bounds the traversal"
     out=$("$SYSCRIBE" -m "$M" follow REQ-LT7-001 mitigates --depth 1 2>&1) || true
     printf '%s' "$out" | grep -q 'REQ-LT7-003' && fail "depth 1 reached 003" || pass "depth 1 bounded"
+    printf '%s' "$out" | grep -q 'REQ-LT7-002' && pass "depth 1 reaches 002" || fail "depth 1 missed 002"
+    out=$("$SYSCRIBE" -m "$M" follow REQ-LT7-001 mitigates --depth 2 2>&1) || true
+    printf '%s' "$out" | grep -q 'REQ-LT7-003' && pass "depth 2 reaches 003 (depth implies transitive)" || fail "depth 2 missed 003"
     _scn "inverse name and --reverse traverse backwards"
     out=$("$SYSCRIBE" -m "$M" follow REQ-LT7-003 mitigatedBy 2>&1) || true
     printf '%s' "$out" | grep -q 'REQ-LT7-002' && pass "inverse reaches 002" || fail "inverse wrong"

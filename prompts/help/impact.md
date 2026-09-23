@@ -24,7 +24,9 @@ against it (labelled with the type's `inverse`, or `<type> (inbound)`).
     --format F      text (indented tree, default) | json | dot (Graphviz).
     --kinds csv     Restrict to base kinds: verifies, derivedFrom, satisfies, supertype,
                     appliesWhen, allocatedTo, refines, derivedFromSafetyGoal, or any
-                    declared link-type name (JSON `via` carries the same name).
+                    declared link-type name (JSON `via` carries the same name) or its
+                    `inverse` (selects that type's edges). An unknown name is warned
+                    about on stderr, listing the valid names.
 
 Cycles are handled (each element is visited once). Works for qualified names and stable IDs.
 

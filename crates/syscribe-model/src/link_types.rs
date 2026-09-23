@@ -543,6 +543,12 @@ fn parse_entry(name: &str, t: &toml::Table, entry: &mut RawEntry, warnings: &mut
                 match list {
                     None => entry.defects.push(format!("`{key}` must be a list of element-type names")),
                     Some(list) => {
+                        if list.is_empty() {
+                            entry.defects.push(format!(
+                                "`{key}` is empty — no element could {} the link (omit it to allow any type)",
+                                if key == "sourceTypes" { "hold" } else { "be the target of" }
+                            ));
+                        }
                         for ty in &list {
                             if !is_known_element_type(ty) {
                                 entry.defects.push(format!("`{key}` names unknown element type '{ty}'"));
@@ -602,6 +608,12 @@ fn parse_entry(name: &str, t: &toml::Table, entry: &mut RawEntry, warnings: &mut
     }
 
     let d = &entry.decl;
+    if d.cardinality.max == Some(0) {
+        entry.defects.push(format!(
+            "cardinality '{}' allows no targets at all — the link type could never be used",
+            d.cardinality
+        ));
+    }
     if d.cardinality.min > 0 && d.source_types.is_none() {
         entry.defects.push(format!(
             "cardinality '{}' has a non-zero lower bound but no `sourceTypes` to scope it",
@@ -851,6 +863,35 @@ impl Provenance {
     /// field, for labelling it in a report; `None` for an authored entry.
     pub fn via(&self, qname: &str, base: BaseLink, index: usize) -> Option<&str> {
         self.decl(qname, base, index).map(|d| d.name.as_str())
+    }
+
+    /// ` (via links.<type>)` for a contributed entry, `""` for an authored one —
+    /// appended to a base-rule finding's message so an author whose file holds
+    /// only `links:` can see which link raised it (authored messages unchanged).
+    pub fn via_suffix(&self, qname: &str, base: BaseLink, index: usize) -> String {
+        self.via(qname, base, index).map(|n| format!(" (via links.{n})")).unwrap_or_default()
+    }
+
+    /// Element-level variant for rules about a whole base field (`E310`,
+    /// `W303`): the suffix naming the contributing type(s) when **every** one of
+    /// the field's `len` entries is contributed, else `""`.
+    pub fn via_suffix_all(&self, qname: &str, base: BaseLink, len: usize) -> String {
+        let mut names: Vec<&str> = Vec::new();
+        for i in 0..len {
+            match self.via(qname, base, i) {
+                Some(n) => {
+                    if !names.contains(&n) {
+                        names.push(n);
+                    }
+                }
+                None => return String::new(),
+            }
+        }
+        if names.is_empty() {
+            return String::new();
+        }
+        let list: Vec<String> = names.iter().map(|n| format!("links.{n}")).collect();
+        format!(" (via {})", list.join(", "))
     }
 
     /// Link-type name behind a contributed `base` entry of `qname` whose target is
@@ -1401,6 +1442,18 @@ mod tests {
         assert!(defect_for(&r, "aLink"), "{:?}", r.defects());
         // A lowerCamel name unrelated to any built-in stays valid.
         assert!(reg("[linkTypes.mitigates]\ninverse = \"mitigatedBy\"\n").get("mitigates").is_some());
+    }
+
+    #[test]
+    fn empty_type_lists_and_a_zero_upper_bound_are_w630() {
+        let r = reg(
+            "[linkTypes.noSources]\nsourceTypes = []\n[linkTypes.noTargets]\ntargetTypes = []\n\
+             [linkTypes.zeroMax]\ncardinality = \"0\"\n[linkTypes.zeroRange]\ncardinality = \"0..0\"\n",
+        );
+        for n in ["noSources", "noTargets", "zeroMax", "zeroRange"] {
+            assert!(defect_for(&r, n), "expected W630 for {n}: {:?}", r.defects());
+        }
+        assert!(r.is_empty());
     }
 
     #[test]

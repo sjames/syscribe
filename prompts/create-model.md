@@ -646,7 +646,7 @@ Required: `allocatedFrom` and `allocatedTo` must both resolve to known elements 
 
 ## Part 7b — Closing the Architecture: Resolving Leaf PartDefs
 
-A **leaf PartDef** is a `PartDef` or `Part` that has no sub-part children in the model — it represents the lowest-level component that actually implements requirements. The closure pass ensures every leaf PartDef is assigned to at least one leaf requirement, and every leaf requirement at `approved` or higher is assigned to exactly one element.
+A **leaf PartDef** is a `PartDef` or `Part` that has no sub-part children in the model — it represents the lowest-level component that actually implements requirements. The closure pass ensures every leaf PartDef is assigned to at least one leaf requirement, and every leaf requirement at `approved` or higher is assigned to at least one element.
 
 ### Step 1 — Find unassigned leaf requirements
 
@@ -1049,7 +1049,7 @@ Links always point **upstream**. The child holds `derivedFrom:`, the TestCase ho
 Every Requirement with `derivedFrom:` **must also have `breakdownAdr:`** pointing to an `accepted` ADR (error E310). Create the ADR *before* the child requirements.
 
 ### §12.3 — Leaf assignment
-Every leaf Requirement at `status: approved` or `implemented` should be assigned to exactly one architecture element via `satisfies:` (warning W300 if none).
+Every leaf Requirement at `status: approved` or `implemented` should be assigned to at least one architecture element via `satisfies:` (warning W300 if none); several elements may jointly satisfy it (W301 is retired).
 
 ### §12.4 — No parent assignment
 A Requirement from which others derive must **never** appear in any `satisfies:` list (error E312).
@@ -1316,7 +1316,7 @@ model/
 - [ ] `name:` and `status:` are present
 - [ ] Normative body is non-empty and contains `shall`
 - [ ] If `derivedFrom:` is set → `breakdownAdr:` is also set, pointing to an `accepted` ADR
-- [ ] If it is a leaf at `approved`/`implemented` → exactly one architecture element has it in `satisfies:`
+- [ ] If it is a leaf at `approved`/`implemented` → at least one architecture element has it in `satisfies:`
 - [ ] If it has children deriving from it → it does NOT appear in any `satisfies:` list
 - [ ] `reqDomain:` matches `domain:` of the satisfying element (or one of them is `system`)
 

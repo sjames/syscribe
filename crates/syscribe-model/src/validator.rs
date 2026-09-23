@@ -3953,7 +3953,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             findings.push(error(
                                 "E104",
                                 &elem.file_path,
-                                &format!("'{}' does not resolve to a native Requirement", v),
+                                &format!(
+                                    "'{}' does not resolve to a native Requirement{}",
+                                    v,
+                                    link_prov.via_suffix(&elem.qualified_name, crate::link_types::BaseLink::Verifies, vi)
+                                ),
                             ));
                         } else if !indexed {
                             // `coverage = false` (REQ-TRS-LINKTYPE-006): checked, not credited.
@@ -4023,7 +4027,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             findings.push(error(
                                 "E105",
                                 &elem.file_path,
-                                &format!("'{}' does not resolve to a native Requirement", df),
+                                &format!(
+                                    "'{}' does not resolve to a native Requirement{}",
+                                    df,
+                                    link_prov.via_suffix(&elem.qualified_name, crate::link_types::BaseLink::DerivedFrom, di)
+                                ),
                             ));
                         } else if !indexed {
                             // `coverage = false`: not a parent/child edge for coverage.
@@ -5978,6 +5986,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // of a type relaxing E312. Without extending types it equals the keys of
     // `satisfied_reqs`.
     let mut e312_satisfied: HashSet<String> = HashSet::new();
+    // Targets held by at least one authored satisfies entry, and the link types
+    // behind contributed ones — to name the type in E312 when only a
+    // `links:` entry makes the requirement "appear in a satisfies list".
+    let mut e312_authored: HashSet<String> = HashSet::new();
+    let mut e312_via: HashMap<String, std::collections::BTreeSet<String>> = HashMap::new();
     for elem in elements {
         if let Some(ref sat) = elem.frontmatter.satisfies {
             for (si, s) in sat.iter().enumerate() {
@@ -5986,6 +5999,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     let base = crate::link_types::BaseLink::Satisfies;
                     if !link_prov.relaxed(qn, base, si, "E312") {
                         e312_satisfied.insert(target.qualified_name.clone());
+                        match link_prov.via(qn, base, si) {
+                            Some(n) => {
+                                e312_via.entry(target.qualified_name.clone()).or_default().insert(n.to_string());
+                            }
+                            None => {
+                                e312_authored.insert(target.qualified_name.clone());
+                            }
+                        }
                     }
                     // `coverage = false` withholds the entry from the reverse index;
                     // a contributed entry duplicating one the element already holds
@@ -6102,7 +6123,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(error(
                         "E310",
                         &elem.file_path,
-                        "Requirement has `derivedFrom` but no `breakdownAdr`",
+                        &format!(
+                            "Requirement has `derivedFrom` but no `breakdownAdr`{}",
+                            link_prov.via_suffix_all(&elem.qualified_name, crate::link_types::BaseLink::DerivedFrom, derived_len)
+                        ),
                     ));
                 }
 
@@ -6138,8 +6162,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             "W303",
                             &elem.file_path,
                             &format!(
-                                "`breakdownAdr` '{}' is still `proposed` but Requirement has status '{}'",
-                                adr_ref, req_status
+                                "`breakdownAdr` '{}' is still `proposed` but Requirement has status '{}'{}",
+                                adr_ref,
+                                req_status,
+                                link_prov.via_suffix_all(&elem.qualified_name, crate::link_types::BaseLink::DerivedFrom, derived_len)
                             ),
                         ));
                     }
@@ -6156,10 +6182,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 let in_satisfies = e312_satisfied.contains(qn.as_str())
                     || (!req_id.is_empty() && e312_satisfied.contains(req_id));
                 if in_satisfies {
+                    let via = match e312_via.get(qn.as_str()) {
+                        Some(names) if !e312_authored.contains(qn.as_str()) => {
+                            let list: Vec<String> = names.iter().map(|n| format!("links.{n}")).collect();
+                            format!(" (via {})", list.join(", "))
+                        }
+                        _ => String::new(),
+                    };
                     findings.push(error(
                         "E312",
                         &elem.file_path,
-                        &format!("parent Requirement '{}' appears in a `satisfies:` list — only leaf requirements may be assigned", req_id),
+                        &format!("parent Requirement '{}' appears in a `satisfies:` list — only leaf requirements may be assigned{}", req_id, via),
                     ));
                 }
             }
@@ -6194,8 +6227,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                 "E313",
                                 &elem.file_path,
                                 &format!(
-                                    "`satisfies` domain mismatch: element has `domain: {}` but requirement '{}' has `reqDomain: {}`",
-                                    elem_domain, s, req_domain
+                                    "`satisfies` domain mismatch: element has `domain: {}` but requirement '{}' has `reqDomain: {}`{}",
+                                    elem_domain,
+                                    s,
+                                    req_domain,
+                                    link_prov.via_suffix(&elem.qualified_name, crate::link_types::BaseLink::Satisfies, si)
                                 ),
                             ));
                         }
@@ -6240,7 +6276,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
         // E842 / W808: derivedFrom — integrity level must propagate through requirement chains
         if let Some(ref dfs) = fm.derived_from {
-            for df in dfs {
+            for (di, df) in dfs.iter().enumerate() {
+                let via = link_prov.via_suffix(&elem.qualified_name, crate::link_types::BaseLink::DerivedFrom, di);
                 if let Some(parent) = resolver.resolve_ref(elements, df) {
                     let pfm = &parent.frontmatter;
                     let child_has = fm.asil_level.is_some() || fm.sil_level.is_some();
@@ -6250,8 +6287,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             "E842",
                             &elem.file_path,
                             &format!(
-                                "parent element '{}' carries an integrity level — derived element must also set asilLevel or silLevel",
-                                df
+                                "parent element '{}' carries an integrity level — derived element must also set asilLevel or silLevel{}",
+                                df, via
                             ),
                         ));
                     } else if src_has && child_has
@@ -6265,8 +6302,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             "W808",
                             &elem.file_path,
                             &format!(
-                                "integrity level is lower than parent '{}' — add `breakdownAdr` to justify the ASIL/SIL decomposition",
-                                df
+                                "integrity level is lower than parent '{}' — add `breakdownAdr` to justify the ASIL/SIL decomposition{}",
+                                df, via
                             ),
                         ));
                     }
@@ -6279,7 +6316,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // endorsed satisfying shape is held to the same rule as a Part/PartDef
         // would be.
         if let Some(ref sat) = fm.satisfies {
-            for s in sat {
+            for (si, s) in sat.iter().enumerate() {
+                let via = link_prov.via_suffix(&elem.qualified_name, crate::link_types::BaseLink::Satisfies, si);
                 if let Some(target) = resolver.resolve_ref(elements, s) {
                     let tfm = &target.frontmatter;
                     let child_has = fm.asil_level.is_some() || fm.sil_level.is_some();
@@ -6289,8 +6327,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             "E843",
                             &elem.file_path,
                             &format!(
-                                "requirement '{}' carries an integrity level — satisfying element must also set asilLevel or silLevel",
-                                s
+                                "requirement '{}' carries an integrity level — satisfying element must also set asilLevel or silLevel{}",
+                                s, via
                             ),
                         ));
                     } else if src_has && child_has
@@ -6304,8 +6342,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             "W808",
                             &elem.file_path,
                             &format!(
-                                "integrity level is lower than satisfied requirement '{}' — add `breakdownAdr` to justify the ASIL/SIL decomposition",
-                                s
+                                "integrity level is lower than satisfied requirement '{}' — add `breakdownAdr` to justify the ASIL/SIL decomposition{}",
+                                s, via
                             ),
                         ));
                     }
@@ -6677,11 +6715,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             "E316",
                             &elem.file_path,
                             &format!(
-                                "{} '{}' refines '{}' which resolves to a {:?}, not a Requirement/RequirementDef",
+                                "{} '{}' refines '{}' which resolves to a {:?}, not a Requirement/RequirementDef{}",
                                 noun,
                                 elem.qualified_name,
                                 r,
-                                target.frontmatter.element_type.clone().unwrap_or(ElementType::Unknown)
+                                target.frontmatter.element_type.clone().unwrap_or(ElementType::Unknown),
+                                link_prov.via_suffix(&elem.qualified_name, crate::link_types::BaseLink::Refines, ri)
                             ),
                         ));
                     } else if indexed {
@@ -7527,7 +7566,9 @@ fn link_type_findings(elements: &[RawElement], config: &ValidateConfig) -> Vec<F
                         ));
                         continue;
                     };
-                    *counts.entry(ti).or_default() += targets.len();
+                    // A target listed twice (`[A, A]`) is one link (REQ-TRS-LINKTYPE-004).
+                    let distinct: HashSet<&String> = targets.iter().collect();
+                    *counts.entry(ti).or_default() += distinct.len();
                     if !decl.permits_source(fm.element_type.as_ref()) {
                         findings.push(error(
                             "E633",
@@ -7649,7 +7690,7 @@ fn link_type_findings(elements: &[RawElement], config: &ValidateConfig) -> Vec<F
 /// REQ-TRS-XREF-006 root-name hint applies (the generic unresolved-reference
 /// findings: traceability, refinement, allocation, and the structural
 /// supertype/typedBy/subsets/redefines/connection resolution errors).
-const ROOT_HINT_CODES: &[&str] = &["E102", "E103", "E311", "E316", "E502", "E503"];
+const ROOT_HINT_CODES: &[&str] = &["E102", "E103", "E311", "E316", "E502", "E503", "E632"];
 
 /// REQ-TRS-XREF-006 — append a "did you mean" hint to any unresolved-reference
 /// finding whose quoted reference wrongly includes the model-root package name.
@@ -11735,7 +11776,7 @@ mod link_type_tests {
         let elements = vec![
             req("REQ-001", "links:\n  dependsOn: REQ-002\n"),
             req("REQ-002", "links:\n  dependsOn: REQ-001\n"),
-            req("REQ-010", "links:\n  dependsOn: [REQ-001, REQ-002, REQ-001]\n"),
+            req("REQ-010", "links:\n  dependsOn: [REQ-001, REQ-002, REQ-020]\n"),
             req("REQ-020", ""),
             make_elem(
                 "Requirements::REQ-021",
@@ -11944,5 +11985,53 @@ mod link_type_tests {
         let f = run(&elements, toml_text);
         assert!(!f.iter().any(|x| x.code == "E865"), "{f:?}");
         assert!(f.iter().any(|x| x.code == "W860"), "{f:?}");
+    }
+
+    #[test]
+    fn a_target_listed_twice_counts_once_toward_cardinality() {
+        let toml_text = "[linkTypes.dependsOn]\nsourceTypes = [\"Requirement\"]\ncardinality = \"2..2\"\n";
+        let elements = vec![
+            req("REQ-001", ""),
+            req("REQ-002", ""),
+            req("REQ-010", "links:\n  dependsOn: [REQ-001, REQ-001]\n"),
+            req("REQ-011", "links:\n  dependsOn: [REQ-001, REQ-002, REQ-002]\n"),
+        ];
+        let f = run(&elements, toml_text);
+        assert_eq!(hits(&f, "W631", "REQ-010").len(), 1, "[A, A] is one target, under the lower bound: {f:?}");
+        assert!(hits(&f, "E635", "REQ-011").is_empty(), "[A, B, B] is two targets, within bounds: {f:?}");
+        assert!(hits(&f, "W631", "REQ-011").is_empty(), "{f:?}");
+    }
+
+    #[test]
+    fn base_rule_findings_on_contributed_entries_name_the_link_type() {
+        let toml_text = "[linkTypes.strictSat]\nextends = \"satisfies\"\n[linkTypes.refinedFrom]\nextends = \"derivedFrom\"\n";
+        let hw = |name: &str, extra: &str| {
+            make_elem(&format!("Arch::{name}"), &format!("type: PartDef\nname: {name}\ndomain: hardware\n{extra}"))
+        };
+        let elements = vec![
+            req("REQ-001", ""),
+            req("REQ-002", ""),
+            req("REQ-012", "links:\n  refinedFrom: REQ-001\n"),
+            hw("HwB", "links:\n  strictSat: REQ-001\n"),
+            hw("HwC", "satisfies: [REQ-002]\n"),
+        ];
+        let f = run(&elements, toml_text);
+        let e313b = hits(&f, "E313", "HwB");
+        assert!(e313b[0].message.ends_with("(via links.strictSat)"), "{}", e313b[0].message);
+        let e313c = hits(&f, "E313", "HwC");
+        assert!(!e313c[0].message.contains("via links"), "authored message unchanged: {}", e313c[0].message);
+        let e310 = hits(&f, "E310", "REQ-012");
+        assert!(e310[0].message.ends_with("(via links.refinedFrom)"), "{}", e310[0].message);
+    }
+
+    #[test]
+    fn e632_gets_the_root_name_hint() {
+        let mut root = make_elem("", "type: Package\nname: Demo\n");
+        root.file_path = "model/_index.md".to_string();
+        let elements = vec![root, req("REQ-001", ""), part("Ctl", "links:\n  informs: Demo::Requirements::REQ-001\n")];
+        let f = run(&elements, "[linkTypes.informs]\n");
+        let e632 = hits(&f, "E632", "Ctl");
+        assert_eq!(e632.len(), 1, "{f:?}");
+        assert!(e632[0].message.contains("did you mean 'Requirements::REQ-001'"), "{}", e632[0].message);
     }
 }

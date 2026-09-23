@@ -8,6 +8,13 @@
 //! channels for context, but only newly-unresolved references gate a commit — so
 //! e.g. creating a not-yet-fleshed-out draft requirement is allowed, while
 //! pointing a `supertype:` at a non-existent element is refused.
+//!
+//! User-defined link types (ADR-SYS-LINKTYPE-001) extend both channels: the
+//! validator's link-type *errors* (`E630`–`E636`) a write introduces are reported
+//! as new errors and gate the commit like an unresolved reference — so an MCP
+//! write using an undeclared link type is refused with the `E630` message that
+//! names the declared types — while `W630`/`W631` ride the existing warning
+//! channel. Every other validator error stays out of the gate, unchanged.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -206,12 +213,26 @@ pub fn ref_errors(elements: &[RawElement], root: &Path) -> Vec<Entry> {
 
 /// The full validator's *warning*-severity findings, normalised.
 pub fn validator_warnings(elements: &[RawElement], config: &ValidateConfig, root: &Path) -> Vec<Entry> {
-    validate_with_config(elements, config)
-        .findings
-        .iter()
-        .filter(|f| matches!(f.severity, Severity::Warning))
-        .map(|f| (f.code.to_string(), rel_file(&f.file, root), f.message.clone()))
-        .collect()
+    validator_findings(elements, config, root).1
+}
+
+/// Validator error codes that gate a guarded write alongside `EREF`: the
+/// user-defined link-type errors (REQ-TRS-LINKTYPE-002..005).
+const GATED_VALIDATOR_ERRORS: &[&str] = &["E630", "E631", "E632", "E633", "E634", "E635", "E636"];
+
+/// One validator run, normalised: `(gated link-type errors, all warnings)`.
+fn validator_findings(elements: &[RawElement], config: &ValidateConfig, root: &Path) -> (Vec<Entry>, Vec<Entry>) {
+    let mut errors = Vec::new();
+    let mut warnings = Vec::new();
+    for f in validate_with_config(elements, config).findings {
+        let entry = (f.code.to_string(), rel_file(&f.file, root), f.message.clone());
+        match f.severity {
+            Severity::Warning => warnings.push(entry),
+            Severity::Error if GATED_VALIDATOR_ERRORS.contains(&f.code) => errors.push(entry),
+            _ => {}
+        }
+    }
+    (errors, warnings)
 }
 
 /// Normalise an absolute file path to a model-root-relative path, so findings
@@ -276,8 +297,9 @@ pub fn guarded_write<F>(
 where
     F: Fn(&Path) -> Result<(), String>,
 {
-    let base_errs = ref_errors(elements, model_root);
-    let base_warns = validator_warnings(elements, config, model_root);
+    let (base_link_errs, base_warns) = validator_findings(elements, config, model_root);
+    let mut base_errs = ref_errors(elements, model_root);
+    base_errs.extend(base_link_errs);
 
     let cand_root = match make_temp_copy(model_root) {
         Ok(p) => p,
@@ -294,8 +316,13 @@ where
     let (cand_errs, cand_warns) = match crate::walker::walk_model(&cand_root) {
         Ok(elems) => {
             let cfg = ValidateConfig::with_model_root(&cand_root);
-            let errs = ref_errors(&elems, &cand_root);
-            let warns = validator_warnings(&elems, &cfg, &cand_root);
+            let (link_errs, warns) = validator_findings(&elems, &cfg, &cand_root);
+            // `with_model_root` installed the candidate's link-type vocabulary as
+            // the process-wide one; restore the caller's (same content unless the
+            // write edits `.syscribe.toml`).
+            crate::link_types::install(&config.link_types);
+            let mut errs = ref_errors(&elems, &cand_root);
+            errs.extend(link_errs);
             (errs, warns)
         }
         Err(e) => {
@@ -334,7 +361,14 @@ where
     }
 
     if gate && new_error_count > 0 && !allow_new_errors {
-        outcome.reason = Some("refused: commit would introduce an unresolved reference".to_string());
+        let link_type = outcome.new_errors.iter().any(|(c, _, _)| GATED_VALIDATOR_ERRORS.contains(&c.as_str()));
+        let eref = outcome.new_errors.iter().any(|(c, _, _)| c == "EREF");
+        let why = match (eref, link_type) {
+            (false, true) => "a link-type error (E630–E636; see newErrors)",
+            (true, true) => "an unresolved reference and a link-type error (see newErrors)",
+            _ => "an unresolved reference",
+        };
+        outcome.reason = Some(format!("refused: commit would introduce {why}"));
         return outcome;
     }
 

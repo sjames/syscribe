@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** syscribe 0.39.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-09-15  
+**Date:** 2026-09-23  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 281 |
-| Passed | 281 |
+| Total test cases | 295 |
+| Passed | 295 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -947,6 +947,138 @@
 
 ---
 
+### TC-TRS-LINKTYPE-001 — Verify [linkTypes] declarations are parsed, malformed entries raise W630 and are ignored, and an unconfigured model is unaffected.
+
+**Verifies:** REQ-TRS-LINKTYPE-001  
+**Result:** ✓ PASS (15 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a model without [linkTypes] is unaffected | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-002 — Verify links: entries resolve against declared link types, with E630/E631/E632 for undeclared types, malformed shapes and dangling targets.
+
+**Verifies:** REQ-TRS-LINKTYPE-002  
+**Result:** ✓ PASS (11 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| in a configuration lens a links: target inactive in the variant escapes as W019, not E632 | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-003 — Verify sourceTypes and targetTypes constraints raise E633 and E634.
+
+**Verifies:** REQ-TRS-LINKTYPE-003  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a forbidden target type raises E634 | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-004 — Verify cardinality bounds: E635 above the upper bound, W631 below the lower bound for non-draft in-scope elements.
+
+**Verifies:** REQ-TRS-LINKTYPE-004  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a draft element under the lower bound raises nothing | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-005 — Verify acyclic link types reject cycles and self-links with E636, and non-acyclic types are not cycle-checked.
+
+**Verifies:** REQ-TRS-LINKTYPE-005  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an acyclic chain raises nothing | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-006 — Verify extends inherits base rules and reverse index, relax suppresses listed codes per type only, coverage=false withholds coverage, and mutation never rewrites into the base field.
+
+**Verifies:** REQ-TRS-LINKTYPE-006  
+**Result:** ✓ PASS (12 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| mutation does not rewrite an extending link into the base field | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-007 — Verify follow traverses custom and built-in links forward, inverse and reversed, one hop or transitively, with depth bounds, cycle termination and text/json/dot formats.
+
+**Verifies:** REQ-TRS-LINKTYPE-007  
+**Result:** ✓ PASS (16 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| unknown link or element exits non-zero | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-008 — Verify link-types lists the declared vocabulary and rules in text and JSON, omits invalid entries, and hints when none are declared.
+
+**Verifies:** REQ-TRS-LINKTYPE-008  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an unconfigured model prints a hint and exits zero | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-009 — Verify links, refs, impact, trace and show include user-defined links.
+
+**Verifies:** REQ-TRS-LINKTYPE-009  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| show displays links: | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-010 — Verify the MCP server exposes read-only link_types and follow tools.
+
+**Verifies:** REQ-TRS-LINKTYPE-010  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| follow returns traversal results | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-011 — Verify custom links participate in suspect-link detection unless the type sets suspect = false.
+
+**Verifies:** REQ-TRS-LINKTYPE-011  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an opted-out type never raises W090 | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-012 — Verify an LLM agent can discover link types: the prompt documents links: and link-types, and --agent-instructions with a model appends the project's declared types.
+
+**Verifies:** REQ-TRS-LINKTYPE-012  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a model declaring none appends nothing | ✓ PASS |
+
+---
+
 ### TC-TRS-LINT-001 — Verify lint-docs scans external Markdown for unresolvable stable ID tokens and exits non-zero
 
 **Verifies:** REQ-TRS-LINT-001  
@@ -1641,6 +1773,28 @@
 |---|---|
 | file with no type: field is skipped with a warning | ✓ PASS |
 | file with type: present is processed normally | ✓ PASS |
+
+---
+
+### TC-TRS-PKG-001 — Verify show and export-html list a package's direct members generated from the directory.
+
+**Verifies:** REQ-TRS-PKG-001  
+**Result:** ✓ PASS (13 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export-html package page lists members with links | ✓ PASS |
+
+---
+
+### TC-TRS-PKG-002 — Verify lint-docs flags an _index.md that hand-enumerates three or more of its own members (W103), advisory only.
+
+**Verifies:** REQ-TRS-PKG-002  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| two members, foreign ids, or a non-_index.md file raise nothing | ✓ PASS |
 
 ---
 
@@ -3108,11 +3262,11 @@
 | trigger W006 | ✓ PASS |
 | trigger W007 | ✓ PASS |
 | trigger W300 | ✓ PASS |
-| trigger W301 | ✓ PASS |
 | trigger W302 | ✓ PASS |
 | trigger W303 | ✓ PASS |
 | trigger W304 | ✓ PASS |
 | trigger W305 | ✓ PASS |
+| leaf satisfied by more than one element (W301 retired) | ✓ PASS |
 
 ---
 

@@ -5,7 +5,7 @@ tc_TRS_PKG_002() {
     _scn "an _index.md enumerating three members raises W103 and exits zero"
     out=$("$SYSCRIBE" -m "$M" lint-docs "$M/Enum/_index.md" 2>&1) && pass "exit zero" || fail "non-zero exit: $out"
     printf '%s' "$out" | grep -q 'W103' && pass "W103 raised" || fail "no W103: $out"
-    printf '%s' "$out" | grep 'W103' | grep -q '3' && pass "count named" || fail "count not named"
+    printf '%s' "$out" | grep 'W103' | grep -q 'enumerates 3 of' && pass "count named" || fail "count not named"
 
     _scn "two members, foreign ids, or a non-_index.md file raise nothing"
     out=$("$SYSCRIBE" -m "$M" lint-docs "$M/Two/_index.md" "$M/Foreign/_index.md" "$B/docs/notes.md" 2>&1 || true)
