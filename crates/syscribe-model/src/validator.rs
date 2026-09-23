@@ -5919,7 +5919,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
     // Build reverse index: satisfied_reqs[req_qname_or_id] = list of satisfying element qnames.
     // Deliberately built from every element's `satisfies:`, not filtered to
-    // Part/PartDef — feeds W300/W301's leaf-assignment coverage count, which
+    // Part/PartDef — feeds W300's leaf-assignment coverage count, which
     // must credit any endorsed satisfying shape (Part/PartDef; a behavioral
     // definition StateDef/ActionDef; or one of Connection/ConnectionDef,
     // Interface/InterfaceDef, Item/ItemDef, Attribute/AttributeDef,
@@ -5942,7 +5942,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     }
                     // `coverage = false` withholds the entry from the reverse index;
                     // a contributed entry duplicating one the element already holds
-                    // is not counted twice (W301).
+                    // is not counted twice in `satisfiedBy`.
                     if !link_prov.in_reverse_index(qn, base, si) {
                         continue;
                     }
@@ -6228,7 +6228,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
 
         // E843 / W808: satisfies — satisfying element must inherit integrity level.
-        // Same deliberately type-agnostic posture as E313/W300/W301 above — any
+        // Same deliberately type-agnostic posture as E313/W300 above — any
         // endorsed satisfying shape is held to the same rule as a Part/PartDef
         // would be.
         if let Some(ref sat) = fm.satisfies {
@@ -6448,7 +6448,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
-    // W300/W301: leaf requirement coverage by satisfying architecture elements
+    // W300: leaf requirement coverage by satisfying architecture elements. `W301`
+    // (more than one satisfier) is RETIRED (GH #121): a leaf may be jointly
+    // satisfied by several elements — structural, behavioural or a mix — and
+    // leaf/parent is decided by `derivedChildren` alone, never by satisfier count.
     for elem in elements {
         if !Resolver::is_native_requirement(elem) {
             continue;
@@ -6466,12 +6469,6 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 "W300",
                 &elem.file_path,
                 &format!("leaf Requirement '{}' (status: {}) has no satisfying architecture element", req_id, status),
-            ));
-        } else if satisfiers > 1 {
-            findings.push(warning(
-                "W301",
-                &elem.file_path,
-                &format!("leaf Requirement '{}' is satisfied by {} elements — only one expected", req_id, satisfiers),
             ));
         }
 
@@ -11290,7 +11287,7 @@ mod w007_scoped_usage_tracking_tests {
 }
 
 /// `satisfies:` — E313 (domain mismatch), E843/W808 (integrity-level inheritance),
-/// and the W300/W301 leaf-assignment coverage count are deliberately
+/// and the W300 leaf-assignment coverage count are deliberately
 /// type-agnostic on the *source* element: `Part`/`PartDef` is the common case,
 /// but every other kind `Resolver::is_verify_target`/E104 already treats as
 /// requirement/architecture-shaped for a SysMLv2- or plugin-synthesized
@@ -11418,7 +11415,7 @@ mod satisfies_shape_tests {
     }
 
     #[test]
-    fn one_partdef_and_one_statedef_both_satisfying_the_same_requirement_raises_w301() {
+    fn one_partdef_and_one_statedef_jointly_satisfying_a_leaf_requirement_is_legitimate() {
         let elements = vec![
             req("REQ-SM-004", "Requirements::SmReq4", ""),
             make_elem(
@@ -11434,8 +11431,8 @@ mod satisfies_shape_tests {
         ];
         let result = validate_with_config(&elements, &ValidateConfig::default());
         assert!(
-            codes(&result.findings).contains(&"W301"),
-            "two satisfiers of any mix of shapes should raise W301: {:?}",
+            !codes(&result.findings).contains(&"W301"),
+            "W301 is retired (GH #121) — a structural + behavioural pair may jointly satisfy a leaf: {:?}",
             result.findings
         );
     }
@@ -11523,7 +11520,7 @@ mod satisfies_shape_tests {
     }
 
     #[test]
-    fn a_partdef_and_an_item_both_satisfying_the_same_requirement_raises_w301() {
+    fn a_partdef_and_an_item_jointly_satisfying_a_leaf_requirement_is_legitimate() {
         let elements = vec![
             req("REQ-MIX-001", "Requirements::MixReq", ""),
             make_elem(
@@ -11539,8 +11536,8 @@ mod satisfies_shape_tests {
         ];
         let result = validate_with_config(&elements, &ValidateConfig::default());
         assert!(
-            codes(&result.findings).contains(&"W301"),
-            "a PartDef and an Item both satisfying the same requirement should raise W301: {:?}",
+            !codes(&result.findings).contains(&"W301"),
+            "W301 is retired (GH #121) — a PartDef and an Item may jointly satisfy a leaf: {:?}",
             result.findings
         );
     }
@@ -11735,11 +11732,9 @@ mod link_type_tests {
         assert!(hits(&f, "E313", "HwA").is_empty(), "relaxed: {f:?}");
         assert_eq!(hits(&f, "E313", "HwB").len(), 1, "inherited");
         assert_eq!(hits(&f, "E313", "HwC").len(), 1, "built-in never relaxed, relaxed twin silent");
-        // Coverage: all three requirements are satisfied (no W300); HwC's twin
-        // entries do not double-count into W301.
+        // Coverage: all three requirements are satisfied (no W300).
         for id in ["REQ-001", "REQ-002", "REQ-003"] {
             assert!(hits(&f, "W300", id).is_empty(), "{id}: {f:?}");
-            assert!(hits(&f, "W301", id).is_empty(), "{id}: {f:?}");
         }
     }
 

@@ -221,7 +221,7 @@ Write `Diagram` elements after all model elements are in place.
   Commit the `.md` (with the auto-injected image link), the `.puml`, and the generated `.svg`. Validate: fix E403, E404, W413, W414.
 
 **Batch 9 — Resolve leaf PartDefs (closure pass)**
-After all architecture and requirement elements exist, verify that every leaf `PartDef`/`Part` is properly closed. See Part 7b for the full procedure. Validate: resolve all W300 (unassigned leaf requirements) and W301 (over-assigned leaf requirements).
+After all architecture and requirement elements exist, verify that every leaf `PartDef`/`Part` is properly closed. See Part 7b for the full procedure. Validate: resolve all W300 (unassigned leaf requirements).
 
 After all batches pass with 0 errors, review warnings and fix any that indicate genuine gaps (W300 — leaf requirement has no satisfying element; W002 — approved requirement has no active TestCase).
 
@@ -682,9 +682,9 @@ satisfies:
   - REQ-AID-FC-002    # newly assigned
 ```
 
-### Step 4 — Handle over-assigned requirements (W301)
+### Step 4 — Requirements satisfied by several elements
 
-A leaf requirement with more than one satisfying element fires W301. This is almost always a modelling mistake — decide which single element owns the requirement and remove it from the others. Legitimate split ownership (redundancy architectures) should be documented in the breakdown ADR and the requirement should be decomposed into two child requirements, one per element.
+A leaf requirement may be satisfied by more than one element — a `PartDef` plus the `StateDef` that gives it its behaviour, redundant channels, a component plus its interface. This is legitimate and raises no finding (W301 is retired). Do **not** invent child requirements just to get one satisfier per leaf; decompose only when the children say something new. Never satisfy a *parent* requirement (E312).
 
 ### Step 5 — Handle deployment packages
 
@@ -706,7 +706,6 @@ syscribe model/ validate
 Target state at end of closure pass:
 - **0 errors**
 - **0 × W300** — every leaf requirement at `approved`/`implemented` has a satisfying element
-- **0 × W301** — no leaf requirement is satisfied by more than one element
 - **0 × E314** — every deployment package has an allocation to hardware
 
 Remaining acceptable warnings after closure: W404 (`ScalarValues::*` stdlib), W007 (unused definition types), W305 (parent requirement without system-integration TestCase), W008 (README file).

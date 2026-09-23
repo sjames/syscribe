@@ -5486,7 +5486,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W009` | A `testFunctions[].function` does not resolve to a definition in its (existing) `sourceFile` — function-level traceability drift (renamed/deleted test). Emitted only for `TestCase`s with `status: active` (see *TestCase drift scoping*). See *Function matchers* below. |
 | `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results. See *Test result ingestion* below. Inert unless results have been ingested. |
 | `W300` | Leaf `Requirement` at `status: approved` or `status: implemented` has no satisfying element (no element — structural or behavioral — has `satisfies:` pointing to it) |
-| `W301` | Leaf `Requirement` is satisfied by more than one element — only one expected at leaf level, regardless of whether the multiple satisfiers are structural, behavioral, or a mix |
+| `W301` | **RETIRED** (GH #121) — formerly flagged a leaf `Requirement` satisfied by more than one element. A leaf may be jointly satisfied by several elements (§12.3), so this code is no longer emitted. |
 | `W302` | Leaf `Requirement` at `status: implemented` or `status: verified` still has `reqDomain: system` — refine to `hardware` or `software` |
 | `W303` | `breakdownAdr:` references an ADR with `status: proposed`, but the `Requirement` itself has `status: approved` or higher |
 | `W304` | `isDeploymentPackage: true` combined with `domain: hardware` — deployment packages must be software |
@@ -6131,7 +6131,7 @@ breakdownAdr: ADR-SW-SCHED-001
 
 A requirement is a **leaf requirement** when no other requirement has `derivedFrom:` pointing to it (i.e., the computed `derivedChildren` index is empty for this requirement's id).
 
-**Rule R-003:** A leaf requirement at `status: approved` or higher must be assigned to exactly one element — meaning exactly one element must have `satisfies:` referencing this requirement. `Part`/`PartDef` is the common case, but `satisfies:` is not type-restricted. The following count identically to a `Part`/`PartDef` satisfier:
+**Rule R-003:** A leaf requirement at `status: approved` or higher must be assigned to **at least one** element — meaning at least one element must have `satisfies:` referencing this requirement. Several elements may jointly satisfy a leaf (for example a `PartDef` and the `StateDef` that gives it its behaviour, or redundant channels): the satisfier count never changes whether a requirement is a leaf or a parent, which is decided by `derivedChildren` alone, and a requirement is decomposed only when the decomposition adds requirement content — never to force one-to-one allocation. `Part`/`PartDef` is the common case, but `satisfies:` is not type-restricted. The following count identically to a `Part`/`PartDef` satisfier:
 
 - A behavioral definition (`StateDef`/`ActionDef`) — a state machine or an activity can be the artifact directly responsible for fulfilling a requirement, not only the structural element that owns it.
 - `Connection`/`ConnectionDef`, `Interface`/`InterfaceDef`, `Item`/`ItemDef`, `Attribute`/`AttributeDef`, `Port`/`PortDef`, `Allocation` — the same fixed set of requirement/architecture-shaped kinds `E104` (§11.10) already recognises as legal `verifies:` targets when synthesized by SysMLv2 submodel ingestion or a stdio-subprocess plugin; extended here for consistency, since the natural direction of the claim (an architecture element declaring what it satisfies) is the mirror image of that check.
@@ -6140,7 +6140,7 @@ A requirement is a **leaf requirement** when no other requirement has `derivedFr
 No other element kind is restricted from declaring `satisfies:` either — the validator never gates on the *source* element's type — but only the kinds above are formally endorsed and regression-tested; anything else is permitted by absence of a check, not by design.
 
 - Zero satisfying elements → warning `W300`
-- More than one satisfying element → warning `W301` (regardless of whether the multiple satisfiers are structural, behavioral, or a mix)
+- More than one satisfying element → **no finding** (`W301` is retired — GH #121). Satisfying a *parent* requirement is still error `E312` (§12.4).
 
 The assignment can evolve iteratively:
 1. Initially, assign to a higher-level block (`satisfies: UAV::FlightController`).
@@ -6446,7 +6446,7 @@ Rules:
 
 #### 12.10.4 Extending a built-in trace link — `extends`, `relax`, `coverage`
 
-A type with `extends = "<base>"` is a **named variant** of a built-in trace link. Each instance is treated as an instance of the base link by **every** rule and **every** reverse index that applies to the base — for example `E313` domain matching and `E312` no-parent-assignment for `satisfies`; `E104` for `verifies`; `E105`/`E310`/`W303` for `derivedFrom`; `E316` for `refines`; and the coverage checks fed by `satisfiedBy`, `verifiedBy`, `derivedChildren` and `refinedBy` (`W002`, `W300`, `W301`, `W305`, …) — **in addition to** the type's own declared constraints (§12.10.3). `impact`, `trace` and suspect detection likewise see it as a base-link instance.
+A type with `extends = "<base>"` is a **named variant** of a built-in trace link. Each instance is treated as an instance of the base link by **every** rule and **every** reverse index that applies to the base — for example `E313` domain matching and `E312` no-parent-assignment for `satisfies`; `E104` for `verifies`; `E105`/`E310`/`W303` for `derivedFrom`; `E316` for `refines`; and the coverage checks fed by `satisfiedBy`, `verifiedBy`, `derivedChildren` and `refinedBy` (`W002`, `W300`, `W305`, …) — **in addition to** the type's own declared constraints (§12.10.3). `impact`, `trace` and suspect detection likewise see it as a base-link instance.
 
 **`relax`** suppresses the listed codes **for instances of that type only**. Only the base's *link-scoped* rules may be relaxed:
 
@@ -6459,7 +6459,7 @@ A type with `extends = "<base>"` is a **named variant** of a built-in trace link
 
 `E310` is an element-level rule (a requirement with `derivedFrom:` but no `breakdownAdr:`): relaxing it suppresses the finding only when **every** `derivedFrom`-like link on that requirement — the built-in field and any extending types — is of a type that relaxes `E310`.
 
-**`coverage = false`** keeps the base's rule checks (so an unrelaxed `E313` still fires) but withholds the instances from the base's reverse index. They then neither satisfy/verify anything for coverage purposes nor make their target a "parent": a `coverage = false` `satisfies` variant does not clear `W300` on its target and does not count towards `W301`; a `coverage = false` `derivedFrom` variant does not add its source to `derivedChildren`, so the target does not become a parent for `E312`/`W305`. Default `true`.
+**`coverage = false`** keeps the base's rule checks (so an unrelaxed `E313` still fires) but withholds the instances from the base's reverse index. They then neither satisfy/verify anything for coverage purposes nor make their target a "parent": a `coverage = false` `satisfies` variant does not clear `W300` on its target; a `coverage = false` `derivedFrom` variant does not add its source to `derivedChildren`, so the target does not become a parent for `E312`/`W305`. Default `true`.
 
 **Built-in links are never relaxed.** A declaration only ever affects instances of its own named type; a plain `satisfies:` beside a relaxing `partiallySatisfies` still raises `E313` on a domain mismatch. Relaxation is therefore always explicit at each use site, and every relaxation in a project is auditable in one place (`link-types` prints it).
 

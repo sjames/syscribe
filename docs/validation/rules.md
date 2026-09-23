@@ -176,7 +176,7 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 | Code | Condition |
 |---|---|
 | W300 | Leaf Requirement at `approved` or `implemented` has no satisfying element |
-| W301 | Leaf Requirement is satisfied by more than one element |
+| W301 | **Retired** (GH #121) — no longer emitted; a leaf may be jointly satisfied by several elements |
 | W302 | Leaf Requirement at `implemented` or `verified` still has `reqDomain: system` |
 | W303 | `breakdownAdr:` references a `proposed` ADR but Requirement is `approved` or higher |
 | W304 | `isDeploymentPackage: true` combined with `domain: hardware` |

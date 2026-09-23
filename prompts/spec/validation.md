@@ -69,7 +69,7 @@
 | `W007` | Unrecognised frontmatter key (lenient mode; key preserved) |
 | `W008` | Element has no `type:` field — it will be ignored by most commands |
 | `W300` | Leaf `Requirement` at `approved`/`implemented` has no satisfying architecture element |
-| `W301` | Leaf `Requirement` satisfied by more than one architecture element |
+| `W301` | **Retired** (GH #121) — no longer emitted; a leaf may be satisfied by several elements |
 | `W302` | Leaf `Requirement` at `implemented`/`verified` still has `reqDomain: system` |
 | `W303` | `breakdownAdr:` references an ADR with `status: proposed` |
 | `W304` | `isDeploymentPackage: true` combined with `domain: hardware` |
@@ -587,7 +587,7 @@ Dormant unless `.syscribe.toml` declares `[linkTypes]` or an element carries `li
 
 A type that `extends` `satisfies`/`verifies`/`derivedFrom`/`refines` is treated as that base link by
 every base rule and reverse index (`E104`, `E105`, `E310`, `E312`, `E313`, `E316`, `W002`, `W300`,
-`W301`, `W303`, `W305`, …) except the codes it lists in `relax` (`E310`/`W303` are relaxed only when
+`W303`, `W305`, …) except the codes it lists in `relax` (`E310`/`W303` are relaxed only when
 every derivedFrom-like link on the requirement relaxes them); `coverage = false` keeps the checks but
 gives no coverage credit. The built-in fields themselves are never relaxed.
 

@@ -58,9 +58,9 @@ breakdownAdr: Decisions::SafetyDecompositionADR   # must be status: accepted
 
 ## Rule 3 — Leaf assignment (§12.3)
 
-Requirements must be decomposed until each leaf can be assigned to a single architecture element. Leaf requirements at `approved` or `implemented` status with no `satisfies:` link fire **W300**.
+Requirements are decomposed until each leaf can be assigned to the architecture that fulfils it. Leaf requirements at `approved` or `implemented` status with no `satisfies:` link fire **W300**.
 
-A leaf requirement should have exactly one satisfying element. More than one fires **W301**.
+A leaf requirement may be satisfied by more than one element — for example a `PartDef` and the `StateDef` that gives it its behaviour, or redundant channels. That is not a finding (`W301` is retired, GH #121): decompose a requirement only when the children add requirement content, never just to reach one satisfier per leaf. Satisfying a *parent* requirement is still **E312** (below).
 
 ## Rule 4 — No parent assignment (§12.4)
 

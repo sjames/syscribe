@@ -47,12 +47,14 @@ time and never written to disk**.
 A requirement is a **leaf** when no other requirement has `derivedFrom:` pointing to it.
 
 **Rule:** A leaf `Requirement` at `status: approved` or higher must be assigned to
-exactly one architecture element (one `Part`/`PartDef` has `satisfies:` pointing to it).
+at least one architecture element (an element has `satisfies:` pointing to it). Several
+elements may jointly satisfy a leaf (e.g. a `PartDef` plus its `StateDef`); leaf/parent is
+decided by `derivedChildren` alone, never by the satisfier count.
 
 | Violation | Code |
 |---|---|
 | Zero satisfying elements | `W300` |
-| More than one satisfying element | `W301` |
+| More than one satisfying element | none — `W301` is retired (GH #121) |
 
 Assignment should point to the **deepest known** architecture element responsible for
 fulfilling the requirement.

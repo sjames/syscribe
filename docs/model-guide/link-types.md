@@ -121,7 +121,7 @@ cardinality = "1..*"
 
 ## 4. Extending a built-in link: `extends`, `relax`, `coverage`
 
-Sometimes a relationship *is* a built-in link, just a weaker or specialised one. `extends` makes a type a **named variant** of `satisfies`, `verifies`, `derivedFrom` or `refines`. Each instance is then treated as an instance of the base link by every base rule and every base reverse index (`satisfiedBy`, `verifiedBy`, `derivedChildren`, `refinedBy`), and so by the coverage checks built on them (`W002`, `W300`, `W301`, `W305`, …), by `impact` and `trace`, and by suspect detection. Its own declared constraints apply as well.
+Sometimes a relationship *is* a built-in link, just a weaker or specialised one. `extends` makes a type a **named variant** of `satisfies`, `verifies`, `derivedFrom` or `refines`. Each instance is then treated as an instance of the base link by every base rule and every base reverse index (`satisfiedBy`, `verifiedBy`, `derivedChildren`, `refinedBy`), and so by the coverage checks built on them (`W002`, `W300`, `W305`, …), by `impact` and `trace`, and by suspect detection. Its own declared constraints apply as well.
 
 `relax` then switches off specific base rules **for that variant only**. Only a base's link-scoped rules can be relaxed:
 
@@ -142,7 +142,7 @@ Sometimes a relationship *is* a built-in link, just a weaker or specialised one.
 
 A brake controller (software) contributes to a hydraulic pressure-release requirement (hardware), but the hydraulic modulator is what actually satisfies it. With only built-in links you can either:
 
-- write `satisfies: [REQ-BRK-003]` on the controller, which raises `E313` (software element, hardware requirement), and also makes the controller a second satisfier (`W301`); or
+- write `satisfies: [REQ-BRK-003]` on the controller, which raises `E313` (software element, hardware requirement); it would also count the controller as a full satisfier, which overstates its role; or
 - leave the contribution out of the model entirely.
 
 Declare a variant instead:
@@ -178,7 +178,7 @@ What each setting does here:
 
 - **`extends = "satisfies"`**: every other `satisfies` rule still applies. If `REQ-BRK-003` were broken down into children, this link would raise `E312` like any `satisfies`.
 - **`relax = ["E313"]`**: the cross-domain instance is accepted. The controller's own `satisfies: [REQ-BRK-002]` is still domain-checked.
-- **`coverage = false`**: `REQ-BRK-003`'s `satisfiedBy` is still just `HydraulicModulator`, so `W301` does not fire. If the modulator's `satisfies:` were removed, `W300` would fire, because a partial contribution is not coverage.
+- **`coverage = false`**: `REQ-BRK-003`'s `satisfiedBy` is still just `HydraulicModulator`, so coverage reports don't credit the controller. If the modulator's `satisfies:` were removed, `W300` would fire, because a partial contribution is not coverage.
 
 To trace the partial contributors, use the inverse:
 

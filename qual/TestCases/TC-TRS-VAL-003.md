@@ -28,9 +28,13 @@ Feature: Warning rule enforcement
       | W006  | both silLevel: and asilLevel: set on the same element                          |
       | W007  | frontmatter contains an unrecognised key (lenient mode)                        |
       | W300  | leaf Requirement at approved/implemented has no satisfying element             |
-      | W301  | leaf Requirement satisfied by more than one element                            |
       | W302  | leaf Requirement at implemented/verified has reqDomain: system                 |
       | W303  | breakdownAdr: references a proposed ADR while Requirement is approved+         |
       | W304  | isDeploymentPackage: true combined with domain: hardware                       |
       | W305  | parent Requirement at approved+ has no system-level TestCase                   |
+
+  Scenario: a leaf requirement satisfied by more than one element is legitimate (W301 retired, GH #121)
+    Given a leaf Requirement at approved satisfied by a PartDef and a StateDef
+    When the model is validated
+    Then no W301 finding is produced
 ```

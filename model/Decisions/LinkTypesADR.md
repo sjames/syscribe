@@ -13,7 +13,7 @@ tags:
 Every relationship Syscribe understands today is hard-coded: a dedicated frontmatter field
 (`satisfies:`, `verifies:`, `derivedFrom:`, `refines:`, …), a variant of `graph::EdgeKind`, and a
 set of validator rules bound to that field (`E104`, `E105`, `E310`, `E312`, `E313`, `E316`, the
-coverage warnings `W002`/`W300`/`W301`/`W305`, …). Projects routinely need relationships the
+coverage warnings `W002`/`W300`/`W305`, …). Projects routinely need relationships the
 format does not name — `mitigates` (control → hazard), `conflictsWith` (requirement ↔
 requirement), `partiallySatisfies`, `informs`, `supersedesDesignOf` — and today they either abuse
 a built-in field (inheriting rules that do not fit, e.g. `E313` domain matching or `E312`
