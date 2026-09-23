@@ -15,6 +15,7 @@
 use std::collections::{BTreeSet, HashSet};
 
 use crate::element::{RawElement, RawFrontmatter};
+use crate::link_types::LinkTypeRegistry;
 use crate::resolver::Resolver;
 
 /// Frontmatter fields excluded from the normative projection (v1 default,
@@ -172,7 +173,16 @@ fn write_canonical(v: &serde_json::Value, out: &mut String) {
 /// Every trace link declared on a source frontmatter, as `(kind, target_ref)`
 /// pairs (REQ-TRS-SUS-LINKS-003). Covers all link kinds; the target ref is the
 /// string exactly as authored (the `traceBaselines` key). Deterministic order.
+/// User-defined `links:` instances are included per the process-wide active
+/// link-type vocabulary (see [`trace_links_with`]).
 pub fn trace_links(fm: &RawFrontmatter) -> Vec<(&'static str, String)> {
+    trace_links_with(fm, &crate::link_types::active())
+}
+
+/// [`trace_links`] against an explicit link-type vocabulary. Custom `links:`
+/// targets are trace links like any other (REQ-TRS-LINKTYPE-011), kind = the
+/// declared type name, unless the type declares `suspect = false`.
+pub fn trace_links_with(fm: &RawFrontmatter, link_types: &LinkTypeRegistry) -> Vec<(&'static str, String)> {
     let mut out: Vec<(&'static str, String)> = Vec::new();
 
     let mut push_list = |kind: &'static str, list: &Option<Vec<String>>| {
@@ -219,6 +229,18 @@ pub fn trace_links(fm: &RawFrontmatter) -> Vec<(&'static str, String)> {
     // Scalar single-target links.
     if let Some(adr) = &fm.breakdown_adr {
         out.push(("breakdownAdr", adr.clone()));
+    }
+
+    // User-defined links (REQ-TRS-LINKTYPE-011), in authored order.
+    for (ti, targets) in crate::link_types::declared_links(fm, link_types) {
+        let decl = &link_types.types()[ti];
+        if !decl.suspect {
+            continue;
+        }
+        let kind = crate::link_types::static_str(&decl.name);
+        for t in targets {
+            out.push((kind, t));
+        }
     }
 
     out
@@ -274,13 +296,19 @@ fn yaml_refs(v: &Option<serde_yaml::Value>) -> Vec<String> {
 /// occurrence is kept, since the baseline is a property of the target alone
 /// (REQ-TRS-SUS-LINKS-003). Output is sorted for stable, diffable reporting.
 pub fn scan(elements: &[RawElement], resolver: &Resolver) -> Vec<SuspectLink> {
+    scan_with(elements, resolver, &crate::link_types::active())
+}
+
+/// [`scan`] against an explicit link-type vocabulary (the validator passes its
+/// config's, REQ-TRS-LINKTYPE-011).
+pub fn scan_with(elements: &[RawElement], resolver: &Resolver, link_types: &LinkTypeRegistry) -> Vec<SuspectLink> {
     let mut out: Vec<SuspectLink> = Vec::new();
 
     for src in elements {
         let fm = &src.frontmatter;
         let mut seen: HashSet<String> = HashSet::new();
 
-        for (kind, target_ref) in trace_links(fm) {
+        for (kind, target_ref) in trace_links_with(fm, link_types) {
             // One baseline entry per target regardless of link kind.
             if !seen.insert(target_ref.clone()) {
                 continue;

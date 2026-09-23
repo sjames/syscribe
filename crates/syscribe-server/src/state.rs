@@ -94,10 +94,12 @@ impl ModelStore {
     /// rebuild logic.
     pub fn reload(&mut self) -> anyhow::Result<()> {
         let elements = walk_model(&self.model_root)?;
+        // Config first: it (re)installs the `[linkTypes]` vocabulary that
+        // `build_graph` reads for user-defined edges (REQ-TRS-LINKTYPE-009).
+        let config = ValidateConfig::with_model_root(&self.model_root);
         let (graph, node_idx) = build_graph(&elements);
         let resolver = Resolver::new(&elements);
         let symbol_defs = load_symbol_defs(&self.model_root);
-        let config = ValidateConfig::with_model_root(&self.model_root);
         self.elements = elements;
         self.graph = graph;
         self.node_idx = node_idx;

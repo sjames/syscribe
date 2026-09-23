@@ -52,11 +52,51 @@ pub enum EdgeKind {
     DerivedFromSecurityGoal, // Requirement → CybersecurityGoal
     ThreatRef,               // AttackTree → ThreatScenario
     AttackTreeInput,         // AttackTreeGate → input gate/step
+    // User-defined link type (ADR-SYS-LINKTYPE-001, REQ-TRS-LINKTYPE-009): a
+    // `links:` instance of a declared `[linkTypes.<name>]`, source → target. The
+    // payload is the link-type name's index in the process-wide interner
+    // (`crate::link_types::intern`), which keeps `EdgeKind` `Copy`; `name()`
+    // returns the declared type name.
+    Custom(u16),
 }
 
 impl EdgeKind {
+    /// Every built-in (non-[`EdgeKind::Custom`]) edge kind.
+    pub const BUILTIN: &'static [EdgeKind] = &[
+        EdgeKind::Contains,
+        EdgeKind::Supertype,
+        EdgeKind::TypedBy,
+        EdgeKind::Subsets,
+        EdgeKind::Redefines,
+        EdgeKind::Verifies,
+        EdgeKind::DerivedFrom,
+        EdgeKind::AllocatedFrom,
+        EdgeKind::AllocatedTo,
+        EdgeKind::ConditionalOn,
+        EdgeKind::Satisfies,
+        EdgeKind::PlanningParent,
+        EdgeKind::PlanningBlockedBy,
+        EdgeKind::Connection,
+        EdgeKind::Flow,
+        EdgeKind::Binding,
+        EdgeKind::Succession,
+        EdgeKind::FeatureTyped,
+        EdgeKind::TopEvent,
+        EdgeKind::FaultTreeInput,
+        EdgeKind::HazardousEventRef,
+        EdgeKind::DerivedFromSafetyGoal,
+        EdgeKind::DamageScenarioRef,
+        EdgeKind::ThreatScenarioRef,
+        EdgeKind::ImplementsGoal,
+        EdgeKind::MitigatedBy,
+        EdgeKind::DerivedFromSecurityGoal,
+        EdgeKind::ThreatRef,
+        EdgeKind::AttackTreeInput,
+    ];
+
     /// Lower-camel canonical name of an edge kind. Stable: used by the
     /// `connectivity` CLI for `--kinds` filtering and the JSON `kind` field.
+    /// A [`EdgeKind::Custom`] edge is named by its declared link type.
     pub fn name(&self) -> &'static str {
         match self {
             EdgeKind::Contains => "contains",
@@ -88,6 +128,7 @@ impl EdgeKind {
             EdgeKind::DerivedFromSecurityGoal => "derivedFromSecurityGoal",
             EdgeKind::ThreatRef => "threatRef",
             EdgeKind::AttackTreeInput => "attackTreeInput",
+            EdgeKind::Custom(i) => crate::link_types::interned(*i),
         }
     }
 }
@@ -98,6 +139,9 @@ pub type ModelGraph = DiGraph<String, EdgeKind>;
 /// Returns (graph, node_index_by_qname).
 pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, NodeIndex>) {
     let resolver = Resolver::new(elements);
+    // User-defined link types (REQ-TRS-LINKTYPE-009) — the vocabulary installed
+    // for the loaded model; empty (no custom edges) when none is declared.
+    let link_types = crate::link_types::active();
     let mut graph = DiGraph::new();
     let mut idx: HashMap<String, NodeIndex> = HashMap::new();
 
@@ -449,6 +493,17 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
         if let Some(ref csg) = fm.derived_from_cybersecurity_goal {
             if let Some(dst) = resolve_to_idx(csg) {
                 graph.add_edge(src, dst, EdgeKind::DerivedFromSecurityGoal);
+            }
+        }
+
+        // ── User-defined links (REQ-TRS-LINKTYPE-009) ────────────────────────
+        // `links:` instances of declared types, source → target, named by type.
+        for (ti, targets) in crate::link_types::declared_links(fm, &link_types) {
+            let kind = EdgeKind::Custom(crate::link_types::intern(&link_types.types()[ti].name));
+            for t in targets {
+                if let Some(dst) = resolve_to_idx(&t) {
+                    graph.add_edge(src, dst, kind);
+                }
             }
         }
     }

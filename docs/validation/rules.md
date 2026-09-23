@@ -387,6 +387,24 @@ anything was ever actually claimed, since `status: in_progress` alone already si
 
 No dedicated CLI subcommand or MCP tool — queried via the generic `list`/`show`/`ls`/`find`/`refs` commands; written via the generic MCP element tools. See `examples/planning-item/` for a worked example.
 
+## User-defined link types (E630–E636, W630, W631, §12.10, ADR-SYS-LINKTYPE-001)
+
+A project declares its own relationship types in `[linkTypes.<name>]` tables of the model-root `.syscribe.toml`, and elements author instances under a `links:` map (`<type>: <ref | [refs]>`, resolved like `satisfies:`). **Active only when `[linkTypes]` or `links:` is used** — a model with neither is unaffected. See the [Link Types guide](../model-guide/link-types.md).
+
+| Code | Condition |
+|---|---|
+| E630 | A `links:` key is not a declared (valid) link type. The message lists the declared types (or says none are declared and how to declare one) — run `syscribe -m <root> link-types`. |
+| E631 | `links:` is not a mapping, or a key's value is neither a string nor a list of strings. |
+| E632 | A `links:` reference does not resolve to any element (by stable id or qualified name). |
+| E633 | The link type declares `sourceTypes` and the element holding the link is not one of them. |
+| E634 | The link type declares `targetTypes` and a resolved target is not one of them (the target is named). |
+| E635 | More targets than the link type's `cardinality` upper bound. |
+| E636 | A cycle (including a self-link) formed solely by links of an `acyclic = true` type — once per cycle, naming its members. |
+| W630 | A `[linkTypes.<name>]` entry is malformed — bad or colliding name/`inverse`, unparseable `cardinality`, non-zero lower bound without `sourceTypes`, unknown element type in `sourceTypes`/`targetTypes`, unsupported `extends`, `relax`/`coverage` without `extends`, or a `relax` code not relaxable for the base. The whole entry is ignored (its uses then raise `E630`). An unknown key inside an entry is also `W630` (the key is ignored). |
+| W631 | A non-`draft` element whose `type:` is in the link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound (opt-in; `--deny W631`). |
+
+A type with `extends = "satisfies" | "verifies" | "derivedFrom" | "refines"` is also checked by every rule of its base link, minus the codes it lists in `relax` — `satisfies` → `E312`, `E313`; `verifies` → `E104`; `derivedFrom` → `E105`, `E310`, `W303`; `refines` → `E316`. Relaxation never applies to the built-in field itself. Custom links participate in suspect-link detection (`W090`) unless the type sets `suspect = false`.
+
 ## Multi-repository composition (E510–E515, W510–W512, §14)
 
 A model composes peer repositories declared in the `[repos]` table of the model-root `.syscribe.toml` and imports their namespaces via `repoImports:` on a Package `_index.md`. Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each loaded repo in declaration order (by global stable ID or qualified name). **Active only when `[repos]` is configured** — single-repo models are unaffected.

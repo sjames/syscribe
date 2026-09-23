@@ -6,7 +6,8 @@
 ## DESCRIPTION
 Prints an element's frontmatter fields (type, status, integrity level, extRef,
 domain, …), its inline features, and its documentation body. Accepts a qualified
-name (Pkg::Sub::Name) or a stable id (REQ-*, TC-*, SG-*, …).
+name (Pkg::Sub::Name) or a stable id (REQ-*, TC-*, SG-*, …). User-defined links
+(`links:`) appear as one `links.<type>` row per link type.
 
 Ends with a type-appropriate "Related:" footer suggesting the traceability
 commands that answer the natural next questions about this same element —

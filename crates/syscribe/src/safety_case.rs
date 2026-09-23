@@ -85,6 +85,11 @@ pub fn cmd_safety_case(
     no_implicit: bool,
     sidecar_loaded: bool,
 ) {
+    // REQ-TRS-LINKTYPE-006 — a `coverage = true` user-defined link extending
+    // verifies/derivedFrom counts as that base link in the argument tree
+    // (read-only report). Same element order, so `resolver` stays valid.
+    let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
+    let elements: &[RawElement] = &cov;
     // Collect the top SafetyGoals (all of them, or only the named one).
     let goals: Vec<&RawElement> = elements
         .iter()

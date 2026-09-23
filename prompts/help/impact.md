@@ -14,14 +14,19 @@ may need to change?". Read-only.
 `safetyGoalChildren`. **Upstream** follows forward links (what I depend on): `supertype`,
 `derivedFrom`, `verifies`, `satisfies`, `refines`, `allocatedTo`, `derivedFromSafetyGoal`.
 
+User-defined links (`links:`, declared in `[linkTypes]` of `.syscribe.toml`) are traversed
+too: upstream along the link (source → target, labelled with the type name), downstream
+against it (labelled with the type's `inverse`, or `<type> (inbound)`).
+
 ## OPTIONS
     --direction D   downstream (default) | upstream | both.
     --depth N       Maximum hop distance (default: unlimited).
     --format F      text (indented tree, default) | json | dot (Graphviz).
     --kinds csv     Restrict to base kinds: verifies, derivedFrom, satisfies, supertype,
-                    appliesWhen, allocatedTo, refines, derivedFromSafetyGoal.
+                    appliesWhen, allocatedTo, refines, derivedFromSafetyGoal, or any
+                    declared link-type name (JSON `via` carries the same name).
 
 Cycles are handled (each element is visited once). Works for qualified names and stable IDs.
 
 ## SEE ALSO
-    links, connectivity, n2
+    links, connectivity, n2, follow, link-types

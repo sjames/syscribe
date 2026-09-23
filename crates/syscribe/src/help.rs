@@ -33,6 +33,8 @@ const HELP: &[(&str, &str)] = &[
     ("why", include_str!("../../../prompts/help/why.md")),
     ("who-verifies", include_str!("../../../prompts/help/who-verifies.md")),
     ("links", include_str!("../../../prompts/help/links.md")),
+    ("follow", include_str!("../../../prompts/help/follow.md")),
+    ("link-types", include_str!("../../../prompts/help/link-types.md")),
     ("refs", include_str!("../../../prompts/help/refs.md")),
     ("suspect", include_str!("../../../prompts/help/suspect.md")),
     ("baseline", include_str!("../../../prompts/help/baseline.md")),

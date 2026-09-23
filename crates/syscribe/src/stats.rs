@@ -383,7 +383,10 @@ pub fn stats_document(
     };
     let view: &[RawElement] = projected.as_deref().unwrap_or(elements);
     let result = syscribe_model::validator::validate_with_config(view, vcfg);
-    compute_stats(view, &result, vcfg.results.as_ref(), opts)
+    // REQ-TRS-LINKTYPE-006 — count `coverage = true` extending links as their base
+    // link in the digest; validated above on the authored elements.
+    let cov_view = syscribe_model::link_types::coverage_view(view, &vcfg.link_types);
+    compute_stats(&cov_view, &result, vcfg.results.as_ref(), opts)
 }
 
 /// The `stats` command. Computes the digest, prints it (text or `--json`), and

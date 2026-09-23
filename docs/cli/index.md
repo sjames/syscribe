@@ -535,6 +535,8 @@ syscribe -m model/ impact <qname|id> [--direction downstream|upstream|both] [--d
 
 Traverses the traceability graph (§17) from an element and reports every reachable node, its hop distance, and the connecting edge kind — "if I change this, what else may need to change?". **Downstream** follows reverse links (`derivedChildren`, `verifiedBy`, `satisfiedBy`, `specializedBy`, `refinedBy`, `conditionalOn`, `allocatedFrom`, `safetyGoalChildren`); **upstream** follows forward links (`derivedFrom`, `verifies`, `satisfies`, `supertype`, `refines`, `allocatedTo`, `derivedFromSafetyGoal`). `--depth` limits hops, `--kinds` restricts edge kinds; `text` / `json` / `dot` output. Cycle-safe.
 
+User-defined links (`links:`, declared under `[linkTypes]`) are traversed too — upstream along the link, downstream against it — and `--kinds` accepts custom link-type names (e.g. `--kinds mitigates,partiallySatisfies`). A link type that `extends` a built-in link is also traversed as that base kind. To walk a single link type, use [`follow`](#follow-one-link-type-follow).
+
 ## Lint external docs (`lint-docs`)
 
 ```bash
@@ -1072,6 +1074,37 @@ $ syscribe -m model/ refs src/scheduler/
 |---|---|---|
 | System::Software::Scheduler | implementedBy | PartDef |
 ```
+
+### Follow one link type (`follow`)
+
+`follow` walks a single named link from an element — a project-defined link type declared in `[linkTypes]` (see [User-Defined Link Types](../model-guide/link-types.md)), its declared `inverse`, or a built-in link (`satisfies`, `verifies`, `derivedFrom`, `refines`, `supertype`, `typedBy`, `allocatedTo`) or reverse index (`satisfiedBy`, `verifiedBy`, `derivedChildren`, `refinedBy`, `specializedBy`, `allocatedFrom`).
+
+```
+$ syscribe -m model/ follow <elem> <link> [--reverse] [--transitive] [--depth N] [--format text|json|dot]
+```
+
+- **`<elem>`** — stable id or qualified name.
+- **`--reverse`** — walk against the link (`follow X mitigates --reverse` ≡ `follow X mitigatedBy`).
+- **`--transitive`** — follow to a fixed point; cycles terminate. **`--depth N`** bounds the hops and implies `--transitive`. Default: one hop.
+- **`--format`** — `text` (default; one row per reached element: depth, id/qname, type, name), `json` (`{start, link, direction, results: [{qname, id, type, name, depth, from}]}`), or `dot` (Graphviz digraph).
+
+An unknown element or link name exits non-zero; an unknown link name prints the available names.
+
+```
+$ syscribe -m model/ follow Architecture::WatchdogMonitor mitigates
+$ syscribe -m model/ follow REQ-BRK-003 mitigatedBy --format json
+$ syscribe -m model/ follow REQ-BRK-001 derivedChildren --depth 3 --format dot | dot -Tsvg > tree.svg
+```
+
+### List the project's link types (`link-types`)
+
+```
+$ syscribe -m model/ link-types [--json]
+```
+
+Lists every valid `[linkTypes.<name>]` declaration in `.syscribe.toml` — description, inverse, `extends` base and relaxed codes, coverage, source → target types, cardinality, `acyclic`, `suspect` — with the number of instances in the model. Entries rejected with `W630` are not listed as usable. With none declared it says so, shows how to declare one, and exits zero. This is the command an LLM authoring agent should run before writing any `links:` entry (MCP equivalent: the read-only `link_types` tool; `follow` is also exposed over MCP).
+
+Custom links also appear in `links` (outbound under the type name, inbound under its `inverse`), `refs`, `trace`, `show`, and `impact` (whose `--kinds` accepts custom type names).
 
 ---
 

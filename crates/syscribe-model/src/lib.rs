@@ -12,6 +12,7 @@ pub mod element;
 pub mod feature_model;
 pub mod frontmatter;
 pub mod graph;
+pub mod link_types;
 pub mod matchers;
 pub mod metrics;
 pub mod mutate;

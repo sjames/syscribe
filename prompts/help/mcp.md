@@ -33,6 +33,12 @@ stable id, a qualified name, or a display name. List/grid tools accept
 - `graph_query {from, to?, edges?, direction?, depth?}` — typed-edge graph walk.
 - `trace {ref, kind?}` — a requirement's verification/derivation slice.
 - `impact {ref, direction?, depth?, edges?}` — change-impact reachability.
+- `link_types {}` — the project's user-defined link types (`[linkTypes]` in
+  `.syscribe.toml`) with their rules and instance counts; same data as
+  `link-types --json`. Call it before authoring a `links:` field.
+- `follow {element, link, reverse?, transitive?, depth?}` — walk one named link
+  (a declared type, its inverse, or a built-in link/reverse-index name); same data
+  as `follow --format json`.
 - `validate {file?, severity?, limit?}` / `validate_element {ref}` — findings.
 - `reload {}` — re-read the model from disk.
 

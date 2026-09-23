@@ -62,6 +62,10 @@ struct Row {
 }
 
 pub fn cmd_behavioral_coverage(elements: &[RawElement], opts: &BcovOptions) {
+    // REQ-TRS-LINKTYPE-006 — a `coverage = true` user-defined link extending
+    // satisfies/verifies counts as that base link here (read-only report).
+    let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
+    let elements: &[RawElement] = &cov;
     let resolver = Resolver::new(elements);
 
     let (scope_label, scope_prefix) = match opts.scope {

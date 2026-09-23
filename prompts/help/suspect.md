@@ -18,6 +18,10 @@ The projection hashes the markdown body plus the normative frontmatter fields an
 diagram layout, and `traceBaselines` itself), so cosmetic edits do not raise a
 suspect flag.
 
+User-defined links (`links:`, declared in `[linkTypes]` of `.syscribe.toml`) are
+trace links too: they are listed, baselined and flagged like any other, keyed by the
+target as authored, unless the link type declares `suspect = false`.
+
 Detection is **opt-in and additive**: a link with no baseline is never flagged
 during `validate`. `suspect list` still surfaces unbaselined links so coverage
 gaps stay discoverable.
@@ -53,4 +57,4 @@ W090 is a Warning: draft-visible, non-fatal by default, and gateable in CI with
     syscribe -m model/ validate --deny W090
 
 ## SEE ALSO
-    validate, trace, links, repos
+    validate, trace, links, repos, link-types

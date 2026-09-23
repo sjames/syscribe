@@ -147,6 +147,16 @@ pub fn element_ref_strings(e: &RawElement) -> Vec<(&'static str, String)> {
         }
     }
     refs.extend(nested_allocation_refs(e));
+    // User-defined links (REQ-TRS-LINKTYPE-002): every well-formed `links:` target
+    // is a cross-reference too, so `delete_element` sees it as a referrer and a
+    // write introducing a dangling one is refused like any other.
+    if let crate::link_types::LinksField::Entries(entries) = crate::link_types::parse_links(fm) {
+        for entry in entries.into_iter().filter(|x| x.key_ok) {
+            for t in entry.targets.unwrap_or_default() {
+                refs.push(("links", t));
+            }
+        }
+    }
     refs
 }
 

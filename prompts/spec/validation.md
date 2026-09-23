@@ -569,6 +569,28 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 
 A duplicate `TestPlan` `id` is the generic `E101` (duplicate stable id).
 
+## User-defined link types (E630–E636, W630, W631, ADR-SYS-LINKTYPE-001)
+
+Dormant unless `.syscribe.toml` declares `[linkTypes]` or an element carries `links:`.
+
+| Code | Condition |
+|---|---|
+| `W630` | A `[linkTypes.<name>]` entry in `.syscribe.toml` is malformed (bad/colliding name or inverse, unparseable `cardinality`, non-zero lower bound without `sourceTypes`, unknown element type, unsupported `extends`, `relax`/`coverage` without `extends`, a code not relaxable for the base) — the entry is ignored as a whole, so its uses raise `E630`; or an entry has an unknown key (key ignored, entry kept) |
+| `E630` | A `links:` key is not a declared link type — the message lists the declared types, or says none are declared and how to add a `[linkTypes.<name>]` table to `.syscribe.toml` |
+| `E631` | `links:` is not a mapping, or a key's value is not a reference or a list of references |
+| `E632` | A `links:` target does not resolve (by id or qualified name, like `satisfies:`) |
+| `E633` | The element's `type:` is not in the link type's declared `sourceTypes` |
+| `E634` | A resolved target's `type:` is not in the link type's declared `targetTypes` (names the target) |
+| `E635` | An element holds more targets of a link type than its `cardinality` upper bound |
+| `W631` | A non-`draft` element whose type is in a link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound |
+| `E636` | A cycle — including a self-link — formed solely by links of an `acyclic = true` type; reported once per cycle, naming its members |
+
+A type that `extends` `satisfies`/`verifies`/`derivedFrom`/`refines` is treated as that base link by
+every base rule and reverse index (`E104`, `E105`, `E310`, `E312`, `E313`, `E316`, `W002`, `W300`,
+`W301`, `W303`, `W305`, …) except the codes it lists in `relax` (`E310`/`W303` are relaxed only when
+every derivedFrom-like link on the requirement relaxes them); `coverage = false` keeps the checks but
+gives no coverage credit. The built-in fields themselves are never relaxed.
+
 ## Custom fields (W041)
 
 | Code | Severity | Condition |

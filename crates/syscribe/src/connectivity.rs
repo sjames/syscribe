@@ -56,6 +56,15 @@ fn canon_kind(tok: &str) -> Option<&'static str> {
         .iter()
         .copied()
         .find(|name| name.to_ascii_lowercase() == t)
+        .or_else(|| {
+            // A declared user-defined link type (REQ-TRS-LINKTYPE-009) is an
+            // edge kind named after the type.
+            syscribe_model::link_types::active()
+                .types()
+                .iter()
+                .find(|d| d.name.to_ascii_lowercase() == t)
+                .map(|d| syscribe_model::link_types::static_str(&d.name))
+        })
 }
 
 /// The default edge kinds to follow: the wiring plus structure, so the model

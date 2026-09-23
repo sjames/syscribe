@@ -489,8 +489,57 @@ pub fn fuzzy_score(elem: &RawElement, pattern: &str) -> u32 {
 
 // ── Reverse-reference collection ──────────────────────────────────────────────
 
-/// Collect (relationship_label, target_qname) pairs from a single element's frontmatter.
+/// Collect (relationship_label, target_qname) pairs from a single element's
+/// frontmatter: the built-in fields, then its user-defined `links:` entries.
 fn outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
+    let mut out = builtin_outbound_refs(elem);
+    out.extend(custom_outbound_refs(elem));
+    out
+}
+
+/// REQ-TRS-LINKTYPE-009 — an element's `links:` entries as (link-type name,
+/// target) pairs, in authored order. Every well-formed entry is listed, declared
+/// or not (an undeclared key is still visible here; `validate` reports it as E630).
+fn custom_outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
+    use syscribe_model::link_types::{parse_links, LinksField};
+    let LinksField::Entries(entries) = parse_links(&elem.frontmatter) else { return Vec::new() };
+    entries
+        .into_iter()
+        .filter(|e| e.key_ok)
+        .flat_map(|e| {
+            let key = e.key;
+            e.targets.unwrap_or_default().into_iter().map(move |t| (key.clone(), t))
+        })
+        .collect()
+}
+
+/// Label for an inbound custom link of type `key`: the declared `inverse`, else
+/// `<key> (inbound)` (REQ-TRS-LINKTYPE-009).
+fn custom_inbound_label(key: &str) -> String {
+    match syscribe_model::link_types::active().get(key) {
+        Some(decl) => decl.inbound_label(),
+        None => format!("{key} (inbound)"),
+    }
+}
+
+/// REQ-TRS-LINKTYPE-006 — ` (via <type>)` when `source` reaches `target` along
+/// `base` only through a `coverage = true` user-defined link extending it; empty
+/// otherwise (so output is unchanged for models without such links).
+fn via_suffix(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    source: &RawElement,
+    base: syscribe_model::link_types::BaseLink,
+    target: &RawElement,
+) -> String {
+    let reg = syscribe_model::link_types::active();
+    syscribe_model::link_types::via_extension(elements, resolver, &reg, source, base, target)
+        .map(|n| format!(" (via {n})"))
+        .unwrap_or_default()
+}
+
+/// Collect the built-in (non-`links:`) outbound references of an element.
+fn builtin_outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     let fm = &elem.frontmatter;
     let mut out: Vec<(String, String)> = Vec::new();
 
@@ -742,6 +791,19 @@ pub fn cmd_show(
     }
     if let Some(ref ver) = fm.verifies {
         if !ver.is_empty() { println!("| **verifies** | {} |", ver.join(", ")); }
+    }
+    // User-defined links (REQ-TRS-LINKTYPE-009): one row per link type.
+    {
+        let mut by_type: Vec<(String, Vec<String>)> = Vec::new();
+        for (k, t) in custom_outbound_refs(elem) {
+            match by_type.iter_mut().find(|(n, _)| *n == k) {
+                Some((_, ts)) => ts.push(t),
+                None => by_type.push((k, vec![t])),
+            }
+        }
+        for (k, ts) in by_type {
+            println!("| **links.{}** | {} |", k, ts.join(", "));
+        }
     }
     if let Some(ref es) = fm.exhibits_states {
         if !es.is_empty() { println!("| **exhibitsStates** | {} |", es.join(", ")); }
@@ -1515,8 +1577,20 @@ pub fn cmd_trace(
     println!("**Status:** {} · domain: {} · SIL: {} · ASIL: {}", status, req_domain, sil, asil);
     println!();
 
+    // REQ-TRS-LINKTYPE-006 — the base-link sections below read the reporting
+    // view: a `coverage = true` user-defined link extending derivedFrom/satisfies
+    // counts as that base link, labelled `(via <type>)`. Same element order as
+    // `elements`, so `resolver` stays valid; borrowed (no change) when unused.
+    let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
+    let cov_fm = resolver
+        .by_qname
+        .get(&elem.qualified_name)
+        .and_then(|&i| cov.get(i))
+        .map(|e| &e.frontmatter)
+        .unwrap_or(fm);
+
     // ── Parents (derivedFrom) ─────────────────────────────────────────────
-    let parents = fm.derived_from.as_deref().unwrap_or(&[]);
+    let parents = cov_fm.derived_from.as_deref().unwrap_or(&[]);
     if !parents.is_empty() {
         println!("## Parents (`derivedFrom`)");
         println!();
@@ -1527,7 +1601,8 @@ pub fn cmd_trace(
                 let p_id = p.frontmatter.id.as_deref().unwrap_or(&p.qualified_name);
                 let p_title = p.frontmatter.name.as_deref().unwrap_or("—");
                 let p_status = p.frontmatter.status.as_deref().unwrap_or("—");
-                println!("| {} | {} | {} |", p_id, p_title, p_status);
+                let via = via_suffix(elements, resolver, elem, syscribe_model::link_types::BaseLink::DerivedFrom, p);
+                println!("| {}{} | {} | {} |", p_id, via, p_title, p_status);
             } else {
                 println!("| {} | (not found) | — |", parent_ref);
             }
@@ -1598,7 +1673,8 @@ pub fn cmd_trace(
                 let c_title = c.frontmatter.name.as_deref().unwrap_or("—");
                 let c_status = c.frontmatter.status.as_deref().unwrap_or("—");
                 let c_domain = c.frontmatter.req_domain.as_deref().unwrap_or("—");
-                println!("| {} | {} | {} | {} |", cid, c_title, c_status, c_domain);
+                let via = via_suffix(elements, resolver, c, syscribe_model::link_types::BaseLink::DerivedFrom, elem);
+                println!("| {}{} | {} | {} | {} |", cid, via, c_title, c_status, c_domain);
             } else {
                 println!("| {} | (not found) | — | — |", cid);
             }
@@ -1607,13 +1683,26 @@ pub fn cmd_trace(
     }
 
     // ── Satisfied by ──────────────────────────────────────────────────────
-    let satisfying: Vec<&RawElement> = elements
+    // Authored entries match by the requirement's id (as before); an entry a
+    // `coverage = true` extending link contributed matches by resolution, since
+    // such a link may name its target by id or qname.
+    let satisfying: Vec<&RawElement> = cov
         .iter()
         .filter(|e| {
+            let authored_len = elements
+                .get(resolver.by_qname.get(&e.qualified_name).copied().unwrap_or(usize::MAX))
+                .and_then(|a| a.frontmatter.satisfies.as_ref())
+                .map_or(0, |v| v.len());
             e.frontmatter
                 .satisfies
                 .as_ref()
-                .map(|s| s.iter().any(|r| r == id))
+                .map(|s| {
+                    s.iter().enumerate().any(|(i, r)| {
+                        r == id
+                            || (i >= authored_len
+                                && resolver.resolve_ref(elements, r).is_some_and(|t| t.qualified_name == elem.qualified_name))
+                    })
+                })
                 .unwrap_or(false)
         })
         .collect();
@@ -1630,7 +1719,11 @@ pub fn cmd_trace(
         for e in &satisfying {
             let type_str = tl(e.frontmatter.element_type.as_ref());
             let dom = e.frontmatter.domain.as_deref().unwrap_or("—");
-            println!("| {} | {} | {} |", e.qualified_name, type_str, dom);
+            let via = resolver
+                .get(elements, &e.qualified_name)
+                .map(|src| via_suffix(elements, resolver, src, syscribe_model::link_types::BaseLink::Satisfies, elem))
+                .unwrap_or_default();
+            println!("| {}{} | {} | {} |", e.qualified_name, via, type_str, dom);
         }
         println!();
     }
@@ -1668,7 +1761,8 @@ pub fn cmd_trace(
                     },
                     None => tc_id.to_string(),
                 };
-                println!("| {} | {} | {} | {} |", annotated, name, level, scenarios);
+                let via = via_suffix(elements, resolver, tc, syscribe_model::link_types::BaseLink::Verifies, elem);
+                println!("| {}{} | {} | {} | {} |", annotated, via, name, level, scenarios);
             } else {
                 println!("| {} | (not found) | — | — |", tc_id);
             }
@@ -1698,6 +1792,41 @@ pub fn cmd_trace(
             } else {
                 println!("| {} | (not found) | — |", uc_ref);
             }
+        }
+        println!();
+    }
+
+    // ── Custom links (REQ-TRS-LINKTYPE-009) ───────────────────────────────
+    // User-defined `links:` leaving this element (under the type name) and
+    // entering it (under the type's inverse, or `<type> (inbound)`). Omitted
+    // entirely when there are none, so models without link types are unchanged.
+    let mut custom_rows: Vec<(String, String, String, String)> = Vec::new(); // (dir, link, other, status)
+    let label_of = |e: &RawElement| e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone());
+    for (key, tgt) in custom_outbound_refs(elem) {
+        let (other, st) = match resolver.resolve_ref(elements, &tgt) {
+            Some(t) => (label_of(t), t.frontmatter.status.clone().unwrap_or_else(|| "—".into())),
+            None => (tgt.clone(), "(not found)".into()),
+        };
+        custom_rows.push(("out".into(), key, other, st));
+    }
+    for other in elements {
+        if std::ptr::eq(other, elem) { continue; }
+        for (key, tgt) in custom_outbound_refs(other) {
+            if resolver.resolve_ref(elements, &tgt).is_some_and(|t| std::ptr::eq(t, elem)) {
+                let st = other.frontmatter.status.clone().unwrap_or_else(|| "—".into());
+                custom_rows.push(("in".into(), custom_inbound_label(&key), label_of(other), st));
+            }
+        }
+    }
+    if !custom_rows.is_empty() {
+        custom_rows.sort();
+        custom_rows.dedup();
+        println!("## Custom links");
+        println!();
+        println!("| Direction | Link | Element | Status |");
+        println!("|---|---|---|---|");
+        for (dir, link, other, st) in &custom_rows {
+            println!("| {} | {} | {} | {} |", dir, link, other, st);
         }
         println!();
     }
@@ -1743,9 +1872,19 @@ pub fn cmd_links(elements: &[RawElement], resolver: &Resolver, key: &str) {
     let mut inbound: Vec<(String, String)> = Vec::new(); // (source_qname, rel)
     for other in elements {
         if std::ptr::eq(other, elem) { continue; }
-        for (rel, tgt) in outbound_refs(other) {
+        for (rel, tgt) in builtin_outbound_refs(other) {
             if &tgt == target_qn || target_id == Some(tgt.as_str()) {
                 inbound.push((other.qualified_name.clone(), rel));
+            }
+        }
+        // User-defined links arrive under the type's inverse (REQ-TRS-LINKTYPE-009).
+        // Matched by resolution so an id- or qname-authored target both count.
+        for (key, tgt) in custom_outbound_refs(other) {
+            let hit = &tgt == target_qn
+                || target_id == Some(tgt.as_str())
+                || resolver.resolve_ref(elements, &tgt).is_some_and(|t| std::ptr::eq(t, elem));
+            if hit {
+                inbound.push((other.qualified_name.clone(), custom_inbound_label(&key)));
             }
         }
     }
@@ -1786,7 +1925,11 @@ pub fn cmd_why(
         return;
     };
 
-    let satisfies = match &elem.frontmatter.satisfies {
+    // REQ-TRS-LINKTYPE-006 — a `coverage = true` user-defined link extending
+    // satisfies counts here too (reporting view; labelled `(via <type>)` below).
+    let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
+    let cov_elem = resolver.by_qname.get(&elem.qualified_name).and_then(|&i| cov.get(i)).unwrap_or(elem);
+    let satisfies = match &cov_elem.frontmatter.satisfies {
         Some(v) if !v.is_empty() => v.clone(),
         _ => {
             println!("# Why: {}", elem.qualified_name);
@@ -1816,7 +1959,8 @@ pub fn cmd_why(
             let rd = req.frontmatter.req_domain.as_deref().unwrap_or("—");
             let sil = req.frontmatter.sil_level.map(|v| v.to_string()).unwrap_or("—".into());
             let asil = req.frontmatter.asil_level.as_deref().unwrap_or("—");
-            println!("| {} | {} | {} | {} | {} | {} |", id, title, status, rd, sil, asil);
+            let via = via_suffix(elements, resolver, elem, syscribe_model::link_types::BaseLink::Satisfies, req);
+            println!("| {}{} | {} | {} | {} | {} | {} |", id, via, title, status, rd, sil, asil);
             req_ids.push(id.to_string());
         } else {
             println!("| {} | (not found) | — | — | — | — |", req_ref);
@@ -1891,7 +2035,10 @@ pub fn cmd_who_verifies(
             let level = tc.frontmatter.test_level.as_deref().unwrap_or("—");
             let scenarios = gherkin_count(&tc.doc);
             let status = tc.frontmatter.status.as_deref().unwrap_or("—");
-            println!("| {} | {} | {} | {} | {} |", tc_id, name, level, scenarios, status);
+            // REQ-TRS-LINKTYPE-006 — `verifiedBy` already credits `coverage = true`
+            // extending links; label them.
+            let via = via_suffix(elements, resolver, tc, syscribe_model::link_types::BaseLink::Verifies, elem);
+            println!("| {}{} | {} | {} | {} | {} |", tc_id, via, name, level, scenarios, status);
         } else {
             println!("| {} | (not found) | — | — | — |", tc_id);
         }
@@ -4028,7 +4175,10 @@ pub fn print_help() {
     println!("  move <src> <dest> [--dry-run]  Move an element/package to a new qname, rewriting all references");
     println!("  trace <qname|req-id>           Full traceability slice for a requirement");
     println!("        [--linked-only]          Ignore ingested results (default annotates verifying TCs with [pass]/[fail]/[unknown])");
-    println!("  links <qname|id>               All outbound and inbound relationships");
+    println!("  links <qname|id>               All outbound and inbound relationships (incl. user-defined links:)");
+    println!("  follow <qname|id> <link>       Traverse one named link (declared link type, its inverse, or a built-in");
+    println!("        [--reverse] [--transitive] [--depth N] [--format text|json|dot]   link/reverse-index name)");
+    println!("  link-types [--json]            The project's user-defined link types ([linkTypes] in .syscribe.toml)");
     println!("  connectivity <qname|id>        Element-rooted transitive subgraph: reachable elements + the");
     println!("        [--format text|dot|json]  connections between them. text (default) is an indented tree;");
     println!("        [--depth N]               json emits {{root,nodes,edges}}; dot emits styled Graphviz.");

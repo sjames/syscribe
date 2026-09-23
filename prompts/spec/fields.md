@@ -221,6 +221,18 @@ custom_fields:
   partNumbers: [A-1001, A-1002]
 ```
 
+## User-defined links (ADR-SYS-LINKTYPE-001)
+
+| Field | Applies to | Type | Notes |
+|---|---|---|---|
+| `links` | All | map | Instances of project-declared link types: `<linkType>: <ref> \| [<ref>, ...]`. Each key must be a link type declared in `[linkTypes.<name>]` of `.syscribe.toml` (`E630`, which lists the declared types); refs resolve by id or qname like `satisfies:` (`E632`). The element holding the entry is the source (§12.1). Discover the vocabulary with `link-types` / MCP `link_types` — never invent a type. |
+
+```yaml
+links:
+  mitigates: [REQ-HAZ-001]
+  conflictsWith: REQ-SYS-014
+```
+
 ## Product Line Engineering (PLE) fields
 
 | Field | Applies to | Type |
@@ -330,6 +342,15 @@ file at all) is always legal.
 | `[baselines]` | `element_dir` (alias `elementDir`) | No | string | `model/Baselines` | Output dir for the sealed `type: Baseline` element. REQ-TRS-BL-010. |
 | `[baselines]` | `manifest_dir` (alias `manifestDir`) | No | string | `<git-root>/baselines` | Output dir for the JSON manifest. |
 | `[users]` | `<username> = "<display name>"` | No | map | `{}` | Roster for `PlanningItem.assignedTo:` (§23.7). A key not matching the Unix-style username shape `^[a-z_][a-z0-9_-]{0,31}$` is `W309` and excluded from the roster. REQ-TRS-PLANITEM-008. |
+| `[linkTypes.<name>]` | `description` | No | string | unset | Prose shown by `link-types` and in `--agent-instructions`. `<name>` must be lowerCamel `^[a-z][A-Za-z0-9]*$` and not a built-in link/reverse-index/edge name. Keys may be camelCase or snake_case. A malformed entry is `W630` and ignored as a whole; an unknown key is `W630` (entry kept). REQ-TRS-LINKTYPE-001. |
+| `[linkTypes.<name>]` | `inverse` | No | string | unset | Reverse-direction name (lowerCamel) — used by `follow`, `links`, `impact`; must not collide with a built-in name, another type, or another inverse. |
+| `[linkTypes.<name>]` | `sourceTypes` / `targetTypes` (`source_types`/`target_types`) | No | list of strings | any type | Element types allowed to hold / be the target of an instance (`E633`/`E634`); each must be a known `type:` name. |
+| `[linkTypes.<name>]` | `cardinality` | No | string | `"0..*"` | Targets per source: `N`, `N..M`, `N..*`. Over the upper bound `E635`; under a non-zero lower bound on a non-draft element of a `sourceTypes` type `W631` (a non-zero lower bound requires `sourceTypes`). |
+| `[linkTypes.<name>]` | `acyclic` | No | bool | `false` | Reject cycles (self-links included) formed by this type (`E636`). |
+| `[linkTypes.<name>]` | `suspect` | No | bool | `true` | Participate in suspect-link baselining (`traceBaselines:`/`W090`/`suspect`). |
+| `[linkTypes.<name>]` | `extends` | No | string | unset | `satisfies`·`verifies`·`derivedFrom`·`refines` — instances also count as the base link for its rules and reverse index. |
+| `[linkTypes.<name>]` | `relax` | No (needs `extends`) | list of strings | `[]` | Base codes not raised for this type's instances: satisfies→`E312`,`E313`; verifies→`E104`; derivedFrom→`E105`,`E310`,`W303`; refines→`E316`. |
+| `[linkTypes.<name>]` | `coverage` | No (needs `extends`) | bool | `true` | `false` keeps the base checks but withholds instances from the reverse index (no coverage credit, target not a parent). |
 | `[profiles.<name>]` | `promote` | No | list of strings | `[]` | Warning codes this profile promotes to a gate failure. |
 | `[profiles.<name>]` | `sil` / `status` / `tag` | No | string | unset (unscoped — promotes everywhere) | Optional scope filters; an entry with none of these applies to every element. |
 | `[profiles.<name>]` | `magicgrid` | No | bool | `false` | Runs the gated MagicGrid validation pass under `--profile <name>`. |

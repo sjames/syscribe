@@ -16,3 +16,6 @@ relax = ["E310"]
 
 [linkTypes.refinedFrom]
 extends = "derivedFrom"
+
+[linkTypes.softVerifies]
+extends = "verifies"

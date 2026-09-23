@@ -246,6 +246,14 @@ pub fn cmd_audit(
     // ---- Readiness verdict (shared policy, projection-aware) --------------
     let (pass, reasons) = audit_verdict(elements, config, profile, sel, plan_scope);
 
+    // REQ-TRS-LINKTYPE-006 — every dashboard section below reads the *reporting*
+    // view: a `coverage = true` user-defined link extending satisfies/verifies/
+    // derivedFrom/refines counts as that base link. Taken after the verdict, which
+    // validates the authored elements (the validator applies extensions itself).
+    // Same order as `view`, so `resolver` stays valid; borrowed when unused.
+    let cov_view = syscribe_model::link_types::coverage_view(view, &config.link_types);
+    let view: &[RawElement] = &cov_view;
+
     // ---- Section 1: requirement status split ------------------------------
     let reqs: Vec<&RawElement> =
         view.iter().filter(|e| is_type(e, ElementType::Requirement) && in_scope(e)).collect();

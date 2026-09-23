@@ -500,6 +500,17 @@ pub struct RawFrontmatter {
     #[serde(rename = "traceBaselines", default, skip_serializing_if = "Option::is_none")]
     pub trace_baselines: Option<std::collections::BTreeMap<String, String>>,
 
+    /// REQ-TRS-LINKTYPE-002 — user-defined links (ADR-SYS-LINKTYPE-001): a map from
+    /// a link-type name declared in `[linkTypes.<name>]` of `.syscribe.toml` to a
+    /// reference or list of references (id or qname, resolved like `satisfies:`).
+    /// Kept as the raw YAML value — never coerced — so a malformed shape is
+    /// reported by the validator (`E631`) instead of failing the whole parse, and
+    /// the field round-trips byte-for-byte through every write path. Being a
+    /// recognised field it never lands in `extra` (no `W047`). Read it through
+    /// `crate::link_types::parse_links`/`declared_links`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub links: Option<serde_yaml::Value>,
+
     // §Baseline (ADR-SYS-BASELINE-001) — release-baseline fields on a `type: Baseline`.
     /// The baseline date (REQ-TRS-BL-001).
     pub date: Option<String>,

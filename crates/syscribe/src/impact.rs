@@ -53,6 +53,16 @@ fn upstream_targets<'a>(
     if let Some(sg) = &fm.derived_from_safety_goal {
         add(std::slice::from_ref(sg), "derivedFromSafetyGoal", "derivedFromSafetyGoal", "safetyGoalChildren", &mut out);
     }
+    // User-defined links (REQ-TRS-LINKTYPE-009): upstream along the link, labelled
+    // with the type name (also its `--kinds` base); downstream against it,
+    // labelled with the declared inverse or `<type> (inbound)`.
+    let link_types = syscribe_model::link_types::active();
+    for (ti, targets) in syscribe_model::link_types::declared_links(fm, &link_types) {
+        let decl = &link_types.types()[ti];
+        let name = syscribe_model::link_types::static_str(&decl.name);
+        let down = syscribe_model::link_types::static_str(&decl.inbound_label());
+        add(&targets, name, name, down, &mut out);
+    }
     // appliesWhen: feature references in the (opaque) expression — best-effort token resolve.
     if let Some(expr) = applies_when_str(&fm.applies_when) {
         for tok in expr.split(|c: char| !(c.is_alphanumeric() || c == '_' || c == ':' || c == '-')) {
