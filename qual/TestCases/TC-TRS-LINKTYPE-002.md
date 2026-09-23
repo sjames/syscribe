@@ -35,4 +35,9 @@ Feature: User-defined link types (TC-TRS-LINKTYPE-002)
     Given a model with links: but no [linkTypes] table
     When the model is validated
     Then E630 is raised stating no link types are declared
+
+  Scenario: in a configuration lens a links: target inactive in the variant escapes as W019, not E632
+    Given a links: target that exists in the full model but is inactive in a Configuration
+    When the model is validated with --config
+    Then W019 is raised for the escaping reference, no E632 is raised, and the exit status is zero
 ```

@@ -96,9 +96,17 @@ pub const RESERVED_LINK_NAMES: &[&str] = &[
 /// it must additionally avoid every domain-specific [`crate::graph::EdgeKind`]
 /// name (`mitigatedBy`, `topEvent`, …). An `inverse` is only ever a traversal /
 /// display label, so it is checked against [`RESERVED_LINK_NAMES`] alone.
+///
+/// Compared **case-insensitively**: `connectivity --kinds` matches kind names
+/// ignoring case, so a type named `mitigatedby` would otherwise be accepted yet
+/// shadowed by the built-in `mitigatedBy` edge kind.
 fn collides_with_builtin_type_name(name: &str) -> bool {
-    RESERVED_LINK_NAMES.contains(&name)
-        || crate::graph::EdgeKind::BUILTIN.iter().any(|k| k.name() == name)
+    is_reserved_name(name) || crate::graph::EdgeKind::BUILTIN.iter().any(|k| k.name().eq_ignore_ascii_case(name))
+}
+
+/// Whether `name` equals a [`RESERVED_LINK_NAMES`] entry, ignoring case.
+fn is_reserved_name(name: &str) -> bool {
+    RESERVED_LINK_NAMES.iter().any(|r| r.eq_ignore_ascii_case(name))
 }
 
 // ── Built-in bases a link type may extend ─────────────────────────────────────
@@ -373,21 +381,39 @@ impl LinkTypeRegistry {
         // or another type's inverse. Checked against every declared name — including
         // entries that are themselves invalid — so the verdict does not depend on
         // which of two colliding entries happens to be broken.
-        let all_names: HashSet<String> = entries.iter().map(|e| e.decl.name.clone()).collect();
+        // Names are compared case-insensitively (keys lowercased), for the same
+        // reason as the built-in check: `--kinds` matching ignores case.
+        let all_names: HashMap<String, String> =
+            entries.iter().map(|e| (e.decl.name.to_ascii_lowercase(), e.decl.name.clone())).collect();
         let mut inverse_owners: HashMap<String, Vec<String>> = HashMap::new();
         for e in &entries {
             if let Some(inv) = &e.decl.inverse {
-                inverse_owners.entry(inv.clone()).or_default().push(e.decl.name.clone());
+                inverse_owners.entry(inv.to_ascii_lowercase()).or_default().push(e.decl.name.clone());
             }
         }
+        // Two declared type names differing only in case.
+        let mut by_lower: HashMap<String, Vec<String>> = HashMap::new();
+        for e in &entries {
+            by_lower.entry(e.decl.name.to_ascii_lowercase()).or_default().push(e.decl.name.clone());
+        }
         for e in &mut entries {
-            let Some(inv) = e.decl.inverse.clone() else { continue };
-            if inv == e.decl.name {
-                e.defects.push(format!("inverse '{inv}' is the same as the type name"));
-            } else if all_names.contains(&inv) {
-                e.defects.push(format!("inverse '{inv}' collides with the declared link type '{inv}'"));
+            if let Some(same) = by_lower.get(&e.decl.name.to_ascii_lowercase()) {
+                let others: Vec<&str> = same.iter().filter(|o| **o != e.decl.name).map(|s| s.as_str()).collect();
+                if !others.is_empty() {
+                    e.defects.push(format!(
+                        "name '{}' differs only in case from declared link type(s) {}",
+                        e.decl.name,
+                        others.join(", ")
+                    ));
+                }
             }
-            if let Some(owners) = inverse_owners.get(&inv) {
+            let Some(inv) = e.decl.inverse.clone() else { continue };
+            if inv.eq_ignore_ascii_case(&e.decl.name) {
+                e.defects.push(format!("inverse '{inv}' is the same as the type name"));
+            } else if let Some(other) = all_names.get(&inv.to_ascii_lowercase()) {
+                e.defects.push(format!("inverse '{inv}' collides with the declared link type '{other}'"));
+            }
+            if let Some(owners) = inverse_owners.get(&inv.to_ascii_lowercase()) {
                 let others: Vec<&String> = owners.iter().filter(|o| **o != e.decl.name).collect();
                 if !others.is_empty() {
                     let list: Vec<&str> = others.iter().map(|s| s.as_str()).collect();
@@ -506,7 +532,7 @@ fn parse_entry(name: &str, t: &toml::Table, entry: &mut RawEntry, warnings: &mut
                 Some(s) if !is_valid_link_type_name(s) => entry.defects.push(format!(
                     "inverse '{s}' is not a valid link-type name (expected lowerCamel `^[a-z][A-Za-z0-9]*$`)"
                 )),
-                Some(s) if RESERVED_LINK_NAMES.contains(&s) => entry
+                Some(s) if is_reserved_name(s) => entry
                     .defects
                     .push(format!("inverse '{s}' collides with a built-in link/reverse-index name")),
                 Some(s) => d.inverse = Some(s.to_string()),
@@ -1358,6 +1384,23 @@ mod tests {
             assert!(r.get(n).is_none(), "{n} must be ignored");
         }
         assert!(r.is_empty());
+    }
+
+    #[test]
+    fn built_in_name_collisions_are_case_insensitive() {
+        // `mitigatedby` (type) vs the built-in `mitigatedBy` edge kind, and
+        // `Satisfies`-cased inverse vs the reserved `satisfies`.
+        let r = reg("[linkTypes.mitigatedby]\n[linkTypes.fooLink]\ninverse = \"verifiedby\"\n[linkTypes.derivedfrom]\n");
+        for n in ["mitigatedby", "fooLink", "derivedfrom"] {
+            assert!(defect_for(&r, n), "expected W630 for {n}: {:?}", r.defects());
+        }
+        assert!(r.is_empty());
+        // Declared names/inverses differing only in case collide too.
+        let r = reg("[linkTypes.fooBar]\n[linkTypes.foobar]\n[linkTypes.aLink]\ninverse = \"fooBAR\"\n");
+        assert!(defect_for(&r, "fooBar") && defect_for(&r, "foobar"), "{:?}", r.defects());
+        assert!(defect_for(&r, "aLink"), "{:?}", r.defects());
+        // A lowerCamel name unrelated to any built-in stays valid.
+        assert!(reg("[linkTypes.mitigates]\ninverse = \"mitigatedBy\"\n").get("mitigates").is_some());
     }
 
     #[test]

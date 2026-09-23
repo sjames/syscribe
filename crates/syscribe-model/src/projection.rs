@@ -172,6 +172,16 @@ pub fn outbound_refs(elem: &RawElement) -> Vec<(RefKind, String)> {
     {
         out.push((RefKind::Traceability, s.clone()));
     }
+    // User-defined links (REQ-TRS-LINKTYPE-002): every well-formed `links:` target
+    // is a traceability reference, exactly like `satisfies:` — an inactive target
+    // escapes as W019 (and the lens suppresses its E632, below).
+    if let crate::link_types::LinksField::Entries(entries) = crate::link_types::parse_links(fm) {
+        for entry in entries.into_iter().filter(|e| e.key_ok) {
+            for t in entry.targets.unwrap_or_default() {
+                out.push((RefKind::Traceability, t));
+            }
+        }
+    }
     out
 }
 
@@ -220,8 +230,10 @@ pub fn escaping_refs(full: &[RawElement], sel: &Selection) -> Vec<Finding> {
 
 /// Cross-reference-resolution codes suppressed in the lens: they are 150%-model
 /// concerns (already covered by whole-model `validate`), and for targets that
-/// exist-but-are-inactive the escaping-ref pass is authoritative.
-const LENS_SUPPRESS: &[&str] = &["E102", "E103", "E104", "E105", "E106"];
+/// exist-but-are-inactive the escaping-ref pass is authoritative. `E632` (an
+/// unresolved `links:` target, REQ-TRS-LINKTYPE-002) is the user-defined-link
+/// member of the same family.
+const LENS_SUPPRESS: &[&str] = &["E102", "E103", "E104", "E105", "E106", "E632"];
 
 /// Full re-validation in the lens (REQ-TRS-PROJ-002): escaping refs plus the
 /// standard validator over the projected subset (minus the suppressed

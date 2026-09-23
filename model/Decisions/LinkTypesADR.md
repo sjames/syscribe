@@ -61,7 +61,10 @@ Two needs pull in different directions:
 
   `coverage = false` keeps the base rule checks but withholds the instance from the base's
   reverse index (`satisfiedBy`/`verifiedBy`/`derivedChildren`/`refinedBy`), so it neither
-  satisfies/verifies anything for coverage purposes nor makes its target a "parent". Built-in
+  satisfies/verifies anything for coverage purposes (`W002`/`W300`/`W305`/`W015`/`W614`, coverage
+  reports) nor makes its target a "parent". Traceability-*presence* rules still count it, since
+  the link exists: `E013` (TestCase verifies nothing) and `W005` (orphan requirement) are
+  satisfied by a `coverage = false` link. Built-in
   links themselves are never relaxed — relaxation is always scoped to a named variant, so
   strictness of the unadorned vocabulary is preserved and every relaxation is visible and
   reviewable in one config table.

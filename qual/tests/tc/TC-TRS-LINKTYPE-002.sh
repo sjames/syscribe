@@ -24,4 +24,9 @@ tc_TRS_LINKTYPE_002() {
     out=$("$SYSCRIBE" -m "$FX/unconfigured" validate 2>&1 || true)
     has "$out" "UsesLinks.md" "E630" && pass "E630 raised when unconfigured" || fail "no E630 when unconfigured"
     printf '%s' "$out" | grep 'E630' | grep -qi 'linkTypes' && pass "hint mentions [linkTypes]" || fail "no [linkTypes] hint"
+
+    _scn "in a configuration lens a links: target inactive in the variant escapes as W019, not E632"
+    out=$("$SYSCRIBE" -m "$FX/variant" validate --config CONF-M0-BASE-001 2>&1) && pass "lens exit zero" || fail "lens non-zero exit: $out"
+    printf '%s' "$out" | grep 'ReqCore.md' | grep 'W019' | grep -q 'REQ-V5-WDT-002' && pass "W019 for inactive links: target" || fail "no W019: $out"
+    printf '%s' "$out" | grep -q 'E632' && fail "E632 raised in lens: $out" || pass "no E632 in lens"
 }

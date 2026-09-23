@@ -1620,11 +1620,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         // requiring a member to verify the parent directly would be the
                         // same parent/leaf false positive suppressed elsewhere (cf. GH
                         // #37, E312: a parent is verified through its leaves).
+                        // REQ-TRS-LINKTYPE-006 — only entries in the reverse index
+                        // credit coverage: a `coverage = false` extending
+                        // verifies/derivedFrom link traces but covers nothing.
                         let covered = members.iter().any(|tc| {
                             tc.frontmatter.verifies.as_ref().is_some_and(|vs| {
-                                vs.iter().any(|v| {
-                                    resolver.resolve_ref(elements, v).is_some_and(|rt| {
-                                        req_self_or_descendant_of(rt, target, elements, &resolver)
+                                vs.iter().enumerate().any(|(vi, v)| {
+                                    link_prov.in_reverse_index(
+                                        &tc.qualified_name,
+                                        crate::link_types::BaseLink::Verifies,
+                                        vi,
+                                    ) && resolver.resolve_ref(elements, v).is_some_and(|rt| {
+                                        req_self_or_descendant_of(rt, target, elements, &resolver, link_prov)
                                     })
                                 })
                             })
@@ -3974,7 +3981,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                                 .id
                                 .clone()
                                 .unwrap_or_else(|| target.qualified_name.clone());
-                            verified_by.entry(target_key).or_default().push(tc_id.clone());
+                            let list = verified_by.entry(target_key).or_default();
+                            // A contributed entry duplicating a verifier already
+                            // listed (a built-in `verifies:` to the same target) is
+                            // not listed twice (REQ-TRS-LINKTYPE-006).
+                            let dup = link_prov.is_contributed(&elem.qualified_name, crate::link_types::BaseLink::Verifies, vi)
+                                && list.contains(tc_id);
+                            if !dup {
+                                list.push(tc_id.clone());
+                            }
                         }
                     }
                 }
@@ -4014,10 +4029,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             // `coverage = false`: not a parent/child edge for coverage.
                         } else if let Some(ref parent_id) = target.frontmatter.id {
                             if let Some(ref child_id) = elem.frontmatter.id {
-                                derived_children
-                                    .entry(parent_id.clone())
-                                    .or_default()
-                                    .push(child_id.clone());
+                                // As for verifiedBy: a contributed entry duplicating
+                                // an existing child edge is not listed twice.
+                                let list = derived_children.entry(parent_id.clone()).or_default();
+                                let dup = link_prov.is_contributed(
+                                    &elem.qualified_name,
+                                    crate::link_types::BaseLink::DerivedFrom,
+                                    di,
+                                ) && list.contains(child_id);
+                                if !dup {
+                                    list.push(child_id.clone());
+                                }
                             }
                         }
                     }
@@ -4528,8 +4550,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         for c in &leveled {
                             let cid = c.frontmatter.id.as_deref().unwrap_or("");
                             if let Some(sat) = &c.frontmatter.satisfies {
-                                for s in sat {
-                                    by_target.entry(s.as_str()).or_default().push(cid);
+                                for (si, s) in sat.iter().enumerate() {
+                                    let kids = by_target.entry(s.as_str()).or_default();
+                                    // A contributed entry duplicating the child's own
+                                    // satisfies of the same element is one channel,
+                                    // not two (REQ-TRS-LINKTYPE-006).
+                                    if link_prov.is_contributed(&c.qualified_name, crate::link_types::BaseLink::Satisfies, si)
+                                        && kids.contains(&cid)
+                                    {
+                                        continue;
+                                    }
+                                    kids.push(cid);
                                 }
                             }
                         }
@@ -5217,7 +5248,23 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             .filter(|e| {
                 matches!(e.frontmatter.element_type, Some(ElementType::TestCase)) && !is_draft(e)
             })
-            .map(|e| (parse_aw(e), e.frontmatter.verifies.clone().unwrap_or_default()))
+            .map(|e| {
+                // Only entries in the reverse index credit coverage: a `coverage =
+                // false` extending verifies link is withheld (REQ-TRS-LINKTYPE-006).
+                let credited: Vec<String> = e
+                    .frontmatter
+                    .verifies
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter()
+                    .enumerate()
+                    .filter(|(vi, _)| {
+                        link_prov.in_reverse_index(&e.qualified_name, crate::link_types::BaseLink::Verifies, *vi)
+                    })
+                    .map(|(_, v)| v.clone())
+                    .collect();
+                (parse_aw(e), credited)
+            })
             .collect();
 
         for cfg in elements
@@ -6638,10 +6685,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             ),
                         ));
                     } else if indexed {
-                        refined_by
-                            .entry(index_key(target))
-                            .or_default()
-                            .push(elem_label(elem));
+                        // A contributed entry duplicating an existing refiner is
+                        // not listed twice (REQ-TRS-LINKTYPE-006).
+                        let list = refined_by.entry(index_key(target)).or_default();
+                        let label = elem_label(elem);
+                        let dup = link_prov.is_contributed(&elem.qualified_name, crate::link_types::BaseLink::Refines, ri)
+                            && list.contains(&label);
+                        if !dup {
+                            list.push(label);
+                        }
                     }
                 }
             }
@@ -8827,6 +8879,7 @@ fn req_self_or_descendant_of(
     target: &RawElement,
     elements: &[RawElement],
     resolver: &Resolver,
+    link_prov: &crate::link_types::Provenance,
 ) -> bool {
     let mut stack = vec![req];
     let mut seen: HashSet<String> = HashSet::new();
@@ -8838,7 +8891,12 @@ fn req_self_or_descendant_of(
             return true;
         }
         if let Some(parents) = &cur.frontmatter.derived_from {
-            for p in parents {
+            for (pi, p) in parents.iter().enumerate() {
+                // A `coverage = false` extending derivedFrom link does not make
+                // its target a parent (REQ-TRS-LINKTYPE-006).
+                if !link_prov.in_reverse_index(&cur.qualified_name, crate::link_types::BaseLink::DerivedFrom, pi) {
+                    continue;
+                }
                 if let Some(parent) = resolver.resolve_ref(elements, p) {
                     stack.push(parent);
                 }
@@ -11792,5 +11850,99 @@ mod link_type_tests {
         let result = validate_with_config(&elements, &cfg(toml_text));
         assert!(hits(&result.findings, "E104", "TC-001").is_empty(), "{:?}", result.findings);
         assert_eq!(result.verified_by.get("Arch::Ctl"), Some(&vec!["TC-001".to_string()]));
+    }
+
+    /// A TestCase whose only link to `req` is an extending-`verifies` link of
+    /// `link_type`.
+    fn tc_linking(id: &str, link_type: &str, req: &str, extra: &str) -> RawElement {
+        make_elem(
+            &format!("Tests::{id}"),
+            &format!(
+                "type: TestCase\nid: {id}\nname: t\nstatus: active\ntestLevel: L3\nlinks:\n  {link_type}: {req}\n{extra}"
+            ),
+        )
+    }
+
+    const VERIFY_TYPES: &str = "[linkTypes.weakV]\nextends = \"verifies\"\ncoverage = false\n\
+                                [linkTypes.strongV]\nextends = \"verifies\"\n\
+                                [linkTypes.weakD]\nextends = \"derivedFrom\"\ncoverage = false\nrelax = [\"E310\"]\n";
+
+    /// Per-configuration coverage fixture: feature `Wdt` selected in CONF-A,
+    /// REQ-020 active only with `Wdt`, verified by one TestCase via `link_type`.
+    fn w015_model(link_type: &str) -> Vec<RawElement> {
+        vec![
+            make_elem("Features::Wdt", "type: FeatureDef\nid: FEAT-WDT\nname: Wdt\ngroupKind: optional\n"),
+            make_elem(
+                "Configs::CONF-A",
+                "type: Configuration\nid: CONF-FX-A-001\nname: a\nstatus: approved\nfeatureModel: Features\nfeatures:\n  Features::Wdt: true\n",
+            ),
+            req("REQ-020", "appliesWhen: Features::Wdt\n"),
+            tc_linking("TC-020", link_type, "REQ-020", "appliesWhen: Features::Wdt\n"),
+        ]
+    }
+
+    #[test]
+    fn w015_is_not_cleared_by_a_coverage_false_verifies_extension() {
+        let weak = run(&w015_model("weakV"), VERIFY_TYPES);
+        assert!(weak.iter().any(|f| f.code == "W015" && f.message.contains("REQ-020")), "{weak:?}");
+        let strong = run(&w015_model("strongV"), VERIFY_TYPES);
+        assert!(!strong.iter().any(|f| f.code == "W015"), "{strong:?}");
+    }
+
+    /// An active TestPlan demonstrating REQ-001, whose one member reaches it only
+    /// through `tc_link` (verifies REQ-00x) and, for REQ-002, `REQ-002`'s own
+    /// `derived_link` to REQ-001.
+    fn w614_model(tc_link: &str, target: &str, derived_link: &str) -> Vec<RawElement> {
+        vec![
+            req("REQ-001", ""),
+            req("REQ-002", &format!("links:\n  {derived_link}: REQ-001\n")),
+            tc_linking("TC-001", tc_link, target, ""),
+            make_elem(
+                "Tests::TP-FX-A-001",
+                "type: TestPlan\nid: TP-FX-A-001\nname: p\nstatus: active\nscope: integration\ndemonstrates: [REQ-001]\ntestCases: [TC-001]\n",
+            ),
+        ]
+    }
+
+    #[test]
+    fn w614_is_not_cleared_by_coverage_false_verifies_or_derived_from() {
+        let w614 = |m: Vec<RawElement>| run(&m, VERIFY_TYPES).iter().any(|f| f.code == "W614");
+        assert!(!w614(w614_model("strongV", "REQ-001", "weakD")), "credited verifier clears W614");
+        assert!(w614(w614_model("weakV", "REQ-001", "weakD")), "coverage=false verifies must not clear W614");
+        // Goal closure through a coverage=false derivedFrom does not credit REQ-001.
+        assert!(w614(w614_model("strongV", "REQ-002", "weakD")), "coverage=false derivedFrom must not close the goal");
+    }
+
+    #[test]
+    fn verified_by_and_derived_children_have_no_duplicate_from_a_twin_extension() {
+        let toml_text = "[linkTypes.checks]\nextends = \"verifies\"\n[linkTypes.refinedFrom]\nextends = \"derivedFrom\"\n";
+        let elements = vec![
+            req("REQ-001", ""),
+            req("REQ-002", "derivedFrom: [REQ-001]\nbreakdownAdr: ADR-001\nlinks:\n  refinedFrom: REQ-001\n"),
+            make_elem("Dec::ADR-001", "type: ADR\nid: ADR-001\nname: a\nstatus: accepted\n"),
+            tc_linking("TC-001", "checks", "REQ-002", "verifies: [REQ-002]\n"),
+        ];
+        let result = validate_with_config(&elements, &cfg(toml_text));
+        assert_eq!(result.verified_by.get("REQ-002"), Some(&vec!["TC-001".to_string()]));
+        assert_eq!(result.derived_children.get("REQ-001"), Some(&vec!["REQ-002".to_string()]));
+    }
+
+    #[test]
+    fn a_twin_derived_from_extension_is_one_decomposition_channel_not_two() {
+        // REQ-002 derives from the ASIL D REQ-001 by both `derivedFrom:` and an
+        // extending twin; as a single channel it is W860, never a false E865.
+        let toml_text = "[linkTypes.refinedFrom]\nextends = \"derivedFrom\"\n[linkTypes.strongSat]\nextends = \"satisfies\"\n";
+        let elements = vec![
+            req("REQ-001", "asilLevel: D\n"),
+            req(
+                "REQ-002",
+                "asilLevel: B\nderivedFrom: [REQ-001]\nbreakdownAdr: ADR-001\nsatisfies: [Arch::X]\nlinks:\n  refinedFrom: REQ-001\n  strongSat: Arch::X\n",
+            ),
+            make_elem("Dec::ADR-001", "type: ADR\nid: ADR-001\nname: a\nstatus: accepted\n"),
+            make_elem("Arch::X", "type: PartDef\nname: X\ndomain: software\nasilLevel: B\n"),
+        ];
+        let f = run(&elements, toml_text);
+        assert!(!f.iter().any(|x| x.code == "E865"), "{f:?}");
+        assert!(f.iter().any(|x| x.code == "W860"), "{f:?}");
     }
 }

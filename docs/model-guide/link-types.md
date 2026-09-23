@@ -134,7 +134,9 @@ Sometimes a relationship *is* a built-in link, just a weaker or specialised one.
 
 `E310` is judged per requirement: it is suppressed only when **every** `derivedFrom`-like link on that requirement, including the built-in field, is of a type that relaxes `E310`.
 
-`coverage = false` keeps the base rule checks but withholds instances from the base reverse index. The link is recorded and traversable, but it does not satisfy or verify anything for coverage purposes, and it does not make its target a "parent".
+`coverage = false` keeps the base rule checks but withholds instances from the base reverse index. The link is recorded and traversable, but it does not satisfy or verify anything for coverage purposes (`W002`, `W300`, `W305`, `W015`, `W614` and the coverage reports never credit it), and it does not make its target a "parent". Rules that only check that a trace link *exists* still count it: a TestCase whose only link is a `coverage = false` `verifies` variant does not raise `E013`, and a requirement linked upstream only that way is not an orphan (`W005`).
+
+An extending link whose target lives in a `[repos]` peer is resolved and traversable, but the base's rules are only applied to targets in the local model.
 
 **Built-in fields are never relaxed.** A declaration only affects its own named variant. A plain `satisfies:` next to a relaxing variant still raises `E313`. Every relaxation in a project is visible in one place, `.syscribe.toml`, and printed by `link-types`.
 
