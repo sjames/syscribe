@@ -326,6 +326,33 @@ fn element_page(
         body.push_str("</div>\n");
     }
 
+    // Members (REQ-TRS-PKG-001, GH #120) — the element's direct children, generated
+    // from the directory tree (never from `_index.md` prose), each linking to its
+    // element page. Always present for a package (explicit empty state); for any
+    // other type only when it owns children — the same rule as `show`.
+    let members = syscribe_model::members::direct_members(elements, &elem.qualified_name);
+    if syscribe_model::members::is_package(elem) || !members.is_empty() {
+        body.push_str(&format!("<section id=\"members\">\n<h2>Members ({})</h2>\n", members.len()));
+        if members.is_empty() {
+            body.push_str("<p class=\"empty\">No members.</p>\n");
+        } else {
+            body.push_str("<table class=\"fm-table\">\n<tr><th>Element</th><th>Type</th><th>Name</th><th>Status</th></tr>\n");
+            for m in &members {
+                body.push_str(&format!(
+                    "<tr><td><a href=\"{}elements/{}.html\">{}</a></td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+                    rel_root,
+                    sanitize(&m.qualified_name),
+                    esc(syscribe_model::members::member_label(m)),
+                    esc(&type_str(&m.frontmatter).unwrap_or_else(|| "—".to_string())),
+                    esc(m.frontmatter.name.as_deref().unwrap_or("—")),
+                    esc(m.frontmatter.status.as_deref().unwrap_or("—")),
+                ));
+            }
+            body.push_str("</table>\n");
+        }
+        body.push_str("</section>\n");
+    }
+
     // Diagrams: Mermaid is already in the rendered doc; otherwise inline the SVG.
     if matches!(fm.element_type, Some(ElementType::Diagram))
         && fm.diagram_kind.as_deref() != Some("Mermaid")

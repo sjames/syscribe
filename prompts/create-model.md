@@ -336,6 +336,8 @@ name: <DirectoryName>
 One-line description of this package.
 ```
 
+Describe the package's **purpose and scope** in `_index.md` — never list its members (ids or file names). Membership is generated from the directory (`syscribe -m model/ show <package>` prints it), so a hand-written list only drifts; `lint-docs` flags one with `W103`.
+
 ---
 
 ## Part 2 — Element Types Quick Reference

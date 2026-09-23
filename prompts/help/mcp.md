@@ -72,7 +72,8 @@ stable id, a qualified name, or a display name. List/grid tools accept
 ## Read tools — diagram & documentation integrity
 
 - `lint_docs {paths, codes?}` — unresolvable references in `.md`/`.svg`
-  (`W099`–`W102`).
+  (`W099`–`W102`), plus the advisory `W103` (a package `_index.md` hand-listing
+  its own members).
 - `render_diagram {ref, format?}` — a Diagram's **source** (PlantUML by default,
   or the Mermaid source) plus its `W400`–`W415` structural findings. It does not
   render an image; rendering is left to your toolchain.

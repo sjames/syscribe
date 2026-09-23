@@ -286,6 +286,7 @@ Seven enforced traceability rules govern how model elements relate to each other
 
 - The `temp/` directory contains reference PDFs only — not tracked by git.
 - `site/` is MkDocs build output — not tracked by git.
+- Package membership is generated from the directory (`ADR-SYS-PKG-001`, GH #120): `show <package>`, the web UI detail panel and `export-html` list a package's direct members. Keep `_index.md` prose to purpose/scope — never enumerate members there; `lint-docs` flags that as advisory `W103`.
 - Qualified name resolution handles circular references gracefully (reports, does not panic).
 - The Syscribe format is the source of truth; the web service is read-only over the model files.
 - The LLM generation prompt lives at `prompts/create-model.md` and is embedded in the validator binary via `include_str!` — edit the `.md` file, not the Rust source.

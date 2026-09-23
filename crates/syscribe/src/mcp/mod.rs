@@ -1900,7 +1900,9 @@ impl SyscribeMcp {
 
     #[tool(
         description = "Scan .md/.svg files or directories for unresolvable model references \
-        (W099 prose ids, W100 mermaid qnames, W101 SVG sysml:ref, W102 missing local embeds).",
+        (W099 prose ids, W100 mermaid qnames, W101 SVG sysml:ref, W102 missing local embeds), \
+        plus the advisory W103 (a package _index.md hand-enumerating 3+ of its own members — \
+        membership is generated; see `show <package>`).",
         annotations(read_only_hint = true)
     )]
     async fn lint_docs(

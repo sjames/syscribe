@@ -9,13 +9,12 @@ structurally part of the traceability graph so it can guide an LLM step-by-step 
 development with the same rigor as `Requirement`/`TestCase`/`ADR`.
 
 All requirements derive from `REQ-TRS-PLANITEM-000` and are governed by `ADR-SYS-PLANITEM-001`
-(`Decisions::PlanningItemADR`): the `PI-*` id scheme and `status`/`itemType` vocabulary
-(`REQ-TRS-PLANITEM-001`), single-parent hierarchy (`REQ-TRS-PLANITEM-002`), top-level
-`achieves:` linkage to `Requirement`s (`REQ-TRS-PLANITEM-003`), product-line `appliesWhen:` gating
-reusing the existing universal mechanism with zero new code (`REQ-TRS-PLANITEM-004`), dual-form
-`evidence:` with per-entry rationale waivers (`REQ-TRS-PLANITEM-005`), and the status-graded
-leaf-evidence validation rule (`REQ-TRS-PLANITEM-006`).
+(`Decisions::PlanningItemADR`) and its addenda. The scope covers the `PI-*` id scheme and the
+GitHub-derived `status`/`itemType` vocabulary, the single-parent hierarchy, top-level
+`achieves:` linkage to `Requirement`s, product-line `appliesWhen:` gating, `evidence:` with
+per-entry waivers and the leaf-evidence rule, `blockedBy:` dependencies, `assignedTo:` against
+a `[users]` roster, the achieved-requirement verification check, and advisory `claim`/`release`
+ownership markers for concurrent multi-agent work.
 
-This phase is schema and validation only: no MCP tools, no CLI reports, no Jira/GitHub sync —
-`PlanningItem` is a pure, standalone replacement for an external tracker, not an integration with
-one.
+The member requirements are listed by `syscribe show Requirements::PlanningItem` (generated from
+this directory — not maintained here).

@@ -320,7 +320,7 @@ A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes no
 | W952 | A part declares `targetSL` but belongs to no zone (opt-in). |
 | W953 | An `approved` `Zone` (`targetSL >= 2`) referenced by no `Conduit`. |
 
-## Documentation linting (W099–W102, `lint-docs`)
+## Documentation linting (W099–W103, `lint-docs`)
 
 The `lint-docs` command scans external `.md` and `.svg` docs for references to model elements that no longer resolve (gateable, e.g. `--deny W100`).
 
@@ -330,6 +330,7 @@ The `lint-docs` command scans external `.md` and `.svg` docs for references to m
 | W100 | A qualified name (`A::B::C`) inside a ` ```mermaid ` block that does not resolve (prose qnames are not checked). |
 | W101 | An SVG `sysml:ref="…"` that does not resolve (SVGs with no `sysml:ref` are opaque). |
 | W102 | A local image/diagram embed path (`![](…)`, `<img src>`) that does not exist (remote URIs accepted). |
+| W103 | Advisory: a package `_index.md` body enumerates three or more of the package's own direct members by stable id. Membership is generated (`show <package>`); describe purpose instead. Does not affect the exit status. |
 
 ## Review records (E700–E705, W700, W704, §19)
 

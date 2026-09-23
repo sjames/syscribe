@@ -14,6 +14,7 @@ pub mod frontmatter;
 pub mod graph;
 pub mod link_types;
 pub mod matchers;
+pub mod members;
 pub mod metrics;
 pub mod mutate;
 pub mod plugins;

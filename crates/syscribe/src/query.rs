@@ -1068,6 +1068,34 @@ pub fn cmd_show(
         println!("{}", doc);
     }
 
+    // Members (REQ-TRS-PKG-001, GH #120) — generated from the directory tree,
+    // never from `_index.md` prose: the element's direct children (the same
+    // notion `ls` uses), sorted by qualified name. Always shown for a package
+    // (with an explicit empty state); for any other type only when it actually
+    // owns children, so non-package `show` output is otherwise unchanged. Not
+    // part of the "Related:" footer, so `--no-related` keeps it.
+    let members = syscribe_model::members::direct_members(elements, &elem.qualified_name);
+    if syscribe_model::members::is_package(elem) || !members.is_empty() {
+        println!();
+        println!("## Members ({})", members.len());
+        println!();
+        if members.is_empty() {
+            println!("_(no members)_");
+        } else {
+            println!("| Element | Type | Name | Status |");
+            println!("|---|---|---|---|");
+            for m in &members {
+                println!(
+                    "| {} | {} | {} | {} |",
+                    syscribe_model::members::member_label(m),
+                    tl(m.frontmatter.element_type.as_ref()),
+                    m.frontmatter.name.as_deref().unwrap_or("—"),
+                    m.frontmatter.status.as_deref().unwrap_or("—"),
+                );
+            }
+        }
+    }
+
     // Related commands footer (issue #117): re-surface the traceability
     // commands that already exist and answer the natural next questions
     // about this same element, right where an agent/human is already
@@ -4270,7 +4298,7 @@ pub fn print_help() {
     println!("                                 Render companion .puml files to .svg via PlantUML (--jar / PLANTUML_JAR / PATH).");
     println!();
     println!("Documentation & extension hygiene:");
-    println!("  lint-docs <path>... [--json]   Scan external .md/.svg for stale element references (W099–W102).");
+    println!("  lint-docs <path>... [--json]   Scan external .md/.svg for stale element references (W099–W102; W103 advisory).");
     println!("  scripts list [--json]          Enumerate registered Rhai extension commands/checks.");
     println!("  scripts run <command> [--json] Invoke a registered extension command and print its result.");
     println!("  scripts validate [--deny <CODES>] [--max-warnings <N>] [--warnings-as-errors] [--json]");

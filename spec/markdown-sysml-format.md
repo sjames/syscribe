@@ -725,6 +725,8 @@ An `_index.md` file may carry any fields from Section 3, plus the following pack
 | `aliases` | list | Alias declarations (Section 3.7.2) |
 | `filterCondition` | string | Package filter condition (opaque KerML expression) |
 
+**Membership is generated, never authored (`ADR-SYS-PKG-001`, GH #120).** A package's members are exactly the elements in its directory. Tools present that list from the directory itself — `show <package>` prints a `## Members (N)` table (id or qualified name, type, name, status), and the web UI detail panel and `export-html` package pages show the same list — so it can never drift from the files on disk. The `_index.md` body **should** state the package's purpose and scope (the *why*), not enumerate its members (the *what*). `lint-docs` reports advisory `W103` when an `_index.md` body mentions three or more distinct stable ids that resolve to the package's own direct members. Summary tables that carry genuine cross-element analysis (e.g. a HARA hazard → goal → ASIL table) remain legitimate; `W103` is a prompt to check, not a rule.
+
 ### 4.4 Library Packages
 
 A library package uses `type: LibraryPackage`. Library packages are treated identically to regular packages for qualified name resolution, but tools may display them differently and they implicitly export all their members publicly.

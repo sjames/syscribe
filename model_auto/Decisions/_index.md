@@ -7,13 +7,8 @@ Architecture Decision Records (ADRs) documenting the key design choices that sha
 Engine ECU requirements tree and architecture. Each ADR justifies a decomposition or
 allocation decision that would otherwise be implicit in the model structure.
 
-## Contents
-
-| ID | Title | Status | Governs |
-|---|---|---|---|
-| `ADR-ENG-SYS-001` | Decompose system requirements into performance, safety, and security | accepted | `REQ-ENG-SYS-000` breakdown |
-| `ADR-ENG-SAFE-001` | ASIL D decomposition into SW + HW sub-requirements | accepted | `REQ-ENG-SAFE-000` breakdown |
-| `ADR-ENG-PERF-001` | Decompose performance into throttle response and fuel efficiency | accepted | `REQ-ENG-PERF-000` breakdown |
+The ADRs are listed by `syscribe show Decisions` (generated from this directory); `syscribe list ADR`
+shows their status.
 
 ## ADR governance
 
