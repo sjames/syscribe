@@ -1,0 +1,13 @@
+[linkTypes.mitigates]
+description = "A control mitigates a requirement-level hazard"
+inverse = "mitigatedBy"
+source_types = ["PartDef"]
+targetTypes = ["Requirement"]
+cardinality = "0..*"
+acyclic = false
+suspect = true
+
+[linkTypes.partiallySatisfies]
+extends = "satisfies"
+relax = ["E313"]
+coverage = false

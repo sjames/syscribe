@@ -1,0 +1,18 @@
+[linkTypes.partiallySatisfies]
+extends = "satisfies"
+relax = ["E313"]
+
+[linkTypes.strictSat]
+extends = "satisfies"
+
+[linkTypes.weakSat]
+extends = "satisfies"
+relax = ["E313"]
+coverage = false
+
+[linkTypes.inspiredBy]
+extends = "derivedFrom"
+relax = ["E310"]
+
+[linkTypes.refinedFrom]
+extends = "derivedFrom"

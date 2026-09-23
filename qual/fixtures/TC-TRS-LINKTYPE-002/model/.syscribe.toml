@@ -1,0 +1,4 @@
+[linkTypes.informs]
+description = "Source informs target"
+
+[linkTypes.conflictsWith]
