@@ -1,0 +1,4 @@
+[
+  {"testCase": "TC-SL-001", "scenario": "An empty allowlist denies everything", "steps": [{"cmd": "curl"}], "result": "pass", "timestamp": "2026-09-12T08:00:00Z"},
+  {"testCase": "TC-SL-001", "scenario": "A configured allowlist permits listed commands", "steps": [{"cmd": "curl"}], "result": "pass", "timestamp": "2026-09-12T08:00:00Z"}
+]

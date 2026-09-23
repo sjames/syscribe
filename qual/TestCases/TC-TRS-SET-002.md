@@ -36,4 +36,30 @@ Feature: set achieves.add / evidence.add
     Then the command exits non-zero
     When "set <id> evidence.add path=<existing-local-path>" or an http(s):// URI is run
     Then the command succeeds
+
+  Scenario: achieves.add of an already-present id is a no-op
+    Given a PlanningItem that already achieves a Requirement
+    When "set <id> achieves.add <that-req-id>" is run
+    Then the command reports that the id is already present, the id is not duplicated, and the file is unchanged
+
+  Scenario: evidence.add refuses both ref and path, or neither
+    Given a PlanningItem with no evidence
+    When "set <id> evidence.add ref=<id> path=<path>" is run
+    Then the command exits non-zero and the file is unchanged
+    When "set <id> evidence.add" is run with neither ref= nor path=
+    Then the command exits non-zero and the file is unchanged
+
+  Scenario: evidence.add carries an optional rationale onto the new entry
+    Given a PlanningItem with no evidence
+    When "set <id> evidence.add ref=<id> rationale=<text>" is run
+    Then the new evidence entry carries both the ref and that rationale text
+    When "set <id> evidence.add path=<path>" is run with no rationale=
+    Then the new evidence entry carries no rationale
+
+  Scenario: --dry-run previews achieves.add and evidence.add without writing
+    Given a PlanningItem
+    When "set <id> achieves.add <req-id> --dry-run" is run
+    Then a unified diff adding the requirement is printed and the file is unchanged
+    When "set <id> evidence.add path=<path> --dry-run" is run
+    Then a unified diff adding the evidence entry is printed and the file is unchanged
 ```

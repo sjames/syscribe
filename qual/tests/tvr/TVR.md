@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 295 |
-| Passed | 295 |
+| Total test cases | 308 |
+| Passed | 308 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -859,6 +859,28 @@
 
 ---
 
+### TC-TRS-INGEST-001 — Verify session-log ingestion parses valid records into the results sidecar and hard-fails on malformed/missing steps, unrecognized result, or an empty array, without clobbering an existing sidecar.
+
+**Verifies:** REQ-TRS-INGEST-001  
+**Result:** ✓ PASS (21 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| --format session-log is never inferred from the file extension | ✓ PASS |
+
+---
+
+### TC-TRS-INGEST-002 — Verify trace/matrix/safety-case/testplan roll up session-log scenario verdicts for a TestCase with no testFunctions, distinguishing prose-only evidence from an ingested pass, and never disturbing testFunctions-scored TestCases.
+
+**Verifies:** REQ-TRS-INGEST-002  
+**Result:** ✓ PASS (12 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a TestCase with testFunctions ignores any session-log data | ✓ PASS |
+
+---
+
 ### TC-TRS-LIB-001 — Verify built-in type recognition: ScalarValues/Base members resolve with no W404/W043; unknown members raise W043; import-only packages stay lenient.
 
 **Verifies:** REQ-TRS-LIB-001  
@@ -1621,6 +1643,39 @@
 
 ---
 
+### TC-TRS-OUT-021 — Verify the stats corpus-shape digest: facets, coverage/orphan rollups, --group-by, scoping filters, --config lens, JSON, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-OUT-021  
+**Result:** ✓ PASS (41 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP stats tool returns the same document as the CLI | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-022 — Verify the digest bulk view: compact NDJSON rows, one-line text, paging, scoping filters, --config lens, JSON document, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-OUT-022  
+**Result:** ✓ PASS (25 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP digest tool returns the same document as the CLI | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-023 — Verify the hierarchical summarize digest: per-package rollup, extractive terms, representatives, content-hash cache, scope/depth/config, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-OUT-023  
+**Result:** ✓ PASS (33 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP summarize tool matches the CLI | ✓ PASS |
+
+---
+
 ### TC-TRS-PARAM-001 — Verify FeatureDef parameter binding rules E203–E206, E222, and W017.
 
 **Verifies:** REQ-TRS-PARAM-001  
@@ -1960,6 +2015,39 @@
 | Scenario | Result |
 |---|---|
 | PlanningItem is listed as a known native type | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-010 — Verify W310 fires for a done PlanningItem's under-verified achieves requirement, respecting the leaf/parent W002/W305 bar, and never for todo/in_progress/blocked.
+
+**Verifies:** REQ-TRS-PLANITEM-010  
+**Result:** ✓ PASS (20 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a dangling or wrong-kind achieves target is not re-flagged by W310 | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-011 — Verify claim/release set and clear claimedBy/claimedAt correctly, refuse on conflicting/done targets, and surface claimedBy in show/list --json.
+
+**Verifies:** REQ-TRS-PLANITEM-011  
+**Result:** ✓ PASS (31 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| release clears both fields regardless of status | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-012 — Verify W311 fires once per overlapping pair of active PlanningItems (shared achieves or evidence.path), and never for inactive or non-overlapping pairs.
+
+**Verifies:** REQ-TRS-PLANITEM-012  
+**Result:** ✓ PASS (14 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| W311 fires once per pair, not once per side | ✓ PASS |
 
 ---
 
@@ -2343,6 +2431,39 @@
 
 ---
 
+### TC-TRS-SEARCH-001 — Verify ranked full-text search: BM25 relevance ordering, snippets, type/status/config scoping, empty-query and JSON contracts, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-SEARCH-001  
+**Result:** ✓ PASS (22 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP search_text tool matches the CLI | ✓ PASS |
+
+---
+
+### TC-TRS-SEARCH-002 — Verify topics: per-package TF-IDF keywords, stopword demotion, type scoping, multi-package corpus, config lens, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-SEARCH-002  
+**Result:** ✓ PASS (25 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP topics tool matches the CLI | ✓ PASS |
+
+---
+
+### TC-TRS-SEARCH-003 — Verify clusters: TF-IDF cosine k-means grouping, deterministic init, k clamping/validation, cosine separation, config lens, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-SEARCH-003  
+**Result:** ✓ PASS (20 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP clusters tool matches the CLI | ✓ PASS |
+
+---
+
 ### TC-TRS-SEC-001 — Verify safety↔security co-engineering: hazardRef, E844, W030, and the co-analysis view.
 
 **Verifies:** REQ-TRS-SEC-001  
@@ -2432,6 +2553,28 @@
 | Scenario | Result |
 |---|---|
 | invalid securityTestMethod triggers W809 | ✓ PASS |
+
+---
+
+### TC-TRS-SET-001 — Verify set status=<value> validates per-type enum, splices byte-preservingly, cross-checks PlanningItem done against W310, and supports --dry-run.
+
+**Verifies:** REQ-TRS-SET-001  
+**Result:** ✓ PASS (19 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| --dry-run previews without writing | ✓ PASS |
+
+---
+
+### TC-TRS-SET-002 — Verify achieves.add and evidence.add validate their target before writing and append without disturbing existing order.
+
+**Verifies:** REQ-TRS-SET-002  
+**Result:** ✓ PASS (42 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| --dry-run previews achieves.add and evidence.add without writing | ✓ PASS |
 
 ---
 

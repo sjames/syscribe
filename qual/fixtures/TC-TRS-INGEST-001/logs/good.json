@@ -1,0 +1,4 @@
+[
+  {"testCase": "TC-SL-001", "scenario": "An empty allowlist denies everything", "steps": [{"cmd": "curl -X POST /cmd", "expect_status": 400}], "result": "pass", "timestamp": "2026-09-12T08:02:29Z"},
+  {"testCase": "TC-SL-001", "scenario": "A configured allowlist permits listed commands", "steps": [{"cmd": "curl -X POST /cmd", "expect_status": 200}], "result": "fail", "timestamp": "2026-09-12T08:03:10Z"}
+]
