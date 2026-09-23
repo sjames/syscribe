@@ -1838,7 +1838,8 @@ impl SyscribeMcp {
 
     #[tool(
         description = "Ingest an external test report (cargo-json | junit) into the results \
-        sidecar. dry_run defaults to true (returns the verdict delta without writing).",
+        sidecar. Merges: replaces only the function-level verdicts, keeping any session-log \
+        verdicts. dry_run defaults to true (returns the verdict delta without writing).",
         annotations(read_only_hint = false, destructive_hint = false)
     )]
     async fn ingest_results(
@@ -1869,13 +1870,16 @@ impl SyscribeMcp {
             return tool_error("no test records parsed from report (malformed or unrecognised for the given format)");
         }
         let mut store = self.store.write().await;
+        // The sidecar is merged, not replaced (REQ-TRS-INGEST-001): the delta is
+        // computed against what the merged sidecar will hold.
+        let merged = parsed.merged_over(store.config.results.as_ref());
         let mut delta: Vec<Value> = Vec::new();
         for e in &store.elements {
             if e.frontmatter.element_type != Some(ElementType::TestCase) {
                 continue;
             }
             let from = tc_verdict(e, store.config.results.as_ref());
-            let to = tc_verdict(e, Some(&parsed));
+            let to = tc_verdict(e, Some(&merged));
             if from != to {
                 delta.push(json!({
                     "testCase": e.frontmatter.id,
@@ -1888,7 +1892,7 @@ impl SyscribeMcp {
         let extra = extra_map(json!({ "format": fmt, "count": parsed.count, "delta": delta }));
         let apply = move |root: &Path| -> Result<(), String> {
             parsed
-                .write_sidecar(root)
+                .merge_into_sidecar(root)
                 .map(|_| ())
                 .map_err(|e| format!("cannot write results sidecar: {e}"))
         };

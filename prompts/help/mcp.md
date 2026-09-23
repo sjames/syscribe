@@ -109,7 +109,8 @@ model root. (Hidden under `--read-only`.)
 - `apply_changes {operations:[…], dry_run?}` — an ordered create/update/move/delete
   batch applied atomically (all-or-nothing).
 - `ingest_results {format?, path?, content?, dry_run?}` — parse a `cargo-json` or
-  `junit` report into the `.syscribe/results.json` verdict sidecar; dry-run
+  `junit` report and merge it into the `.syscribe/results.json` verdict sidecar
+  (replaces the function-level verdicts, keeps any session-log ones); dry-run
   returns the verdict delta.
 
 ## Resources & prompts
