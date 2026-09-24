@@ -148,3 +148,44 @@ fn print_index_to(w: &mut dyn std::io::Write) {
     let _ = writeln!(w);
     let _ = writeln!(w, "See also: `syscribe spec` (format reference), `syscribe --agent-instructions` (LLM prompt).");
 }
+
+#[cfg(test)]
+mod prompt_syntax_tests {
+    use super::*;
+
+    /// Every prompt an LLM agent is handed via `--agent-instructions`.
+    const PROMPTS: &[(&str, &str)] = &[
+        ("create-model.md", include_str!("../../../prompts/create-model.md")),
+        ("create-magicgrid-model.md", include_str!("../../../prompts/create-magicgrid-model.md")),
+    ];
+
+    /// The model root is only ever passed with `-m`/`--model`; the router rejects a
+    /// positional path (`syscribe model/ show X` → "unrecognized subcommand 'model/'"),
+    /// so an agent copying such an example fails on its first command.
+    #[test]
+    fn prompts_never_pass_the_model_root_positionally() {
+        let re = regex::Regex::new(r"syscribe\s+([A-Za-z0-9_.~][A-Za-z0-9_.~/-]*/)(\s|`|\||$)").unwrap();
+        for (name, text) in PROMPTS {
+            for (i, line) in text.lines().enumerate() {
+                if let Some(c) = re.captures(line) {
+                    panic!("{name}:{}: positional model path '{}' — use `syscribe -m {}`", i + 1, &c[1], &c[1]);
+                }
+            }
+        }
+    }
+
+    /// Every `syscribe -m <root> <command>` example names a real subcommand.
+    #[test]
+    fn prompt_examples_name_real_subcommands() {
+        let known: std::collections::HashSet<&str> =
+            commands().map(|(n, _)| n).chain(["help", "spec", "version"]).collect();
+        let re = regex::Regex::new(r"syscribe\s+(?:-m|--model)\s+\S+\s+([a-z][a-z-]*)\b").unwrap();
+        for (name, text) in PROMPTS {
+            for (i, line) in text.lines().enumerate() {
+                for c in re.captures_iter(line) {
+                    assert!(known.contains(&c[1]), "{name}:{}: unknown subcommand '{}'", i + 1, &c[1]);
+                }
+            }
+        }
+    }
+}

@@ -79,37 +79,37 @@ Use these commands throughout the workflow. Run them in the project root.
 
 | Command | Purpose |
 |---|---|
-| `syscribe model/ show <qname\|id>` | Show element details and all fields |
-| `syscribe model/ ls [qname]` | List namespace children (default: root) |
-| `syscribe model/ tree [qname]` | Recursive namespace tree |
-| `syscribe model/ find <pattern>` | Fuzzy search by name / ID / content |
-| `syscribe model/ list <type> [scope] [--tag <t>]` | List elements of a type, optionally scoped; `--tag` filters by `tags:` |
-| `syscribe model/ ls\|find\|list … --where custom.<key>[op<val>]` | Filter by `custom_fields:` (`=` exact, `=~` regex/substring, `~=` list-membership, bare key = presence) |
-| `syscribe model/ types` | All element types present in the model with counts |
-| `syscribe model/ untyped` | List elements with no `type:` field set |
-| `syscribe model/ links <qname\|id>` | All outbound and inbound relationships |
-| `syscribe model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it) |
-| `syscribe model/ matrix [--json] [--tag <t>]` | Requirement × Configuration coverage grid (variant-aware; see Part 9b) |
-| `syscribe model/ feature-check [--json]` | Holistic feature-model validation (requires/excludes, cycles, bindTo, constraints, orphan-feature W024); separate from `validate` |
-| `syscribe model/ features [--json]` | The feature model as a tree (groupKind, constraints, params, per-feature config rollup) |
-| `syscribe model/ feature <qname>` | One feature's card: constraints, params, configs that select it, elements it gates |
-| `syscribe model/ matrix --features` | Feature × Configuration grid (which feature ships in which product) |
-| `syscribe model/ list <type> --feature <F>` | Elements gated by feature `F` (via `appliesWhen:`) |
-| `syscribe model/ why-active <qname\|id> --config <C>` | Whether an element is active in a product, and why |
-| `syscribe model/ feature-check --deep` | SAT-backed analysis: void / dead / core / false-optional features, full-semantics config validity, explanations + diagnoses |
-| `syscribe model/ feature-check --count` / `--enumerate` | Count / list the valid configurations the feature model permits |
-| `syscribe model/ configure <Configuration>` | Assisted configuration: from a partial selection, report satisfiability + forced/free features |
-| `syscribe model/ validate --config <C>` | Project onto a configuration and validate that variant (escaping refs: E226/W019) |
-| `syscribe model/ validate --all-configs` | Validate every stored Configuration (CI gate) |
-| `syscribe model/ diff --config <A> --config <B>` | Elements active in one variant but not the other |
+| `syscribe -m model/ show <qname\|id>` | Show element details and all fields |
+| `syscribe -m model/ ls [qname]` | List namespace children (default: root) |
+| `syscribe -m model/ tree [qname]` | Recursive namespace tree |
+| `syscribe -m model/ find <pattern>` | Fuzzy search by name / ID / content |
+| `syscribe -m model/ list <type> [scope] [--tag <t>]` | List elements of a type, optionally scoped; `--tag` filters by `tags:` |
+| `syscribe -m model/ ls\|find\|list … --where custom.<key>[op<val>]` | Filter by `custom_fields:` (`=` exact, `=~` regex/substring, `~=` list-membership, bare key = presence) |
+| `syscribe -m model/ types` | All element types present in the model with counts |
+| `syscribe -m model/ untyped` | List elements with no `type:` field set |
+| `syscribe -m model/ links <qname\|id>` | All outbound and inbound relationships |
+| `syscribe -m model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it) |
+| `syscribe -m model/ matrix [--json] [--tag <t>]` | Requirement × Configuration coverage grid (variant-aware; see Part 9b) |
+| `syscribe -m model/ feature-check [--json]` | Holistic feature-model validation (requires/excludes, cycles, bindTo, constraints, orphan-feature W024); separate from `validate` |
+| `syscribe -m model/ features [--json]` | The feature model as a tree (groupKind, constraints, params, per-feature config rollup) |
+| `syscribe -m model/ feature <qname>` | One feature's card: constraints, params, configs that select it, elements it gates |
+| `syscribe -m model/ matrix --features` | Feature × Configuration grid (which feature ships in which product) |
+| `syscribe -m model/ list <type> --feature <F>` | Elements gated by feature `F` (via `appliesWhen:`) |
+| `syscribe -m model/ why-active <qname\|id> --config <C>` | Whether an element is active in a product, and why |
+| `syscribe -m model/ feature-check --deep` | SAT-backed analysis: void / dead / core / false-optional features, full-semantics config validity, explanations + diagnoses |
+| `syscribe -m model/ feature-check --count` / `--enumerate` | Count / list the valid configurations the feature model permits |
+| `syscribe -m model/ configure <Configuration>` | Assisted configuration: from a partial selection, report satisfiability + forced/free features |
+| `syscribe -m model/ validate --config <C>` | Project onto a configuration and validate that variant (escaping refs: E226/W019) |
+| `syscribe -m model/ validate --all-configs` | Validate every stored Configuration (CI gate) |
+| `syscribe -m model/ diff --config <A> --config <B>` | Elements active in one variant but not the other |
 
 **Traceability:**
 
 | Command | Purpose |
 |---|---|
-| `syscribe model/ trace <qname\|req-id>` | Full traceability slice for a requirement |
-| `syscribe model/ why <qname>` | What requirements this element satisfies |
-| `syscribe model/ who-verifies <req-id>` | Which test cases cover a requirement |
+| `syscribe -m model/ trace <qname\|req-id>` | Full traceability slice for a requirement |
+| `syscribe -m model/ why <qname>` | What requirements this element satisfies |
+| `syscribe -m model/ who-verifies <req-id>` | Which test cases cover a requirement |
 | `syscribe -m model/ link-types [--json]` | The project's declared link types for `links:` (run **before** authoring any link — see §12.10 in Part 10) |
 | `syscribe -m model/ follow <qname\|id> <link> [--reverse] [--transitive] [--depth N] [--format text\|json\|dot]` | Walk one link type (custom type, its `inverse`, or a built-in link / reverse index such as `satisfiedBy`) |
 
@@ -117,37 +117,37 @@ Use these commands throughout the workflow. Run them in the project root.
 
 | Command | Purpose |
 |---|---|
-| `syscribe model/ audit [--json] [--profile <p>]` | Safety-readiness dashboard: status split, SIL/ASIL distribution, coverage %, orphans, PASS/FAIL verdict (exit 2 on fail) |
-| `syscribe model/ verification-depth [--sil <v>] [--status <s>] [--min-levels N] [--json]` | Per-requirement distinct verification levels + depth flag (none/hil-only/single/ok); `--min-levels` gates |
-| `syscribe model/ metrics [--json]` | Quantitative HW safety metrics SPFM/LFM/PMHF per SafetyGoal vs ASIL/SIL target (needs `diagnosticCoverage`) |
-| `syscribe model/ cyber-risk [--json]` | ISO/SAE 21434 risk per ThreatScenario (severity×feasibility) + treatment + untreated flag |
-| `syscribe model/ co-analysis [--json]` | Safety↔security: which cyber threats can violate each SafetyGoal (via `hazardRef`) |
-| `syscribe model/ safety-case [<SG>] [--json]` | GSN goal→argument→evidence tree (Argument/AssumptionOfUse + implicit goal→req→test) |
-| `syscribe model/ connectivity <element> [--depth N] [--format text\|dot\|json]` | Element-rooted subgraph of elements + connections (model root = whole model) |
-| `syscribe model/ n2 [<qname>] [--depth N] [--format text\|html\|json] [--interfaces-only] [--allocations]` | N² interface matrix: parts on the diagonal, connecting interfaces in the cells |
-| `syscribe model/ impact <qname\|id> [--direction downstream\|upstream\|both] [--depth N] [--format text\|json\|dot] [--kinds <csv>]` | Change impact: every element reachable through the traceability graph, with hop distance + edge kind |
-| `syscribe model/ behavioral-coverage [<qname>] [--depth N] [--format text\|json] [--uncovered-only] [--include-planned]` | How completely active TestCases exercise ActionDef/StateDef behaviors (source/requirement/testFn/allocation paths) |
-| `syscribe model/ sbom [--format cyclonedx\|spdx] [--config <C>] [--output <f>] [--include-tests] [--scope <qname>]` | Software Bill of Materials from implementedBy: links (CycloneDX 1.6 / SPDX 2.3; registry URIs → PURLs) |
-| `syscribe model/ export-reqif [--output <f>] [--scope <qname>] [--config <C>] [--include-tests] [--zip]` | Export Requirements as a ReqIF 1.2 document (DOORS/Jama/Polarion interchange) |
-| `syscribe model/ zones [--coverage] [--json]` / `conduits [--json]` | IEC 62443 security zones (SL gap) and conduits (SL adequacy), with a Zone × SecurityControl coverage table |
-| `syscribe model/ repos [list\|status\|sync] [--json] [--all]` | Multi-repository composition (§14): list/sync peer repos from `[repos]` in `.syscribe.toml` |
-| `syscribe model/ reviews [<qname>] [--open-only] [--json]` / `review <RR-id>` / `reviews --coverage` | List/detail `ReviewRecord`s and their requirement coverage |
-| `syscribe model/ trade-study [<TRD-id>] [--json]` | List/score `TradeStudy` elements (normalised, weighted, ranked) |
-| `syscribe model/ extref <ref> [--json]` | Find elements by external reference (`extRef`) |
-| `syscribe model/ list <type> [--status <s>] [--sil <v>] [--has-wcet] [--json]` | (filters) status/integrity/WCET filters + JSON |
-| `syscribe model/ matrix [--gaps-only] [--status <s>] [--linked-only]` | (flags) drop covered rows; status filter; coverage-% footer; executed-evidence glyphs when results ingested |
+| `syscribe -m model/ audit [--json] [--profile <p>]` | Safety-readiness dashboard: status split, SIL/ASIL distribution, coverage %, orphans, PASS/FAIL verdict (exit 2 on fail) |
+| `syscribe -m model/ verification-depth [--sil <v>] [--status <s>] [--min-levels N] [--json]` | Per-requirement distinct verification levels + depth flag (none/hil-only/single/ok); `--min-levels` gates |
+| `syscribe -m model/ metrics [--json]` | Quantitative HW safety metrics SPFM/LFM/PMHF per SafetyGoal vs ASIL/SIL target (needs `diagnosticCoverage`) |
+| `syscribe -m model/ cyber-risk [--json]` | ISO/SAE 21434 risk per ThreatScenario (severity×feasibility) + treatment + untreated flag |
+| `syscribe -m model/ co-analysis [--json]` | Safety↔security: which cyber threats can violate each SafetyGoal (via `hazardRef`) |
+| `syscribe -m model/ safety-case [<SG>] [--json]` | GSN goal→argument→evidence tree (Argument/AssumptionOfUse + implicit goal→req→test) |
+| `syscribe -m model/ connectivity <element> [--depth N] [--format text\|dot\|json]` | Element-rooted subgraph of elements + connections (model root = whole model) |
+| `syscribe -m model/ n2 [<qname>] [--depth N] [--format text\|html\|json] [--interfaces-only] [--allocations]` | N² interface matrix: parts on the diagonal, connecting interfaces in the cells |
+| `syscribe -m model/ impact <qname\|id> [--direction downstream\|upstream\|both] [--depth N] [--format text\|json\|dot] [--kinds <csv>]` | Change impact: every element reachable through the traceability graph, with hop distance + edge kind |
+| `syscribe -m model/ behavioral-coverage [<qname>] [--depth N] [--format text\|json] [--uncovered-only] [--include-planned]` | How completely active TestCases exercise ActionDef/StateDef behaviors (source/requirement/testFn/allocation paths) |
+| `syscribe -m model/ sbom [--format cyclonedx\|spdx] [--config <C>] [--output <f>] [--include-tests] [--scope <qname>]` | Software Bill of Materials from implementedBy: links (CycloneDX 1.6 / SPDX 2.3; registry URIs → PURLs) |
+| `syscribe -m model/ export-reqif [--output <f>] [--scope <qname>] [--config <C>] [--include-tests] [--zip]` | Export Requirements as a ReqIF 1.2 document (DOORS/Jama/Polarion interchange) |
+| `syscribe -m model/ zones [--coverage] [--json]` / `conduits [--json]` | IEC 62443 security zones (SL gap) and conduits (SL adequacy), with a Zone × SecurityControl coverage table |
+| `syscribe -m model/ repos [list\|status\|sync] [--json] [--all]` | Multi-repository composition (§14): list/sync peer repos from `[repos]` in `.syscribe.toml` |
+| `syscribe -m model/ reviews [<qname>] [--open-only] [--json]` / `review <RR-id>` / `reviews --coverage` | List/detail `ReviewRecord`s and their requirement coverage |
+| `syscribe -m model/ trade-study [<TRD-id>] [--json]` | List/score `TradeStudy` elements (normalised, weighted, ranked) |
+| `syscribe -m model/ extref <ref> [--json]` | Find elements by external reference (`extRef`) |
+| `syscribe -m model/ list <type> [--status <s>] [--sil <v>] [--has-wcet] [--json]` | (filters) status/integrity/WCET filters + JSON |
+| `syscribe -m model/ matrix [--gaps-only] [--status <s>] [--linked-only]` | (flags) drop covered rows; status filter; coverage-% footer; executed-evidence glyphs when results ingested |
 
 **Authoring helpers:**
 
 | Command | Purpose |
 |---|---|
-| `syscribe model/ validate` | Validation findings only — errors and warnings |
-| `syscribe model/ validate --json` | Same, machine-readable JSON |
-| `syscribe model/ validate --file <path>` | Findings for a single file only |
-| `syscribe model/ template <type>` | Print a ready-to-fill frontmatter skeleton |
-| `syscribe model/ next-id <prefix>` | Print the next available stable ID (e.g. `REQ-AID-FC-002`) |
-| `syscribe model/ check-ref <qname\|id>` | Verify a cross-reference resolves before writing it |
-| `syscribe model/ path-for <qname\|id>` | Print the file path for an element |
+| `syscribe -m model/ validate` | Validation findings only — errors and warnings |
+| `syscribe -m model/ validate --json` | Same, machine-readable JSON |
+| `syscribe -m model/ validate --file <path>` | Findings for a single file only |
+| `syscribe -m model/ template <type>` | Print a ready-to-fill frontmatter skeleton |
+| `syscribe -m model/ next-id <prefix>` | Print the next available stable ID (e.g. `REQ-AID-FC-002`) |
+| `syscribe -m model/ check-ref <qname\|id>` | Verify a cross-reference resolves before writing it |
+| `syscribe -m model/ path-for <qname\|id>` | Print the file path for an element |
 
 **Before writing a new element:**
 1. `template <type>` — get the frontmatter skeleton
@@ -163,7 +163,7 @@ Use these commands throughout the workflow. Run them in the project root.
 ### The validator command
 
 ```bash
-syscribe model/ validate
+syscribe -m model/ validate
 ```
 
 - **Errors** (`E___`) block a correct model. Fix every error before continuing.
@@ -174,13 +174,13 @@ The target is **0 errors**. Two W404 warnings for `ScalarValues::*` types are ex
 For single-file feedback during iterative authoring:
 
 ```bash
-syscribe model/ validate --file model/Requirements/MyNewReq.md
+syscribe -m model/ validate --file model/Requirements/MyNewReq.md
 ```
 
 For structured output (useful when parsing findings programmatically):
 
 ```bash
-syscribe model/ validate --json
+syscribe -m model/ validate --json
 ```
 
 ### Validation batches
@@ -283,7 +283,7 @@ No other changes.
 After each batch of files, show the validator command and its output before continuing:
 
 ```
-Running: syscribe model/ validate
+Running: syscribe -m model/ validate
 
 [paste output here]
 
@@ -392,7 +392,7 @@ The safety/security **analysis fields and checks** (HARA S/E/C, TARA `attackFeas
 For a ready-to-fill frontmatter skeleton for any type, run:
 
 ```bash
-syscribe model/ template <type>
+syscribe -m model/ template <type>
 ```
 
 ---
@@ -432,7 +432,7 @@ custom_fields:
 
 - Keys are freeform; values must be a scalar or a list of scalars (a nested map warns `W041`).
 - Serialised in sorted order; read-only in the UI and `show`.
-- Query with `--where`: `syscribe model/ ls --where custom.supplier=Bosch` (also
+- Query with `--where`: `syscribe -m model/ ls --where custom.supplier=Bosch` (also
   `=~` regex/substring, `~=` list-membership, and bare `custom.key` presence).
 
 ### `domain:` field rules
@@ -483,9 +483,9 @@ REQ-SYS-000  (parent — stakeholder goal, no derivedFrom, no reqDomain needed)
 
 **Parent requirements** must **never** appear in any element's `satisfies:` list (error E312). Only leaf requirements may be satisfied.
 
-**Getting the next ID:** `syscribe model/ next-id REQ-AID-FC` → prints e.g. `REQ-AID-FC-002`
+**Getting the next ID:** `syscribe -m model/ next-id REQ-AID-FC` → prints e.g. `REQ-AID-FC-002`
 
-**Template:** `syscribe model/ template Requirement`
+**Template:** `syscribe -m model/ template Requirement`
 
 ---
 
@@ -503,9 +503,9 @@ REQ-SYS-000  (parent — stakeholder goal, no derivedFrom, no reqDomain needed)
 
 Body structure: `## Context`, `## Decision`, `## Consequences` (conventional — not validated beyond being non-empty).
 
-**Getting the next ID:** `syscribe model/ next-id ADR-AID-SAFE`
+**Getting the next ID:** `syscribe -m model/ next-id ADR-AID-SAFE`
 
-**Template:** `syscribe model/ template ADR`
+**Template:** `syscribe -m model/ template ADR`
 
 ---
 
@@ -527,9 +527,9 @@ Body structure: `## Context`, `## Decision`, `## Consequences` (conventional —
 - First ` ```gherkin ` block must begin with `Feature:` (error E015).
 - Every `Scenario Outline:` must have an `Examples:` table (error E014).
 
-**Getting the next ID:** `syscribe model/ next-id TC-AID-FC`
+**Getting the next ID:** `syscribe -m model/ next-id TC-AID-FC`
 
-**Template:** `syscribe model/ template TestCase`
+**Template:** `syscribe -m model/ template TestCase`
 
 ---
 
@@ -558,13 +558,13 @@ is *for*.
 
 ### Tooling
 
-- `syscribe model/ testplan` — list plans (scope, configs, coverage %, verdict).
-- `syscribe model/ testplan TP-X [--json]` — per-plan detail.
+- `syscribe -m model/ testplan` — list plans (scope, configs, coverage %, verdict).
+- `syscribe -m model/ testplan TP-X [--json]` — per-plan detail.
 - `--plan TP-X` lens on `matrix`, `verification-depth`, `audit` (composes with `--config`).
 
-**Getting the next ID:** `syscribe model/ next-id TP-DELIVERY-INTEGRATION`
+**Getting the next ID:** `syscribe -m model/ next-id TP-DELIVERY-INTEGRATION`
 
-**Template:** `syscribe model/ template TestPlan`
+**Template:** `syscribe -m model/ template TestPlan`
 
 ---
 
@@ -640,7 +640,7 @@ Allocations link a `software` or `system` element to a `hardware` element. Use t
 
 Required: `allocatedFrom` and `allocatedTo` must both resolve to known elements (errors E502, E503).
 
-**Template:** `syscribe model/ template Allocation`
+**Template:** `syscribe -m model/ template Allocation`
 
 ---
 
@@ -651,7 +651,7 @@ A **leaf PartDef** is a `PartDef` or `Part` that has no sub-part children in the
 ### Step 1 — Find unassigned leaf requirements
 
 ```bash
-syscribe model/ validate 2>&1 | grep W300
+syscribe -m model/ validate 2>&1 | grep W300
 ```
 
 W300 fires for every leaf `Requirement` at `status: approved` or `implemented` that has no element with `satisfies:` pointing to it. This is your work list.
@@ -659,14 +659,14 @@ W300 fires for every leaf `Requirement` at `status: approved` or `implemented` t
 ### Step 2 — Find under-specified PartDefs
 
 ```bash
-syscribe model/ list PartDef
+syscribe -m model/ list PartDef
 ```
 
 For each PartDef, check what requirements it already covers:
 
 ```bash
-syscribe model/ why <qname>          # requirements this element satisfies
-syscribe model/ links <qname>        # all outbound and inbound relationships
+syscribe -m model/ why <qname>          # requirements this element satisfies
+syscribe -m model/ links <qname>        # all outbound and inbound relationships
 ```
 
 ### Step 3 — Assign requirements
@@ -702,7 +702,7 @@ allocatedTo: Hardware::TargetBoard
 ### Step 6 — Final validation
 
 ```bash
-syscribe model/ validate
+syscribe -m model/ validate
 ```
 
 Target state at end of closure pass:
@@ -735,7 +735,7 @@ Operations on a PortDef:
 - `direction:` values: `in` · `out` · `inout`.
 - `typedBy:` and `returnType:` trigger W404 if they don't resolve — `ScalarValues::*` warnings are acceptable.
 
-**Template:** `syscribe model/ template PortDef`
+**Template:** `syscribe -m model/ template PortDef`
 
 ---
 
@@ -932,7 +932,7 @@ Every operand must resolve to a `FeatureDef` (else `E209`).
 
 **Test coverage is variant-aware — there is no `runsIn` field.** A `TestCase` *runs in* a `Configuration` iff its `appliesWhen:` is satisfied by that configuration's `features:` selections; a `TestCase` with no `appliesWhen:` runs in every configuration. To check coverage per variant:
 
-- `syscribe model/ matrix` — Requirement × Configuration grid (cells: covered / gap / N-A). Use `--json` for structured output, `--tag` to filter rows.
+- `syscribe -m model/ matrix` — Requirement × Configuration grid (cells: covered / gap / N-A). Use `--json` for structured output, `--tag` to filter rows.
 - Validation emits **W015** when a requirement is active in a `Configuration` but no non-draft `TestCase` running there verifies it. Gate it with `validate --deny W015`.
 
 If two configurations would have identical `features:` (e.g. emulator vs physical rig), model the distinguishing axis as its own feature (e.g. an `ExecEnv` alternative group) rather than reaching for a separate field.
@@ -1010,7 +1010,7 @@ The `MG###` checks fire only under that profile. The reports (`magicgrid`, `trad
 
 **Base-format `refines:`.** A `UseCaseDef`/`UseCase` (or `ActionDef`/`Action`/`StateDef`/`State`) declares `refines:` pointing at the `Requirement`/`RequirementDef` it elaborates — an unresolved/wrong-type operand is `E316` (always checked, no profile needed); a non-`draft` `UseCaseDef` with no `refines:` warns `W307`. The reverse index `refinedBy` is computed on each requirement.
 
-**Reports** (read-only): `syscribe model/ magicgrid` (B/W/S × 1-4 cell grid, empty-cell hints, plus a `System of interest:` line when one `mg_soi` is set); `syscribe model/ trade-study` (MoE-weighted scoring of every `Configuration`, WINNER/FAIL rollup); `syscribe model/ matrix --allocations` (allocation source × target matrix with a logical→physical partition when `mg_layer` is present).
+**Reports** (read-only): `syscribe -m model/ magicgrid` (B/W/S × 1-4 cell grid, empty-cell hints, plus a `System of interest:` line when one `mg_soi` is set); `syscribe -m model/ trade-study` (MoE-weighted scoring of every `Configuration`, WINNER/FAIL rollup); `syscribe -m model/ matrix --allocations` (allocation source × target matrix with a logical→physical partition when `mg_layer` is present).
 
 ---
 
@@ -1105,7 +1105,7 @@ links:
 - W806 — `SafetyGoal` has no `hazardousEvents:` (not grounded in HARA)
 - E841 — `Requirement` missing integrity level when `SafetyGoal` has one
 
-**Templates:** `syscribe model/ template HazardousEvent`, `template SafetyGoal`
+**Templates:** `syscribe -m model/ template HazardousEvent`, `template SafetyGoal`
 
 ### TARA (ISO/SAE 21434) — TARASheet (recommended)
 
@@ -1135,7 +1135,7 @@ controlTable:
     implementsGoals: [CSG-SYS-001]
 ```
 
-**Template:** `syscribe model/ template TARASheet`
+**Template:** `syscribe -m model/ template TARASheet`
 
 After the TARASheet is in place, create `Requirement` elements with `derivedFromCybersecurityGoal: CSG-SYS-001` and set `verificationMethod:`.
 
@@ -1161,17 +1161,17 @@ Safety/FTA/
 ```
 
 ```bash
-syscribe model/ template FaultTree      > Safety/FTA/FT-SYS-001.md
+syscribe -m model/ template FaultTree      > Safety/FTA/FT-SYS-001.md
 mkdir -p Safety/FTA/FT-SYS-001
-syscribe model/ template FaultTreeGate  > Safety/FTA/FT-SYS-001/FTG-SYS-001.md
-syscribe model/ template FaultTreeEvent > Safety/FTA/FT-SYS-001/FTE-SYS-001.md
+syscribe -m model/ template FaultTreeGate  > Safety/FTA/FT-SYS-001/FTG-SYS-001.md
+syscribe -m model/ template FaultTreeEvent > Safety/FTA/FT-SYS-001/FTE-SYS-001.md
 ```
 
 ### FMEA
 
 Use a single `FMEASheet` file with an `entries:` list. Each entry becomes a virtual `FMEAEntry` element at parse time.
 
-**Template:** `syscribe model/ template FMEASheet`
+**Template:** `syscribe -m model/ template FMEASheet`
 
 ---
 

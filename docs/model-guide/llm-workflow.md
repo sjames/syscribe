@@ -95,7 +95,7 @@ Elements affected by this change:
 Get the existing IDs from the validator output:
 
 ```bash
-syscribe model/ 2>/dev/null | grep -E 'REQ-|TC-|ADR-'
+syscribe -m model/ 2>/dev/null | grep -E 'REQ-|TC-|ADR-'
 ```
 
 ---
@@ -133,7 +133,7 @@ status: accepted
 ---
 ...
 
-Running: syscribe model/
+Running: syscribe -m model/
 
 ## 2. Validation Findings
 > All validation rules pass — 0 errors, 0 warnings.
