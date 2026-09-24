@@ -7,6 +7,13 @@
 //! `verified` TestCase whose `testFunctions[].function` last failed or was
 //! absent from the run — so "verified" can mean "covered by a test that
 //! actually passed".
+//!
+//! The sidecar holds two independent sections — `by_leaf` (function-level
+//! verdicts from `cargo-json`/`junit`) and `by_scenario` (scenario verdicts from
+//! `session-log`, issue #113). Each ingest **merges** into the existing sidecar
+//! and replaces only its own section (REQ-TRS-INGEST-001: session-log verdicts
+//! are kept "alongside the existing per-function verdicts"); see
+//! [`ResultsData::merged_over`].
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -24,17 +31,44 @@ pub enum Verdict {
     Ignored,
 }
 
+/// Provenance of one sidecar section: which ingest last replaced it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SectionMeta {
+    /// Source format of that ingest (`cargo-json` | `junit` | `session-log`).
+    pub format: String,
+    /// Original report path.
+    pub source: String,
+    /// Unix epoch seconds at that ingest.
+    pub ingested_at_unix: u64,
+    /// Number of records that ingest contributed.
+    pub count: usize,
+}
+
+/// Which sidecar section an ingest format owns.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Section {
+    /// `by_leaf` — function-level verdicts (`cargo-json`, `junit`).
+    Leaf,
+    /// `by_scenario` — scenario verdicts (`session-log`).
+    Scenario,
+}
+
 /// Reduced, persisted view of a test run.
+///
+/// After a merge the top-level `format`/`source`/`ingested_at_unix`/`count`
+/// describe the **latest** ingest (unchanged meaning for a single-format
+/// sidecar); `leaf_meta`/`scenario_meta` record which ingest each section came
+/// from. Both are optional, so a sidecar written before they existed still reads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResultsData {
     pub schema_version: String,
-    /// Source format (`cargo-json` | `junit`).
+    /// Source format of the latest ingest (`cargo-json` | `junit` | `session-log`).
     pub format: String,
-    /// Original report path, for provenance.
+    /// Original report path of the latest ingest, for provenance.
     pub source: String,
-    /// Unix epoch seconds at ingest time.
+    /// Unix epoch seconds of the latest ingest.
     pub ingested_at_unix: u64,
-    /// Number of test records ingested.
+    /// Number of test records the latest ingest contributed.
     pub count: usize,
     /// Verdict per test, keyed by the test's leaf name (see [`function_leaf`]).
     /// On a leaf collision, `Fail` wins over `Pass`/`Ignored`.
@@ -47,6 +81,13 @@ pub struct ResultsData {
     /// still deserializes (empty map).
     #[serde(default)]
     pub by_scenario: HashMap<String, Verdict>,
+    /// Provenance of `by_leaf` (the last function-level ingest); absent in a
+    /// sidecar written before merging existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub leaf_meta: Option<SectionMeta>,
+    /// Provenance of `by_scenario` (the last session-log ingest).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scenario_meta: Option<SectionMeta>,
 }
 
 /// One `session-log` input record (issue #113): a single Gherkin scenario
@@ -88,6 +129,60 @@ impl ResultsData {
         let path = Self::sidecar_path(model_root);
         let text = std::fs::read_to_string(path).ok()?;
         serde_json::from_str(&text).ok()
+    }
+
+    /// The section this ingest's format owns: `session-log` → `by_scenario`,
+    /// every other (function-level) format → `by_leaf`.
+    pub fn section(&self) -> Section {
+        if self.format == "session-log" { Section::Scenario } else { Section::Leaf }
+    }
+
+    /// This ingest's own provenance record.
+    fn meta(&self) -> SectionMeta {
+        SectionMeta {
+            format: self.format.clone(),
+            source: self.source.clone(),
+            ingested_at_unix: self.ingested_at_unix,
+            count: self.count,
+        }
+    }
+
+    /// Merge this freshly parsed ingest over an `existing` sidecar
+    /// (REQ-TRS-INGEST-001): this ingest's own section **replaces** the existing
+    /// one (re-ingesting the same kind never accumulates), the other section is
+    /// kept as is, and the top-level fields describe this (latest) ingest.
+    /// `existing = None` (no or unreadable sidecar) is treated as empty.
+    pub fn merged_over(&self, existing: Option<&ResultsData>) -> ResultsData {
+        let mut out = self.clone();
+        let own = Some(self.meta());
+        match self.section() {
+            Section::Leaf => {
+                out.leaf_meta = own;
+                if let Some(old) = existing {
+                    out.by_scenario = old.by_scenario.clone();
+                    out.scenario_meta = old.scenario_meta.clone().or_else(|| legacy_meta(old, Section::Scenario));
+                }
+            }
+            Section::Scenario => {
+                out.scenario_meta = own;
+                if let Some(old) = existing {
+                    out.by_leaf = old.by_leaf.clone();
+                    out.leaf_meta = old.leaf_meta.clone().or_else(|| legacy_meta(old, Section::Leaf));
+                }
+            }
+        }
+        out
+    }
+
+    /// Merge this ingest into the sidecar under `model_root` (see
+    /// [`Self::merged_over`]) and write it; returns the path and the merged data.
+    /// A missing or unreadable existing sidecar is treated as empty. Callers parse
+    /// the new input first, so a malformed input never reaches this point and
+    /// leaves the existing sidecar untouched.
+    pub fn merge_into_sidecar(&self, model_root: &Path) -> std::io::Result<(PathBuf, ResultsData)> {
+        let merged = self.merged_over(Self::load_sidecar(model_root).as_ref());
+        let path = merged.write_sidecar(model_root)?;
+        Ok((path, merged))
     }
 
     /// Persist this data to the sidecar, creating `.syscribe/` as needed.
@@ -323,8 +418,21 @@ impl ResultsData {
             count,
             by_leaf,
             by_scenario: HashMap::new(),
+            leaf_meta: None,
+            scenario_meta: None,
         }
     }
+}
+
+/// Provenance for `section` of a sidecar written before per-section metadata
+/// existed: its top-level fields, when that single-format ingest owned the
+/// section and the section is non-empty.
+fn legacy_meta(old: &ResultsData, section: Section) -> Option<SectionMeta> {
+    let non_empty = match section {
+        Section::Leaf => !old.by_leaf.is_empty(),
+        Section::Scenario => !old.by_scenario.is_empty(),
+    };
+    (non_empty && old.section() == section).then(|| old.meta())
 }
 
 #[cfg(test)]
@@ -408,5 +516,100 @@ Running unittests src/lib.rs
     fn session_log_rejects_malformed_json() {
         let err = ResultsData::parse_session_log("not json", "session.json").unwrap_err();
         assert!(err.contains("session-log"), "{err}");
+    }
+
+    // ── merge semantics (REQ-TRS-INGEST-001) ────────────────────────────────
+
+    const CARGO_PASS: &str = r#"{"type":"test","event":"ok","name":"crate::tests::it_works"}"#;
+    const CARGO_FAIL: &str = r#"{"type":"test","event":"failed","name":"crate::tests::other_test"}"#;
+    const SESSION_FAIL: &str = r#"[{"testCase":"TC-SL-002","scenario":"A scenario","steps":["x"],"result":"fail"}]"#;
+    const SESSION_PASS: &str = r#"[{"testCase":"TC-SL-009","scenario":"Other","steps":["y"],"result":"pass"}]"#;
+
+    fn tmp_root(tag: &str) -> PathBuf {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static N: AtomicU64 = AtomicU64::new(0);
+        let p = std::env::temp_dir().join(format!(
+            "syscribe-results-merge-{tag}-{}-{}",
+            std::process::id(),
+            N.fetch_add(1, Ordering::Relaxed)
+        ));
+        let _ = std::fs::remove_dir_all(&p);
+        std::fs::create_dir_all(&p).unwrap();
+        p
+    }
+
+    #[test]
+    fn cargo_json_then_session_log_keeps_both_sections() {
+        let root = tmp_root("cs");
+        ResultsData::parse_cargo_json(CARGO_PASS, "cargo.json").merge_into_sidecar(&root).unwrap();
+        ResultsData::parse_session_log(SESSION_FAIL, "s.json").unwrap().merge_into_sidecar(&root).unwrap();
+        let d = ResultsData::load_sidecar(&root).unwrap();
+        assert_eq!(d.verdict_for("crate::tests::it_works"), FnVerdict::Pass, "by_leaf kept");
+        assert_eq!(d.scenario_verdict("TC-SL-002", "A scenario"), FnVerdict::Fail);
+        assert_eq!(d.format, "session-log", "top level describes the latest ingest");
+        assert_eq!(d.leaf_meta.as_ref().map(|m| m.format.as_str()), Some("cargo-json"));
+        assert_eq!(d.scenario_meta.as_ref().map(|m| m.format.as_str()), Some("session-log"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn session_log_then_cargo_json_keeps_both_sections() {
+        let root = tmp_root("sc");
+        ResultsData::parse_session_log(SESSION_FAIL, "s.json").unwrap().merge_into_sidecar(&root).unwrap();
+        ResultsData::parse_cargo_json(CARGO_PASS, "cargo.json").merge_into_sidecar(&root).unwrap();
+        let d = ResultsData::load_sidecar(&root).unwrap();
+        assert_eq!(d.scenario_verdict("TC-SL-002", "A scenario"), FnVerdict::Fail, "by_scenario kept");
+        assert_eq!(d.verdict_for("it_works"), FnVerdict::Pass);
+        assert_eq!(d.format, "cargo-json");
+        assert_eq!(d.scenario_meta.as_ref().map(|m| m.source.as_str()), Some("s.json"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn re_ingesting_the_same_kind_replaces_its_section() {
+        let root = tmp_root("re");
+        ResultsData::parse_cargo_json(CARGO_PASS, "a.json").merge_into_sidecar(&root).unwrap();
+        ResultsData::parse_session_log(SESSION_FAIL, "s1.json").unwrap().merge_into_sidecar(&root).unwrap();
+        // A second function-level run replaces by_leaf (no accumulation) …
+        ResultsData::parse_junit(
+            r#"<testsuite><testcase name="other_test"><failure/></testcase></testsuite>"#,
+            "b.xml",
+        )
+        .merge_into_sidecar(&root)
+        .unwrap();
+        // … and a second session log replaces by_scenario.
+        ResultsData::parse_session_log(SESSION_PASS, "s2.json").unwrap().merge_into_sidecar(&root).unwrap();
+        let d = ResultsData::load_sidecar(&root).unwrap();
+        assert_eq!(d.verdict_for("it_works"), FnVerdict::Missing, "earlier cargo-json leaf replaced");
+        assert_eq!(d.verdict_for("other_test"), FnVerdict::Fail);
+        assert_eq!(d.scenario_verdict("TC-SL-002", "A scenario"), FnVerdict::Missing, "earlier session replaced");
+        assert_eq!(d.scenario_verdict("TC-SL-009", "Other"), FnVerdict::Pass);
+        assert_eq!(d.leaf_meta.as_ref().map(|m| m.format.as_str()), Some("junit"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_missing_or_unreadable_sidecar_is_treated_as_empty() {
+        let root = tmp_root("bad");
+        std::fs::create_dir_all(root.join(".syscribe")).unwrap();
+        std::fs::write(ResultsData::sidecar_path(&root), "not json").unwrap();
+        let (_, merged) = ResultsData::parse_cargo_json(CARGO_FAIL, "c.json").merge_into_sidecar(&root).unwrap();
+        assert_eq!(merged.verdict_for("other_test"), FnVerdict::Fail);
+        assert!(merged.by_scenario.is_empty() && merged.scenario_meta.is_none());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_legacy_sidecar_without_section_metadata_still_merges() {
+        // Written before `leaf_meta`/`scenario_meta` existed (schema 1.0 as-is).
+        let legacy: ResultsData = serde_json::from_str(
+            r#"{"schema_version":"1.0","format":"cargo-json","source":"old.json",
+                "ingested_at_unix":1,"count":1,"by_leaf":{"it_works":"pass"}}"#,
+        )
+        .unwrap();
+        let merged = ResultsData::parse_session_log(SESSION_FAIL, "s.json").unwrap().merged_over(Some(&legacy));
+        assert_eq!(merged.verdict_for("it_works"), FnVerdict::Pass);
+        assert_eq!(merged.leaf_meta.as_ref().map(|m| m.source.as_str()), Some("old.json"), "provenance recovered");
+        assert_eq!(merged.schema_version, "1.0");
     }
 }

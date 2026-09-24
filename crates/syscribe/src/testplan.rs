@@ -240,9 +240,20 @@ fn resolves_to_in_scope(
 /// satisfying architecture elements ∪ the plan's Configurations. Exits 1 on an
 /// unknown / non-TestPlan id. Dormant-safe (works with no feature model).
 pub fn plan_lens(elements: &[RawElement], tp: &str) -> Vec<RawElement> {
-    let resolver = Resolver::new(elements);
-    match resolve_plan(elements, &resolver, tp) {
-        Some(plan) => plan_scoped_elements(plan, elements, &resolver),
+    // REQ-TRS-LINKTYPE-006 — scope is decided on the reporting view (a
+    // `coverage = true` extending satisfies/verifies/derivedFrom link counts as
+    // its base), but the lens returns the *authored* elements: callers validate
+    // the lens, and the validator applies extensions itself.
+    let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
+    let resolver = Resolver::new(&cov);
+    match resolve_plan(&cov, &resolver, tp) {
+        Some(plan) => {
+            let keep: BTreeSet<String> = plan_scoped_elements(plan, &cov, &resolver)
+                .into_iter()
+                .map(|e| e.qualified_name)
+                .collect();
+            elements.iter().filter(|e| keep.contains(&e.qualified_name)).cloned().collect()
+        }
         None => {
             eprintln!("Error: unknown TestPlan '{tp}'");
             std::process::exit(1);
@@ -331,6 +342,9 @@ fn plan_row(
 
 /// `syscribe -m <root> testplan [--json]` — list every TestPlan.
 pub fn cmd_testplan_list(elements: &[RawElement], json: bool, results: Option<&ResultsData>) {
+    // REQ-TRS-LINKTYPE-006 — report over the reporting view (read-only).
+    let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
+    let elements: &[RawElement] = &cov;
     let resolver = Resolver::new(elements);
     let mut plans: Vec<&RawElement> =
         elements.iter().filter(|e| Resolver::is_test_plan(e)).collect();
@@ -393,6 +407,9 @@ pub fn cmd_testplan_detail(
     json: bool,
     results: Option<&ResultsData>,
 ) -> i32 {
+    // REQ-TRS-LINKTYPE-006 — report over the reporting view (read-only).
+    let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
+    let elements: &[RawElement] = &cov;
     let resolver = Resolver::new(elements);
     let Some(plan) = resolve_plan(elements, &resolver, tp) else {
         eprintln!("Error: unknown TestPlan '{tp}'");

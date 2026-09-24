@@ -227,6 +227,42 @@ fn page_shell(
 
 // ── element pages ─────────────────────────────────────────────────────────────
 
+/// The user-defined links entering `target`, grouped by label (the declared
+/// `inverse`, else `<type> (inbound)`), each a sorted list of source labels (id,
+/// else qname). Ordered by label.
+fn inbound_custom_links(
+    target: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+) -> Vec<(String, Vec<String>)> {
+    use syscribe_model::link_types::{active, label, parse_links, LinksField};
+    let reg = active();
+    let mut by_label: std::collections::BTreeMap<String, Vec<String>> = std::collections::BTreeMap::new();
+    for src in elements {
+        let LinksField::Entries(entries) = parse_links(&src.frontmatter) else { continue };
+        for entry in entries.into_iter().filter(|e| e.key_ok) {
+            let hits = entry.targets.unwrap_or_default().iter().any(|t| {
+                resolver.resolve_ref(elements, t).is_some_and(|x| x.qualified_name == target.qualified_name)
+            });
+            if hits {
+                let l = reg
+                    .get(&entry.key)
+                    .map(|d| d.inbound_label())
+                    .unwrap_or_else(|| format!("{} (inbound)", entry.key));
+                by_label.entry(l).or_default().push(label(src));
+            }
+        }
+    }
+    by_label
+        .into_iter()
+        .map(|(l, mut v)| {
+            v.sort();
+            v.dedup();
+            (l, v)
+        })
+        .collect()
+}
+
 fn element_page(
     elem: &RawElement,
     elements: &[RawElement],
@@ -271,8 +307,9 @@ fn element_page(
     if let serde_json::Value::Object(map) = &fm_json {
         let mut rows = String::new();
         for (key, val) in map {
-            // Identity already shown in the header / meta line.
-            if matches!(key.as_str(), "type" | "name" | "id" | "status") {
+            // Identity already shown in the header / meta line; `links` is
+            // rendered per link type below.
+            if matches!(key.as_str(), "type" | "name" | "id" | "status" | "links") {
                 continue;
             }
             let cell = if REF_KEYS.contains(&key.as_str()) {
@@ -288,6 +325,23 @@ fn element_page(
                 esc(key),
                 cell
             ));
+        }
+        // User-defined links (REQ-TRS-LINKTYPE-009): one row per link type,
+        // `links.<type>`, its targets rendered as linked refs like `satisfies`.
+        if let syscribe_model::link_types::LinksField::Entries(entries) =
+            syscribe_model::link_types::parse_links(fm)
+        {
+            for entry in entries.into_iter().filter(|e| e.key_ok) {
+                let targets = entry.targets.unwrap_or_default();
+                if targets.is_empty() {
+                    continue;
+                }
+                rows.push_str(&format!(
+                    "<tr><td>links.{}</td><td>{}</td></tr>\n",
+                    esc(&entry.key),
+                    render_refs(&targets, elements, resolver, rel_root)
+                ));
+            }
         }
         if !rows.is_empty() {
             body.push_str("<h2>Frontmatter</h2>\n<table class=\"fm-table\">\n");
@@ -313,6 +367,11 @@ fn element_page(
     add_computed("verifiedBy", result.verified_by.get(key));
     add_computed("derivedChildren", result.derived_children.get(key));
     add_computed("allocatedFrom", result.allocated_from.get(key));
+    // Inbound user-defined links (REQ-TRS-LINKTYPE-009), under the type's inverse
+    // or `<type> (inbound)` — as the `links` command lists them.
+    for (label, sources) in inbound_custom_links(elem, elements, resolver) {
+        add_computed(&esc(&label), Some(&sources));
+    }
     if !computed.is_empty() {
         body.push_str("<h2>Computed references</h2>\n<table class=\"fm-table\">\n");
         body.push_str(&computed);
@@ -324,6 +383,33 @@ fn element_page(
         body.push_str("<div class=\"doc\">\n");
         body.push_str(&markdown_to_html(&elem.doc));
         body.push_str("</div>\n");
+    }
+
+    // Members (REQ-TRS-PKG-001, GH #120) — the element's direct children, generated
+    // from the directory tree (never from `_index.md` prose), each linking to its
+    // element page. Always present for a package (explicit empty state); for any
+    // other type only when it owns children — the same rule as `show`.
+    let members = syscribe_model::members::direct_members(elements, &elem.qualified_name);
+    if syscribe_model::members::is_package(elem) || !members.is_empty() {
+        body.push_str(&format!("<section id=\"members\">\n<h2>Members ({})</h2>\n", members.len()));
+        if members.is_empty() {
+            body.push_str("<p class=\"empty\">No members.</p>\n");
+        } else {
+            body.push_str("<table class=\"fm-table\">\n<tr><th>Element</th><th>Type</th><th>Name</th><th>Status</th></tr>\n");
+            for m in &members {
+                body.push_str(&format!(
+                    "<tr><td><a href=\"{}elements/{}.html\">{}</a></td><td>{}</td><td>{}</td><td>{}</td></tr>\n",
+                    rel_root,
+                    sanitize(&m.qualified_name),
+                    esc(syscribe_model::members::member_label(m)),
+                    esc(&type_str(&m.frontmatter).unwrap_or_else(|| "—".to_string())),
+                    esc(m.frontmatter.name.as_deref().unwrap_or("—")),
+                    esc(m.frontmatter.status.as_deref().unwrap_or("—")),
+                ));
+            }
+            body.push_str("</table>\n");
+        }
+        body.push_str("</section>\n");
     }
 
     // Diagrams: Mermaid is already in the rendered doc; otherwise inline the SVG.

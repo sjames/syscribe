@@ -25,9 +25,11 @@ impl McpStore {
     /// Walk `model_root`, build the graph + resolver, and load the validation config.
     pub fn load(model_root: &Path) -> anyhow::Result<Self> {
         let elements = walk_model(model_root)?;
+        // Load the config first: it installs the model's `[linkTypes]` vocabulary,
+        // which `build_graph` reads for user-defined edges (REQ-TRS-LINKTYPE-009).
+        let mut config = ValidateConfig::with_model_root(model_root);
         let (graph, node_idx) = build_graph(&elements);
         let resolver = Resolver::new(&elements);
-        let mut config = ValidateConfig::with_model_root(model_root);
         // Load any ingested test verdicts so coverage/evidence tools reflect them
         // (and pick up a sidecar written by ingest_results after a store rebuild).
         config.results = syscribe_model::results::ResultsData::load_sidecar(model_root);

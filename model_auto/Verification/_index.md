@@ -7,14 +7,17 @@ Test cases verifying Engine ECU requirements, organised by domain. All test case
 `testLevel:` (L1–L5), a `status:` (active/retired), and `verifies:` links to the
 requirements they cover.
 
-## Test level distribution
+## Test levels
 
-| Level | Description | Test cases |
-|---|---|---|
-| L2 | Analysis / review | TC-ENG-SEC-001 |
-| L3 | Integration (software-in-the-loop) | TC-ENG-PERF-001–003, TC-ENG-SEC-002–004, TC-ENG-SYS-001 |
-| L4 | System integration | TC-ENG-SAFE-004 |
-| L5 | Hardware-in-the-loop (HIL) | TC-ENG-SAFE-001–003, TC-ENG-SAFE-005–006 |
+| Level | Description |
+|---|---|
+| L2 | Analysis / review |
+| L3 | Integration (software-in-the-loop) |
+| L4 | System integration |
+| L5 | Hardware-in-the-loop (HIL) |
+
+The test cases are listed by `syscribe show Verification` (generated from this directory); each
+carries its own `testLevel:`, and `syscribe verification-depth` shows the per-requirement mix.
 
 ## HIL test environment
 

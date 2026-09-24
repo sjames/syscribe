@@ -1,0 +1,18 @@
+# Deliberately broken: demonstrates E630 (self-correcting message), E634 and the
+# fact that a built-in satisfies: is never relaxed (E313), plus W630.
+
+[linkTypes.mitigates]
+description = "A design control mitigates a safety requirement"
+inverse     = "mitigatedBy"
+sourceTypes = ["PartDef"]
+targetTypes = ["Requirement"]
+
+[linkTypes.partiallySatisfies]
+extends = "satisfies"
+relax   = ["E313"]
+coverage = false
+
+# W630: E104 is not relaxable for a satisfies variant, so the whole entry is ignored.
+[linkTypes.looselySatisfies]
+extends = "satisfies"
+relax   = ["E104"]

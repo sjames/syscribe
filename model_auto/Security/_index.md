@@ -7,13 +7,8 @@ This package contains cybersecurity analysis artefacts for the Engine ECU, perfo
 ISO/SAE 21434:2021. The analysis covers the CAN bus interface and the OBD-II diagnostic
 port as the primary attack surfaces identified during the cybersecurity scope definition.
 
-## Contents
-
-| Element | Type | Description |
-|---|---|---|
-| `TARA-ENG-001` | TARASheet | Full TARA: 4 damage scenarios, 4 threat scenarios, 4 goals, 4 controls |
-| `VR-ENG-001` | VulnerabilityReport | CAN replay attack during SecOC startup window — **closed** |
-| `VR-ENG-002` | VulnerabilityReport | Firmware rollback via OBD-II — **open** (W803) |
+The TARA sheet and vulnerability reports are listed by `syscribe show Security` (generated from
+this directory).
 
 ## Attack surfaces in scope
 

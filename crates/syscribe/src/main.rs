@@ -20,6 +20,7 @@ mod ftsearch;
 mod help;
 mod ingest;
 mod lint_docs;
+mod linktypes;
 mod lsp;
 mod matrix;
 mod mcp;
@@ -125,13 +126,15 @@ fn discover_model_root() -> Option<String> {
 
 /// Resolve the `--config` lens for a read-only analysis command (GH #35): returns
 /// the element set projected onto the configuration (only elements active per
-/// `appliesWhen`), or the full set when `--config` is absent or there is no
-/// feature model. Exits 1 on an unresolvable argument.
+/// `appliesWhen`), or the full set when `--config` is absent or names a stored
+/// `Configuration` in a model with no feature model. Exits 1 on an unresolvable
+/// argument, including one that names no stored `Configuration` in a model with
+/// no feature model (REQ-TRS-PROJ-001).
 fn projected_elements(elems: &[RawElement], config: Option<&str>) -> Vec<RawElement> {
-    use syscribe_model::projection::{project, resolve_selection, SelectionOutcome};
+    use syscribe_model::projection::{project, resolve_config_flag, SelectionOutcome};
     match config {
         None => elems.to_vec(),
-        Some(c) => match resolve_selection(elems, c) {
+        Some(c) => match resolve_config_flag(elems, c) {
             SelectionOutcome::Dormant => elems.to_vec(),
             SelectionOutcome::Resolved(sel) => project(elems, &sel),
             SelectionOutcome::Error(m) => {
@@ -446,6 +449,26 @@ fn first_positional<'a>(args: &'a [String], value_flags: &[&str]) -> Option<&'a 
     None
 }
 
+/// The `-m`/`--model` value on the command line, if any (REQ-TRS-LINKTYPE-012).
+/// Parsed ahead of the normal model resolution because `--agent-instructions`
+/// is handled before it; only an explicit flag counts (no env/walk-up discovery),
+/// so the bare prompt stays model-independent.
+fn agent_instructions_model_root(args: &[String]) -> Option<String> {
+    let mut iter = args.iter().skip(1);
+    while let Some(a) = iter.next() {
+        if a == "-m" || a == "--model" {
+            return iter.next().cloned();
+        }
+        if let Some(v) = a.strip_prefix("--model=") {
+            return Some(v.to_string());
+        }
+        if let Some(v) = a.strip_prefix("-m").filter(|v| !v.is_empty() && !a.starts_with("--")) {
+            return Some(v.to_string());
+        }
+    }
+    None
+}
+
 fn build_cli() -> clap::Command {
     let mut cmd = clap::Command::new("syscribe")
         .disable_help_flag(true)
@@ -504,7 +527,18 @@ fn main() {
     if let Some(pos) = args.iter().position(|a| a == "--agent-instructions") {
         let topic = args.get(pos + 1).map(|s| s.as_str()).filter(|t| !t.starts_with('-'));
         match topic {
-            None | Some("general") => print!("{}", AGENT_INSTRUCTIONS),
+            None | Some("general") => {
+                print!("{}", AGENT_INSTRUCTIONS);
+                // REQ-TRS-LINKTYPE-012 — with an explicit `-m <root>` whose
+                // `.syscribe.toml` declares link types, append the project's
+                // vocabulary so the agent never has to guess a `links:` key.
+                if let Some(root) = agent_instructions_model_root(&args) {
+                    let reg = syscribe_model::link_types::LinkTypeRegistry::load(std::path::Path::new(&root));
+                    if let Some(section) = syscribe_model::link_types::agent_instructions_section(&reg) {
+                        print!("{}", section);
+                    }
+                }
+            }
             Some("magicgrid") => print!("{}", MAGICGRID_INSTRUCTIONS),
             Some(other) => {
                 eprintln!(
@@ -697,6 +731,19 @@ fn main() {
             "links" => {
                 query::cmd_links(&elems, &resolver, key);
             }
+            "follow" => {
+                // REQ-TRS-LINKTYPE-007 — traverse one named link. Read-only.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = linktypes::cmd_follow(&elems, &resolver, &vcfg, rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
+            }
+            "link-types" => {
+                // REQ-TRS-LINKTYPE-008 — the declared link-type vocabulary. Read-only.
+                let json = subcommand_args.iter().any(|a| a == "--json");
+                linktypes::cmd_link_types(&elems, &vcfg.link_types, json);
+            }
             "connectivity" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let code = connectivity::cmd_connectivity(&elems, &resolver, rest);
@@ -785,7 +832,7 @@ fn main() {
                 if all_configs {
                     query::cmd_validate_all_configs(&elems, &vcfg_run, json);
                 } else if let Some(c) = config {
-                    match syscribe_model::projection::resolve_selection(&elems, c) {
+                    match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
                             query::cmd_validate(&elems, &vcfg_run, &gate, profile_ref, file_filter, json)
                         }
@@ -864,7 +911,7 @@ fn main() {
                 let code = if all_configs {
                     audit::cmd_audit_all_configs(&elems, vcfg, profile.as_ref(), json)
                 } else if let Some(c) = config {
-                    match syscribe_model::projection::resolve_selection(&elems, c) {
+                    match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
                             audit::cmd_audit(&elems, vcfg, model_root, profile.as_ref(), None, ps, json)
                         }
@@ -1013,7 +1060,7 @@ fn main() {
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 match config {
                     None => export::cmd_export(&elems, &vcfg, ndjson),
-                    Some(c) => match syscribe_model::projection::resolve_selection(&elems, c) {
+                    Some(c) => match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
                             export::cmd_export(&elems, &vcfg, ndjson)
                         }
@@ -1096,7 +1143,7 @@ fn main() {
                 }
                 match config {
                     None => query::cmd_list(&elems, key, scope, &tags, feature, metadata, status, sil, has_wcet, &wheres, json),
-                    Some(c) => match syscribe_model::projection::resolve_selection(&elems, c) {
+                    Some(c) => match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
                             query::cmd_list(&elems, key, scope, &tags, feature, metadata, status, sil, has_wcet, &wheres, json)
                         }
@@ -1794,6 +1841,25 @@ fn main() {
 
     let result = validator::validate_with_config(&elems, &vcfg);
 
+    // REQ-TRS-LINKTYPE-006 — the report sections below read the reporting view: a
+    // `coverage = true` user-defined link extending satisfies/verifies/derivedFrom
+    // counts as that base link (labelled `(via <type>)` where a list shows it).
+    // Validation above ran on the authored elements; borrowed when unused.
+    let (cov_elems, link_prov) =
+        syscribe_model::link_types::coverage_view_with_provenance(&elems, &vcfg.link_types);
+    let elems: &[RawElement] = &cov_elems;
+    // `entries` of `e`'s `base` field, each suffixed ` (via <type>)` when contributed.
+    let labelled = |e: &RawElement, base: syscribe_model::link_types::BaseLink, entries: &[String]| -> Vec<String> {
+        entries
+            .iter()
+            .enumerate()
+            .map(|(i, t)| match link_prov.via(&e.qualified_name, base, i) {
+                Some(n) => format!("{t} (via {n})"),
+                None => t.clone(),
+            })
+            .collect()
+    };
+
     let error_count = result.errors().count();
     let warning_count = result.warnings().count();
     let info_count = result.infos().count();
@@ -2149,7 +2215,7 @@ fn main() {
             .frontmatter
             .verifies
             .as_ref()
-            .map(|v| v.join(", "))
+            .map(|v| labelled(e, syscribe_model::link_types::BaseLink::Verifies, v).join(", "))
             .unwrap_or_else(|| "—".to_string());
         println!("| {} | {} | {} | {} | {} |", id, level, scenarios, status, verifies);
     }
@@ -2220,14 +2286,11 @@ fn main() {
             // resolution, not a display gate. Filtering on it here silently hid
             // qname-form targets even though they resolve correctly and correctly
             // suppress W300 elsewhere.
-            let satisfies_targets: Vec<&str> = e
-                .frontmatter
-                .satisfies
-                .as_ref()
-                .unwrap()
-                .iter()
-                .map(|s| s.as_str())
-                .collect();
+            let satisfies_targets: Vec<String> = labelled(
+                e,
+                syscribe_model::link_types::BaseLink::Satisfies,
+                e.frontmatter.satisfies.as_ref().unwrap(),
+            );
             let sat_str = if satisfies_targets.is_empty() {
                 "—".to_string()
             } else {
@@ -2434,7 +2497,7 @@ leaf hardware parts (Motor, Rotor, IMU, etc.) that are not directly allocated a 
 
     // For each top-level package, count elements by type
     let mut pkg_map: BTreeMap<String, HashMap<String, usize>> = BTreeMap::new();
-    for e in &elems {
+    for e in elems {
         let pkg = top_level_package(&e.file_path, &model_root_str);
         let type_str = e
             .frontmatter

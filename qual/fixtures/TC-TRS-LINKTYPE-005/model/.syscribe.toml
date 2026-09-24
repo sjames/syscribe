@@ -1,0 +1,4 @@
+[linkTypes.precedes]
+acyclic = true
+
+[linkTypes.relates]

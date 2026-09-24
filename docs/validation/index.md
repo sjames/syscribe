@@ -37,7 +37,7 @@ Errors block a clean build. Warnings are advisory.
 | E101–E106 | Cross-reference | Duplicate IDs, unresolved `verifies`/`derivedFrom`, scenario names |
 | E200–E209 | PLE | Configuration required fields, featureModel resolution, appliesWhen |
 | E300–E304 | ADR | ID pattern, required fields, status enum, reqDomain/domain enums |
-| W300–W305 | Traceability | Leaf coverage, multiple satisfiers, domain refinement, integration test on parent reqs |
+| W300–W305 | Traceability | Leaf coverage, domain refinement, integration test on parent reqs (W301 retired) |
 | E310–E315 | §12 Traceability | breakdownAdr, parent in satisfies, domain mismatch, HW/SW independence |
 | E400–E402 | Diagram | Mermaid/PlantUML body blocks, companion SVG on disk |
 | W400–W412 | Diagram | diagramKind, subject/shape/edge resolution, Mermaid annotations, SVG hrefs, operation typedBy |

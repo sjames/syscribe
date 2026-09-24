@@ -121,6 +121,23 @@ pub struct ElementDetailTemplate {
     /// text for the edit-mode `#edit-extra` textarea. Empty when the file has
     /// no frontmatter or couldn't be read.
     pub extra_yaml: String,
+    /// REQ-TRS-PKG-001 (GH #120) — whether to render the generated "Members"
+    /// list: always for a package, else only when the element owns children.
+    pub show_members: bool,
+    /// The element's direct members (`syscribe_model::members::direct_members`),
+    /// sorted by qualified name — generated from the directory tree, never from
+    /// `_index.md` prose. Each row links to that member's detail panel.
+    pub members: Vec<MemberRow>,
+}
+
+/// One row of the detail panel's generated member list (REQ-TRS-PKG-001).
+pub struct MemberRow {
+    pub qualified_name: String,
+    /// Stable id, else qualified name.
+    pub label: String,
+    pub element_type: String,
+    pub name: String,
+    pub status: String,
 }
 
 /// Serialize an element's on-disk frontmatter minus the `name` key as YAML
@@ -293,6 +310,22 @@ pub async fn element_detail(
                     e.frontmatter.id.as_deref().unwrap_or(""),
                 )
             };
+            // REQ-TRS-PKG-001 — generated member list (same helper as `show`).
+            let members: Vec<MemberRow> = syscribe_model::members::direct_members(&store.elements, &e.qualified_name)
+                .into_iter()
+                .map(|m| MemberRow {
+                    qualified_name: m.qualified_name.clone(),
+                    label: syscribe_model::members::member_label(m).to_string(),
+                    element_type: m
+                        .frontmatter
+                        .element_type
+                        .as_ref()
+                        .map(|t| format!("{:?}", t))
+                        .unwrap_or_else(|| "Unknown".to_string()),
+                    name: m.frontmatter.name.clone().unwrap_or_else(|| "—".to_string()),
+                    status: m.frontmatter.status.clone().unwrap_or_else(|| "—".to_string()),
+                })
+                .collect();
             let tmpl = ElementDetailTemplate {
                 name: e
                     .frontmatter
@@ -313,6 +346,8 @@ pub async fn element_detail(
                     .collect(),
                 source_url,
                 extra_yaml: extra_frontmatter_yaml(&e.file_path),
+                show_members: syscribe_model::members::is_package(e) || !members.is_empty(),
+                members,
             };
             Html(tmpl.render().unwrap_or_default())
         }

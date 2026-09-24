@@ -1,0 +1,4 @@
+[linkTypes.dependsOnReq]
+sourceTypes = ["Requirement"]
+targetTypes = ["Requirement"]
+cardinality = "1..2"

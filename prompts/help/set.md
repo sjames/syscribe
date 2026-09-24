@@ -32,9 +32,12 @@ An optional `rationale=<text>` marks the entry waived.
 order; the target must resolve to a native `Requirement` (mirrors `E714`/`E715`)
 or the edit is refused.
 
-Every operation is byte-preserving for the rest of the file — only the touched
-key changes, same "surgical edit" bar `move` holds itself to for reference
-rewriting.
+`status=` is byte-preserving for the rest of the file — only the `status:` line
+changes, the same "surgical edit" bar `move` holds itself to for reference
+rewriting. `achieves.add` and `evidence.add` preserve the existing entries and
+their order, but re-serialize the frontmatter block: quoting and list
+indentation may be normalized (for example `name: "An item"` → `name: An item`).
+The Markdown body is never touched.
 
 ## OPTIONS
     --dry-run        Preview the unified diff without writing.

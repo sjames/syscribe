@@ -176,6 +176,28 @@ struct NextIdArgs {
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct CoverageArgs {}
 
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct LinkTypesArgs {}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct FollowArgs {
+    /// Start element (stable id or qualified name).
+    element: String,
+    /// Link to follow: a declared link type (forward), its inverse (reverse), or a
+    /// built-in link / reverse-index name (satisfies, verifies, derivedFrom,
+    /// refines, supertype, typedBy, allocatedTo, satisfiedBy, verifiedBy,
+    /// derivedChildren, refinedBy, specializedBy, allocatedFrom).
+    link: String,
+    /// Flip the direction.
+    #[serde(default)]
+    reverse: bool,
+    /// Follow to a fixed point instead of one hop.
+    #[serde(default)]
+    transitive: bool,
+    /// Bound the traversal to this many hops (implies transitive).
+    depth: Option<u32>,
+}
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct FeaturesArgs {
     feature: Option<String>,
@@ -1130,7 +1152,19 @@ impl SyscribeMcp {
             "type": elem.frontmatter.element_type.as_ref().map(type_label),
             "name": elem.frontmatter.name,
         });
-        let derived_from_keys = elem.frontmatter.derived_from.clone().unwrap_or_default();
+        // REQ-TRS-LINKTYPE-006 — a `coverage = true` user-defined link extending
+        // derivedFrom counts as a parent here (reporting view, as `trace`).
+        let cov = syscribe_model::link_types::coverage_view(&store.elements, &store.config.link_types);
+        let derived_from_keys = store
+            .resolver
+            .by_qname
+            .get(&elem.qualified_name)
+            .and_then(|&i| cov.get(i))
+            .unwrap_or(elem)
+            .frontmatter
+            .derived_from
+            .clone()
+            .unwrap_or_default();
 
         let kind = args.kind.as_deref().unwrap_or("verification");
         let include_ver = kind == "verification" || kind == "all";
@@ -1394,8 +1428,11 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         let result = validate_with_config(&store.elements, &store.config);
-        let summary =
-            crate::coverage::coverage_summary(&store.elements, &result, store.config.results.as_ref());
+        // REQ-TRS-LINKTYPE-006 — coverage over the reporting view (a `coverage =
+        // true` extending link counts as its base); validation stays on the
+        // authored elements.
+        let cov = syscribe_model::link_types::coverage_view(&store.elements, &store.config.link_types);
+        let summary = crate::coverage::coverage_summary(&cov, &result, store.config.results.as_ref());
 
         let entries = |v: &[crate::coverage::CoverageEntry]| -> Vec<Value> {
             v.iter().map(|e| json!({ "qname": e.qname, "id": e.id, "name": e.name })).collect()
@@ -1510,7 +1547,7 @@ impl SyscribeMcp {
         // Apply the optional --config projection lens before searching.
         let projected = match args.config.as_deref() {
             None => None,
-            Some(c) => match syscribe_model::projection::resolve_selection(&store.elements, c) {
+            Some(c) => match syscribe_model::projection::resolve_config_flag(&store.elements, c) {
                 syscribe_model::projection::SelectionOutcome::Dormant => None,
                 syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
                     Some(syscribe_model::projection::project(&store.elements, &sel))
@@ -1614,8 +1651,10 @@ impl SyscribeMcp {
         Parameters(args): Parameters<CoverageMatrixArgs>,
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
+        // REQ-TRS-LINKTYPE-006 — same reporting view as `matrix --json`.
+        let cov = syscribe_model::link_types::coverage_view(&store.elements, &store.config.link_types);
         let mut v = matrix_json(
-            &store.elements,
+            &cov,
             args.tag.as_deref(),
             args.status.as_deref(),
             args.gaps_only.unwrap_or(false),
@@ -1668,7 +1707,9 @@ impl SyscribeMcp {
 
         // uncovered: requirement active in a configuration with no verifying TestCase (gap cell).
         if want("uncovered") {
-            let mj = matrix_json(&store.elements, None, args.status.as_deref(), false, results, false);
+            // REQ-TRS-LINKTYPE-006 — same reporting view as `matrix --json`.
+            let cov = syscribe_model::link_types::coverage_view(&store.elements, &store.config.link_types);
+            let mj = matrix_json(&cov, None, args.status.as_deref(), false, results, false);
             if let Some(rows) = mj.get("rows").and_then(|r| r.as_array()) {
                 for row in rows {
                     let id = row.get("id").and_then(|i| i.as_str()).unwrap_or("").to_string();
@@ -1797,7 +1838,8 @@ impl SyscribeMcp {
 
     #[tool(
         description = "Ingest an external test report (cargo-json | junit) into the results \
-        sidecar. dry_run defaults to true (returns the verdict delta without writing).",
+        sidecar. Merges: replaces only the function-level verdicts, keeping any session-log \
+        verdicts. dry_run defaults to true (returns the verdict delta without writing).",
         annotations(read_only_hint = false, destructive_hint = false)
     )]
     async fn ingest_results(
@@ -1828,13 +1870,16 @@ impl SyscribeMcp {
             return tool_error("no test records parsed from report (malformed or unrecognised for the given format)");
         }
         let mut store = self.store.write().await;
+        // The sidecar is merged, not replaced (REQ-TRS-INGEST-001): the delta is
+        // computed against what the merged sidecar will hold.
+        let merged = parsed.merged_over(store.config.results.as_ref());
         let mut delta: Vec<Value> = Vec::new();
         for e in &store.elements {
             if e.frontmatter.element_type != Some(ElementType::TestCase) {
                 continue;
             }
             let from = tc_verdict(e, store.config.results.as_ref());
-            let to = tc_verdict(e, Some(&parsed));
+            let to = tc_verdict(e, Some(&merged));
             if from != to {
                 delta.push(json!({
                     "testCase": e.frontmatter.id,
@@ -1847,7 +1892,7 @@ impl SyscribeMcp {
         let extra = extra_map(json!({ "format": fmt, "count": parsed.count, "delta": delta }));
         let apply = move |root: &Path| -> Result<(), String> {
             parsed
-                .write_sidecar(root)
+                .merge_into_sidecar(root)
                 .map(|_| ())
                 .map_err(|e| format!("cannot write results sidecar: {e}"))
         };
@@ -1859,7 +1904,9 @@ impl SyscribeMcp {
 
     #[tool(
         description = "Scan .md/.svg files or directories for unresolvable model references \
-        (W099 prose ids, W100 mermaid qnames, W101 SVG sysml:ref, W102 missing local embeds).",
+        (W099 prose ids, W100 mermaid qnames, W101 SVG sysml:ref, W102 missing local embeds), \
+        plus the advisory W103 (a package _index.md hand-enumerating 3+ of its own members — \
+        membership is generated; see `show <package>`).",
         annotations(read_only_hint = true)
     )]
     async fn lint_docs(
@@ -2383,6 +2430,59 @@ impl SyscribeMcp {
     }
 
     #[tool(
+        description = "List the project's user-defined link types (declared in [linkTypes] of \
+        .syscribe.toml): name, description, inverse, sourceTypes/targetTypes, cardinality, \
+        acyclic, suspect, the built-in link it extends with its relaxed codes and coverage, \
+        and the instance count. Call this before authoring a `links:` field — an undeclared \
+        key is E630. Same data as `link-types --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn link_types(
+        &self,
+        Parameters(_args): Parameters<LinkTypesArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        ok(syscribe_model::link_types::link_types_json(&store.elements, &store.config.link_types))
+    }
+
+    #[tool(
+        description = "Follow one named link from an element: a declared link type (forward), \
+        its inverse (reverse), or a built-in link/reverse-index name. One hop by default; \
+        transitive=true follows to a fixed point, depth=N bounds the hops. Returns \
+        {start, link, direction, results:[{qname,id,type,name,depth,from}]} — same data as \
+        `follow --format json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn follow(
+        &self,
+        Parameters(args): Parameters<FollowArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let Some(start) =
+            syscribe_model::suspect::resolve_target(&store.elements, &store.resolver, &args.element)
+        else {
+            return tool_error(format!("unresolved reference: {}", args.element));
+        };
+        let max_depth = match (args.depth, args.transitive) {
+            (Some(n), _) => Some(n as usize),
+            (None, true) => None,
+            (None, false) => Some(1),
+        };
+        match syscribe_model::link_types::follow(
+            &store.elements,
+            &store.resolver,
+            &store.config.link_types,
+            start,
+            &args.link,
+            args.reverse,
+            max_depth,
+        ) {
+            Ok(r) => ok(syscribe_model::link_types::follow_json(&r)),
+            Err(msg) => tool_error(msg),
+        }
+    }
+
+    #[tool(
         description = "List suspect trace links (a baselined link whose target's content \
         changed since review, i.e. the W090 set) and, by default, links that have no \
         baseline yet. Each entry gives the source (id + qname), target ref, and link kind. \
@@ -2590,7 +2690,10 @@ impl ServerHandler for SyscribeMcp {
         .with_instructions(
             "Query and guard-write a Syscribe systems model over MCP. Read tools are \
              token-efficient; write tools default to dry_run and refuse commits that \
-             introduce new validation errors."
+             introduce new validation errors. Relationship vocabulary is per-project: call \
+             the `link_types` tool to discover the project's declared link types before \
+             authoring a `links:` field, and never invent an undeclared one (E630); use \
+             `follow` to traverse any link."
                 .to_string(),
         )
     }

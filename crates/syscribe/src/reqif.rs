@@ -200,6 +200,15 @@ struct Pkg {
 }
 
 pub fn cmd_export_reqif(elements: &[RawElement], opts: &ReqifOptions) {
+    // REQ-TRS-LINKTYPE-006 — REL_DERIVED/REL_VERIFIED are semantic relations, so
+    // they come from the reporting view: a `coverage = true` user-defined link
+    // extending derivedFrom/verifies is exported as that relation (as `trace`
+    // counts it). Only base-link fields differ in the view; the exported
+    // attributes (name, status, domain, description) are the authored ones.
+    // Free-standing (non-extending) links have no ReqIF relation type and are
+    // not exported.
+    let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
+    let elements: &[RawElement] = &cov;
     let resolver = Resolver::new(elements);
     let scope_prefix = opts.scope.and_then(|q| resolver.resolve_ref(elements, q)).map(|e| e.qualified_name.clone());
     let in_scope = |e: &RawElement| match &scope_prefix {

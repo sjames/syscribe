@@ -60,13 +60,17 @@ run_scenario() {
 pass() { printf "    ${GREEN}✓${NC} %s\n" "$1"; PASS_COUNT=$((PASS_COUNT+1)); _SCEN_PASS=$((_SCEN_PASS+1)); }
 fail() { printf "    ${RED}✗${NC} %s\n" "$1"; FAIL_COUNT=$((FAIL_COUNT+1)); _SCEN_FAIL=$((_SCEN_FAIL+1)); TC_FAILED=1; }
 
+# Helpers feed grep via here-strings, never `printf | grep -q`: under `set -o pipefail`
+# a `grep -q` that exits on its first match makes the writer die of SIGPIPE once the
+# output exceeds the 64 KiB pipe buffer, failing (or, for negative checks, falsely
+# passing) the assertion nondeterministically.
 assert_has_code() {
-    printf '%s' "$SCENARIO_OUTPUT" | grep -qF "| $1 |" \
+    grep -qF "| $1 |" <<<"$SCENARIO_OUTPUT" \
         && pass "$1 present in output" || fail "$1 not found in output"
 }
 
 assert_no_code() {
-    printf '%s' "$SCENARIO_OUTPUT" | grep -qF "| $1 |" \
+    grep -qF "| $1 |" <<<"$SCENARIO_OUTPUT" \
         && fail "$1 unexpectedly present in output" || pass "no $1 in output"
 }
 
@@ -84,7 +88,7 @@ assert_exit_nonzero() {
 }
 
 assert_output_contains() {
-    printf '%s' "$SCENARIO_OUTPUT" | grep -qF "$1" \
+    grep -qF "$1" <<<"$SCENARIO_OUTPUT" \
         && pass "output contains: $1" || fail "output missing: $1"
 }
 

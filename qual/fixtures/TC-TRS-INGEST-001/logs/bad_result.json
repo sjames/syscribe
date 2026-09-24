@@ -1,0 +1,3 @@
+[
+  {"testCase": "TC-SL-001", "scenario": "An empty allowlist denies everything", "steps": [{"cmd": "curl"}], "result": "maybe"}
+]

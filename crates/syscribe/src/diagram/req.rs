@@ -29,7 +29,10 @@ pub fn cmd_diagram_req(
     opts: ReqDiagramOptions,
     config: &syscribe_model::config::ValidateConfig,
 ) {
-    let svg = build_req_diagram(elements, &opts, config);
+    // REQ-TRS-LINKTYPE-006 — draw `coverage = true` user-defined links extending
+    // satisfies/verifies/derivedFrom as their base link (read-only rendering).
+    let cov = syscribe_model::link_types::coverage_view(elements, &config.link_types);
+    let svg = build_req_diagram(&cov, &opts, config);
     match opts.output {
         Some(path) => {
             if let Err(e) = std::fs::write(path, &svg) {

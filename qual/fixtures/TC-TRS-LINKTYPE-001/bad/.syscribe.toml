@@ -1,0 +1,21 @@
+[linkTypes.Bad-Name]
+[linkTypes.satisfies]
+[linkTypes.alpha]
+inverse = "verifiedBy"
+[linkTypes.badCard]
+cardinality = "x..y"
+[linkTypes.lowerNoSource]
+cardinality = "1..*"
+[linkTypes.unknownType]
+sourceTypes = ["NoSuchType"]
+[linkTypes.badBase]
+extends = "allocatedTo"
+[linkTypes.relaxNoExtends]
+relax = ["E313"]
+[linkTypes.badRelax]
+extends = "satisfies"
+relax = ["E104"]
+[linkTypes.dupInverse]
+inverse = "alpha"
+[linkTypes.extraKey]
+colour = "blue"

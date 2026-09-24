@@ -167,7 +167,7 @@ pub fn cmd_audit_all_configs(
     profile: Option<&Profile>,
     json: bool,
 ) -> i32 {
-    use syscribe_model::projection::{resolve_selection, SelectionOutcome};
+    use syscribe_model::projection::{resolve_config_flag, SelectionOutcome};
     let configs: Vec<&RawElement> =
         elements.iter().filter(|e| is_type(e, ElementType::Configuration)).collect();
     if configs.is_empty() {
@@ -182,7 +182,7 @@ pub fn cmd_audit_all_configs(
     let mut rows: Vec<(String, bool, Vec<String>)> = Vec::new();
     for c in &configs {
         let cid = disp_id(c);
-        let sel = match resolve_selection(elements, &cid) {
+        let sel = match resolve_config_flag(elements, &cid) {
             SelectionOutcome::Resolved(s) => Some(s),
             _ => None,
         };
@@ -245,6 +245,14 @@ pub fn cmd_audit(
 
     // ---- Readiness verdict (shared policy, projection-aware) --------------
     let (pass, reasons) = audit_verdict(elements, config, profile, sel, plan_scope);
+
+    // REQ-TRS-LINKTYPE-006 — every dashboard section below reads the *reporting*
+    // view: a `coverage = true` user-defined link extending satisfies/verifies/
+    // derivedFrom/refines counts as that base link. Taken after the verdict, which
+    // validates the authored elements (the validator applies extensions itself).
+    // Same order as `view`, so `resolver` stays valid; borrowed when unused.
+    let cov_view = syscribe_model::link_types::coverage_view(view, &config.link_types);
+    let view: &[RawElement] = &cov_view;
 
     // ---- Section 1: requirement status split ------------------------------
     let reqs: Vec<&RawElement> =

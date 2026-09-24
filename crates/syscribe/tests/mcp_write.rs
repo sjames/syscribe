@@ -356,3 +356,37 @@ fn dry_run_update_returns_unified_diff() {
     assert!(diff.contains("approved"), "diff shows the new value as an addition; got {diff}");
     assert_eq!(dir_hash(&model), before, "dry-run leaves disk unchanged");
 }
+
+// ---- REQ-TRS-LINKTYPE-002 / -010: link-type errors gate MCP writes ------------
+
+/// A write introducing a `links:` key that is not a declared link type is refused
+/// with the E630 finding (naming the declared types) in `newErrors`, so a wrong
+/// guess self-corrects over MCP; a declared type commits.
+#[test]
+fn create_with_undeclared_link_type_is_refused_with_e630() {
+    let model = fixture_copy();
+    std::fs::write(model.join(".syscribe.toml"), "[linkTypes.informs]\n").unwrap();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+
+    let res = mcp.call_tool(
+        "create_element",
+        json!({"qname": "Parts::Bogus", "type": "PartDef",
+               "fields": {"links": {"bogusType": ["Parts::Base"]}}, "dry_run": false}),
+    );
+    assert_eq!(res.get("written").and_then(|w| w.as_bool()), Some(false), "refused: {res}");
+    assert!(!model.join("Parts/Bogus.md").exists(), "nothing written");
+    let new_errors = res["validationDelta"]["newErrors"].as_array().cloned().unwrap_or_default();
+    let e630 = new_errors
+        .iter()
+        .find(|e| e["code"] == "E630")
+        .unwrap_or_else(|| panic!("E630 in newErrors: {res}"));
+    assert!(e630["message"].as_str().unwrap_or("").contains("informs"), "names declared types: {e630}");
+
+    let ok = mcp.call_tool(
+        "create_element",
+        json!({"qname": "Parts::Good", "type": "PartDef",
+               "fields": {"links": {"informs": ["Parts::Base"]}}, "dry_run": false}),
+    );
+    assert_eq!(ok.get("written").and_then(|w| w.as_bool()), Some(true), "declared type commits: {ok}");
+}

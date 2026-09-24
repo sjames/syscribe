@@ -69,6 +69,7 @@
     - 12.7 [Safety/Security Integrity Level Propagation](#127-safetysecurity-integrity-level-propagation)
     - 12.8 [Implementation Trace](#128-implementation-trace)
     - 12.9 [Allocation: Two Forms over One Edge Model](#129-allocation-two-forms-over-one-edge-model)
+    - 12.10 [User-Defined Link Types (`[linkTypes]`, `links:`)](#1210-user-defined-link-types-linktypes-links)
 13. [IEC 62443 Industrial Cybersecurity (Zone/Conduit Model)](#13-iec-62443-industrial-cybersecurity-zoneconduit-model)
 14. [Multi-Repository Model Composition](#14-multi-repository-model-composition)
 15. [General-Purpose Trade Study](#15-general-purpose-trade-study)
@@ -601,6 +602,9 @@ Rules:
   diffs.
 - An element with no `custom_fields:` is unaffected; the feature adds no findings to
   models that do not use it.
+- `custom_fields:` values are never resolved as references. A **relationship** to
+  another element belongs in `links:` under a declared link type (§12.10), where it is
+  resolved, validated and traversable.
 - Custom fields are **read-only** in the web UI and CLI `show`; they are not editable via
   `PUT /api/elements/<qname>`.
 
@@ -676,6 +680,8 @@ Rules:
 - It fires **per unrecognised key**, naming the key and the element's file.
 - Keys under `custom_fields:` are **exempt** — that is the sanctioned home for
   author-defined data (§3.15). Recognised schema fields never trigger it.
+- `links:` (user-defined link types, §12.10) is a recognised schema field and never
+  triggers it; its keys are validated against `[linkTypes]` instead (`E630`).
 - The most common cause is a **typo** in a real field name (`reqDomian` for `reqDomain`,
   `verifis` for `verifies`): the misspelling was previously accepted and the value
   silently discarded. `W047` surfaces the mistake instead of losing the data quietly.
@@ -718,6 +724,8 @@ An `_index.md` file may carry any fields from Section 3, plus the following pack
 | `imports` | list | Import declarations (Section 3.7.1) |
 | `aliases` | list | Alias declarations (Section 3.7.2) |
 | `filterCondition` | string | Package filter condition (opaque KerML expression) |
+
+**Membership is generated, never authored (`ADR-SYS-PKG-001`, GH #120).** A package's members are exactly the elements in its directory. Tools present that list from the directory itself — `show <package>` prints a `## Members (N)` table (id or qualified name, type, name, status), and the web UI detail panel and `export-html` package pages show the same list — so it can never drift from the files on disk. The `_index.md` body **should** state the package's purpose and scope (the *why*), not enumerate its members (the *what*). `lint-docs` reports advisory `W103` when an `_index.md` body mentions three or more distinct stable ids that resolve to the package's own direct members. Summary tables that carry genuine cross-element analysis (e.g. a HARA hazard → goal → ASIL table) remain legitimate; `W103` is a prompt to check, not a rule.
 
 ### 4.4 Library Packages
 
@@ -5480,7 +5488,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W009` | A `testFunctions[].function` does not resolve to a definition in its (existing) `sourceFile` — function-level traceability drift (renamed/deleted test). Emitted only for `TestCase`s with `status: active` (see *TestCase drift scoping*). See *Function matchers* below. |
 | `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results. See *Test result ingestion* below. Inert unless results have been ingested. |
 | `W300` | Leaf `Requirement` at `status: approved` or `status: implemented` has no satisfying element (no element — structural or behavioral — has `satisfies:` pointing to it) |
-| `W301` | Leaf `Requirement` is satisfied by more than one element — only one expected at leaf level, regardless of whether the multiple satisfiers are structural, behavioral, or a mix |
+| `W301` | **RETIRED** (GH #121) — formerly flagged a leaf `Requirement` satisfied by more than one element. A leaf may be jointly satisfied by several elements (§12.3), so this code is no longer emitted. |
 | `W302` | Leaf `Requirement` at `status: implemented` or `status: verified` still has `reqDomain: system` — refine to `hardware` or `software` |
 | `W303` | `breakdownAdr:` references an ADR with `status: proposed`, but the `Requirement` itself has `status: approved` or higher |
 | `W304` | `isDeploymentPackage: true` combined with `domain: hardware` — deployment packages must be software |
@@ -5571,6 +5579,22 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W510` | Repo in `[repos]` has no `ref:` — composition is not reproducible (opt-in; `--deny W510`) |
 | `W511` | Peer repo `HEAD` has drifted from its configured `ref:` (opt-in; `--deny W511`) |
 | `W512` | Submodule peer's `ref:` disagrees with the parent's gitlink pin (opt-in; `--deny W512`) |
+
+#### User-defined link types (E630–E636, W630, W631, §12.10)
+
+Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` field — a model with neither is unaffected.
+
+| Code | Condition |
+|---|---|
+| `E630` | A `links:` key is not a declared (valid) link type — the message lists the declared types, or states that none are declared and how to declare one |
+| `E631` | `links:` is not a mapping, or a key's value is neither a string nor a list of strings |
+| `E632` | A `links:` reference does not resolve (by stable id or qualified name) |
+| `E633` | The link type declares `sourceTypes` and the holding element's `type:` is not listed |
+| `E634` | The link type declares `targetTypes` and a resolved target's `type:` is not listed (names the target) |
+| `E635` | A source holds more targets for a link type than its `cardinality` upper bound |
+| `E636` | A cycle — including a self-link — formed solely by links of an `acyclic = true` type (once per cycle, naming its members) |
+| `W630` | A `[linkTypes.<name>]` entry is malformed (bad/colliding name or `inverse`, unparseable `cardinality`, non-zero lower bound without `sourceTypes`, unknown element type, unsupported `extends`, `relax`/`coverage` without `extends`, non-relaxable `relax` code) — the entry is ignored as a whole; or an entry carries an unknown key (key ignored). Attached to `.syscribe.toml` |
+| `W631` | A non-`draft` element whose `type:` is in a link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound (opt-in; `--deny W631`) |
 
 #### IEC 62443 Zone/Conduit validation (E950–E956, W950–W953, §13.5)
 
@@ -5989,6 +6013,7 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `sourceFile` | native TestCase | string | absent | 8.12.5 |
 | `testFunctions` | native TestCase | list | absent | 8.12.5 |
 | `tags` | native Requirement/TestCase | list of strings | absent | 8.11.6, 8.12.5 |
+| `links` | Any element | map: declared link-type name → string or list | absent | 12.10 — user-defined outbound links; keys must be declared in `[linkTypes]` (`E630`) |
 
 ---
 
@@ -6073,6 +6098,8 @@ All traceability links in Markdown-SysML follow OSLC (Open Services for Lifecycl
 
 No reverse links are stored in model files. Reverse indices (`verifiedBy`, `derivedChildren`, `satisfiedBy`) are computed by the parser at load time and never written to disk.
 
+The same convention governs user-defined link types (§12.10): the element holding a `links:` entry is the source, and the declared `inverse` is computed, never authored.
+
 ---
 
 ### 12.2 Requirement Breakdown and ADRs
@@ -6106,7 +6133,7 @@ breakdownAdr: ADR-SW-SCHED-001
 
 A requirement is a **leaf requirement** when no other requirement has `derivedFrom:` pointing to it (i.e., the computed `derivedChildren` index is empty for this requirement's id).
 
-**Rule R-003:** A leaf requirement at `status: approved` or higher must be assigned to exactly one element — meaning exactly one element must have `satisfies:` referencing this requirement. `Part`/`PartDef` is the common case, but `satisfies:` is not type-restricted. The following count identically to a `Part`/`PartDef` satisfier:
+**Rule R-003:** A leaf requirement at `status: approved` or higher must be assigned to **at least one** element — meaning at least one element must have `satisfies:` referencing this requirement. Several elements may jointly satisfy a leaf (for example a `PartDef` and the `StateDef` that gives it its behaviour, or redundant channels): the satisfier count never changes whether a requirement is a leaf or a parent, which is decided by `derivedChildren` alone, and a requirement is decomposed only when the decomposition adds requirement content — never to force one-to-one allocation. `Part`/`PartDef` is the common case, but `satisfies:` is not type-restricted. The following count identically to a `Part`/`PartDef` satisfier:
 
 - A behavioral definition (`StateDef`/`ActionDef`) — a state machine or an activity can be the artifact directly responsible for fulfilling a requirement, not only the structural element that owns it.
 - `Connection`/`ConnectionDef`, `Interface`/`InterfaceDef`, `Item`/`ItemDef`, `Attribute`/`AttributeDef`, `Port`/`PortDef`, `Allocation` — the same fixed set of requirement/architecture-shaped kinds `E104` (§11.10) already recognises as legal `verifies:` targets when synthesized by SysMLv2 submodel ingestion or a stdio-subprocess plugin; extended here for consistency, since the natural direction of the claim (an architecture element declaring what it satisfies) is the mirror image of that check.
@@ -6115,7 +6142,7 @@ A requirement is a **leaf requirement** when no other requirement has `derivedFr
 No other element kind is restricted from declaring `satisfies:` either — the validator never gates on the *source* element's type — but only the kinds above are formally endorsed and regression-tested; anything else is permitted by absence of a check, not by design.
 
 - Zero satisfying elements → warning `W300`
-- More than one satisfying element → warning `W301` (regardless of whether the multiple satisfiers are structural, behavioral, or a mix)
+- More than one satisfying element → **no finding** (`W301` is retired — GH #121). Satisfying a *parent* requirement is still error `E312` (§12.4).
 
 The assignment can evolve iteratively:
 1. Initially, assign to a higher-level block (`satisfies: UAV::FlightController`).
@@ -6322,6 +6349,165 @@ features:
 - When the **same** `source → target` edge is declared by **both** an `allocatedTo` on the source **and** a standalone `Allocation` element, the tool emits **`W503`** once for that edge — the duplicate is redundant, so pick one form. A single edge in a single form raises nothing.
 
 **Guidance:** use `allocatedTo:` by default; promote to a standalone `Allocation` element only when the allocation needs its own documentation.
+
+---
+
+### 12.10 User-Defined Link Types (`[linkTypes]`, `links:`)
+
+Every relationship in §12.1–§12.9 is **built in**: a dedicated frontmatter field, a graph edge kind, and a fixed set of validator rules bound to that field. Projects routinely need relationships the format does not name — `mitigates` (control → hazard-derived requirement), `conflictsWith` (requirement ↔ requirement), `partiallySatisfies`, `informs`. **User-defined link types** let a project declare such a relationship once, in project configuration, give it its own constraints, optionally make it a *variant* of a built-in trace link with named rules relaxed, and then author, validate, traverse and suspect-check it like any built-in link. (`ADR-SYS-LINKTYPE-001`; `REQ-TRS-LINKTYPE-000`..`012`.)
+
+The feature is **opt-in and purely additive**: a model with no `[linkTypes]` table and no `links:` field produces no new finding and no output change.
+
+**SysMLv2 mapping.** A declared link type corresponds to a user-defined *dependency* kind (a `metadata def` applied to a `dependency`, in SysMLv2 textual terms) — a directed, source-owned relationship between two elements. Syscribe keeps the declaration in project configuration rather than as a model element (see *Alternatives* in the ADR): link vocabulary is project policy, like `[ids.prefixes]`, and must be known before element validation begins.
+
+#### 12.10.1 Declaration — `[linkTypes.<name>]` in `.syscribe.toml`
+
+A link type is declared as a table in the model-root `.syscribe.toml`:
+
+```toml
+[linkTypes.mitigates]
+description = "A design control mitigates a hazard-derived safety requirement"
+inverse     = "mitigatedBy"
+sourceTypes = ["PartDef", "Part"]
+targetTypes = ["Requirement"]
+cardinality = "0..*"
+acyclic     = false
+suspect     = true
+
+[linkTypes.partiallySatisfies]
+description = "Contributes to, but does not by itself satisfy, a requirement"
+inverse     = "partiallySatisfiedBy"
+extends     = "satisfies"
+relax       = ["E313"]
+coverage    = false
+```
+
+**Name grammar.** The table key (the link-type name) and any `inverse` name must match `^[a-z][A-Za-z0-9]*$` (lowerCamel) and must not collide with:
+
+- a built-in link, field or reverse-index name — `satisfies`, `verifies`, `derivedFrom`, `refines`, `supertype`, `typedBy`, `subsets`, `redefines`, `allocatedTo`, `allocatedFrom`, `satisfiedBy`, `verifiedBy`, `derivedChildren`, `refinedBy`, `specializedBy`, `links`, and the other built-in relationship names;
+- another declared link-type name; or
+- another declared type's `inverse`.
+
+**Keys.** All keys are optional. Each may be written camelCase or snake_case (`sourceTypes` / `source_types`).
+
+| Key | TOML type | Default | Meaning |
+|---|---|---|---|
+| `description` | string | absent | Prose shown by `link-types`, `--agent-instructions` and the MCP `link_types` tool. Strongly recommended — it is what an authoring agent reads to decide whether the type applies. |
+| `inverse` | string | absent | Name of the reverse direction. Usable with `follow` and shown by `links` for inbound instances. Never authored in frontmatter — reverse links are computed (§12.1). |
+| `sourceTypes` | list of element-type names | absent (any type) | Element `type:` values permitted to hold this link. Enforced by `E633`. |
+| `targetTypes` | list of element-type names | absent (any type) | Element `type:` values a target may resolve to. Enforced by `E634`. |
+| `cardinality` | string | `"0..*"` | Number of targets each source holds for this type: `"N"`, `"N..M"`, or `"N..*"`. Upper bound enforced by `E635`; lower bound by `W631`. A non-zero lower bound requires `sourceTypes` (otherwise the entry is `W630`). |
+| `acyclic` | bool | `false` | When `true`, any cycle formed solely by links of this type (including a self-link) is `E636`. |
+| `suspect` | bool | `true` | Whether instances participate in suspect-link detection (§12.10.6). |
+| `extends` | string | absent | Makes this type a variant of a built-in trace link: one of `satisfies`, `verifies`, `derivedFrom`, `refines` (§12.10.4). |
+| `relax` | list of codes | `[]` | Codes of the base link's rules suppressed **for instances of this type only**. Requires `extends`; each code must be relaxable for the base (table in §12.10.4). |
+| `coverage` | bool | `true` | Requires `extends`. When `false`, instances keep the base rule checks but are withheld from the base's reverse index (§12.10.4). |
+
+**Malformed declarations (`W630`).** An entry that is structurally invalid — a bad or colliding name or `inverse`, an unparseable `cardinality`, a non-zero lower bound without `sourceTypes`, an unknown element-type name in `sourceTypes`/`targetTypes`, an `extends` that is not one of the four supported bases, `relax`/`coverage` without `extends`, or a `relax` code that is not relaxable for the base — raises warning `W630` (attached to `.syscribe.toml`) naming the entry and the defect, and the **whole entry is ignored**. Its uses in `links:` then surface as `E630`. An unknown key inside an otherwise valid entry also raises `W630` and is otherwise ignored. This mirrors the `[ids.prefixes]`/`W046` and `[users]`/`W309` posture: one bad entry never invalidates the rest of the table.
+
+#### 12.10.2 Authoring — the `links:` field
+
+Instances are authored under **one** namespaced frontmatter field, `links:`, accepted on **every** element type:
+
+| Field | YAML type | Required | Default | Description |
+|---|---|---|---|---|
+| `links` | map: link-type name → string \| list of strings | optional | absent | User-defined outbound links. Each key is a declared link-type name; each value is one reference or a list of references (stable id or qualified name), resolved exactly as `satisfies:` targets are (§11.10, §5). |
+
+```yaml
+---
+type: PartDef
+name: WatchdogMonitor
+domain: software
+links:
+  mitigates: [REQ-BRK-002, REQ-BRK-003]   # list form
+  partiallySatisfies: REQ-BRK-005         # single-reference form
+---
+```
+
+Rules:
+
+- **Direction (§12.1).** The element holding the `links:` entry is the link's **source**; the reference is the **target**. Reverse links are computed (the declared `inverse`), never authored.
+- **Namespacing.** Keeping user-defined names out of the top-level frontmatter namespace means a declared type can never collide with a future built-in field. `links:` is a recognised schema field — it never raises `W047` (§3.17).
+- **Not `custom_fields:`.** `custom_fields:` (§3.15) holds scalar metadata that nothing resolves. A relationship to another element belongs in `links:`, where it is resolved, validated and traversable.
+- **Mutating commands** (`set`, MCP `create_element`/`update_element`) accept and preserve `links:`, and never rewrite an extending link into its base field (or vice versa).
+
+#### 12.10.3 Declared-constraint checks
+
+| Code | Severity | Trigger |
+|---|---|---|
+| `E630` | error | A `links:` key is not a declared (valid) link type. The message lists the declared link types — or, when none are declared, says so and shows how to declare one — so an author (or LLM agent) that guessed a name can self-correct. |
+| `E631` | error | `links:` is not a mapping, or a key's value is neither a string nor a list of strings. |
+| `E632` | error | A `links:` reference does not resolve to any element (by id or qualified name). |
+| `E633` | error | The type declares `sourceTypes`, and the holding element's `type:` is not listed. |
+| `E634` | error | The type declares `targetTypes`, and a resolved target's `type:` is not listed (the message names the target). |
+| `E635` | error | A source holds more targets for the type than the `cardinality` upper bound. |
+| `E636` | error | The type is `acyclic = true` and links of that type alone form a cycle — including an element linking to itself. Reported once per cycle, naming its members. Types that are not acyclic are never cycle-checked. |
+| `W631` | warning | An element whose `type:` is in the link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound (including none). Suppressed for `status: draft` elements. Gate in CI with `--deny W631`. |
+
+`W631` deliberately needs `sourceTypes` (hence the `W630` rule in §12.10.1): a lower bound only makes sense against a known population of elements that are expected to carry the link.
+
+#### 12.10.4 Extending a built-in trace link — `extends`, `relax`, `coverage`
+
+A type with `extends = "<base>"` is a **named variant** of a built-in trace link. Each instance is treated as an instance of the base link by **every** rule and **every** reverse index that applies to the base — for example `E313` domain matching and `E312` no-parent-assignment for `satisfies`; `E104` for `verifies`; `E105`/`E310`/`W303` for `derivedFrom`; `E316` for `refines`; and the coverage checks fed by `satisfiedBy`, `verifiedBy`, `derivedChildren` and `refinedBy` (`W002`, `W300`, `W305`, …) — **in addition to** the type's own declared constraints (§12.10.3). `impact`, `trace` and suspect detection likewise see it as a base-link instance.
+
+**`relax`** suppresses the listed codes **for instances of that type only**. Only the base's *link-scoped* rules may be relaxed:
+
+| `extends` | Relaxable codes |
+|---|---|
+| `satisfies` | `E312`, `E313` |
+| `verifies` | `E104` |
+| `derivedFrom` | `E105`, `E310`, `W303` |
+| `refines` | `E316` |
+
+`E310` is an element-level rule (a requirement with `derivedFrom:` but no `breakdownAdr:`): relaxing it suppresses the finding only when **every** `derivedFrom`-like link on that requirement — the built-in field and any extending types — is of a type that relaxes `E310`.
+
+**`coverage = false`** keeps the base's rule checks (so an unrelaxed `E313` still fires) but withholds the instances from the base's reverse index. They then neither satisfy/verify anything for coverage purposes nor make their target a "parent": a `coverage = false` `satisfies` variant does not clear `W300` on its target; a `coverage = false` `derivedFrom` variant does not add its source to `derivedChildren`, so the target does not become a parent for `E312`/`W305`. Coverage rules — `W002`, `W300`, `W305`, `W015` (per-configuration coverage), `W614` (TestPlan `demonstrates:`) and the report commands' satisfied/verified lists — never credit a `coverage = false` instance. Traceability-*presence* rules still count it, because the link does exist: a `TestCase` whose only verification link is a `coverage = false` `verifies` variant does not raise `E013`, and a requirement linked upstream only by a `coverage = false` `derivedFrom` variant is not an orphan (`W005`). Default `true`.
+
+**Limitation — cross-repo targets.** An extending link is presented to the base rules only when its target resolves in the local model; a target in a `[repos]` peer is resolved and traversable, but is not checked by the base's rules (`E105`, `E310`, …) the way a built-in cross-repo link is.
+
+**Built-in links are never relaxed.** A declaration only ever affects instances of its own named type; a plain `satisfies:` beside a relaxing `partiallySatisfies` still raises `E313` on a domain mismatch. Relaxation is therefore always explicit at each use site, and every relaxation in a project is auditable in one place (`link-types` prints it).
+
+```toml
+[linkTypes.partiallySatisfies]
+description = "A cross-domain contributor; the owning-domain element holds the real satisfies:"
+extends     = "satisfies"
+relax       = ["E313"]
+coverage    = false
+```
+
+```yaml
+---
+type: PartDef
+name: BrakeController
+domain: software
+satisfies: [REQ-BRK-002]                  # software → software: full satisfaction
+links:
+  partiallySatisfies: REQ-BRK-003         # software → hardware req: E313 relaxed, no coverage credit
+---
+```
+
+#### 12.10.5 Traversal and discovery
+
+| Command | Behaviour |
+|---|---|
+| `follow <elem> <link> [--reverse] [--transitive] [--depth N] [--format text\|json\|dot]` | Walks one named link from `<elem>` (id or qname). `<link>` is a declared type (forward), its declared `inverse` (reverse), a built-in link (`satisfies`, `verifies`, `derivedFrom`, `refines`, `supertype`, `typedBy`, `allocatedTo`) or a built-in reverse name (`satisfiedBy`, `verifiedBy`, `derivedChildren`, `refinedBy`, `specializedBy`, `allocatedFrom`). `--reverse` flips the direction. One hop by default; `--transitive` follows to a fixed point (terminating on cycles); `--depth N` bounds the hops and implies transitive. Each reached element is reported once with its hop depth, id/qname, type and name. `json` emits `{start, link, direction, results: [{qname, id, type, name, depth, from}]}`; `dot` emits a Graphviz digraph. An unknown element or link name exits non-zero; an unknown link name prints the available link names. |
+| `link-types [--json]` | Lists every **valid** declared type with its description, inverse, `extends` base, relaxed codes, coverage, source/target types, cardinality, `acyclic`, `suspect`, and the number of instances in the model. An entry ignored under `W630` is not listed as usable. With none declared, says so, shows how to declare one, and exits zero. |
+
+Existing relationship commands include custom links: `links` lists outbound instances under the type name and inbound ones under the `inverse` (or `<type> (inbound)` when no inverse is declared); `refs` includes inbound custom links; `impact` traverses them (upstream along the link, downstream against it) and accepts custom type names in `--kinds`; `trace` lists the custom links touching the requirement; `show` displays the element's `links:`.
+
+The MCP server exposes two read-only tools: `link_types` (same data as `link-types --json`) and `follow` (arguments `element`, `link`, optional `reverse`, `transitive`, `depth`; same data as `follow --format json`). Its `initialize` instructions point the client at `link_types`.
+
+#### 12.10.6 Suspect links
+
+Custom link targets are trace links for suspect-link detection (`ADR-SYS-SUSLINK-001`): `suspect list` lists them, `suspect accept` baselines them into the source's `traceBaselines:` map, and validation raises `W090` when a baselined target's normative content changes. A type declaring `suspect = false` is excluded from all three — appropriate for purely informational relationships (`conflictsWith`, `informs`) whose validity does not depend on the target's exact wording.
+
+#### 12.10.7 LLM discoverability
+
+Because the vocabulary is per-project, the generic authoring prompt cannot enumerate it. Instead:
+
+- The authoring prompt (`--agent-instructions`) documents `links:`, instructs the agent to discover the project's types with `link-types` (or the MCP `link_types` tool) **before** authoring any link, and forbids inventing undeclared types.
+- `syscribe -m <root> --agent-instructions` appends a **"Project link types"** section listing each declared type (name, description, direction/inverse, source → target types, cardinality, extends/relax) when the model declares any; nothing is appended when it declares none.
+- `E630` names the declared types, so a wrong guess self-corrects on the next validation pass.
 
 ---
 
@@ -6837,6 +7023,8 @@ This is a read-only analysis command. It does not modify the model.
 | `satisfies` | Requirements this element satisfies (structural or behavioral — §12.3) |
 | `allocatedTo` | Allocation targets of this element |
 
+**User-defined link types (§12.10)** are traversed as well: upstream along the link (source → target), downstream against it (target → source). `--kinds` accepts custom link-type names. A type that `extends` a built-in link is also traversed as that base kind.
+
 **Text output:**
 
 ```
@@ -7155,7 +7343,7 @@ This specification defines the mapping from native `Requirement` elements (and t
 |---|---|---|
 | `--output file` | stdout | Write to `<file>.reqif`; with `--zip`, writes `<file>.reqifz` |
 | `--scope qname` | model root | Export only requirements in this namespace subtree |
-| `--config CONF` | no projection | When a feature model is present, project to this `Configuration` and export only active requirements |
+| `--config CONF` | no projection | Project to this `Configuration` and export only active requirements. On a model with no feature model it must name a stored `Configuration` (identity projection); anything else is a usage error (REQ-TRS-PROJ-001) |
 | `--zip` | false | Package as `.reqifz` (ZIP with a `content.reqif` entry and any embedded XHTML assets) |
 
 ### 21.3 Element Mapping

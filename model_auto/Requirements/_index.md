@@ -26,6 +26,6 @@ downward to architecture elements via `satisfies:` on `Part`/`PartDef` elements 
 `System` and `Vehicle` packages. Reverse indices (`verifiedBy`, `derivedChildren`) are
 computed at load time and not stored in source files.
 
-Each leaf requirement at `status: approved` must have exactly one satisfying architecture
-element (warning W300 if none, W301 if more than one). All safety leaf requirements carry
+Each leaf requirement at `status: approved` must have at least one satisfying architecture
+element (warning W300 if none). All safety leaf requirements carry
 `asilLevel:` and `verificationMethod:`.

@@ -49,8 +49,9 @@ plan id.
   active subset of the selected configuration.
 - An **unknown / unresolvable** `TP-id` **shall** be a usage error (non-zero exit,
   exit `1`).
-- `--plan` **shall** be **dormant-safe**, exactly like `--config`: on a model with no
-  feature model the lens still scopes by plan membership without error.
+- `--plan` **shall** be **dormant-safe**: on a model with no feature model the lens
+  still scopes by plan membership without error. (`--plan` names a `TestPlan`, which needs
+  no feature model; compare `--config`, REQ-TRS-PROJ-001.)
 
 **Source:** GH #38; symmetric to ADR-PROJ-001's `--config` lens, generalised to plan
 scope.

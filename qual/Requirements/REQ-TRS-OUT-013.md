@@ -26,8 +26,8 @@ over the elements **active** in that configuration (per `appliesWhen`, via
 `projection::project`). A requirement that is inactive in the selected variant
 **shall not** contribute to W306 or the orphan counts. With no `--config`, behaviour
 is unchanged (whole-model view). An unresolvable `--config` argument is a usage error
-(exit `1`); a `--config` with no feature model present falls back to the whole-model
-audit.
+(exit `1`), including a `--config` naming no stored `Configuration` on a model with no
+feature model (REQ-TRS-PROJ-001).
 
 `audit --all-configs` **shall** audit every stored `Configuration`'s projected
 variant and print a per-configuration PASS/FAIL summary, exiting non-zero if **any**

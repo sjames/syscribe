@@ -110,6 +110,8 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe model/ trace <qname\|req-id>` | Full traceability slice for a requirement |
 | `syscribe model/ why <qname>` | What requirements this element satisfies |
 | `syscribe model/ who-verifies <req-id>` | Which test cases cover a requirement |
+| `syscribe -m model/ link-types [--json]` | The project's declared link types for `links:` (run **before** authoring any link — see §12.10 in Part 10) |
+| `syscribe -m model/ follow <qname\|id> <link> [--reverse] [--transitive] [--depth N] [--format text\|json\|dot]` | Walk one link type (custom type, its `inverse`, or a built-in link / reverse index such as `satisfiedBy`) |
 
 **Reports & analysis:**
 
@@ -219,7 +221,7 @@ Write `Diagram` elements after all model elements are in place.
   Commit the `.md` (with the auto-injected image link), the `.puml`, and the generated `.svg`. Validate: fix E403, E404, W413, W414.
 
 **Batch 9 — Resolve leaf PartDefs (closure pass)**
-After all architecture and requirement elements exist, verify that every leaf `PartDef`/`Part` is properly closed. See Part 7b for the full procedure. Validate: resolve all W300 (unassigned leaf requirements) and W301 (over-assigned leaf requirements).
+After all architecture and requirement elements exist, verify that every leaf `PartDef`/`Part` is properly closed. See Part 7b for the full procedure. Validate: resolve all W300 (unassigned leaf requirements).
 
 After all batches pass with 0 errors, review warnings and fix any that indicate genuine gaps (W300 — leaf requirement has no satisfying element; W002 — approved requirement has no active TestCase).
 
@@ -334,6 +336,8 @@ name: <DirectoryName>
 One-line description of this package.
 ```
 
+Describe the package's **purpose and scope** in `_index.md` — never list its members (ids or file names). Membership is generated from the directory (`syscribe -m model/ show <package>` prints it), so a hand-written list only drifts; `lint-docs` flags one with `W103`.
+
 ---
 
 ## Part 2 — Element Types Quick Reference
@@ -411,6 +415,7 @@ Key fields that apply to most element types:
 | `connections` | Port bindings (on Part files) |
 | `satisfies` | List of `REQ-*` IDs this element satisfies |
 | `implementedBy` | Path(s) to the source artifact realising this Part/PartDef/Interface/InterfaceDef (string or list); missing local paths warn W023 |
+| `links` | Project-defined relationships: map of declared link-type name → ref or list of refs (see §12.10 in Part 10). Never invent a type — discover them with `link-types` |
 | `custom_fields` | Optional freeform user metadata (see below) |
 
 ### `custom_fields:` — user-defined metadata
@@ -641,7 +646,7 @@ Required: `allocatedFrom` and `allocatedTo` must both resolve to known elements 
 
 ## Part 7b — Closing the Architecture: Resolving Leaf PartDefs
 
-A **leaf PartDef** is a `PartDef` or `Part` that has no sub-part children in the model — it represents the lowest-level component that actually implements requirements. The closure pass ensures every leaf PartDef is assigned to at least one leaf requirement, and every leaf requirement at `approved` or higher is assigned to exactly one element.
+A **leaf PartDef** is a `PartDef` or `Part` that has no sub-part children in the model — it represents the lowest-level component that actually implements requirements. The closure pass ensures every leaf PartDef is assigned to at least one leaf requirement, and every leaf requirement at `approved` or higher is assigned to at least one element.
 
 ### Step 1 — Find unassigned leaf requirements
 
@@ -679,9 +684,9 @@ satisfies:
   - REQ-AID-FC-002    # newly assigned
 ```
 
-### Step 4 — Handle over-assigned requirements (W301)
+### Step 4 — Requirements satisfied by several elements
 
-A leaf requirement with more than one satisfying element fires W301. This is almost always a modelling mistake — decide which single element owns the requirement and remove it from the others. Legitimate split ownership (redundancy architectures) should be documented in the breakdown ADR and the requirement should be decomposed into two child requirements, one per element.
+A leaf requirement may be satisfied by more than one element — a `PartDef` plus the `StateDef` that gives it its behaviour, redundant channels, a component plus its interface. This is legitimate and raises no finding (W301 is retired). Do **not** invent child requirements just to get one satisfier per leaf; decompose only when the children say something new. Never satisfy a *parent* requirement (E312).
 
 ### Step 5 — Handle deployment packages
 
@@ -703,7 +708,6 @@ syscribe model/ validate
 Target state at end of closure pass:
 - **0 errors**
 - **0 × W300** — every leaf requirement at `approved`/`implemented` has a satisfying element
-- **0 × W301** — no leaf requirement is satisfied by more than one element
 - **0 × E314** — every deployment package has an allocation to hardware
 
 Remaining acceptable warnings after closure: W404 (`ScalarValues::*` stdlib), W007 (unused definition types), W305 (parent requirement without system-integration TestCase), W008 (README file).
@@ -972,7 +976,7 @@ buildOverrides:
 
 **Whole-space analysis — `feature-check --deep`.** Adds SAT-backed reasoning over a propositional encoding of the feature model (Boolean layer only; deterministic, no external solver; comfortably ~500 features): **void** models (`E223`), **dead** features (`E224`), **false-optional** features (`W018`), **invalid configurations** under full group/cardinality semantics (`E225`), **core** features, a minimal conflict-set explanation, and **diagnoses** (minimal correction sets) for void models. Companion commands: `--count`/`--enumerate` report the valid-configuration space, and `configure <Configuration>` completes a partial selection (forced/free features). Use these to prove the feature model itself is sound and to drive configuration, beyond linting authored configs. (Numeric/parameter SMT reasoning and DRAT proofs are not yet implemented.)
 
-**Configuration lens (`--config`).** The model is a 150% superset; `--config <CONF|features>` projects it onto one variant and runs `validate`/`list`/`export` over the active elements only. `validate --config` certifies a variant and flags **escaping references** (an active element pointing at one inactive in that variant: structural `E226` / traceability `W019`); `feature-check --deep` additionally proves no structural reference can escape in *any* valid configuration (`E227`). `validate --all-configs` gates every stored variant; `diff --config A --config B` shows what differs. All inert when no feature model is present.
+**Configuration lens (`--config`).** The model is a 150% superset; `--config <CONF|features>` projects it onto one variant and runs `validate`/`list`/`export` over the active elements only. `validate --config` certifies a variant and flags **escaping references** (an active element pointing at one inactive in that variant: structural `E226` / traceability `W019`); `feature-check --deep` additionally proves no structural reference can escape in *any* valid configuration (`E227`). `validate --all-configs` gates every stored variant; `diff --config A --config B` shows what differs. On a model with no feature model, `--config` must name a stored `Configuration` (check `syscribe -m model/ list Configuration`); anything else is a usage error (exit 1).
 
 **Hierarchical product-line composition — `subConfigurations:` (§14.7, `ADR-SYS-HPLE-001`).** A `Configuration` may consolidate one or more other, already-configured `Configuration`s — reachable locally or, in the common case, via a `[repos]`-mounted lower-tier product-line repo (§14) — into a single higher-tier product (an OEM vehicle line built from a battery-pack line, itself built from a cell-chemistry line). Each `subConfigurations:` entry must resolve to a real `Configuration` (`E516` dangling, `E517` wrong-type) that is itself internally valid before it can be consolidated (`E518`). `parameterBindings:` is reused unchanged — a dotted key resolves transitively through the consolidated subtree at any depth, using the parameter's ordinary, already-mounted qname, no new addressing syntax — but must target a parameter that's genuinely open: selected by the tier that owns it (`E519`, the cross-tier form of `E203`) and not already closed by a nearer tier on the path (`E523`, no double-binding). A parameter left open at an intermediate tier is not a defect — it is exactly how staged, multi-party configuration works — so a still-open required parameter anywhere in the subtree is only ever the opt-in, `--deny`-gateable `W513`, never a hard error. **A lower tier carries zero awareness of whoever might consolidate it** — a descendant `FeatureDef` parameter that needs an external value declares this exactly as it would in an ordinary single-model `Configuration` (`isRequired: true`, no `default`), with no field naming its consolidator; `bindTo:` (component→system propagation) is explicitly not this mechanism and never crosses a `subConfigurations:` boundary. See `examples/hple-multitier/` for a complete 3-tier worked example.
 
@@ -1045,7 +1049,7 @@ Links always point **upstream**. The child holds `derivedFrom:`, the TestCase ho
 Every Requirement with `derivedFrom:` **must also have `breakdownAdr:`** pointing to an `accepted` ADR (error E310). Create the ADR *before* the child requirements.
 
 ### §12.3 — Leaf assignment
-Every leaf Requirement at `status: approved` or `implemented` should be assigned to exactly one architecture element via `satisfies:` (warning W300 if none).
+Every leaf Requirement at `status: approved` or `implemented` should be assigned to at least one architecture element via `satisfies:` (warning W300 if none); several elements may jointly satisfy it (W301 is retired).
 
 ### §12.4 — No parent assignment
 A Requirement from which others derive must **never** appear in any `satisfies:` list (error E312).
@@ -1066,6 +1070,22 @@ Once a `SafetyGoal` carries `asilLevel:`, `silLevel:`, or `plLevel:`, every down
 | `satisfies:` → Requirement | E843 | W808 |
 
 A lower level (ASIL decomposition per ISO 26262-9) is valid only when `breakdownAdr:` references an `accepted` ADR documenting the decomposition rationale.
+
+### §12.10 — User-defined link types (`links:`)
+Some projects declare their own relationships (`mitigates`, `conflictsWith`, `partiallySatisfies`, …) as `[linkTypes.<name>]` tables in `.syscribe.toml`. Elements hold instances under **one** field, `links:` — a map from a declared link-type name to a ref or list of refs (id or qname, resolved like `satisfies:`):
+
+```yaml
+links:
+  mitigates: [REQ-BRK-002, REQ-BRK-003]
+  partiallySatisfies: REQ-BRK-005
+```
+
+- **Link types are project-specific — you MUST discover them first.** Before writing any `links:` entry run `syscribe -m <root> link-types` (or call the MCP `link_types` tool), or read the **"Project link types"** section that `syscribe -m <root> --agent-instructions` appends when the model declares any. Each entry gives the description, inverse, source → target types, cardinality and any `extends`/`relax`.
+- **MUST NOT invent an undeclared link type**, and never put a custom relationship at the top level (`W047`) or in `custom_fields:` (unresolved). If nothing fits, use the built-in field or ask for a type to be declared. An undeclared key is `E630`, and its message lists the declared types — pick from that list.
+- **Direction (§12.1):** the element holding `links:` is the source; the ref is the target. Never write the `inverse` name in `links:` — it is computed. Use `follow <elem> <inverse>` to read the reverse side.
+- **Respect the declaration:** source type in `sourceTypes` (`E633`), each target's type in `targetTypes` (`E634`), target count within `cardinality` (`E635` over; `W631` under the lower bound on a non-draft source), no cycles in an `acyclic` type (`E636`). Every ref must resolve (`E632`); the value must be a ref or list of refs (`E631`).
+- **`extends` types are variants of a built-in link** (`satisfies`/`verifies`/`derivedFrom`/`refines`): every base rule applies except the codes in `relax`. A `partiallySatisfies` that relaxes `E313` does **not** make a plain `satisfies:` cross-domain assignment legal. With `coverage = false` the link earns no coverage credit, so the target still needs a real `satisfies:`/`verifies:`.
+- Malformed `[linkTypes]` entries are `W630` and ignored — do not edit `.syscribe.toml` unless asked.
 
 ---
 
@@ -1229,6 +1249,15 @@ draft → review → approved → implemented → verified
 | E313 | Domain mismatch between element and requirement | Match `domain:` to `reqDomain:` |
 | E314 | `isDeploymentPackage: true` with no `Allocation` | Add an Allocation to a hardware element |
 | E315 | Cross-domain `supertype:` or `typedBy:` | Use Allocation for HW↔SW binding |
+| E630 | `links:` key is not a declared link type | Use a type listed in the message / by `link-types`; never invent one |
+| E631 | `links:` not a map, or a value not a ref / list of refs | `links: { <type>: <ref> }` or `<type>: [<ref>, …]` |
+| E632 | `links:` ref does not resolve | `check-ref` the id or qname |
+| E633 | Element type not in the link type's `sourceTypes` | Hold the link on a permitted source type (see `link-types`) |
+| E634 | Target type not in the link type's `targetTypes` | Point at a permitted target type |
+| E635 | More targets than the `cardinality` upper bound | Remove targets or split across elements |
+| E636 | Cycle in an `acyclic` link type | Break the loop |
+| W630 | Malformed `[linkTypes]` entry (ignored) or unknown key | Fix `.syscribe.toml` only if asked; report it |
+| W631 | Non-draft source below the link type's lower cardinality bound | Add the required link(s) |
 | E500–E503 | `allocatedFrom`/`allocatedTo` does not resolve | Use correct qualified names |
 | E841 | `derivedFromSafetyGoal` source has integrity level; this element has none | Add `asilLevel`, `silLevel`, or `plLevel` |
 | E842 | `derivedFrom` parent has integrity level; this element has none | Add the same integrity level field |
@@ -1287,7 +1316,7 @@ model/
 - [ ] `name:` and `status:` are present
 - [ ] Normative body is non-empty and contains `shall`
 - [ ] If `derivedFrom:` is set → `breakdownAdr:` is also set, pointing to an `accepted` ADR
-- [ ] If it is a leaf at `approved`/`implemented` → exactly one architecture element has it in `satisfies:`
+- [ ] If it is a leaf at `approved`/`implemented` → at least one architecture element has it in `satisfies:`
 - [ ] If it has children deriving from it → it does NOT appear in any `satisfies:` list
 - [ ] `reqDomain:` matches `domain:` of the satisfying element (or one of them is `system`)
 
@@ -1332,5 +1361,6 @@ model/
 - [ ] Every directory referenced by a new file has an `_index.md`
 - [ ] All qualified name cross-references use `::` and resolve to actual files
 - [ ] No `supertype:` or `typedBy:` crosses the `hardware`/`software` domain boundary
+- [ ] Every `links:` key is a type listed by `link-types` (no invented types), held on the source end
 
 Now generate the output.

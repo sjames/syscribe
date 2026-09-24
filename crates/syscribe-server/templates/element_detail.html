@@ -28,6 +28,29 @@
     </table>
   </div>
   {% endif %}
+  {% if show_members %}
+  <div class="detail-members">
+    <div class="detail-section-label">Members ({{ members.len() }})</div>
+    {% if members.is_empty() %}
+    <p class="detail-empty">No members.</p>
+    {% else %}
+    <table class="custom-fields-table">
+      {% for m in members %}
+      <tr>
+        <th><a class="tree-item"
+               href="#"
+               hx-get="/ui/detail/{{ m.qualified_name }}"
+               hx-target="#modal-content"
+               hx-swap="innerHTML">{{ m.label }}</a></th>
+        <td><span class="type-badge">{{ m.element_type }}</span></td>
+        <td>{{ m.name }}</td>
+        <td>{{ m.status }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </div>
+  {% endif %}
   <div class="detail-actions">
     <button class="btn-edit" onclick="showEditForm()">Edit</button>
   </div>

@@ -27,8 +27,9 @@ variant can be analysed in isolation, not only the 150% superset. This applies t
   element that is inactive in the selected variant **shall not** appear in, or
   contribute to, the command's output.
 - With no `--config`, behaviour **shall** be unchanged (whole-model view).
-- When **no feature model** is present, `--config` is **dormant** (falls back to the
-  whole-model report) rather than an error.
+- When **no feature model** is present, a `--config` that names no stored
+  `Configuration` is a usage error (exit `1`, message names the missing feature
+  model); one naming a stored `Configuration` uses the whole model — REQ-TRS-PROJ-001.
 - An **unresolvable** `--config` argument is a usage error and **shall** exit `1`.
 
 **Source:** ADR-PROJ-001; GH #35 (generalised from `audit --config` to the other

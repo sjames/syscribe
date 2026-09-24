@@ -32,8 +32,13 @@ Element page filenames are the qualified name with `::` and `/` replaced by
 
 Each element page shows its identity (name, type, qname, stable id, status), a
 frontmatter table with cross-references rendered as links, the rendered Markdown
-documentation, and an inlined diagram (SVG for block diagrams, client-side
-Mermaid for `diagramKind: Mermaid`).
+documentation (user-defined `links:` render as one linked `links.<type>` row per
+link type; inbound ones appear under the type's inverse, or `<type> (inbound)`),
+and an inlined diagram (SVG for block diagrams, client-side
+Mermaid for `diagramKind: Mermaid`). A package page (or any element that owns
+children) adds a `<section id="members">` listing its direct members — each
+linked to its element page, with type, name and status — generated from the
+directory tree; an empty package shows an explicit "No members." state.
 
 ## Offline guarantee
 
@@ -51,6 +56,7 @@ A `--css` author can target the class names the generator emits:
   .meta             the identity/status line under the title
   .fm-table         the frontmatter key/value table
   .doc              the rendered Markdown documentation block
+  #members          the generated member list of a package (`p.empty` when none)
   .diagram          the inlined SVG / Mermaid container
   .refs             a resolved cross-reference list
   .search-box       the search input on the index page

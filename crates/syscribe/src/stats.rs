@@ -371,11 +371,11 @@ pub fn stats_document(
     config: Option<&str>,
     opts: &StatsOptions,
 ) -> Result<Value, String> {
-    use syscribe_model::projection::{project, resolve_selection, SelectionOutcome};
+    use syscribe_model::projection::{project, resolve_config_flag, SelectionOutcome};
 
     let projected: Option<Vec<RawElement>> = match config {
         None => None,
-        Some(c) => match resolve_selection(elements, c) {
+        Some(c) => match resolve_config_flag(elements, c) {
             SelectionOutcome::Dormant => None, // no feature model → whole-model view
             SelectionOutcome::Resolved(sel) => Some(project(elements, &sel)),
             SelectionOutcome::Error(m) => return Err(m),
@@ -383,7 +383,10 @@ pub fn stats_document(
     };
     let view: &[RawElement] = projected.as_deref().unwrap_or(elements);
     let result = syscribe_model::validator::validate_with_config(view, vcfg);
-    compute_stats(view, &result, vcfg.results.as_ref(), opts)
+    // REQ-TRS-LINKTYPE-006 — count `coverage = true` extending links as their base
+    // link in the digest; validated above on the authored elements.
+    let cov_view = syscribe_model::link_types::coverage_view(view, &vcfg.link_types);
+    compute_stats(&cov_view, &result, vcfg.results.as_ref(), opts)
 }
 
 /// The `stats` command. Computes the digest, prints it (text or `--json`), and

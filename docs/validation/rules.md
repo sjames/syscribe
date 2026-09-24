@@ -150,7 +150,7 @@ Core features (present in every valid configuration) are reported informationall
 | W021 | (`feature-check --deep`) a **dead element** — its `appliesWhen` is unsatisfiable under the feature model (active in no valid configuration) |
 | W022 | (`feature-check --deep`) a requirement **active in some configuration but covered in none** (family-wide coverage gap) |
 
-The lens is inert when the model declares no `FeatureDef`. Cross-reference-resolution codes (`E102`–`E106`) are suppressed under `--config` because escaping refs (`E226`/`W019`) are authoritative there.
+On a model that declares no `FeatureDef`, `--config` must name a stored `Configuration` (e.g. a MagicGrid parametric variant — the lens is then the identity); anything else is a usage error rather than a silent whole-model fallback. Cross-reference-resolution codes (`E102`–`E106`) are suppressed under `--config` because escaping refs (`E226`/`W019`) are authoritative there.
 
 ## Transitive package `appliesWhen` (§9.10, REQ-TRS-VAR-006)
 
@@ -176,7 +176,7 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 | Code | Condition |
 |---|---|
 | W300 | Leaf Requirement at `approved` or `implemented` has no satisfying element |
-| W301 | Leaf Requirement is satisfied by more than one element |
+| W301 | **Retired** (GH #121) — no longer emitted; a leaf may be jointly satisfied by several elements |
 | W302 | Leaf Requirement at `implemented` or `verified` still has `reqDomain: system` |
 | W303 | `breakdownAdr:` references a `proposed` ADR but Requirement is `approved` or higher |
 | W304 | `isDeploymentPackage: true` combined with `domain: hardware` |
@@ -320,7 +320,7 @@ A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes no
 | W952 | A part declares `targetSL` but belongs to no zone (opt-in). |
 | W953 | An `approved` `Zone` (`targetSL >= 2`) referenced by no `Conduit`. |
 
-## Documentation linting (W099–W102, `lint-docs`)
+## Documentation linting (W099–W103, `lint-docs`)
 
 The `lint-docs` command scans external `.md` and `.svg` docs for references to model elements that no longer resolve (gateable, e.g. `--deny W100`).
 
@@ -330,6 +330,7 @@ The `lint-docs` command scans external `.md` and `.svg` docs for references to m
 | W100 | A qualified name (`A::B::C`) inside a ` ```mermaid ` block that does not resolve (prose qnames are not checked). |
 | W101 | An SVG `sysml:ref="…"` that does not resolve (SVGs with no `sysml:ref` are opaque). |
 | W102 | A local image/diagram embed path (`![](…)`, `<img src>`) that does not exist (remote URIs accepted). |
+| W103 | Advisory: a package `_index.md` body enumerates three or more of the package's own direct members by stable id. Membership is generated (`show <package>`); describe purpose instead. Does not affect the exit status. |
 
 ## Review records (E700–E705, W700, W704, §19)
 
@@ -386,6 +387,24 @@ clears both regardless of `status:`. Both are visible in `show <PI-id>` and
 anything was ever actually claimed, since `status: in_progress` alone already signals active work.
 
 No dedicated CLI subcommand or MCP tool — queried via the generic `list`/`show`/`ls`/`find`/`refs` commands; written via the generic MCP element tools. See `examples/planning-item/` for a worked example.
+
+## User-defined link types (E630–E636, W630, W631, §12.10, ADR-SYS-LINKTYPE-001)
+
+A project declares its own relationship types in `[linkTypes.<name>]` tables of the model-root `.syscribe.toml`, and elements author instances under a `links:` map (`<type>: <ref | [refs]>`, resolved like `satisfies:`). **Active only when `[linkTypes]` or `links:` is used** — a model with neither is unaffected. See the [Link Types guide](../model-guide/link-types.md).
+
+| Code | Condition |
+|---|---|
+| E630 | A `links:` key is not a declared (valid) link type. The message lists the declared types (or says none are declared and how to declare one) — run `syscribe -m <root> link-types`. |
+| E631 | `links:` is not a mapping, or a key's value is neither a string nor a list of strings. |
+| E632 | A `links:` reference does not resolve to any element (by stable id or qualified name). |
+| E633 | The link type declares `sourceTypes` and the element holding the link is not one of them. |
+| E634 | The link type declares `targetTypes` and a resolved target is not one of them (the target is named). |
+| E635 | More targets than the link type's `cardinality` upper bound. |
+| E636 | A cycle (including a self-link) formed solely by links of an `acyclic = true` type — once per cycle, naming its members. |
+| W630 | A `[linkTypes.<name>]` entry is malformed — bad or colliding name/`inverse`, unparseable `cardinality`, non-zero lower bound without `sourceTypes`, unknown element type in `sourceTypes`/`targetTypes`, unsupported `extends`, `relax`/`coverage` without `extends`, or a `relax` code not relaxable for the base. The whole entry is ignored (its uses then raise `E630`). An unknown key inside an entry is also `W630` (the key is ignored). |
+| W631 | A non-`draft` element whose `type:` is in the link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound (opt-in; `--deny W631`). |
+
+A type with `extends = "satisfies" | "verifies" | "derivedFrom" | "refines"` is also checked by every rule of its base link, minus the codes it lists in `relax` — `satisfies` → `E312`, `E313`; `verifies` → `E104`; `derivedFrom` → `E105`, `E310`, `W303`; `refines` → `E316`. Relaxation never applies to the built-in field itself. Custom links participate in suspect-link detection (`W090`) unless the type sets `suspect = false`.
 
 ## Multi-repository composition (E510–E515, W510–W512, §14)
 

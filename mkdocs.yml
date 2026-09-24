@@ -62,6 +62,7 @@ nav:
       - Safety & Security Analysis: model-guide/safety-analysis.md
       - Variability & Product Lines: model-guide/variability.md
       - Build System Integration: model-guide/build-export.md
+      - User-Defined Link Types: model-guide/link-types.md
       - Multi-Repository Composition: model-guide/multi-repo.md
       - Native SysMLv2 Submodels: model-guide/sysmlv2-submodel.md
       - Foreign-Format Plugins (stdio): model-guide/stdio-plugins.md

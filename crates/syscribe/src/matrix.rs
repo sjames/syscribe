@@ -449,6 +449,11 @@ fn cmd_matrix_inner(
     results: Option<&ResultsData>,
     linked_only: bool,
 ) {
+    // REQ-TRS-LINKTYPE-006 — a `coverage = true` user-defined link extending
+    // verifies/satisfies/derivedFrom counts as that base link in the grid
+    // (read-only report; the vocabulary installed by the loaded config).
+    let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
+    let elements: &[RawElement] = &cov;
     // Executed-evidence refinement applies only when a results sidecar is loaded
     // and the caller did not force the linked-only view (issue #21).
     let evidence = if linked_only { None } else { results };

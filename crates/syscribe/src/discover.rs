@@ -343,7 +343,7 @@ pub fn cmd_why_active(elements: &[RawElement], key: &str, config: Option<&str>, 
 
     // Resolve the configuration selection. With no feature model the element is
     // always active.
-    let sel = match projection::resolve_selection(elements, cfg_arg) {
+    let sel = match projection::resolve_config_flag(elements, cfg_arg) {
         SelectionOutcome::Dormant => None,
         SelectionOutcome::Resolved(s) => Some(s),
         SelectionOutcome::Error(m) => {

@@ -3,7 +3,7 @@
 **Tool:** syscribe CLI validator  
 **Version:** syscribe 0.39.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
-**Date:** 2026-09-15  
+**Date:** 2026-09-24  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
 
 ---
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 281 |
-| Passed | 281 |
+| Total test cases | 308 |
+| Passed | 308 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -859,6 +859,28 @@
 
 ---
 
+### TC-TRS-INGEST-001 — Verify session-log ingestion parses valid records into the results sidecar and hard-fails on malformed/missing steps, unrecognized result, or an empty array, without clobbering an existing sidecar.
+
+**Verifies:** REQ-TRS-INGEST-001  
+**Result:** ✓ PASS (21 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| --format session-log is never inferred from the file extension | ✓ PASS |
+
+---
+
+### TC-TRS-INGEST-002 — Verify trace/matrix/safety-case/testplan roll up session-log scenario verdicts for a TestCase with no testFunctions, distinguishing prose-only evidence from an ingested pass, and never disturbing testFunctions-scored TestCases.
+
+**Verifies:** REQ-TRS-INGEST-002  
+**Result:** ✓ PASS (12 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a TestCase with testFunctions ignores any session-log data | ✓ PASS |
+
+---
+
 ### TC-TRS-LIB-001 — Verify built-in type recognition: ScalarValues/Base members resolve with no W404/W043; unknown members raise W043; import-only packages stay lenient.
 
 **Verifies:** REQ-TRS-LIB-001  
@@ -944,6 +966,138 @@
 | Scenario | Result |
 |---|---|
 | live detail panel renders/omits the source-link icon per [links] | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-001 — Verify [linkTypes] declarations are parsed, malformed entries raise W630 and are ignored, and an unconfigured model is unaffected.
+
+**Verifies:** REQ-TRS-LINKTYPE-001  
+**Result:** ✓ PASS (15 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a model without [linkTypes] is unaffected | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-002 — Verify links: entries resolve against declared link types, with E630/E631/E632 for undeclared types, malformed shapes and dangling targets.
+
+**Verifies:** REQ-TRS-LINKTYPE-002  
+**Result:** ✓ PASS (11 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| in a configuration lens a links: target inactive in the variant escapes as W019, not E632 | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-003 — Verify sourceTypes and targetTypes constraints raise E633 and E634.
+
+**Verifies:** REQ-TRS-LINKTYPE-003  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a forbidden target type raises E634 | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-004 — Verify cardinality bounds: E635 above the upper bound, W631 below the lower bound for non-draft in-scope elements.
+
+**Verifies:** REQ-TRS-LINKTYPE-004  
+**Result:** ✓ PASS (4 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a draft element under the lower bound raises nothing | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-005 — Verify acyclic link types reject cycles and self-links with E636, and non-acyclic types are not cycle-checked.
+
+**Verifies:** REQ-TRS-LINKTYPE-005  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an acyclic chain raises nothing | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-006 — Verify extends inherits base rules and reverse index, relax suppresses listed codes per type only, coverage=false withholds coverage, and mutation never rewrites into the base field.
+
+**Verifies:** REQ-TRS-LINKTYPE-006  
+**Result:** ✓ PASS (12 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| mutation does not rewrite an extending link into the base field | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-007 — Verify follow traverses custom and built-in links forward, inverse and reversed, one hop or transitively, with depth bounds, cycle termination and text/json/dot formats.
+
+**Verifies:** REQ-TRS-LINKTYPE-007  
+**Result:** ✓ PASS (16 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| unknown link or element exits non-zero | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-008 — Verify link-types lists the declared vocabulary and rules in text and JSON, omits invalid entries, and hints when none are declared.
+
+**Verifies:** REQ-TRS-LINKTYPE-008  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an unconfigured model prints a hint and exits zero | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-009 — Verify links, refs, impact, trace and show include user-defined links.
+
+**Verifies:** REQ-TRS-LINKTYPE-009  
+**Result:** ✓ PASS (8 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| show displays links: | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-010 — Verify the MCP server exposes read-only link_types and follow tools.
+
+**Verifies:** REQ-TRS-LINKTYPE-010  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| follow returns traversal results | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-011 — Verify custom links participate in suspect-link detection unless the type sets suspect = false.
+
+**Verifies:** REQ-TRS-LINKTYPE-011  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an opted-out type never raises W090 | ✓ PASS |
+
+---
+
+### TC-TRS-LINKTYPE-012 — Verify an LLM agent can discover link types: the prompt documents links: and link-types, and --agent-instructions with a model appends the project's declared types.
+
+**Verifies:** REQ-TRS-LINKTYPE-012  
+**Result:** ✓ PASS (3 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a model declaring none appends nothing | ✓ PASS |
 
 ---
 
@@ -1489,6 +1643,39 @@
 
 ---
 
+### TC-TRS-OUT-021 — Verify the stats corpus-shape digest: facets, coverage/orphan rollups, --group-by, scoping filters, --config lens, JSON, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-OUT-021  
+**Result:** ✓ PASS (41 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP stats tool returns the same document as the CLI | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-022 — Verify the digest bulk view: compact NDJSON rows, one-line text, paging, scoping filters, --config lens, JSON document, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-OUT-022  
+**Result:** ✓ PASS (25 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP digest tool returns the same document as the CLI | ✓ PASS |
+
+---
+
+### TC-TRS-OUT-023 — Verify the hierarchical summarize digest: per-package rollup, extractive terms, representatives, content-hash cache, scope/depth/config, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-OUT-023  
+**Result:** ✓ PASS (33 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP summarize tool matches the CLI | ✓ PASS |
+
+---
+
 ### TC-TRS-PARAM-001 — Verify FeatureDef parameter binding rules E203–E206, E222, and W017.
 
 **Verifies:** REQ-TRS-PARAM-001  
@@ -1641,6 +1828,28 @@
 |---|---|
 | file with no type: field is skipped with a warning | ✓ PASS |
 | file with type: present is processed normally | ✓ PASS |
+
+---
+
+### TC-TRS-PKG-001 — Verify show and export-html list a package's direct members generated from the directory.
+
+**Verifies:** REQ-TRS-PKG-001  
+**Result:** ✓ PASS (13 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| export-html package page lists members with links | ✓ PASS |
+
+---
+
+### TC-TRS-PKG-002 — Verify lint-docs flags an _index.md that hand-enumerates three or more of its own members (W103), advisory only.
+
+**Verifies:** REQ-TRS-PKG-002  
+**Result:** ✓ PASS (5 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| two members, foreign ids, or a non-_index.md file raise nothing | ✓ PASS |
 
 ---
 
@@ -1809,10 +2018,43 @@
 
 ---
 
+### TC-TRS-PLANITEM-010 — Verify W310 fires for a done PlanningItem's under-verified achieves requirement, respecting the leaf/parent W002/W305 bar, and never for todo/in_progress/blocked.
+
+**Verifies:** REQ-TRS-PLANITEM-010  
+**Result:** ✓ PASS (20 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| a dangling or wrong-kind achieves target is not re-flagged by W310 | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-011 — Verify claim/release set and clear claimedBy/claimedAt correctly, refuse on conflicting/done targets, and surface claimedBy in show/list --json.
+
+**Verifies:** REQ-TRS-PLANITEM-011  
+**Result:** ✓ PASS (31 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| release clears both fields regardless of status | ✓ PASS |
+
+---
+
+### TC-TRS-PLANITEM-012 — Verify W311 fires once per overlapping pair of active PlanningItems (shared achieves or evidence.path), and never for inactive or non-overlapping pairs.
+
+**Verifies:** REQ-TRS-PLANITEM-012  
+**Result:** ✓ PASS (14 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| W311 fires once per pair, not once per side | ✓ PASS |
+
+---
+
 ### TC-TRS-PROJ-001 — Verify the --config projection lens: stored + ad-hoc selection, dormancy, unresolved error.
 
 **Verifies:** REQ-TRS-PROJ-001  
-**Result:** ✓ PASS (6 passed, 0 failed)
+**Result:** ✓ PASS (20 passed, 0 failed)
 
 | Scenario | Result |
 |---|---|
@@ -2189,6 +2431,39 @@
 
 ---
 
+### TC-TRS-SEARCH-001 — Verify ranked full-text search: BM25 relevance ordering, snippets, type/status/config scoping, empty-query and JSON contracts, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-SEARCH-001  
+**Result:** ✓ PASS (22 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP search_text tool matches the CLI | ✓ PASS |
+
+---
+
+### TC-TRS-SEARCH-002 — Verify topics: per-package TF-IDF keywords, stopword demotion, type scoping, multi-package corpus, config lens, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-SEARCH-002  
+**Result:** ✓ PASS (25 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP topics tool matches the CLI | ✓ PASS |
+
+---
+
+### TC-TRS-SEARCH-003 — Verify clusters: TF-IDF cosine k-means grouping, deterministic init, k clamping/validation, cosine separation, config lens, and CLI/MCP parity.
+
+**Verifies:** REQ-TRS-SEARCH-003  
+**Result:** ✓ PASS (20 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| The MCP clusters tool matches the CLI | ✓ PASS |
+
+---
+
 ### TC-TRS-SEC-001 — Verify safety↔security co-engineering: hazardRef, E844, W030, and the co-analysis view.
 
 **Verifies:** REQ-TRS-SEC-001  
@@ -2278,6 +2553,28 @@
 | Scenario | Result |
 |---|---|
 | invalid securityTestMethod triggers W809 | ✓ PASS |
+
+---
+
+### TC-TRS-SET-001 — Verify set status=<value> validates per-type enum, splices byte-preservingly, cross-checks PlanningItem done against W310, and supports --dry-run.
+
+**Verifies:** REQ-TRS-SET-001  
+**Result:** ✓ PASS (19 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| --dry-run previews without writing | ✓ PASS |
+
+---
+
+### TC-TRS-SET-002 — Verify achieves.add and evidence.add validate their target before writing and append without disturbing existing order.
+
+**Verifies:** REQ-TRS-SET-002  
+**Result:** ✓ PASS (42 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| --dry-run previews achieves.add and evidence.add without writing | ✓ PASS |
 
 ---
 
@@ -3108,11 +3405,11 @@
 | trigger W006 | ✓ PASS |
 | trigger W007 | ✓ PASS |
 | trigger W300 | ✓ PASS |
-| trigger W301 | ✓ PASS |
 | trigger W302 | ✓ PASS |
 | trigger W303 | ✓ PASS |
 | trigger W304 | ✓ PASS |
 | trigger W305 | ✓ PASS |
+| leaf satisfied by more than one element (W301 retired) | ✓ PASS |
 
 ---
 

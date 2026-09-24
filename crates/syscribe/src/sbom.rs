@@ -258,6 +258,11 @@ fn spdx(comps: &[Component], opts: &SbomOptions) -> serde_json::Value {
 }
 
 pub fn cmd_sbom(elements: &[RawElement], opts: &SbomOptions) {
+    // REQ-TRS-LINKTYPE-006 — a component's satisfied-requirement ids are semantic
+    // output: a `coverage = true` link extending `satisfies` counts (reporting
+    // view). Nothing here serializes authored frontmatter.
+    let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
+    let elements: &[RawElement] = &cov;
     let resolver = Resolver::new(elements);
     let comps = collect_components(elements, &resolver, opts);
     let doc = if opts.format == "spdx" { spdx(&comps, opts) } else { cyclonedx(&comps, opts) };

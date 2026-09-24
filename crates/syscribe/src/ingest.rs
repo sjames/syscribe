@@ -58,7 +58,10 @@ pub fn parse_file(format: &str, file: &str) -> Option<ResultsData> {
     }
 }
 
-/// `ingest-results` subcommand: parse and write the sidecar under `model_root`.
+/// `ingest-results` subcommand: parse, then **merge** into the sidecar under
+/// `model_root` (REQ-TRS-INGEST-001). The format's own section (`by_leaf` for
+/// cargo-json/junit, `by_scenario` for session-log) is replaced; the other is
+/// kept. A malformed input exits before anything is written.
 pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str) {
     let fmt = match pick_format(format, file) {
         Some(f) => f,
@@ -68,8 +71,8 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str) {
         Some(d) => d,
         None => std::process::exit(1),
     };
-    match data.write_sidecar(model_root) {
-        Ok(path) => {
+    match data.merge_into_sidecar(model_root) {
+        Ok((path, _merged)) => {
             use syscribe_model::results::Verdict;
             let verdicts = data.by_leaf.values().chain(data.by_scenario.values());
             let pass = verdicts.clone().filter(|v| matches!(v, Verdict::Pass)).count();
@@ -79,7 +82,19 @@ pub fn cmd_ingest_results(model_root: &Path, format: Option<&str>, file: &str) {
                 "Ingested {} test result(s) from {} ({}): {} pass, {} fail, {} ignored.",
                 data.count, file, fmt, pass, fail, ign
             );
-            println!("Wrote sidecar: {}", path.display());
+            // Worded without a parenthesised format so the only `(<format>)`
+            // in the output stays the "Ingested … (<format>)" line above.
+            let (own, other) = if fmt == "session-log" {
+                ("session-log scenario", "function-level")
+            } else {
+                ("function-level", "session-log scenario")
+            };
+            println!(
+                "Merged into sidecar: {} (replaced the {} verdicts; kept any {} verdicts)",
+                path.display(),
+                own,
+                other
+            );
             if fmt == "session-log" {
                 println!("Re-run `trace`/`matrix`/`audit` to see scenarios annotated with their session-log verdict.");
             } else {

@@ -33,6 +33,12 @@ stable id, a qualified name, or a display name. List/grid tools accept
 - `graph_query {from, to?, edges?, direction?, depth?}` — typed-edge graph walk.
 - `trace {ref, kind?}` — a requirement's verification/derivation slice.
 - `impact {ref, direction?, depth?, edges?}` — change-impact reachability.
+- `link_types {}` — the project's user-defined link types (`[linkTypes]` in
+  `.syscribe.toml`) with their rules and instance counts; same data as
+  `link-types --json`. Call it before authoring a `links:` field.
+- `follow {element, link, reverse?, transitive?, depth?}` — walk one named link
+  (a declared type, its inverse, or a built-in link/reverse-index name); same data
+  as `follow --format json`.
 - `validate {file?, severity?, limit?}` / `validate_element {ref}` — findings.
 - `reload {}` — re-read the model from disk.
 
@@ -66,7 +72,8 @@ stable id, a qualified name, or a display name. List/grid tools accept
 ## Read tools — diagram & documentation integrity
 
 - `lint_docs {paths, codes?}` — unresolvable references in `.md`/`.svg`
-  (`W099`–`W102`).
+  (`W099`–`W102`), plus the advisory `W103` (a package `_index.md` hand-listing
+  its own members).
 - `render_diagram {ref, format?}` — a Diagram's **source** (PlantUML by default,
   or the Mermaid source) plus its `W400`–`W415` structural findings. It does not
   render an image; rendering is left to your toolchain.
@@ -88,7 +95,9 @@ stable id, a qualified name, or a display name. List/grid tools accept
 All write tools default to `dry_run: true`: they report the validation delta of
 the proposed change without touching disk. Pass `dry_run: false` to commit. A
 commit that would introduce a *new* validation error is refused
-(`written: false`) unless `SYSCRIBE_MCP_ALLOW_NEW_ERRORS=1` is set; after a
+(`written: false`) unless `SYSCRIBE_MCP_ALLOW_NEW_ERRORS=1` is set — a new
+unresolved reference (`EREF`) or a new user-defined-link error (`E630`–`E636`,
+e.g. an undeclared link type, whose message names the declared ones); after a
 successful commit the in-memory store is rebuilt. Writes are confined to the
 model root. (Hidden under `--read-only`.)
 
@@ -100,7 +109,8 @@ model root. (Hidden under `--read-only`.)
 - `apply_changes {operations:[…], dry_run?}` — an ordered create/update/move/delete
   batch applied atomically (all-or-nothing).
 - `ingest_results {format?, path?, content?, dry_run?}` — parse a `cargo-json` or
-  `junit` report into the `.syscribe/results.json` verdict sidecar; dry-run
+  `junit` report and merge it into the `.syscribe/results.json` verdict sidecar
+  (replaces the function-level verdicts, keeps any session-log ones); dry-run
   returns the verdict delta.
 
 ## Resources & prompts

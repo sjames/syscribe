@@ -58,9 +58,9 @@ breakdownAdr: Decisions::SafetyDecompositionADR   # must be status: accepted
 
 ## Rule 3 — Leaf assignment (§12.3)
 
-Requirements must be decomposed until each leaf can be assigned to a single architecture element. Leaf requirements at `approved` or `implemented` status with no `satisfies:` link fire **W300**.
+Requirements are decomposed until each leaf can be assigned to the architecture that fulfils it. Leaf requirements at `approved` or `implemented` status with no `satisfies:` link fire **W300**.
 
-A leaf requirement should have exactly one satisfying element. More than one fires **W301**.
+A leaf requirement may be satisfied by more than one element — for example a `PartDef` and the `StateDef` that gives it its behaviour, or redundant channels. That is not a finding (`W301` is retired, GH #121): decompose a requirement only when the children add requirement content, never just to reach one satisfier per leaf. Satisfying a *parent* requirement is still **E312** (below).
 
 ## Rule 4 — No parent assignment (§12.4)
 
@@ -193,3 +193,22 @@ clear every suspect link at once). Propagation is **implicit, one hop per review
 direct link goes suspect; a link *into* the source flips only once the source's own
 projection actually changes. The same operations are exposed over MCP as `suspect_list` and
 the guarded `suspect_accept`.
+
+Custom links declared under `[linkTypes]` take part in suspect-link detection too, unless a
+type opts out with `suspect = false` (see below).
+
+## Project-defined relationships — user-defined link types (`ADR-SYS-LINKTYPE-001`)
+
+When a relationship the format does not name is needed — `mitigates`, `conflictsWith`,
+`partiallySatisfies` — declare it as a link type in `.syscribe.toml` and author it under
+`links:` rather than bending a built-in field or hiding it in `custom_fields:`. Custom links
+follow Rule 1 (the source holds the link), resolve like `satisfies:`, can extend a built-in
+trace link with named rules relaxed (for example a `satisfies` variant that relaxes `E313`),
+and are traversed by `follow`, `links`, `refs`, `impact` and `trace`:
+
+```bash
+syscribe -m model/ link-types                                  # the project's vocabulary
+syscribe -m model/ follow REQ-BRK-003 mitigatedBy              # walk one link type
+```
+
+See [User-Defined Link Types](link-types.md) for the full guide.

@@ -114,6 +114,16 @@ pub struct ValidateConfig {
     /// but never checked against a roster — same opt-in posture as
     /// `[repos]`/`[ids.prefixes]`/every other config-gated table.
     pub users: HashMap<String, String>,
+
+    /// REQ-TRS-LINKTYPE-001 — the user-defined link-type vocabulary, from the
+    /// `[linkTypes.<name>]` tables of `<model_root>/.syscribe.toml`. Holds the
+    /// valid declarations plus the `W630` defect messages for the rest, which the
+    /// validator reports against `.syscribe.toml` (same posture as `W046`/`W309`).
+    /// Empty (the default) means the feature is dormant: no `[linkTypes]` table
+    /// and no `links:` field ⇒ no new finding. [`Self::with_model_root`] also
+    /// installs it as the process-wide active vocabulary
+    /// (`crate::link_types::install`) for graph building and suspect scanning.
+    pub link_types: crate::link_types::LinkTypeRegistry,
 }
 
 /// One entry in the `[repos]` table of `.syscribe.toml` (§14.2, REQ-TRS-TYPE-021).
@@ -503,6 +513,10 @@ impl ValidateConfig {
         let repos = load_repos(&root);
         let plugins = crate::plugins::config::load_plugins(&root);
         let users = load_users(&root);
+        // REQ-TRS-LINKTYPE-001 — load `[linkTypes]` and install it as the active
+        // vocabulary (an absent table installs the empty one, clearing any prior).
+        let link_types = crate::link_types::LinkTypeRegistry::load(&root);
+        crate::link_types::install(&link_types);
         Self {
             model_root: Some(root),
             repo_root,
@@ -518,6 +532,7 @@ impl ValidateConfig {
             plugins,
             id_extra_prefixes,
             users,
+            link_types,
         }
     }
 

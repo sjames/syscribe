@@ -1,0 +1,31 @@
+# User-defined link types for the brake-by-wire example (ADR-SYS-LINKTYPE-001, spec §12.10).
+# List them with:  syscribe -m examples/link-types/model link-types
+
+# A free-standing relationship with its own constraints, unrelated to any built-in rule.
+[linkTypes.mitigates]
+description = "A design control mitigates the failure a safety requirement guards against"
+inverse     = "mitigatedBy"
+sourceTypes = ["PartDef"]
+targetTypes = ["Requirement"]
+cardinality = "0..*"
+acyclic     = false
+suspect     = true
+
+# A variant of the built-in `satisfies`: inherits every satisfies rule except E313
+# (domain matching), and is withheld from `satisfiedBy` so it earns no coverage credit.
+[linkTypes.partiallySatisfies]
+description = "A cross-domain contributor to a requirement; the owning-domain element holds the real satisfies:"
+inverse     = "partiallySatisfiedBy"
+extends     = "satisfies"
+relax       = ["E313"]
+coverage    = false
+
+# A symmetric, informational requirement-to-requirement relationship. Two requirements
+# naming each other form a 2-cycle, which is legitimate here, so acyclic stays false.
+# Opted out of suspect-link detection: the conflict does not depend on exact wording.
+[linkTypes.conflictsWith]
+description = "Two requirements pull the design in opposite directions and must be traded off"
+sourceTypes = ["Requirement"]
+targetTypes = ["Requirement"]
+acyclic     = false
+suspect     = false

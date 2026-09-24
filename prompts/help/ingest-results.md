@@ -49,6 +49,25 @@ Two source shapes, feeding two different verdict axes:
   coverage leaves it unannotated (unknown) — the same "all-or-fail" rule
   `testFunctions:` verdicts already follow.
 
+## MERGE SEMANTICS
+The sidecar holds two independent sections, and each ingest **merges** into the
+existing sidecar, replacing only its own section:
+
+- a `cargo-json`/`junit` ingest replaces the function-level verdicts (`by_leaf`)
+  and keeps any session-log verdicts;
+- a `session-log` ingest replaces the scenario verdicts (`by_scenario`) and keeps
+  any function-level verdicts.
+
+So ingesting a `cargo test` run and a manual session log, in either order, leaves
+both in effect. Re-ingesting the same kind still **replaces** that section (a new
+run supersedes the last one; results never accumulate across runs). A missing or
+unreadable existing sidecar is treated as empty; a malformed new input writes
+nothing and leaves the existing sidecar untouched.
+
+The top-level `format`/`source`/`count`/`ingested_at_unix` fields describe the
+latest ingest; `leaf_meta`/`scenario_meta` record which report each section came
+from. Sidecars written by earlier versions are still read.
+
 ## OPTIONS
     --format <fmt>   cargo-json (libtest JSON), junit (JUnit XML), or session-log
                      (manual/exploratory verification). cargo-json/junit are
