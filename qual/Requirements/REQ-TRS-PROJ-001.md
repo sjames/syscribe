@@ -26,10 +26,11 @@ The lens flag **shall** be accepted on the read/validation commands: `validate`,
 ### Behaviour
 
 - With `--config`, a command **shall** operate only over the active subset; its output reflects only active elements.
-- **Dormancy invariant:** when the model declares no `FeatureDef`, the variability dimension is dormant and `--config` is **inert** — the command behaves exactly as without it.
+- **Dormancy invariant:** when the model declares no `FeatureDef`, the variability dimension is dormant and a command run **without** `--config` behaves exactly as before.
+- **`--config` on a dormant model:** an argument naming a stored `Configuration` (by id or qname — e.g. a MagicGrid parametric variant, which needs no `FeatureDef`) projects the identity (the whole model). Any other argument **shall** be a usage error (non-zero exit — `1`, or `validate`'s usage-error code `2`, exactly as for any other unresolvable `--config`) whose message states that the model declares no feature model and no such `Configuration`, rather than silently returning the whole model — which would hide a mistyped or misdirected argument. This applies to every command and MCP tool that accepts `--config`/`config`. (A `Baseline`'s `frozenScope.config` clause is a separate, stored scope and stays inert — REQ-TRS-BL-011.)
 - A `--config` argument that does not resolve (unknown configuration id/qname, or an ad-hoc feature that is not a `FeatureDef`) **while a feature model exists** is a usage error (non-zero exit, clear message).
 - Projection **shall** be deterministic.
 
 **Source:** ADR-PROJ-001; §9.10 (projection).
 
-**Acceptance criteria:** `list --config C` / `export --config C` over a model with `appliesWhen` show only the elements active in C; an ad-hoc `--config 'Features::A'` selects exactly the matching active set; on a model with no `FeatureDef`, `--config X` produces output identical to omitting the flag (dormant fallback); an unresolved `--config` argument with a feature model present errors with a non-zero exit.
+**Acceptance criteria:** `list --config C` / `export --config C` over a model with `appliesWhen` show only the elements active in C; an ad-hoc `--config 'Features::A'` selects exactly the matching active set; on a model with no `FeatureDef`, omitting `--config` produces output identical to the pre-variability baseline, `--config X` naming no stored Configuration exits non-zero naming the missing feature model, for every command that accepts `--config`, while `--config` naming a stored Configuration still succeeds with the whole model; an unresolved `--config` argument with a feature model present errors with a non-zero exit.

@@ -9,7 +9,7 @@ use syscribe_model::element::{ElementType, RawElement};
 use syscribe_model::feature_model::{
     check_feature_model, check_feature_model_deep, configure, has_feature_model, ConfigureOutcome,
 };
-use syscribe_model::projection::{project, resolve_selection, validate_projected, SelectionOutcome};
+use syscribe_model::projection::{project, resolve_config_flag, validate_projected, SelectionOutcome};
 use syscribe_model::validator::{Finding, Severity};
 use syscribe_model::variability;
 
@@ -145,7 +145,7 @@ fn elem_node(e: &RawElement) -> Value {
 
 /// `project {config}` — the active element set + projected validation findings.
 pub fn project_tool(elements: &[RawElement], config: &ValidateConfig, arg: &str, root: &std::path::Path) -> Value {
-    match resolve_selection(elements, arg) {
+    match resolve_config_flag(elements, arg) {
         SelectionOutcome::Dormant => json!({ "dormant": true }),
         SelectionOutcome::Error(e) => json!({ "error": e }),
         SelectionOutcome::Resolved(sel) => {
@@ -163,7 +163,7 @@ pub fn project_tool(elements: &[RawElement], config: &ValidateConfig, arg: &str,
 
 /// `diff_configs {a, b}` — set difference of two projections' active sets.
 pub fn diff_configs(elements: &[RawElement], a: &str, b: &str) -> Value {
-    let resolve = |arg: &str| match resolve_selection(elements, arg) {
+    let resolve = |arg: &str| match resolve_config_flag(elements, arg) {
         SelectionOutcome::Resolved(sel) => Ok(project(elements, &sel)),
         SelectionOutcome::Dormant => Ok(elements.to_vec()),
         SelectionOutcome::Error(e) => Err(e),
@@ -201,9 +201,12 @@ fn aw_string(v: &serde_yaml::Value) -> String {
 pub fn why_active(elements: &[RawElement], elem: &RawElement, config: &str) -> Value {
     let pkg = variability::package_conditions(elements);
     let alias = variability::feature_id_to_qname(elements);
-    let sel = match resolve_selection(elements, config) {
+    let sel = match resolve_config_flag(elements, config) {
         SelectionOutcome::Resolved(s) => variability::canon_selection(&s, &alias),
-        _ => std::collections::BTreeMap::new(),
+        SelectionOutcome::Dormant => std::collections::BTreeMap::new(),
+        // An unresolvable config is reported, never silently treated as an empty
+        // selection (REQ-TRS-PROJ-001) — same payload shape as `project`.
+        SelectionOutcome::Error(e) => return json!({ "error": e }),
     };
 
     let active = syscribe_model::projection::is_active_canon(elem, &sel, &pkg, &alias);

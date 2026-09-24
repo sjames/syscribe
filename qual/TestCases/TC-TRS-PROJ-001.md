@@ -18,10 +18,15 @@ Feature: Configuration projection lens
   Scenario: ad-hoc feature selection
     When listing requirements with --config "Features::Wdt"
     Then REQ-WDT is listed
-  Scenario: dormant with no feature model
-    Given a model with no FeatureDef
-    When listing with --config X
-    Then the output is identical to omitting --config
+  Scenario: --config is a usage error with no feature model
+    Given a model with no FeatureDef and no Configuration named X
+    When any command that accepts --config is run with --config X
+    Then it exits non-zero, prints nothing on stdout, and stderr says the model declares no feature model
+    And the same command without --config still succeeds
+  Scenario: --config naming a stored Configuration is accepted with no feature model
+    Given a model with no FeatureDef but a stored Configuration C (a parametric variant)
+    When validate and list are run with --config C
+    Then they succeed with the same output as without --config
   Scenario: unresolved configuration errors
     Given a feature model is present
     When --config names an unknown configuration

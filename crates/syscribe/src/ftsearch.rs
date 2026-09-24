@@ -224,10 +224,10 @@ pub fn cmd_search_text(
     limit: usize,
     json: bool,
 ) -> i32 {
-    use syscribe_model::projection::{project, resolve_selection, SelectionOutcome};
+    use syscribe_model::projection::{project, resolve_config_flag, SelectionOutcome};
     let projected: Option<Vec<RawElement>> = match config {
         None => None,
-        Some(c) => match resolve_selection(elements, c) {
+        Some(c) => match resolve_config_flag(elements, c) {
             SelectionOutcome::Dormant => None,
             SelectionOutcome::Resolved(sel) => Some(project(elements, &sel)),
             SelectionOutcome::Error(m) => {

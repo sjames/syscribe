@@ -822,7 +822,7 @@ $ syscribe -m model/ why-active <element> --config <CONF>  # is this element act
 
 ### Configuration lens (`--config`)
 
-The repository is a **150% model** of the product line; `--config` projects it onto one variant (the **100% model**) and runs the command over only the active elements. The argument is a stored `Configuration` (id/qname) or an ad-hoc feature set; the lens is inert when the model has no feature model.
+The repository is a **150% model** of the product line; `--config` projects it onto one variant (the **100% model**) and runs the command over only the active elements. The argument is a stored `Configuration` (id/qname) or an ad-hoc feature set; on a model with no feature model, `--config` must name a stored `Configuration` (the lens is then the identity) — anything else is a usage error rather than a silent whole-model fallback.
 
 ```
 $ syscribe -m model/ list Requirement --config CONF-MPS2-WDT

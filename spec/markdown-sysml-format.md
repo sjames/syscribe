@@ -7343,7 +7343,7 @@ This specification defines the mapping from native `Requirement` elements (and t
 |---|---|---|
 | `--output file` | stdout | Write to `<file>.reqif`; with `--zip`, writes `<file>.reqifz` |
 | `--scope qname` | model root | Export only requirements in this namespace subtree |
-| `--config CONF` | no projection | When a feature model is present, project to this `Configuration` and export only active requirements |
+| `--config CONF` | no projection | Project to this `Configuration` and export only active requirements. On a model with no feature model it must name a stored `Configuration` (identity projection); anything else is a usage error (REQ-TRS-PROJ-001) |
 | `--zip` | false | Package as `.reqifz` (ZIP with a `content.reqif` entry and any embedded XHTML assets) |
 
 ### 21.3 Element Mapping
