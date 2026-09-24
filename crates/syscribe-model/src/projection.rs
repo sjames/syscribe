@@ -3,8 +3,11 @@
 //! Projects the 150% model onto one configuration (the 100% model) by keeping
 //! only the elements whose `appliesWhen` holds for that configuration's
 //! selection. A projection is itself a valid model, so the lens is implemented
-//! as *filter, then reuse* the existing validator/queries. Dormant (a no-op)
-//! when the model has no `FeatureDef`.
+//! as *filter, then reuse* the existing validator/queries. With no `FeatureDef`
+//! the library-level [`resolve_selection`] is dormant (a no-op, as a stored
+//! `Baseline` scope needs); a user-supplied `--config` flag goes through
+//! [`resolve_config_flag`], which makes it a usage error unless the argument
+//! names a stored `Configuration`.
 
 use std::collections::{BTreeMap, HashSet};
 
@@ -75,6 +78,35 @@ pub fn resolve_selection(elements: &[RawElement], arg: &str) -> SelectionOutcome
         "--config '{}' is neither a known Configuration nor a set of FeatureDef qualified names",
         arg
     ))
+}
+
+/// Resolve a user-supplied `--config` flag (CLI) or `config` argument (MCP).
+///
+/// Same as [`resolve_selection`], except on a model with no feature model
+/// (REQ-TRS-PROJ-001): an argument naming a stored `Configuration` (id or
+/// qname — e.g. a MagicGrid parametric variant, which needs no `FeatureDef`)
+/// stays [`SelectionOutcome::Dormant`] (the caller uses the whole model), but
+/// anything else is a usage error rather than a silent whole-model fallback that
+/// would hide a mistyped or misdirected argument. A stored `Baseline`'s
+/// `frozenScope.config` keeps using [`resolve_selection`] (REQ-TRS-BL-011).
+pub fn resolve_config_flag(elements: &[RawElement], arg: &str) -> SelectionOutcome {
+    match resolve_selection(elements, arg) {
+        SelectionOutcome::Dormant => {
+            let stored = elements.iter().any(|e| {
+                e.frontmatter.element_type.as_ref() == Some(&ElementType::Configuration)
+                    && (e.frontmatter.id.as_deref() == Some(arg) || e.qualified_name == arg)
+            });
+            if stored {
+                SelectionOutcome::Dormant
+            } else {
+                SelectionOutcome::Error(format!(
+                    "--config '{}': this model declares no feature model (no FeatureDef) and no Configuration named '{}'",
+                    arg, arg
+                ))
+            }
+        }
+        other => other,
+    }
 }
 
 /// Is this element active under the given selection, honouring the *effective*
@@ -252,4 +284,58 @@ pub fn validate_projected(
             .filter(|f| !LENS_SUPPRESS.contains(&f.code)),
     );
     findings
+}
+
+#[cfg(test)]
+mod config_flag_tests {
+    use super::*;
+
+    fn elem(qname: &str, yaml: &str) -> RawElement {
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: format!("{qname}.md"),
+            frontmatter: serde_yaml::from_str(yaml).unwrap(),
+            doc: String::new(),
+            parse_issue: None,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    /// REQ-TRS-PROJ-001 — with no feature model, the library resolver stays
+    /// dormant but a `--config` flag naming no stored Configuration is a usage
+    /// error naming the cause; one naming a stored Configuration (a MagicGrid
+    /// parametric variant) stays dormant, by id or qname.
+    #[test]
+    fn config_flag_on_a_model_without_a_feature_model() {
+        let m = vec![
+            elem("REQ-A", "type: Requirement\nid: REQ-PJ-001\n"),
+            elem("Variants::CONF-PJ-VAR-001", "type: Configuration\nid: CONF-PJ-VAR-001\nname: v\n"),
+        ];
+        assert!(matches!(resolve_selection(&m, "CONF-X"), SelectionOutcome::Dormant));
+        match resolve_config_flag(&m, "CONF-X") {
+            SelectionOutcome::Error(msg) => {
+                assert!(msg.contains("CONF-X") && msg.contains("declares no feature model"), "{msg}")
+            }
+            _ => panic!("expected a usage error"),
+        }
+        assert!(matches!(resolve_config_flag(&m, "CONF-PJ-VAR-001"), SelectionOutcome::Dormant));
+        assert!(matches!(resolve_config_flag(&m, "Variants::CONF-PJ-VAR-001"), SelectionOutcome::Dormant));
+    }
+
+    /// With a feature model present, the flag resolver behaves exactly like
+    /// `resolve_selection` (resolved or the usual unresolvable error).
+    #[test]
+    fn config_flag_with_a_feature_model_matches_resolve_selection() {
+        let m = vec![
+            elem("Features::A", "type: FeatureDef\nid: FEAT-PJ-A\nname: A\n"),
+            elem("CONF-PJ-001", "type: Configuration\nid: CONF-PJ-001\nname: c\nfeatures:\n  Features::A: true\n"),
+        ];
+        assert!(matches!(resolve_config_flag(&m, "CONF-PJ-001"), SelectionOutcome::Resolved(_)));
+        assert!(matches!(resolve_config_flag(&m, "Features::A"), SelectionOutcome::Resolved(_)));
+        match resolve_config_flag(&m, "CONF-NOPE") {
+            SelectionOutcome::Error(msg) => assert!(!msg.contains("declares no feature model"), "{msg}"),
+            _ => panic!("expected the ordinary unresolvable error"),
+        }
+    }
 }

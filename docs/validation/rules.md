@@ -150,7 +150,7 @@ Core features (present in every valid configuration) are reported informationall
 | W021 | (`feature-check --deep`) a **dead element** — its `appliesWhen` is unsatisfiable under the feature model (active in no valid configuration) |
 | W022 | (`feature-check --deep`) a requirement **active in some configuration but covered in none** (family-wide coverage gap) |
 
-The lens is inert when the model declares no `FeatureDef`. Cross-reference-resolution codes (`E102`–`E106`) are suppressed under `--config` because escaping refs (`E226`/`W019`) are authoritative there.
+On a model that declares no `FeatureDef`, `--config` must name a stored `Configuration` (e.g. a MagicGrid parametric variant — the lens is then the identity); anything else is a usage error rather than a silent whole-model fallback. Cross-reference-resolution codes (`E102`–`E106`) are suppressed under `--config` because escaping refs (`E226`/`W019`) are authoritative there.
 
 ## Transitive package `appliesWhen` (§9.10, REQ-TRS-VAR-006)
 

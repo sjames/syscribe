@@ -1547,7 +1547,7 @@ impl SyscribeMcp {
         // Apply the optional --config projection lens before searching.
         let projected = match args.config.as_deref() {
             None => None,
-            Some(c) => match syscribe_model::projection::resolve_selection(&store.elements, c) {
+            Some(c) => match syscribe_model::projection::resolve_config_flag(&store.elements, c) {
                 syscribe_model::projection::SelectionOutcome::Dormant => None,
                 syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
                     Some(syscribe_model::projection::project(&store.elements, &sel))

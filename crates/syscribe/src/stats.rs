@@ -371,11 +371,11 @@ pub fn stats_document(
     config: Option<&str>,
     opts: &StatsOptions,
 ) -> Result<Value, String> {
-    use syscribe_model::projection::{project, resolve_selection, SelectionOutcome};
+    use syscribe_model::projection::{project, resolve_config_flag, SelectionOutcome};
 
     let projected: Option<Vec<RawElement>> = match config {
         None => None,
-        Some(c) => match resolve_selection(elements, c) {
+        Some(c) => match resolve_config_flag(elements, c) {
             SelectionOutcome::Dormant => None, // no feature model → whole-model view
             SelectionOutcome::Resolved(sel) => Some(project(elements, &sel)),
             SelectionOutcome::Error(m) => return Err(m),

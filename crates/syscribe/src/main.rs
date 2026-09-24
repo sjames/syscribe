@@ -126,13 +126,15 @@ fn discover_model_root() -> Option<String> {
 
 /// Resolve the `--config` lens for a read-only analysis command (GH #35): returns
 /// the element set projected onto the configuration (only elements active per
-/// `appliesWhen`), or the full set when `--config` is absent or there is no
-/// feature model. Exits 1 on an unresolvable argument.
+/// `appliesWhen`), or the full set when `--config` is absent or names a stored
+/// `Configuration` in a model with no feature model. Exits 1 on an unresolvable
+/// argument, including one that names no stored `Configuration` in a model with
+/// no feature model (REQ-TRS-PROJ-001).
 fn projected_elements(elems: &[RawElement], config: Option<&str>) -> Vec<RawElement> {
-    use syscribe_model::projection::{project, resolve_selection, SelectionOutcome};
+    use syscribe_model::projection::{project, resolve_config_flag, SelectionOutcome};
     match config {
         None => elems.to_vec(),
-        Some(c) => match resolve_selection(elems, c) {
+        Some(c) => match resolve_config_flag(elems, c) {
             SelectionOutcome::Dormant => elems.to_vec(),
             SelectionOutcome::Resolved(sel) => project(elems, &sel),
             SelectionOutcome::Error(m) => {
@@ -830,7 +832,7 @@ fn main() {
                 if all_configs {
                     query::cmd_validate_all_configs(&elems, &vcfg_run, json);
                 } else if let Some(c) = config {
-                    match syscribe_model::projection::resolve_selection(&elems, c) {
+                    match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
                             query::cmd_validate(&elems, &vcfg_run, &gate, profile_ref, file_filter, json)
                         }
@@ -909,7 +911,7 @@ fn main() {
                 let code = if all_configs {
                     audit::cmd_audit_all_configs(&elems, vcfg, profile.as_ref(), json)
                 } else if let Some(c) = config {
-                    match syscribe_model::projection::resolve_selection(&elems, c) {
+                    match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
                             audit::cmd_audit(&elems, vcfg, model_root, profile.as_ref(), None, ps, json)
                         }
@@ -1058,7 +1060,7 @@ fn main() {
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 match config {
                     None => export::cmd_export(&elems, &vcfg, ndjson),
-                    Some(c) => match syscribe_model::projection::resolve_selection(&elems, c) {
+                    Some(c) => match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
                             export::cmd_export(&elems, &vcfg, ndjson)
                         }
@@ -1141,7 +1143,7 @@ fn main() {
                 }
                 match config {
                     None => query::cmd_list(&elems, key, scope, &tags, feature, metadata, status, sil, has_wcet, &wheres, json),
-                    Some(c) => match syscribe_model::projection::resolve_selection(&elems, c) {
+                    Some(c) => match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
                             query::cmd_list(&elems, key, scope, &tags, feature, metadata, status, sil, has_wcet, &wheres, json)
                         }

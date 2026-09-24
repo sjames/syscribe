@@ -73,8 +73,9 @@ result — `stats` **shall not** recompute traceability.
   lens as `audit --config` / `validate --config`: every facet, the coverage rollup
   and the orphan rollup **shall** be computed only over the elements **active** in
   that variant (via `projection::project`). With no `--config`, the whole model is
-  aggregated. An unresolvable `--config` argument is a usage error (exit `1`); a
-  `--config` with no feature model present falls back to the whole-model view.
+  aggregated. An unresolvable `--config` argument is a usage error (exit `1`), including
+  a `--config` naming no stored `Configuration` on a model with no feature model
+  (REQ-TRS-PROJ-001).
 
 ## Output
 

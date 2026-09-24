@@ -2841,10 +2841,10 @@ pub fn cmd_validate_all_configs(
 /// `diff --config A --config B`: elements active in one variant but not the other.
 pub fn cmd_diff(elements: &[RawElement], a: &str, b: &str, json: bool) {
     use std::collections::BTreeSet;
-    use syscribe_model::projection::{project, resolve_selection, SelectionOutcome};
+    use syscribe_model::projection::{project, resolve_config_flag, SelectionOutcome};
 
     let sel_of = |arg: &str| -> syscribe_model::projection::Selection {
-        match resolve_selection(elements, arg) {
+        match resolve_config_flag(elements, arg) {
             SelectionOutcome::Resolved(s) => s,
             SelectionOutcome::Dormant => {
                 eprintln!("No feature model present — nothing to diff.");
@@ -4183,7 +4183,7 @@ pub fn print_help() {
     println!("                                 #18 profiles. Exit 0 PASS · 2 FAIL (any error, any W306, or — under");
     println!("                                 --profile <p> — any finding that profile promotes); exit 1 if <p> undefined.");
     println!();
-    println!("Configuration lens (§9 projection; inert when no feature model):");
+    println!("Configuration lens (§9 projection; with no feature model only a stored Configuration is accepted):");
     println!("  --config <CONF|features>       On validate/list/export: project onto a configuration (stored id/qname");
     println!("                                 or ad-hoc 'Features::A,Features::B'). validate --config certifies the");
     println!("                                 variant and flags escaping refs (E226 structural / W019 traceability).");

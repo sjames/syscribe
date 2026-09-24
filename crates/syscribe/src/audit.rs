@@ -167,7 +167,7 @@ pub fn cmd_audit_all_configs(
     profile: Option<&Profile>,
     json: bool,
 ) -> i32 {
-    use syscribe_model::projection::{resolve_selection, SelectionOutcome};
+    use syscribe_model::projection::{resolve_config_flag, SelectionOutcome};
     let configs: Vec<&RawElement> =
         elements.iter().filter(|e| is_type(e, ElementType::Configuration)).collect();
     if configs.is_empty() {
@@ -182,7 +182,7 @@ pub fn cmd_audit_all_configs(
     let mut rows: Vec<(String, bool, Vec<String>)> = Vec::new();
     for c in &configs {
         let cid = disp_id(c);
-        let sel = match resolve_selection(elements, &cid) {
+        let sel = match resolve_config_flag(elements, &cid) {
             SelectionOutcome::Resolved(s) => Some(s),
             _ => None,
         };
