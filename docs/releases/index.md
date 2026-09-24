@@ -2,7 +2,13 @@
 
 `RELEASES`
 
-## 0.40.0 — 2026-09-24
+## 0.40.1 — 2026-09-24
+
+**This release replaces 0.40.0, which has been withdrawn.** The 0.40.0 release accidentally committed about 23 MB of unrelated, in-progress test fixtures (`crates/syscribe-model/tests/fixtures/plugins-src`, including `node_modules` and built `.wasm`). The affected commits were rewritten to remove them, and the 0.40.0 tag and release were deleted. 0.40.1 contains everything listed under 0.40.0 below, plus:
+
+- **Agent instructions use valid command syntax.** The LLM authoring prompt (`--agent-instructions`) wrote 83 commands as `syscribe model/ <cmd>`, which the CLI rejects. They now use `syscribe -m model/ <cmd>`, and so do 15 more examples in the model guides. Two new tests check the embedded prompts: no example passes the model root without `-m`, and every example names a real subcommand.
+
+## 0.40.0 — 2026-09-24 (withdrawn — superseded by 0.40.1)
 
 ### User-defined link types
 
