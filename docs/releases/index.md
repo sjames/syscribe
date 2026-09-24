@@ -2,6 +2,53 @@
 
 `RELEASES`
 
+## 0.40.0 — 2026-09-24
+
+### User-defined link types
+
+Projects can declare their own relationship types in a `[linkTypes.<name>]` table of `.syscribe.toml` and write them on elements under a namespaced `links:` map (ADR-SYS-LINKTYPE-001, spec §12.10, [guide](../model-guide/link-types.md)).
+
+- **Declared rules:** each type can set `description`, `inverse`, `sourceTypes`/`targetTypes`, `cardinality`, `acyclic` and `suspect`. The codes are **E630–E636**, **W630** and **W631**.
+- **Variants of built-in links:** `extends = "satisfies" | "verifies" | "derivedFrom" | "refines"` makes a type a named variant of that built-in link, with the same rules and reverse index. `relax = [...]` switches specific rules off for that type only (E312/E313, E104, E105/E310/W303, E316). `coverage = false` keeps the rule checks but gives no coverage credit. Built-in links are never relaxed.
+- **Traversal:**
+  - New `follow <elem> <link> [--reverse] [--transitive] [--depth N] [--format text|json|dot]` and `link-types [--json]` commands.
+  - `links`, `refs`, `impact --kinds`, `trace`, `show`, `connectivity`, the coverage reports, `export-html`, `export-reqif` and `sbom` all include custom links.
+  - Findings raised by an extending link name it, e.g. `(via links.<type>)`.
+- **MCP:**
+  - New read-only `link_types` and `follow` tools.
+  - A write that would introduce an E630–E636 error is refused.
+- **LLM discovery:**
+  - `syscribe -m <root> --agent-instructions` appends the project's declared link types.
+  - The authoring prompt tells agents to run `link-types` and never invent a type.
+  - E630 lists the declared types.
+- **Suspect links:** custom links take part in suspect-link detection unless `suspect = false`.
+- **Worked example:** `examples/link-types/`.
+
+### W301 retired: a leaf requirement may have several satisfiers (#121)
+
+- A leaf requirement satisfied by more than one element is now legitimate, for example a PartDef plus the StateDef that gives it its behaviour, or redundant channels.
+- Leaf vs parent depends only on `derivedFrom`.
+- E312 and W300 are unchanged.
+
+### Package membership is generated from the directory (#120)
+
+- `show <package>` prints a `## Members (N)` table. The web UI detail panel and `export-html` package pages list the same members, taken from the directory rather than from `_index.md` prose.
+- New advisory **W103** in `lint-docs`: an `_index.md` that hand-lists three or more of its own members. It doesn't change the exit status.
+- The bundled models' `_index.md` files were rewritten to describe purpose and scope (ADR-SYS-PKG-001).
+
+### Fixes
+
+- **`ingest-results` merges instead of overwriting.** A session-log ingest no longer wipes earlier cargo-json/junit verdicts, or the other way round. Each format replaces only its own section of `.syscribe/results.json`, and legacy sidecars still load. The MCP `ingest_results` tool merges the same way.
+- **`--config` on a model with no feature model:** the argument must now name a stored `Configuration`, for example a MagicGrid parametric variant, in which case the whole model is used. Anything else exits non-zero instead of silently running over the whole model. This applies to every CLI `--config` command and the MCP `config` arguments (REQ-TRS-PROJ-001). A Baseline's `frozenScope.config` is unchanged.
+- **MCP `why_active`** reports a config it can't resolve instead of treating it as an empty selection.
+- **Help text:** `set` help now states that only `status=` is byte-preserving; the list operations re-serialize the frontmatter block.
+
+### Qualification
+
+- The 13 previously skipped qual TCs now have harnesses, so the suite runs **308/308 with 0 skipped**.
+- New TCs: TC-TRS-LINKTYPE-001..012 and TC-TRS-PKG-001/002.
+- Fixed a SIGPIPE race that made grep assertions on large outputs flaky (`qual/tests/lib.sh`).
+
 ## 0.26.34 — 2026-06-18
 
 ### implementedBy / W023 extended to Interface and InterfaceDef
