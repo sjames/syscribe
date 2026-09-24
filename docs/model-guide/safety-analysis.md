@@ -96,8 +96,8 @@ times during vehicle motion unless commanded by the driver.
 ### Generating templates
 
 ```bash
-syscribe model/ template HazardousEvent > Safety/HARA/HE-BRAKE-001.md
-syscribe model/ template SafetyGoal     > Safety/HARA/SG-BRAKE-001.md
+syscribe -m model/ template HazardousEvent > Safety/HARA/HE-BRAKE-001.md
+syscribe -m model/ template SafetyGoal     > Safety/HARA/SG-BRAKE-001.md
 ```
 
 ---
@@ -146,7 +146,7 @@ Each synthesised element (`DS-SYS-001`, `TS-SYS-001`, etc.) is visible in the mo
 ### Generating a template
 
 ```bash
-syscribe model/ template TARASheet > Safety/TARA-SYS-001.md
+syscribe -m model/ template TARASheet > Safety/TARA-SYS-001.md
 ```
 
 ---
@@ -333,10 +333,10 @@ syscribe -m model/ metrics --json     # [{id, asil, sil, spfm, lfm, pmhf, pass}]
 ### Generating templates
 
 ```bash
-syscribe model/ template FaultTree      > Safety/FTA/FT-BRAKE-001.md
+syscribe -m model/ template FaultTree      > Safety/FTA/FT-BRAKE-001.md
 mkdir -p Safety/FTA/FT-BRAKE-001
-syscribe model/ template FaultTreeGate  > Safety/FTA/FT-BRAKE-001/FTG-BRAKE-001.md
-syscribe model/ template FaultTreeEvent > Safety/FTA/FT-BRAKE-001/FTE-BRAKE-001.md
+syscribe -m model/ template FaultTreeGate  > Safety/FTA/FT-BRAKE-001/FTG-BRAKE-001.md
+syscribe -m model/ template FaultTreeEvent > Safety/FTA/FT-BRAKE-001/FTE-BRAKE-001.md
 ```
 
 ---
@@ -620,7 +620,7 @@ RPN is computed automatically from `fmeaSeverity × occurrence × detection` if 
 ### Generating a template
 
 ```bash
-syscribe model/ template FMEASheet > Safety/FMEA-BRAKE-001.md
+syscribe -m model/ template FMEASheet > Safety/FMEA-BRAKE-001.md
 ```
 
 ---
@@ -720,22 +720,22 @@ The full trace from a threat or hazard identification through to a verified impl
 
 ```bash
 # Show a safety goal and its integrity level
-syscribe model/ show SG-BRAKE-001
+syscribe -m model/ show SG-BRAKE-001
 
 # What requirements were derived from this goal?
-syscribe model/ refs SG-BRAKE-001
+syscribe -m model/ refs SG-BRAKE-001
 
 # Full trace from a safety requirement upward and downward
-syscribe model/ trace REQ-BRAKE-HYD-001
+syscribe -m model/ trace REQ-BRAKE-HYD-001
 
 # What architecture elements satisfy a requirement?
-syscribe model/ why REQ-BRAKE-HYD-001
+syscribe -m model/ why REQ-BRAKE-HYD-001
 
 # Which test cases cover a requirement?
-syscribe model/ who-verifies REQ-BRAKE-HYD-001
+syscribe -m model/ who-verifies REQ-BRAKE-HYD-001
 
 # All elements that reference a cybersecurity goal
-syscribe model/ refs CSG-SYS-001
+syscribe -m model/ refs CSG-SYS-001
 ```
 
 ### Validation rules summary
