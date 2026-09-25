@@ -208,7 +208,7 @@ The optional `implementedBy:` field on a `Part`, `PartDef`, `Interface`, or `Int
 
 - **Opt-in** — the check runs only when `implementedBy:` is present; elements without it are never flagged.
 - **Draft-suppressed** — elements with `status: draft` are skipped (the implementation may not exist yet).
-- **Path resolution** is identical to `sourceFile` (`classify_source`): model-/repo-relative, `model:`/`repo:` prefixes, absolute, and `file://` paths are checked on disk; remote URIs (`scheme://`) are accepted as external pointers and not verified locally. `implementedBy:` accepts a single string or a list; each entry is checked independently.
+- **Path resolution** is identical to `sourceFile` (`classify_source`): model-/repo-relative, `model:`/`repo:` prefixes, absolute, and `file://` paths are checked on disk; remote URIs (`scheme://`) and package-registry references (`crates.io:tokio@1.38.0`, `npm:lodash@4.17.21`, `github:org/repo@v1` — the forms `sbom` turns into purls) are accepted as external pointers and not verified locally. `implementedBy:` accepts a single string or a list; each entry is checked independently.
 - **Gateable** — `validate --deny W023` exits non-zero when any W023 is present.
 
 ## §3 External references (W028)
