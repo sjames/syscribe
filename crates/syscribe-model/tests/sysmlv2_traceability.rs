@@ -44,6 +44,7 @@ fn satisfy_by_quoted_req_id_resolves_and_suppresses_w300() {
         &root,
         "SysML2Legacy/Vehicle.sysml",
         "package Vehicle {\n\
+         part def Drone;\n\
          part droneInstance : Drone {\n\
          satisfy 'REQ-SCHED-001';\n\
          }\n\
@@ -113,6 +114,7 @@ fn satisfy_by_syscribe_qualified_name_resolves() {
         &root,
         "SysML2Legacy/Vehicle.sysml",
         "package Vehicle {\n\
+         part def Drone;\n\
          part droneInstance : Drone {\n\
          satisfy Requirements::'REQ-QNAME-001';\n\
          }\n\
@@ -219,19 +221,12 @@ fn dangling_verify_target_raises_the_normal_e102_finding() {
 }
 
 #[test]
-fn dangling_satisfy_target_is_carried_but_currently_raises_no_finding() {
-    // Scope item 3, satisfy side: unlike `verifies:` (E102 above),
-    // `validator.rs` does not currently raise ANY finding for a `satisfies:`
-    // target that resolves to nothing, outside multi-repo mode (`E512`, which
-    // requires `[repos]` to be configured at all) — confirmed by reading every
-    // site that reads `fm.satisfies` in `validator.rs`: each only acts in the
-    // `Some(target)` (resolved) branch, with no `else` for the unresolved
-    // case. This is a pre-existing characteristic of the general Requirement-
-    // traceability validation, not something this task's SysMLv2 mapping
-    // introduces or is in scope to change (REQ-TRS-SYSMLV2-003 only requires
-    // carrying the target verbatim through the existing, unmodified
-    // resolver). This test locks in that observed behavior so a future change
-    // to either side is a deliberate, visible diff here.
+fn dangling_satisfy_target_is_carried_and_raises_e114() {
+    // Scope item 3, satisfy side: the target is carried verbatim through the
+    // existing resolver (REQ-TRS-SYSMLV2-003), and — since GH #125 /
+    // REQ-TRS-XREF-007 — a `satisfies:` target that resolves to nothing is
+    // reported as E114 outside multi-repo mode (E512 with `[repos]`), exactly
+    // as a dangling `verifies:` is E102 above.
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
     write(
@@ -243,6 +238,7 @@ fn dangling_satisfy_target_is_carried_but_currently_raises_no_finding() {
         &root,
         "SysML2Legacy/Vehicle.sysml",
         "package Vehicle {\n\
+         part def Drone;\n\
          part droneInstance : Drone {\n\
          satisfy 'REQ-DOES-NOT-EXIST-001';\n\
          }\n\
@@ -260,10 +256,8 @@ fn dangling_satisfy_target_is_carried_but_currently_raises_no_finding() {
     );
 
     let result = validate(&elements);
-    assert_eq!(
-        result.errors().count(),
-        0,
-        "no error is currently raised for a dangling satisfies target outside multi-repo mode: {:#?}",
-        result.findings
-    );
+    let errors: Vec<_> = result.errors().collect();
+    assert_eq!(errors.len(), 1, "expected exactly one error (E114): {:#?}", result.findings);
+    assert_eq!(errors[0].code, "E114");
+    assert!(errors[0].message.contains("REQ-DOES-NOT-EXIST-001"));
 }

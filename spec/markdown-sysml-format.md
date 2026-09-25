@@ -5279,7 +5279,7 @@ Given a file at path `<root>/<seg1>/<seg2>/.../<segN>/<filename>.md`:
 
 If `model/VehicleSystem/_index.md` contains `name: VS`, the qualified name becomes `VS::Powertrain::Engine`.
 
-> **The model-root package `name:` is not part of qualified names.** Qualified names are derived *relative to the model root*, and the root package (the root `_index.md`) contributes **no** segment (step 5 above). A cross-reference therefore starts at the first sub-namespace — e.g. `VehicleSystem::Powertrain::Engine`, **never** `<RootName>::VehicleSystem::Powertrain::Engine` even when the root `_index.md` declares `name: <RootName>`. Writing the root package name as the leading segment is a common authoring mistake (humans and LLMs alike); when an unresolved cross-reference begins with the root package name followed by `::` and the *stripped* remainder resolves, the tool appends a diagnostic hint naming the corrected reference (REQ-TRS-XREF-006). The hint is advisory only — it adds explanatory text to the existing unresolved-reference finding (`E102`/`E103`/`E311`/`E316`/`E502`/`E503` and the structural supertype/typedBy/subsets/redefines/connection resolution errors); it never changes resolution and never rewrites the model. The hint does not fire when the root package has no `name:`, nor when stripping the prefix still does not resolve.
+> **The model-root package `name:` is not part of qualified names.** Qualified names are derived *relative to the model root*, and the root package (the root `_index.md`) contributes **no** segment (step 5 above). A cross-reference therefore starts at the first sub-namespace — e.g. `VehicleSystem::Powertrain::Engine`, **never** `<RootName>::VehicleSystem::Powertrain::Engine` even when the root `_index.md` declares `name: <RootName>`. Writing the root package name as the leading segment is a common authoring mistake (humans and LLMs alike); when an unresolved cross-reference begins with the root package name followed by `::` and the *stripped* remainder resolves, the tool appends a diagnostic hint naming the corrected reference (REQ-TRS-XREF-006). The hint is advisory only — it adds explanatory text to the existing unresolved-reference finding (`E102`/`E103`/`E311`/`E316`/`E502`/`E503`/`E632` and the structural supertype/typedBy/subsets/redefines and satisfies resolution errors `E110`–`E114`); it never changes resolution and never rewrites the model. The hint does not fire when the root package has no `name:`, nor when stripping the prefix still does not resolve.
 
 ### 11.4 Implicit Supertype Rules
 
@@ -5323,6 +5323,20 @@ For a reference string `R` encountered within element `E` in package `P`:
    c. Then look in each package imported (directly or via `imports:`) by `P` and its ancestors.
 4. If resolution fails at all levels, emit a **reference error** with the source location. Do not panic; continue parsing remaining elements.
 
+A reference also resolves when it names an **inline (non-file) feature** of a resolvable owner
+(`Owner::feature`, or a bare `feature` of the referencing element's owner — including one
+inherited through the owner's `supertype:`/`typedBy:` chain), or a member of the SysML v2
+**standard library** (the built-in `ScalarValues`/`Base` packages, the curated `ISQ`/`SI`
+recognition of §4, any reference into a standard-library package — `ISQ::…`, `Parts::Part::…`,
+`Links::…` — whose top-level name the model does not itself declare, and the bare names of the
+well-known library root types such as `Link`, `Part` or `Real`). The step-4 reference errors are,
+per field (REQ-TRS-XREF-007): `supertype:` → `E110`, `typedBy:` (element-level and inline
+`features:` entries) → `E111`, `subsets:` → `E112`, `redefines:` → `E113`, `satisfies:` → `E114`,
+alongside the existing `verifies:` → `E102`, `derivedFrom:` → `E103` and `allocatedTo:` → `E503`.
+In a `[repos]`-configured model an unresolved reference is reported once, as `E512` (§14.4),
+instead of the field-specific code. All of these take the model-root-name hint (§11.3) and are
+suppressed in the `validate --config` lens, where a target pruned from the variant is `E226`/`W019`.
+
 ### 11.6 Circular Reference Handling
 
 1. The parser builds a **dependency graph** of cross-references after the first pass.
@@ -5344,11 +5358,11 @@ A conformant parser MUST report errors for:
 - `isVariant: true` on an element not owned by a variation element (an element with `isVariation: true`).
 - `EnumerationDef` with a `supertype:` that resolves to another `EnumerationDef`.
 - `values:` absent on `EnumerationDef`.
+- References to elements that do not exist in the model (§11.5 step 4 — e.g. `E102`, `E103`, `E110`–`E114`, `E503`).
 
 A conformant parser MUST emit warnings for:
 
 - Unknown frontmatter fields (for forward compatibility, unknown fields are preserved but warned about).
-- References to elements that do not exist in the model.
 - Elements with `isAbstract: false` (or defaulted as concrete) that directly subtype an abstract definition without providing concrete instantiation elsewhere.
 
 ### 11.8 Built Graph Structure
@@ -5467,6 +5481,11 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E104` | A `verifies:` reference resolves to an element that is neither a native `Requirement` nor a requirement/architecture-shaped element actually synthesized by SysMLv2 submodel ingestion or a stdio foreign-format plugin (§11.10) |
 | `E105` | A `derivedFrom:` reference resolves to an element that is not a native `Requirement` |
 | `E106` | A `testFunctions[].scenario` string does not match any `Scenario:` or `Scenario Outline:` title in this file's Gherkin blocks |
+| `E110` | A `supertype:` reference cannot be resolved by any §11.5 form (REQ-TRS-XREF-007) |
+| `E111` | A `typedBy:` reference — on the element, or on an inline `features:` entry — cannot be resolved by any §11.5 form |
+| `E112` | A `subsets:` reference cannot be resolved by any §11.5 form |
+| `E113` | A `redefines:` reference cannot be resolved by any §11.5 form |
+| `E114` | A `satisfies:` reference cannot be resolved (no element with matching id, qualified name or name) |
 | `E310` | Native `Requirement` has `derivedFrom:` entries but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved, or resolves to an element that is not an `ADR` |
 | `E312` | A parent `Requirement` (one with `derivedChildren`) appears in a `satisfies:` list |
@@ -5573,7 +5592,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 |---|---|
 | `E510` | Circular repo import (repo A → repo B → … → repo A) |
 | `E511` | `repos.<alias>.path` does not exist on disk and no `ref:` is configured |
-| `E512` | Cross-repo cross-reference (`verifies:`, `derivedFrom:`, etc.) unresolved in any loaded repo |
+| `E512` | Cross-repo cross-reference (`verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:`, `supertype:`, `typedBy:`, `subsets:`, `redefines:`) unresolved in any loaded repo — reported instead of `E102`/`E103`/`E110`–`E114`/`E503` when `[repos]` is configured |
 | `E513` | `repoImports[].repo` alias not present in `[repos]` config |
 | `E514` | `repoImports[].qname` does not resolve in the named repo |
 | `E515` | Same stable ID appears in two repos (duplicate across composition) |
@@ -6726,7 +6745,7 @@ shared    ../shared-library      main     ✓         behind (3 commits)
 |---|---|
 | `E510` | Circular repo import — repo A's composition imports from repo B which (directly or transitively) imports from repo A |
 | `E511` | `repos.<alias>.path` does not exist on disk (and no `ref:` is configured) |
-| `E512` | Cross-repo `verifies:` / `derivedFrom:` / `satisfies:` / `allocatedTo:` reference cannot be resolved in the local model or any loaded repo |
+| `E512` | Cross-repo `verifies:` / `derivedFrom:` / `satisfies:` / `allocatedTo:` / `supertype:` / `typedBy:` / `subsets:` / `redefines:` reference cannot be resolved in the local model or any loaded repo |
 | `E513` | `_index.md repoImports[].repo` names an alias not present in `[repos]` |
 | `E514` | `repoImports[].qname` does not resolve to any element in the named repo |
 | `E515` | Two repos export the same stable ID (e.g., `REQ-SCHED-001` appears in both the local model and a peer repo) |

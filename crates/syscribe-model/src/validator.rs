@@ -7431,6 +7431,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // package name followed by `::` and the stripped remainder resolves, append a
     // diagnostic hint naming the corrected reference. This changes nothing about
     // resolution — the original error still fires.
+    // E110–E114 (REQ-TRS-XREF-007, GH #125): unresolved supertype/typedBy/
+    // subsets/redefines/satisfies references. Before the root-name hint so the
+    // hint annotates them too.
+    findings.extend(crate::structural_refs::unresolved_structural_ref_findings(elements, &resolver, config));
+
     annotate_root_name_hints(&mut findings, elements, &resolver);
 
     // §9.9 — Build-system integration: E050 (conflicting buildExports var names
@@ -7695,7 +7700,9 @@ fn link_type_findings(elements: &[RawElement], config: &ValidateConfig) -> Vec<F
 /// REQ-TRS-XREF-006 root-name hint applies (the generic unresolved-reference
 /// findings: traceability, refinement, allocation, and the structural
 /// supertype/typedBy/subsets/redefines/connection resolution errors).
-const ROOT_HINT_CODES: &[&str] = &["E102", "E103", "E311", "E316", "E502", "E503", "E632"];
+const ROOT_HINT_CODES: &[&str] = &[
+    "E102", "E103", "E110", "E111", "E112", "E113", "E114", "E311", "E316", "E502", "E503", "E632",
+];
 
 /// REQ-TRS-XREF-006 — append a "did you mean" hint to any unresolved-reference
 /// finding whose quoted reference wrongly includes the model-root package name.

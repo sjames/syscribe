@@ -264,8 +264,12 @@ pub fn escaping_refs(full: &[RawElement], sel: &Selection) -> Vec<Finding> {
 /// concerns (already covered by whole-model `validate`), and for targets that
 /// exist-but-are-inactive the escaping-ref pass is authoritative. `E632` (an
 /// unresolved `links:` target, REQ-TRS-LINKTYPE-002) is the user-defined-link
-/// member of the same family.
-const LENS_SUPPRESS: &[&str] = &["E102", "E103", "E104", "E105", "E106", "E632"];
+/// member of the same family, and `E110`–`E114` (unresolved supertype/typedBy/
+/// subsets/redefines/satisfies, REQ-TRS-XREF-007) are the structural members:
+/// a target pruned from the variant is E226/W019 here, never a dangling ref.
+const LENS_SUPPRESS: &[&str] = &[
+    "E102", "E103", "E104", "E105", "E106", "E110", "E111", "E112", "E113", "E114", "E632",
+];
 
 /// Full re-validation in the lens (REQ-TRS-PROJ-002): escaping refs plus the
 /// standard validator over the projected subset (minus the suppressed

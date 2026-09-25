@@ -46,7 +46,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | W009 | A TestCase `testFunctions[].function` is not found in its `sourceFile` (live source-drift; a planned/draft TestCase reports the informational `I010` instead) |
 | W010 | An `active` TestCase's `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
 
-## Cross-reference errors (E101–E106)
+## Cross-reference errors (E101–E106, E110–E114)
 
 | Code | Condition |
 |---|---|
@@ -56,6 +56,24 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E104 | `verifies:` target is not a native Requirement — also widened (`Resolver::is_verify_target`) to accept a requirement/architecture-shaped element (`Part`/`PartDef`/`Attribute`/… — `REQ-TRS-SYSMLV2-007`'s fixed kind list) that was actually synthesized by native SysMLv2 ingestion or a stdio plugin, never a hand-authored element of the same kind |
 | E105 | `derivedFrom:` target is not a native Requirement |
 | E106 | `testFunctions[].scenario` name not found in Gherkin blocks |
+| E110 | `supertype:` entry does not resolve |
+| E111 | `typedBy:` entry does not resolve — on the element, or on an inline `features:` entry (the message names the feature) |
+| E112 | `subsets:` entry does not resolve |
+| E113 | `redefines:` entry does not resolve |
+| E114 | `satisfies:` entry does not resolve |
+
+`E110`–`E114` (REQ-TRS-XREF-007) use the §11.5 resolution order: id / qualified name / name,
+then the referencing element's enclosing-package scope chain, a `./` sibling, `imports:` and
+`aliases:` of the element or any enclosing package, and an inline (non-file) feature of a
+resolvable owner — `Owner::feature`, or a bare `feature` of the element's owner, including one
+inherited through `supertype:`/`typedBy:`. Standard-library references are never flagged: the
+built-in `ScalarValues`/`Base` packages (an unknown member is `W043`), the curated ISQ/SI names,
+any reference into a SysML v2 library package (`ISQ::…`, `Parts::Part::…`, `Links::…`) whose
+top-level name the model does not declare itself, and the bare library root types (`Link`,
+`Part`, `Real`, …). SysML v2-, plugin- and annotation-synthesized elements resolve like any
+other (the `typedBy:` of an ingested SysML v2 `allocation` usage is exempt: ingestion does not map
+`allocation def`). With `[repos]` configured an unresolved reference is `E512` instead (never both). Like
+`E102`–`E106`, they take the model-root-name hint and are suppressed under `--config`.
 
 ## Coverage warnings (W002–W005)
 
@@ -152,7 +170,7 @@ Core features (present in every valid configuration) are reported informationall
 | W021 | (`feature-check --deep`) a **dead element** — its `appliesWhen` is unsatisfiable under the feature model (active in no valid configuration) |
 | W022 | (`feature-check --deep`) a requirement **active in some configuration but covered in none** (family-wide coverage gap) |
 
-On a model that declares no `FeatureDef`, `--config` must name a stored `Configuration` (e.g. a MagicGrid parametric variant — the lens is then the identity); anything else is a usage error rather than a silent whole-model fallback. Cross-reference-resolution codes (`E102`–`E106`) are suppressed under `--config` because escaping refs (`E226`/`W019`) are authoritative there.
+On a model that declares no `FeatureDef`, `--config` must name a stored `Configuration` (e.g. a MagicGrid parametric variant — the lens is then the identity); anything else is a usage error rather than a silent whole-model fallback. Cross-reference-resolution codes (`E102`–`E106`, `E110`–`E114`) are suppressed under `--config` because escaping refs (`E226`/`W019`) are authoritative there.
 
 ## Transitive package `appliesWhen` (§9.10, REQ-TRS-VAR-006)
 
@@ -416,7 +434,7 @@ A model composes peer repositories declared in the `[repos]` table of the model-
 |---|---|
 | E510 | Circular repo import — a repo transitively imports back into this model. |
 | E511 | `repos.<alias>.path` is absent on disk and no `ref:` is configured. |
-| E512 | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo` reference resolves in neither the local model nor any loaded repo. |
+| E512 | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo`/`supertype`/`typedBy`/`subsets`/`redefines` reference resolves in neither the local model nor any loaded repo (reported instead of the field's own unresolved-reference code). |
 | E513 | `repoImports[].repo` names an alias not present in `[repos]`. |
 | E514 | `repoImports[].qname` does not resolve to any element in the named repo. |
 | E515 | Two repos export the same stable ID (the id namespace is global across the composition). |
@@ -1005,8 +1023,8 @@ segment — a reference starts at the first sub-namespace
 unresolved cross-reference begins with the root package's `name:` followed by `::`
 and the *stripped* remainder resolves, the tool appends a diagnostic **hint** naming
 the corrected reference. The hint augments the existing unresolved-reference finding
-(`E102`/`E103`/`E311`/`E316`/`E502`/`E503` and the structural
-supertype/typedBy/subsets/redefines/connection resolution errors); it is advisory
+(`E102`/`E103`/`E311`/`E316`/`E502`/`E503`/`E632` and the structural
+supertype/typedBy/subsets/redefines and satisfies resolution errors `E110`–`E114`); it is advisory
 only — it never changes resolution and never rewrites the model. It does not fire
 when the root package has no `name:`, nor when stripping the prefix still does not
 resolve.

@@ -49,6 +49,11 @@
 | `E106` | `testFunctions[].scenario` does not match any Gherkin scenario title in this file |
 | `E107` | Cycle detected in the `typedBy:` graph (including a usage typed by itself) |
 | `E108` | Two elements — any origin (hand-authored, FMEA/TARA row explosion, SysMLv2 ingestion, stdio plugin, annotated source) — share a qualified name; names both files |
+| `E110` | `supertype:` reference cannot be resolved |
+| `E111` | `typedBy:` reference cannot be resolved (element-level or an inline `features:` entry) |
+| `E112` | `subsets:` reference cannot be resolved |
+| `E113` | `redefines:` reference cannot be resolved |
+| `E114` | `satisfies:` reference cannot be resolved |
 | `E310` | `Requirement` has `derivedFrom:` but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved or resolves to a non-`ADR` element |
 | `E312` | A parent `Requirement` (has `derivedChildren`) appears in a `satisfies:` list |
@@ -393,7 +398,7 @@ Active only when `[repos]` is configured in `.syscribe.toml`.
 |---|---|
 | `E510` | Circular repo import — a repo transitively imports back into this model |
 | `E511` | `repos.<alias>.path` is absent on disk and no `ref:` is configured |
-| `E512` | A cross-repo `verifies`/`derivedFrom`/`allocatedTo` reference resolves in neither the local model nor any loaded repo |
+| `E512` | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo`/`supertype`/`typedBy`/`subsets`/`redefines` reference resolves in neither the local model nor any loaded repo (reported instead of `E102`/`E103`/`E110`–`E114`/`E503` when `[repos]` is configured) |
 | `E513` | `repoImports[].repo` names an alias not present in `[repos]` |
 | `E514` | `repoImports[].qname` does not resolve to any element in the named repo |
 | `E515` | Two repos export the same stable ID (the id namespace is global) |
