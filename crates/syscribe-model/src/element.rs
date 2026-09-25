@@ -1392,6 +1392,13 @@ pub struct RawElement {
     /// Despite the field's name, it is not exclusively "derive pass" output.
     #[serde(skip)]
     pub derive_findings: Vec<(String, String, String)>, // (code, file, message)
+    /// §3.10 locale documentation variants (REQ-TRS-PARSE-010, GH #160):
+    /// `locale → doc body` contributed by variant files (`locale:` +
+    /// `qualifiedName:` naming this element). Filled by
+    /// `walker::attach_locale_variants`; the variant files themselves never
+    /// become elements. The element's own body stays in `doc`.
+    #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty", default)]
+    pub locale_docs: std::collections::BTreeMap<String, String>,
 }
 
 #[cfg(test)]

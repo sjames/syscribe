@@ -333,6 +333,7 @@ mod tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
