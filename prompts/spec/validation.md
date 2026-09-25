@@ -4,7 +4,7 @@
 
 | Code | Condition |
 |---|---|
-| `E000` | Internal fallback for an unrecognised derive-pass finding code (should not appear in a healthy model) |
+| `E000` | Internal fallback for an unrecognised walker-pass finding code (derive `E504`–`E506`, SysML v2 ingestion, plugins, …; should not appear in a healthy model) |
 | `E001` | File does not begin with `---` (missing frontmatter delimiter) |
 | `E002` | YAML frontmatter is not valid YAML 1.2 |
 | `E004` | A required field is absent |
@@ -303,7 +303,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 |---|---|
 | `W050` | A selected feature contributes no build variable (no `buildExports:`/`buildVar:`). Opt-in; gate with `--deny W050` (`E050` is in the parse-time table) |
 
-## Allocation errors and structural warnings (E500–E503, W500–W503)
+## Allocation and derive errors, structural warnings (E500–E506, W500–W503)
 
 | Code | Condition |
 |---|---|
@@ -311,6 +311,9 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E501` | A feature with `type: Allocation` has an `allocatedTo:` that does not resolve |
 | `E502` | An `allocatedFrom:` entry (any element) does not resolve to a known element |
 | `E503` | An `allocatedTo:` entry (any element) does not resolve to a known element |
+| `E504` | *(reserved)* Cyclic dependency between `derive:` formulas (cycle detection not yet implemented) |
+| `E505` | A `derive:` formula does not parse |
+| `E506` | A `derive:` formula's `elements["QName"]` names no element |
 | `W500` | `viewpoint:` on a View does not resolve to a `ViewpointDef` |
 | `W501` | `exhibitsStates:` entry does not resolve to any known element |
 | `W502` | `expose:` entry on a View does not resolve to any known element |

@@ -1264,6 +1264,8 @@ draft → review → approved → implemented → verified
 | W630 | Malformed `[linkTypes]` entry (ignored) or unknown key | Fix `.syscribe.toml` only if asked; report it |
 | W631 | Non-draft source below the link type's lower cardinality bound | Add the required link(s) |
 | E500–E503 | `allocatedFrom`/`allocatedTo` does not resolve | Use correct qualified names |
+| E505 | `derive:` formula does not parse | Fix the formula syntax |
+| E506 | `derive:` formula's `elements["QName"]` names no element | Use an existing qualified name |
 | E841 | `derivedFromSafetyGoal` source has integrity level; this element has none | Add `asilLevel`, `silLevel`, or `plLevel` |
 | E842 | `derivedFrom` parent has integrity level; this element has none | Add the same integrity level field |
 | E843 | `satisfies` target has integrity level; this element has none | Add the same integrity level field |

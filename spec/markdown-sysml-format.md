@@ -5278,7 +5278,7 @@ Given a file at path `<root>/<seg1>/<seg2>/.../<segN>/<filename>.md`:
 
 If `model/VehicleSystem/_index.md` contains `name: VS`, the qualified name becomes `VS::Powertrain::Engine`.
 
-> **The model-root package `name:` is not part of qualified names.** Qualified names are derived *relative to the model root*, and the root package (the root `_index.md`) contributes **no** segment (step 5 above). A cross-reference therefore starts at the first sub-namespace — e.g. `VehicleSystem::Powertrain::Engine`, **never** `<RootName>::VehicleSystem::Powertrain::Engine` even when the root `_index.md` declares `name: <RootName>`. Writing the root package name as the leading segment is a common authoring mistake (humans and LLMs alike); when an unresolved cross-reference begins with the root package name followed by `::` and the *stripped* remainder resolves, the tool appends a diagnostic hint naming the corrected reference (REQ-TRS-XREF-006). The hint is advisory only — it adds explanatory text to the existing unresolved-reference finding (`E102`/`E103`/`E311`/`E316`/`E502`/`E503`/`E632` and the structural supertype/typedBy/subsets/redefines and satisfies resolution errors `E110`–`E114`); it never changes resolution and never rewrites the model. The hint does not fire when the root package has no `name:`, nor when stripping the prefix still does not resolve.
+> **The model-root package `name:` is not part of qualified names.** Qualified names are derived *relative to the model root*, and the root package (the root `_index.md`) contributes **no** segment (step 5 above). A cross-reference therefore starts at the first sub-namespace — e.g. `VehicleSystem::Powertrain::Engine`, **never** `<RootName>::VehicleSystem::Powertrain::Engine` even when the root `_index.md` declares `name: <RootName>`. Writing the root package name as the leading segment is a common authoring mistake (humans and LLMs alike); when an unresolved cross-reference begins with the root package name followed by `::` and the *stripped* remainder resolves, the tool appends a diagnostic hint naming the corrected reference (REQ-TRS-XREF-006). The hint is advisory only — it adds explanatory text to the existing unresolved-reference finding (`E102`/`E103`/`E311`/`E316`/`E502`/`E503`/`E506`/`E632` and the structural supertype/typedBy/subsets/redefines and satisfies resolution errors `E110`–`E114`); it never changes resolution and never rewrites the model. The hint does not fire when the root package has no `name:`, nor when stripping the prefix still does not resolve.
 
 ### 11.4 Implicit Supertype Rules
 
@@ -5584,6 +5584,20 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E705` | `items[].disposition` not in `open \| closed \| not_applicable` |
 | `W700` | `ReviewRecord` with `status: closed` has ≥1 `items[]` with `disposition: open` |
 | `W704` | Non-`draft` native `Requirement` appears in no `ReviewRecord.reviews:` list — dormant unless ReviewRecords exist (opt-in; `--deny W704`; drafted as `W701`, already in use) |
+
+#### Allocation resolution and declarative derive (E500–E506)
+
+| Code | Condition |
+|---|---|
+| `E500` | A `features:` entry with `type: Allocation` has an `allocatedFrom:` that does not resolve |
+| `E501` | A `features:` entry with `type: Allocation` has an `allocatedTo:` that does not resolve |
+| `E502` | An `allocatedFrom:` entry (any element) does not resolve to a known element |
+| `E503` | An `allocatedTo:` entry (any element) does not resolve to a known element |
+| `E504` | *(reserved)* Cyclic dependency between `derive:` formulas (REQ-TRS-DERIVE-004; cycle detection not yet implemented) |
+| `E505` | A `derive:` formula does not parse (REQ-TRS-DERIVE-005) |
+| `E506` | A `derive:` formula's `elements["QName"]` names no element (REQ-TRS-DERIVE-005) |
+
+The Allocation (`E500`–`E503`) and derive (`E504`–`E506`) families are disjoint — no code carries both meanings (GH #127).
 
 #### Multi-repository composition (E510–E515, W510–W512, §14.6)
 
