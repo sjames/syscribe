@@ -106,9 +106,11 @@ Use exactly one of:
 - `silLevel: 1 | 2 | 3 | 4` — IEC 61508
 - `plLevel: a | b | c | d | e` — ISO 13849-1
 
-Never mix them on the same requirement (W006). The parent element's level propagates
-automatically into derived requirements; the validator flags a derived requirement that claims
-a higher level than its parent (E841).
+Never set both `asilLevel` and `silLevel` on the same requirement (W006). Integrity levels
+must propagate down the trace: an element derived (via `derivedFromSafetyGoal:` / `derivedFrom:`)
+from, or satisfying, an element that carries an ASIL/SIL must set one too (E841 / E842 / E843),
+and a *lower* level than its source needs a `breakdownAdr:` justifying the decomposition (W808).
+The level is authored on each element — it is checked, not inherited automatically.
 
 ### 2.6 Multi-variant products (product line engineering)
 

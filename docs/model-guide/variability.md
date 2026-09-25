@@ -2,7 +2,7 @@
 
 `GUIDE · VARIABILITY`
 
-Syscribe models a whole **product line** as one repository — the **150% model** — and projects it onto individual products (**100% models**) on demand. Everything in this guide is **opt-in**: a model with no `FeatureDef` behaves exactly as a single-product model, and none of these rules or commands change its output.
+Syscribe models a whole **product line** as one repository — the **150% model** — and projects it onto individual products (**100% models**) on demand. Everything in this guide is **opt-in**: a model with no `FeatureDef` behaves exactly as a single-product model, and none of these validation rules fire on it. The one visible difference is the `--config` lens: on such a model `--config <X>` is a usage error (exit 1) unless `<X>` names a stored `Configuration`.
 
 The capability has four layers, each building on the last, plus an optional fifth for multi-repo product lines:
 
@@ -308,7 +308,7 @@ The single-element queries `trace`, `why`, `who-verifies`, `refs` and `links` ho
 
 ---
 
-## 5. Hierarchical composition — `subConfigurations:`
+## 5. Hierarchical composition — `subConfigurations:` { #hierarchical-composition }
 
 `ADR-SYS-HPLE-001`. A `Configuration` can consolidate one or more other, already-configured `Configuration`s into its own — a product-line-of-product-lines: an OEM vehicle line built by picking one already-configured variant from each of several independently-developed, independently-versioned lower-tier lines (a battery-pack line, an infotainment line), each maintained by a different team or supplier, typically in its own repo (see the [Multi-Repository guide](multi-repo.md) for `[repos]`). "Tier" isn't a declared schema concept — it falls out structurally from whether a repo happens to import others.
 
@@ -325,7 +325,7 @@ parameterBindings:
 
 Each `subConfigurations:` entry resolves like any other cross-reference — local first, then each loaded repo in declaration order — and must name a real `Configuration` (`E517` otherwise) that is itself internally valid: SAT-satisfiable and error-free (`E516` dangling, `E518` not internally valid; for a peer entry this genuinely loads and validates that repo's model, not just an existence check).
 
-**`parameterBindings:` reaches transitively.** The same field used within one model (§1 above) resolves against any `FeatureDef` reachable through `subConfigurations:`, at any depth, using the parameter's ordinary, already-mounted qname — no new addressing syntax. Its usual checks (`E204`/`E205`/`E206`/`E222`/`W027`) apply unchanged whether the target is local or transitively resolved.
+**`parameterBindings:` reaches transitively.** The same field used within one model (§2 above) resolves against any `FeatureDef` reachable through `subConfigurations:`, at any depth, using the parameter's ordinary, already-mounted qname — no new addressing syntax. Its usual checks (`E204`/`E205`/`E206`/`E222`/`W027`) apply unchanged whether the target is local or transitively resolved.
 
 **Cross-tier binding legality.** A transitively-resolved binding must target a parameter that's genuinely open: selected by the tier that owns it (`E519` — the cross-tier form of `E203`, which stays scoped to a `Configuration`'s own local selection) and not already closed by a nearer tier on the path (`E523` — a parameter may be closed by exactly one tier along the chain, never twice).
 

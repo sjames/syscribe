@@ -1,7 +1,11 @@
 # Syscribe Frontmatter Field Reference
 
-All frontmatter fields. Optional unless marked **required**.
-`serde(rename_all = "camelCase")` — use camelCase in YAML.
+The frontmatter fields the parser recognises. Optional unless marked **required**.
+`serde(rename_all = "camelCase")` — use camelCase in YAML. Any other top-level key is kept
+but warned `W047` (unknown key) — put project-specific data under `custom_fields:`, computed
+values under `derive:`, and project-declared relationships under `links:` instead. Reverse
+indices (`verifiedBy`, `derivedChildren`, `children`, …) are
+computed by the tool and never authored.
 
 ## Identity and classification
 
@@ -10,11 +14,11 @@ All frontmatter fields. Optional unless marked **required**.
 | `type` | All | string | **required** | Element type from the type inventory |
 | `name` | **All** | string | filename stem (name-identified) | The single human-readable label on **every** element type. For name-identified types (SysML structural, `Package`, `Diagram`, `FeatureDef`) it is also the QName/identity segment and must be a basic name (`W042`). For id-identified types (native Req/TC/TP/Config/ADR/safety/security) it is **required** free prose — spaces/punctuation allowed, `W042` does not apply. |
 | `shortName` | All | string | absent | Abbreviated name for display |
-| `qualifiedName` | All | string | derived | Auto-derived from path; set to override |
+| `qualifiedName` | All | string | derived | Always derived from the file path; an authored value is parsed but never overrides the path-derived qname |
 | `visibility` | All | string | `public` | `public` or `private` |
 | `id` | id-identified types + `FeatureDef` | string | **required** | Stable opaque ID matching the type's pattern. **Mandatory `FEAT-*` id on `FeatureDef`** too (E201 if missing) — a feature stays name-labelled but must carry a stable id. |
 | `title` | — | — | — | **REMOVED.** No longer a label field on any element; use `name`. A stray `title:` on any element is error `E025`. |
-| `status` | native Req/TC/ADR/safety | string | **required** | Lifecycle status |
+| `status` | id-identified types (Req/TC/TP/ADR/Config/Baseline/PlanningItem/RR/TRD/Zone/Conduit/most safety & security types) | string | **required** | Lifecycle status; vocabulary is per type (`syscribe template <Type>` shows it) |
 | `extRef` | All | string or list | absent | External reference(s) — this element represents an artifact in another tool (DNG, a SysML tool). Opaque (URI or `tool:id`). Look up with `extref <ref>`; duplicate across elements warns `W028`. Not a model cross-ref target. |
 
 ## Classification flags
@@ -59,7 +63,6 @@ All frontmatter fields. Optional unless marked **required**.
 | `multiplicity` | Usage | string | Quoted: `"1"`, `"0..*"`, `"0..1"`, `"1..*"` |
 | `direction` | Port, Parameter | string | `in` · `out` · `inout` |
 | `features` | Def/Usage | list | Inline attribute/port/sub-element declarations |
-| `ports` | Port | list | Nested sub-ports |
 | `connections` | PartDef/Part | list | `{from: a.p, to: b.q}` port bindings |
 | `flowConnections` | PartDef/Part | list | Flow connection bindings |
 | `successionConnections` | ActionDef/Action | list | Temporal ordering bindings |
@@ -97,7 +100,6 @@ All frontmatter fields. Optional unless marked **required**.
 | Field | Applies to | Type | Default |
 |---|---|---|---|
 | `expression` | ConstraintDef | string | absent |
-| `expressionLanguage` | ConstraintDef | string | `"ocl"` |
 | `requires` | All | list | absent |
 | `assume` | All | list | absent |
 
@@ -113,8 +115,7 @@ All frontmatter fields. Optional unless marked **required**.
 | `derivedFrom` | RequirementDef/Requirement | list |
 | `satisfies` | Part/PartDef/etc. | list |
 | `implementedBy` | Part/PartDef/Interface/InterfaceDef | string or list |
-| `verifiedBy` | Requirement | list |
-| `verifies` | VerificationCase | list |
+| `verifies` | TestCase / VerificationCase | list |
 | `verdictExpression` | VerificationCase | string |
 | `verdictType` | VerificationCaseDef | string |
 | `objectives` | CaseDef | list |
@@ -136,6 +137,10 @@ All frontmatter fields. Optional unless marked **required**.
 | `breakdownAdr` | string | ADR ID/QName for decomposition rationale (required when `derivedFrom` set) |
 | `derivedFromSafetyGoal` | string | SafetyGoal ID/QName |
 | `derivedFromCybersecurityGoal` | string | CybersecurityGoal ID/QName |
+| `reqClass` | string | `stakeholder` · `system` · `derived` — position in the stakeholder/system decomposition (informational, not validated) |
+| `requirementKind` | string | `stakeholder` · `system` · `software` · `hardware` (`E022` if other) |
+| `dalLevel` | string | `A`–`E` (DO-178C, `E019`); with `asilLevel` warns `W703` |
+| `decompositionKind` | string | ASIL/SIL decomposition argument: `independent` · `redundant` · `diverse` (informational) |
 | `tags` | list | Free-form tags |
 
 ## Native TestCase extra fields
@@ -145,8 +150,62 @@ All frontmatter fields. Optional unless marked **required**.
 | `testLevel` | string | **required** — `L1` (doc review) · `L2` (analysis) · `L3` (unit/integration) · `L4` (system) · `L5` (HIL/physical) |
 | `securityTestMethod` | string | optional (ISO/SAE 21434 §13.3) — `fuzz` · `penetration_test` · `security_regression` · `vulnerability_scan` · `threat_modeling` (W809 if other). Orthogonal to `testLevel`; lets `verification-depth`/`matrix` distinguish security-method tests from functional ones |
 | `sourceFile` | string | Path relative to model root (W004 if not found) |
-| `testFunctions` | list | `{function: name, scenario: "title"}` mappings |
+| `testFunctions` | list | Each entry a function-name string or `{function: name, scenario: "title"}` |
+| `coverageTarget` | string | `statement` · `branch` · `MCDC` (`E021`) |
 | `tags` | list | Free-form tags |
+
+## Native TestPlan fields
+
+| Field | Type | Notes |
+|---|---|---|
+| `scope` | string | `unit`·`smoke`·`integration`·`hil`·`certification`·`security`·`regression` (`W610` if other) |
+| `testCases` | string or list | Explicit member TestCases (id/qname) |
+| `selection` | map | Additive query `{testLevels, domains, tags}` unioned with `testCases` |
+| `configurations` | list | `CONF-*` variants this plan targets; absent = configuration-agnostic |
+| `demonstrates` | list | Goals/requirements this plan is evidence for |
+
+## PlanningItem fields (§23)
+
+| Field | Type | Notes |
+|---|---|---|
+| `parent` | string | At most one other `PlanningItem` (strict tree; cycle `E712`) |
+| `achieves` | string or list | `Requirement`s this work realises — **required** on a top-level item (`E713`–`E715`) |
+| `itemType` | string | `bug` · `task` · `feature` (`E709`) |
+| `blockedBy` | string or list | Any elements it waits on (`E720` dangling, `E721` cycle, `W308` if set while not `blocked`) |
+| `assignedTo` | string | Unix-style username (`E723`); checked against `[users]` when that roster is non-empty (`E722`) |
+| `evidence` | list | `{ref: <element>}` or `{path: <file>}`, each with optional waiving `rationale:`; a leaf `done` item needs one valid entry (`E719`) |
+| `claimedBy` / `claimedAt` | string | Advisory ownership — set by `syscribe claim <PI> --by <agent>`, cleared by `syscribe release <PI>`; never hand-edit |
+
+`status`: `todo` · `in_progress` · `blocked` · `done` (`E708`). `W310`: `done` but the achieved
+requirement lacks the W002/W305 verification bar. `W311`: two active items overlap.
+
+## Record fields (Baseline, ReviewRecord, TradeStudy)
+
+| Field | Applies to | Type | Notes |
+|---|---|---|---|
+| `date` / `approver` / `gitTag` / `gitCommit` | Baseline | string | `gitCommit` captured by `baseline create`; `gitTag` is distinct from the `BL-*` id |
+| `frozenScope` | Baseline | map | `{package, config, closureFrom, types, status, tags}`; omit for the whole model |
+| `seal` | Baseline | map | `{aggregateHash, elementCount, manifest}` — generated, never hand-edit (`E520`/`E521`) |
+| `supersedes` | Baseline | string | Earlier `BL-*` (`E522` if unresolved) |
+| `reviewType` | ReviewRecord | string | **required** — `design_review`·`requirements_review`·`hazard_review`·`test_readiness_review`·`inspection`·`walk_through` |
+| `reviews` | ReviewRecord | list | **required** — elements covered by the review |
+| `reviewDate` / `reviewedBy` / `recordedAt` | ReviewRecord | string / list / string | `recordedAt` points to the external review (e.g. a PR URL) |
+| `items` | ReviewRecord | list | Action items `{id, description, disposition, closedBy}` |
+| `criteria` | TradeStudy | list | **required** — `{name, weight, direction: maximize\|minimize, unit}` |
+| `alternatives` | TradeStudy | list | **required** — `{name, element?}` |
+| `scores` | TradeStudy | list | **required** — score matrix (alternative × criterion) |
+| `objective` / `decision` | TradeStudy | string | Requirement informed / ADR recording the choice |
+
+## IEC 62443 zones and conduits (§13)
+
+| Field | Applies to | Type | Notes |
+|---|---|---|---|
+| `targetSL` / `achievedSL` | Zone, Conduit, structural elements | int | Security Level `1`–`4` (`targetSL` **required** on Zone) |
+| `members` | Zone | list | Parts/PartDefs in the zone |
+| `rationale` | Zone | string | Why this SL |
+| `fromZone` / `toZone` | Conduit | string | **required** — the two zones connected |
+| `protocols` | Conduit | list | Protocols carried |
+| `inZone` | PartDef/Part | string | Zone this element belongs to |
 
 ## Allocation
 
@@ -193,6 +252,9 @@ All frontmatter fields. Optional unless marked **required**.
 | `aliases` | All | list | Alias declarations |
 | `filterCondition` | Package | string | KerML opaque package filter |
 | `dependsOn` | All | list | Dependency edges |
+| `sysmlSubmodel` | Package `_index.md` | bool | Ingest the package's `.sysml` files as a native SysMLv2 submodel |
+| `foreignFormat` | Package `_index.md` | string | Hand the package subtree to the stdio plugin `[plugins.<alias>]` in `.syscribe.toml` |
+| `annotationFormat` / `marker` / `include` / `exclude` | Package `_index.md` | string / regex / globs / globs | Ingest elements from marker comment blocks in source files; mutually exclusive with `foreignFormat`/`sysmlSubmodel` (`W562`) |
 | `repoImports` | Package `_index.md` | list | Multi-repo composition (§14, opt-in): each `{repo, qname, as}` mounts a peer-repo subtree. `repo` is an alias from `[repos]` in `.syscribe.toml` (E513), `qname` the element/package in that repo (E514), `as` the local mount name. Inert unless `[repos]` is configured. |
 
 ## Miscellaneous
@@ -206,6 +268,7 @@ All frontmatter fields. Optional unless marked **required**.
 | `itemType` | FlowDef | string | QName of the item type flowing |
 | `responsibility` | All work products | string | Accountable party/organisation (ISO 26262-8 §5 DIA/CIA split); drives W038. Opt-in. |
 | `ffiRationale` | PartDef/Part/etc. | string | Freedom-from-interference argument for mixed-criticality on a shared resource; suppresses W034. Opt-in. |
+| `traceBaselines` | Any link source | map | `<target id>: blake3:<hex>` — suspect-link baselines written by `suspect accept`; a changed target warns `W090`. Never hand-edit. |
 
 ## Custom fields
 
@@ -249,10 +312,10 @@ links:
 | `mandatory` | FeatureDef | bool | membership vs parent (orthogonal to `groupKind`): `true` = selected whenever parent is / always at top level |
 | `cardinality` | FeatureDef | string | For `or` groups: `"1..*"` etc. |
 | `isFixed` | FeatureDef parameter | bool | Prohibits binding override |
-| `isRequired` | FeatureDef parameter | bool | W017 if unbound in Configuration |
+| `isRequired` | FeatureDef parameter | bool | `W017` if unbound in a Configuration |
 | `contributesTo` | Component FeatureDef | string | QName of system FeatureDef |
-| `parameterBindings` | Configuration | map | Feature param bindings |
-| `features` (PLE) | Configuration | map | `{FeatureName: true/false}` |
+| `featureTree` | FeatureModel | list | Flat list of feature entries; `name:` is a dotted path relative to the sheet, `id:` optional (derived) (§9.6a; `E231`/`E232`) |
+| `crossTreeConstraints` | FeatureModel | list | `{feature, requires, excludes}` edges kept in one section (`E233`) |
 
 ## Safety analysis fields (ISO 26262 / IEC 61508 / ISO 13849)
 
@@ -287,6 +350,15 @@ Full narrative + rules: `syscribe spec safety`. Integrity levels (`asilLevel` A�
 | `detection` | FMEAEntry | int | 1–10 |
 | `rpn` | FMEAEntry | int | Risk priority number (S×O×D) |
 | `recommendedAction` | FMEAEntry | string | Mitigation |
+| `fmeaRef` / `ftaRef` | FaultTreeEvent / FMEAEntry | string | FTA ⇄ FMEA reconciliation link |
+| `diagnosticCoverage` / `latentDiagnosticCoverage` | architecture elements | float | DC / DCl, `0.0`–`1.0` |
+| `measureType` | ConfirmationMeasure | string | `confirmation_review`·`functional_safety_audit`·`functional_safety_assessment`·`cybersecurity_assessment` |
+| `independenceLevel` | ConfirmationMeasure | string | `I1`·`I2`·`I3` |
+| `confirms` | ConfirmationMeasure | list | Work products confirmed (any element) |
+| `argumentType` | Argument | string | `claim`·`strategy`·`solution` |
+| `supports` | Argument | string or list | SafetyGoal or parent Argument argued for |
+| `evidence` | Argument | list | Requirement/TestCase/Argument/AssumptionOfUse refs (strings) |
+| `appliesTo` | AssumptionOfUse | list | SafetyGoal/Argument/Requirement the SRAC constrains |
 
 ## Security analysis fields (ISO/SAE 21434)
 
@@ -308,6 +380,14 @@ Full narrative + rules: `syscribe spec safety`.
 | `cvssScore` | VulnerabilityReport | float | 0.0–10.0 (`E824` if out of range) |
 | `cveId` | VulnerabilityReport | string | `CVE-YYYY-NNNNN` |
 | `affectedElements` | VulnerabilityReport | list | QNames of affected model elements |
+| `mitigatedBy` | VulnerabilityReport | list | `SecurityControl` id/QName refs |
+| `assets` / `hazardRef` | DamageScenario (/ThreatScenario) | list | `Asset` refs; `HazardousEvent`/`SafetyGoal` co-engineering link (`E844`) |
+| `riskTreatment` / `residualRisk` | ThreatScenario | string | `avoid`·`reduce`·`share`·`retain` (`E845`) / free text |
+| `cybersecurityProperties` / `assetOwner` / `relatedSafetyGoal` | Asset | list / string / string | Protected properties; owning element; SafetyGoal co-link |
+| `threatRef` | AttackTree | string | **required** — the ThreatScenario the tree substantiates |
+| `gateType` / `inputs` | AttackTreeGate | string / list | `AND`·`OR`; child gate/step refs |
+| `attackFeasibility` | AttackStep | string | `high`·`medium`·`low`·`very_low` |
+| `securityTestMethod` | TestCase | string | See Native TestCase fields |
 
 ## `.syscribe.toml` — project configuration reference
 
@@ -399,6 +479,3 @@ rs = ["fn\\s+(\\w+)\\s*\\("]
 download = "curl -sSfL {url} -o {dest}"
 cache_dir = ".syscribe/cache"
 ```
-| `mitigatedBy` | VulnerabilityReport | list | `SecurityControl` id/QName refs |
-| `derivedFromCybersecurityGoal` | Requirement | string | `CSG-*` that generated this requirement |
-| `derivedFromSafetyGoal` | Requirement | string | `SG-*` that generated this requirement |

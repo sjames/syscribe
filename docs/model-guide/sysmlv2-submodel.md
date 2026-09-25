@@ -582,8 +582,8 @@ See `ADR-SYS-SYSMLV2-001`'s addendum for the full rationale.
 ## 15. Views, viewpoints, and renderings — `REQ-TRS-SYSMLV2-020`/`-021`/`-022`
 
 `view def`/`view`, `viewpoint def`/`viewpoint`, and `rendering def`/`rendering` join the fixed
-mapped set — see [`model/Viewpoints/SystemsEngineerViewpoint.md`](../../model/Viewpoints/SystemsEngineerViewpoint.md)
-and [`model/Views/SystemArchitectureView.md`](../../model/Views/SystemArchitectureView.md) for the
+mapped set — see [`model/Viewpoints/SystemsEngineerViewpoint.md`](https://github.com/sjames/syscribe/blob/main/model/Viewpoints/SystemsEngineerViewpoint.md)
+and [`model/Views/SystemArchitectureView.md`](https://github.com/sjames/syscribe/blob/main/model/Views/SystemArchitectureView.md) for the
 native target schema this mapping produces. Every one of the six kinds, wherever declared, becomes
 its own real, qname-addressable element — unlike state machines/activities, there's no "nested vs.
 top-level" split, since none of these six carry a further, separate `RawElement` inside their own

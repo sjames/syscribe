@@ -9,13 +9,13 @@ the element's documentation. Directory path encodes namespace ownership.
 | Command | Contents |
 |---|---|
 | `syscribe spec types` | Element type inventory, SysML keyword mapping, native type schemas |
-| `syscribe spec fields` | Complete frontmatter field reference (all ~90 fields) |
+| `syscribe spec fields` | Frontmatter field reference |
 | `syscribe spec namespace` | Directory conventions, cross-reference syntax, multiplicity rules |
-| `syscribe spec validation` | All validation rule codes (E001–E956, W001–W953, I010; PLE E2xx + projection E226/E227, W011–W027) |
+| `syscribe spec validation` | All validation rule codes (E000–E956, W001–W953, I010, MG010–MG083; PLE E2xx + projection E226/E227, W011–W027) |
 | `syscribe spec traceability` | Traceability rules R-001–R-007 |
 | `syscribe spec safety` | Safety/security analysis elements: HARA, TARA, FTA, FMEA |
 
-**Variability / product lines (§9, opt-in).** `FeatureDef` + `Configuration` + `appliesWhen:` model a product line (the 150% model). Tools: `matrix` (Requirement × Configuration coverage), `feature-check` / `feature-check --deep` (holistic + SAT-backed analysis), `configure` (assisted configuration), and the `--config` projection lens (`validate`/`list`/`export --config`, `validate --all-configs`, `diff`). Dormant — and unchanged — when no `FeatureDef` is present. See `spec fields` and `spec validation`.
+**Variability / product lines (§9, opt-in).** `FeatureDef` + `Configuration` + `appliesWhen:` model a product line (the 150% model). Tools: `matrix` (Requirement × Configuration coverage), `feature-check` / `feature-check --deep` (holistic + SAT-backed analysis), `configure` (assisted configuration), and the `--config` projection lens (`validate`/`list`/`export --config`, `validate --all-configs`, `diff`). Inert when no `FeatureDef` is present (no variability checks run); `--config` on such a model is a usage error unless it names a stored `Configuration`. See `spec fields` and `spec validation`.
 
 ## Core rules (memorise these)
 
@@ -42,17 +42,24 @@ the element's documentation. Directory path encodes namespace ownership.
 | `Zone` / `Conduit` (IEC 62443) | `ZN-*` / `CD-*` | `ZN-CTRL-001` / `CD-EXT-001` |
 | `HazardousEvent` | `HE-*` | `HE-BRAKE-001` |
 | `SafetyGoal` | `SG-*` | `SG-BRAKE-001` |
-| `DamageScenario` | `DS-*` | `DS-001` |
-| `ThreatScenario` | `TS-*` | `TS-001` |
-| `CybersecurityGoal` | `CSG-*` | `CSG-001` |
-| `SecurityControl` | `SC-*` | `SC-001` |
-| `VulnerabilityReport` | `VR-*` | `VR-001` |
+| `DamageScenario` | `DS-*` | `DS-BRAKE-001` |
+| `ThreatScenario` | `TS-*` | `TS-CAN-001` |
+| `CybersecurityGoal` | `CSG-*` | `CSG-CAN-001` |
+| `SecurityControl` | `SC-*` | `SC-CAN-001` |
+| `VulnerabilityReport` | `VR-*` | `VR-CAN-001` |
 | `FaultTree` | `FT-*` | `FT-BRAKE-001` |
-| `FaultTreeGate` | `FTG-*` | `FTG-001` |
-| `FaultTreeEvent` | `FTE-*` | `FTE-001` |
+| `FaultTreeGate` | `FTG-*` | `FTG-BRAKE-001` |
+| `FaultTreeEvent` | `FTE-*` | `FTE-BRAKE-001` |
 | `FMEASheet` | `FMEA-*` | `FMEA-BRAKE-001` |
-| `TARASheet` | `TARA-*` | `TARA-001` |
+| FMEA row (inside an `FMEASheet`) | `FM-*` | `FM-BRAKE-001` |
+| `TARASheet` | `TARA-*` | `TARA-GW-001` |
+| `AttackTree` / `AttackTreeGate` / `AttackStep` | `AT-*` / `ATG-*` / `ATS-*` | `AT-CAN-001` / `ATG-CAN-001` / `ATS-CAN-001` |
+| `ConfirmationMeasure` | `CM-*` | `CM-BRAKE-001` |
+| `Argument` (GSN) | `ARG-*` | `ARG-BRAKE-001` |
+| `AssumptionOfUse` | `AOU-*` | `AOU-BRAKE-001` |
 | `Configuration` (PLE) | `CONF-*` | `CONF-HEX-001` |
+| `PlanningItem` | `PI(-[A-Z0-9]{2,12})*-[0-9]{3,8}` | `PI-HPLE-001` |
+| `Baseline` | `BL(-[A-Z0-9]{2,12})+` (no numeric suffix required) | `BL-2026-07` |
 
 ## Status values
 
@@ -63,7 +70,10 @@ the element's documentation. Directory path encodes namespace ownership.
 | `TestPlan` | `draft` · `review` · `approved` · `active` · `retired` |
 | `ADR` | `proposed` · `accepted` · `deprecated` · `superseded` |
 | `ReviewRecord` | `open` · `closed` · `waived` |
-| Safety/security (HE, SG, Asset, DS, TS, CSG, SC, VR, FT, FMEA, AT, ARG, AOU) | `status:` required but not enum-checked (use `draft`/`review`/`approved`) |
+| `PlanningItem` | `todo` · `in_progress` · `blocked` · `done` (required, else `E707`/`E708`) |
+| `Configuration` | `status:` required (`E201`) but not enum-checked; a `derivedFrom:` base must be `approved` or `released` |
+| `Baseline` | `draft` · `approved` · `released` · `superseded` (drift: `released` → `E520`, `approved` → `W520`, `draft` silent) |
+| Safety/security (HE, SG, Asset, DS, TS, CSG, SC, VR, FT, FMEA, TARA, AT, ARG, AOU) | `status:` required but not enum-checked (use `draft`/`review`/`approved`) |
 | `ConfirmationMeasure` | `planned` · `in_progress` · `completed` (else `E924`) |
 | `Zone` / `Conduit` | `draft` · `review` · `approved` · `deprecated` (else `E926`; `targetSL`/`achievedSL` must be 1–4, else `E925`) |
 | Other elements | no mandated status field |

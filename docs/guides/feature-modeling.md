@@ -117,9 +117,13 @@ Cross-feature parameter constraints live in the Package `_index.md`:
 # model/Features/_index.md
 parameterConstraints:
   - id: PC-001
-    expression: "Features::Topology.maxCpus > 1 implies Features::Smp or Features::Amp"
-    severity: error   # E213 if violated
+    expression: "Features::Topology.maxCpus >= 2"     # comparison over dotted parameter refs only
+    appliesWhen: "Features::Smp or Features::Amp"     # boolean predicate over features
+    severity: error   # a violating Configuration is E221 (W025 with severity: warning)
 ```
+
+`feature-check` evaluates the constraint against every Configuration whose `appliesWhen:`
+holds; an unresolved parameter path in `expression:` (e.g. a bare feature name) is E213.
 
 ### 10.3 Defining product configurations
 

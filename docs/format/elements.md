@@ -2,7 +2,7 @@
 
 `FORMAT · ELEMENT TYPES`
 
-Every `.md` file in the model tree is one element. The `type:` field in YAML frontmatter selects the element type. Unknown values are accepted and stored as `Unknown` — the validator emits no error, though cross-reference checks still apply.
+Every `.md` file in the model tree is one element. The `type:` field in YAML frontmatter selects the element type. A value outside the type inventory below is stored as `Unknown` and raises error `E005` (unrecognised `type:`); a missing `type:` is `E001`. The authoritative list is `ElementType::ALL` in `crates/syscribe-model/src/element.rs` — every type there appears on this page.
 
 ## Definitions
 
@@ -28,6 +28,14 @@ Every `.md` file in the model tree is one element. The `type:` field in YAML fro
 | `FeatureDef` | *(PLE)* | Product-line feature definition |
 | `VerificationCaseDef` | `verification case def` | Classifies verification cases |
 | `AnalysisCaseDef` | `analysis case def` | Classifies analysis cases |
+| `AllocationDef` | `allocation def` | Classifies allocations |
+| `ConcernDef` | `concern def` | Classifies stakeholder concerns |
+| `CaseDef` | `case def` | Base classifier for analysis/verification/use cases |
+| `OccurrenceDef` | `occurrence def` | Classifies things with a temporal extent |
+| `EventOccurrenceDef` | `event occurrence def` | Classifies momentary occurrences |
+| `IndividualDef` | `individual def` | Classifies one specific individual |
+| `SuccessionDef` | `succession def` | Classifies temporal orderings |
+| `RenderingDef` | `rendering def` | Classifies view renderings |
 
 ## Usages
 
@@ -44,6 +52,24 @@ Every `.md` file in the model tree is one element. The `type:` field in YAML fro
 | `Calculation` | `calculation` | Usage of a CalculationDef |
 | `VerificationCase` | `verification case` | Usage of a VerificationCaseDef |
 | `AnalysisCase` | `analysis case` | Usage of an AnalysisCaseDef |
+| `Attribute` | `attribute` | Usage of an AttributeDef |
+| `Constraint` | `constraint` | Usage of a ConstraintDef |
+| `State` | `state` | Usage of a StateDef |
+| `ExhibitState` | `exhibit state` | Referential usage exhibiting a StateDef |
+| `Flow` | `flow` | Usage of a FlowDef |
+| `UseCase` | `use case` | Usage of a UseCaseDef |
+| `Concern` | `concern` | Usage of a ConcernDef |
+| `Case` | `case` | Usage of a CaseDef |
+| `Occurrence` | `occurrence` | Usage of an OccurrenceDef |
+| `EventOccurrence` | `event occurrence` | Momentary observation/signal |
+| `Individual` | `individual` | Usage of an IndividualDef |
+| `Succession` | `succession` | Temporal ordering between actions/occurrences |
+| `BindingConnector` | `binding` | Equality binding between two features |
+| `Enumeration` | `enum` | Usage of an EnumerationDef |
+| `Metadata` | `metadata` | Application of a MetadataDef |
+| `Rendering` | `rendering` | Usage of a RenderingDef |
+
+`Requirement` is listed with the native elements below (the native handler owns the type).
 
 ## Native elements (own schema)
 
@@ -61,6 +87,21 @@ These are not standard SysML usages — they carry a stable opaque identifier an
 | `Zone` | `ZN(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `targetSL` |
 | `Conduit` | `CD(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `fromZone`, `toZone` |
 | `Configuration` | `CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `featureModel` |
+| `FeatureDef` | `FEAT(-[A-Z0-9]{2,12})+` (no numeric suffix needed) | `id` (name-identified: `name` is also its qname segment) |
+| `Baseline` | `BL(-[A-Z0-9]{2,12})+` (no numeric suffix needed) | `id`, `name`, `status`; `seal:` written by `baseline create` |
+| `FeatureModel` | *(name-identified, no id)* | `featureTree` — a flat list exploded into `FeatureDef` elements (§9.6a) |
+
+**`Baseline`** (`ADR-SYS-BASELINE-001`) is a sealed, commit-anchored release snapshot of a model
+scope (`frozenScope:`), created by `syscribe baseline create` and re-checked on every validate:
+drift is `E520` when `released`, `W520` when `approved`, silent for `draft`, skipped for
+`superseded`; seal/manifest tamper is `E521`, an unresolved `supersedes:` `E522`. Commands
+`baseline create`/`verify`/`diff`/`list`/`show`.
+
+**`FeatureModel`** authors a whole feature tree in one file: each `featureTree:` entry's `name:`
+is a dot-separated path relative to the sheet (`Platform.CortexM`), `id:` is optional (derived as
+`FEAT-PLATFORM-CORTEXM` when omitted), and optional `crossTreeConstraints:` /
+`parameterConstraints:` sit on the same sheet. Codes `E231`–`E233`, `W048`. See
+[Variability](../model-guide/variability.md).
 
 **`Zone`** / **`Conduit`** (§13) model IEC 62443 industrial cybersecurity: a `Zone` (`ZN-*`)
 groups parts under a Security Level (`targetSL`/`achievedSL`, each `1`–`4`, else `E925`); a
@@ -102,10 +143,16 @@ username — not a cross-reference (users aren't model elements) — always form
 non-empty (`E722`); roster membership is dormant otherwise, matching every other opt-in
 `.syscribe.toml`-configured table — a malformed roster key is `W309` and excluded from the
 effective roster. `show` resolves and prints the declared display name alongside the username.
-No dedicated CLI subcommand or MCP tool yet — queried via the generic
-`list`/`show`/`ls`/`find`/`refs` commands, and gets a working guarded MCP write path for free via
-the existing `create_element`/`update_element`/etc. tools. Validation `E706`–`E717`, `E719`–`E723`,
-`W308`, `W309`. See `examples/planning-item/` for a complete worked example.
+A `done` item whose `achieves:` Requirement lacks the verification bar
+`W002`/`W305` apply (an active TestCase for a leaf, an active L3–L5 TestCase for a parent) warns
+`W310`; two *active* items (`in_progress`, or carrying `claimedBy:`) that share an `achieves:`
+Requirement or an `evidence[].path` warn `W311` (possible duplicate work). For concurrent
+(multi-agent) work, `syscribe claim <PI-id> --by <agent-id>` sets the advisory
+`claimedBy:`/`claimedAt:` markers (refused on a `done` item or one claimed by someone else) and
+`syscribe release <PI-id>` clears them. Everything else is queried via the generic
+`list`/`show`/`ls`/`find`/`refs` commands and written via `set` or the guarded MCP
+`create_element`/`update_element`/etc. tools. Validation `E706`–`E717`, `E719`–`E723`,
+`W308`–`W311`. See `examples/planning-item/` for a complete worked example.
 
 ## Tier 2 — Safety & cybersecurity elements (own schema)
 
@@ -120,6 +167,13 @@ These types support ISO 26262 HARA and ISO/SAE 21434 TARA workflows. Each carrie
 | `CybersecurityGoal` | `CSG-*` | ISO/SAE 21434 | Security property goal derived from ThreatScenarios; carries CAL level |
 | `SecurityControl` | `SC-*` | ISO/SAE 21434 | Countermeasure implementing one or more CybersecurityGoals |
 | `VulnerabilityReport` | `VR-*` | — | Tracked vulnerability with CVSS score and mitigation link |
+| `Asset` | `ASSET-*` | ISO/SAE 21434 | Protected asset with `cybersecurityProperties`; optional `assetOwner`/`relatedSafetyGoal` |
+| `ConfirmationMeasure` | `CM-*` | ISO 26262-2 / ISO/SAE 21434 | Confirmation review / FS audit / FS assessment / cybersecurity assessment (`measureType`, `independenceLevel` I1–I3, `confirms:`) |
+| `Argument` | `ARG-*` | GSN | Safety-case node (`argumentType: claim \| strategy \| solution`, `supports:`, `evidence:`) |
+| `AssumptionOfUse` | `AOU-*` | ISO 26262 | Safety-related application condition (SRAC); `appliesTo:` goals/arguments/requirements |
+
+All of these require `id`, `name` and `status`. Every stable id needs at least one 2–12-character
+category segment before the numeric suffix — `DS-BRAKE-001`, not `DS-001`.
 
 ## Tier 4 — Safety analysis containers
 
@@ -136,6 +190,9 @@ These analysis types use one of two authoring patterns:
 | `FMEASheet` | B | `FMEA-*` | IEC 60812 / SAE J1739 | Container; each `entries:` row becomes an `FMEAEntry` element |
 | `FMEAEntry` | B | `FM-*` | IEC 60812 | Failure mode row; RPN auto-computed from severity × occurrence × detection |
 | `TARASheet` | B | `TARA-*` | ISO/SAE 21434 | Container with four section tables (damage / threat / goal / control) |
+| `AttackTree` | A | `AT-*` | ISO/SAE 21434 §15.7 | Attack-path tree; requires `status` and `threatRef:` (a ThreatScenario) |
+| `AttackTreeGate` | A | `ATG-*` | ISO/SAE 21434 | `gateType: AND \| OR` with `inputs:`; placed under its AttackTree's directory |
+| `AttackStep` | A | `ATS-*` | ISO/SAE 21434 | Leaf attacker action with `attackFeasibility:`; placed under its AttackTree's directory |
 
 `TARASheet` explodes each row into the appropriate Tier 2 type (`DamageScenario`, `ThreatScenario`, `CybersecurityGoal`, `SecurityControl`) at parse time.
 
@@ -148,6 +205,7 @@ See [Safety Analysis](../model-guide/safety-analysis.md) for authoring examples.
 | `Package` | Directory namespace — usually declared in `_index.md` |
 | `LibraryPackage` | Standard library namespace (e.g. `Parts`, `Interfaces`) |
 | `Namespace` | Generic namespace |
+| `Dependency` | Directed client → supplier relationship (`clients:`, `suppliers:`) |
 
 ## Diagram elements
 

@@ -63,19 +63,19 @@ indentation *beyond* the prefix is preserved — it can be significant YAML, e.g
 ```c
 // @syscribe
 // type: Part
-// id: PART-ENGINE-CTRL
-// name: Engine Controller (firmware)
-// satisfies: [REQ-100]
+// name: EngineController
+// satisfies: [REQ-ENG-100]
 ```
 
 becomes the plain text:
 
 ```yaml
 type: Part
-id: PART-ENGINE-CTRL
-name: Engine Controller (firmware)
-satisfies: [REQ-100]
+name: EngineController
+satisfies: [REQ-ENG-100]
 ```
+
+(`Part` is name-identified, so the marker carries a basic-name `name:` and no `id:` — see §4.)
 
 The comment leader is detected automatically from the marker's own match — `marker: '//\s*@syscribe\b'`
 (leader inside the pattern) and `marker: '@syscribe'` (leader is whatever precedes the match on the
@@ -119,8 +119,10 @@ present, else `name:`.
 The marker's source location (`<file>:<line>`) is captured automatically and used to **auto-fill
 `implementedBy:`** when the marker doesn't set it itself — the marker's own location already answers
 "where is this implemented," so `§12.8`'s trace leg closes for free. Set `implementedBy:` explicitly
-in the marker to override the auto-filled value (informational `W563` when auto-fill fires, so a
-validation report always shows where the pointer came from).
+in the marker to override the auto-filled value. When auto-fill fires the validator emits warning
+`W563`, so a validation report always shows where the pointer came from; it counts toward
+`--max-warnings`/`--warnings-as-errors` like any warning — set `implementedBy:` explicitly in the
+marker to silence it.
 
 The synthesized element's qualified name is `<owning package qname>::<id or name>`, same rule as any
 other synthesized element nested under its owning package.
@@ -134,7 +136,7 @@ other synthesized element nested under its owning package.
 | `W560` | Valid YAML, but not a legal `RawElement` for its declared `type:` — element dropped |
 | `W561` | No `type:`/no resolvable identity in a marker — element dropped |
 | `W562` | `annotationFormat:`/`marker`/`include`/`exclude` on a non-`Package`, or combined with `foreignFormat:`/`sysmlSubmodel:` on the same package |
-| `W563` | A marker's `implementedBy:` was auto-filled (informational, suppressible) |
+| `W563` | A marker's `implementedBy:` was auto-filled (a warning — set `implementedBy:` in the marker to silence it) |
 
 `E108` (duplicate qualified name, any origin) already covers a marker-declared id/name colliding with
 any other element, native or foreign-sourced. A malformed marker never aborts the rest of `validate`

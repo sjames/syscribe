@@ -257,30 +257,37 @@ REQ-SCHED-WCET-001.
 ---
 type: StateDef
 name: ThreadLifecycle
+subStates:
+  - name: Ready
+    isInitial: true
+    transitions:
+      - accept: ContextSwitchIn
+        target: Running
+  - name: Running
+    transitions:
+      - accept: ContextSwitchOut
+        target: Ready
+      - accept: BlockingCall
+        target: Blocked
+      - accept: Terminate
+        target: Terminated
+  - name: Blocked
+    transitions:
+      - accept: Unblock
+        target: Ready
+  - name: Terminated
+    isFinal: true
 ---
 
 Thread state machine — the subsystem-level view. Unit-level transitions
 (internal scheduler queue manipulations) are at L3.
-
-  subStates:
-    - name: Ready
-      transitions:
-        - trigger: ContextSwitchIn
-          target: Running
-    - name: Running
-      transitions:
-        - trigger: ContextSwitchOut
-          target: Ready
-        - trigger: BlockingCall
-          target: Blocked
-        - trigger: Terminate
-          target: Terminated
-    - name: Blocked
-      transitions:
-        - trigger: Unblock
-          target: Ready
-    - name: Terminated
 ```
+
+`subStates:` belongs in the frontmatter (between the `---` fences), not the body. Each
+transition uses the canonical SysMLv2 keys — `accept` (trigger), `guard`, `effect`,
+`target`; the old `from`/`to`/`trigger` aliases raise `W075`. Mark the initial state
+`isInitial: true` and terminal states `isFinal: true`, or the completeness checks report
+dead (`W070`) and trap (`W071`) states. See [State Machines](../model-guide/state-machines.md).
 
 Wire this to the subsystem:
 
@@ -298,8 +305,10 @@ levels (ISO 26262-6 §7.4.15 / IEC 61508-3 §7.4.3.6).
 
 **ASIL allocation on subsystems**:
 
-Set `asilLevel:` (or `silLevel:`) on every L2 subsystem PartDef. The validator checks
-that a subsystem satisfying an ASIL D requirement itself carries ASIL D (E841).
+Set `asilLevel:` (or `silLevel:`) on every L2 subsystem PartDef. An element that
+`satisfies:` a requirement carrying an integrity level must itself set `asilLevel`/`silLevel`
+(**E843**); if its level is *lower* than the requirement's, it needs a `breakdownAdr:`
+justifying the decomposition (**W808**).
 
 **Documenting ASIL decomposition**:
 
@@ -363,7 +372,7 @@ Use this to verify your L2 model is complete before moving to L3:
 | Data flow | `ItemDef`, `flowConnections:` | `connectivity` + review `flowConnections` |
 | Control flow / scheduling model | `ActionDef` (`mg_cell: W2`), `successionConnections:` | `list ActionDef` |
 | High-level state machines | `StateDef` on each stateful subsystem | `list StateDef` |
-| Requirement allocation to subsystems | `satisfies:` on each `PartDef` | `syscribe matrix` — gaps = W300 |
+| Requirement allocation to subsystems | `satisfies:` on each `PartDef` | `validate` — `W300` = approved/implemented leaf requirement that nothing satisfies |
 | ASIL/SIL assignment to subsystems | `asilLevel:`/`silLevel:` on each subsystem | `audit` reports distribution |
 | ASIL decomposition rationale | `ADR` per decomposition | `list ADR --status accepted` |
 | Resource allocation (CPU, memory) | `Allocation` elements; body documents footprint | `matrix --allocations` |
@@ -372,7 +381,7 @@ Use this to verify your L2 model is complete before moving to L3:
 
 ```bash
 # Run the L2 completeness check
-syscribe -m model matrix                          # W300 = subsystem not satisfying any req
+syscribe -m model validate                        # W300 = approved/implemented leaf requirement with no satisfying element
 syscribe -m model export --ndjson \
   | jq -r 'select(.type=="PartDef" and .frontmatter.domain=="software") | .qname'  # inventory of SW subsystems
 syscribe -m model matrix --allocations            # function → subsystem allocation gaps
@@ -566,24 +575,36 @@ refines:
   - REQ-SCHED-001
 allocatedTo: Architecture::Physical::ReadyQueue
 custom_fields:
-  mg_cell: S3
+  mg_cell: S2          # behaviour lives in column 2 (S3 is for structure — MG021)
 parameters:
   - name: currentThread
-    type: Architecture::Data::TcbRef
+    typedBy: Architecture::Data::TcbRef
     direction: in
 subActions:
-  - name: SaveContext
-    description: "Save {r4-r11, lr} to currentThread.savedSp via PendSV exception frame"
-    succession: [SelectNext]
-  - name: SelectNext
-    description: "Peek highest-priority non-empty ready queue level; O(1) CLZ on bitmap"
-    succession: [LoadContext]
-  - name: LoadContext
-    description: "Restore {r4-r11, lr} from selectedThread.savedSp; update PSP"
+  - name: selectNext
+    typedBy: Architecture::Behavior::SelectNext       # O(1) CLZ on the ready bitmap
+  - name: saveContext
+    typedBy: Architecture::Behavior::SaveContext      # {r4-r11, lr} → currentThread.savedSp
+  - name: loadContext
+    typedBy: Architecture::Behavior::LoadContext      # restore from selectedThread.savedSp
 controlNodes:
-  - name: SameThread
-    kind: decision
-    description: "If selectedThread == currentThread, skip save/load (no-op switch)"
+  - name: sameThread
+    kind: DecisionNode   # selectedThread == currentThread → skip save/load
+  - name: done
+    kind: MergeNode
+successionConnections:
+  - after: selectNext
+    before: sameThread
+  - after: sameThread
+    before: saveContext
+    guard: "selectedThread != currentThread"
+  - after: sameThread
+    before: done
+    guard: "selectedThread == currentThread"
+  - after: saveContext
+    before: loadContext
+  - after: loadContext
+    before: done
 ---
 
 **Error path**: if the ready queue bitmap is zero (no ready thread), the kernel panics via
@@ -600,46 +621,49 @@ guard conditions, entry/exit actions, and internal transitions.
 ---
 type: StateDef
 name: SchedulerUnitStateMachine
+subStates:
+  - name: Ready
+    isInitial: true
+    entryAction: Architecture::Behavior::EnqueueSelf
+    exitAction: Architecture::Behavior::RemoveSelf
+    transitions:
+      - accept: Dispatch
+        guard: "self.priority == ready_queue.peek_highest().priority"
+        target: Running
+        effect: Architecture::Behavior::RestorePsp
+  - name: Running
+    entryAction: Architecture::Behavior::SetCurrentThread
+    exitAction: Architecture::Behavior::SavePsp
+    transitions:
+      - accept: Preempt
+        target: Ready
+        effect: Architecture::Behavior::PendContextSwitch
+      - accept: IpcBlock
+        target: Blocked
+        effect: Architecture::Behavior::PushWaitlist
+      - accept: ThreadReturn
+        target: Terminated
+        effect: Architecture::Behavior::TerminateThread
+  - name: Blocked
+    transitions:
+      - accept: Unblock
+        target: Ready
+      - accept: Timeout
+        guard: "self.timeout_ticks == 0"
+        target: Ready
+        effect: Architecture::Behavior::SetTimeoutResult
+  - name: Terminated
+    isFinal: true
+    entryAction: Architecture::Behavior::ReleaseTcb
 ---
 
 Scheduler state machine — unit level. Refines Architecture::Behavior::ThreadLifecycle.
-
-  subStates:
-    - name: Ready
-      entryAction: "ready_queue.enqueue(self.priority, self)"
-      exitAction: "ready_queue.remove(self)"
-      transitions:
-        - trigger: "dispatch()"
-          guard: "self.priority == ready_queue.peek_highest().priority"
-          target: Running
-          action: "cpu.set_psp(self.saved_sp)"
-
-    - name: Running
-      entryAction: "CORE_LOCAL.current_thread = self"
-      exitAction: "self.saved_sp = cpu.get_psp()"
-      transitions:
-        - trigger: "preempt(higher_prio)"
-          target: Ready
-          action: "pend_context_switch()"
-        - trigger: "ipc_block(object)"
-          target: Blocked
-          action: "object.waitlist.push(self)"
-        - trigger: "thread_return()"
-          target: Terminated
-          action: "thread_return_hook(); port.terminate()"
-
-    - name: Blocked
-      transitions:
-        - trigger: "unblock()"
-          target: Ready
-        - trigger: "timeout()"
-          guard: "self.timeout_ticks == 0"
-          target: Ready
-          action: "self.ipc_result = Timeout"
-
-    - name: Terminated
-      entryAction: "THREAD_POOL.release(self)"
 ```
+
+`entryAction`/`exitAction`/`doAction` and a transition's `effect` reference an `ActionDef`
+by qualified name (or `effect: { name, typedBy }`); one that resolves to nothing raises
+`W079`. Keep the implementation detail (`cpu.set_psp(...)`, `pend_context_switch()`) in
+the body of each referenced `ActionDef`.
 
 Connect the state machine to the unit:
 

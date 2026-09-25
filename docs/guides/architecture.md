@@ -69,22 +69,32 @@ ADR-SCHED-001` shows the full record.
 
 #### 3.3 Diagrams
 
-Diagrams are referenced artifacts — SVG or image files linked from `Diagram` elements.
-They appear in `syscribe show` output and are included in generated reports.
+Diagrams are `Diagram` elements: the frontmatter names the kind and the subject element,
+and the SVG is either embedded in the body (`svgMode: inline`) or kept as a companion file
+next to the `.md` (`svgMode: companion` + `svgFile:`). `shapes:` maps SVG element ids to the
+model elements they depict, so the diagram stays linked to the model.
 
 ```yaml
 ---
 type: Diagram
 name: SchedulerDataFlow
-diagramFile: ../docs/diagrams/scheduler-data-flow.svg
-elements:
-  - SabatonRt::Software::KernelScheduler
-  - SabatonRt::Software::TCB
+diagramKind: IBD
+subject: SabatonRt::Software::KernelScheduler
+svgMode: companion
+svgFile: SchedulerDataFlow.svg
+shapes:
+  scheduler-rect: SabatonRt::Software::KernelScheduler
+  tcb-rect: SabatonRt::Software::TCB
 ---
+
+<img src="SchedulerDataFlow.svg" alt="Scheduler data flow"/>
 
 Context diagram showing data flow between the scheduler ready queue and the
 TCB pool on a context switch.
 ```
+
+See [Diagrams](../format/diagrams.md) for the full schema, the Mermaid/PlantUML kinds and
+`diagram compose`.
 
 #### 3.4 Allocations
 
@@ -215,6 +225,8 @@ in a trade study and drive W4 Measures of Performance.
 ---
 type: CalculationDef
 name: SchedulingLatency
+returnType: ScalarValues::Real
+expression: "moe = switchCycles / clockMhz"   # evaluated by trade-study
 custom_fields:
   mg_cell: B4
   mg_moe: true
@@ -223,7 +235,7 @@ custom_fields:
   mg_moe_direction: minimize
   mg_moe_threshold: 100
   mg_moe_objective: 10
-  mg_moe_weight: 3.0   # relative importance in trade study
+  mg_moe_weight: 0.3   # relative importance in trade study, in [0, 1] (MG033)
 ---
 
 Context-switch latency from the moment the highest-priority thread becomes ready
@@ -314,9 +326,13 @@ no FPU state and a 4-region MPU domain.
 
 #### 3.14 Trade study
 
-When you have multiple design alternatives, model them as `Configuration`s with
-`parameterBindings:` matching the W4/S4 MoP names. `syscribe trade-study` scores each
-alternative against the B4 MoE weights and identifies the winner:
+When you have multiple design alternatives, model them as `Configuration`s whose
+`parameterBindings:` supply the design parameters. `syscribe trade-study` evaluates each
+B4 MoE's `expression:` with the variables resolved from each configuration's
+`parameterBindings:`, normalises the value against `mg_moe_threshold`/`mg_moe_objective`
+per `mg_moe_direction` (worse than the threshold is a knock-out), and ranks the
+alternatives by the `mg_moe_weight`-weighted total. So `SchedulingLatency` above is scored from
+each configuration's `switchCycles` and `clockMhz` bindings:
 
 ```bash
 syscribe -m model trade-study
