@@ -29,6 +29,7 @@ on:
       - "docs/**"
       - "Cargo.toml"
       - "Cargo.lock"
+      - ".github/workflows/qual.yml"
   workflow_dispatch:
 
 jobs:
