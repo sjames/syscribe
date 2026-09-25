@@ -146,6 +146,40 @@ fn projected_elements(elems: &[RawElement], config: Option<&str>) -> Vec<RawElem
     }
 }
 
+/// The `--config` lens for a single-element query command — `trace`, `why`,
+/// `who-verifies`, `refs`, `links` (REQ-TRS-PROJ-001, GH #139). Returns the
+/// projected element set (see [`projected_elements`], including its exit-1
+/// usage errors). When `key` names — by exact qualified name or stable id — an
+/// element of the full model that is **inactive** in the configuration, the
+/// command cannot answer inside the lens: a message naming the element and the
+/// configuration goes to stderr and the process exits 1 (the key is checked
+/// against the full model first so the fuzzy fallback can never silently
+/// substitute a different, active element). A key that is not an element at
+/// all is left to the command's own not-found handling.
+fn lensed_for_key(elems: &[RawElement], config: Option<&str>, key: &str) -> Vec<RawElement> {
+    let view = projected_elements(elems, config);
+    if let Some(c) = config {
+        if !key.is_empty() {
+            let full = Resolver::new(elems);
+            let exact = full.get(elems, key).or_else(|| full.get_by_id(elems, key));
+            if let Some(e) = exact {
+                if !view.iter().any(|v| v.qualified_name == e.qualified_name) {
+                    let named = if e.qualified_name == key {
+                        format!("'{key}'")
+                    } else {
+                        format!("'{key}' ({})", e.qualified_name)
+                    };
+                    eprintln!(
+                        "Error: {named} is not active in configuration '{c}' — its appliesWhen does not hold for that selection"
+                    );
+                    std::process::exit(1);
+                }
+            }
+        }
+    }
+    view
+}
+
 /// Resolve the `--plan TP-X` lens (REQ-TRS-PLAN-006), composing with the
 /// `--config` projection. The plan lens restricts the element set to the plan's
 /// in-scope requirements ∪ effective TestCases ∪ their satisfying architecture
@@ -754,7 +788,10 @@ fn main() {
                 }
             }
             "links" => {
-                query::cmd_links(&elems, &resolver, key);
+                // --config lens (REQ-TRS-PROJ-001, GH #139).
+                let config = subcommand_args.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let view = lensed_for_key(&elems, config, key);
+                query::cmd_links(&view, &Resolver::new(&view), key);
             }
             "follow" => {
                 // REQ-TRS-LINKTYPE-007 — traverse one named link. Read-only.
@@ -777,7 +814,10 @@ fn main() {
                 }
             }
             "refs" => {
-                query::cmd_refs(&elems, &resolver, key);
+                // --config lens (REQ-TRS-PROJ-001, GH #139).
+                let config = subcommand_args.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let view = lensed_for_key(&elems, config, key);
+                query::cmd_refs(&view, &Resolver::new(&view), key);
             }
             "plantuml" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
@@ -1747,6 +1787,11 @@ fn main() {
                 aw::cmd_applies_when(model_root, &elems, &resolver, key, set_expr, clear, json, dry_run);
             }
             "trace" | "why" | "who-verifies" => {
+                // --config lens (REQ-TRS-PROJ-001, GH #139): the query, its
+                // resolver and the reverse indices all read the projected view.
+                let config = subcommand_args.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                let elems = lensed_for_key(&elems, config, key);
+                let resolver = Resolver::new(&elems);
                 let result = validator::validate_with_config(&elems, &vcfg);
                 match subcmd {
                     "trace" => {

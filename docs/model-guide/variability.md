@@ -270,7 +270,10 @@ syscribe -m model/ validate --config CONF-UAV-DELIVERY-001    # certify THIS pro
 syscribe -m model/ validate --all-configs                     # CI gate over every product
 syscribe -m model/ diff --config CONF-UAV-SURVEY-001 \
                         --config CONF-UAV-DELIVERY-001         # what differs between products
+syscribe -m model/ trace REQ-UAV-NAV-001 --config CONF-UAV-SURVEY-001  # this product's trace slice
 ```
+
+The single-element queries `trace`, `why`, `who-verifies`, `refs` and `links` honour the lens too: satisfiers, verifiers and inbound references inactive in the variant are omitted. If the element you ask about is itself inactive in the configuration, the command exits `1` with `'<key>' is not active in configuration '<C>'` instead of answering — use `why-active <key> --config <C>` to see why.
 
 > The bundled `model/` is a runnable UAV product line — every command on this page works against it. See the [worked example](index.md#worked-example-the-uav-product-line) for its shape.
 

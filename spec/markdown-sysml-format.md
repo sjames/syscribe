@@ -4780,6 +4780,8 @@ project(configuration, allElements) →
 
 The projected model is the input to all downstream tools (diagram generators, requirement coverage reports, integration test selection).
 
+**The `--config` lens (CLI).** `validate`, `list`, `export`, `diagram` and the single-element query commands `trace`, `why`, `who-verifies`, `refs` and `links` accept `--config <C>` (a stored `Configuration` id/qname or an ad-hoc feature set) and run over `project(C, allElements)` only: an inactive element is absent from their output and from every reverse index they read (`verifiedBy`, `satisfiedBy`, inbound references). For a single-element query whose start element exists in the full model but is **inactive** in `C`, the command does not answer — it exits `1` with a message naming the element and the configuration (the key is matched by exact qualified name or stable id against the full model first, so a fuzzy match can never substitute a different, active element). (REQ-TRS-PROJ-001.)
+
 ### Transitive package `appliesWhen` (the *effective* condition)
 
 A **`Package`** (a namespace `_index.md`) may itself declare `appliesWhen:`. The condition then applies **transitively** to every element in that package's subtree — directly contained and through nested sub-packages — so a whole cohesive variant subtree (requirements + architecture + tests) can be enabled or disabled with a single declaration.

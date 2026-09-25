@@ -1,7 +1,7 @@
 # trace — full traceability slice for a requirement
 
 ## SYNOPSIS
-    syscribe -m <root> trace <qname|req-id> [--linked-only]
+    syscribe -m <root> trace <qname|req-id> [--linked-only] [--config <C>]
 
 ## DESCRIPTION
 Shows a requirement's complete traceability slice: parents (derivedFrom), the
@@ -16,10 +16,16 @@ reverse index shown above unless the type declares `coverage = false`.
 
 ## OPTIONS
     --linked-only   Ignore ingested results; show linked tests without verdicts.
+    --config <C>    Configuration lens (REQ-TRS-PROJ-001): trace over only the
+                    elements active in configuration C (a stored Configuration
+                    id/qname or an ad-hoc 'Features::A,Features::B' set).
+                    Inactive satisfiers/verifiers/parents are omitted; if the
+                    requirement itself is inactive in C the command exits 1.
 
 ## EXAMPLES
     syscribe -m model/ trace REQ-UAV-NAV-001
     syscribe -m model/ trace REQ-UAV-NAV-001 --linked-only
+    syscribe -m model/ trace REQ-UAV-NAV-001 --config CONF-UAV-SURVEY-001
 
 ## SEE ALSO
     why, who-verifies, links, verification-depth, follow, link-types
