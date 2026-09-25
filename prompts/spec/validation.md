@@ -447,7 +447,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 |---|---|
 | `W029` | A non-`draft` requirement with an integrity level declares a `wcet:` claim but no active measuring `TestCase` verifies it (timing analog of `W702`; `--deny W029`) |
 
-## Tier 4 — Fault Tree Analysis (E900–E909, W900–W901, W926, W927)
+## Tier 4 — Fault Tree Analysis (E900–E909, E927, W900–W901, W926, W927)
 
 | Code | Condition |
 |---|---|
@@ -461,6 +461,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E907` | `FaultTreeEvent` missing `id`, `name`, or `eventKind` |
 | `E908` | `FaultTreeEvent.id` does not match `FTE-*` |
 | `E909` | `eventKind` not in `basic · undeveloped · house` |
+| `E927` | `FaultTreeEvent.ref` (the modelled architecture element) does not resolve to a known element |
 | `W900` | `FaultTree` has no gates or events (tree is empty) |
 | `W901` | `FaultTreeGate` has no `inputs` |
 | `W926` | `FaultTreeEvent.fmeaRef` does not resolve to a known `FMEAEntry` (FTA↔FMEA cross-link) |

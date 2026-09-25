@@ -51,7 +51,7 @@ Errors block a clean build. Warnings are advisory.
 | E815–E832 | Tier 2 Security | CybersecurityGoal, SecurityControl, VulnerabilityReport required fields, ID patterns, cross-references |
 | W800–W807 | Tier 2 coverage | Unreferenced hazards, unimplemented goals, open vulnerabilities, traceability gaps |
 | E841–E843, W808 | Integrity propagation | asilLevel/silLevel must propagate through derivedFromSafetyGoal, derivedFrom, and satisfies chains |
-| E900–E909 | Tier 4 — FaultTree | FaultTree, FaultTreeGate, FaultTreeEvent required fields, ID patterns, gate type and event kind enums, input resolution |
+| E900–E909, E927 | Tier 4 — FaultTree | FaultTree, FaultTreeGate, FaultTreeEvent required fields, ID patterns, gate type and event kind enums, input resolution, event `ref` resolution |
 | W900–W901 | Tier 4 — FaultTree | Empty fault tree, gate with no inputs |
 | E911–E914 | Tier 4 — FMEA | FMEASheet and FMEAEntry required fields, ID patterns, severity/occurrence/detection range 1–10 |
 | W902–W904 | Tier 4 — FMEA | Empty FMEA sheet, high-RPN entry without recommended action, unresolved ref |

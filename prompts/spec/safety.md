@@ -241,6 +241,7 @@ type: FaultTreeEvent
 id: FTE-BRAKE-001
 name: "Hydraulic pump failure"
 eventKind: basic            # basic · undeveloped · house
+ref: Braking::HydraulicPump # optional; element whose failure this is (qname or id; E927 if dangling)
 failureRate: 1.2e-7         # optional; per-hour failure rate (λ)
 diagnosticCoverage: 0.99        # optional; DC, 0.0–1.0 (E846 if out of range)
 latentDiagnosticCoverage: 0.90  # optional; DCl, 0.0–1.0 (E846 if out of range)

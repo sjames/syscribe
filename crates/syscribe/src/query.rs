@@ -632,6 +632,9 @@ fn builtin_outbound_refs(elem: &RawElement) -> Vec<(String, String)> {
     }
     if let Some(ref s) = fm.subject { out.push(("subject".into(), s.clone())); }
     if let Some(ref r) = fm.fmea_ref { out.push(("fmeaRef".into(), r.clone())); }
+    if matches!(fm.element_type, Some(ElementType::FaultTreeEvent)) {
+        if let Some(ref r) = fm.event_ref { out.push(("ref".into(), r.clone())); }
+    }
     if let Some(ref r) = fm.fta_ref { out.push(("ftaRef".into(), r.clone())); }
     if let Some(ref cl) = fm.clients {
         for s in cl { out.push(("clients".into(), s.clone())); }
@@ -838,6 +841,9 @@ pub fn cmd_show(
         if !inputs.is_empty() { println!("| **inputs** | {} |", inputs.join(", ")); }
     }
     if let Some(ref ek) = fm.event_kind { println!("| **eventKind** | {} |", ek); }
+    if matches!(fm.element_type, Some(ElementType::FaultTreeEvent)) {
+        if let Some(ref r) = fm.event_ref { println!("| **ref** | {} |", r); }
+    }
     if let Some(fr) = fm.failure_rate { println!("| **failureRate** | {} |", fr); }
     if let Some(p) = fm.probability { println!("| **probability** | {} |", p); }
     if let Some(ref fm_) = fm.failure_mode { println!("| **failureMode** | {} |", fm_); }

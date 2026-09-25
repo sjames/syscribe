@@ -1091,8 +1091,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // otherwise silently discarded — a hazard for typos (`reqDomian`, `verifis`).
         // Advisory severity; gate with `--deny W047`. Author-defined data belongs under
         // `custom_fields:` (§3.15), which is exempt. Keys sorted for deterministic order.
-        let mut unknown_keys: Vec<&String> = fm.extra.keys().collect();
-        unknown_keys.sort();
+        let mut unknown_keys: Vec<&str> = fm.extra.keys().map(String::as_str).collect();
+        // `ref:` is a schema field only on a FaultTreeEvent (REQ-TRS-FTA-002); on
+        // any other type it is still unrecognized, exactly as before it was bound.
+        if fm.event_ref.is_some() && !matches!(fm.element_type, Some(ElementType::FaultTreeEvent)) {
+            unknown_keys.push("ref");
+        }
+        unknown_keys.sort_unstable();
         for key in unknown_keys {
             findings.push(warning(
                 "W047",
@@ -5758,6 +5763,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             &format!("FaultTreeEvent `fmeaRef` '{}' does not resolve to a FMEAEntry", r)));
                     }
                     _ => {}
+                }
+            }
+            // E927 (REQ-TRS-FTA-002): FaultTreeEvent.ref must resolve to a model element
+            if let Some(ref r) = fm.event_ref {
+                if resolver.resolve_ref(elements, r).is_none() {
+                    findings.push(error("E927", &elem.file_path,
+                        &format!("FaultTreeEvent `ref` '{}' does not resolve to a known element", r)));
                 }
             }
         }
@@ -12413,5 +12425,86 @@ mod fmea_row_tests {
         assert!(fmea_row_findings("s.md", 1, &row("id: FM-X-001\nfmeaSeverity: 2\noccurrence: 3\ndetection: 4\nrpn: 24")).is_empty());
         assert!(fmea_row_findings("s.md", 1, &row("id: FM-X-001\nfmeaSeverity: 5\noccurrence: 4\nrpn: 80")).is_empty());
         assert!(fmea_row_findings("s.md", 1, &row("id: FM-X-001\nfmeaSeverity: 5\noccurrence: 4\ndetection: 3")).is_empty());
+    }
+}
+
+// ── E927 — FaultTreeEvent `ref:` (REQ-TRS-FTA-002, issue #148) ───────────────
+
+#[cfg(test)]
+mod e927_fault_tree_event_ref_tests {
+    use super::*;
+    use crate::element::{ParseIssue, RawFrontmatter};
+
+    fn make_elem(qname: &str, yaml: &str) -> RawElement {
+        let fm: RawFrontmatter = serde_yaml::from_str(yaml).expect("yaml parse");
+        RawElement {
+            qualified_name: qname.to_string(),
+            file_path: format!("model/{}.md", qname.replace("::", "/")),
+            frontmatter: fm,
+            doc: String::new(),
+            parse_issue: None::<ParseIssue>,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn count(findings: &[Finding], file: &str, code: &str) -> usize {
+        findings.iter().filter(|f| f.code == code && f.file == file).count()
+    }
+
+    fn fte(r: &str) -> RawElement {
+        make_elem(
+            "FT::FTE-FTX-001",
+            &format!("type: FaultTreeEvent\nid: FTE-FTX-001\nname: e\neventKind: basic\nref: {r}\n"),
+        )
+    }
+
+    #[test]
+    fn resolving_ref_by_qname_and_id_is_clean() {
+        let part = make_elem("Arch::Valve", "type: PartDef\nname: Valve\n");
+        let req = make_elem(
+            "Arch::REQ-FTX-001",
+            "type: Requirement\nid: REQ-FTX-001\nname: r\nstatus: draft\n",
+        );
+        for r in ["Arch::Valve", "REQ-FTX-001"] {
+            let ev = fte(r);
+            let file = ev.file_path.clone();
+            let res = validate(&[part.clone(), req.clone(), ev]);
+            assert_eq!(count(&res.findings, &file, "E927"), 0, "ref {r}");
+            assert_eq!(count(&res.findings, &file, "W047"), 0, "ref {r}");
+        }
+    }
+
+    #[test]
+    fn dangling_ref_is_e927() {
+        let ev = fte("Arch::Nope");
+        let file = ev.file_path.clone();
+        let res = validate(&[ev]);
+        assert_eq!(count(&res.findings, &file, "E927"), 1);
+        assert_eq!(count(&res.findings, &file, "W047"), 0);
+    }
+
+    #[test]
+    fn ref_on_other_types_stays_unrecognized() {
+        let gate = make_elem(
+            "FT::FTG-FTX-001",
+            "type: FaultTreeGate\nid: FTG-FTX-001\nname: g\ngateType: OR\nref: Arch::Nope\n",
+        );
+        let file = gate.file_path.clone();
+        let res = validate(&[gate]);
+        assert_eq!(count(&res.findings, &file, "W047"), 1);
+        assert_eq!(count(&res.findings, &file, "E927"), 0);
+    }
+
+    #[test]
+    fn resolved_ref_is_a_graph_edge() {
+        use crate::graph::{build_graph, EdgeKind};
+        let part = make_elem("Arch::Valve", "type: PartDef\nname: Valve\n");
+        let (g, idx) = build_graph(&[part, fte("Arch::Valve")]);
+        let (src, dst) = (idx["FT::FTE-FTX-001"], idx["Arch::Valve"]);
+        assert!(g
+            .edges_connecting(src, dst)
+            .any(|e| *e.weight() == EdgeKind::FaultTreeEventRef));
+        assert_eq!(EdgeKind::FaultTreeEventRef.name(), "faultTreeEventRef");
     }
 }

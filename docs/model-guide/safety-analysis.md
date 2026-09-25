@@ -300,7 +300,9 @@ latentDiagnosticCoverage: 0.90  # DCl, 0.0–1.0 — fraction of the latent part
 ---
 ```
 
-`eventKind` values: `basic` (quantifiable leaf), `undeveloped` (not yet analysed), `house` (assumed event). The `ref:` field links the event to an architecture element.
+`eventKind` values: `basic` (quantifiable leaf), `undeveloped` (not yet analysed), `house` (assumed event).
+
+The optional `ref:` field links the event to the model element whose failure it represents — typically a `Part`/`PartDef`, written as a qualified name or a stable id. It is resolved like any other cross-reference; a `ref:` that does not resolve is **E927**. The link is shown by `show <FTE-id>`, listed by `links` in both directions (the element lists the event as an inbound `ref`), carried in the element graph as a `faultTreeEventRef` edge, and printed on a second line of the event's node in `fault-tree render`.
 
 `diagnosticCoverage` (DC) and `latentDiagnosticCoverage` (DCl) are the FMEDA inputs to the quantitative metrics roll-up below. Both are optional and must lie in `0.0`–`1.0` (else **E846**).
 
