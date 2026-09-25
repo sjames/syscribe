@@ -386,6 +386,26 @@ mod index_tests {
         }
     }
 
+    /// The user-facing CLI reference (`docs/cli/index.md`) covers every registered
+    /// command: either a heading naming it as a code span (`` ## … (`stats`) ``) or a
+    /// `syscribe [-m <root>] <command>` invocation in the page.
+    #[test]
+    fn cli_reference_covers_every_command() {
+        let doc = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/cli/index.md"),
+        )
+        .expect("read docs/cli/index.md");
+        let headings: Vec<&str> = doc.lines().filter(|l| l.starts_with('#')).collect();
+        let invoked = regex::Regex::new(r"syscribe(?:\s+(?:-m|--model)\s+\S+)?\s+([a-z][a-z0-9-]*)").unwrap();
+        let invoked: std::collections::HashSet<&str> =
+            invoked.captures_iter(&doc).filter_map(|c| c.get(1)).map(|m| m.as_str()).collect();
+        let missing: Vec<&str> = commands()
+            .map(|(n, _)| n)
+            .filter(|n| !invoked.contains(n) && !headings.iter().any(|h| h.contains(&format!("`{n}`"))))
+            .collect();
+        assert!(missing.is_empty(), "docs/cli/index.md has no section or invocation for: {missing:?}");
+    }
+
     /// Each command appears in exactly one group.
     #[test]
     fn registry_has_no_duplicates() {
