@@ -66,6 +66,7 @@ nav:
       - Multi-Repository Composition: model-guide/multi-repo.md
       - Native SysMLv2 Submodels: model-guide/sysmlv2-submodel.md
       - Foreign-Format Plugins (stdio): model-guide/stdio-plugins.md
+      - Annotated-Source Ingestion: model-guide/annotated-source.md
       - MagicGrid: model-guide/magicgrid.md
       - Custom Fields: model-guide/custom-fields.md
       - LLM-Assisted Modeling: model-guide/llm-workflow.md
@@ -93,13 +94,14 @@ nav:
       - Part IX — Software Architecture: guides/software-architecture.md
       - Part X — Feature Modeling: guides/feature-modeling.md
       - Appendix A — Tool Mapping: guides/tool-mapping.md
-      - Appendix B — Validation Codes: validation/rules.md
       - Appendix C — Quick Reference: guides/quick-reference.md
       - Appendix D — Scripting: guides/scripting.md
   - Web Browser:
       - browser/index.md
   - Tool Qualification:
       - tool-qualification/index.md
+  - Design Notes:
+      - Suspect Links: design/suspect-links.md
   - Releases: releases/index.md
 
 extra_css:
@@ -108,7 +110,7 @@ extra_css:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/sjames/llm-arch-model
+      link: https://github.com/sjames/syscribe
 
 markdown_extensions:
   - admonition
