@@ -829,19 +829,21 @@ fn main() {
                 // Configuration lens: --all-configs gate, or --config <C> projection.
                 let all_configs = rest.iter().any(|a| a == "--all-configs");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                // Every mode honours the same gate, --profile and --file (issue #126);
+                // a usage error exits 1 — exit 2 is reserved for a tripped gate.
                 if all_configs {
-                    query::cmd_validate_all_configs(&elems, &vcfg_run, json);
+                    query::cmd_validate_all_configs(&elems, &vcfg_run, &gate, profile_ref, file_filter, json);
                 } else if let Some(c) = config {
                     match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
                             query::cmd_validate(&elems, &vcfg_run, &gate, profile_ref, file_filter, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
-                            query::cmd_validate_projected(&elems, &vcfg_run, &gate, json, &sel)
+                            query::cmd_validate_projected(&elems, &vcfg_run, &gate, profile_ref, file_filter, json, &sel)
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
-                            eprintln!("{m}");
-                            std::process::exit(2);
+                            eprintln!("Error: {m}");
+                            std::process::exit(1);
                         }
                     }
                 } else {

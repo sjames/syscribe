@@ -2545,37 +2545,50 @@ pub fn cmd_configure(elements: &[RawElement], conf: &str, json: bool) {
     }
 }
 
-/// Exit-code contract for `validate` (issue #3):
-/// `0` clean · `1` Error-severity findings · `2` warnings tripped a gate.
-pub fn cmd_validate(
-    elements: &[RawElement],
-    config: &syscribe_model::config::ValidateConfig,
+type VFinding = syscribe_model::validator::Finding;
+
+/// The validate gate evaluated over one finding set (issue #3 / #18 / #126).
+///
+/// Shared by whole-model `validate`, `validate --config` and — once per variant —
+/// `validate --all-configs`, so every mode applies `--deny`, `--max-warnings`,
+/// `--warnings-as-errors` and `--profile` identically.
+struct GateEval<'a> {
+    errors: Vec<&'a VFinding>,
+    warnings: Vec<&'a VFinding>,
+    infos: Vec<&'a VFinding>,
+    /// Every finding that trips the gate (flags ∪ profile).
+    denied: Vec<&'a VFinding>,
+    denied_by_flags: Vec<&'a VFinding>,
+    denied_by_profile: Vec<&'a VFinding>,
+    over_max: bool,
+    /// `0` clean · `1` Error-severity findings · `2` warnings tripped a gate.
+    exit_code: i32,
+}
+
+impl GateEval<'_> {
+    fn gate_tripped(&self) -> bool {
+        !self.denied.is_empty() || self.over_max
+    }
+}
+
+/// Evaluate the gate over `findings`. A selected `--profile` contributes its
+/// promoted findings additively with `--deny`/etc.; the flag-only and profile
+/// denials are kept apart so the summary can attribute a trip to its cause.
+/// `elements` resolves a finding's file to the element a scoped profile tests.
+fn evaluate_gate<'a>(
+    findings: &[&'a VFinding],
     gate: &GateOptions,
     profile: Option<&syscribe_model::config::Profile>,
-    file_filter: Option<&str>,
-    json: bool,
-) {
-    use syscribe_model::validator;
+    elements: &[RawElement],
+) -> GateEval<'a> {
     use syscribe_model::validator::Severity;
-
-    let result = validator::validate_with_config(elements, config);
-
-    let findings: Vec<_> = result.findings.iter()
-        .filter(|f| file_filter.is_none_or(|ff| f.file.contains(ff)))
-        .collect();
-
     let errors: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Error).copied().collect();
     let warnings: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Warning).copied().collect();
     let infos: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Info).copied().collect();
 
-    // Gate evaluation (independent of output format). A selected `--profile`
-    // contributes its promoted findings additively with `--deny`/etc. Kept
-    // separate from the flag-only denials so the text summary line (below)
-    // can attribute a gate trip to the mechanism that actually caused it,
-    // instead of always blaming `--deny`.
     let denied_by_flags = gate.denied(&warnings, &infos);
     let mut denied = denied_by_flags.clone();
-    let mut denied_by_profile: Vec<&syscribe_model::validator::Finding> = Vec::new();
+    let mut denied_by_profile: Vec<&VFinding> = Vec::new();
     if let Some(p) = profile {
         let mut candidates = warnings.clone();
         candidates.extend(infos.iter().copied());
@@ -2587,16 +2600,28 @@ pub fn cmd_validate(
         }
     }
     let over_max = gate.max_warnings.is_some_and(|m| warnings.len() > m);
-    let gate_tripped = !denied.is_empty() || over_max;
-
     // Exit code: errors dominate (1), then gated warnings (2), else clean (0).
     let exit_code = if !errors.is_empty() {
         1
-    } else if gate_tripped {
+    } else if !denied.is_empty() || over_max {
         2
     } else {
         0
     };
+    GateEval { errors, warnings, infos, denied, denied_by_flags, denied_by_profile, over_max, exit_code }
+}
+
+/// Print a gated finding report (text or `--json`) and return its exit code
+/// WITHOUT exiting. `clean_msg` is the line printed when there are no findings.
+fn print_gated_report(
+    findings: &[&VFinding],
+    eval: &GateEval<'_>,
+    gate: &GateOptions,
+    json: bool,
+    clean_msg: &str,
+) -> i32 {
+    use syscribe_model::validator::Severity;
+    let exit_code = eval.exit_code;
 
     if json {
         let items: Vec<serde_json::Value> = findings.iter().map(|f| {
@@ -2613,19 +2638,16 @@ pub fn cmd_validate(
         }).collect();
         println!("{}", serde_json::to_string_pretty(&items).unwrap());
         if exit_code == 2 {
-            for line in gate_report_lines(&denied, over_max, warnings.len(), gate) {
+            for line in gate_report_lines(&eval.denied, eval.over_max, eval.warnings.len(), gate) {
                 eprintln!("{}", line);
             }
         }
-        if exit_code != 0 {
-            std::process::exit(exit_code);
-        }
-        return;
+        return exit_code;
     }
 
     if findings.is_empty() {
-        println!("0 errors, 0 warnings — model is valid.");
-        return;
+        println!("{clean_msg}");
+        return exit_code;
     }
 
     // Leading pass/fail summary line (issue #116): always present in text
@@ -2633,129 +2655,36 @@ pub fn cmd_validate(
     // by the absence of an Errors section. Printed before the per-severity
     // tables below, not after.
     {
-        let mut summary = format!("{} errors, {} warnings", errors.len(), warnings.len());
+        let mut summary = format!("{} errors, {} warnings", eval.errors.len(), eval.warnings.len());
         let mut clauses: Vec<String> = Vec::new();
-        if !denied_by_flags.is_empty() {
+        if !eval.denied_by_flags.is_empty() {
             if gate.warnings_as_errors {
                 clauses.push("all warnings promoted to errors (--warnings-as-errors)".to_string());
             } else {
                 clauses.push(format!(
                     "{} gated by --deny {}",
-                    denied_by_flags.len(),
-                    sorted_codes(&denied_by_flags).join(", ")
+                    eval.denied_by_flags.len(),
+                    sorted_codes(&eval.denied_by_flags).join(", ")
                 ));
             }
         }
-        if !denied_by_profile.is_empty() {
-            clauses.push(format!("{} gated by --profile", denied_by_profile.len()));
+        if !eval.denied_by_profile.is_empty() {
+            clauses.push(format!("{} gated by --profile", eval.denied_by_profile.len()));
         }
-        if over_max {
-            clauses.push(format!("exceeds --max-warnings {}", gate.max_warnings.unwrap()));
+        if eval.over_max {
+            clauses.push(format!("exceeds --max-warnings {}", gate.max_warnings.unwrap_or(0)));
         }
         if !clauses.is_empty() {
             summary.push_str(&format!(" ({})", clauses.join("; ")));
         }
-        if !errors.is_empty() || gate_tripped {
+        if !eval.errors.is_empty() || eval.gate_tripped() {
             summary.push_str(" — FAIL");
         }
         println!("{}", summary);
         println!();
     }
 
-    if !errors.is_empty() {
-        println!("Errors ({}):", errors.len());
-        println!();
-        println!("| Code | File | Message |");
-        println!("|---|---|---|");
-        for f in &errors {
-            println!("| {} | {} | {} |", f.code, f.file, f.message);
-        }
-        println!();
-    }
-
-    if !warnings.is_empty() {
-        println!("Warnings ({}):", warnings.len());
-        println!();
-        println!("| Code | File | Message |");
-        println!("|---|---|---|");
-        for f in &warnings {
-            println!("| {} | {} | {} |", f.code, f.file, f.message);
-        }
-        println!();
-    }
-
-    if !infos.is_empty() {
-        println!("Informational ({}):", infos.len());
-        println!();
-        println!("| Code | File | Message |");
-        println!("|---|---|---|");
-        for f in &infos {
-            println!("| {} | {} | {} |", f.code, f.file, f.message);
-        }
-        println!();
-    }
-
-    if exit_code == 2 {
-        for line in gate_report_lines(&denied, over_max, warnings.len(), gate) {
-            println!("{}", line);
-        }
-    }
-
-    if exit_code != 0 {
-        std::process::exit(exit_code);
-    }
-}
-
-/// Stable display id for an element: `id:` when present, else qualified name.
-fn cfg_id(e: &RawElement) -> String {
-    e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())
-}
-
-/// Print a finding list (text or json) under the gate, returning the exit code
-/// (0 clean · 1 errors · 2 gated warnings) WITHOUT exiting. Shared by the
-/// configuration-lens validators.
-fn print_findings_report(
-    findings: &[syscribe_model::validator::Finding],
-    gate: &GateOptions,
-    json: bool,
-) -> i32 {
-    use syscribe_model::validator::Severity;
-    let errors: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Error).collect();
-    let warnings: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Warning).collect();
-    let infos: Vec<_> = findings.iter().filter(|f| f.severity == Severity::Info).collect();
-    let denied = gate.denied(&warnings, &infos);
-    let over_max = gate.max_warnings.is_some_and(|m| warnings.len() > m);
-    let exit_code = if !errors.is_empty() {
-        1
-    } else if !denied.is_empty() || over_max {
-        2
-    } else {
-        0
-    };
-    if json {
-        let items: Vec<serde_json::Value> = findings
-            .iter()
-            .map(|f| {
-                serde_json::json!({
-                    "code": f.code,
-                    "severity": match f.severity {
-                        Severity::Error => "error",
-                        Severity::Warning => "warning",
-                        Severity::Info => "info",
-                    },
-                    "file": f.file,
-                    "message": f.message,
-                })
-            })
-            .collect();
-        println!("{}", serde_json::to_string_pretty(&items).unwrap());
-        return exit_code;
-    }
-    if findings.is_empty() {
-        println!("0 errors, 0 warnings — variant is valid.");
-        return exit_code;
-    }
-    let table = |label: &str, fs: &[&syscribe_model::validator::Finding]| {
+    let table = |label: &str, fs: &[&VFinding]| {
         if fs.is_empty() {
             return;
         }
@@ -2768,58 +2697,144 @@ fn print_findings_report(
         }
         println!();
     };
-    table("Errors", &errors);
-    table("Warnings", &warnings);
-    table("Informational", &infos);
+    table("Errors", &eval.errors);
+    table("Warnings", &eval.warnings);
+    table("Informational", &eval.infos);
+
+    if exit_code == 2 {
+        for line in gate_report_lines(&eval.denied, eval.over_max, eval.warnings.len(), gate) {
+            println!("{}", line);
+        }
+    }
     exit_code
 }
 
-/// `validate --config <C>`: full re-validation in the configuration lens.
-pub fn cmd_validate_projected(
+/// Findings whose file matches the optional `--file` filter.
+fn filter_by_file<'a>(findings: &'a [VFinding], file_filter: Option<&str>) -> Vec<&'a VFinding> {
+    findings
+        .iter()
+        .filter(|f| file_filter.is_none_or(|ff| f.file.contains(ff)))
+        .collect()
+}
+
+/// Exit-code contract for `validate` (issue #3):
+/// `0` clean · `1` Error-severity findings · `2` warnings tripped a gate.
+/// (Usage errors — an undefined `--profile`, an unresolvable `--config`, a
+/// malformed flag value — exit `1` before this runs; `2` is only ever a gate.)
+pub fn cmd_validate(
     elements: &[RawElement],
     config: &syscribe_model::config::ValidateConfig,
     gate: &GateOptions,
+    profile: Option<&syscribe_model::config::Profile>,
+    file_filter: Option<&str>,
     json: bool,
-    sel: &syscribe_model::projection::Selection,
 ) {
-    let findings = syscribe_model::projection::validate_projected(elements, config, sel);
-    let code = print_findings_report(&findings, gate, json);
+    let result = syscribe_model::validator::validate_with_config(elements, config);
+    let findings = filter_by_file(&result.findings, file_filter);
+    let eval = evaluate_gate(&findings, gate, profile, elements);
+    let code = print_gated_report(&findings, &eval, gate, json, "0 errors, 0 warnings — model is valid.");
     if code != 0 {
         std::process::exit(code);
     }
 }
 
+/// Stable display id for an element: `id:` when present, else qualified name.
+fn cfg_id(e: &RawElement) -> String {
+    e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone())
+}
+
+/// `validate --config <C>`: full re-validation in the configuration lens, under
+/// the same gate, `--profile` and `--file` handling as whole-model `validate`
+/// (issue #126).
+pub fn cmd_validate_projected(
+    elements: &[RawElement],
+    config: &syscribe_model::config::ValidateConfig,
+    gate: &GateOptions,
+    profile: Option<&syscribe_model::config::Profile>,
+    file_filter: Option<&str>,
+    json: bool,
+    sel: &syscribe_model::projection::Selection,
+) {
+    let all = syscribe_model::projection::validate_projected(elements, config, sel);
+    let findings = filter_by_file(&all, file_filter);
+    let eval = evaluate_gate(&findings, gate, profile, elements);
+    let code = print_gated_report(&findings, &eval, gate, json, "0 errors, 0 warnings — variant is valid.");
+    if code != 0 {
+        std::process::exit(code);
+    }
+}
+
+/// Worst of two `validate` exit codes under the precedence `1` > `2` > `0`
+/// (errors dominate a tripped gate, which dominates clean).
+fn worst_exit(a: i32, b: i32) -> i32 {
+    let rank = |c: i32| match c {
+        1 => 2,
+        2 => 1,
+        _ => 0,
+    };
+    if rank(b) > rank(a) { b } else { a }
+}
+
 /// `validate --all-configs`: run the lens validation for every stored
-/// Configuration and summarise per-variant; exit non-zero if any has errors.
+/// Configuration, evaluate the gate (flags + `--profile`, and `--file`) **per
+/// variant**, summarise, and exit with the worst per-variant code
+/// (`1` any variant has errors · else `2` any variant tripped a gate · else `0`).
 pub fn cmd_validate_all_configs(
     elements: &[RawElement],
     config: &syscribe_model::config::ValidateConfig,
+    gate: &GateOptions,
+    profile: Option<&syscribe_model::config::Profile>,
+    file_filter: Option<&str>,
     json: bool,
 ) {
-    use syscribe_model::validator::Severity;
     let mut configs: Vec<&RawElement> = elements
         .iter()
         .filter(|e| e.frontmatter.element_type.as_ref() == Some(&ElementType::Configuration))
         .collect();
     configs.sort_by_key(|a| cfg_id(a));
 
-    let mut any_error = false;
-    let mut rows: Vec<(String, usize, usize)> = Vec::new();
+    struct Row {
+        id: String,
+        errors: usize,
+        warnings: usize,
+        gated: usize,
+        code: i32,
+    }
+    let result_word = |code: i32| match code {
+        1 => "error",
+        2 => "gate",
+        _ => "pass",
+    };
+
+    let mut worst = 0;
+    let mut rows: Vec<Row> = Vec::new();
     for cfg in &configs {
         let sel = cfg.frontmatter.feature_selections();
-        let findings = syscribe_model::projection::validate_projected(elements, config, &sel);
-        let errs = findings.iter().filter(|f| f.severity == Severity::Error).count();
-        let warns = findings.iter().filter(|f| f.severity == Severity::Warning).count();
-        if errs > 0 {
-            any_error = true;
-        }
-        rows.push((cfg_id(cfg), errs, warns));
+        let all = syscribe_model::projection::validate_projected(elements, config, &sel);
+        let findings = filter_by_file(&all, file_filter);
+        let eval = evaluate_gate(&findings, gate, profile, elements);
+        worst = worst_exit(worst, eval.exit_code);
+        rows.push(Row {
+            id: cfg_id(cfg),
+            errors: eval.errors.len(),
+            warnings: eval.warnings.len(),
+            gated: eval.denied.len(),
+            code: eval.exit_code,
+        });
     }
 
     if json {
         let items: Vec<serde_json::Value> = rows
             .iter()
-            .map(|(id, e, w)| serde_json::json!({ "configuration": id, "errors": e, "warnings": w }))
+            .map(|r| {
+                serde_json::json!({
+                    "configuration": r.id,
+                    "errors": r.errors,
+                    "warnings": r.warnings,
+                    "gated": r.gated,
+                    "result": result_word(r.code),
+                })
+            })
             .collect();
         println!("{}", serde_json::to_string_pretty(&items).unwrap());
     } else if rows.is_empty() {
@@ -2827,14 +2842,30 @@ pub fn cmd_validate_all_configs(
     } else {
         println!("# Validate all configurations");
         println!();
-        println!("| Configuration | Errors | Warnings |");
-        println!("|---|---|---|");
-        for (id, e, w) in &rows {
-            println!("| {} | {} | {} |", id, e, w);
+        println!("| Configuration | Errors | Warnings | Result |");
+        println!("|---|---|---|---|");
+        for r in &rows {
+            println!("| {} | {} | {} | {} |", r.id, r.errors, r.warnings, result_word(r.code));
+        }
+        let n = |code: i32| rows.iter().filter(|r| r.code == code).count();
+        println!();
+        println!(
+            "{} configuration(s): {} pass, {} gate, {} error{}",
+            rows.len(),
+            n(0),
+            n(2),
+            n(1),
+            if worst != 0 { " — FAIL" } else { "" }
+        );
+        if n(2) > 0 {
+            println!(
+                "Gate failure: {} variant(s) tripped a gate; run `validate --config <id>` with the same flags for the per-finding detail.",
+                n(2)
+            );
         }
     }
-    if any_error {
-        std::process::exit(1);
+    if worst != 0 {
+        std::process::exit(worst);
     }
 }
 
@@ -4187,7 +4218,9 @@ pub fn print_help() {
     println!("  --config <CONF|features>       On validate/list/export: project onto a configuration (stored id/qname");
     println!("                                 or ad-hoc 'Features::A,Features::B'). validate --config certifies the");
     println!("                                 variant and flags escaping refs (E226 structural / W019 traceability).");
-    println!("  validate --all-configs         Validate every stored Configuration; exit non-zero if any has errors.");
+    println!("  validate --all-configs         Validate every stored Configuration; gates (--deny/--max-warnings/");
+    println!("                                 --warnings-as-errors/--profile) apply per variant; exit 1 if any variant");
+    println!("                                 has errors, else 2 if any tripped a gate, else 0.");
     println!("  show <qname|id>                Show element details and documentation");
     println!("  ls [qname]                     List namespace children (default: root)");
     println!("  tree [qname]                   Recursive namespace tree (default: root)");
@@ -4321,8 +4354,10 @@ pub fn print_help() {
     println!();
     println!("Exit codes (validate):");
     println!("  0                              No errors and no gate failures");
-    println!("  1                              One or more Error-severity findings, or an undefined --profile name");
+    println!("  1                              One or more Error-severity findings, or a usage error (undefined");
+    println!("                                 --profile, unresolvable --config, malformed flag value)");
     println!("  2                              Warnings tripped a gate (--deny / --max-warnings / --warnings-as-errors / --profile)");
+    println!("                                 — the same in every mode (--config, --all-configs per variant; 1 > 2 > 0)");
     println!();
     println!("Options:");
     println!("  -m, --model <path>             Model root directory");

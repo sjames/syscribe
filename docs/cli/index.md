@@ -131,6 +131,10 @@ $ syscribe -m model_auto/ validate --json
 
 Exit-code contract: `0` clean · `1` one or more `Error`-severity findings (errors always dominate) · `2` warnings tripped a gate. All four flags compose additively.
 
+The contract holds in every mode. `validate --config <C>` applies the flags (and `--file`) to the projected variant's findings; `validate --all-configs` evaluates the gate **per variant** (so `--max-warnings N` is a per-variant budget), marks each variant `pass` / `gate` / `error` in its summary (`result` in `--json`), and exits with the worst variant under `1` > `2` > `0`.
+
+A **usage error** — an undefined `--profile`, an unresolvable `--config`, a malformed `--max-warnings` value — prints a message to stderr, nothing to stdout, and exits `1`. Exit `2` is reserved for a tripped gate, so a CI job can always read it as "the model is valid but a gate failed".
+
 ### Named severity profiles
 
 A **profile** is a reusable gating policy declared in `<model_root>/.syscribe.toml` and selected with `validate --profile <name>`. It promotes the listed warning codes to gating failures — optionally **scoped** to the integrity level / status / tag of the element each finding concerns.
@@ -829,6 +833,7 @@ $ syscribe -m model/ list Requirement --config CONF-MPS2-WDT
 $ syscribe -m model/ export --config 'Features::Mps2,Features::Wdt' --json
 $ syscribe -m model/ validate --config CONF-MPS2-WDT     # certify THIS variant
 $ syscribe -m model/ validate --all-configs              # gate every stored variant (CI)
+$ syscribe -m model/ validate --all-configs --deny W015  # …and fail on any variant's W015 (per-variant gate)
 $ syscribe -m model/ diff --config CONF-MPS2-WDT --config CONF-M0-BASE
 ```
 
@@ -1305,7 +1310,7 @@ syscribe next-id REQ-ENG-SAFE
 ]
 ```
 
-An empty array means the model is valid. A non-zero exit code is only set when the command itself fails (bad path, parse error) — a model with warnings still exits 0.
+An empty array means the model is valid. The exit code follows the [CI gating contract](#ci-severity-gating): `0` when there are no `Error` findings and no gate tripped — so a model with only warnings still exits `0` unless a gating flag (`--deny`, `--max-warnings`, `--warnings-as-errors`, `--profile`) is set — `1` when any `Error` finding is present or on a usage error, and `2` when warnings tripped a gate.
 
 ### The incremental authoring loop
 

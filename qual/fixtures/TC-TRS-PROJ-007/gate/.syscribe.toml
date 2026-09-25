@@ -1,0 +1,4 @@
+# TC-TRS-PROJ-007: a tag-scoped profile that trips only in the Wdt variant.
+[profiles.wdt]
+promote = ["W300"]
+tag = "wdt"
