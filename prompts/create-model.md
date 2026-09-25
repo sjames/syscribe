@@ -86,6 +86,9 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ list <type> [scope] [--tag <t>]` | List elements of a type, optionally scoped; `--tag` filters by `tags:` |
 | `syscribe -m model/ ls\|find\|list … --where custom.<key>[op<val>]` | Filter by `custom_fields:` (`=` exact, `=~` regex/substring, `~=` list-membership, bare key = presence) |
 | `syscribe -m model/ types` | All element types present in the model with counts |
+| `syscribe -m model/ search-text <query> [--type <T>] [--limit N]` | Ranked (BM25) full-text search over element text — find elements by what they *say* |
+| `syscribe -m model/ stats [--json] [--group-by <facet>]` | Requirement population at a glance: status/domain/SIL/ASIL/package histograms + coverage/orphan rollups |
+| `syscribe -m model/ digest [--limit N] [--offset N] [--status <s>]` | One compact NDJSON row per Requirement (~30 tokens) — bulk-scan a large model without reading files |
 | `syscribe -m model/ untyped` | List elements with no `type:` field set |
 | `syscribe -m model/ links <qname\|id>` | All outbound and inbound relationships |
 | `syscribe -m model/ refs <qname\|id>` | What elements reference this element (for a `Configuration`: the TestCases that run in it) |
@@ -110,6 +113,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ trace <qname\|req-id>` | Full traceability slice for a requirement |
 | `syscribe -m model/ why <qname>` | What requirements this element satisfies |
 | `syscribe -m model/ who-verifies <req-id>` | Which test cases cover a requirement |
+| `syscribe -m model/ suspect list` / `suspect accept <src> <tgt>` | Suspect links: trace links whose target changed since review (W090). `accept` writes the reviewed hash into the source's `traceBaselines:` — never hand-edit that map |
 | `syscribe -m model/ link-types [--json]` | The project's declared link types for `links:` (run **before** authoring any link — see §12.10 in Part 10) |
 | `syscribe -m model/ follow <qname\|id> <link> [--reverse] [--transitive] [--depth N] [--format text\|json\|dot]` | Walk one link type (custom type, its `inverse`, or a built-in link / reverse index such as `satisfiedBy`) |
 
@@ -134,6 +138,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ reviews [<qname>] [--open-only] [--json]` / `review <RR-id>` / `reviews --coverage` | List/detail `ReviewRecord`s and their requirement coverage |
 | `syscribe -m model/ trade-study [<TRD-id>] [--json]` | List/score `TradeStudy` elements (normalised, weighted, ranked) |
 | `syscribe -m model/ extref <ref> [--json]` | Find elements by external reference (`extRef`) |
+| `syscribe -m model/ ingest-results [--format cargo-json\|junit\|session-log] <file>` | Record test-run verdicts (`.syscribe/results.json`); `matrix`/`trace` then show executed evidence and `validate` warns W010 for a failed/missing `active` TestCase function |
 | `syscribe -m model/ list <type> [--status <s>] [--sil <v>] [--has-wcet] [--json]` | (filters) status/integrity/WCET filters + JSON |
 | `syscribe -m model/ matrix [--gaps-only] [--status <s>] [--linked-only]` | (flags) drop covered rows; status filter; coverage-% footer; executed-evidence glyphs when results ingested |
 
@@ -148,6 +153,10 @@ Use these commands throughout the workflow. Run them in the project root.
 | `syscribe -m model/ next-id <prefix>` | Print the next available stable ID (e.g. `REQ-AID-FC-002`) |
 | `syscribe -m model/ check-ref <qname\|id>` | Verify a cross-reference resolves before writing it |
 | `syscribe -m model/ path-for <qname\|id>` | Print the file path for an element |
+| `syscribe -m model/ set <qname\|id> status=<v>` / `evidence.add ref=<id>` / `achieves.add <req-id>` | Validated single-field edit (value checked **before** writing); `--dry-run` previews |
+| `syscribe -m model/ applies-when <element> [--set "<expr>" \| --clear]` | Show (with inheritance) or edit an element's `appliesWhen:` gate |
+| `syscribe -m model/ move <src> <dest> [--dry-run]` | Move/rename an element or package, rewriting every reference to it |
+| `syscribe -m model/ claim <PI-id> --by <agent-id>` / `release <PI-id>` | Advisory ownership of a `PlanningItem` when several agents share a model (see Part 6e) |
 
 **Before writing a new element:**
 1. `template <type>` — get the frontmatter skeleton
@@ -169,7 +178,7 @@ syscribe -m model/ validate
 - **Errors** (`E___`) block a correct model. Fix every error before continuing.
 - **Warnings** (`W___`) are advisory. Aim to fix them, but they do not block progress.
 
-The target is **0 errors**. Two W404 warnings for `ScalarValues::*` types are expected and acceptable.
+The target is **0 errors**. `ScalarValues::*` (and the other standard-library packages) resolve built-in — they raise no warning.
 
 For single-file feedback during iterative authoring:
 
@@ -361,6 +370,8 @@ Describe the package's **purpose and scope** in `_index.md` — never list its m
 | `TestCase` | native test case | `Verification/` |
 | `TestPlan` | native test plan (groups TestCases) | `TestPlans/` |
 | `ADR` | architecture decision | `Decisions/` |
+| `PlanningItem` | work item (epic/story/task) toward a Requirement (PI-*; see Part 6e) | `Planning/` |
+| `FeatureDef` / `FeatureModel` / `Configuration` | product-line variability (FEAT-* / sheet / CONF-*; see Part 9b) | `Features/`, `Configurations/` |
 | `Baseline` | frozen, git-anchored release snapshot (BL-*; created by `baseline create`, not hand-authored) | `Baselines/` |
 | `ReviewRecord` | formal review event + traceability (RR-*) | `Reviews/` |
 | `TradeStudy` | weighted-criteria evaluation of alternatives (TRD-*) | `TradeStudies/` |
@@ -388,6 +399,8 @@ Describe the package's **purpose and scope** in `_index.md` — never list its m
 | `AssumptionOfUse` | safety-related application condition (SRAC) | `Safety/Case/` |
 
 The safety/security **analysis fields and checks** (HARA S/E/C, TARA `attackFeasibility`/`damageSeverity`, `hazardRef` safety↔security link, `riskTreatment`, `diagnosticCoverage` + SPFM/LFM/PMHF, `ffiRationale`, `responsibility`, attack-tree roll-up, GSN `Argument`) are documented in full under **`syscribe spec safety`**, with every field in **`syscribe spec fields`** and every rule code in **`syscribe spec validation`**.
+
+**Packages authored in another notation (opt-in, read-only ingestion).** A package `_index.md` may hand its whole subtree to another source instead of Markdown files: `sysmlSubmodel: true` (native SysML v2 `.sysml`/`.kerml` text), `foreignFormat: <alias>` (an external plugin process configured under `[plugins.<alias>]` in `.syscribe.toml`), or `annotationFormat: <label>` with `marker:`/`include:`/`exclude:` (YAML frontmatter embedded in source-code comments). At most one per package. Never write `.md` element files inside such a subtree — edit the source it ingests; the resulting elements are referenced by qname/id like any other.
 
 For a ready-to-fill frontmatter skeleton for any type, run:
 
@@ -421,7 +434,7 @@ Key fields that apply to most element types:
 ### `custom_fields:` — user-defined metadata
 
 Attach arbitrary metadata to any element under a `custom_fields:` map. Use this instead
-of inventing top-level keys (which are silently ignored).
+of inventing top-level keys (an unknown top-level key warns `W047` and is otherwise ignored).
 
 ```yaml
 custom_fields:
@@ -460,7 +473,7 @@ custom_fields:
 | `reqDomain` | `system` · `hardware` · `software` — required on leaf requirements |
 | `silLevel` | Integer 1–4 (IEC 61508). **Do not set both `silLevel` and `asilLevel`** — they are incompatible standards (W006). |
 | `asilLevel` | `A` · `B` · `C` · `D` (ISO 26262). Mutually exclusive with `silLevel`. |
-| `plLevel` | `a` · `b` · `c` · `d` · `e` (ISO 13849-1 Performance Level). Mutually exclusive with the above. |
+| `plLevel` | `a` · `b` · `c` · `d` · `e` (ISO 13849-1 Performance Level). Use one standard per element (only the `silLevel`+`asilLevel` pair is flagged, W006). |
 | `derivedFromSafetyGoal` | ID of the `SafetyGoal` that motivated this requirement. The SafetyGoal's integrity level must also be set on this element (E841). |
 | `derivedFromCybersecurityGoal` | ID of the `CybersecurityGoal` that motivated this requirement. Requires `verificationMethod:` (W807). |
 | `verificationMethod` | `test` · `inspection` · `analysis` · `demonstration` — required for ASIL B/C/D (W701). |
@@ -634,6 +647,37 @@ Template: `template TradeStudy`.
 
 ---
 
+## Part 6e — PlanningItem (`type: PlanningItem`)
+
+A `PlanningItem` (id `PI-*`) is a durable work item — epic/story/task — on the way from a
+`Requirement` to satisfied/verified. Items form a strict **single-parent tree** (`parent:`); a
+top-level item (no `parent:`) must name the Requirement(s) it `achieves:`.
+
+```yaml
+---
+type: PlanningItem
+id: PI-BRAKE-001
+name: Implement brake-pressure monitor
+status: in_progress          # todo | in_progress | blocked | done
+itemType: feature            # bug | task | feature (optional)
+achieves: [REQ-BRAKE-001]    # top-level only; a child sets parent: PI-… instead
+assignedTo: jdoe             # optional Unix-style username
+evidence:                    # a leaf claiming status: done needs ≥1 resolving entry (E719)
+  - ref: TC-BRAKE-001
+---
+```
+
+Validation: `E708`/`E709` (status / itemType enums), `E712` (parent cycle), `E713`–`E715`
+(`achieves:` missing / unresolved / not a Requirement), `E719` (done leaf without evidence),
+`E720`/`E721` (`blockedBy:` dangling / cycle), `W308` (`blockedBy:` set but not `blocked`),
+`W310` (done, but the achieved Requirement lacks the required TestCase), `W311` (two active items
+overlap). Mark progress with `set <PI-id> status=done` / `set <PI-id> evidence.add ref=<TC-id>`.
+When several agents share one model, `claim <PI-id> --by <agent-id>` before starting and
+`release <PI-id>` when finished (advisory `claimedBy:`/`claimedAt:` — never hand-edit them).
+Template: `template PlanningItem`.
+
+---
+
 ## Part 7 — Allocation (`type: Allocation`)
 
 Allocations link a `software` or `system` element to a `hardware` element. Use them for cross-domain integration; never use `supertype:` across domain boundaries.
@@ -710,7 +754,7 @@ Target state at end of closure pass:
 - **0 × W300** — every leaf requirement at `approved`/`implemented` has a satisfying element
 - **0 × E314** — every deployment package has an allocation to hardware
 
-Remaining acceptable warnings after closure: W404 (`ScalarValues::*` stdlib), W007 (unused definition types), W305 (parent requirement without system-integration TestCase), W008 (README file).
+Remaining acceptable warnings after closure: W007 (unused definition types), W305 (parent requirement without system-integration TestCase), W008 (README file).
 
 ### Summary checklist for each leaf PartDef
 
@@ -733,7 +777,7 @@ Remaining acceptable warnings after closure: W404 (`ScalarValues::*` stdlib), W0
 Operations on a PortDef:
 - `isAsync: true` and `returnType:` are mutually exclusive.
 - `direction:` values: `in` · `out` · `inout`.
-- `typedBy:` and `returnType:` trigger W404 if they don't resolve — `ScalarValues::*` warnings are acceptable.
+- `typedBy:` and `returnType:` trigger W404 if they resolve neither to a model element nor to a standard-library type — `ScalarValues::Real`, `ISQ::MassValue` etc. are recognised built-in and raise nothing.
 
 **Template:** `syscribe -m model/ template PortDef`
 
@@ -743,7 +787,7 @@ Operations on a PortDef:
 
 Every diagram is a `type: Diagram` element in `Diagrams/`. Four authoring approaches:
 
-- **PlantUML companion** (`pumlMode: companion`) — **preferred** for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Syscribe generates a `.puml` source file; PlantUML renders it to SVG. Each shape carries a clickable hyperlink back to its element in the web browser. Set `pumlMode: companion`, `pumlFile:`, and add an `<img>` tag in the body referencing the anticipated SVG. Run `syscribe plantuml` then `syscribe plantuml render`.
+- **PlantUML companion** (`pumlMode: companion`) — **preferred** for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Syscribe generates a `.puml` source file; PlantUML renders it to SVG. Each shape carries a clickable hyperlink back to its element in the web browser. Set `pumlMode: companion`, `pumlFile:`, and add an `<img>` tag in the body referencing the anticipated SVG. Run `syscribe -m model/ plantuml` then `syscribe -m model/ plantuml render`.
 - **Mermaid** — for traceability trees, flow diagrams, simple state machines. Set `diagramKind: Mermaid`. Include a fenced ` ```mermaid ` block (error E400 if absent).
 - **Composed SVG** (`syscribe diagram` CLI) — element-card architecture diagrams. Cards generated from live model data. Commit the generated SVG as a companion file.
 - **Embedded SVG** — hand-coded SVG using the symbol library, for precise SysML notation.
@@ -756,7 +800,7 @@ type: Diagram
 name: UAVSystemBDD
 diagramKind: BDD            # BDD | IBD | StateMachine | Sequence | Requirement | Mermaid
 subject: UAV::UAVSystem     # element this diagram depicts (W401 if it doesn't resolve)
-pumlMode: companion         # generate .puml via `syscribe plantuml`; render SVG via `syscribe plantuml render`
+pumlMode: companion         # generate .puml via `syscribe -m model/ plantuml`; render SVG via `… plantuml render`
 pumlFile: ./UAVSystemBDD.puml
 # svgMode: inline           # alternative: embed SVG directly in body
 shapes:                     # shape-id → descriptor
@@ -793,14 +837,14 @@ graph TD
 #### Step 1 — Inventory elements
 
 ```bash
-syscribe diagram list model/
-syscribe diagram list model/ --type PartDef,Part --ns UAV
+syscribe -m model/ diagram list
+syscribe -m model/ diagram list --type PartDef,Part --namespace UAV
 ```
 
 #### Step 2 — Measure elements
 
 ```bash
-syscribe diagram measure model/ \
+syscribe -m model/ diagram measure \
   "UAV::Power::BatteryPack,UAV::Power::PowerDistributionUnit" \
   --view ports
 ```
@@ -836,7 +880,7 @@ Name it `<anything>.layout.json` — gitignored. **Never commit layout files.**
 #### Step 4 — Compose the SVG
 
 ```bash
-syscribe diagram compose model/ my-arch.layout.json \
+syscribe -m model/ diagram compose my-arch.layout.json \
   --output model/Views/MyDiagram.svg
 ```
 
@@ -890,7 +934,7 @@ Three building blocks:
 | Element / field | Role |
 |---|---|
 | `type: FeatureDef` | A node in the feature model (a selectable characteristic). **Requires a mandatory `id:` matching `FEAT-*`** (`E201` if missing); labelled by `name`. `groupKind:` (`optional`/`alternative`/`or`) groups its children; `mandatory: true` makes it a mandatory member of its parent (combine with `groupKind: alternative` for a mandatory XOR group). |
-| `type: Configuration` | A named product variant. `id:` matches `CONF-*`; `featureModel:` names the feature package; `features:` is a **map** of `<FeatureDef QName>: true/false`. Optional `subConfigurations:` consolidates other, already-configured `Configuration`s — see below. |
+| `type: Configuration` | A named product variant. `id:` matches `CONF-*`; `name:` and `status:` are required (`E201`); `featureModel:` names the feature package; `features:` is a **map** of `<FeatureDef QName>: true/false`. Optional `subConfigurations:` consolidates other, already-configured `Configuration`s — see below. |
 | `appliesWhen:` | On *any* element (including a `TestCase`): conditions it on a boolean expression over `FeatureDef` QNames. |
 
 **Single-file alternative — `type: FeatureModel` (§9.6a).** A `FeatureDef`-per-file layout doesn't scale to a large feature tree. Prefer one `type: FeatureModel` sheet with a **flat**, dot-named `featureTree:` list instead — it's exploded into ordinary `FeatureDef` elements before validation, so every other rule/command treats it identically:
@@ -963,6 +1007,7 @@ parameters:
 type: Configuration
 id: CONF-PREMIUM-001
 name: Premium
+status: approved               # required (E201); a derivedFrom base must be approved or released
 featureModel: Features
 features:
   Features::ABS: true
@@ -974,7 +1019,7 @@ buildOverrides:
 
 **Configuration inheritance.** A `Configuration` may set `derivedFrom: <CONF-id or qname>` naming **one** local base `Configuration` (which must be `approved`/`released`, else `E215`) and then list only the `features:`/`parameterBindings:` entries it overrides; the base's other selections and bindings are inherited (a base binding for a feature the child switches to `false` is dropped). Nothing else is inherited. Errors: unresolved base `E234`, non-Configuration base `E235`, inheritance cycle `E236`, more than one base `E237`. Never use `derivedFrom:` to consolidate a peer product line — that is `subConfigurations:`.
 
-**Holistic checks — run `feature-check` (not part of `validate`).** `syscribe feature-check` validates the feature model as a whole: `requires:`/`excludes:` resolution (`E212`) and satisfaction per configuration (`E219`/`E220`), dead/always-on optional features (`W011`/`W012`), circular `derivedFrom:` (`E207`), `bindTo:` propagation outside the component `range:` (`E202`), and cross-feature `parameterConstraints` declared on a package `_index.md` — unresolved paths (`E213`) and `appliesWhen:` features used in no configuration (`W014`).
+**Holistic checks — run `feature-check` (not part of `validate`).** `syscribe -m model/ feature-check` validates the feature model as a whole: `requires:`/`excludes:` resolution (`E212`) and satisfaction per configuration (`E219`/`E220`), dead/always-on optional features (`W011`/`W012`), circular `derivedFrom:` (`E207`), `bindTo:` propagation outside the component `range:` (`E202`), and cross-feature `parameterConstraints` declared on a package `_index.md` — unresolved paths (`E213`) and `appliesWhen:` features used in no configuration (`W014`).
 
 **Whole-space analysis — `feature-check --deep`.** Adds SAT-backed reasoning over a propositional encoding of the feature model (Boolean layer only; deterministic, no external solver; comfortably ~500 features): **void** models (`E223`), **dead** features (`E224`), **false-optional** features (`W018`), **invalid configurations** under full group/cardinality semantics (`E225`), **core** features, a minimal conflict-set explanation, and **diagnoses** (minimal correction sets) for void models. Companion commands: `--count`/`--enumerate` report the valid-configuration space, and `configure <Configuration>` completes a partial selection (forced/free features). Use these to prove the feature model itself is sound and to drive configuration, beyond linting authored configs. (Numeric/parameter SMT reasoning and DRAT proofs are not yet implemented.)
 
@@ -1270,10 +1315,10 @@ draft → review → approved → implemented → verified
 | E504 | `derive:` fields depend on each other in a cycle | Break the cycle (one field must not read itself, directly or via other derived fields) |
 | E505 | `derive:` formula does not parse (or the block is not a mapping / a formula is not a string) | Fix the formula syntax |
 | E506 | `derive:` formula's `elements["QName"]` names no element | Use an existing qualified name |
-| E841 | `derivedFromSafetyGoal` source has integrity level; this element has none | Add `asilLevel`, `silLevel`, or `plLevel` |
+| E841 | `derivedFromSafetyGoal` source has an `asilLevel`/`silLevel`; this element has neither | Add `asilLevel` or `silLevel` (`plLevel` does not satisfy the check) |
 | E842 | `derivedFrom` parent has integrity level; this element has none | Add the same integrity level field |
 | E843 | `satisfies` target has integrity level; this element has none | Add the same integrity level field |
-| W006 | Both `silLevel` and `asilLevel` set on the same element | Use only one — they are incompatible standards |
+| W006 | Both `silLevel` and `asilLevel` set on the same element (`plLevel` is not part of this check) | Use only one — they are incompatible standards |
 | W806 | `SafetyGoal` has no `hazardousEvents:` | Add `hazardousEvents:` referencing the relevant `HE-*` IDs |
 | W808 | Integrity level is lower than source but no `breakdownAdr:` | Add `breakdownAdr:` documenting the ASIL/SIL decomposition |
 | E209 | `appliesWhen:` malformed or an operand is not a `FeatureDef` | Fix the expression; every operand must be a `FeatureDef` QName |
@@ -1357,7 +1402,7 @@ model/
 
 - [ ] `id:` matches `^SG(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`
 - [ ] `hazardousEvents:` references at least one `HE-*` element (W806)
-- [ ] Exactly one integrity level is set: `asilLevel:`, `silLevel:`, or `plLevel:` — never more than one (W006)
+- [ ] One integrity level is set: `asilLevel:`, `silLevel:`, or `plLevel:` (W801 if none); never both `asilLevel:` and `silLevel:` (W006)
 
 ### For every safety/security Requirement
 
