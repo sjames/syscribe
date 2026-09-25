@@ -795,7 +795,6 @@ Every diagram is a `type: Diagram` element in `Diagrams/`. Four authoring approa
 
 ### Diagram element frontmatter
 
-<!-- syscribe-example: expect W406 reason="GH #158: W406 wrongly checks pumlMode: companion diagrams for inline SVG ids" -->
 ```yaml
 ---
 type: Diagram

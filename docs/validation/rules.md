@@ -267,8 +267,8 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W403 | Edge `source` or `target` is not a defined shape id in this diagram |
 | W404 | Operation `typedBy` (parameter) or `returnType` does not resolve to a known element |
 | W405 | SVG companion file is referenced by both inline and companion modes simultaneously |
-| W406 | Frontmatter `shapes`/`edges` id has no matching `id="..."` attribute in the inline SVG block |
-| W407 | SVG element `id` has no matching entry in frontmatter `shapes`/`edges` (SVG-internal ids used via `url(#...)` are excluded) |
+| W406 | Frontmatter `shapes`/`edges` id has no matching `id="..."` attribute in the inline SVG block — checked only when the diagram's SVG is inline (not for `pumlMode: companion`, `svgMode: companion`/`svgFile:`, Mermaid/PlantUML kinds, or a `layout:` diagram with no ` ```svg ` block) |
+| W407 | Inline SVG element `id` has no matching entry in frontmatter `shapes`/`edges` (SVG-internal ids used via `url(#...)` are excluded; same inline-SVG scope as W406) |
 | W408 | Mermaid `%% ref:` annotation does not resolve to a known element |
 | W409 | Mermaid diagram has no `%% ref:` annotations — add at least one to link nodes to model elements |
 | W410 | Mermaid `%% link:` annotation does not resolve to a known element |

@@ -169,6 +169,33 @@ struct StateEdge {
 }
 
 /// Read a string-keyed field from a YAML mapping.
+/// Whether a `Diagram`'s rendering path carries its SVG inline in the body —
+/// the only case the SVG id-consistency rules `W406`/`W407` apply to
+/// (§8.16.7 step 3, GH #158). Paths with no inline SVG by design:
+/// PlantUML companion (`pumlMode: companion` — the `.puml`/`.svg` companions
+/// are the source of truth), companion SVG (`svgMode: companion` or
+/// `svgFile:`), Mermaid / inline PlantUML (`diagramKind: Mermaid|PlantUML`),
+/// and a structured `layout:` diagram whose body has no ` ```svg ` block
+/// (the server renders its SVG from the manifest).
+fn diagram_has_inline_svg(fm: &crate::element::RawFrontmatter, doc: &str) -> bool {
+    if fm.puml_mode.as_deref() == Some("companion") {
+        return false;
+    }
+    if fm.svg_mode.as_deref().unwrap_or("inline") != "inline" {
+        return false;
+    }
+    if fm.svg_mode.is_none() && fm.svg_file.is_some() {
+        return false;
+    }
+    if matches!(fm.diagram_kind.as_deref(), Some("Mermaid") | Some("PlantUML")) {
+        return false;
+    }
+    if fm.layout.is_some() && !doc.contains("```svg") {
+        return false;
+    }
+    true
+}
+
 fn yaml_field<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a serde_yaml::Value> {
     m.get(serde_yaml::Value::String(k.to_string()))
 }
@@ -3399,9 +3426,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // W406/W407: SVG id consistency — frontmatter shape/edge ids vs inline SVG
-        // Only checked for inline mode (companion SVG is not loaded by the validator)
-        if fm.svg_mode.as_deref().unwrap_or("inline") == "inline" {
+        // W406/W407: SVG id consistency — frontmatter shape/edge ids vs inline SVG.
+        // §8.16.7 step 3 scopes the check to *inline* SVG, so it is skipped for
+        // every rendering path that carries no inline SVG by design (GH #158,
+        // REQ-TRS-DIAG-003).
+        if diagram_has_inline_svg(fm, &elem.doc) {
             // Collect ids declared in shapes: and edges: frontmatter
             let fm_ids: HashSet<String> = {
                 let mut ids = HashSet::new();
