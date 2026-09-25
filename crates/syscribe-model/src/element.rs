@@ -1399,6 +1399,26 @@ pub struct RawElement {
     /// become elements. The element's own body stays in `doc`.
     #[serde(skip_serializing_if = "std::collections::BTreeMap::is_empty", default)]
     pub locale_docs: std::collections::BTreeMap<String, String>,
+    /// §3.10 `about:` comments (REQ-TRS-PARSE-011, GH #164): cross-element
+    /// comments whose `about:` list names this element, in walk order. Filled
+    /// by `walker::attach_about_comments`; the comment files themselves never
+    /// become elements.
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    pub about_notes: Vec<AboutNote>,
+}
+
+/// One §3.10 `about:` comment attached to an element (REQ-TRS-PARSE-011).
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct AboutNote {
+    /// The comment's `name:` (its file stem when absent).
+    pub name: String,
+    /// Path of the comment file.
+    pub file: String,
+    /// The comment's `locale:`, when set.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub locale: Option<String>,
+    /// The comment's Markdown body.
+    pub body: String,
 }
 
 #[cfg(test)]

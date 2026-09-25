@@ -6,7 +6,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 
 This page groups every finding code by feature area, with context. The same codes, one row each, are the machine-readable catalogue printed by `syscribe spec validation` (source: `prompts/spec/validation.md`, also returned by the MCP `explain_finding` tool). A test (`crates/syscribe/tests/validation_docs_catalogue.rs`) fails the build if a code the tool can emit is missing here or in that catalogue, or if a row's stated severity contradicts its prefix (`E` = error, `W` = warning, `I` = informational).
 
-## Parse-time errors (E000–E026)
+## Parse-time errors (E000–E027)
 
 | Code | Element | Condition |
 |---|---|---|
@@ -37,6 +37,7 @@ This page groups every finding code by feature area, with context. The same code
 | E024 | — | **RETIRED.** Formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is **no longer emitted** — a `Requirement` carrying `id` + `name` validates clean. |
 | E025 | Any element | The removed `title:` field is declared on an element (id-identified or name-identified alike) — the `title` field is removed; rename it to `name`. (A `FeatureDef` carries `name` as its label and a mandatory `FEAT-*` `id` — see `E201` — the `id` and label axes are independent.) |
 | E026 | Locale variant | A §3.10 locale documentation variant (a file with `locale:` and `qualifiedName:`) names a `qualifiedName:` that resolves to no element — its documentation cannot be attached, so the file is kept as its own element (§3.10) |
+| E027 | `about:` comment | A §3.10 `about:` comment names an entry that resolves to no element (by qualified name or stable id) — the comment cannot be attached to it; the other entries still attach, and when none resolves the file is kept as its own element (§3.10) |
 
 ## Parse-time and source-drift warnings (W001–W010, I010)
 
@@ -1054,7 +1055,7 @@ A duplicate `TestPlan` `id` is the generic `E101`.
 |---|---|
 | W041 | a `custom_fields` value is not a scalar or a list of scalars (e.g. a nested map); names the offending key |
 
-## Unrecognized frontmatter fields and locale variants (W047, W049, W051)
+## Unrecognized frontmatter fields, locale variants and about comments (W047, W049, W051, W052)
 
 The frontmatter schema is fixed. A top-level key that is not a recognized schema field
 lands in the parser's catch-all — it round-trips through writes but takes no part in
@@ -1068,6 +1069,7 @@ under `custom_fields:` (which is exempt). Advisory; gate with `--deny W047`.
 | W048 | (single-file feature model, REQ-TRS-FM-005) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — the field is silently inert there, so this names the mistake |
 | W049 | `qualifiedName:` on a file without `locale:` differs from the element's path-derived qualified name. It is not an identity override (the qualified name is purely path-derived, §4.5/§11.3) and is ignored — move or rename the file instead (§3.1) |
 | W051 | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
+| W052 | A §3.10 `about:` comment is partly ignored: it declares fields other than `type`/`name`/`about`/`locale` (a comment defines no element), an `about:` entry is not a non-empty string, or `about:` lists nothing; or `about:` is set on a package `_index.md`, which defines its package and is never a comment (§3.10) |
 
 ## MagicGrid overlay (E316, W307, MG010–MG070)
 
