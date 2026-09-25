@@ -552,9 +552,9 @@ These fields may appear on **any** element, not only on `RequirementDef`/`Requir
 
 | Field | YAML type | Required | Default | Description |
 |---|---|---|---|---|
-| `appliesWhen` | string or list of strings | optional | absent | Qualified name of a `FeatureDef` (or AND-list of `FeatureDef` names) that must be selected in a `Configuration` for this element to be included in the projected model. Absent = unconditionally included. See §9.10. |
+| `appliesWhen` | string or list of strings | optional | absent | Feature condition for inclusion in a projected `Configuration`: a `FeatureDef` qualified name or `FEAT-*` id, an AND-list of them, or a boolean expression using `and` / `or` / `not` and parentheses over them. Absent = unconditionally included. See §9.10. |
 
-`appliesWhen:` may appear on **any** element type, including `Requirement`, `PartDef`, `Part`, `TestCase`, `Allocation`, `ActionDef`, `Connection`, `Diagram`, and all others — and on a **`Package`**, where it applies transitively to the whole subtree (the *effective condition*; §9.10, error `E228` enforces one declaration per path). It is the sole mechanism by which model elements are conditioned on feature selections. A string value is a reference to a single `FeatureDef`; a list means all listed features must be selected (AND semantics). OR semantics are expressed in the feature model itself via `groupKind: or` (see §9.6).
+`appliesWhen:` may appear on **any** element type, including `Requirement`, `PartDef`, `Part`, `TestCase`, `Allocation`, `ActionDef`, `Connection`, `Diagram`, and all others — and on a **`Package`**, where it applies transitively to the whole subtree (the *effective condition*; §9.10, error `E228` enforces one declaration per path). It is the sole mechanism by which model elements are conditioned on feature selections. A string value is either a single `FeatureDef` reference or a boolean expression (`"A and B"`, `"A or B"`, `"not A"`, parentheses; precedence `not` > `and` > `or`); a list means all listed features must be selected (AND semantics). Every operand must resolve to a `FeatureDef` and the expression must parse — otherwise error `E209` (§9.10). Feature qualified names use `::` between every segment (`SystemFeatures::Propulsion::HexRotorPropulsion`); `.` is reserved for the feature/parameter boundary in parameter references (§9.7) and is not valid inside an `appliesWhen:` operand.
 
 ### 3.14 Domain Classification
 
@@ -4250,7 +4250,7 @@ A variant part (`isVariant: true`) is typically *selected* by a `FeatureDef` —
 
 1. **Problem space / solution space separation.** The feature model (`FeatureDef` hierarchy under `SystemFeatures/`) is the problem space — it describes what varies from a customer perspective. Architecture, requirements, code, and tests are the solution space. The connection between them is `appliesWhen:` (solution → feature) and `satisfies:` (component configuration → system feature).
 2. **Single binding direction.** The solution space points at features; features do not point at the solution space. This keeps the feature model implementation-agnostic.
-3. **`appliesWhen:` is always a cross-reference, never an expression.** Feature conditions are structured as references to `FeatureDef` elements so they are typed, resolvable, and graph-traversable.
+3. **`appliesWhen:` operands are always cross-references.** A condition is a single `FeatureDef` reference, an AND-list of references, or a boolean `and`/`or`/`not` expression whose every operand is a `FeatureDef` qualified name or `FEAT-*` id (§9.10). Operands are therefore typed, resolvable, and graph-traversable; an unresolved operand or malformed expression is `E209`. No other expression language (arithmetic, parameters, comparisons) is permitted in `appliesWhen:`.
 4. **Parametrization lives on features, not on configurations.** A `FeatureDef` declares what parameters it carries; a `Configuration` assigns values to them. This separates schema from data.
 5. **Two-level feature models reduce complexity.** A system-level feature model captures product-visible variability; component-level feature models capture implementation variability. A system `Configuration` selects system features; a component `Configuration` implements them.
 
@@ -4303,7 +4303,7 @@ SystemFeatures/
   Safety/
     _index.md               # FeatureDef, groupKind: or — one or more safety features
     DualIMU.md              # FeatureDef, optional
-    ASIL_D_FC.md            # FeatureDef, optional; requires: [SystemFeatures::Safety.DualIMU]
+    ASIL_D_FC.md            # FeatureDef, optional; requires: [SystemFeatures::Safety::DualIMU]
   Communication/
     StandardLink.md         # FeatureDef, mandatory
     LongRangeLink.md        # FeatureDef, optional
@@ -4319,7 +4319,7 @@ name: HexRotorPropulsion
 groupKind: optional
 requires: []
 excludes:
-  - SystemFeatures::Propulsion.QuadRotorPropulsion
+  - SystemFeatures::Propulsion::QuadRotorPropulsion
 parameters:
   - name: numMotors
     type: ScalarValues::Integer
@@ -4523,8 +4523,9 @@ A component-level `FeatureDef` parameter may declare `bindTo:` to receive its va
 # UAV/Propulsion/Features/SixMotorLayout.md
 ---
 type: FeatureDef
+id: FEAT-SIXMOTOR
 name: SixMotorLayout
-contributesTo: SystemFeatures::Propulsion.HexRotorPropulsion
+contributesTo: SystemFeatures::Propulsion::HexRotorPropulsion
 parameters:
   - name: motorKV
     type: ScalarValues::Real
@@ -4609,14 +4610,15 @@ name: "Heavy-lift survey UAV — hex-rotor, dual-IMU, long-range link"
 status: approved
 featureModel: SystemFeatures
 features:
-  SystemFeatures::Propulsion.QuadRotorPropulsion: false
-  SystemFeatures::Propulsion.HexRotorPropulsion: true
-  SystemFeatures::Safety.DualIMU: true
-  SystemFeatures::Safety.ASIL_D_FC: false
-  SystemFeatures::Communication.StandardLink: true
-  SystemFeatures::Communication.LongRangeLink: true
-  SystemFeatures::Payload.SurveyCamera: true
-  SystemFeatures::Payload.MultispectralCamera: false
+  SystemFeatures::Propulsion::QuadRotorPropulsion: false
+  SystemFeatures::Propulsion::HexRotorPropulsion: true
+  SystemFeatures::Safety::DualIMU: true
+  SystemFeatures::Safety::ASIL_D_FC: false
+  SystemFeatures::Communication::StandardLink: true
+  SystemFeatures::Communication::LongRangeLink: true
+  SystemFeatures::Payload::SurveyCamera: true
+  SystemFeatures::Payload::MultispectralCamera: false
+  SystemFeatures::Mission::Endurance: true
 parameterBindings:
   SystemFeatures::Propulsion::HexRotorPropulsion.motorKV: 1050.0
   SystemFeatures::Propulsion::HexRotorPropulsion.propDiameterIn: 13.0
@@ -4643,7 +4645,7 @@ featureModel: SystemFeatures
 derivedFrom: CONF-UAV-HVY-001   # inherits all from the heavy-lift base (id or qname)
 features:
   # Only overrides differ from the base
-  SystemFeatures::Communication.LongRangeLink: true  # already true — no change
+  SystemFeatures::Communication::LongRangeLink: true  # already true — no change
 parameterBindings:
   # Override a single parameter; all others inherited from base
   SystemFeatures::Communication::LongRangeLink.frequencyBandGHz: 2.4
@@ -4695,15 +4697,15 @@ model/
     Propulsion/
       Features/            # Level 2 — one per contributing package
         _index.md          # type: Package
-        SixMotorLayout.md  # type: FeatureDef, contributesTo: SystemFeatures::Propulsion.HexRotorPropulsion
-        FourMotorLayout.md # type: FeatureDef, contributesTo: SystemFeatures::Propulsion.QuadRotorPropulsion
+        SixMotorLayout.md  # type: FeatureDef, contributesTo: SystemFeatures::Propulsion::HexRotorPropulsion
+        FourMotorLayout.md # type: FeatureDef, contributesTo: SystemFeatures::Propulsion::QuadRotorPropulsion
         ESCProtocol/
           DSHOT.md         # type: FeatureDef, groupKind: alternative (internal — no contributesTo)
           PWM.md           # type: FeatureDef, groupKind: alternative (internal)
       Configurations/      # Component-level configurations
         _index.md          # type: Package
-        HexConfig.md       # type: Configuration, satisfies: [SystemFeatures::Propulsion.HexRotorPropulsion]
-        QuadConfig.md      # type: Configuration, satisfies: [SystemFeatures::Propulsion.QuadRotorPropulsion]
+        HexConfig.md       # type: Configuration, satisfies: [SystemFeatures::Propulsion::HexRotorPropulsion]
+        QuadConfig.md      # type: Configuration, satisfies: [SystemFeatures::Propulsion::QuadRotorPropulsion]
 ```
 
 ### Binding rules
@@ -4738,13 +4740,13 @@ featureModel: UAV::Propulsion::Features
 features:
   UAV::Propulsion::Features::SixMotorLayout: true
   UAV::Propulsion::Features::FourMotorLayout: false
-  UAV::Propulsion::Features::ESCProtocol.DSHOT: true
-  UAV::Propulsion::Features::ESCProtocol.PWM: false
+  UAV::Propulsion::Features::ESCProtocol::DSHOT: true
+  UAV::Propulsion::Features::ESCProtocol::PWM: false
 # motorKV is NOT bound here — it is propagated from SystemFeatures::Propulsion::HexRotorPropulsion.motorKV
 # via SixMotorLayout.motorKV.bindTo
 parameterBindings: {}
 satisfies:
-  - SystemFeatures::Propulsion.HexRotorPropulsion
+  - SystemFeatures::Propulsion::HexRotorPropulsion
 ---
 
 Hex-rotor configuration using DSHOT ESC protocol. Motor KV is propagated
@@ -4835,19 +4837,24 @@ This lets a project adopt variability incrementally without disturbing existing 
 # Requirement — only applies to hex-rotor products
 type: Requirement
 id: REQ-UAV-THRUST-002
-appliesWhen: SystemFeatures::Propulsion.HexRotorPropulsion
+name: Hex-rotor thrust margin
+status: draft
+appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
 
 # Architecture variant
 type: PartDef
 name: HexRotorConfig
 isVariant: true
 variantOf: UAV::Propulsion::PropulsionSystem
-appliesWhen: SystemFeatures::Propulsion.HexRotorPropulsion
+appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
 
-# Test case — only run for hex-rotor products
+# Test case — only run for hex-rotor products (body with the gherkin block omitted)
 type: TestCase
 id: TC-UAV-THRUST-002
-appliesWhen: SystemFeatures::Propulsion.HexRotorPropulsion
+name: Hex-rotor thrust margin test
+status: draft
+testLevel: L4
+appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
 verifies:
   - REQ-UAV-THRUST-002
 
@@ -4855,8 +4862,8 @@ verifies:
 type: Allocation
 name: HexMixingAlgorithmAlloc
 appliesWhen:
-  - SystemFeatures::Propulsion.HexRotorPropulsion
-  - SystemFeatures::Safety.DualIMU
+  - SystemFeatures::Propulsion::HexRotorPropulsion
+  - SystemFeatures::Safety::DualIMU
 ```
 
 ### `appliesWhen:` at Level 2
