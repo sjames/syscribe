@@ -6797,12 +6797,14 @@ repoImports:
 | `qname` | string | **Required** | Qualified name of the element / package to import from the peer repo (relative to that repo's model root) |
 | `as` | string | optional | Local alias; defaults to the last segment of `qname` |
 
+`qname` is the peer's exact qualified name, or else the trailing `::`-segment(s) of exactly one peer qname (the same match `E514` accepts).
+
 ### 14.4 Resolution Rules
 
-1. Imported elements are mounted in the local namespace at `<package>::<as>` and are read-only.
-2. Cross-repo cross-references (`verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:`) are resolved by searching the local model first, then each loaded repo in declaration order.
+1. Imported elements are mounted in the local namespace at `<package>::<as>` and are read-only. A reference written through the mount — `<package>::<as>::X` — denotes the peer's `<qname>::X` (`Integration::Brakes::REQ-BRK-001` → the peer's `BrakeSystem::REQ-BRK-001`) for every cross-reference field that resolves across repos: `verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:`, `supertype:`, `typedBy:` (incl. inline `features:`), `subsets:`, `redefines:`. The peer-native qualified name and the global stable id keep working. A mount on the model-root package is just `<as>`; when two mounts nest, the longer (more specific) one applies. A mounted reference that names nothing in that peer is `E512`. (GH #138.)
+2. Cross-repo cross-references (`verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:`, and the structural `supertype:`/`typedBy:`/`subsets:`/`redefines:`) are resolved by searching the local model first, then each loaded repo in declaration order — by global stable id, by the peer-native qualified name (exact, or its trailing `::`-segments), or through a mount point (rule 1).
 3. Cross-repo `supertype:` / `typedBy:` links are permitted for structural reuse (e.g., using a shared `PartDef`); integrity-level propagation (`E841`–`E843`) does not cross repo boundaries — each repo's safety case is authored independently.
-4. The `id`-based cross-reference namespace (`REQ-*`, `TC-*`, etc.) is global across all loaded repos; a `REQ-*` ID must be unique across the entire composition.
+4. The `id`-based cross-reference namespace (`REQ-*`, `TC-*`, etc.) is global across all loaded repos; a `REQ-*` ID must be unique across the entire composition — between the local model and a peer, and between any two peers (`E515`).
 
 ### 14.5 CLI Commands
 
@@ -6828,7 +6830,7 @@ shared    ../shared-library      main     ✓         behind (3 commits)
 | `E512` | Cross-repo `verifies:` / `derivedFrom:` / `satisfies:` / `allocatedTo:` / `supertype:` / `typedBy:` / `subsets:` / `redefines:` reference cannot be resolved in the local model or any loaded repo |
 | `E513` | `_index.md repoImports[].repo` names an alias not present in `[repos]` |
 | `E514` | `repoImports[].qname` does not resolve to any element in the named repo |
-| `E515` | Two repos export the same stable ID (e.g., `REQ-SCHED-001` appears in both the local model and a peer repo) |
+| `E515` | Two repos export the same stable ID — the local model and a peer (e.g., `REQ-SCHED-001` appears in both), or two different peer repos (two `[repos]` aliases resolving to the same peer model root are one repo) |
 | `W510` | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; gateable with `--deny W510`) |
 | `W511` | A peer repo's git `HEAD` has drifted from its configured `ref:` — the checkout is not at the pinned snapshot. Detected by comparing the peer work tree's `HEAD` commit with the commit the `ref:` resolves to; never raised when drift cannot be determined (git unavailable, not a work tree, `ref:` unresolved). Opt-in; gateable with `--deny W511` as a CI reproducibility gate. `repos status` reports the same drift and exits `2`. |
 | `W512` | A peer repo's `path` is a **git submodule** of the composing model's repository, and the commit its `ref:` resolves to differs from the **gitlink** the parent repo records for that path — i.e. `.syscribe.toml` disagrees with `.gitmodules`. Detected by comparing `git ls-tree HEAD <submodule-path>` in the parent against the `ref:` commit; never raised when `path` is not a submodule, no `ref:` is configured, or either commit cannot be resolved. Independent of `W511` (gitlink pin vs `ref:`, not checkout vs `ref:`). Opt-in; gateable with `--deny W512`. |

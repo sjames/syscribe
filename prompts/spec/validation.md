@@ -409,7 +409,7 @@ Active only when `[repos]` is configured in `.syscribe.toml`.
 | `E512` | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo`/`supertype`/`typedBy`/`subsets`/`redefines` reference resolves in neither the local model nor any loaded repo (reported instead of `E102`/`E103`/`E110`–`E114`/`E503` when `[repos]` is configured) |
 | `E513` | `repoImports[].repo` names an alias not present in `[repos]` |
 | `E514` | `repoImports[].qname` does not resolve to any element in the named repo |
-| `E515` | Two repos export the same stable ID (the id namespace is global) |
+| `E515` | Two repos export the same stable ID — the local model and a peer, or two different peer repos (the id namespace is global) |
 | `W510` | A repo in `[repos]` has no `ref:` — composition is not pinned (opt-in; `--deny W510`) |
 | `W511` | A peer repo's git `HEAD` has drifted from its configured `ref:` (opt-in; `--deny W511`) |
 | `W512` | A peer submodule's gitlink disagrees with its configured `ref:` (opt-in; `--deny W512`) |

@@ -843,6 +843,17 @@ pub fn validate(elements: &[RawElement]) -> ValidationResult {
 
 /// Run all parse-time and model-time validation rules with explicit [`ValidateConfig`].
 pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) -> ValidationResult {
+    // §14.3/§14.4 (GH #138): with `[repos]` configured, install the local
+    // `repoImports:` mount points so a `<package>::<as>::X` reference resolves
+    // to the peer's `<qname>::X` everywhere `peer_resolves` is consulted.
+    if config.has_repos() && config.repo_mounts.is_empty() {
+        let mounts = crate::config::repo_mounts(elements, &config.repos);
+        if !mounts.is_empty() {
+            let mut mounted = config.clone();
+            mounted.repo_mounts = mounts;
+            return validate_with_config(elements, &mounted);
+        }
+    }
     let mut findings: Vec<Finding> = Vec::new();
 
     // Collect findings stashed on `RawElement.derive_findings` by more than one
@@ -5015,6 +5026,37 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                             short(gitlink),
                         ),
                     ));
+                }
+            }
+        }
+
+        // E515 (peer vs peer, GH #138): a stable ID exported by two different
+        // peer repos. Two aliases naming the same peer model root are one repo.
+        {
+            let loaded: Vec<&crate::config::LoadedRepo> = config.repos.iter().filter(|r| r.exists).collect();
+            let canon = |p: &std::path::Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+            for (i, a) in loaded.iter().enumerate() {
+                for b in loaded.iter().skip(i + 1) {
+                    if canon(&a.model_root) == canon(&b.model_root) {
+                        continue;
+                    }
+                    let mut dup: Vec<&str> = a
+                        .stable_ids
+                        .iter()
+                        .map(String::as_str)
+                        .filter(|id| b.stable_ids.contains(*id))
+                        .collect();
+                    dup.sort_unstable();
+                    for id in dup {
+                        findings.push(error(
+                            "E515",
+                            cfg_file,
+                            &format!(
+                                "stable ID '{}' is exported by both repo '{}' and repo '{}' — the id namespace is global across the composition",
+                                id, a.alias, b.alias
+                            ),
+                        ));
+                    }
                 }
             }
         }

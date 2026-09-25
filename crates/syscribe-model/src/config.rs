@@ -85,6 +85,13 @@ pub struct ValidateConfig {
     /// all cross-repo resolution are inert, so single-repo models are unaffected.
     pub repos: Vec<LoadedRepo>,
 
+    /// REQ-TRS-TYPE-021 (§14.3/§14.4) — the `repoImports:` mount points of the
+    /// local model: each maps a local `<package>::<as>` prefix onto a peer
+    /// repo's imported qname. Not read from `.syscribe.toml` (the declarations
+    /// live on package `_index.md` files): the validator fills it from the
+    /// loaded elements via [`repo_mounts`] whenever `[repos]` is configured.
+    pub repo_mounts: Vec<RepoMount>,
+
     /// REQ-TRS-ID-007 — additional stable-ID prefixes accepted per element type,
     /// from the `[ids.prefixes]` table of `<model_root>/.syscribe.toml`. Keyed by
     /// element-type name (`type:`), each value a list of extra prefixes added to the
@@ -190,6 +197,67 @@ pub struct LoadedRepo {
     pub qnames: HashSet<String>,
     /// Stable IDs (`REQ-*`, `TC-*`, …) exported by the peer model.
     pub stable_ids: HashSet<String>,
+}
+
+/// A `repoImports:` mount point (§14.3/§14.4, REQ-TRS-TYPE-021): the peer
+/// subtree rooted at `peer_qname` in repo `alias` is mounted in the local
+/// namespace at `mount` (`<package-qname>::<as>`, or just `<as>` on the model
+/// root package), so a reference `<mount>::X` denotes the peer's
+/// `<peer_qname>::X`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RepoMount {
+    /// The `[repos]` alias the subtree is imported from.
+    pub alias: String,
+    /// The local qualified-name prefix the subtree is mounted at.
+    pub mount: String,
+    /// The peer-native qualified name of the imported element/package.
+    pub peer_qname: String,
+}
+
+/// Collect the `repoImports:` mount points declared by `elements` (§14.3).
+/// `as` defaults to the last `::` segment of `qname`. The imported `qname` is
+/// taken as the peer's exact qualified name, or else as the unique trailing
+/// `::`-segment match of one (the same tolerance `E514` applies); an entry that
+/// names an unknown alias or an unresolved `qname` (`E513`/`E514`) mounts
+/// nothing. Sorted longest mount first so the most specific mount wins.
+pub fn repo_mounts(elements: &[crate::element::RawElement], repos: &[LoadedRepo]) -> Vec<RepoMount> {
+    let mut out: Vec<RepoMount> = Vec::new();
+    for elem in elements {
+        let Some(imports) = &elem.frontmatter.repo_imports else { continue };
+        for imp in imports {
+            let get = |k: &str| {
+                imp.get(serde_yaml::Value::String(k.to_string()))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+            };
+            let (Some(alias), Some(qname)) = (get("repo"), get("qname")) else { continue };
+            let Some(repo) = repos.iter().find(|r| r.alias == alias) else { continue };
+            let peer_qname = if repo.qnames.contains(&qname) {
+                qname.clone()
+            } else {
+                let suffix = format!("::{qname}");
+                let mut hits: Vec<&String> = repo.qnames.iter().filter(|q| q.ends_with(&suffix)).collect();
+                hits.sort();
+                match hits.first() {
+                    Some(q) => (*q).clone(),
+                    None => continue,
+                }
+            };
+            let local_as = get("as").unwrap_or_else(|| {
+                qname.rsplit("::").next().unwrap_or(&qname).to_string()
+            });
+            let mount = if elem.qualified_name.is_empty() {
+                local_as
+            } else {
+                format!("{}::{}", elem.qualified_name, local_as)
+            };
+            out.push(RepoMount { alias, mount, peer_qname });
+        }
+    }
+    out.sort_by(|a, b| b.mount.len().cmp(&a.mount.len()).then_with(|| a.mount.cmp(&b.mount)));
+    out.dedup();
+    out
 }
 
 /// View of `.syscribe.toml` carrying only the `[repos]` table.
@@ -529,6 +597,8 @@ impl ValidateConfig {
             links,
             scripts_dir,
             repos,
+            // Filled by the validator from the loaded `repoImports:` (GH #138).
+            repo_mounts: Vec::new(),
             plugins,
             id_extra_prefixes,
             users,
@@ -557,7 +627,30 @@ impl ValidateConfig {
             repo.stable_ids.contains(r)
                 || repo.qnames.contains(r)
                 || repo.qnames.iter().any(|q| q.ends_with(&suffix))
-        })
+        }) || self
+            .unmount(r)
+            .is_some_and(|(repo, native)| repo.qnames.contains(&native))
+    }
+
+    /// §14.4 rule 1 — translate a reference written against a `repoImports:`
+    /// mount point (`<package>::<as>[::X]`) into the peer repo and its
+    /// peer-native qualified name (`<qname>[::X]`). The most specific
+    /// (longest) mount wins. `None` when `reference` lies under no mount.
+    pub fn unmount(&self, reference: &str) -> Option<(&LoadedRepo, String)> {
+        let r = reference.trim();
+        for m in &self.repo_mounts {
+            let native = if r == m.mount {
+                m.peer_qname.clone()
+            } else if let Some(rest) = r.strip_prefix(m.mount.as_str()).and_then(|t| t.strip_prefix("::")) {
+                format!("{}::{}", m.peer_qname, rest)
+            } else {
+                continue;
+            };
+            if let Some(repo) = self.repos.iter().find(|x| x.alias == m.alias) {
+                return Some((repo, native));
+            }
+        }
+        None
     }
 
     /// REQ-TRS-LINK-001 — resolve a file-backed element's hosted source URL.
