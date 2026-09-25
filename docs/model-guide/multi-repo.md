@@ -52,22 +52,31 @@ repoImports:
 ---
 ```
 
-This mounts the peer's `BrakeSystem` at `Integration::Brakes`.
+This mounts the peer's `BrakeSystem` at `Integration::Brakes`. A reference written through the mount — `<package>::<as>::X` — denotes the peer's `<qname>::X` (`Integration::Brakes::REQ-BRK-001` → the peer's `BrakeSystem::REQ-BRK-001`) for every cross-reference field that resolves across repos: `verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:`, `supertype:`, `typedBy:` (incl. inline `features:`), `subsets:`, `redefines:`. The peer-native qualified name and the global stable id keep working. A mount on the model-root package is just `<as>`; when two mounts nest, the longer (more specific) one applies. A mounted reference that names nothing in that peer is `E512`.
+
+```yaml
+# Integration/TC-INT-002.md — all three forms reach the same peer requirement
+verifies:
+  - Integration::Brakes::REQ-BRK-001   # through the mount point
+  - BrakeSystem::REQ-BRK-001           # peer-native qualified name
+  - REQ-BRK-001                        # global stable id
+```
 
 | Field | Required | Description |
 |---|---|---|
 | `repo` | **yes** | Alias matching a key in `[repos]`. |
-| `qname` | **yes** | Qualified name of the element/package to import, relative to the peer model root. |
+| `qname` | **yes** | Qualified name of the element/package to import, relative to the peer model root (or its unique trailing `::`-segments). |
 | `as` | no | Local alias; defaults to the last segment of `qname`. |
 
 ---
 
 ## 3. Cross-repo resolution
 
-Trace references — `verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:` — resolve by searching **the local model first, then each loaded repo in declaration order**. A reference resolves by either:
+Trace references — `verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:` — and the structural `supertype:`/`typedBy:`/`subsets:`/`redefines:` resolve by searching **the local model first, then each loaded repo in declaration order**. A reference resolves by:
 
 - **global stable ID** (`REQ-*`, `TC-*`, …) — the stable-ID namespace is **global** across the whole composition, so `verifies: REQ-PEER-001` finds the peer's requirement with no mount prefix; or
-- **qualified name** (exact, or the trailing `::`-segment of a peer qname).
+- **qualified name** (exact, or the trailing `::`-segment of a peer qname); or
+- **mount path** — `<package>::<as>::X`, the peer's `<qname>::X` (§2).
 
 ```yaml
 # local TestCase verifying a requirement owned by the avionics repo
@@ -120,7 +129,7 @@ syscribe -m model/ repos sync [--all | <alias>]   # git fetch + checkout <ref> (
 | `E512` | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo`/`supertype`/`typedBy`/`subsets`/`redefines` reference resolves in neither the local model nor any loaded repo (reported instead of the field's own unresolved-reference code, e.g. `E102`/`E110`). |
 | `E513` | `repoImports[].repo` names an alias not present in `[repos]`. |
 | `E514` | `repoImports[].qname` does not resolve to any element in the named repo. |
-| `E515` | Two repos export the same stable ID (the id namespace is global). |
+| `E515` | Two repos export the same stable ID — the local model and a peer, or two different peers (the id namespace is global). |
 | `W510` | A repo has no `ref:` — composition is not pinned to a reproducible snapshot. |
 | `W511` | A peer repo's `HEAD` has drifted from its configured `ref:`. |
 | `W512` | A submodule peer's `ref:` disagrees with the parent's `.gitmodules` gitlink. |

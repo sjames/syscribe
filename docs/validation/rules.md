@@ -433,7 +433,7 @@ A type with `extends = "satisfies" | "verifies" | "derivedFrom" | "refines"` is 
 
 ## Multi-repository composition (E510–E515, W510–W512, §14)
 
-A model composes peer repositories declared in the `[repos]` table of the model-root `.syscribe.toml` and imports their namespaces via `repoImports:` on a Package `_index.md`. Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each loaded repo in declaration order (by global stable ID or qualified name). **Active only when `[repos]` is configured** — single-repo models are unaffected.
+A model composes peer repositories declared in the `[repos]` table of the model-root `.syscribe.toml` and imports their namespaces via `repoImports:` on a Package `_index.md`. Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` (and structural `supertype:`/`typedBy:`/`subsets:`/`redefines:`) references resolve against the local model first, then each loaded repo in declaration order (by global stable ID, peer qualified name, or a `repoImports:` mount path `<package>::<as>::X`). **Active only when `[repos]` is configured** — single-repo models are unaffected.
 
 | Code | Condition |
 |---|---|
@@ -442,7 +442,7 @@ A model composes peer repositories declared in the `[repos]` table of the model-
 | E512 | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo`/`supertype`/`typedBy`/`subsets`/`redefines` reference resolves in neither the local model nor any loaded repo (reported instead of the field's own unresolved-reference code). |
 | E513 | `repoImports[].repo` names an alias not present in `[repos]`. |
 | E514 | `repoImports[].qname` does not resolve to any element in the named repo. |
-| E515 | Two repos export the same stable ID (the id namespace is global across the composition). |
+| E515 | Two repos export the same stable ID — the local model and a peer, or two different peer repos (the id namespace is global across the composition). |
 | W510 | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; `--deny W510`). |
 | W511 | A peer repo's git `HEAD` has drifted from its configured `ref:` — checkout is not at the pinned snapshot. Never raised when drift cannot be determined (no git, not a work tree, ref unresolved). Opt-in; `--deny W511` for a CI reproducibility gate. |
 | W512 | A peer repo's `path` is a **git submodule** of the composing model's repo, and its `ref:` resolves to a different commit than the gitlink the parent repo records — `.syscribe.toml` disagrees with `.gitmodules`. Independent of `W511` (gitlink pin vs ref, not checkout vs ref). Never raised when `path` is not a submodule. Opt-in; `--deny W512`. |
