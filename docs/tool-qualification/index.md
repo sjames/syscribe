@@ -67,6 +67,7 @@ This produces a standard validation report covering all 204 requirements and 204
 
 ```
 $ syscribe -m qual/
+# ToolQual Validation Report
 
 ## 1. Executive Summary
 

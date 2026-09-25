@@ -52,7 +52,7 @@ syscribe <command> --help  # the same page, e.g. `syscribe validate --help` (als
 
 ### Full report (`report`)
 
-Running with no subcommand — or the explicit `report` command — prints the full 10-section Markdown validation report: element inventory, requirements matrix, traceability summary, and findings.
+Running with no subcommand — or the explicit `report` command — prints the full 10-section Markdown validation report: element inventory, requirements matrix, traceability summary, and findings. The report is titled `# <Name> Validation Report` from the model root package's `name:` (the root `_index.md`), or `# Model Validation Report` when there is none.
 
 ```
 $ syscribe -m model_auto/
