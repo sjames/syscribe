@@ -16,7 +16,7 @@ cargo build --workspace   # once, if you haven't already
 ./target/debug/syscribe -m examples/sysmlv2-submodel/model why-active PropulsionSubsystem::Propulsion::RotorConfigChoice::quadConfig --config CONF-HEX-DRONE-001
 ```
 
-Current output: **0 errors, 9 warnings** on the base `validate` report (all
+Current output: **0 errors, 12 warnings** on the base `validate` report (all
 expected/documented below); `feature-check --deep` is **0 errors, 1 warning**
 (also documented below), reports both `Configuration`s as valid models of the
 feature model, and `void model: false`.
@@ -54,7 +54,7 @@ model/
                                       element in this directory
     Structure.sysml                  file 1 of the `Propulsion` SysML v2 package
     Interfaces.sysml                 file 2 of the same `Propulsion` package (multi-file merge)
-    Behavior.sysml                   file 3: unmapped constructs (coverage-boundary demo)
+    Behavior.sysml                   file 3: behavior (`state def`/`action def` → StateDef/ActionDef)
 ```
 
 ## What each `.sysml` file demonstrates
@@ -124,15 +124,19 @@ kinds appears at least once: `Package`, `Part(Def/Usage)`,
 `Interface(Def/Usage)`, `Item(Def/Usage)`, `Requirement(Def/Usage)`,
 `AllocationUsage`, and `variation`/`variant`.
 
-**`Behavior.sysml`** — coverage-boundary demonstration
-(`REQ-TRS-SYSMLV2-007`): `state def RotorHealthState;` and `action def
-MonitorRotorHealth;` are real, legally-parsed SysML v2 constructs that
-coexist in the same `Propulsion` package as the mapped structural content
-above, but behavior modeling is outside the fixed mapped-element set. Run
-`syscribe -m examples/sysmlv2-submodel/model export` and confirm there is
-**no** `RotorHealthState` or `MonitorRotorHealth` anywhere in the output —
-they parse without error and contribute nothing to the graph. Parse-broad,
-map-narrow.
+**`Behavior.sysml`** — behavior in the same package: `state def
+RotorHealthState;` and `action def MonitorRotorHealth;` coexist in the same
+`Propulsion` package as the structural content above. Originally this file
+demonstrated the coverage boundary (behavior was outside the mapped set and
+contributed nothing); since `REQ-TRS-SYSMLV2-018`/`-019` added state machines
+and actions to the fixed mapped set, both become real elements —
+`PropulsionSubsystem::Propulsion::RotorHealthState` (`StateDef`) and
+`PropulsionSubsystem::Propulsion::MonitorRotorHealth` (`ActionDef`). Confirm
+with `syscribe -m examples/sysmlv2-submodel/model show
+PropulsionSubsystem::Propulsion::RotorHealthState`. They are deliberately bare
+declarations, which is why they appear in the `W007`/`W601` entries below; see
+[State Machines and actions](../../docs/model-guide/sysmlv2-submodel.md) (§14)
+for a full state-machine/activity mapping.
 
 ## Cross-reference summary
 
@@ -327,8 +331,16 @@ exactly the kind of model it was motivated by — see the `W600` entry below.)
 - **`W005` × 3 ("no derivedFrom and no derivedChildren — possible orphan")**
   — ordinary consequence of this being a small, flat demo with no requirement
   breakdown hierarchy; unrelated to SysMLv2.
-- **`W015`/`W022` ("requirement ...::thrustCheck is active ... but covered in
-  none")** — the SysMLv2 `thrustCheck` requirement usage is a `type:
+- **`W007` × 2 ("defined but never used as a supertype or type")** — the two
+  bare behavior declarations in `Behavior.sysml` (`RotorHealthState`,
+  `MonitorRotorHealth`) are not referenced by anything; an ordinary
+  small-demo artifact.
+- **`W601` × 1 ("ActionDef/Action has an empty documentation body")** —
+  `MonitorRotorHealth` carries no `doc /* ... */` member, the behavior
+  counterpart of the `W600` entry above.
+- **`W015` × 2 in `validate` (one per `Configuration`), and `W022` × 1 in
+  `feature-check` ("requirement ...::thrustCheck is active ... but no TestCase
+  covering it runs" / "... covered in none")** — the SysMLv2 `thrustCheck` requirement usage is a `type:
   Requirement` element with no `status:` (the mapper never sets one), so the
   native "is this requirement covered per configuration" checks treat it as
   an ordinary non-draft requirement needing V&V closure, even though it's

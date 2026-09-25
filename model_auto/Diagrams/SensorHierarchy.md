@@ -4,7 +4,6 @@ name: Sensor Hierarchy
 diagramKind: BDD
 pumlMode: companion
 pumlFile: ./SensorHierarchy.puml
-generatedBy: claude-sonnet-4-6
 shapes:
   sensor-block:
     ref: System::Sensors::Sensor

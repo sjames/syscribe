@@ -104,10 +104,11 @@ on. Default surface, then per-type overrides:
 - **TestCase**: scenario/Gherkin body + `testLevel` + `testFunctions`.
 - **Part / PartDef**: ports/interface surface, not doc prose.
 
-> **Open decision (2):** define an explicit per-type significant-surface map up
-> front, or ship a sensible default projection (body + `status` + normative
-> fields) and specialize per type as false positives appear. Recommend:
-> default first, specialize on evidence.
+> **Resolved (§8, decision 2):** v1 ships the default projection — the body plus
+> all frontmatter except editorial/presentation fields (`name`, `displayOrder`,
+> `extRef`, the removed `title`, `traceBaselines`, and diagram
+> `layout`/`shapes`/`edges`/`svgFile`/`pumlFile`). Per-type surfaces are deferred
+> until false positives justify them.
 
 ### Hash algorithm
 
@@ -117,7 +118,8 @@ cryptographic hashing exists in the tree today (only a non-stable
 `DefaultHasher` for cache filenames in `remote.rs`), so this adds the first real
 digest dependency to `crates/syscribe-model/Cargo.toml`.
 
-> **Open decision (3):** `blake3` vs `sha2`.
+> **Resolved (§8, decision 3):** BLAKE3 (the `blake3` crate). The same
+> `element_hash` is reused by release baselines for their full-content seal.
 
 Store as `blake3:<hex>` (algorithm-prefixed) so the digest can be migrated later
 without ambiguity.
@@ -200,20 +202,20 @@ add `("suspect", include_str!("../../../prompts/help/suspect.md"))` to `HELP`
 | `suspect list` | Report all suspect links (source, target, kind) |
 | `suspect accept <src> <tgt>` | Re-baseline: capture the target's current hash into `traceBaselines` |
 | `suspect accept --all` | Re-baseline every currently-suspect link (bulk review) |
+| `suspect accept --all-unbaselined` | Onboarding: baseline every link that has no baseline yet; never overwrites an existing one, so it cannot clear a suspect flag (mutually exclusive with `--all`) |
 
 ### Validation code
 
-Emit a new **W-code** (e.g. `W0xx`) from the suspect pass:
-`findings.push(warning("W0xx", file, msg))`
-(`crates/syscribe-model/src/validator.rs:6995`). W-severity ⇒ draft-suppressible
-and non-fatal by default, gateable in CI via `--deny W0xx`
-(`crates/syscribe/src/query.rs:1877`). Add the prose doc entry under
-`prompts/help/` / the code reference.
+The suspect pass emits warning **`W090`** (stale baseline). It is non-fatal by
+default and gateable in CI with `--deny W090` (exit code 2 when a suspect link
+exists). It is documented in `prompts/help/suspect.md` and the validation code
+reference.
 
-A missing baseline for an existing link is a *separate* condition — either a
-distinct info/warn code ("link has no baseline; run `suspect accept`") or
-silently treated as suspect. Recommend: distinct code so "never baselined" is
-visibly different from "baseline stale."
+A missing baseline for an existing link is a *separate* condition. As resolved
+in §8 (decision 4), it raises **no** code during `validate` — detection is
+opt-in and additive — and is surfaced on demand by `suspect list`, which reports
+unbaselined links alongside suspect ones. `suspect accept --all-unbaselined` is
+the one-time switch that baselines them all.
 
 ---
 
@@ -242,20 +244,25 @@ visibly different from "baseline stale."
    links (`hazardRef`, `mitigatedBy`, `supports`, `evidence`, `confirms`). One
    `traceBaselines` map on the source covers every kind, keyed by target.
 2. **Projection** — **default projection** (REQ-TRS-SUS-LINKS-002): body +
-   normative frontmatter, excluding `name`/`displayOrder`/`extRef`/`title`/layout
-   /`traceBaselines`. Per-type surfaces deferred to a later phase.
+   normative frontmatter, excluding `name`/`displayOrder`/`extRef`/`title`/
+   `traceBaselines` and diagram `layout`/`shapes`/`edges`/`svgFile`/`pumlFile`.
+   Per-type surfaces deferred to a later phase.
 3. **Hash** — **BLAKE3**, stored `blake3:<hex>`.
 4. **Missing-baseline** — **not treated as suspect and silent during
    validation** (opt-in/additive, REQ-TRS-SUS-LINKS-004); unbaselined links are
    surfaced on demand by `suspect list` rather than via a distinct warning code,
-   keeping `validate` output free of coverage-gap noise.
+   keeping `validate` output free of coverage-gap noise. `suspect accept
+   --all-unbaselined` baselines them in one onboarding pass.
+5. **User-defined link types** — `links:` instances (declared in `[linkTypes]`)
+   are trace links too and are baselined/flagged the same way, unless the link
+   type sets `suspect = false`.
 
-## 9. Rough phasing
+## 9. Phasing
 
-1. Add `traceBaselines` field + `blake3` dep + projection function (default
-   surface) + `suspect list`/`accept` + W-code. Scope to `verifies` /
-   `derivedFrom` / `satisfies`.
+1. **Done (v1):** `traceBaselines` field, `blake3` dependency, default
+   projection, `suspect list` / `accept` / `accept --all` /
+   `accept --all-unbaselined`, warning `W090`, all trace-link kinds (decision 1),
+   and MCP `suspect_list` / guarded `suspect_accept`.
 2. Per-type projection specialization as false positives surface.
 3. `--show-affected` advisory transitive view.
-4. Extend to remaining link kinds; multi-repo baseline provenance if a
-   certification context demands it.
+4. Multi-repo baseline provenance if a certification context demands it.

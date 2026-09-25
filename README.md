@@ -64,13 +64,19 @@ The safety monitor shall perform a complete supervision cycle within 100 ms...
 - **Security analysis**: TARA, DamageScenario, ThreatScenario, CybersecurityGoal, SecurityControl, VulnerabilityReport
 - **Variability / product lines**: feature models (`FeatureDef`, `Configuration`), `appliesWhen:` conditioning, SAT-backed `feature-check`, and the `--config` projection lens
 - **Multi-repository composition** (§14): import namespaces from peer repos via `[repos]` + `repoImports:`, resolve cross-repo references by global stable ID, and gate reproducibility on git ref drift / submodule gitlink (`W510`–`W512`)
+- **Hierarchical product lines** (§14.7): a `Configuration` consolidates already-configured lower-tier `Configuration`s — local or in a `[repos]`-mounted product-line repo, at any depth — via `subConfigurations:`, with parameter bindings resolved across tiers (`examples/hple-multitier/`)
+- **Work tracking** — native `PlanningItem` (`PI-*`) epics/stories/tasks tied to the `Requirement`s they achieve, with evidence-backed `done`, `blockedBy:`, `assignedTo:`, `syscribe set` for status/evidence edits, and `claim` / `release` advisory ownership for concurrent multi-agent work
+- **User-defined link types** — declare project relationships (`mitigates`, `conflictsWith`, …) as `[linkTypes.*]` in `.syscribe.toml` with source/target types, cardinality and acyclicity; author them under `links:`, list the vocabulary with `link-types`, and walk them with `follow`
+- **Foreign sources in one graph** — native SysMLv2 textual submodels (`sysmlSubmodel:`), any custom notation through stdio-subprocess plugins (`foreignFormat:`), and elements declared in ordinary source-code comments (`annotationFormat:`), all validated and traced like hand-written elements
 - **IEC 62443 zones & conduits**, **review records**, **trade studies**, and **state-machine / sequence completeness** checks
 - **Seven §12 traceability rules** enforced by the validator: OSLC link direction, breakdown ADR, leaf assignment, domain classification, HW/SW independence, deployment allocation, implementation trace (`implementedBy:`)
 - **200+ validation rules** across parse-time, cross-reference, safety/security, behavior, and composition: cross-reference resolution, integrity level consistency, diagram annotation, documentation completeness
 - **Suspect links** — content-baseline (`traceBaselines:`, BLAKE3) detection of *stale* trace links: when a reviewed relationship's target changes, it surfaces as `W090` and is cleared by re-review (`suspect accept`)
 - **Release baselines** — first-class, git-anchored, content-hashed frozen release snapshots (`Baseline`, `BL-*`) with drift detection, scoped to the whole model, a package, a product-line variant, or a safety goal's trace closure
 - **MCP server** — `syscribe mcp` exposes structured tools to LLM agents: read/query/trace/validate plus *guarded* writes (dry-run → validation delta → referential-integrity commit gate)
-- **Diagrams** — server-rendered SVG, client-side Mermaid, an interactive canvas, and PlantUML companion generation/rendering
+- **LSP server** — `syscribe lsp` gives editors live diagnostics and model-aware navigation over stdio (a VS Code extension lives in `editors/vscode/`)
+- **Static HTML export** — `syscribe export-html` renders the whole model as a standalone, offline site for reviewers without the toolchain
+- **Diagrams** — server-rendered SVG, client-side Mermaid, an editable diagram view in the web UI, and PlantUML companion generation/rendering
 - **Coverage & product-line matrices** — Requirement × Configuration coverage grids, variant-aware verification depth, SAT-backed feature analysis
 - **LLM-scale corpus tools** — `stats` / `digest` / `search-text` / `summarize` / `topics` / `clusters` for navigating large models, plus `impact` change analysis and ReqIF/SBOM export
 
@@ -123,11 +129,48 @@ spec/                 # Syscribe format specification
 docs/                 # MkDocs documentation source
 ```
 
-## Running
+## Installation
+
+**Prebuilt binaries.** Each [GitHub release](https://github.com/sjames/syscribe/releases) ships a standalone `syscribe` CLI binary, named `syscribe-<target>` (`.exe` on Windows):
+
+| Platform | Asset |
+|---|---|
+| Linux x86_64 | `syscribe-x86_64-unknown-linux-gnu` |
+| Linux aarch64 | `syscribe-aarch64-unknown-linux-gnu` |
+| macOS Intel | `syscribe-x86_64-apple-darwin` |
+| macOS Apple silicon | `syscribe-aarch64-apple-darwin` |
+| Windows x86_64 | `syscribe-x86_64-pc-windows-msvc.exe` |
 
 ```bash
-cargo build --workspace
+curl -fsSL -o syscribe \
+  https://github.com/sjames/syscribe/releases/latest/download/syscribe-x86_64-unknown-linux-gnu
+chmod +x syscribe
 ```
+
+**From source.** The web server (`syscribe-server`) is not a release asset — build it from source (Rust stable):
+
+```bash
+cargo build --workspace            # target/debug/syscribe and target/debug/syscribe-server
+cargo install --path crates/syscribe          # or install either binary
+cargo install --path crates/syscribe-server
+```
+
+**In GitHub Actions.** The repository is also a reusable action that downloads the release binary for the runner and validates a model:
+
+```yaml
+- uses: actions/checkout@v4
+- uses: sjames/syscribe@v0
+  with:
+    model-path: model/          # default
+    version: latest             # or a release tag, e.g. v0.40.1
+    args: --deny W090           # extra arguments to `validate`
+    fail-on-warnings: false
+    upload-report: true         # upload the report as a workflow artifact
+```
+
+It exposes `errors` and `warnings` counts as step outputs. See the [CI/CD guide](https://sjames.github.io/syscribe/guides/cicd/) for more.
+
+## Running
 
 ### Validate a model
 
@@ -221,14 +264,13 @@ syscribe -m model_auto/ plantuml
 syscribe -m model_auto/ plantuml render
 ```
 
-Diagrams also render live in the web UI — server-side SVG plus client-side Mermaid — and on the interactive canvas.
+Diagrams also render live in the web UI — server-side SVG plus client-side Mermaid — where non-Mermaid diagrams can be edited directly (create, connect, move, delete; every edit is validated before it is written).
 
 ### Browse in a web UI
 
 ```bash
 syscribe-server -m model_auto/
-# open http://localhost:3000        (tree browser)
-# open http://localhost:3000/canvas (interactive model canvas)
+# open http://localhost:3000   (tree browser, element detail, diagrams)
 ```
 
 The server watches the model directory and reloads automatically on file changes.

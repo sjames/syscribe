@@ -249,7 +249,7 @@ Seven enforced traceability rules govern how model elements relate to each other
 
 - **Backend**: Rust (`syscribe-server`) — Axum parses the model directory tree, builds an in-memory graph, exposes REST + WebSocket endpoints, and serves HTML via Askama templates.
 - **Frontend**: Askama templates (server-side HTML rendering) + HTMX for dynamic interactions. No JavaScript framework.
-- **Diagrams**: SVG built server-side by `syscribe-model::renderer`; Mermaid rendered client-side from CDN.
+- **Diagrams**: SVG built server-side by `syscribe-model::renderer`; Mermaid rendered client-side; non-Mermaid diagrams open in an editable sprotty client (`crates/syscribe-server/frontend/`, esbuild-bundled). All JS is vendored under `static/` (no CDN). The Cytoscape `/canvas` + `/api/graph` explorer was retired in v0.33.0.
 - **Live reload**: `notify` crate watches the model directory; changes are pushed to connected clients over WebSocket.
 
 ### Crate layout
@@ -264,11 +264,15 @@ Seven enforced traceability rules govern how model elements relate to each other
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/api/elements` | List all elements (optional `?type=` filter) |
+| `POST` | `/api/elements` | Create an element (guarded write) |
 | `GET` | `/api/elements/<qname>` | Single element JSON |
-| `PUT` | `/api/elements/<qname>` | Write element YAML frontmatter |
-| `GET` | `/api/children?qname=<qname>` | Containment tree |
-| `GET` | `/api/connections?qname=<qname>` | Connection graph |
-| `PATCH` | `/api/diagrams/layout/<qname>` | Persist drag-adjusted layout coordinates |
+| `PUT` | `/api/elements/<qname>` | Update frontmatter fields / body (guarded write) |
+| `DELETE` | `/api/elements/<qname>` | Delete an element (guarded write; referrer-blocked unless `?force=true`) |
+| `GET` | `/api/children?of=<qname>` | Direct children |
+| `GET` | `/api/connections?of=<qname>` | Connection frontmatter |
+| `POST` / `DELETE` | `/api/connections` | Add / remove a `connections:` entry (`qname` in the body; guarded write) |
+| `GET` | `/api/diagrams/model/<qname>` | `Diagram` element as a sprotty graph model |
+| `PATCH` | `/api/diagrams/layout/<qname>` | Persist drag-adjusted layout coordinates (guarded write) |
 | `GET` | `/api/validation` | Validation findings JSON |
 | `WS` | `/ws` | Live model-change events |
 
@@ -289,7 +293,7 @@ Seven enforced traceability rules govern how model elements relate to each other
 - `site/` is MkDocs build output — not tracked by git.
 - Package membership is generated from the directory (`ADR-SYS-PKG-001`, GH #120): `show <package>`, the web UI detail panel and `export-html` list a package's direct members. Keep `_index.md` prose to purpose/scope — never enumerate members there; `lint-docs` flags that as advisory `W103`.
 - Qualified name resolution handles circular references gracefully (reports, does not panic).
-- The Syscribe format is the source of truth; the web service is read-only over the model files.
+- The Syscribe format is the source of truth. The web service's write routes (`POST`/`PUT`/`DELETE`/`PATCH` above) all go through the shared guarded-write engine (`syscribe_model::mutate`, the same one the MCP write tools use) — candidate copy, re-validation, referential-integrity commit gate — never raw disk writes.
 - The LLM generation prompt lives at `prompts/create-model.md` and is embedded in the validator binary via `include_str!` — edit the `.md` file, not the Rust source.
 - **Diagram layout files** (`*.layout.json`) are ephemeral workspace inputs to `diagram compose` — they are not part of the Syscribe schema and must never be committed. Name them `<anything>.layout.json` so the `.gitignore` pattern excludes them automatically.
 

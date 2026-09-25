@@ -140,4 +140,4 @@ Deployed as: Vehicle::PowertrainECU
 syscribe -m model_auto/ validate
 ```
 
-The model produces 0 errors and 1 intentional warning (`W803` on the open `VR-ENG-002` vulnerability report, which is by design — it is being tracked).
+The model produces 0 errors. Its few remaining warnings are advisory security findings: `W803` on the open `VR-ENG-002` vulnerability report (by design — it is being tracked), `W030` on damage scenarios with safety impact but no `hazardRef`, and `W032` on a cybersecurity goal whose CAL is below what its critical-risk threats require.

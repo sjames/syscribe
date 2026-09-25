@@ -1094,12 +1094,14 @@ $ syscribe -m model_auto/ who-verifies REQ-ENG-SAFE-001
 ```
 $ syscribe -m model_sil/ verification-depth --sil 4
 
-# Verification depth (N requirements)
+# Verification depth (9 requirements)
 
 | Requirement | SIL/ASIL | Levels | Count | Flag |
 |---|---|---|---|---|
-| REQ-SIL-SW-002 | 4 | L2,L5 | 2 | ok |
-| REQ-SIL-HW-003 | 4 | L5    | 1 | hil-only |
+| REQ-SIL-SAFE-001 | 4 | L4 | 1 | single |
+| REQ-SIL-SAFE-002 | 4 | L5 | 1 | hil-only |
+| REQ-SIL-SW-002 | 4 | L2 | 1 | single |
+...
 ```
 
 - **`--sil <v>` / `--status <s>`** filter the rows (same `--sil` semantics as `list`).
@@ -1329,7 +1331,7 @@ dangling `achieves.add` target) is caught immediately, not only at the next full
 syscribe -m model/ set REQ-UAV-NAV-001 status=approved
 syscribe -m model/ set TC-UAV-NAV-001 status=active --dry-run
 syscribe -m model/ set PI-HPLE-001 status=done            # W310 check if achieves: isn't verified yet
-syscribe -m model/ set PI-HPLE-001 achieves.add REQ-UAV-NAV-002
+syscribe -m model/ set PI-HPLE-001 achieves.add REQ-TRS-HPLE-001
 syscribe -m model/ set PI-HPLE-001 evidence.add ref=TC-UAV-NAV-001
 syscribe -m model/ set PI-HPLE-001 evidence.add path=src/nav/controller.rs
 ```

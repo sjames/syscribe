@@ -16,6 +16,34 @@ syscribe -m model validate --deny W031,W015
 syscribe -m model matrix --gaps-only
 ```
 
+#### GitHub Actions: the reusable action
+
+On GitHub, the Syscribe repository itself is a composite action. It downloads the
+prebuilt `syscribe` release binary for the runner (Linux/macOS x86_64 and aarch64,
+Windows x86_64), runs `syscribe -m <model-path> validate <args>`, and fails the step on
+errors:
+
+```yaml
+jobs:
+  model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: sjames/syscribe@v0
+        id: syscribe
+        with:
+          model-path: model/            # default: model/
+          version: latest               # or a release tag, e.g. v0.40.1
+          args: --deny W031,W015        # extra arguments appended to `validate`
+          fail-on-warnings: false       # true: any warning fails the step
+          upload-report: true           # upload the Markdown report as an artifact
+      - run: echo "${{ steps.syscribe.outputs.errors }} errors, ${{ steps.syscribe.outputs.warnings }} warnings"
+```
+
+`@v0` follows the newest `0.x` release; pin `version:` (or the action ref) for
+reproducible builds. Any other `syscribe` command in this guide can run in a later
+step — the action puts the binary on `PATH`.
+
 ### 8.2 Named gate profiles in `.syscribe.toml`
 
 Define a named policy that captures your project's gate rules:

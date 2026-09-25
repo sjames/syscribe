@@ -17,8 +17,8 @@ selection iff its `appliesWhen` holds (no `appliesWhen` ⇒ always active). The 
 expose it, how strict to be about references that "escape" a variant, and whether to reason per-configuration
 or across all valid configurations.
 
-Throughout, the **opt-in invariant** holds: a model with no `FeatureDef` is dormant and behaves exactly as
-before.
+Throughout, the **opt-in invariant** holds: a model with no `FeatureDef` is dormant and, without `--config`,
+behaves exactly as before.
 
 ## Decision
 
@@ -67,7 +67,9 @@ before.
 - **+** The global guarantee catches latent variability bugs (broken references) in variants nobody authored.
 - **+** Small implementation: the lens is a filter over the existing stack; only escaping-ref classification,
   the global SAT rule, and the family checks are new logic.
-- **+** Composable and dormant-safe (no `FeatureDef` ⇒ inert).
+- **+** Composable and dormant-safe: with no `FeatureDef`, a command run without `--config` behaves exactly as
+  before; `--config` on such a model must name a stored `Configuration` (projecting the whole model), and any
+  other argument is a usage error rather than a silent whole-model answer (REQ-TRS-PROJ-001).
 - **−** `validate --all-configs` is O(configurations × validation); fine for typical counts, may need batching
   for very large families.
 - **−** The structural-vs-traceability taxonomy is a policy that may need tuning as new reference fields are

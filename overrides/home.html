@@ -317,8 +317,8 @@
 
     <div class="sml-hero__inner">
       <div class="sml-hero__caption">
-        <span class="sml-mono">REV · 0.2.0</span>
-        <span class="sml-mono">2026-05-28</span>
+        <span class="sml-mono">SYSMLv2 · MARKDOWN · YAML</span>
+        <span class="sml-mono">APACHE-2.0</span>
         <span class="sml-mono">DOC-SML-001</span>
         <span style="flex:1"></span>
         <span class="sml-mono accent">● ACTIVE DEVELOPMENT</span>
@@ -333,7 +333,8 @@
       <p class="sml-hero__sub">
         Syscribe is a plain-text modeling format that maps SysMLv2 semantics onto
         Markdown files with YAML frontmatter. Version-controlled, diff-friendly,
-        LLM-readable — with a built-in validation engine and web browser.
+        LLM-readable — with a built-in validation engine, traceability queries,
+        an MCP server for LLM agents, and a web browser.
       </p>
 
       <div class="sml-hero__ctas">
@@ -360,23 +361,23 @@
           <span class="sml-spec-row__label">SEMANTICS</span>
           <div>
             <div class="sml-spec-row__value sml-spec-row__value--accent">SysMLv2-aligned</div>
-            <div class="sml-spec-row__sub">PartDef, PortDef, InterfaceDef, Requirement, TestCase, ADR, Allocation, Diagram — 40+ element types</div>
+            <div class="sml-spec-row__sub">PartDef, PortDef, InterfaceDef, Requirement, TestCase, ADR, Allocation, FeatureDef, safety &amp; security analysis, PlanningItem, Diagram — 70+ element types (<code style="font-size:11px;">syscribe spec types</code>)</div>
           </div>
         </div>
         <div class="sml-spec-row">
           <span class="sml-spec-row__code">03</span>
           <span class="sml-spec-row__label">TRACEABILITY</span>
           <div>
-            <div class="sml-spec-row__value">§12 — six enforced rules</div>
-            <div class="sml-spec-row__sub">OSLC link direction · breakdown ADR · leaf assignment · domain classification · HW/SW independence</div>
+            <div class="sml-spec-row__value">§12 — enforced traceability rules</div>
+            <div class="sml-spec-row__sub">OSLC link direction · breakdown ADR · leaf assignment · domain classification · HW/SW independence · deployment allocation · implementation trace · suspect links · release baselines</div>
           </div>
         </div>
         <div class="sml-spec-row">
           <span class="sml-spec-row__code">04</span>
           <span class="sml-spec-row__label">VALIDATION</span>
           <div>
-            <div class="sml-spec-row__value">E001–E503 · W001–W601</div>
-            <div class="sml-spec-row__sub">Cross-reference resolution, diagram consistency, allocation integrity, documentation completeness</div>
+            <div class="sml-spec-row__value">400+ error &amp; warning codes</div>
+            <div class="sml-spec-row__sub">Cross-reference resolution, coverage, safety/security consistency, feature-model SAT analysis, multi-repo drift — full catalogue in <code style="font-size:11px;">syscribe spec validation</code></div>
           </div>
         </div>
         <div class="sml-spec-row">
@@ -384,15 +385,15 @@
           <span class="sml-spec-row__label">WEB BROWSER</span>
           <div>
             <div class="sml-spec-row__value">Axum + Askama + HTMX</div>
-            <div class="sml-spec-row__sub">Server-rendered tree browser, element detail, BDD/IBD/StateMachine/Mermaid diagrams</div>
+            <div class="sml-spec-row__sub">Server-rendered tree browser, element detail, BDD/IBD/StateMachine/Mermaid diagrams, validated in-browser editing — or a static site via <code style="font-size:11px;">export-html</code></div>
           </div>
         </div>
         <div class="sml-spec-row" style="border-bottom:none">
           <span class="sml-spec-row__code">06</span>
           <span class="sml-spec-row__label">TOOLCHAIN</span>
           <div>
-            <div class="sml-spec-row__value">Rust · cargo run · zero config</div>
-            <div class="sml-spec-row__sub">Parse, validate, and browse any model directory: <code style="font-size:11px;">cargo run --package syscribe-server -- -m model/</code></div>
+            <div class="sml-spec-row__value">Rust · prebuilt binaries · zero config</div>
+            <div class="sml-spec-row__sub">One CLI for validation and queries, an MCP server for LLM agents, an LSP server for editors, and a GitHub Action for CI: <code style="font-size:11px;">syscribe -m model/ validate</code></div>
           </div>
         </div>
       </div>
@@ -429,19 +430,19 @@
         <div class="sml-metrics">
           <div class="sml-metric">
             <span class="sml-metric__key">Element types</span>
-            <div class="sml-metric__val">40+</div>
+            <div class="sml-metric__val">70+</div>
           </div>
           <div class="sml-metric">
-            <span class="sml-metric__key">Validation rules</span>
-            <div class="sml-metric__val sml-metric__val--accent">80+</div>
+            <span class="sml-metric__key">Validation codes</span>
+            <div class="sml-metric__val sml-metric__val--accent">400+</div>
           </div>
           <div class="sml-metric">
             <span class="sml-metric__key">Diagram kinds</span>
             <div class="sml-metric__val">BDD · IBD · SM</div>
           </div>
           <div class="sml-metric">
-            <span class="sml-metric__key">Demo model</span>
-            <div class="sml-metric__val sml-metric__val--accent">111 elements</div>
+            <span class="sml-metric__key">Demo models</span>
+            <div class="sml-metric__val sml-metric__val--accent">4 bundled</div>
           </div>
           <div class="sml-metric">
             <span class="sml-metric__key">Backend</span>
@@ -457,36 +458,38 @@
       <div>
         <div class="sml-code-block">
           <div class="sml-code-block__header">
-            <span class="sml-code-block__filename">model/Requirements/FaultTolerantFCReq.md</span>
+            <span class="sml-code-block__filename">model_auto/Requirements/Safety/REQ-ENG-SAFE-001.md</span>
             <span class="sml-code-block__badge">yaml · Requirement</span>
           </div>
           <pre class="sml-code-block__pre">{% set lines = [
             ("---",                                          "punct"),
             ("type: Requirement",                           "key"),
-            ("id: REQ-UAV-FC-001",                         "accent"),
-            ("title: FC fault detection ≤ 50 ms",          "str"),
+            ("id: REQ-ENG-SAFE-001",                        "accent"),
+            ("name: Safety monitor shall detect all",       "str"),
+            ("  safety faults within 100 ms",               "str"),
             ("status: approved",                            "key"),
-            ("reqDomain: software",                        "key"),
-            ("silLevel: 3",                                 "str"),
-            ("asilLevel: C",                                "str"),
-            ("derivedFrom:",                               "key"),
-            ("  - REQ-UAV-SAFE-000",                       "accent"),
-            ("breakdownAdr: Decisions::SafetyADR",         "accent"),
+            ("reqDomain: software",                         "key"),
+            ("asilLevel: D",                                "str"),
+            ("verificationMethod: test",                    "key"),
+            ("derivedFrom:",                                "key"),
+            ("  - REQ-ENG-SAFE-000",                        "accent"),
+            ("breakdownAdr: ADR-ENG-SAFE-001",              "accent"),
+            ("derivedFromSafetyGoal: SG-ENG-001",           "accent"),
             ("---",                                         "punct"),
             ("",                                            ""),
-            ("The flight controller **shall** detect any",  "body"),
-            ("single sensor failure within 50 ms and",      "body"),
-            ("transition to the fault state.",              "body"),
+            ("The safety monitor software component",       "body"),
+            ("**shall** detect any single-point safety",    "body"),
+            ("fault within 100 ms of fault onset.",         "body"),
           ] %}{% for (line, kind) in lines %}<span class="sml-code-line"><span class="sml-code-line__num">{{ loop.index }}</span><span style="color:{% if kind == 'accent' %}var(--sml-accent){% elif kind == 'key' or kind == 'str' %}var(--sml-text){% elif kind == 'punct' %}var(--sml-text-2){% else %}var(--sml-text-2){% endif %}">{{ line if line else "&nbsp;" }}</span></span>
 {% endfor %}</pre>
           <div class="sml-code-block__footer">
-            <span class="sml-code-block__cmd">$ syscribe -m model/</span>
-            <span class="sml-code-block__result">✓ 0 errors · 0 warnings</span>
+            <span class="sml-code-block__cmd">$ syscribe -m model_auto/ validate</span>
+            <span class="sml-code-block__result">✓ 0 errors</span>
           </div>
         </div>
         <p style="margin-top:18px; font-size:13px; color:var(--sml-text-3); line-height:1.6;">
-          Stable <code style="font-size:11px;">REQ-*</code> IDs survive file renames. Derivation and domain
-          are enforced cross-model by the validation engine.
+          Stable <code style="font-size:11px;">REQ-*</code> IDs survive moves between packages. Derivation, the
+          breakdown ADR, safety-goal linkage and domain are checked across the whole model by the validation engine.
         </p>
       </div>
     </div>
@@ -537,12 +540,42 @@
         <div class="sml-feature">
           <div class="sml-feature__icon">PLE</div>
           <div class="sml-feature__title">Product-line engineering</div>
-          <div class="sml-feature__body">FeatureDef/Configuration elements with appliesWhen conditioning — variant modeling without a separate tool.</div>
+          <div class="sml-feature__body">FeatureDef/Configuration elements with appliesWhen conditioning, SAT-backed feature analysis, and per-variant validation — variant modeling without a separate tool.</div>
         </div>
         <div class="sml-feature">
           <div class="sml-feature__icon">LIVE</div>
           <div class="sml-feature__title">Live browser</div>
-          <div class="sml-feature__body">Axum server with file-system watcher. HTMX partial updates — tree navigation, element detail, and diagrams without a page reload.</div>
+          <div class="sml-feature__body">Axum server with file-system watcher. HTMX partial updates — tree navigation, element detail, and editable diagrams without a page reload.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">SAFE</div>
+          <div class="sml-feature__title">Safety &amp; security analysis</div>
+          <div class="sml-feature__body">HARA, safety goals, fault trees, FMEA, TARA and cybersecurity goals as model elements — integrity levels checked against the requirements they drive.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">TRACE</div>
+          <div class="sml-feature__title">Traceability that survives change</div>
+          <div class="sml-feature__body">Suspect links flag a reviewed trace whose target has since changed; release baselines freeze a git-anchored, content-hashed snapshot and detect drift.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">LLM</div>
+          <div class="sml-feature__title">Built for LLM agents</div>
+          <div class="sml-feature__body">An embedded authoring prompt, an MCP server with guarded writes (dry-run, validation delta, commit gate), and native PlanningItem work tracking with claim/release for multi-agent work.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">INGEST</div>
+          <div class="sml-feature__title">Bring other sources in</div>
+          <div class="sml-feature__body">Native SysMLv2 textual submodels, foreign formats via stdio plugins, and model elements declared in source-code comments — all merged into one validated graph.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">REPO</div>
+          <div class="sml-feature__title">Multi-repository composition</div>
+          <div class="sml-feature__body">Import peer repositories, resolve references by stable ID, gate on git ref drift, and consolidate lower-tier product lines through sub-configurations.</div>
+        </div>
+        <div class="sml-feature">
+          <div class="sml-feature__icon">LINK</div>
+          <div class="sml-feature__title">User-defined link types</div>
+          <div class="sml-feature__body">Declare project relationships in <code style="font-size:11px;">.syscribe.toml</code> with source/target types, cardinality and acyclicity — validated and walkable with <code style="font-size:11px;">follow</code>.</div>
         </div>
       </div>
     </div>
@@ -557,16 +590,17 @@
       <div class="sml-qs__steps">
 
         <div class="sml-qs__step">
-          <span class="sml-qs__num">STEP 01 — CLONE &amp; BUILD</span>
-          <div class="sml-qs__title">Build the toolchain</div>
+          <span class="sml-qs__num">STEP 01 — INSTALL</span>
+          <div class="sml-qs__title">Get the toolchain</div>
           <p class="sml-qs__body">
-            Requires Rust stable. One command builds the validator CLI and the web server.
+            Prebuilt <code style="font-size:11px;">syscribe</code> binaries are on the GitHub releases page.
+            To build from source (needed for the web server), use Rust stable.
           </p>
           <div class="sml-qs__cmd"><span class="qs-comment"># clone the repo</span>
 git clone github.com/sjames/syscribe
 cd syscribe
 
-<span class="qs-comment"># build both binaries</span>
+<span class="qs-comment"># build the CLI and the web server</span>
 cargo build --workspace</div>
         </div>
 
@@ -574,7 +608,7 @@ cargo build --workspace</div>
           <span class="sml-qs__num">STEP 02 — VALIDATE</span>
           <div class="sml-qs__title">Run the validator</div>
           <p class="sml-qs__body">
-            Point it at any of the three demo models. The full report covers
+            Point it at any of the bundled demo models. The full report covers
             element inventory, requirements traceability, and all findings.
           </p>
           <div class="sml-qs__cmd"><span class="qs-comment"># Engine ECU (ISO 26262 / 21434)</span>
@@ -596,14 +630,13 @@ syscribe -m model_auto/ validate</div>
           <div class="sml-qs__title">Open the web browser</div>
           <p class="sml-qs__body">
             The server watches for file-system changes and reloads automatically.
-            The canvas gives an interactive graph view of the whole model.
+            Browse the tree, read rendered documentation, and edit diagrams in place.
           </p>
           <div class="sml-qs__cmd"><span class="qs-comment"># start the server</span>
 syscribe-server <span class="qs-accent">-m model_auto/</span>
 
 <span class="qs-comment"># open in browser</span>
-http://localhost:3000/
-http://localhost:3000/canvas</div>
+http://localhost:3000/</div>
           <a class="sml-qs__link" href="browser/">
             Browser docs
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
