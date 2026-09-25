@@ -4352,7 +4352,8 @@ pub fn print_help() {
     println!("                                 Render companion .puml files to .svg via PlantUML (--jar / PLANTUML_JAR / PATH).");
     println!();
     println!("Documentation & extension hygiene:");
-    println!("  lint-docs <path>... [--json]   Scan external .md/.svg for stale element references (W099–W102; W103 advisory).");
+    println!("  lint-docs <path>... [--json]   Scan external .md/.svg for stale element references (W099–W102 exit 1;");
+    println!("       [--deny W103]             W103 advisory unless denied). A nonexistent path is a usage error (exit 1).");
     println!("  scripts list [--json]          Enumerate registered Rhai extension commands/checks.");
     println!("  scripts run <command> [--json] Invoke a registered extension command and print its result.");
     println!("  scripts validate [--deny <CODES>] [--max-warnings <N>] [--warnings-as-errors] [--json]");

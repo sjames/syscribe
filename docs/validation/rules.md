@@ -322,7 +322,7 @@ A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes no
 
 ## Documentation linting (W099–W103, `lint-docs`)
 
-The `lint-docs` command scans external `.md` and `.svg` docs for references to model elements that no longer resolve (gateable, e.g. `--deny W100`).
+The `lint-docs` command scans external `.md` and `.svg` docs for references to model elements that no longer resolve. Any W099–W102 finding makes it exit `1` (CI-gateable as-is); `--deny W103` also makes the advisory W103 fail the run. A nonexistent path is a usage error (exit `1`).
 
 | Code | Condition |
 |---|---|
@@ -330,7 +330,7 @@ The `lint-docs` command scans external `.md` and `.svg` docs for references to m
 | W100 | A qualified name (`A::B::C`) inside a ` ```mermaid ` block that does not resolve (prose qnames are not checked). |
 | W101 | An SVG `sysml:ref="…"` that does not resolve (SVGs with no `sysml:ref` are opaque). |
 | W102 | A local image/diagram embed path (`![](…)`, `<img src>`) that does not exist (remote URIs accepted). |
-| W103 | Advisory: a package `_index.md` body enumerates three or more of the package's own direct members by stable id. Membership is generated (`show <package>`); describe purpose instead. Does not affect the exit status. |
+| W103 | Advisory: a package `_index.md` body enumerates three or more of the package's own direct members by stable id. Membership is generated (`show <package>`); describe purpose instead. Does not affect the exit status unless `--deny W103`. |
 
 ## Review records (E700–E705, W700, W704, §19)
 

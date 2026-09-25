@@ -6,7 +6,8 @@
 //! Plus one advisory hint (ADR-SYS-PKG-001, REQ-TRS-PKG-002, GH #120): `W103` when a
 //! package's own `_index.md` hand-enumerates three or more of that package's direct
 //! members — membership is generated (`show <pkg>`), so such a list only drifts.
-//! `W103` never changes the exit status; only `W099`–`W102` do.
+//! `W103` never changes the exit status; only `W099`–`W102` do — unless the caller opts
+//! in with `--deny W103` (issue #130).
 
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
@@ -292,15 +293,72 @@ pub fn lint_docs_findings(
         .collect()
 }
 
-pub fn cmd_lint_docs(elements: &[RawElement], paths: &[&str], json: bool) -> i32 {
+/// Every code `lint-docs` can emit, i.e. the valid `--deny` values.
+pub const LINT_CODES: [&str; 5] = ["W099", "W100", "W101", "W102", "W103"];
+
+/// Parsed `lint-docs` command line (issue #130).
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct LintArgs {
+    pub paths: Vec<String>,
+    pub json: bool,
+    /// Codes named by `--deny` (validated against [`LINT_CODES`]).
+    pub deny: BTreeSet<String>,
+}
+
+/// Parse `lint-docs` arguments: `<path>...`, `--json`, `--deny <CODES>` /
+/// `--deny=<CODES>` (comma-separated, repeatable). The `--deny` value is never a
+/// path. An unknown option, a missing `--deny` value, or a code outside
+/// [`LINT_CODES`] is `Err(message)` (a usage error).
+pub fn parse_lint_args(args: &[String]) -> Result<LintArgs, String> {
+    let mut out = LintArgs::default();
+    let add_codes = |val: &str, out: &mut LintArgs| -> Result<(), String> {
+        for c in val.split(',').map(str::trim).filter(|c| !c.is_empty()) {
+            if !LINT_CODES.contains(&c) {
+                return Err(format!(
+                    "--deny code '{c}' is not a lint-docs code; valid codes: {}",
+                    LINT_CODES.join(", ")
+                ));
+            }
+            out.deny.insert(c.to_string());
+        }
+        Ok(())
+    };
+    let mut i = 0;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if a == "--json" {
+            out.json = true;
+        } else if a == "--deny" {
+            let val = args
+                .get(i + 1)
+                .ok_or_else(|| format!("--deny expects a comma-separated code list ({})", LINT_CODES.join(", ")))?;
+            add_codes(val, &mut out)?;
+            i += 1;
+        } else if let Some(val) = a.strip_prefix("--deny=") {
+            add_codes(val, &mut out)?;
+        } else if a.starts_with('-') && a != "-" {
+            return Err(format!("unknown option '{a}' for lint-docs (expected <path>..., --json, --deny <CODES>)"));
+        } else {
+            out.paths.push(a.to_string());
+        }
+        i += 1;
+    }
+    Ok(out)
+}
+
+/// The `paths` that do not exist on disk (issue #130: a usage error, not a clean run).
+pub fn missing_paths<'a>(paths: &[&'a str]) -> Vec<&'a str> {
+    paths.iter().copied().filter(|p| !Path::new(p).exists()).collect()
+}
+
+/// Run `lint-docs` over `paths` (all of which must exist — the caller checks with
+/// [`missing_paths`]). Exit `1` when any `W099`–`W102` finding, or any finding whose
+/// code is in `deny` (the way to make the advisory `W103` gating), is present.
+pub fn cmd_lint_docs(elements: &[RawElement], paths: &[&str], json: bool, deny: &BTreeSet<String>) -> i32 {
     let ctx = Ctx::new(elements);
     let mut findings: Vec<Finding> = Vec::new();
     for &path_str in paths {
-        let p = Path::new(path_str);
-        if !p.exists() {
-            eprintln!("lint-docs: path '{}' does not exist", path_str);
-        }
-        scan_path(p, &ctx, &mut findings);
+        scan_path(Path::new(path_str), &ctx, &mut findings);
     }
     if findings.is_empty() {
         return 0;
@@ -317,8 +375,33 @@ pub fn cmd_lint_docs(elements: &[RawElement], paths: &[&str], json: bool) -> i32
             println!("{}:{}: {}: {}", f.file, f.line, f.code, message(f.code, &f.detail));
         }
     }
-    // W103 is advisory (REQ-TRS-PKG-002): only an unresolvable reference fails.
-    if findings.iter().any(|f| f.code != "W103") { 1 } else { 0 }
+    // W103 is advisory (REQ-TRS-PKG-002): only an unresolvable reference fails,
+    // unless W103 is explicitly denied (issue #130).
+    if findings.iter().any(|f| f.code != "W103" || deny.contains(f.code)) { 1 } else { 0 }
+}
+
+#[cfg(test)]
+mod arg_tests {
+    use super::*;
+
+    fn s(v: &[&str]) -> Vec<String> {
+        v.iter().map(|x| x.to_string()).collect()
+    }
+
+    #[test]
+    fn deny_value_is_a_code_not_a_path() {
+        let a = parse_lint_args(&s(&["x.md", "--deny", "W099,W103", "--json", "--deny=W100"])).unwrap();
+        assert_eq!(a.paths, vec!["x.md".to_string()]);
+        assert!(a.json);
+        assert_eq!(a.deny.iter().map(String::as_str).collect::<Vec<_>>(), ["W099", "W100", "W103"]);
+    }
+
+    #[test]
+    fn bad_codes_and_unknown_options_are_usage_errors() {
+        assert!(parse_lint_args(&s(&["x.md", "--deny", "W999"])).is_err());
+        assert!(parse_lint_args(&s(&["x.md", "--deny"])).is_err());
+        assert!(parse_lint_args(&s(&["x.md", "--bogus"])).is_err());
+    }
 }
 
 #[cfg(test)]

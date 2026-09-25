@@ -1802,13 +1802,29 @@ fn main() {
             }
             "lint-docs" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let json = rest.iter().any(|a| a == "--json");
-                let paths: Vec<&str> = rest.iter().filter(|a| !a.starts_with("--")).map(|s| s.as_str()).collect();
+                const USAGE: &str = "Usage: syscribe -m <model> lint-docs <path>... [--json] [--deny <CODES>]";
+                let parsed = match lint_docs::parse_lint_args(rest) {
+                    Ok(p) => p,
+                    Err(msg) => {
+                        eprintln!("Error: {msg}");
+                        eprintln!("{USAGE}");
+                        std::process::exit(1);
+                    }
+                };
+                let paths: Vec<&str> = parsed.paths.iter().map(|s| s.as_str()).collect();
                 if paths.is_empty() {
-                    eprintln!("Usage: syscribe -m <model> lint-docs <path>... [--json]");
+                    eprintln!("{USAGE}");
                     std::process::exit(1);
                 }
-                let code = lint_docs::cmd_lint_docs(&elems, &paths, json);
+                // A nonexistent path is a usage error, not a clean run (issue #130).
+                let missing = lint_docs::missing_paths(&paths);
+                if !missing.is_empty() {
+                    for p in &missing {
+                        eprintln!("Error: lint-docs: path '{p}' does not exist");
+                    }
+                    std::process::exit(1);
+                }
+                let code = lint_docs::cmd_lint_docs(&elems, &paths, parsed.json, &parsed.deny);
                 if code != 0 {
                     std::process::exit(code);
                 }

@@ -47,4 +47,33 @@ print('ok')
     printf '%s' "$out" | grep -qF "EXIT:0" \
         && pass "exit 0 for file with no stable-ID tokens" \
         || fail "non-zero exit for file with no stable-ID tokens"
+
+    SCENARIO_NAME="a nonexistent path is a usage error (issue #130)"; printf "  ▶ %s\n" "$SCENARIO_NAME"
+    local o e rc
+    for args in "$DOCS/nonexist.md" "$DOCS/valid-ref.md $DOCS/nonexist.md"; do
+        # shellcheck disable=SC2086
+        o=$("$SYSCRIBE" -m "$M" lint-docs $args 2>/dev/null) && rc=0 || rc=$?
+        # shellcheck disable=SC2086
+        e=$("$SYSCRIBE" -m "$M" lint-docs $args 2>&1 >/dev/null || true)
+        [ "$rc" -eq 1 ] && [ -z "$o" ] && grep -qF "nonexist.md" <<<"$e" && grep -qF "does not exist" <<<"$e" \
+            && pass "lint-docs ${args##*/} → exit 1, names the missing path" \
+            || fail "lint-docs ${args##*/} → exit $rc, stdout ${#o} bytes, stderr: $(head -c 160 <<<"$e")"
+    done
+
+    SCENARIO_NAME="--deny takes a code, not a path, and makes W103 gating (issue #130)"; printf "  ▶ %s\n" "$SCENARIO_NAME"
+    e=$("$SYSCRIBE" -m "$M" lint-docs "$DOCS/valid-ref.md" --deny W099 2>&1) && rc=0 || rc=$?
+    [ "$rc" -eq 0 ] && ! grep -qF "W099' does not exist" <<<"$e" \
+        && pass "--deny W099 is a code (not scanned as a path), exit 0" || fail "--deny W099 → exit $rc: $(head -c 160 <<<"$e")"
+    local PKG="$F/TC-TRS-PKG-002/model"
+    "$SYSCRIBE" -m "$PKG" lint-docs "$PKG/Enum/_index.md" >/dev/null 2>&1 && rc=0 || rc=$?
+    [ "$rc" -eq 0 ] && pass "W103 alone is advisory (exit 0)" || fail "W103 alone → exit $rc"
+    o=$("$SYSCRIBE" -m "$PKG" lint-docs "$PKG/Enum/_index.md" --deny W103 2>/dev/null) && rc=0 || rc=$?
+    [ "$rc" -eq 1 ] && grep -qF "W103" <<<"$o" && pass "--deny W103 → W103 reported, exit 1" || fail "--deny W103 → exit $rc"
+    "$SYSCRIBE" -m "$PKG" lint-docs "$PKG/Enum/_index.md" --deny=W099,W103 >/dev/null 2>&1 && rc=0 || rc=$?
+    [ "$rc" -eq 1 ] && pass "--deny=W099,W103 → exit 1" || fail "--deny=W099,W103 → exit $rc"
+    for args in "--deny W999" "--bogus"; do
+        # shellcheck disable=SC2086
+        o=$("$SYSCRIBE" -m "$M" lint-docs "$DOCS/valid-ref.md" $args 2>/dev/null) && rc=0 || rc=$?
+        [ "$rc" -eq 1 ] && [ -z "$o" ] && pass "lint-docs $args → usage error, exit 1" || fail "lint-docs $args → exit $rc"
+    done
 }

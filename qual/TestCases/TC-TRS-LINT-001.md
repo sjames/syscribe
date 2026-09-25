@@ -6,6 +6,7 @@ status: draft
 name: "Verify lint-docs scans external Markdown for unresolvable stable ID tokens and exits non-zero"
 verifies:
   - REQ-TRS-LINT-001
+  - REQ-TRS-PKG-002
 ---
 
 ```gherkin
@@ -36,4 +37,17 @@ Feature: lint-docs command for external documentation validation
     Given a directory containing two Markdown files one with a valid ref and one with an invalid ref
     When the user runs lint-docs on the directory path
     Then only the invalid reference causes a W099 warning
+
+  Scenario: a nonexistent path is a usage error (issue #130)
+    When the user runs lint-docs on a path that does not exist, alone or next to a valid file
+    Then the tool names the missing path on stderr, prints nothing on stdout, and exits 1
+
+  Scenario: --deny takes a code, not a path, and makes W103 gating (issue #130)
+    Given a valid doc
+    When the user runs lint-docs <doc> --deny W099
+    Then the code is not scanned as a path and the run exits 0
+    Given a package _index.md that enumerates three of its members (W103)
+    When the user runs lint-docs on it with and without --deny W103
+    Then without --deny it exits 0, and with --deny W103 (or --deny=W103) it exits 1
+    And --deny W999 or an unknown option exits 1 as a usage error
 ```
