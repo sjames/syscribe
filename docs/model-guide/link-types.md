@@ -68,6 +68,7 @@ Every key is optional, and each may be written camelCase or snake_case (`sourceT
 
 Any element may hold instances under `links:`, a map from a declared type name to one reference or a list of references. References are stable ids or qualified names, resolved exactly as `satisfies:` targets are:
 
+<!-- syscribe-example: config="link-types.toml" -->
 ```yaml
 ---
 type: PartDef
@@ -78,6 +79,7 @@ links:
 ---
 ```
 
+<!-- syscribe-example: config="link-types.toml" -->
 ```yaml
 ---
 type: Requirement
@@ -166,6 +168,7 @@ domain: hardware
 satisfies: [REQ-BRK-003]                 # the real, same-domain assignment
 ```
 
+<!-- syscribe-example: config="link-types.toml" -->
 ```yaml
 # Architecture/BrakeController.md
 type: PartDef

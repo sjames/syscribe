@@ -143,6 +143,9 @@ native `Requirement`:
 ---
 type: TestCase
 id: TC-DRONE-ROTOR-001
+name: "Rotor assembly spins up to rated speed"
+status: draft
+testLevel: L3
 verifies:
   - PropulsionSubsystem::Propulsion::RotorAssembly
 ---

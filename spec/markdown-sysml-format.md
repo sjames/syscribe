@@ -560,6 +560,7 @@ name: Engine
 The engine converts fuel energy into mechanical power.
 ```
 
+<!-- syscribe-example: expect W042 reason="GH #160: qualifiedName:/locale: variants are not implemented, so the variant file becomes its own element" -->
 ```yaml
 # model/VehicleSystem/Engine.de.md  (German — documentation-only variant)
 ---
@@ -683,6 +684,7 @@ cannot be renumbered to express the order in which elements — most importantly
 type: Requirement
 id: REQ-SCHED-001
 name: "Scheduler determinism"
+status: draft
 displayOrder: 20        # read after displayOrder 10, before 30
 ---
 ```
@@ -2718,6 +2720,8 @@ extensionPoints:
 type: UseCaseDef
 name: TransportPassenger
 subject: VehicleSystem::Vehicle
+refines:
+  - REQ-VEH-TRANSPORT-001     # the stakeholder need this use case refines (W307)
 actors:
   - Stakeholders::Driver
   - Stakeholders::Passenger
@@ -3400,6 +3404,7 @@ edges:
 
 **Inline mode** (`model/VehicleSystem/Diagrams/VehiclePowertrainIBD.md`) — same frontmatter without `svgMode`, SVG in body:
 
+<!-- syscribe-example: skip reason="elided (`...`) fragment; the full inline example follows" -->
 ````markdown
 ---
 type: Diagram
@@ -4096,6 +4101,7 @@ model/
 
 #### 8.17.4 Complete Example
 
+<!-- syscribe-example: expect W047 reason="GH #159: the spec'd ADR deciders: field is not implemented" -->
 ```markdown
 ---
 type: ADR
@@ -5006,14 +5012,14 @@ id: REQ-UAV-THRUST-002
 name: Hex-rotor thrust margin
 status: draft
 appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
-
+---
 # Architecture variant
 type: PartDef
 name: HexRotorConfig
 isVariant: true
 variantOf: UAV::Propulsion::PropulsionSystem
 appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
-
+---
 # Test case — only run for hex-rotor products (body with the gherkin block omitted)
 type: TestCase
 id: TC-UAV-THRUST-002
@@ -5023,7 +5029,7 @@ testLevel: L4
 appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
 verifies:
   - REQ-UAV-THRUST-002
-
+---
 # Allocation — only applies when both hex-rotor AND dual-IMU are selected
 type: Allocation
 name: HexMixingAlgorithmAlloc
@@ -5366,6 +5372,8 @@ satisfies:
 type: UseCaseDef
 name: TransportPassenger
 subject: VehicleSystem::vehicle_b
+refines:
+  - REQ-VEH-TRANSPORT-001     # the stakeholder need this use case refines (W307)
 actors:
   - Stakeholders::Driver
 objectives:
@@ -6268,7 +6276,7 @@ The hardware and software architectures are **independent hierarchies**. They in
 
 **Correct cross-domain pattern:**
 ```yaml
-# SW element
+# model/Software/SchedulerModule.md — SW element
 ---
 type: PartDef
 name: SchedulerModule
@@ -6276,14 +6284,14 @@ domain: software
 isDeploymentPackage: true
 ---
 
-# HW element
+# model/Hardware/FlightComputer.md — HW element
 ---
 type: PartDef
 name: FlightComputer
 domain: hardware
 ---
 
-# Allocation — the only permitted cross-domain link
+# model/Allocations/schedulerToFC.md — the only permitted cross-domain link
 ---
 type: Allocation
 name: schedulerToFC
@@ -6341,6 +6349,7 @@ metadata:
 type: SafetyGoal
 id: SG-BRAKE-001
 name: "Prevent unintended brake release"
+status: approved
 asilLevel: D
 hazardousEvents: [HE-BRAKE-001]
 ---
@@ -6350,7 +6359,9 @@ hazardousEvents: [HE-BRAKE-001]
 type: Requirement
 id: REQ-BRAKE-HYD-001
 name: "Maintain hydraulic pressure within 50 ms"
+status: approved
 asilLevel: B
+verificationMethod: test
 derivedFromSafetyGoal: SG-BRAKE-001
 breakdownAdr: ADR-BRAKE-DECOMP-001    # documents the decomposition rationale
 ---
@@ -6495,6 +6506,7 @@ Instances are authored under **one** namespaced frontmatter field, `links:`, acc
 |---|---|---|---|---|
 | `links` | map: link-type name → string \| list of strings | optional | absent | User-defined outbound links. Each key is a declared link-type name; each value is one reference or a list of references (stable id or qualified name), resolved exactly as `satisfies:` targets are (§11.10, §5). |
 
+<!-- syscribe-example: config="link-types.toml" -->
 ```yaml
 ---
 type: PartDef
@@ -6557,6 +6569,7 @@ relax       = ["E313"]
 coverage    = false
 ```
 
+<!-- syscribe-example: config="link-types.toml" -->
 ```yaml
 ---
 type: PartDef
@@ -6629,7 +6642,7 @@ id: ZN-CTRL-001
 name: Control Zone
 status: approved
 targetSL: 3
-achievedSL: 2
+achievedSL: 3
 members:
   - Logical::PLCController
   - Logical::SafetyRelay

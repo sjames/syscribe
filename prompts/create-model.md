@@ -252,6 +252,7 @@ Check off each one, then re-run `validate` to confirm 0 errors before proceeding
 
 When you write a file, show its full content in a fenced block labelled with the file path and action keyword:
 
+<!-- syscribe-example: skip reason="illustrates the new:/update: output-block convention, not a model file" -->
 ````
 ```new: model/Requirements/MyNewReq.md
 ---
@@ -794,6 +795,7 @@ Every diagram is a `type: Diagram` element in `Diagrams/`. Four authoring approa
 
 ### Diagram element frontmatter
 
+<!-- syscribe-example: expect W406 reason="GH #158: W406 wrongly checks pumlMode: companion diagrams for inline SVG ids" -->
 ```yaml
 ---
 type: Diagram
@@ -1158,6 +1160,7 @@ links:
 
 Use a single `TARASheet` file. The parser explodes it into individual `DamageScenario`, `ThreatScenario`, `CybersecurityGoal`, and `SecurityControl` elements.
 
+<!-- syscribe-example: skip reason="row fields elided with ...; the full sheet is in docs/model-guide/safety-analysis.md" -->
 ```yaml
 type: TARASheet
 id: TARA-SYS-001

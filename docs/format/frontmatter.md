@@ -194,6 +194,7 @@ Any element may carry project-defined relationships under a single `links:` map.
 |---|---|
 | `links` | Map from a declared link-type name to one reference or a list of references (stable id or qualified name, resolved like `satisfies:`). The holding element is the source (§12.1); the declared `inverse` is computed, never authored. An undeclared key is `E630` (the message lists the declared types); a malformed shape `E631`; a dangling target `E632`; declared source/target type, cardinality and acyclicity constraints raise `E633`–`E636`/`W631`. Never raises `W047`. |
 
+<!-- syscribe-example: config="link-types.toml" -->
 ```yaml
 type: PartDef
 name: WatchdogMonitor

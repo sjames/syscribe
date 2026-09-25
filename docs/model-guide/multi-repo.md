@@ -82,6 +82,9 @@ Trace references — `verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:` �
 # local TestCase verifying a requirement owned by the avionics repo
 id: TC-INT-001
 type: TestCase
+name: "Integrated navigation fix accuracy"
+status: draft
+testLevel: L4
 verifies:
   - REQ-AVI-NAV-014      # resolves in the avionics peer — clean, no E512
 ```
