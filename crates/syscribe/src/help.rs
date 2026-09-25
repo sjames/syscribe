@@ -166,27 +166,10 @@ mod prompt_syntax_tests {
     /// `render model/Diagrams/X.md`, `ingest-results <file>`).
     const PATH_TAKING: &[&str] = &["lint-docs", "render", "ingest-results"];
 
-    /// TEMPORARY allowlist of known offenders, matched by (repo-relative file, exact
-    /// line text); the line number is informational. These lines are being corrected
-    /// on another branch — remove this list (and its entries) once
-    /// `docs/review-prompts-guides` lands. A stale entry is harmless (it simply
-    /// matches nothing), so merge order does not matter.
-    const KNOWN_OFFENDERS: &[(&str, usize, &str)] = &[
-        ("prompts/create-model.md", 796, "syscribe diagram list model/"),
-        ("prompts/create-model.md", 797, "syscribe diagram list model/ --type PartDef,Part --ns UAV"),
-        ("prompts/create-model.md", 803, "syscribe diagram measure model/ \\"),
-        ("prompts/create-model.md", 839, "syscribe diagram compose model/ my-arch.layout.json \\"),
-        ("docs/model-guide/index.md", 42, "cargo run --package syscribe -- model/"),
-        ("docs/model-guide/index.md", 48, "cargo run --package syscribe -- model/ > reports/validation.md"),
-        ("docs/model-guide/index.md", 54, "cargo run --package syscribe-server -- model/"),
-        ("docs/validation/index.md", 11, "cargo run --package syscribe -- model/"),
-        ("docs/browser/index.md", 10, "cargo run --package syscribe-server -- model/"),
-        (
-            "overrides/home.html",
-            395,
-            "            <div class=\"sml-spec-row__sub\">Parse, validate, and browse any model directory: <code style=\"font-size:11px;\">cargo run --package syscribe-server -- model/</code></div>",
-        ),
-    ];
+    /// Known offenders, matched by (repo-relative file, exact line text); the line
+    /// number is informational. Empty: every documented invocation passes the model
+    /// root with `-m`. Add an entry only for a deliberate, commented exception.
+    const KNOWN_OFFENDERS: &[(&str, usize, &str)] = &[];
 
     fn repo_root() -> std::path::PathBuf {
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
