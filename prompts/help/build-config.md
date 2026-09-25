@@ -36,8 +36,8 @@ An unknown option is a usage error (exit 1, message on stderr, nothing on stdout
     kconfig    CONFIG_VAR=y/n/value — Zephyr/Linux Kconfig
 
 ## EXAMPLES
-    syscribe -m model/ build-config --config CONF-PREMIUM --format cmake
-    syscribe -m model/ build-config --config CONF-PREMIUM --format c-header --prefix MY_
+    syscribe -m model/ build-config --config CONF-UAV-DELIVERY-001 --format cmake
+    syscribe -m model/ build-config --config CONF-UAV-DELIVERY-001 --format c-header --prefix UAV_
     syscribe -m model/ build-config --all-configs --format json
 
 ## SEE ALSO

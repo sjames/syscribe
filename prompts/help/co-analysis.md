@@ -15,9 +15,9 @@ ThreatScenario → damageScenarios → DamageScenario → hazardRef → goal —
     --json         Emit {goals:[…], unlinkedSafetyDamage:[…]}.
 
 ## EXAMPLES
-    syscribe -m model/ co-analysis
-    syscribe -m model/ co-analysis --json
-    syscribe -m model/ co-analysis --config CONF-CONNECTED-001   # variant-scoped
+    syscribe -m model_auto/ co-analysis
+    syscribe -m model_auto/ co-analysis --json
+    syscribe -m <root> co-analysis --config <CONF-id>   # variant-scoped (needs a product line)
 
 ## SEE ALSO
     cyber-risk, safety-case, validate (W030), spec safety

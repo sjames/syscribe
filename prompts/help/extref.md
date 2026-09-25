@@ -13,8 +13,9 @@ across elements warns W028.
     --json   Emit the matches as a JSON array.
 
 ## EXAMPLES
-    syscribe -m model/ extref "DNG:4521"
-    syscribe -m model/ extref "cameo://model/Engine#id-99" --json
+    # no bundled model carries extRef: yet — shown against your own model
+    syscribe -m <root> extref "DNG:4521"
+    syscribe -m <root> extref "cameo://model/Engine#id-99" --json
 
 ## EXIT CODES
     0  at least one match    1  no element declares <ref>

@@ -42,8 +42,8 @@ ingested verdict is Fail; `pass` when every member passes; otherwise
 ## EXAMPLES
     syscribe -m model/ testplan
     syscribe -m model/ testplan --json
-    syscribe -m model/ testplan TP-DELIVERY-INTEGRATION-001
-    syscribe -m model/ testplan TP-DELIVERY-INTEGRATION-001 --json
+    syscribe -m model/ testplan TP-TRS-MCP-001
+    syscribe -m model/ testplan TP-TRS-MCP-001 --json
 
 ## SEE ALSO
     matrix, audit, verification-depth (each accepts the `--plan TP-X` lens),

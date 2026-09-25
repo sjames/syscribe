@@ -60,10 +60,13 @@ yourself; `verify` checks that `gitTag` resolves to `gitCommit` when the tag exi
 `diff --detail` reconstructs field/body changes via `git show`.
 
 ## EXAMPLES
-    syscribe -m model/ baseline create --tag REL-2026-07 --approver "J. Roe"
+    # the bundled models carry no Baseline yet; create one, then compare two
+    syscribe -m <root> baseline create --tag REL-2026-07 --approver "J. Roe"
+    syscribe -m <root> baseline diff BL-2026-06 BL-2026-07 --detail
+    syscribe -m <root> baseline show BL-2026-07
+    syscribe -m model/ baseline list
     syscribe -m model/ baseline verify --all
-    syscribe -m model/ baseline diff BL-2026-06 BL-2026-07 --detail
-    syscribe -m model/ validate --deny E520   # already fatal; gates released drift
+    syscribe -m model/ validate --deny W520   # E520 is already fatal; gate approved drift too
 
 ## SEE ALSO
     suspect, validate, trace

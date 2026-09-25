@@ -11,8 +11,8 @@ reference to it across the model. Use --dry-run first to preview the changes.
     --dry-run   Show what would change without writing.
 
 ## EXAMPLES
-    syscribe -m model/ move UAV::Avionics::FC UAV::Avionics::FlightController --dry-run
-    syscribe -m model/ move UAV::Old UAV::New
+    syscribe -m model/ move UAV::Avionics::FlightController UAV::Avionics::FlightComputer --dry-run
+    syscribe -m model/ move UAV::Payload UAV::Mission::Payload
 
 ## SEE ALSO
     refs, links

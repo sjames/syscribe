@@ -25,8 +25,8 @@ which dumps the full element. Default output is NDJSON (one row per line).
 ## EXAMPLES
     syscribe -m model/ digest
     syscribe -m model/ digest --status approved --limit 100
-    syscribe -m model/ digest --where custom.supplier=Bosch --json
-    syscribe -m model/ digest --config CONF-LM3S-QEMU-001
+    syscribe -m model/ digest --tag mcp --json
+    syscribe -m model/ digest --config CONF-UAV-DELIVERY-001
 
 ## EXIT CODES
     0  ok    1  usage error (unresolvable --config)
