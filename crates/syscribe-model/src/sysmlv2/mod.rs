@@ -152,7 +152,146 @@ pub fn ingest_sysml_submodels(elements: &mut Vec<RawElement>, _model_root: &Path
     for (idx, dir, pkg_qname) in anchors {
         synthetic.extend(ingest::ingest_subtree(&mut elements[idx], &pkg_qname, &dir));
     }
+    let first_synth = elements.len();
     elements.extend(synthetic);
+    resolve_allocation_endpoints(elements, first_synth);
+}
+
+/// `REQ-TRS-SYSMLV2-029` (GH #144) — resolve the raw `allocate <source> to
+/// <target>` endpoint text [`ingest`] lifted onto every synthesized
+/// `Allocation` (`elements[first_synth..]`) into real qualified names, so the
+/// ingested allocation feeds the §12.9 unified allocation set
+/// (`validator::allocation_edges_tagged`) with no validator change.
+///
+/// Unlike `connect` lifting (`REQ-TRS-SYSMLV2-013`, a purely local AST
+/// lookahead done inside `ingest`), this runs after the merge, over the
+/// complete element list — allocation endpoints routinely cross packages
+/// (`allocate Logical::ctrl to Physical::ecu`) and name features a usage
+/// inherits from its type (`allocate sys.ctl to board.mcu`), neither of which
+/// a single-file view can see. Per endpoint:
+///
+/// - a stable id (`REQ-*`, …) is left as-is (ids are global);
+/// - the head (the text before the first `.`, possibly `::`-qualified)
+///   resolves innermost scope first, from the allocation's owning namespace
+///   outward to the model root — the same order `Resolver::resolve_scoped_ref`
+///   uses for ingested `typedBy:`/`supertype:`;
+/// - each further `.` segment resolves as a feature of the element reached so
+///   far: declared directly on it (`<cur>::<seg>`), or inherited through its
+///   `typedBy:`/`supertype:` chain (cycle-safe);
+/// - a chain whose tail fails is truncated to its deepest resolved prefix and
+///   the allocation carries a `W542` finding (the `connect` truncation code);
+/// - a head that resolves nowhere is kept verbatim with `.` rewritten to `::`,
+///   so `E502`/`E503` report it by the name the author wrote.
+fn resolve_allocation_endpoints(elements: &mut [RawElement], first_synth: usize) {
+    use std::collections::HashMap;
+
+    let needs_work = elements[first_synth..].iter().any(|e| {
+        matches!(e.frontmatter.element_type, Some(crate::element::ElementType::Allocation))
+            && (e.frontmatter.allocated_from.is_some() || e.frontmatter.allocated_to.is_some())
+    });
+    if !needs_work {
+        return;
+    }
+
+    // qname -> (typedBy, supertype) as plain strings, for the feature walk.
+    let index: HashMap<String, (Option<String>, Option<String>)> = elements
+        .iter()
+        .map(|e| {
+            let s = |v: &Option<serde_yaml::Value>| v.as_ref().and_then(|v| v.as_str()).map(str::to_string);
+            (e.qualified_name.clone(), (s(&e.frontmatter.typed_by), s(&e.frontmatter.supertype)))
+        })
+        .collect();
+
+    for elem in &mut elements[first_synth..] {
+        if !matches!(elem.frontmatter.element_type, Some(crate::element::ElementType::Allocation)) {
+            continue;
+        }
+        let scope = parent_scope(&elem.qualified_name).to_string();
+        let mut truncations = Vec::new();
+        for field in [&mut elem.frontmatter.allocated_from, &mut elem.frontmatter.allocated_to] {
+            for entry in field.iter_mut().flatten() {
+                let (resolved, trunc) = resolve_endpoint(&index, &scope, entry);
+                truncations.extend(trunc);
+                *entry = resolved;
+            }
+        }
+        for msg in truncations {
+            elem.derive_findings.push(finding("W542", &elem.file_path, &msg));
+        }
+    }
+}
+
+type EndpointIndex = std::collections::HashMap<String, (Option<String>, Option<String>)>;
+
+/// The enclosing namespace of `qname` (`""` for a top-level name).
+fn parent_scope(qname: &str) -> &str {
+    qname.rfind("::").map_or("", |i| &qname[..i])
+}
+
+/// Resolve `r` innermost-scope-first from `scope` outward to the model root.
+fn lookup_scoped(index: &EndpointIndex, scope: &str, r: &str) -> Option<String> {
+    let mut scope = scope;
+    loop {
+        let candidate = if scope.is_empty() { r.to_string() } else { format!("{scope}::{r}") };
+        if index.contains_key(&candidate) {
+            return Some(candidate);
+        }
+        if scope.is_empty() {
+            return None;
+        }
+        scope = parent_scope(scope);
+    }
+}
+
+/// Resolve feature `seg` of the element `owner`: declared directly on it, or
+/// inherited through its `typedBy:`/`supertype:` chain (each type reference
+/// resolved from the referencing element's own enclosing scope). `seen`
+/// guards against specialization/typing cycles.
+fn lookup_feature(
+    index: &EndpointIndex,
+    owner: &str,
+    seg: &str,
+    seen: &mut std::collections::HashSet<String>,
+) -> Option<String> {
+    if !seen.insert(owner.to_string()) {
+        return None;
+    }
+    let direct = format!("{owner}::{seg}");
+    if index.contains_key(&direct) {
+        return Some(direct);
+    }
+    let (typed_by, supertype) = index.get(owner)?;
+    [typed_by, supertype].into_iter().flatten().find_map(|t| {
+        let ty = lookup_scoped(index, parent_scope(owner), t)?;
+        lookup_feature(index, &ty, seg, seen)
+    })
+}
+
+/// Resolve one raw allocate-endpoint text; see [`resolve_allocation_endpoints`].
+/// Returns the text to store and an optional `W542` truncation message.
+fn resolve_endpoint(index: &EndpointIndex, scope: &str, raw: &str) -> (String, Option<String>) {
+    if crate::resolver::is_stable_id(raw) {
+        return (raw.to_string(), None);
+    }
+    let mut segments = raw.split('.');
+    let head = segments.next().unwrap_or(raw);
+    let Some(mut cur) = lookup_scoped(index, scope, head) else {
+        return (raw.replace('.', "::"), None);
+    };
+    for seg in segments {
+        match lookup_feature(index, &cur, seg, &mut Default::default()) {
+            Some(next) => cur = next,
+            None => {
+                let message = format!(
+                    "allocate endpoint '{raw}' has no feature '{seg}' on '{cur}' (neither declared on it \
+                     nor inherited through its typedBy/supertype chain) -- truncated to the edge \
+                     endpoint '{cur}' (see REQ-TRS-SYSMLV2-029)"
+                );
+                return (cur, Some(message));
+            }
+        }
+    }
+    (cur, None)
 }
 
 /// The qualified names of every `RawElement` synthesized by SysMLv2 ingestion
