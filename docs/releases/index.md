@@ -55,6 +55,333 @@ Projects can declare their own relationship types in a `[linkTypes.<name>]` tabl
 - New TCs: TC-TRS-LINKTYPE-001..012 and TC-TRS-PKG-001/002.
 - Fixed a SIGPIPE race that made grep assertions on large outputs flaky (`qual/tests/lib.sh`).
 
+## 0.39.0 — 2026-09-15
+
+### Annotated-source ingestion
+
+A package `_index.md` can declare `annotationFormat: <label>` with inline `marker:` (a regex), `include:` and `exclude:` (globs). Syscribe then scans the matching source files in-process for comment blocks that start with the marker and parses each block with the same frontmatter schema a `.md` file uses (ADR-SYS-ANNOTATE-001, [guide](../model-guide/annotated-source.md)).
+
+- `doc:` in a marker block becomes the element's documentation body.
+- `implementedBy:` is filled in from the marker's own source location when it isn't set (**W563**).
+- A native `TestCase` can `verifies:` an annotation-synthesized element (E104 widened a third time).
+- New codes **E560**, **E561**, **W560–W563**. `annotationFormat:` is mutually exclusive with `foreignFormat:` and `sysmlSubmodel:` on the same package (**W562**).
+- New `annotations scan <qname-or-label> --dry-run` scans one package without merging or validating.
+- Worked example: `examples/annotated-source/c-firmware/`.
+
+### Session-log results for manual verification (#113)
+
+`ingest-results --format session-log <file>` ingests a JSON array of per-Gherkin-scenario records (`testCase`, `scenario`, `steps`, `result`, `timestamp`). A malformed record is a hard error and nothing is written. A TestCase with no `testFunctions:` gets its verdict from its scenario titles: any fail is a fail, every scenario recorded as pass is a pass, and partial coverage stays unknown. `trace`, `matrix`, `safety-case` and `testplan` show these verdicts.
+
+### PlanningItem workflow
+
+- **`set` command (#112):** `set <id> status=<value>`, `set <id> evidence.add ref=<id>|path=<path> [rationale=<text>]` and `set <id> achieves.add <req-id>`. Values are checked before anything is written, `status=` rewrites only that one line, and `--dry-run` previews a diff.
+- **`claim` / `release` (#115):** `claim <PI-id> --by <agent-id>` sets the new advisory `claimedBy:`/`claimedAt:` fields. It refuses a `done` item or one claimed by someone else. `release <PI-id>` clears both. `claimedBy` appears in `show` and `list PlanningItem --json`.
+- **W310 (#114):** a `done` PlanningItem whose `achieves:` requirement doesn't meet the W002/W305 verification bar is flagged on the PlanningItem's own file.
+- **W311:** two active PlanningItems (`in_progress` or claimed) that share an `achieves:` requirement or an `evidence[].path`.
+
+### CLI output
+
+- **`validate` summary line (#116):** text output now starts with a line such as `0 errors, 51 warnings`. When a gate trips, the line ends in `FAIL` and names the mechanism (`--deny`, `--warnings-as-errors`, `--profile` or `--max-warnings`).
+- **`show` Related footer (#117):** `show` lists the relevant follow-up commands for the element's type (`trace`, `who-verifies`, `impact`, `refs`, `connectivity`, `n2`). `--no-related` hides it.
+
+### Documentation
+
+- Docs, templates and prompts now use the canonical `derivedFromCybersecurityGoal` field name that W804/W807 report (#84). The legacy alias still works.
+
+## 0.38.0 — 2026-08-24
+
+### Stdio-subprocess foreign-format plugins
+
+A package `_index.md` can declare `foreignFormat: <alias>` to hand its whole subtree to an external process configured under `[plugins.<alias>]` in `.syscribe.toml` (ADR-SYS-PLUGIN-002, [guide](../model-guide/stdio-plugins.md)). Syscribe writes one JSON request to the process's stdin and reads one `{elements, diagnostics}` envelope from its stdout. The plugin can be written in any language.
+
+- Plugins are not sandboxed. `timeout_ms` is the only enforced limit.
+- Plugin elements take part in cross-references like hand-authored ones, and a native `TestCase` can `verifies:` a plugin-synthesized element.
+- New codes **E550**, **E551** and **W550–W553**.
+- New `plugins run <alias> --dry-run` shows a plugin's raw envelope.
+- Worked example: `examples/stdio-plugins/toy-python/`.
+
+### E108: duplicate qualified name
+
+New **E108** reports two elements with the same qualified name, whatever their origin. Before this, the last one silently won. It found redundant `_index.md` wrappers in `model_sil/` and in qual fixtures, which were removed.
+
+### More SysMLv2 constructs mapped
+
+Native SysMLv2 submodel ingestion now maps several more constructs onto the existing native schema:
+
+- `state def`/`state` → `StateDef`, with canonical transitions
+- `action def`/`action` → `ActionDef`, with a `subActions:` tree
+- `view def`, `viewpoint def` and `rendering def`
+- `concern def`/`concern`
+- `flow def`/`flow`, which also lifts onto the owning part's `flowConnections:`
+- `enum def`/`enum`
+- `case def`, `analysis def` and `verification def`
+
+`use case def` is still unmapped.
+
+### VS Code extension 0.2.0
+
+The extension in `editors/vscode/` is ready for the Marketplace:
+
+- It finds or downloads the `syscribe` binary automatically. The new `syscribe.version` setting pins a release.
+- It is bundled with esbuild.
+- Activation has a timeout and fails with a clear error instead of hanging.
+- A CI workflow builds the `.vsix` on `vscode-v*` tags.
+
+## 0.37.0 — 2026-08-18
+
+### Derived ids for `featureTree:` entries
+
+A `featureTree:` entry's `id:` is now optional (REQ-TRS-FM-006). When it's left out, it is derived from the entry's dotted `name:`, so `Platform.CortexM` becomes `FEAT-PLATFORM-CORTEXM`. An explicit `id:` always wins. Invalid or colliding derived ids are reported by the existing **E006** and **E101**. A plain per-file `FeatureDef` still needs an `id` (**E201**). MCP `describe_type` now lists `FeatureModel`.
+
+## 0.36.1 — 2026-08-18
+
+- Bumped `sysml-v2-parser` from 0.53.0 to 0.54.0, which brings upstream parser fixes. No behavior change for Syscribe models.
+
+## 0.36.0 — 2026-08-18
+
+### Single-file feature models
+
+A `type: FeatureModel` sheet can hold a whole feature tree as one flat `featureTree:` list (REQ-TRS-FM-005, spec §9.6a). The walker turns each entry into an ordinary `FeatureDef`.
+
+- Entry names are dot-separated paths relative to the sheet (`Platform.CortexM`), so they get the same qualified names a directory layout would.
+- An optional `crossTreeConstraints:` list keeps `requires:`/`excludes:` edges in one place.
+- `parameterConstraints:` is accepted directly on the sheet.
+- New codes **E231–E233** and **W048**.
+- Worked example: `examples/single-file-feature-model/`.
+
+### Fixes
+
+- `requires:`/`excludes:` now resolve bare `FEAT-*` ids. Before, they raised a false E212 and were dropped from `feature-check --deep`.
+- `parameterConstraints:` no longer triggers a false W047.
+- The `features` tree now nests by real FeatureDef ancestry.
+- Write operations (`update_element`, `delete_element` and `move_element`, in both the web server and MCP) now refuse elements that were synthesized from a shared sheet, such as FMEA/TARA rows or `featureTree:` entries. Before, they rewrote or moved the whole sheet file.
+- LSP go-to-definition on a `featureTree:` entry now jumps to that entry's line.
+
+## 0.35.0 — 2026-08-14
+
+### SysMLv2 submodel improvements
+
+- **`@Syscribe*` metadata annotations (#92):** on a `part def`/`part`, these annotations set `domain:`, `asilLevel:`/`silLevel:`/`plLevel:`, `shortName:` and `implementedBy:`. The existing validation then applies to them.
+- **Doc-comment lifting (#94):** `doc /* ... */` comments become the synthesized element's documentation body.
+- **Connections (#95, #99):** `connect a to b (, c)*` endpoints become resolvable `connections:` edges. A two-segment endpoint resolves to a nested feature redeclared on the usage. New **W542** warns when an endpoint is truncated to its head (#104).
+- **Trailing doc bodies (#98):** a named connection usage's own trailing doc body is lifted.
+- **Doc-comment directives (#100):** `interface def`, `port def` and `connection def` accept `@SyscribeDomain:`, `@SyscribeIntegrity:`, `@SyscribeShortName:` and `@SyscribeImplementedBy:` lines in their doc comment.
+- **Scoped `n2` (#97):** the axis now includes qname-nested child parts.
+- **Package-relative references (#105, #107):** package-relative `typedBy:`/`supertype:` references now resolve for W600 suppression, W007 usage tracking and the graph's `TypedBy` edge.
+
+### Validation and CLI
+
+- **Shorter ids:** the category segment is now optional in `REQ`, `TC`, `ADR` and `PI` ids, so `REQ-042` is valid.
+- **W600 (#101):** no longer fires on a `Part` usage whose `typedBy:` target is documented.
+- **`template PlanningItem` (#102):** now works on the CLI and through MCP.
+- **Configuration reference:** `spec fields` now has a complete `.syscribe.toml` reference.
+
+## 0.34.0 — 2026-08-08
+
+### PlanningItem `assignedTo:`
+
+A PlanningItem can declare `assignedTo: <username>` (REQ-TRS-PLANITEM-008).
+
+- The value must be a Unix-style username (**E723**).
+- When `.syscribe.toml` has a non-empty `[users]` roster (`alice = "Alice Nakamura"`), the username must be in it (**E722**). A malformed roster key is **W309**.
+- `show` prints the display name.
+
+## 0.33.0 — 2026-08-07
+
+### Native PlanningItem element type (#91)
+
+`type: PlanningItem` (`PI-*` ids) is a work-item tree that is part of the traceability graph (ADR-SYS-PLANITEM-001).
+
+- **Fields:** `status` (`todo | in_progress | blocked | done`) and an optional `itemType` (`bug | task | feature`).
+- **Hierarchy:** a single `parent:` per item, with cycle detection.
+- **Goals:** `achieves:` is required on top-level items and must name `Requirement`s. It is kept separate from `satisfies:`.
+- **Variants:** `appliesWhen:` gating works for PlanningItems.
+- **Evidence:** `evidence:` entries are `ref:` or `path:`, each with an optional `rationale:` waiver. A leaf item marked `done` needs at least one non-waived evidence entry that resolves (**E719**).
+- **Dependencies:** `blockedBy:` names what the item is waiting on. **E720** reports a dangling target, **E721** a cycle, and **W308** a non-empty `blockedBy:` when the status isn't `blocked`.
+- **Codes:** **E706–E721**.
+- **Worked example:** `examples/planning-item/`.
+
+### Hierarchical product-line composition
+
+A `Configuration` can consolidate other, already-configured Configurations through `subConfigurations:`, locally or across `[repos]`, at any depth (ADR-SYS-HPLE-001).
+
+- **Validity:** each entry must resolve to a valid Configuration (**E516–E518**).
+- **Parameter bindings:** `parameterBindings:` reaches through the whole subtree. **E519** and **E523** reject illegal or redundant cross-tier bindings.
+- **Open parameters:** the opt-in **W513** flags a required parameter left open anywhere in the subtree.
+- **Isolation:** a lower tier never refers to the configuration that consolidates it, and `bindTo:` never crosses a `subConfigurations:` boundary.
+- **Worked example:** `examples/hple-multitier/`.
+
+### Native SysMLv2/KerML submodels (#89)
+
+A package marked `sysmlSubmodel: true` can hold `.sysml`/`.kerml` files. They are parsed in-process and merged into the graph ([guide](../model-guide/sysmlv2-submodel.md)).
+
+- **Merging and mapping:** same-named packages from different files are merged, and a fixed set of element kinds is mapped.
+- **Traceability:** `satisfy`/`verify` can target native Requirements, and a native `TestCase.verifies:` can target a SysMLv2 element.
+- **Variability:** `@SyscribeFeature{featureId}` becomes `appliesWhen:`.
+- **Codes:** a stray nested `_index.md` is **W540**, and a parse failure is **W541**.
+- **Worked example:** `examples/sysmlv2-submodel/`.
+
+### Web UI: diagram-driven editing, `/canvas` removed
+
+- **Editable diagrams:** non-Mermaid diagrams use a new sprotty-based editor for create, delete, connect and move. Each edit goes through the guarded write engine, which now lives in `syscribe-model::mutate`, and returns a validation delta.
+- **`/canvas` removed:** the Cytoscape.js graph explorer (`/canvas`, `/api/graph`) and the old SVG-canvas drag/layout code were removed.
+- **JSON API:** responses use camelCase throughout. A refused write returns `written: false`.
+- **Live reload:** the tree and any open diagram refresh after a reload event.
+
+### Fixes (#90)
+
+- W024 no longer reports a FeatureDef as an orphan when it is referenced by bare id in `appliesWhen:`.
+- `Attribute` elements are no longer labelled `Other`.
+- The validation report now shows `satisfies:` targets written as qualified names.
+- `delete_element`'s reference guard and the referential-integrity gate now see nested `Allocation` references (#87).
+
+## 0.32.0 — 2026-07-23
+
+### Language Server (`syscribe lsp`)
+
+A stdio Language Server for editors, using only standard LSP (ADR-SYS-LSP-001..003):
+
+- **Navigation:** diagnostics, go-to-definition, references, hover and workspace symbols.
+- **Completion and rename:** completion for cross-reference fields and enums, and rename of stable ids.
+- **Code lenses:** counts for `verifiedBy`, derived children and suspect links.
+- **Quick fixes:** for **E310** (pick an accepted ADR) and **W090** (accept a suspect link as reviewed).
+
+A minimal VS Code client is included in `editors/vscode/`. The README now also covers suspect links, baselines and the MCP server.
+
+## 0.31.0 — 2026-07-13
+
+### Suspect links
+
+Suspect links flag a trace link whose target changed after the link was reviewed (ADR-SYS-SUSLINK-001).
+
+- **Baselines:** the source element stores a `traceBaselines:` map from each target to a blake3 hash of the target's normative content. A mismatch is **W090**.
+- **Opt-in:** links without a baseline stay silent in `validate`.
+- **CLI:** `suspect list`, `suspect accept <src> <tgt>`, `suspect accept --all` and `suspect accept --all-unbaselined` (for onboarding).
+- **MCP:** `suspect_list`, and a guarded `suspect_accept`.
+
+### Release baselines
+
+`type: Baseline` (`BL-*`) freezes a scope of the model into a snapshot that is content-hashed and tied to a git commit (ADR-SYS-BASELINE-001).
+
+- **Commands:** `baseline create`, `verify`, `diff`, `list` and `show`.
+- **Scope:** `frozenScope` can cover the whole model, a package subtree, or type/status/tag filters. It can also project a Configuration (`config=`) or take the trace closure of a goal (`closureFrom=`).
+- **Drift and tampering:** drift is graded by status (**E520** for `released`, **W520** for `approved`). Tampering between the seal and the manifest is **E521**, and an unresolved `supersedes` is **E522**.
+- **Output locations:** configurable with `[baselines]` in `.syscribe.toml`.
+- **MCP:** read-only `baseline_list`, `baseline_diff` and `baseline_verify`.
+
+## 0.30.0 — 2026-07-04
+
+### Scanning large requirement sets
+
+New read-only commands, each also available as an MCP tool:
+
+- `stats`: histograms by facet, plus coverage and orphan rollups.
+- `digest`: one compact line per requirement, paged to a token budget.
+- `search-text`: BM25 full-text search.
+- `summarize`: a per-package summary built from excerpts.
+- `topics`: distinctive keywords per package.
+- `clusters`: TF-IDF k-means clustering.
+
+All of them run offline and give the same result every time.
+
+### Schema
+
+- **`displayOrder`:** new optional numeric field that sets presentation order without renumbering ids.
+- **W047:** new warning for unrecognized frontmatter keys. `reqClass` is now a recognized field.
+
+### Fixes
+
+- `find` no longer panics when its length cap falls in the middle of a UTF-8 character.
+- `matrix` now shows a covered-but-failing requirement as `▣` instead of `✗`.
+
+## 0.29.0 — 2026-06-29
+
+- **Consistent coverage:** MCP `coverage` and `coverage_matrix` now use one shared classifier. A requirement covered only by draft TestCases is `planned`, not verified, and a covered requirement whose latest verdict is fail is `failing`. As a result, verified counts drop for models that rely on draft tests.
+
+## 0.28.2 — 2026-06-29
+
+- Added a requirement and a regression test that every MCP tool input property has an object schema.
+
+## 0.28.1 — 2026-06-29
+
+- **MCP fix:** the `fields` argument of `create_element`, `update_element` and `apply_changes` now has an object JSON schema. Strict MCP clients, including Claude Code, had rejected the whole tool list.
+
+## 0.28.0 — 2026-06-29
+
+### Static HTML export
+
+`export-html [--out <dir>] [--css <file>]` writes the whole model as a static site that works offline. It includes a page per element, inline diagrams, validation, coverage and traceability reports, and client-side search.
+
+### Eight more MCP tools
+
+- **Evidence:** `ingest_results`, `coverage_matrix`, `coverage_gaps` and `evidence`.
+- **Diagrams and docs:** `lint_docs`, `render_diagram`, `diagram_coverage` and `generate_view`.
+
+This brings MCP to 37 tools. `help mcp` and the CLI docs now cover all of them.
+
+## 0.27.1 — 2026-06-29
+
+- MCP `coverage` now reports only non-draft requirements as gaps.
+- The demo model gained integration-level TestCases for its approved parent requirements, which clears the W305 warnings.
+
+## 0.27.0 — 2026-06-29
+
+### MCP server (`syscribe mcp`)
+
+A Model Context Protocol server over stdio that lets LLM clients query and edit a model (ADR-SYS-MCP-001):
+
+- **Read and navigate:** `search` (with filters and full-text search), `get_element`, `tree`, `trace`, `impact`, `validate` and others.
+- **Authoring helpers:** `template`, `next_id`, `check_ref`, `coverage` and others.
+- **Guarded writes:** `create_element`, `update_element`, `move_element`, `delete_element` and the atomic `apply_changes`. Writes are dry-run by default and return a validation delta and a diff.
+- **Feature-model tools:** `features`, `feature_check`, `configure`, `project`, `diff_configs` and `why_active`.
+- **Reports:** `run_report` runs an allowlisted, read-only report command.
+- **Read-only mode:** `--read-only` hides the write tools.
+- **Coverage:** `coverage` separates uncovered leaf requirements from parents that are missing integration-level (L3–L5) tests.
+
+## 0.26.41 — 2026-06-22
+
+- **Extra id prefixes:** the `[ids.prefixes]` table in `.syscribe.toml` adds stable-id prefixes per element type. For example, `Requirement = ["STK", "SYS"]` makes `STK-SCHED-001` valid. The built-in prefix stays valid. A malformed entry is **W046** and is ignored.
+- All clippy lints are resolved. No behavior change.
+
+## 0.26.40 — 2026-06-22
+
+- CLI commands piped into a reader that exits early (`| head`, `| grep -q`) now exit quietly instead of panicking.
+
+## 0.26.39 — 2026-06-22
+
+- **Docs audit:** docs, CLI help, spec templates and agent instructions were checked against the implementation.
+  - All emitted E/W codes are now documented.
+  - CLI help lists every subcommand.
+  - Missing types were added to the spec templates.
+
+## 0.26.38 — 2026-06-20
+
+### PlantUML styling and coverage
+
+- **Styling:** diagrams use a SysML-style colour scheme, shared via `.plantuml/sysml.iuml`, with a built-in fallback.
+- **IBDs:** containers nest recursively.
+- **Labels:** shapes and edges accept a `label:`.
+- **Links:** SVGs link to `<base_url>/<path>.md`, so links can point at GitHub. Links are omitted when `base_url` isn't set.
+- **Demo models:** `model_auto/` now has one example of each diagram kind.
+
+## 0.26.37 — 2026-06-19
+
+### `plantuml render`
+
+- **Rendering:** `plantuml render [--jar <path>] [--dry-run]` runs PlantUML on every companion `.puml` file. It finds PlantUML via `--jar`, then `[plantuml] jar`, then `PLANTUML_JAR`, then `PATH`.
+- **Image links:** `plantuml` adds a Markdown image link to the element body when it has none.
+- **Demo models:** all example diagrams now use `pumlMode: companion` with rendered SVGs.
+- **CI:** PlantUML generation and rendering run in CI.
+
+## 0.26.36 — 2026-06-19
+
+### PlantUML companion diagrams
+
+- **Generation:** the new `plantuml` subcommand generates `.puml` source for `Diagram` elements marked `pumlMode: companion` (BDD, IBD, StateMachine, Sequence, Requirement). Use `pumlFile:` to set the output path.
+- **Styling:** configured under `[plantuml]` in `.syscribe.toml` (`theme`, `style_file`, `base_url`).
+- **Codes:** new **E403**, **E404** and **W413–W415**.
+- **Docs:** the W023 docs were extended to `Interface`/`InterfaceDef`.
+
 ## 0.26.34 — 2026-06-18
 
 ### implementedBy / W023 extended to Interface and InterfaceDef
@@ -73,6 +400,19 @@ Projects can declare their own relationship types in a `[linkTypes.<name>]` tabl
 Documentation-only follow-up to v0.26.32. The `template configuration` output now includes commented-out `buildOverrides:` and `parameterBindings:` examples; the `spec fields` PLE table documents `buildExports`, `buildOverrides`, and the `buildVar` parameter sub-field.
 
 No code or validation behavior change.
+
+## 0.26.32 — 2026-06-15
+
+### Build-system configuration from a Configuration
+
+The new `build-config` subcommand turns a Configuration's feature selections and parameter bindings into build variables. It outputs `cmake`, `c-header`, `makefile`, `env`, `json` or `kconfig`.
+
+- **Schema:** `buildExports:` on `FeatureDef`, `buildVar:` on a feature parameter, and `buildOverrides:` on `Configuration`.
+- **Precedence:** later sources win, in this order: `buildExports:`, then `buildVar:`, then `buildOverrides:`.
+- **Flags:** `--all-configs` emits a JSON array for CI matrices, and `--prefix` namespaces the variable names. The configuration is SAT-checked first unless you pass `--no-validate`.
+- **Codes:** new **E050** (two features set the same variable) and the opt-in **W050**.
+- **Fixes:** `spec`/`help` now work after `-m <root>`, `-mPATH` is recognized, and `derivedFrom:` accepts a single string.
+- **Docs:** a new multi-page Practitioner Guide section.
 
 ## 0.26.31 — 2026-06-13
 
@@ -253,6 +593,18 @@ This is the foundation for the hierarchy/region-aware completeness checks (`W070
 ### New features (issue #70)
 
 - **`W080` — Sequence diagram send/receive completeness** — a `type: Diagram` element with `diagramKind: Sequence` whose `subject:` resolves to an `ActionDef` now raises **`W080`** for every `SendAction`/`AcceptAction` reachable through the subject's sub-action tree (`subActions:`/`steps:`, recursing into `IfAction` `then:`/`else:` branches) that no `edges:` entry references. A message action is "covered" when an `edges:` entry's `ref:` equals its qualified name (`<ActionDef>::<action>`) or its bare name. The rule (previously advisory in §8.16.8.3, now normative per §22.4) is **draft-suppressed** and gateable with `validate --deny W080`. (`REQ-TRS-DIAG-002`)
+
+## 0.26.10 — 2026-06-13
+
+- **GitHub Action fixed:** the composite action now runs `syscribe -m <model-path> validate`. Its new `args:` input passes extra flags, for example `--profile magicgrid` or `--deny <code>`.
+- **Per-model CI flags:** CI now validates each model with its own flags, so `model_mg` is checked with `--profile magicgrid`.
+- **Qualification fixtures:** fixed E002/E015 errors in the qualification TestCases.
+- **Dependencies:** replaced the deprecated `serde_yaml` with `serde_yaml_ng`.
+
+## 0.26.9 — 2026-06-13
+
+- **Discoverability:** `spec types`, `spec safety`, `spec fields`, `spec validation` and `template` now show `Asset` (`ASSET-*`) and `TestCase.securityTestMethod`. Both shipped in 0.26.7 but weren't listed there (#56, #59).
+- **Dependencies:** bumped petgraph, quick-xml, taffy and toml.
 
 ## 0.26.8 — 2026-06-13
 
@@ -914,6 +1266,38 @@ Documented in format spec §9.10–9.11, `syscribe spec validation`/`spec fields
 - SEQ and REQ diagram renderers; A\* obstacle-aware edge routing; full SysML edge style set
 - JS dependencies vendored and served from the embedded binary (no external CDN at runtime)
 - Unified engineering blueprint colour scheme across docs and canvas
+
+## 0.1.4 — 2026-05-28
+
+### Diagram CLI
+
+- **`diagram` subcommand:** `list`, `measure`, `render` and `compose` produce companion SVGs (`svgMode: companion`).
+- **Layout:** `diagram layout` is a Cassowary-based layout solver. `compose` can read a `Diagram` element's `expose:` list, and `--emit-placement` prints the layout so an LLM can refine it.
+- **More diagram kinds:** `diagram req` draws requirement trees and `diagram seq` draws sequence diagrams.
+- **Rendering:** IBD ports and nested ports, A\* obstacle-aware edge routing, and the full SysML edge style set.
+
+### Validation and authoring commands
+
+- **New commands:**
+  - `validate` shows only errors and warnings, with `--json` and `--file`.
+  - `list`, `types` and `untyped`.
+  - `template`, `next-id`, `path-for` and `check-ref`.
+- **New codes:** **W007** (unused `*Def`), **W008** (no `type:`), and **E016–E018** (cycles in `supertype`, `derivedFrom` and `subsets`).
+- **Fixes:** stack overflow in `tree` caused by the root `_index.md`, and W007 false positives from nested `typedBy:`.
+
+## 0.1.3 — 2026-05-27
+
+- **Mermaid references:** a `%% ref:` annotation in a Mermaid diagram must resolve (**W408**), and a Mermaid diagram with no annotations is **W409**.
+- **Link checks:** new **W410–W412** check `%% link:`, shape `link:` and SVG `href` references.
+- **`render` command:** `render <diagram>` prints a diagram with its links injected.
+
+## 0.1.2 — 2026-05-27
+
+- Fixed duplicate changelog entries in the release workflow.
+
+## 0.1.1 — 2026-05-27
+
+- Reworded the GitHub Action description in `action.yml`.
 
 ---
 
