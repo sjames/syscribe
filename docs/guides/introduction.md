@@ -101,10 +101,10 @@ gate fails.
 must produce complete artefacts, or the validator rejects them.
 
 **Integrity level propagation.** ASIL and SIL levels flow through the derivation chain
-and are checked for consistency. An LLM cannot elevate a derived requirement above its
-parent's integrity level (E841). It cannot mix `asilLevel:` and `silLevel:` on the same
-element (W006). The mathematical structure of the integrity level hierarchy is enforced
-automatically.
+and are checked for consistency. An LLM cannot drop the integrity level from an element
+derived from a SafetyGoal or requirement that carries one (E841/E842), nor from an element
+that satisfies one (E843); lowering it without a documented decomposition rationale is
+flagged (W808). Setting both `asilLevel:` and `silLevel:` on one element is flagged (W006).
 
 **Coverage accounting.** The coverage matrix is computed from actual links, not from
 assertions. An LLM cannot declare that a requirement is covered — it must write a
