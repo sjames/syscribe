@@ -90,6 +90,8 @@ fn part_def_and_nested_part_usage_map_with_supertype_and_typed_by() {
         &root,
         "SysML2Legacy/Vehicle.sysml",
         "package Vehicle {\n\
+         part def PowerSource;\n\
+         part def Cylinder;\n\
          part def Engine :> PowerSource {\n\
          part cylinder1 : Cylinder;\n\
          }\n\
@@ -182,6 +184,12 @@ fn remaining_fixed_set_kinds_map_attribute_port_connection_interface_item_requir
         &root,
         "SysML2Legacy/Mixed.sysml",
         "package Mixed {\n\
+         port def FuelPort;\n\
+         connection def Wire;\n\
+         interface def SomeInterface;\n\
+         item def Fuel;\n\
+         requirement def EnduranceReqType;\n\
+         allocation def AllocKind;\n\
          attribute mass : Real;\n\
          port fuelPort : FuelPort;\n\
          connection wiring : Wire;\n\
@@ -249,6 +257,8 @@ fn variant_membership_inside_a_variation_part_def_maps_with_variant_of() {
         &root,
         "SysML2Legacy/Variants.sysml",
         "package Variants {\n\
+         part def QuadRotor;\n\
+         part def HexRotor;\n\
          variation part def RotorConfig {\n\
          variant part quad : QuadRotor;\n\
          variant part hex : HexRotor;\n\
@@ -303,6 +313,7 @@ fn bare_variant_reference_to_a_sibling_usage_does_not_shadow_it() {
         &root,
         "SysML2Legacy/Variants.sysml",
         "package Variants {\n\
+         part def QuadRotor;\n\
          variation part def Config {\n\
          part quad : QuadRotor;\n\
          variant quad;\n\
@@ -429,6 +440,7 @@ fn a_named_port_nested_inside_an_interface_def_is_mapped() {
         &root,
         "SysML2Legacy/Power.sysml",
         "package Power {\n\
+         port def PowerOutPort;\n\
          interface def PowerInterface {\n\
          port supplyPort : PowerOutPort;\n\
          }\n\
@@ -513,6 +525,7 @@ fn nested_members_of_connection_def_and_port_def_are_mapped() {
         &root,
         "SysML2Legacy/Wiring.sysml",
         "package Wiring {\n\
+         item def Pin;\n\
          connection def Harness {\n\
          item pin : Pin;\n\
          }\n\

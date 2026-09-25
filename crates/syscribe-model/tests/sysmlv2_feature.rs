@@ -54,6 +54,7 @@ fn syscribe_feature_annotation_lifts_into_applies_when() {
         &root,
         "SysML2Legacy/Config.sysml",
         "package Config {\n\
+         part def QuadRotor;\n\
          variation part def RotorConfig {\n\
          @SyscribeFeature {\n\
          featureId = 'FEAT-ROTOR';\n\
@@ -99,6 +100,7 @@ fn syscribe_feature_on_a_typed_variant_lifts_into_applies_when() {
         &root,
         "SysML2Legacy/Config.sysml",
         "package Config {\n\
+         part def QuadRotor;\n\
          variation part def RotorConfig {\n\
          variant part quad : QuadRotor {\n\
          @SyscribeFeature {\n\
@@ -150,6 +152,7 @@ fn syscribe_feature_on_a_variation_requirement_usage_lifts_into_applies_when() {
         &root,
         "SysML2Legacy/Config.sysml",
         "package Config {\n\
+         requirement def ReqChoice;\n\
          variation requirement reqFoo : ReqChoice {\n\
          @SyscribeFeature {\n\
          featureId = 'FEAT-ROTOR';\n\
@@ -194,6 +197,7 @@ fn no_annotation_means_purely_structural_no_feature_participation() {
         &root,
         "SysML2Legacy/Config.sysml",
         "package Config {\n\
+         part def QuadRotor;\n\
          variation part def RotorConfig {\n\
          variant part quad : QuadRotor;\n\
          }\n\
@@ -239,6 +243,7 @@ fn unresolvable_feature_id_raises_the_normal_e209_finding() {
         &root,
         "SysML2Legacy/Config.sysml",
         "package Config {\n\
+         part def QuadRotor;\n\
          variation part def RotorConfig {\n\
          @SyscribeFeature {\n\
          featureId = 'FEAT-DOES-NOT-EXIST';\n\
@@ -288,6 +293,7 @@ fn feature_gated_sysmlv2_element_projects_in_and_out_like_a_native_one() {
         &root,
         "SysML2Legacy/Config.sysml",
         "package Config {\n\
+         part def QuadRotor;\n\
          variation part def RotorConfig {\n\
          @SyscribeFeature {\n\
          featureId = 'FEAT-ROTOR';\n\
@@ -358,6 +364,7 @@ fn feature_referenced_only_via_a_sysmlv2_element_is_not_flagged_orphan() {
         &root,
         "SysML2Legacy/Config.sysml",
         "package Config {\n\
+         part def QuadRotor;\n\
          variation part def RotorConfig {\n\
          @SyscribeFeature {\n\
          featureId = Features::Rotor;\n\

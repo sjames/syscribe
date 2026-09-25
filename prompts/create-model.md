@@ -1238,6 +1238,11 @@ draft → review → approved → implemented → verified
 | E103 | `derivedFrom:` ID does not resolve | Check parent Requirement ID |
 | E104 | `verifies:` target is not a native Requirement | Only point `verifies:` at `type: Requirement` |
 | E105 | `derivedFrom:` target is not a native Requirement | Only point `derivedFrom:` at `type: Requirement` |
+| E110 | `supertype:` does not resolve | Use the full qualified name from the model root (no root-package prefix), or a standard-library name such as `Parts::Part` |
+| E111 | `typedBy:` (element or inline feature) does not resolve | Point it at an existing definition, or a library type such as `ScalarValues::Real` / `ISQ::MassValue` |
+| E112 | `subsets:` does not resolve | Name an existing usage or inline feature (`Owner::feature`) |
+| E113 | `redefines:` does not resolve | Name a feature the owner inherits (`Owner::feature`, or the bare feature name) |
+| E114 | `satisfies:` does not resolve | Check the `REQ-*` ID matches a Requirement file |
 | E300 | ADR `id` does not match `ADR-*` pattern | Fix the ID |
 | E301 | ADR missing `id`, `name`, or `status` | Add all three fields |
 | E302 | `reqDomain` not `system`/`hardware`/`software` | Use one of the three values |

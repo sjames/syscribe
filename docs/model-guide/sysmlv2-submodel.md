@@ -130,9 +130,7 @@ requirement thrustCheck {
 The mapper carries the target string verbatim into the synthesized element's
 `satisfies:`/`verifies:` field; resolution uses the existing id-or-qname resolver unchanged. An
 unresolvable target is the same dangling-reference finding already raised for any other
-unresolved `verifies:` (`E102`) — note that this codebase does **not** currently raise an
-equivalent local finding for an unresolved `satisfies:` outside multi-repo mode (`E512`); that's a
-pre-existing, general characteristic unrelated to this feature.
+unresolved `verifies:` (`E102`) or `satisfies:` (`E114`; `E512` in a `[repos]` model).
 
 ### A native `TestCase` → a SysMLv2 element
 

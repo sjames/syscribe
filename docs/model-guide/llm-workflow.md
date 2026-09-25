@@ -109,11 +109,11 @@ The prompt instructs the LLM to **validate after every batch of files**, not at 
 | Batch | Contents | Errors to watch |
 |---|---|---|
 | 1 — Skeleton | All `_index.md` package files | None expected |
-| 2 — Architecture elements | PartDef, ItemDef, PortDef, InterfaceDef, ActionDef, Part, Port | E303 (`domain` invalid), E315 (cross-domain supertype) |
+| 2 — Architecture elements | PartDef, ItemDef, PortDef, InterfaceDef, ActionDef, Part, Port | E303 (`domain` invalid), E315 (cross-domain supertype), E110/E111 (unresolved `supertype`/`typedBy`) |
 | 3 — ADRs | All `ADR` elements — must exist before Requirements cite them | E300 (bad ID pattern), E301 (missing fields), E304 (bad status) |
 | 4 — Requirements | Parent Requirements first, then children | E310 (missing `breakdownAdr`), E311 (unresolved `breakdownAdr`), E103 (bad `derivedFrom`) |
 | 5 — TestCases | One per leaf Requirement | E011 (no gherkin), E013 (empty `verifies`), E102 (unresolved `verifies`) |
-| 6 — Satisfaction links | Add `satisfies:` to architecture elements | E312 (parent in satisfies), E313 (domain mismatch) |
+| 6 — Satisfaction links | Add `satisfies:` to architecture elements | E114 (unresolved `satisfies`), E312 (parent in satisfies), E313 (domain mismatch) |
 | 7 — Allocations | `Allocation` elements for cross-domain binding | E502/E503 (unresolved from/to) |
 | 8 — Diagrams | `Diagram` elements — after all model elements exist | E400 (no mermaid block), W402 (unresolved shape ref), W403 (bad edge endpoint) |
 
