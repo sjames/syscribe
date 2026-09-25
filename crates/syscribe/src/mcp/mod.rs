@@ -3032,12 +3032,10 @@ mod catalogue_tests {
     use std::collections::BTreeSet;
     use std::path::Path;
 
-    /// Codes owned by a concurrent branch (derive-pass renumbering) — excluded
-    /// from the completeness gate until that branch lands.
-    const EXCLUDED: &[&str] = &[
-        "E500", "E501", "E502", "E503", "E504", "E505", "E506", "E110", "E111", "E112", "E113",
-        "E114",
-    ];
+    /// Codes excluded from the completeness gate. Empty: every emitted code must
+    /// carry an explanation (the derive/Allocation and structural-reference
+    /// codes landed with #125/#127).
+    const EXCLUDED: &[&str] = &[];
 
     /// `text` with every `#[cfg(test)]`-annotated item (the attribute through
     /// the item's matching closing brace) removed. Brace matching is naive —
