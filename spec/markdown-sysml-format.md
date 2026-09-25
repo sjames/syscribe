@@ -2444,7 +2444,7 @@ Concern regarding the total weight of the vehicle impacting fuel economy and per
 
 The native `Requirement` type is a **first-class element** designed for safety-critical and regulated engineering contexts where every requirement must carry a stable, opaque identifier that never changes (regardless of file renames or restructuring), a structured lifecycle status, and a normative textual statement in the Markdown body.
 
-This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed by a `RequirementDef`. Native requirements are dispatched by the parser based on the `id:` field matching the `REQ-*` pattern (§11.5 step 0).
+This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed by a `RequirementDef`. Native requirements are dispatched by the parser based on the `id:` field matching the `REQ-*` pattern (§11.10, step 0).
 
 **Frontmatter fields:**
 
@@ -2454,7 +2454,8 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `id` | string | **Required** | Stable opaque ID matching `^REQ(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`. Unique across the model. Never changes. |
 | `name` | string | **Required** | One-line human-readable label — free prose (spaces/punctuation allowed; `W042` does not apply). Max 120 chars. No newlines. |
 | `status` | enum | **Required** | Lifecycle state: `draft`, `review`, `approved`, `implemented`, `verified`. |
-| `reqClass` | enum | optional | Classification in the stakeholder/system decomposition: `stakeholder`, `system`, or `derived`. Recognised, first-class field (REQ-TRS-SCHEMA-002); records authoring intent independently of `derivedFrom`. |
+| `reqClass` | enum | optional | Position in the stakeholder→system **decomposition**: `stakeholder`, `system`, or `derived`. Recognised, first-class field (REQ-TRS-SCHEMA-002); records authoring intent independently of `derivedFrom`. Informational only: the value is **not** validated and drives no rule. |
+| `requirementKind` | enum | optional | **Kind of requirement by its subject**: `stakeholder`, `system`, `software`, or `hardware`. Emitted by `syscribe template Requirement`. The value **is** validated — anything else is error `E022`. It drives no traceability rule; the domain rules of §12.5 use `reqDomain`. |
 | `derivedFrom` | list of id-or-qualname | optional | IDs (`REQ-*`) or qualified names of parent Requirements. Absent = stakeholder-level requirement. |
 | `silLevel` | integer 1–4 | optional | IEC 61508 SIL level. Mutually exclusive with `asilLevel` — do not set both (W006). |
 | `asilLevel` | enum A\|B\|C\|D | optional | ISO 26262 ASIL level. Mutually exclusive with `silLevel` — do not set both (W006). |
@@ -2468,6 +2469,8 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `reqDomain` | enum | optional | Engineering domain of this requirement: `system`, `hardware`, or `software`. Leaf requirements at `implemented`/`verified` status should be refined to `hardware` or `software` (warning `W302`). |
 | `breakdownAdr` | string | optional | `ADR-*` id or qualified name of the ADR documenting the rationale for this requirement's derivation from its parent(s). Required when `derivedFrom:` is non-empty (error `E310`). Also required when the requirement's integrity level is lower than its source's (W808; see §12.7). |
 
+**`reqClass` vs `requirementKind` vs `reqDomain`.** Three optional classification fields coexist; none replaces another. `reqClass` records where the requirement sits in the decomposition (stakeholder need, system requirement, derived requirement) and is unvalidated. `requirementKind` records what kind of requirement it is by subject (stakeholder, system, software, hardware) and is enum-checked (`E022`). `reqDomain` (`system`/`hardware`/`software`) is the one the traceability rules read (§12.5, `E313`, `W302`).
+
 **Status values:**
 
 | Value | Meaning |
@@ -2479,7 +2482,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `verified` | Covered by at least one `active` TestCase. |
 
 **ID pattern:** `^REQ(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
-- Prefix `REQ`, one or more uppercase-alphanumeric segments (2–12 chars each), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
+- Prefix `REQ`, zero or more uppercase-alphanumeric category segments (2–12 chars each; a bare `REQ-001` is valid), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
 - Examples: `REQ-SCHED-001`, `REQ-SCHED-BITMAP-001`, `REQ-BRAKE-CTRL-003`
 
 > **Configurable additional prefixes (`[ids.prefixes]`).** The built-in prefix above is not the only one a type may accept. A project may add extra stable-ID prefixes per element type in the `[ids.prefixes]` table of `<model_root>/.syscribe.toml` — keyed by element-type name (`Requirement`, `TestCase`, …), each value a list of prefixes. Extra prefixes are **additive** (the built-in always stays valid) and **pure identity** (they affect only id recognition and id-based resolution; no other field is implied). Each prefix must match `^[A-Z][A-Z0-9]{1,11}$`; an additional prefix `P` accepts the same id grammar as the type's built-in with `P` substituted, and the `[ids] max_digits` cap (`E023`) applies equally. An entry keyed by a non-id-identified type, or a prefix failing the prefix grammar, raises warning `W046` and is ignored (well-formed siblings still apply). Example: `Requirement = ["STK", "SYS"]` makes `STK-SCHED-001` and `SYS-SCHED-001` valid `Requirement` ids alongside `REQ-SCHED-001`.
@@ -3978,7 +3981,7 @@ An `ADR` file is a first-class model element that documents a significant design
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
 
 **ID pattern:** `^ADR(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
-- Prefix `ADR`, one or more uppercase-alphanumeric segments (2–12 chars), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
+- Prefix `ADR`, zero or more uppercase-alphanumeric category segments (2–12 chars each; a bare `ADR-001` is valid), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
 - Examples: `ADR-SYS-001`, `ADR-SW-SCHED-001`, `ADR-UAV-PWR-002`
 
 **Status values:**
