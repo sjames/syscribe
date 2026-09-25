@@ -1,14 +1,14 @@
 ---
 id: REQ-TRS-QNAME-002
 type: Requirement
-name: "Package name shall use name: from _index.md when present"
+name: "Package qualified-name segment shall be the directory name; _index.md name: is a label only"
 status: draft
 reqDomain: software
 verificationMethod: test
 ---
 
-The tool **shall** use the `name:` field from a directory's `_index.md` file as the namespace segment for that directory in all qualified names, overriding the directory name on disk.
+The tool **shall** use a directory's name on disk as that directory's namespace segment in all qualified names. A `name:` field in the directory's `_index.md` **shall** be treated as a display label only and **shall not** change any qualified name.
 
-**Source:** §11.3 ¶2
+**Source:** §11.3 step 2; §4.2
 
-**Acceptance criteria:** If `model/VehicleSystem/_index.md` contains `name: VS`, then `model/VehicleSystem/Engine.md` has qualified name `VS::Engine`, not `VehicleSystem::Engine`.
+**Acceptance criteria:** If `model/VehicleSystem/_index.md` contains `name: VS`, then `model/VehicleSystem/Engine.md` has qualified name `VehicleSystem::Engine`, not `VS::Engine`.
