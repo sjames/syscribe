@@ -89,6 +89,40 @@ pub fn cmd_diagram(
     }
 }
 
+/// The qualified names in `qnames` that name no element of the model, in
+/// order, each once.
+fn missing_elements<'a>(
+    elements: &[syscribe_model::element::RawElement],
+    qnames: impl IntoIterator<Item = &'a str>,
+) -> Vec<&'a str> {
+    let known: std::collections::HashSet<&str> =
+        elements.iter().map(|e| e.qualified_name.as_str()).collect();
+    let mut missing: Vec<&str> = Vec::new();
+    for q in qnames {
+        if !known.contains(q) && !missing.contains(&q) {
+            missing.push(q);
+        }
+    }
+    missing
+}
+
+/// Exit 1 with one `error: element '<q>' not found` line per unresolvable
+/// qualified name (GH #168): a diagram command never silently skips, or
+/// substitutes a placeholder box for, an element it was asked to draw.
+/// Nothing is written to stdout.
+pub(crate) fn require_elements<'a>(
+    elements: &[syscribe_model::element::RawElement],
+    qnames: impl IntoIterator<Item = &'a str>,
+) {
+    let missing = missing_elements(elements, qnames);
+    if !missing.is_empty() {
+        for q in &missing {
+            eprintln!("error: element '{}' not found", q);
+        }
+        std::process::exit(1);
+    }
+}
+
 fn build_cli() -> Command {
     Command::new("diagram")
         .about("Generate and compose SysML block diagrams as SVG")
@@ -323,5 +357,35 @@ fn view_from_matches(m: &clap::ArgMatches) -> ViewConfig {
         include: IncludeFilter { ports: include_ports, features: include_features },
         min_width,
         ibd: false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::missing_elements;
+    use syscribe_model::element::RawElement;
+
+    fn elem(q: &str) -> RawElement {
+        RawElement {
+            qualified_name: q.to_string(),
+            file_path: String::new(),
+            frontmatter: Default::default(),
+            doc: String::new(),
+            parse_issue: None,
+            derived: Default::default(),
+            derive_findings: Vec::new(),
+            locale_docs: Default::default(),
+        }
+    }
+
+    /// GH #168 / REQ-TRS-DIAG-004: unknown qnames are reported, in order, once.
+    #[test]
+    fn missing_elements_lists_each_unknown_qname_once() {
+        let els = vec![elem("Arch::Pump"), elem("Arch::Valve")];
+        assert!(missing_elements(&els, ["Arch::Pump", "Arch::Valve"]).is_empty());
+        assert_eq!(
+            missing_elements(&els, ["Nope::X", "Arch::Pump", "Nope::Y", "Nope::X"]),
+            vec!["Nope::X", "Nope::Y"]
+        );
     }
 }
