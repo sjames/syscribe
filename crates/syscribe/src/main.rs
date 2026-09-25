@@ -2667,6 +2667,7 @@ mod cli_router_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         };
         let named = [elem("", "type: Package\nname: EngineECU\n"), elem("Sub", "type: Package\nname: Other\n")];
         assert_eq!(report_title(&named), "EngineECU Validation Report");
