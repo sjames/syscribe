@@ -148,6 +148,7 @@ derived reverse index (§12.9); an authored one is accepted only as a legacy inp
 
 ### VulnerabilityReport — `VR-*`
 
+<!-- syscribe-example: expect W803 reason="an open report is the point of the example; W803 is its tracking advisory" -->
 ```yaml
 type: VulnerabilityReport
 id: VR-OBD-001
@@ -175,6 +176,7 @@ damageTable:
     name: "..."
     damageSeverity: severe
     impactCategories: [safety]
+    hazardRef: SG-BRAKE-001     # the SafetyGoal this damage endangers (W030 if absent)
 threatTable:
   - id: TS-OBD-001
     name: "..."
@@ -185,7 +187,8 @@ goalTable:
   - id: CSG-STEER-001
     name: "..."
     securityProperty: authenticity
-    calLevel: CAL3
+    calLevel: CAL4              # critical-risk threat → at least CAL4 (W032)
+    threatScenarios: [TS-OBD-001]
 controlTable:
   - id: SC-CAN-001
     name: "..."

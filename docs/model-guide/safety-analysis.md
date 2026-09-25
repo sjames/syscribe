@@ -118,6 +118,7 @@ damageTable:
     name: "Unauthorized command injection causes vehicle manoeuvre"
     damageSeverity: severe
     impactCategories: [safety, operational]
+    hazardRef: SG-SYS-001        # the SafetyGoal this damage can violate (W030 if absent)
 
 threatTable:
   - id: TS-SYS-001
@@ -129,7 +130,7 @@ threatTable:
 goalTable:
   - id: CSG-SYS-001
     name: "Ensure integrity of safety-critical CAN messages"
-    calLevel: CAL3
+    calLevel: CAL4               # severe × medium feasibility = critical risk → CAL4 (W032)
     securityProperty: integrity
     threatScenarios: [TS-SYS-001]
 
@@ -168,6 +169,7 @@ ThreatScenario --damageScenarios--> DamageScenario --hazardRef--> HazardousEvent
 type: DamageScenario
 id: DS-SYS-001
 name: "Unauthorized command injection causes vehicle manoeuvre"
+status: draft
 damageSeverity: severe
 impactCategories: [safety, operational]
 hazardRef: SG-SYS-001          # the SafetyGoal this damage can violate
@@ -204,6 +206,8 @@ Record the risk-treatment decision on the threat:
 ```yaml
 type: ThreatScenario
 id: TS-SYS-001
+name: "Attacker replays CAN frame via OBD-II port"
+status: draft
 attackFeasibility: high
 damageScenarios:
   - DS-SYS-001          # severe → critical risk
@@ -677,6 +681,7 @@ id: REQ-SEC-CAN-001
 name: "ECU shall authenticate all CAN frames on the safety bus using CMAC"
 reqDomain: software
 status: draft
+verificationMethod: test
 derivedFromCybersecurityGoal: CSG-SYS-001  # the CybersecurityGoal that motivated this requirement
 breakdownAdr: ADR-SEC-CAN-001
 ```

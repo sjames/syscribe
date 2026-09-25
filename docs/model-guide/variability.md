@@ -316,6 +316,8 @@ The single-element queries `trace`, `why`, `who-verifies`, `refs` and `links` ho
 # vehicle/model/Configurations/CONF-VEHICLE-001.md
 type: Configuration
 id: CONF-VEHICLE-001
+name: "Vehicle line — US assembly"
+status: draft
 featureModel: Features
 features: { Features: true }
 subConfigurations: CONF-BATTERY-PACK-001   # a Configuration in [repos.battery_pack], or local

@@ -77,6 +77,7 @@ value contributed by `buildExports` or `buildVar`.
 type: Configuration
 id: CONF-PREMIUM-001
 name: Premium
+status: approved
 featureModel: Features
 features:
   Features::ABS: true

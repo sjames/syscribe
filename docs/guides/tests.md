@@ -17,7 +17,7 @@ syscribe supports five test levels that map to standard V-model practice:
 
 ### 4.2 Authoring a TestCase
 
-```yaml
+````markdown
 ---
 type: TestCase
 id: TC-SCHED-001
@@ -29,9 +29,9 @@ verifies:
 sourceFile: tests/host/src/scheduler_tests.rs
 testFunctions:
   - function: test_priority_ordering
-    scenario: "Two threads at different priorities; lower-priority never runs first"
+    scenario: "Higher priority thread runs first"
   - function: test_preemption_on_unblock
-    scenario: "Higher-priority thread unblocked mid-execution preempts the running thread"
+    scenario: "Preemption on unblock"
 tags: [safety, scheduler]
 ---
 
@@ -48,7 +48,7 @@ Feature: Scheduler priority ordering
     When thread B (priority 10) is unblocked
     Then a context switch to B occurs immediately
 ```
-```
+````
 
 The body **must** contain a `gherkin` fenced block (E011 if absent). This is the machine-
 readable test specification that can be compared against actual test code.

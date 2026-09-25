@@ -11,6 +11,8 @@ on:
       - "model_auto/**"
       - "model_mg/**"
       - "prompts/**"
+      - "spec/**"
+      - "docs/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - ".github/workflows/qual.yml"
@@ -23,6 +25,8 @@ on:
       - "model_auto/**"
       - "model_mg/**"
       - "prompts/**"
+      - "spec/**"
+      - "docs/**"
       - "Cargo.toml"
       - "Cargo.lock"
   workflow_dispatch:
@@ -41,6 +45,11 @@ jobs:
 
       - name: Build syscribe
         run: cargo build --package syscribe
+
+      # Every YAML example in the spec, prompts and user docs must validate
+      # against the tool (crates/syscribe/tests/doc_examples.rs).
+      - name: Check documented YAML examples against the tool
+        run: cargo test --package syscribe --test doc_examples
 
       - name: Install Graphviz
         run: sudo apt-get install -y graphviz

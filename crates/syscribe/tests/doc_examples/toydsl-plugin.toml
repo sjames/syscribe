@@ -1,0 +1,6 @@
+# Stand-in for the `toydsl` plugin of docs/model-guide/stdio-plugins.md: a
+# plugin that answers every request with an empty, well-formed envelope.
+
+[plugins.toydsl]
+command = "echo"
+args = ['{"elements":[],"diagnostics":[]}']

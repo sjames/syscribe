@@ -1,0 +1,21 @@
+# Link types used by the documented `links:` examples (docs/model-guide/link-types.md,
+# spec §12.10, docs/format/frontmatter.md). Mirrors the declarations shown there.
+
+[linkTypes.mitigates]
+description = "A design control mitigates a hazard-derived safety requirement"
+inverse     = "mitigatedBy"
+sourceTypes = ["PartDef", "Part"]
+targetTypes = ["Requirement"]
+
+[linkTypes.partiallySatisfies]
+description = "Contributes to, but does not by itself satisfy, a requirement"
+inverse     = "partiallySatisfiedBy"
+extends     = "satisfies"
+relax       = ["E313"]
+coverage    = false
+
+[linkTypes.conflictsWith]
+description = "Two requirements that cannot both be fully met"
+sourceTypes = ["Requirement"]
+targetTypes = ["Requirement"]
+suspect     = false

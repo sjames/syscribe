@@ -19,6 +19,7 @@ native tooling — Syscribe never writes into it.
 
 ## 1. Marking a package foreign — `foreignFormat:`
 
+<!-- syscribe-example: config="toydsl-plugin.toml" -->
 ```yaml
 ---
 type: Package

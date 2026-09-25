@@ -254,7 +254,7 @@ and use the `--plan TP-X` lens on `matrix`/`verification-depth`/`audit`. Validat
 type: PlanningItem
 id: PI-RTH-IMPL-SW-002       # required; PI(-[A-Z0-9]{2,12})*-[0-9]{3,8}
 name: "..."                 # required
-status: in_progress          # required; todo | in_progress | blocked | done
+status: blocked              # required; todo | in_progress | blocked | done
 itemType: task                # optional; bug | task | feature
 parent: PI-RTH-IMPL-001       # optional; single scalar (strict single-parent tree, not a DAG)
 achieves: [REQ-RTH-002]       # required (non-empty) when parent: is absent (top-level)
@@ -289,6 +289,7 @@ ownership for concurrent (multi-agent) work: `syscribe claim <PI-id> --by <agent
 
 ### Baseline
 
+<!-- syscribe-example: expect E520 reason="the seal: values are placeholders, so the seal cannot match" -->
 ```yaml
 type: Baseline
 id: BL-2026-07               # required; BL(-[A-Z0-9]{2,12})+ — no numeric suffix needed
