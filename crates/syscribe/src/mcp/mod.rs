@@ -414,7 +414,7 @@ struct SummarizeArgs {
     depth: Option<u32>,
     /// Project onto this Configuration before summarising.
     config: Option<String>,
-    /// Bypass and rewrite the content-hash cache.
+    /// Recompute everything; neither read nor write the content-hash cache.
     no_cache: Option<bool>,
 }
 

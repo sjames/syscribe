@@ -42,6 +42,23 @@ tc_TRS_OUT_023() {
     [ "$(printf '%s' "$c" | jq -S . 2>/dev/null)" = "$(printf '%s' "$full" | jq -S . 2>/dev/null)" ] \
         && pass "cached --json == --no-cache --json" || fail "cached json differs from recomputed"
 
+    _scn "--no-cache neither reads nor writes the cache"
+    rm -rf "$W/.syscribe"
+    "$SYSCRIBE" -m "$W" summarize --no-cache >/dev/null 2>&1 || true
+    "$SYSCRIBE" -m "$W" summarize --json --no-cache >/dev/null 2>&1 || true
+    [ -e "$W/.syscribe" ] && fail "--no-cache created $W/.syscribe" || pass "--no-cache creates no .syscribe directory"
+    "$SYSCRIBE" -m "$W" summarize >/dev/null 2>&1 || true
+    local CF="$W/.syscribe/cache/summaries.json" before after
+    jq -c '.entries.Comms.own.count = 999' "$CF" > "$CF.tmp" 2>/dev/null && mv "$CF.tmp" "$CF"
+    out=$("$SYSCRIBE" -m "$W" summarize --json 2>/dev/null) || true
+    _jq "the cache is read without --no-cache (tampered Comms count 999 served)" '.children[]|select(.qname=="Comms")|.count==999' "$out"
+    before=$(cksum < "$CF")
+    out=$("$SYSCRIBE" -m "$W" summarize --json --no-cache 2>/dev/null) || true
+    after=$(cksum < "$CF")
+    _jq "--no-cache ignores the cache (Comms recomputed to 4)" '.children[]|select(.qname=="Comms")|.count==4' "$out"
+    [ "$before" = "$after" ] && pass "--no-cache leaves the cache file byte-identical" || fail "--no-cache rewrote the cache file"
+    rm -rf "$W/.syscribe"
+
     _scn "--scope and --config restrict the digest"
     out=$("$SYSCRIBE" -m "$W" summarize --json --config CONF-Q21-001 2>/dev/null) || true
     _jq "--config: root count 8 (gated REQ-Q21-012 excluded)" '.count==8' "$out"
