@@ -548,6 +548,19 @@ fn build_cli() -> clap::Command {
     cmd
 }
 
+/// Heading of the default Markdown validation report (REQ-TRS-OUT-001, GH #174):
+/// `<Name> Validation Report` from the model root package's `name:` (the root
+/// `_index.md`, qualified name `""`), else the neutral `Model Validation Report`.
+fn report_title(elems: &[RawElement]) -> String {
+    elems
+        .iter()
+        .find(|e| e.qualified_name.is_empty())
+        .and_then(|e| e.frontmatter.name.as_deref())
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .map_or_else(|| "Model Validation Report".to_string(), |n| format!("{n} Validation Report"))
+}
+
 fn main() {
     // Restore the default SIGPIPE disposition. Rust ignores SIGPIPE at startup, so
     // writing to a pipe whose reader has closed early — `syscribe --help | head`,
@@ -2002,7 +2015,7 @@ fn main() {
         .count();
 
     // ── Header ────────────────────────────────────────────────────────────────
-    println!("# UAV Model Validation Report");
+    println!("# {}", report_title(elems));
     println!();
 
     // ── Section 1: Executive Summary ─────────────────────────────────────────
@@ -2639,5 +2652,27 @@ mod cli_router_tests {
                 "command '{name}' has a man page but is not registered in build_cli()"
             );
         }
+    }
+
+    /// GH #174 — the report is titled from the model root package's `name:`,
+    /// with a neutral fallback, never a fixed example name.
+    #[test]
+    fn report_title_comes_from_the_root_package_name() {
+        let elem = |qname: &str, yaml: &str| RawElement {
+            qualified_name: qname.to_string(),
+            file_path: format!("{qname}/_index.md"),
+            frontmatter: serde_yaml::from_str(yaml).unwrap(),
+            doc: String::new(),
+            parse_issue: None,
+            derived: Default::default(),
+            derive_findings: vec![],
+            locale_docs: Default::default(),
+        };
+        let named = [elem("", "type: Package\nname: EngineECU\n"), elem("Sub", "type: Package\nname: Other\n")];
+        assert_eq!(report_title(&named), "EngineECU Validation Report");
+        let unnamed_root = [elem("", "type: Package\nname: \"  \"\n")];
+        assert_eq!(report_title(&unnamed_root), "Model Validation Report");
+        let no_root = [elem("Sub", "type: Package\nname: Other\n")];
+        assert_eq!(report_title(&no_root), "Model Validation Report");
     }
 }

@@ -24,4 +24,15 @@ Feature: Markdown report on stdout
     When stdout is captured to report.md
     Then report.md opens without error in a Markdown renderer
     And the # heading on the first line is present
+
+  Scenario: Report title names the model root package (GH #174)
+    Given a model whose root _index.md has name: ValidModel
+    When the tool is invoked with the model directory
+    Then the first line of the report is "# ValidModel Validation Report"
+    And the report does not mention UAV
+
+  Scenario: Report title falls back to a neutral heading (GH #174)
+    Given a model with no root _index.md
+    When the tool is invoked with the model directory
+    Then the first line of the report is "# Model Validation Report"
 ```
