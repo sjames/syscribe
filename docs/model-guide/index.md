@@ -114,6 +114,7 @@ Its shape:
 - [MagicGrid](magicgrid.md) — the B/W/S × 1-4 overlay (`mg_` custom fields), MoEs/MoPs, logical/physical layers, the `magicgrid` / `trade-study` reports
 - [Annotated-Source Ingestion](annotated-source.md) — `annotationFormat:` packages, comment markers carrying frontmatter, `implementedBy:` auto-fill, `E560`/`E561`/`W560`–`W563`
 - [Link Types](link-types.md) — project-declared relationships (`[linkTypes]`, `links:`), `extends`/`relax`/`coverage`, the `follow` command, `E630`–`E636`
+- [Suspect links design note](../design/suspect-links.md) — why content baselines, what is hashed, and how `suspect accept` fits review workflows
 - [Test Plans](testplans.md) — `TestPlan` scope, membership and configuration targeting
 - [Custom Fields](custom-fields.md) — `custom_fields:` metadata and `--where` queries
 - [Build System Integration](build-export.md) — `build-config`, `buildExports`, per-configuration build variables
