@@ -208,6 +208,7 @@ The 204 test cases cover:
 | DamageScenario / ThreatScenario E807–E814, E826 | REQ-TRS-SAFE-003 | TC-TRS-SAFE-003 |
 | Cybersecurity elements E815–E824, E827–E832, W802–W804, W807 | REQ-TRS-SAFE-004 | TC-TRS-SAFE-004 |
 | FaultTree / FaultTreeGate / FaultTreeEvent E900–E909, W900–W901 | REQ-TRS-FTA-001 | TC-TRS-FTA-001 |
+| FaultTreeEvent `ref:` link (E927; show / links / fault-tree render) | REQ-TRS-FTA-002 | TC-TRS-FTA-002 |
 | FMEASheet / FMEAEntry E911–E914, W902–W904 | REQ-TRS-FMEA-001 | TC-TRS-FMEA-001 |
 | TARASheet E940–E941, W905 | REQ-TRS-TARA-001 | TC-TRS-TARA-001 |
 | Output format and exit codes | REQ-TRS-OUT-001–005 | TC-TRS-OUT-001–005 |

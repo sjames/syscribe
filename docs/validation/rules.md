@@ -853,7 +853,7 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 | E865 | Error | ASIL D / SIL 4 decomposition siblings (uniformly-lower children) share a `satisfies:` target — channels must be architecturally independent (§22.3) |
 | W860 | Warning | An ASIL D / SIL 4 requirement has a single uniformly-lower child — a decomposition needs ≥2 independent channels (§22.3) |
 
-## Tier 4 — Fault Tree Analysis (E900–E909, W900–W901)
+## Tier 4 — Fault Tree Analysis (E900–E909, E927, W900–W901)
 
 ### FaultTree (E900–E902, W900)
 
@@ -874,13 +874,14 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 | E906 | An entry in `inputs` does not resolve, or resolves to an element that is not a `FaultTreeGate` or `FaultTreeEvent` |
 | W901 | FaultTreeGate has no `inputs` — it contributes nothing to the fault tree |
 
-### FaultTreeEvent (E907–E909)
+### FaultTreeEvent (E907–E909, E927)
 
 | Code | Condition |
 |---|---|
 | E907 | `id`, `name`, or `eventKind` is absent |
 | E908 | `id` does not match `FTE-*` pattern |
 | E909 | `eventKind` is not one of `basic · undeveloped · house` |
+| E927 | `ref` (the architecture element the event models; qualified name or id) does not resolve to a known element |
 
 ## Tier 4 — FMEA (E911–E914, E922, E923, W902–W904, W928)
 

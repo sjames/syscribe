@@ -4106,7 +4106,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 |---|---|---|
 | `FaultTree` | `FT-*` | Root of a fault tree; references a `SafetyGoal` via `topEvent:`. |
 | `FaultTreeGate` | `FTG-*` | Logic gate; `gateType:` is one of `AND`, `OR`, `XOR`, `NOT`, `inhibit`; `inputs:` lists child gate/event IDs. |
-| `FaultTreeEvent` | `FTE-*` | Leaf event; `eventKind:` is `basic`, `undeveloped`, or `house`; optional `failureRate:` (λ, /h), `diagnosticCoverage:` (DC), `latentDiagnosticCoverage:` (DCl) — DC/DCl in `0.0`–`1.0` (E846), inputs to the quantitative metrics roll-up (§ above). |
+| `FaultTreeEvent` | `FTE-*` | Leaf event; `eventKind:` is `basic`, `undeveloped`, or `house`; optional `failureRate:` (λ, /h), `diagnosticCoverage:` (DC), `latentDiagnosticCoverage:` (DCl) — DC/DCl in `0.0`–`1.0` (E846), inputs to the quantitative metrics roll-up (§ above); optional `ref:` — a single qualified name or stable id of the model element (typically a `Part`/`PartDef`) whose failure the event represents, resolved by the standard resolver (dangling → E927) and surfaced by `show`, `links` and `fault-tree render`. |
 
 **Nesting rule (W900):** `FaultTreeGate` and `FaultTreeEvent` elements must be placed in a subdirectory named after the `FaultTree` file so their qualified names are prefixed by the tree's qualified name:
 

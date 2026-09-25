@@ -1090,6 +1090,13 @@ pub struct RawFrontmatter {
     pub failure_rate: Option<f64>,              // FaultTreeEvent failure rate /h (YAML: failureRate)
     pub probability: Option<f64>,               // cut-set or top-event probability (YAML: probability)
     pub fmea_ref: Option<String>,               // FaultTreeEvent → reconciling FMEAEntry (YAML: fmeaRef)
+    /// REQ-TRS-FTA-002 (issue #148) — FaultTreeEvent → the model element whose
+    /// failure the event represents (qualified name or stable id; typically a
+    /// `Part`/`PartDef`). Dangling → E927. Only meaningful on `FaultTreeEvent`;
+    /// on any other type it is still reported as an unrecognized field (W047).
+    /// (YAML: ref)
+    #[serde(rename = "ref")]
+    pub event_ref: Option<String>,
 
     // §T4 — AttackTree (ISO/SAE 21434 §15.7 attack path analysis)
     pub threat_ref: Option<String>,             // AttackTree → ThreatScenario ref (YAML: threatRef)
