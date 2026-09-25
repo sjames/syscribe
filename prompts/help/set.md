@@ -26,17 +26,26 @@ own severity; the write still proceeds.
 order. `ref=<id>` must resolve to some model element (permissive by kind, like
 `blockedBy:`); `path=<path>` must exist on disk under the model root, or be an
 `http(s)://` URI (accepted as external, same as `sourceFile`/`implementedBy`).
-An optional `rationale=<text>` marks the entry waived.
+An optional `rationale=<text>` marks the entry waived. If an entry naming the
+same target already exists (the same `ref:`, or the same `path:`), the command
+reports it and changes nothing — the existing entry, rationale included, is
+kept as authored.
 
 **`achieves.add <req-id>`** appends to `achieves:` without disturbing existing
 order; the target must resolve to a native `Requirement` (mirrors `E714`/`E715`)
-or the edit is refused.
+or the edit is refused. Adding an id that is already listed reports it and
+changes nothing.
 
-`status=` is byte-preserving for the rest of the file — only the `status:` line
-changes, the same "surgical edit" bar `move` holds itself to for reference
-rewriting. `achieves.add` and `evidence.add` preserve the existing entries and
-their order, but re-serialize the frontmatter block: quoting and list
-indentation may be normalized (for example `name: "An item"` → `name: An item`).
+Every operation is a line-level edit, byte-preserving for the rest of the file
+— the same "surgical edit" bar `move` holds itself to for reference rewriting.
+`status=` replaces only the `status:` line. `achieves.add` and `evidence.add`
+insert only the new item's lines after the list's last item, at the list's own
+indentation (or append a new block list at the end of the frontmatter when the
+field is absent); YAML comments, the quoting of other fields and the existing
+entries are left exactly as they were. A list written inline on one line
+(`achieves: [REQ-A]`) is rewritten as a block list on that line only; a flow
+list spread over several lines is the one layout that falls back to
+re-serializing the frontmatter (comments and quoting may then be normalized).
 The Markdown body is never touched.
 
 ## OPTIONS

@@ -15,7 +15,7 @@ The tool **shall** enforce every warning rule in the following table, as defined
 | `W002` | Approved/implemented `Requirement` has no active `TestCase` in `verifiedBy` |
 | `W003` | Verified `Requirement` with empty or all-retired `verifiedBy` |
 | `W004` | `sourceFile:` path does not exist on disk |
-| `W005` | `Requirement` has neither `derivedFrom:` nor `derivedChildren` |
+| `W005` | `Requirement` has no upstream link (`derivedFrom:`, `derivedFromSafetyGoal:` or `derivedFromCybersecurityGoal:` — see REQ-TRS-TRACE-011) and no `derivedChildren` |
 | `W006` | Both `silLevel:` and `asilLevel:` set on the same element |
 | `W007` | Frontmatter contains an unrecognised key (lenient mode) |
 | `W300` | Leaf `Requirement` at approved/implemented with no satisfying element |

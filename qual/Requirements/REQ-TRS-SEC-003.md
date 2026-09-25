@@ -58,7 +58,8 @@ Feasibility rank is shared with the existing risk model: `very_low`=0, `low`=1,
 - An `AttackTreeGate` with `gateType: OR` (alternatives) is the **MAX** of its
   children's values (the attacker takes the easiest path).
 - The `AttackTree`'s computed feasibility is the value of its single root child
-  (the gate or step it contains). The resulting rank maps back to a label
+  (the gate or step no other gate of the tree lists in `inputs:` — see
+  `REQ-TRS-SEC-009`). The resulting rank maps back to a label
   (0→`very_low`, 1→`low`, 2→`medium`, 3→`high`).
 
 There **shall** be exactly one roll-up definition, exposed as a `pub` function in

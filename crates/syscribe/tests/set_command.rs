@@ -205,6 +205,31 @@ fn evidence_add_path_must_exist_or_be_remote() {
     assert_eq!(code, 0);
 }
 
+/// GH #152: an evidence entry naming an already-listed target is a reported
+/// no-op (like `achieves.add`), and appending a new one keeps YAML comments.
+#[test]
+fn evidence_add_is_idempotent_and_keeps_comments() {
+    let root = new_model();
+    write(&root, "REQ-A.md", "---\nid: REQ-SET-010\ntype: Requirement\nname: \"A\"\nstatus: draft\nreqDomain: system\n---\n\nBody.\n");
+    write(&root, "REQ-B.md", "---\nid: REQ-SET-011\ntype: Requirement\nname: \"B\"\nstatus: draft\nreqDomain: system\n---\n\nBody.\n");
+    let pi = "---\nid: PI-SET-005\ntype: PlanningItem\n# keep: header comment\nname: \"An item\"\nstatus: in_progress\nevidence:\n  - ref: REQ-SET-010  # keep: trailing comment\n---\n\nBody.\n";
+    write(&root, "PI-SET-005.md", pi);
+
+    let (stdout, _err, code) = run(&root, &["set", "PI-SET-005", "evidence.add", "ref=REQ-SET-010"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("nothing to do"), "{stdout}");
+    assert_eq!(read(&root, "PI-SET-005.md"), pi, "a duplicate evidence.add must not touch the file");
+
+    let (_out, _err, code) = run(&root, &["set", "PI-SET-005", "evidence.add", "ref=REQ-SET-011"]);
+    assert_eq!(code, 0);
+    let after = read(&root, "PI-SET-005.md");
+    assert_eq!(
+        after,
+        pi.replace("comment\n---", "comment\n  - ref: REQ-SET-011\n---"),
+        "only the new entry's line may be added"
+    );
+}
+
 #[test]
 fn planning_item_status_done_warns_on_the_w310_condition_but_still_writes() {
     let root = new_model();

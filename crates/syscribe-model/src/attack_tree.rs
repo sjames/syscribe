@@ -14,8 +14,9 @@
 //!   step);
 //! - an `AttackTreeGate` `OR` (alternatives) is the **MAX** of its children's
 //!   values (the attacker takes the easiest path);
-//! - the `AttackTree`'s feasibility is the value of its single root child (the
-//!   gate/step it contains), mapped back to a label.
+//! - the `AttackTree`'s feasibility is the value of its root node — the single
+//!   gate/step under the tree that no other gate of the tree lists in its
+//!   `inputs:` (independent of file order, GH #149) — mapped back to a label.
 //!
 //! There is exactly ONE roll-up definition; the validator's W035 reconciliation
 //! uses [`tree_feasibility`].
@@ -79,10 +80,53 @@ fn node_rank(
     }
 }
 
+/// The root node of an `AttackTree`: the single `AttackTreeGate`/`AttackStep`
+/// under the tree's qualified-name prefix that no other gate of the same tree
+/// lists in its `inputs:` (GH #149). The root is a property of the tree's
+/// structure, never of directory/file order — a sub-gate that happens to sort
+/// first is not the root. `None` when there is no such node or more than one
+/// (a forest, or every node is some gate's input — a cycle): the roll-up is
+/// then not computable rather than silently picking one.
+pub fn tree_root<'a>(
+    tree: &RawElement,
+    elements: &'a [RawElement],
+    resolver: &Resolver,
+) -> Option<&'a RawElement> {
+    let prefix = format!("{}::", tree.qualified_name);
+    let nodes: Vec<&RawElement> = elements
+        .iter()
+        .filter(|e| {
+            e.qualified_name.starts_with(&prefix)
+                && matches!(
+                    e.frontmatter.element_type,
+                    Some(ElementType::AttackTreeGate) | Some(ElementType::AttackStep)
+                )
+        })
+        .collect();
+    let mut referenced: std::collections::HashSet<&str> = std::collections::HashSet::new();
+    for g in &nodes {
+        for r in g.frontmatter.inputs.iter().flatten() {
+            if let Some(child) = resolver.resolve_ref(elements, r) {
+                if child.qualified_name != g.qualified_name {
+                    referenced.insert(child.qualified_name.as_str());
+                }
+            }
+        }
+    }
+    let mut roots = nodes
+        .into_iter()
+        .filter(|n| !referenced.contains(n.qualified_name.as_str()));
+    let root = roots.next()?;
+    if roots.next().is_some() {
+        return None;
+    }
+    Some(root)
+}
+
 /// Computed feasibility **rank** (0..=3) of an `AttackTree`: the value of its
-/// single root child (the `AttackTreeGate`/`AttackStep` whose qualified name is
-/// directly under the tree). `None` when the tree has no root child or the
-/// roll-up is not computable. `tree` must be an `AttackTree`.
+/// root node ([`tree_root`] — the gate/step no other gate of the tree lists as
+/// an input). `None` when the tree has no unique root or the roll-up is not
+/// computable. `tree` must be an `AttackTree`.
 pub fn tree_feasibility_rank(
     tree: &RawElement,
     elements: &[RawElement],
@@ -91,18 +135,7 @@ pub fn tree_feasibility_rank(
     if tree.frontmatter.element_type != Some(ElementType::AttackTree) {
         return None;
     }
-    let prefix = format!("{}::", tree.qualified_name);
-    // The root child is the gate/step directly under the tree (one segment of
-    // qualified name below the tree prefix).
-    let root = elements.iter().find(|e| {
-        let qn = &e.qualified_name;
-        qn.starts_with(&prefix)
-            && !qn[prefix.len()..].contains("::")
-            && matches!(
-                e.frontmatter.element_type,
-                Some(ElementType::AttackTreeGate) | Some(ElementType::AttackStep)
-            )
-    })?;
+    let root = tree_root(tree, elements, resolver)?;
     node_rank(root, elements, resolver, 0)
 }
 
@@ -201,5 +234,47 @@ mod tests {
         let at = &elements[0];
         assert_eq!(tree_feasibility_rank(at, &elements, &resolver), Some(2));
         assert_eq!(tree_feasibility(at, &elements, &resolver), Some("medium"));
+    }
+
+    /// GH #149: the root is the node no gate lists as an input, whatever the
+    /// element order. A sub-gate (AND = low) sorted before the root (OR =
+    /// medium) must not be taken as the root, in either order.
+    #[test]
+    fn rollup_root_is_independent_of_element_order() {
+        let nodes = vec![
+            gate("AT-XY-001::ATG-XY-001", "ATG-XY-001", "AND", &["ATS-XY-001", "ATS-XY-002"]),
+            gate("AT-XY-001::ATG-XY-002", "ATG-XY-002", "OR", &["ATG-XY-001", "ATS-XY-003"]),
+            step("AT-XY-001::ATS-XY-001", "ATS-XY-001", "high"),
+            step("AT-XY-001::ATS-XY-002", "ATS-XY-002", "low"),
+            step("AT-XY-001::ATS-XY-003", "ATS-XY-003", "medium"),
+        ];
+        for reversed in [false, true] {
+            let mut elements = vec![tree("AT-XY-001", "AT-XY-001")];
+            let mut ns = nodes.clone();
+            if reversed {
+                ns.reverse();
+            }
+            elements.extend(ns);
+            let resolver = Resolver::new(&elements);
+            let at = &elements[0];
+            assert_eq!(
+                tree_root(at, &elements, &resolver).and_then(|r| r.frontmatter.id.as_deref()),
+                Some("ATG-XY-002")
+            );
+            assert_eq!(tree_feasibility(at, &elements, &resolver), Some("medium"));
+        }
+    }
+
+    /// Two unreferenced nodes (a forest) have no unique root: not computable.
+    #[test]
+    fn rollup_forest_has_no_root() {
+        let elements = vec![
+            tree("AT-YZ-001", "AT-YZ-001"),
+            step("AT-YZ-001::ATS-YZ-001", "ATS-YZ-001", "high"),
+            step("AT-YZ-001::ATS-YZ-002", "ATS-YZ-002", "low"),
+        ];
+        let resolver = Resolver::new(&elements);
+        assert!(tree_root(&elements[0], &elements, &resolver).is_none());
+        assert_eq!(tree_feasibility_rank(&elements[0], &elements, &resolver), None);
     }
 }

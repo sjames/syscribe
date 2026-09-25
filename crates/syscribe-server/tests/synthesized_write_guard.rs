@@ -28,7 +28,24 @@ fn temp_model() -> PathBuf {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let dir = std::env::temp_dir().join(format!("syscribe-server-synth-guard-{}-{}", std::process::id(), nanos));
+    // Unique per call (GH #156): tests run on parallel threads and can read
+    // the same nanosecond timestamp, so add a sequence number and claim the
+    // directory exclusively.
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let dir = loop {
+        let dir = std::env::temp_dir().join(format!(
+            "syscribe-server-synth-guard-{}-{}-{}",
+            std::process::id(),
+            nanos,
+            SEQ.fetch_add(1, Ordering::Relaxed)
+        ));
+        match std::fs::create_dir(&dir) {
+            Ok(()) => break dir,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => panic!("create temp model dir: {e}"),
+        }
+    };
     let features = dir.join("Features");
     std::fs::create_dir_all(&features).unwrap();
     std::fs::write(

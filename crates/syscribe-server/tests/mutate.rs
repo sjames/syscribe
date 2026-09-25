@@ -42,16 +42,33 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
 
 /// Copy the shared fixture model into a fresh temp directory so this test can
 /// commit real writes without touching the checked-in fixture.
+///
+/// The directory is unique per call (GH #156): pid + nanosecond timestamp alone
+/// is not, because tests start on parallel threads and two of them can read
+/// the same timestamp. The two tests then shared one model directory, and
+/// whichever finished first deleted it under the other ("commit failed: No
+/// such file or directory"). A per-process sequence number plus an exclusive
+/// `create_dir` rules that out.
 fn temp_model() -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
     let nanos = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_nanos();
-    let dir = std::env::temp_dir().join(format!(
-        "syscribe-server-mutate-test-{}-{}",
-        std::process::id(),
-        nanos
-    ));
+    let dir = loop {
+        let dir = std::env::temp_dir().join(format!(
+            "syscribe-server-mutate-test-{}-{}-{}",
+            std::process::id(),
+            nanos,
+            SEQ.fetch_add(1, Ordering::Relaxed)
+        ));
+        match std::fs::create_dir(&dir) {
+            Ok(()) => break dir,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => panic!("create temp model dir: {e}"),
+        }
+    };
     copy_dir_all(&fixtures_root(), &dir).expect("copy fixture model");
     dir
 }
