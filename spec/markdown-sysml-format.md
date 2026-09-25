@@ -3115,11 +3115,19 @@ The following metadata types from the SysML Standard Library are referenced by t
 
 #### 8.16.1 Overview
 
-A `Diagram` file stores an LLM-generated SVG diagram alongside a structured frontmatter manifest that links every SVG shape and edge to a model element by qualified name. The frontmatter is the canonical source of traceability; the SVG is the visual geometry. A parser can validate the diagram entirely from the frontmatter without touching the SVG.
+A `Diagram` file (`type: Diagram`) depicts part of the model. Its `diagramKind:` selects the rendering path:
 
-The SVG uses a `sysml:` XML namespace on shapes for redundant inline traceability, enabling the SVG to be opened standalone in any viewer.
+| Rendering path | How to author | Notes |
+|---|---|---|
+| **Structured SVG** (`BDD`, `IBD`, `StateMachine`, `Requirement`) | `shapes:` / `edges:` manifest plus a `layout:` block | The web server builds the SVG from the manifest; without `layout:` nothing is drawn. |
+| **PlantUML companion** (`BDD`, `IBD`, `StateMachine`, `Sequence`, `Requirement`) | `pumlMode: companion` (+ optional `pumlFile:`) and an image reference to the anticipated `.svg` in the body | `syscribe plantuml` generates the `.puml` from the manifest and the model; `syscribe plantuml render` turns it into SVG. Preferred for these kinds. |
+| **Mermaid** (`diagramKind: Mermaid`) | A fenced ` ```mermaid ` block in the body | Rendered client-side. Annotate nodes with `%% ref: <QualifiedName>` (and `%% link: <NodeId> <QualifiedName>`) so they trace to model elements. |
+| **Inline PlantUML** (`diagramKind: PlantUML`) | A fenced ` ```plantuml ` block in the body | Hand-written PlantUML source. |
+| **Hand-authored SVG** (any kind, including `Allocation`, `UseCase`, `Sequence`, `Custom`) | `shapes:` / `edges:` manifest plus an SVG, inline or companion (below) | The SVG geometry is authored (typically by an LLM); the manifest links every shape and edge to a model element. |
 
-**Two storage modes are supported.** The frontmatter schema is identical in both; only the Markdown body differs:
+The rest of this section specifies the manifest and the hand-authored SVG conventions. In the manifest the frontmatter is the canonical source of traceability and the SVG is the visual geometry, so a parser can validate the diagram from the frontmatter without touching the SVG. The SVG uses a `sysml:` XML namespace (`urn:syscribe:1.0`) on shapes for redundant inline traceability, so the SVG can be opened standalone in any viewer.
+
+**Two SVG storage modes are supported.** The frontmatter schema is identical in both; only the Markdown body differs:
 
 | Mode | Body content | GitHub rendering | Files |
 |---|---|---|---|
@@ -3136,14 +3144,15 @@ Choose **inline** when GitHub rendering is not required and keeping everything i
 |---|---|---|---|---|
 | `type` | string | **Required** | — | `Diagram` |
 | `name` | string | optional | filename stem | Display name for the diagram |
-| `kind` | string | **Required** | — | Diagram kind: `BDD`, `IBD`, `Sequence`, `StateMachine`, `Requirement`, `Allocation`, `UseCase`, `Custom` |
-| `subject` | string | **Required** | — | Qualified name of the model element this diagram depicts |
+| `diagramKind` | string | recommended | — | Diagram kind: `BDD`, `IBD`, `StateMachine`, `Sequence`, `Requirement`, `Mermaid`, `PlantUML`; `Allocation`, `UseCase` and `Custom` are accepted for hand-authored SVG (no generator). Absent → warning `W400` (suppressed when `svgMode: companion`). The field is `diagramKind`, not `kind` (an unknown `kind:` key is `W047`). |
+| `subject` | string | recommended | — | Qualified name of the model element this diagram depicts. An unresolved subject is warning `W401`. |
 | `svgMode` | string | optional | `inline` | Storage mode: `inline` (fenced block in body) or `companion` (separate `.svg` file) |
 | `svgFile` | string | optional | `<stem>.svg` | Companion file path relative to the `.md` file; only used when `svgMode: companion` |
 | `shapes` | map | optional | absent | Shape manifest; see §8.16.3 |
 | `edges` | map | optional | absent | Edge manifest; see §8.16.4 |
-| `symbolLib` | string | optional | `_diagram-symbols.svg` | Path (relative to model root) to the shared SVG symbol library |
-| `generatedBy` | string | optional | absent | Free-text note on how the SVG was produced (e.g., `"claude-sonnet-4-6"`) |
+| `layout` | map | optional | absent | Shape id → `{x, y, w, h}` pixel coordinates. Triggers the server-side structured SVG renderer. |
+| `pumlMode` | string | optional | absent | `companion` (the only value; anything else is `E403`) opts into the PlantUML workflow. Requires `diagramKind` (`E404`); the body must reference the anticipated SVG (`![…](….svg)` or `<img`, else `W413`); a not-yet-generated `.puml` is `W414`. |
+| `pumlFile` | string | optional | `<stem>.puml` | Companion `.puml` path relative to the `.md` file; only used with `pumlMode: companion`. |
 
 #### 8.16.3 Shape Manifest
 
@@ -3229,7 +3238,7 @@ The `svgFile:` frontmatter field identifies the companion file. If absent, the p
 **Namespace declaration:**
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:sysml="urn:sysml-md:1.0"
+     xmlns:sysml="urn:syscribe:1.0"
      viewBox="0 0 W H">
 ```
 
@@ -3251,7 +3260,7 @@ The `svgFile:` frontmatter field identifies the companion file. If absent, the p
       marker-end="url(#arrow-flow)"/>
 ```
 
-**Symbol library** (`<defs>` or referenced via `symbolLib:`): defines reusable symbols for each SysML element kind. Shapes reference them via `<use href="#sym-<TypeName>">`. A default symbol library is provided at `_diagram-symbols.svg` in the model root.
+**Symbol library**: reusable symbols for each SysML element kind are defined as `<symbol>`s in `<defs>`, and shapes reference them via `<use href="#sym-<TypeName>">`. The SVG may carry its own `<defs>`; in addition, the web server injects the `<defs>` of `_diagram-symbols.svg` at the model root, when that file exists (a fixed path — there is no frontmatter field for it).
 
 **CSS classes** on shapes and edges correspond to SysML element types and control visual style:
 
@@ -3275,11 +3284,10 @@ The frontmatter and SVG body live in one file. GitHub displays code, not an imag
 ````markdown
 ---
 type: Diagram
-kind: IBD
+diagramKind: IBD
 name: VehiclePowertrainIBD
 subject: VehicleSystem::Vehicle
 svgMode: companion
-generatedBy: claude-sonnet-4-6
 shapes:
   vehicle-boundary: VehicleSystem::Vehicle
   engine-rect:
@@ -3313,7 +3321,7 @@ edges:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:sysml="urn:sysml-md:1.0"
+     xmlns:sysml="urn:syscribe:1.0"
      viewBox="0 0 800 500">
   <!-- shapes, edges, etc. with sysml:ref attributes -->
 </svg>
@@ -3324,10 +3332,9 @@ edges:
 ````markdown
 ---
 type: Diagram
-kind: IBD
+diagramKind: IBD
 name: VehiclePowertrainIBD
 subject: VehicleSystem::Vehicle
-generatedBy: claude-sonnet-4-6
 shapes:
   vehicle-boundary: VehicleSystem::Vehicle
   engine-rect:
@@ -3345,7 +3352,7 @@ edges:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:sysml="urn:sysml-md:1.0"
+     xmlns:sysml="urn:syscribe:1.0"
      viewBox="0 0 800 500">
   ...
 </svg>
@@ -3357,10 +3364,9 @@ edges:
 ````markdown
 ---
 type: Diagram
-kind: IBD
+diagramKind: IBD
 name: VehiclePowertrainIBD
 subject: VehicleSystem::Vehicle
-generatedBy: claude-sonnet-4-6
 shapes:
   vehicle-boundary: VehicleSystem::Vehicle
   engine-rect:
@@ -3406,7 +3412,7 @@ edges:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:sysml="urn:sysml-md:1.0"
+     xmlns:sysml="urn:syscribe:1.0"
      viewBox="0 0 800 500">
   <defs>
     <marker id="arrow-flow" markerWidth="10" markerHeight="7"
@@ -3471,20 +3477,21 @@ edges:
 
 A conformant parser must:
 
-1. **Reference validation** — every `ref` value in `shapes:` and `edges:` must resolve to a model element. Unresolved references are errors.
+1. **Reference validation** — every `ref` value in `shapes:` must resolve to a model element. An unresolved shape `ref` is warning `W402` (suppressed when an ancestor qualified name resolves, which covers inline features such as `Part::port`). A shape `link:` that does not resolve is `W411`; an SVG `href` that matches no model element is `W412`.
 2. **Type compatibility** — the CSS class on an SVG shape must match the `type:` of the referenced model element (e.g., a shape with `class="PartDef"` whose `ref` resolves to a `RequirementDef` is an error).
-3. **ID consistency** — every `id` key in the frontmatter `shapes:` and `edges:` maps must appear as an `id` attribute in the SVG (inline or companion), and vice versa. Orphaned IDs in either direction are warnings.
-4. **Edge endpoint validity** — `source` and `target` values in `edges:` must be keys present in `shapes:`.
-5. **Subject existence** — the `subject:` qualified name must resolve to a model element.
-6. **Companion file existence** — when `svgMode: companion`, the parser must verify the companion `.svg` file exists at the path given by `svgFile:` (or the default stem-matched path). A missing companion file is an error.
-7. **Mode consistency** — when `svgMode: inline`, the body must contain a fenced `svg` block. When `svgMode: companion`, the body must contain an `<img>` tag. A mismatch is a warning.
-8. **Completeness warnings** (optional, non-blocking) — for `IBD` diagrams, the parser may warn if sub-parts or connections declared in the subject element's `.md` file do not appear in `shapes:` or `edges:`.
+3. **ID consistency** — for inline SVG, every `id` key in the frontmatter `shapes:` and `edges:` maps must appear as an `id` attribute in the SVG (`W406`), and every SVG `id` must appear in the manifest (`W407`).
+4. **Edge endpoint validity** — `source` and `target` values in `edges:` must be keys present in `shapes:`; otherwise warning `W403`.
+5. **Subject existence** — the `subject:` qualified name must resolve to a model element; otherwise warning `W401`.
+6. **Companion file existence** — when `svgMode: companion` (or `svgFile:` is set), the `.svg` file must exist at the path given by `svgFile:` (or the default stem-matched path). A missing companion file is error `E402`.
+7. **Mode consistency** — when `svgMode: inline`, the body must contain a fenced `svg` block. When `svgMode: companion`, the body must contain an `<img>` tag. A mismatch is warning `W405`.
+8. **Rendering-path bodies** — `diagramKind: Mermaid` requires a ` ```mermaid ` block (`E400`); `diagramKind: PlantUML` requires a ` ```plantuml ` block (`E401`). In Mermaid blocks, an unresolved `%% ref:` is `W408`, a diagram with no `%% ref:` annotation at all is `W409`, and an unresolved `%% link:` is `W410`. The `pumlMode` checks (`E403`, `E404`, `W413`, `W414`) are listed in §8.16.2; a missing `[plantuml] style_file` is `W415`.
+9. **Completeness warnings** (optional, non-blocking) — for `IBD` diagrams, the parser may warn if sub-parts or connections declared in the subject element's `.md` file do not appear in `shapes:` or `edges:`.
 
 ---
 
 #### 8.16.8 Kind-Specific Diagram Conventions
 
-Each `kind:` value imposes constraints on which element types are valid for `subject:`, which values are valid for `kind:` in shape and edge descriptors, which CSS classes and SVG primitives to use, and which model elements the parser must check for completeness. The `Custom` kind has no prescribed conventions — all shape and edge `kind:` values are user-defined and no completeness rules are enforced.
+Each `diagramKind:` value imposes constraints on which element types are valid for `subject:`, which values are valid for `kind:` in shape and edge descriptors, which CSS classes and SVG primitives to use, and which model elements the parser must check for completeness. The `Custom` kind has no prescribed conventions — all shape and edge `kind:` values are user-defined and no completeness rules are enforced.
 
 ---
 
@@ -3519,7 +3526,7 @@ A BDD shows classifiers (definitions) and their relationships in a given package
 
 ```yaml
 type: Diagram
-kind: BDD
+diagramKind: BDD
 name: PowertrainBDD
 subject: VehicleSystem::Powertrain
 shapes:
@@ -3585,7 +3592,7 @@ An IBD shows the internal structure of a single `PartDef` or `Part` — its owne
 
 ```yaml
 type: Diagram
-kind: IBD
+diagramKind: IBD
 name: EngineInternalIBD
 subject: VehicleSystem::Powertrain::Engine
 shapes:
@@ -3651,7 +3658,7 @@ A Sequence diagram shows time-ordered message exchanges between lifelines. Time 
 
 ```yaml
 type: Diagram
-kind: Sequence
+diagramKind: Sequence
 name: EngineStartSequence
 subject: VehicleSystem::Actions::EngineStart
 shapes:
@@ -3719,7 +3726,7 @@ A StateMachine diagram shows the states and transitions of a `StateDef`. Initial
 
 ```yaml
 type: Diagram
-kind: StateMachine
+diagramKind: StateMachine
 name: EngineStateMachine
 subject: VehicleSystem::States::EngineStateDef
 shapes:
@@ -3790,7 +3797,7 @@ A Requirement diagram shows requirements and their inter-relationships within a 
 
 ```yaml
 type: Diagram
-kind: Requirement
+diagramKind: Requirement
 name: SafetyRequirementsDiagram
 subject: VehicleSystem::Requirements::Safety
 shapes:
@@ -3855,7 +3862,7 @@ An Allocation diagram shows `«allocate»` relationships between logical/functio
 
 ```yaml
 type: Diagram
-kind: Allocation
+diagramKind: Allocation
 name: FunctionToHardwareAllocation
 subject: VehicleSystem::Allocations
 shapes:
@@ -3924,7 +3931,7 @@ A UseCase diagram shows actors, use cases, the system boundary, and their relati
 
 ```yaml
 type: Diagram
-kind: UseCase
+diagramKind: UseCase
 name: VehicleUseCaseDiagram
 subject: VehicleSystem::UseCases
 shapes:
@@ -7025,7 +7032,7 @@ FlexRay        0.500         0.010           0.455      0.667          0.436   #
 | `W063` | `scores:` matrix is incomplete — at least one (alternative, criterion) pair has no score entry |
 | `W064` | `TradeStudy.alternatives[].element` is present but unresolved |
 
-> **Code note:** these were drafted as `E400`–`E408` / `W400`–`W403`, which collide with the Diagram codes (`E400`–`E402`, `W400`–`W403`, §11.12). They are reassigned to `E869`–`E877` / `W061`–`W064`.
+> **Code note:** these were drafted as `E400`–`E408` / `W400`–`W403`, which collide with the Diagram codes (`E400`–`E404`, `W400`–`W415`, §8.16.7). They are reassigned to `E869`–`E877` / `W061`–`W064`.
 
 ---
 
