@@ -254,6 +254,7 @@ id: REQ-SCHED-001
 name: "Scheduler shall select highest-priority ready thread in O(1)"
 status: approved
 asilLevel: D
+verificationMethod: test
 derivedFrom: [REQ-STAKE-001]
 breakdownAdr: Decisions::ADR-SCHED-001
 custom_fields:

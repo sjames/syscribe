@@ -69,7 +69,7 @@ layout:
 
 Set `diagramKind: Mermaid` and include a fenced ` ```mermaid ` block in the document body. The validator fires **E400** if the block is absent.
 
-```yaml
+````markdown
 ---
 type: Diagram
 name: RequirementTrace
@@ -81,11 +81,13 @@ Requirement derivation tree.
 
 ```mermaid
 graph TD
+  %% ref: REQ-UAV-PERF-000
   PERF["REQ-UAV-PERF-000<br/>Mission Performance"]
+  %% ref: REQ-UAV-COMM-001
   COMM["REQ-UAV-COMM-001<br/>Data Link ≥ 5 km"]
   PERF --> COMM
 ```
-```
+````
 
 The Mermaid.js runtime is loaded from CDN and renders the diagram client-side when the tab is activated.
 
@@ -108,6 +110,7 @@ and other Markdown renderers. `syscribe plantuml` injects a Markdown image link
 automatically if the body has no image reference yet. Both `![name](path.svg)` and
 `<img src="path.svg">` satisfy W413.
 
+<!-- syscribe-example: expect W406 reason="GH #158: W406 wrongly checks pumlMode: companion diagrams for inline SVG ids" -->
 ```yaml
 ---
 type: Diagram

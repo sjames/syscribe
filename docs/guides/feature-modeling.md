@@ -134,6 +134,7 @@ A `Configuration` is a feature selection that resolves the 150% model into one p
 type: Configuration
 id: CONF-RP-PICO2-AMP-001
 name: "Raspberry Pi Pico 2 (RP2350, dual Cortex-M33) AMP — HIL"
+status: approved
 featureModel: Features::Sabaton
 features:
   Features::Port: true
@@ -180,6 +181,7 @@ id: REQ-MPU-DOMAIN-001
 name: "Kernel shall enforce per-thread MPU domain isolation"
 status: approved
 asilLevel: D
+verificationMethod: test
 appliesWhen: Features::MPU and Features::CortexM33
 ---
 ```
@@ -194,6 +196,7 @@ This requirement only appears in the coverage matrix for configurations where bo
 type: PartDef
 name: MpuDomainManager
 domain: software
+asilLevel: D                # a satisfier carries the requirement's integrity level (E843)
 appliesWhen: Features::MPU
 satisfies:
   - REQ-MPU-DOMAIN-001
@@ -207,6 +210,7 @@ satisfies:
 type: TestCase
 id: TC-MPU-FAULT-HIL-001
 name: "MPU read-only region write causes MemManage trap on hardware"
+status: draft
 testLevel: L5
 appliesWhen: Features::MPU and Features::CortexM33
 verifies: [REQ-MPU-FAULT-001]
@@ -320,6 +324,7 @@ id: SG-KERNEL-001
 name: "Kernel scheduler shall not starve any safety-relevant thread"
 status: approved
 asilLevel: D
+hazardousEvents: [HE-KERNEL-001]
 ---
 
 # SafetyGoal specific to AMP variants only
@@ -329,6 +334,7 @@ id: SG-KERNEL-006
 name: "AMP core isolation shall prevent cross-core interference"
 status: approved
 asilLevel: D
+hazardousEvents: [HE-KERNEL-006]
 appliesWhen: Features::Amp
 ---
 ```
@@ -348,6 +354,7 @@ diagnosticCoverage: 0.97    # high DC because PSPLIM is available
 latentDiagnosticCoverage: 0.75
 appliesWhen: Features::StackLimit
 ---
+```
 
 ```yaml
 ---
@@ -440,8 +447,9 @@ of each configuration, rather than in an informal spreadsheet.
 # A Configuration as a MagicGrid trade-study variant
 ---
 type: Configuration
-id: CONF-CM33-HIGH-PERF
+id: CONF-CM33-HIGH-PERF-001
 name: "Cortex-M33 high-performance variant"
+status: draft
 custom_fields:
   mg_variant: true
 featureModel: Features::Sabaton

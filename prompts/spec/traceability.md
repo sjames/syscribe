@@ -106,17 +106,28 @@ to a `hardware` element — an `Allocation` element (top-level or `features:` en
 **Correct cross-domain pattern:**
 
 ```yaml
-# SW element
+# model/Software/SchedulerModule.md — SW element
+---
 type: PartDef
 name: SchedulerModule
 domain: software
 isDeploymentPackage: true
+---
 
-# Allocation — the only permitted cross-domain link
+# model/Hardware/FlightComputer.md — HW element
+---
+type: PartDef
+name: FlightComputer
+domain: hardware
+---
+
+# model/Allocations/schedulerToFC.md — the only permitted cross-domain link
+---
 type: Allocation
 name: schedulerToFC
 allocatedFrom: Software::SchedulerModule
 allocatedTo: Hardware::FlightComputer
+---
 ```
 
 ---
@@ -146,12 +157,17 @@ Level ranking:
 ```yaml
 type: SafetyGoal
 id: SG-BRAKE-001
+name: "Prevent unintended brake release"
+status: approved
 asilLevel: D
 hazardousEvents: [HE-BRAKE-001]
 ---
 type: Requirement
 id: REQ-BRAKE-HYD-001
+name: "Maintain hydraulic pressure within 50 ms"
+status: approved
 asilLevel: B
+verificationMethod: test
 derivedFromSafetyGoal: SG-BRAKE-001
 breakdownAdr: ADR-BRAKE-DECOMP-001
 ```

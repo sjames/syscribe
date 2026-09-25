@@ -159,6 +159,7 @@ The eight batches above are a plan for building the model; `PlanningItem` (`ADR-
 
 This is optional — nothing about the eight-batch workflow requires it. It's most valuable for a multi-session or multi-agent effort, where "what's left, what's blocked, what counts as proof of done" needs to survive between sessions the same way the model itself does. This repository's own `model/Planning/` tracks its own feature work this way (see e.g. `PI-HPLE-001` and its children); `examples/planning-item/` is a complete standalone worked example.
 
+<!-- syscribe-example: expect E719 reason="the evidence path is illustrative and absent on disk, so the done item has no resolving evidence in isolation" -->
 ```yaml
 # model/Planning/MyFeature/PI-MYFEATURE-001.md — one PlanningItem per unit of work
 ---
@@ -205,7 +206,7 @@ The prompt includes full diagram instructions. The LLM generates two kinds of di
 
 Use `diagramKind: Mermaid` and embed a fenced mermaid block. No SVG authoring required. Best for: requirement derivation trees, architecture overviews, sequence interactions, state machine summaries.
 
-```yaml
+````markdown
 ---
 type: Diagram
 name: RequirementTrace
@@ -217,8 +218,11 @@ Requirement derivation showing how stakeholder goals break into leaf requirement
 
 ```mermaid
 graph TD
+  %% ref: REQ-AID-SAFE-000
   SAFE["REQ-AID-SAFE-000<br/>Safety Goal"]
+  %% ref: REQ-AID-FC-001
   FC["REQ-AID-FC-001<br/>Fault Detection ≤ 50 ms"]
+  %% ref: REQ-AID-LAND-001
   LAND["REQ-AID-LAND-001<br/>Safe Landing"]
 
   SAFE --> FC
@@ -228,13 +232,13 @@ graph TD
   style FC   fill:#fef3c7,stroke:#f59e0b
   style LAND fill:#fef3c7,stroke:#f59e0b
 ```
-```
+````
 
 ### Embedded SVG (preferred for BDD, IBD, StateMachine, Requirement)
 
 Use `svgMode: inline` and embed a fenced `svg` block. The `shapes:` and `edges:` frontmatter document the diagram for traceability; the SVG is what the browser renders. The browser loads a shared symbol library (`_diagram-symbols.svg`) so the LLM can reference standard SysML symbols by id.
 
-```yaml
+````markdown
 ---
 type: Diagram
 name: SystemBDD
@@ -266,12 +270,12 @@ Block Definition Diagram: top-level decomposition of AIDSystem.
     <text class="label"      x="80" y="38" text-anchor="middle">FlightController</text>
   </g>
 
-  <line x1="200" y1="76" x2="200" y2="140"
+  <line id="e-comp" x1="200" y1="76" x2="200" y2="140"
         stroke="#333" stroke-width="1.5"
         marker-start="url(#arrow-composition)"/>
 </svg>
 ```
-```
+````
 
 ### Available SVG symbols
 

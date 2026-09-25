@@ -70,7 +70,7 @@ REQ-UAV-PERF-000  (parent — needs L3/L4/L5 TestCase)
 
 ## Native TestCase
 
-```yaml
+````markdown
 ---
 type: TestCase
 id: TC-UAV-FC-001
@@ -94,7 +94,7 @@ Feature: Flight controller fault detection
     When GPS fix is lost for 100 ms
     Then the flight controller transitions to dead-reckoning mode
 ```
-```
+````
 
 ### Required fields
 
