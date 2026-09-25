@@ -5,6 +5,11 @@ Inspect and synchronise the peer repositories declared in the model-root
 organizational boundaries; multi-repo composition lets one model import namespaces
 from peer repos and resolve cross-repo cross-references at analysis time.
 
+## SYNOPSIS
+    syscribe -m <root> repos [list] [--json]
+    syscribe -m <root> repos status [--json]
+    syscribe -m <root> repos sync [--all | <alias>]
+
 ## Configuration (`.syscribe.toml`)
 
 ```toml

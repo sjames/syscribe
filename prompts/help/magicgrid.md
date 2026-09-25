@@ -1,9 +1,10 @@
 # magicgrid — MagicGrid B/W/S × 1-4 cell report
 
-```
-syscribe -m <root> magicgrid [--audit] [--json]
-syscribe -m <root> magicgrid --svg [-o <file>]
-```
+## SYNOPSIS
+    syscribe -m <root> magicgrid [--audit] [--json]
+    syscribe -m <root> magicgrid --svg [-o <file>]
+
+## DESCRIPTION
 
 Without `--audit`: bucket every model element by its MagicGrid overlay coordinate
 (`custom_fields: { mg_cell: <coord> }`) into the defining rows × pillars grid and
