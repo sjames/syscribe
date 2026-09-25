@@ -46,10 +46,13 @@ jobs:
       - name: Build syscribe
         run: cargo build --package syscribe
 
-      # Every YAML example in the spec, prompts and user docs must validate
-      # against the tool (crates/syscribe/tests/doc_examples.rs).
-      - name: Check documented YAML examples against the tool
-        run: cargo test --package syscribe --test doc_examples
+      # All Rust unit and integration tests across the workspace (#179).
+      # Includes the guard tests: every documented YAML example validates
+      # (doc_examples), the validation-code catalogue and rules page match the
+      # emitted codes, the CLI reference / help pages / MCP and LSP pages cover
+      # the binary, and help-page examples run.
+      - name: Run workspace tests
+        run: cargo test --workspace
 
       - name: Install Graphviz
         run: sudo apt-get install -y graphviz
