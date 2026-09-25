@@ -1321,7 +1321,7 @@ pub struct RawElement {
     pub derived: std::collections::HashMap<String, serde_yaml::Value>,
     /// Findings gathered by the validator, contributed by more than one
     /// walker post-processing pass sharing this one vector: the derive pass
-    /// (E500-E502; `crate::derive`) and native SysMLv2 submodel ingestion
+    /// (E504-E506; `crate::derive`) and native SysMLv2 submodel ingestion
     /// (W540; `crate::sysmlv2`), which runs earlier in `walker::walk_model`.
     /// Despite the field's name, it is not exclusively "derive pass" output.
     #[serde(skip)]

@@ -42,6 +42,7 @@ Errors block a clean build. Warnings are advisory.
 | E400–E402 | Diagram | Mermaid/PlantUML body blocks, companion SVG on disk |
 | W400–W412 | Diagram | diagramKind, subject/shape/edge resolution, Mermaid annotations, SVG hrefs, operation typedBy |
 | E500–E503 | Allocation | allocatedFrom/allocatedTo resolution on Allocation elements and any element |
+| E504–E506 | Derive | `derive:` formula cycle (reserved), parse error, unknown `elements["QName"]` reference |
 | W500–W502 | Structural | viewpoint, exhibitsStates, expose resolution on View elements |
 | W600–W601 | Documentation | Empty PartDef/Part or ActionDef/Action doc body |
 | W701–W703, W807 | Safety / ASPICE | verificationMethod on high-ASIL reqs, L5 test for ASIL D, mixed standards, security reqs |

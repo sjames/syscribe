@@ -8,7 +8,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 
 | Code | Element | Condition |
 |---|---|---|
-| E000 | — | Internal fallback code for a derive-pass finding whose original code is not one of the recognised derive codes (`E500`/`E501`/`E502`). Should not appear in a healthy model |
+| E000 | — | Internal fallback code for a walker-pass finding (derive, SysML v2 ingestion, plugins, annotations, `featureTree:`) whose original code is not one the validator recognises — for the derive pass `E504`/`E505`/`E506`. Should not appear in a healthy model |
 | E002 | Any | Frontmatter is not valid YAML 1.2 (parse error) |
 | E003 | — | **RETIRED.** Never emitted — there is no strict mode. An unrecognised top-level frontmatter key is the warning `W047`. |
 | E004 | TestCase | `id`, `name`, `status`, or `testLevel` absent |
@@ -529,6 +529,18 @@ A `FeatureDef` or `Configuration` may declare `buildExports:` mapping selected f
 | E502 | `allocatedFrom:` entry (on any element) does not resolve to a known element |
 | E503 | `allocatedTo:` entry (on any element) does not resolve to a known element |
 
+## Declarative derive errors (E504–E506)
+
+Emitted by the `derive:` evaluator (`crates/syscribe-model/src/derive.rs`, REQ-TRS-DERIVE-004/005).
+
+| Code | Condition |
+|---|---|
+| E504 | *(reserved)* Cyclic dependency between `derive:` formulas — cycle detection is not yet implemented |
+| E505 | A `derive:` formula does not parse ("derive formula parse error for field '…'"); the field is left unevaluated |
+| E506 | A `derive:` formula's `elements["QName"]` names no element ("derive: element '…' not found in model"); the field evaluates to null. The model-root-name hint applies |
+
+The derive pass previously emitted `E501`/`E502` and reserved `E500`, colliding with the Allocation codes; since GH #127 the two families are disjoint.
+
 ## Structural warnings (W500–W503)
 
 | Code | Condition |
@@ -1023,7 +1035,7 @@ segment — a reference starts at the first sub-namespace
 unresolved cross-reference begins with the root package's `name:` followed by `::`
 and the *stripped* remainder resolves, the tool appends a diagnostic **hint** naming
 the corrected reference. The hint augments the existing unresolved-reference finding
-(`E102`/`E103`/`E311`/`E316`/`E502`/`E503`/`E632` and the structural
+(`E102`/`E103`/`E311`/`E316`/`E502`/`E503`/`E506`/`E632` and the structural
 supertype/typedBy/subsets/redefines and satisfies resolution errors `E110`–`E114`); it is advisory
 only — it never changes resolution and never rewrites the model. It does not fire
 when the root package has no `name:`, nor when stripping the prefix still does not

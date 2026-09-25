@@ -10,6 +10,11 @@
 //!
 //! The pass populates `RawElement.derived` for each element; the validator and
 //! query layer read derived fields from there.
+//!
+//! Finding codes (GH #127 — moved off `E500`–`E502`, which belong to Allocation
+//! resolution): `E504` derive cycle (reserved; cycle detection is not yet
+//! implemented), `E505` formula parse error, `E506` unknown element reference in
+//! `elements["QName"]`.
 
 use crate::element::RawElement;
 
@@ -419,7 +424,7 @@ fn eval(
         Expr::ElementField { qname, path } => {
             match all.iter().find(|e| &e.qualified_name == qname) {
                 None => {
-                    findings.push(finding("E502", &current.file_path,
+                    findings.push(finding("E506", &current.file_path,
                         &format!("derive: element '{}' not found in model", qname)));
                     Value::Null
                 }
@@ -488,7 +493,7 @@ pub fn derive_pass(elements: &mut [RawElement]) {
     // Process elements sequentially — simple strategy: iterate up to 3 times
     // so that cross-element dependencies resolve (children computed before parents
     // need them). A full topo-sort is left as a future enhancement once cycle
-    // detection (E500) is added. For now: single forward pass with self-chaining.
+    // detection (E504, reserved) is added. For now: single forward pass with self-chaining.
     for idx in 0..elements.len() {
         let derive_block = {
             let fm = &elements[idx].frontmatter;
@@ -507,7 +512,7 @@ pub fn derive_pass(elements: &mut [RawElement]) {
             let expr = match parse_formula(formula_str) {
                 Ok(e) => e,
                 Err(e) => {
-                    elem_findings.push(finding("E501", &elements[idx].file_path,
+                    elem_findings.push(finding("E505", &elements[idx].file_path,
                         &format!("derive formula parse error for field '{}': {}", field_name, e)));
                     continue;
                 }

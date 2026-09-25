@@ -786,14 +786,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     let mut findings: Vec<Finding> = Vec::new();
 
     // Collect findings stashed on `RawElement.derive_findings` by more than one
-    // walker post-processing pass: the derive pass (E500-E502) and native
+    // walker post-processing pass: the derive pass (E504-E506) and native
     // SysMLv2 submodel ingestion (W540) both share this one vector — see that
     // field's doc comment in element.rs.
     for elem in elements {
         for (code, file, message) in &elem.derive_findings {
             let sev = if code.starts_with('E') { Severity::Error } else { Severity::Warning };
             let static_code: &'static str = match code.as_str() {
-                "E500" => "E500", "E501" => "E501", "E502" => "E502",
+                // Declarative derive pass (GH #127): E504 cycle (reserved), E505
+                // formula parse error, E506 unknown `elements["QName"]` reference —
+                // disjoint from the Allocation resolution codes E500–E503.
+                "E504" => "E504", "E505" => "E505", "E506" => "E506",
                 // Native SysML v2/KerML submodel ingestion (ADR-SYS-SYSMLV2-001,
                 // REQ-TRS-SYSMLV2-006) — its own code range, distinct from the
                 // WASM-plugin family. W541 is a placeholder pending REQ-TRS-SYSMLV2-006's
@@ -7701,7 +7704,7 @@ fn link_type_findings(elements: &[RawElement], config: &ValidateConfig) -> Vec<F
 /// findings: traceability, refinement, allocation, and the structural
 /// supertype/typedBy/subsets/redefines/connection resolution errors).
 const ROOT_HINT_CODES: &[&str] = &[
-    "E102", "E103", "E110", "E111", "E112", "E113", "E114", "E311", "E316", "E502", "E503", "E632",
+    "E102", "E103", "E110", "E111", "E112", "E113", "E114", "E311", "E316", "E502", "E503", "E506", "E632",
 ];
 
 /// REQ-TRS-XREF-006 — append a "did you mean" hint to any unresolved-reference
