@@ -99,12 +99,15 @@ const CACHE_VERSION: u32 = 1;
 struct Cache {
     map: serde_json::Map<String, Value>,
     dirty: bool,
+    /// `false` under `--no-cache`: the run neither reads nor writes the file
+    /// (GH #169 — it formerly rewrote it, leaving an untracked file behind).
+    persist: bool,
 }
 
 impl Cache {
     fn load(path: &Path, bypass: bool) -> Cache {
         if bypass {
-            return Cache { map: serde_json::Map::new(), dirty: true };
+            return Cache { map: serde_json::Map::new(), dirty: false, persist: false };
         }
         let doc = std::fs::read_to_string(path)
             .ok()
@@ -114,7 +117,7 @@ impl Cache {
             .filter(|v| v.get("version").and_then(|n| n.as_u64()) == Some(CACHE_VERSION as u64))
             .and_then(|v| v.get("entries").and_then(|e| e.as_object().cloned()))
             .unwrap_or_default();
-        Cache { map, dirty: false }
+        Cache { map, dirty: false, persist: true }
     }
 
     /// The cached `own` fields for `qname` if its stored hash matches.
@@ -133,7 +136,7 @@ impl Cache {
     }
 
     fn save(&self, path: &Path) {
-        if !self.dirty {
+        if !self.persist || !self.dirty {
             return;
         }
         if let Some(dir) = path.parent() {

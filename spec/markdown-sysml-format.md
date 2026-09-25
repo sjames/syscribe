@@ -531,14 +531,15 @@ These fields control how the Markdown body is interpreted as a documentation ann
 
 | Field | YAML type | Required | Default | SysML mapping |
 |---|---|---|---|---|
-| `about` | list of strings | optional | absent | Qualified names of elements this file's Markdown body annotates; when present, the body is a cross-element comment rather than a doc on the file's own element |
+| `about` | string or list of strings | optional | absent | Qualified names (or stable ids) of the elements this file's Markdown body annotates; when present, the file is a cross-element **comment** (SysML v2 `comment … about`) rather than an element with a doc of its own |
 | `locale` | string | optional | absent | BCP 47 language tag (e.g., `en`, `de`, `fr`) tagging the Markdown body for multi-language documentation |
 
-**`about:` usage** — for cross-cutting notes that apply to multiple elements without duplicating text:
+**`about:` usage** — for cross-cutting notes that apply to one or more elements without duplicating text. The comment is its own file (e.g. `model/VehicleSystem/SafetyNote.md`, never a package `_index.md`); its `type:` is nominal, since a comment defines no element:
 
+<!-- syscribe-example: path="VehicleSystem/SafetyNote.md" -->
 ```yaml
 ---
-type: Package        # a comment-carrier package, or any element type
+type: Package        # nominal — the file is a comment, not an element
 name: SafetyNote
 about:
   - VehicleSystem::Engine
@@ -570,8 +571,12 @@ locale: de
 Der Motor wandelt Kraftstoffenergie in mechanische Leistung um.
 ```
 
+**`about:` versus a locale variant's `qualifiedName:`.** Both attach a file's body to other elements, but they are different annotations and neither replaces the other: a locale variant (`locale:` + `qualifiedName:`) is the element's own **documentation**, translated, for exactly **one** element — at most one per locale; an `about:` file is an additional **comment** on **one or more** elements, any number of which may name the same element. A file with `locale:`, `qualifiedName:` **and** `about:` is a locale variant; its `about:` is ignored (`W051`).
+
 **Parser contract for `about:` and `locale:`:**
-- A file with `about:` contributes its Markdown body as an additional annotation on the listed elements; it does not define a new model element.
+- A file with `about:` (other than a package `_index.md`, and not a locale variant) is an `about:` comment: it contributes its Markdown body — with its `name:` (default: the file stem), source file and optional `locale:` — as a note on every listed element, and does not define a model element. Entries resolve like cross-references, by qualified name and then by stable `id` (so a comment can name `REQ-*`/`TC-*` ids), and against synthesized elements too. `show` prints one `Note: <name>` section per comment on each listed element.
+- An `about:` entry that resolves to no element is error `E027`; the comment still attaches to the entries that resolve, and when none resolves the file is kept as its own element so it is not silently lost.
+- A comment carries only `type`, `name`, `about` and `locale`; any other field is ignored with warning `W052`, as is a non-string or empty `about:` entry. `about:` on a package `_index.md` is ignored with `W052` — the `_index.md` defines its package and is never a comment.
 - A file with **both** `locale:` and `qualifiedName:` is a locale variant: it contributes its Markdown body as a locale-tagged `doc` annotation of the element whose qualified name equals `qualifiedName:`, and does not define a model element of its own. A `qualifiedName:` that resolves to no element is error `E026` (the file is then treated as its own element so it is not silently lost).
 - A variant does not redefine the element's structure. It may carry only `type`, `name`, `locale` and `qualifiedName`; any other field, or a `type:` that differs from the target's, is ignored with warning `W051`.
 - Multiple locale files for the same element are all valid; a parser collects them as a map of `locale → doc string` (`show` prints one `Documentation (<locale>)` section per entry). One document per locale: a second variant for a locale the element already has (from an earlier variant in walk order, or the element's own `locale:`) is ignored with warning `W051`.
@@ -5742,6 +5747,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E024` | **RETIRED** — formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is no longer emitted. |
 | `E025` | The removed `title:` field is declared on an element (any type — id-identified or name-identified). The `title` field is removed; rename it to `name`. |
 | `E026` | A §3.10 locale documentation variant (a file with `locale:` and `qualifiedName:`) names a `qualifiedName:` that resolves to no element — its documentation cannot be attached, so the file is kept as its own element (§3.10) |
+| `E027` | A §3.10 `about:` comment names an entry that resolves to no element (by qualified name or stable id) — the comment cannot be attached to it; the other entries still attach, and when none resolves the file is kept as its own element (§3.10) |
 | `E300` | `ADR.id` does not match the `ADR-*` pattern |
 | `E301` | `ADR` is missing a required field (`id`, `name`, or `status`) |
 | `E302` | `reqDomain:` value is not `system`, `hardware`, or `software` |
@@ -5802,6 +5808,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W029` | A non-draft `Requirement` with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no active **measuring** `TestCase` (testLevel `L5`, or tagged `timing`/`wcet`) verifies it. The timing-evidence analog of `W702`. Gateable with `--deny W029`; query with `list --has-wcet` |
 | `W049` | `qualifiedName:` on a file without `locale:` differs from the element's path-derived qualified name. It is not an identity override (the qualified name is purely path-derived, §4.5/§11.3) and is ignored — move or rename the file instead (§3.1) |
 | `W051` | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
+| `W052` | A §3.10 `about:` comment is partly ignored: it declares fields other than `type`/`name`/`about`/`locale` (a comment defines no element), an `about:` entry is not a non-empty string, or `about:` lists nothing; or `about:` is set on a package `_index.md`, which defines its package and is never a comment (§3.10) |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
 | `W930` | **Misplaced features-form allocation** — a `features:` entry on a non-`Allocation` element declares an allocation (feature-level `type: Allocation`, or an `allocatedFrom:`/`allocatedTo:` key). Only a `type: Allocation` element carries features-form allocations (§12.9 form 2), so the entry contributes no allocation edge. Use `allocatedTo:` on the source or a standalone `Allocation` element |
 | `W503` | **Redundant allocation** — the same `source → target` edge is declared by **more than one** §12.9 form (an `allocatedTo:` on the source, a standalone `Allocation` element, a legacy authored `allocatedFrom:` on the target). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |

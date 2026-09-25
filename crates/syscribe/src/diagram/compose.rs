@@ -119,6 +119,10 @@ pub fn cmd_diagram_compose(elements: &[RawElement], layout_file: &str, output_fi
         }
     };
 
+    // Every placed element must exist; a stale layout never silently drops a
+    // box (GH #168).
+    super::require_elements(elements, layout.elements.iter().map(|p| p.qname.as_str()));
+
     let metrics = load_metrics();
     let padding = layout.canvas.as_ref().and_then(|c| c.padding).unwrap_or(40.0);
     let bg = layout
@@ -132,12 +136,8 @@ pub fn cmd_diagram_compose(elements: &[RawElement], layout_file: &str, output_fi
 
     for placement in &layout.elements {
         let elem = elements.iter().find(|e| e.qualified_name == placement.qname);
-        let elem = match elem {
-            Some(e) => e,
-            None => {
-                eprintln!("warn: element '{}' not found, skipping", placement.qname);
-                continue;
-            }
+        let Some(elem) = elem else {
+            continue; // unreachable: require_elements checked every placement
         };
 
         let mut view = placement
@@ -350,6 +350,8 @@ pub fn cmd_diagram_compose_from_model(
         eprintln!("error: '{}' has no expose: list", diagram_qname);
         std::process::exit(1);
     }
+    // Every exposed element must exist (GH #168).
+    super::require_elements(elements, expose.iter().map(String::as_str));
 
     let kind = fm.diagram_kind.clone().unwrap_or_else(|| "arch".to_string());
     let ibd = kind == "ibd";

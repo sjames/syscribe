@@ -631,6 +631,7 @@ syscribe -m model/ plantuml render [--jar <path>] [--dry-run]    # render .puml 
   - `diagram layout <placement.json|-> [--compose] [--kind bdd|ibd|arch] [--svg <file>]` — resolve a placement file (or stdin via `-`) into a final layout; `--compose` pipes the result into compose and emits SVG to `--svg`.
   - `diagram seq <qname>` — render a Sequence `Diagram` element to SVG.
   - `diagram req <root> [--depth N] [--show-verify] [--show-satisfy]` — render a requirement-breakdown tree; `--show-verify` adds verifying TestCases, `--show-satisfy` adds satisfying architecture elements.
+  - **Unknown elements are errors.** Every subcommand that draws or measures named elements fails when one does not exist — a `measure` qname, a placed `qname` in a layout/placement file, an `expose:` entry of the composed `Diagram`, or the `render`/`seq`/`req` target: it prints `error: element '<qname>' not found` on stderr for each, writes nothing to stdout and exits `1`. An element is never silently skipped or drawn at a placeholder size.
 - **`plantuml`** generates PlantUML `.puml` source from `Diagram` elements — batch (every `pumlMode: companion` diagram) or a single `<qname>`; `--output -` writes to stdout, `--dry-run` previews paths. **`plantuml render`** invokes PlantUML on the companion `.puml` files and writes `.svg` alongside, resolving the engine via `--jar` → `[plantuml] jar` in `.syscribe.toml` → `PLANTUML_JAR` → `plantuml` on `PATH`. See `syscribe help plantuml` and `syscribe help diagram`.
 
 ---
@@ -675,6 +676,8 @@ $ syscribe -m model/ extref "DNG:4521" --json   # machine-readable array
 ```
 
 ### List elements by type
+
+The type argument is any element type's canonical name — exactly the `type:` value an author writes (`Requirement`, `PartDef`, `Zone`, `Conduit`, `TestPlan`, …), matched case-insensitively. Every type in the inventory is accepted, and `show`/`list` label each element with the same name.
 
 ```
 $ syscribe -m model_auto/ list Requirement

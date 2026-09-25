@@ -10,6 +10,11 @@
 Lists elements of a given type, optionally scoped to a namespace, with filters
 for tags, feature gating, lifecycle status, integrity level, and WCET claims.
 
+<Type> is any element type's canonical name — exactly the `type:` value an
+author writes (Requirement, PartDef, Zone, Conduit, TestPlan, …), matched
+case-insensitively. Every type in the inventory is accepted (`template` with an
+unknown type prints the full list).
+
 ## OPTIONS
     [scope]          Namespace prefix to restrict to (e.g. UAV::Avionics).
     --tag <t>        Keep only elements whose tags: include t.

@@ -941,6 +941,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 // mismatch / ignored structural field.
                 "E026" => "E026",
                 "W051" => "W051",
+                // §3.10 `about:` comments (walker `attach_about_comments`,
+                // REQ-TRS-PARSE-011): E027 unresolved `about:` entry, W052
+                // ignored field / malformed entry / `about:` on an `_index.md`.
+                "E027" => "E027",
+                "W052" => "W052",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });
@@ -9711,6 +9716,7 @@ mod w023_implemented_by_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -9900,6 +9906,7 @@ mod planning_item_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -10043,6 +10050,7 @@ mod planning_item_hierarchy_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -10218,6 +10226,7 @@ mod planning_item_achieves_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -10423,6 +10432,7 @@ mod planning_item_completion_w310_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -10601,6 +10611,7 @@ mod planning_item_claim_overlap_w311_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -10759,6 +10770,7 @@ mod planning_item_evidence_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -11015,6 +11027,7 @@ mod argument_evidence_regression_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -11105,6 +11118,7 @@ mod planning_item_leaf_evidence_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -11254,6 +11268,7 @@ mod planning_item_blocked_by_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -11450,6 +11465,7 @@ mod planning_item_assigned_to_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -11587,6 +11603,7 @@ mod w600_typed_by_documentation_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -11726,6 +11743,7 @@ mod w007_scoped_usage_tracking_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -11896,6 +11914,7 @@ mod satisfies_shape_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -12144,6 +12163,7 @@ mod link_type_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -12587,6 +12607,7 @@ mod e927_fault_tree_event_ref_tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 

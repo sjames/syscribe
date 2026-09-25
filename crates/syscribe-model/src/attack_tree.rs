@@ -168,6 +168,7 @@ mod tests {
             derived: std::collections::HashMap::new(),
             derive_findings: Vec::new(),
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -187,6 +188,7 @@ mod tests {
             derived: std::collections::HashMap::new(),
             derive_findings: Vec::new(),
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 
@@ -205,6 +207,7 @@ mod tests {
             derived: std::collections::HashMap::new(),
             derive_findings: Vec::new(),
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 

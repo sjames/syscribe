@@ -164,6 +164,7 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
             derived: Default::default(),
             derive_findings: Vec::new(),
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         });
     }
 
@@ -183,6 +184,9 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
     crate::plugins::apply_foreign_plugins(&mut elements, model_root);
     // Annotated-source ingestion: in-process comment-marker scan (ADR-SYS-ANNOTATE-001).
     crate::annotations::apply_annotation_scans(&mut elements, model_root);
+    // §3.10 `about:` comments (REQ-TRS-PARSE-011): after every synthesis pass
+    // so a comment can annotate a synthesized element too.
+    attach_about_comments(&mut elements);
     // Derive pass: evaluate `derive:` blocks; findings stored in each element's derive_findings.
     crate::derive::derive_pass(&mut elements);
     // Configuration inheritance through `derivedFrom:` (§9.8, GH #137): after
@@ -201,17 +205,17 @@ pub fn is_locale_variant(elem: &RawElement) -> bool {
     elem.frontmatter.locale.is_some() && elem.frontmatter.qualified_name.is_some()
 }
 
-/// Top-level frontmatter keys of `file` outside [`LOCALE_VARIANT_KEYS`],
-/// sorted. Re-reads the file: variants are rare, and the typed
+/// Top-level frontmatter keys of `file` outside `allowed`, sorted. Re-reads
+/// the file: variants and `about:` comments are rare, and the typed
 /// `RawFrontmatter` cannot tell an authored key from a defaulted one.
-fn locale_variant_extra_keys(file: &str) -> Vec<String> {
+fn frontmatter_extra_keys(file: &str, allowed: &[&str]) -> Vec<String> {
     let Ok(content) = std::fs::read_to_string(file) else { return Vec::new() };
     let (Some(yaml), _) = split_frontmatter(&content) else { return Vec::new() };
     let Ok(map) = serde_yaml::from_str::<serde_yaml::Mapping>(yaml) else { return Vec::new() };
     let mut keys: Vec<String> = map
         .keys()
         .filter_map(|k| k.as_str())
-        .filter(|k| !LOCALE_VARIANT_KEYS.contains(k))
+        .filter(|k| !allowed.contains(k))
         .map(str::to_string)
         .collect();
     keys.sort();
@@ -267,7 +271,7 @@ fn attach_locale_variants(elements: &mut Vec<RawElement>) {
         };
 
         let mut findings: Vec<(String, String, String)> = Vec::new();
-        let extras = locale_variant_extra_keys(&file);
+        let extras = frontmatter_extra_keys(&file, LOCALE_VARIANT_KEYS);
         if !extras.is_empty() {
             findings.push((
                 "W051".to_string(),
@@ -314,6 +318,175 @@ fn attach_locale_variants(elements: &mut Vec<RawElement>) {
             target.locale_docs.insert(locale, body);
         }
         target.derive_findings.extend(findings);
+        attached.push(i);
+    }
+
+    for i in attached.into_iter().rev() {
+        elements.remove(i);
+    }
+}
+
+/// Frontmatter keys a §3.10 `about:` comment may carry. A comment defines no
+/// element, so anything else would be silently meaningless (W052).
+const ABOUT_COMMENT_KEYS: &[&str] = &["type", "name", "about", "locale"];
+
+fn is_index_file(elem: &RawElement) -> bool {
+    Path::new(&elem.file_path).file_name().is_some_and(|n| n == "_index.md")
+}
+
+/// True when `elem` is a §3.10 `about:` comment: a file (not a package
+/// `_index.md`, which defines its package) whose frontmatter carries
+/// `about:` and which is not a locale variant.
+pub fn is_about_comment(elem: &RawElement) -> bool {
+    elem.frontmatter.about.is_some() && !is_locale_variant(elem) && !is_index_file(elem)
+}
+
+/// The entries of an `about:` value (a string or a list): the usable
+/// (non-empty string) entries, and a description of each unusable one.
+fn about_entries(v: &serde_yaml::Value) -> (Vec<String>, Vec<String>) {
+    let items: Vec<&serde_yaml::Value> = match v {
+        serde_yaml::Value::Sequence(seq) => seq.iter().collect(),
+        other => vec![other],
+    };
+    let mut ok = Vec::new();
+    let mut bad = Vec::new();
+    for item in items {
+        match item.as_str().map(str::trim) {
+            Some(s) if !s.is_empty() => ok.push(s.to_string()),
+            _ => bad.push(
+                serde_yaml::to_string(item).unwrap_or_default().trim().replace('\n', " "),
+            ),
+        }
+    }
+    (ok, bad)
+}
+
+/// §3.10 `about:` comments (REQ-TRS-PARSE-011, GH #164).
+///
+/// A file (other than a package `_index.md`) carrying `about:` and not a
+/// locale variant is a cross-element comment — SysML v2 `comment … about
+/// X, Y`. Each `about:` entry resolves against the elements' qualified names,
+/// falling back to a stable `id:`; the comment (name, file, locale, body) is
+/// attached as an [`AboutNote`](crate::element::AboutNote) to every resolved
+/// element and the file is removed from `elements`. Findings, filed against
+/// the comment's path, go to the first resolved target's `derive_findings`:
+///
+/// - `E027` — an entry resolves to no element. When no entry resolves the
+///   comment is kept as its own element (carrying the errors) so it is never
+///   silently dropped.
+/// - `W052` — the comment declares fields other than [`ABOUT_COMMENT_KEYS`]
+///   (ignored), or an entry is not a non-empty string; and, on a package
+///   `_index.md` (which stays the package), the `about:` field itself.
+fn attach_about_comments(elements: &mut Vec<RawElement>) {
+    // `about:` on a package `_index.md`: the file defines its package and is
+    // never a comment — report and ignore the field.
+    for e in elements.iter_mut() {
+        if e.frontmatter.about.is_some() && is_index_file(e) && !is_locale_variant(e) {
+            let file = e.file_path.clone();
+            e.derive_findings.push((
+                "W052".to_string(),
+                file,
+                format!(
+                    "`about:` on a package `_index.md` is ignored — the `_index.md` defines the package '{}' \
+                     and is never a comment; put the comment in its own file (§3.10)",
+                    e.qualified_name
+                ),
+            ));
+        }
+    }
+    if !elements.iter().any(is_about_comment) {
+        return;
+    }
+    // Targets: every non-comment element, by qualified name and by stable id
+    // (first wins on a duplicate, which E108/E101 report anyway).
+    let mut by_qname: HashMap<String, usize> = HashMap::new();
+    let mut by_id: HashMap<String, usize> = HashMap::new();
+    for (i, e) in elements.iter().enumerate() {
+        if is_about_comment(e) {
+            continue;
+        }
+        by_qname.entry(e.qualified_name.clone()).or_insert(i);
+        if let Some(id) = e.frontmatter.id.as_deref() {
+            by_id.entry(id.trim().to_string()).or_insert(i);
+        }
+    }
+
+    let mut attached: Vec<usize> = Vec::new();
+    for i in 0..elements.len() {
+        if !is_about_comment(&elements[i]) {
+            continue;
+        }
+        let comment = &elements[i];
+        let file = comment.file_path.clone();
+        let (entries, bad) = about_entries(comment.frontmatter.about.as_ref().unwrap_or(&serde_yaml::Value::Null));
+
+        let mut findings: Vec<(String, String, String)> = Vec::new();
+        let extras = frontmatter_extra_keys(&file, ABOUT_COMMENT_KEYS);
+        if !extras.is_empty() {
+            findings.push((
+                "W052".to_string(),
+                file.clone(),
+                format!(
+                    "`about:` comment declares {} — a comment annotates the elements it lists and defines no \
+                     element of its own; ignored (allowed: type, name, about, locale)",
+                    extras.iter().map(|k| format!("'{}'", k)).collect::<Vec<_>>().join(", ")
+                ),
+            ));
+        }
+        for b in &bad {
+            findings.push((
+                "W052".to_string(),
+                file.clone(),
+                format!("`about:` entry `{}` is not a qualified name or id (a non-empty string); ignored", b),
+            ));
+        }
+        let mut targets: Vec<usize> = Vec::new();
+        for entry in &entries {
+            match by_qname.get(entry).or_else(|| by_id.get(entry)) {
+                Some(&t) => {
+                    if !targets.contains(&t) {
+                        targets.push(t);
+                    }
+                }
+                None => findings.push((
+                    "E027".to_string(),
+                    file.clone(),
+                    format!(
+                        "`about:` comment names '{}', which resolves to no element — the comment cannot be \
+                         attached to it (§3.10)",
+                        entry
+                    ),
+                )),
+            }
+        }
+
+        let Some(&first) = targets.first() else {
+            // Nothing to attach to: keep the file as its own element so it is
+            // never silently lost.
+            if entries.is_empty() && bad.is_empty() {
+                findings.push((
+                    "W052".to_string(),
+                    file.clone(),
+                    "`about:` lists no element; the file is treated as its own element (§3.10)".to_string(),
+                ));
+            }
+            elements[i].derive_findings.extend(findings);
+            continue;
+        };
+        let stem = Path::new(&file)
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let note = crate::element::AboutNote {
+            name: comment.frontmatter.name.clone().filter(|n| !n.trim().is_empty()).unwrap_or(stem),
+            file: file.clone(),
+            locale: comment.frontmatter.locale.as_ref().map(|l| l.trim().to_string()),
+            body: comment.doc.clone(),
+        };
+        for &t in &targets {
+            elements[t].about_notes.push(note.clone());
+        }
+        elements[first].derive_findings.extend(findings);
         attached.push(i);
     }
 
@@ -386,6 +559,7 @@ fn explode_tara_entries(elements: &mut Vec<RawElement>) {
                     derived: Default::default(),
                     derive_findings: Vec::new(),
                     locale_docs: Default::default(),
+                    about_notes: Default::default(),
                 });
             }
         }
@@ -502,6 +676,7 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 derived: Default::default(),
                 derive_findings: Vec::new(),
                 locale_docs: Default::default(),
+                about_notes: Default::default(),
             });
         }
     }
@@ -742,6 +917,7 @@ fn explode_feature_entry(
                 derived: Default::default(),
                 derive_findings: Vec::new(),
                 locale_docs: Default::default(),
+                about_notes: Default::default(),
             });
         }
         Err(e) => {
@@ -754,6 +930,7 @@ fn explode_feature_entry(
                 derived: Default::default(),
                 derive_findings: Vec::new(),
                 locale_docs: Default::default(),
+                about_notes: Default::default(),
             });
         }
     }

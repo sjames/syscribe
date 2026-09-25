@@ -22,7 +22,7 @@ shows this page.
               diagram. --type filters by element type(s), comma-separated
               (e.g. PartDef,Part); --namespace by qualified-name prefix.
     measure   Computed box sizes and port anchors, as JSON, for a comma-separated
-              list of qualified names (an unknown name is warned about and skipped).
+              list of qualified names.
     render    One element as a standalone SVG block.
     compose   Assemble elements + edges into a full diagram SVG, from a
               *.layout.json file or from a View/Diagram element that has an
@@ -38,6 +38,12 @@ shows this page.
     req       Auto-laid-out requirement-breakdown tree rooted at a requirement
               (derive edges); --depth bounds it, --show-verify adds TestCases
               («verify»), --show-satisfy adds satisfying architecture («satisfy»).
+
+An element that does not exist is an error, never a warning: when a `measure`
+qname, a placed qname in a layout/placement file, an `expose:` entry, or a
+`render`/`seq`/`req` target does not resolve, the command prints
+`error: element '<qname>' not found` on stderr for each, writes nothing to
+stdout, and exits 1.
 
 View options (measure, render) — what each box shows:
 

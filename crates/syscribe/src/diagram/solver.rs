@@ -120,6 +120,9 @@ pub fn cmd_diagram_layout(
         }
     };
 
+    // Every placed element must exist (GH #168) — no placeholder-size boxes.
+    super::require_elements(elements, placement.elements.iter().map(|p| p.qname.as_str()));
+
     let resolved = solve_layout(elements, &placement);
     let json = serde_json::to_string_pretty(&resolved).unwrap();
 

@@ -67,6 +67,29 @@ fn output_is_deterministic_and_cached() {
     assert_eq!(a, b, "second run (served from cache) is identical");
 }
 
+/// GH #169: `--no-cache` neither reads nor writes `.syscribe/cache/summaries.json`.
+#[test]
+fn no_cache_neither_reads_nor_writes_the_cache() {
+    let model = common::fixture_copy();
+    let dir = model.join(".syscribe");
+    let _ = std::fs::remove_dir_all(&dir);
+    let fresh = summarize_json(&model, &["--no-cache"]);
+    assert!(!dir.exists(), "--no-cache created {}", dir.display());
+
+    // Seed a cache, then tamper with it: a normal run serves the tampered
+    // entry, a --no-cache run ignores it and leaves the file untouched.
+    let _ = run_summarize(&model, &[]);
+    let cache = dir.join("cache").join("summaries.json");
+    let mut doc: Value = serde_json::from_str(&std::fs::read_to_string(&cache).unwrap()).unwrap();
+    doc["entries"]["(root)"]["own"]["count"] = Value::from(999);
+    let tampered = serde_json::to_string(&doc).unwrap();
+    std::fs::write(&cache, &tampered).unwrap();
+    assert_eq!(summarize_json(&model, &[])["count"].as_u64(), Some(999), "cache is read by default");
+    let recomputed = summarize_json(&model, &["--no-cache"]);
+    assert_eq!(recomputed, fresh, "--no-cache recomputes, ignoring the cache");
+    assert_eq!(std::fs::read_to_string(&cache).unwrap(), tampered, "--no-cache left the cache file untouched");
+}
+
 #[test]
 fn scope_and_config_restrict_the_digest() {
     let model = common::fixture_copy();

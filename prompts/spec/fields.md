@@ -269,6 +269,7 @@ requirement lacks the W002/W305 verification bar. `W311`: two active items overl
 | Field | Applies to | Type | Notes |
 |---|---|---|---|
 | `metadata` | All | list | `{type: MetaDef::Name, field: value, ...}` |
+| `about` | All | string or list | Qualified names or stable ids the body annotates: the file is a §3.10 `about:` comment — its body is attached as a note to every listed element and the file is not an element (`E027` unresolved entry; `W052` any field besides `type`/`name`/`about`/`locale`, a malformed entry, or `about:` on an `_index.md`) |
 | `locale` | All | string | BCP 47 tag of the Markdown body. With `qualifiedName:` the file is a §3.10 locale variant: its body is attached to that element as `locale` documentation and the file is not an element (`E026` unresolved target; `W051` duplicate locale, differing `type:`, or any field besides `type`/`name`/`locale`/`qualifiedName`) |
 | `rep` | All | string | SysML textual notation representation hint |
 | `values` | EnumerationDef | list | **required** |
