@@ -202,14 +202,6 @@ Every `.md` file must have a `type:` field drawn from the following table. The `
 | `Configuration` | *(PLE native)* | A complete feature selection with parameter bindings; produces one concrete product variant. See §9.8. |
 | `FeatureModel` | *(PLE native)* | Single-file, additive alternative to a `FeatureDef`-per-file layout: a sheet whose `featureTree:`/`crossTreeConstraints:` explode into ordinary `FeatureDef` elements. See §9.6a. |
 
-### 2.6 Record Types
-
-Record elements are project-management and process artifacts that live in the model directory tree for traceability. They have no SysML counterpart.
-
-| `type:` value | Description |
-|---|---|
-| `ADR` | Architecture Decision Record documenting a model-level design decision. See §8.17. |
-
 ### 2.3 Namespace/Package Types
 
 | `type:` value | SysML keyword(s) | Description |
@@ -225,14 +217,6 @@ Relationship elements are directed relationships between named elements. Unlike 
 | `type:` value | SysML keyword | Description |
 |---|---|---|
 | `Dependency` | `dependency` | Directed relationship from one or more client elements to one or more supplier elements |
-
-### 2.5 Diagram Types
-
-Diagrams are visual representations of model elements. They are not SysML language constructs but a format extension for storing LLM-generated SVG diagrams with full model traceability.
-
-| `type:` value | Description |
-|---|---|
-| `Diagram` | An SVG diagram with a frontmatter manifest linking shapes and edges to model elements |
 
 **Specializations** of `Dependency` (e.g., `Realization`, `Derivation`) are expressed via `supertype:` referencing library types rather than requiring distinct `type:` values:
 
@@ -257,6 +241,59 @@ The logical engine control function is realized by the physical ECU.
 | `suppliers` | list of strings | **Required** | Qualified names of the elements depended upon (suppliers) |
 
 **Placement convention:** Dependency files live either alongside the primary client element or in a dedicated `Dependencies/` package when they cross package boundaries.
+
+### 2.5 Diagram Types
+
+Diagrams are visual representations of model elements. They are not SysML language constructs but a format extension for diagrams that trace back to the model elements they depict.
+
+| `type:` value | Description |
+|---|---|
+| `Diagram` | A diagram of part of the model — structured SVG, PlantUML companion, Mermaid, inline PlantUML, or hand-authored SVG with a frontmatter manifest linking shapes and edges to model elements (`diagramKind:`, §8.16) |
+
+### 2.6 Record Types
+
+Record elements are engineering-process artifacts that live in the model directory tree for traceability. They have no SysML counterpart. All are **id-identified**: the file is `<id>.md`, cross-references resolve by `id`, and `name` is a required free-prose label.
+
+| `type:` value | ID pattern | Description |
+|---|---|---|
+| `ADR` | `ADR-*` | Architecture Decision Record documenting a model-level design decision; referenced by `breakdownAdr:`. See §8.17. |
+| `TestPlan` | `TP-*` | Groups `TestCase`s by configuration and scope into a test campaign with a rolled-up verdict. See §8.12.6. |
+| `Baseline` | `BL-*` | Sealed, content-hashed release snapshot of a model scope, anchored to a commit (written by `syscribe baseline create`). See §8.19. |
+| `PlanningItem` | `PI-*` | Work item (epic/story/task) in a single-parent tree that `achieves:` Requirements. See §23. |
+| `ReviewRecord` | `RR-*` | Record of a formal review of model elements, with findings and action items. See §19. |
+| `TradeStudy` | `TRD-*` | Weighted-criteria evaluation of design alternatives, linked to the informing Requirement and the deciding ADR. See §15. |
+
+### 2.7 Safety and Security Analysis Types
+
+Native, id-identified element types for functional safety (ISO 26262, IEC 61508, ISO 13849-1), automotive cybersecurity (ISO/SAE 21434), and industrial cybersecurity (IEC 62443).
+
+| `type:` value | ID pattern | Description |
+|---|---|---|
+| `HazardousEvent` | `HE-*` | Hazard in an operational situation, with HARA risk parameters. §8.18.1 |
+| `SafetyGoal` | `SG-*` | Top-level safety requirement from the HARA, carrying an integrity level. §8.18.1 |
+| `Asset` | `ASSET-*` | Item of value to protect, with the cybersecurity properties at stake. §8.18.7 |
+| `DamageScenario` | `DS-*` | Adverse consequence to a stakeholder if an asset is compromised. §8.18.2 |
+| `ThreatScenario` | `TS-*` | Potential attack causing damage scenarios; carries attack feasibility and risk treatment. §8.18.2 |
+| `CybersecurityGoal` | `CSG-*` | High-level security requirement countering threat scenarios, with a CAL. §8.18.2 |
+| `SecurityControl` | `SC-*` | Concrete countermeasure implementing cybersecurity goals. §8.18.2 |
+| `VulnerabilityReport` | `VR-*` | Tracked vulnerability with CVSS score and mitigations. §8.18.2 |
+| `TARASheet` | `TARA-*` | Single-file TARA whose tables explode into the TARA element types above. §8.18.2 |
+| `ConfirmationMeasure` | `CM-*` | Confirmation review, audit, or assessment with its independence level. §8.18.2 |
+| `FaultTree` | `FT-*` | Root of a fault tree for a `SafetyGoal`. §8.18.3 |
+| `FaultTreeGate` | `FTG-*` | Logic gate in a fault tree. §8.18.3 |
+| `FaultTreeEvent` | `FTE-*` | Basic, undeveloped, or house event in a fault tree. §8.18.3 |
+| `FMEASheet` | `FMEA-*` | FMEA table whose `entries:` rows become `FMEAEntry` elements. §8.18.4 |
+| `FMEAEntry` | `FM-*` | One failure-mode row, synthesized from an `FMEASheet` (not authored as its own file). §8.18.4 |
+| `AttackTree` | `AT-*` | Root of an attack tree substantiating a `ThreatScenario`. §8.18.5 |
+| `AttackTreeGate` | `ATG-*` | `AND`/`OR` combinator in an attack tree. §8.18.5 |
+| `AttackStep` | `ATS-*` | Leaf attack step with an attack feasibility. §8.18.5 |
+| `Argument` | `ARG-*` | GSN claim, strategy, or solution node in the safety argument. §8.18.6 |
+| `AssumptionOfUse` | `AOU-*` | Safety-related application condition constraining goals, arguments, or requirements. §8.18.6 |
+| `Zone` | `ZN-*` | IEC 62443 security zone with a target security level. §13.2 |
+| `Conduit` | `CD-*` | IEC 62443 conduit connecting two zones, with an achieved security level. §13.3 |
+
+The native `Requirement` (`REQ-*`, §8.11.6), `TestCase` (`TC-*`, §8.12.5), `FeatureDef` (`FEAT-*`), `Configuration` (`CONF-*`) and `FeatureModel` types are listed with the usage types in §2.2. `syscribe spec types` prints the list known to the installed tool.
+
 
 ---
 
@@ -725,6 +762,33 @@ Rules:
 - **Unknown element (`E506`).** An `elements["QName"]` naming no element is `E506`; the
   reference evaluates to null.
 - `derive:` is a recognised schema field: it never raises `W047` (§3.17).
+
+### 3.19 Suspect-Link Baselines (`traceBaselines:`)
+
+A **suspect link** is a trace link whose target changed after the link was last reviewed (`ADR-SYS-SUSLINK-001`). The element that holds the link (the source, §12.1) may record, for each reviewed target, a hash of the target's content at review time:
+
+| Field | YAML type | Required | Default | Description |
+|---|---|---|---|---|
+| `traceBaselines` | map of string → string | optional | absent | Key: the link target exactly as authored on the link (stable id or qualified name). Value: `blake3:<hex>` of the target's **normative projection** — its Markdown body plus its frontmatter minus the editorial fields `name`, `displayOrder`, `extRef`, `title`, `traceBaselines`, `layout`, `shapes`, `edges`, `svgFile`, `pumlFile`. One map covers every link kind on the element. |
+
+Frontmatter excerpt (the TestCase's Gherkin body is omitted; the hash is illustrative):
+
+```yaml
+---
+type: TestCase
+id: TC-BRK-001
+name: Brake response time
+status: active
+testLevel: L2
+verifies: [REQ-BRK-001]
+traceBaselines:
+  REQ-BRK-001: blake3:9f2c1e0d4b7a6c5e8d3f1a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d0e2f4a6b8c0d
+---
+```
+
+The map is **written by tooling**, not by hand: `syscribe suspect accept <source> <target>` baselines one reviewed link, `suspect accept --all` re-baselines every suspect link, and `suspect accept --all-unbaselined` baselines every link that has no baseline yet (onboarding; it never overwrites an existing entry). Links tracked: `verifies`, `derivedFrom`, `satisfies`, `refines`, `implementedBy`, `subsets`, `supertype`, `redefines`, `typedBy`, `breakdownAdr`, `hazardRef`, `mitigatedBy`, `supports`, `confirms`, scalar `evidence` entries, a `ViewpointDef`'s `satisfiedBy`, and user-defined `links:` whose type does not declare `suspect = false` (§12.10.6).
+
+**Validation.** `validate` recomputes each baselined target's projection hash; a mismatch is warning **`W090`** (suspect link — review the source, then re-run `suspect accept`). The feature is opt-in and additive: a link with no baseline raises nothing in `validate` and is listed only by `suspect list`, and a baselined target that no longer resolves is left to the unresolved-reference checks rather than reported as `W090`. Gate CI on stale links with `--deny W090`.
 
 ---
 
@@ -4173,6 +4237,94 @@ supporting `Argument` tree (recursing into sub-Arguments), each Argument's evide
 `SafetyGoal ← Requirement (derivedFromSafetyGoal) ← TestCase (verifies)` so it is useful
 on models that have goals + requirements + tests but no explicit `Argument` nodes.
 
+#### 8.18.7 `Asset` (ISO/SAE 21434 §15.3)
+
+An `Asset` is an item of value that an attacker may want to compromise — the starting point of a TARA. Damage scenarios name the assets they harm with `assets:`.
+
+| Field | YAML type | Required | Description |
+|---|---|---|---|
+| `type` | literal `Asset` | **Required** | Discriminator. |
+| `id` | string | **Required** | Stable id matching `^ASSET(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` (at least one category segment). Malformed → `E862`. |
+| `name` | string | **Required** | Free-prose label. |
+| `status` | string | **Required** | Lifecycle status (e.g. `draft`, `approved`). Missing `id`/`name`/`status` → `E861`. |
+| `cybersecurityProperties` | list of strings | optional | The properties at stake: `confidentiality`, `integrity`, `availability`, `authenticity`. Any other value → `E863`. |
+| `assetOwner` | string | optional | Qualified name or id of the architecture element that owns the asset. Informational (not resolved). |
+| `relatedSafetyGoal` | string | optional | `SG-*` id or qualified name of a related `SafetyGoal` (safety↔security co-engineering). Informational (not resolved). |
+
+`DamageScenario.assets:` (string or list) references `Asset`s by id or qualified name; an entry that does not resolve, or resolves to a non-`Asset`, is `E864`. An `Asset` that no `DamageScenario.assets:` references raises warning `W810` (an identified asset with no damage scenario yet).
+
+```yaml
+---
+type: Asset
+id: ASSET-KERNEL-001
+name: "Thread Control Block (TCB)"
+status: approved
+cybersecurityProperties:
+  - integrity
+  - availability
+assetOwner: Software::KernelCore
+relatedSafetyGoal: SG-KERNEL-002
+---
+The TCB holds the thread's register save area, stack pointer, priority, and
+IPC wait-list link. Corruption enables priority inversion or control-flow hijack.
+```
+
+```yaml
+---
+type: DamageScenario
+id: DS-KERNEL-001
+name: "Corrupted scheduler state causes priority inversion"
+status: approved
+damageSeverity: severe
+impactCategories: [safety, operational]
+assets: [ASSET-KERNEL-001]
+hazardRef: SG-KERNEL-002
+---
+```
+
+### 8.19 Release Baselines (`Baseline`)
+
+A `Baseline` (`ADR-SYS-BASELINE-001`) is a named, dated, approved, frozen snapshot of a scope of the model — the artifact an assessor points at. It is **generated**, not hand-authored: `syscribe baseline create --tag <tag>` resolves the in-scope elements, hashes each element's full canonical content (BLAKE3), aggregates a **seal**, records the current `HEAD` commit, and writes both the `Baseline` element (default `model/Baselines/<id>.md`) and a JSON **manifest** (default `<git-root>/baselines/<id>.manifest.json`). Both locations are configurable with a `[baselines]` table (`element_dir`, `manifest_dir`) in `.syscribe.toml`. The author then edits only `status:` (and `supersedes:`) as the baseline is approved and released.
+
+**ID pattern:** `^BL(-[A-Z0-9]{2,12})+$` — like `FEAT-*`, a baseline id need not end in a number (`BL-2026-07`, `BL-QUARTERLY-001`). The `id` is the model identity and is distinct from the version-control tag in `gitTag:`.
+
+| Field | YAML type | Written by `create` | Description |
+|---|---|---|---|
+| `type` | literal `Baseline` | yes | Discriminator. |
+| `id` | string | yes | `BL-*` id (`--id`, else derived from `--tag`). |
+| `name` | string | yes | Free-prose label (`--name`, default the tag). |
+| `status` | enum | yes (`draft`) | `draft` · `approved` · `released` · `superseded`. Grades drift severity (below). |
+| `date` | string | yes | Baseline date (`--date`, default the `HEAD` commit date). |
+| `approver` | string | when `--approver` is given | Accountable identity that approved the baseline. |
+| `gitTag` | string | yes (`--tag`) | Intended source-control tag. `create` does not create the tag; `baseline verify` checks that it resolves to `gitCommit` when it exists. |
+| `gitCommit` | string | yes | The commit the baseline was sealed at. `create` expects a clean working tree (`--allow-dirty` overrides). |
+| `frozenScope` | map | yes (`--frozen-scope`) | Scope selector; all keys optional and ANDed: `package` (a package subtree; absent → whole model), `types`, `status`, `tags` (lists), `config` (freeze a projected product-line variant, §9.10), `closureFrom` (list of seeds whose transitive trace closure is the scope). `Baseline` elements are never in scope. |
+| `seal` | map | yes | Generated: `aggregateHash` (`blake3:<hex>`), `elementCount`, `manifest` (manifest path). Never edit by hand. |
+| `supersedes` | string | no | The `Baseline` this one replaces (id or qualified name). Unresolved → `E522`. |
+
+**Validation.** Whenever a `Baseline` exists, `validate` recomputes the in-scope aggregate and compares it with the seal. Drift is graded by `status:`: `released` → error `E520`, `approved` → warning `W520`, `draft` → silent, `superseded` → not checked. A seal that disagrees with its manifest is `E521`. The full-content hash reuses the suspect-link hashing (§12.10.6) over the whole element rather than its normative projection. `baseline verify`, `baseline diff`, `baseline list` and `baseline show` operate on existing baselines.
+
+```yaml
+---
+type: Baseline
+id: BL-2026-07
+name: July 2026 safety release
+status: draft
+date: 2026-07-31
+approver: J. Roe
+gitTag: REL-2026-07
+gitCommit: 3f9c2a1d8e7b6c5a4f3e2d1c0b9a8f7e6d5c4b3a
+frozenScope:
+  package: VehicleSystem
+  status: [approved]
+seal:
+  aggregateHash: blake3:5d41402abc4b2a76b9719d911017c592ae2f4c7f1e0c9b8a7d6e5f4a3b2c1d0e
+  elementCount: 42
+  manifest: baselines/BL-2026-07.manifest.json
+---
+July 2026 safety release — release baseline.
+```
+
 ---
 
 ## 9 Variability and Variation Points
@@ -6609,7 +6761,7 @@ The MCP server exposes two read-only tools: `link_types` (same data as `link-typ
 
 #### 12.10.6 Suspect links
 
-Custom link targets are trace links for suspect-link detection (`ADR-SYS-SUSLINK-001`): `suspect list` lists them, `suspect accept` baselines them into the source's `traceBaselines:` map, and validation raises `W090` when a baselined target's normative content changes. A type declaring `suspect = false` is excluded from all three — appropriate for purely informational relationships (`conflictsWith`, `informs`) whose validity does not depend on the target's exact wording.
+Custom link targets are trace links for suspect-link detection (`ADR-SYS-SUSLINK-001`): `suspect list` lists them, `suspect accept` baselines them into the source's `traceBaselines:` map (§3.19), and validation raises `W090` when a baselined target's normative content changes. A type declaring `suspect = false` is excluded from all three — appropriate for purely informational relationships (`conflictsWith`, `informs`) whose validity does not depend on the target's exact wording.
 
 #### 12.10.7 LLM discoverability
 
