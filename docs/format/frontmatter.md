@@ -134,7 +134,7 @@ The canonical transition schema (§8.8.3) is `source` / `target` / `accept{paylo
 | `status` | `draft` · `review` · `approved` · `active` · `retired` |
 | `testLevel` | `L1` (unit) through `L5` (HIL) |
 | `verifies` | List of REQ-* IDs verified by this test case |
-| `testFunctions` | List of `{scenario, file, line}` mappings linking Gherkin scenarios to source |
+| `testFunctions` | List of test-function names — each entry either a plain string or a `{function, scenario}` mapping. `function` is looked up in the TestCase's `sourceFile:` (W009 if absent); `scenario` must match a `Scenario:` title in a ```` ```gherkin ```` block of the body (E106) |
 
 ## TestPlan fields (`type: TestPlan`)
 
@@ -208,12 +208,12 @@ See the [Link Types guide](../model-guide/link-types.md) for declaring types, `e
 
 | Field | Description |
 |---|---|
-| `diagramKind` | `BDD` · `IBD` · `StateMachine` · `Requirement` · `Mermaid` · `PlantUML` |
+| `diagramKind` | `BDD` · `IBD` · `StateMachine` · `Sequence` · `Requirement` · `Mermaid` · `PlantUML` |
 | `subject` | Qualified name of the element this diagram depicts |
 | `shapes` | YAML mapping of shape-id → shape descriptor |
 | `edges` | YAML mapping of edge-id → edge descriptor |
 | `layout` | YAML mapping of shape-id → `{x, y, w, h}` |
-| `svgMode` | `inline` — embed SVG directly in the response |
+| `svgMode` | `inline` (default — SVG embedded in a fenced ```` ```svg ```` block in the body) · `companion` (composed-SVG workflow: the body `<img>`-links a companion `.svg` file named by `svgFile:`) |
 
 See [Diagrams](diagrams.md) for full shape and edge schemas.
 
@@ -239,7 +239,7 @@ Opt-in: ignored when the model declares no `FeatureDef`. See the [Variability gu
 | `parameters` | `FeatureDef` | Typed parameters: each `{name, type, range:"min..max", enumValues, default, isFixed, isRequired, value}` (§9.7) |
 | `featureModel` | `Configuration`, `FeatureDef` | Qualified name of the feature-model package |
 | `features` | `Configuration` | **Map** of `<FeatureDef qname>: true/false` (the selection; absent = deselected) |
-| `parameterBindings` | `Configuration` | Map of `<FeatureDef qname>::<param>: <value>`. Resolves transitively through `subConfigurations:` at any depth (§14.7). |
+| `parameterBindings` | `Configuration` | Map of `<FeatureDef qname>.<param>: <value>` (dotted member, e.g. `Payload::Camera.resolution: 4K`; a `::<param>` key is E222). Resolves transitively through `subConfigurations:` at any depth (§14.7). |
 | `subConfigurations` | `Configuration` | String or list of `Configuration` id/qnames this one consolidates — local or via `[repos]` (§14.7, `ADR-SYS-HPLE-001`); see the [Multi-Repository guide](../model-guide/multi-repo.md) |
 | `parameterConstraints` | package `_index.md` | List of cross-feature constraints `{id, expression, severity, appliesWhen}` |
 | `tags` | any element | Free-text labels; filter with `--tag` (orthogonal to the feature model) |

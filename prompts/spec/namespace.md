@@ -19,10 +19,10 @@ model/
 
 ### Key rules
 
-1. **Qualified name** = `::` joined directory path from model root, using `name:` override if present.
-2. `_index.md` represents the directory's package — it has **no own QName segment**.
-3. `name:` in frontmatter overrides the filename stem as the QName segment and display name.
-4. Two elements in the same directory must not have the same effective `name:` (E-collision).
+1. **Qualified name** = `::`-joined path from the model root: every directory segment plus the file stem (without `.md`). It is **purely path-derived**.
+2. `_index.md` represents the directory's package — it has **no own QName segment** (it takes the directory's name).
+3. `name:` in frontmatter is the display **label** only — it never overrides the QName segment. For a name-identified element keep `name:` equal to the file stem (or omit it; it defaults to the stem); for an id-identified element (`REQ-*`, `TC-*`, …) the file is `<id>.md` and `name:` is free prose.
+4. Qualified names must be unique: two elements resolving to the same QName (e.g. `Foo.md` beside a `Foo/_index.md`) raise `E108`. Duplicate `name:` labels never collide.
 5. `visibility: private` restricts membership; default is public.
 6. Library packages (`type: LibraryPackage`) auto-export all members.
 
@@ -31,7 +31,7 @@ model/
 | Field | Type | Description |
 |---|---|---|
 | `type` | string | `Package` · `LibraryPackage` · `Namespace` |
-| `name` | string | Override directory name |
+| `name` | string | Display label (the QName segment is always the directory name) |
 | `imports` | list | Import declarations |
 | `aliases` | list | Alias declarations |
 | `filterCondition` | string | Package filter (KerML opaque expression) |

@@ -85,7 +85,7 @@ gap). A `DamageScenario.assets` entry that does not resolve to an `Asset` errors
 
 ```yaml
 type: DamageScenario
-id: DS-001
+id: DS-STEER-001
 name: "Attacker gains control of steering"
 status: approved
 damageSeverity: severe      # severe · major · moderate · negligible
@@ -93,7 +93,7 @@ impactCategories:           # safety · financial · operational · privacy
   - safety
   - operational
 assets: [ASSET-KERNEL-001]  # optional: Asset(s) this scenario damages (§15.3 → §15.4 trace; refs must resolve, else E864)
-hazardRef: SG-001           # optional: HazardousEvent/SafetyGoal this damage endangers
+hazardRef: SG-BRAKE-001     # optional: HazardousEvent/SafetyGoal this damage endangers
                             #   (string or list; safety↔security co-engineering)
 ```
 
@@ -103,13 +103,13 @@ A safety-tagged DamageScenario (`impactCategories` includes `safety`) with no `h
 
 ```yaml
 type: ThreatScenario
-id: TS-001
+id: TS-OBD-001
 name: "CAN bus spoofing via OBD port"
 status: approved
 attackFeasibility: medium   # high · medium · low · very_low
 attackVector: local         # network · adjacent · local · physical
-damageScenarios: [DS-001]
-hazardRef: SG-001           # optional: direct HazardousEvent/SafetyGoal link (string or list)
+damageScenarios: [DS-STEER-001]
+hazardRef: SG-BRAKE-001     # optional: direct HazardousEvent/SafetyGoal link (string or list)
 riskTreatment: reduce       # optional: avoid · reduce · share · retain (invalid → E845)
 residualRisk: "Low after MAC on torque frames"   # optional free text
 ```
@@ -120,12 +120,12 @@ residualRisk: "Low after MAC on torque frames"   # optional free text
 
 ```yaml
 type: CybersecurityGoal
-id: CSG-001
+id: CSG-STEER-001
 name: "Ensure authenticity of steering control commands"
 status: approved
 securityProperty: authenticity  # confidentiality · integrity · availability · authenticity
 calLevel: CAL3              # CAL1 · CAL2 · CAL3 · CAL4
-threatScenarios: [TS-001]
+threatScenarios: [TS-OBD-001]
 ```
 
 Validation: W802 (no implementing SecurityControl), W804 (no derived Requirement), W032 (`calLevel` below the expected minimum CAL for the max risk of its listed threats: low→CAL1, medium→CAL2, high→CAL3, critical→CAL4).
@@ -134,15 +134,15 @@ Validation: W802 (no implementing SecurityControl), W804 (no derived Requirement
 
 ```yaml
 type: SecurityControl
-id: SC-001
+id: SC-CAN-001
 name: "HMAC authentication on CAN messages"
 status: approved
 controlType: prevention     # prevention · detection · response · recovery
-implementsGoals: [CSG-001]
+implementsGoals: [CSG-STEER-001]
 ```
 
 Bind a `SecurityControl` to the architecture element that realises it with a standalone
-`Allocation` element — `allocatedFrom: SC-001` + `allocatedTo: <element>` (either accepts a
+`Allocation` element — `allocatedFrom: SC-CAN-001` + `allocatedTo: <element>` (either accepts a
 single string or a list). Do not author `allocatedFrom:` on the architecture element: it is the
 derived reverse index (§12.9); an authored one is accepted only as a legacy input form.
 
@@ -150,12 +150,12 @@ derived reverse index (§12.9); an authored one is accepted only as a legacy inp
 
 ```yaml
 type: VulnerabilityReport
-id: VR-001
+id: VR-OBD-001
 name: "CVE-2024-XXXX — OBD port CAN injection"
 status: open                # open triggers W803
 cvssScore: 7.5              # 0.0–10.0
 cveId: CVE-2024-12345       # optional CVE identifier
-mitigatedBy: [SC-001]
+mitigatedBy: [SC-CAN-001]
 affectedElements:
   - UAV::Avionics::FlightController
 ```
@@ -167,30 +167,30 @@ Tier 2 types. Use when a compact sheet is preferable to separate files.
 
 ```yaml
 type: TARASheet
-id: TARA-001
+id: TARA-BRAKE-001
 name: "TARA for braking system"
 status: approved
 damageTable:
-  - id: DS-001
+  - id: DS-STEER-001
     name: "..."
     damageSeverity: severe
     impactCategories: [safety]
 threatTable:
-  - id: TS-001
+  - id: TS-OBD-001
     name: "..."
     attackFeasibility: medium
     attackVector: local
-    damageScenarios: [DS-001]
+    damageScenarios: [DS-STEER-001]
 goalTable:
-  - id: CSG-001
+  - id: CSG-STEER-001
     name: "..."
     securityProperty: authenticity
     calLevel: CAL3
 controlTable:
-  - id: SC-001
+  - id: SC-CAN-001
     name: "..."
     controlType: prevention
-    implementsGoals: [CSG-001]
+    implementsGoals: [CSG-STEER-001]
 ```
 
 ---
@@ -367,7 +367,7 @@ id: FMEA-BRAKE-001
 name: "Braking system FMEA"
 status: approved
 entries:
-  - id: FM-001
+  - id: FM-BRAKE-001
     name: "Hydraulic line rupture"
     ref: UAV::Avionics::BrakingSystem   # optional; resolves to model element
     failureMode: "Loss of hydraulic pressure"
