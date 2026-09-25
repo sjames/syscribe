@@ -22,6 +22,14 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             use_cross: true
+          # Fully static Linux binaries (musl): run on any distro/container
+          # (Alpine, scratch, old glibc) with no runtime dependencies.
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            use_cross: true
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            use_cross: true
           - target: x86_64-apple-darwin
             os: macos-latest
           - target: aarch64-apple-darwin
@@ -68,7 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
-          # Create the release once; idempotent under the 5-way matrix race
+          # Create the release once; idempotent under the 7-way matrix race
           # (a losing concurrent create just finds it already exists).
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --title "$tag" --generate-notes || true
