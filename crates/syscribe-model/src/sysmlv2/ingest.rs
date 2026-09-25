@@ -271,6 +271,13 @@ struct Spec {
     /// bool, present on all six case-family Def/Usage structs. Plain field,
     /// no dedicated builder, like `subject`.
     is_abstract: Option<bool>,
+    /// `REQ-TRS-SYSMLV2-029` (GH #144) -- a named `allocation` usage's
+    /// `allocate <source> to <target>` endpoints, carried as raw endpoint
+    /// text (a possibly `::`-qualified name, optionally followed by a
+    /// `.`-separated feature chain). Rewritten to resolved qualified names by
+    /// [`super::resolve_allocation_endpoints`] once the whole model is merged.
+    allocated_from: Option<Vec<String>>,
+    allocated_to: Option<Vec<String>>,
 }
 
 impl Spec {
@@ -394,6 +401,8 @@ fn push_synth(
             objectives: spec.objectives,
             result_type: spec.result_type,
             is_abstract: spec.is_abstract,
+            allocated_from: spec.allocated_from,
+            allocated_to: spec.allocated_to,
             ..Default::default()
         },
         doc: spec.doc,
@@ -3586,8 +3595,17 @@ fn convert_allocation_usage(
         return;
     }
     let elem_qname = format!("{qname}::{}", a.name);
+    // REQ-TRS-SYSMLV2-029 (GH #144): lift the `allocate <source> to
+    // <target>` clause. The endpoints stay raw text here (this pass has no
+    // view of the rest of the model); `super::resolve_allocation_endpoints`
+    // resolves them against the fully merged element list afterwards.
+    let endpoint = |e: &Option<sysml_v2_parser::Node<sysml_v2_parser::Expression>>| {
+        e.as_ref().and_then(|n| connection_end_display(&n.value)).map(|s| vec![s])
+    };
     let spec = Spec {
         typed_by: a.type_name.clone(),
+        allocated_from: endpoint(&a.source),
+        allocated_to: endpoint(&a.target),
         ..Default::default()
     };
     push_synth(out, &elem_qname, file_path, ElementType::Allocation, &a.name, spec);

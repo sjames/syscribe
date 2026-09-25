@@ -679,7 +679,7 @@ A stereotype is a `MetadataDef` applied via an element's `metadata:` field (SysM
 |---|---|
 | `W540` | A nested `_index.md` (or other stray `.md`) inside a `sysmlSubmodel:` subtree is ignored — nested files carry no namespace meaning there |
 | `W541` | A `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree could not be read, or failed to parse as SysML v2/KerML; its content is skipped |
-| `W542` | A `connect` endpoint's two-segment feature chain was truncated to a head-only edge because the tail is not a locally redeclared feature (REQ-TRS-SYSMLV2-015) |
+| `W542` | A `connect` endpoint's two-segment feature chain was truncated to a head-only edge because the tail is not a locally redeclared feature (REQ-TRS-SYSMLV2-015); or an ingested `allocation` usage's `allocate` endpoint chain was truncated to its deepest resolved prefix because a segment is neither declared on nor inherited (via `typedBy:`/`supertype:`) by the element reached so far (REQ-TRS-SYSMLV2-029) |
 
 ## Foreign-format stdio plugins (E550, E551, W550–W553, ADR-SYS-PLUGIN-002)
 
