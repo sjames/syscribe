@@ -5073,21 +5073,21 @@ sourceFile: "src/flight/mixing_hex.rs"
 
 | Code | Condition |
 |---|---|
-| `E208` | Duplicate `Configuration.id` across all files |
-| `E209` | `appliesWhen:` references a qualified name that does not resolve to a `FeatureDef` |
-| `E210` | A selected system feature has no component `Configuration` in some package satisfying it |
-| `E211` | A selected system feature is satisfied by more than one component `Configuration` in the same package |
+| `E208` | *Not emitted* — a duplicate `Configuration.id` is reported by the generic duplicate-id error `E101` |
+| `E209` | `appliesWhen:` is malformed, or an operand references a qualified name that does not resolve to a `FeatureDef` |
+| `E210` | *Not yet implemented* — a selected system feature has no component `Configuration` in some package satisfying it |
+| `E211` | *Not yet implemented* — a selected system feature is satisfied by more than one component `Configuration` in the same package |
 | `E212` | A `FeatureDef.requires:` or `excludes:` entry does not resolve to another `FeatureDef` |
 | `E213` | A cross-feature `parameterConstraints` expression references a parameter path that does not resolve |
-| `E214` | A `FeatureDef.contributesTo:` does not resolve to a `FeatureDef` in a system feature model |
+| `E214` | *Not yet implemented* — a `FeatureDef.contributesTo:` does not resolve to a `FeatureDef` in a system feature model |
 | `E215` | A `Configuration.derivedFrom:` base configuration is not in `approved` or `released` status |
 | `E234` | A `Configuration.derivedFrom:` base does not resolve to any element of the model (§9.8; the base must be local) |
 | `E235` | A `Configuration.derivedFrom:` base resolves to an element that is not a `Configuration` |
 | `E236` | A `Configuration` is on a `derivedFrom:` inheritance cycle (each member is reported; none inherits) |
 | `E237` | A `Configuration.derivedFrom:` names more than one base |
-| `E216` | A `Configuration.features` map omits a `mandatory` feature (or sets it to `false`) |
-| `E217` | A `Configuration.features` map selects both sides of an `alternative` group |
-| `E218` | A `Configuration.features` map violates an `or` group's `cardinality:` constraint |
+| `E216` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map omits a `mandatory` feature (or sets it to `false`) |
+| `E217` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map selects both sides of an `alternative` group |
+| `E218` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map violates an `or` group's `cardinality:` constraint |
 | `E219` | A `FeatureDef.requires:` constraint is violated by the selected features in a `Configuration` |
 | `E220` | A `FeatureDef.excludes:` constraint is violated by the selected features in a `Configuration` |
 | `E221` | A cross-feature `parameterConstraints` expression evaluates to `false` for a `Configuration` whose `appliesWhen:` predicate holds (default severity). Emitted by `feature-check`. |
@@ -5097,6 +5097,12 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E231` | (§9.6a) A `featureTree:` entry is not a mapping, has no `name:`, or its dot-separated path has an empty segment — the entry is dropped. |
 | `E232` | (§9.6a) Two `featureTree:` entries resolve to the same qualified name. |
 | `E233` | (§9.6a) A `crossTreeConstraints:` entry is malformed, or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:`. |
+| `E222` | A `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path — including the legacy all-`::` member form, which must be the dotted `Features::Feature.param` — unknown feature, or undeclared parameter). Emitted by `validate` and `feature-check`. |
+| `E223` | (`feature-check --deep`) The feature model is **void** — no valid configuration exists (reported once, with a conflict-set explanation). |
+| `E224` | (`feature-check --deep`) A **dead feature** — selectable in no valid configuration. |
+| `E225` | (`feature-check --deep`) An authored `Configuration` is not a valid model of the feature model (mandatory/group/cardinality/parent-selection violation; `requires`/`excludes` violations stay `E219`/`E220`). |
+| `E226` | (`validate --config`) An active element's **structural** reference (`typedBy`/`supertype`/`subsets`/`redefines`/allocation) targets an element inactive in the projected variant. |
+| `E227` | (`feature-check --deep`) A structural reference is provably violable: some valid configuration activates the source without its target (includes a witness). |
 
 ### Warnings
 
@@ -5104,11 +5110,16 @@ sourceFile: "src/flight/mixing_hex.rs"
 |---|---|
 | `W011` | A `FeatureDef` with `groupKind: optional` is selected in zero `Configuration` files (possibly dead feature) |
 | `W012` | A `FeatureDef` with `groupKind: optional` is selected in every `Configuration` (should be `mandatory`) |
-| `W013` | A component `FeatureDef` has no `contributesTo:` and no `excludes:` referencing any system feature — internal feature not visible from system level (informational) |
+| `W013` | *Not yet implemented* — a component `FeatureDef` has no `contributesTo:` and no `excludes:` referencing any system feature — internal feature not visible from system level (informational) |
 | `W014` | A `parameterConstraint` has `appliesWhen:` that references a feature not in any `Configuration` |
 | `W015` | A requirement is **active** in a `Configuration` (its `appliesWhen:` holds for that configuration's `features:`) but no non-draft `TestCase` that runs in that `Configuration` (§9.10) verifies it. Emitted only when the variability dimension is active (§9.10.1); draft requirements/tests are suppressed; gate with `--deny W015`. |
 | `W016` | A `Configuration` parsed **zero** feature selections while a `FeatureDef` exists in the model — e.g. it used an unrecognized `selections:` key instead of the `features:` map (§9.8). Surfaces the otherwise-silent failure that yields an all-N/A coverage matrix. |
-| `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does not bind. (`W010` is test-result ingestion — §11.12.) |
+| `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does not bind; suppressed for a `bindingTime: runtime` parameter. (`W010` is test-result ingestion — §11.12.) |
+| `W018` | (`feature-check --deep`) A **false-optional** feature — declared optional but forced selected whenever its parent is. |
+| `W019` | (`validate --config`) An active element's **traceability** reference (`verifies`/`satisfies`/`derivedFrom`/`breakdownAdr`) targets an element inactive in the projected variant. |
+| `W020` | (`feature-check --deep`) A traceability reference is provably violable across some valid configuration. |
+| `W021` | (`feature-check --deep`) A **dead element** — its `appliesWhen` is unsatisfiable under the feature model. |
+| `W022` | (`feature-check --deep`) A requirement active in some configuration but covered in none. |
 | `W024` | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration`, so it gates nothing and ships in nothing. Emitted by `feature-check` only; gate with `--deny W024`. |
 | `W025` | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Emitted by `feature-check`; gate with `--deny W025`. |
 | `W026` | A `Package` declares `appliesWhen:` but its subtree contains no projectable element (it gates nothing). Gate with `--deny W026`. |
@@ -5121,7 +5132,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 > - **`feature-check`** (explicit, holistic) enforces the feature-model-wide rules: `E212` (requires/excludes resolution), `E219`/`E220` (requires/excludes satisfaction), `E207` (circular `derivedFrom:`), `E202` (`bindTo:` propagation range), `E229` (binding-time ordering across `derivedFrom`/`bindTo`), `E213` (unresolved **or `::`-member** `parameterConstraints` path), `E221`/`W025` (`parameterConstraints` expression evaluation), `W011`/`W012`/`W014`, and `W024` (orphan feature). It **also** re-runs the parameter-binding rules (`E203`–`E206`/`E222`/`W017`) so a product line checked holistically gets the same range/binding enforcement as `validate`.
 > - **`feature-check --deep`** (SAT-backed, over a propositional encoding of the Boolean layer; deterministic; engine is batsat (pure-Rust CDCL) — see `ADR-FM-002`) adds whole-configuration-space analysis: `E223` void model, `E224` dead feature, `E225` invalid configuration (full group/cardinality semantics), `W018` false-optional, plus a reported set of *core* features and a conflict-set explanation for each unsatisfiability.
 >
-> Not yet implemented: group-cardinality *findings* on `feature-check` without `--deep` (`E216`/`E217`/`E218` — `--deep` enforces the group semantics via `E225`), two-level satisfies completeness (`E210`/`E211`), and general numeric/parameter (SMT) reasoning beyond the comparison/arithmetic grammar `E221` evaluates. `E222`–`E225`/`E229`/`E230` and `W017`/`W018`/`W024`/`W025`/`W027`/`W028` are implementation codes beyond the spec table. Configuration inheritance (`derivedFrom:`, §9.8) with `E215`/`E234`–`E237` is implemented.
+> Not yet implemented (never emitted): group-cardinality *findings* on `feature-check` without `--deep` (`E216`/`E217`/`E218` — `--deep` enforces the group semantics via `E225`), two-level satisfies completeness (`E210`/`E211`), `contributesTo:` resolution (`E214`), the internal-feature notice (`W013`), and general numeric/parameter (SMT) reasoning beyond the comparison/arithmetic grammar `E221` evaluates. `E208` is never emitted: a duplicate `Configuration` id is `E101`. Configuration inheritance (`derivedFrom:`, §9.8) with `E215`/`E234`–`E237` is implemented.
 
 ---
 
@@ -5677,12 +5688,37 @@ A native `Requirement` is **covered** when `verifiedBy` is non-empty and at leas
 
 ### 11.12 Validation Rule Reference
 
-This section defines the normative set of parse-time errors, model-time errors, and warnings that a conformant tool MUST emit.
+A finding code's first letter is its severity: `E` = error, `W` = warning, `I` = informational. Numbers are never reused; a retired code keeps its row, marked **RETIRED**.
+
+**Where codes are defined.** This section is normative for the codes tabulated in it — the core format checks. Every other code family is normative in the section named by the *Code families specified elsewhere* table below, and a conformant tool MUST emit those codes with the meanings given there. The **complete** list of codes the reference implementation emits — one row per code, including the families below — is the validation-code catalogue printed by `syscribe spec validation` (source `prompts/spec/validation.md`; presented grouped, with context, in `docs/validation/rules.md`). The reference implementation's test suite fails if a code it can emit is missing from that catalogue or from `docs/validation/rules.md`, or is neither tabulated in this section nor inside a family listed below; where a section and the catalogue disagree, the catalogue reflects the implementation and the section is to be corrected.
+
+#### Code families specified elsewhere
+
+| Codes | Family | Specified in |
+|---|---|---|
+| `E050`, `W050` | Build-system integration (`buildExports:`) | §9.6–§9.9 fields; catalogue |
+| `E200`–`E237`, `W011`–`W027`, `W048` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
+| `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
+| `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
+| `W308`–`W311`, `E706`–`E723` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.9; §8.18.6 for `E718` |
+| `E400`–`E404`, `W400`–`W415` | Diagram elements | §8.16.2, §8.16.7 |
+| `E516`–`E519`, `E523`, `W513` | Hierarchical product-line composition | §14.7 |
+| `E520`–`E522`, `W520` | Release baselines | §8.19 |
+| `E530`–`E532`, `W530`–`W534` | **Reserved** for the parked sandboxed-WASM plugin design (`ADR-SYS-PLUGIN-001`); never emitted | — |
+| `W540`–`W542` | Native SysML v2 submodel ingestion (`sysmlSubmodel:`) | `ADR-SYS-SYSMLV2-001`; catalogue |
+| `E550`–`E551`, `W550`–`W553` | Foreign-format stdio plugins (`foreignFormat:`) | `ADR-SYS-PLUGIN-002`; catalogue |
+| `E560`–`E561`, `W560`–`W563` | Annotated-source ingestion (`annotationFormat:`) | `ADR-SYS-ANNOTATE-001`; catalogue |
+| `E600`–`E606`, `W610`–`W616` | Native `TestPlan` | §8.12.6 |
+| `E800`–`E837`, `E859`–`E864`, `W809`, `W810` | Tier 2 HARA/TARA elements, their cross-references, GSN assumption targets, confirmation targets, `Asset` | §8.18.1, §8.18.2, §8.18.6, §8.18.7 |
+| `E900`–`E923`, `E927`, `E940`, `E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928` | Tier 4 fault trees, FMEA, attack trees, TARA sheets | §8.18.3–§8.18.5 |
+
+The remaining subsections tabulate the core codes; a few families (`W060`, `E865`, `E866`–`E877`, `E700`–`E705`, `E950`–`E956`, …) are repeated here from their own sections for convenience.
 
 #### Parse-time errors (emitted while reading a single file)
 
 | Code | Condition |
 |---|---|
+| `E000` | Internal fallback for a finding raised by a walker post-processing pass (derive, SysML v2 ingestion, `featureTree:` explosion, plugins, annotated source) under a code the validator does not map. Every code those passes emit is mapped, so `E000` indicates an implementation defect and never appears in a healthy model |
 | `E001` | File does not begin with `---` (missing frontmatter delimiter) |
 | `E002` | YAML frontmatter is not valid YAML 1.2 |
 | `E003` | **RETIRED** — never emitted. There is no strict mode; an unrecognised top-level frontmatter key is the warning `W047` (the key is preserved in the element's extra-fields map). |
@@ -5695,9 +5731,14 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E010` | `asilLevel:` value is not in `A`–`D` |
 | `E011` | Native `TestCase` body has no ` ```gherkin ` fenced block |
 | `E012` | Native `Requirement` body has no normative text (text before the first `##` heading is empty or whitespace only) |
-| `E013` | `verifies:` list is present but empty |
+| `E013` | A native `TestCase` has no `verifies:` entry (the field is absent or an empty list) |
 | `E014` | A `Scenario Outline:` block has no `Examples:` table |
 | `E015` | The first Gherkin block in a `TestCase` has no `Feature:` line |
+| `E019` | `dalLevel:` value is not in `A`–`E` (DO-178C) |
+| `E020` | `verificationMethod:` is not `test`/`inspection`/`analysis`/`demonstration` |
+| `E021` | `coverageTarget:` is not `statement`/`branch`/`MCDC` |
+| `E022` | `requirementKind:` is not `stakeholder`/`system`/`software`/`hardware` |
+| `E023` | A stable-ID numeric suffix is longer than the configured maximum (`[ids] max_digits`, default 8; the minimum of 3 is enforced by `E006`) |
 | `E024` | **RETIRED** — formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is no longer emitted. |
 | `E025` | The removed `title:` field is declared on an element (any type — id-identified or name-identified). The `title` field is removed; rename it to `name`. |
 | `E026` | A §3.10 locale documentation variant (a file with `locale:` and `qualifiedName:`) names a `qualifiedName:` that resolves to no element — its documentation cannot be attached, so the file is kept as its own element (§3.10) |
@@ -5714,9 +5755,14 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E101` | Two elements have the same `id:` value |
 | `E102` | A reference in `verifies:` cannot be resolved (no element with matching id or qualified name) |
 | `E103` | A reference in `derivedFrom:` cannot be resolved |
-| `E104` | A `verifies:` reference resolves to an element that is neither a native `Requirement` nor a requirement/architecture-shaped element actually synthesized by SysMLv2 submodel ingestion or a stdio foreign-format plugin (§11.10) |
+| `E104` | A `verifies:` reference resolves to an element that is neither a native `Requirement` nor an element of a fixed requirement/architecture-shaped kind (`PartDef`/`Part`, `AttributeDef`/`Attribute`, `PortDef`/`Port`, `ConnectionDef`/`Connection`, `InterfaceDef`/`Interface`, `ItemDef`/`Item`, `Allocation`, `RequirementDef`/`Requirement`) actually synthesized by SysML v2 submodel ingestion, a stdio foreign-format plugin, or annotated-source ingestion (§11.10). A link type extending `verifies` may relax it (§12.10.4) |
 | `E105` | A `derivedFrom:` reference resolves to an element that is not a native `Requirement` |
 | `E106` | A `testFunctions[].scenario` string does not match any `Scenario:` or `Scenario Outline:` title in this file's Gherkin blocks |
+| `E016` | Cycle in the `supertype:` graph |
+| `E017` | Cycle in the `derivedFrom:` graph (a `Configuration` inheritance cycle is `E236` instead) |
+| `E018` | Cycle in the `subsets:` graph |
+| `E107` | Cycle in the `typedBy:` graph, including a usage typed by itself (not suppressed under `validate --config`) |
+| `E108` | Two elements of any origin (hand-authored, FMEA/TARA row explosion, SysML v2 ingestion, stdio plugin, annotated source) share a qualified name (§11.7) |
 | `E110` | A `supertype:` reference cannot be resolved by any §11.5 form (REQ-TRS-XREF-007) |
 | `E111` | A `typedBy:` reference — on the element, or on an inline `features:` entry — cannot be resolved by any §11.5 form |
 | `E112` | A `subsets:` reference cannot be resolved by any §11.5 form |
@@ -5729,18 +5775,21 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E314` | A `Part` or `PartDef` with `isDeploymentPackage: true` is the source of no allocation edge (any §12.9 form: `Allocation` element top-level or per `features:` entry, `allocatedTo:` on the package, legacy authored `allocatedFrom:` on the target) to a `hardware` element |
 | `E315` | An element with `domain: software` has a `supertype:` or `typedBy:` reference that resolves to an element with `domain: hardware`, or vice versa — cross-domain direct reference; use `Allocation` instead |
 | `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` — or on a behavioral definition `ActionDef`/`Action`/`StateDef`/`State` (REQ-TRS-MG-010) — does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef` (names the offending operand, owning element, and resolved type). Base-format check — runs regardless of the MagicGrid profile (REQ-TRS-MG-001). The `refinedBy` reverse index includes refining behavioral elements alongside refining use cases; the `W307` "missing refines" warning stays scoped to `UseCaseDef` |
+| `E317` | A `metadata:` application does not resolve to a `MetadataDef` (§8.15.2) |
+| `E318` | A `metadata:` application's `MetadataDef` declares `annotates:` that excludes the annotated element's type (the abstract `Element`/`Definition`/`Usage` metaclasses match; standard-library metadata is recognised) |
 
 #### Warnings
 
 | Code | Condition |
 |---|---|
 | `W001` | Native `Requirement` normative text contains no `shall` |
-| `W002` | Native `Requirement` with `status: approved` or `status: implemented` has no `active` TestCase in `verifiedBy` |
+| `W002` | **Leaf** native `Requirement` (no `derivedChildren`) with `status: approved` or `status: implemented` has no `active` TestCase in `verifiedBy`. A parent is verified by decomposition; its integration-level check is `W305` |
 | `W003` | Native `Requirement` with `status: verified` but `verifiedBy` is empty or all entries have `status: retired` |
 | `W004` | A **local** `sourceFile:` path does not exist on disk. For a `TestCase`, emitted only when `status: active` (see *TestCase drift scoping*). Remote-URI sourceFiles are accepted and not checked locally (see *sourceFile location semantics*). |
 | `W005` | Native `Requirement` has no upstream link — no `derivedFrom:` entries, no `derivedFromSafetyGoal:` and no `derivedFromCybersecurityGoal:` (legacy `derivedFromSecurityGoal:`) — and no `derivedChildren` (possible orphan not connected to any requirement hierarchy). A goal derivation counts as upstream traceability |
 | `W006` | Both `silLevel:` (IEC 61508) and `asilLevel:` (ISO 26262) are set on the same element — incompatible standards; use only one |
 | `W007` | A type definition (e.g. `PartDef`, `PortDef`, `ItemDef`) is defined but never used as a `supertype:` or `typedBy:` type by any element. (An unrecognised frontmatter key is `W047`.) |
+| `W008` | Element has no `type:` field — it is ignored by most commands |
 | `W009` | A `testFunctions[].function` does not resolve to a definition in its (existing) `sourceFile` — function-level traceability drift (renamed/deleted test). Emitted only for `TestCase`s with `status: active` (see *TestCase drift scoping*). See *Function matchers* below. |
 | `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results. See *Test result ingestion* below. Inert unless results have been ingested. |
 | `W300` | Leaf `Requirement` at `status: approved` or `status: implemented` has no satisfying element (no element — structural or behavioral — has `satisfies:` pointing to it) |
@@ -5755,7 +5804,24 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W051` | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
 | `W930` | **Misplaced features-form allocation** — a `features:` entry on a non-`Allocation` element declares an allocation (feature-level `type: Allocation`, or an `allocatedFrom:`/`allocatedTo:` key). Only a `type: Allocation` element carries features-form allocations (§12.9 form 2), so the entry contributes no allocation edge. Use `allocatedTo:` on the source or a standalone `Allocation` element |
-| `W503` | **Redundant allocation** — the same `source → target` edge is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element (§12.9). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |
+| `W503` | **Redundant allocation** — the same `source → target` edge is declared by **more than one** §12.9 form (an `allocatedTo:` on the source, a standalone `Allocation` element, a legacy authored `allocatedFrom:` on the target). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |
+| `W023` | A non-`draft` `Part`/`PartDef`/`Interface`/`InterfaceDef` has an `implementedBy:` path that does not exist on disk (§12.8). Opt-in (only when `implementedBy:` is present); remote URIs and package-registry references are not checked; gateable with `--deny W023` |
+| `W028` | The same `extRef` value is declared by two or more elements (§3); one finding per duplicated value. Gateable with `--deny W028` |
+| `W041` | A `custom_fields` value is not a scalar or a list of scalars (§3.15) |
+| `W042` | A qualified-name segment (an element's own name or a package/directory name) is not a SysMLv2 basic name and not a stable id |
+| `W043` | A type reference names a member of a closed auto-imported package (`ScalarValues`, `Base`) that it does not declare — a likely typo |
+| `W044` | A recognised `ISQ` quantity type and a recognised `SI` unit on the same element/feature have different physical dimensions |
+| `W045` | A tagged-value key in a `metadata:` application is not a declared feature of the `MetadataDef` (§8.15.2) |
+| `W046` | An `[ids.prefixes]` entry in `.syscribe.toml` is malformed (unknown id-identified type, or a prefix not matching `^[A-Z][A-Z0-9]{1,11}$`); the entry/prefix is ignored |
+| `W047` | A top-level frontmatter key is not a recognised schema field and is not `custom_fields:` (one finding per key; §3.17) |
+| `W500` | A `View`'s `viewpoint:` does not resolve to a `ViewpointDef` |
+| `W501` | An `exhibitsStates:` entry does not resolve to any known element |
+| `W502` | A `View`'s `expose:` entry does not resolve to any known element |
+| `W600` | A `PartDef`/`Part` has an empty documentation body |
+| `W601` | An `ActionDef`/`Action` has an empty documentation body |
+| `W701` | A `Requirement` with `asilLevel: B`, `C` or `D` has no `verificationMethod:` |
+| `W702` | A `Requirement` with `asilLevel: D` has no active `TestCase` at `testLevel: L5` (HIL) |
+| `W703` | Both `asilLevel:` (ISO 26262) and `dalLevel:` (DO-178C) are set on the same element |
 
 #### State machine completeness warnings (W070–W079, W929, §22.1)
 
@@ -6032,7 +6098,7 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 | `E858` | Error | an `AssumptionOfUse.appliesTo` ref does not resolve to any model element |
 | `W040` | Warning | a `claim`/`strategy` `Argument` has empty `supports` **and** empty `evidence` (an orphan GSN node) |
 
-The full set of Tier 2 (E800–E858) and Tier 4 (E900–E941, W900–W905; attack path analysis E915–E921, W035–W037) validation codes is defined in the validation rule reference document (`docs/validation/rules.md`). §8.18 defines the element schemas.
+The Tier 2 (`E800`–`E837`, `E859`–`E864`) and Tier 4 (`E900`–`E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`) codes are listed in *Code families specified elsewhere* above; §8.18 defines the element schemas and `docs/validation/rules.md` groups every code by element type.
 
 #### sourceFile location semantics
 
