@@ -28,6 +28,7 @@
 | `E023` | A stable-ID numeric suffix is longer than the configured maximum (`[ids] max_digits`, default 8). The minimum (3) is enforced by `E006`. |
 | `E024` | **RETIRED** — formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is no longer emitted. |
 | `E025` | The removed `title:` field is declared on an element (any type, id-identified or name-identified). The `title` field is removed — rename it to `name`. |
+| `E026` | A §3.10 locale documentation variant (a file with `locale:` and `qualifiedName:`) names a `qualifiedName:` that resolves to no element — its documentation cannot be attached, so the file is kept as its own element (§3.10) |
 | `E300` | `ADR.id` does not match `ADR-*` pattern |
 | `E301` | `ADR` missing `id`, `name`, or `status` |
 | `E302` | `reqDomain:` is not `system`, `hardware`, or `software` |
@@ -651,12 +652,14 @@ A stereotype is a `MetadataDef` applied via an element's `metadata:` field (SysM
 | `E318` | error | A `metadata:` application's `MetadataDef` declares `annotates:` that excludes the annotated element's type (abstract `Element`/`Definition`/`Usage` match; stdlib metadata recognised). |
 | `W045` | warning | A tagged-value key in a `metadata:` application is not a declared feature of the `MetadataDef`. |
 
-## Stable-ID prefixes and unknown fields (W046, W047)
+## Stable-ID prefixes, unknown fields and locale variants (W046, W047, W049, W051)
 
 | Code | Condition |
 |---|---|
 | `W046` | An `[ids.prefixes]` entry in `.syscribe.toml` is malformed: the key is not an id-identified element type, or a prefix does not match `^[A-Z][A-Z0-9]{1,11}$`. The offending entry/prefix is ignored; well-formed siblings still apply |
 | `W047` | A top-level frontmatter key is not a recognised schema field (and is not `custom_fields:`) — likely a typo (`reqDomian`, `verifis`). One finding per key; move author-defined data under `custom_fields:` (§3.15). Gate with `--deny W047` |
+| `W049` | `qualifiedName:` on a file without `locale:` differs from the element's path-derived qualified name. It is not an identity override (the qualified name is purely path-derived, §4.5/§11.3) and is ignored — move or rename the file instead (§3.1) |
+| `W051` | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 
 ## Suspect links (W090, ADR-SYS-SUSLINK-001)
 

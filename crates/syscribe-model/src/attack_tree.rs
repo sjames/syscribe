@@ -167,6 +167,7 @@ mod tests {
             parse_issue: None,
             derived: std::collections::HashMap::new(),
             derive_findings: Vec::new(),
+            locale_docs: Default::default(),
         }
     }
 
@@ -185,6 +186,7 @@ mod tests {
             parse_issue: None,
             derived: std::collections::HashMap::new(),
             derive_findings: Vec::new(),
+            locale_docs: Default::default(),
         }
     }
 
@@ -202,6 +204,7 @@ mod tests {
             parse_issue: None,
             derived: std::collections::HashMap::new(),
             derive_findings: Vec::new(),
+            locale_docs: Default::default(),
         }
     }
 

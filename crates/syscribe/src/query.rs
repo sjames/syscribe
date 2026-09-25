@@ -739,6 +739,12 @@ pub fn cmd_show(
         }
     }
     if let Some(ref refs) = fm.ext_ref { println!("| **extRef** | {} |", refs.join(", ")); }
+    // §3.10: the locale of the element's own body, and any locale variants attached.
+    if let Some(ref loc) = fm.locale { println!("| **locale** | {} |", loc); }
+    if !elem.locale_docs.is_empty() {
+        let locs: Vec<&str> = elem.locale_docs.keys().map(String::as_str).collect();
+        println!("| **localeDocs** | {} |", locs.join(", "));
+    }
     if fm.is_abstract == Some(true) { println!("| **abstract** | true |"); }
     if let Some(ref d) = fm.domain { println!("| **domain** | {} |", d); }
     if let Some(ref rk) = fm.requirement_kind { println!("| **requirementKind** | {} |", rk); }
@@ -1111,6 +1117,18 @@ pub fn cmd_show(
         println!("## Documentation");
         println!();
         println!("{}", doc);
+    }
+    // §3.10 locale documentation variants (REQ-TRS-PARSE-010): one section per
+    // attached locale, in sorted order.
+    for (locale, body) in &elem.locale_docs {
+        let body = body.trim();
+        if body.is_empty() {
+            continue;
+        }
+        println!();
+        println!("## Documentation ({})", locale);
+        println!();
+        println!("{}", body);
     }
 
     // Members (REQ-TRS-PKG-001, GH #120) — generated from the directory tree,
@@ -4709,6 +4727,7 @@ mod custom_where_tests {
             parse_issue: None,
             derived: std::collections::HashMap::new(),
             derive_findings: Vec::new(),
+            locale_docs: Default::default(),
         }
     }
 

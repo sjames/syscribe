@@ -934,6 +934,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 "W561" => "W561",
                 "W562" => "W562",
                 "W563" => "W563",
+                // §3.10 locale documentation variants (walker
+                // `attach_locale_variants`, REQ-TRS-PARSE-010): E026 dangling
+                // `qualifiedName:` target, W051 duplicate locale / type
+                // mismatch / ignored structural field.
+                "E026" => "E026",
+                "W051" => "W051",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });
@@ -1124,6 +1130,28 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if fm.event_ref.is_some() && !matches!(fm.element_type, Some(ElementType::FaultTreeEvent)) {
             unknown_keys.push("ref");
         }
+        // W049 (REQ-TRS-QNAME-005, GH #160): the qualified name is purely
+        // path-derived (§4.2/§4.5/§11.3), so `qualifiedName:` is not an identity
+        // override. It is meaningful only as a §3.10 locale variant's target
+        // (with `locale:`); anywhere else a value that differs from the
+        // path-derived name is reported and ignored.
+        if let (Some(q), None) = (&fm.qualified_name, &fm.locale) {
+            if q.trim() != elem.qualified_name {
+                findings.push(warning(
+                    "W049",
+                    &file,
+                    &format!(
+                        "`qualifiedName: {}` is not supported as an identity override — the qualified name is \
+                         path-derived ('{}', §4.5/§11.3); the field is ignored. Move or rename the file to \
+                         change the qualified name (`qualifiedName:` is only meaningful on a `locale:` \
+                         documentation variant, §3.10)",
+                        q.trim(),
+                        elem.qualified_name
+                    ),
+                ));
+            }
+        }
+
         // `deciders:` is a schema field only on an ADR (§8.17.1, REQ-TRS-ADR-001).
         if fm.deciders.is_some() && !matches!(fm.element_type, Some(ElementType::ADR)) {
             unknown_keys.push("deciders");
@@ -9681,6 +9709,7 @@ mod w023_implemented_by_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -9869,6 +9898,7 @@ mod planning_item_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -10011,6 +10041,7 @@ mod planning_item_hierarchy_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -10185,6 +10216,7 @@ mod planning_item_achieves_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -10389,6 +10421,7 @@ mod planning_item_completion_w310_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -10566,6 +10599,7 @@ mod planning_item_claim_overlap_w311_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -10723,6 +10757,7 @@ mod planning_item_evidence_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -10978,6 +11013,7 @@ mod argument_evidence_regression_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11067,6 +11103,7 @@ mod planning_item_leaf_evidence_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11215,6 +11252,7 @@ mod planning_item_blocked_by_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11410,6 +11448,7 @@ mod planning_item_assigned_to_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11546,6 +11585,7 @@ mod w600_typed_by_documentation_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11684,6 +11724,7 @@ mod w007_scoped_usage_tracking_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11853,6 +11894,7 @@ mod satisfies_shape_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -12100,6 +12142,7 @@ mod link_type_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -12542,6 +12585,7 @@ mod e927_fault_tree_event_ref_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 

@@ -415,6 +415,7 @@ mod tests {
             parse_issue: None,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 

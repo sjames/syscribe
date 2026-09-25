@@ -14,7 +14,7 @@ computed by the tool and never authored.
 | `type` | All | string | **required** | Element type from the type inventory |
 | `name` | **All** | string | filename stem (name-identified) | The single human-readable label on **every** element type. For name-identified types (SysML structural, `Package`, `Diagram`, `FeatureDef`) it is also the QName/identity segment and must be a basic name (`W042`). For id-identified types (native Req/TC/TP/Config/ADR/safety/security) it is **required** free prose — spaces/punctuation allowed, `W042` does not apply. |
 | `shortName` | All | string | absent | Abbreviated name for display |
-| `qualifiedName` | All | string | derived | Always derived from the file path; an authored value is parsed but never overrides the path-derived qname |
+| `qualifiedName` | All | string | absent | Never an identity override — the qname is always path-derived. Only meaningful on a §3.10 locale variant (with `locale:`), where it names the documented element (`E026` if unresolved); elsewhere a differing value is `W049` and ignored |
 | `visibility` | All | string | `public` | `public` or `private` |
 | `id` | id-identified types + `FeatureDef` | string | **required** | Stable opaque ID matching the type's pattern. **Mandatory `FEAT-*` id on `FeatureDef`** too (E201 if missing) — a feature stays name-labelled but must carry a stable id. |
 | `title` | — | — | — | **REMOVED.** No longer a label field on any element; use `name`. A stray `title:` on any element is error `E025`. |
@@ -269,6 +269,7 @@ requirement lacks the W002/W305 verification bar. `W311`: two active items overl
 | Field | Applies to | Type | Notes |
 |---|---|---|---|
 | `metadata` | All | list | `{type: MetaDef::Name, field: value, ...}` |
+| `locale` | All | string | BCP 47 tag of the Markdown body. With `qualifiedName:` the file is a §3.10 locale variant: its body is attached to that element as `locale` documentation and the file is not an element (`E026` unresolved target; `W051` duplicate locale, differing `type:`, or any field besides `type`/`name`/`locale`/`qualifiedName`) |
 | `rep` | All | string | SysML textual notation representation hint |
 | `values` | EnumerationDef | list | **required** |
 | `annotates` | MetadataDef | list | Restricts what types this metadata may annotate |

@@ -377,6 +377,7 @@ fn convert_block(pkg_qname: &str, file_path: &str, text: &str) -> Result<RawElem
         parse_issue: None,
         derived: Default::default(),
         derive_findings: Vec::new(),
+        locale_docs: Default::default(),
     })
 }
 
@@ -524,6 +525,7 @@ mod tests {
             parse_issue: None,
             derived: Default::default(),
             derive_findings: Vec::new(),
+            locale_docs: Default::default(),
         }
     }
 
@@ -619,6 +621,7 @@ mod tests {
                 parse_issue: None,
                 derived: Default::default(),
                 derive_findings: Vec::new(),
+                locale_docs: Default::default(),
             },
         ];
         apply_annotation_scans(&mut elements, &root);
