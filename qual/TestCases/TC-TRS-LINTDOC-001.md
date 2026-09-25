@@ -28,6 +28,11 @@ Feature: lint-docs diagram references (§ GH #74)
     When `lint-docs` scans it
     Then a W101 finding is emitted
 
+  Scenario: W101 uses validate's shape-ref ancestor rule (GH #172)
+    Given an SVG whose sysml:ref values name features of the existing Engine (Engine::crankshaft, Engine::crankshaft::flange) and one ref with no resolvable prefix (Ghost::Thing::port)
+    When `lint-docs` scans it
+    Then the feature refs are clean and exactly one W101 is emitted, for Ghost::Thing::port
+
   Scenario: resolving refs and prose qnames are clean
     Given a doc whose Mermaid references the existing Engine and whose prose mentions a qname
     When `lint-docs` scans it

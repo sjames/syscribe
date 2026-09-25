@@ -439,7 +439,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 |---|---|
 | `W099` | An unresolvable stable-ID token (`REQ-*`/`TC-*`/…) in prose |
 | `W100` | A qualified name inside a ` ```mermaid ` block that does not resolve |
-| `W101` | An SVG `sysml:ref="…"` that does not resolve |
+| `W101` | An SVG `sysml:ref="…"` that does not resolve — neither itself nor any `::`-ancestor (same rule as `W402`) |
 | `W102` | A local image/diagram embed path that does not exist (remote URIs accepted) |
 | `W103` | Advisory: a package `_index.md` body enumerates three or more of the package's own direct members by stable id — membership is generated (`show <package>`); describe purpose instead. Does not affect the exit status |
 

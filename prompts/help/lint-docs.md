@@ -49,8 +49,11 @@ Findings (W099–W102 always fail the run; W103 only with `--deny W103`):
 - **W099** — an unresolvable stable-ID token (`REQ-*`, `TC-*`, …) in prose.
 - **W100** — a qualified name (`A::B::C`) inside a ` ```mermaid ` block that does not
   resolve. (Qualified names in *prose* are deliberately not resolved — false-positive prone.)
-- **W101** — an SVG `sysml:ref="…"` that does not resolve. An SVG with no `sysml:ref`
-  attributes is treated as opaque (no findings).
+- **W101** — an SVG `sysml:ref="…"` that does not resolve. Uses the same rule as
+  `validate`'s `W402`: a ref naming a feature of a resolvable element (a port, part
+  usage, sub-state or action step, e.g. `UAV::Power::PowerSystem::battery::powerOut`)
+  is valid when any `::`-ancestor resolves. An SVG with no `sysml:ref` attributes is
+  treated as opaque (no findings).
 - **W102** — a local image/diagram embed path (`![](path)`, `<img src>`) that does not
   exist. Remote URIs (`https://…`) are accepted as external.
 - **W103** (advisory) — a package's own `_index.md` whose body (frontmatter excluded)
