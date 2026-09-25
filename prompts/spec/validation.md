@@ -558,7 +558,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W026` | (`validate`) a `Package` declares `appliesWhen:` but gates no projectable element (empty subtree); gate with `--deny W026` |
 | `W027` | (`validate`) a `Configuration` binds a parameter whose `bindingTime: runtime` (resolved by the running system, not at configuration time); gate with `--deny W027` |
 | `W048` | (§9.6a) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — the field is inert and ignored |
-| `W023` | (§12.8) a non-`draft` `Part`/`PartDef`/`Interface`/`InterfaceDef` has an `implementedBy:` path that does not exist on disk. Opt-in (only when `implementedBy:` is present); draft-suppressed; remote (`scheme://`) targets accepted as external and not checked. Path resolution matches `sourceFile`. Gate with `--deny W023`. |
+| `W023` | (§12.8) a non-`draft` `Part`/`PartDef`/`Interface`/`InterfaceDef` has an `implementedBy:` path that does not exist on disk. Opt-in (only when `implementedBy:` is present); draft-suppressed; remote (`scheme://`) targets and package-registry references (`crates.io:tokio@1.38.0`, `npm:…`, `pypi:…`, `maven:…`, `nuget:…`, `github:org/repo@v1`) accepted as external and not checked. Path resolution matches `sourceFile`. Gate with `--deny W023`. |
 
 ## TestPlan (E600–E606, W610–W616)
 

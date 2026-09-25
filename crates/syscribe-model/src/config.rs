@@ -635,6 +635,7 @@ impl ValidateConfig {
     /// | Form | Meaning |
     /// |---|---|
     /// | `scheme://…` (not `file`) | remote URI — not resolved locally |
+    /// | `<registry>:<pkg>@<ver>` | package-registry reference ([`PACKAGE_REGISTRIES`]) — remote |
     /// | `file://…` | local path from the file URI |
     /// | `repo:<path>` | relative to the repository root |
     /// | `model:<path>` | relative to the model root |
@@ -654,6 +655,12 @@ impl ValidateConfig {
                 }
                 return SourceLocation::Remote(v.to_string());
             }
+        }
+
+        // Package-registry reference (`crates.io:tokio@1.38.0`, `npm:lodash@4.17.21`,
+        // `github:org/repo@v1`, …) — external, exactly as `sbom` recognises it (GH #134).
+        if parse_package_ref(v).is_some() {
+            return SourceLocation::Remote(v.to_string());
         }
 
         // Explicit `repo:` / `model:` prefixes.
@@ -682,6 +689,58 @@ impl ValidateConfig {
             None => SourceLocation::Local(p),
         }
     }
+}
+
+/// Package-registry prefixes recognised in `implementedBy:`/`sourceFile:`
+/// values, with the Package URL (purl) ecosystem each maps to. The single
+/// source of truth shared by [`ValidateConfig::classify_source`] (these are
+/// external, never local paths — GH #134) and the `sbom` command (§18).
+pub const PACKAGE_REGISTRIES: &[(&str, &str)] = &[
+    ("crates.io", "cargo"),
+    ("npm", "npm"),
+    ("pypi", "pypi"),
+    ("maven", "maven"),
+    ("nuget", "nuget"),
+    ("github", "github"),
+];
+
+/// A parsed `<registry>:<package>@<version>[#<path>]` package reference.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageRef<'a> {
+    /// The registry prefix as written (`crates.io`, `npm`, …).
+    pub registry: &'a str,
+    /// The purl ecosystem the registry maps to (`cargo`, `npm`, …).
+    pub ecosystem: &'static str,
+    /// Package name (may itself contain `/`, e.g. `org/repo` or `@scope/pkg`).
+    pub package: &'a str,
+    /// Version (non-empty).
+    pub version: &'a str,
+}
+
+impl PackageRef<'_> {
+    /// The Package URL for this reference, e.g. `pkg:cargo/tokio@1.38.0`.
+    pub fn purl(&self) -> String {
+        format!("pkg:{}/{}@{}", self.ecosystem, self.package, self.version)
+    }
+}
+
+/// Parse a package-registry reference `<registry>:<package>@<version>[#<path>]`
+/// whose registry is one of [`PACKAGE_REGISTRIES`] and whose package and
+/// version are both non-empty. Anything else — a local path, `repo:`/`model:`
+/// prefixes, a Windows drive (`C:\…`), an unknown prefix, a missing version —
+/// is `None`.
+pub fn parse_package_ref(value: &str) -> Option<PackageRef<'_>> {
+    let (registry, rest) = value.trim().split_once(':')?;
+    let ecosystem = PACKAGE_REGISTRIES
+        .iter()
+        .find(|(r, _)| *r == registry)
+        .map(|(_, eco)| *eco)?;
+    let rest = rest.split('#').next().unwrap_or(rest);
+    let (package, version) = rest.rsplit_once('@')?;
+    if package.is_empty() || version.is_empty() {
+        return None;
+    }
+    Some(PackageRef { registry, ecosystem, package, version })
 }
 
 /// Convert the part of a `file://` URI after the scheme into a local path.
@@ -1024,6 +1083,54 @@ mod tests {
             cfg().classify_source("/opt/src/lib.rs"),
             SourceLocation::Local(PathBuf::from("/opt/src/lib.rs"))
         );
+    }
+
+    #[test]
+    fn package_registry_refs_are_remote() {
+        for v in [
+            "crates.io:tokio@1.38.0",
+            "npm:lodash@4.17.21",
+            "github:org/repo@v1",
+            "pypi:requests@2.32.0",
+            "maven:org.slf4j/slf4j-api@2.0.13",
+            "nuget:Newtonsoft.Json@13.0.3",
+            "crates.io:serde@1.0.200#src/lib.rs",
+        ] {
+            assert_eq!(cfg().classify_source(v), SourceLocation::Remote(v.to_string()), "{v}");
+        }
+    }
+
+    #[test]
+    fn non_registry_prefixes_stay_local() {
+        for v in [
+            "C:\\src\\lib.rs",
+            "C:/src/lib.rs",
+            "crates.io:tokio",   // no version
+            "npm:@1.0",          // empty package
+            "npm:lodash@",       // empty version
+            "foo:bar@1",         // unknown registry
+            "src/crates.io:x@1", // prefix not at the start
+        ] {
+            assert!(matches!(cfg().classify_source(v), SourceLocation::Local(_)), "{v} must stay local");
+        }
+        // repo:/model: are unaffected.
+        assert_eq!(
+            cfg().classify_source("repo:npm@1/lib.rs"),
+            SourceLocation::Local(PathBuf::from("/work/repo/npm@1/lib.rs"))
+        );
+        assert_eq!(
+            cfg().classify_source("model:npm:x@1"),
+            SourceLocation::Local(PathBuf::from("/models/uav/npm:x@1"))
+        );
+    }
+
+    #[test]
+    fn parse_package_ref_builds_purls() {
+        let r = parse_package_ref("github:org/repo@v1").expect("parses");
+        assert_eq!((r.registry, r.package, r.version), ("github", "org/repo", "v1"));
+        assert_eq!(r.purl(), "pkg:github/org/repo@v1");
+        assert_eq!(parse_package_ref("crates.io:tokio@1.38.0").map(|r| r.purl()).as_deref(), Some("pkg:cargo/tokio@1.38.0"));
+        assert!(parse_package_ref("C:\\x").is_none());
     }
 
     #[test]

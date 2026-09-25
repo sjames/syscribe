@@ -5770,6 +5770,7 @@ A `sourceFile:` value is interpreted by its form, so each element can choose how
 | `/abs/path` | the absolute path as-is |
 | `file://…` | the local path encoded in the file URI |
 | `scheme://…` (any other scheme) | a **remote** location — not resolved or read locally |
+| `<registry>:<package>@<version>[#path]` | a **remote** package-registry reference (`crates.io`, `npm`, `pypi`, `maven`, `nuget`, `github` — the §18.3 prefixes) — not resolved or read locally |
 
 The repository root is taken from `repo_root` in `<model_root>/.syscribe.toml` (resolved against the model root when relative), or auto-detected as the nearest ancestor directory containing `.git`.
 
@@ -6286,13 +6287,13 @@ breakdownAdr: ADR-BRAKE-DECOMP-001    # documents the decomposition rationale
 Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test
 ```
 
-`implementedBy:` accepts a single string or a list of strings. Each value is a path into the codebase, resolved with the **same rules as a TestCase's `sourceFile`** (§8.12.5, §11.12): model-root-relative (the default for bare paths), `model:`-prefixed (model-root-relative), `repo:`-prefixed (repository-root-relative), absolute, `file://`, and remote `scheme://` URIs. Local paths are checked on disk; remote URIs are accepted as external pointers and not verified locally.
+`implementedBy:` accepts a single string or a list of strings. Each value is a path into the codebase, resolved with the **same rules as a TestCase's `sourceFile`** (§8.12.5, §11.12): model-root-relative (the default for bare paths), `model:`-prefixed (model-root-relative), `repo:`-prefixed (repository-root-relative), absolute, `file://`, remote `scheme://` URIs, and package-registry references `<registry>:<package>@<version>` (`crates.io:`, `npm:`, `pypi:`, `maven:`, `nuget:`, `github:` — §18.3). Local paths are checked on disk; remote URIs and package-registry references are accepted as external pointers and not verified locally. The registry prefixes are exactly those `sbom` maps to a Package URL — one shared definition, so a value the SBOM emits as a package component is never also reported missing on disk. A value that merely resembles one (unknown prefix, no `@<version>`, a Windows drive such as `C:\src`) stays a local path.
 
 **Validation (W023):** When a non-`draft` `Part`/`PartDef` declares `implementedBy:` and a **local** path does not exist on disk, the tool emits **W023** (one finding per missing path) — the architecture-to-code analog of `W004` for `sourceFile`. The rule is:
 
 - **Opt-in** — an element with no `implementedBy:` is never flagged.
 - **Draft-suppressed** — elements with `status: draft` are skipped (the implementation may not exist yet).
-- **Remote-tolerant** — remote (`scheme://`) targets are not verified locally.
+- **Remote-tolerant** — remote (`scheme://`) targets and package-registry references (`crates.io:tokio@1.38.0`, `npm:lodash@4.17.21`, `github:org/repo@v1`, …; §18.3) are not verified locally.
 - **Gateable** — `validate --deny W023` exits non-zero when any W023 is present.
 
 The link is discoverable through tooling: `syscribe links <element>` lists `implementedBy` paths as outbound relationships, and `syscribe refs <path-or-dir>` reverse-maps a source path (or directory prefix) back to the declaring architecture element(s).
@@ -7082,7 +7083,7 @@ The generated SBOM satisfies the NTIA minimum elements for an SBOM (supplier, co
 
 ### 18.3 Remote Package URI Syntax
 
-An `implementedBy:` value that matches the pattern `<registry>:<package>@<version>[#<path>]` is treated as a named external dependency rather than a local file path.
+An `implementedBy:` value that matches the pattern `<registry>:<package>@<version>[#<path>]` (registry one of the prefixes below; package and version both non-empty) is treated as a named external dependency rather than a local file path. The same classification applies in validation: such a value is an external reference, so it never raises `W023` (§12.8). Any other value — an unknown prefix, a missing `@<version>`, a `repo:`/`model:` path — is a local path.
 
 **Supported registries:**
 
