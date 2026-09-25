@@ -32,7 +32,7 @@ Current output: main example is **0 errors, 5 warnings** (all
 expected/documented below); `feature-check --deep` is **0 errors, 1
 warning** (also documented below), reports `void model: false`, and both
 `Configuration`s project as expected. The error-demo model is **2 errors
-(E719), 2 warnings**, exactly as intended — see "Deliberate error
+(E719), 4 warnings**, exactly as intended — see "Deliberate error
 demonstration" below.
 
 ## Scenario
@@ -263,6 +263,8 @@ $ ./target/debug/syscribe -m examples/planning-item/error-demo/model
 | Code | File | Message |
 |---|---|---|
 | W001 | examples/planning-item/error-demo/model/Requirements/REQ-ERR-DEMO-001.md | normative text contains no 'shall' |
+| W310 | examples/planning-item/error-demo/model/Planning/PI-ERR-NOEV-001.md | PlanningItem 'PI-ERR-NOEV-001' is 'done', but achieves 'REQ-ERR-DEMO-001' which has no active TestCase (see also W002/W305 on the requirement itself) |
+| W310 | examples/planning-item/error-demo/model/Planning/PI-ERR-WAIVED-001.md | PlanningItem 'PI-ERR-WAIVED-001' is 'done', but achieves 'REQ-ERR-DEMO-001' which has no active TestCase (see also W002/W305 on the requirement itself) |
 | W005 | examples/planning-item/error-demo/model/Requirements/REQ-ERR-DEMO-001.md | Requirement 'REQ-ERR-DEMO-001' has no derivedFrom and no derivedChildren — possible orphan |
 ```
 
@@ -278,7 +280,10 @@ Two distinct failure shapes, both producing the same `E719`:
 The `W001`/`W005` warnings are inherent to the placeholder
 `REQ-ERR-DEMO-001` (a minimal one-line requirement that exists only so the
 demo items have somewhere valid to `achieves:`, not a real requirement worth
-polishing) — expected, not a defect in this fixture.
+polishing) — expected, not a defect in this fixture. The two `W310`s
+(`REQ-TRS-PLANITEM-010`) follow from the same placeholder: both items claim
+`done` while the requirement they `achieves:` has no active `TestCase`, so
+the "done" claim is not backed by verification either.
 
 ## Expected / documented warnings (main example)
 
@@ -293,18 +298,14 @@ polishing) — expected, not a defect in this fixture.
 
 ## Surprises a real example surfaced that unit tests didn't
 
-- **`syscribe show`'s per-field table has no row for `parent:`, `achieves:`,
-  or `itemType:`.** Building `PI-RTH-BUGFIX-001` (which sets both) and
-  running `syscribe show Planning::PI-RTH-BUGFIX-001` showed `type`, `file`,
-  `id`, `status`, and `evidence` (the last only because it happens to share
-  a rendering path with `Argument.evidence`) — but not `parent`, `achieves`,
-  or `itemType`, even though every one of those fields validates correctly
-  and is fully documented. `crates/syscribe/src/query.rs`'s `cmd_show` has an
-  explicit `if let Some(ref x) = fm.<field>` arm per displayable field, and
-  none were ever added for `PlanningItem`'s three new fields — an oversight
-  from schema/validation work (tasks #14–#19) never touching the CLI display
-  layer. No Rust code changed to build this example (out of this task's
-  scope); flagging here for a future display-layer follow-up.
+- **`syscribe show`'s per-field table originally had no row for `parent:`,
+  `achieves:`, or `itemType:`.** When this example was first built,
+  `syscribe show Planning::PI-RTH-BUGFIX-001` showed `type`, `file`, `id`,
+  `status` and `evidence` but not the three new `PlanningItem` fields, even
+  though they validated correctly — `cmd_show` has an explicit arm per
+  displayable field and none had been added. *Since fixed:* `show` now prints
+  `itemType`, `parent` and `achieves` rows (and `assignedTo`/`claimedBy`
+  where set).
 - **The `connectivity` command's `--kinds` allowlist doesn't know about
   `planningParent`, or in fact most of the safety/security `EdgeKind`
   variants added over time.** `crates/syscribe/src/connectivity.rs` keeps its
