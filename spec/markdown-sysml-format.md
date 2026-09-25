@@ -2459,8 +2459,8 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `derivedFrom` | list of id-or-qualname | optional | IDs (`REQ-*`) or qualified names of parent Requirements. Absent = stakeholder-level requirement. |
 | `silLevel` | integer 1–4 | optional | IEC 61508 SIL level. Mutually exclusive with `asilLevel` — do not set both (W006). |
 | `asilLevel` | enum A\|B\|C\|D | optional | ISO 26262 ASIL level. Mutually exclusive with `silLevel` — do not set both (W006). |
-| `plLevel` | enum a\|b\|c\|d\|e | optional | ISO 13849-1 Performance Level. Mutually exclusive with `asilLevel`/`silLevel`. |
-| `derivedFromSafetyGoal` | string | optional | ID or qualified name of the `SafetyGoal` that motivated this requirement (§8.18.1). When set the SafetyGoal's integrity level must also appear on this element (E841). |
+| `plLevel` | enum a\|b\|c\|d\|e | optional | ISO 13849-1 Performance Level. Should not be combined with `asilLevel`/`silLevel` (not checked — `W006` covers only the ASIL/SIL pair). Not part of integrity-level propagation (§12.7). |
+| `derivedFromSafetyGoal` | string | optional | ID or qualified name of the `SafetyGoal` that motivated this requirement (§8.18.1). When set and the SafetyGoal carries `asilLevel:`/`silLevel:`, this element must also carry one of them (E841; §12.7). |
 | `derivedFromCybersecurityGoal` | string | optional | ID or qualified name of the `CybersecurityGoal` that motivated this requirement (§8.18.2). Implies `verificationMethod:` should be set (W807). `derivedFromSecurityGoal` is a legacy serde alias for this same field, honored for backward compatibility (REQ-TRS-SEC-006). |
 | `verificationMethod` | enum | optional | How this requirement will be verified: `test`, `inspection`, `analysis`, or `demonstration`. Required for ASIL B/C/D requirements (W701). |
 | `wcet` | string | optional | WCET claim (opaque). E.g. `"O(1)"`, `"≤ 200 cycles @ 72 MHz"`. |
@@ -4082,7 +4082,7 @@ Used in Hazard Analysis and Risk Assessment (HARA) per ISO 26262-3 or IEC 61508.
 | `HazardousEvent` | `HE-*` | A combination of a hazard and an operational situation; carries ISO 26262 risk parameters (`severity`, `exposure`, `controllability`) or IEC 61508 risk graph parameters (`consequence`, `freqExposure`, `avoidance`, `demandRate`). |
 | `SafetyGoal` | `SG-*` | A top-level safety requirement derived from the HARA; carries `asilLevel:` (ISO 26262), `silLevel:` (IEC 61508), or `plLevel:` (ISO 13849-1), and `hazardousEvents:` referencing the events it addresses. |
 
-**Integrity level rules (W801, W806, E841, W808):** A `SafetyGoal` must carry an integrity level (W801). It must reference at least one `HazardousEvent` via `hazardousEvents:` (W806). Any `Requirement` derived from a `SafetyGoal` via `derivedFromSafetyGoal:` must carry the same integrity level field (E841), and may carry a lower level only when `breakdownAdr:` is set (W808; see §12.7).
+**Integrity level rules (W801, W806, E841, W808):** A `SafetyGoal` must carry an integrity level (W801). It must reference at least one `HazardousEvent` via `hazardousEvents:` (W806). Any element derived from a `SafetyGoal` via `derivedFromSafetyGoal:` must carry an integrity level — `asilLevel:` or `silLevel:` — when the goal carries one (E841), and may carry a lower level only when `breakdownAdr:` is set (W808; see §12.7).
 
 #### 8.18.2 Tier 2 — TARA Elements
 
@@ -4105,7 +4105,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 
 **Binding SecurityControls to architecture:** allocate the control (source) to the architecture element that realises it (target) with a standalone `Allocation` element — `allocatedFrom: SC-*` + `allocatedTo: <element>` (§12.9 form 2); the element then lists the control in its derived `allocatedFrom` index. Both fields accept a single string or a list of strings, so one `Allocation` can bind several controls. An `allocatedFrom:` authored directly on the architecture element (the pre-GH #131 guidance) is still accepted as a legacy input form (§12.9), but is not recommended.
 
-**Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:` (`planned` · `in_progress` · `completed`; invalid → E924), and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`name`/`status` → E847; an `id` not matching `CM-*` → E848. An `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; only ASIL D → I3 and CAL4 → I3 are gated, lower levels are future tightening).
+**Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:` (`planned` · `in_progress` · `completed`; invalid → E924), and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`name`/`status` → E847; an `id` not matching `CM-*` → E848. A `SafetyGoal`/native `Requirement` at `asilLevel: D`, `silLevel: 3` or `silLevel: 4` not confirmed by an I3 `functional_safety_assessment`, a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, or a `calLevel: CAL3` `CybersecurityGoal` not confirmed by an I2-or-I3 `cybersecurity_assessment` (REQ-TRS-SEC-007), warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; lower levels are not gated).
 
 #### 8.18.3 Tier 4 — Fault Tree Analysis (FTA)
 
@@ -5760,7 +5760,7 @@ The next four codes are **completeness / coverage warnings** (`Severity::Warning
 
 #### Integrity-level propagation errors (E841–E843)
 
-Once any element in the traceability chain carries `asilLevel:`, `silLevel:`, or `plLevel:`, all downstream elements reachable via `derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:` must also carry the same field. See §12.7.
+When an upstream element carries `asilLevel:` or `silLevel:`, every element referencing it via `derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:` must carry `asilLevel:` or `silLevel:` too (either field satisfies the check; `plLevel:` is ignored). See §12.7.
 
 | Code | Condition |
 |---|---|
@@ -5840,7 +5840,7 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 | `E851` | Error | a `confirms:` ref does not resolve to any model element |
 | `E924` | Error | `ConfirmationMeasure.status` is not `planned`/`in_progress`/`completed` |
 | `W038` | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. Opt-in; gateable with `--deny W038`; promotable |
-| `W039` | Warning | An `asilLevel: D` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
+| `W039` | Warning | An `asilLevel: D` / `silLevel: 3` / `silLevel: 4` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, or a `calLevel: CAL3` `CybersecurityGoal` lacks an I2-or-I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
 
 #### GSN safety-argument layer (E852–E858, W040)
 
@@ -6342,11 +6342,11 @@ metadata:
 
 ### 12.7 Safety/Security Integrity Level Propagation
 
-**Rule R-007:** Once any element in the traceability chain carries a safety or security integrity level (`asilLevel:`, `silLevel:`, or `plLevel:`), **all downstream elements** reached via `derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:` links must also carry the same field. An element that omits the field when its upstream source has one is an error (E841, E842, or E843 depending on the link kind).
+**Rule R-007:** Once an element in the traceability chain carries an ASIL or SIL integrity level (`asilLevel:` or `silLevel:`), **every downstream element** that references it via `derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:` must also carry an integrity level — **either** `asilLevel:` **or** `silLevel:` (the check does not require the *same* field as the source). An element that carries neither when its upstream source carries one is an error (E841, E842, or E843 depending on the link kind). `plLevel:` (ISO 13849-1) does not take part in propagation: it neither triggers the rule on a source nor satisfies it on a downstream element.
 
 **Level constraint:** The downstream element's level may be the same as or lower than the upstream element's. A lower level indicates an ASIL/SIL decomposition (ISO 26262-9, IEC 61508-2 §7.4.9): the model asserts that the downstream component achieves the weaker target through architectural independence or redundancy arguments.
 
-**ADR requirement for decomposition:** When a downstream element carries a lower level than its source, `breakdownAdr:` must reference an `accepted` ADR documenting the decomposition rationale (W808 if absent).
+**ADR requirement for decomposition:** When a downstream element carries a lower level than its source, it must set `breakdownAdr:` to the ADR documenting the decomposition rationale (W808 if `breakdownAdr:` is absent). The level is compared only when both elements use the same scale (both `asilLevel:` or both `silLevel:`); a mixed ASIL/SIL pair is never reported as lower.
 
 | Link | Enforced by | Missing field | Lower level without ADR |
 |---|---|---|---|
@@ -6358,8 +6358,8 @@ metadata:
 
 - `asilLevel:` ranks A < B < C < D.
 - `silLevel:` ranks 1 < 2 < 3 < 4.
-- `plLevel:` (ISO 13849-1) has values `a`–`e` but is not numerically compared with ASIL or SIL.
-- Mixing `asilLevel:` on one element with `silLevel:` on another is architecturally unusual and not validated cross-element; W006 flags the case where both appear on the *same* element.
+- `plLevel:` (ISO 13849-1) has values `a`–`e`; it is not compared and is ignored by R-007.
+- Mixing `asilLevel:` on one element with `silLevel:` on another satisfies the presence check but is never compared for level; W006 flags the case where both `asilLevel:` and `silLevel:` appear on the *same* element.
 
 **Example — ASIL D requirement decomposed to ASIL B:**
 
