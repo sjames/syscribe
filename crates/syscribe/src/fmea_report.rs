@@ -123,7 +123,11 @@ pub fn cmd_fault_tree_render(elements: &[RawElement], ft_id: &str) {
             }
             Some(ElementType::FaultTreeEvent) => {
                 let kind = e.frontmatter.event_kind.as_deref().unwrap_or("basic");
-                println!("    {}(\"[{}] {} {}\")", node_id, kind, eid, label);
+                // REQ-TRS-FTA-002: name the modelled element (ref:) on a second line.
+                let modelled = e.frontmatter.event_ref.as_deref()
+                    .map(|r| format!("<br/>ref: {}", r))
+                    .unwrap_or_default();
+                println!("    {}(\"[{}] {} {}{}\")", node_id, kind, eid, label, modelled);
             }
             _ => {}
         }

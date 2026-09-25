@@ -42,6 +42,7 @@ pub enum EdgeKind {
     // Safety analysis (ISO 26262 / IEC 61508)
     TopEvent,              // FaultTree → SafetyGoal
     FaultTreeInput,        // FaultTreeGate → input gate/event
+    FaultTreeEventRef,     // FaultTreeEvent → modelled element (ref:, REQ-TRS-FTA-002)
     HazardousEventRef,     // SafetyGoal → HazardousEvent
     DerivedFromSafetyGoal, // Requirement → SafetyGoal
     // Security analysis (ISO/SAE 21434)
@@ -83,6 +84,7 @@ impl EdgeKind {
         EdgeKind::FeatureTyped,
         EdgeKind::TopEvent,
         EdgeKind::FaultTreeInput,
+        EdgeKind::FaultTreeEventRef,
         EdgeKind::HazardousEventRef,
         EdgeKind::DerivedFromSafetyGoal,
         EdgeKind::DamageScenarioRef,
@@ -119,6 +121,7 @@ impl EdgeKind {
             EdgeKind::FeatureTyped => "featureTyped",
             EdgeKind::TopEvent => "topEvent",
             EdgeKind::FaultTreeInput => "faultTreeInput",
+            EdgeKind::FaultTreeEventRef => "faultTreeEventRef",
             EdgeKind::HazardousEventRef => "hazardousEventRef",
             EdgeKind::DerivedFromSafetyGoal => "derivedFromSafetyGoal",
             EdgeKind::DamageScenarioRef => "damageScenarioRef",
@@ -429,6 +432,15 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
             for i in ins {
                 if let Some(dst) = resolve_to_idx(i) {
                     graph.add_edge(src, dst, kind);
+                }
+            }
+        }
+
+        // ref: FaultTreeEvent → the element whose failure it models (REQ-TRS-FTA-002)
+        if matches!(fm.element_type, Some(ElementType::FaultTreeEvent)) {
+            if let Some(ref r) = fm.event_ref {
+                if let Some(dst) = resolve_to_idx(r) {
+                    graph.add_edge(src, dst, EdgeKind::FaultTreeEventRef);
                 }
             }
         }

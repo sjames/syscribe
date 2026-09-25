@@ -7,14 +7,14 @@ The web server is a single Rust binary (`syscribe-server`) that parses a model d
 ## Starting the server
 
 ```bash
-cargo run --package syscribe-server -- model/
+cargo run --package syscribe-server -- -m model/
 # INFO  Loaded 111 elements
 #
 #   Model browser: http://0.0.0.0:3000/
 #   Canvas:        http://0.0.0.0:3000/canvas
 ```
 
-Pass any path as the first argument. The server watches the directory for changes and pushes diffs to connected clients over WebSocket.
+Pass the model root with `-m <path>`. The server watches the directory for changes and pushes diffs to connected clients over WebSocket.
 
 ## Stack
 

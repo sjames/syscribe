@@ -10,6 +10,9 @@ on:
       - "model_sil/**"
       - "model_auto/**"
       - "model_mg/**"
+      - "prompts/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - ".github/workflows/qual.yml"
   pull_request:
     paths:
@@ -19,6 +22,9 @@ on:
       - "model_sil/**"
       - "model_auto/**"
       - "model_mg/**"
+      - "prompts/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
   workflow_dispatch:
 
 jobs:
