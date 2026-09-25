@@ -22,6 +22,8 @@ struct Ctx<'a> {
     elements: &'a [RawElement],
     /// Canonicalized `_index.md` path of each package element → its qualified name.
     package_index: HashMap<PathBuf, &'a str>,
+    /// Model resolver, for the `W101` shape-ref rule shared with `validate`'s `W402`.
+    resolver: syscribe_model::resolver::Resolver,
 }
 
 impl<'a> Ctx<'a> {
@@ -32,7 +34,8 @@ impl<'a> Ctx<'a> {
             .filter(|e| Path::new(&e.file_path).file_name().is_some_and(|n| n == "_index.md"))
             .filter_map(|e| Some((std::fs::canonicalize(&e.file_path).ok()?, e.qualified_name.as_str())))
             .collect();
-        Ctx { elements, package_index }
+        let resolver = syscribe_model::resolver::Resolver::new(elements);
+        Ctx { elements, package_index, resolver }
     }
 }
 
@@ -228,7 +231,10 @@ fn scan_svg(path: &Path, ctx: &Ctx, findings: &mut Vec<Finding>) {
     for (line_no, line) in content.lines().enumerate() {
         for cap in re.captures_iter(line) {
             let r = &cap[1];
-            if !resolves(r, elements) {
+            // GH #172 — the same ancestor/feature rule `validate` applies to a
+            // diagram's shapes `ref` (W402): a ref naming a port, sub-state or
+            // action step of a resolvable element is valid.
+            if !ctx.resolver.resolves_shape_ref(elements, r) {
                 findings.push(Finding { file: path.display().to_string(), line: line_no + 1, code: "W101", detail: r.to_string() });
             }
         }
@@ -461,5 +467,25 @@ mod tests {
         let (start, lines) = body_lines(text);
         assert_eq!(start, 4);
         assert_eq!(lines, vec!["", "Purpose only."]);
+    }
+
+    /// GH #172 — `W101` accepts a `sysml:ref` naming a feature (port, sub-state,
+    /// action step) of a resolvable element, exactly as `validate`'s `W402` does,
+    /// and still flags a ref with no resolvable prefix.
+    #[test]
+    fn w101_uses_the_shape_ref_ancestor_rule() {
+        let m = model();
+        let dir = std::env::temp_dir().join(format!("lint-docs-w101-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let svg = dir.join("d.svg");
+        std::fs::write(
+            &svg,
+            "<svg>\n<g sysml:ref=\"Enum::Sub::port\"/>\n<g sysml:ref=\"REQ-LE-001\"/>\n<g sysml:ref=\"Ghost::X::y\"/>\n</svg>\n",
+        )
+        .unwrap();
+        let found = lint_docs_findings(&m, &[svg.to_str().unwrap()], None);
+        std::fs::remove_dir_all(&dir).ok();
+        let refs: Vec<&str> = found.iter().filter_map(|f| f["ref"].as_str()).collect();
+        assert_eq!(refs, ["Ghost::X::y"], "only the dangling ref is W101: {found:?}");
     }
 }
