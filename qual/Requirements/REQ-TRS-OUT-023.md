@@ -46,7 +46,11 @@ usage error (exit `1`).
 package's inputs (its requirements' identities and bodies). On a subsequent run an
 unchanged package **shall** be served from cache (incremental — only changed subtrees
 recompute); a changed package **shall** recompute and update its entry. `--no-cache`
-**shall** bypass and rewrite. The cache directory is git-ignored (`.syscribe/cache/`).
+(and the MCP tool's `no_cache: true`) **shall** recompute everything and **neither read
+nor write** the cache: an existing `summaries.json` is left byte-for-byte untouched, and
+none is created (nor the `.syscribe/cache/` directory) when absent (GH #169 — it
+formerly rewrote the file, leaving an untracked file under the model root). The cache
+directory is git-ignored (`.syscribe/cache/`).
 The **output shall be identical** whether served from cache or recomputed (the cache is
 a pure performance optimisation, never a semantic difference).
 
@@ -69,6 +73,9 @@ digest). Read-only; deterministic; no external model; aggregates existing data.
 - Running `summarize` twice on an unchanged model yields **identical** output, and the
   second run reads `.syscribe/cache/summaries.json` (cache hit); `--no-cache` still
   yields the same output.
+- On a model with no cache, `summarize --no-cache` creates no `.syscribe/` directory;
+  with a (tampered) existing cache, `--no-cache` ignores its entries (prints the
+  recomputed values) and leaves the file byte-identical.
 - Editing one requirement's body changes only that package's summary (and its ancestors'
   rolled-up view); unrelated packages are unchanged and served from cache.
 - `summarize --scope <pkg>` restricts to that subtree; `--depth 1` bounds the nesting; an

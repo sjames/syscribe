@@ -33,6 +33,17 @@ Feature: hierarchical summarize digest
     Then both runs print identical output
     And after the first run .syscribe/cache/summaries.json exists
 
+  Scenario: --no-cache neither reads nor writes the cache
+    Given a model with no .syscribe directory
+    When summarize --no-cache is invoked
+    Then no .syscribe directory is created
+    Given a cache whose Comms entry has been tampered to count 999
+    When summarize --json is invoked without --no-cache
+    Then the tampered count is served from cache
+    When summarize --json --no-cache is invoked
+    Then Comms reports its recomputed count 4
+    And the cache file is byte-identical to before the run
+
   Scenario: --scope and --config restrict the digest
     Given a variant model with a requirement gated out of a configuration
     When summarize --json --config <that config> is invoked
