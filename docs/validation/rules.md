@@ -4,11 +4,14 @@
 
 Warnings are advisory by default (exit `0`). Promote them to CI gate failures (exit `2`) with `validate --deny <CODES>` / `--max-warnings <N>` / `--warnings-as-errors`, or with a named, SIL/ASIL-scopable `validate --profile <name>` policy declared in `.syscribe.toml` — see [CI severity gating](../cli/index.md#ci-severity-gating). Errors always exit `1`.
 
-## Parse-time errors (E001–E026)
+This page groups every finding code by feature area, with context. The same codes, one row each, are the machine-readable catalogue printed by `syscribe spec validation` (source: `prompts/spec/validation.md`, also returned by the MCP `explain_finding` tool). A test (`crates/syscribe/tests/validation_docs_catalogue.rs`) fails the build if a code the tool can emit is missing here or in that catalogue, or if a row's stated severity contradicts its prefix (`E` = error, `W` = warning, `I` = informational).
+
+## Parse-time errors (E000–E026)
 
 | Code | Element | Condition |
 |---|---|---|
-| E000 | — | Internal fallback code for a walker-pass finding (derive, SysML v2 ingestion, plugins, annotations, `featureTree:`) whose original code is not one the validator recognises — for the derive pass `E504`/`E505`/`E506`. Should not appear in a healthy model |
+| E000 | — | Internal fallback code: a finding raised by a walker post-processing pass (derive, SysML v2 ingestion, `featureTree:` explosion, stdio plugins, annotated source) whose code the validator's mapping does not recognise. Every code those passes currently emit (`E504`–`E506`, `W540`–`W542`, `E231`–`E233`, `W048`, `E550`/`E551`, `W550`–`W553`, `E560`/`E561`, `W560`–`W563`) is mapped, so `E000` indicates an internal defect and should not appear in a healthy model |
+| E001 | Any | File does not begin with `---` (missing frontmatter delimiter) |
 | E002 | Any | Frontmatter is not valid YAML 1.2 (parse error) |
 | E003 | — | **RETIRED.** Never emitted — there is no strict mode. An unrecognised top-level frontmatter key is the warning `W047`. |
 | E004 | TestCase | `id`, `name`, `status`, or `testLevel` absent |
@@ -35,17 +38,18 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E025 | Any element | The removed `title:` field is declared on an element (id-identified or name-identified alike) — the `title` field is removed; rename it to `name`. (A `FeatureDef` carries `name` as its label and a mandatory `FEAT-*` `id` — see `E201` — the `id` and label axes are independent.) |
 | E026 | Locale variant | A §3.10 locale documentation variant (a file with `locale:` and `qualifiedName:`) names a `qualifiedName:` that resolves to no element — its documentation cannot be attached, so the file is kept as its own element (§3.10) |
 
-## Parse-time warnings (W001–W008)
+## Parse-time and source-drift warnings (W001–W010, I010)
 
 | Code | Condition |
 |---|---|
 | W001 | Requirement normative text contains no `shall` |
-| W004 | `sourceFile:` path does not exist on disk |
+| W004 | A local `sourceFile:` path does not exist on disk. For a `TestCase`, emitted only when `status: active` (a planned TestCase reports `I010`; a `retired` one is silent); remote URIs are not checked unless `validate --fetch-remote` runs a configured download hook |
 | W006 | Both `silLevel` (IEC 61508) and `asilLevel` (ISO 26262) are set on the same element — incompatible standards; use only one |
 | W007 | Type definition (e.g. `PartDef`) is never referenced as a supertype or type |
 | W008 | Element has no `type:` field — will be ignored by most commands |
 | W009 | A TestCase `testFunctions[].function` is not found in its `sourceFile` (live source-drift; a planned/draft TestCase reports the informational `I010` instead) |
 | W010 | An `active` TestCase's `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
+| I010 | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`. Never affects the exit status unless selected with `--deny I010` |
 
 ## Cross-reference errors (E101–E106, E110–E114)
 
@@ -54,7 +58,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E101 | Duplicate `id` across two elements |
 | E102 | `verifies:` entry does not resolve |
 | E103 | `derivedFrom:` entry does not resolve |
-| E104 | `verifies:` target is not a native Requirement — also widened (`Resolver::is_verify_target`) to accept a requirement/architecture-shaped element (`Part`/`PartDef`/`Attribute`/… — `REQ-TRS-SYSMLV2-007`'s fixed kind list) that was actually synthesized by native SysMLv2 ingestion or a stdio plugin, never a hand-authored element of the same kind |
+| E104 | `verifies:` resolves to an element that is not a native Requirement. Widened (`Resolver::is_verify_target`) to also accept an element of a fixed requirement/architecture-shaped kind — `PartDef`/`Part`, `AttributeDef`/`Attribute`, `PortDef`/`Port`, `ConnectionDef`/`Connection`, `InterfaceDef`/`Interface`, `ItemDef`/`Item`, `Allocation`, `RequirementDef`/`Requirement` — **only** when it was actually synthesized by native SysML v2 submodel ingestion, a stdio foreign-format plugin, or annotated-source ingestion, never a hand-authored element of the same kind. A user link type that `extends = "verifies"` may list `E104` in `relax` to waive it for its own entries |
 | E105 | `derivedFrom:` target is not a native Requirement |
 | E106 | `testFunctions[].scenario` name not found in Gherkin blocks |
 | E110 | `supertype:` entry does not resolve |
@@ -80,7 +84,7 @@ other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now th
 
 | Code | Condition |
 |---|---|
-| W002 | Requirement at `approved` or `implemented` has no active TestCase |
+| W002 | **Leaf** Requirement (no `derivedChildren`) at `approved` or `implemented` has no active TestCase in `verifiedBy`. A parent is verified by decomposition and is exempt (its integration-level check is `W305`) |
 | W003 | Requirement at `verified` has no active TestCase covering it |
 | W005 | Requirement has no upstream link (`derivedFrom`, `derivedFromSafetyGoal` or `derivedFromCybersecurityGoal`) and no `derivedChildren` — possible orphan |
 
@@ -258,7 +262,7 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | E403 | `pumlMode:` declares an unrecognised value (only `companion` is supported) |
 | E404 | `pumlMode: companion` is set but the element has no `diagramKind:` to derive the PlantUML companion from |
 
-## Diagram warnings (W400–W412)
+## Diagram warnings (W400–W415, W080)
 
 | Code | Condition |
 |---|---|
@@ -266,8 +270,8 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W401 | `subject:` does not resolve to a known element |
 | W402 | Shape `ref:` does not resolve (and is not a sub-feature of a known element) |
 | W403 | Edge `source` or `target` is not a defined shape id in this diagram |
-| W404 | Operation `typedBy` (parameter) or `returnType` does not resolve to a known element |
-| W405 | SVG companion file is referenced by both inline and companion modes simultaneously |
+| W404 | An operation parameter's `typedBy` or an operation's `returnType` does not resolve to a known element. Built-in and curated library types (`ScalarValues::*`, `Base::*`, `ISQ::*`, `SI::*`) are recognised and never flagged |
+| W405 | The body is inconsistent with `svgMode`: `svgMode: companion` but the body has no `<img` tag pointing at the SVG, or `svgMode: inline` but the body has no fenced ` ```svg ` block |
 | W406 | Frontmatter `shapes`/`edges` id has no matching `id="..."` attribute in the inline SVG block — checked only when the diagram's SVG is inline (not for `pumlMode: companion`, `svgMode: companion`/`svgFile:`, Mermaid/PlantUML kinds, or a `layout:` diagram with no ` ```svg ` block) |
 | W407 | Inline SVG element `id` has no matching entry in frontmatter `shapes`/`edges` (SVG-internal ids used via `url(#...)` are excluded; same inline-SVG scope as W406) |
 | W408 | Mermaid `%% ref:` annotation does not resolve to a known element |
@@ -275,7 +279,7 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W410 | Mermaid `%% link:` annotation does not resolve to a known element |
 | W411 | Shape `link:` value does not resolve to a known element |
 | W412 | SVG `href="..."` attribute does not resolve to any model element file |
-| W413 | `pumlMode: companion` element's body contains no image reference to its rendered PlantUML companion (REQ-TRS-PUML-030) |
+| W413 | `pumlMode: companion` element's body contains no image reference at all (no `![…](…)` and no `<img`) — so its rendered PlantUML companion is never shown (REQ-TRS-PUML-030) |
 | W414 | `pumlMode: companion` element's `.puml` companion file has not been generated yet — run `plantuml` (REQ-TRS-PUML-031) |
 | W415 | The `[plantuml] style_file` path configured in `.syscribe.toml` does not exist on disk (REQ-TRS-PUML-042) |
 | W080 | `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` in its sub-action tree not referenced by any `edges:` entry (draft-suppressed; `--deny W080`) |
@@ -453,6 +457,8 @@ A model composes peer repositories declared in the `[repos]` table of the model-
 
 ## Foreign-format ingestion via stdio-subprocess plugins (E550–E551, W550–W553, E108, ADR-SYS-PLUGIN-002)
 
+> **Reserved, never emitted:** `E530`–`E532` and `W530`–`W534` are reserved for the parked sandboxed-WASM plugin design (`ADR-SYS-PLUGIN-001`, never merged). No shipped code emits them; they stay unassigned so a future finding cannot be misattributed to that mechanism. Stdio plugins use their own range below.
+
 A package `_index.md` may declare `foreignFormat: <alias>`, handing its subtree to an external
 process named by the `[plugins.<alias>]` table of the model-root `.syscribe.toml`. Syscribe spawns
 it, sends one JSON request on stdin, and reads one JSON `{elements, diagnostics}` envelope from
@@ -461,10 +467,10 @@ package declares `foreignFormat:`** — a model with none is unaffected.
 
 | Code | Condition |
 |---|---|
-| E108 | Two elements — any origin (hand-authored, FMEA/TARA row explosion, SysMLv2 ingestion, or plugin-synthesized) — share a qualified name. |
+| E108 | Two elements — any origin (hand-authored, FMEA/TARA row explosion, SysML v2 ingestion, stdio plugin, or annotated source) — share a qualified name; the message names both files. |
 | E550 | `[plugins.<alias>].command` cannot be resolved — not found on `PATH`, or (given as a path) does not exist / is not executable. |
 | E551 | A package declares `foreignFormat: <alias>` with no matching `[plugins.<alias>]` entry in `.syscribe.toml`. |
-| W550 | Plugin process execution failed — spawn error, non-zero exit, or killed after exceeding `timeout_ms`. That package contributes zero elements this run. |
+| W550 | Plugin process execution failed — spawn error, non-zero exit, I/O error, or killed after exceeding `timeout_ms`. That package contributes zero elements this run. |
 | W551 | The plugin's stdout was not a well-formed envelope JSON object, or the plugin self-reported its own parse diagnostics (folded into this one finding). |
 | W552 | One element's frontmatter did not deserialize cleanly — that element dropped, siblings kept. |
 | W553 | One element's `type:` is not a recognised element type — that element dropped. |
@@ -486,6 +492,62 @@ A stdio plugin is a plain OS subprocess with **no sandbox**: configuring `[plugi
 means trusting that command, the same trust level already accepted for `[plantuml] jar`/`plantuml`
 on `PATH` and the `[remote]` `sh -c` hook. See `docs/model-guide/stdio-plugins.md` and
 `ADR-SYS-PLUGIN-002` for the full wire protocol and trust-model rationale.
+
+## Annotated-source ingestion (E560, E561, W560–W563, ADR-SYS-ANNOTATE-001)
+
+A package `_index.md` may declare `annotationFormat: <label>` with inline `marker:` (a regex),
+`include:` and `exclude:` (globs); Syscribe scans the matched source files for comment blocks
+starting with the marker and parses each block with the ordinary frontmatter schema. **Active
+only when a package declares `annotationFormat:`**. See the
+[annotated-source guide](../model-guide/annotated-source.md).
+
+| Code | Condition |
+|---|---|
+| E560 | A package declares `annotationFormat:` without a non-empty `marker:` regex and a non-empty `include:` glob list, or the `marker:` regex does not compile; no scanning happens |
+| E561 | A marker comment block is not valid YAML |
+| W560 | A marker block is valid YAML but not a legal element (it does not deserialize into the frontmatter schema); the block is skipped |
+| W561 | A marker block has no content, no `type:` (or an unrecognised one), or no identity (`id:` or `name:`); the block is skipped |
+| W562 | `annotationFormat:` is set alongside `foreignFormat:`/`sysmlSubmodel:` on the same package; annotation scanning is skipped for that package |
+| W563 | An annotated element's `implementedBy:` was auto-filled from the marker's own source location (advisory; set `implementedBy:` explicitly to silence) |
+
+Annotation-synthesized elements take part in `E108` and in the `E104` widening above, exactly
+like plugin-synthesized ones.
+
+## Native SysML v2 submodel ingestion (W540–W542, ADR-SYS-SYSMLV2-001)
+
+A package marked `sysmlSubmodel: true` is populated from the `.sysml`/`.kerml` files in its
+subtree. See the [SysML v2 submodel guide](../model-guide/sysmlv2-submodel.md).
+
+| Code | Condition |
+|---|---|
+| W540 | A nested `_index.md` (or other stray `.md`) inside a `sysmlSubmodel:` subtree is ignored — nested files carry no namespace meaning there |
+| W541 | A `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree could not be read, or failed to parse as SysML v2/KerML; its content is skipped |
+| W542 | A `connect` endpoint's two-segment feature chain was truncated to a head-only edge because the tail is not a locally redeclared feature (REQ-TRS-SYSMLV2-015); or an ingested `allocation` usage's `allocate` endpoint chain was truncated to its deepest resolved prefix because a segment is neither declared on nor inherited (via `typedBy:`/`supertype:`) by the element reached so far (REQ-TRS-SYSMLV2-029) |
+
+## Suspect links (W090, ADR-SYS-SUSLINK-001)
+
+A trace-link source may store `traceBaselines:` — target id → content hash of the target's
+normative projection (body + normative frontmatter, editorial fields excluded). **Opt-in:**
+un-baselined links stay silent in `validate` and are listed only by `suspect list`. See
+[Suspect links](../design/suspect-links.md).
+
+| Code | Condition |
+|---|---|
+| W090 | Suspect link: a trace-link target's normative content changed since the source's `traceBaselines:` entry for it was captured. Review, then re-baseline with `suspect accept <src> <tgt>`. Gate with `--deny W090` |
+
+## Release baselines (E520–E522, W520, ADR-SYS-BASELINE-001)
+
+A `Baseline` (`BL-*`) seals a frozen scope of the model with an aggregate content hash and a
+JSON manifest (`syscribe baseline create`). Whenever a `Baseline` exists, `validate` recomputes
+the aggregate and grades drift by the baseline's `status:` — `released` is an error, `approved`
+a warning, `draft` silent, `superseded` not checked.
+
+| Code | Condition |
+|---|---|
+| E520 | A `status: released` `Baseline`'s frozen scope has drifted — the recomputed aggregate content hash no longer matches its `seal` |
+| W520 | A `status: approved` `Baseline`'s frozen scope has drifted (the `approved` grade of `E520`) |
+| E521 | A `Baseline`'s `seal.aggregateHash` disagrees with its JSON manifest — the seal was tampered with or the manifest is stale |
+| E522 | A `Baseline`'s `supersedes:` names a baseline that resolves to no element |
 
 ## Hierarchical product-line composition (E516–E518, REQ-TRS-HPLE-001, ADR-SYS-HPLE-001)
 
@@ -794,9 +856,10 @@ work product (the DIA/CIA split, e.g. `OEM` / `Supplier-X`).
 audit, FS assessment, or cybersecurity assessment, with `measureType:`, `independenceLevel:`
 (`I1`/`I2`/`I3`), `status:` (`planned`/`in_progress`/`completed`), and `confirms:` (work-product ref(s) resolved via the `Resolver`).
 
-The ASIL/CAL → independence mapping is intentionally minimal: only `asilLevel: D → I3
-functional_safety_assessment` and `calLevel: CAL4 → I3 cybersecurity_assessment` are gated.
-Lower integrity levels are documented as future tightening and are not gated.
+The integrity → independence mapping is intentionally minimal: `asilLevel: D` or `silLevel: 3`/`4`
+→ an I3 `functional_safety_assessment`; `calLevel: CAL4` → an I3 `cybersecurity_assessment`;
+`calLevel: CAL3` → an I2-or-I3 `cybersecurity_assessment` (REQ-TRS-SEC-007). Lower integrity
+levels are not gated.
 
 | Code | Severity | Condition |
 |---|---|---|
@@ -808,11 +871,11 @@ Lower integrity levels are documented as future tightening and are not gated.
 | E924 | Error | `ConfirmationMeasure.status` is not one of `planned · in_progress · completed` (GH #136 — previously documented but unchecked) |
 | E860 | Error | a `ConfirmationMeasure.confirms` ref resolves to an element that is not a `SafetyGoal`, `CybersecurityGoal`, `HazardousEvent`, or native `Requirement` (REQ-TRS-SEC-005) |
 | W038 | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. **Opt-in:** dormant unless some element declares `responsibility:`. Gate with `--deny W038`; promotable via `[profiles]` |
-| W039 | Warning | A high-integrity item lacks its required independent assessment: an `asilLevel: D` **or `silLevel: 3`/`silLevel: 4`** `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment` (ISO 26262-2 §6 / IEC 61508-1 §8); or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039`; promotable via `[profiles]` |
+| W039 | Warning | A high-integrity item lacks its required independent assessment: an `asilLevel: D` **or `silLevel: 3`/`silLevel: 4`** `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment` (ISO 26262-2 §6 / IEC 61508-1 §8); a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`; or a `calLevel: CAL3` `CybersecurityGoal` not confirmed by an I2-or-I3 `cybersecurity_assessment` (REQ-TRS-SEC-007). **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039`; promotable via `[profiles]` |
 
 See `docs/model-guide/safety-analysis.md`.
 
-## GSN safety-argument layer (E852–E859, W040)
+## GSN safety-argument layer (E852–E859, E718, W040)
 
 The Goal Structuring Notation (GSN) argument layer (issue #20). `Argument` (`ARG-*`)
 nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
@@ -820,7 +883,7 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 (`AOU-*`) records a safety-related application condition (SRAC). Render the tree with
 `syscribe safety-case`.
 
-### Argument (E852–E855, W040)
+### Argument (E852–E855, E718, W040)
 
 | Code | Severity | Condition |
 |---|---|---|
@@ -828,6 +891,7 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 | E853 | Error | `Argument.id` does not match the `ARG-*` pattern |
 | E854 | Error | `Argument.argumentType` is not one of `claim · strategy · solution` (absent → treated as `claim`) |
 | E855 | Error | an `Argument.supports` or `Argument.evidence` ref does not resolve to any model element |
+| E718 | Error | an `Argument.evidence` entry is not a scalar reference (a string id/qname is expected — e.g. a `PlanningItem`-style `{ref:, path:}` mapping was used on an `Argument`) |
 | W040 | Warning | a `claim`/`strategy` `Argument` has **both** an empty `supports` and an empty `evidence` (an orphan GSN node arguing nothing) |
 
 ### AssumptionOfUse (E856–E859)
@@ -1011,8 +1075,8 @@ The MagicGrid method is supported as a **`custom_fields:` overlay** — see the
 [MagicGrid guide](../model-guide/magicgrid.md). The `MG###` namespace is **opt-in**:
 these checks fire only under the MagicGrid profile (`[profiles.<name>] magicgrid = true`,
 e.g. `validate --profile magicgrid`). They validate `mg_`-prefixed `custom_fields:`
-and the base `actors:` field, all of which stay inert in the base format. All
-`MG###` findings are **Error** severity. `E316` (above) is a base-format check that
+and the base `actors:` field, all of which stay inert in the base format. The
+`MG010`–`MG070` findings are **Error** severity; the coverage checks `MG080`–`MG083` are warnings. `E316` (above) is a base-format check that
 always runs; `W307` (above) is advisory until promoted.
 
 | Code | Condition |
