@@ -4,6 +4,7 @@
     syscribe -m <root> suspect list
     syscribe -m <root> suspect accept <source> <target>
     syscribe -m <root> suspect accept --all
+    syscribe -m <root> suspect accept --all-unbaselined
 
 ## DESCRIPTION
 A **suspect link** is a trace link whose target changed after the link was last
@@ -52,8 +53,9 @@ W090 is a Warning: draft-visible, non-fatal by default, and gateable in CI with
 
 ## EXAMPLES
     syscribe -m model/ suspect list
-    syscribe -m model/ suspect accept TC-SCHED-BITMAP-001 REQ-SCHED-BITMAP-001
+    syscribe -m model/ suspect accept TC-UAV-CARGO-001 REQ-UAV-CARGO-001
     syscribe -m model/ suspect accept --all
+    syscribe -m model/ suspect accept --all-unbaselined   # one-time onboarding
     syscribe -m model/ validate --deny W090
 
 ## SEE ALSO

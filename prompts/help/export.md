@@ -11,6 +11,7 @@ line). For an element-rooted subgraph with connections, use `connectivity`.
 ## OPTIONS
     --ndjson      One JSON object per line instead of a single document.
     --config <C>  Project onto a configuration (export only active elements).
+    --json        Accepted and ignored — JSON is already the default.
 
 ## EXAMPLES
     syscribe -m model/ export > model.json

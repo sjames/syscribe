@@ -8,7 +8,7 @@ Lists `Conduit` elements (§13) with their `fromZone`/`toZone`, `achievedSL`, th
 (the higher `targetSL` of the two connected zones), and whether the conduit boundary meets it.
 
 ## OPTIONS
-    --json   Emit JSON ({ id, name, fromZone, toZone, achievedSL, requiredSL, pass }).
+    --json   Emit {conduits:[{id, name, fromZone, toZone, achievedSL, requiredSL, pass}]}.
 
 ## SEE ALSO
     zones, cyber-risk
