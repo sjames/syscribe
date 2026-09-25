@@ -362,7 +362,7 @@ The `lint-docs` command scans external `.md` and `.svg` docs for references to m
 |---|---|
 | W099 | An unresolvable stable-ID token (`REQ-*`/`TC-*`/…) in prose. |
 | W100 | A qualified name (`A::B::C`) inside a ` ```mermaid ` block that does not resolve (prose qnames are not checked). |
-| W101 | An SVG `sysml:ref="…"` that does not resolve (SVGs with no `sysml:ref` are opaque). |
+| W101 | An SVG `sysml:ref="…"` that does not resolve — neither itself nor any `::`-ancestor, the same feature rule as W402 (so a port/sub-state/action-step ref of a resolvable element is valid; SVGs with no `sysml:ref` are opaque). |
 | W102 | A local image/diagram embed path (`![](…)`, `<img src>`) that does not exist (remote URIs accepted). |
 | W103 | Advisory: a package `_index.md` body enumerates three or more of the package's own direct members by stable id. Membership is generated (`show <package>`); describe purpose instead. Does not affect the exit status unless `--deny W103`. |
 

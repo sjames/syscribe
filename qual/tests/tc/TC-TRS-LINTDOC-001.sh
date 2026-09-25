@@ -19,6 +19,11 @@ tc_TRS_LINTDOC_001() {
     grep -q "W101" <<<"$SCENARIO_OUTPUT" && grep -q "Gone::Element" <<<"$SCENARIO_OUTPUT" && pass "W101 on Gone::Element" || fail "no W101"
     grep -q "Engine" <<<"$SCENARIO_OUTPUT" && fail "Engine (resolving ref) wrongly flagged" || pass "resolving sysml:ref clean"
 
+    run_ld "W101 uses validate's shape-ref ancestor rule (GH #172)" "$B/docs/feature-refs.svg"
+    grep -q "Engine::crankshaft" <<<"$SCENARIO_OUTPUT" && fail "feature ref of Engine wrongly flagged: $SCENARIO_OUTPUT" || pass "Engine::crankshaft[::flange] clean"
+    grep -q "W101.*Ghost::Thing::port" <<<"$SCENARIO_OUTPUT" && pass "W101 on Ghost::Thing::port" || fail "no W101 on Ghost::Thing::port"
+    [ "$(grep -c "W101" <<<"$SCENARIO_OUTPUT" || true)" -eq 1 ] && pass "exactly one W101" || fail "expected exactly one W101: $SCENARIO_OUTPUT"
+
     run_ld "resolving refs and prose qnames are clean" "$B/docs/good.md"
     [ -z "$SCENARIO_OUTPUT" ] && pass "no diagram findings on good.md" || fail "unexpected findings: $SCENARIO_OUTPUT"
 

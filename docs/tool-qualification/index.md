@@ -67,6 +67,7 @@ This produces a standard validation report covering every tool requirement and t
 
 ```
 $ syscribe -m qual/
+# ToolQual Validation Report
 
 ## 1. Executive Summary
 

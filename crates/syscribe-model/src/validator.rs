@@ -2981,22 +2981,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // W402: shapes ref must resolve; refs where any ancestor resolves are suppressed
             // (covers inline features at any depth, e.g. System::part::port::subport)
             let validate_shape_ref = |ref_str: &str, findings: &mut Vec<Finding>| {
-                if resolver.resolve_ref(elements, ref_str).is_some() {
-                    return;
-                }
-                let has_resolvable_ancestor = {
-                    let mut seg = ref_str;
-                    let mut found = false;
-                    while let Some(pos) = seg.rfind("::") {
-                        seg = &seg[..pos];
-                        if resolver.resolve_ref(elements, seg).is_some() {
-                            found = true;
-                            break;
-                        }
-                    }
-                    found
-                };
-                if !has_resolvable_ancestor {
+                if !resolver.resolves_shape_ref(elements, ref_str) {
                     findings.push(warning(
                         "W402",
                         &file,

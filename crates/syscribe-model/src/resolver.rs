@@ -579,6 +579,26 @@ impl Resolver {
         self.by_name.get(r).map(|&i| &elements[i])
     }
 
+    /// The diagram shape-reference rule (`W402`, and `lint-docs` `W101`, GH #172):
+    /// `r` is accepted when it resolves via [`Self::resolve_ref`] **or** when any
+    /// `::`-ancestor of it does. Diagram refs routinely name an inline feature of a
+    /// resolvable element — a port, part usage, sub-state or action step at any
+    /// depth (`System::part::port::subport`) — that is not a model element of its
+    /// own, so only a ref with no resolvable prefix at all is dangling.
+    pub fn resolves_shape_ref(&self, elements: &[RawElement], r: &str) -> bool {
+        if self.resolve_ref(elements, r).is_some() {
+            return true;
+        }
+        let mut seg = r;
+        while let Some(pos) = seg.rfind("::") {
+            seg = &seg[..pos];
+            if self.resolve_ref(elements, seg).is_some() {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Resolve `r` relative to the enclosing-package scope chain of
     /// `from_qname`, walking outward — the namespace-lookup order a
     /// SysML v2-authored `typedBy:`/`supertype:` value needs when it was

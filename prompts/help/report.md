@@ -9,6 +9,10 @@ inventory, requirement coverage matrix, traceability summary, safety/security
 rollups, and the findings tables. For findings only, use `validate`; for a
 readiness verdict, use `audit`.
 
+The report is titled `# <Name> Validation Report`, where `<Name>` is the `name:`
+of the model root package (the root `_index.md`); a model with no root `name:`
+gets the neutral `# Model Validation Report`.
+
 `report` is the default: `syscribe -m <root>` and `syscribe -m <root> report`
 are the same command.
 
