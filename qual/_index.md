@@ -1,7 +1,6 @@
 ---
 type: Package
 name: ToolQual
-version: "0.1"
 status: draft
 ---
 
