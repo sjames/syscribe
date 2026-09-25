@@ -738,7 +738,7 @@ The root directory **may** contain an `_index.md` with `type: Namespace` or `typ
 
 ### 4.2 Package Directories
 
-A directory maps to a SysML `package`. The package's name is the directory name unless overridden by `name:` in the directory's `_index.md`.
+A directory maps to a SysML `package`. The package's qualified-name segment is **always** the directory name. A `name:` in the directory's `_index.md` is only the package's human-readable label (display name); it never changes the qualified name (§11.3).
 
 ```
 model/
@@ -758,7 +758,7 @@ An `_index.md` file may carry any fields from Section 3, plus the following pack
 | Field | YAML type | Description |
 |---|---|---|
 | `type` | string | Must be `Package`, `LibraryPackage`, or `Namespace` |
-| `name` | string | Override the directory name as the package name |
+| `name` | string | Display label for the package. Does **not** change the qualified name — the segment is always the directory name (§11.3) |
 | `imports` | list | Import declarations (Section 3.7.1) |
 | `aliases` | list | Alias declarations (Section 3.7.2) |
 | `filterCondition` | string | Package filter condition (opaque KerML expression) |
@@ -780,11 +780,11 @@ International System of Quantities domain library.
 
 ### 4.5 Name Collision Rules
 
-1. The `name:` field in frontmatter, if present, is the element's declared name and takes precedence over the filename stem for display and cross-reference purposes.
-2. The filename stem is always used as the unique file identifier for file-system operations.
-3. If `name:` differs from the filename stem, the qualified name uses `name:`. The filename may be anything valid for the OS.
-4. Two elements in the same directory must not have the same effective `name:` (after applying the `name:` override). This is a validation error.
-5. A file named `_index.md` is never assigned its own qualified name segment; it represents the containing directory's package.
+1. The qualified name is **purely path-derived** (§11.3): the element's last segment is its filename stem, and each package segment is a directory name. The `name:` field is only the element's label (SysML `declaredName` used for display); it never changes the qualified name and never participates in collision detection.
+2. Because the qualified name comes from the path, two elements in the same directory cannot share a qualified name — the file system already forbids two files with the same stem. Two elements in the same directory **may** carry the same `name:` label without error.
+3. For name-identified types, author `name:` equal to the filename stem so the label and the identity segment agree; the stem (not `name:`) is what `::` references resolve against. For id-identified types (`Requirement`, `TestCase`, …) the stem is the stable `id` and `name:` is free prose.
+4. A file named `_index.md` is never assigned its own qualified name segment; it represents the containing directory's package.
+5. A qualified name produced by more than one element — e.g. a file `Foo.md` next to a directory `Foo/` that has an `_index.md`, or a synthesized element (a `FeatureModel` sheet entry, an FMEA/TARA row, a plugin- or annotation-emitted element) colliding with a file-backed one — is error `E108`.
 
 ### 4.6 Visibility Within Directories
 
@@ -5316,12 +5316,8 @@ This section defines the normative behavior required of a conformant Markdown-Sy
 Given a file at path `<root>/<seg1>/<seg2>/.../<segN>/<filename>.md`:
 
 1. Collect the path segments from the model root to the file, exclusive of the root itself.
-2. For each intermediate directory segment, the package name is:
-   - The `name:` field in `<segN>/_index.md` if present.
-   - Otherwise the directory name itself.
-3. For the file itself, the element name segment is:
-   - The `name:` field in the file's frontmatter if present.
-   - Otherwise the filename stem (filename without `.md`).
+2. Each intermediate directory contributes its directory name as the package segment. A `name:` in that directory's `_index.md` is a display label only and is ignored here.
+3. The file itself contributes its filename stem (filename without `.md`). The file's `name:` field is a display label only and is ignored here.
    - Exception: `_index.md` contributes no name segment; it represents the directory's package.
 4. The qualified name is `seg1::seg2::...::segN::elementName`.
 5. The root namespace itself has no name segment.
@@ -5334,7 +5330,7 @@ Given a file at path `<root>/<seg1>/<seg2>/.../<segN>/<filename>.md`:
 - Filename stem: `Engine`
 - Qualified name: `VehicleSystem::Powertrain::Engine`
 
-If `model/VehicleSystem/_index.md` contains `name: VS`, the qualified name becomes `VS::Powertrain::Engine`.
+If `model/VehicleSystem/_index.md` contains `name: VS`, the qualified name is **still** `VehicleSystem::Powertrain::Engine`; `VS` is only the label shown for the package. To change a qualified name, rename the directory or file (e.g. with `syscribe move`).
 
 > **The model-root package `name:` is not part of qualified names.** Qualified names are derived *relative to the model root*, and the root package (the root `_index.md`) contributes **no** segment (step 5 above). A cross-reference therefore starts at the first sub-namespace — e.g. `VehicleSystem::Powertrain::Engine`, **never** `<RootName>::VehicleSystem::Powertrain::Engine` even when the root `_index.md` declares `name: <RootName>`. Writing the root package name as the leading segment is a common authoring mistake (humans and LLMs alike); when an unresolved cross-reference begins with the root package name followed by `::` and the *stripped* remainder resolves, the tool appends a diagnostic hint naming the corrected reference (REQ-TRS-XREF-006). The hint is advisory only — it adds explanatory text to the existing unresolved-reference finding (`E102`/`E103`/`E311`/`E316`/`E502`/`E503`/`E506`/`E632` and the structural supertype/typedBy/subsets/redefines and satisfies resolution errors `E110`–`E114`); it never changes resolution and never rewrites the model. The hint does not fire when the root package has no `name:`, nor when stripping the prefix still does not resolve.
 
