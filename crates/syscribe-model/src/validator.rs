@@ -1124,6 +1124,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if fm.event_ref.is_some() && !matches!(fm.element_type, Some(ElementType::FaultTreeEvent)) {
             unknown_keys.push("ref");
         }
+        // `deciders:` is a schema field only on an ADR (§8.17.1, REQ-TRS-ADR-001).
+        if fm.deciders.is_some() && !matches!(fm.element_type, Some(ElementType::ADR)) {
+            unknown_keys.push("deciders");
+        }
         unknown_keys.sort_unstable();
         for key in unknown_keys {
             findings.push(warning(

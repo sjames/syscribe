@@ -164,6 +164,13 @@ computed by the tool and never authored.
 | `configurations` | list | `CONF-*` variants this plan targets; absent = configuration-agnostic |
 | `demonstrates` | list | Goals/requirements this plan is evidence for |
 
+## ADR fields (§8.17)
+
+| Field | Type | Notes |
+|---|---|---|
+| `date` | string | ISO-8601 date the decision was made |
+| `deciders` | string or list | Decision-makers: stakeholder `PartDef` qnames or free-text names. Display metadata, not resolved; shown by `show`. ADR-only (`W047` on any other type) |
+
 ## PlanningItem fields (§23)
 
 | Field | Type | Notes |

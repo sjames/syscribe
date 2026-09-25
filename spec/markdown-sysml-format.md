@@ -4053,7 +4053,7 @@ An `ADR` file is a first-class model element that documents a significant design
 | `name` | string | **Required** | One-line human-readable label — free prose. Max 120 chars. |
 | `status` | enum | **Required** | Lifecycle state: `proposed`, `accepted`, `deprecated`, `superseded`. |
 | `date` | string | optional | ISO-8601 date the decision was made (e.g., `"2026-05-26"`). |
-| `deciders` | list of strings | optional | Qualified names of stakeholder `PartDef` elements or free-text names of the decision-makers. |
+| `deciders` | list of strings | optional | Qualified names of stakeholder `PartDef` elements or free-text names of the decision-makers. Display metadata, not a cross-reference: entries are not resolved (a free-text name is legitimate) and are printed by `show`. A single string is accepted as a one-entry list. Recognized only on `ADR`; on any other type it is an unrecognized field (`W047`). |
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
 
 **ID pattern:** `^ADR(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
@@ -4101,7 +4101,6 @@ model/
 
 #### 8.17.4 Complete Example
 
-<!-- syscribe-example: expect W047 reason="GH #159: the spec'd ADR deciders: field is not implemented" -->
 ```markdown
 ---
 type: ADR

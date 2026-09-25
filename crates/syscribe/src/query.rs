@@ -752,6 +752,11 @@ pub fn cmd_show(
     if let Some(ref mul) = fm.multiplicity { println!("| **multiplicity** | {} |", mul); }
     if let Some(ref dir) = fm.direction { println!("| **direction** | {} |", dir); }
     if let Some(ref s) = fm.breakdown_adr { println!("| **breakdownAdr** | {} |", s); }
+    // ADR decision metadata (§8.17.1, REQ-TRS-ADR-001 / GH #159).
+    if matches!(fm.element_type, Some(ElementType::ADR)) {
+        if let Some(ref d) = fm.date { println!("| **date** | {} |", d); }
+        if let Some(ref ds) = fm.deciders { if !ds.is_empty() { println!("| **deciders** | {} |", ds.join(", ")); } }
+    }
     // PlanningItem (ADR-SYS-PLANITEM-001): itemType/parent/achieves/blockedBy
     // were previously absent from `show`'s field dump entirely (evidence: and
     // status: were already generic; these were not).
