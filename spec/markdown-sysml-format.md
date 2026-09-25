@@ -4377,7 +4377,7 @@ Each entry in a `FeatureDef`'s `parameters:` list is a map with the following fi
 | `enumValues` | list of strings | optional | absent | Explicit set of valid string values when `type` is `ScalarValues::String` and finer constraint than a full `EnumerationDef` is desired. |
 | `default` | scalar | optional | absent | Default value used when the parameter is not explicitly bound in a `Configuration`. If absent and `isRequired: true`, every selecting `Configuration` must bind it. |
 | `isFixed` | bool | optional | `false` | If `true`, the parameter value is fixed by the feature definition itself (the `default` or `value` field) and may not be overridden in a `Configuration`. Validation error if a `Configuration` attempts to bind it. |
-| `isRequired` | bool | optional | `false` | If `true` and `isFixed: false`, every `Configuration` that selects this feature must explicitly bind this parameter. Validation warning `W010` if absent. |
+| `isRequired` | bool | optional | `false` | If `true` and `isFixed: false`, every `Configuration` that selects this feature must explicitly bind this parameter. Validation warning `W017` if absent. |
 | `value` | scalar | optional | absent | The fixed value, used when `isFixed: true`. Equivalent to `default` + `isFixed: true`. |
 | `derivedFrom` | string | optional | absent | An opaque expression string (evaluated in the context of other parameters of the same feature) whose value is computed rather than bound. When present, the parameter is automatically `isFixed: true` and may not be bound in a `Configuration`. |
 | `bindTo` | string | optional | absent | For component-level `FeatureDef` only: qualified path `SystemFeatures::<Feature>::<paramName>` of a system-level parameter to which this parameter is **propagated**. When a system `Configuration` binds the system parameter, the resolved component parameter inherits the same value. The component parameter may still specify its own `range:` as a narrowing constraint; validation error `E202` if the propagated value falls outside the narrower range. |
@@ -4862,14 +4862,13 @@ sourceFile: "src/flight/mixing_hex.rs"
 
 | Code | Condition |
 |---|---|
-| `W010` | A `Configuration` does not bind a parameter declared `isRequired: true` on a selected feature |
 | `W011` | A `FeatureDef` with `groupKind: optional` is selected in zero `Configuration` files (possibly dead feature) |
 | `W012` | A `FeatureDef` with `groupKind: optional` is selected in every `Configuration` (should be `mandatory`) |
 | `W013` | A component `FeatureDef` has no `contributesTo:` and no `excludes:` referencing any system feature — internal feature not visible from system level (informational) |
 | `W014` | A `parameterConstraint` has `appliesWhen:` that references a feature not in any `Configuration` |
 | `W015` | A requirement is **active** in a `Configuration` (its `appliesWhen:` holds for that configuration's `features:`) but no non-draft `TestCase` that runs in that `Configuration` (§9.10) verifies it. Emitted only when the variability dimension is active (§9.10.1); draft requirements/tests are suppressed; gate with `--deny W015`. |
 | `W016` | A `Configuration` parsed **zero** feature selections while a `FeatureDef` exists in the model — e.g. it used an unrecognized `selections:` key instead of the `features:` map (§9.8). Surfaces the otherwise-silent failure that yields an all-N/A coverage matrix. |
-| `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does not bind. (This is §9.7's nominal `W010`; the validator uses `W017` because `W010` is taken by test-result ingestion.) |
+| `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does not bind. (`W010` is test-result ingestion — §11.12.) |
 | `W024` | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration`, so it gates nothing and ships in nothing. Emitted by `feature-check` only; gate with `--deny W024`. |
 | `W025` | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Emitted by `feature-check`; gate with `--deny W025`. |
 | `W026` | A `Package` declares `appliesWhen:` but its subtree contains no projectable element (it gates nothing). Gate with `--deny W026`. |
@@ -5435,7 +5434,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 |---|---|
 | `E001` | File does not begin with `---` (missing frontmatter delimiter) |
 | `E002` | YAML frontmatter is not valid YAML 1.2 |
-| `E003` | Frontmatter contains an unrecognised key (strict mode only; in lenient mode, emit `W007` and preserve) |
+| `E003` | **RETIRED** — never emitted. There is no strict mode; an unrecognised top-level frontmatter key is the warning `W047` (the key is preserved in the element's extra-fields map). |
 | `E004` | A required field is absent |
 | `E005` | `type:` value is not in the element type inventory (§2) |
 | `E006` | `id:` is present but does not match the required pattern for the element type |
@@ -5484,7 +5483,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W004` | A **local** `sourceFile:` path does not exist on disk. For a `TestCase`, emitted only when `status: active` (see *TestCase drift scoping*). Remote-URI sourceFiles are accepted and not checked locally (see *sourceFile location semantics*). |
 | `W005` | Native `Requirement` has neither `derivedFrom:` entries nor `derivedChildren` (possible orphan not connected to any requirement hierarchy) |
 | `W006` | Both `silLevel:` (IEC 61508) and `asilLevel:` (ISO 26262) are set on the same element — incompatible standards; use only one |
-| `W007` | Frontmatter contains an unrecognised key (lenient mode; key is preserved in the element's extra-fields map) |
+| `W007` | A type definition (e.g. `PartDef`, `PortDef`, `ItemDef`) is defined but never used as a `supertype:` or `typedBy:` type by any element. (An unrecognised frontmatter key is `W047`.) |
 | `W009` | A `testFunctions[].function` does not resolve to a definition in its (existing) `sourceFile` — function-level traceability drift (renamed/deleted test). Emitted only for `TestCase`s with `status: active` (see *TestCase drift scoping*). See *Function matchers* below. |
 | `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results. See *Test result ingestion* below. Inert unless results have been ingested. |
 | `W300` | Leaf `Requirement` at `status: approved` or `status: implemented` has no satisfying element (no element — structural or behavioral — has `satisfies:` pointing to it) |

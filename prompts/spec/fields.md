@@ -250,7 +250,7 @@ links:
 | `mandatory` | FeatureDef | bool | membership vs parent (orthogonal to `groupKind`): `true` = selected whenever parent is / always at top level |
 | `cardinality` | FeatureDef | string | For `or` groups: `"1..*"` etc. |
 | `isFixed` | FeatureDef parameter | bool | Prohibits binding override |
-| `isRequired` | FeatureDef parameter | bool | W010 if unbound in Configuration |
+| `isRequired` | FeatureDef parameter | bool | W017 if unbound in Configuration |
 | `contributesTo` | Component FeatureDef | string | QName of system FeatureDef |
 | `parameterBindings` | Configuration | map | Feature param bindings |
 | `features` (PLE) | Configuration | map | `{FeatureName: true/false}` |
