@@ -617,6 +617,11 @@ entries:
 
 RPN is computed automatically from `fmeaSeverity × occurrence × detection` if all three are present. W903 fires when RPN > 100 and no `recommendedAction` is set.
 
+Two row-integrity checks keep a sheet honest:
+
+- **Every row needs an `id:`** (`FM-*`). A row without one cannot become an `FMEAEntry`, so it is dropped from validation and `fmea report` — and reported as error **E923** on the sheet, naming the row's position in `entries:` and its `failureMode:`.
+- **The computed RPN wins.** When `fmeaSeverity`, `occurrence` and `detection` are all present, an explicit `rpn:` is ignored in favour of `S × O × D`; if it disagrees, warning **W928** names the row and both values so the stale number can be corrected or removed. An explicit `rpn:` on a row missing a factor is used as-is.
+
 ### Generating a template
 
 ```bash

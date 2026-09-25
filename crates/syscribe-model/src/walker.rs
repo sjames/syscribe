@@ -257,7 +257,9 @@ fn explode_tara_entries(elements: &mut Vec<RawElement>) {
 
 /// Post-processing pass: for each FMEASheet, synthesise a FMEAEntry RawElement
 /// for every item in its `entries:` list.  Each entry must have an `id` key;
-/// entries without one are silently skipped (the validator will warn).
+/// entries without one are dropped here and reported by the validator as
+/// `E923` on the sheet (GH #132). When S, O and D are all present the computed
+/// RPN wins over an explicit `rpn:`; a disagreeing explicit value is `W928`.
 fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
     let mut synthetic: Vec<RawElement> = Vec::new();
 

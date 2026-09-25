@@ -4083,6 +4083,8 @@ Safety/FTA/FT-BRAKE-001/
 
 Each row is synthesised at parse time into a virtual `FMEAEntry` element (`FM-*` ID) for cross-reference and validation purposes.
 
+**Row integrity (GH #132).** A row's `id:` is its identity — a row with no string `id:` (or a row that is not a mapping) cannot be synthesised; it is dropped, and the validator **MUST** report error **`E923`** on the `FMEASheet`, naming the row's 1-based position in `entries:` and its `failureMode:`/`name:` when present. When `fmeaSeverity` (or its alias `severity`), `occurrence` and `detection` are all present the entry's RPN **is** `S × O × D`; an explicit `rpn:` is then ignored, and if it differs the validator **MUST** report warning **`W928`** naming the row, the explicit value and the computed value. An explicit `rpn:` on a row missing any factor is the entry's RPN as authored.
+
 #### 8.18.5 Tier 4 — Attack path analysis (ISO/SAE 21434 §15.7)
 
 The security mirror of FTA. An `AttackTree` substantiates a `ThreatScenario` and rolls up **attack feasibility** with a weakest-link rule, deriving a threat's feasibility from its attack paths rather than asserting it as a flat rating.
