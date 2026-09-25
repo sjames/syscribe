@@ -368,15 +368,17 @@ entries:
   - id: FM-001
     name: "Hydraulic line rupture"
     ref: UAV::Avionics::BrakingSystem   # optional; resolves to model element
-    function: "Apply braking force"
     failureMode: "Loss of hydraulic pressure"
-    failureEffect: "Vehicle cannot decelerate"
+    effect: "Vehicle cannot decelerate"
+    cause: "Line chafing"
     fmeaSeverity: 9         # 1–10
     occurrence: 3           # 1–10
     detection: 4            # 1–10
-    rpn: 108                # optional; auto-computed as S × O × D when absent
+    rpn: 108                # optional; S × O × D wins when all three are set (mismatch → W928)
     recommendedAction: "Add redundant hydraulic line"   # required if RPN > 100
 ```
+
+Every row **must** have an `id:` — a row without one is dropped and raises **E923** on the sheet. Unknown row keys are **E922**. An explicit `rpn:` that disagrees with `S × O × D` (all three present) raises **W928**; the computed value is used.
 
 ---
 

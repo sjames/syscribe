@@ -3031,9 +3031,41 @@ mod catalogue_tests {
         "E114",
     ];
 
+    /// `text` with every `#[cfg(test)]`-annotated item (the attribute through
+    /// the item's matching closing brace) removed. Brace matching is naive —
+    /// braces inside string literals are assumed balanced (`{}`/`{:?}`), which
+    /// holds for this codebase's format strings.
+    fn strip_test_items(text: &str) -> String {
+        let mut out = String::with_capacity(text.len());
+        let mut rest = text;
+        while let Some(at) = rest.find("#[cfg(test)]") {
+            out.push_str(&rest[..at]);
+            let after = &rest[at..];
+            let Some(open) = after.find('{') else { return out };
+            let mut depth = 0usize;
+            let mut end = after.len();
+            for (i, ch) in after[open..].char_indices() {
+                match ch {
+                    '{' => depth += 1,
+                    '}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            end = open + i + 1;
+                            break;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            rest = &after[end..];
+        }
+        out.push_str(rest);
+        out
+    }
+
     /// Every `"E###"`/`"W###"`/`"I###"` string literal in non-test Rust source
-    /// under `crates/` (files under a `tests/` directory are skipped; a file is
-    /// truncated at its first `#[cfg(test)]`).
+    /// under `crates/` (files under a `tests/` directory and `#[cfg(test)]`
+    /// items are skipped).
     fn emitted_codes() -> BTreeSet<String> {
         let crates_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
         let mut out = BTreeSet::new();
@@ -3046,10 +3078,7 @@ mod catalogue_tests {
                 continue;
             }
             let Ok(text) = std::fs::read_to_string(p) else { continue };
-            let text = match text.find("#[cfg(test)]") {
-                Some(i) => &text[..i],
-                None => text.as_str(),
-            };
+            let text = strip_test_items(&text);
             let b = text.as_bytes();
             for i in 0..b.len().saturating_sub(5) {
                 if b[i] == b'"'

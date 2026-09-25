@@ -453,7 +453,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W926` | `FaultTreeEvent.fmeaRef` does not resolve to a known `FMEAEntry` (FTA↔FMEA cross-link) |
 | `W927` | `FMEAEntry.ftaRef` does not resolve to a known `FaultTreeEvent` (FMEA↔FTA cross-link) |
 
-## Tier 4 — FMEA (E911–E914, E922, W902–W904)
+## Tier 4 — FMEA (E911–E914, E922, E923, W902–W904, W928)
 
 | Code | Condition |
 |---|---|
@@ -462,9 +462,11 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E913` | FMEAEntry `id` does not match `FM-*` |
 | `E914` | `fmeaSeverity`, `occurrence`, or `detection` outside 1–10 |
 | `E922` | An `entries:` row contains an unrecognised key (silent data loss in a safety analysis — error) |
+| `E923` | An `FMEASheet` `entries:` row has no string `id:` (or is not a mapping) — it cannot become an `FMEAEntry` and is dropped from validation and `fmea report`; reported on the sheet, naming the row's 1-based position and its `failureMode:`/`name:` |
 | `W902` | `FMEASheet` has no `entries` |
-| `W903` | Computed RPN > 100 and no `recommendedAction` set. RPN is auto-computed as `fmeaSeverity × occurrence × detection` when `rpn:` is absent |
+| `W903` | Computed RPN > 100 and no `recommendedAction` set. RPN is `fmeaSeverity × occurrence × detection` when all three are present (an explicit `rpn:` is used only when a factor is missing — see `W928`) |
 | `W904` | Entry `ref` does not resolve to a known model element |
+| `W928` | An `entries:` row declares `fmeaSeverity` (or `severity`), `occurrence`, `detection` **and** an explicit `rpn:` that differs from their product — the computed `S × O × D` is kept; the message names the row, the explicit and the computed value. Silent when `rpn:` equals the product or any factor is absent |
 
 ## Tier 4 — TARA container (E940–E941, W905)
 

@@ -839,15 +839,17 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 | E908 | `id` does not match `FTE-*` pattern |
 | E909 | `eventKind` is not one of `basic · undeveloped · house` |
 
-## Tier 4 — FMEA (E911–E914, W902–W904)
+## Tier 4 — FMEA (E911–E914, E922, E923, W902–W904, W928)
 
-### FMEASheet (E911–E912, W902)
+### FMEASheet (E911–E912, E923, W902, W928)
 
 | Code | Condition |
 |---|---|
 | E911 | `id`, `name`, or `status` is absent |
 | E912 | `id` does not match `FMEA-*` pattern |
 | W902 | FMEASheet has no `entries` — add at least one failure mode row |
+| E923 | An `FMEASheet` `entries:` row has no string `id:` (or is not a mapping) — it cannot become an `FMEAEntry` and is dropped from validation and `fmea report`; reported on the sheet, naming the row's 1-based position and its `failureMode:`/`name:`. Previously such a row vanished silently (GH #132) |
+| W928 | An `entries:` row declares `fmeaSeverity` (or `severity`), `occurrence`, `detection` **and** an explicit `rpn:` that differs from their product — the computed `S × O × D` is kept; the message names the row, the explicit and the computed value. Silent when `rpn:` equals the product or any factor is absent |
 
 ### FMEAEntry (E913–E914, E922, W903–W904)
 

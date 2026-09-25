@@ -3725,6 +3725,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.entries.as_ref().is_none_or(|v| v.is_empty()) {
                 findings.push(warning("W902", &file, "FMEASheet has no `entries` — add at least one failure mode row"));
             }
+            // E923 / W928 (GH #132): per-row integrity the walker's explosion
+            // (`walker::explode_fmea_entries`) cannot report itself.
+            for (idx, row) in fm.entries.iter().flatten().enumerate() {
+                findings.extend(fmea_row_findings(&file, idx + 1, row));
+            }
         }
 
         // ── Tier 4: FMEAEntry (E913-E914, W903-W904) — synthesised by walker ─
@@ -9042,6 +9047,67 @@ pub fn allocation_edges(elements: &[RawElement], resolver: &Resolver) -> Vec<(St
     out
 }
 
+/// Per-row integrity of one `FMEASheet` `entries:` row (GH #132, REQ-TRS-FMEA-004).
+///
+/// - `E923`: the row has no string `id:` (or is not a mapping), so
+///   `walker::explode_fmea_entries` cannot key an `FMEAEntry` by it and drops
+///   it — reported here, naming the 1-based row position and failure mode.
+/// - `W928`: the row declares S, O and D **and** an explicit `rpn:` that
+///   differs from `S × O × D`; the walker keeps the computed value, so the
+///   authored one is silently overridden unless flagged. The factor/RPN
+///   extraction mirrors the walker's exactly (`fmeaSeverity` falling back to
+///   `severity`, values clamped to `u8`).
+fn fmea_row_findings(file: &str, row_no: usize, row: &serde_yaml::Value) -> Vec<Finding> {
+    let Some(map) = row.as_mapping() else {
+        return vec![error(
+            "E923",
+            file,
+            &format!("FMEA row {row_no} in `entries:` is not a mapping — it has no `id:` and is dropped from the analysis"),
+        )];
+    };
+    let get = |k: &str| map.get(serde_yaml::Value::String(k.into()));
+    let str_val = |k: &str| get(k).and_then(|v| v.as_str()).map(str::to_string);
+    let u8_val = |k: &str| get(k).and_then(|v| v.as_u64()).map(|n| n.min(255) as u8);
+
+    let Some(id) = str_val("id") else {
+        let label = str_val("failureMode")
+            .or_else(|| str_val("name"))
+            .map(|l| format!(" ('{l}')"))
+            .unwrap_or_default();
+        return vec![error(
+            "E923",
+            file,
+            &format!(
+                "FMEA row {row_no}{label} in `entries:` has no `id:` — it cannot become an FMEAEntry \
+                 and is dropped from validation and `fmea report`; give it an FM-* id"
+            ),
+        )];
+    };
+
+    let s = u8_val("fmeaSeverity").or_else(|| u8_val("severity"));
+    let (o, d) = (u8_val("occurrence"), u8_val("detection"));
+    let explicit = get("rpn").and_then(|v| v.as_u64());
+    match (s, o, d, explicit) {
+        (Some(s), Some(o), Some(d), Some(explicit)) => {
+            let computed = s as u64 * o as u64 * d as u64;
+            if explicit != computed {
+                vec![warning(
+                    "W928",
+                    file,
+                    &format!(
+                        "FMEA row {row_no} ('{id}'): explicit rpn {explicit} differs from S×O×D = \
+                         {s}×{o}×{d} = {computed}; the computed value {computed} is used — \
+                         correct or remove `rpn:`"
+                    ),
+                )]
+            } else {
+                Vec::new()
+            }
+        }
+        _ => Vec::new(),
+    }
+}
+
 fn error(code: &'static str, file: &str, msg: &str) -> Finding {
     Finding { code, file: file.to_string(), message: msg.to_string(), severity: Severity::Error }
 }
@@ -12033,5 +12099,55 @@ mod link_type_tests {
         let e632 = hits(&f, "E632", "Ctl");
         assert_eq!(e632.len(), 1, "{f:?}");
         assert!(e632[0].message.contains("did you mean 'Requirements::REQ-001'"), "{}", e632[0].message);
+    }
+}
+
+#[cfg(test)]
+mod fmea_row_tests {
+    //! GH #132 / REQ-TRS-FMEA-004 — E923 (row without id) and W928 (explicit
+    //! rpn disagreeing with S×O×D).
+    use super::fmea_row_findings;
+
+    fn row(yaml: &str) -> serde_yaml::Value {
+        serde_yaml::from_str(yaml).expect("yaml")
+    }
+
+    #[test]
+    fn row_without_id_is_e923_naming_position_and_failure_mode() {
+        let f = fmea_row_findings("s.md", 2, &row("failureMode: Stuck valve\nfmeaSeverity: 3"));
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].code, "E923");
+        assert!(f[0].message.contains("row 2") && f[0].message.contains("Stuck valve"), "{}", f[0].message);
+    }
+
+    #[test]
+    fn non_mapping_row_is_e923() {
+        let f = fmea_row_findings("s.md", 1, &row("just a string"));
+        assert_eq!(f.iter().map(|x| x.code).collect::<Vec<_>>(), vec!["E923"]);
+    }
+
+    #[test]
+    fn disagreeing_explicit_rpn_is_w928_with_both_values() {
+        let f = fmea_row_findings(
+            "s.md",
+            3,
+            &row("id: FM-X-001\nfmeaSeverity: 5\noccurrence: 4\ndetection: 3\nrpn: 100"),
+        );
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert_eq!(f[0].code, "W928");
+        assert!(f[0].message.contains("100") && f[0].message.contains("= 60"), "{}", f[0].message);
+    }
+
+    #[test]
+    fn severity_alias_counts_as_s() {
+        let f = fmea_row_findings("s.md", 1, &row("id: FM-X-001\nseverity: 2\noccurrence: 2\ndetection: 2\nrpn: 9"));
+        assert_eq!(f.iter().map(|x| x.code).collect::<Vec<_>>(), vec!["W928"]);
+    }
+
+    #[test]
+    fn consistent_or_partial_rpn_is_silent() {
+        assert!(fmea_row_findings("s.md", 1, &row("id: FM-X-001\nfmeaSeverity: 2\noccurrence: 3\ndetection: 4\nrpn: 24")).is_empty());
+        assert!(fmea_row_findings("s.md", 1, &row("id: FM-X-001\nfmeaSeverity: 5\noccurrence: 4\nrpn: 80")).is_empty());
+        assert!(fmea_row_findings("s.md", 1, &row("id: FM-X-001\nfmeaSeverity: 5\noccurrence: 4\ndetection: 3")).is_empty());
     }
 }
