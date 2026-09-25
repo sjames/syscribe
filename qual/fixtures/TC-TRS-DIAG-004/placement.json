@@ -1,0 +1,8 @@
+{
+  "title": "Stale placement",
+  "kind": "arch",
+  "elements": [
+    { "qname": "Arch::Pump", "col": 0, "row": 0 },
+    { "qname": "Nope::X", "col": 1, "row": 0 }
+  ]
+}

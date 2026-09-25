@@ -31,15 +31,13 @@ pub fn cmd_diagram_measure(elements: &[RawElement], qnames_arg: &str, view: View
     let metrics = load_metrics();
 
     let qnames: Vec<&str> = qnames_arg.split(',').map(|s| s.trim()).collect();
+    // An unresolvable qname is a not-found error, never a warning (GH #168).
+    super::require_elements(elements, qnames.iter().copied());
     let mut results: Vec<MeasureEntry> = Vec::new();
 
     for qname in &qnames {
-        let elem = match elements.iter().find(|e| e.qualified_name == *qname) {
-            Some(e) => e,
-            None => {
-                eprintln!("warn: element '{}' not found", qname);
-                continue;
-            }
+        let Some(elem) = elements.iter().find(|e| e.qualified_name == *qname) else {
+            continue;
         };
 
         let node = build_element_node(elem, &view);
