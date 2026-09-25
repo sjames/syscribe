@@ -24,22 +24,23 @@
 </span><span id=__span-0-24><a id=__codelineno-0-24 name=__codelineno-0-24 href=#__codelineno-0-24></a>      TVR.md                   ← Tool Validation Report (generated)
 </span></code></pre></div> <p>The requirements (<code>REQ-TRS-*</code>) are native <code>Requirement</code> elements with stable IDs, <code>status:</code>, <code>reqDomain:</code>, and <code>verificationMethod:</code>. The test cases (<code>TC-TRS-*</code>) are native <code>TestCase</code> elements with Gherkin scenarios, <code>testLevel: L3</code>, and <code>verifies:</code> links back to the requirements.</p> <hr> <h2 id=the-self-validating-property>The self-validating property<a class=headerlink href=#the-self-validating-property title="Permanent link">&para;</a></h2> <p>Because <code>qual/</code> is a Syscribe model, you can run the tool being qualified against its own qualification evidence:</p> <div class="language-bash highlight"><pre><span></span><code><span id=__span-1-1><a id=__codelineno-1-1 name=__codelineno-1-1 href=#__codelineno-1-1></a>syscribe<span class=w> </span>-m<span class=w> </span>qual/
 </span></code></pre></div> <p>This produces a standard validation report covering every tool requirement and test case. Any structural error in the qualification model — a malformed frontmatter, a dangling <code>verifies:</code> reference, a duplicate ID — is caught by the same validation rules the qualification tests exercise.</p> <div class="language-text highlight"><pre><span></span><code><span id=__span-2-1><a id=__codelineno-2-1 name=__codelineno-2-1 href=#__codelineno-2-1></a>$ syscribe -m qual/
-</span><span id=__span-2-2><a id=__codelineno-2-2 name=__codelineno-2-2 href=#__codelineno-2-2></a>
-</span><span id=__span-2-3><a id=__codelineno-2-3 name=__codelineno-2-3 href=#__codelineno-2-3></a>## 1. Executive Summary
-</span><span id=__span-2-4><a id=__codelineno-2-4 name=__codelineno-2-4 href=#__codelineno-2-4></a>
-</span><span id=__span-2-5><a id=__codelineno-2-5 name=__codelineno-2-5 href=#__codelineno-2-5></a>| Metric | Count |
-</span><span id=__span-2-6><a id=__codelineno-2-6 name=__codelineno-2-6 href=#__codelineno-2-6></a>|---|---|
-</span><span id=__span-2-7><a id=__codelineno-2-7 name=__codelineno-2-7 href=#__codelineno-2-7></a>| Total elements | 673 |
-</span><span id=__span-2-8><a id=__codelineno-2-8 name=__codelineno-2-8 href=#__codelineno-2-8></a>| Errors | 0 |
-</span><span id=__span-2-9><a id=__codelineno-2-9 name=__codelineno-2-9 href=#__codelineno-2-9></a>| Warnings | 337 |
-</span><span id=__span-2-10><a id=__codelineno-2-10 name=__codelineno-2-10 href=#__codelineno-2-10></a>| Informational | 0 |
-</span><span id=__span-2-11><a id=__codelineno-2-11 name=__codelineno-2-11 href=#__codelineno-2-11></a>| Requirements (total) | 328 |
-</span><span id=__span-2-12><a id=__codelineno-2-12 name=__codelineno-2-12 href=#__codelineno-2-12></a>| Requirements (parent) | 2 |
-</span><span id=__span-2-13><a id=__codelineno-2-13 name=__codelineno-2-13 href=#__codelineno-2-13></a>| Requirements (leaf) | 326 |
-</span><span id=__span-2-14><a id=__codelineno-2-14 name=__codelineno-2-14 href=#__codelineno-2-14></a>| Test cases | 336 |
-</span><span id=__span-2-15><a id=__codelineno-2-15 name=__codelineno-2-15 href=#__codelineno-2-15></a>| ADRs | 5 |
-</span><span id=__span-2-16><a id=__codelineno-2-16 name=__codelineno-2-16 href=#__codelineno-2-16></a>| Gherkin scenarios | 1310 |
-</span><span id=__span-2-17><a id=__codelineno-2-17 name=__codelineno-2-17 href=#__codelineno-2-17></a>...
+</span><span id=__span-2-2><a id=__codelineno-2-2 name=__codelineno-2-2 href=#__codelineno-2-2></a># ToolQual Validation Report
+</span><span id=__span-2-3><a id=__codelineno-2-3 name=__codelineno-2-3 href=#__codelineno-2-3></a>
+</span><span id=__span-2-4><a id=__codelineno-2-4 name=__codelineno-2-4 href=#__codelineno-2-4></a>## 1. Executive Summary
+</span><span id=__span-2-5><a id=__codelineno-2-5 name=__codelineno-2-5 href=#__codelineno-2-5></a>
+</span><span id=__span-2-6><a id=__codelineno-2-6 name=__codelineno-2-6 href=#__codelineno-2-6></a>| Metric | Count |
+</span><span id=__span-2-7><a id=__codelineno-2-7 name=__codelineno-2-7 href=#__codelineno-2-7></a>|---|---|
+</span><span id=__span-2-8><a id=__codelineno-2-8 name=__codelineno-2-8 href=#__codelineno-2-8></a>| Total elements | 673 |
+</span><span id=__span-2-9><a id=__codelineno-2-9 name=__codelineno-2-9 href=#__codelineno-2-9></a>| Errors | 0 |
+</span><span id=__span-2-10><a id=__codelineno-2-10 name=__codelineno-2-10 href=#__codelineno-2-10></a>| Warnings | 337 |
+</span><span id=__span-2-11><a id=__codelineno-2-11 name=__codelineno-2-11 href=#__codelineno-2-11></a>| Informational | 0 |
+</span><span id=__span-2-12><a id=__codelineno-2-12 name=__codelineno-2-12 href=#__codelineno-2-12></a>| Requirements (total) | 328 |
+</span><span id=__span-2-13><a id=__codelineno-2-13 name=__codelineno-2-13 href=#__codelineno-2-13></a>| Requirements (parent) | 2 |
+</span><span id=__span-2-14><a id=__codelineno-2-14 name=__codelineno-2-14 href=#__codelineno-2-14></a>| Requirements (leaf) | 326 |
+</span><span id=__span-2-15><a id=__codelineno-2-15 name=__codelineno-2-15 href=#__codelineno-2-15></a>| Test cases | 336 |
+</span><span id=__span-2-16><a id=__codelineno-2-16 name=__codelineno-2-16 href=#__codelineno-2-16></a>| ADRs | 5 |
+</span><span id=__span-2-17><a id=__codelineno-2-17 name=__codelineno-2-17 href=#__codelineno-2-17></a>| Gherkin scenarios | 1310 |
+</span><span id=__span-2-18><a id=__codelineno-2-18 name=__codelineno-2-18 href=#__codelineno-2-18></a>...
 </span></code></pre></div> <p>(Counts from v0.40; they grow as tool requirements are added.)</p> <p>The warnings are predominantly W005 ("possible orphan") — expected, because the TRS requirements are intentionally root-level with no parent hierarchy.</p> <hr> <h2 id=running-the-tests-manually>Running the tests manually<a class=headerlink href=#running-the-tests-manually title="Permanent link">&para;</a></h2> <p>The test runner discovers test cases by reading <code>qual/TestCases/TC-TRS-*.md</code> with <code>find</code> and extracting frontmatter (id, name, verifies) using <code>awk</code>. For each TC it sources the matching shell script in <code>qual/tests/tc/</code> and runs one or more <code>syscribe -m qual/fixtures/...</code> invocations, asserting on stdout content and exit codes.</p> <div class="language-bash highlight"><pre><span></span><code><span id=__span-3-1><a id=__codelineno-3-1 name=__codelineno-3-1 href=#__codelineno-3-1></a><span class=c1># Build syscribe and run every test case</span>
 </span><span id=__span-3-2><a id=__codelineno-3-2 name=__codelineno-3-2 href=#__codelineno-3-2></a>./qual/tests/run_qual.sh
 </span><span id=__span-3-3><a id=__codelineno-3-3 name=__codelineno-3-3 href=#__codelineno-3-3></a>
