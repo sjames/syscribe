@@ -19,6 +19,10 @@ namespace. Each named `Configuration` shall resolve to a real `Configuration` el
 element shall itself be internally valid (SAT-satisfiable and clean per `feature-check --deep`/the
 equivalent of `validate --config` run against wherever it actually lives).
 
+A consolidated `Configuration` shall be judged — for validity, for the parameters it already closes,
+and for what it selects — on its effective selection and bindings, including those it inherits from
+a base through `derivedFrom:` (spec §9.8, `REQ-TRS-VAR-007`).
+
 ## Rationale
 
 Reusing ordinary qname resolution — rather than inventing a new cross-repo addressing scheme —

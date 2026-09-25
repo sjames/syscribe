@@ -181,6 +181,9 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
     crate::annotations::apply_annotation_scans(&mut elements, model_root);
     // Derive pass: evaluate `derive:` blocks; findings stored in each element's derive_findings.
     crate::derive::derive_pass(&mut elements);
+    // Configuration inheritance through `derivedFrom:` (§9.8, GH #137): after
+    // every other pass so a plugin-/sheet-synthesized Configuration takes part.
+    crate::config_inherit::apply_configuration_inheritance(&mut elements);
     Ok(elements)
 }
 

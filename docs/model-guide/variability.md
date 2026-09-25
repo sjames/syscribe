@@ -183,6 +183,28 @@ parameterConstraints:
 
 A violation in a configuration whose `appliesWhen:` holds is `E221` (or `W025` for `severity: warning`); an unresolved parameter path is `E213`; an `appliesWhen:` feature selected in no configuration is `W014`.
 
+### Configuration inheritance — `derivedFrom:`
+
+A `Configuration` may extend **one** base `Configuration` of the same model (by `CONF-*` id or qname) and declare only what differs:
+
+```yaml
+# Configurations/CONF-UAV-HVY-LR-001.md
+type: Configuration
+id: CONF-UAV-HVY-LR-001
+name: "Heavy-lift UAV — extended-range variant"
+status: draft
+featureModel: Features
+derivedFrom: CONF-UAV-HVY-001          # the base must be approved or released (E215)
+features:
+  Features::Payload::Multispectral: true          # overrides the base's selection
+parameterBindings:
+  Features::Communication::LongRange.frequencyBandGHz: 2.4   # overrides one binding
+```
+
+The child's **effective** selection is the base's effective selection overlaid by its own `features:` entries (chains compose); it keeps every binding it declares plus the base's other bindings — except those for a feature the child's own `features:` switches to `false`. Nothing else (`status`, `subConfigurations:`, `buildOverrides:` …) is inherited. Every command — `--config` projection, `matrix`, `configure`, `validate --config`/`--all-configs`, `feature-check`, `build-config`, and `subConfigurations:` consolidation — uses the effective selection; `show` marks inherited entries `(inherited)`. The file itself is never rewritten.
+
+Checks (`validate`): unresolved base `E234`, base not a `Configuration` `E235`, inheritance cycle `E236`, more than one base `E237` (a child with any of these inherits nothing), base not `approved`/`released` `E215`. A Configuration's `derivedFrom:` is not a requirement derivation, so it never raises `E105`. A lower-tier product line in a peer repo is consolidated with `subConfigurations:` (§5), not inherited.
+
 ---
 
 ## 3. Analysis
