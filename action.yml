@@ -1,6 +1,6 @@
 name: Validate Syscribe Model
 description: >
-  Validate a Syscribe model checks element schema, and enforces traceability rules.
+  Validate a Syscribe SysMLv2 model in CI. The same syscribe binary also runs as an MCP server for LLM agents.
 author: Sojan James
 
 branding:
