@@ -910,7 +910,7 @@ Use `self` to refer to the element defined by the current file, within constrain
 
 ### 5.6 Feature Chains
 
-Feature chains (dot-notation paths through usages) are written using `.` within qualified names that appear in `connections:`, `flow_connections:`, and `succession_connections:` entries. For example:
+Feature chains (dot-notation paths through usages) are written using `.` within qualified names that appear in `connections:`, `flowConnections:`, and `successionConnections:` entries. For example:
 
 ```yaml
 connections:
@@ -2460,8 +2460,8 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `silLevel` | integer 1–4 | optional | IEC 61508 SIL level. Mutually exclusive with `asilLevel` — do not set both (W006). |
 | `asilLevel` | enum A\|B\|C\|D | optional | ISO 26262 ASIL level. Mutually exclusive with `silLevel` — do not set both (W006). |
 | `plLevel` | enum a\|b\|c\|d\|e | optional | ISO 13849-1 Performance Level. Mutually exclusive with `asilLevel`/`silLevel`. |
-| `derivedFromSafetyGoal` | string | optional | ID or qualified name of the `SafetyGoal` that motivated this requirement (§8.18.2). When set the SafetyGoal's integrity level must also appear on this element (E841). |
-| `derivedFromCybersecurityGoal` | string | optional | ID or qualified name of the `CybersecurityGoal` that motivated this requirement (§8.18.4). Implies `verificationMethod:` should be set (W807). `derivedFromSecurityGoal` is a legacy serde alias for this same field, honored for backward compatibility (REQ-TRS-SEC-006). |
+| `derivedFromSafetyGoal` | string | optional | ID or qualified name of the `SafetyGoal` that motivated this requirement (§8.18.1). When set the SafetyGoal's integrity level must also appear on this element (E841). |
+| `derivedFromCybersecurityGoal` | string | optional | ID or qualified name of the `CybersecurityGoal` that motivated this requirement (§8.18.2). Implies `verificationMethod:` should be set (W807). `derivedFromSecurityGoal` is a legacy serde alias for this same field, honored for backward compatibility (REQ-TRS-SEC-006). |
 | `verificationMethod` | enum | optional | How this requirement will be verified: `test`, `inspection`, `analysis`, or `demonstration`. Required for ASIL B/C/D requirements (W701). |
 | `wcet` | string | optional | WCET claim (opaque). E.g. `"O(1)"`, `"≤ 200 cycles @ 72 MHz"`. |
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
@@ -2848,7 +2848,7 @@ selection:
 Integration plan executed before each delivery/survey release.
 ```
 
-**Tooling:** the `testplan` command lists plans (scope, configurations, effective-TestCase count, coverage %, verdict) and shows per-plan detail (`testplan TP-X`, `--json`); coverage and the `pass`/`fail`/`incomplete`/`empty` verdict reuse the `matrix` coverage computation and the ingested-results fold. The `--plan TP-X` lens on `matrix`, `verification-depth`, and `audit` restricts those reports to a plan's scope (composing with `--config`). See `spec/markdown` validation rules `E600`–`E606` / `W610`–`W616` (§11.12 reference) and the CLI guide.
+**Tooling:** the `testplan` command lists plans (scope, configurations, effective-TestCase count, coverage %, verdict) and shows per-plan detail (`testplan TP-X`, `--json`); coverage and the `pass`/`fail`/`incomplete`/`empty` verdict reuse the `matrix` coverage computation and the ingested-results fold. The `--plan TP-X` lens on `matrix`, `verification-depth`, and `audit` restricts those reports to a plan's scope (composing with `--config`). The validation rules `E600`–`E606` / `W610`–`W616` are summarised below; see `syscribe help testplan` for the CLI.
 
 **Validation summary:** `E600` (missing `id`/`name`/`status` or malformed `TP-*` id), `E601` (member not a TestCase), `E602` (bad `selection.testLevels`), `E603` (`demonstrates` unresolved), `E604` (bad `status`), `E605` (bad `selection.domains`), `E606` (`configurations` entry not a Configuration); `W610` (non-recommended `scope`), `W611` (escaping member), `W612` (empty plan), `W613` (pinned draft/retired member), `W614` (approved plan demonstrates a goal no member verifies, honouring goal-closure), `W615` (results-gated: approved plan with a Fail/Missing member), `W616` (duplicate `(configurations, scope)`). A duplicate `id` is the generic `E101`.
 
@@ -5712,13 +5712,13 @@ Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` 
 | `E925` | `targetSL:`/`achievedSL:` on a `Zone`, `Conduit`, `PartDef` or `Part` is outside the Security Level range `1`–`4` |
 | `E926` | `Zone`/`Conduit` `status:` is not `draft`/`review`/`approved`/`deprecated` |
 | `W950` | `Zone.achievedSL` < `Zone.targetSL` — security level not yet achieved |
-| `W951` | `Conduit.achievedSL` < min(`fromZone.targetSL`, `toZone.targetSL`) — conduit boundary weaker than connected zones (opt-in) |
+| `W951` | `Conduit.achievedSL` < max(`fromZone.targetSL`, `toZone.targetSL`) — the conduit is below the higher connected zone's target (opt-in) |
 | `W952` | `PartDef`/`Part` has `targetSL:` but no zone membership (opt-in) |
 | `W953` | Approved `Zone` with `targetSL >= 2` has no referencing `Conduit` |
 
 #### MagicGrid gate (`MG###`, REQ-TRS-MG-002..011)
 
-The `MG###` namespace is **opt-in**: these checks fire only under the MagicGrid profile (`[profiles.<name>] magicgrid = true`, e.g. `validate --profile magicgrid`). The data they validate rides on `mg_`-prefixed `custom_fields:` and the base `actors:` field, all of which stay inert in the base format. All `MG###` findings are Error severity.
+The `MG###` namespace is **opt-in**: these checks fire only under the MagicGrid profile (`[profiles.<name>] magicgrid = true`, e.g. `validate --profile magicgrid`). The data they validate rides on `mg_`-prefixed `custom_fields:` and the base `actors:` field, all of which stay inert in the base format. The `MG010`–`MG070` findings below are Error severity; the completeness codes `MG080`–`MG083` further down are warnings.
 
 **MagicGrid overlay fields (`custom_fields:`).** In addition to `mg_external`, `mg_cell`, `mg_moe*`, and `mg_layer`, three further markers are recognised (all flat scalars, inert in the base format):
 
@@ -6731,7 +6731,7 @@ When `inZone:` is present, the element is implicitly added to that zone's member
 | `E925` | A `targetSL:` or `achievedSL:` on a `Zone`, `Conduit`, `PartDef` or `Part` is outside the Security Level range `1`–`4` (IEC 62443-3-3 defines SL 1–4 only) |
 | `E926` | A `Zone`'s or `Conduit`'s `status:` is not one of `draft` / `review` / `approved` / `deprecated` |
 | `W950` | `Zone.achievedSL` is less than `Zone.targetSL` — the zone's security level is not yet achieved |
-| `W951` | `Conduit.achievedSL` is less than the `targetSL` of either connected zone — the conduit boundary is weaker than both zones it connects (opt-in; gateable with `--deny W951`) |
+| `W951` | `Conduit.achievedSL` is less than the **higher** of the two connected zones' `targetSL` (i.e. below the target of at least one zone it connects) — the conduit boundary is weaker than the more demanding zone (opt-in; gateable with `--deny W951`) |
 | `W952` | `PartDef`/`Part` has `targetSL:` but is not referenced by any `Zone.members:` and declares no `inZone:` — isolated SL claim (opt-in) |
 | `W953` | `Zone` with `targetSL >= 2` and `status: approved` has no `Conduit` referencing it — an approved zone that is unreachable from any conduit may be a modelling gap |
 
@@ -6840,7 +6840,7 @@ shared    ../shared-library      main     ✓         behind (3 commits)
 | `E515` | Two repos export the same stable ID — the local model and a peer (e.g., `REQ-SCHED-001` appears in both), or two different peer repos (two `[repos]` aliases resolving to the same peer model root are one repo) |
 | `W510` | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; gateable with `--deny W510`) |
 | `W511` | A peer repo's git `HEAD` has drifted from its configured `ref:` — the checkout is not at the pinned snapshot. Detected by comparing the peer work tree's `HEAD` commit with the commit the `ref:` resolves to; never raised when drift cannot be determined (git unavailable, not a work tree, `ref:` unresolved). Opt-in; gateable with `--deny W511` as a CI reproducibility gate. `repos status` reports the same drift and exits `2`. |
-| `W512` | A peer repo's `path` is a **git submodule** of the composing model's repository, and the commit its `ref:` resolves to differs from the **gitlink** the parent repo records for that path — i.e. `.syscribe.toml` disagrees with `.gitmodules`. Detected by comparing `git ls-tree HEAD <submodule-path>` in the parent against the `ref:` commit; never raised when `path` is not a submodule, no `ref:` is configured, or either commit cannot be resolved. Independent of `W511` (gitlink pin vs `ref:`, not checkout vs `ref:`). Opt-in; gateable with `--deny W512`. |
+| `W512` | A peer repo's `path` is a **git submodule** of the composing model's repository, and the commit its `ref:` resolves to differs from the **gitlink** the parent repo records for that path — i.e. `.syscribe.toml` disagrees with the submodule commit pinned in the parent repository's tree (`.gitmodules` only records the path and URL, not the commit). Detected by comparing `git ls-tree HEAD <submodule-path>` in the parent against the `ref:` commit; never raised when `path` is not a submodule, no `ref:` is configured, or either commit cannot be resolved. Independent of `W511` (gitlink pin vs `ref:`, not checkout vs `ref:`). Opt-in; gateable with `--deny W512`. |
 
 `repos sync` brings a drifted repo back to its pinned `ref:`. Git submodules and `[repos]` are complementary: a submodule provides the pinned checkout, while `[repos]` adds the model-level cross-reference resolution and the `W511`/`W512` reproducibility checks on top.
 
@@ -6884,7 +6884,7 @@ shared    ../shared-library      main     ✓         behind (3 commits)
 
 A `TradeStudy` records a formal weighted-criteria evaluation of design alternatives. It is a first-class model element that links to the requirement it informs and the ADR recording its outcome, making the rationale for architecture decisions navigable from the model.
 
-This section defines a general-purpose trade study facility independent of the MagicGrid profile. The MagicGrid MoE-weighted `trade-study` command (§9, REQ-TRS-MG-007) remains active under `--profile magicgrid`; the command described here operates on `TradeStudy` elements and requires no profile.
+This section defines a general-purpose trade study facility independent of the MagicGrid profile. The `trade-study` command dispatches on the model's content, not on a profile: when the model contains at least one `TradeStudy` element it runs the facility described here (§15.4); otherwise it falls back to the MagicGrid MoE-weighted scoring of `Configuration`s (REQ-TRS-MG-007, see the MagicGrid gate in §11.12). Neither mode requires `--profile`.
 
 ### 15.2 `TradeStudy` Element
 
@@ -6991,7 +6991,7 @@ that best balances real-time performance, bandwidth, cost, and industry maturity
 The tool computes, but does not author, the following derived values:
 
 1. **Normalised score per alternative per criterion** — min-max normalisation within each criterion column (0 = worst in set, 1 = best). Direction is applied before normalisation.
-2. **Weighted score per alternative per criterion** — `normalized_score × weight`
+2. **Weighted score per alternative per criterion** — `normalized_score × (weight / Σ weights)` (weights are normalised to sum to 1)
 3. **Total weighted score per alternative** — sum of weighted scores across all criteria
 4. **Rank** — alternatives ordered by total descending
 
@@ -7005,11 +7005,14 @@ These appear in `show <TRD-id>` and the `trade-study` command output; they are n
 Trade Study: TRD-COMM-001 — Communication Bus Architecture Trade
 Objective: REQ-COMM-001   Decision ADR: ADR-COMM-BUS-001
 
-Alternative    latency(0.4)  bandwidth(0.3)  cost(0.2)  maturity(0.1)  Total   Rank
-CAN-FD         0.000         0.008           1.000      1.000          0.509   #2
-Ethernet-TSN   1.000         1.000           0.000      0.000          0.700   #1
-FlexRay        0.500         0.010           0.455      0.667          0.436   #3
+| Alternative    | latency(0.4) | bandwidth(0.3) | cost(0.2) | maturity(0.1) | Total | Rank |
+|---|---|---|---|---|---|---|
+| Ethernet-TSN   | 1.000 | 1.000 | 0.000 | 0.000 | 0.700 | #1 |
+| FlexRay        | 0.500 | 0.002 | 0.545 | 0.500 | 0.360 | #2 |
+| CAN-FD         | 0.000 | 0.000 | 1.000 | 1.000 | 0.300 | #3 |
 ```
+
+(Output of the §15.2 example. Rows are ordered by rank; each cell is the min-max-normalised score, and `Total` is the weight-normalised sum — here the weights already sum to 1.)
 
 ### 15.5 Validation Rules
 
@@ -7523,7 +7526,7 @@ No new element types. No new validation rules.
 
 ### 22.1 State Machine Completeness Validation (extends §8.8)
 
-The following validation rules apply to a **single-region** `StateDef`/`State` that declares at least one `subStates:` entry — i.e. a flat (non-`isParallel`, non-composite) state machine. A machine is composite when any substate carries `typedBy:`, an inline `subStates:`, or `isParallel:`; parallel and composite machines are **out of scope** for these flat checks (their region/hierarchy-aware treatment is handled separately) and raise none of W070–W074. The rules fire at model-time, after all cross-references are resolved, over the directed `(source → target)` edge set produced by the canonical transition extractor (§8.8.3, both nested and top-level placements).
+The following validation rules apply to every **region** of a `StateDef`/`State` that declares at least one `subStates:` entry. For a flat (single-region, non-`isParallel`, non-composite) machine the region is the machine itself; a **parallel** machine is checked **per region**, and a **composite** machine is checked **recursively**, one region per level (both described below — they are not out of scope). The rules fire at model-time, after all cross-references are resolved, over the directed `(source → target)` edge set produced by the canonical transition extractor (§8.8.3, both nested and top-level placements).
 
 | Code | Condition |
 |---|---|
@@ -7592,16 +7595,7 @@ IDENT  ::= [A-Za-z_][A-Za-z0-9_]*
 | `E868` | `bodyLanguage: budget` expression references a `feature_ref` that does not resolve to an attribute (drafted as `E802`) |
 | `W060` | `CalculationDef` with `bodyLanguage: budget` evaluates to a value that violates the `evaluate:` constraint (opt-in — dormant unless `bodyLanguage: budget` is present; gateable with `--deny W060`) |
 
-**New CLI command:**
-
-**`syscribe budgets [<qname>] [--json]`** — Evaluates all `CalculationDef` elements with `bodyLanguage: budget` in scope, shows the computed value, the constraint bound, and a pass/fail verdict.
-
-```
-Budget                              Value    Bound      Pass
-Propulsion::ThrustBudget            4250 N   ≤ 5000 N   ✓
-Propulsion::FuelMassFlowBudget      1.4 kg/s ≤ 1.2 kg/s ✗  ← violates constraint
-Navigation::TimingBudget            82 ms    ≤ 100 ms   ✓
-```
+**Tooling.** Budget evaluation is part of `syscribe validate`: the checks above (`E866`–`E868`, `W060`) run over every `CalculationDef` with `bodyLanguage: budget`. There is **no** dedicated `budgets` command that tabulates computed values and bounds (not implemented); a violated budget surfaces as a `W060` finding.
 
 ### 22.3 ASIL/SIL Decomposition Pair Completeness (extends §12.7)
 
@@ -7627,13 +7621,15 @@ The following extends Section 12.7 Rule R-007 with an additional structural chec
 
 ### 22.4 Sequence Diagram Send/Receive Completeness (extends §8.16.8.3)
 
-The completeness rule described in §8.16.8.3 for `Sequence` diagrams is now normative and enforced. A `Sequence` diagram element `D` with `subject:` pointing to an `ActionDef` `A` must include an edge entry for every `SendAction` and every `AcceptAction` reachable via `A.subActions:` or `A.steps:`.
+The completeness rule described in §8.16.8.3 for `Sequence` diagrams is now normative and enforced. A `Sequence` diagram element `D` with `subject:` pointing to an `ActionDef` `A` must include an edge entry (matched by the edge's `ref:`) for every `SendAction` and every `AcceptAction` reachable via `A.subActions:` — recursing into nested `subActions:` and the `then`/`else` branches of an `IfAction`. `A.steps:` is not walked.
 
 **New validation rule:**
 
 | Code | Condition |
 |---|---|
 | `W080` | A `Sequence` diagram's `subject:` `ActionDef` has a `SendAction` or `AcceptAction` in its sub-action tree that is not referenced by any entry in the diagram's `edges:` list — the sequence diagram is missing an edge for a known message event |
+
+`W080` is **draft-suppressed** (not emitted for `Sequence` diagrams with `status: draft`). Gateable with `--deny W080`.
 
 ---
 
@@ -7719,11 +7715,11 @@ evidence:
 
 ### 23.5 Computed Reverse Index
 
-Mirroring `Requirement.derivedChildren`, the validator computes `children` for every `PlanningItem` — the set of other `PlanningItem`s whose `parent:` names it. A **leaf** is a `PlanningItem` with an empty (or absent) computed `children` set; "leaf" is not a declared schema concept, it falls out structurally, exactly as elsewhere in this format. `refs <PlanningItem>` (§10, generic inbound-reference query) lists a `PlanningItem`'s children (`parent` relationship), what it blocks (`blockedBy` relationship, inbound), and, for a `Requirement`, which `PlanningItem`s `achieves` it.
+Mirroring `Requirement.derivedChildren`, the validator computes `children` for every `PlanningItem` — the set of other `PlanningItem`s whose `parent:` names it. A **leaf** is a `PlanningItem` with an empty (or absent) computed `children` set; "leaf" is not a declared schema concept, it falls out structurally, exactly as elsewhere in this format. `refs <PlanningItem>` (the generic inbound-reference query) lists a `PlanningItem`'s children (`parent` relationship), what it blocks (`blockedBy` relationship, inbound), and, for a `Requirement`, which `PlanningItem`s `achieves` it.
 
 ### 23.6 CLI and MCP Surface
 
-No dedicated CLI subcommand or MCP tool exists yet — deliberately: the ADR holds this feature to schema + validation only until the shape has been used and proven. A `PlanningItem` is authored, listed, and inspected via the existing generic surface:
+The only `PlanningItem`-specific commands are `syscribe claim` and `syscribe release`, which set and clear the advisory `claimedBy:`/`claimedAt:` markers (§23.9). There is no other dedicated CLI subcommand and no dedicated MCP tool — deliberately: the ADR holds the rest of the feature to schema + validation. Every other field is authored, listed, and inspected via the existing generic surface:
 
 - `syscribe list PlanningItem` / `syscribe show <PI-id>` / `syscribe ls Planning` / `syscribe find <text>` — discovery and inspection, same as any other element type.
 - `syscribe refs <PI-id-or-Requirement-id>` — inbound `parent:`/`achieves:` references (§23.5).
@@ -7800,5 +7796,3 @@ overlaps by:
 each overlapping pair exactly once rather than once from each side. This is the validator-side
 counterpart to `claim`/`release`: it fires whether or not either item was ever actually claimed,
 since `status: in_progress` alone already signals active work.
-
-`W080` is **draft-suppressed** (not emitted for `Sequence` diagrams with `status: draft`). Gateable with `--deny W080`.
