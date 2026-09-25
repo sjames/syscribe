@@ -109,7 +109,7 @@ must also carry the same field. A lower level is allowed only with `breakdownAdr
 
 Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
-## Confirmation measures & DIA/CIA responsibility (E847–E851, W038, W039)
+## Confirmation measures & DIA/CIA responsibility (E847–E851, E924, W038, W039)
 
 | Code | Condition |
 |---|---|
@@ -118,6 +118,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E849` | `ConfirmationMeasure.measureType` not in `confirmation_review · functional_safety_audit · functional_safety_assessment · cybersecurity_assessment` |
 | `E850` | `ConfirmationMeasure.independenceLevel` not in `I1 · I2 · I3` |
 | `E851` | A `confirms:` ref does not resolve to any model element |
+| `E924` | `ConfirmationMeasure.status` not in `planned · in_progress · completed` |
 | `W038` | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) has no `responsibility:` field. **Opt-in:** dormant unless some element declares `responsibility:`. Gate with `--deny W038` |
 | `W039` | A high-integrity item lacks its required independent assessment: an `asilLevel: D` **or** `silLevel: 3`/`silLevel: 4` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`; or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039` |
 
@@ -261,7 +262,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W063` | The score matrix is incomplete (draft-suppressed) |
 | `W064` | An `alternatives[].element` is present but unresolved (draft-suppressed) |
 
-## State machine warnings (W070–W080, §22.1)
+## State machine warnings (W070–W080, W929, §22.1)
 
 | Code | Condition |
 |---|---|
@@ -275,6 +276,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W077` | Cross-region transition between two regions of an `isParallel` state |
 | `W078` | Parallel arity — an `isParallel: true` state declares fewer than two regions |
 | `W079` | Unresolved behavior — a state `entry`/`do`/`exit` action or transition `effect` resolves to no element |
+| `W929` | Incomplete transition — a top-level transition has no `source:`, or any transition has no `target:` (§8.8.3); it would otherwise contribute no edge. Draft-suppressed; `--deny W929` |
 | `W080` | A `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` not referenced by any `edges:` entry |
 
 ## Diagram errors and warnings (E400–E404, W400–W415)
@@ -309,7 +311,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 |---|---|
 | `W050` | A selected feature contributes no build variable (no `buildExports:`/`buildVar:`). Opt-in; gate with `--deny W050` (`E050` is in the parse-time table) |
 
-## Allocation and derive errors, structural warnings (E500–E506, W500–W503)
+## Allocation and derive errors, structural warnings (E500–E506, W500–W503, W930)
 
 | Code | Condition |
 |---|---|
@@ -317,12 +319,13 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E501` | A feature with `type: Allocation` has an `allocatedTo:` that does not resolve |
 | `E502` | An `allocatedFrom:` entry (any element) does not resolve to a known element |
 | `E503` | An `allocatedTo:` entry (any element) does not resolve to a known element |
-| `E504` | *(reserved)* Cyclic dependency between `derive:` formulas (cycle detection not yet implemented) |
-| `E505` | A `derive:` formula does not parse |
+| `E504` | Cyclic dependency between `derive:` fields (a field reads itself directly or via other derived fields); reported on each participating element naming the cycle; the cyclic fields are not evaluated |
+| `E505` | A `derive:` formula does not parse, the `derive:` value is not a mapping, or a formula is not a string |
 | `E506` | A `derive:` formula's `elements["QName"]` names no element |
 | `W500` | `viewpoint:` on a View does not resolve to a `ViewpointDef` |
 | `W501` | `exhibitsStates:` entry does not resolve to any known element |
 | `W502` | `expose:` entry on a View does not resolve to any known element |
+| `W930` | A `features:` entry on a non-`Allocation` element declares an allocation (`type: Allocation`, or `allocatedFrom:`/`allocatedTo:`) — only a `type: Allocation` element carries features-form allocations (§12.9), so it contributes no allocation edge; use `allocatedTo:` on the source or a standalone `Allocation` element |
 | `W503` | The same allocation edge is declared by more than one form — `allocatedTo:` on the source, an `Allocation` element, a legacy authored `allocatedFrom:` on the target (redundant) |
 
 ## Documentation warnings (W600, W601)
@@ -377,7 +380,7 @@ write path. Every other PlanningItem field is still queried via `list`/`show`/`l
 and written via the generic MCP element tools; no dedicated CLI subcommand or MCP tool for
 those yet.
 
-## IEC 62443 Zone/Conduit (E950–E956, W950–W953, §13)
+## IEC 62443 Zone/Conduit (E950–E956, E925, E926, W950–W953, §13)
 
 | Code | Condition |
 |---|---|
@@ -388,6 +391,8 @@ those yet.
 | `E954` | `Conduit.fromZone`/`toZone` unresolved or not a `Zone` |
 | `E955` | `Zone.members:` entry unresolved or not a `PartDef`/`Part` |
 | `E956` | `PartDef`/`Part.inZone:` unresolved or not a `Zone` |
+| `E925` | `targetSL:`/`achievedSL:` on a `Zone`/`Conduit`/`PartDef`/`Part` outside the Security Level range `1`–`4` |
+| `E926` | `Zone`/`Conduit` `status:` not in `draft · review · approved · deprecated` |
 | `W950` | `Zone.achievedSL < targetSL` (SL gap) |
 | `W951` | `Conduit.achievedSL` below a connected zone's `targetSL` (opt-in) |
 | `W952` | A part declares `targetSL` but belongs to no zone (opt-in) |

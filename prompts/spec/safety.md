@@ -298,7 +298,7 @@ declares `responsibility:`. Gateable (`--deny W038`).
 type: ConfirmationMeasure
 id: CM-BRK-001
 name: "Independent functional-safety assessment of the braking goal"
-status: completed                 # planned | in_progress | completed
+status: completed                 # planned | in_progress | completed  (else E924)
 measureType: functional_safety_assessment
 # confirmation_review | functional_safety_audit | functional_safety_assessment | cybersecurity_assessment  (else E849)
 independenceLevel: I3             # I1 | I2 | I3  (else E850)
@@ -306,7 +306,7 @@ confirms:                         # work product ref(s); each must resolve (else
   - SG-BRK-001
 ```
 
-Errors: E847 (missing `id`/`name`/`status`), E848 (`id` not `CM-*`), E849/E850 (bad enum),
+Errors: E847 (missing `id`/`name`/`status`), E848 (`id` not `CM-*`), E849/E850/E924 (bad `measureType`/`independenceLevel`/`status` enum),
 E851 (unresolved `confirms`).
 
 **W039** — a high-integrity item lacking its required independent assessment: an `asilLevel: D`

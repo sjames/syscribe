@@ -41,7 +41,7 @@
 use std::collections::HashSet;
 
 use crate::config::ValidateConfig;
-use crate::element::{ElementType, RawElement};
+use crate::element::RawElement;
 use crate::members::parent_qname;
 use crate::resolver::{builtin_type_kind, BuiltinType, Resolver};
 use crate::validator::{Finding, Severity};
@@ -361,13 +361,11 @@ pub fn unresolved_structural_ref_findings(
                 report("E110", "supertype", file, s, String::new());
             }
         }
-        // SysML v2 ingestion maps `allocation` usages but not `allocation def`
-        // (outside REQ-TRS-SYSMLV2-007's fixed kind set), so an ingested
-        // Allocation's typedBy can never resolve in-model — not an authoring error.
-        let unmapped_sysml_type = matches!(fm.element_type, Some(ElementType::Allocation))
-            && (elem.file_path.ends_with(".sysml") || elem.file_path.ends_with(".kerml"));
+        // An ingested `allocation` usage is checked like any other: SysML v2
+        // ingestion maps `allocation def` to `AllocationDef` (REQ-TRS-SYSMLV2-029,
+        // GH #142), so its typedBy can resolve in-model.
         for s in fm.typed_by.iter().flat_map(yaml_strings) {
-            if !unmapped_sysml_type && !ctx.resolves(elem, s) {
+            if !ctx.resolves(elem, s) {
                 report("E111", "typedBy", file, s, String::new());
             }
         }

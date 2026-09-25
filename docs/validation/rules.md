@@ -71,8 +71,8 @@ built-in `ScalarValues`/`Base` packages (an unknown member is `W043`), the curat
 any reference into a SysML v2 library package (`ISQ::…`, `Parts::Part::…`, `Links::…`) whose
 top-level name the model does not declare itself, and the bare library root types (`Link`,
 `Part`, `Real`, …). SysML v2-, plugin- and annotation-synthesized elements resolve like any
-other (the `typedBy:` of an ingested SysML v2 `allocation` usage is exempt: ingestion does not map
-`allocation def`). With `[repos]` configured an unresolved reference is `E512` instead (never both). Like
+other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now that ingestion maps
+`allocation def` to `AllocationDef` (GH #142; the former exemption is gone). With `[repos]` configured an unresolved reference is `E512` instead (never both). Like
 `E102`–`E106`, they take the model-root-name hint and are suppressed under `--config`.
 
 ## Coverage warnings (W002–W005)
@@ -274,9 +274,9 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W415 | The `[plantuml] style_file` path configured in `.syscribe.toml` does not exist on disk (REQ-TRS-PUML-042) |
 | W080 | `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` in its sub-action tree not referenced by any `edges:` entry (draft-suppressed; `--deny W080`) |
 
-## State machine warnings (W070–W079, §22.1)
+## State machine warnings (W070–W079, W929, §22.1)
 
-SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppressed and gateable with `--deny W07x`.
+SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppressed and gateable with `--deny W07x` / `--deny W929`.
 
 | Code | Condition |
 |---|---|
@@ -290,6 +290,7 @@ SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppresse
 | W077 | Cross-region transition — a transition connects substates in two different regions of an `isParallel` state (illegal in SysMLv2). |
 | W078 | Parallel arity — an `isParallel: true` state declares fewer than two regions. |
 | W079 | Unresolved behavior — a state `entryAction`/`doAction`/`exitAction` or a transition `effect` references an action that resolves to no model element. |
+| W929 | Incomplete transition — a top-level transition (the machine's own `transitions:`) has no `source:` (nor `from:`), or any transition has no `target:` (nor `to:`), §8.8.3. Such a transition yields no edge, so it was previously ignored silently by every check above (GH #136). A nested transition's `source` is implicit and never reported. |
 
 The checks apply **recursively** over the state hierarchy: each level's substates are checked by `W070`–`W074` (composite substates as nodes), inline-`subStates:` substates are recursed into, and parallel (`isParallel`) levels are checked per region plus `W077`/`W078`. `W076` covers transition endpoints that resolve to no state.
 
@@ -324,7 +325,7 @@ A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes no
 | W063 | The score matrix is incomplete (draft-suppressed). |
 | W064 | An `alternatives[].element` is present but unresolved (draft-suppressed). |
 
-## IEC 62443 Zone/Conduit (E950–E956, W950–W953, §13)
+## IEC 62443 Zone/Conduit (E950–E956, E925, E926, W950–W953, §13)
 
 | Code | Condition |
 |---|---|
@@ -335,6 +336,8 @@ A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes no
 | E954 | `Conduit.fromZone`/`toZone` unresolved or not a `Zone`. |
 | E955 | `Zone.members:` entry unresolved or not a `PartDef`/`Part`. |
 | E956 | `PartDef`/`Part.inZone:` unresolved or not a `Zone`. |
+| E925 | `targetSL:`/`achievedSL:` on a `Zone`, `Conduit`, `PartDef` or `Part` is outside the Security Level range `1`–`4` (GH #136 — e.g. `achievedSL: 7` was accepted). |
+| E926 | `Zone`/`Conduit` `status:` is not one of `draft · review · approved · deprecated`. |
 | W950 | `Zone.achievedSL < targetSL` (SL gap). |
 | W951 | `Conduit.achievedSL` below a connected zone's `targetSL` (opt-in). |
 | W952 | A part declares `targetSL` but belongs to no zone (opt-in). |
@@ -535,19 +538,22 @@ Emitted by the `derive:` evaluator (`crates/syscribe-model/src/derive.rs`, REQ-T
 
 | Code | Condition |
 |---|---|
-| E504 | *(reserved)* Cyclic dependency between `derive:` formulas — cycle detection is not yet implemented |
-| E505 | A `derive:` formula does not parse ("derive formula parse error for field '…'"); the field is left unevaluated |
+| E504 | Cyclic dependency between `derive:` fields — a field reads itself directly (`a: self.a + 1`), through other entries of its block, or through other elements (`elements["Q"].f`, `children`/`parent` aggregates). Reported once on every participating element, naming the cycle ("derive: cyclic dependency X.a → Y.b → X.a"); the cyclic fields are not evaluated. Previously reserved and unimplemented (GH #141) |
+| E505 | A `derive:` formula does not parse ("derive formula parse error for field '…'"), the `derive:` value is not a mapping, or a formula value is not a string; the field is left unevaluated |
 | E506 | A `derive:` formula's `elements["QName"]` names no element ("derive: element '…' not found in model"); the field evaluates to null. The model-root-name hint applies |
+
+Derived fields evaluate in dependency order, so a field always sees the computed value of every derived field it reads. `derive:` is a recognised frontmatter field and never raises `W047` (GH #141).
 
 The derive pass previously emitted `E501`/`E502` and reserved `E500`, colliding with the Allocation codes; since GH #127 the two families are disjoint.
 
-## Structural warnings (W500–W503)
+## Structural warnings (W500–W503, W930)
 
 | Code | Condition |
 |---|---|
 | W500 | `viewpoint:` on View does not resolve to a ViewpointDef |
 | W501 | `exhibitsStates:` entry does not resolve to any known element |
 | W502 | `expose:` entry on View does not resolve to any known element |
+| W930 | A `features:` entry on a **non-`Allocation`** element declares an allocation (a feature-level `type: Allocation`, or an `allocatedFrom:`/`allocatedTo:` key). §12.9 recognises the features form only on a standalone `type: Allocation` element, so the entry contributes **no** allocation edge (not in `matrix --allocations`, `E314`, `W034`, the derived `allocatedFrom`); use `allocatedTo:` on the source or move it to an `Allocation` element (GH #142). Its endpoints are still resolution-checked (`E500`/`E501`) |
 | W503 | The **same** allocation edge `source → target` is declared by **more than one** form — an `allocatedTo:` on the source, a standalone `Allocation` element, or a legacy authored `allocatedFrom:` on the target — redundant; use one form (§12.9, `REQ-TRS-ALLOC-001`) |
 
 ## Documentation warnings (W600–W601)
@@ -770,7 +776,7 @@ one** of the two sources declares a non-empty `ffiRationale:` string, OR carries
 
 See `docs/model-guide/safety-analysis.md`.
 
-## Confirmation measures & DIA/CIA responsibility (E847–E851, E860, W038, W039)
+## Confirmation measures & DIA/CIA responsibility (E847–E851, E860, E924, W038, W039)
 
 ISO 26262-2 §6 confirmation measures, ISO 26262-8 §5 Development Interface Agreement (DIA),
 and ISO/SAE 21434 §7 Cybersecurity Interface Agreement (CIA). Both checks are **opt-in**.
@@ -780,7 +786,7 @@ work product (the DIA/CIA split, e.g. `OEM` / `Supplier-X`).
 
 **ConfirmationMeasure** (`type: ConfirmationMeasure`, `CM-*` id) — a confirmation review, FS
 audit, FS assessment, or cybersecurity assessment, with `measureType:`, `independenceLevel:`
-(`I1`/`I2`/`I3`), `status:`, and `confirms:` (work-product ref(s) resolved via the `Resolver`).
+(`I1`/`I2`/`I3`), `status:` (`planned`/`in_progress`/`completed`), and `confirms:` (work-product ref(s) resolved via the `Resolver`).
 
 The ASIL/CAL → independence mapping is intentionally minimal: only `asilLevel: D → I3
 functional_safety_assessment` and `calLevel: CAL4 → I3 cybersecurity_assessment` are gated.
@@ -793,6 +799,7 @@ Lower integrity levels are documented as future tightening and are not gated.
 | E849 | Error | `measureType` is not one of `confirmation_review · functional_safety_audit · functional_safety_assessment · cybersecurity_assessment` |
 | E850 | Error | `independenceLevel` is not one of `I1 · I2 · I3` |
 | E851 | Error | a `confirms:` ref does not resolve to any model element |
+| E924 | Error | `ConfirmationMeasure.status` is not one of `planned · in_progress · completed` (GH #136 — previously documented but unchecked) |
 | E860 | Error | a `ConfirmationMeasure.confirms` ref resolves to an element that is not a `SafetyGoal`, `CybersecurityGoal`, `HazardousEvent`, or native `Requirement` (REQ-TRS-SEC-005) |
 | W038 | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. **Opt-in:** dormant unless some element declares `responsibility:`. Gate with `--deny W038`; promotable via `[profiles]` |
 | W039 | Warning | A high-integrity item lacks its required independent assessment: an `asilLevel: D` **or `silLevel: 3`/`silLevel: 4`** `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment` (ISO 26262-2 §6 / IEC 61508-1 §8); or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039`; promotable via `[profiles]` |

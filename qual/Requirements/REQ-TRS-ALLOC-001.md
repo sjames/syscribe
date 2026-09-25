@@ -47,6 +47,16 @@ The allocation-edge set **(source → target)** consumed by `MG041`, `MG081`, th
 So `matrix --allocations` and the gate can never disagree, and an allocation authored in
 either form produces the same edge.
 
+### Features-form allocations belong to `Allocation` elements (GH #142)
+
+§12.9 defines the `features:`-entry form as part of form 2 — a **standalone `type: Allocation`
+element**. A `features:` entry that declares an allocation (a feature-level `type: Allocation`, or
+an `allocatedFrom:`/`allocatedTo:` key) on any **other** element type is therefore **not** an
+allocation edge and **shall not** be fed into the unified set. Because it would otherwise be
+silently ignored, the tool **shall** report it as warning **`W930`** (naming the entry and pointing
+at `allocatedTo:` on the source or a standalone `Allocation` element). Its endpoints are still
+resolution-checked (`E500`/`E501`) so a dangling one is reported too.
+
 The same unified set **shall** also feed `E314` ([[REQ-TRS-TRACE-008]]) and `W034`
 ([[REQ-TRS-SAFE-006]]) — no consumer walks the `allocatedFrom`/`allocatedTo` fields itself (GH #131).
 
@@ -91,6 +101,9 @@ of [[REQ-TRS-TRACE-001]].
 - An `allocatedTo` naming an unresolved target raises `E503`.
 - The same `source → target` edge declared in **both** forms raises the redundancy warning;
   one edge in one form raises nothing.
+- A `features:` entry with `type: Allocation` + `allocatedFrom`/`allocatedTo` on a `PartDef`
+  raises `W930` and contributes no edge to `matrix --allocations`; the same entry on a
+  `type: Allocation` element is an edge and raises nothing.
 - A legacy `allocatedFrom:` authored on a non-`Allocation` target appears in
   `matrix --allocations`; declaring the same edge with `allocatedTo:` on the source as well raises
   `W503`.

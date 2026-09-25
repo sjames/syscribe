@@ -682,11 +682,49 @@ Rules:
   author-defined data (§3.15). Recognised schema fields never trigger it.
 - `links:` (user-defined link types, §12.10) is a recognised schema field and never
   triggers it; its keys are validated against `[linkTypes]` instead (`E630`).
+- `derive:` (§3.18) is a recognised schema field and never triggers it.
 - The most common cause is a **typo** in a real field name (`reqDomian` for `reqDomain`,
   `verifis` for `verifies`): the misspelling was previously accepted and the value
   silently discarded. `W047` surfaces the mistake instead of losing the data quietly.
 
 (REQ-TRS-SCHEMA-001.)
+
+### 3.18 Derived Fields (`derive:`)
+
+`derive:` is a recognised field accepted on **every** element type. It is a mapping of
+**field name → formula string**; the tool evaluates each formula after the model is walked and
+records the value as a computed (read-only) field of the element, shown under **Derived Fields**
+by `show`. (REQ-TRS-DERIVE-001..005.)
+
+```yaml
+derive:
+  wcetConsumed: sum(children.custom_fields.wcet)
+  wcetHeadroom: self.custom_fields.wcetBudget - self.wcetConsumed
+```
+
+Formula grammar: numbers, `"strings"`, `self.<field>` / `self.custom_fields.<key>`,
+`elements["Qualified::Name"].<field>`, the aggregates `sum` · `max` · `min` · `count` ·
+`collect` over `children` or `parent` (optionally `.<field>`), `+ - * /`, parentheses and the
+null-coalesce `??`.
+
+Rules:
+
+- **Dependency order.** A derived field is evaluated after every derived field it reads — via
+  `self.<field>`, `elements["Q"].<field>`, or a `children`/`parent` aggregate over `<field>` —
+  so a reference always sees the computed value, whatever the element or entry order.
+  Independent fields evaluate in file-walk, then block (top-to-bottom), order.
+- **Cycles (`E504`).** A field that depends on itself — directly (`a: self.a + 1`), through
+  other entries of the same block, or through other elements — is a cycle. Each cycle is
+  reported as error **`E504`** once on every element file taking part, naming the cycle
+  (`X.a → Y.b → X.a`); the fields in it are **not evaluated** (absent from the derived
+  fields). A field outside the cycle that reads a cyclic field still evaluates and reads it
+  as absent (use `??` to supply a default).
+- **Malformed input (`E505`).** A formula that does not parse, a `derive:` value that is not
+  a mapping, and a formula value that is not a string are each `E505`; the field is not
+  evaluated.
+- **Unknown element (`E506`).** An `elements["QName"]` naming no element is `E506`; the
+  reference evaluates to null.
+- `derive:` is a recognised schema field: it never raises `W047` (§3.17).
 
 ---
 
@@ -2046,6 +2084,10 @@ both yielding the same `(source → target)` edge:
    substate is the implicit `source` (so `source:` may be omitted);
 2. **top-level** — under the `StateDef`'s `transitions:` list; here `source:` is
    **required**.
+
+A transition missing a required endpoint — a top-level transition with no `source:`, or any
+transition with no `target:` — yields no edge; it is reported as warning **`W929`**
+(draft-suppressed, gateable with `--deny W929`) rather than silently ignored.
 
 A single transition extractor consumes both placements, so the state-machine completeness
 checks (§22.1) see one consistent edge model regardless of authoring style.
@@ -4056,7 +4098,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 
 **Binding SecurityControls to architecture:** allocate the control (source) to the architecture element that realises it (target) with a standalone `Allocation` element — `allocatedFrom: SC-*` + `allocatedTo: <element>` (§12.9 form 2); the element then lists the control in its derived `allocatedFrom` index. Both fields accept a single string or a list of strings, so one `Allocation` can bind several controls. An `allocatedFrom:` authored directly on the architecture element (the pre-GH #131 guidance) is still accepted as a legacy input form (§12.9), but is not recommended.
 
-**Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:`, and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`name`/`status` → E847; an `id` not matching `CM-*` → E848. An `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; only ASIL D → I3 and CAL4 → I3 are gated, lower levels are future tightening).
+**Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:` (`planned` · `in_progress` · `completed`; invalid → E924), and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`name`/`status` → E847; an `id` not matching `CM-*` → E848. An `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; only ASIL D → I3 and CAL4 → I3 are gated, lower levels are future tightening).
 
 #### 8.18.3 Tier 4 — Fault Tree Analysis (FTA)
 
@@ -5516,9 +5558,10 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W306` | **Unsatisfied safety mechanism** — a high-integrity `Requirement` (`silLevel >= 4` or `asilLevel: D`) that is `status: draft`, (for a **leaf**) satisfied by no element, or (with a feature model) active in no `Configuration`. The "satisfied by no element" sub-condition applies to leaf requirements only — a **parent** (has `derivedChildren`) is satisfied transitively and may not be satisfied directly (`E312`). Message names the triggering sub-condition(s). Gateable with `--deny W306`; promotable via `[profiles]` |
 | `W029` | A non-draft `Requirement` with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no active **measuring** `TestCase` (testLevel `L5`, or tagged `timing`/`wcet`) verifies it. The timing-evidence analog of `W702`. Gateable with `--deny W029`; query with `list --has-wcet` |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
+| `W930` | **Misplaced features-form allocation** — a `features:` entry on a non-`Allocation` element declares an allocation (feature-level `type: Allocation`, or an `allocatedFrom:`/`allocatedTo:` key). Only a `type: Allocation` element carries features-form allocations (§12.9 form 2), so the entry contributes no allocation edge. Use `allocatedTo:` on the source or a standalone `Allocation` element |
 | `W503` | **Redundant allocation** — the same `source → target` edge is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element (§12.9). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |
 
-#### State machine completeness warnings (W070–W079, §22.1)
+#### State machine completeness warnings (W070–W079, W929, §22.1)
 
 | Code | Condition |
 |---|---|
@@ -5532,6 +5575,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W077` | Cross-region transition — a transition connects substates in two different regions of a parallel state (illegal in SysMLv2) |
 | `W078` | Parallel arity — an `isParallel: true` state declares fewer than two regions |
 | `W079` | Unresolved behavior — a state `entryAction`/`doAction`/`exitAction` or a transition `effect` references an action that resolves to no model element |
+| `W929` | Incomplete transition — a top-level transition has no `source:` (nor `from:`), or any transition has no `target:` (nor `to:`); it contributes no edge, so the checks above would otherwise ignore it (§8.8.3). Draft-suppressed; gateable with `--deny W929` |
 
 #### Sequence diagram completeness (W080, §22.4)
 
@@ -5594,8 +5638,8 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E501` | A `features:` entry with `type: Allocation` has an `allocatedTo:` that does not resolve |
 | `E502` | An `allocatedFrom:` entry (any element) does not resolve to a known element |
 | `E503` | An `allocatedTo:` entry (any element) does not resolve to a known element |
-| `E504` | *(reserved)* Cyclic dependency between `derive:` formulas (REQ-TRS-DERIVE-004; cycle detection not yet implemented) |
-| `E505` | A `derive:` formula does not parse (REQ-TRS-DERIVE-005) |
+| `E504` | Cyclic dependency between `derive:` fields — a field reads itself directly or through other derived fields (`self.`, `elements["Q"].`, `children`/`parent` aggregates). Reported once per participating element, naming the cycle; the cyclic fields are not evaluated (REQ-TRS-DERIVE-004, §3.18) |
+| `E505` | A `derive:` formula does not parse, the `derive:` value is not a mapping, or a formula is not a string (REQ-TRS-DERIVE-001/005) |
 | `E506` | A `derive:` formula's `elements["QName"]` names no element (REQ-TRS-DERIVE-005) |
 
 The Allocation (`E500`–`E503`) and derive (`E504`–`E506`) families are disjoint — no code carries both meanings (GH #127).
@@ -5630,7 +5674,7 @@ Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` 
 | `W630` | A `[linkTypes.<name>]` entry is malformed (bad/colliding name or `inverse`, unparseable `cardinality`, non-zero lower bound without `sourceTypes`, unknown element type, unsupported `extends`, `relax`/`coverage` without `extends`, non-relaxable `relax` code) — the entry is ignored as a whole; or an entry carries an unknown key (key ignored). Attached to `.syscribe.toml` |
 | `W631` | A non-`draft` element whose `type:` is in a link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound (opt-in; `--deny W631`) |
 
-#### IEC 62443 Zone/Conduit validation (E950–E956, W950–W953, §13.5)
+#### IEC 62443 Zone/Conduit validation (E950–E956, E925, E926, W950–W953, §13.5)
 
 | Code | Condition |
 |---|---|
@@ -5641,6 +5685,8 @@ Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` 
 | `E954` | `Conduit.fromZone` or `toZone` unresolved or not a `Zone` |
 | `E955` | `Zone.members:` entry unresolved or not a `PartDef`/`Part` |
 | `E956` | `PartDef`/`Part.inZone:` unresolved or not a `Zone` |
+| `E925` | `targetSL:`/`achievedSL:` on a `Zone`, `Conduit`, `PartDef` or `Part` is outside the Security Level range `1`–`4` |
+| `E926` | `Zone`/`Conduit` `status:` is not `draft`/`review`/`approved`/`deprecated` |
 | `W950` | `Zone.achievedSL` < `Zone.targetSL` — security level not yet achieved |
 | `W951` | `Conduit.achievedSL` < min(`fromZone.targetSL`, `toZone.targetSL`) — conduit boundary weaker than connected zones (opt-in) |
 | `W952` | `PartDef`/`Part` has `targetSL:` but no zone membership (opt-in) |
@@ -5750,7 +5796,7 @@ ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** wh
 | `W034` | Warning | For an allocation target with ≥2 sources, a mixed-criticality source pair has no freedom-from-interference argument (one finding per `(target, sourceA, sourceB)`, naming both sources and their tags). Gateable with `--deny W034`; promotable via `[profiles]` |
 | `W035` | Warning | An `AttackTree`'s computed (weakest-link) feasibility does not match the `attackFeasibility` of the `ThreatScenario` it substantiates (`threatRef`). Gateable with `--deny W035`; promotable via `[profiles]` |
 
-#### Confirmation measures & DIA/CIA responsibility (E847–E851, W038, W039)
+#### Confirmation measures & DIA/CIA responsibility (E847–E851, E924, W038, W039)
 
 ISO 26262-2 §6 confirmation measures, ISO 26262-8 §5 DIA, ISO/SAE 21434 §7 CIA. The
 `responsibility:` common field (§3) names the accountable party for a work product. A
@@ -5768,6 +5814,7 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 | `E849` | Error | `measureType` is not `confirmation_review`/`functional_safety_audit`/`functional_safety_assessment`/`cybersecurity_assessment` |
 | `E850` | Error | `independenceLevel` is not `I1`/`I2`/`I3` |
 | `E851` | Error | a `confirms:` ref does not resolve to any model element |
+| `E924` | Error | `ConfirmationMeasure.status` is not `planned`/`in_progress`/`completed` |
 | `W038` | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. Opt-in; gateable with `--deny W038`; promotable |
 | `W039` | Warning | An `asilLevel: D` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
 
@@ -6051,6 +6098,7 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `testFunctions` | native TestCase | list | absent | 8.12.5 |
 | `tags` | native Requirement/TestCase | list of strings | absent | 8.11.6, 8.12.5 |
 | `links` | Any element | map: declared link-type name → string or list | absent | 12.10 — user-defined outbound links; keys must be declared in `[linkTypes]` (`E630`) |
+| `derive` | Any element | map: field name → formula string | absent | 3.18 — computed fields, dependency-ordered; cycle `E504`, malformed `E505`, unknown element `E506` |
 
 ---
 
@@ -6363,7 +6411,7 @@ allocatedTo: Logical::PropulsionController   # this action → that part
 ---
 ```
 
-**Form 2 — a standalone `Allocation` element (documented allocations).** A `type: Allocation` element names both `allocatedFrom` and `allocatedTo`, either top-level or per `features:` entry. This is a **reified relationship artifact** — kept for when the allocation itself needs a documented body (a freedom-from-interference argument, deployment rationale, or integration-test notes). Naming both endpoints is its purpose, not redundancy. The HW/SW FFI and deployment allocations of §12.6 use this form. A `features:` entry is recognised as an edge when it carries **both** `allocatedFrom` and `allocatedTo`, **regardless** of whether the entry also declares a feature-level `type: Allocation`.
+**Form 2 — a standalone `Allocation` element (documented allocations).** A `type: Allocation` element names both `allocatedFrom` and `allocatedTo`, either top-level or per `features:` entry. This is a **reified relationship artifact** — kept for when the allocation itself needs a documented body (a freedom-from-interference argument, deployment rationale, or integration-test notes). Naming both endpoints is its purpose, not redundancy. The HW/SW FFI and deployment allocations of §12.6 use this form. A `features:` entry is recognised as an edge when it carries **both** `allocatedFrom` and `allocatedTo`, **regardless** of whether the entry also declares a feature-level `type: Allocation`. The features form belongs to form 2 **only**: a `features:` entry that declares an allocation (a feature-level `type: Allocation`, or an `allocatedFrom:`/`allocatedTo:` key) on any element that is **not** `type: Allocation` is **not** an allocation edge — it feeds nothing in the unified set below — and raises warning **`W930`** so it is not silently ignored (its endpoints are still checked by `E500`/`E501`). Use `allocatedTo:` on the source (form 1) or move the entry to a standalone `Allocation` element.
 
 ```yaml
 ---
@@ -6385,6 +6433,7 @@ features:
 **Resolution and redundancy.**
 
 - Each `allocatedTo` operand must resolve by qualified name or stable id; an unresolved target raises **`E503`** (and an unresolved `allocatedFrom` on the standalone form raises **`E502`**).
+- A features-form allocation on a non-`Allocation` element contributes no edge and raises **`W930`** (see form 2 above).
 - When the **same** `source → target` edge is declared by **more than one** form — an `allocatedTo` on the source, a standalone `Allocation` element, or a legacy authored `allocatedFrom` on the target — the tool emits **`W503`** once for that edge, naming the forms — the duplicate is redundant, so pick one form. A single edge in a single form raises nothing.
 
 **Guidance:** use `allocatedTo:` by default; promote to a standalone `Allocation` element only when the allocation needs its own documentation.
@@ -6657,6 +6706,8 @@ When `inZone:` is present, the element is implicitly added to that zone's member
 | `E954` | `Conduit.fromZone` or `Conduit.toZone` unresolved, or resolves to an element that is not a `Zone` |
 | `E955` | `Zone.members:` entry unresolved, or resolves to an element that is not a `PartDef` / `Part` |
 | `E956` | `PartDef`/`Part.inZone:` unresolved, or resolves to a non-`Zone` element |
+| `E925` | A `targetSL:` or `achievedSL:` on a `Zone`, `Conduit`, `PartDef` or `Part` is outside the Security Level range `1`–`4` (IEC 62443-3-3 defines SL 1–4 only) |
+| `E926` | A `Zone`'s or `Conduit`'s `status:` is not one of `draft` / `review` / `approved` / `deprecated` |
 | `W950` | `Zone.achievedSL` is less than `Zone.targetSL` — the zone's security level is not yet achieved |
 | `W951` | `Conduit.achievedSL` is less than the `targetSL` of either connected zone — the conduit boundary is weaker than both zones it connects (opt-in; gateable with `--deny W951`) |
 | `W952` | `PartDef`/`Part` has `targetSL:` but is not referenced by any `Zone.members:` and declares no `inZone:` — isolated SL claim (opt-in) |
@@ -7477,7 +7528,13 @@ The following validation rules apply to a **single-region** `StateDef`/`State` t
 |---|---|
 | `W079` | **Unresolved behavior** — a state `entryAction`/`doAction`/`exitAction` or a transition `effect` references an action that resolves to no model element. |
 
-All of these codes are **draft-suppressed** (not emitted for `status: draft`) and gateable with `--deny W07x`.
+**Incomplete transitions.** Every check above consumes `(source → target)` edges; a transition that lacks an endpoint the schema requires (§8.8.3) produces no edge and would otherwise be ignored silently. It is reported instead — for any machine, with or without `subStates:`:
+
+| Code | Condition |
+|---|---|
+| `W929` | **Incomplete transition** — a top-level transition (the machine's own `transitions:`) has no `source:` (nor `from:`), or any transition, top-level or nested at any depth, has no `target:` (nor `to:`). A nested transition's `source` is implicit (its enclosing substate) and is never reported. |
+
+All of these codes are **draft-suppressed** (not emitted for `status: draft`) and gateable with `--deny W07x` / `--deny W929`.
 
 ### 22.2 Budget Expression Language (extends §8.9)
 

@@ -2,7 +2,7 @@
 type: ConfirmationMeasure
 id: CM-BRK-002
 name: "Independent functional-safety assessment of the braking goal"
-status: approved
+status: completed
 measureType: functional_safety_assessment
 independenceLevel: I3
 confirms:

@@ -63,9 +63,10 @@ These are not standard SysML usages — they carry a stable opaque identifier an
 | `Configuration` | `CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}` | `id`, `name`, `status`, `featureModel` |
 
 **`Zone`** / **`Conduit`** (§13) model IEC 62443 industrial cybersecurity: a `Zone` (`ZN-*`)
-groups parts under a Security Level (`targetSL`/`achievedSL`); a `Conduit` (`CD-*`) connects
-two zones. Structural elements may carry `targetSL`/`achievedSL`/`inZone:`. Validation
-`E950`–`E956`, `W950`–`W953`; commands `zones`, `conduits`, `zones --coverage`.
+groups parts under a Security Level (`targetSL`/`achievedSL`, each `1`–`4`, else `E925`); a
+`Conduit` (`CD-*`) connects two zones. Both take `status:` `draft`/`review`/`approved`/`deprecated`
+(else `E926`). Structural elements may carry `targetSL`/`achievedSL`/`inZone:`. Validation
+`E950`–`E956`, `E925`, `E926`, `W950`–`W953`; commands `zones`, `conduits`, `zones --coverage`.
 
 **`ReviewRecord`** (§19) captures a formal review event (design / requirements / hazard /
 test-readiness review, inspection, walkthrough) and the model elements it covers — a thin,

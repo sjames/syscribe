@@ -6,8 +6,8 @@ Syscribe models state-based behaviour with `StateDef` / `State` elements, faithf
 SysMLv2 §7.18. A state machine is a composite state whose `subStates:` are connected by
 **transitions**; the tool validates it for completeness (dead/trap states, missing or
 duplicate initials, non-determinism, illegal cross-region transitions, and unresolved
-references) with the `W070`–`W079` checks. All of these are draft-suppressed and gateable
-with `--deny W07x`.
+references, incomplete transitions) with the `W070`–`W079` and `W929` checks. All of these are draft-suppressed and gateable
+with `--deny W07x` (and `--deny W929`).
 
 ## A flat state machine
 
@@ -81,6 +81,7 @@ the `StateDef` top level (with an explicit `source:`); both yield the same edge 
 | `W074` | **Multiple initial** — more than one `isInitial` substate in a region. |
 | `W076` | **Unresolved endpoint** — a transition `source`/`target` that names no state in the machine and resolves to no element. |
 | `W079` | **Unresolved behaviour** — an `entryAction`/`doAction`/`exitAction` or transition `effect` that resolves to no element. |
+| `W929` | **Incomplete transition** — a top-level transition with no `source:`, or any transition with no `target:`. It yields no edge, so every check above would otherwise ignore it. |
 
 A **decision** transition (two or more *guarded* transitions from the same source) is a
 legitimate branch and does **not** raise `W072` — guards are what disambiguate.

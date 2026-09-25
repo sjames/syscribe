@@ -41,8 +41,8 @@ Errors block a clean build. Warnings are advisory.
 | E310–E315 | §12 Traceability | breakdownAdr, parent in satisfies, domain mismatch, HW/SW independence |
 | E400–E402 | Diagram | Mermaid/PlantUML body blocks, companion SVG on disk |
 | W400–W412 | Diagram | diagramKind, subject/shape/edge resolution, Mermaid annotations, SVG hrefs, operation typedBy |
-| E500–E503 | Allocation | allocatedFrom/allocatedTo resolution on Allocation elements and any element |
-| E504–E506 | Derive | `derive:` formula cycle (reserved), parse error, unknown `elements["QName"]` reference |
+| E500–E503, W930 | Allocation | allocatedFrom/allocatedTo resolution on Allocation elements and any element; a features-form allocation on a non-Allocation element (no edge) |
+| E504–E506 | Derive | `derive:` field dependency cycle, parse error / malformed block, unknown `elements["QName"]` reference |
 | W500–W502 | Structural | viewpoint, exhibitsStates, expose resolution on View elements |
 | W600–W601 | Documentation | Empty PartDef/Part or ActionDef/Action doc body |
 | W701–W703, W807 | Safety / ASPICE | verificationMethod on high-ASIL reqs, L5 test for ASIL D, mixed standards, security reqs |
@@ -65,8 +65,8 @@ Errors block a clean build. Warnings are advisory.
 | W513 | Hierarchical product lines (REQ-TRS-HPLE-004) | Opt-in, `--deny`-gateable: a required parameter anywhere in a consolidated `subConfigurations:` subtree remains unbound after every tier's own `parameterBindings:` |
 | E865, E866–E868, W060, W860 | Decomposition & budgets (§22.2) | Sibling-satisfy decomposition, budget expression syntax/rollup |
 | E869–E877, W061–W064 | Trade studies (§15) | TradeStudy required fields, criteria/alternatives/scores matrix, weights, objective/decision |
-| E950–E956, W950–W953 | IEC 62443 (§13) | Zone/Conduit required fields, ID patterns, zone/member/conduit resolution, Security-Level gaps |
-| W070–W079, W080 | Behavior (§22.1) | State-machine completeness (dead/trap/initial/parallel/transition), sequence-diagram send/receive completeness |
+| E950–E956, E925, E926, W950–W953 | IEC 62443 (§13) | Zone/Conduit required fields, ID patterns, status set, SL range 1–4, zone/member/conduit resolution, Security-Level gaps |
+| W070–W079, W929, W080 | Behavior (§22.1) | State-machine completeness (dead/trap/initial/parallel/transition, incomplete transitions), sequence-diagram send/receive completeness |
 
 See [Rule Reference](rules.md) for every code.
 
