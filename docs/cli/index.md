@@ -1142,7 +1142,7 @@ REQ-ENG-SAFE-006
 
 ### Print a frontmatter template
 
-`template` prints a ready-to-fill skeleton for any element type. Pipe it directly into a new file.
+`template` prints a ready-to-fill skeleton for any element type — every type in the inventory, including `Baseline` and the less common SysML types (`OccurrenceDef`, `ConcernDef`, `Succession`, …); only `FMEAEntry` is excluded, since its rows are authored inside `template FMEASheet`. Skeletons follow the current schema (`StateDef` uses the canonical `source`/`target`/`accept` transition keys with an `isInitial` state) and are checked in CI to validate cleanly apart from their placeholder references. An unknown type exits 1 and lists every known type. Pipe a skeleton directly into a new file.
 
 ```
 $ syscribe -m model_auto/ template Requirement
