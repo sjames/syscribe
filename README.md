@@ -139,7 +139,7 @@ For clients configured with an `mcpServers` JSON block (such as Claude Desktop):
 }
 ```
 
-Add `"--read-only"` after `"mcp"` for an analysis-only server. The server speaks MCP over stdio, needs no network access, and serves exactly the model directory passed with `-m`.
+Add `"--read-only"` after `"mcp"` for an analysis-only server. The server speaks MCP over stdio, needs no network access, and serves exactly the model directory passed with `-m`. It watches that directory and reloads automatically when files change outside MCP (an editor, the CLI, `git checkout`); pass `--no-watch` to disable.
 
 Read tools cover retrieval, fuzzy search, the containment/graph, `trace` / `impact`, validation, coverage, and the suspect/baseline surfaces. **Writes are guarded**: every `create_element` / `update_element` / `move_element` / `delete_element` / `apply_changes` call defaults to `dry_run: true`, returns the **validation delta** the change would cause (newly introduced and resolved errors and warnings), and refuses to commit anything that would break referential integrity — so an agent can propose a change, inspect its exact effect, and only then commit it. Sealing a release stays a deliberate CLI/CI action.
 

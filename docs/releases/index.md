@@ -2,6 +2,22 @@
 
 `RELEASES`
 
+## 0.42.0 — 2026-09-25
+
+### MCP server reloads automatically when model files change (#181)
+
+- **Before:** `syscribe mcp` loaded the model once and refreshed it only after its own write tools. Edits made by an editor, the CLI (`set`, `claim`, `move`), `git checkout` or another agent stayed invisible until the client called `reload`.
+- **Now:** a file watcher covers the model directory and any `[repos]` peers. After a short quiet period it reloads, but only when the model's inputs actually changed, so the server's own writes don't reload twice.
+- **No blocking:** the fresh model is built without holding the lock, so tool calls are never blocked.
+- **Half-saved files:** a file that newly fails to parse defers the reload (`reload_deferred`) and keeps the last good model.
+- **Clients:** they get a `{"event":"reload","source":"watch"}` log message and `notifications/resources/list_changed`.
+- **Controls:** the `reload` tool stays, and `--no-watch` disables watching. REQ-TRS-MCP-048 / TC-TRS-MCP-049.
+
+### Docs
+
+- **README:** a "Ways to use it" overview (CLI, GitHub Action, MCP server, LSP, web browser), and copy-paste setup for connecting the MCP server to Claude Code (`claude mcp add`) and to `mcpServers`-JSON clients.
+- **Action description:** the GitHub Action's Marketplace description is corrected and now mentions the MCP server.
+
 ## 0.41.0 — 2026-09-25
 
 This release comes out of a full documentation and specification consistency review. The review checked the spec, the LLM prompts, the help pages and the guides against the code and the binary, found about 110 inconsistencies, and logged 37 tool bugs (#125–#179). All are fixed; #150 turned out not to be a bug. Several documented behaviours change as a result, so read the **Behaviour changes** section before upgrading a CI gate.

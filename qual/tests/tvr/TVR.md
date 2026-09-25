@@ -1,7 +1,7 @@
 # Tool Validation Report
 
 **Tool:** syscribe CLI validator  
-**Version:** syscribe 0.41.0  
+**Version:** syscribe 0.42.0  
 **Standard:** ISO 26262:2018 Part 8 §11 (TCL2), IEC 61508:2010 Part 3 Annex D  
 **Date:** 2026-09-25  
 **TRS:** `qual/Requirements/`  **Test cases:** `qual/TestCases/`
@@ -12,8 +12,8 @@
 
 | Metric | Value |
 |---|---|
-| Total test cases | 340 |
-| Passed | 340 |
+| Total test cases | 341 |
+| Passed | 341 |
 | Failed | 0 |
 | Overall verdict | **PASS** |
 
@@ -1311,6 +1311,18 @@
 | W101 uses validate's shape-ref ancestor rule (GH #172) | ✓ PASS |
 | resolving refs and prose qnames are clean | ✓ PASS |
 | --json shape | ✓ PASS |
+
+---
+
+### TC-TRS-MCP-049 — Verify the MCP server reloads its model automatically after an on-disk edit, and does not under --no-watch.
+
+**Verifies:** REQ-TRS-MCP-048  
+**Result:** ✓ PASS (7 passed, 0 failed)
+
+| Scenario | Result |
+|---|---|
+| an external edit is visible without calling reload | ✓ PASS |
+| --no-watch keeps the loaded model | ✓ PASS |
 
 ---
 
