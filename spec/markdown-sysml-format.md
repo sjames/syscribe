@@ -2830,8 +2830,8 @@ Each entry in `allocations:`:
 |---|---|---|---|
 | `name` | string | optional | Named allocation usage |
 | `typedBy` | string | optional | Qualified name of an `AllocationDef` typing this sub-allocation |
-| `allocateFrom` | string | **Required** | Feature chain of the logical/source element |
-| `allocateTo` | string | **Required** | Feature chain of the physical/target element |
+| `allocatedFrom` | string | **Required** | Feature chain of the logical/source element |
+| `allocatedTo` | string | **Required** | Feature chain of the physical/target element |
 
 **Example** (`model/Allocations/FunctionAllocation.md`):
 
@@ -2841,11 +2841,11 @@ type: AllocationDef
 name: FunctionAllocation
 allocations:
   - name: engineControlAlloc
-    allocateFrom: LogicalArch::EngineControl
-    allocateTo: PhysicalArch::ECU
+    allocatedFrom: LogicalArch::EngineControl
+    allocatedTo: PhysicalArch::ECU
   - name: transmissionControlAlloc
-    allocateFrom: LogicalArch::TransmissionControl
-    allocateTo: PhysicalArch::TCU
+    allocatedFrom: LogicalArch::TransmissionControl
+    allocatedTo: PhysicalArch::TCU
 ---
 Composite allocation of logical control functions to physical ECUs.
 ```
@@ -2875,16 +2875,16 @@ The `Allocation` usage file specifies a concrete allocation of one element to an
 | Field | YAML type | Default | Description |
 |---|---|---|---|
 | `typedBy` | string | absent | Qualified name of the AllocationDef |
-| `allocateFrom` | string | **Required** | Feature chain or qualified name of the allocated element (source) |
-| `allocateTo` | string | **Required** | Feature chain or qualified name of the target element |
+| `allocatedFrom` | string | **Required** | Feature chain or qualified name of the allocated element (source) |
+| `allocatedTo` | string | **Required** | Feature chain or qualified name of the target element |
 
 ```yaml
 ---
 type: Allocation
 name: controllerToECU
 typedBy: Allocations::FunctionalToPhysical
-allocateFrom: VehicleBehavior::ProvidePower
-allocateTo: PhysicalArch::EngineControlUnit
+allocatedFrom: VehicleBehavior::ProvidePower
+allocatedTo: PhysicalArch::EngineControlUnit
 ---
 Allocates the ProvidePower action to the Engine Control Unit (ECU).
 ```
@@ -3848,7 +3848,7 @@ edges:
     kind: allocation
 ```
 
-**Completeness rule:** the parser must warn if any `allocateFrom`/`allocateTo` pair declared in any `Allocation` or `AllocationDef` within the subject package is absent from `edges:`.
+**Completeness rule:** the parser must warn if any `allocatedFrom`/`allocatedTo` pair declared in any `Allocation` or `AllocationDef` within the subject package is absent from `edges:`.
 
 ---
 
@@ -4054,7 +4054,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 
 **Cybersecurity risk determination (ISO/SAE 21434 §15.8–15.9):** Each `ThreatScenario` has a computed risk level. Severity rank = max `damageSeverity` over its resolved `damageScenarios` (`negligible`=0, `moderate`=1, `major`=2, `severe`=3); feasibility rank from `attackFeasibility` (`very_low`=0, `low`=1, `medium`=2, `high`=3). If either is unknown the risk is **unknown** (listed, not gated); otherwise `score = severity + feasibility` (0..6) → **low** (0–1), **medium** (2–3), **high** (4), **critical** (5–6). A `ThreatScenario` records its risk-treatment decision with `riskTreatment:` (`avoid`/`reduce`/`share`/`retain`; invalid → E845) and an optional free-text `residualRisk:`. A high/critical-risk threat with no `riskTreatment` that is not listed by any `CybersecurityGoal.threatScenarios` warns W031; a `CybersecurityGoal` whose `calLevel` is below the expected CAL for its threats' max risk (low→CAL1 … critical→CAL4) warns W032. Both are gateable with `--deny` and promotable via `[profiles]`. The `cyber-risk` command (§ CLI) lists every threat with its risk and treatment.
 
-**Binding SecurityControls to architecture:** Architecture elements (e.g. `PartDef`) that realise a `SecurityControl` should set `allocatedFrom:` to the control's `SC-*` ID. Both `allocatedFrom:` and `allocatedTo:` accept a single string or a list of strings to support multiple controls per element.
+**Binding SecurityControls to architecture:** allocate the control (source) to the architecture element that realises it (target) with a standalone `Allocation` element — `allocatedFrom: SC-*` + `allocatedTo: <element>` (§12.9 form 2); the element then lists the control in its derived `allocatedFrom` index. Both fields accept a single string or a list of strings, so one `Allocation` can bind several controls. An `allocatedFrom:` authored directly on the architecture element (the pre-GH #131 guidance) is still accepted as a legacy input form (§12.9), but is not recommended.
 
 **Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:`, and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`name`/`status` → E847; an `id` not matching `CM-*` → E848. An `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; only ASIL D → I3 and CAL4 → I3 are gated, lower levels are future tightening).
 
@@ -5177,8 +5177,8 @@ name: Allocations
 type: Allocation
 name: functionalAllocation
 typedBy: Allocations::FunctionalToPhysical
-allocateFrom: VehicleBehavior::ProvidePower
-allocateTo: PhysicalArch::EngineControlUnit
+allocatedFrom: VehicleBehavior::ProvidePower
+allocatedTo: PhysicalArch::EngineControlUnit
 metadata:
   - type: ModelingMetadata::Rationale
     text: "ECU is the only processing unit with real-time control authority over engine"
@@ -5489,7 +5489,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E311` | `breakdownAdr:` cannot be resolved, or resolves to an element that is not an `ADR` |
 | `E312` | A parent `Requirement` (one with `derivedChildren`) appears in a `satisfies:` list |
 | `E313` | A `satisfies:` link connects an element (not type-restricted — §12.3) and a requirement whose `domain` / `reqDomain` values are incompatible (e.g., a `software` element satisfying a `hardware` requirement) |
-| `E314` | A `Part` or `PartDef` with `isDeploymentPackage: true` has no `Allocation` to a `hardware` element |
+| `E314` | A `Part` or `PartDef` with `isDeploymentPackage: true` is the source of no allocation edge (any §12.9 form: `Allocation` element top-level or per `features:` entry, `allocatedTo:` on the package, legacy authored `allocatedFrom:` on the target) to a `hardware` element |
 | `E315` | An element with `domain: software` has a `supertype:` or `typedBy:` reference that resolves to an element with `domain: hardware`, or vice versa — cross-domain direct reference; use `Allocation` instead |
 | `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` — or on a behavioral definition `ActionDef`/`Action`/`StateDef`/`State` (REQ-TRS-MG-010) — does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef` (names the offending operand, owning element, and resolved type). Base-format check — runs regardless of the MagicGrid profile (REQ-TRS-MG-001). The `refinedBy` reverse index includes refining behavioral elements alongside refining use cases; the `W307` "missing refines" warning stays scoped to `UseCaseDef` |
 
@@ -5742,7 +5742,7 @@ ISO 26262-5 §8–9 hardware architectural metrics, rolled up per `SafetyGoal` f
 
 #### Freedom From Interference (W034)
 
-ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** when both are allocated to the same target element; allocation edges `(source → target)` are collected from `allocatedTo:` (source = the element), `allocatedFrom:` (target = the element), and `Allocation` elements' `allocatedFrom`/`allocatedTo`, resolved via the resolver and inverted into a `target → { sources }` map. Each element's integrity tag is `asilLevel`, else `silLevel` (→ `SIL<n>`), else `QM`; two sources on a target are mixed-criticality when their tags differ (including classified vs `QM`). A mixed pair is excused when the target **or** at least one of the two sources declares a non-empty `ffiRationale:` string, or carries a `breakdownAdr:` resolving to an `accepted` ADR. The check is **opt-in** — dormant unless some element declares `asilLevel` or `silLevel`. (The cross-domain "attack surface" co-analysis bonus from the originating issue is deferred.)
+ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** when both are allocated to the same target element; allocation edges `(source → target)` are the §12.9 unified edge set — `allocatedTo:` (source = the element), a legacy `allocatedFrom:` authored on a non-`Allocation` element (target = the element), and `Allocation` elements' `allocatedFrom`/`allocatedTo`, top-level or per `features:` entry (the `Allocation` element itself is never an endpoint) — resolved via the resolver and inverted into a `target → { sources }` map. Each element's integrity tag is `asilLevel`, else `silLevel` (→ `SIL<n>`), else `QM`; two sources on a target are mixed-criticality when their tags differ (including classified vs `QM`). A mixed pair is excused when the target **or** at least one of the two sources declares a non-empty `ffiRationale:` string, or carries a `breakdownAdr:` resolving to an `accepted` ADR. The check is **opt-in** — dormant unless some element declares `asilLevel` or `silLevel`. (The cross-domain "attack surface" co-analysis bonus from the originating issue is deferred.)
 
 | Code | Severity | Condition |
 |---|---|---|
@@ -6001,8 +6001,6 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `includes` | UseCaseDef | list | absent | 8.12.4 |
 | `extends` | UseCaseDef | list | absent | 8.12.4 |
 | `extensionPoints` | UseCaseDef | list | absent | 8.12.4 |
-| `allocateFrom` | Allocation | string | — | 8.13.2 |
-| `allocateTo` | Allocation | string | — | 8.13.2 |
 | `allocations` | AllocationDef/Package/PartDef | list | absent | 8.13.1, 8.13.2 |
 | `constraints` | InterfaceDef | list | absent | 8.3.3 |
 | `expose` | ViewDef | list | absent | 8.14.2 |
@@ -6029,8 +6027,8 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `derivedFromCybersecurityGoal` | native Requirement | string | absent | 8.11.6, 8.18.2 |
 | `verificationMethod` | native Requirement | string | absent | 8.11.6 |
 | `wcet` | native Requirement | string | absent | 8.11.6 |
-| `allocatedFrom` | Any element | string or list | absent | 8.18.2 |
-| `allocatedTo` | Any element | string or list | absent | 8.18.2 |
+| `allocatedFrom` | `Allocation` (with `allocatedTo`); any other element only as a legacy input — derived reverse of `allocatedTo` (§12.9) | string or list | absent | 8.13.2, 8.18.2, 12.9 |
+| `allocatedTo` | Any element (the allocated source, §12.9 form 1) or `Allocation` | string or list | absent | 8.13.2, 8.18.2, 12.9 |
 | `ffiRationale` | Any element | string | absent | 11.12 (W034) — freedom-from-interference / partitioning rationale; excuses a mixed-criticality shared-allocation pair |
 | `responsibility` | Any element | string | absent | 3, 11.12 (W038) — accountable party/organisation for a work product (DIA/CIA split) |
 | `measureType` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E849) — confirmation_review / functional_safety_audit / functional_safety_assessment / cybersecurity_assessment |
@@ -6126,7 +6124,7 @@ All traceability links in Markdown-SysML follow OSLC (Open Services for Lifecycl
 | `derivedFrom:` | child → parent | This requirement was broken down from the parent |
 | `verifies:` | test → requirement | This test case verifies the requirement |
 | `satisfies:` | element → requirement | This element implements the requirement — not type-restricted (§12.3) |
-| `allocatedTo:` / `allocatedFrom:` | downstream → upstream | The architecture element (downstream, realising party) holds `allocatedFrom:` referencing the upstream logical or security artifact; `allocatedTo:` is used on `Allocation` elements |
+| `allocatedTo:` | source → target | The element being allocated (the logical function, software package, or security control) holds `allocatedTo:` naming the element that realises it (§12.9 form 1). `allocatedFrom` is **derived** — the reverse index on the target — never the recommended thing to author; a standalone `Allocation` element (§12.9 form 2) names both ends because it *is* the relationship. An `allocatedFrom:` authored on a non-`Allocation` target is accepted only as a legacy input form (§12.9) |
 | `breakdownAdr:` | requirement → ADR | This requirement's breakdown is documented in the ADR |
 
 No reverse links are stored in model files. Reverse indices (`verifiedBy`, `derivedChildren`, `satisfiedBy`) are computed by the parser at load time and never written to disk.
@@ -6218,7 +6216,7 @@ The hardware and software architectures are **independent hierarchies**. They in
 
 **Rule R-006a (no direct cross-domain references):** An element with `domain: software` must not have `supertype:` or `typedBy:` referencing an element with `domain: hardware`, and vice versa. Cross-domain direct references are errors (`E315`). The correct pattern is an explicit `Allocation`.
 
-**Rule R-006b (deployment allocation):** A `Part` or `PartDef` with `isDeploymentPackage: true` must have at least one `Allocation` element whose `allocateFrom:` is this element and whose `allocateTo:` references an element with `domain: hardware`. (Error `E314`.)
+**Rule R-006b (deployment allocation):** A `Part` or `PartDef` with `isDeploymentPackage: true` must be the source of at least one allocation edge whose target is an element with `domain: hardware`. (Error `E314`.) Every form of the §12.9 unified edge set counts: an `Allocation` element whose `allocatedFrom:` is this element and whose `allocatedTo:` references the hardware element (top-level or per `features:` entry), `allocatedTo:` on the package itself, or a legacy `allocatedFrom:` authored on the hardware element.
 
 **Correct cross-domain pattern:**
 ```yaml
@@ -6241,8 +6239,8 @@ domain: hardware
 ---
 type: Allocation
 name: schedulerToFC
-allocateFrom: Software::SchedulerModule
-allocateTo: Hardware::FlightComputer
+allocatedFrom: Software::SchedulerModule
+allocatedTo: Hardware::FlightComputer
 ---
 ```
 
@@ -6256,8 +6254,8 @@ When a software component is first allocated to a hardware element, or when the 
 ---
 type: Allocation
 name: schedulerToFC
-allocateFrom: Software::SchedulerModule
-allocateTo: Hardware::FlightComputer
+allocatedFrom: Software::SchedulerModule
+allocatedTo: Hardware::FlightComputer
 metadata:
   - type: ModelingMetadata::Rationale
     text: "See ADR-HW-DEPLOY-001 for platform selection rationale"
@@ -6372,14 +6370,16 @@ features:
 ---
 ```
 
-**One unified edge set.** The allocation-edge set `(source → target)` consumed by `MG041`, `MG081`, the `matrix --allocations` view, and the derived `allocatedFrom` index comes from a **single** extractor that yields edges from both forms. So `matrix --allocations` and the MagicGrid gate can never disagree, and an allocation authored in either form produces the same edge.
+**One unified edge set.** The allocation-edge set `(source → target)` consumed by `MG041`, `MG081`, `E314` (§12.6 R-006b), `W034` (freedom from interference), the `matrix --allocations` view, and the derived `allocatedFrom` index comes from a **single** extractor that yields edges from both forms. So `matrix --allocations`, the MagicGrid gate and the safety checks can never disagree, and an allocation authored in either form produces the same edge. A standalone `Allocation` element is never itself an endpoint: it contributes its `allocatedFrom → allocatedTo` edge.
+
+**Legacy input: `allocatedFrom:` authored on the target.** `allocatedFrom` is derived, and authoring it is not recommended. For backward compatibility an `allocatedFrom:` authored on a **non-`Allocation`** element (the realising target) is still accepted: each resolved entry `S` contributes the edge `S → that element` to the unified set — so it shows in `matrix --allocations`, the derived index, `E314` and `W034` exactly like the two forms above — and an unresolved entry raises `E502`. Migrate it to `allocatedTo:` on the source, or to a standalone `Allocation` element when the allocation needs documenting.
 
 **Derived `allocatedFrom` index.** Each target element gains a derived reverse index `allocatedFrom` listing every source allocated to it, aggregated over both forms — surfaced in `show` (an `## Allocated from` section), `links`, and the export `computed` block exactly like `verifiedBy` / `refinedBy` / `mopRefinedBy`.
 
 **Resolution and redundancy.**
 
 - Each `allocatedTo` operand must resolve by qualified name or stable id; an unresolved target raises **`E503`** (and an unresolved `allocatedFrom` on the standalone form raises **`E502`**).
-- When the **same** `source → target` edge is declared by **both** an `allocatedTo` on the source **and** a standalone `Allocation` element, the tool emits **`W503`** once for that edge — the duplicate is redundant, so pick one form. A single edge in a single form raises nothing.
+- When the **same** `source → target` edge is declared by **more than one** form — an `allocatedTo` on the source, a standalone `Allocation` element, or a legacy authored `allocatedFrom` on the target — the tool emits **`W503`** once for that edge, naming the forms — the duplicate is redundant, so pick one form. A single edge in a single form raises nothing.
 
 **Guidance:** use `allocatedTo:` by default; promote to a standalone `Allocation` element only when the allocation needs its own documentation.
 

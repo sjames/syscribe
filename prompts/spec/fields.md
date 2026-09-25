@@ -152,11 +152,9 @@ All frontmatter fields. Optional unless marked **required**.
 
 | Field | Applies to | Type |
 |---|---|---|
-| `allocateFrom` | Allocation element | string |
-| `allocateTo` | Allocation element | string |
 | `allocations` | AllocationDef/Package/PartDef | list |
-| `allocatedFrom` | Any element | string or list |
-| `allocatedTo` | Any element | string or list |
+| `allocatedFrom` | `Allocation` element (with `allocatedTo`); on any other element only as a legacy input — it is the derived reverse of `allocatedTo` (§12.9) | string or list |
+| `allocatedTo` | Any element — the source being allocated (§12.9 form 1), or an `Allocation` element | string or list |
 
 ## Domain and domain-independence
 

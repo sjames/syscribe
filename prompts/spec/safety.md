@@ -141,8 +141,10 @@ controlType: prevention     # prevention · detection · response · recovery
 implementsGoals: [CSG-001]
 ```
 
-Architecture elements that realise a `SecurityControl` set `allocatedFrom: SC-001`
-(accepts single string or list for multiple controls).
+Bind a `SecurityControl` to the architecture element that realises it with a standalone
+`Allocation` element — `allocatedFrom: SC-001` + `allocatedTo: <element>` (either accepts a
+single string or a list). Do not author `allocatedFrom:` on the architecture element: it is the
+derived reverse index (§12.9); an authored one is accepted only as a legacy input form.
 
 ### VulnerabilityReport — `VR-*`
 
@@ -450,7 +452,7 @@ Place in the `AttackTreeName/` subdirectory.
 |---|---|
 | `Requirement` → `SafetyGoal` | `derivedFromSafetyGoal: SG-*`; integrity level must propagate (E841) |
 | `Requirement` → `CybersecurityGoal` | `derivedFromCybersecurityGoal: CSG-*`; `verificationMethod:` required (W807) |
-| `PartDef`/`Part` → `SecurityControl` | `allocatedFrom: SC-*` (or list); OSLC direction: arch element holds reference |
+| `SecurityControl` → `PartDef`/`Part` | a standalone `Allocation` element: `allocatedFrom: SC-*`, `allocatedTo: <element>` (§12.9); the element's `allocatedFrom` is derived |
 | `FaultTree` → `SafetyGoal` | `topEvent: SG-*` |
 | `AttackTree` → `ThreatScenario` | `threatRef: TS-*` (E917); feasibility roll-up reconciled via W035 |
 | `ASIL decomposition` | Lower level on derived element + `breakdownAdr:` (W808 without ADR) |

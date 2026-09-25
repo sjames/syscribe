@@ -47,13 +47,27 @@ The allocation-edge set **(source → target)** consumed by `MG041`, `MG081`, th
 So `matrix --allocations` and the gate can never disagree, and an allocation authored in
 either form produces the same edge.
 
+The same unified set **shall** also feed `E314` ([[REQ-TRS-TRACE-008]]) and `W034`
+([[REQ-TRS-SAFE-006]]) — no consumer walks the `allocatedFrom`/`allocatedTo` fields itself (GH #131).
+
+### Legacy authored `allocatedFrom:` (backward compatibility)
+
+§12.9 is normative: `allocatedFrom` is **derived**, never the recommended thing to author. An
+`allocatedFrom:` authored on a **non-`Allocation`** element (the target) — the form the pre-GH #131
+§12.1 table described — **shall** nevertheless remain accepted: each resolved entry `S` yields the
+edge `S → holder` in the unified set (so it appears in `matrix --allocations`, the derived
+`allocatedFrom` index, `E314` and `W034`), and an unresolved entry still raises `E502`. It is a
+third, legacy input form; authors should migrate to `allocatedTo:` on the source or a standalone
+`Allocation` element.
+
 ### Resolution & redundancy
 
 - Each `allocatedTo` operand **shall** resolve by qualified name or stable id; an unresolved
   target raises the existing `E503` (and `E502` for an unresolved `allocatedFrom` on the
   standalone form).
-- When the **same** `source → target` edge is declared by **both** an `allocatedTo` on the
-  source **and** a standalone `Allocation` element, the tool **shall** emit a warning (the
+- When the **same** `source → target` edge is declared by **more than one** form (an
+  `allocatedTo` on the source, a standalone `Allocation` element, a legacy authored
+  `allocatedFrom` on the target), the tool **shall** emit a warning (`W503`) naming the forms (the
   duplicate is redundant — pick one form). A single edge in a single form raises nothing.
 
 **Source:** allocation-extractor hardening + OSLC alignment — a false-positive class found
@@ -77,3 +91,6 @@ of [[REQ-TRS-TRACE-001]].
 - An `allocatedTo` naming an unresolved target raises `E503`.
 - The same `source → target` edge declared in **both** forms raises the redundancy warning;
   one edge in one form raises nothing.
+- A legacy `allocatedFrom:` authored on a non-`Allocation` target appears in
+  `matrix --allocations`; declaring the same edge with `allocatedTo:` on the source as well raises
+  `W503`.

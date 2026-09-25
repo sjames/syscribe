@@ -1139,13 +1139,14 @@ controlTable:
 
 After the TARASheet is in place, create `Requirement` elements with `derivedFromCybersecurityGoal: CSG-SYS-001` and set `verificationMethod:`.
 
-**Binding a SecurityControl to an architecture element** (OSLC-compliant direction — architecture element holds the reference):
+**Binding a SecurityControl to the architecture element that implements it** — an allocation from the control (source) to the element (target). `SC-*` controls live inside the TARA sheet's `controlTable:`, so use a standalone `Allocation` element (§12.9 form 2); never author `allocatedFrom:` on the architecture element (it is the derived reverse index):
 
 ```yaml
-# In Hardware/ECU.md
-type: PartDef
-allocatedFrom:
-  - SC-SYS-001    # this component implements this security control
+# In Allocations/SC-SYS-001-to-ECU.md
+type: Allocation
+name: SecureBootOnEcu
+allocatedFrom: SC-SYS-001       # the security control
+allocatedTo: Hardware::ECU      # the component that implements it
 ```
 
 ### FTA (Fault Tree Analysis)
