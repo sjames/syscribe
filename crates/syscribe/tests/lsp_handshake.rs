@@ -38,6 +38,44 @@ fn initialize_advertises_the_full_v1_v2_v3_capability_set() {
     lsp.shutdown();
 }
 
+/// `syscribe help lsp` (prompts/help/lsp.md) documents every advertised capability
+/// by its LSP method name, and every executeCommand command by name — so the page
+/// can never again claim an implemented feature is missing (or vice versa).
+#[test]
+fn help_page_documents_every_advertised_capability() {
+    const PAGE: &str = include_str!("../../../prompts/help/lsp.md");
+    let model = fixture_copy();
+    let mut lsp = Lsp::start(&model);
+    let res = lsp.initialize();
+    let caps = res.get("capabilities").and_then(|c| c.as_object()).expect("capabilities object");
+    for (key, value) in caps {
+        let methods: &[&str] = match key.as_str() {
+            "textDocumentSync" => &["textDocument/didSave"],
+            "hoverProvider" => &["textDocument/hover"],
+            "definitionProvider" => &["textDocument/definition"],
+            "referencesProvider" => &["textDocument/references"],
+            "workspaceSymbolProvider" => &["workspace/symbol"],
+            "completionProvider" => &["textDocument/completion"],
+            "renameProvider" => &["textDocument/prepareRename", "textDocument/rename"],
+            "codeLensProvider" => &["textDocument/codeLens"],
+            "codeActionProvider" => &["textDocument/codeAction"],
+            "executeCommandProvider" => &["workspace/executeCommand"],
+            other => panic!("capability `{other}` is advertised but has no documented method mapping; document it in prompts/help/lsp.md and add it here"),
+        };
+        for m in methods {
+            assert!(PAGE.contains(&format!("`{m}`")), "prompts/help/lsp.md does not document `{m}` ({key})");
+        }
+        if key == "executeCommandProvider" {
+            for c in value.get("commands").and_then(|c| c.as_array()).into_iter().flatten() {
+                let c = c.as_str().unwrap_or_default();
+                assert!(PAGE.contains(c), "prompts/help/lsp.md does not document command {c}");
+            }
+        }
+    }
+    assert!(!PAGE.contains("not implemented"), "prompts/help/lsp.md still claims something is not implemented");
+    lsp.shutdown();
+}
+
 #[test]
 fn clean_shutdown_exits_zero() {
     let model = fixture_copy();
