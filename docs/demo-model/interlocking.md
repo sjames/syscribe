@@ -187,4 +187,4 @@ The **2oo2D architecture** (two-out-of-two with diagnostics) means both processo
 syscribe -m model_sil/ validate
 ```
 
-The model produces 0 errors and 0 warnings.
+The model produces 0 errors. Its few remaining warnings are advisory security co-analysis findings — `W030` on damage scenarios with safety impact but no `hazardRef`, and `W032` on a cybersecurity goal whose CAL is below what its critical-risk threats require.

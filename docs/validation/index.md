@@ -74,7 +74,7 @@ See [Rule Reference](rules.md) for every code.
 
 ## Tool qualification
 
-The validator is itself qualified under ISO 26262 Part 8 §11 (TCL2). The `qual/` directory contains the qualification model — over 240 requirements (`REQ-TRS-*`) and a matching test case (`TC-TRS-*`) per requirement, in Syscribe format, covering every emitted validation code — along with a shell test runner that invokes the binary against crafted fixture models.
+The validator is itself qualified under ISO 26262 Part 8 §11 (TCL2). The `qual/` directory contains the qualification model — over 300 requirements (`REQ-TRS-*`) and a matching test case (`TC-TRS-*`) per requirement, in Syscribe format, covering every emitted validation code — along with a shell test runner that invokes the binary against crafted fixture models.
 
 Run `syscribe -m qual/` to validate the qualification model, or `bash qual/tests/run_qual.sh` to execute the full TCL2 test suite. See [Tool Qualification](../tool-qualification/index.md) for the complete story.
 
