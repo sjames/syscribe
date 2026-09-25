@@ -918,7 +918,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 // (ADR-SYS-PLUGIN-002) — its own dedicated code range,
                 // distinct from the temporary SysMLv2 placeholder range
                 // (W540-W542) and from the never-shipped WASM-plugin family
-                // (E530/E532/W530/W532-534, `feat/wasm-plugins`, unmerged).
+                // (reserved E530-E532/W530-W534 per ADR-SYS-PLUGIN-002,
+                // `feat/wasm-plugins`, unmerged).
                 "E550" => "E550",
                 "E551" => "E551",
                 "W550" => "W550",

@@ -17,7 +17,7 @@
 | `E010` | `asilLevel:` is not in `A`–`D` |
 | `E011` | Native `TestCase` body has no ` ```gherkin ` fenced block |
 | `E012` | Native `Requirement` body has no normative text before the first `##` heading |
-| `E013` | `verifies:` list is present but empty |
+| `E013` | `verifies:` is absent or empty on a `TestCase` |
 | `E014` | `Scenario Outline:` block has no `Examples:` table |
 | `E015` | First Gherkin block has no `Feature:` line |
 | `E019` | `dalLevel:` is not in `A`–`E` (DO-178C) |
@@ -68,7 +68,7 @@
 | Code | Condition |
 |---|---|
 | `W001` | Native `Requirement` normative text contains no `shall` |
-| `W002` | `Requirement` at `approved`/`implemented` has no active `TestCase` in `verifiedBy` |
+| `W002` | Leaf `Requirement` at `approved`/`implemented` has no active `TestCase` in `verifiedBy` (parents are covered by `W305`) |
 | `W003` | `Requirement` at `verified` but `verifiedBy` is empty or all entries are `retired` |
 | `W004` | `sourceFile:` path does not exist on disk relative to model root |
 | `W009` | A TestCase `testFunctions[].function` is not found in its `sourceFile` (live source-drift; planned/draft TestCases report `I010` instead) |
@@ -121,7 +121,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E851` | A `confirms:` ref does not resolve to any model element |
 | `E924` | `ConfirmationMeasure.status` not in `planned · in_progress · completed` |
 | `W038` | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) has no `responsibility:` field. **Opt-in:** dormant unless some element declares `responsibility:`. Gate with `--deny W038` |
-| `W039` | A high-integrity item lacks its required independent assessment: an `asilLevel: D` **or** `silLevel: 3`/`silLevel: 4` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`; or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039` |
+| `W039` | A high-integrity item lacks its required independent assessment: an `asilLevel: D` **or** `silLevel: 3`/`silLevel: 4` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`; or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`; or a `calLevel: CAL3` `CybersecurityGoal` not confirmed by an I2 or I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039` |
 
 ## Tier 2 parse-time errors — HARA (E800–E806, E833–E837)
 
@@ -549,6 +549,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E225` | (`feature-check --deep`) a `Configuration` is not a valid model of the feature model (mandatory/group/cardinality/parent violation) |
 | `E226` | (`validate --config`) an active element's structural reference escapes the configuration (target inactive in this variant) |
 | `E227` | (`feature-check --deep`) a structural reference is provably violable: a valid configuration activates the source without the target |
+| `E228` | (`validate`) invalid `appliesWhen:` placement (§9.10): nested under a package that already declares one; or on a `FeatureDef`/`Configuration`, a package whose subtree contains one, or the model-root package |
 | `E231` | (§9.6a single-file feature model) a `featureTree:` entry is not a mapping, has no `name:`, or its dotted `name:` path is malformed — the entry is skipped |
 | `E232` | (§9.6a) a `featureTree:` entry's resolved qualified name collides with an existing element (or another entry) of the same qname |
 | `E233` | (§9.6a) a `crossTreeConstraints:` entry is not a mapping, has no `feature:`, has an empty path segment in `feature:`/`requires:`/`excludes:`, or its `feature:` does not resolve to a `FeatureDef` synthesized from the same sheet's `featureTree:` |
@@ -574,7 +575,6 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W022` | (`feature-check --deep`) a requirement active in some configuration but covered in none |
 | `W024` | (`feature-check`) an orphan `FeatureDef` — referenced by no `appliesWhen:` and selected by no `Configuration` (gates nothing, ships in nothing); gate with `--deny W024` |
 | `W025` | (`feature-check`) a `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`; gate with `--deny W025` |
-| `E228` | (`validate`) invalid `appliesWhen:` placement (§9.10): nested under a package that already declares one; or on a `FeatureDef`/`Configuration`, a package whose subtree contains one, or the model-root package |
 | `W026` | (`validate`) a `Package` declares `appliesWhen:` but gates no projectable element (empty subtree); gate with `--deny W026` |
 | `W027` | (`validate`) a `Configuration` binds a parameter whose `bindingTime: runtime` (resolved by the running system, not at configuration time); gate with `--deny W027` |
 | `W048` | (§9.6a) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — the field is inert and ignored |
