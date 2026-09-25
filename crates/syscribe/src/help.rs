@@ -152,6 +152,8 @@ fn print_index_to(w: &mut dyn std::io::Write) {
 #[cfg(test)]
 mod prompt_syntax_tests {
     use super::*;
+    use regex::Regex;
+    use std::sync::LazyLock;
 
     /// Every prompt an LLM agent is handed via `--agent-instructions`.
     const PROMPTS: &[(&str, &str)] = &[
@@ -159,19 +161,237 @@ mod prompt_syntax_tests {
         ("create-magicgrid-model.md", include_str!("../../../prompts/create-magicgrid-model.md")),
     ];
 
-    /// The model root is only ever passed with `-m`/`--model`; the router rejects a
-    /// positional path (`syscribe model/ show X` → "unrecognized subcommand 'model/'"),
-    /// so an agent copying such an example fails on its first command.
-    #[test]
-    fn prompts_never_pass_the_model_root_positionally() {
-        let re = regex::Regex::new(r"syscribe\s+([A-Za-z0-9_.~][A-Za-z0-9_.~/-]*/)(\s|`|\||$)").unwrap();
-        for (name, text) in PROMPTS {
-            for (i, line) in text.lines().enumerate() {
-                if let Some(c) = re.captures(line) {
-                    panic!("{name}:{}: positional model path '{}' — use `syscribe -m {}`", i + 1, &c[1], &c[1]);
+    /// Subcommands whose positional argument genuinely *is* a filesystem path, so a
+    /// directory there is not a misplaced model root (`lint-docs docs/`,
+    /// `render model/Diagrams/X.md`, `ingest-results <file>`).
+    const PATH_TAKING: &[&str] = &["lint-docs", "render", "ingest-results"];
+
+    /// TEMPORARY allowlist of known offenders, matched by (repo-relative file, exact
+    /// line text); the line number is informational. These lines are being corrected
+    /// on another branch — remove this list (and its entries) once
+    /// `docs/review-prompts-guides` lands. A stale entry is harmless (it simply
+    /// matches nothing), so merge order does not matter.
+    const KNOWN_OFFENDERS: &[(&str, usize, &str)] = &[
+        ("prompts/create-model.md", 796, "syscribe diagram list model/"),
+        ("prompts/create-model.md", 797, "syscribe diagram list model/ --type PartDef,Part --ns UAV"),
+        ("prompts/create-model.md", 803, "syscribe diagram measure model/ \\"),
+        ("prompts/create-model.md", 839, "syscribe diagram compose model/ my-arch.layout.json \\"),
+        ("docs/model-guide/index.md", 42, "cargo run --package syscribe -- model/"),
+        ("docs/model-guide/index.md", 48, "cargo run --package syscribe -- model/ > reports/validation.md"),
+        ("docs/model-guide/index.md", 54, "cargo run --package syscribe-server -- model/"),
+        ("docs/validation/index.md", 11, "cargo run --package syscribe -- model/"),
+        ("docs/browser/index.md", 10, "cargo run --package syscribe-server -- model/"),
+        (
+            "overrides/home.html",
+            395,
+            "            <div class=\"sml-spec-row__sub\">Parse, validate, and browse any model directory: <code style=\"font-size:11px;\">cargo run --package syscribe-server -- model/</code></div>",
+        ),
+    ];
+
+    fn repo_root() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+    }
+
+    /// Any relative directory path (`model/`, `my_model/`, `examples/x/`).
+    fn is_dir_path(tok: &str) -> bool {
+        static RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_.~][A-Za-z0-9_.~/-]*/$").unwrap());
+        RE.is_match(tok)
+    }
+
+    /// A model-root-looking directory: `model/`, `model_auto/`, `./model/`,
+    /// `examples/<...>/` (e.g. `examples/foo/model/`).
+    fn is_model_root(tok: &str) -> bool {
+        let t = tok.strip_prefix("./").unwrap_or(tok);
+        static RE: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"^(model|model_[A-Za-z0-9_]+|examples/[A-Za-z0-9_./-]+)/$").unwrap());
+        RE.is_match(t)
+    }
+
+    /// The whitespace-separated arguments of every `syscribe …` /
+    /// `cargo run --package syscribe[-server] … -- …` invocation on `line`, each cut
+    /// at the end of the command (backtick, pipe, `;`, `&`, `<`, quote, comment).
+    fn invocations(line: &str) -> Vec<Vec<&str>> {
+        static RE: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(
+                r"(?:^|[^A-Za-z0-9_.-])(?:syscribe|cargo\s+run\s+(?:[^\s|;&`<]+\s+)*?(?:--package|-p)\s+syscribe(?:-server)?(?:\s+[^\s|;&`<]+)*?\s+--)(?:\s|$)",
+            )
+            .unwrap()
+        });
+        RE.find_iter(line)
+            .map(|m| {
+                let rest = &line[m.end()..];
+                let end = rest.find(['`', '|', ';', '&', '<', '"', '\'', '#', '>']).unwrap_or(rest.len());
+                rest[..end].split_whitespace().filter(|t| *t != "\\").collect()
+            })
+            .collect()
+    }
+
+    /// The offending model-root argument of one invocation, if any. `full` also
+    /// checks positionals after the subcommand (for agent-facing prompts); otherwise
+    /// only a directory passed directly as the first argument is flagged.
+    fn offending_arg<'a>(args: &[&'a str], full: bool) -> Option<&'a str> {
+        let mut sub: Option<&str> = None;
+        let mut i = 0;
+        while i < args.len() {
+            let a = args[i];
+            if a.starts_with('-') {
+                // `-m <root>` / `--model <root>` (and, after the subcommand, any
+                // `--flag <value>`) consume the next token as a value, not a positional.
+                let takes_value = !a.contains('=')
+                    && (a == "-m" || a == "--model" || sub.is_some())
+                    && args.get(i + 1).is_some_and(|n| !n.starts_with('-'));
+                i += if takes_value { 2 } else { 1 };
+                continue;
+            }
+            match sub {
+                None => {
+                    if is_dir_path(a) {
+                        return Some(a); // `syscribe model/ …` — positional root
+                    }
+                    if !full || PATH_TAKING.contains(&a) {
+                        return None;
+                    }
+                    sub = Some(a);
+                }
+                Some(_) => {
+                    if is_model_root(a) {
+                        return Some(a); // `syscribe diagram list model/`
+                    }
+                }
+            }
+            i += 1;
+        }
+        None
+    }
+
+    /// Scan `text` (from `file`, repo-relative) and return one message per offending
+    /// line not on the temporary allowlist.
+    fn scan(file: &str, text: &str, full: bool) -> Vec<String> {
+        scan_raw(file, text, full, true)
+    }
+
+    fn scan_raw(file: &str, text: &str, full: bool, allowlist: bool) -> Vec<String> {
+        let mut out = Vec::new();
+        for (i, line) in text.lines().enumerate() {
+            for args in invocations(line) {
+                if let Some(bad) = offending_arg(&args, full) {
+                    if allowlist && KNOWN_OFFENDERS.iter().any(|(f, _, l)| *f == file && *l == line) {
+                        continue;
+                    }
+                    out.push(format!(
+                        "{file}:{}: model root '{bad}' passed positionally — use `-m {bad}`: {}",
+                        i + 1,
+                        line.trim()
+                    ));
                 }
             }
         }
+        out
+    }
+
+    fn read_rel(rel: &str) -> String {
+        std::fs::read_to_string(repo_root().join(rel)).unwrap_or_else(|e| panic!("read {rel}: {e}"))
+    }
+
+    /// Every `.md` file under `dir` (repo-relative), sorted, as repo-relative paths.
+    fn md_files(dir: &str) -> Vec<String> {
+        let root = repo_root();
+        let mut files: Vec<String> = walkdir::WalkDir::new(root.join(dir))
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file() && e.path().extension().is_some_and(|x| x == "md"))
+            .filter_map(|e| e.path().strip_prefix(&root).ok().map(|p| p.to_string_lossy().replace('\\', "/")))
+            .collect();
+        files.sort();
+        files
+    }
+
+    /// The model root is only ever passed with `-m`/`--model`; the router rejects a
+    /// positional path (`syscribe model/ show X` → "unrecognized subcommand 'model/'",
+    /// `syscribe diagram list model/` → "unexpected argument"), so an agent copying
+    /// such an example fails on its first command. Covers every agent-facing prompt
+    /// (`prompts/**/*.md`: the `--agent-instructions` prompts, `spec` topics and
+    /// `help` pages) and `cargo run --package syscribe[-server] -- <path>/`.
+    #[test]
+    fn prompts_never_pass_the_model_root_positionally() {
+        let mut bad = Vec::new();
+        for f in md_files("prompts") {
+            bad.extend(scan(&f, &read_rel(&f), true));
+        }
+        assert!(bad.is_empty(), "positional model root in prompts:\n{}", bad.join("\n"));
+    }
+
+    /// The same guard, for the direct forms only (`syscribe <path>/`,
+    /// `cargo run --package syscribe[-server] -- <path>/`), over the user docs.
+    /// `docs/releases/` is excluded: release notes quote the old, wrong syntax
+    /// when describing what a release fixed.
+    #[test]
+    fn docs_never_pass_the_model_root_positionally() {
+        let mut files: Vec<String> =
+            md_files("docs").into_iter().filter(|f| !f.starts_with("docs/releases/")).collect();
+        files.push("README.md".into());
+        files.push("overrides/home.html".into());
+        let mut bad = Vec::new();
+        for f in &files {
+            bad.extend(scan(f, &read_rel(f), false));
+        }
+        assert!(bad.is_empty(), "positional model root in docs:\n{}", bad.join("\n"));
+    }
+
+    /// Every temporary-allowlist entry is a line the guard really flags (in the
+    /// scan mode its file is checked with), so the allowlist only ever hides
+    /// genuine offenders.
+    #[test]
+    fn known_offenders_are_real_offenders() {
+        for (file, line_no, line) in KNOWN_OFFENDERS {
+            let full = file.starts_with("prompts/");
+            assert!(
+                !scan_raw(file, line, full, false).is_empty(),
+                "{file}:{line_no}: allowlisted line is not flagged by the guard: {line}"
+            );
+            assert!(scan(file, line, full).is_empty(), "{file}:{line_no}: allowlist entry not honoured");
+        }
+    }
+
+    /// The guard itself: it catches every known-bad form and passes the good ones.
+    #[test]
+    fn positional_root_guard_catches_known_forms() {
+        let bad = [
+            "syscribe model/ show X",
+            "./target/debug/syscribe model_auto/",
+            "syscribe diagram list model/",
+            "syscribe diagram list model/ --type PartDef",
+            "syscribe diagram measure model/ \\",
+            "syscribe diagram compose model/ my-arch.layout.json \\",
+            "syscribe -m model/ diagram list examples/foo/model/",
+            "cargo run --package syscribe -- model/",
+            "cargo run --package syscribe -- model/ > reports/validation.md",
+            "cargo run -p syscribe-server -- model/",
+            "cargo run --release --package syscribe-server -- model_sil/",
+            "<code>cargo run --package syscribe-server -- model/</code>",
+            "`syscribe model/ validate`",
+        ];
+        for l in bad {
+            assert!(!scan("t.md", l, true).is_empty(), "not caught: {l}");
+        }
+        let good = [
+            "syscribe -m model/ show X",
+            "syscribe --model model_auto/ validate",
+            "syscribe -m model/ diagram list",
+            "syscribe -m model/ diagram compose my.layout.json --output model/Views/X.svg",
+            "syscribe -m model/ lint-docs docs/",
+            "syscribe -m model/ render model/Diagrams/SystemBDD.md",
+            "cargo run --package syscribe -- -m model/",
+            "cargo run --package syscribe-server -- -m model/",
+            "the .syscribe/results.json sidecar under model/",
+            "syscribe-model/ crate",
+        ];
+        for l in good {
+            assert!(scan("t.md", l, true).is_empty(), "false positive: {l}");
+        }
+        // Direct-only mode (docs): a post-subcommand root is out of scope.
+        assert!(scan("t.md", "syscribe diagram list model/", false).is_empty());
+        assert!(!scan("t.md", "cargo run --package syscribe -- model/", false).is_empty());
     }
 
     /// Every `syscribe -m <root> <command>` example names a real subcommand.
