@@ -6150,9 +6150,11 @@ A finding trips the gate when its `code` is listed in `promote` **and** either t
 
 ---
 
-## Appendix A: Complete Frontmatter Field Reference
+## Appendix A: Frontmatter Field Reference
 
-The following table is a consolidated index of all frontmatter fields defined in this specification.
+**A.1** below lists the core SysML-structural and common fields with their types and defaults. **A.2** indexes every other recognised field by the section that specifies it. Together they cover all fields the parser recognises (any other key raises `W047`, §3.17); `syscribe spec fields` prints the reference for the installed tool.
+
+### A.1 Core fields
 
 | Field | Applies to | Type | Default | Section |
 |---|---|---|---|---|
@@ -6273,6 +6275,28 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `tags` | native Requirement/TestCase | list of strings | absent | 8.11.6, 8.12.5 |
 | `links` | Any element | map: declared link-type name → string or list | absent | 12.10 — user-defined outbound links; keys must be declared in `[linkTypes]` (`E630`) |
 | `derive` | Any element | map: field name → formula string | absent | 3.18 — computed fields, dependency-ordered; cycle `E504`, malformed `E505`, unknown element `E506` |
+
+### A.2 Fields specified in their own sections
+
+| Area | Fields | Section |
+|---|---|---|
+| Common / cross-cutting | `appliesWhen`, `domain`, `customFields`, `displayOrder`, `traceBaselines`, `refines`, `rationale`, `locale`, `about`, `text`, `steps`, `valueKind`, `value`, `portionKind` | 3.8–3.19, 8.2–8.11, 12.10 |
+| Native `Requirement` | `reqClass`, `requirementKind`, `reqDomain`, `breakdownAdr`, `decompositionKind`, `dalLevel` | 8.11.6, 12.2, 12.5, 22.3 |
+| Native `TestCase` / `TestPlan` | `coverageTarget`, `securityTestMethod`, `scope`, `configurations`, `demonstrates`, `testCases`, `selection` | 8.12.5, 8.12.6 |
+| Structural extras | `isDeploymentPackage`, `operations`, `clients`, `suppliers`, `evaluate`, `objective`, `viewpoint` | 2.4, 8.3.4, 8.12, 8.14, 12.6, 22.2 |
+| Diagram | `diagramKind`, `svgMode`, `svgFile`, `pumlMode`, `pumlFile`, `shapes`, `edges`, `layout` | 8.16 |
+| HARA | `severity`, `exposure`, `controllability`, `consequence`, `freqExposure`, `avoidance`, `demandRate`, `operationalSituation`, `hazardousEvents`, `safeState`, `ftti` | 8.18.1 |
+| TARA | `assets`, `damageSeverity`, `impactCategories`, `damageScenarios`, `attackFeasibility`, `attackVector`, `securityProperty`, `calLevel`, `threatScenarios`, `controlType`, `implementsGoals`, `cveId`, `cvssScore`, `mitigatedBy`, `affectedElements`, `damageTable`, `threatTable`, `goalTable`, `controlTable` | 8.18.2 |
+| `Asset` | `cybersecurityProperties`, `assetOwner`, `relatedSafetyGoal` | 8.18.7 |
+| FTA / FMEA / attack trees | `topEvent`, `missionTime`, `gateType`, `inputs`, `eventKind`, `failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `probability`, `fmeaRef`, `entries`, `failureMode`, `effect`, `cause`, `fmeaSeverity`, `occurrence`, `detection`, `rpn`, `recommendedAction`, `ftaRef`, `threatRef` | 8.18.3–8.18.5 |
+| `Baseline` | `date`, `approver`, `gitTag`, `gitCommit`, `frozenScope`, `seal`, `supersedes` | 8.19 |
+| Product-line engineering | `groupKind`, `mandatory`, `cardinality`, `parentFeature`, `excludes`, `contributesTo`, `featureModel`, `parameterBindings`, `parameterConstraints`, `subConfigurations`, `baselineRef`, `buildExports`, `buildOverrides`, `featureTree`, `crossTreeConstraints` | 9.6–9.10, 14.7 |
+| IEC 62443 | `targetSL`, `achievedSL`, `members`, `inZone`, `fromZone`, `toZone`, `protocols` | 13 |
+| Multi-repo, plugins, annotated source, SysMLv2 ingestion | `repoImports`, `foreignFormat`, `annotationFormat`, `marker`, `include`, `exclude`, `sysmlSubmodel` | 14.3; `docs/model-guide/stdio-plugins.md`, `annotated-source.md`, `sysmlv2-submodel.md` |
+| `TradeStudy` | `criteria`, `alternatives`, `scores`, `decision` | 15.2 |
+| `ReviewRecord` | `reviewType`, `reviewDate`, `reviewedBy`, `reviews`, `items`, `recordedAt` | 19.2 |
+| `PlanningItem` | `parent`, `achieves`, `itemType`, `evidence`, `blockedBy`, `assignedTo`, `claimedBy`, `claimedAt` | 23 |
+| Removed | `title` — parsed only to report `E025` | 3.1 |
 
 ---
 
