@@ -727,7 +727,8 @@ fn main() {
     // the model twice.
     if subcommand_args.first().map(String::as_str) == Some("mcp") {
         let read_only = subcommand_args.iter().any(|a| a == "--read-only");
-        if let Err(e) = mcp::cmd_mcp(model_root, read_only) {
+        let watch = !subcommand_args.iter().any(|a| a == "--no-watch");
+        if let Err(e) = mcp::cmd_mcp(model_root, read_only, watch) {
             eprintln!("Error: mcp server failed: {e}");
             std::process::exit(1);
         }
