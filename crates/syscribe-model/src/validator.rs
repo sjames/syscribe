@@ -3519,6 +3519,33 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // W930 (GH #142, §12.9): the `features:`-entry allocation form belongs to
+        // form 2 — a standalone `type: Allocation` element. On any other element an
+        // entry declaring an allocation (feature-level `type: Allocation`, or an
+        // `allocatedFrom:`/`allocatedTo:` key) is not an allocation edge
+        // (`allocation_edges_tagged` never reads it), so flag it rather than let
+        // it be silently ignored.
+        if !matches!(fm.element_type, Some(ElementType::Allocation)) {
+            for feat in fm.features.iter().flatten() {
+                let serde_yaml::Value::Mapping(m) = feat else { continue };
+                let key = |k: &str| m.get(serde_yaml::Value::String(k.into()));
+                let declares_allocation = key("type").and_then(|v| v.as_str()) == Some("Allocation")
+                    || key("allocatedFrom").is_some()
+                    || key("allocatedTo").is_some();
+                if declares_allocation {
+                    let fname = key("name").and_then(|v| v.as_str()).unwrap_or("?");
+                    findings.push(warning(
+                        "W930",
+                        &file,
+                        &format!(
+                            "features: entry '{}' declares an allocation, but only a `type: Allocation` element carries features-form allocations (§12.9) — it contributes no allocation edge; use `allocatedTo:` on the source or a standalone `Allocation` element",
+                            fname
+                        ),
+                    ));
+                }
+            }
+        }
+
         // E502/E503: allocatedFrom/allocatedTo must each resolve on any element that sets them
         if let Some(ref afs) = fm.allocated_from {
             for af in afs {

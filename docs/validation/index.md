@@ -41,7 +41,7 @@ Errors block a clean build. Warnings are advisory.
 | E310–E315 | §12 Traceability | breakdownAdr, parent in satisfies, domain mismatch, HW/SW independence |
 | E400–E402 | Diagram | Mermaid/PlantUML body blocks, companion SVG on disk |
 | W400–W412 | Diagram | diagramKind, subject/shape/edge resolution, Mermaid annotations, SVG hrefs, operation typedBy |
-| E500–E503 | Allocation | allocatedFrom/allocatedTo resolution on Allocation elements and any element |
+| E500–E503, W930 | Allocation | allocatedFrom/allocatedTo resolution on Allocation elements and any element; a features-form allocation on a non-Allocation element (no edge) |
 | E504–E506 | Derive | `derive:` field dependency cycle, parse error / malformed block, unknown `elements["QName"]` reference |
 | W500–W502 | Structural | viewpoint, exhibitsStates, expose resolution on View elements |
 | W600–W601 | Documentation | Empty PartDef/Part or ActionDef/Action doc body |

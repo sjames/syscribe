@@ -239,6 +239,12 @@ fn remaining_fixed_set_kinds_map_attribute_port_connection_interface_item_requir
         "EnduranceReqType",
     );
     expect_typed_by("SysML2Legacy::Mixed::allocA", ElementType::Allocation, "AllocKind");
+    // REQ-TRS-SYSMLV2-029 (GH #142): `allocation def` maps to a native
+    // AllocationDef, so allocA's typedBy resolves (no E111) below.
+    assert_eq!(
+        find("SysML2Legacy::Mixed::AllocKind").frontmatter.element_type,
+        Some(ElementType::AllocationDef)
+    );
 
     let result = validate(&elements);
     assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);

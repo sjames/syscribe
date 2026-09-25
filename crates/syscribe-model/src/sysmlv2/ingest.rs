@@ -2513,6 +2513,8 @@ fn convert_package_body_element(
         E::RequirementDef(node) => convert_requirement_def(&node.value, qname, file_path, out),
         E::RequirementUsage(node) => convert_requirement_usage(&node.value, qname, file_path, out),
         E::AllocationUsage(node) => convert_allocation_usage(&node.value, qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-029` (GH #142).
+        E::AllocationDef(node) => convert_allocation_def(&node.value, qname, file_path, out),
         E::StateDef(node) => convert_state_def(&node.value, qname, file_path, out),
         E::StateUsage(node) => convert_state_usage(&node.value, qname, file_path, out),
         E::ActionDef(node) => convert_action_def(&node.value, qname, file_path, out),
@@ -2682,6 +2684,8 @@ fn convert_part_def_body_element(
         E::RequirementDef(node) => convert_requirement_def(&node.value, part_qname, file_path, out),
         E::RequirementUsage(node) => convert_requirement_usage(&node.value, part_qname, file_path, out),
         E::AllocationUsage(node) => convert_allocation_usage(&node.value, part_qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-029` (GH #142).
+        E::AllocationDef(node) => convert_allocation_def(&node.value, part_qname, file_path, out),
         E::VariantUsage(node) => convert_variant_usage(&node.value, part_qname, file_path, out),
         E::StateDef(node) => convert_state_def(&node.value, part_qname, file_path, out),
         E::StateUsage(node) => convert_state_usage(&node.value, part_qname, file_path, out),
@@ -3547,6 +3551,29 @@ fn requirement_body_syscribe_feature_id(
         }
         _ => None,
     })
+}
+
+/// `REQ-TRS-SYSMLV2-029` (GH #142) — an `allocation def` synthesizes a native
+/// `AllocationDef`, so an ingested `allocation` usage's `typedBy:` can resolve
+/// in-model (and an unresolvable one is `E111` like any other `typedBy:`).
+/// `AllocationDef.body` is the same thin `DefinitionBody` a `flow def` has, so
+/// the doc comment is lifted by the shared `flow_body_doc`.
+fn convert_allocation_def(
+    a: &sysml_v2_parser::ast::AllocationDef,
+    qname: &str,
+    file_path: &str,
+    out: &mut Vec<RawElement>,
+) {
+    let Some(name) = ident_name(&a.identification) else {
+        return; // anonymous allocation def: no identity to qname against
+    };
+    let def_qname = format!("{qname}::{name}");
+    let spec = Spec {
+        supertype: a.specializes.as_ref().map(|t| t.value.target_display()),
+        ..Default::default()
+    }
+    .with_doc(flow_body_doc(&a.body));
+    push_synth(out, &def_qname, file_path, ElementType::AllocationDef, &name, spec);
 }
 
 fn convert_allocation_usage(

@@ -86,9 +86,10 @@ cross-referenceable `RawElement`s:
 `-022` — `View(Def/Usage)`, `ViewpointDef`, `ViewpointUsage`, `Rendering(Def/Usage)` (§15, below),
 — as of `REQ-TRS-SYSMLV2-023` — `ConcernDef`/`Concern` (§16, below), — as of
 `REQ-TRS-SYSMLV2-024` — `FlowDef`/`Flow` (§17, below), — as of `REQ-TRS-SYSMLV2-025` —
-`EnumerationDef`/`Enumeration` (§18, below), and — as of `REQ-TRS-SYSMLV2-026`/`-027`/`-028` —
+`EnumerationDef`/`Enumeration` (§18, below), — as of `REQ-TRS-SYSMLV2-026`/`-027`/`-028` —
 `CaseDef`/`Case`, `AnalysisCaseDef`/`AnalysisCase`, `VerificationCaseDef`/`VerificationCase` (§19,
-below; **not** `UseCaseDef`/`UseCase`, still deliberately unmapped).
+below; **not** `UseCaseDef`/`UseCase`, still deliberately unmapped), and — as of
+`REQ-TRS-SYSMLV2-029` — `AllocationDef` (§20, below).
 
 A construct outside that set — `use case def`, `calc`/`constraint def`, and similar — parses without
 error but contributes **nothing** to the graph: no element, no `Finding`, invisible, the same way a
@@ -770,3 +771,38 @@ inside a `part` *usage* body — `case`/`verification` fail to parse there outri
 lifted — the grammar this pinned parser version implements for case bodies carries no verify-statement
 or verdict-semantics content at all, confirmed against the vendored crate's own compliance-matrix
 caveat marking this family's body-depth coverage `partial`.
+
+## 20. Allocation definitions — `REQ-TRS-SYSMLV2-029`
+
+`allocation def` joins the fixed mapped set as a native **`AllocationDef`** — the existing
+`ElementType` for SysMLv2's `allocation def` (the native schema already carried it; ingestion
+simply never produced one). It is mapped both at package level and nested in a `part def` body
+(a `part` *usage* body has no allocation variant at all in this parser version):
+
+```sysml
+package Deploy {
+    allocation def SoftwareToHardware {
+        doc /* Deploys a software component onto a hardware board. */
+    }
+    part def Rack {
+        allocation def RackSlot;
+    }
+    allocation deployCtl : SoftwareToHardware;   // typedBy: SoftwareToHardware -> resolves
+    allocation slotUse : Rack::RackSlot;          // typedBy: Rack::RackSlot -> resolves
+    allocation broken : NoSuchAllocationDef;      // E111
+}
+```
+
+synthesizes `Deploy::SoftwareToHardware` and `Deploy::Rack::RackSlot` as `AllocationDef`s
+(`supertype:` from a `:>` clause, `doc` lifted by the same helper `flow def` uses — the two share
+one thin `DefinitionBody` AST type). Because the definition now exists in-model, an ingested
+`allocation` usage's `typedBy:` is checked like every other `typedBy:` (`E111`, §4 of the
+[validation rules](../validation/rules.md)) — previously every ingested `Allocation` was exempted
+from `E111`, which also hid genuinely dangling types (GH #142). A usage typed by a standard-library
+name (`Allocations::Allocation`, bare `Allocation`) is a library reference and is never flagged.
+
+**Not yet lifted:** an allocation usage's `allocate <source> to <target>` clause does **not**
+become `allocatedFrom:`/`allocatedTo:` on the synthesized `Allocation`, so an ingested allocation
+contributes no edge to §12.9's unified allocation set yet (it needs feature-chain endpoint
+resolution, like `connect`) — author the edge natively (`allocatedTo:` on the source, or a
+Markdown `Allocation` element) meanwhile.

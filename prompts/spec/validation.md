@@ -311,7 +311,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 |---|---|
 | `W050` | A selected feature contributes no build variable (no `buildExports:`/`buildVar:`). Opt-in; gate with `--deny W050` (`E050` is in the parse-time table) |
 
-## Allocation and derive errors, structural warnings (E500–E506, W500–W503)
+## Allocation and derive errors, structural warnings (E500–E506, W500–W503, W930)
 
 | Code | Condition |
 |---|---|
@@ -325,6 +325,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W500` | `viewpoint:` on a View does not resolve to a `ViewpointDef` |
 | `W501` | `exhibitsStates:` entry does not resolve to any known element |
 | `W502` | `expose:` entry on a View does not resolve to any known element |
+| `W930` | A `features:` entry on a non-`Allocation` element declares an allocation (`type: Allocation`, or `allocatedFrom:`/`allocatedTo:`) — only a `type: Allocation` element carries features-form allocations (§12.9), so it contributes no allocation edge; use `allocatedTo:` on the source or a standalone `Allocation` element |
 | `W503` | The same allocation edge is declared by more than one form — `allocatedTo:` on the source, an `Allocation` element, a legacy authored `allocatedFrom:` on the target (redundant) |
 
 ## Documentation warnings (W600, W601)

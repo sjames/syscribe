@@ -71,8 +71,8 @@ built-in `ScalarValues`/`Base` packages (an unknown member is `W043`), the curat
 any reference into a SysML v2 library package (`ISQ::…`, `Parts::Part::…`, `Links::…`) whose
 top-level name the model does not declare itself, and the bare library root types (`Link`,
 `Part`, `Real`, …). SysML v2-, plugin- and annotation-synthesized elements resolve like any
-other (the `typedBy:` of an ingested SysML v2 `allocation` usage is exempt: ingestion does not map
-`allocation def`). With `[repos]` configured an unresolved reference is `E512` instead (never both). Like
+other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now that ingestion maps
+`allocation def` to `AllocationDef` (GH #142; the former exemption is gone). With `[repos]` configured an unresolved reference is `E512` instead (never both). Like
 `E102`–`E106`, they take the model-root-name hint and are suppressed under `--config`.
 
 ## Coverage warnings (W002–W005)
@@ -546,13 +546,14 @@ Derived fields evaluate in dependency order, so a field always sees the computed
 
 The derive pass previously emitted `E501`/`E502` and reserved `E500`, colliding with the Allocation codes; since GH #127 the two families are disjoint.
 
-## Structural warnings (W500–W503)
+## Structural warnings (W500–W503, W930)
 
 | Code | Condition |
 |---|---|
 | W500 | `viewpoint:` on View does not resolve to a ViewpointDef |
 | W501 | `exhibitsStates:` entry does not resolve to any known element |
 | W502 | `expose:` entry on View does not resolve to any known element |
+| W930 | A `features:` entry on a **non-`Allocation`** element declares an allocation (a feature-level `type: Allocation`, or an `allocatedFrom:`/`allocatedTo:` key). §12.9 recognises the features form only on a standalone `type: Allocation` element, so the entry contributes **no** allocation edge (not in `matrix --allocations`, `E314`, `W034`, the derived `allocatedFrom`); use `allocatedTo:` on the source or move it to an `Allocation` element (GH #142). Its endpoints are still resolution-checked (`E500`/`E501`) |
 | W503 | The **same** allocation edge `source → target` is declared by **more than one** form — an `allocatedTo:` on the source, a standalone `Allocation` element, or a legacy authored `allocatedFrom:` on the target — redundant; use one form (§12.9, `REQ-TRS-ALLOC-001`) |
 
 ## Documentation warnings (W600–W601)

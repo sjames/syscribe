@@ -5558,6 +5558,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W306` | **Unsatisfied safety mechanism** — a high-integrity `Requirement` (`silLevel >= 4` or `asilLevel: D`) that is `status: draft`, (for a **leaf**) satisfied by no element, or (with a feature model) active in no `Configuration`. The "satisfied by no element" sub-condition applies to leaf requirements only — a **parent** (has `derivedChildren`) is satisfied transitively and may not be satisfied directly (`E312`). Message names the triggering sub-condition(s). Gateable with `--deny W306`; promotable via `[profiles]` |
 | `W029` | A non-draft `Requirement` with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no active **measuring** `TestCase` (testLevel `L5`, or tagged `timing`/`wcet`) verifies it. The timing-evidence analog of `W702`. Gateable with `--deny W029`; query with `list --has-wcet` |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
+| `W930` | **Misplaced features-form allocation** — a `features:` entry on a non-`Allocation` element declares an allocation (feature-level `type: Allocation`, or an `allocatedFrom:`/`allocatedTo:` key). Only a `type: Allocation` element carries features-form allocations (§12.9 form 2), so the entry contributes no allocation edge. Use `allocatedTo:` on the source or a standalone `Allocation` element |
 | `W503` | **Redundant allocation** — the same `source → target` edge is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element (§12.9). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |
 
 #### State machine completeness warnings (W070–W079, W929, §22.1)
@@ -6410,7 +6411,7 @@ allocatedTo: Logical::PropulsionController   # this action → that part
 ---
 ```
 
-**Form 2 — a standalone `Allocation` element (documented allocations).** A `type: Allocation` element names both `allocatedFrom` and `allocatedTo`, either top-level or per `features:` entry. This is a **reified relationship artifact** — kept for when the allocation itself needs a documented body (a freedom-from-interference argument, deployment rationale, or integration-test notes). Naming both endpoints is its purpose, not redundancy. The HW/SW FFI and deployment allocations of §12.6 use this form. A `features:` entry is recognised as an edge when it carries **both** `allocatedFrom` and `allocatedTo`, **regardless** of whether the entry also declares a feature-level `type: Allocation`.
+**Form 2 — a standalone `Allocation` element (documented allocations).** A `type: Allocation` element names both `allocatedFrom` and `allocatedTo`, either top-level or per `features:` entry. This is a **reified relationship artifact** — kept for when the allocation itself needs a documented body (a freedom-from-interference argument, deployment rationale, or integration-test notes). Naming both endpoints is its purpose, not redundancy. The HW/SW FFI and deployment allocations of §12.6 use this form. A `features:` entry is recognised as an edge when it carries **both** `allocatedFrom` and `allocatedTo`, **regardless** of whether the entry also declares a feature-level `type: Allocation`. The features form belongs to form 2 **only**: a `features:` entry that declares an allocation (a feature-level `type: Allocation`, or an `allocatedFrom:`/`allocatedTo:` key) on any element that is **not** `type: Allocation` is **not** an allocation edge — it feeds nothing in the unified set below — and raises warning **`W930`** so it is not silently ignored (its endpoints are still checked by `E500`/`E501`). Use `allocatedTo:` on the source (form 1) or move the entry to a standalone `Allocation` element.
 
 ```yaml
 ---
@@ -6432,6 +6433,7 @@ features:
 **Resolution and redundancy.**
 
 - Each `allocatedTo` operand must resolve by qualified name or stable id; an unresolved target raises **`E503`** (and an unresolved `allocatedFrom` on the standalone form raises **`E502`**).
+- A features-form allocation on a non-`Allocation` element contributes no edge and raises **`W930`** (see form 2 above).
 - When the **same** `source → target` edge is declared by **more than one** form — an `allocatedTo` on the source, a standalone `Allocation` element, or a legacy authored `allocatedFrom` on the target — the tool emits **`W503`** once for that edge, naming the forms — the duplicate is redundant, so pick one form. A single edge in a single form raises nothing.
 
 **Guidance:** use `allocatedTo:` by default; promote to a standalone `Allocation` element only when the allocation needs its own documentation.

@@ -37,8 +37,9 @@ An allocation can be authored two ways, sharing one edge model and a derived
   both endpoints is its purpose, not redundancy.
 
 Both forms feed `MG041`/`MG081`, `matrix --allocations`, and the derived index identically. A
-`features:` entry is an edge when it has both `allocatedFrom` and `allocatedTo`, with or
-without a per-entry `type: Allocation`. Declaring the **same** edge in *both* forms is
+`features:` entry of an `Allocation` element is an edge when it has both `allocatedFrom` and
+`allocatedTo`, with or without a per-entry `type: Allocation`; the same entry on any other
+element type is **not** an allocation (warning **`W930`**). Declaring the **same** edge in *both* forms is
 redundant — warning **`W503`**. Guidance: `allocatedTo` by default; promote to an `Allocation`
 element only when the allocation needs its own documentation.
 
