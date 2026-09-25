@@ -317,7 +317,7 @@ All fields are **optional unless marked Required**. Defaults listed apply when t
 | `type` | string | **Required** | — | Kind of element (Section 2) |
 | `name` | string | optional | filename stem | Element name (display name); used in qualified name resolution if present |
 | `shortName` | string | optional | absent | Short name (written `<shortName>` in SysML textual notation); abbreviated identifier |
-| `qualifiedName` | string | optional | derived from path | Override the derived qualified name; use only when the file cannot be located at the canonical path |
+| `qualifiedName` | string | optional | absent | **Not an identity override.** The qualified name is always derived from the path (§4.2, §4.5, §11.3). `qualifiedName:` is meaningful only on a §3.10 locale documentation variant (a file that also sets `locale:`), where it names the element the variant documents. Anywhere else a value that differs from the path-derived name is warning `W049` and is ignored. |
 | `visibility` | string | optional | `public` | Membership visibility: `public`, `protected`, `private`. This is a property of the *membership* — it controls whether this element is visible to namespaces outside its owner, not a property of the element itself. `private` means visible only within the owning package; `protected` means visible within the owning package and its specializations. |
 | `extRef` | string or list of strings | optional | absent | **External reference(s)** — this element represents an artifact managed in another tool (a requirement in DOORS Next, an element in a SysML tool, a ticket, …). See *External references* below. |
 | `responsibility` | string | optional | absent | **Accountable party/organisation** for this work product (the DIA/CIA split, e.g. `OEM` / `Supplier-X`; ISO 26262-8 §5 / ISO/SAE 21434 §7). A non-draft work product with no `responsibility:` warns `W038` (opt-in; see §11.12). |
@@ -549,7 +549,7 @@ This subsystem group requires safety analysis per ISO 26262. All three elements
 share the same hazard classification and must be reviewed together.
 ```
 
-**`locale:` usage** — for multi-language documentation, create one file per language. Use `qualifiedName:` to make all locale variants point to the same model element:
+**`locale:` usage** — for multi-language documentation, create one file per language. The primary file defines the element (its own body may be tagged with `locale:`); every other language is a **locale variant** file that sets `locale:` and `qualifiedName:` — the qualified name of the element it documents. A variant is not an element: its file name does not become a qualified name, so any file name works (by convention `<Stem>.<locale>.md` next to the primary file).
 
 ```yaml
 # model/VehicleSystem/Engine.md  (English — primary file, also defines the element)
@@ -560,7 +560,6 @@ name: Engine
 The engine converts fuel energy into mechanical power.
 ```
 
-<!-- syscribe-example: expect W042 reason="GH #160: qualifiedName:/locale: variants are not implemented, so the variant file becomes its own element" -->
 ```yaml
 # model/VehicleSystem/Engine.de.md  (German — documentation-only variant)
 ---
@@ -573,8 +572,11 @@ Der Motor wandelt Kraftstoffenergie in mechanische Leistung um.
 
 **Parser contract for `about:` and `locale:`:**
 - A file with `about:` contributes its Markdown body as an additional annotation on the listed elements; it does not define a new model element.
-- A file with `locale:` and a `qualifiedName:` override contributes a locale-tagged `doc` annotation to the referenced element; it does not redefine the element's structure.
-- Multiple locale files for the same element are all valid; a parser collects them as a map of `locale → doc string`.
+- A file with **both** `locale:` and `qualifiedName:` is a locale variant: it contributes its Markdown body as a locale-tagged `doc` annotation of the element whose qualified name equals `qualifiedName:`, and does not define a model element of its own. A `qualifiedName:` that resolves to no element is error `E026` (the file is then treated as its own element so it is not silently lost).
+- A variant does not redefine the element's structure. It may carry only `type`, `name`, `locale` and `qualifiedName`; any other field, or a `type:` that differs from the target's, is ignored with warning `W051`.
+- Multiple locale files for the same element are all valid; a parser collects them as a map of `locale → doc string` (`show` prints one `Documentation (<locale>)` section per entry). One document per locale: a second variant for a locale the element already has (from an earlier variant in walk order, or the element's own `locale:`) is ignored with warning `W051`.
+- A file with `locale:` but no `qualifiedName:` is an ordinary element whose own body is tagged with that locale.
+- `qualifiedName:` is never an identity override (§3.1): the qualified name is purely path-derived (§4.5, §11.3).
 
 ### 3.11 Constraint Fields
 
@@ -717,6 +719,7 @@ warning **`W047`**:
 | Code | Severity | Trigger | Message |
 |---|---|---|---|
 | `W047` | warning | A top-level frontmatter key that is not a recognised schema field and is not `custom_fields` | `unrecognized frontmatter field '<key>' — not a recognized schema field; move author-defined data under `custom_fields:` (§3.15)` |
+| `W049` | warning | `qualifiedName:` on a file without `locale:` differs from the element's path-derived qualified name. It is not an identity override (the qualified name is purely path-derived, §4.5/§11.3) and is ignored — move or rename the file instead (§3.1) | `` `qualifiedName: <q>` is not supported as an identity override — the qualified name is path-derived ('<qname>', §4.5/§11.3); the field is ignored… `` |
 
 Rules:
 
@@ -3555,7 +3558,7 @@ A conformant parser must:
 
 1. **Reference validation** — every `ref` value in `shapes:` must resolve to a model element. An unresolved shape `ref` is warning `W402` (suppressed when an ancestor qualified name resolves, which covers inline features such as `Part::port`). A shape `link:` that does not resolve is `W411`; an SVG `href` that matches no model element is `W412`.
 2. **Type compatibility** — the CSS class on an SVG shape must match the `type:` of the referenced model element (e.g., a shape with `class="PartDef"` whose `ref` resolves to a `RequirementDef` is an error).
-3. **ID consistency** — for inline SVG, every `id` key in the frontmatter `shapes:` and `edges:` maps must appear as an `id` attribute in the SVG (`W406`), and every SVG `id` must appear in the manifest (`W407`).
+3. **ID consistency** — for inline SVG, every `id` key in the frontmatter `shapes:` and `edges:` maps must appear as an `id` attribute in the SVG (`W406`), and every SVG `id` must appear in the manifest (`W407`). The check applies **only** to a diagram whose SVG is inline (`svgMode: inline`, or `svgMode:` absent on a hand-authored-SVG diagram). It is skipped for every rendering path that has no inline SVG by design: a PlantUML companion diagram (`pumlMode: companion` — its manifest feeds the generated `.puml`, and the `.puml`/`.svg` companions are the source of truth), a companion-SVG diagram (`svgMode: companion` or `svgFile:` set), a `diagramKind: Mermaid`/`PlantUML` diagram, and a structured diagram with a `layout:` block and no ` ```svg ` block in its body (the server renders its SVG).
 4. **Edge endpoint validity** — `source` and `target` values in `edges:` must be keys present in `shapes:`; otherwise warning `W403`.
 5. **Subject existence** — the `subject:` qualified name must resolve to a model element; otherwise warning `W401`.
 6. **Companion file existence** — when `svgMode: companion` (or `svgFile:` is set), the `.svg` file must exist at the path given by `svgFile:` (or the default stem-matched path). A missing companion file is error `E402`.
@@ -4053,7 +4056,7 @@ An `ADR` file is a first-class model element that documents a significant design
 | `name` | string | **Required** | One-line human-readable label — free prose. Max 120 chars. |
 | `status` | enum | **Required** | Lifecycle state: `proposed`, `accepted`, `deprecated`, `superseded`. |
 | `date` | string | optional | ISO-8601 date the decision was made (e.g., `"2026-05-26"`). |
-| `deciders` | list of strings | optional | Qualified names of stakeholder `PartDef` elements or free-text names of the decision-makers. |
+| `deciders` | list of strings | optional | Qualified names of stakeholder `PartDef` elements or free-text names of the decision-makers. Display metadata, not a cross-reference: entries are not resolved (a free-text name is legitimate) and are printed by `show`. A single string is accepted as a one-entry list. Recognized only on `ADR`; on any other type it is an unrecognized field (`W047`). |
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
 
 **ID pattern:** `^ADR(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
@@ -4101,7 +4104,6 @@ model/
 
 #### 8.17.4 Complete Example
 
-<!-- syscribe-example: expect W047 reason="GH #159: the spec'd ADR deciders: field is not implemented" -->
 ```markdown
 ---
 type: ADR
@@ -5698,6 +5700,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E015` | The first Gherkin block in a `TestCase` has no `Feature:` line |
 | `E024` | **RETIRED** — formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is no longer emitted. |
 | `E025` | The removed `title:` field is declared on an element (any type — id-identified or name-identified). The `title` field is removed; rename it to `name`. |
+| `E026` | A §3.10 locale documentation variant (a file with `locale:` and `qualifiedName:`) names a `qualifiedName:` that resolves to no element — its documentation cannot be attached, so the file is kept as its own element (§3.10) |
 | `E300` | `ADR.id` does not match the `ADR-*` pattern |
 | `E301` | `ADR` is missing a required field (`id`, `name`, or `status`) |
 | `E302` | `reqDomain:` value is not `system`, `hardware`, or `software` |
@@ -5748,6 +5751,8 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W305` | Parent `Requirement` (has `derivedFrom` children) at `status: approved`, `implemented`, or `verified` has no active `TestCase` at `testLevel: L3`, `L4`, or `L5` — leaf-level tests on derived requirements are insufficient to verify emergent composed behaviour |
 | `W306` | **Unsatisfied safety mechanism** — a high-integrity `Requirement` (`silLevel >= 4` or `asilLevel: D`) that is `status: draft`, (for a **leaf**) satisfied by no element, or (with a feature model) active in no `Configuration`. The "satisfied by no element" sub-condition applies to leaf requirements only — a **parent** (has `derivedChildren`) is satisfied transitively and may not be satisfied directly (`E312`). Message names the triggering sub-condition(s). Gateable with `--deny W306`; promotable via `[profiles]` |
 | `W029` | A non-draft `Requirement` with an integrity level (`silLevel`/`asilLevel`) declares a `wcet:` claim but no active **measuring** `TestCase` (testLevel `L5`, or tagged `timing`/`wcet`) verifies it. The timing-evidence analog of `W702`. Gateable with `--deny W029`; query with `list --has-wcet` |
+| `W049` | `qualifiedName:` on a file without `locale:` differs from the element's path-derived qualified name. It is not an identity override (the qualified name is purely path-derived, §4.5/§11.3) and is ignored — move or rename the file instead (§3.1) |
+| `W051` | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
 | `W930` | **Misplaced features-form allocation** — a `features:` entry on a non-`Allocation` element declares an allocation (feature-level `type: Allocation`, or an `allocatedFrom:`/`allocatedTo:` key). Only a `type: Allocation` element carries features-form allocations (§12.9 form 2), so the entry contributes no allocation edge. Use `allocatedTo:` on the source or a standalone `Allocation` element |
 | `W503` | **Redundant allocation** — the same `source → target` edge is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element (§12.9). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |
@@ -7797,7 +7802,7 @@ since `status: in_progress` alone already signals active work.
 | `type` | All | string | — (required) | 3.1 |
 | `name` | All | string | filename stem | 3.1 |
 | `shortName` | All | string | absent | 3.1 |
-| `qualifiedName` | All | string | derived | 3.1 |
+| `qualifiedName` | All | string | absent | 3.1, 3.10 (locale-variant target only; never overrides the path-derived qname) |
 | `visibility` | All | string | `public` | 3.1 |
 | `extRef` | All | string or list | absent | 3.1 |
 | `isAbstract` | All | bool | `false` | 3.2 |

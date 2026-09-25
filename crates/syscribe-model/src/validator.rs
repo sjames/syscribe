@@ -169,6 +169,33 @@ struct StateEdge {
 }
 
 /// Read a string-keyed field from a YAML mapping.
+/// Whether a `Diagram`'s rendering path carries its SVG inline in the body —
+/// the only case the SVG id-consistency rules `W406`/`W407` apply to
+/// (§8.16.7 step 3, GH #158). Paths with no inline SVG by design:
+/// PlantUML companion (`pumlMode: companion` — the `.puml`/`.svg` companions
+/// are the source of truth), companion SVG (`svgMode: companion` or
+/// `svgFile:`), Mermaid / inline PlantUML (`diagramKind: Mermaid|PlantUML`),
+/// and a structured `layout:` diagram whose body has no ` ```svg ` block
+/// (the server renders its SVG from the manifest).
+fn diagram_has_inline_svg(fm: &crate::element::RawFrontmatter, doc: &str) -> bool {
+    if fm.puml_mode.as_deref() == Some("companion") {
+        return false;
+    }
+    if fm.svg_mode.as_deref().unwrap_or("inline") != "inline" {
+        return false;
+    }
+    if fm.svg_mode.is_none() && fm.svg_file.is_some() {
+        return false;
+    }
+    if matches!(fm.diagram_kind.as_deref(), Some("Mermaid") | Some("PlantUML")) {
+        return false;
+    }
+    if fm.layout.is_some() && !doc.contains("```svg") {
+        return false;
+    }
+    true
+}
+
 fn yaml_field<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a serde_yaml::Value> {
     m.get(serde_yaml::Value::String(k.to_string()))
 }
@@ -907,6 +934,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 "W561" => "W561",
                 "W562" => "W562",
                 "W563" => "W563",
+                // §3.10 locale documentation variants (walker
+                // `attach_locale_variants`, REQ-TRS-PARSE-010): E026 dangling
+                // `qualifiedName:` target, W051 duplicate locale / type
+                // mismatch / ignored structural field.
+                "E026" => "E026",
+                "W051" => "W051",
                 _ => "E000",
             };
             findings.push(Finding { code: static_code, file: file.clone(), message: message.clone(), severity: sev });
@@ -1096,6 +1129,32 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         // any other type it is still unrecognized, exactly as before it was bound.
         if fm.event_ref.is_some() && !matches!(fm.element_type, Some(ElementType::FaultTreeEvent)) {
             unknown_keys.push("ref");
+        }
+        // W049 (REQ-TRS-QNAME-005, GH #160): the qualified name is purely
+        // path-derived (§4.2/§4.5/§11.3), so `qualifiedName:` is not an identity
+        // override. It is meaningful only as a §3.10 locale variant's target
+        // (with `locale:`); anywhere else a value that differs from the
+        // path-derived name is reported and ignored.
+        if let (Some(q), None) = (&fm.qualified_name, &fm.locale) {
+            if q.trim() != elem.qualified_name {
+                findings.push(warning(
+                    "W049",
+                    &file,
+                    &format!(
+                        "`qualifiedName: {}` is not supported as an identity override — the qualified name is \
+                         path-derived ('{}', §4.5/§11.3); the field is ignored. Move or rename the file to \
+                         change the qualified name (`qualifiedName:` is only meaningful on a `locale:` \
+                         documentation variant, §3.10)",
+                        q.trim(),
+                        elem.qualified_name
+                    ),
+                ));
+            }
+        }
+
+        // `deciders:` is a schema field only on an ADR (§8.17.1, REQ-TRS-ADR-001).
+        if fm.deciders.is_some() && !matches!(fm.element_type, Some(ElementType::ADR)) {
+            unknown_keys.push("deciders");
         }
         unknown_keys.sort_unstable();
         for key in unknown_keys {
@@ -3399,9 +3458,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // W406/W407: SVG id consistency — frontmatter shape/edge ids vs inline SVG
-        // Only checked for inline mode (companion SVG is not loaded by the validator)
-        if fm.svg_mode.as_deref().unwrap_or("inline") == "inline" {
+        // W406/W407: SVG id consistency — frontmatter shape/edge ids vs inline SVG.
+        // §8.16.7 step 3 scopes the check to *inline* SVG, so it is skipped for
+        // every rendering path that carries no inline SVG by design (GH #158,
+        // REQ-TRS-DIAG-003).
+        if diagram_has_inline_svg(fm, &elem.doc) {
             // Collect ids declared in shapes: and edges: frontmatter
             let fm_ids: HashSet<String> = {
                 let mut ids = HashSet::new();
@@ -9648,6 +9709,7 @@ mod w023_implemented_by_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -9836,6 +9898,7 @@ mod planning_item_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -9978,6 +10041,7 @@ mod planning_item_hierarchy_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -10152,6 +10216,7 @@ mod planning_item_achieves_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -10356,6 +10421,7 @@ mod planning_item_completion_w310_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -10533,6 +10599,7 @@ mod planning_item_claim_overlap_w311_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -10690,6 +10757,7 @@ mod planning_item_evidence_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -10945,6 +11013,7 @@ mod argument_evidence_regression_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11034,6 +11103,7 @@ mod planning_item_leaf_evidence_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11182,6 +11252,7 @@ mod planning_item_blocked_by_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11377,6 +11448,7 @@ mod planning_item_assigned_to_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11513,6 +11585,7 @@ mod w600_typed_by_documentation_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11651,6 +11724,7 @@ mod w007_scoped_usage_tracking_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -11820,6 +11894,7 @@ mod satisfies_shape_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -12067,6 +12142,7 @@ mod link_type_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 
@@ -12509,6 +12585,7 @@ mod e927_fault_tree_event_ref_tests {
             parse_issue: None::<ParseIssue>,
             derived: Default::default(),
             derive_findings: vec![],
+            locale_docs: Default::default(),
         }
     }
 

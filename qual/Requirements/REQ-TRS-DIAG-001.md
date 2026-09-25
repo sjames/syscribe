@@ -19,7 +19,7 @@ The tool **shall** enforce every Diagram-element validation rule in the followin
 | `W402` | A shape in `shapes:` has a `ref:` that does not resolve to a known element (and has no resolvable ancestor) |
 | `W403` | An edge in `edges:` has a `source` or `target` that does not reference a shape id defined in `shapes:` |
 | `W405` | `svgMode: companion` body has no `<img` tag, or `svgMode: inline` body has no ` ```svg ` fenced block |
-| `W406` | A frontmatter `shapes:`/`edges:` id has no matching `id` attribute in the inline SVG body |
+| `W406` | A frontmatter `shapes:`/`edges:` id has no matching `id` attribute in the inline SVG body (inline-SVG diagrams only — REQ-TRS-DIAG-003) |
 | `W407` | An inline SVG `id="…"` attribute has no matching entry in frontmatter `shapes:`/`edges:` |
 | `W408` | A Mermaid `%% ref:` annotation does not resolve to a known element |
 | `W409` | A Mermaid diagram has no `%% ref:` annotations at all |

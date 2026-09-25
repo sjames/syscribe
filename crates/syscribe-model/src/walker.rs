@@ -163,9 +163,13 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
             parse_issue,
             derived: Default::default(),
             derive_findings: Vec::new(),
+            locale_docs: Default::default(),
         });
     }
 
+    // §3.10 locale documentation variants: fold each `locale:` + `qualifiedName:`
+    // file into its target's `locale_docs` before any synthesis pass runs.
+    attach_locale_variants(&mut elements);
     explode_fmea_entries(&mut elements);
     explode_tara_entries(&mut elements);
     explode_feature_model_trees(&mut elements);
@@ -185,6 +189,137 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
     // every other pass so a plugin-/sheet-synthesized Configuration takes part.
     crate::config_inherit::apply_configuration_inheritance(&mut elements);
     Ok(elements)
+}
+
+/// Frontmatter keys a §3.10 locale variant may carry. Anything else would
+/// redefine the element's structure, which a variant never does (W051).
+const LOCALE_VARIANT_KEYS: &[&str] = &["type", "name", "locale", "qualifiedName"];
+
+/// True when `elem` is a §3.10 locale documentation variant: it carries both
+/// `locale:` and a `qualifiedName:` naming the element it documents.
+pub fn is_locale_variant(elem: &RawElement) -> bool {
+    elem.frontmatter.locale.is_some() && elem.frontmatter.qualified_name.is_some()
+}
+
+/// Top-level frontmatter keys of `file` outside [`LOCALE_VARIANT_KEYS`],
+/// sorted. Re-reads the file: variants are rare, and the typed
+/// `RawFrontmatter` cannot tell an authored key from a defaulted one.
+fn locale_variant_extra_keys(file: &str) -> Vec<String> {
+    let Ok(content) = std::fs::read_to_string(file) else { return Vec::new() };
+    let (Some(yaml), _) = split_frontmatter(&content) else { return Vec::new() };
+    let Ok(map) = serde_yaml::from_str::<serde_yaml::Mapping>(yaml) else { return Vec::new() };
+    let mut keys: Vec<String> = map
+        .keys()
+        .filter_map(|k| k.as_str())
+        .filter(|k| !LOCALE_VARIANT_KEYS.contains(k))
+        .map(str::to_string)
+        .collect();
+    keys.sort();
+    keys
+}
+
+/// §3.10 locale documentation variants (REQ-TRS-PARSE-010, GH #160).
+///
+/// A file with both `locale:` and `qualifiedName:` contributes its Markdown
+/// body as the `locale` documentation of the file-backed element whose
+/// (path-derived) qualified name equals `qualifiedName:`; it does not define
+/// an element of its own, so it is removed from `elements`. Findings go to
+/// the target's `derive_findings`, filed against the variant's path:
+///
+/// - `W051` — the target already has documentation for that locale (an
+///   earlier variant in walk order, or the element's own `locale:`; the
+///   first wins), the variant's `type:` differs from the target's, or the
+///   variant declares fields other than [`LOCALE_VARIANT_KEYS`] (ignored).
+/// - `E026` — `qualifiedName:` names no element. The variant is then kept as
+///   its own element (the pre-#160 behaviour) carrying the error, so it is
+///   never silently dropped.
+fn attach_locale_variants(elements: &mut Vec<RawElement>) {
+    if !elements.iter().any(is_locale_variant) {
+        return;
+    }
+    // Targets: every non-variant element by qualified name (first wins on a
+    // duplicate, which is E108 anyway).
+    let mut by_qname: HashMap<String, usize> = HashMap::new();
+    for (i, e) in elements.iter().enumerate() {
+        if !is_locale_variant(e) {
+            by_qname.entry(e.qualified_name.clone()).or_insert(i);
+        }
+    }
+
+    let mut attached: Vec<usize> = Vec::new();
+    for i in 0..elements.len() {
+        if !is_locale_variant(&elements[i]) {
+            continue;
+        }
+        let variant = &elements[i];
+        let file = variant.file_path.clone();
+        let locale = variant.frontmatter.locale.clone().unwrap_or_default().trim().to_string();
+        let target_q = variant.frontmatter.qualified_name.clone().unwrap_or_default().trim().to_string();
+
+        let Some(&t) = by_qname.get(&target_q) else {
+            let msg = format!(
+                "locale variant (locale '{}') names `qualifiedName: {}`, which resolves to no element — \
+                 its documentation cannot be attached, so the file is treated as its own element (§3.10)",
+                locale, target_q
+            );
+            elements[i].derive_findings.push(("E026".to_string(), file, msg));
+            continue;
+        };
+
+        let mut findings: Vec<(String, String, String)> = Vec::new();
+        let extras = locale_variant_extra_keys(&file);
+        if !extras.is_empty() {
+            findings.push((
+                "W051".to_string(),
+                file.clone(),
+                format!(
+                    "locale variant of '{}' declares {} — a variant contributes documentation only and never \
+                     redefines the element's structure; ignored (allowed: type, name, locale, qualifiedName)",
+                    target_q,
+                    extras.iter().map(|k| format!("'{}'", k)).collect::<Vec<_>>().join(", ")
+                ),
+            ));
+        }
+        if let (Some(vt), Some(tt)) =
+            (&variant.frontmatter.element_type, &elements[t].frontmatter.element_type)
+        {
+            if vt != tt {
+                findings.push((
+                    "W051".to_string(),
+                    file.clone(),
+                    format!(
+                        "locale variant declares `type: {}` but its target '{}' is a {}; the variant's type is ignored",
+                        vt.name(),
+                        target_q,
+                        tt.name()
+                    ),
+                ));
+            }
+        }
+        let body = variant.doc.clone();
+        let target = &mut elements[t];
+        let own_locale = target.frontmatter.locale.as_deref().map(str::trim) == Some(locale.as_str());
+        if own_locale || target.locale_docs.contains_key(&locale) {
+            findings.push((
+                "W051".to_string(),
+                file.clone(),
+                format!(
+                    "'{}' already has '{}' documentation ({}); this locale variant is ignored",
+                    target_q,
+                    locale,
+                    if own_locale { "its own body is tagged with that locale" } else { "from an earlier variant file" }
+                ),
+            ));
+        } else {
+            target.locale_docs.insert(locale, body);
+        }
+        target.derive_findings.extend(findings);
+        attached.push(i);
+    }
+
+    for i in attached.into_iter().rev() {
+        elements.remove(i);
+    }
 }
 
 /// Post-processing pass: for each TARASheet, synthesise DamageScenario, ThreatScenario,
@@ -250,6 +385,7 @@ fn explode_tara_entries(elements: &mut Vec<RawElement>) {
                     parse_issue: None,
                     derived: Default::default(),
                     derive_findings: Vec::new(),
+                    locale_docs: Default::default(),
                 });
             }
         }
@@ -365,6 +501,7 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 parse_issue: None,
                 derived: Default::default(),
                 derive_findings: Vec::new(),
+                locale_docs: Default::default(),
             });
         }
     }
@@ -604,6 +741,7 @@ fn explode_feature_entry(
                 parse_issue: None,
                 derived: Default::default(),
                 derive_findings: Vec::new(),
+                locale_docs: Default::default(),
             });
         }
         Err(e) => {
@@ -615,6 +753,7 @@ fn explode_feature_entry(
                 parse_issue: Some(ParseIssue::YamlError(format!("featureTree: entry '{}': {}", raw_name, e))),
                 derived: Default::default(),
                 derive_findings: Vec::new(),
+                locale_docs: Default::default(),
             });
         }
     }

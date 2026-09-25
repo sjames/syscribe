@@ -4,7 +4,7 @@
 
 Warnings are advisory by default (exit `0`). Promote them to CI gate failures (exit `2`) with `validate --deny <CODES>` / `--max-warnings <N>` / `--warnings-as-errors`, or with a named, SIL/ASIL-scopable `validate --profile <name>` policy declared in `.syscribe.toml` — see [CI severity gating](../cli/index.md#ci-severity-gating). Errors always exit `1`.
 
-## Parse-time errors (E001–E025)
+## Parse-time errors (E001–E026)
 
 | Code | Element | Condition |
 |---|---|---|
@@ -33,6 +33,7 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E023 | Any (stable id) | The numeric suffix is longer than the configured maximum (`[ids] max_digits` in `.syscribe.toml`, default 8; minimum 3 enforced by E006). Applies identically to ids under a configured additional prefix (see W046) |
 | E024 | — | **RETIRED.** Formerly flagged a `name:` field on an id-identified type. `name` is now the single, required label on every element, so this code is **no longer emitted** — a `Requirement` carrying `id` + `name` validates clean. |
 | E025 | Any element | The removed `title:` field is declared on an element (id-identified or name-identified alike) — the `title` field is removed; rename it to `name`. (A `FeatureDef` carries `name` as its label and a mandatory `FEAT-*` `id` — see `E201` — the `id` and label axes are independent.) |
+| E026 | Locale variant | A §3.10 locale documentation variant (a file with `locale:` and `qualifiedName:`) names a `qualifiedName:` that resolves to no element — its documentation cannot be attached, so the file is kept as its own element (§3.10) |
 
 ## Parse-time warnings (W001–W008)
 
@@ -267,8 +268,8 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W403 | Edge `source` or `target` is not a defined shape id in this diagram |
 | W404 | Operation `typedBy` (parameter) or `returnType` does not resolve to a known element |
 | W405 | SVG companion file is referenced by both inline and companion modes simultaneously |
-| W406 | Frontmatter `shapes`/`edges` id has no matching `id="..."` attribute in the inline SVG block |
-| W407 | SVG element `id` has no matching entry in frontmatter `shapes`/`edges` (SVG-internal ids used via `url(#...)` are excluded) |
+| W406 | Frontmatter `shapes`/`edges` id has no matching `id="..."` attribute in the inline SVG block — checked only when the diagram's SVG is inline (not for `pumlMode: companion`, `svgMode: companion`/`svgFile:`, Mermaid/PlantUML kinds, or a `layout:` diagram with no ` ```svg ` block) |
+| W407 | Inline SVG element `id` has no matching entry in frontmatter `shapes`/`edges` (SVG-internal ids used via `url(#...)` are excluded; same inline-SVG scope as W406) |
 | W408 | Mermaid `%% ref:` annotation does not resolve to a known element |
 | W409 | Mermaid diagram has no `%% ref:` annotations — add at least one to link nodes to model elements |
 | W410 | Mermaid `%% link:` annotation does not resolve to a known element |
@@ -989,7 +990,7 @@ A duplicate `TestPlan` `id` is the generic `E101`.
 |---|---|
 | W041 | a `custom_fields` value is not a scalar or a list of scalars (e.g. a nested map); names the offending key |
 
-## Unrecognized frontmatter fields (W047)
+## Unrecognized frontmatter fields and locale variants (W047, W049, W051)
 
 The frontmatter schema is fixed. A top-level key that is not a recognized schema field
 lands in the parser's catch-all — it round-trips through writes but takes no part in
@@ -1001,6 +1002,8 @@ under `custom_fields:` (which is exempt). Advisory; gate with `--deny W047`.
 |---|---|
 | W047 | A top-level frontmatter key is not a recognized schema field and is not `custom_fields`. One finding per key, naming the key and file, pointing to `custom_fields:`. Keys under `custom_fields:` and all recognized fields are exempt. |
 | W048 | (single-file feature model, REQ-TRS-FM-005) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — the field is silently inert there, so this names the mistake |
+| W049 | `qualifiedName:` on a file without `locale:` differs from the element's path-derived qualified name. It is not an identity override (the qualified name is purely path-derived, §4.5/§11.3) and is ignored — move or rename the file instead (§3.1) |
+| W051 | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 
 ## MagicGrid overlay (E316, W307, MG010–MG070)
 

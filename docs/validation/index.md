@@ -31,7 +31,7 @@ Errors block a clean build. Warnings are advisory.
 
 | Range | Group | Description |
 |---|---|---|
-| E001–E025 | Parse-time | Required fields, ID patterns, status enums, Gherkin structure, ASPICE fields, ID-digit cap (E023), unified label rule — `name` is the universal label and `title` is removed (a stray `title:` is E025; E024 retired) |
+| E001–E026 | Parse-time | Required fields, ID patterns, status enums, Gherkin structure, ASPICE fields, ID-digit cap (E023), unified label rule — `name` is the universal label and `title` is removed (a stray `title:` is E025; E024 retired); an unresolved locale-variant `qualifiedName:` (E026) |
 | W001–W008 | Parse-time warnings | Normative text, SIL/ASIL pairing, sourceFile presence, unused type defs |
 | E016–E018 | Cycle detection | Cycles in supertype, derivedFrom, or subsets graphs |
 | E101–E106, E110–E114 | Cross-reference | Duplicate IDs, unresolved `verifies`/`derivedFrom`, scenario names; unresolved `supertype`/`typedBy`/`subsets`/`redefines`/`satisfies` |
