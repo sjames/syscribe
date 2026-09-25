@@ -153,6 +153,9 @@ A `subConfigurations:` entry and the `<FeatureDef>` part of a cross-tier `parame
 #                 {repo: cell, qname: Features,       as: CellFeatures}]
 type: Configuration
 id: CONF-PACK-001
+name: "Standard pack"
+status: approved
+featureModel: Features
 subConfigurations: Vendor::CellConfs::CONF-CELL-001       # -> the cell repo's Configurations::CONF-CELL-001
 parameterBindings:
   Vendor::CellFeatures::Cell.capacityAh: 50                # -> the cell repo's Features::Cell.capacityAh
