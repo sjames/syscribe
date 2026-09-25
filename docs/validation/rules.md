@@ -88,7 +88,7 @@ other (the `typedBy:` of an ingested SysML v2 `allocation` usage is exempt: inge
 | Code | Condition |
 |---|---|
 | E016 | Cycle detected in `supertype:` graph |
-| E017 | Cycle detected in `derivedFrom:` graph |
+| E017 | Cycle detected in `derivedFrom:` graph (a `Configuration`'s inheritance cycle is `E236` instead) |
 | E018 | Cycle detected in `subsets:` graph |
 | E107 | Cycle detected in `typedBy:` graph — **including a self-reference** (a usage typed by itself). Structural cycle error, not a name-resolution error, so it is **not** suppressed under `--config`. |
 
@@ -104,12 +104,17 @@ other (the `typedBy:` of an ingested SysML v2 `allocation` usage is exempt: inge
 | E204 | `parameterBindings` binds a fixed parameter (`isFixed`/`value`/`derivedFrom`) |
 | E205 | A bound parameter value is outside the parameter's `range:` |
 | E206 | A bound parameter value is not in the parameter's `enumValues:` |
+| E215 | A `Configuration`'s `derivedFrom:` base (§9.8 inheritance) is not `approved` or `released` |
 | E209 | `appliesWhen:` is malformed, or an operand does not resolve to a FeatureDef. `appliesWhen:` accepts a bare QName, a list (AND), or a boolean expression (`and`/`or`/`not`/parentheses); every operand is checked. |
 | E222 | A `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path — including the legacy all-`::` member form `Features::Feature::param`, which must be the dotted `Features::Feature.param` — unknown feature, or undeclared parameter) |
 | E230 | A parameter declares a `bindingTime:` value other than `compile`/`load`/`runtime` (§9.7) |
 | E231 | (single-file feature model, REQ-TRS-FM-005) A `type: FeatureModel` sheet's `featureTree:` entry is not a mapping, has no `name:`, or its dot-separated path has an empty segment (leading, trailing, or doubled `.`) — the entry is dropped |
 | E232 | (single-file feature model) Two `featureTree:` entries — within one sheet or across sheets in the same model — resolve to the same qualified name |
 | E233 | (single-file feature model) A `crossTreeConstraints:` entry is malformed (not a mapping, no `feature:`, or a reference with an empty path segment), or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:` |
+| E234 | (Configuration inheritance, §9.8) A `Configuration`'s `derivedFrom:` base does not resolve to any element of the model (the base must be local) |
+| E235 | (Configuration inheritance) A `Configuration`'s `derivedFrom:` base is not a `Configuration` |
+| E236 | (Configuration inheritance) A `Configuration` is on a `derivedFrom:` cycle — reported on each member; none inherits |
+| E237 | (Configuration inheritance) A `Configuration`'s `derivedFrom:` names more than one base |
 
 ## PLE warnings (W015–W017)
 

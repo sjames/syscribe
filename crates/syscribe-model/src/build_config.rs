@@ -222,7 +222,7 @@ pub fn resolve(elements: &[RawElement], conf_id: &str) -> Result<BuildConfigResu
     }
 
     // ── Step 2: parameterBindings → buildVar on parameters ───────────────────
-    let param_bindings = cfg.frontmatter.parameter_bindings.as_ref();
+    let param_bindings = cfg.frontmatter.effective_parameter_bindings();
 
     for fd in &feat_defs {
         let qname = &fd.qualified_name;

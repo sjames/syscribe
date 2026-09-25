@@ -4008,8 +4008,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // derivedFrom: cross-reference check
-        if let Some(ref dfs) = fm.derived_from {
+        // derivedFrom: cross-reference check. A Configuration's `derivedFrom:`
+        // is configuration inheritance (§9.8), not a requirement derivation — it
+        // is checked by `configuration_inheritance_findings` (E215/E234–E237)
+        // and never enters the `derivedChildren` index.
+        let is_configuration = matches!(fm.element_type, Some(ElementType::Configuration));
+        if let (Some(dfs), false) = (fm.derived_from.as_ref(), is_configuration) {
             for (di, df) in dfs.iter().enumerate() {
                 // REQ-TRS-LINKTYPE-006 — per-entry E105 relaxation / coverage.
                 let e105_relaxed = link_prov.relaxed(&elem.qualified_name, crate::link_types::BaseLink::DerivedFrom, di, "E105");
@@ -6565,6 +6569,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 (ni, file)
             })
             .collect();
+        // Configuration inheritance cycles are E236 (§9.8), not E017.
+        let configuration_qnames: HashSet<&str> = elements
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
+            .map(|e| e.qualified_name.as_str())
+            .collect();
 
         let checks: &[(&str, EdgeKind, &str)] = &[
             ("E016", EdgeKind::Supertype, "supertype cycle detected"),
@@ -6589,6 +6599,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 HashMap::new();
 
             for edge in full_graph.edge_references() {
+                if *kind == EdgeKind::DerivedFrom
+                    && configuration_qnames.contains(full_graph[edge.source()].as_str())
+                {
+                    continue;
+                }
                 if edge.weight() == kind {
                     let src_orig = edge.source();
                     let dst_orig = edge.target();
@@ -7468,6 +7483,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             ));
         }
     }
+
+    // ── Configuration inheritance through `derivedFrom:` (§9.8, GH #137) ─────
+    // Before the HPLE pass so a local sub-configuration target with a broken
+    // inheritance chain counts as not internally valid (E518).
+    findings.extend(configuration_inheritance_findings(elements));
 
     // ── HPLE `subConfigurations:` (REQ-TRS-HPLE-001, ADR-SYS-HPLE-001) ───────
     // Active whenever any Configuration declares `subConfigurations:`, whether
@@ -8468,7 +8488,7 @@ fn mark_already_bound_by(
     label: &str,
     out: &mut HashMap<String, HashMap<String, TransitiveParamStatus>>,
 ) {
-    let Some(serde_yaml::Value::Mapping(m)) = &target.frontmatter.parameter_bindings else {
+    let Some(serde_yaml::Value::Mapping(m)) = target.frontmatter.effective_parameter_bindings() else {
         return;
     };
     let own_keys: HashSet<&str> = m.keys().filter_map(|k| k.as_str()).collect();
@@ -8671,7 +8691,7 @@ pub fn parameter_binding_findings(
         // so a config with no hierarchy at all pays nothing extra.
         let mut transitive_params: Option<HashMap<String, HashMap<String, TransitiveParamStatus>>> = None;
 
-        if let Some(serde_yaml::Value::Mapping(bindings)) = &cfg.frontmatter.parameter_bindings {
+        if let Some(serde_yaml::Value::Mapping(bindings)) = cfg.frontmatter.effective_parameter_bindings() {
             for (k, val) in bindings {
                 let Some(path) = k.as_str() else { continue };
                 let Some((feat, pname)) = path.rsplit_once('.') else {
@@ -8832,7 +8852,7 @@ pub fn open_parameter_findings(
         if table.is_empty() {
             continue; // purely local chain — see doc comment.
         }
-        let own_bound: HashSet<String> = match &cfg.frontmatter.parameter_bindings {
+        let own_bound: HashSet<String> = match cfg.frontmatter.effective_parameter_bindings() {
             Some(serde_yaml::Value::Mapping(m)) => {
                 m.keys().filter_map(|k| k.as_str()).map(|s| s.to_string()).collect()
             }
@@ -9129,6 +9149,63 @@ fn fmea_row_findings(file: &str, row_no: usize, row: &serde_yaml::Value) -> Vec<
         }
         _ => Vec::new(),
     }
+}
+
+/// Configuration inheritance through `derivedFrom:` (spec §9.8/§9.11, GH #137):
+/// `E234` dangling base, `E235` base is not a `Configuration`, `E236` cycle,
+/// `E237` more than one base, `E215` base not `approved`/`released`. The
+/// inheritance itself is materialized by the walker (`crate::config_inherit`).
+pub fn configuration_inheritance_findings(elements: &[RawElement]) -> Vec<Finding> {
+    use crate::config_inherit::{analyse, InheritanceProblem as P};
+    let (_, problems) = analyse(elements);
+    let id_of = |i: usize| {
+        elements[i].frontmatter.id.clone().unwrap_or_else(|| elements[i].qualified_name.clone())
+    };
+    problems
+        .into_iter()
+        .map(|p| match p {
+            P::Dangling { child, target } => error(
+                "E234",
+                &elements[child].file_path,
+                &format!(
+                    "Configuration '{}' derivedFrom '{}' does not resolve to any element in this model — a base Configuration must be local (consolidate a peer product line with subConfigurations:)",
+                    id_of(child), target
+                ),
+            ),
+            P::NotConfiguration { child, target, found } => error(
+                "E235",
+                &elements[child].file_path,
+                &format!(
+                    "Configuration '{}' derivedFrom '{}' resolves to a {} — a Configuration may only derive from another Configuration",
+                    id_of(child), target, found
+                ),
+            ),
+            P::Cycle { child, chain } => error(
+                "E236",
+                &elements[child].file_path,
+                &format!(
+                    "Configuration '{}' is on a derivedFrom inheritance cycle ({} -> {}) — it inherits nothing",
+                    id_of(child), chain.join(" -> "), chain.first().cloned().unwrap_or_default()
+                ),
+            ),
+            P::MultipleBases { child, count } => error(
+                "E237",
+                &elements[child].file_path,
+                &format!(
+                    "Configuration '{}' names {} derivedFrom bases — a Configuration derives from at most one base Configuration",
+                    id_of(child), count
+                ),
+            ),
+            P::UnreleasedBase { child, base, status } => error(
+                "E215",
+                &elements[child].file_path,
+                &format!(
+                    "Configuration '{}' derivedFrom base '{}' has status '{}' — a base Configuration must be approved or released",
+                    id_of(child), base, status
+                ),
+            ),
+        })
+        .collect()
 }
 
 fn error(code: &'static str, file: &str, msg: &str) -> Finding {

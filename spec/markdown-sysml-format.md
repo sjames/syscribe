@@ -4539,11 +4539,11 @@ Configuration IDs follow the pattern `^CONF(-[A-Z0-9]{2,12})+-[0-9]{3,8}$`:
 | `name` | string | **Required** | — | One-line human-readable label — free prose (spaces/punctuation allowed). Max 120 chars. |
 | `status` | enum | **Required** | — | `draft`, `review`, `approved`, `released`, `retired`. |
 | `featureModel` | string | **Required** | — | Qualified name of the feature model package this configuration selects from. |
-| `features` | map | **Required** | — | Feature selection: `FeatureDef qualified name: true/false`. All features in the model must appear; defaults apply for absent entries (see §9.6). |
+| `features` | map | **Required** (optional with `derivedFrom:`) | — | Feature selection: `FeatureDef qualified name: true/false`. All features in the model must appear; defaults apply for absent entries (see §9.6). A configuration with a `derivedFrom:` base declares only the entries it overrides (see *Configuration inheritance* below). |
 | `parameterBindings` | map | optional | absent | Parameter value assignments keyed by the canonical dotted reference: `<FeatureDef qname>.<paramName>: <value>`. Resolves transitively through `subConfigurations:` (§14.7) at any depth, using the parameter's ordinary, already-mounted qname. |
 | `subConfigurations` | string or list | optional | absent | One or more other `Configuration` elements this one consolidates — reachable locally or via a `[repos]`-mounted peer repo (§14.7, `ADR-SYS-HPLE-001`). |
 | `satisfies` | list of strings | optional | absent | For component `Configuration` only: qualified names of system-level `FeatureDef` elements this configuration realises. This is the sole top-down binding in the two-level model. |
-| `derivedFrom` | string | optional | absent | Qualified name of a base `Configuration` this one extends. Inherits all `features:` and `parameterBindings:` of the base; entries in this file override the base. |
+| `derivedFrom` | string | optional | absent | Qualified name or `CONF-*` id of **one** base `Configuration` in the same model that this one extends. Inherits the base's effective `features:` and `parameterBindings:`; entries in this file override the base (see *Configuration inheritance* below). |
 | `baselineRef` | string | optional | absent | Opaque external baseline reference (e.g., a Git tag, CM baseline ID). |
 | `tags` | list of strings | optional | absent | Free labels. |
 
@@ -4598,7 +4598,7 @@ id: CONF-UAV-HVY-LR-001
 name: "Heavy-lift UAV — extended-range variant"
 status: draft
 featureModel: SystemFeatures
-derivedFrom: Configurations::HeavyLiftUAV   # inherits all from CONF-UAV-HVY-001
+derivedFrom: CONF-UAV-HVY-001   # inherits all from the heavy-lift base (id or qname)
 features:
   # Only overrides differ from the base
   SystemFeatures::Communication.LongRangeLink: true  # already true — no change
@@ -4609,6 +4609,15 @@ parameterBindings:
 
 Long-range variant using 2.4 GHz band for better penetration in forested areas.
 ```
+
+**Inheritance semantics** (GH #137, `REQ-TRS-VAR-007`):
+
+1. **One local base.** `derivedFrom:` names exactly one `Configuration` of the same model, by qualified name or `CONF-*` id. A peer product line is consolidated with `subConfigurations:` (§14.7), never inherited.
+2. **Effective selection.** The child's effective `features:` is the base's *effective* selection overlaid by the child's own `features:` entries — a child entry wins over the inherited entry for the same feature (a `FEAT-*` id key and the FeatureDef's qualified name name the same feature). Inheritance chains compose (a grandchild inherits through its parent).
+3. **Effective bindings.** The child keeps every `parameterBindings:` entry it declares; an inherited entry is kept unless the child binds the same `<feature>.<param>` itself, or the child's own `features:` sets that feature to `false` (a binding for a feature the child switched off is not carried over).
+4. **Nothing else is inherited** — `status`, `featureModel`, `subConfigurations:`, `buildOverrides:`, `baselineRef`, `tags` stay per-file.
+5. **Everything reads the effective selection** — projection (`--config`), `matrix`, `configure`, `validate --config`/`--all-configs`, `feature-check` (incl. `--deep` configuration validity), `build-config`, the per-Configuration rules (`E203`–`E206`, `E216`–`E220`, `W015`–`W017`) and `subConfigurations:` consolidation (a consolidated Configuration's inherited bindings close its parameters for `E523`/`W513`). `show` marks inherited entries. The authored file is never rewritten.
+6. **Checks.** A Configuration's `derivedFrom:` is not a requirement derivation: it never raises `E105`/`E017` and never enters `derivedChildren`. Instead: `E234` the base does not resolve, `E235` it resolves to a non-`Configuration`, `E236` the configuration is on an inheritance cycle, `E237` more than one base is named (a child with any of these inherits nothing), and `E215` the base is not `approved`/`released`.
 
 ---
 
@@ -4849,6 +4858,10 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E213` | A cross-feature `parameterConstraints` expression references a parameter path that does not resolve |
 | `E214` | A `FeatureDef.contributesTo:` does not resolve to a `FeatureDef` in a system feature model |
 | `E215` | A `Configuration.derivedFrom:` base configuration is not in `approved` or `released` status |
+| `E234` | A `Configuration.derivedFrom:` base does not resolve to any element of the model (§9.8; the base must be local) |
+| `E235` | A `Configuration.derivedFrom:` base resolves to an element that is not a `Configuration` |
+| `E236` | A `Configuration` is on a `derivedFrom:` inheritance cycle (each member is reported; none inherits) |
+| `E237` | A `Configuration.derivedFrom:` names more than one base |
 | `E216` | A `Configuration.features` map omits a `mandatory` feature (or sets it to `false`) |
 | `E217` | A `Configuration.features` map selects both sides of an `alternative` group |
 | `E218` | A `Configuration.features` map violates an `or` group's `cardinality:` constraint |
@@ -4881,11 +4894,11 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W048` | (§9.6a) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — inert, ignored. |
 
 > **Implementation note.** Rules split across commands/modes:
-> - **`validate`** (per-element, always on) enforces the single-level parameter binding rules `E203`–`E206`, the unresolved-path error `E222`, `W017`, and the binding-time rules `E230` (invalid value) and `W027` (Configuration binds a `runtime` parameter; `W017` is suppressed for `runtime`).
+> - **`validate`** (per-element, always on) enforces the single-level parameter binding rules `E203`–`E206`, the unresolved-path error `E222`, `W017`, the binding-time rules `E230` (invalid value) and `W027` (Configuration binds a `runtime` parameter; `W017` is suppressed for `runtime`), and the Configuration-inheritance rules `E215`/`E234`–`E237` (§9.8). Every per-Configuration rule reads the **effective** (inherited + own) selection and bindings.
 > - **`feature-check`** (explicit, holistic) enforces the feature-model-wide rules: `E212` (requires/excludes resolution), `E219`/`E220` (requires/excludes satisfaction), `E207` (circular `derivedFrom:`), `E202` (`bindTo:` propagation range), `E229` (binding-time ordering across `derivedFrom`/`bindTo`), `E213` (unresolved **or `::`-member** `parameterConstraints` path), `E221`/`W025` (`parameterConstraints` expression evaluation), `W011`/`W012`/`W014`, and `W024` (orphan feature). It **also** re-runs the parameter-binding rules (`E203`–`E206`/`E222`/`W017`) so a product line checked holistically gets the same range/binding enforcement as `validate`.
 > - **`feature-check --deep`** (SAT-backed, over a propositional encoding of the Boolean layer; deterministic; engine is batsat (pure-Rust CDCL) — see `ADR-FM-002`) adds whole-configuration-space analysis: `E223` void model, `E224` dead feature, `E225` invalid configuration (full group/cardinality semantics), `W018` false-optional, plus a reported set of *core* features and a conflict-set explanation for each unsatisfiability.
 >
-> Not yet implemented: group-cardinality *findings* on `feature-check` without `--deep` (`E216`/`E217`/`E218` — `--deep` enforces the group semantics via `E225`), two-level satisfies completeness (`E210`/`E211`), and general numeric/parameter (SMT) reasoning beyond the comparison/arithmetic grammar `E221` evaluates. `E222`–`E225`/`E229`/`E230` and `W017`/`W018`/`W024`/`W025`/`W027`/`W028` are implementation codes beyond the spec table.
+> Not yet implemented: group-cardinality *findings* on `feature-check` without `--deep` (`E216`/`E217`/`E218` — `--deep` enforces the group semantics via `E225`), two-level satisfies completeness (`E210`/`E211`), and general numeric/parameter (SMT) reasoning beyond the comparison/arithmetic grammar `E221` evaluates. `E222`–`E225`/`E229`/`E230` and `W017`/`W018`/`W024`/`W025`/`W027`/`W028` are implementation codes beyond the spec table. Configuration inheritance (`derivedFrom:`, §9.8) with `E215`/`E234`–`E237` is implemented.
 
 ---
 

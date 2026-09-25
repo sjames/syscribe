@@ -12,7 +12,8 @@ Rows are requirements, columns are Configurations; cells are covered (✓), gap
 (✗), or N/A (—). When a results sidecar is present, a covered cell shows ✓ for
 covered-and-passing vs ▣ for covered-but-not-passing. A per-config and overall
 coverage-% footer is printed. With no feature model, falls back to a flat
-requirement/test view.
+requirement/test view. A Configuration with a `derivedFrom:` base contributes
+its effective (inherited + own) selection, spec §9.8.
 
 ## OPTIONS
     --tag <t>       Restrict rows to requirements tagged t.

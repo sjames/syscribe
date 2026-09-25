@@ -515,7 +515,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 |---|---|
 | `W809` | `TestCase.securityTestMethod` not in `fuzz · penetration_test · security_regression · vulnerability_scan · threat_modeling` |
 
-## Product Line Engineering errors (E200–E233)
+## Product Line Engineering errors (E200–E237)
 
 | Code | Condition |
 |---|---|
@@ -529,6 +529,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E207` | Circular `derivedFrom:` dependency between parameters of the same `FeatureDef` |
 | `E209` | `appliesWhen:` is malformed, or an operand does not resolve to a `FeatureDef` (operands of `and`/`or`/`not` expressions are each checked) |
 | `E212` | `FeatureDef.requires:` or `excludes:` does not resolve to a `FeatureDef` |
+| `E215` | A `Configuration`'s `derivedFrom:` base (§9.8 inheritance) is not `approved` or `released` |
 | `E213` | Cross-feature `parameterConstraints` references unresolved parameter path (`<FeatureDef>.<param>`) |
 | `E219` | `FeatureDef.requires:` constraint violated by selected features |
 | `E220` | `FeatureDef.excludes:` constraint violated by selected features |
@@ -544,6 +545,10 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E231` | (§9.6a single-file feature model) a `featureTree:` entry is not a mapping, has no `name:`, or its dotted `name:` path is malformed — the entry is skipped |
 | `E232` | (§9.6a) a `featureTree:` entry's resolved qualified name collides with an existing element (or another entry) of the same qname |
 | `E233` | (§9.6a) a `crossTreeConstraints:` entry is not a mapping, has no `feature:`, has an empty path segment in `feature:`/`requires:`/`excludes:`, or its `feature:` does not resolve to a `FeatureDef` synthesized from the same sheet's `featureTree:` |
+| `E234` | (§9.8) a `Configuration`'s `derivedFrom:` base does not resolve to any element of the model — the base must be local (consolidate a peer product line with `subConfigurations:`); the configuration inherits nothing |
+| `E235` | (§9.8) a `Configuration`'s `derivedFrom:` base resolves to an element that is not a `Configuration`; the configuration inherits nothing |
+| `E236` | (§9.8) a `Configuration` is on a `derivedFrom:` inheritance cycle — reported on every member; none of them inherits (`E017` is not raised for Configuration cycles) |
+| `E237` | (§9.8) a `Configuration`'s `derivedFrom:` names more than one base — a Configuration inherits from at most one; it inherits nothing |
 
 ## Product Line Engineering warnings (W011–W027, W048)
 
