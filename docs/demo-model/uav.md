@@ -211,4 +211,4 @@ Nine test cases cover the leaf requirements. Each is a `TestCase` element with a
 syscribe -m model/ validate
 ```
 
-The report covers all 115 elements, the full requirements traceability matrix, and any validation findings. The model produces zero errors.
+The report covers every element (the element inventory is its first section), the full requirements traceability matrix, and any validation findings. The model produces zero errors; its warnings are deliberate, advisory findings. Note that `model/` also hosts Syscribe's own product requirements, ADRs and planning items alongside the UAV, so the totals include those.
