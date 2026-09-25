@@ -1048,6 +1048,15 @@ pub struct RawFrontmatter {
     pub req_domain: Option<String>,
     pub breakdown_adr: Option<String>,
 
+    /// REQ-TRS-ADR-001 (GH #159) — §8.17.1 `ADR` `deciders:`: the decision-makers,
+    /// each a stakeholder `PartDef` qualified name or a free-text name. Opaque
+    /// display metadata, never a cross-reference (a free-text name is legitimate),
+    /// so it is not resolved. A scalar is accepted as a one-entry list. Only a
+    /// schema field on an `ADR`; on any other type it is still reported as an
+    /// unrecognized field (W047).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub deciders: Option<Vec<String>>,
+
     /// REQ-TRS-SAFE-006 (ISO 26262-9 §7) — freedom-from-interference / partitioning
     /// rationale (YAML: `ffiRationale`). A non-empty string on a shared allocation
     /// target or on a source excuses a mixed-criticality sharing (clears W034).
