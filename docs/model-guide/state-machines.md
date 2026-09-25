@@ -147,4 +147,4 @@ history) — those are not part of SysMLv2.
 ## See also
 
 - [Element Types](../format/elements.md) · [Frontmatter](../format/frontmatter.md#state-machine-transitions-statedefstate)
-- Full schema: `syscribe spec` (§8.8) · rule reference: [Validation Rules](../validation/rules.md#state-machine-warnings-w070w079-221)
+- Full schema: `syscribe spec` (§8.8) · rule reference: [Validation Rules](../validation/rules.md#state-machine-warnings-w070w079-w929-221)

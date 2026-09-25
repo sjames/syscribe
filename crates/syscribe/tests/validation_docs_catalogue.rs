@@ -364,9 +364,10 @@ fn listed_but_unemitted_codes_are_marked_and_marked_codes_are_unemitted() {
 #[test]
 fn stated_severities_match_code_prefixes() {
     let mut bad = Vec::new();
-    // Only the grouped references are checked here; the catalogue's rows carry
-    // no severity column and its completeness is `catalogue_tests`' job.
-    for rel in ["docs/validation/rules.md", "spec/markdown-sysml-format.md"] {
+    // The grouped references and the catalogue: a row under an "errors"/"warnings"
+    // heading (or with a Severity column) must match its code prefix. The
+    // catalogue's completeness is `catalogue_tests`' job.
+    for rel in ["docs/validation/rules.md", "spec/markdown-sysml-format.md", "prompts/spec/validation.md"] {
         bad.extend(severity_contradictions(rel, &read(rel)));
     }
     assert!(bad.is_empty(), "{bad:#?}");
