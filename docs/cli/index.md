@@ -1238,8 +1238,11 @@ refused with the allowed list, no file written — and is a true single-line spl
 elsewhere), not a full YAML round-trip. `achieves.add`/`evidence.add` append to their list
 without disturbing existing order, each validated before anything is written (`achieves.add`
 must resolve to a native Requirement; `evidence.add ref=` must resolve to some element,
-`path=` must exist on disk or be an `http(s)://` URI). `--dry-run` previews the unified diff
-without writing.
+`path=` must exist on disk or be an `http(s)://` URI). Both are line-level edits too: only the
+new item's lines are inserted, so YAML comments and every other line survive untouched.
+Adding an entry that is already there (the same `achieves:` id, or an `evidence:` entry with
+the same `ref:`/`path:`) is a reported no-op. `--dry-run` previews the unified diff without
+writing.
 
 ### Claim markers for concurrent multi-agent work (`claim` / `release`)
 
