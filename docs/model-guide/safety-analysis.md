@@ -417,7 +417,9 @@ Feasibility rank: `very_low`=0, `low`=1, `medium`=2, `high`=3.
   **MIN** of its children (a chain is only as feasible as its hardest step).
 - An `AttackTreeGate` `OR` (alternatives) is the **MAX** of its children (the
   attacker takes the easiest path).
-- The `AttackTree`'s feasibility is the value of its single root child, mapped
+- The `AttackTree`'s feasibility is the value of its root node — the one gate/step
+  of the tree that no other gate lists in its `inputs:` (file order does not
+  matter; with no unique root the roll-up is not computed), mapped
   back to a label.
 
 If the computed feasibility differs from the linked

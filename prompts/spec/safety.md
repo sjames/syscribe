@@ -392,7 +392,8 @@ Attack trees mirror FTA. An `AttackTree` substantiates a `ThreatScenario`
 `AttackStep` leaves. Feasibility rolls up **weakest-link**: rank
 `very_low`=0 … `high`=3; an `AttackStep` = its `attackFeasibility` rank; an `AND`
 gate (sequential path) = **MIN** of children; an `OR` gate (alternatives) =
-**MAX** of children; the tree = the value of its single root child, mapped back
+**MAX** of children; the tree = the value of its root node (the one gate/step no
+other gate of the tree lists in `inputs:` — never file order), mapped back
 to a label. If the tree's computed feasibility differs from the linked
 `ThreatScenario.attackFeasibility`, the validator emits **W035** (computed vs
 declared).

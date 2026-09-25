@@ -933,7 +933,9 @@ nested in a subdirectory named after the tree file. Feasibility is rolled up wit
 the **weakest-link** rule (rank `very_low`=0 … `high`=3): an `AttackStep` is its
 `attackFeasibility` rank; an `AND` gate (a sequential path) is the **MIN** of its
 children; an `OR` gate (alternatives) is the **MAX** of its children; the tree's
-feasibility is the value of its single root child, mapped back to a label.
+feasibility is the value of its root node — the one gate/step that no other gate
+of the tree lists in `inputs:`, independent of file order (no unique root → not
+computed) — mapped back to a label.
 
 ### AttackTree (E915–E917, W035–W036)
 
