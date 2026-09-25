@@ -81,7 +81,7 @@ other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now th
 |---|---|
 | W002 | Requirement at `approved` or `implemented` has no active TestCase |
 | W003 | Requirement at `verified` has no active TestCase covering it |
-| W005 | Requirement has no `derivedFrom` and no `derivedChildren` — possible orphan |
+| W005 | Requirement has no upstream link (`derivedFrom`, `derivedFromSafetyGoal` or `derivedFromCybersecurityGoal`) and no `derivedChildren` — possible orphan |
 
 ## Cycle detection errors (E016–E018, E107)
 

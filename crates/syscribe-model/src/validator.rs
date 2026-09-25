@@ -4764,8 +4764,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // W005: orphan (no derivedFrom and no derivedChildren)
-        let has_parent = elem.frontmatter.derived_from.as_ref().is_some_and(|v| !v.is_empty());
+        // W005: orphan (no upstream link and no derivedChildren). A requirement
+        // derived from a SafetyGoal/CybersecurityGoal is traced upstream just as
+        // much as one with `derivedFrom:` (GH #151) — the goal is its parent.
+        let non_empty = |s: &Option<String>| s.as_deref().is_some_and(|v| !v.trim().is_empty());
+        let has_parent = elem.frontmatter.derived_from.as_ref().is_some_and(|v| !v.is_empty())
+            || non_empty(&elem.frontmatter.derived_from_safety_goal)
+            || non_empty(&elem.frontmatter.derived_from_cybersecurity_goal);
         let has_children = derived_children.get(req_id).is_some_and(|v| !v.is_empty());
         if !has_parent && !has_children {
             findings.push(warning(
