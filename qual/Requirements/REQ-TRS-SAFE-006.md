@@ -15,14 +15,16 @@ each unguarded mixed-criticality sharing.
 ## Shared-resource definition
 
 Two elements **share a resource** when both are **allocated to the same target element**.
-The tool **shall** collect allocation edges `(source -> target)` from ALL of the following,
-resolving every reference through the `Resolver`:
+The tool **shall** take the allocation edges `(source -> target)` from the §12.9 unified edge set
+([[REQ-TRS-ALLOC-001]]), resolving every reference through the `Resolver`:
 
-- an element carrying `allocatedTo: [T, ...]` — `source` = the element, `target` = each `T`;
-- an element carrying `allocatedFrom: [S, ...]` — `target` = the element, `source` = each `S`;
-- an `Allocation` element carrying `allocatedFrom: S` + `allocatedTo: T` — `source` = `S`,
-  `target` = `T`. (The issue's `allocateFrom`/`allocateTo` spelling maps onto the existing
-  `allocatedFrom`/`allocatedTo` fields used by `Allocation` elements throughout the model.)
+- a non-`Allocation` element carrying `allocatedTo: [T, ...]` — `source` = the element, `target` = each `T`;
+- a non-`Allocation` element carrying a legacy `allocatedFrom: [S, ...]` — `target` = the element,
+  `source` = each `S`;
+- an `Allocation` element carrying `allocatedFrom: S` + `allocatedTo: T`, top-level or per `features:`
+  entry — `source` = `S`, `target` = `T`. The `Allocation` element itself is never an endpoint (before
+  GH #131 the check treated it as one and so missed every sharing expressed through `Allocation`
+  elements).
 
 The edges **shall** be inverted into a `target -> { sources }` map. A target with fewer than
 two distinct resolved sources cannot host a sharing and is not examined.

@@ -117,7 +117,7 @@ syscribe -m model/ repos sync [--all | <alias>]   # git fetch + checkout <ref> (
 |---|---|
 | `E510` | Circular repo import — a repo transitively imports back into this model. |
 | `E511` | `repos.<alias>.path` is absent on disk **and** no `ref:` is configured. |
-| `E512` | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo` reference resolves in neither the local model nor any loaded repo. |
+| `E512` | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo`/`supertype`/`typedBy`/`subsets`/`redefines` reference resolves in neither the local model nor any loaded repo (reported instead of the field's own unresolved-reference code, e.g. `E102`/`E110`). |
 | `E513` | `repoImports[].repo` names an alias not present in `[repos]`. |
 | `E514` | `repoImports[].qname` does not resolve to any element in the named repo. |
 | `E515` | Two repos export the same stable ID (the id namespace is global). |

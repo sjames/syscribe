@@ -8,8 +8,9 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 
 | Code | Element | Condition |
 |---|---|---|
-| E000 | — | Internal fallback code for a derive-pass finding whose original code is not one of the recognised derive codes (`E500`/`E501`/`E502`). Should not appear in a healthy model |
+| E000 | — | Internal fallback code for a walker-pass finding (derive, SysML v2 ingestion, plugins, annotations, `featureTree:`) whose original code is not one the validator recognises — for the derive pass `E504`/`E505`/`E506`. Should not appear in a healthy model |
 | E002 | Any | Frontmatter is not valid YAML 1.2 (parse error) |
+| E003 | — | **RETIRED.** Never emitted — there is no strict mode. An unrecognised top-level frontmatter key is the warning `W047`. |
 | E004 | TestCase | `id`, `name`, `status`, or `testLevel` absent |
 | E005 | Any | `type:` value is present but is not in the element type inventory (unrecognised type) |
 | E004 | Requirement | `name` or `status` absent on native Requirement |
@@ -43,8 +44,9 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | W007 | Type definition (e.g. `PartDef`) is never referenced as a supertype or type |
 | W008 | Element has no `type:` field — will be ignored by most commands |
 | W009 | A TestCase `testFunctions[].function` is not found in its `sourceFile` (live source-drift; a planned/draft TestCase reports the informational `I010` instead) |
+| W010 | An `active` TestCase's `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
 
-## Cross-reference errors (E101–E106)
+## Cross-reference errors (E101–E106, E110–E114)
 
 | Code | Condition |
 |---|---|
@@ -54,6 +56,24 @@ Warnings are advisory by default (exit `0`). Promote them to CI gate failures (e
 | E104 | `verifies:` target is not a native Requirement — also widened (`Resolver::is_verify_target`) to accept a requirement/architecture-shaped element (`Part`/`PartDef`/`Attribute`/… — `REQ-TRS-SYSMLV2-007`'s fixed kind list) that was actually synthesized by native SysMLv2 ingestion or a stdio plugin, never a hand-authored element of the same kind |
 | E105 | `derivedFrom:` target is not a native Requirement |
 | E106 | `testFunctions[].scenario` name not found in Gherkin blocks |
+| E110 | `supertype:` entry does not resolve |
+| E111 | `typedBy:` entry does not resolve — on the element, or on an inline `features:` entry (the message names the feature) |
+| E112 | `subsets:` entry does not resolve |
+| E113 | `redefines:` entry does not resolve |
+| E114 | `satisfies:` entry does not resolve |
+
+`E110`–`E114` (REQ-TRS-XREF-007) use the §11.5 resolution order: id / qualified name / name,
+then the referencing element's enclosing-package scope chain, a `./` sibling, `imports:` and
+`aliases:` of the element or any enclosing package, and an inline (non-file) feature of a
+resolvable owner — `Owner::feature`, or a bare `feature` of the element's owner, including one
+inherited through `supertype:`/`typedBy:`. Standard-library references are never flagged: the
+built-in `ScalarValues`/`Base` packages (an unknown member is `W043`), the curated ISQ/SI names,
+any reference into a SysML v2 library package (`ISQ::…`, `Parts::Part::…`, `Links::…`) whose
+top-level name the model does not declare itself, and the bare library root types (`Link`,
+`Part`, `Real`, …). SysML v2-, plugin- and annotation-synthesized elements resolve like any
+other (the `typedBy:` of an ingested SysML v2 `allocation` usage is exempt: ingestion does not map
+`allocation def`). With `[repos]` configured an unresolved reference is `E512` instead (never both). Like
+`E102`–`E106`, they take the model-root-name hint and are suppressed under `--config`.
 
 ## Coverage warnings (W002–W005)
 
@@ -99,7 +119,7 @@ The variability dimension is **opt-in**: it is dormant — and these checks do n
 |---|---|
 | W015 | A requirement is **active** in a `Configuration` (its `appliesWhen:` holds for that configuration's selections) but no non-draft `TestCase` that runs in that `Configuration` verifies it. Draft requirements and draft tests are suppressed. Gate it in CI with `--deny W015`. |
 | W016 | A `Configuration` parsed **zero** feature selections while a feature model exists — e.g. it used a legacy/unrecognized `selections:` key instead of the `features:` map (§9.8). Without this warning the block is silently ignored and every cell in `matrix` comes back N/A. Not emitted when no `FeatureDef` is present. |
-| W017 | A selected feature declares a required parameter (`isRequired: true`, not fixed, no `default:`) that the `Configuration` does not bind. (§9.11 names this `W010`, which this tool already uses for test-result ingestion.) **Suppressed** for a parameter whose `bindingTime: runtime` — the running system supplies its value. |
+| W017 | A selected feature declares a required parameter (`isRequired: true`, not fixed, no `default:`) that the `Configuration` does not bind. (`W010` is test-result ingestion.) **Suppressed** for a parameter whose `bindingTime: runtime` — the running system supplies its value. |
 | W027 | A `Configuration` binds a parameter whose `bindingTime: runtime` (resolved by the running system, not at configuration time). Gate with `--deny W027`. |
 
 A `TestCase` *runs in* a `Configuration` iff its `appliesWhen:` is satisfied by that configuration's `features:` selections; a `TestCase` with no `appliesWhen:` runs in every configuration. The same relationship powers `syscribe matrix`.
@@ -150,7 +170,7 @@ Core features (present in every valid configuration) are reported informationall
 | W021 | (`feature-check --deep`) a **dead element** — its `appliesWhen` is unsatisfiable under the feature model (active in no valid configuration) |
 | W022 | (`feature-check --deep`) a requirement **active in some configuration but covered in none** (family-wide coverage gap) |
 
-On a model that declares no `FeatureDef`, `--config` must name a stored `Configuration` (e.g. a MagicGrid parametric variant — the lens is then the identity); anything else is a usage error rather than a silent whole-model fallback. Cross-reference-resolution codes (`E102`–`E106`) are suppressed under `--config` because escaping refs (`E226`/`W019`) are authoritative there.
+On a model that declares no `FeatureDef`, `--config` must name a stored `Configuration` (e.g. a MagicGrid parametric variant — the lens is then the identity); anything else is a usage error rather than a silent whole-model fallback. Cross-reference-resolution codes (`E102`–`E106`, `E110`–`E114`) are suppressed under `--config` because escaping refs (`E226`/`W019`) are authoritative there.
 
 ## Transitive package `appliesWhen` (§9.10, REQ-TRS-VAR-006)
 
@@ -192,7 +212,7 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 | E311 | `breakdownAdr:` does not resolve, or does not resolve to an ADR |
 | E312 | Parent requirement (has `derivedChildren`) appears in a `satisfies:` list |
 | E313 | `satisfies` domain mismatch: element domain ≠ requirement `reqDomain` |
-| E314 | `isDeploymentPackage: true` element has no Allocation to a hardware element |
+| E314 | `isDeploymentPackage: true` element has no allocation to a hardware element — any §12.9 form counts: an `Allocation` element (top-level or per `features:` entry), `allocatedTo:` on the element, or a legacy authored `allocatedFrom:` on the hardware target |
 | E315 | Cross-domain `supertype:` or `typedBy:` reference — use Allocation instead |
 | E316 | A `refines:` operand on a `UseCaseDef`/`UseCase` — or on a behavioral definition `ActionDef`/`Action`/`StateDef`/`State` — does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef`. **Base-format check** — runs regardless of the MagicGrid profile. The `refinedBy` reverse index includes refining behavioral elements alongside refining use cases. |
 
@@ -206,7 +226,7 @@ The optional `implementedBy:` field on a `Part`, `PartDef`, `Interface`, or `Int
 
 - **Opt-in** — the check runs only when `implementedBy:` is present; elements without it are never flagged.
 - **Draft-suppressed** — elements with `status: draft` are skipped (the implementation may not exist yet).
-- **Path resolution** is identical to `sourceFile` (`classify_source`): model-/repo-relative, `model:`/`repo:` prefixes, absolute, and `file://` paths are checked on disk; remote URIs (`scheme://`) are accepted as external pointers and not verified locally. `implementedBy:` accepts a single string or a list; each entry is checked independently.
+- **Path resolution** is identical to `sourceFile` (`classify_source`): model-/repo-relative, `model:`/`repo:` prefixes, absolute, and `file://` paths are checked on disk; remote URIs (`scheme://`) and package-registry references (`crates.io:tokio@1.38.0`, `npm:lodash@4.17.21`, `github:org/repo@v1` — the forms `sbom` turns into purls) are accepted as external pointers and not verified locally. `implementedBy:` accepts a single string or a list; each entry is checked independently.
 - **Gateable** — `validate --deny W023` exits non-zero when any W023 is present.
 
 ## §3 External references (W028)
@@ -414,7 +434,7 @@ A model composes peer repositories declared in the `[repos]` table of the model-
 |---|---|
 | E510 | Circular repo import — a repo transitively imports back into this model. |
 | E511 | `repos.<alias>.path` is absent on disk and no `ref:` is configured. |
-| E512 | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo` reference resolves in neither the local model nor any loaded repo. |
+| E512 | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo`/`supertype`/`typedBy`/`subsets`/`redefines` reference resolves in neither the local model nor any loaded repo (reported instead of the field's own unresolved-reference code). |
 | E513 | `repoImports[].repo` names an alias not present in `[repos]`. |
 | E514 | `repoImports[].qname` does not resolve to any element in the named repo. |
 | E515 | Two repos export the same stable ID (the id namespace is global across the composition). |
@@ -509,6 +529,18 @@ A `FeatureDef` or `Configuration` may declare `buildExports:` mapping selected f
 | E502 | `allocatedFrom:` entry (on any element) does not resolve to a known element |
 | E503 | `allocatedTo:` entry (on any element) does not resolve to a known element |
 
+## Declarative derive errors (E504–E506)
+
+Emitted by the `derive:` evaluator (`crates/syscribe-model/src/derive.rs`, REQ-TRS-DERIVE-004/005).
+
+| Code | Condition |
+|---|---|
+| E504 | *(reserved)* Cyclic dependency between `derive:` formulas — cycle detection is not yet implemented |
+| E505 | A `derive:` formula does not parse ("derive formula parse error for field '…'"); the field is left unevaluated |
+| E506 | A `derive:` formula's `elements["QName"]` names no element ("derive: element '…' not found in model"); the field evaluates to null. The model-root-name hint applies |
+
+The derive pass previously emitted `E501`/`E502` and reserved `E500`, colliding with the Allocation codes; since GH #127 the two families are disjoint.
+
 ## Structural warnings (W500–W503)
 
 | Code | Condition |
@@ -516,7 +548,7 @@ A `FeatureDef` or `Configuration` may declare `buildExports:` mapping selected f
 | W500 | `viewpoint:` on View does not resolve to a ViewpointDef |
 | W501 | `exhibitsStates:` entry does not resolve to any known element |
 | W502 | `expose:` entry on View does not resolve to any known element |
-| W503 | The **same** allocation edge `source → target` is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element — redundant; use one form (§12.9, `REQ-TRS-ALLOC-001`) |
+| W503 | The **same** allocation edge `source → target` is declared by **more than one** form — an `allocatedTo:` on the source, a standalone `Allocation` element, or a legacy authored `allocatedFrom:` on the target — redundant; use one form (§12.9, `REQ-TRS-ALLOC-001`) |
 
 ## Documentation warnings (W600–W601)
 
@@ -713,11 +745,12 @@ See `docs/model-guide/safety-analysis.md` and `syscribe -m <root> metrics`.
 ## Freedom From Interference / dependent-failure analysis (W034)
 
 ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** when both are
-**allocated to the same target element**. The tool collects allocation edges `(source → target)`
-from every form — an element's `allocatedTo: [T, …]` (source = the element), an element's
-`allocatedFrom: [S, …]` (target = the element), and an `Allocation` element's
-`allocatedFrom`/`allocatedTo` (source → target) — resolving every reference via the `Resolver`,
-then inverts them into a `target → { sources }` map.
+**allocated to the same target element**. The allocation edges `(source → target)` are the
+§12.9 unified edge set — an element's `allocatedTo: [T, …]` (source = the element), a legacy
+`allocatedFrom: [S, …]` authored on a non-`Allocation` element (target = the element), and an
+`Allocation` element's `allocatedFrom`/`allocatedTo`, top-level or per `features:` entry (source →
+target; the `Allocation` element itself is never an endpoint) — resolved via the `Resolver`, then
+inverted into a `target → { sources }` map.
 
 Each element gets an **integrity tag**: `asilLevel` if present, else `silLevel` (→ `SIL<n>`),
 else `QM`. Two sources on the same target are **mixed-criticality** when their tags differ
@@ -837,15 +870,17 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 | E908 | `id` does not match `FTE-*` pattern |
 | E909 | `eventKind` is not one of `basic · undeveloped · house` |
 
-## Tier 4 — FMEA (E911–E914, W902–W904)
+## Tier 4 — FMEA (E911–E914, E922, E923, W902–W904, W928)
 
-### FMEASheet (E911–E912, W902)
+### FMEASheet (E911–E912, E923, W902, W928)
 
 | Code | Condition |
 |---|---|
 | E911 | `id`, `name`, or `status` is absent |
 | E912 | `id` does not match `FMEA-*` pattern |
 | W902 | FMEASheet has no `entries` — add at least one failure mode row |
+| E923 | An `FMEASheet` `entries:` row has no string `id:` (or is not a mapping) — it cannot become an `FMEAEntry` and is dropped from validation and `fmea report`; reported on the sheet, naming the row's 1-based position and its `failureMode:`/`name:`. Previously such a row vanished silently (GH #132) |
+| W928 | An `entries:` row declares `fmeaSeverity` (or `severity`), `occurrence`, `detection` **and** an explicit `rpn:` that differs from their product — the computed `S × O × D` is kept; the message names the row, the explicit and the computed value. Silent when `rpn:` equals the product or any factor is absent |
 
 ### FMEAEntry (E913–E914, E922, W903–W904)
 
@@ -1001,8 +1036,8 @@ segment — a reference starts at the first sub-namespace
 unresolved cross-reference begins with the root package's `name:` followed by `::`
 and the *stripped* remainder resolves, the tool appends a diagnostic **hint** naming
 the corrected reference. The hint augments the existing unresolved-reference finding
-(`E102`/`E103`/`E311`/`E316`/`E502`/`E503` and the structural
-supertype/typedBy/subsets/redefines/connection resolution errors); it is advisory
+(`E102`/`E103`/`E311`/`E316`/`E502`/`E503`/`E506`/`E632` and the structural
+supertype/typedBy/subsets/redefines and satisfies resolution errors `E110`–`E114`); it is advisory
 only — it never changes resolution and never rewrites the model. It does not fire
 when the root package has no `name:`, nor when stripping the prefix still does not
 resolve.

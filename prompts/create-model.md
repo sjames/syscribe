@@ -1139,13 +1139,14 @@ controlTable:
 
 After the TARASheet is in place, create `Requirement` elements with `derivedFromCybersecurityGoal: CSG-SYS-001` and set `verificationMethod:`.
 
-**Binding a SecurityControl to an architecture element** (OSLC-compliant direction — architecture element holds the reference):
+**Binding a SecurityControl to the architecture element that implements it** — an allocation from the control (source) to the element (target). `SC-*` controls live inside the TARA sheet's `controlTable:`, so use a standalone `Allocation` element (§12.9 form 2); never author `allocatedFrom:` on the architecture element (it is the derived reverse index):
 
 ```yaml
-# In Hardware/ECU.md
-type: PartDef
-allocatedFrom:
-  - SC-SYS-001    # this component implements this security control
+# In Allocations/SC-SYS-001-to-ECU.md
+type: Allocation
+name: SecureBootOnEcu
+allocatedFrom: SC-SYS-001       # the security control
+allocatedTo: Hardware::ECU      # the component that implements it
 ```
 
 ### FTA (Fault Tree Analysis)
@@ -1238,6 +1239,11 @@ draft → review → approved → implemented → verified
 | E103 | `derivedFrom:` ID does not resolve | Check parent Requirement ID |
 | E104 | `verifies:` target is not a native Requirement | Only point `verifies:` at `type: Requirement` |
 | E105 | `derivedFrom:` target is not a native Requirement | Only point `derivedFrom:` at `type: Requirement` |
+| E110 | `supertype:` does not resolve | Use the full qualified name from the model root (no root-package prefix), or a standard-library name such as `Parts::Part` |
+| E111 | `typedBy:` (element or inline feature) does not resolve | Point it at an existing definition, or a library type such as `ScalarValues::Real` / `ISQ::MassValue` |
+| E112 | `subsets:` does not resolve | Name an existing usage or inline feature (`Owner::feature`) |
+| E113 | `redefines:` does not resolve | Name a feature the owner inherits (`Owner::feature`, or the bare feature name) |
+| E114 | `satisfies:` does not resolve | Check the `REQ-*` ID matches a Requirement file |
 | E300 | ADR `id` does not match `ADR-*` pattern | Fix the ID |
 | E301 | ADR missing `id`, `name`, or `status` | Add all three fields |
 | E302 | `reqDomain` not `system`/`hardware`/`software` | Use one of the three values |
@@ -1259,6 +1265,8 @@ draft → review → approved → implemented → verified
 | W630 | Malformed `[linkTypes]` entry (ignored) or unknown key | Fix `.syscribe.toml` only if asked; report it |
 | W631 | Non-draft source below the link type's lower cardinality bound | Add the required link(s) |
 | E500–E503 | `allocatedFrom`/`allocatedTo` does not resolve | Use correct qualified names |
+| E505 | `derive:` formula does not parse | Fix the formula syntax |
+| E506 | `derive:` formula's `elements["QName"]` names no element | Use an existing qualified name |
 | E841 | `derivedFromSafetyGoal` source has integrity level; this element has none | Add `asilLevel`, `silLevel`, or `plLevel` |
 | E842 | `derivedFrom` parent has integrity level; this element has none | Add the same integrity level field |
 | E843 | `satisfies` target has integrity level; this element has none | Add the same integrity level field |

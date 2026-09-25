@@ -189,6 +189,7 @@ The 204 test cases cover:
 | File discovery and frontmatter parsing (§11.1–11.2) | REQ-TRS-PARSE-001–009 | TC-TRS-PARSE-001–009 |
 | Qualified name derivation (§11.3) | REQ-TRS-QNAME-001–004 | TC-TRS-QNAME-001–004 |
 | Cross-reference resolution (§11.5–11.6, §11.10) | REQ-TRS-XREF-001–005 | TC-TRS-XREF-001–005 |
+| Unresolved structural/satisfies references E110–E114 (§11.5 step 4) | REQ-TRS-XREF-007 | TC-TRS-XREF-007 |
 | Element type handling (§2, §11.4) | REQ-TRS-ELEM-001–003 | TC-TRS-ELEM-001–003 |
 | ID scheme validation | REQ-TRS-ID-001–004 | TC-TRS-ID-001–004 |
 | Parse-time errors E001–E015, E300–E304 (§11.12) | REQ-TRS-VAL-001 | TC-TRS-VAL-001 |

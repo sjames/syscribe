@@ -4,9 +4,10 @@
 
 | Code | Condition |
 |---|---|
-| `E000` | Internal fallback for an unrecognised derive-pass finding code (should not appear in a healthy model) |
+| `E000` | Internal fallback for an unrecognised walker-pass finding code (derive `E504`–`E506`, SysML v2 ingestion, plugins, …; should not appear in a healthy model) |
 | `E001` | File does not begin with `---` (missing frontmatter delimiter) |
 | `E002` | YAML frontmatter is not valid YAML 1.2 |
+| `E003` | **RETIRED** — never emitted. There is no strict mode; an unrecognised top-level frontmatter key is the warning `W047`. |
 | `E004` | A required field is absent |
 | `E005` | `type:` value is not in the element type inventory |
 | `E006` | `id:` present but does not match the required pattern for the element type |
@@ -47,11 +48,17 @@
 | `E105` | `derivedFrom:` resolves to something that is not a native `Requirement` |
 | `E106` | `testFunctions[].scenario` does not match any Gherkin scenario title in this file |
 | `E107` | Cycle detected in the `typedBy:` graph (including a usage typed by itself) |
+| `E108` | Two elements — any origin (hand-authored, FMEA/TARA row explosion, SysMLv2 ingestion, stdio plugin, annotated source) — share a qualified name; names both files |
+| `E110` | `supertype:` reference cannot be resolved |
+| `E111` | `typedBy:` reference cannot be resolved (element-level or an inline `features:` entry) |
+| `E112` | `subsets:` reference cannot be resolved |
+| `E113` | `redefines:` reference cannot be resolved |
+| `E114` | `satisfies:` reference cannot be resolved |
 | `E310` | `Requirement` has `derivedFrom:` but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved or resolves to a non-`ADR` element |
 | `E312` | A parent `Requirement` (has `derivedChildren`) appears in a `satisfies:` list |
 | `E313` | `satisfies:` connects an architecture element and a requirement with incompatible `domain`/`reqDomain` |
-| `E314` | `PartDef`/`Part` with `isDeploymentPackage: true` has no `Allocation` to a `hardware` element |
+| `E314` | `PartDef`/`Part` with `isDeploymentPackage: true` has no allocation to a `hardware` element in any §12.9 form (`Allocation` element top-level or per `features:` entry, `allocatedTo:` on the part, legacy authored `allocatedFrom:` on the target) |
 | `E315` | `domain: software` element has `supertype:`/`typedBy:` referencing `domain: hardware`, or vice versa |
 | `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` or behavioral `ActionDef`/`Action`/`StateDef`/`State` does not resolve, or resolves to a non-`Requirement`/`RequirementDef` |
 
@@ -66,8 +73,9 @@
 | `W009` | A TestCase `testFunctions[].function` is not found in its `sourceFile` (live source-drift; planned/draft TestCases report `I010` instead) |
 | `W005` | Native `Requirement` has neither `derivedFrom:` nor `derivedChildren` (possible orphan) |
 | `W006` | Both `silLevel:` and `asilLevel:` set on the same element — incompatible standards |
-| `W007` | Unrecognised frontmatter key (lenient mode; key preserved) |
+| `W007` | A type definition (e.g. `PartDef`, `PortDef`, `ItemDef`) is defined but never used as a `supertype:` or `typedBy:` type by any element. (An unrecognised frontmatter key is `W047`.) |
 | `W008` | Element has no `type:` field — it will be ignored by most commands |
+| `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
 | `W300` | Leaf `Requirement` at `approved`/`implemented` has no satisfying architecture element |
 | `W301` | **Retired** (GH #121) — no longer emitted; a leaf may be satisfied by several elements |
 | `W302` | Leaf `Requirement` at `implemented`/`verified` still has `reqDomain: system` |
@@ -76,6 +84,7 @@
 | `W305` | Parent `Requirement` at `approved`/`implemented`/`verified` has no active `TestCase` at `testLevel: L3`–`L5` |
 | `W306` | A high-integrity `Requirement` (`silLevel >= 4`/`asilLevel: D`) is not a fully integrated safety mechanism — draft, unsatisfied (leaf), or active in no `Configuration`. Gate with `--deny W306` |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (advisory, draft-suppressed; `--deny W307`) |
+| `I010` | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`; never affects the exit status |
 
 ## Safety / ASPICE warnings (W701–W703)
 
@@ -200,7 +209,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
 | Code | Condition |
 |---|---|
-| `W034` | For an allocation target with ≥2 sources, a mixed-criticality source pair has no freedom-from-interference argument (`ffiRationale:` or `accepted` `breakdownAdr:`). Opt-in; gate with `--deny W034` |
+| `W034` | For an allocation target with ≥2 sources (edges from the §12.9 unified allocation-edge set), a mixed-criticality source pair has no freedom-from-interference argument (`ffiRationale:` or `accepted` `breakdownAdr:`). Opt-in; gate with `--deny W034` |
 
 ## Integrity-level propagation — ASIL/SIL decomposition (E865, W860)
 
@@ -222,6 +231,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E858` | An `AssumptionOfUse.appliesTo` ref does not resolve to any model element |
 | `E859` | `AssumptionOfUse.appliesTo` resolves to a non-`SafetyGoal`/`CybersecurityGoal`/`Argument`/`Requirement` (REQ-TRS-SEC-004) |
 | `E860` | `ConfirmationMeasure.confirms` resolves to a non-`SafetyGoal`/`CybersecurityGoal`/`HazardousEvent`/`Requirement` (REQ-TRS-SEC-005) |
+| `E718` | An `Argument.evidence` entry is not a scalar reference (expected a string id/qname — e.g. a `PlanningItem`-style `{ref:, path:}` mapping on an `Argument`) |
 | `W040` | A `claim`/`strategy` `Argument` has neither `supports` nor `evidence` (orphan GSN node) |
 
 ## Budget expression validation (E866–E868, W060)
@@ -280,6 +290,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W401` | `subject:` does not resolve to a known element |
 | `W402` | Shape `ref:` does not resolve (and is not a sub-feature of a known element) |
 | `W403` | Edge `source`/`target` is not a defined shape id in this diagram |
+| `W404` | An operation parameter's `typedBy` or an operation's `returnType` does not resolve to a known element (a warning, since standard-library types may be unregistered) |
 | `W405` | SVG body is inconsistent with `svgMode` |
 | `W406` | Frontmatter `shapes`/`edges` id has no matching `id="..."` in the inline SVG |
 | `W407` | SVG element `id` has no matching frontmatter `shapes`/`edges` entry |
@@ -298,7 +309,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 |---|---|
 | `W050` | A selected feature contributes no build variable (no `buildExports:`/`buildVar:`). Opt-in; gate with `--deny W050` (`E050` is in the parse-time table) |
 
-## Allocation errors and structural warnings (E500–E503, W500–W503)
+## Allocation and derive errors, structural warnings (E500–E506, W500–W503)
 
 | Code | Condition |
 |---|---|
@@ -306,10 +317,13 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E501` | A feature with `type: Allocation` has an `allocatedTo:` that does not resolve |
 | `E502` | An `allocatedFrom:` entry (any element) does not resolve to a known element |
 | `E503` | An `allocatedTo:` entry (any element) does not resolve to a known element |
+| `E504` | *(reserved)* Cyclic dependency between `derive:` formulas (cycle detection not yet implemented) |
+| `E505` | A `derive:` formula does not parse |
+| `E506` | A `derive:` formula's `elements["QName"]` names no element |
 | `W500` | `viewpoint:` on a View does not resolve to a `ViewpointDef` |
 | `W501` | `exhibitsStates:` entry does not resolve to any known element |
 | `W502` | `expose:` entry on a View does not resolve to any known element |
-| `W503` | The same allocation edge is declared by both an `allocatedTo:` and an `Allocation` element (redundant) |
+| `W503` | The same allocation edge is declared by more than one form — `allocatedTo:` on the source, an `Allocation` element, a legacy authored `allocatedFrom:` on the target (redundant) |
 
 ## Documentation warnings (W600, W601)
 
@@ -387,7 +401,7 @@ Active only when `[repos]` is configured in `.syscribe.toml`.
 |---|---|
 | `E510` | Circular repo import — a repo transitively imports back into this model |
 | `E511` | `repos.<alias>.path` is absent on disk and no `ref:` is configured |
-| `E512` | A cross-repo `verifies`/`derivedFrom`/`allocatedTo` reference resolves in neither the local model nor any loaded repo |
+| `E512` | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo`/`supertype`/`typedBy`/`subsets`/`redefines` reference resolves in neither the local model nor any loaded repo (reported instead of `E102`/`E103`/`E110`–`E114`/`E503` when `[repos]` is configured) |
 | `E513` | `repoImports[].repo` names an alias not present in `[repos]` |
 | `E514` | `repoImports[].qname` does not resolve to any element in the named repo |
 | `E515` | Two repos export the same stable ID (the id namespace is global) |
@@ -410,7 +424,7 @@ A `Configuration` may declare `subConfigurations:` naming one or more other `Con
 
 `parameterBindings:` itself is reused unchanged, extended to resolve transitively through `subConfigurations:` at any depth using a parameter's ordinary, already-mounted qname (no new addressing syntax); its existing intrinsic checks (`E204` fixed, `E205` range, `E206` enum, `E222` unresolved, `W027` runtime `bindingTime:`) apply identically whether the target is local or reached transitively. `E203` (feature not selected) and `W017` (required-and-unbound) stay scoped to a `Configuration`'s own local selection — the cross-tier equivalents are `E519` and `W513` respectively. A lower tier carries zero awareness of, or reference to, whoever consolidates it: `bindTo:` (component→system propagation) is explicitly not the mechanism here and continues to resolve purely within its own model.
 
-## Documentation linting (W099–W102, `lint-docs`)
+## Documentation linting (W099–W103, `lint-docs`)
 
 The `lint-docs` command scans external `.md`/`.svg` docs for references that no longer resolve.
 
@@ -420,6 +434,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W100` | A qualified name inside a ` ```mermaid ` block that does not resolve |
 | `W101` | An SVG `sysml:ref="…"` that does not resolve |
 | `W102` | A local image/diagram embed path that does not exist (remote URIs accepted) |
+| `W103` | Advisory: a package `_index.md` body enumerates three or more of the package's own direct members by stable id — membership is generated (`show <package>`); describe purpose instead. Does not affect the exit status |
 
 ## §12.8 Implementation trace (W029)
 
@@ -446,7 +461,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W926` | `FaultTreeEvent.fmeaRef` does not resolve to a known `FMEAEntry` (FTA↔FMEA cross-link) |
 | `W927` | `FMEAEntry.ftaRef` does not resolve to a known `FaultTreeEvent` (FMEA↔FTA cross-link) |
 
-## Tier 4 — FMEA (E911–E914, E922, W902–W904)
+## Tier 4 — FMEA (E911–E914, E922, E923, W902–W904, W928)
 
 | Code | Condition |
 |---|---|
@@ -455,9 +470,11 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E913` | FMEAEntry `id` does not match `FM-*` |
 | `E914` | `fmeaSeverity`, `occurrence`, or `detection` outside 1–10 |
 | `E922` | An `entries:` row contains an unrecognised key (silent data loss in a safety analysis — error) |
+| `E923` | An `FMEASheet` `entries:` row has no string `id:` (or is not a mapping) — it cannot become an `FMEAEntry` and is dropped from validation and `fmea report`; reported on the sheet, naming the row's 1-based position and its `failureMode:`/`name:` |
 | `W902` | `FMEASheet` has no `entries` |
-| `W903` | Computed RPN > 100 and no `recommendedAction` set. RPN is auto-computed as `fmeaSeverity × occurrence × detection` when `rpn:` is absent |
+| `W903` | Computed RPN > 100 and no `recommendedAction` set. RPN is `fmeaSeverity × occurrence × detection` when all three are present (an explicit `rpn:` is used only when a factor is missing — see `W928`) |
 | `W904` | Entry `ref` does not resolve to a known model element |
+| `W928` | An `entries:` row declares `fmeaSeverity` (or `severity`), `occurrence`, `detection` **and** an explicit `rpn:` that differs from their product — the computed `S × O × D` is kept; the message names the row, the explicit and the computed value. Silent when `rpn:` equals the product or any factor is absent |
 
 ## Tier 4 — TARA container (E940–E941, W905)
 
@@ -498,7 +515,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 |---|---|
 | `W809` | `TestCase.securityTestMethod` not in `fuzz · penetration_test · security_regression · vulnerability_scan · threat_modeling` |
 
-## Product Line Engineering errors (E200–E230)
+## Product Line Engineering errors (E200–E233)
 
 | Code | Condition |
 |---|---|
@@ -524,18 +541,20 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E225` | (`feature-check --deep`) a `Configuration` is not a valid model of the feature model (mandatory/group/cardinality/parent violation) |
 | `E226` | (`validate --config`) an active element's structural reference escapes the configuration (target inactive in this variant) |
 | `E227` | (`feature-check --deep`) a structural reference is provably violable: a valid configuration activates the source without the target |
+| `E231` | (§9.6a single-file feature model) a `featureTree:` entry is not a mapping, has no `name:`, or its dotted `name:` path is malformed — the entry is skipped |
+| `E232` | (§9.6a) a `featureTree:` entry's resolved qualified name collides with an existing element (or another entry) of the same qname |
+| `E233` | (§9.6a) a `crossTreeConstraints:` entry is not a mapping, has no `feature:`, has an empty path segment in `feature:`/`requires:`/`excludes:`, or its `feature:` does not resolve to a `FeatureDef` synthesized from the same sheet's `featureTree:` |
 
-## Product Line Engineering warnings (W010–W017)
+## Product Line Engineering warnings (W011–W027, W048)
 
 | Code | Condition |
 |---|---|
-| `W010` | `Configuration` does not bind a parameter declared `isRequired: true` on a selected feature |
 | `W011` | `FeatureDef` with `groupKind: optional` selected in zero `Configuration` files |
 | `W012` | `FeatureDef` with `groupKind: optional` selected in every `Configuration` |
 | `W014` | `parameterConstraint` has `appliesWhen:` referencing a feature not in any `Configuration` |
 | `W015` | A requirement is active in a `Configuration` (its `appliesWhen` holds) but no non-draft `TestCase` that runs in that `Configuration` verifies it. Only emitted when the variability dimension is active; honours draft suppression; gate with `--deny W015`. |
 | `W016` | A `Configuration` parsed **zero** feature selections while a feature model exists — e.g. it used an unrecognized `selections:` key instead of the `features:` map. Surfaces the otherwise-silent all-N/A footgun. Not emitted when no `FeatureDef` is present. |
-| `W017` | A selected feature declares a required parameter (`isRequired: true`, not fixed, no `default:`) that the `Configuration` does not bind. (Spec §9.11 nominally calls this `W010`, which this tool already uses for test-result ingestion.) |
+| `W017` | A selected feature declares a required parameter (`isRequired: true`, not fixed, no `default:`) that the `Configuration` does not bind. (`W010` is test-result ingestion — see the core warnings.) |
 | `W018` | (`feature-check --deep`) a **false-optional** feature — declared `optional` but forced selected whenever its parent is |
 | `W019` | (`validate --config`) an active element's traceability reference escapes the configuration (target inactive in this variant) |
 | `W020` | (`feature-check --deep`) a traceability reference is provably violable across some valid configuration |
@@ -546,7 +565,8 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E228` | (`validate`) invalid `appliesWhen:` placement (§9.10): nested under a package that already declares one; or on a `FeatureDef`/`Configuration`, a package whose subtree contains one, or the model-root package |
 | `W026` | (`validate`) a `Package` declares `appliesWhen:` but gates no projectable element (empty subtree); gate with `--deny W026` |
 | `W027` | (`validate`) a `Configuration` binds a parameter whose `bindingTime: runtime` (resolved by the running system, not at configuration time); gate with `--deny W027` |
-| `W023` | (§12.8) a non-`draft` `Part`/`PartDef`/`Interface`/`InterfaceDef` has an `implementedBy:` path that does not exist on disk. Opt-in (only when `implementedBy:` is present); draft-suppressed; remote (`scheme://`) targets accepted as external and not checked. Path resolution matches `sourceFile`. Gate with `--deny W023`. |
+| `W048` | (§9.6a) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — the field is inert and ignored |
+| `W023` | (§12.8) a non-`draft` `Part`/`PartDef`/`Interface`/`InterfaceDef` has an `implementedBy:` path that does not exist on disk. Opt-in (only when `implementedBy:` is present); draft-suppressed; remote (`scheme://`) targets and package-registry references (`crates.io:tokio@1.38.0`, `npm:…`, `pypi:…`, `maven:…`, `nuget:…`, `github:org/repo@v1`) accepted as external and not checked. Path resolution matches `sourceFile`. Gate with `--deny W023`. |
 
 ## TestPlan (E600–E606, W610–W616)
 
@@ -619,3 +639,55 @@ A stereotype is a `MetadataDef` applied via an element's `metadata:` field (SysM
 | `E317` | error | A `metadata:` application does not resolve to a `MetadataDef`. |
 | `E318` | error | A `metadata:` application's `MetadataDef` declares `annotates:` that excludes the annotated element's type (abstract `Element`/`Definition`/`Usage` match; stdlib metadata recognised). |
 | `W045` | warning | A tagged-value key in a `metadata:` application is not a declared feature of the `MetadataDef`. |
+
+## Stable-ID prefixes and unknown fields (W046, W047)
+
+| Code | Condition |
+|---|---|
+| `W046` | An `[ids.prefixes]` entry in `.syscribe.toml` is malformed: the key is not an id-identified element type, or a prefix does not match `^[A-Z][A-Z0-9]{1,11}$`. The offending entry/prefix is ignored; well-formed siblings still apply |
+| `W047` | A top-level frontmatter key is not a recognised schema field (and is not `custom_fields:`) — likely a typo (`reqDomian`, `verifis`). One finding per key; move author-defined data under `custom_fields:` (§3.15). Gate with `--deny W047` |
+
+## Suspect links (W090, ADR-SYS-SUSLINK-001)
+
+| Code | Condition |
+|---|---|
+| `W090` | Suspect link: a trace-link target's normative content (body + normative frontmatter) changed since the source's `traceBaselines:` entry for it was captured. Review, then re-baseline with `suspect accept <src> <tgt>`. Unbaselined links are silent. Gate with `--deny W090` |
+
+## Release baselines (E520–E522, W520, ADR-SYS-BASELINE-001)
+
+| Code | Condition |
+|---|---|
+| `E520` | A `status: released` `Baseline`'s frozen scope has drifted — the recomputed aggregate content hash no longer matches its `seal` |
+| `W520` | A `status: approved` `Baseline`'s frozen scope has drifted (the `approved` grade of `E520`; `draft` is silent, `superseded` is skipped) |
+| `E521` | A `Baseline`'s `seal.aggregateHash` disagrees with its JSON manifest under `baselines/` — the seal was tampered with or the manifest is stale |
+| `E522` | A `Baseline`'s `supersedes:` names a baseline that resolves to no element |
+
+## Native SysML v2 submodel ingestion (W540–W542, ADR-SYS-SYSMLV2-001)
+
+| Code | Condition |
+|---|---|
+| `W540` | A nested `_index.md` (or other stray `.md`) inside a `sysmlSubmodel:` subtree is ignored — nested files carry no namespace meaning there |
+| `W541` | A `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree could not be read, or failed to parse as SysML v2/KerML; its content is skipped |
+| `W542` | A `connect` endpoint's two-segment feature chain was truncated to a head-only edge because the tail is not a locally redeclared feature (REQ-TRS-SYSMLV2-015) |
+
+## Foreign-format stdio plugins (E550, E551, W550–W553, ADR-SYS-PLUGIN-002)
+
+| Code | Condition |
+|---|---|
+| `E550` | A `foreignFormat:` plugin's command was not found (the `[plugins.<alias>]` executable cannot be spawned) |
+| `E551` | A package declares `foreignFormat: <alias>` but `.syscribe.toml` has no matching `[plugins.<alias>]` entry |
+| `W550` | A plugin process failed to spawn, timed out (`timeout_ms`), exited non-zero, or hit an I/O error; the package contributes no elements |
+| `W551` | A plugin's stdout is not a valid `{elements, diagnostics}` envelope, or the plugin reported one or more `diagnostics` in its envelope (relayed, previewed in the message) |
+| `W552` | A plugin-emitted element was dropped because its frontmatter is not valid (bad qname or does not deserialize); sibling elements are kept |
+| `W553` | A plugin-emitted element was dropped because its `type` is not a recognised element type |
+
+## Annotated-source ingestion (E560, E561, W560–W563, ADR-SYS-ANNOTATE-001)
+
+| Code | Condition |
+|---|---|
+| `E560` | A package declares `annotationFormat:` without a non-empty `marker:` regex and a non-empty `include:` glob list (or the `marker:` regex does not compile); no scanning happens |
+| `E561` | A marker comment block is not valid YAML |
+| `W560` | A marker block is valid YAML but not a legal element (does not deserialize into the frontmatter schema); the block is skipped |
+| `W561` | A marker block has no content, no `type:` (or an unrecognised one), or no identity (`id:` or `name:`); the block is skipped |
+| `W562` | `annotationFormat:` is set alongside `foreignFormat:`/`sysmlSubmodel:` on the same package; annotation scanning is skipped for that package |
+| `W563` | Informational warning: an annotated element's `implementedBy:` was auto-filled from the marker's own source location (set `implementedBy:` explicitly to silence) |

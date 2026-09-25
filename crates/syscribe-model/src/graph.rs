@@ -290,17 +290,22 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
             }
         }
 
-        // allocatedFrom / allocatedTo
+        // allocatedFrom / allocatedTo — the authored fields, resolved with the
+        // same id-first resolver as the §12.9 unified allocation-edge extractor
+        // (`validator::allocation_edges_tagged`), so a stable-id operand (e.g. a
+        // `SC-*` control) yields an edge here exactly when it yields one there
+        // (GH #131). An `allocatedFrom:` authored on a non-Allocation element is
+        // the legacy form §12.9 still accepts; it stays an edge holder → source.
         if let Some(ref afs) = fm.allocated_from {
             for af in afs {
-                if let Some(dst) = idx.get(af.as_str()).copied() {
+                if let Some(dst) = resolve_to_idx(af) {
                     graph.add_edge(src, dst, EdgeKind::AllocatedFrom);
                 }
             }
         }
         if let Some(ref ats) = fm.allocated_to {
             for at_ in ats {
-                if let Some(dst) = idx.get(at_.as_str()).copied() {
+                if let Some(dst) = resolve_to_idx(at_) {
                     graph.add_edge(src, dst, EdgeKind::AllocatedTo);
                 }
             }

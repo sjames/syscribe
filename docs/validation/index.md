@@ -34,7 +34,7 @@ Errors block a clean build. Warnings are advisory.
 | E001–E025 | Parse-time | Required fields, ID patterns, status enums, Gherkin structure, ASPICE fields, ID-digit cap (E023), unified label rule — `name` is the universal label and `title` is removed (a stray `title:` is E025; E024 retired) |
 | W001–W008 | Parse-time warnings | Normative text, SIL/ASIL pairing, sourceFile presence, unused type defs |
 | E016–E018 | Cycle detection | Cycles in supertype, derivedFrom, or subsets graphs |
-| E101–E106 | Cross-reference | Duplicate IDs, unresolved `verifies`/`derivedFrom`, scenario names |
+| E101–E106, E110–E114 | Cross-reference | Duplicate IDs, unresolved `verifies`/`derivedFrom`, scenario names; unresolved `supertype`/`typedBy`/`subsets`/`redefines`/`satisfies` |
 | E200–E209 | PLE | Configuration required fields, featureModel resolution, appliesWhen |
 | E300–E304 | ADR | ID pattern, required fields, status enum, reqDomain/domain enums |
 | W300–W305 | Traceability | Leaf coverage, domain refinement, integration test on parent reqs (W301 retired) |
@@ -42,6 +42,7 @@ Errors block a clean build. Warnings are advisory.
 | E400–E402 | Diagram | Mermaid/PlantUML body blocks, companion SVG on disk |
 | W400–W412 | Diagram | diagramKind, subject/shape/edge resolution, Mermaid annotations, SVG hrefs, operation typedBy |
 | E500–E503 | Allocation | allocatedFrom/allocatedTo resolution on Allocation elements and any element |
+| E504–E506 | Derive | `derive:` formula cycle (reserved), parse error, unknown `elements["QName"]` reference |
 | W500–W502 | Structural | viewpoint, exhibitsStates, expose resolution on View elements |
 | W600–W601 | Documentation | Empty PartDef/Part or ActionDef/Action doc body |
 | W701–W703, W807 | Safety / ASPICE | verificationMethod on high-ASIL reqs, L5 test for ASIL D, mixed standards, security reqs |

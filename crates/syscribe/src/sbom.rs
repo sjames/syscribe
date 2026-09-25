@@ -57,33 +57,16 @@ struct Component {
     requirements: Vec<String>, // requirement ids this component traces to
 }
 
-/// Map a registry prefix to a PURL ecosystem.
-fn purl_type(reg: &str) -> Option<&'static str> {
-    match reg {
-        "crates.io" => Some("cargo"),
-        "npm" => Some("npm"),
-        "pypi" => Some("pypi"),
-        "maven" => Some("maven"),
-        "nuget" => Some("nuget"),
-        "github" => Some("github"),
-        _ => None,
-    }
-}
-
 /// Parse `<registry>:<package>@<version>[#path]` into a remote component, or `None` for a
-/// local path. The local `repo:` link prefix is not a registry.
+/// local path. The registry prefixes and grammar are the shared
+/// `syscribe_model::config::parse_package_ref` definition — the same one the
+/// validator uses to treat these values as external (no `W023`, GH #134).
 fn parse_remote(v: &str) -> Option<Component> {
-    let (reg, rest) = v.split_once(':')?;
-    let eco = purl_type(reg)?;
-    let rest = rest.split('#').next().unwrap_or(rest);
-    let (pkg, ver) = rest.rsplit_once('@')?;
-    if pkg.is_empty() || ver.is_empty() {
-        return None;
-    }
+    let r = syscribe_model::config::parse_package_ref(v)?;
     Some(Component {
-        name: pkg.to_string(),
-        version: Some(ver.to_string()),
-        purl: Some(format!("pkg:{}/{}@{}", eco, pkg, ver)),
+        name: r.package.to_string(),
+        version: Some(r.version.to_string()),
+        purl: Some(r.purl()),
         location: None,
         requirements: Vec::new(),
     })

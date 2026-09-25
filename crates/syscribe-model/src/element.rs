@@ -199,6 +199,209 @@ pub enum ElementType {
 }
 
 impl ElementType {
+    /// Every concrete element type, in declaration order (the `Unknown`
+    /// fallback excluded). The single enumeration consumers iterate — e.g. the
+    /// `template` command's known-types list and its every-type test (GH #135).
+    /// [`ElementType::name`]'s exhaustive match forces a new variant to be
+    /// named there; add it here too (the `all_*` tests pin the two together).
+    pub const ALL: &'static [ElementType] = &[
+        ElementType::PartDef,
+        ElementType::ItemDef,
+        ElementType::AttributeDef,
+        ElementType::PortDef,
+        ElementType::ConnectionDef,
+        ElementType::InterfaceDef,
+        ElementType::ActionDef,
+        ElementType::ConstraintDef,
+        ElementType::RequirementDef,
+        ElementType::CalculationDef,
+        ElementType::StateDef,
+        ElementType::FlowDef,
+        ElementType::UseCaseDef,
+        ElementType::ViewpointDef,
+        ElementType::ViewDef,
+        ElementType::MetadataDef,
+        ElementType::EnumerationDef,
+        ElementType::OccurrenceDef,
+        ElementType::EventOccurrenceDef,
+        ElementType::VerificationCaseDef,
+        ElementType::AnalysisCaseDef,
+        ElementType::AllocationDef,
+        ElementType::ConcernDef,
+        ElementType::CaseDef,
+        ElementType::IndividualDef,
+        ElementType::SuccessionDef,
+        ElementType::RenderingDef,
+        ElementType::Part,
+        ElementType::Item,
+        ElementType::Attribute,
+        ElementType::Port,
+        ElementType::Connection,
+        ElementType::Interface,
+        ElementType::Action,
+        ElementType::Constraint,
+        ElementType::Requirement,
+        ElementType::Calculation,
+        ElementType::State,
+        ElementType::Flow,
+        ElementType::UseCase,
+        ElementType::View,
+        ElementType::Metadata,
+        ElementType::Allocation,
+        ElementType::ExhibitState,
+        ElementType::Concern,
+        ElementType::Case,
+        ElementType::AnalysisCase,
+        ElementType::VerificationCase,
+        ElementType::Occurrence,
+        ElementType::EventOccurrence,
+        ElementType::Individual,
+        ElementType::Succession,
+        ElementType::BindingConnector,
+        ElementType::Enumeration,
+        ElementType::Rendering,
+        ElementType::FeatureDef,
+        ElementType::Configuration,
+        ElementType::TestCase,
+        ElementType::TestPlan,
+        ElementType::ADR,
+        ElementType::Baseline,
+        ElementType::PlanningItem,
+        ElementType::ReviewRecord,
+        ElementType::TradeStudy,
+        ElementType::Zone,
+        ElementType::Conduit,
+        ElementType::ConfirmationMeasure,
+        ElementType::HazardousEvent,
+        ElementType::SafetyGoal,
+        ElementType::DamageScenario,
+        ElementType::ThreatScenario,
+        ElementType::CybersecurityGoal,
+        ElementType::SecurityControl,
+        ElementType::VulnerabilityReport,
+        ElementType::Asset,
+        ElementType::FaultTree,
+        ElementType::FaultTreeGate,
+        ElementType::FaultTreeEvent,
+        ElementType::AttackTree,
+        ElementType::AttackTreeGate,
+        ElementType::AttackStep,
+        ElementType::FMEASheet,
+        ElementType::FMEAEntry,
+        ElementType::Argument,
+        ElementType::AssumptionOfUse,
+        ElementType::TARASheet,
+        ElementType::FeatureModel,
+        ElementType::Package,
+        ElementType::LibraryPackage,
+        ElementType::Namespace,
+        ElementType::Dependency,
+        ElementType::Diagram,
+    ];
+
+    /// The type's canonical name — exactly the `type:` value an author writes.
+    /// Exhaustive on purpose: adding a variant fails to compile until it is
+    /// named here (and, by convention, listed in [`ElementType::ALL`]).
+    pub fn name(&self) -> &'static str {
+        match self {
+            ElementType::PartDef => "PartDef",
+            ElementType::ItemDef => "ItemDef",
+            ElementType::AttributeDef => "AttributeDef",
+            ElementType::PortDef => "PortDef",
+            ElementType::ConnectionDef => "ConnectionDef",
+            ElementType::InterfaceDef => "InterfaceDef",
+            ElementType::ActionDef => "ActionDef",
+            ElementType::ConstraintDef => "ConstraintDef",
+            ElementType::RequirementDef => "RequirementDef",
+            ElementType::CalculationDef => "CalculationDef",
+            ElementType::StateDef => "StateDef",
+            ElementType::FlowDef => "FlowDef",
+            ElementType::UseCaseDef => "UseCaseDef",
+            ElementType::ViewpointDef => "ViewpointDef",
+            ElementType::ViewDef => "ViewDef",
+            ElementType::MetadataDef => "MetadataDef",
+            ElementType::EnumerationDef => "EnumerationDef",
+            ElementType::OccurrenceDef => "OccurrenceDef",
+            ElementType::EventOccurrenceDef => "EventOccurrenceDef",
+            ElementType::VerificationCaseDef => "VerificationCaseDef",
+            ElementType::AnalysisCaseDef => "AnalysisCaseDef",
+            ElementType::AllocationDef => "AllocationDef",
+            ElementType::ConcernDef => "ConcernDef",
+            ElementType::CaseDef => "CaseDef",
+            ElementType::IndividualDef => "IndividualDef",
+            ElementType::SuccessionDef => "SuccessionDef",
+            ElementType::RenderingDef => "RenderingDef",
+            ElementType::Part => "Part",
+            ElementType::Item => "Item",
+            ElementType::Attribute => "Attribute",
+            ElementType::Port => "Port",
+            ElementType::Connection => "Connection",
+            ElementType::Interface => "Interface",
+            ElementType::Action => "Action",
+            ElementType::Constraint => "Constraint",
+            ElementType::Requirement => "Requirement",
+            ElementType::Calculation => "Calculation",
+            ElementType::State => "State",
+            ElementType::Flow => "Flow",
+            ElementType::UseCase => "UseCase",
+            ElementType::View => "View",
+            ElementType::Metadata => "Metadata",
+            ElementType::Allocation => "Allocation",
+            ElementType::ExhibitState => "ExhibitState",
+            ElementType::Concern => "Concern",
+            ElementType::Case => "Case",
+            ElementType::AnalysisCase => "AnalysisCase",
+            ElementType::VerificationCase => "VerificationCase",
+            ElementType::Occurrence => "Occurrence",
+            ElementType::EventOccurrence => "EventOccurrence",
+            ElementType::Individual => "Individual",
+            ElementType::Succession => "Succession",
+            ElementType::BindingConnector => "BindingConnector",
+            ElementType::Enumeration => "Enumeration",
+            ElementType::Rendering => "Rendering",
+            ElementType::FeatureDef => "FeatureDef",
+            ElementType::Configuration => "Configuration",
+            ElementType::TestCase => "TestCase",
+            ElementType::TestPlan => "TestPlan",
+            ElementType::ADR => "ADR",
+            ElementType::Baseline => "Baseline",
+            ElementType::PlanningItem => "PlanningItem",
+            ElementType::ReviewRecord => "ReviewRecord",
+            ElementType::TradeStudy => "TradeStudy",
+            ElementType::Zone => "Zone",
+            ElementType::Conduit => "Conduit",
+            ElementType::ConfirmationMeasure => "ConfirmationMeasure",
+            ElementType::HazardousEvent => "HazardousEvent",
+            ElementType::SafetyGoal => "SafetyGoal",
+            ElementType::DamageScenario => "DamageScenario",
+            ElementType::ThreatScenario => "ThreatScenario",
+            ElementType::CybersecurityGoal => "CybersecurityGoal",
+            ElementType::SecurityControl => "SecurityControl",
+            ElementType::VulnerabilityReport => "VulnerabilityReport",
+            ElementType::Asset => "Asset",
+            ElementType::FaultTree => "FaultTree",
+            ElementType::FaultTreeGate => "FaultTreeGate",
+            ElementType::FaultTreeEvent => "FaultTreeEvent",
+            ElementType::AttackTree => "AttackTree",
+            ElementType::AttackTreeGate => "AttackTreeGate",
+            ElementType::AttackStep => "AttackStep",
+            ElementType::FMEASheet => "FMEASheet",
+            ElementType::FMEAEntry => "FMEAEntry",
+            ElementType::Argument => "Argument",
+            ElementType::AssumptionOfUse => "AssumptionOfUse",
+            ElementType::TARASheet => "TARASheet",
+            ElementType::FeatureModel => "FeatureModel",
+            ElementType::Package => "Package",
+            ElementType::LibraryPackage => "LibraryPackage",
+            ElementType::Namespace => "Namespace",
+            ElementType::Dependency => "Dependency",
+            ElementType::Diagram => "Diagram",
+            ElementType::Unknown => "Unknown",
+        }
+    }
+}
+
+impl ElementType {
     /// Whether this type is **id-identified** — its identity is a stable `id`
     /// (shortName such as `REQ-*`, `HE-*`). Every other type is **name-identified**:
     /// its identity is its `name`/path.
@@ -1118,9 +1321,54 @@ pub struct RawElement {
     pub derived: std::collections::HashMap<String, serde_yaml::Value>,
     /// Findings gathered by the validator, contributed by more than one
     /// walker post-processing pass sharing this one vector: the derive pass
-    /// (E500-E502; `crate::derive`) and native SysMLv2 submodel ingestion
+    /// (E504-E506; `crate::derive`) and native SysMLv2 submodel ingestion
     /// (W540; `crate::sysmlv2`), which runs earlier in `walker::walk_model`.
     /// Despite the field's name, it is not exclusively "derive pass" output.
     #[serde(skip)]
     pub derive_findings: Vec<(String, String, String)>, // (code, file, message)
+}
+
+#[cfg(test)]
+mod element_type_all_tests {
+    use super::ElementType;
+    use std::collections::HashSet;
+
+    #[test]
+    fn all_names_round_trip_through_serde() {
+        for t in ElementType::ALL {
+            let parsed: ElementType = serde_yaml::from_str(t.name()).expect("parses");
+            assert_eq!(&parsed, t, "{} does not round-trip", t.name());
+        }
+    }
+
+    #[test]
+    fn all_is_unique_and_excludes_unknown() {
+        let names: HashSet<&str> = ElementType::ALL.iter().map(|t| t.name()).collect();
+        assert_eq!(names.len(), ElementType::ALL.len(), "duplicate entry in ElementType::ALL");
+        assert!(!ElementType::ALL.contains(&ElementType::Unknown));
+    }
+
+    #[test]
+    fn all_lists_every_declared_variant() {
+        // Pin ALL to the enum declaration itself so a new variant cannot be
+        // forgotten here (GH #135).
+        let src = include_str!("element.rs");
+        let start = src.find("pub enum ElementType {").expect("enum");
+        let body = &src[start..];
+        let body = &body[..body.find("\n}\n").expect("enum end")];
+        let declared: Vec<&str> = body
+            .lines()
+            .filter_map(|l| {
+                let l = l.trim_start();
+                let ident: String = l.chars().take_while(|c| c.is_ascii_alphanumeric()).collect();
+                (!ident.is_empty()
+                    && ident.chars().next().is_some_and(|c| c.is_ascii_uppercase())
+                    && l[ident.len()..].starts_with(','))
+                .then_some(&l[..ident.len()])
+            })
+            .filter(|n| *n != "Unknown")
+            .collect();
+        let listed: Vec<&str> = ElementType::ALL.iter().map(|t| t.name()).collect();
+        assert_eq!(declared, listed, "ElementType::ALL is out of sync with the enum");
+    }
 }

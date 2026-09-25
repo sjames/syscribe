@@ -150,6 +150,7 @@ fn a_connection_usage_with_no_connect_clause_contributes_no_entry_no_regression(
         &root,
         "SysML2Legacy/CarOS.sysml",
         "package CarOS {\n\
+         connection def SomeConnDef;\n\
          part def Holder {\n\
          connection c : SomeConnDef;\n\
          }\n\
@@ -292,6 +293,7 @@ fn a_connect_endpoint_with_no_matching_sibling_writes_a_non_resolving_entry_not_
         &root,
         "SysML2Legacy/CarOS.sysml",
         "package CarOS {\n\
+         connection def SomeConnDef;\n\
          part def Ecu;\n\
          part def Holder {\n\
          part a : Ecu;\n\

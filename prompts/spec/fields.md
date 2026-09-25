@@ -152,11 +152,9 @@ All frontmatter fields. Optional unless marked **required**.
 
 | Field | Applies to | Type |
 |---|---|---|
-| `allocateFrom` | Allocation element | string |
-| `allocateTo` | Allocation element | string |
 | `allocations` | AllocationDef/Package/PartDef | list |
-| `allocatedFrom` | Any element | string or list |
-| `allocatedTo` | Any element | string or list |
+| `allocatedFrom` | `Allocation` element (with `allocatedTo`); on any other element only as a legacy input — it is the derived reverse of `allocatedTo` (§12.9) | string or list |
+| `allocatedTo` | Any element — the source being allocated (§12.9 form 1), or an `Allocation` element | string or list |
 
 ## Domain and domain-independence
 
@@ -250,7 +248,7 @@ links:
 | `mandatory` | FeatureDef | bool | membership vs parent (orthogonal to `groupKind`): `true` = selected whenever parent is / always at top level |
 | `cardinality` | FeatureDef | string | For `or` groups: `"1..*"` etc. |
 | `isFixed` | FeatureDef parameter | bool | Prohibits binding override |
-| `isRequired` | FeatureDef parameter | bool | W010 if unbound in Configuration |
+| `isRequired` | FeatureDef parameter | bool | W017 if unbound in Configuration |
 | `contributesTo` | Component FeatureDef | string | QName of system FeatureDef |
 | `parameterBindings` | Configuration | map | Feature param bindings |
 | `features` (PLE) | Configuration | map | `{FeatureName: true/false}` |

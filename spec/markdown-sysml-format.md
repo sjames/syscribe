@@ -2830,8 +2830,8 @@ Each entry in `allocations:`:
 |---|---|---|---|
 | `name` | string | optional | Named allocation usage |
 | `typedBy` | string | optional | Qualified name of an `AllocationDef` typing this sub-allocation |
-| `allocateFrom` | string | **Required** | Feature chain of the logical/source element |
-| `allocateTo` | string | **Required** | Feature chain of the physical/target element |
+| `allocatedFrom` | string | **Required** | Feature chain of the logical/source element |
+| `allocatedTo` | string | **Required** | Feature chain of the physical/target element |
 
 **Example** (`model/Allocations/FunctionAllocation.md`):
 
@@ -2841,11 +2841,11 @@ type: AllocationDef
 name: FunctionAllocation
 allocations:
   - name: engineControlAlloc
-    allocateFrom: LogicalArch::EngineControl
-    allocateTo: PhysicalArch::ECU
+    allocatedFrom: LogicalArch::EngineControl
+    allocatedTo: PhysicalArch::ECU
   - name: transmissionControlAlloc
-    allocateFrom: LogicalArch::TransmissionControl
-    allocateTo: PhysicalArch::TCU
+    allocatedFrom: LogicalArch::TransmissionControl
+    allocatedTo: PhysicalArch::TCU
 ---
 Composite allocation of logical control functions to physical ECUs.
 ```
@@ -2875,16 +2875,16 @@ The `Allocation` usage file specifies a concrete allocation of one element to an
 | Field | YAML type | Default | Description |
 |---|---|---|---|
 | `typedBy` | string | absent | Qualified name of the AllocationDef |
-| `allocateFrom` | string | **Required** | Feature chain or qualified name of the allocated element (source) |
-| `allocateTo` | string | **Required** | Feature chain or qualified name of the target element |
+| `allocatedFrom` | string | **Required** | Feature chain or qualified name of the allocated element (source) |
+| `allocatedTo` | string | **Required** | Feature chain or qualified name of the target element |
 
 ```yaml
 ---
 type: Allocation
 name: controllerToECU
 typedBy: Allocations::FunctionalToPhysical
-allocateFrom: VehicleBehavior::ProvidePower
-allocateTo: PhysicalArch::EngineControlUnit
+allocatedFrom: VehicleBehavior::ProvidePower
+allocatedTo: PhysicalArch::EngineControlUnit
 ---
 Allocates the ProvidePower action to the Engine Control Unit (ECU).
 ```
@@ -3848,7 +3848,7 @@ edges:
     kind: allocation
 ```
 
-**Completeness rule:** the parser must warn if any `allocateFrom`/`allocateTo` pair declared in any `Allocation` or `AllocationDef` within the subject package is absent from `edges:`.
+**Completeness rule:** the parser must warn if any `allocatedFrom`/`allocatedTo` pair declared in any `Allocation` or `AllocationDef` within the subject package is absent from `edges:`.
 
 ---
 
@@ -4054,7 +4054,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 
 **Cybersecurity risk determination (ISO/SAE 21434 §15.8–15.9):** Each `ThreatScenario` has a computed risk level. Severity rank = max `damageSeverity` over its resolved `damageScenarios` (`negligible`=0, `moderate`=1, `major`=2, `severe`=3); feasibility rank from `attackFeasibility` (`very_low`=0, `low`=1, `medium`=2, `high`=3). If either is unknown the risk is **unknown** (listed, not gated); otherwise `score = severity + feasibility` (0..6) → **low** (0–1), **medium** (2–3), **high** (4), **critical** (5–6). A `ThreatScenario` records its risk-treatment decision with `riskTreatment:` (`avoid`/`reduce`/`share`/`retain`; invalid → E845) and an optional free-text `residualRisk:`. A high/critical-risk threat with no `riskTreatment` that is not listed by any `CybersecurityGoal.threatScenarios` warns W031; a `CybersecurityGoal` whose `calLevel` is below the expected CAL for its threats' max risk (low→CAL1 … critical→CAL4) warns W032. Both are gateable with `--deny` and promotable via `[profiles]`. The `cyber-risk` command (§ CLI) lists every threat with its risk and treatment.
 
-**Binding SecurityControls to architecture:** Architecture elements (e.g. `PartDef`) that realise a `SecurityControl` should set `allocatedFrom:` to the control's `SC-*` ID. Both `allocatedFrom:` and `allocatedTo:` accept a single string or a list of strings to support multiple controls per element.
+**Binding SecurityControls to architecture:** allocate the control (source) to the architecture element that realises it (target) with a standalone `Allocation` element — `allocatedFrom: SC-*` + `allocatedTo: <element>` (§12.9 form 2); the element then lists the control in its derived `allocatedFrom` index. Both fields accept a single string or a list of strings, so one `Allocation` can bind several controls. An `allocatedFrom:` authored directly on the architecture element (the pre-GH #131 guidance) is still accepted as a legacy input form (§12.9), but is not recommended.
 
 **Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:`, and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`name`/`status` → E847; an `id` not matching `CM-*` → E848. An `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; only ASIL D → I3 and CAL4 → I3 are gated, lower levels are future tightening).
 
@@ -4082,6 +4082,8 @@ Safety/FTA/FT-BRAKE-001/
 | `FMEASheet` | `FMEA-*` | Container with an `entries:` list; each entry is a failure mode row with `failureMode:`, `effect:`, `cause:`, `fmeaSeverity:`, `occurrence:`, `detection:` (1–10 each), optional `rpn:` (auto-computed when absent), and a `recommendedAction:` mitigation. |
 
 Each row is synthesised at parse time into a virtual `FMEAEntry` element (`FM-*` ID) for cross-reference and validation purposes.
+
+**Row integrity (GH #132).** A row's `id:` is its identity — a row with no string `id:` (or a row that is not a mapping) cannot be synthesised; it is dropped, and the validator **MUST** report error **`E923`** on the `FMEASheet`, naming the row's 1-based position in `entries:` and its `failureMode:`/`name:` when present. When `fmeaSeverity` (or its alias `severity`), `occurrence` and `detection` are all present the entry's RPN **is** `S × O × D`; an explicit `rpn:` is then ignored, and if it differs the validator **MUST** report warning **`W928`** naming the row, the explicit value and the computed value. An explicit `rpn:` on a row missing any factor is the entry's RPN as authored.
 
 #### 8.18.5 Tier 4 — Attack path analysis (ISO/SAE 21434 §15.7)
 
@@ -4377,7 +4379,7 @@ Each entry in a `FeatureDef`'s `parameters:` list is a map with the following fi
 | `enumValues` | list of strings | optional | absent | Explicit set of valid string values when `type` is `ScalarValues::String` and finer constraint than a full `EnumerationDef` is desired. |
 | `default` | scalar | optional | absent | Default value used when the parameter is not explicitly bound in a `Configuration`. If absent and `isRequired: true`, every selecting `Configuration` must bind it. |
 | `isFixed` | bool | optional | `false` | If `true`, the parameter value is fixed by the feature definition itself (the `default` or `value` field) and may not be overridden in a `Configuration`. Validation error if a `Configuration` attempts to bind it. |
-| `isRequired` | bool | optional | `false` | If `true` and `isFixed: false`, every `Configuration` that selects this feature must explicitly bind this parameter. Validation warning `W010` if absent. |
+| `isRequired` | bool | optional | `false` | If `true` and `isFixed: false`, every `Configuration` that selects this feature must explicitly bind this parameter. Validation warning `W017` if absent. |
 | `value` | scalar | optional | absent | The fixed value, used when `isFixed: true`. Equivalent to `default` + `isFixed: true`. |
 | `derivedFrom` | string | optional | absent | An opaque expression string (evaluated in the context of other parameters of the same feature) whose value is computed rather than bound. When present, the parameter is automatically `isFixed: true` and may not be bound in a `Configuration`. |
 | `bindTo` | string | optional | absent | For component-level `FeatureDef` only: qualified path `SystemFeatures::<Feature>::<paramName>` of a system-level parameter to which this parameter is **propagated**. When a system `Configuration` binds the system parameter, the resolved component parameter inherits the same value. The component parameter may still specify its own `range:` as a narrowing constraint; validation error `E202` if the propagated value falls outside the narrower range. |
@@ -4862,14 +4864,13 @@ sourceFile: "src/flight/mixing_hex.rs"
 
 | Code | Condition |
 |---|---|
-| `W010` | A `Configuration` does not bind a parameter declared `isRequired: true` on a selected feature |
 | `W011` | A `FeatureDef` with `groupKind: optional` is selected in zero `Configuration` files (possibly dead feature) |
 | `W012` | A `FeatureDef` with `groupKind: optional` is selected in every `Configuration` (should be `mandatory`) |
 | `W013` | A component `FeatureDef` has no `contributesTo:` and no `excludes:` referencing any system feature — internal feature not visible from system level (informational) |
 | `W014` | A `parameterConstraint` has `appliesWhen:` that references a feature not in any `Configuration` |
 | `W015` | A requirement is **active** in a `Configuration` (its `appliesWhen:` holds for that configuration's `features:`) but no non-draft `TestCase` that runs in that `Configuration` (§9.10) verifies it. Emitted only when the variability dimension is active (§9.10.1); draft requirements/tests are suppressed; gate with `--deny W015`. |
 | `W016` | A `Configuration` parsed **zero** feature selections while a `FeatureDef` exists in the model — e.g. it used an unrecognized `selections:` key instead of the `features:` map (§9.8). Surfaces the otherwise-silent failure that yields an all-N/A coverage matrix. |
-| `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does not bind. (This is §9.7's nominal `W010`; the validator uses `W017` because `W010` is taken by test-result ingestion.) |
+| `W017` | A selected feature declares a parameter `isRequired: true` (not fixed, no `default:`) that the `Configuration` does not bind. (`W010` is test-result ingestion — §11.12.) |
 | `W024` | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration`, so it gates nothing and ships in nothing. Emitted by `feature-check` only; gate with `--deny W024`. |
 | `W025` | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Emitted by `feature-check`; gate with `--deny W025`. |
 | `W026` | A `Package` declares `appliesWhen:` but its subtree contains no projectable element (it gates nothing). Gate with `--deny W026`. |
@@ -5177,8 +5178,8 @@ name: Allocations
 type: Allocation
 name: functionalAllocation
 typedBy: Allocations::FunctionalToPhysical
-allocateFrom: VehicleBehavior::ProvidePower
-allocateTo: PhysicalArch::EngineControlUnit
+allocatedFrom: VehicleBehavior::ProvidePower
+allocatedTo: PhysicalArch::EngineControlUnit
 metadata:
   - type: ModelingMetadata::Rationale
     text: "ECU is the only processing unit with real-time control authority over engine"
@@ -5278,7 +5279,7 @@ Given a file at path `<root>/<seg1>/<seg2>/.../<segN>/<filename>.md`:
 
 If `model/VehicleSystem/_index.md` contains `name: VS`, the qualified name becomes `VS::Powertrain::Engine`.
 
-> **The model-root package `name:` is not part of qualified names.** Qualified names are derived *relative to the model root*, and the root package (the root `_index.md`) contributes **no** segment (step 5 above). A cross-reference therefore starts at the first sub-namespace — e.g. `VehicleSystem::Powertrain::Engine`, **never** `<RootName>::VehicleSystem::Powertrain::Engine` even when the root `_index.md` declares `name: <RootName>`. Writing the root package name as the leading segment is a common authoring mistake (humans and LLMs alike); when an unresolved cross-reference begins with the root package name followed by `::` and the *stripped* remainder resolves, the tool appends a diagnostic hint naming the corrected reference (REQ-TRS-XREF-006). The hint is advisory only — it adds explanatory text to the existing unresolved-reference finding (`E102`/`E103`/`E311`/`E316`/`E502`/`E503` and the structural supertype/typedBy/subsets/redefines/connection resolution errors); it never changes resolution and never rewrites the model. The hint does not fire when the root package has no `name:`, nor when stripping the prefix still does not resolve.
+> **The model-root package `name:` is not part of qualified names.** Qualified names are derived *relative to the model root*, and the root package (the root `_index.md`) contributes **no** segment (step 5 above). A cross-reference therefore starts at the first sub-namespace — e.g. `VehicleSystem::Powertrain::Engine`, **never** `<RootName>::VehicleSystem::Powertrain::Engine` even when the root `_index.md` declares `name: <RootName>`. Writing the root package name as the leading segment is a common authoring mistake (humans and LLMs alike); when an unresolved cross-reference begins with the root package name followed by `::` and the *stripped* remainder resolves, the tool appends a diagnostic hint naming the corrected reference (REQ-TRS-XREF-006). The hint is advisory only — it adds explanatory text to the existing unresolved-reference finding (`E102`/`E103`/`E311`/`E316`/`E502`/`E503`/`E506`/`E632` and the structural supertype/typedBy/subsets/redefines and satisfies resolution errors `E110`–`E114`); it never changes resolution and never rewrites the model. The hint does not fire when the root package has no `name:`, nor when stripping the prefix still does not resolve.
 
 ### 11.4 Implicit Supertype Rules
 
@@ -5322,6 +5323,20 @@ For a reference string `R` encountered within element `E` in package `P`:
    c. Then look in each package imported (directly or via `imports:`) by `P` and its ancestors.
 4. If resolution fails at all levels, emit a **reference error** with the source location. Do not panic; continue parsing remaining elements.
 
+A reference also resolves when it names an **inline (non-file) feature** of a resolvable owner
+(`Owner::feature`, or a bare `feature` of the referencing element's owner — including one
+inherited through the owner's `supertype:`/`typedBy:` chain), or a member of the SysML v2
+**standard library** (the built-in `ScalarValues`/`Base` packages, the curated `ISQ`/`SI`
+recognition of §4, any reference into a standard-library package — `ISQ::…`, `Parts::Part::…`,
+`Links::…` — whose top-level name the model does not itself declare, and the bare names of the
+well-known library root types such as `Link`, `Part` or `Real`). The step-4 reference errors are,
+per field (REQ-TRS-XREF-007): `supertype:` → `E110`, `typedBy:` (element-level and inline
+`features:` entries) → `E111`, `subsets:` → `E112`, `redefines:` → `E113`, `satisfies:` → `E114`,
+alongside the existing `verifies:` → `E102`, `derivedFrom:` → `E103` and `allocatedTo:` → `E503`.
+In a `[repos]`-configured model an unresolved reference is reported once, as `E512` (§14.4),
+instead of the field-specific code. All of these take the model-root-name hint (§11.3) and are
+suppressed in the `validate --config` lens, where a target pruned from the variant is `E226`/`W019`.
+
 ### 11.6 Circular Reference Handling
 
 1. The parser builds a **dependency graph** of cross-references after the first pass.
@@ -5343,11 +5358,11 @@ A conformant parser MUST report errors for:
 - `isVariant: true` on an element not owned by a variation element (an element with `isVariation: true`).
 - `EnumerationDef` with a `supertype:` that resolves to another `EnumerationDef`.
 - `values:` absent on `EnumerationDef`.
+- References to elements that do not exist in the model (§11.5 step 4 — e.g. `E102`, `E103`, `E110`–`E114`, `E503`).
 
 A conformant parser MUST emit warnings for:
 
 - Unknown frontmatter fields (for forward compatibility, unknown fields are preserved but warned about).
-- References to elements that do not exist in the model.
 - Elements with `isAbstract: false` (or defaulted as concrete) that directly subtype an abstract definition without providing concrete instantiation elsewhere.
 
 ### 11.8 Built Graph Structure
@@ -5435,7 +5450,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 |---|---|
 | `E001` | File does not begin with `---` (missing frontmatter delimiter) |
 | `E002` | YAML frontmatter is not valid YAML 1.2 |
-| `E003` | Frontmatter contains an unrecognised key (strict mode only; in lenient mode, emit `W007` and preserve) |
+| `E003` | **RETIRED** — never emitted. There is no strict mode; an unrecognised top-level frontmatter key is the warning `W047` (the key is preserved in the element's extra-fields map). |
 | `E004` | A required field is absent |
 | `E005` | `type:` value is not in the element type inventory (§2) |
 | `E006` | `id:` is present but does not match the required pattern for the element type |
@@ -5466,11 +5481,16 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E104` | A `verifies:` reference resolves to an element that is neither a native `Requirement` nor a requirement/architecture-shaped element actually synthesized by SysMLv2 submodel ingestion or a stdio foreign-format plugin (§11.10) |
 | `E105` | A `derivedFrom:` reference resolves to an element that is not a native `Requirement` |
 | `E106` | A `testFunctions[].scenario` string does not match any `Scenario:` or `Scenario Outline:` title in this file's Gherkin blocks |
+| `E110` | A `supertype:` reference cannot be resolved by any §11.5 form (REQ-TRS-XREF-007) |
+| `E111` | A `typedBy:` reference — on the element, or on an inline `features:` entry — cannot be resolved by any §11.5 form |
+| `E112` | A `subsets:` reference cannot be resolved by any §11.5 form |
+| `E113` | A `redefines:` reference cannot be resolved by any §11.5 form |
+| `E114` | A `satisfies:` reference cannot be resolved (no element with matching id, qualified name or name) |
 | `E310` | Native `Requirement` has `derivedFrom:` entries but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved, or resolves to an element that is not an `ADR` |
 | `E312` | A parent `Requirement` (one with `derivedChildren`) appears in a `satisfies:` list |
 | `E313` | A `satisfies:` link connects an element (not type-restricted — §12.3) and a requirement whose `domain` / `reqDomain` values are incompatible (e.g., a `software` element satisfying a `hardware` requirement) |
-| `E314` | A `Part` or `PartDef` with `isDeploymentPackage: true` has no `Allocation` to a `hardware` element |
+| `E314` | A `Part` or `PartDef` with `isDeploymentPackage: true` is the source of no allocation edge (any §12.9 form: `Allocation` element top-level or per `features:` entry, `allocatedTo:` on the package, legacy authored `allocatedFrom:` on the target) to a `hardware` element |
 | `E315` | An element with `domain: software` has a `supertype:` or `typedBy:` reference that resolves to an element with `domain: hardware`, or vice versa — cross-domain direct reference; use `Allocation` instead |
 | `E316` | A `refines:` operand on a `UseCaseDef`/`UseCase` — or on a behavioral definition `ActionDef`/`Action`/`StateDef`/`State` (REQ-TRS-MG-010) — does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef` (names the offending operand, owning element, and resolved type). Base-format check — runs regardless of the MagicGrid profile (REQ-TRS-MG-001). The `refinedBy` reverse index includes refining behavioral elements alongside refining use cases; the `W307` "missing refines" warning stays scoped to `UseCaseDef` |
 
@@ -5484,7 +5504,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W004` | A **local** `sourceFile:` path does not exist on disk. For a `TestCase`, emitted only when `status: active` (see *TestCase drift scoping*). Remote-URI sourceFiles are accepted and not checked locally (see *sourceFile location semantics*). |
 | `W005` | Native `Requirement` has neither `derivedFrom:` entries nor `derivedChildren` (possible orphan not connected to any requirement hierarchy) |
 | `W006` | Both `silLevel:` (IEC 61508) and `asilLevel:` (ISO 26262) are set on the same element — incompatible standards; use only one |
-| `W007` | Frontmatter contains an unrecognised key (lenient mode; key is preserved in the element's extra-fields map) |
+| `W007` | A type definition (e.g. `PartDef`, `PortDef`, `ItemDef`) is defined but never used as a `supertype:` or `typedBy:` type by any element. (An unrecognised frontmatter key is `W047`.) |
 | `W009` | A `testFunctions[].function` does not resolve to a definition in its (existing) `sourceFile` — function-level traceability drift (renamed/deleted test). Emitted only for `TestCase`s with `status: active` (see *TestCase drift scoping*). See *Function matchers* below. |
 | `W010` | An `active` `TestCase`'s `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results. See *Test result ingestion* below. Inert unless results have been ingested. |
 | `W300` | Leaf `Requirement` at `status: approved` or `status: implemented` has no satisfying element (no element — structural or behavioral — has `satisfies:` pointing to it) |
@@ -5566,13 +5586,27 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W700` | `ReviewRecord` with `status: closed` has ≥1 `items[]` with `disposition: open` |
 | `W704` | Non-`draft` native `Requirement` appears in no `ReviewRecord.reviews:` list — dormant unless ReviewRecords exist (opt-in; `--deny W704`; drafted as `W701`, already in use) |
 
+#### Allocation resolution and declarative derive (E500–E506)
+
+| Code | Condition |
+|---|---|
+| `E500` | A `features:` entry with `type: Allocation` has an `allocatedFrom:` that does not resolve |
+| `E501` | A `features:` entry with `type: Allocation` has an `allocatedTo:` that does not resolve |
+| `E502` | An `allocatedFrom:` entry (any element) does not resolve to a known element |
+| `E503` | An `allocatedTo:` entry (any element) does not resolve to a known element |
+| `E504` | *(reserved)* Cyclic dependency between `derive:` formulas (REQ-TRS-DERIVE-004; cycle detection not yet implemented) |
+| `E505` | A `derive:` formula does not parse (REQ-TRS-DERIVE-005) |
+| `E506` | A `derive:` formula's `elements["QName"]` names no element (REQ-TRS-DERIVE-005) |
+
+The Allocation (`E500`–`E503`) and derive (`E504`–`E506`) families are disjoint — no code carries both meanings (GH #127).
+
 #### Multi-repository composition (E510–E515, W510–W512, §14.6)
 
 | Code | Condition |
 |---|---|
 | `E510` | Circular repo import (repo A → repo B → … → repo A) |
 | `E511` | `repos.<alias>.path` does not exist on disk and no `ref:` is configured |
-| `E512` | Cross-repo cross-reference (`verifies:`, `derivedFrom:`, etc.) unresolved in any loaded repo |
+| `E512` | Cross-repo cross-reference (`verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:`, `supertype:`, `typedBy:`, `subsets:`, `redefines:`) unresolved in any loaded repo — reported instead of `E102`/`E103`/`E110`–`E114`/`E503` when `[repos]` is configured |
 | `E513` | `repoImports[].repo` alias not present in `[repos]` config |
 | `E514` | `repoImports[].qname` does not resolve in the named repo |
 | `E515` | Same stable ID appears in two repos (duplicate across composition) |
@@ -5709,7 +5743,7 @@ ISO 26262-5 §8–9 hardware architectural metrics, rolled up per `SafetyGoal` f
 
 #### Freedom From Interference (W034)
 
-ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** when both are allocated to the same target element; allocation edges `(source → target)` are collected from `allocatedTo:` (source = the element), `allocatedFrom:` (target = the element), and `Allocation` elements' `allocatedFrom`/`allocatedTo`, resolved via the resolver and inverted into a `target → { sources }` map. Each element's integrity tag is `asilLevel`, else `silLevel` (→ `SIL<n>`), else `QM`; two sources on a target are mixed-criticality when their tags differ (including classified vs `QM`). A mixed pair is excused when the target **or** at least one of the two sources declares a non-empty `ffiRationale:` string, or carries a `breakdownAdr:` resolving to an `accepted` ADR. The check is **opt-in** — dormant unless some element declares `asilLevel` or `silLevel`. (The cross-domain "attack surface" co-analysis bonus from the originating issue is deferred.)
+ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** when both are allocated to the same target element; allocation edges `(source → target)` are the §12.9 unified edge set — `allocatedTo:` (source = the element), a legacy `allocatedFrom:` authored on a non-`Allocation` element (target = the element), and `Allocation` elements' `allocatedFrom`/`allocatedTo`, top-level or per `features:` entry (the `Allocation` element itself is never an endpoint) — resolved via the resolver and inverted into a `target → { sources }` map. Each element's integrity tag is `asilLevel`, else `silLevel` (→ `SIL<n>`), else `QM`; two sources on a target are mixed-criticality when their tags differ (including classified vs `QM`). A mixed pair is excused when the target **or** at least one of the two sources declares a non-empty `ffiRationale:` string, or carries a `breakdownAdr:` resolving to an `accepted` ADR. The check is **opt-in** — dormant unless some element declares `asilLevel` or `silLevel`. (The cross-domain "attack surface" co-analysis bonus from the originating issue is deferred.)
 
 | Code | Severity | Condition |
 |---|---|---|
@@ -5769,6 +5803,7 @@ A `sourceFile:` value is interpreted by its form, so each element can choose how
 | `/abs/path` | the absolute path as-is |
 | `file://…` | the local path encoded in the file URI |
 | `scheme://…` (any other scheme) | a **remote** location — not resolved or read locally |
+| `<registry>:<package>@<version>[#path]` | a **remote** package-registry reference (`crates.io`, `npm`, `pypi`, `maven`, `nuget`, `github` — the §18.3 prefixes) — not resolved or read locally |
 
 The repository root is taken from `repo_root` in `<model_root>/.syscribe.toml` (resolved against the model root when relative), or auto-detected as the nearest ancestor directory containing `.git`.
 
@@ -5972,8 +6007,6 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `includes` | UseCaseDef | list | absent | 8.12.4 |
 | `extends` | UseCaseDef | list | absent | 8.12.4 |
 | `extensionPoints` | UseCaseDef | list | absent | 8.12.4 |
-| `allocateFrom` | Allocation | string | — | 8.13.2 |
-| `allocateTo` | Allocation | string | — | 8.13.2 |
 | `allocations` | AllocationDef/Package/PartDef | list | absent | 8.13.1, 8.13.2 |
 | `constraints` | InterfaceDef | list | absent | 8.3.3 |
 | `expose` | ViewDef | list | absent | 8.14.2 |
@@ -6000,8 +6033,8 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `derivedFromCybersecurityGoal` | native Requirement | string | absent | 8.11.6, 8.18.2 |
 | `verificationMethod` | native Requirement | string | absent | 8.11.6 |
 | `wcet` | native Requirement | string | absent | 8.11.6 |
-| `allocatedFrom` | Any element | string or list | absent | 8.18.2 |
-| `allocatedTo` | Any element | string or list | absent | 8.18.2 |
+| `allocatedFrom` | `Allocation` (with `allocatedTo`); any other element only as a legacy input — derived reverse of `allocatedTo` (§12.9) | string or list | absent | 8.13.2, 8.18.2, 12.9 |
+| `allocatedTo` | Any element (the allocated source, §12.9 form 1) or `Allocation` | string or list | absent | 8.13.2, 8.18.2, 12.9 |
 | `ffiRationale` | Any element | string | absent | 11.12 (W034) — freedom-from-interference / partitioning rationale; excuses a mixed-criticality shared-allocation pair |
 | `responsibility` | Any element | string | absent | 3, 11.12 (W038) — accountable party/organisation for a work product (DIA/CIA split) |
 | `measureType` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E849) — confirmation_review / functional_safety_audit / functional_safety_assessment / cybersecurity_assessment |
@@ -6097,7 +6130,7 @@ All traceability links in Markdown-SysML follow OSLC (Open Services for Lifecycl
 | `derivedFrom:` | child → parent | This requirement was broken down from the parent |
 | `verifies:` | test → requirement | This test case verifies the requirement |
 | `satisfies:` | element → requirement | This element implements the requirement — not type-restricted (§12.3) |
-| `allocatedTo:` / `allocatedFrom:` | downstream → upstream | The architecture element (downstream, realising party) holds `allocatedFrom:` referencing the upstream logical or security artifact; `allocatedTo:` is used on `Allocation` elements |
+| `allocatedTo:` | source → target | The element being allocated (the logical function, software package, or security control) holds `allocatedTo:` naming the element that realises it (§12.9 form 1). `allocatedFrom` is **derived** — the reverse index on the target — never the recommended thing to author; a standalone `Allocation` element (§12.9 form 2) names both ends because it *is* the relationship. An `allocatedFrom:` authored on a non-`Allocation` target is accepted only as a legacy input form (§12.9) |
 | `breakdownAdr:` | requirement → ADR | This requirement's breakdown is documented in the ADR |
 
 No reverse links are stored in model files. Reverse indices (`verifiedBy`, `derivedChildren`, `satisfiedBy`) are computed by the parser at load time and never written to disk.
@@ -6189,7 +6222,7 @@ The hardware and software architectures are **independent hierarchies**. They in
 
 **Rule R-006a (no direct cross-domain references):** An element with `domain: software` must not have `supertype:` or `typedBy:` referencing an element with `domain: hardware`, and vice versa. Cross-domain direct references are errors (`E315`). The correct pattern is an explicit `Allocation`.
 
-**Rule R-006b (deployment allocation):** A `Part` or `PartDef` with `isDeploymentPackage: true` must have at least one `Allocation` element whose `allocateFrom:` is this element and whose `allocateTo:` references an element with `domain: hardware`. (Error `E314`.)
+**Rule R-006b (deployment allocation):** A `Part` or `PartDef` with `isDeploymentPackage: true` must be the source of at least one allocation edge whose target is an element with `domain: hardware`. (Error `E314`.) Every form of the §12.9 unified edge set counts: an `Allocation` element whose `allocatedFrom:` is this element and whose `allocatedTo:` references the hardware element (top-level or per `features:` entry), `allocatedTo:` on the package itself, or a legacy `allocatedFrom:` authored on the hardware element.
 
 **Correct cross-domain pattern:**
 ```yaml
@@ -6212,8 +6245,8 @@ domain: hardware
 ---
 type: Allocation
 name: schedulerToFC
-allocateFrom: Software::SchedulerModule
-allocateTo: Hardware::FlightComputer
+allocatedFrom: Software::SchedulerModule
+allocatedTo: Hardware::FlightComputer
 ---
 ```
 
@@ -6227,8 +6260,8 @@ When a software component is first allocated to a hardware element, or when the 
 ---
 type: Allocation
 name: schedulerToFC
-allocateFrom: Software::SchedulerModule
-allocateTo: Hardware::FlightComputer
+allocatedFrom: Software::SchedulerModule
+allocatedTo: Hardware::FlightComputer
 metadata:
   - type: ModelingMetadata::Rationale
     text: "See ADR-HW-DEPLOY-001 for platform selection rationale"
@@ -6289,13 +6322,13 @@ breakdownAdr: ADR-BRAKE-DECOMP-001    # documents the decomposition rationale
 Requirement ─satisfies→ Architecture ─implementedBy→ Code ─verifies→ Test
 ```
 
-`implementedBy:` accepts a single string or a list of strings. Each value is a path into the codebase, resolved with the **same rules as a TestCase's `sourceFile`** (§8.12.5, §11.12): model-root-relative (the default for bare paths), `model:`-prefixed (model-root-relative), `repo:`-prefixed (repository-root-relative), absolute, `file://`, and remote `scheme://` URIs. Local paths are checked on disk; remote URIs are accepted as external pointers and not verified locally.
+`implementedBy:` accepts a single string or a list of strings. Each value is a path into the codebase, resolved with the **same rules as a TestCase's `sourceFile`** (§8.12.5, §11.12): model-root-relative (the default for bare paths), `model:`-prefixed (model-root-relative), `repo:`-prefixed (repository-root-relative), absolute, `file://`, remote `scheme://` URIs, and package-registry references `<registry>:<package>@<version>` (`crates.io:`, `npm:`, `pypi:`, `maven:`, `nuget:`, `github:` — §18.3). Local paths are checked on disk; remote URIs and package-registry references are accepted as external pointers and not verified locally. The registry prefixes are exactly those `sbom` maps to a Package URL — one shared definition, so a value the SBOM emits as a package component is never also reported missing on disk. A value that merely resembles one (unknown prefix, no `@<version>`, a Windows drive such as `C:\src`) stays a local path.
 
 **Validation (W023):** When a non-`draft` `Part`/`PartDef` declares `implementedBy:` and a **local** path does not exist on disk, the tool emits **W023** (one finding per missing path) — the architecture-to-code analog of `W004` for `sourceFile`. The rule is:
 
 - **Opt-in** — an element with no `implementedBy:` is never flagged.
 - **Draft-suppressed** — elements with `status: draft` are skipped (the implementation may not exist yet).
-- **Remote-tolerant** — remote (`scheme://`) targets are not verified locally.
+- **Remote-tolerant** — remote (`scheme://`) targets and package-registry references (`crates.io:tokio@1.38.0`, `npm:lodash@4.17.21`, `github:org/repo@v1`, …; §18.3) are not verified locally.
 - **Gateable** — `validate --deny W023` exits non-zero when any W023 is present.
 
 The link is discoverable through tooling: `syscribe links <element>` lists `implementedBy` paths as outbound relationships, and `syscribe refs <path-or-dir>` reverse-maps a source path (or directory prefix) back to the declaring architecture element(s).
@@ -6343,14 +6376,16 @@ features:
 ---
 ```
 
-**One unified edge set.** The allocation-edge set `(source → target)` consumed by `MG041`, `MG081`, the `matrix --allocations` view, and the derived `allocatedFrom` index comes from a **single** extractor that yields edges from both forms. So `matrix --allocations` and the MagicGrid gate can never disagree, and an allocation authored in either form produces the same edge.
+**One unified edge set.** The allocation-edge set `(source → target)` consumed by `MG041`, `MG081`, `E314` (§12.6 R-006b), `W034` (freedom from interference), the `matrix --allocations` view, and the derived `allocatedFrom` index comes from a **single** extractor that yields edges from both forms. So `matrix --allocations`, the MagicGrid gate and the safety checks can never disagree, and an allocation authored in either form produces the same edge. A standalone `Allocation` element is never itself an endpoint: it contributes its `allocatedFrom → allocatedTo` edge.
+
+**Legacy input: `allocatedFrom:` authored on the target.** `allocatedFrom` is derived, and authoring it is not recommended. For backward compatibility an `allocatedFrom:` authored on a **non-`Allocation`** element (the realising target) is still accepted: each resolved entry `S` contributes the edge `S → that element` to the unified set — so it shows in `matrix --allocations`, the derived index, `E314` and `W034` exactly like the two forms above — and an unresolved entry raises `E502`. Migrate it to `allocatedTo:` on the source, or to a standalone `Allocation` element when the allocation needs documenting.
 
 **Derived `allocatedFrom` index.** Each target element gains a derived reverse index `allocatedFrom` listing every source allocated to it, aggregated over both forms — surfaced in `show` (an `## Allocated from` section), `links`, and the export `computed` block exactly like `verifiedBy` / `refinedBy` / `mopRefinedBy`.
 
 **Resolution and redundancy.**
 
 - Each `allocatedTo` operand must resolve by qualified name or stable id; an unresolved target raises **`E503`** (and an unresolved `allocatedFrom` on the standalone form raises **`E502`**).
-- When the **same** `source → target` edge is declared by **both** an `allocatedTo` on the source **and** a standalone `Allocation` element, the tool emits **`W503`** once for that edge — the duplicate is redundant, so pick one form. A single edge in a single form raises nothing.
+- When the **same** `source → target` edge is declared by **more than one** form — an `allocatedTo` on the source, a standalone `Allocation` element, or a legacy authored `allocatedFrom` on the target — the tool emits **`W503`** once for that edge, naming the forms — the duplicate is redundant, so pick one form. A single edge in a single form raises nothing.
 
 **Guidance:** use `allocatedTo:` by default; promote to a standalone `Allocation` element only when the allocation needs its own documentation.
 
@@ -6724,7 +6759,7 @@ shared    ../shared-library      main     ✓         behind (3 commits)
 |---|---|
 | `E510` | Circular repo import — repo A's composition imports from repo B which (directly or transitively) imports from repo A |
 | `E511` | `repos.<alias>.path` does not exist on disk (and no `ref:` is configured) |
-| `E512` | Cross-repo `verifies:` / `derivedFrom:` / `satisfies:` / `allocatedTo:` reference cannot be resolved in the local model or any loaded repo |
+| `E512` | Cross-repo `verifies:` / `derivedFrom:` / `satisfies:` / `allocatedTo:` / `supertype:` / `typedBy:` / `subsets:` / `redefines:` reference cannot be resolved in the local model or any loaded repo |
 | `E513` | `_index.md repoImports[].repo` names an alias not present in `[repos]` |
 | `E514` | `repoImports[].qname` does not resolve to any element in the named repo |
 | `E515` | Two repos export the same stable ID (e.g., `REQ-SCHED-001` appears in both the local model and a peer repo) |
@@ -7085,7 +7120,7 @@ The generated SBOM satisfies the NTIA minimum elements for an SBOM (supplier, co
 
 ### 18.3 Remote Package URI Syntax
 
-An `implementedBy:` value that matches the pattern `<registry>:<package>@<version>[#<path>]` is treated as a named external dependency rather than a local file path.
+An `implementedBy:` value that matches the pattern `<registry>:<package>@<version>[#<path>]` (registry one of the prefixes below; package and version both non-empty) is treated as a named external dependency rather than a local file path. The same classification applies in validation: such a value is an external reference, so it never raises `W023` (§12.8). Any other value — an unknown prefix, a missing `@<version>`, a `repo:`/`model:` path — is a local path.
 
 **Supported registries:**
 
