@@ -518,7 +518,7 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
     }
     if !binds.is_empty() {
         for cfg in &configs {
-            let Some(serde_yaml::Value::Mapping(b)) = &cfg.frontmatter.parameter_bindings else {
+            let Some(serde_yaml::Value::Mapping(b)) = cfg.frontmatter.effective_parameter_bindings() else {
                 continue;
             };
             for bp in &binds {
@@ -644,7 +644,7 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
                     continue;
                 }
                 let resolve = |r: &str| -> Option<f64> {
-                    if let Some(serde_yaml::Value::Mapping(b)) = &cfg.frontmatter.parameter_bindings {
+                    if let Some(serde_yaml::Value::Mapping(b)) = cfg.frontmatter.effective_parameter_bindings() {
                         if let Some(v) = b.get(serde_yaml::Value::String(r.to_string())) {
                             if let Some(n) = num(v) {
                                 return Some(n);

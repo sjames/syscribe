@@ -88,7 +88,7 @@ other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now th
 | Code | Condition |
 |---|---|
 | E016 | Cycle detected in `supertype:` graph |
-| E017 | Cycle detected in `derivedFrom:` graph |
+| E017 | Cycle detected in `derivedFrom:` graph (a `Configuration`'s inheritance cycle is `E236` instead) |
 | E018 | Cycle detected in `subsets:` graph |
 | E107 | Cycle detected in `typedBy:` graph — **including a self-reference** (a usage typed by itself). Structural cycle error, not a name-resolution error, so it is **not** suppressed under `--config`. |
 
@@ -104,12 +104,17 @@ other — including an ingested SysML v2 `allocation` usage's `typedBy:`, now th
 | E204 | `parameterBindings` binds a fixed parameter (`isFixed`/`value`/`derivedFrom`) |
 | E205 | A bound parameter value is outside the parameter's `range:` |
 | E206 | A bound parameter value is not in the parameter's `enumValues:` |
+| E215 | A `Configuration`'s `derivedFrom:` base (§9.8 inheritance) is not `approved` or `released` |
 | E209 | `appliesWhen:` is malformed, or an operand does not resolve to a FeatureDef. `appliesWhen:` accepts a bare QName, a list (AND), or a boolean expression (`and`/`or`/`not`/parentheses); every operand is checked. |
 | E222 | A `parameterBindings` key does not resolve to a declared `FeatureDef` parameter (bad path — including the legacy all-`::` member form `Features::Feature::param`, which must be the dotted `Features::Feature.param` — unknown feature, or undeclared parameter) |
 | E230 | A parameter declares a `bindingTime:` value other than `compile`/`load`/`runtime` (§9.7) |
 | E231 | (single-file feature model, REQ-TRS-FM-005) A `type: FeatureModel` sheet's `featureTree:` entry is not a mapping, has no `name:`, or its dot-separated path has an empty segment (leading, trailing, or doubled `.`) — the entry is dropped |
 | E232 | (single-file feature model) Two `featureTree:` entries — within one sheet or across sheets in the same model — resolve to the same qualified name |
 | E233 | (single-file feature model) A `crossTreeConstraints:` entry is malformed (not a mapping, no `feature:`, or a reference with an empty path segment), or its `feature:` does not resolve to a `FeatureDef` synthesized from that same sheet's own `featureTree:` |
+| E234 | (Configuration inheritance, §9.8) A `Configuration`'s `derivedFrom:` base does not resolve to any element of the model (the base must be local) |
+| E235 | (Configuration inheritance) A `Configuration`'s `derivedFrom:` base is not a `Configuration` |
+| E236 | (Configuration inheritance) A `Configuration` is on a `derivedFrom:` cycle — reported on each member; none inherits |
+| E237 | (Configuration inheritance) A `Configuration`'s `derivedFrom:` names more than one base |
 
 ## PLE warnings (W015–W017)
 
@@ -431,7 +436,7 @@ A type with `extends = "satisfies" | "verifies" | "derivedFrom" | "refines"` is 
 
 ## Multi-repository composition (E510–E515, W510–W512, §14)
 
-A model composes peer repositories declared in the `[repos]` table of the model-root `.syscribe.toml` and imports their namespaces via `repoImports:` on a Package `_index.md`. Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` references resolve against the local model first, then each loaded repo in declaration order (by global stable ID or qualified name). **Active only when `[repos]` is configured** — single-repo models are unaffected.
+A model composes peer repositories declared in the `[repos]` table of the model-root `.syscribe.toml` and imports their namespaces via `repoImports:` on a Package `_index.md`. Cross-repo `verifies:`/`derivedFrom:`/`satisfies:`/`allocatedTo:` (and structural `supertype:`/`typedBy:`/`subsets:`/`redefines:`) references resolve against the local model first, then each loaded repo in declaration order (by global stable ID, peer qualified name, or a `repoImports:` mount path `<package>::<as>::X`). **Active only when `[repos]` is configured** — single-repo models are unaffected.
 
 | Code | Condition |
 |---|---|
@@ -440,7 +445,7 @@ A model composes peer repositories declared in the `[repos]` table of the model-
 | E512 | A cross-repo `verifies`/`derivedFrom`/`satisfies`/`allocatedTo`/`supertype`/`typedBy`/`subsets`/`redefines` reference resolves in neither the local model nor any loaded repo (reported instead of the field's own unresolved-reference code). |
 | E513 | `repoImports[].repo` names an alias not present in `[repos]`. |
 | E514 | `repoImports[].qname` does not resolve to any element in the named repo. |
-| E515 | Two repos export the same stable ID (the id namespace is global across the composition). |
+| E515 | Two repos export the same stable ID — the local model and a peer, or two different peer repos (the id namespace is global across the composition). |
 | W510 | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; `--deny W510`). |
 | W511 | A peer repo's git `HEAD` has drifted from its configured `ref:` — checkout is not at the pinned snapshot. Never raised when drift cannot be determined (no git, not a work tree, ref unresolved). Opt-in; `--deny W511` for a CI reproducibility gate. |
 | W512 | A peer repo's `path` is a **git submodule** of the composing model's repo, and its `ref:` resolves to a different commit than the gitlink the parent repo records — `.syscribe.toml` disagrees with `.gitmodules`. Independent of `W511` (gitlink pin vs ref, not checkout vs ref). Never raised when `path` is not a submodule. Opt-in; `--deny W512`. |

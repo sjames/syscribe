@@ -904,10 +904,26 @@ pub fn cmd_show(
         if sel.is_empty() {
             println!("_(none parsed — selections must be a `features:` map of `<FeatureDef>: true/false`)_");
         } else {
+            // §9.8 inheritance (GH #137): the effective selection includes the
+            // base's; mark which entries this file does not declare itself.
+            let own = if fm.inherited.is_some() {
+                let alias = syscribe_model::variability::feature_id_to_qname(elements);
+                Some(syscribe_model::variability::canon_selection(&fm.declared_feature_selections(), &alias))
+            } else {
+                None
+            };
+            if own.is_some() {
+                println!("_Effective selection — entries marked (inherited) come from the derivedFrom base._");
+                println!();
+            }
             println!("| Feature | Selected |");
             println!("|---|---|");
             for (feat, on) in &sel {
-                println!("| {} | {} |", feat, on);
+                let mark = match &own {
+                    Some(o) if !o.contains_key(feat) => " (inherited)",
+                    _ => "",
+                };
+                println!("| {} | {}{} |", feat, on, mark);
             }
         }
     }

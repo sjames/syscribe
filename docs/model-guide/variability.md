@@ -183,6 +183,28 @@ parameterConstraints:
 
 A violation in a configuration whose `appliesWhen:` holds is `E221` (or `W025` for `severity: warning`); an unresolved parameter path is `E213`; an `appliesWhen:` feature selected in no configuration is `W014`.
 
+### Configuration inheritance — `derivedFrom:`
+
+A `Configuration` may extend **one** base `Configuration` of the same model (by `CONF-*` id or qname) and declare only what differs:
+
+```yaml
+# Configurations/CONF-UAV-HVY-LR-001.md
+type: Configuration
+id: CONF-UAV-HVY-LR-001
+name: "Heavy-lift UAV — extended-range variant"
+status: draft
+featureModel: Features
+derivedFrom: CONF-UAV-HVY-001          # the base must be approved or released (E215)
+features:
+  Features::Payload::Multispectral: true          # overrides the base's selection
+parameterBindings:
+  Features::Communication::LongRange.frequencyBandGHz: 2.4   # overrides one binding
+```
+
+The child's **effective** selection is the base's effective selection overlaid by its own `features:` entries (chains compose); it keeps every binding it declares plus the base's other bindings — except those for a feature the child's own `features:` switches to `false`. Nothing else (`status`, `subConfigurations:`, `buildOverrides:` …) is inherited. Every command — `--config` projection, `matrix`, `configure`, `validate --config`/`--all-configs`, `feature-check`, `build-config`, and `subConfigurations:` consolidation — uses the effective selection; `show` marks inherited entries `(inherited)`. The file itself is never rewritten.
+
+Checks (`validate`): unresolved base `E234`, base not a `Configuration` `E235`, inheritance cycle `E236`, more than one base `E237` (a child with any of these inherits nothing), base not `approved`/`released` `E215`. A Configuration's `derivedFrom:` is not a requirement derivation, so it never raises `E105`. A lower-tier product line in a peer repo is consolidated with `subConfigurations:` (§5), not inherited.
+
 ---
 
 ## 3. Analysis
@@ -270,7 +292,10 @@ syscribe -m model/ validate --config CONF-UAV-DELIVERY-001    # certify THIS pro
 syscribe -m model/ validate --all-configs                     # CI gate over every product
 syscribe -m model/ diff --config CONF-UAV-SURVEY-001 \
                         --config CONF-UAV-DELIVERY-001         # what differs between products
+syscribe -m model/ trace REQ-UAV-NAV-001 --config CONF-UAV-SURVEY-001  # this product's trace slice
 ```
+
+The single-element queries `trace`, `why`, `who-verifies`, `refs` and `links` honour the lens too: satisfiers, verifiers and inbound references inactive in the variant are omitted. If the element you ask about is itself inactive in the configuration, the command exits `1` with `'<key>' is not active in configuration '<C>'` instead of answering — use `why-active <key> --config <C>` to see why.
 
 > The bundled `model/` is a runnable UAV product line — every command on this page works against it. See the [worked example](index.md#worked-example-the-uav-product-line) for its shape.
 

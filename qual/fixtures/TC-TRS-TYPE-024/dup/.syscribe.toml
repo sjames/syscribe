@@ -1,0 +1,5 @@
+[repos.brakes]
+path = "../peerA"
+
+[repos.clone]
+path = "../peerC"

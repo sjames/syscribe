@@ -1035,7 +1035,7 @@ pub fn cmd_trade_study(elems: &[RawElement], json: bool, config_filter: &[String
             }
         }
         let mut bindings = BTreeMap::new();
-        if let Some(serde_yaml::Value::Mapping(m)) = &e.frontmatter.parameter_bindings {
+        if let Some(serde_yaml::Value::Mapping(m)) = e.frontmatter.effective_parameter_bindings() {
             for (k, v) in m {
                 if let (Some(ks), Some(vn)) = (k.as_str(), v.as_f64()) {
                     bindings.insert(ks.to_string(), vn);

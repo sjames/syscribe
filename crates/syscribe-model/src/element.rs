@@ -1231,19 +1231,60 @@ pub struct RawFrontmatter {
     )]
     pub custom_fields: std::collections::BTreeMap<String, serde_yaml::Value>,
 
+    /// Effective selection/bindings of a `Configuration` that inherits from a
+    /// base through `derivedFrom:` (§9.8, GH #137) — materialized by the walker
+    /// (`crate::config_inherit`). Never (de)serialized: the authored file is the
+    /// source of truth; this is a computed view read through
+    /// [`RawFrontmatter::feature_selections`] and
+    /// [`RawFrontmatter::effective_parameter_bindings`].
+    #[serde(skip)]
+    pub inherited: Option<Box<InheritedConfiguration>>,
+
     // Catch-all for unknown fields
     #[serde(flatten)]
     pub extra: std::collections::HashMap<String, serde_yaml::Value>,
 }
 
+/// The effective (inherited + own) selection of a `Configuration` with a
+/// `derivedFrom:` base (§9.8). See `crate::config_inherit`.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct InheritedConfiguration {
+    /// Effective feature selection, keyed by FeatureDef qualified name.
+    pub features: std::collections::BTreeMap<String, bool>,
+    /// Effective `parameterBindings:` mapping (own entries + inherited ones).
+    pub parameter_bindings: Option<serde_yaml::Value>,
+}
+
 impl RawFrontmatter {
-    /// Feature selections declared on a `Configuration` (§9.8): the `features:`
-    /// map of `FeatureDef qualified name -> bool`. Returns an empty map for
-    /// elements that are not configurations or that declare no selections.
+    /// The **effective** feature selection of a `Configuration` (§9.8): its
+    /// `features:` map of `FeatureDef qualified name -> bool`, including the
+    /// selections it inherits through `derivedFrom:` (own entries override
+    /// inherited ones). Returns an empty map for elements that are not
+    /// configurations or that declare (and inherit) no selections. Use
+    /// [`RawFrontmatter::declared_feature_selections`] for the authored map only.
+    pub fn feature_selections(&self) -> std::collections::BTreeMap<String, bool> {
+        if let Some(inh) = &self.inherited {
+            return inh.features.clone();
+        }
+        self.declared_feature_selections()
+    }
+
+    /// The **effective** `parameterBindings:` of a `Configuration` — own entries
+    /// plus those inherited through `derivedFrom:` (§9.8). Equals the authored
+    /// field when the configuration inherits nothing.
+    pub fn effective_parameter_bindings(&self) -> Option<&serde_yaml::Value> {
+        match &self.inherited {
+            Some(inh) => inh.parameter_bindings.as_ref(),
+            None => self.parameter_bindings.as_ref(),
+        }
+    }
+
+    /// The `features:` selection map exactly as authored in this file (no
+    /// inheritance).
     ///
     /// The `features:` key is stored as a one-element vector wrapping the YAML
     /// mapping (see `features_de`); this unwraps it.
-    pub fn feature_selections(&self) -> std::collections::BTreeMap<String, bool> {
+    pub fn declared_feature_selections(&self) -> std::collections::BTreeMap<String, bool> {
         let mut out = std::collections::BTreeMap::new();
         if let Some(list) = &self.features {
             if let Some(serde_yaml::Value::Mapping(m)) = list.first() {

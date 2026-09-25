@@ -15,6 +15,10 @@ error), that element **shall** itself be a `Configuration` (else a wrong-type er
 not-internally-valid error). For a peer entry, validity **shall** be established by genuinely
 loading and validating that repo's model, not merely by confirming the name exists.
 
+A consolidated `Configuration` **shall** be judged — for validity, for the parameters it already
+closes, and for what it selects — on its **effective** selection and bindings, including those it
+inherits from a base through `derivedFrom:` (spec §9.8, `REQ-TRS-VAR-007`).
+
 **Source:** `REQ-TRS-HPLE-001` (product model), `ADR-SYS-HPLE-001`.
 
 **Acceptance criteria:** a `Configuration` naming a real, internally-valid `Configuration` (local or
