@@ -319,8 +319,8 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E501` | A feature with `type: Allocation` has an `allocatedTo:` that does not resolve |
 | `E502` | An `allocatedFrom:` entry (any element) does not resolve to a known element |
 | `E503` | An `allocatedTo:` entry (any element) does not resolve to a known element |
-| `E504` | *(reserved)* Cyclic dependency between `derive:` formulas (cycle detection not yet implemented) |
-| `E505` | A `derive:` formula does not parse |
+| `E504` | Cyclic dependency between `derive:` fields (a field reads itself directly or via other derived fields); reported on each participating element naming the cycle; the cyclic fields are not evaluated |
+| `E505` | A `derive:` formula does not parse, the `derive:` value is not a mapping, or a formula is not a string |
 | `E506` | A `derive:` formula's `elements["QName"]` names no element |
 | `W500` | `viewpoint:` on a View does not resolve to a `ViewpointDef` |
 | `W501` | `exhibitsStates:` entry does not resolve to any known element |

@@ -9,13 +9,13 @@ verificationMethod: test
 
 Before evaluating any derived field, the tool **shall** build a dependency graph across all `derive:` blocks in the model and check it for cycles.
 
-A cycle occurs when field A on element X depends (directly or transitively) on field A (or another derived field on X) through an element chain that leads back.
+A node of the graph is one derived field (element, field name). A field depends on another derived field when its formula reads it via `self.<field>`, `elements["QName"].<field>`, or a `children`/`parent` aggregate over `<field>` whose member declares `<field>` in its own `derive:` block. A cycle occurs when field A on element X depends (directly or transitively) on itself — a self-reference, a loop within X's block, or a chain through other elements that leads back.
 
-When a cycle is detected, the tool **shall** emit error **`E504`** naming the cycle, and skip evaluation of all fields participating in it.
+When a cycle is detected, the tool **shall** emit error **`E504`** naming the cycle (each participating `element.field` in dependency order), once on every element file that takes part in it, and skip evaluation of all fields participating in it (they are absent from the element's derived fields). Fields outside the cycle — including ones that depend on a cyclic field — are still evaluated; a reference to a skipped field reads as absent.
 
 `E504` was previously reserved as `E500`, which is the Allocation `allocatedFrom:` resolution error (REQ-TRS-VAL-009); the derive
-codes were moved to `E504`–`E506` so each code carries exactly one meaning (GH #127). Cycle detection itself is not yet
-implemented — `E504` stays reserved for it.
+codes were moved to `E504`–`E506` so each code carries exactly one meaning (GH #127). Cycle detection is implemented by
+GH #141 (previously `E504` was reserved and a cyclic `derive:` graph was not reported).
 
 **Acceptance criteria:**
 

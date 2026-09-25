@@ -1,9 +1,11 @@
 //! Declarative derive: block evaluator (REQ-TRS-DERIVE-001..005, issue #60).
 //!
-//! Each element may declare a `derive:` mapping of fieldName → formula. Formulas
-//! are evaluated top-to-bottom within an element; derived fields from earlier
-//! entries are visible to later ones via `self.<field>`. Cross-element references
-//! (`elements["Qname"]`) are resolved against the full element set.
+//! Each element may declare a `derive:` mapping of fieldName → formula (the
+//! typed `RawFrontmatter::derive` field — recognised, so never `W047`). Formulas
+//! are evaluated in dependency order: a field is evaluated after every derived
+//! field it reads (`self.<field>`, `elements["Qname"].<field>`, or a
+//! `children`/`parent` aggregate), independent fields in file-walk then block
+//! order. Cross-element references are resolved against the full element set.
 //!
 //! The evaluation pipeline:
 //!   Walker → derive_pass(elements) → Validator
@@ -12,9 +14,9 @@
 //! query layer read derived fields from there.
 //!
 //! Finding codes (GH #127 — moved off `E500`–`E502`, which belong to Allocation
-//! resolution): `E504` derive cycle (reserved; cycle detection is not yet
-//! implemented), `E505` formula parse error, `E506` unknown element reference in
-//! `elements["QName"]`.
+//! resolution): `E504` cyclic dependency between derived fields (GH #141 —
+//! the cyclic fields are skipped), `E505` formula parse error / malformed
+//! block, `E506` unknown element reference in `elements["QName"]`.
 
 use crate::element::RawElement;
 
@@ -483,52 +485,369 @@ fn eval(
     }
 }
 
+// ── Dependency graph (E504, REQ-TRS-DERIVE-004) ─────────────────────────────
+
+/// The derived fields a formula reads, as `(element index, field name)` pairs
+/// naming a key of some element's own `derive:` block (`declared`). References
+/// resolve exactly as `eval` resolves them: `self.<f>`, `elements["Q"].<f>`
+/// (first element with that qualified name), and `children`/`parent` aggregates
+/// over `<f>`. Only single-segment paths can read a derived field.
+fn expr_deps(
+    expr: &Expr,
+    idx: usize,
+    all: &[RawElement],
+    by_qname: &std::collections::HashMap<&str, usize>,
+    declared: &std::collections::HashMap<usize, Vec<String>>,
+    out: &mut Vec<(usize, String)>,
+) {
+    let mut add = |i: usize, path: &FieldPath| {
+        if path.0.len() == 1 && declared.get(&i).is_some_and(|ks| ks.contains(&path.0[0])) {
+            out.push((i, path.0[0].clone()));
+        }
+    };
+    match expr {
+        Expr::Num(_) | Expr::Str(_) => {}
+        Expr::SelfField(path) => add(idx, path),
+        Expr::ElementField { qname, path } => {
+            if let Some(&t) = by_qname.get(qname.as_str()) {
+                add(t, path);
+            }
+        }
+        Expr::Aggregate { source, field, .. } => {
+            if let Some(fp) = field {
+                for m in resolve_collection(source, &all[idx], all) {
+                    if let Some(&mi) = by_qname.get(m.qualified_name.as_str()) {
+                        add(mi, fp);
+                    }
+                }
+            }
+        }
+        Expr::Arith { lhs, rhs, .. } => {
+            expr_deps(lhs, idx, all, by_qname, declared, out);
+            expr_deps(rhs, idx, all, by_qname, declared, out);
+        }
+        Expr::Coalesce { expr, default } => {
+            expr_deps(expr, idx, all, by_qname, declared, out);
+            expr_deps(default, idx, all, by_qname, declared, out);
+        }
+    }
+}
+
+/// Tarjan's strongly-connected components over `adj` (node → successors).
+/// A component is a cycle when it has more than one node or a self-edge.
+fn strongly_connected(adj: &[Vec<usize>]) -> Vec<Vec<usize>> {
+    struct St<'a> {
+        adj: &'a [Vec<usize>],
+        index: Vec<Option<usize>>,
+        low: Vec<usize>,
+        on_stack: Vec<bool>,
+        stack: Vec<usize>,
+        next: usize,
+        out: Vec<Vec<usize>>,
+    }
+    fn visit(st: &mut St, v: usize) {
+        st.index[v] = Some(st.next);
+        st.low[v] = st.next;
+        st.next += 1;
+        st.stack.push(v);
+        st.on_stack[v] = true;
+        for k in 0..st.adj[v].len() {
+            let w = st.adj[v][k];
+            match st.index[w] {
+                None => {
+                    visit(st, w);
+                    st.low[v] = st.low[v].min(st.low[w]);
+                }
+                Some(wi) if st.on_stack[w] => st.low[v] = st.low[v].min(wi),
+                Some(_) => {}
+            }
+        }
+        if Some(st.low[v]) == st.index[v] {
+            let mut comp = Vec::new();
+            while let Some(w) = st.stack.pop() {
+                st.on_stack[w] = false;
+                comp.push(w);
+                if w == v {
+                    break;
+                }
+            }
+            st.out.push(comp);
+        }
+    }
+    let n = adj.len();
+    let mut st = St {
+        adj,
+        index: vec![None; n],
+        low: vec![0; n],
+        on_stack: vec![false; n],
+        stack: Vec::new(),
+        next: 0,
+        out: Vec::new(),
+    };
+    for v in 0..n {
+        if st.index[v].is_none() {
+            visit(&mut st, v);
+        }
+    }
+    st.out
+}
+
+/// One concrete cycle `start → … → start` inside the cyclic component `comp`
+/// (shortest, by BFS over edges that stay in the component).
+fn cycle_path(adj: &[Vec<usize>], comp: &[usize], start: usize) -> Vec<usize> {
+    use std::collections::{HashMap, HashSet, VecDeque};
+    if adj[start].contains(&start) {
+        return vec![start, start];
+    }
+    let members: HashSet<usize> = comp.iter().copied().collect();
+    let mut prev: HashMap<usize, usize> = HashMap::new();
+    let mut queue: VecDeque<usize> = VecDeque::from([start]);
+    while let Some(v) = queue.pop_front() {
+        for &w in &adj[v] {
+            if w == start {
+                let mut rev = Vec::new();
+                let mut cur = v;
+                while cur != start {
+                    rev.push(cur);
+                    cur = prev[&cur];
+                }
+                let mut path = vec![start];
+                path.extend(rev.into_iter().rev());
+                path.push(start);
+                return path;
+            }
+            if members.contains(&w) && !prev.contains_key(&w) {
+                prev.insert(w, v);
+                queue.push_back(w);
+            }
+        }
+    }
+    let mut path = comp.to_vec();
+    path.push(start);
+    path
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /// Run the derive pass over all elements. Populates `RawElement.derived` and
 /// `RawElement.derive_findings` for each element that has a `derive:` block.
+///
+/// Every formula is parsed first (`E505` on a parse failure, a block that is not
+/// a mapping, or a non-string formula), then a dependency graph over derived
+/// fields is built (REQ-TRS-DERIVE-004). Fields on a cycle are reported as
+/// `E504` — once per participating element, naming the cycle — and are not
+/// evaluated; every other field is evaluated in dependency order, so it sees the
+/// computed value of each derived field it reads whatever the element order.
 pub fn derive_pass(elements: &mut [RawElement]) {
-    let mut findings: Vec<Finding> = Vec::new();
+    use std::collections::HashMap;
 
-    // Process elements sequentially — simple strategy: iterate up to 3 times
-    // so that cross-element dependencies resolve (children computed before parents
-    // need them). A full topo-sort is left as a future enhancement once cycle
-    // detection (E504, reserved) is added. For now: single forward pass with self-chaining.
-    for idx in 0..elements.len() {
-        let derive_block = {
-            let fm = &elements[idx].frontmatter;
-            // The `derive:` key lands in `extra` since it's not a declared field
-            fm.extra.get("derive").cloned()
+    struct Node {
+        idx: usize,
+        field: String,
+        expr: Expr,
+    }
+
+    // 1. Parse every block (E505 for a malformed block, formula or parse).
+    let mut nodes: Vec<Node> = Vec::new();
+    let mut declared: HashMap<usize, Vec<String>> = HashMap::new();
+    for (idx, elem) in elements.iter_mut().enumerate() {
+        let Some(block) = elem.frontmatter.derive.clone() else { continue };
+        let file = elem.file_path.clone();
+        let serde_yaml::Value::Mapping(mapping) = block else {
+            elem.derive_findings.push(finding(
+                "E505",
+                &file,
+                "derive: block must be a mapping of field name → formula string",
+            ));
+            continue;
         };
-        let Some(derive_val) = derive_block else { continue; };
-        let serde_yaml::Value::Mapping(mapping) = derive_val else { continue; };
-
-        let mut elem_findings: Vec<Finding> = Vec::new();
-
         for (key_val, formula_val) in &mapping {
-            let Some(field_name) = key_val.as_str() else { continue; };
-            let Some(formula_str) = formula_val.as_str() else { continue; };
-
-            let expr = match parse_formula(formula_str) {
-                Ok(e) => e,
-                Err(e) => {
-                    elem_findings.push(finding("E505", &elements[idx].file_path,
-                        &format!("derive formula parse error for field '{}': {}", field_name, e)));
-                    continue;
-                }
+            let Some(field_name) = key_val.as_str() else { continue };
+            // Every declared key is a derived field (even one that fails to
+            // parse), so a reference to it is a derived-field dependency.
+            declared.entry(idx).or_default().push(field_name.to_string());
+            let Some(formula_str) = formula_val.as_str() else {
+                elem.derive_findings.push(finding(
+                    "E505",
+                    &file,
+                    &format!("derive formula for field '{}' must be a string", field_name),
+                ));
+                continue;
             };
-
-            // Evaluate with current snapshot of derived fields already computed.
-            let value = {
-                let elem_snap: &RawElement = &elements[idx];
-                let all: &[RawElement] = elements;
-                eval(&expr, elem_snap, all, &mut elem_findings)
-            };
-
-            elements[idx].derived.insert(field_name.to_string(), value.to_yaml());
+            match parse_formula(formula_str) {
+                Ok(expr) => nodes.push(Node { idx, field: field_name.to_string(), expr }),
+                Err(e) => elem.derive_findings.push(finding(
+                    "E505",
+                    &file,
+                    &format!("derive formula parse error for field '{}': {}", field_name, e),
+                )),
+            }
         }
+    }
+    if nodes.is_empty() {
+        return;
+    }
 
+    // 2. Dependency graph: edge node → each derived field its formula reads.
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); nodes.len()];
+    {
+        let mut by_qname: HashMap<&str, usize> = HashMap::new();
+        for (i, e) in elements.iter().enumerate() {
+            by_qname.entry(e.qualified_name.as_str()).or_insert(i);
+        }
+        let node_of: HashMap<(usize, &str), usize> = nodes
+            .iter()
+            .enumerate()
+            .map(|(n, node)| ((node.idx, node.field.as_str()), n))
+            .collect();
+        for (n, node) in nodes.iter().enumerate() {
+            let mut deps = Vec::new();
+            expr_deps(&node.expr, node.idx, elements, &by_qname, &declared, &mut deps);
+            for (di, df) in deps {
+                if let Some(&d) = node_of.get(&(di, df.as_str())) {
+                    if !adj[n].contains(&d) {
+                        adj[n].push(d);
+                    }
+                }
+            }
+        }
+    }
+
+    // 3. Cycles (E504): report once per participating element, and skip.
+    let label = |n: usize| format!("{}.{}", elements[nodes[n].idx].qualified_name, nodes[n].field);
+    let mut cyclic = vec![false; nodes.len()];
+    let mut cycle_findings: Vec<(usize, Finding)> = Vec::new();
+    for comp in strongly_connected(&adj) {
+        let is_cycle = comp.len() > 1 || adj[comp[0]].contains(&comp[0]);
+        if !is_cycle {
+            continue;
+        }
+        let start = *comp.iter().min().unwrap_or(&comp[0]);
+        let chain: Vec<String> = cycle_path(&adj, &comp, start).into_iter().map(&label).collect();
+        let mut files: Vec<usize> = comp.iter().map(|&n| nodes[n].idx).collect();
+        files.sort_unstable();
+        files.dedup();
+        for &n in &comp {
+            cyclic[n] = true;
+        }
+        let msg = format!(
+            "derive: cyclic dependency {} — the fields in the cycle are not evaluated",
+            chain.join(" → ")
+        );
+        for idx in files {
+            cycle_findings.push((idx, finding("E504", &elements[idx].file_path, &msg)));
+        }
+    }
+    for (idx, f) in cycle_findings {
+        elements[idx].derive_findings.push(f);
+    }
+
+    // 4. Evaluate the acyclic fields in dependency order: an iterative
+    //    post-order DFS seeded in file-walk, then block, order.
+    let mut seen = vec![false; nodes.len()];
+    let mut order: Vec<usize> = Vec::with_capacity(nodes.len());
+    for root in 0..nodes.len() {
+        if seen[root] || cyclic[root] {
+            continue;
+        }
+        seen[root] = true;
+        let mut stack: Vec<(usize, usize)> = vec![(root, 0)];
+        while let Some(top) = stack.last_mut() {
+            let (v, next) = *top;
+            if let Some(&w) = adj[v].get(next) {
+                top.1 += 1;
+                if !seen[w] && !cyclic[w] {
+                    seen[w] = true;
+                    stack.push((w, 0));
+                }
+            } else {
+                order.push(v);
+                stack.pop();
+            }
+        }
+    }
+    for n in order {
+        let idx = nodes[n].idx;
+        let mut elem_findings: Vec<Finding> = Vec::new();
+        let value = eval(&nodes[n].expr, &elements[idx], elements, &mut elem_findings);
+        elements[idx].derived.insert(nodes[n].field.clone(), value.to_yaml());
         elements[idx].derive_findings.append(&mut elem_findings);
-        let _ = &mut findings; // suppress unused warning
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! GH #141 — dependency-ordered evaluation and E504 cycle detection.
+    use super::derive_pass;
+    use crate::element::{RawElement, RawFrontmatter};
+
+    fn elem(qn: &str, derive: &str) -> RawElement {
+        let frontmatter = RawFrontmatter {
+            derive: Some(serde_yaml::from_str(derive).expect("derive yaml")),
+            ..Default::default()
+        };
+        RawElement {
+            qualified_name: qn.to_string(),
+            file_path: format!("{}.md", qn.replace("::", "/")),
+            frontmatter,
+            doc: String::new(),
+            parse_issue: None,
+            derived: Default::default(),
+            derive_findings: vec![],
+        }
+    }
+
+    fn codes(e: &RawElement, code: &str) -> Vec<String> {
+        e.derive_findings.iter().filter(|f| f.0 == code).map(|f| f.2.clone()).collect()
+    }
+
+    fn num(e: &RawElement, field: &str) -> Option<f64> {
+        e.derived.get(field).and_then(|v| v.as_f64())
+    }
+
+    #[test]
+    fn loop_within_one_block_is_e504_and_skipped() {
+        let mut els = vec![elem("S::A", "a: self.b + 1\nb: self.a * 2\nc: '5'")];
+        derive_pass(&mut els);
+        let e504 = codes(&els[0], "E504");
+        assert_eq!(e504.len(), 1, "one E504 per element per cycle: {e504:?}");
+        assert!(e504[0].contains("S::A.a") && e504[0].contains("S::A.b"), "{e504:?}");
+        assert!(!els[0].derived.contains_key("a") && !els[0].derived.contains_key("b"));
+        assert_eq!(num(&els[0], "c"), Some(5.0), "fields outside the cycle still evaluate");
+    }
+
+    #[test]
+    fn cross_element_chain_evaluates_regardless_of_walk_order() {
+        let mut els = vec![
+            elem("S::First", "x: 'elements[\"S::Second\"].y + 1'"),
+            elem("S::Second", "y: 'elements[\"S::Third\"].z * 10'"),
+            elem("S::Third", "z: '4'"),
+        ];
+        derive_pass(&mut els);
+        assert!(els.iter().all(|e| codes(e, "E504").is_empty()));
+        assert_eq!(num(&els[2], "z"), Some(4.0));
+        assert_eq!(num(&els[1], "y"), Some(40.0));
+        assert_eq!(num(&els[0], "x"), Some(41.0));
+    }
+
+    #[test]
+    fn aggregate_over_children_participates_in_cycles() {
+        // The parent sums its children's `v`; the child reads the parent's total.
+        let mut els = vec![
+            elem("S::P", "total: sum(children.v)"),
+            elem("S::P::K", "v: sum(parent.total)"),
+        ];
+        derive_pass(&mut els);
+        assert_eq!(codes(&els[0], "E504").len(), 1);
+        assert_eq!(codes(&els[1], "E504").len(), 1);
+    }
+
+    #[test]
+    fn malformed_blocks_are_e505() {
+        let mut els = vec![elem("S::A", "5"), elem("S::B", "k: 3")];
+        derive_pass(&mut els);
+        assert_eq!(codes(&els[0], "E505").len(), 1);
+        let b = codes(&els[1], "E505");
+        assert!(b.len() == 1 && b[0].contains("'k'"), "{b:?}");
     }
 }

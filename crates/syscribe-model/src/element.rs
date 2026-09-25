@@ -1000,6 +1000,15 @@ pub struct RawFrontmatter {
     #[serde(rename = "parameterConstraints")]
     pub parameter_constraints: Option<Vec<serde_yaml::Value>>,
 
+    /// `derive:` — a mapping of fieldName → formula evaluated by
+    /// `derive::derive_pass` (REQ-TRS-DERIVE-001). A typed, recognised field on
+    /// every element type (GH #141: it used to be read out of the `extra`
+    /// catch-all, so declaring it falsely raised `W047`). Kept as a raw YAML
+    /// value so a malformed block (not a mapping, non-string formula) is
+    /// reported by the derive pass as `E505` instead of failing the whole
+    /// file's deserialization.
+    pub derive: Option<serde_yaml::Value>,
+
     // §9.9 — Build-system integration (build-config command)
     /// `buildExports:` — on a `FeatureDef`: a list of `{var, whenSelected, whenDeselected}`
     /// entries. Each entry declares a build variable emitted based on whether the feature

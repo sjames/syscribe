@@ -211,6 +211,7 @@ All frontmatter fields. Optional unless marked **required**.
 
 | Field | Applies to | Type | Notes |
 |---|---|---|---|
+| `derive` | All | map | Computed fields: `fieldName -> formula string` (§3.18). Evaluated in dependency order; shown under Derived Fields by `show`. Cycle → `E504`; bad formula / non-mapping block / non-string formula → `E505`; unknown `elements["Q"]` → `E506`. Never `W047`. |
 | `custom_fields` | All | map | Freeform user metadata: `string -> scalar \| list-of-scalars`. Keys are not validated. Values must be scalars or lists of scalars (nested map → `W041`). Serialised in sorted order. Read-only in UI/`show`. Queryable via `--where custom.<key>[=,=~,~=]<val>`. |
 
 ```yaml

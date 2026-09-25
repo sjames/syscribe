@@ -538,9 +538,11 @@ Emitted by the `derive:` evaluator (`crates/syscribe-model/src/derive.rs`, REQ-T
 
 | Code | Condition |
 |---|---|
-| E504 | *(reserved)* Cyclic dependency between `derive:` formulas — cycle detection is not yet implemented |
-| E505 | A `derive:` formula does not parse ("derive formula parse error for field '…'"); the field is left unevaluated |
+| E504 | Cyclic dependency between `derive:` fields — a field reads itself directly (`a: self.a + 1`), through other entries of its block, or through other elements (`elements["Q"].f`, `children`/`parent` aggregates). Reported once on every participating element, naming the cycle ("derive: cyclic dependency X.a → Y.b → X.a"); the cyclic fields are not evaluated. Previously reserved and unimplemented (GH #141) |
+| E505 | A `derive:` formula does not parse ("derive formula parse error for field '…'"), the `derive:` value is not a mapping, or a formula value is not a string; the field is left unevaluated |
 | E506 | A `derive:` formula's `elements["QName"]` names no element ("derive: element '…' not found in model"); the field evaluates to null. The model-root-name hint applies |
+
+Derived fields evaluate in dependency order, so a field always sees the computed value of every derived field it reads. `derive:` is a recognised frontmatter field and never raises `W047` (GH #141).
 
 The derive pass previously emitted `E501`/`E502` and reserved `E500`, colliding with the Allocation codes; since GH #127 the two families are disjoint.
 

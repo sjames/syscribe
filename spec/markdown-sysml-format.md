@@ -682,11 +682,49 @@ Rules:
   author-defined data (§3.15). Recognised schema fields never trigger it.
 - `links:` (user-defined link types, §12.10) is a recognised schema field and never
   triggers it; its keys are validated against `[linkTypes]` instead (`E630`).
+- `derive:` (§3.18) is a recognised schema field and never triggers it.
 - The most common cause is a **typo** in a real field name (`reqDomian` for `reqDomain`,
   `verifis` for `verifies`): the misspelling was previously accepted and the value
   silently discarded. `W047` surfaces the mistake instead of losing the data quietly.
 
 (REQ-TRS-SCHEMA-001.)
+
+### 3.18 Derived Fields (`derive:`)
+
+`derive:` is a recognised field accepted on **every** element type. It is a mapping of
+**field name → formula string**; the tool evaluates each formula after the model is walked and
+records the value as a computed (read-only) field of the element, shown under **Derived Fields**
+by `show`. (REQ-TRS-DERIVE-001..005.)
+
+```yaml
+derive:
+  wcetConsumed: sum(children.custom_fields.wcet)
+  wcetHeadroom: self.custom_fields.wcetBudget - self.wcetConsumed
+```
+
+Formula grammar: numbers, `"strings"`, `self.<field>` / `self.custom_fields.<key>`,
+`elements["Qualified::Name"].<field>`, the aggregates `sum` · `max` · `min` · `count` ·
+`collect` over `children` or `parent` (optionally `.<field>`), `+ - * /`, parentheses and the
+null-coalesce `??`.
+
+Rules:
+
+- **Dependency order.** A derived field is evaluated after every derived field it reads — via
+  `self.<field>`, `elements["Q"].<field>`, or a `children`/`parent` aggregate over `<field>` —
+  so a reference always sees the computed value, whatever the element or entry order.
+  Independent fields evaluate in file-walk, then block (top-to-bottom), order.
+- **Cycles (`E504`).** A field that depends on itself — directly (`a: self.a + 1`), through
+  other entries of the same block, or through other elements — is a cycle. Each cycle is
+  reported as error **`E504`** once on every element file taking part, naming the cycle
+  (`X.a → Y.b → X.a`); the fields in it are **not evaluated** (absent from the derived
+  fields). A field outside the cycle that reads a cyclic field still evaluates and reads it
+  as absent (use `??` to supply a default).
+- **Malformed input (`E505`).** A formula that does not parse, a `derive:` value that is not
+  a mapping, and a formula value that is not a string are each `E505`; the field is not
+  evaluated.
+- **Unknown element (`E506`).** An `elements["QName"]` naming no element is `E506`; the
+  reference evaluates to null.
+- `derive:` is a recognised schema field: it never raises `W047` (§3.17).
 
 ---
 
@@ -5599,8 +5637,8 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `E501` | A `features:` entry with `type: Allocation` has an `allocatedTo:` that does not resolve |
 | `E502` | An `allocatedFrom:` entry (any element) does not resolve to a known element |
 | `E503` | An `allocatedTo:` entry (any element) does not resolve to a known element |
-| `E504` | *(reserved)* Cyclic dependency between `derive:` formulas (REQ-TRS-DERIVE-004; cycle detection not yet implemented) |
-| `E505` | A `derive:` formula does not parse (REQ-TRS-DERIVE-005) |
+| `E504` | Cyclic dependency between `derive:` fields — a field reads itself directly or through other derived fields (`self.`, `elements["Q"].`, `children`/`parent` aggregates). Reported once per participating element, naming the cycle; the cyclic fields are not evaluated (REQ-TRS-DERIVE-004, §3.18) |
+| `E505` | A `derive:` formula does not parse, the `derive:` value is not a mapping, or a formula is not a string (REQ-TRS-DERIVE-001/005) |
 | `E506` | A `derive:` formula's `elements["QName"]` names no element (REQ-TRS-DERIVE-005) |
 
 The Allocation (`E500`–`E503`) and derive (`E504`–`E506`) families are disjoint — no code carries both meanings (GH #127).
@@ -6059,6 +6097,7 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `testFunctions` | native TestCase | list | absent | 8.12.5 |
 | `tags` | native Requirement/TestCase | list of strings | absent | 8.11.6, 8.12.5 |
 | `links` | Any element | map: declared link-type name → string or list | absent | 12.10 — user-defined outbound links; keys must be declared in `[linkTypes]` (`E630`) |
+| `derive` | Any element | map: field name → formula string | absent | 3.18 — computed fields, dependency-ordered; cycle `E504`, malformed `E505`, unknown element `E506` |
 
 ---
 
