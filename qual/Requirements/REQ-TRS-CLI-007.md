@@ -13,7 +13,9 @@ installed. The version is the `syscribe` crate's package version (`CARGO_PKG_VER
 The tool **shall**:
 
 - print its version when invoked as `syscribe --version`, `syscribe -V`, **or**
-  `syscribe version`;
+  `syscribe version` — including when a model flag precedes it
+  (`syscribe -m <root> version`, `syscribe --model=<root> version`), which **shall**
+  behave exactly like `syscribe version` (issue #133);
 - emit the version to **stdout** in the form `syscribe <semver>` (the binary name, a
   space, then the semantic version — e.g. `syscribe 0.25.0`), followed by a newline;
 - **exit 0** for all three spellings;

@@ -21,5 +21,10 @@ covered by a TestCase TC when any of four paths holds:
     --uncovered-only    Show only uncovered elements.
     --include-planned   Count draft/review/approved TestCases in a separate "planned" column.
 
+## EXIT CODES
+    0  report printed
+    1  usage error: a --format outside text|json, a non-integer --depth, or an unknown
+       option (message on stderr, nothing on stdout)
+
 ## SEE ALSO
     impact, safety-case, testplan

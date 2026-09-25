@@ -23,6 +23,16 @@ tc_TRS_CLI_007() {
     { [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx "syscribe $ver"; } \
         && pass "version -> 'syscribe $ver', exit 0" || fail "version subcommand wrong (rc=$rc, out='$out')"
 
+    _scn "version after a model flag behaves like 'syscribe version' (issue #133)"
+    local MD="$REPO_ROOT/qual/fixtures/TC-TRS-CFLD-002/model" spelling
+    for spelling in "-m $MD version" "--model $MD version" "--model=$MD version"; do
+        # shellcheck disable=SC2086
+        out=$("$SYSCRIBE" $spelling 2>&1) && rc=0 || rc=$?
+        { [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -qx "syscribe $ver"; } \
+            && pass "${spelling%% *} <root> version -> 'syscribe $ver', exit 0" \
+            || fail "${spelling%% *} <root> version wrong (rc=$rc, out='$(head -c 160 <<<"$out")')"
+    done
+
     _scn "works from a directory with no model or .syscribe.toml"
     local W; W=$(mktemp -d)
     out=$(cd "$W" && "$SYSCRIBE" --version 2>&1) && rc=0 || rc=$?

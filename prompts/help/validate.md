@@ -4,7 +4,7 @@
     syscribe -m <root> validate [--file <path>] [--json]
         [--deny <CODES>] [--max-warnings <N>] [--warnings-as-errors]
         [--profile <name>] [--config <C>] [--all-configs]
-        [--results <file>] [--fetch-remote]
+        [--results <file> [--format <fmt>]] [--fetch-remote]
 
 ## DESCRIPTION
 Runs the full per-element validation pass and prints the findings (errors and
@@ -27,6 +27,8 @@ gating flags promote chosen warnings to build failures.
                             --profile and --file are evaluated per variant (--max-warnings is a
                             per-variant budget); the summary marks each variant pass / gate / error.
     --results <file>        Ingest test results for this run (enables W010), no sidecar write.
+                            --format cargo-json|junit|session-log picks the parser (default
+                            inferred: .xml → junit, else cargo-json).
     --fetch-remote          Run the .syscribe.toml [remote] hook to fetch remote sourceFiles.
 
 ## EXAMPLES
@@ -49,7 +51,9 @@ gating flags promote chosen warnings to build failures.
     0  no errors (and no gate tripped)
     1  one or more Error-severity findings (errors always dominate), or a usage
        error: an undefined --profile, an unresolvable --config, a malformed flag
-       value. A usage error prints a message to stderr and nothing to stdout.
+       value, an unknown option, an unreadable --results file or a --format other
+       than cargo-json|junit|session-log. A usage error prints a message to stderr
+       and nothing to stdout.
     2  a warning tripped a gate (--deny / --max-warnings / --warnings-as-errors / --profile)
 
     The contract is the same in every mode. With --all-configs the gate is

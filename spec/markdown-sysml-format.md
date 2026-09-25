@@ -5873,7 +5873,7 @@ Gating is opt-in via flags on `validate`:
 
 The contract is identical under the configuration lens (§9.10). `validate --config <C>` gates (and applies `--file` to) the projected variant's findings. `validate --all-configs` evaluates the gate **per variant** — `--max-warnings N` is a per-variant budget — and exits with the worst variant under the precedence `1` > `2` > `0`: `1` if any variant has an `Error` finding, else `2` if any variant tripped a gate, else `0`.
 
-A **usage error** on `validate` — an undefined `--profile` name, an unresolvable `--config` argument, a malformed `--max-warnings` value — prints a message to stderr, prints nothing to stdout, and exits `1`. Exit `2` is reserved exclusively for a tripped gate, so it always means "no errors, but a gate failed".
+A **usage error** on `validate` — an undefined `--profile` name, an unresolvable `--config` argument, a malformed `--max-warnings` value, an unknown option, an unreadable `--results` file — prints a message to stderr, prints nothing to stdout, and exits `1`. Exit `2` is reserved exclusively for a tripped gate, so it always means "no errors, but a gate failed".
 
 ##### Named severity profiles (`[profiles.*]`)
 

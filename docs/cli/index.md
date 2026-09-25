@@ -40,9 +40,11 @@ syscribe <command> --help  # the same page, e.g. `syscribe validate --help` (als
 
 `syscribe spec [<section>]` browses the embedded **format** reference (types, fields, validation rules, …); `syscribe --agent-instructions` prints the LLM authoring prompt (`syscribe --agent-instructions magicgrid` prints a dedicated MagicGrid modeling prompt).
 
-`syscribe --version` (also `-V`, or `syscribe version`) prints the tool version as `syscribe <semver>` and exits 0 — no model directory required.
+`syscribe --version` (also `-V`, or `syscribe version` — also after a model flag, `syscribe -m model/ version`) prints the tool version as `syscribe <semver>` and exits 0 — no model directory required.
 
 **Command routing.** The top-level command line is parsed by a clap router whose subcommand registry is derived from the man-page list, so an **unknown command is rejected** with a clear error and a **non-zero** exit (`error: unrecognized subcommand '<name>'`), independent of whether a model directory is present. Each command's own flags are passed through to it unchanged.
+
+**Usage errors.** Invalid input is never silently replaced by a default. An option value outside its documented set (`impact --direction sideways`, `--format xml` on `impact`/`n2`/`behavioral-coverage`/`sbom`/`build-config`), a non-integer count (`n2 --depth abc`, `digest --limit x`, …), or an unknown option on the commands that check theirs — `validate`, `list`, `show`, `trace`, `why`, `who-verifies`, `impact`, `links`, `refs`, `export`, `find`, `ls`, `tree`, `extref`, `n2`, `behavioral-coverage`, `sbom`, `build-config`, `stats`, `digest`, `search-text`, `summarize`, `topics`, `clusters`, `verification-depth` (plus `lint-docs`, `follow`, `connectivity` and the `diagram` family, which parse strictly themselves) — is a **usage error**: a message on stderr naming the option (and, for an enumerated option, its valid values), nothing on stdout, exit `1`. The option check runs before the model is loaded. (`diagram` subcommands report through clap and exit `2`.) Options are spelled `--opt <value>`; the inline `--opt=<value>` form is accepted only where a page documents it (`validate --deny=`/`--max-warnings=`, `--where=`, `lint-docs --deny=`).
 
 ---
 
@@ -133,7 +135,7 @@ Exit-code contract: `0` clean · `1` one or more `Error`-severity findings (erro
 
 The contract holds in every mode. `validate --config <C>` applies the flags (and `--file`) to the projected variant's findings; `validate --all-configs` evaluates the gate **per variant** (so `--max-warnings N` is a per-variant budget), marks each variant `pass` / `gate` / `error` in its summary (`result` in `--json`), and exits with the worst variant under `1` > `2` > `0`.
 
-A **usage error** — an undefined `--profile`, an unresolvable `--config`, a malformed `--max-warnings` value — prints a message to stderr, nothing to stdout, and exits `1`. Exit `2` is reserved for a tripped gate, so a CI job can always read it as "the model is valid but a gate failed".
+A **usage error** — an undefined `--profile`, an unresolvable `--config`, a malformed `--max-warnings` value, an unknown option, an unreadable `--results` file — prints a message to stderr, nothing to stdout, and exits `1`. Exit `2` is reserved for a tripped gate, so a CI job can always read it as "the model is valid but a gate failed".
 
 ### Named severity profiles
 

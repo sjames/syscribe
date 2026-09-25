@@ -4381,10 +4381,14 @@ pub fn print_help() {
     println!("  2                              Warnings tripped a gate (--deny / --max-warnings / --warnings-as-errors / --profile)");
     println!("                                 — the same in every mode (--config, --all-configs per variant; 1 > 2 > 0)");
     println!();
+    println!("Usage errors (all commands): an unknown option on the commands that check theirs, an option");
+    println!("value outside its documented set (e.g. impact --direction, --format), or a non-integer count");
+    println!("(e.g. n2 --depth) prints a message on stderr, nothing on stdout, and exits 1.");
+    println!();
     println!("Options:");
     println!("  -m, --model <path>             Model root directory");
     println!("  --agent-instructions [topic]   Print the LLM authoring prompt; topic 'magicgrid' teaches MagicGrid modeling");
-    println!("  --version, -V                  Print the tool version (also `syscribe version`)");
+    println!("  --version, -V                  Print the tool version (also `syscribe [-m <root>] version`)");
     println!("  --help, -h                     Show this help");
     println!();
     println!("Examples:");
