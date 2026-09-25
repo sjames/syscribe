@@ -292,6 +292,22 @@ mod tests {
         }
     }
 
+    /// The converse drift guard: every option a checked command accepts is
+    /// documented somewhere on its help page, so no flag is accepted-but-undocumented.
+    #[test]
+    fn every_known_option_is_documented() {
+        for (cmd, _) in crate::help::commands() {
+            let Some(spec) = spec_for(cmd) else { continue };
+            let page = crate::help::page(cmd).unwrap_or("");
+            for (opt, _) in spec {
+                let documented = page
+                    .split(|c: char| !(c.is_ascii_alphanumeric() || c == '-'))
+                    .any(|tok| tok == *opt);
+                assert!(documented, "`{cmd}` accepts {opt} but prompts/help/{cmd}.md never mentions it");
+            }
+        }
+    }
+
     #[test]
     fn enum_and_integer_values_are_strict() {
         let a = s(&["--format", "xml", "--depth", "abc"]);
