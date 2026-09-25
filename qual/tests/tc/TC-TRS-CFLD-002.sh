@@ -27,4 +27,31 @@ tc_TRS_CFLD_002() {
     SCENARIO_NAME="unparseable predicate exits non-zero"; printf "  ▶ %s\n" "$SCENARIO_NAME"
     "$SYSCRIBE" -m "$M" ls --where 'bogus!!pred' >/dev/null 2>&1 && rc=0 || rc=$?
     [ "$rc" -ne 0 ] && pass "bad predicate errors" || fail "bad predicate did not error"
+
+    SCENARIO_NAME="unsupported operators are usage errors (issue #129)"; printf "  ▶ %s\n" "$SCENARIO_NAME"
+    local c o e
+    while IFS= read -r c; do
+        o=$(eval "\"\$SYSCRIBE\" -m \"\$M\" $c" 2>/dev/null) && rc=0 || rc=$?
+        e=$(eval "\"\$SYSCRIBE\" -m \"\$M\" $c" 2>&1 >/dev/null || true)
+        if [ "$rc" -eq 1 ] && [ -z "$o" ] && grep -qF "unsupported --where operator" <<<"$e" \
+            && grep -qF "=~" <<<"$e" && grep -qF "~=" <<<"$e"; then
+            pass "$c → exit 1, lists supported operators"
+        else
+            fail "$c → exit $rc, stdout ${#o} bytes, stderr: $(head -c 160 <<<"$e")"
+        fi
+    done <<'CMDS'
+list PartDef --where custom.supplier!=Bosch
+list PartDef --where custom.supplier==Bosch
+ls --where 'custom.supplier~Bosch'
+ls --where 'custom.mass>5'
+ls --where 'custom.mass<5'
+find . --where 'custom.mass>=5'
+find . --where 'custom.mass<=5'
+CMDS
+    out=$("$SYSCRIBE" -m "$M" list PartDef --where custom.supplier=Bosch 2>/dev/null || true)
+    grep -q "Engine" <<<"$out" && ! grep -q "Gearbox" <<<"$out" \
+        && pass "list PartDef --where custom.supplier=Bosch still filters" || fail "list --where exact match broken"
+    out=$("$SYSCRIBE" -m "$M" find . --where custom.maturity=prototype 2>/dev/null || true)
+    grep -q "Engine" <<<"$out" && ! grep -q "Gearbox" <<<"$out" \
+        && pass "find . --where custom.maturity=prototype still filters" || fail "find --where exact match broken"
 }

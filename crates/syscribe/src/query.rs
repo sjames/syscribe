@@ -253,13 +253,20 @@ pub enum CustomWhere {
     Member { key: String, val: String },
 }
 
-/// Parse a `--where` argument. Operators are matched longest-first so the two-char
-/// spellings (`=~`, `~=`) win over the one-char `=`. Returns `Err(message)` for an
-/// unparseable predicate (missing `custom.` prefix, empty key).
+/// The supported `--where` forms, quoted verbatim in every operator error.
+pub const WHERE_SUPPORTED_FORMS: &str = "custom.<key>=<value> (exact), custom.<key>=~<pattern> (regex/substring), \
+custom.<key>~=<value> (list membership), custom.<key> (presence)";
+
+/// Parse a `--where` argument. Returns `Err(message)` for an unparseable predicate
+/// (missing `custom.` prefix, empty key, unsupported operator).
 ///
-/// Operator precedence (checked in this order): `=~`, then `~=`, then `=`, then the
-/// bare presence form. `=~` uses the `regex` crate; an invalid regex pattern falls
-/// back to a plain substring test (so any literal pattern still works).
+/// The key runs up to the first operator character (`=`, `~`, `!`, `<`, `>`); the
+/// operator is then matched longest-first: `=~`, `~=`, `=`. Anything else there —
+/// `!=`, `==`, a bare `~`, `>`, `<`, `>=`, `<=` — is an **unsupported operator** and
+/// an error naming the supported forms (issue #129), never silently folded into the
+/// key (which would match nothing). No operator character → the bare presence form.
+/// `=~` uses the `regex` crate; an invalid regex pattern falls back to a plain
+/// substring test (so any literal pattern still works).
 pub fn parse_custom_where(arg: &str) -> Result<CustomWhere, String> {
     let body = arg.strip_prefix("custom.").ok_or_else(|| {
         format!("--where predicate must address the `custom.<key>` namespace: '{arg}'")
@@ -273,18 +280,29 @@ pub fn parse_custom_where(arg: &str) -> Result<CustomWhere, String> {
         }
     };
 
-    // Longest operators first: `=~` and `~=` before `=`.
-    if let Some((k, pat)) = body.split_once("=~") {
+    const OP_CHARS: &[char] = &['=', '~', '!', '<', '>'];
+    let Some(at) = body.find(OP_CHARS) else {
+        // Bare presence form.
+        return Ok(CustomWhere::Present { key: mk_key(body)? });
+    };
+    let (k, rest) = body.split_at(at);
+    // Longest operators first: `=~` and `~=` before `=`; `==` is rejected rather
+    // than read as `=` with a value starting `=`.
+    if let Some(pat) = rest.strip_prefix("=~") {
         return Ok(CustomWhere::Regex { key: mk_key(k)?, pat: pat.to_string() });
     }
-    if let Some((k, val)) = body.split_once("~=") {
+    if let Some(val) = rest.strip_prefix("~=") {
         return Ok(CustomWhere::Member { key: mk_key(k)?, val: val.to_string() });
     }
-    if let Some((k, val)) = body.split_once('=') {
-        return Ok(CustomWhere::Eq { key: mk_key(k)?, val: val.to_string() });
+    if !rest.starts_with("==") {
+        if let Some(val) = rest.strip_prefix('=') {
+            return Ok(CustomWhere::Eq { key: mk_key(k)?, val: val.to_string() });
+        }
     }
-    // Bare presence form.
-    Ok(CustomWhere::Present { key: mk_key(body)? })
+    let op: String = rest.chars().take_while(|c| OP_CHARS.contains(c)).collect();
+    Err(format!(
+        "unsupported --where operator '{op}' in '{arg}'; supported: {WHERE_SUPPORTED_FORMS}"
+    ))
 }
 
 /// The custom-field key a predicate addresses.
@@ -4172,6 +4190,9 @@ pub fn print_help() {
     println!("       [--status <s>]            Keep only elements whose status: equals s");
     println!("       [--sil <v>]               Keep only elements whose silLevel stringifies to v OR asilLevel equals v");
     println!("       [--has-wcet]              Keep only elements that declare a non-empty wcet:");
+    println!("       [--where custom.<k><op><v>] Filter by custom_fields: (also on ls/find). <op> is = (exact),");
+    println!("                                 =~ (regex) or ~= (list membership); bare custom.<k> = presence.");
+    println!("                                 Any other operator (!=, ~, >, <, ...) is a usage error (exit 1).");
     println!("       [--json]                  Emit a JSON array (qualifiedName,type,name,id,status,silLevel,asilLevel,wcet)");
     println!("  matrix [--json] [--tag <t>]    Requirement × Configuration coverage matrix (cells: covered/gap/N-A)");
     println!("                                 Columns are Configuration elements; --json emits the grid; --tag filters rows.");
@@ -4477,6 +4498,20 @@ mod custom_where_tests {
         assert!(parse_custom_where("supplier=Bosch").is_err()); // missing custom. prefix
         assert!(parse_custom_where("custom.=v").is_err()); // empty key
         assert!(parse_custom_where("custom.").is_err()); // empty key, presence
+        // Unsupported operators are errors, never folded into the key (issue #129).
+        for bad in [
+            "custom.k!=v", "custom.k==v", "custom.k~v", "custom.k>5", "custom.k<5",
+            "custom.k>=5", "custom.k<=5", "custom.k!v",
+        ] {
+            let err = parse_custom_where(bad).unwrap_err();
+            assert!(err.contains("unsupported --where operator"), "{bad}: {err}");
+            assert!(err.contains("=~") && err.contains("~="), "{bad}: {err}");
+        }
+        // A supported operator's value may itself contain operator characters.
+        assert_eq!(
+            parse_custom_where("custom.k=a>b").unwrap(),
+            CustomWhere::Eq { key: "k".into(), val: "a>b".into() }
+        );
     }
 
     #[test]

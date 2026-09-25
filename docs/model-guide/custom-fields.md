@@ -39,11 +39,12 @@ custom_fields:
 ## Querying custom fields — `--where`
 
 The `ls`, `find`, and `list` commands accept a `--where` predicate that addresses a
-custom field via the `custom.<key>` namespace:
+custom field via the `custom.<key>` namespace (`find` still needs a search pattern —
+`.` matches every element):
 
 ```bash
-syscribe -m model/ ls PartDef --where custom.supplier=Bosch     # exact match
-syscribe -m model/ find --where custom.maturity=prototype       # exact match
+syscribe -m model/ list PartDef --where custom.supplier=Bosch   # exact match, one type
+syscribe -m model/ find . --where custom.maturity=prototype     # exact match
 syscribe -m model/ ls --where custom.costCenter=~PWT            # regex / substring
 syscribe -m model/ ls --where custom.partNumbers~=A-1001        # list membership
 syscribe -m model/ ls --where custom.supplier                   # presence (field is set)
@@ -57,8 +58,10 @@ syscribe -m model/ ls --where custom.supplier                   # presence (fiel
 | `custom.<key>` | presence — the field is set, any value |
 
 `--where` composes (logical AND) with the existing `type` / `--tag` / `--status`
-filters, and you may supply more than one `--where` (also ANDed). An unparseable
-predicate is a usage error and exits non-zero.
+filters, and you may supply more than one `--where` (also ANDed). These four forms are
+the **only** operators: an unparseable predicate — including any other operator
+spelling such as `!=`, `==`, a bare `~`, `>`, `<`, `>=`, `<=` — is a usage error that
+exits `1` and lists the supported forms, rather than silently matching nothing.
 
 ## Viewing custom fields
 

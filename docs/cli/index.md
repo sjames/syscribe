@@ -688,6 +688,17 @@ $ syscribe -m model/ list Requirement --status draft --json
 - **`--has-wcet`** keeps only elements that declare a non-empty `wcet:` timing claim — pair it with the `W029` check ("WCET claimed but not measured", see [validation rules](../validation/rules.md)) to audit which timing claims are backed by an `L5`/timing-tagged test.
 - **`--json`** emits a JSON array of the (filtered) elements — each object carries `qualifiedName`, `type`, `name`, `id`, `status`, `silLevel`, `asilLevel`, `wcet` (absent fields are `null`). All filters above apply to the JSON output too, and compose (AND) with `--tag`, `--feature` and the `--config` lens.
 
+Filter by [custom fields](../model-guide/custom-fields.md) with `--where` (also accepted by `ls` and `find`; repeatable, ANDed):
+
+```
+$ syscribe -m model/ list PartDef --where custom.supplier=Bosch      # exact (a list field: any element)
+$ syscribe -m model/ list PartDef --where custom.costCenter=~^PWT    # regex (substring fallback)
+$ syscribe -m model/ list PartDef --where custom.partNumbers~=A-1001 # list membership
+$ syscribe -m model/ find . --where custom.supplier                  # presence
+```
+
+`=`, `=~`, `~=` and the bare presence form are the **only** operators. Any other spelling — `!=`, `==`, a bare `~`, `>`, `<`, `>=`, `<=` — is a usage error (exit `1`, a message listing the supported forms, nothing on stdout) rather than a predicate that silently matches nothing.
+
 ---
 
 ## Variability (product lines)

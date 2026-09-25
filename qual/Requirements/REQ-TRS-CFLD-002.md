@@ -13,9 +13,9 @@ filter chain.
 
 ### `--where <predicate>`
 
-The lens flag **shall** be accepted on the element-listing commands `ls` and `find`. Its
-argument addresses a custom field via the `custom.<key>` namespace and supports these
-operators:
+The lens flag **shall** be accepted on the element-listing commands `ls`, `find` and
+`list` (and the `stats`/`digest` scopes that reuse it). Its argument addresses a custom
+field via the `custom.<key>` namespace and supports **exactly** these operators:
 
 | Form | Meaning |
 |---|---|
@@ -29,8 +29,12 @@ operators:
   definition of the presence form failing).
 - `--where` **shall compose** with the existing `ls`/`find` filters (type, tag, status):
   all supplied filters apply (AND).
-- An unparseable `--where` argument (unknown operator spelling) **shall** be a usage
-  error with a clear message and non-zero exit.
+- An unparseable `--where` argument **shall** be a usage error with a clear message and
+  non-zero exit (`1`, nothing on stdout). This includes every **unsupported operator
+  spelling** — `!=`, `==`, a bare `~`, `>`, `<`, `>=`, `<=` or any other use of the
+  operator characters `! < > ~` — which **shall not** be silently read as part of the key
+  (and so match nothing): the message **shall** name the offending operator and list the
+  four supported forms. (Issue #129.)
 - `--where` **shall** be deterministic and add no findings (it is a read-only query).
 
 **Source:** GH #39 (custom fields query).
@@ -45,3 +49,6 @@ operators:
   custom.supplier` matches any element that declares that field.
 - `--where` composes with a type filter (e.g. `ls PartDef --where custom.supplier=Bosch`)
   and an unparseable predicate exits non-zero.
+- `list PartDef --where custom.supplier!=Bosch`, `ls --where 'custom.mass>5'` and
+  `find . --where custom.supplier~Bosch` each exit `1` with empty stdout and a stderr
+  message listing the supported operators.
