@@ -6382,27 +6382,19 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
-    // E314: deployment packages must have at least one Allocation to a hardware element
+    // E314: deployment packages must have at least one allocation to a hardware
+    // element. Every form of the §12.9 unified edge set counts (GH #131): a
+    // top-level or `features:`-form `Allocation` element, an `allocatedTo:` on
+    // the package itself, and a legacy authored `allocatedFrom:` on the target.
     {
-        // Build a set of (allocateFrom qname) → target domain for all Allocation elements
+        // Sources (qnames) with at least one allocation edge to a hardware element.
         let mut hw_alloc_targets: HashSet<String> = HashSet::new();
-        for elem in elements {
-            if !matches!(elem.frontmatter.element_type, Some(ElementType::Allocation)) {
-                continue;
-            }
-            // allocated_from is the software side; allocated_to is the hardware side
-            if let Some(ref to_refs) = elem.frontmatter.allocated_to {
-                for to_ref in to_refs {
-                    if let Some(target) = resolver.get(elements, to_ref) {
-                        if target.frontmatter.domain.as_deref() == Some("hardware") {
-                            if let Some(ref from_refs) = elem.frontmatter.allocated_from {
-                                for from_ref in from_refs {
-                                    hw_alloc_targets.insert(from_ref.clone());
-                                }
-                            }
-                        }
-                    }
-                }
+        for (from, to) in allocation_edges(elements, &resolver) {
+            if resolver
+                .get(elements, &to)
+                .is_some_and(|t| t.frontmatter.domain.as_deref() == Some("hardware"))
+            {
+                hw_alloc_targets.insert(from);
             }
         }
         for elem in elements {
@@ -6412,7 +6404,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         "E314",
                         &elem.file_path,
                         &format!(
-                            "`isDeploymentPackage: true` element '{}' has no Allocation to a hardware element",
+                            "`isDeploymentPackage: true` element '{}' has no allocation to a hardware element (an `Allocation` element, or `allocatedTo:` on the element)",
                             elem.qualified_name
                         ),
                     ));
@@ -6470,34 +6462,14 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 false
             };
 
-            // Collect allocation edges source -> target from every form, resolving
-            // references via the Resolver; invert into target qname -> { source qnames }.
-            // (Allocation elements use the same allocatedFrom/allocatedTo fields.)
+            // Allocation edges source -> target from the §12.9 unified edge set
+            // (the same extractor E314, MG041/MG081 and `matrix --allocations`
+            // use — GH #131), inverted into target qname -> { source qnames }. A
+            // standalone `Allocation` element contributes its allocatedFrom ->
+            // allocatedTo edge, never itself as an endpoint.
             let mut targets: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-            for elem in elements {
-                let qn = &elem.qualified_name;
-                // element with allocatedTo: source = this element, target = each T
-                if let Some(ref tos) = elem.frontmatter.allocated_to {
-                    for t in tos {
-                        if let Some(target) = resolver.resolve_ref(elements, t) {
-                            targets
-                                .entry(target.qualified_name.clone())
-                                .or_default()
-                                .insert(qn.clone());
-                        }
-                    }
-                }
-                // element with allocatedFrom: target = this element, source = each S
-                if let Some(ref froms) = elem.frontmatter.allocated_from {
-                    for s in froms {
-                        if let Some(source) = resolver.resolve_ref(elements, s) {
-                            targets
-                                .entry(qn.clone())
-                                .or_default()
-                                .insert(source.qualified_name.clone());
-                        }
-                    }
-                }
+            for (from, to) in allocation_edges(elements, &resolver) {
+                targets.entry(to).or_default().insert(from);
             }
 
             for (target_qn, sources) in &targets {
@@ -7384,18 +7356,17 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         })
         .collect();
     let mut allocated_from: HashMap<String, Vec<String>> = HashMap::new();
-    // Per edge, the set of forms that produced it (for W503), in encounter order.
-    let mut edge_forms: HashMap<(String, String), (bool, bool)> = HashMap::new();
+    // Per edge, the forms that produced it (for W503), in encounter order.
+    let mut edge_forms: HashMap<(String, String), Vec<AllocForm>> = HashMap::new();
     let mut edge_order: Vec<(String, String)> = Vec::new();
     for (from, to, form) in &tagged_edges {
         let entry = edge_forms.entry((from.clone(), to.clone()));
         if matches!(entry, std::collections::hash_map::Entry::Vacant(_)) {
             edge_order.push((from.clone(), to.clone()));
         }
-        let flags = entry.or_insert((false, false));
-        match form {
-            AllocForm::AllocatedTo => flags.0 = true,
-            AllocForm::Element => flags.1 = true,
+        let forms = entry.or_default();
+        if !forms.contains(form) {
+            forms.push(*form);
         }
     }
     // Build allocated_from from the de-duplicated edge set.
@@ -7407,10 +7378,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             bucket.push(source_label);
         }
     }
-    // W503 — the same source → target edge declared by BOTH forms.
+    // W503 — the same source → target edge declared by more than one form.
     for (from, to) in &edge_order {
-        if let Some((has_allocated_to, has_element)) = edge_forms.get(&(from.clone(), to.clone())) {
-            if *has_allocated_to && *has_element {
+        if let Some(forms) = edge_forms.get(&(from.clone(), to.clone())) {
+            if forms.len() >= 2 {
+                // Stable, form-ordered wording (AllocatedTo, Element, AuthoredFrom).
+                let mut sorted = forms.clone();
+                sorted.sort_by_key(|f| match f {
+                    AllocForm::AllocatedTo => 0,
+                    AllocForm::Element => 1,
+                    AllocForm::AuthoredFrom => 2,
+                });
+                let labels: Vec<&str> = sorted.iter().map(|f| f.label()).collect();
                 let file = resolver
                     .resolve_ref(elements, from)
                     .map(|e| e.file_path.clone())
@@ -7419,8 +7398,10 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     "W503",
                     &file,
                     &format!(
-                        "redundant allocation: {} → {} is declared by both an allocatedTo and an Allocation element — use one form",
-                        from, to
+                        "redundant allocation: {} → {} is declared by both {} — use one form",
+                        from,
+                        to,
+                        labels.join(" and ")
                     ),
                 ));
             }
@@ -8968,10 +8949,28 @@ fn req_self_or_descendant_of(
 /// OSLC-canonical default; the source *is* the derived `allocatedFrom`).
 /// `Element` is form 2 — a standalone `type: Allocation` element naming both
 /// `allocatedFrom` and `allocatedTo`, top-level or per `features:` entry.
+/// `AuthoredFrom` is the legacy form (GH #131): an `allocatedFrom:` authored on
+/// a non-`Allocation` *target* element. §12.9 makes `allocatedFrom` derived,
+/// not authored, but older models (and the pre-#131 §12.1 table) put it on the
+/// realising element, so it is still accepted — each resolved entry `S` yields
+/// the edge `S → holder` — and feeds the same unified edge set, so the
+/// `matrix --allocations` view, E314, W034 and the derived index all see it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AllocForm {
     AllocatedTo,
     Element,
+    AuthoredFrom,
+}
+
+impl AllocForm {
+    /// How the form is named in the W503 redundancy message.
+    fn label(self) -> &'static str {
+        match self {
+            AllocForm::AllocatedTo => "an allocatedTo",
+            AllocForm::Element => "an Allocation element",
+            AllocForm::AuthoredFrom => "an authored allocatedFrom on the target",
+        }
+    }
 }
 
 /// Raw, form-tagged allocation edges before de-duplication, with endpoints
@@ -9000,6 +8999,19 @@ pub fn allocation_edges_tagged(
                             elem.qualified_name.clone(),
                             to_qn,
                             AllocForm::AllocatedTo,
+                        ));
+                    }
+                }
+            }
+            // Legacy form — `allocatedFrom:` authored on a non-Allocation target
+            // (GH #131; see `AllocForm::AuthoredFrom`): each source → this element.
+            if let Some(ref froms) = elem.frontmatter.allocated_from {
+                for from in froms {
+                    if let Some(from_qn) = resolve(from) {
+                        edges.push((
+                            from_qn,
+                            elem.qualified_name.clone(),
+                            AllocForm::AuthoredFrom,
                         ));
                     }
                 }
@@ -9043,9 +9055,10 @@ pub fn allocation_edges_tagged(
 }
 
 /// The unified, de-duplicated set of resolved allocation edges
-/// `(from_qname, to_qname)` from BOTH authoring forms. Consumed by `MG041`,
-/// `MG081`, `matrix --allocations`, and the derived `allocatedFrom` index so
-/// the gate and the matrix can never disagree.
+/// `(from_qname, to_qname)` from every authoring form (see [`AllocForm`]).
+/// Consumed by `MG041`, `MG081`, `E314`, `W034`, `matrix --allocations`, and
+/// the derived `allocatedFrom` index so the gates and the matrix can never
+/// disagree.
 pub fn allocation_edges(elements: &[RawElement], resolver: &Resolver) -> Vec<(String, String)> {
     let mut seen: HashSet<(String, String)> = HashSet::new();
     let mut out: Vec<(String, String)> = Vec::new();

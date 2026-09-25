@@ -15,12 +15,15 @@ upstream. No reverse links are stored in model files.
 | `derivedFrom:` | child → parent | child `Requirement` |
 | `verifies:` | test → requirement | `TestCase` |
 | `satisfies:` | arch element → requirement | `Part`/`PartDef` |
-| `allocatedFrom:` | arch element → logical/security artifact | architecture element |
-| `allocatedTo:` | allocation → target | `Allocation` element |
+| `allocatedTo:` | source → target | the element being allocated (logical function, software package, security control) |
+| `allocatedFrom:` + `allocatedTo:` | source → target | a standalone `Allocation` element (it *is* the relationship, so it names both ends) |
 | `breakdownAdr:` | requirement → ADR | child `Requirement` |
 
-Reverse indices (`verifiedBy`, `derivedChildren`, `satisfiedBy`) are **computed at load
-time and never written to disk**.
+Reverse indices (`verifiedBy`, `derivedChildren`, `satisfiedBy`, `allocatedFrom`) are **computed at load
+time and never written to disk**. Do not author `allocatedFrom:` on an architecture element: it is the
+derived reverse of `allocatedTo:` (§12.9). An authored one on a non-`Allocation` element is still
+accepted as a legacy input form, but new models use `allocatedTo:` on the source or an `Allocation`
+element.
 
 ---
 
@@ -96,8 +99,9 @@ through `Allocation` elements.
 **Rule R-006a:** `domain: software` elements must not have `supertype:`/`typedBy:`
 referencing `domain: hardware`, or vice versa. (`E315`)
 
-**Rule R-006b:** `isDeploymentPackage: true` parts must have at least one `Allocation`
-to a `hardware` element. (`E314`)
+**Rule R-006b:** `isDeploymentPackage: true` parts must have at least one allocation
+to a `hardware` element — an `Allocation` element (top-level or `features:` entry) or
+`allocatedTo:` on the part itself; any §12.9 form counts. (`E314`)
 
 **Correct cross-domain pattern:**
 

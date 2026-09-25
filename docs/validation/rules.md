@@ -212,7 +212,7 @@ A `Package` may declare `appliesWhen:` to gate its whole subtree; an element's *
 | E311 | `breakdownAdr:` does not resolve, or does not resolve to an ADR |
 | E312 | Parent requirement (has `derivedChildren`) appears in a `satisfies:` list |
 | E313 | `satisfies` domain mismatch: element domain ≠ requirement `reqDomain` |
-| E314 | `isDeploymentPackage: true` element has no Allocation to a hardware element |
+| E314 | `isDeploymentPackage: true` element has no allocation to a hardware element — any §12.9 form counts: an `Allocation` element (top-level or per `features:` entry), `allocatedTo:` on the element, or a legacy authored `allocatedFrom:` on the hardware target |
 | E315 | Cross-domain `supertype:` or `typedBy:` reference — use Allocation instead |
 | E316 | A `refines:` operand on a `UseCaseDef`/`UseCase` — or on a behavioral definition `ActionDef`/`Action`/`StateDef`/`State` — does not resolve, or resolves to an element that is not a `Requirement`/`RequirementDef`. **Base-format check** — runs regardless of the MagicGrid profile. The `refinedBy` reverse index includes refining behavioral elements alongside refining use cases. |
 
@@ -548,7 +548,7 @@ The derive pass previously emitted `E501`/`E502` and reserved `E500`, colliding 
 | W500 | `viewpoint:` on View does not resolve to a ViewpointDef |
 | W501 | `exhibitsStates:` entry does not resolve to any known element |
 | W502 | `expose:` entry on View does not resolve to any known element |
-| W503 | The **same** allocation edge `source → target` is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element — redundant; use one form (§12.9, `REQ-TRS-ALLOC-001`) |
+| W503 | The **same** allocation edge `source → target` is declared by **more than one** form — an `allocatedTo:` on the source, a standalone `Allocation` element, or a legacy authored `allocatedFrom:` on the target — redundant; use one form (§12.9, `REQ-TRS-ALLOC-001`) |
 
 ## Documentation warnings (W600–W601)
 
@@ -745,11 +745,12 @@ See `docs/model-guide/safety-analysis.md` and `syscribe -m <root> metrics`.
 ## Freedom From Interference / dependent-failure analysis (W034)
 
 ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** when both are
-**allocated to the same target element**. The tool collects allocation edges `(source → target)`
-from every form — an element's `allocatedTo: [T, …]` (source = the element), an element's
-`allocatedFrom: [S, …]` (target = the element), and an `Allocation` element's
-`allocatedFrom`/`allocatedTo` (source → target) — resolving every reference via the `Resolver`,
-then inverts them into a `target → { sources }` map.
+**allocated to the same target element**. The allocation edges `(source → target)` are the
+§12.9 unified edge set — an element's `allocatedTo: [T, …]` (source = the element), a legacy
+`allocatedFrom: [S, …]` authored on a non-`Allocation` element (target = the element), and an
+`Allocation` element's `allocatedFrom`/`allocatedTo`, top-level or per `features:` entry (source →
+target; the `Allocation` element itself is never an endpoint) — resolved via the `Resolver`, then
+inverted into a `target → { sources }` map.
 
 Each element gets an **integrity tag**: `asilLevel` if present, else `silLevel` (→ `SIL<n>`),
 else `QM`. Two sources on the same target are **mixed-criticality** when their tags differ
