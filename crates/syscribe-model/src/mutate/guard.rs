@@ -18,6 +18,7 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::config::ValidateConfig;
@@ -72,17 +73,38 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
 }
 
 /// Make a throwaway copy of the model tree; returns the copy's root.
+///
+/// The directory is unique to this call (GH #156). A name made only of the
+/// process id and a nanosecond timestamp is not: two threads can read the same
+/// timestamp, and two concurrent guarded writes in one process would then
+/// share a candidate directory. One would copy its edit over the other's, and
+/// the first to finish would delete the directory while the other was still
+/// using it. The name therefore adds a process-wide sequence number, and the
+/// directory is claimed with an exclusive `create_dir`, retried on a clash
+/// (for example a leftover directory from an earlier process with the same pid).
 fn make_temp_copy(model_root: &Path) -> std::io::Result<PathBuf> {
+    static SEQ: AtomicU64 = AtomicU64::new(0);
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let root = std::env::temp_dir().join(format!(
-        "syscribe-mcp-cand-{}-{}",
-        std::process::id(),
-        nanos
-    ));
-    copy_dir_all(model_root, &root)?;
+    let root = loop {
+        let candidate = std::env::temp_dir().join(format!(
+            "syscribe-mcp-cand-{}-{}-{}",
+            std::process::id(),
+            nanos,
+            SEQ.fetch_add(1, Ordering::Relaxed)
+        ));
+        match std::fs::create_dir(&candidate) {
+            Ok(()) => break candidate,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    };
+    if let Err(e) = copy_dir_all(model_root, &root) {
+        let _ = std::fs::remove_dir_all(&root);
+        return Err(e);
+    }
     Ok(root)
 }
 
@@ -317,10 +339,11 @@ where
         Ok(elems) => {
             let cfg = ValidateConfig::with_model_root(&cand_root);
             let (link_errs, warns) = validator_findings(&elems, &cfg, &cand_root);
-            // `with_model_root` installed the candidate's link-type vocabulary as
-            // the process-wide one; restore the caller's (same content unless the
-            // write edits `.syscribe.toml`).
+            // `with_model_root` installed the candidate's link-type vocabulary
+            // and `[ids.prefixes]` as the process-wide ones; restore the
+            // caller's (same content unless the write edits `.syscribe.toml`).
             crate::link_types::install(&config.link_types);
+            crate::resolver::set_extra_id_prefixes_by_type(&config.id_extra_prefixes);
             let mut errs = ref_errors(&elems, &cand_root);
             errs.extend(link_errs);
             (errs, warns)
@@ -410,6 +433,44 @@ mod tests {
                 ..Default::default()
             },
         )
+    }
+
+    /// GH #156: concurrent guarded writes in one process must never share a
+    /// candidate directory. Many threads released together by a barrier read
+    /// the same nanosecond timestamp often enough to collide under the old
+    /// pid+nanos naming; every call must now get its own fresh directory.
+    #[test]
+    fn concurrent_temp_copies_never_share_a_directory() {
+        use std::sync::{Arc, Barrier};
+        let src = std::env::temp_dir().join(format!(
+            "syscribe-guard-src-{}-{}",
+            std::process::id(),
+            SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::write(src.join("A.md"), "---\ntype: PartDef\nname: A\n---\n").unwrap();
+        const THREADS: usize = 16;
+        const ROUNDS: usize = 50;
+        for _ in 0..ROUNDS {
+            let barrier = Arc::new(Barrier::new(THREADS));
+            let handles: Vec<_> = (0..THREADS)
+                .map(|_| {
+                    let (b, s) = (barrier.clone(), src.clone());
+                    std::thread::spawn(move || {
+                        b.wait();
+                        make_temp_copy(&s).unwrap()
+                    })
+                })
+                .collect();
+            let dirs: Vec<PathBuf> = handles.into_iter().map(|h| h.join().unwrap()).collect();
+            let unique: HashSet<&PathBuf> = dirs.iter().collect();
+            assert_eq!(unique.len(), THREADS, "two guarded writes shared a candidate directory");
+            for d in &dirs {
+                assert!(d.join("A.md").is_file());
+                std::fs::remove_dir_all(d).unwrap();
+            }
+        }
+        std::fs::remove_dir_all(&src).unwrap();
     }
 
     #[test]
