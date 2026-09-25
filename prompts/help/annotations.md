@@ -10,6 +10,9 @@ frontmatter uses. This is read-only ingestion: the source file stays
 authoritative and is edited by its own normal tooling, never by Syscribe's
 write paths.
 
+## SYNOPSIS
+    syscribe -m <root> annotations scan <qname-or-label> --dry-run
+
 ## Marking a package annotated (`_index.md`)
 
 ```yaml

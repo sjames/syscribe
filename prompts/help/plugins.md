@@ -7,6 +7,9 @@ language, no embedded-runtime toolchain required. This is read-only ingestion:
 the foreign folder stays authoritative and is edited by its own native
 tooling, never by Syscribe's write paths.
 
+## SYNOPSIS
+    syscribe -m <root> plugins run <alias> --dry-run
+
 ## Marking a package foreign (`_index.md`)
 
 ```yaml

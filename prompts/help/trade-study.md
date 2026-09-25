@@ -1,8 +1,10 @@
 # trade-study — MoE-weighted trade study comparing configurations
 
-```
-syscribe -m <root> trade-study [--json] [--config <id|qname> ...]
-```
+## SYNOPSIS
+    syscribe -m <root> trade-study [<TRD-id>] [--json]                  # TradeStudy elements (§15)
+    syscribe -m <root> trade-study [--json] [--config <id|qname> ...]   # MagicGrid MoE fallback
+
+## DESCRIPTION
 
 Score and rank the model's `Configuration`s against its Measures of Effectiveness
 (MagicGrid B4), so the MoEs actually drive solution selection. Read-only;

@@ -1,12 +1,13 @@
 # mcp — run an MCP server over stdio for LLM clients
 
-`syscribe mcp -m <model>` starts a Model Context Protocol (MCP) server that
+`syscribe -m <root> mcp` starts a Model Context Protocol (MCP) server that
 speaks newline-delimited JSON-RPC 2.0 over **stdio**. It lets an MCP-capable LLM
 client query and guard-write the Syscribe model bound at `-m`.
 
-## Usage
+## SYNOPSIS
+    syscribe -m <root> mcp [--read-only]
 
-    syscribe -m <model> mcp [--read-only]
+## USAGE
 
 The server runs until its stdin is closed. It is intended to be spawned by an
 MCP client (an editor, an agent runtime, …), not invoked interactively.

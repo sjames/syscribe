@@ -1,12 +1,13 @@
 # lsp — run a Language Server Protocol server over stdio for editors
 
-`syscribe lsp -m <model>` starts a Language Server (LSP) that speaks
+`syscribe -m <root> lsp` starts a Language Server (LSP) that speaks
 `Content-Length`-framed JSON-RPC 2.0 over **stdio**. It lets an LSP-capable editor
 (VSCode and others) navigate and validate the Syscribe model bound at `-m`.
 
-## Usage
+## SYNOPSIS
+    syscribe -m <root> lsp
 
-    syscribe -m <model> lsp
+## USAGE
 
 The server runs until it receives `shutdown` followed by `exit` and the client
 closes stdin. It is intended to be spawned by an editor's LSP client, not

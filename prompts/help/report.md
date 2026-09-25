@@ -1,7 +1,7 @@
-# (default) — full validation report
+# report — full validation report (the default command)
 
 ## SYNOPSIS
-    syscribe -m <root>
+    syscribe -m <root> [report]
 
 ## DESCRIPTION
 With no subcommand, syscribe prints the full 10-section Markdown report: element
