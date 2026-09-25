@@ -1,11 +1,8 @@
 # plantuml — Generate PlantUML source files from Diagram elements
 
-## Synopsis
-
-```
-syscribe -m <root> plantuml [<qname>] [--output <file>|-] [--dry-run]
-syscribe -m <root> plantuml render [--jar <path>] [--dry-run]
-```
+## SYNOPSIS
+    syscribe -m <root> plantuml [<qname>] [--output <file>|-] [--dry-run]
+    syscribe -m <root> plantuml render [--jar <path>] [--dry-run]
 
 ## Description
 

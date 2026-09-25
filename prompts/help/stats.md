@@ -38,8 +38,8 @@ Note: `coverage` always reflects the full active model (so it equals `coverage`
     syscribe -m model/ stats
     syscribe -m model/ stats --json
     syscribe -m model/ stats --group-by status
-    syscribe -m model/ stats --status approved --tag safety
-    syscribe -m model/ stats --config CONF-LM3S-QEMU-001
+    syscribe -m model/ stats --status approved --tag mcp
+    syscribe -m model/ stats --config CONF-UAV-DELIVERY-001
 
 ## EXIT CODES
     0  ok    1  usage error (unknown --group-by facet, or unresolvable --config)

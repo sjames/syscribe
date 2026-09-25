@@ -50,7 +50,7 @@ syscribe <command> --help  # the same page, e.g. `syscribe validate --help` (als
 
 ## Validation
 
-### Full report
+### Full report (`report`)
 
 Running with no subcommand — or the explicit `report` command — prints the full 10-section Markdown validation report: element inventory, requirements matrix, traceability summary, and findings.
 
@@ -218,6 +218,12 @@ The directory is also the Rhai **module-import root**, so a script can reuse a s
 | `scripts list [--json]` | Enumerate every registered command/check (name, kind, description, source file). |
 | `scripts run <command> [--json]` | Invoke a command and print its returned string. Unknown name → non-zero; a check name reports that it is a check. |
 | `scripts validate [--deny <codes>] [--max-warnings <n>] [--warnings-as-errors] [--json]` | Run every check; print findings as `<check>/<code>` with the source script. Exit 0 clean / 1 on an error-severity finding / 2 on a tripped gate. Independent of the built-in `validate`. |
+
+```bash
+syscribe -m <root> scripts list
+syscribe -m <root> scripts run coverage
+syscribe -m <root> scripts validate --deny naming/NOASIL
+```
 
 See `syscribe help scripts` for the full read-only model API.
 
@@ -509,6 +515,19 @@ Inspects and synchronises the peer repositories declared in the model-root `.sys
 
 **Reproducibility gate.** When a repo has a `ref:`, validation compares the peer work tree's `HEAD` against it and emits `W511` on drift — gate CI on a pinned composition with `validate --deny W511`. `repos status` reports the same drift and exits `2`; `repos sync` brings the checkout back to the `ref:`. When `path` is a **git submodule**, `W512` additionally flags a `ref:` that disagrees with the parent's `.gitmodules` gitlink pin (`--deny W512`) — so `[repos]` and submodules stay consistent.
 
+## Foreign-source ingestion (`plugins`, `annotations`)
+
+```bash
+syscribe -m <root> plugins run <alias> --dry-run
+syscribe -m <root> annotations scan <qname-or-label> --dry-run
+```
+
+Two ways to let a package's subtree come from something other than Syscribe Markdown; either way the package is read-only to Syscribe and its elements merge into the graph like native ones. A package `_index.md` with **`foreignFormat: <alias>`** is handed to an external **stdio plugin** — any-language subprocess declared as `[plugins.<alias>]` in `.syscribe.toml`, which receives one JSON request on stdin and answers with an `{elements, diagnostics}` envelope (no sandbox; `timeout_ms` is the only enforced limit). A package with **`annotationFormat: <label>`** plus `marker:`/`include:`/`exclude:` is scanned in-process for **comment markers** in ordinary source files, each carrying literal frontmatter YAML. `plugins run` invokes one plugin live and prints its raw envelope; `annotations scan` scans one package in isolation — neither merges nor validates, so they are the authoring loop for a plugin or a marker. Codes: `E550`/`E551`/`W550`–`W553` (plugins), `E560`/`E561`/`W560`–`W563` (annotations), `E108` (duplicate qualified name, any origin). See [stdio plugins](../model-guide/stdio-plugins.md) and [annotated source](../model-guide/annotated-source.md).
+
+```bash
+syscribe -m examples/stdio-plugins/toy-python/model/ plugins run toydsl --dry-run
+```
+
 ## ReqIF export (`export-reqif`)
 
 ```bash
@@ -569,6 +588,20 @@ syscribe -m model/ trade-study [<TRD-id>] [--json]
 
 When the model contains `TradeStudy` elements (§15), lists them or prints one study's full **normalised, weighted, ranked** scoring table (computed, never written). Without `TradeStudy` elements, the command falls back to the MagicGrid MoE-weighted trade study (`--profile magicgrid`, REQ-TRS-MG-007). `template TradeStudy` prints a skeleton.
 
+## MagicGrid grid (`magicgrid`)
+
+```bash
+syscribe -m <root> magicgrid [--audit] [--json]
+syscribe -m <root> magicgrid --svg [-o <file>]
+```
+
+Buckets every element by its MagicGrid coordinate (`custom_fields: { mg_cell: <coord> }`) into the rows × pillars grid (B/W/S × 1–4) and prints it, flagging empty cells. `--audit` runs the gated MagicGrid validation and prints a one-screen findings/readiness summary with a PASS/FAIL verdict; `--svg` renders the grid as a standalone SVG (stdout, or `-o <file>`), usable as a `Diagram` companion. Read-only. See the [MagicGrid guide](../model-guide/magicgrid.md) and `syscribe help magicgrid`.
+
+```bash
+syscribe -m model_mg/ magicgrid
+syscribe -m model_mg/ magicgrid --audit
+```
+
 ## FMEA & fault trees (`fmea`, `fault-tree`)
 
 ```bash
@@ -576,7 +609,7 @@ syscribe -m model/ fmea report [--fmea-sheet <id>] [--json]
 syscribe -m model/ fault-tree render <FaultTree-id>
 ```
 
-`fmea report` rolls up the `FMEAEntry` rows (grouped by `FMEASheet`) — each entry's failure mode, severity/occurrence/detection ratings, computed **RPN**, and recommended actions. `--fmea-sheet <id>` restricts the report to a single sheet; `--json` emits the structured document. `fault-tree render <FaultTree-id>` prints one `FaultTree` as an indented gate/event tree (AND/OR gates, basic events with their `failureRate`/`diagnosticCoverage`); the same λ/DC data feeds the quantitative `metrics` rollup. Both are read-only. See the [safety-analysis guide](../model-guide/safety-analysis.md).
+`fmea report` rolls up the `FMEAEntry` rows (grouped by `FMEASheet`) — each entry's failure mode, severity/occurrence/detection ratings, computed **RPN**, and recommended actions. `--fmea-sheet <id>` restricts the report to a single sheet; `--json` emits the structured document. `fault-tree render <FaultTree-id>` prints one `FaultTree` as a Mermaid `flowchart TD` (gates with their AND/OR type, basic events with their ids and referenced elements, edges from each gate's `inputs`); the same λ/DC data feeds the quantitative `metrics` rollup. Both are read-only. See the [safety-analysis guide](../model-guide/safety-analysis.md).
 
 ## Diagrams (`render`, `diagram`, `plantuml`)
 
@@ -589,7 +622,7 @@ syscribe -m model/ plantuml [<qname>] [--output <file>|-] [--dry-run]   # genera
 syscribe -m model/ plantuml render [--jar <path>] [--dry-run]    # render .puml → .svg
 ```
 
-- **`render <diagram_path>`** renders a single `Diagram` element to stdout — Mermaid or SVG according to its `diagramKind`.
+- **`render <diagram_path>`** prints the diagram embedded in one `Diagram` element (addressed by file path) with element links injected: the ```` ```mermaid ```` block plus `click` directives for `diagramKind: Mermaid`, otherwise the embedded ```` ```svg ```` block with `<a href>` wrappers. It does not generate a diagram — `diagram` does.
 - **`diagram`** is the SVG toolkit (each subcommand takes `--output <file>` / `-o`, default stdout):
   - `diagram list [--type <T>] [--namespace <NS>]` — list candidate elements for diagram generation, filtered by comma-separated element types and/or a qualified-name prefix.
   - `diagram render <qname> [--view full|ports|features|compact|name|requirement] [--include-ports <csv>] [--include-features <csv>] [--min-width <N>]` — render one element with a view preset.
@@ -700,6 +733,37 @@ $ syscribe -m model/ find . --where custom.supplier                  # presence
 ```
 
 `=`, `=~`, `~=` and the bare presence form are the **only** operators. Any other spelling — `!=`, `==`, a bare `~`, `>`, `<`, `>=`, `<=` — is a usage error (exit `1`, a message listing the supported forms, nothing on stdout) rather than a predicate that silently matches nothing.
+
+---
+
+## Large-model overview & search (`stats`, `digest`, `search-text`, `summarize`, `topics`, `clusters`)
+
+Six read-only commands for getting oriented in a model too large to read file by file — typically an LLM agent facing tens of thousands of requirements. All are deterministic and offline (no network, no embeddings), accept the `--config <C>` projection lens, and have a `--json` form (each is also an MCP tool of the same name, `search-text` as `search_text`). Run `syscribe help <command>` for every option.
+
+```bash
+syscribe -m <root> stats [--json] [--group-by <facet>] [--where <predicate>]... [--status <s>] [--tag <t>] [--config <C>] [--package-top-n <N>]
+syscribe -m <root> digest [--json] [--limit <N>] [--offset <N>] [--where <predicate>]... [--status <s>] [--tag <t>] [--config <C>]
+syscribe -m <root> search-text <query> [--json] [--limit <N>] [--type <T>] [--status <s>] [--config <C>]
+syscribe -m <root> summarize [--json] [--scope <qname>] [--depth <N>] [--no-cache] [--config <C>]
+syscribe -m <root> topics [--json] [--top <N>] [--type <T>] [--config <C>]
+syscribe -m <root> clusters [--json] [--k <N>] [--type <T>] [--config <C>]
+```
+
+- **`stats`** — the shape of the requirement population in one call: histograms by `status`, `reqDomain`, `silLevel`, `asilLevel`, top-level package and `tags`, plus coverage (verified / unverified leaves / parents missing an integration test) and orphan rollups. `--group-by <facet>` crosses one facet with the package; `--where`/`--status`/`--tag` narrow the facet and orphan sets (coverage always reflects the full active model, so it agrees with `matrix`).
+- **`digest`** — the "dump the slice" companion to `stats`: one ~30-token row per Requirement (`id`, `name`, `status`, `reqDomain`, `sil`/`asil`, one-line text, `verified`), NDJSON by default, `--json` for a `{total, offset, rows}` page; page with `--limit`/`--offset`.
+- **`search-text`** — ranked full-text search (Okapi BM25) over element body + name, best-first with a snippet; use it to find elements by what they *say* (`find` matches identifiers). `--limit` defaults to 10.
+- **`summarize`** — a bottom-up per-package rollup: requirement count, status split, an "about" line of distinctive terms and a few representative one-line extracts, nested through the hierarchy. Extractive, not an LLM summary; each package's fields are cached by content hash under `<root>/.syscribe/cache/summaries.json` (`--no-cache` recomputes). `--scope` restricts to one package subtree (unknown → exit 1).
+- **`topics`** — per package, the TF-IDF terms that distinguish it from the rest of the corpus (`--top`, default 10; `--type`, default `Requirement`).
+- **`clusters`** — cross-package themes: k-means over TF-IDF cosine similarity with a fixed, reproducible initialisation (`--k`, default `min(8, n)`; `--k 0` → exit 1).
+
+```bash
+syscribe -m model/ stats --group-by status
+syscribe -m model/ digest --status approved --limit 100
+syscribe -m model/ search-text "flight controller failover" --limit 5
+syscribe -m model/ summarize --scope Requirements --depth 2
+syscribe -m model/ topics --top 5
+syscribe -m model/ clusters --k 6 --json
+```
 
 ---
 
@@ -925,8 +989,8 @@ A `TestPlan` (`type: TestPlan`, stable `TP-*` id) is a curated, per-product veri
 ```
 $ syscribe -m model/ testplan                                 # list every TestPlan
 $ syscribe -m model/ testplan --json
-$ syscribe -m model/ testplan TP-DELIVERY-INTEGRATION-001     # detail for one plan
-$ syscribe -m model/ testplan TP-DELIVERY-INTEGRATION-001 --json
+$ syscribe -m model/ testplan TP-TRS-MCP-001     # detail for one plan
+$ syscribe -m model/ testplan TP-TRS-MCP-001 --json
 ```
 
 - **List** — one row per plan: id, title, scope, bound configurations, effective-TestCase count, coverage %, and verdict.
@@ -941,9 +1005,9 @@ $ syscribe -m model/ testplan TP-DELIVERY-INTEGRATION-001 --json
 `matrix`, `verification-depth` and `audit` accept a `--plan TP-X` lens, symmetric to `--config`. On `matrix`/`verification-depth` it restricts the requirement rows to the plan's in-scope requirements and the TestCase universe to the plan's members. On `audit` it scopes the readiness verdict: validation runs over the **full** model (so no reference escaping the plan subset is mistaken for a defect) and only findings on the plan's in-scope elements count toward the verdict. It **composes** with `--config`, is dormant-safe, and exits `1` on an unknown plan id.
 
 ```
-$ syscribe -m model/ matrix --plan TP-DELIVERY-INTEGRATION-001
-$ syscribe -m model/ audit --plan TP-DELIVERY-INTEGRATION-001 --config CONF-X
-$ syscribe -m model/ verification-depth --plan TP-DELIVERY-INTEGRATION-001 --sil 4
+$ syscribe -m model/ matrix --plan TP-TRS-MCP-001
+$ syscribe -m model/ audit --plan TP-TRS-MCP-001 --config CONF-UAV-DELIVERY-001
+$ syscribe -m model/ verification-depth --plan TP-TRS-MCP-001 --sil 4
 ```
 
 ---
@@ -1109,9 +1173,9 @@ $ syscribe -m model/ follow <elem> <link> [--reverse] [--transitive] [--depth N]
 An unknown element or link name exits non-zero; an unknown link name prints the available names.
 
 ```
-$ syscribe -m model/ follow Architecture::WatchdogMonitor mitigates
-$ syscribe -m model/ follow REQ-BRK-003 mitigatedBy --format json
-$ syscribe -m model/ follow REQ-BRK-001 derivedChildren --depth 3 --format dot | dot -Tsvg > tree.svg
+$ syscribe -m examples/link-types/model/ follow Architecture::WatchdogMonitor mitigates
+$ syscribe -m examples/link-types/model/ follow REQ-BRK-003 mitigatedBy --format json
+$ syscribe -m examples/link-types/model/ follow REQ-BRK-001 derivedChildren --depth 3 --format dot | dot -Tsvg > tree.svg
 ```
 
 ### List the project's link types (`link-types`)
@@ -1123,6 +1187,41 @@ $ syscribe -m model/ link-types [--json]
 Lists every valid `[linkTypes.<name>]` declaration in `.syscribe.toml` — description, inverse, `extends` base and relaxed codes, coverage, source → target types, cardinality, `acyclic`, `suspect` — with the number of instances in the model. Entries rejected with `W630` are not listed as usable. With none declared it says so, shows how to declare one, and exits zero. This is the command an LLM authoring agent should run before writing any `links:` entry (MCP equivalent: the read-only `link_types` tool; `follow` is also exposed over MCP).
 
 Custom links also appear in `links` (outbound under the type name, inbound under its `inverse`), `refs`, `trace`, `show`, and `impact` (whose `--kinds` accepts custom type names).
+
+---
+
+## Suspect links (`suspect`)
+
+```bash
+syscribe -m <root> suspect list
+syscribe -m <root> suspect accept <source> <target>
+syscribe -m <root> suspect accept --all
+syscribe -m <root> suspect accept --all-unbaselined
+```
+
+A **suspect link** is a trace link whose target changed after the link was last reviewed. Review stores a baseline — a BLAKE3 hash of the target's normative projection (body + normative frontmatter; editorial fields such as `name` and `extRef` excluded) — on the *source* element, in `traceBaselines:`. `validate` recomputes it and reports a mismatch as **`W090`** (gate CI with `validate --deny W090`). Detection is opt-in: an unbaselined link is never flagged by `validate`, only listed by `suspect list`, which reports every suspect and every unbaselined link. `suspect accept <source> <target>` re-baselines one reviewed link; `--all` re-baselines every currently-suspect link; `--all-unbaselined` is the one-time onboarding switch that baselines every link with no baseline yet and never overwrites an existing one. User-defined `links:` take part unless their link type sets `suspect = false`. MCP: `suspect_list` and the guarded `suspect_accept`. See [suspect links](../design/suspect-links.md).
+
+```bash
+syscribe -m model/ suspect list
+syscribe -m model/ suspect accept TC-UAV-CARGO-001 REQ-UAV-CARGO-001
+```
+
+## Release baselines (`baseline`)
+
+```bash
+syscribe -m <root> baseline create --tag <tag> [--name <n>] [--approver <a>] [--frozen-scope <sel>] [--id <BL-id>] [--allow-dirty] [--require-reviewed]
+syscribe -m <root> baseline verify <BL-id> | --all
+syscribe -m <root> baseline diff <BL-A> <BL-B> [--detail]
+syscribe -m <root> baseline list
+syscribe -m <root> baseline show <BL-id>
+```
+
+A `Baseline` (`BL-*`) freezes a scope of the model into a git-anchored, content-hashed snapshot — the artifact an assessor points at. `create` hashes every in-scope element, seals the aggregate, records the current `HEAD` (a clean work tree is required unless `--allow-dirty`), and writes the `Baseline` element (`model/Baselines/<id>.md`) plus a JSON manifest (`<git-root>/baselines/<id>.manifest.json`); both locations are configurable under `[baselines]` in `.syscribe.toml`. `--frozen-scope` takes `;`-separated clauses (`package=`, `types=`, `status=`, `tags=`, `config=` for a projected variant, `closureFrom=` for a trace closure); omitted, the whole model is frozen. `validate` re-checks every seal: drift is `E520` on a `released` baseline, `W520` on `approved`, silent on `draft`; seal/manifest tamper is `E521`, an unresolved `supersedes:` `E522`. `verify` recomputes seals and checks the git tag, `diff` reports element-level adds/removes/changes (`--detail` reconstructs field changes via `git show`). MCP exposes `baseline_list`/`baseline_verify`/`baseline_diff` read-only; sealing stays a CLI/CI action. See `syscribe help baseline`.
+
+```bash
+syscribe -m model/ baseline list
+syscribe -m model/ baseline verify --all
+```
 
 ---
 
@@ -1354,7 +1453,7 @@ See the [LLM Workflow guide](../model-guide/llm-workflow.md) for the full eight-
 | `show <qname>` | Full element fields and doc | To read an element before modifying it |
 | `trace <req-id>` | Parents, ADR, safety goal, satisfiers, test cases | Impact analysis before changing a requirement |
 | `links <qname>` | All outbound and inbound relationships | Impact analysis before changing an element |
-| `path-for <qname\|id>` | Absolute file path | To open or overwrite the file for an element |
+| `path-for <qname\|id>` | File path (the `-m` root as given + the element's path) | To open or overwrite the file for an element |
 | `list <type> [scope]` | All elements of a type, optionally scoped | To enumerate IDs in use before authoring |
 | `features` | The feature model as a tree (groupKind, constraints, params, config rollup) | To survey a product line's variation points |
 | `feature <qname>` | One feature's card: constraints, params, configs, gated elements | To see what a feature means and gates |
@@ -1375,22 +1474,32 @@ syscribe -m model/ mcp --read-only  # read/query only (write tools hidden)
 Register it with Claude Code:
 
 ```bash
-claude mcp add syscribe -- /abs/path/to/syscribe mcp -m /abs/path/to/model
+claude mcp add syscribe -- /abs/path/to/syscribe -m /abs/path/to/model mcp
 ```
 
-It exposes **37 structured tools** (31 read-only + 6 guarded writes); references are accepted as id / qualified-name / display-name, and write tools are `dry_run`-by-default with a new-error commit gate. Run **`syscribe help mcp`** for the full, current tool list. By category:
+It exposes structured read tools and a small set of guarded-write tools; references are accepted as id / qualified-name / display-name, and write tools are `dry_run`-by-default with a new-error commit gate. Run **`syscribe help mcp`** for the full, current tool list (kept in sync with the server by a test). By category:
 
 | Category | Tools |
 |---|---|
-| Navigate / query | `get_element`, `search`, `list_by_type`, `tree`, `neighbors`, `graph_query`, `trace`, `impact`, `validate`, `validate_element`, `reload` |
+| Navigate / query | `get_element`, `search`, `list_by_type`, `tree`, `neighbors`, `graph_query`, `trace`, `impact`, `link_types`, `follow`, `validate`, `validate_element`, `reload` |
+| Large-model overview & search | `stats`, `digest`, `search_text`, `summarize`, `topics`, `clusters` |
+| Suspect links & baselines | `suspect_list`, `baseline_list`, `baseline_verify`, `baseline_diff` |
 | Authoring helpers | `describe_type`, `template`, `explain_finding`, `check_ref`, `next_id`, `coverage` |
 | Variability | `features`, `feature_check`, `configure`, `project`, `diff_configs`, `why_active` |
 | Evidence & coverage | `coverage_matrix`, `coverage_gaps`, `evidence` |
 | Diagram / doc integrity | `lint_docs`, `render_diagram`, `diagram_coverage`, `generate_view` |
 | Report passthrough | `run_report` (allowlisted, read-only reports) |
-| Guarded writes | `create_element`, `update_element`, `move_element`, `delete_element`, `apply_changes`, `ingest_results` |
+| Guarded writes | `create_element`, `update_element`, `move_element`, `delete_element`, `apply_changes`, `ingest_results`, `suspect_accept` |
 
-It also serves the format spec, project config, and each element as **resources**; offers element-reference **completion**; and exposes authoring **prompts** (`create-model`, `add-requirement`, `break-down-requirement`, `add-testcase-for`, `traceability-review`).
+It also serves the format spec, project config, and each element as **resources**; offers element-reference **completion**; and exposes authoring **prompts** (`create-model`, `create-magicgrid-model`, `add-requirement`, `break-down-requirement`, `add-testcase-for`, `traceability-review`).
+
+### The built-in language server (`syscribe lsp`)
+
+```bash
+syscribe -m <root> lsp
+```
+
+`syscribe lsp` is a Language Server Protocol server over stdio (`Content-Length`-framed JSON-RPC), spawned by an editor's LSP client for the model bound at `-m`. It speaks only standard LSP methods, so any LSP-capable editor works: diagnostics (the validator's findings, on open and after each save-triggered reload), go to definition, find references, hover, workspace symbols, field-aware completion for cross-reference fields and `type:`/`status:`, stable-id rename (returned as a `WorkspaceEdit`, validated in memory first), a code lens with `verifiedBy`/`derivedChildren`/suspect-link counts, and quick fixes for `E310` (set `breakdownAdr:`) and `W090` (accept a suspect link, via the `syscribe.suspectAccept` command). It validates saved content, not unsaved buffers. See `syscribe help lsp`.
 
 ### Wrapping CLI commands instead
 

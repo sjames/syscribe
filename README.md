@@ -69,7 +69,7 @@ The safety monitor shall perform a complete supervision cycle within 100 ms...
 - **200+ validation rules** across parse-time, cross-reference, safety/security, behavior, and composition: cross-reference resolution, integrity level consistency, diagram annotation, documentation completeness
 - **Suspect links** — content-baseline (`traceBaselines:`, BLAKE3) detection of *stale* trace links: when a reviewed relationship's target changes, it surfaces as `W090` and is cleared by re-review (`suspect accept`)
 - **Release baselines** — first-class, git-anchored, content-hashed frozen release snapshots (`Baseline`, `BL-*`) with drift detection, scoped to the whole model, a package, a product-line variant, or a safety goal's trace closure
-- **MCP server** — `syscribe mcp` exposes 48 tools to LLM agents: read/query/trace/validate plus *guarded* writes (dry-run → validation delta → referential-integrity commit gate)
+- **MCP server** — `syscribe mcp` exposes structured tools to LLM agents: read/query/trace/validate plus *guarded* writes (dry-run → validation delta → referential-integrity commit gate)
 - **Diagrams** — server-rendered SVG, client-side Mermaid, an interactive canvas, and PlantUML companion generation/rendering
 - **Coverage & product-line matrices** — Requirement × Configuration coverage grids, variant-aware verification depth, SAT-backed feature analysis
 - **LLM-scale corpus tools** — `stats` / `digest` / `search-text` / `summarize` / `topics` / `clusters` for navigating large models, plus `impact` change analysis and ReqIF/SBOM export
@@ -101,7 +101,7 @@ Together these turn a git-controlled model into an **audit trail**: every relati
 Syscribe is a [Model Context Protocol](https://modelcontextprotocol.io) server, so an LLM agent works with the model as a first-class client — reading, analyzing, and *safely writing* it — not just generating files from a prompt.
 
 ```bash
-syscribe -m model_auto/ mcp                # stdio MCP server (48 tools)
+syscribe -m model_auto/ mcp                # stdio MCP server (`syscribe help mcp` lists the tools)
 syscribe -m model_auto/ mcp --read-only    # analysis only; write tools hidden & refused
 ```
 

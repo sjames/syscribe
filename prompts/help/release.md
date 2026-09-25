@@ -12,8 +12,9 @@ handoff to another agent. Clears both fields regardless of the item's current
     --dry-run   Preview the unified diff without writing.
 
 ## EXAMPLES
-    syscribe -m model/ release PI-HPLE-001
-    syscribe -m model/ release PI-HPLE-001 --dry-run
+    # against the bundled PlanningItem example (examples/planning-item/model/)
+    syscribe -m examples/planning-item/model/ release PI-RTH-DOCS-001
+    syscribe -m examples/planning-item/model/ release PI-RTH-DOCS-001 --dry-run
 
 ## SEE ALSO
     claim, set, show

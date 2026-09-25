@@ -21,8 +21,9 @@ raise `W311` on the next `validate` — the same signal, surfaced automatically.
     --dry-run         Preview the unified diff without writing.
 
 ## EXAMPLES
-    syscribe -m model/ claim PI-HPLE-001 --by agent-session-01VRUS
-    syscribe -m model/ claim PI-HPLE-001 --by agent-session-01VRUS --dry-run
+    # against the bundled PlanningItem example (examples/planning-item/model/)
+    syscribe -m examples/planning-item/model/ claim PI-RTH-DOCS-001 --by agent-session-01VRUS
+    syscribe -m examples/planning-item/model/ claim PI-RTH-DOCS-001 --by agent-session-01VRUS --dry-run
 
 ## SEE ALSO
     release, set, show

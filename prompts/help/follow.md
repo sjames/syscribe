@@ -2,7 +2,7 @@
 
 ## SYNOPSIS
     syscribe -m <root> follow <qname|id> <link> [--reverse] [--transitive]
-                                          [--depth <N>] [--format text|json|dot]
+                                          [--depth <N>] [--format text|json|dot] [--json]
 
 ## DESCRIPTION
 Walks a single named relationship from an element and reports every element it
@@ -32,6 +32,7 @@ never reported. Cycles terminate.
     --transitive    Follow to a fixed point (default: one hop).
     --depth N       Bound the traversal to N hops (implies --transitive).
     --format F      text (default) | json | dot (Graphviz digraph).
+    --json          Shorthand for --format json.
 
 JSON shape:
     {"start": <id|qname>, "link": <name>, "direction": "forward"|"reverse",
@@ -43,10 +44,11 @@ JSON shape:
     2  usage error, or an unknown link name (the available names are printed)
 
 ## EXAMPLES
-    syscribe -m model/ follow Arch::BrakeMonitor mitigates
-    syscribe -m model/ follow REQ-HAZ-001 mitigatedBy
-    syscribe -m model/ follow REQ-SYS-001 derivedChildren --transitive --format json
-    syscribe -m model/ follow REQ-SYS-001 dependsOn --depth 2 --format dot
+    # against the bundled link-types example (examples/link-types/model/)
+    syscribe -m examples/link-types/model/ follow Architecture::WatchdogMonitor mitigates
+    syscribe -m examples/link-types/model/ follow REQ-BRK-003 mitigatedBy
+    syscribe -m examples/link-types/model/ follow REQ-BRK-001 derivedChildren --transitive --format json
+    syscribe -m examples/link-types/model/ follow REQ-BRK-004 conflictsWith --depth 2 --format dot
 
 ## SEE ALSO
     link-types, links, impact, trace, refs

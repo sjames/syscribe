@@ -1,9 +1,10 @@
 # magicgrid — MagicGrid B/W/S × 1-4 cell report
 
-```
-syscribe -m <root> magicgrid [--audit] [--json]
-syscribe -m <root> magicgrid --svg [-o <file>]
-```
+## SYNOPSIS
+    syscribe -m <root> magicgrid [--audit] [--json]
+    syscribe -m <root> magicgrid --svg [-o <file>]
+
+## DESCRIPTION
 
 Without `--audit`: bucket every model element by its MagicGrid overlay coordinate
 (`custom_fields: { mg_cell: <coord> }`) into the defining rows × pillars grid and
@@ -75,19 +76,17 @@ It is intended as a **`Diagram` companion**: write it as `<Name>.svg` next to a
 in the browser/detail view like any other diagram:
 
 ```
-syscribe -m model/ magicgrid --svg -o model/Views/MagicGrid.svg
-# Views/MagicGrid.md  →  { type: Diagram, name: MagicGrid, svgMode: companion }
+syscribe -m model_mg/ magicgrid --svg -o model_mg/Views/MagicGrid.svg
+# model_mg/Views/MagicGrid.md  →  { type: Diagram, name: MagicGrid, svgMode: companion }
 ```
 
-## Examples
-
-```
-syscribe -m model/ magicgrid
-syscribe -m model/ magicgrid --json
-syscribe -m model/ magicgrid --audit
-syscribe -m model/ magicgrid --audit --json
-syscribe -m model/ magicgrid --svg
-syscribe -m model/ magicgrid --svg -o model/Views/MagicGrid.svg
-```
+## EXAMPLES
+    # against the bundled MagicGrid model (model_mg/)
+    syscribe -m model_mg/ magicgrid
+    syscribe -m model_mg/ magicgrid --json
+    syscribe -m model_mg/ magicgrid --audit
+    syscribe -m model_mg/ magicgrid --audit --json
+    syscribe -m model_mg/ magicgrid --svg
+    syscribe -m model_mg/ magicgrid --svg -o model_mg/Views/MagicGrid.svg
 
 See also: `matrix --allocations`, `trade-study`, `validate --profile magicgrid`.

@@ -33,7 +33,7 @@ clean run.
 ## EXAMPLES
     syscribe -m model/ lint-docs docs/
     syscribe -m model/ lint-docs docs/ --json
-    syscribe -m model/ lint-docs docs/architecture.svg
+    syscribe -m model/ lint-docs docs/demo-model/PowerSystemIBD.svg
 
     # Also fail on package _index.md files that hand-enumerate their members
     syscribe -m model/ lint-docs model/ --deny W103

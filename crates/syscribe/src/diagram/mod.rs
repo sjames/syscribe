@@ -325,3 +325,27 @@ fn view_from_matches(m: &clap::ArgMatches) -> ViewConfig {
         ibd: false,
     }
 }
+
+#[cfg(test)]
+mod help_page_tests {
+    /// `syscribe help diagram` (prompts/help/diagram.md) documents every `diagram`
+    /// subcommand and every long option of each, so the page cannot fall behind the
+    /// clap definition again.
+    #[test]
+    fn help_page_covers_every_subcommand_and_option() {
+        const PAGE: &str = include_str!("../../../../prompts/help/diagram.md");
+        let cli = super::build_cli();
+        for sub in cli.get_subcommands() {
+            let name = sub.get_name();
+            assert!(PAGE.contains(&format!("diagram {name}")), "diagram.md does not document `diagram {name}`");
+            for arg in sub.get_arguments() {
+                if let Some(long) = arg.get_long() {
+                    assert!(
+                        PAGE.contains(&format!("--{long}")),
+                        "diagram.md does not document `diagram {name} --{long}`"
+                    );
+                }
+            }
+        }
+    }
+}

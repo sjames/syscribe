@@ -16,9 +16,9 @@ First-order FMEDA approximation — verify independently before use in a safety 
     --json         Emit {id, asil, sil, spfm, lfm, pmhf, pass} array.
 
 ## EXAMPLES
-    syscribe -m model/ metrics
+    syscribe -m model_auto/ metrics
     syscribe -m model_sil/ metrics --json
-    syscribe -m model_sil/ metrics --config CONF-LM3S-QEMU-001   # variant-scoped
+    syscribe -m <root> metrics --config <CONF-id>   # variant-scoped (needs a product line)
 
 ## NOTES
 Inputs: FaultTreeEvent.failureRate (λ/h), diagnosticCoverage, latentDiagnostic-

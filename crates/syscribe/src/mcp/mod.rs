@@ -3153,3 +3153,43 @@ mod catalogue_tests {
         assert!(e3.contains("RETIRED"), "{e3}");
     }
 }
+
+#[cfg(test)]
+mod help_page_tests {
+    //! `prompts/help/mcp.md` (`syscribe help mcp`) documents the live tool surface:
+    //! every advertised tool, every write tool in the guarded-write section, and every
+    //! `run_report` allowlisted command.
+    use super::{SyscribeMcp, REPORT_ALLOWLIST, WRITE_TOOLS};
+
+    const PAGE: &str = include_str!("../../../../prompts/help/mcp.md");
+
+    #[test]
+    fn every_advertised_tool_is_documented() {
+        let tools = SyscribeMcp::tool_router().list_all();
+        assert!(tools.len() > 40, "unexpectedly small tool surface: {}", tools.len());
+        let missing: Vec<String> = tools
+            .iter()
+            .map(|t| t.name.to_string())
+            .filter(|n| !PAGE.contains(&format!("`{n} {{")) && !PAGE.contains(&format!("`{n}`")))
+            .collect();
+        assert!(missing.is_empty(), "MCP tools missing from prompts/help/mcp.md: {missing:?}");
+    }
+
+    #[test]
+    fn write_tools_are_listed_under_guarded_writes() {
+        let section = PAGE.split("## Guarded-write tools").nth(1).expect("guarded-write section");
+        let section = section.split("\n## ").next().unwrap_or("");
+        for w in WRITE_TOOLS {
+            assert!(section.contains(&format!("`{w} {{")), "write tool {w} not listed under Guarded-write tools");
+        }
+    }
+
+    #[test]
+    fn run_report_allowlist_is_documented() {
+        let para = PAGE.split("`run_report {").nth(1).expect("run_report entry");
+        let para = para.split("\n## ").next().unwrap_or("");
+        for c in REPORT_ALLOWLIST {
+            assert!(para.contains(&format!("`{c}`")), "run_report allowlist entry {c} not documented");
+        }
+    }
+}

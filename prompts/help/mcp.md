@@ -1,18 +1,20 @@
 # mcp — run an MCP server over stdio for LLM clients
 
-`syscribe mcp -m <model>` starts a Model Context Protocol (MCP) server that
+`syscribe -m <root> mcp` starts a Model Context Protocol (MCP) server that
 speaks newline-delimited JSON-RPC 2.0 over **stdio**. It lets an MCP-capable LLM
 client query and guard-write the Syscribe model bound at `-m`.
 
-## Usage
+## SYNOPSIS
+    syscribe -m <root> mcp [--read-only]
 
-    syscribe -m <model> mcp [--read-only]
+## USAGE
 
 The server runs until its stdin is closed. It is intended to be spawned by an
 MCP client (an editor, an agent runtime, …), not invoked interactively.
 
-- `--read-only` starts the server with the six write tools hidden and rejected;
-  the full read/query surface stays available.
+- `--read-only` starts the server with the guarded-write tools (listed under
+  **Guarded-write tools** below) hidden and rejected; the full read/query surface
+  stays available.
 - The server advertises `tools`, `resources`, `prompts`, `completions`, and
   `logging` capabilities, and emits a `resources/list_changed` notification after
   any committed write or a `reload`.
@@ -61,6 +63,30 @@ stable id, a qualified name, or a display name. List/grid tools accept
 - `diff_configs {a, b}` — elements active only in A vs only in B.
 - `why_active {ref, config}` — whether/why an element is active in a variant.
 
+## Read tools — large-model overview & search
+
+These mirror the CLI corpus commands of the same name (`--json` output).
+
+- `stats {group_by?, where?, status?, tag?, config?}` — per-facet histograms plus
+  coverage and orphan rollups; the fast first look at a large requirement set.
+- `digest {where?, status?, tag?, config?, limit?, offset?}` — one compact row per
+  Requirement, paginated (narrow with `stats`, then page rows here).
+- `search_text {query, type?, status?, config?, limit?}` — BM25 full-text search
+  over element body + name (use `search` to match identifiers).
+- `summarize {scope?, depth?, no_cache?, config?}` — bottom-up per-package rollup
+  with extractive one-line summaries.
+- `topics {type?, top?, config?}` — distinctive per-package keywords (TF-IDF).
+- `clusters {k?, type?, config?}` — topical k-means clusters across packages.
+
+## Read tools — suspect links & release baselines
+
+- `suspect_list {include_unbaselined?}` — suspect trace links (the `W090` set)
+  and, by default, links with no baseline yet.
+- `baseline_list {}` — every release Baseline (`BL-*`) with its seal metadata.
+- `baseline_verify {ref?}` — recompute and check one baseline's seal (or all).
+- `baseline_diff {from, to}` — element-level added / removed / changed between two
+  baselines. Sealing a baseline stays a CLI/CI action (`baseline create`).
+
 ## Read tools — evidence & coverage
 
 - `coverage_matrix {config?, status?, tag?, gaps_only?, linked_only?, limit?, offset?}`
@@ -85,10 +111,11 @@ stable id, a qualified name, or a display name. List/grid tools accept
 ## Read tools — report passthrough
 
 - `run_report {command, args?, format?}` — run an allowlisted, read-only report
-  command (`audit`, `matrix`, `metrics`, `cyber-risk`, `safety-case`, `fmea`,
-  `fault-tree`, `zones`, `conduits`, `co-analysis`, `sbom`, `n2`, `impact`,
-  `behavioral-coverage`, `trade-study`, `verification-depth`, `testplan`,
-  `magicgrid`, `lint-docs`) confined to the served model root.
+  command (`audit`, `stats`, `digest`, `summarize`, `matrix`, `magicgrid`,
+  `trade-study`, `verification-depth`, `testplan`, `metrics`, `cyber-risk`,
+  `co-analysis`, `safety-case`, `behavioral-coverage`, `sbom`, `zones`,
+  `conduits`, `n2`, `fmea`, `fault-tree`, `impact`, `lint-docs`) confined to the
+  served model root.
 
 ## Guarded-write tools
 
@@ -112,6 +139,9 @@ model root. (Hidden under `--read-only`.)
   `junit` report and merge it into the `.syscribe/results.json` verdict sidecar
   (replaces the function-level verdicts, keeps any session-log ones); dry-run
   returns the verdict delta.
+- `suspect_accept {source, target, dry_run?}` — baseline one reviewed trace link
+  (capture the target's content hash into the source's `traceBaselines:`); a
+  cleared link's `W090` is reported under `resolvedWarnings`.
 
 ## Resources & prompts
 

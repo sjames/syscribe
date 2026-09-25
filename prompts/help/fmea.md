@@ -17,9 +17,10 @@ named sheet.
     --json                  Emit a JSON array of FMEA entry objects.
 
 ## EXAMPLES
-    syscribe -m model/ fmea report
-    syscribe -m model/ fmea report --fmea-sheet FM-KERN
-    syscribe -m model/ fmea report --json
+    # against the bundled automotive model (model_auto/)
+    syscribe -m model_auto/ fmea report
+    syscribe -m model_auto/ fmea report --fmea-sheet FMEA-ENG-001
+    syscribe -m model_auto/ fmea report --json
 
 ## SEE ALSO
     fault-tree, validate, spec safety

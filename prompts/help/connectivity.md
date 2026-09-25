@@ -2,7 +2,7 @@
 
 ## SYNOPSIS
     syscribe -m <root> connectivity <element>
-        [--depth N] [--format text|dot|json] [--kinds <csv>] [--undirected]
+        [--depth N] [--format text|dot|json] [--json] [--kinds <csv>] [--undirected]
 
 ## DESCRIPTION
 Walks outward from <element> over the connection/typing/containment graph and
@@ -11,7 +11,9 @@ the model-root element dumps the whole model.
 
 ## OPTIONS
     --depth N        Bound the walk to N hops (default: unbounded).
-    --format <fmt>   text (indented tree, default) · dot (styled Graphviz) · json ({nodes,edges}).
+    --format <fmt>   text (indented tree, default) · dot (styled Graphviz) ·
+                     json ({root, nodes, edges}).
+    --json           Shorthand for --format json.
     --kinds <csv>    Edge kinds to follow (connection,flow,binding,contains,typedBy,…).
     --undirected     Follow edges in both directions.
 

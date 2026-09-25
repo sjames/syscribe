@@ -18,8 +18,8 @@ recursive form, use `tree`.
 
 ## EXAMPLES
     syscribe -m model/ ls
-    syscribe -m model/ ls System::Software
-    syscribe -m model/ ls --where custom.supplier=Bosch
+    syscribe -m model/ ls UAV::Avionics
+    syscribe -m model_mg/ ls SolutionDomain::PhysicalComponents --where custom.mg_layer=physical
 
 ## SEE ALSO
     tree, show

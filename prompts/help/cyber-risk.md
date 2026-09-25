@@ -15,9 +15,9 @@ riskTreatment, whether it is addressed by a CybersecurityGoal, and a flag
     --json         Emit {id, severity, feasibility, risk, treatment, addressed, flag} array.
 
 ## EXAMPLES
-    syscribe -m model/ cyber-risk
-    syscribe -m model/ cyber-risk --json
-    syscribe -m model/ cyber-risk --config CONF-CONNECTED-001   # variant-scoped
+    syscribe -m model_auto/ cyber-risk
+    syscribe -m model_auto/ cyber-risk --json
+    syscribe -m <root> cyber-risk --config <CONF-id>   # variant-scoped (needs a product line)
 
 ## NOTES
 An untreated high/critical threat raises W031, and a CybersecurityGoal with a

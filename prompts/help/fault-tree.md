@@ -15,7 +15,8 @@ the gate `inputs` list.
     render <FaultTree-id>   Emit Mermaid flowchart for the named FaultTree.
 
 ## EXAMPLES
-    syscribe -m model/ fault-tree render FT-BRAKE-001
+    # against the bundled automotive model (model_auto/)
+    syscribe -m model_auto/ fault-tree render FT-ENG-001
 
 ## SEE ALSO
     fmea, validate, spec safety

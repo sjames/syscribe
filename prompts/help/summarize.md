@@ -23,7 +23,7 @@ hash of its subtree, so unchanged subtrees are served from cache (incremental).
 
 ## EXAMPLES
     syscribe -m model/ summarize
-    syscribe -m model/ summarize --scope VehicleSystem --depth 2
+    syscribe -m model/ summarize --scope Requirements --depth 2
     syscribe -m model/ summarize --json
 
 ## EXIT CODES

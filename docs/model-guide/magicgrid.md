@@ -89,8 +89,8 @@ it render in the browser like any other diagram:
 
 ```bash
 syscribe -m model_mg/ magicgrid --svg                       # SVG to stdout
-syscribe -m model_mg/ magicgrid --svg -o Views/MagicGrid.svg
-# Views/MagicGrid.md → { type: Diagram, name: MagicGrid, svgMode: companion }
+syscribe -m model_mg/ magicgrid --svg -o model_mg/Views/MagicGrid.svg
+# model_mg/Views/MagicGrid.md → { type: Diagram, name: MagicGrid, svgMode: companion }
 ```
 
 Under `validate --profile magicgrid`, an unrecognised coordinate is `MG020` and a

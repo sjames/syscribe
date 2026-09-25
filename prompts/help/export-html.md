@@ -6,9 +6,10 @@ works directly from `file://` — no web server, no network access. Every asset
 path, so the output directory can be zipped, copied, or opened straight from
 disk.
 
-## Usage
+## SYNOPSIS
+    syscribe -m <root> export-html [--out <dir>] [--css <file>]
 
-    syscribe -m <model> export-html [--out <dir>] [--css <file>]
+## OPTIONS
 
   --out <dir>     Output directory (default: `html`). Created if missing.
   --css <file>    Use this CSS file verbatim as the site stylesheet instead of
