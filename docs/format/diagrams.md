@@ -110,7 +110,6 @@ and other Markdown renderers. `syscribe plantuml` injects a Markdown image link
 automatically if the body has no image reference yet. Both `![name](path.svg)` and
 `<img src="path.svg">` satisfy W413.
 
-<!-- syscribe-example: expect W406 reason="GH #158: W406 wrongly checks pumlMode: companion diagrams for inline SVG ids" -->
 ```yaml
 ---
 type: Diagram

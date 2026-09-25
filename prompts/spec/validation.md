@@ -294,8 +294,8 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W403` | Edge `source`/`target` is not a defined shape id in this diagram |
 | `W404` | An operation parameter's `typedBy` or an operation's `returnType` does not resolve to a known element (a warning, since standard-library types may be unregistered) |
 | `W405` | SVG body is inconsistent with `svgMode` |
-| `W406` | Frontmatter `shapes`/`edges` id has no matching `id="..."` in the inline SVG |
-| `W407` | SVG element `id` has no matching frontmatter `shapes`/`edges` entry |
+| `W406` | Frontmatter `shapes`/`edges` id has no matching `id="..."` in the inline SVG — checked only when the diagram's SVG is inline (not for `pumlMode: companion`, `svgMode: companion`/`svgFile:`, Mermaid/PlantUML kinds, or a `layout:` diagram with no ` ```svg ` block) |
+| `W407` | Inline SVG element `id` has no matching frontmatter `shapes`/`edges` entry (same inline-SVG scope as `W406`) |
 | `W408` | Mermaid `%% ref:` annotation does not resolve to a known element |
 | `W409` | Mermaid diagram has no `%% ref:` annotations |
 | `W410` | Mermaid `%% link:` annotation does not resolve to a known element |
