@@ -52,7 +52,7 @@ repoImports:
 ---
 ```
 
-This mounts the peer's `BrakeSystem` at `Integration::Brakes`. A reference written through the mount — `<package>::<as>::X` — denotes the peer's `<qname>::X` (`Integration::Brakes::REQ-BRK-001` → the peer's `BrakeSystem::REQ-BRK-001`) for every cross-reference field that resolves across repos: `verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:`, `supertype:`, `typedBy:` (incl. inline `features:`), `subsets:`, `redefines:`. The peer-native qualified name and the global stable id keep working. A mount on the model-root package is just `<as>`; when two mounts nest, the longer (more specific) one applies. A mounted reference that names nothing in that peer is `E512`.
+This mounts the peer's `BrakeSystem` at `Integration::Brakes`. A reference written through the mount — `<package>::<as>::X` — denotes the peer's `<qname>::X` (`Integration::Brakes::REQ-BRK-001` → the peer's `BrakeSystem::REQ-BRK-001`) for every cross-reference field that resolves across repos: `verifies:`, `derivedFrom:`, `satisfies:`, `allocatedTo:`, `supertype:`, `typedBy:` (incl. inline `features:`), `subsets:`, `redefines:` — and, for hierarchical product lines (§7), `subConfigurations:` entries and the `<FeatureDef>` part of cross-tier `parameterBindings:` keys. The peer-native qualified name and the global stable id keep working. A mount on the model-root package is just `<as>`; when two mounts nest, the longer (more specific) one applies. A mounted reference that names nothing in that peer is `E512`.
 
 ```yaml
 # Integration/TC-INT-002.md — all three forms reach the same peer requirement
@@ -144,3 +144,18 @@ See the [Rule Reference](../validation/rules.md#multi-repository-composition-e51
 ## 7. Building a product line *of* product lines — `subConfigurations:`
 
 `[repos]`/`repoImports:` above let one model *reference* elements in a peer repo. A `Configuration` can additionally *consolidate* another repo's already-configured product line into its own via `subConfigurations:` — a prime integrator assembling a vehicle line from a battery-pack line, itself assembled from a cell-chemistry line, each maintained independently. This is a distinct, opt-in capability layered on top of everything above it (§9.7/§14.7 in the spec); see the [Variability guide §5](variability.md#hierarchical-composition) for the full treatment and `examples/hple-multitier/` for a worked example.
+
+A `subConfigurations:` entry and the `<FeatureDef>` part of a cross-tier `parameterBindings:` key may be written through a `repoImports:` mount path, exactly like the reference fields in §2 (GH #146):
+
+```yaml
+# pack/model/Vendor/_index.md mounts the cell repo:
+#   repoImports: [{repo: cell, qname: Configurations, as: CellConfs},
+#                 {repo: cell, qname: Features,       as: CellFeatures}]
+type: Configuration
+id: CONF-PACK-001
+subConfigurations: Vendor::CellConfs::CONF-CELL-001       # -> the cell repo's Configurations::CONF-CELL-001
+parameterBindings:
+  Vendor::CellFeatures::Cell.capacityAh: 50                # -> the cell repo's Features::Cell.capacityAh
+```
+
+A mount path that names nothing in its peer is `E516`. Each tier's keys resolve through **that tier's own** mounts, so a higher tier sees a parameter the pack tier closed through `Vendor::CellFeatures` as already bound (`E523` if it binds it again; not reported open by `W513`).

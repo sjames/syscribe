@@ -420,14 +420,14 @@ A `Configuration` may declare `subConfigurations:` naming one or more other `Con
 
 | Code | Condition |
 |---|---|
-| `E516` | A `subConfigurations:` entry does not resolve to any element, locally or in a loaded peer repo |
+| `E516` | A `subConfigurations:` entry does not resolve to any element, locally or in a loaded peer repo (by peer-native qname, stable id, or `repoImports:` mount path — a mount path naming nothing in its peer) |
 | `E517` | A `subConfigurations:` entry resolves to a real element that is not a `Configuration` |
 | `E518` | A `subConfigurations:` entry resolves to a `Configuration` that is not itself internally valid (a validation error, a void feature model, or `feature-check --deep`'s `E225`) — or the chain exceeds the bounded consolidation depth |
 | `E519` | A `parameterBindings:` entry resolved transitively through `subConfigurations:` targets a `FeatureDef` the owning peer `Configuration` does not itself select — the cross-tier extension of `E203` |
 | `E523` | A transitively-resolved `parameterBindings:` entry double-binds a parameter some nearer tier on the path — local or peer, the owner itself or an intermediate consolidator — already supplies |
 | `W513` | Opt-in, `--deny`-gateable: a selected, required, no-default parameter anywhere in a consolidated `subConfigurations:` subtree remains unbound after every tier's own `parameterBindings:` — never a hard error, since deferral to a still-higher tier is the deliberate mechanism this feature exists for |
 
-`parameterBindings:` itself is reused unchanged, extended to resolve transitively through `subConfigurations:` at any depth using a parameter's ordinary, already-mounted qname (no new addressing syntax); its existing intrinsic checks (`E204` fixed, `E205` range, `E206` enum, `E222` unresolved, `W027` runtime `bindingTime:`) apply identically whether the target is local or reached transitively. `E203` (feature not selected) and `W017` (required-and-unbound) stay scoped to a `Configuration`'s own local selection — the cross-tier equivalents are `E519` and `W513` respectively. A lower tier carries zero awareness of, or reference to, whoever consolidates it: `bindTo:` (component→system propagation) is explicitly not the mechanism here and continues to resolve purely within its own model.
+`parameterBindings:` itself is reused unchanged, extended to resolve transitively through `subConfigurations:` at any depth using a parameter's ordinary, already-mounted qname — peer-native or a `repoImports:` mount path `<package>::<as>::X` (no new addressing syntax); its existing intrinsic checks (`E204` fixed, `E205` range, `E206` enum, `E222` unresolved, `W027` runtime `bindingTime:`) apply identically whether the target is local or reached transitively. `E203` (feature not selected) and `W017` (required-and-unbound) stay scoped to a `Configuration`'s own local selection — the cross-tier equivalents are `E519` and `W513` respectively. A lower tier carries zero awareness of, or reference to, whoever consolidates it: `bindTo:` (component→system propagation) is explicitly not the mechanism here and continues to resolve purely within its own model.
 
 ## Documentation linting (W099–W103, `lint-docs`)
 

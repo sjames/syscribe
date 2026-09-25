@@ -151,6 +151,12 @@ pub(super) fn compute(store: &LspStore, path: &Path, position: Position, new_nam
             candidate.push(e.clone());
         }
     }
+    // Re-parsing a frontmatter from YAML drops the non-serialized Configuration
+    // inheritance slot (§9.8), so a Configuration touched above — e.g. one whose
+    // `derivedFrom:` names the renamed base — would lose its inherited selection
+    // and the gate below would report spurious new findings. Re-derive
+    // inheritance over the whole candidate set, as the walker does (GH #146).
+    syscribe_model::config_inherit::apply_configuration_inheritance(&mut candidate);
 
     // Compared by (code, file) only, not the message text: renaming the id changes
     // the *message* of any pre-existing finding that happens to mention it (e.g. a
