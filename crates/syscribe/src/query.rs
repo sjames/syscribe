@@ -90,95 +90,22 @@ pub fn tc_verdict(tc: &RawElement, results: Option<&ResultsData>) -> TcVerdict {
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
+/// The display label of an element type — its canonical name, exactly the
+/// `type:` value an author writes (`ElementType::name`), so `list <Type>`
+/// matches every type in the inventory and `show` never mislabels one (GH
+/// #167: a hand-written table here lacked `Zone`, `TestPlan`, … and reported
+/// them as `Other`). Only the unrecognised-type fallback reads `Other`.
 pub fn type_label(et: &ElementType) -> &'static str {
     match et {
-        ElementType::PartDef => "PartDef",
-        ElementType::Part => "Part",
-        ElementType::ItemDef => "ItemDef",
-        ElementType::Item => "Item",
-        ElementType::PortDef => "PortDef",
-        ElementType::Port => "Port",
-        ElementType::ConnectionDef => "ConnectionDef",
-        ElementType::Connection => "Connection",
-        ElementType::InterfaceDef => "InterfaceDef",
-        ElementType::Interface => "Interface",
-        ElementType::ActionDef => "ActionDef",
-        ElementType::Action => "Action",
-        ElementType::Requirement => "Requirement",
-        ElementType::RequirementDef => "RequirementDef",
-        ElementType::TestCase => "TestCase",
-        ElementType::ADR => "ADR",
-        ElementType::Baseline => "Baseline",
-        ElementType::PlanningItem => "PlanningItem",
-        ElementType::Package => "Package",
-        ElementType::Allocation => "Allocation",
-        ElementType::AllocationDef => "AllocationDef",
-        ElementType::FlowDef => "FlowDef",
-        ElementType::EnumerationDef => "EnumerationDef",
-        ElementType::AttributeDef => "AttributeDef",
-        ElementType::Attribute => "Attribute",
-        ElementType::FeatureDef => "FeatureDef",
-        ElementType::FeatureModel => "FeatureModel",
-        ElementType::Configuration => "Configuration",
-        ElementType::StateDef => "StateDef",
-        ElementType::UseCaseDef => "UseCaseDef",
-        ElementType::ViewDef => "ViewDef",
-        ElementType::ViewpointDef => "ViewpointDef",
-        ElementType::MetadataDef => "MetadataDef",
-        ElementType::ConstraintDef => "ConstraintDef",
-        ElementType::CalculationDef => "CalculationDef",
-        ElementType::VerificationCaseDef => "VerificationCaseDef",
-        ElementType::AnalysisCaseDef => "AnalysisCaseDef",
-        ElementType::VerificationCase => "VerificationCase",
-        ElementType::AnalysisCase => "AnalysisCase",
-        ElementType::Diagram => "Diagram",
-        ElementType::View => "View",
-        ElementType::Metadata => "Metadata",
-        ElementType::Calculation => "Calculation",
-        ElementType::Constraint => "Constraint",
-        ElementType::LibraryPackage => "LibraryPackage",
-        ElementType::Namespace => "Namespace",
-        ElementType::Dependency => "Dependency",
-        ElementType::UseCase => "UseCase",
-        ElementType::State => "State",
-        ElementType::Enumeration => "Enumeration",
-        // Tier 4
-        ElementType::FaultTree => "FaultTree",
-        ElementType::FaultTreeGate => "FaultTreeGate",
-        ElementType::FaultTreeEvent => "FaultTreeEvent",
-        ElementType::AttackTree => "AttackTree",
-        ElementType::AttackTreeGate => "AttackTreeGate",
-        ElementType::AttackStep => "AttackStep",
-        ElementType::FMEASheet => "FMEASheet",
-        ElementType::FMEAEntry => "FMEAEntry",
-        // GSN argument layer (issue #20)
-        ElementType::Argument => "Argument",
-        ElementType::AssumptionOfUse => "AssumptionOfUse",
-        // TARA container
-        ElementType::TARASheet => "TARASheet",
-        // Asset identification (ISO/SAE 21434 §15.3)
-        ElementType::Asset => "Asset",
-        // Tier 2
-        ElementType::HazardousEvent => "HazardousEvent",
-        ElementType::SafetyGoal => "SafetyGoal",
-        ElementType::DamageScenario => "DamageScenario",
-        ElementType::ThreatScenario => "ThreatScenario",
-        ElementType::CybersecurityGoal => "CybersecurityGoal",
-        ElementType::SecurityControl => "SecurityControl",
-        ElementType::VulnerabilityReport => "VulnerabilityReport",
-        ElementType::ConfirmationMeasure => "ConfirmationMeasure",
-        // Previously fell through to "Other" (mislabelled in show/list) — GH #42 follow-up.
-        ElementType::ConcernDef => "ConcernDef",
-        ElementType::Concern => "Concern",
-        ElementType::CaseDef => "CaseDef",
-        ElementType::EventOccurrenceDef => "EventOccurrenceDef",
-        ElementType::EventOccurrence => "EventOccurrence",
-        ElementType::SuccessionDef => "SuccessionDef",
-        ElementType::RenderingDef => "RenderingDef",
-        ElementType::ExhibitState => "ExhibitState",
-        ElementType::BindingConnector => "BindingConnector",
-        _ => "Other",
+        ElementType::Unknown => "Other",
+        other => other.name(),
     }
+}
+
+/// Whether an element's type matches a `list <Type>` argument: the type's
+/// label (its canonical name), compared case-insensitively.
+fn type_matches(et: Option<&ElementType>, type_filter: &str) -> bool {
+    tl(et).eq_ignore_ascii_case(type_filter)
 }
 
 fn yaml_first_string(v: Option<&serde_yaml::Value>) -> Option<&str> {
@@ -1366,10 +1293,7 @@ pub fn cmd_list(
     let type_filter_lc = type_filter.to_lowercase();
     let mut matches: Vec<&RawElement> = elements
         .iter()
-        .filter(|e| {
-            let label = tl(e.frontmatter.element_type.as_ref()).to_lowercase();
-            label == type_filter_lc
-        })
+        .filter(|e| type_matches(e.frontmatter.element_type.as_ref(), type_filter))
         .filter(|e| scope.is_empty() || e.qualified_name.starts_with(scope))
         // Multi-tag AND: all specified tags must be present (REQ-TRS-TAG-002).
         .filter(|e| {
@@ -4611,6 +4535,33 @@ mod custom_where_tests {
 
 // Regression for #102: PlanningItem was a fully working native type (list/types/
 // validate all handled it) but template's dispatch had never been updated for it.
+#[cfg(test)]
+mod type_label_tests {
+    //! GH #167 / REQ-TRS-CLI-011 — `list <Type>` matches every element type.
+    use super::*;
+
+    #[test]
+    fn every_type_is_labelled_by_its_canonical_name() {
+        for t in ElementType::ALL {
+            assert_eq!(type_label(t), t.name(), "{t:?} is mislabelled");
+        }
+        assert_eq!(type_label(&ElementType::Unknown), "Other");
+    }
+
+    #[test]
+    fn list_type_filter_matches_every_type_case_insensitively() {
+        for t in ElementType::ALL {
+            let name = t.name();
+            assert!(type_matches(Some(t), name), "list {name} misses {t:?}");
+            assert!(type_matches(Some(t), &name.to_lowercase()), "list {} misses {t:?}", name.to_lowercase());
+            for other in ElementType::ALL.iter().filter(|o| *o != t) {
+                assert!(!type_matches(Some(other), name), "list {name} also matches {other:?}");
+            }
+        }
+        assert!(!type_matches(None, "Zone"));
+    }
+}
+
 #[cfg(test)]
 mod planning_item_template_tests {
     use super::*;

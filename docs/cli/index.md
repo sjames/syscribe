@@ -676,6 +676,8 @@ $ syscribe -m model/ extref "DNG:4521" --json   # machine-readable array
 
 ### List elements by type
 
+The type argument is any element type's canonical name — exactly the `type:` value an author writes (`Requirement`, `PartDef`, `Zone`, `Conduit`, `TestPlan`, …), matched case-insensitively. Every type in the inventory is accepted, and `show`/`list` label each element with the same name.
+
 ```
 $ syscribe -m model_auto/ list Requirement
 
