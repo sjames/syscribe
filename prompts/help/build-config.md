@@ -19,10 +19,13 @@ Output variables are emitted in alphabetical order for reproducible diffs.
 ## OPTIONS
     --config <id>      Named Configuration to project (id or qualified name).
     --format <fmt>     Output format: cmake | c-header | makefile | env | json | kconfig
-                       Default: json
+                       Default: json. Any other value is a usage error (exit 1); with
+                       --all-configs only json is valid (the output is always a JSON array).
     --prefix <str>     Prepend <str> to every emitted variable name.
     --no-validate      Skip SAT validation before generating output.
     --all-configs      Generate output for every Configuration (JSON array, for CI matrix).
+
+An unknown option is a usage error (exit 1, message on stderr, nothing on stdout).
 
 ## FORMATS
     cmake      set(VAR value) — include() in CMakeLists.txt

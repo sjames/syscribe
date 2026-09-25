@@ -20,8 +20,10 @@ for tags, feature gating, lifecycle status, integrity level, and WCET claims.
     --status <s>     Keep only elements whose status: equals s.
     --sil <v>        Keep only elements whose silLevel stringifies to v OR asilLevel == v.
     --has-wcet       Keep only elements that declare a non-empty wcet:.
-    --where custom.<key>[<op><value>]   Filter by custom_fields: (op = / != / ~ / > / < /
-                     >= / <=; bare custom.<key> = presence). Repeatable, ANDed.
+    --where custom.<key>[<op><value>]   Filter by custom_fields:. <op> is `=` (exact; any
+                     list element), `=~` (regex, substring fallback) or `~=` (list
+                     membership); a bare custom.<key> tests presence. Any other operator
+                     (!=, ==, ~, >, <, >=, <=) is a usage error (exit 1). Repeatable, ANDed.
     --json           Emit a JSON array (qualifiedName,type,name,id,status,silLevel,asilLevel,wcet).
 
 ## EXAMPLES
@@ -29,6 +31,7 @@ for tags, feature gating, lifecycle status, integrity level, and WCET claims.
     syscribe -m model/ list PartDef UAV::Avionics
     syscribe -m model/ list Requirement --status draft --sil 4
     syscribe -m model/ list Requirement --has-wcet --json
+    syscribe -m model/ list PartDef --where custom.supplier=Bosch
 
 ## SEE ALSO
     types, find, matrix, verification-depth

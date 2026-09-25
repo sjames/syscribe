@@ -30,5 +30,12 @@ against it (labelled with the type's `inverse`, or `<type> (inbound)`).
 
 Cycles are handled (each element is visited once). Works for qualified names and stable IDs.
 
+## EXIT CODES
+    0  traversal printed
+    1  usage error: a --direction outside downstream|upstream|both, a --format outside
+       text|json|dot, a non-integer --depth, or an unknown option (message on stderr,
+       nothing on stdout)
+    2  no <qname|id> given
+
 ## SEE ALSO
     links, connectivity, n2, follow, link-types

@@ -5,6 +5,7 @@ mod audit;
 mod aw;
 mod baseline;
 mod build_config;
+mod cliargs;
 mod clusters;
 mod coanalysis;
 mod coverage;
@@ -449,6 +450,22 @@ fn first_positional<'a>(args: &'a [String], value_flags: &[&str]) -> Option<&'a 
     None
 }
 
+/// The first command-line token after any leading `-m <root>` / `--model <root>` /
+/// `--model=<root>` / `-m<root>` model flags — the command name position.
+fn first_command_token(args: &[String]) -> Option<&str> {
+    let mut i = 1;
+    while let Some(a) = args.get(i) {
+        if a == "-m" || a == "--model" {
+            i += 2;
+        } else if a.starts_with("--model=") || (a.starts_with("-m") && !a.starts_with("--")) {
+            i += 1;
+        } else {
+            return Some(a.as_str());
+        }
+    }
+    None
+}
+
 /// The `-m`/`--model` value on the command line, if any (REQ-TRS-LINKTYPE-012).
 /// Parsed ahead of the normal model resolution because `--agent-instructions`
 /// is handled before it; only an explicit flag counts (no env/walk-up discovery),
@@ -513,8 +530,9 @@ fn main() {
     // REQ-TRS-CLI-007: version reporting. `--version`, `-V`, or the `version`
     // subcommand print "syscribe <semver>" to stdout and exit 0, handled before any
     // model resolution so they work from any directory with no model present.
+    // A model flag before `version` (`-m <root> version`) is skipped (GH #133).
     if args.iter().skip(1).any(|a| a == "--version" || a == "-V")
-        || args.get(1).map(|a| a == "version").unwrap_or(false)
+        || first_command_token(&args) == Some("version")
     {
         println!("syscribe {}", env!("CARGO_PKG_VERSION"));
         return;
@@ -636,6 +654,13 @@ fn main() {
             return;
         }
         _ => {}
+    }
+
+    // REQ-TRS-CLI-009 / GH #133: reject an unknown option (or a value-taking option
+    // with no value) on the checked commands before any model work, so the usage
+    // error is the same with or without a valid model directory.
+    if let Some(cmd) = subcommand_args.first() {
+        cliargs::or_exit(cliargs::check_known_options(cmd, &subcommand_args[1..]));
     }
 
     let model_root = std::path::Path::new(&model_root_arg);
@@ -810,12 +835,21 @@ fn main() {
                 // turns on the gated MagicGrid validation pass for this run.
                 vcfg_run.magicgrid = profile_ref.is_some_and(|p| p.magicgrid);
                 if let Some(rf) = results_file {
-                    let fmt = rest.windows(2)
-                        .find(|w| w[0] == "--format")
-                        .map(|w| w[1].as_str());
                     let inferred = if rf.ends_with(".xml") { "junit" } else { "cargo-json" };
-                    if let Some(data) = ingest::parse_file(fmt.unwrap_or(inferred), rf) {
-                        vcfg_run.results = Some(data);
+                    let fmt = cliargs::or_exit(cliargs::enum_value(
+                        "validate",
+                        rest,
+                        "--format",
+                        &["cargo-json", "junit", "session-log"],
+                        inferred,
+                    ));
+                    // An unreadable/unparseable results file is a usage error, not a
+                    // run silently without results (GH #133); parse_file says why.
+                    match ingest::parse_file(fmt, rf) {
+                        Some(data) => vcfg_run.results = Some(data),
+                        None => cliargs::usage_exit(&format!(
+                            "validate: cannot use --results '{rf}' (format {fmt})"
+                        )),
                     }
                 }
                 // Opt-in: enable the .syscribe.toml download hook for remote sourceFiles.
@@ -829,19 +863,21 @@ fn main() {
                 // Configuration lens: --all-configs gate, or --config <C> projection.
                 let all_configs = rest.iter().any(|a| a == "--all-configs");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                // Every mode honours the same gate, --profile and --file (issue #126);
+                // a usage error exits 1 — exit 2 is reserved for a tripped gate.
                 if all_configs {
-                    query::cmd_validate_all_configs(&elems, &vcfg_run, json);
+                    query::cmd_validate_all_configs(&elems, &vcfg_run, &gate, profile_ref, file_filter, json);
                 } else if let Some(c) = config {
                     match syscribe_model::projection::resolve_config_flag(&elems, c) {
                         syscribe_model::projection::SelectionOutcome::Dormant => {
                             query::cmd_validate(&elems, &vcfg_run, &gate, profile_ref, file_filter, json)
                         }
                         syscribe_model::projection::SelectionOutcome::Resolved(sel) => {
-                            query::cmd_validate_projected(&elems, &vcfg_run, &gate, json, &sel)
+                            query::cmd_validate_projected(&elems, &vcfg_run, &gate, profile_ref, file_filter, json, &sel)
                         }
                         syscribe_model::projection::SelectionOutcome::Error(m) => {
-                            eprintln!("{m}");
-                            std::process::exit(2);
+                            eprintln!("Error: {m}");
+                            std::process::exit(1);
                         }
                     }
                 } else {
@@ -940,10 +976,7 @@ fn main() {
                 let status = rest.windows(2).find(|w| w[0] == "--status").map(|w| w[1].as_str());
                 let tag = rest.windows(2).find(|w| w[0] == "--tag").map(|w| w[1].as_str());
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
-                let top_n = rest
-                    .windows(2)
-                    .find(|w| w[0] == "--package-top-n")
-                    .and_then(|w| w[1].parse::<usize>().ok());
+                let top_n = cliargs::or_exit(cliargs::usize_value("stats", rest, "--package-top-n"));
                 let wheres = parse_where_options(rest);
                 let opts = stats::StatsOptions {
                     group_by,
@@ -965,8 +998,8 @@ fn main() {
                 let status = rest.windows(2).find(|w| w[0] == "--status").map(|w| w[1].as_str());
                 let tag = rest.windows(2).find(|w| w[0] == "--tag").map(|w| w[1].as_str());
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
-                let limit = rest.windows(2).find(|w| w[0] == "--limit").and_then(|w| w[1].parse::<usize>().ok());
-                let offset = rest.windows(2).find(|w| w[0] == "--offset").and_then(|w| w[1].parse::<usize>().ok());
+                let limit = cliargs::or_exit(cliargs::usize_value("digest", rest, "--limit"));
+                let offset = cliargs::or_exit(cliargs::usize_value("digest", rest, "--offset"));
                 let wheres = parse_where_options(rest);
                 let opts = digest::DigestOptions { wheres: &wheres, status, tag, limit, offset };
                 let code = digest::cmd_digest(&elems, config, &opts, json);
@@ -982,11 +1015,7 @@ fn main() {
                 let type_filter = rest.windows(2).find(|w| w[0] == "--type").map(|w| w[1].as_str());
                 let status = rest.windows(2).find(|w| w[0] == "--status").map(|w| w[1].as_str());
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
-                let limit = rest
-                    .windows(2)
-                    .find(|w| w[0] == "--limit")
-                    .and_then(|w| w[1].parse::<usize>().ok())
-                    .unwrap_or(10);
+                let limit = cliargs::or_exit(cliargs::usize_value("search-text", rest, "--limit")).unwrap_or(10);
                 // Query = first positional token (skipping value-taking flags/their values).
                 let query = first_positional(rest, &["--type", "--status", "--config", "--limit"]).unwrap_or("");
                 let code = ftsearch::cmd_search_text(&elems, query, type_filter, status, config, limit, json);
@@ -1002,7 +1031,7 @@ fn main() {
                 let no_cache = rest.iter().any(|a| a == "--no-cache");
                 let scope = rest.windows(2).find(|w| w[0] == "--scope").map(|w| w[1].as_str());
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
-                let depth = rest.windows(2).find(|w| w[0] == "--depth").and_then(|w| w[1].parse::<usize>().ok());
+                let depth = cliargs::or_exit(cliargs::usize_value("summarize", rest, "--depth"));
                 let code = summarize::cmd_summarize(&elems, model_root, scope, depth, no_cache, config, json);
                 if code != 0 {
                     std::process::exit(code);
@@ -1014,7 +1043,7 @@ fn main() {
                 let json = rest.iter().any(|a| a == "--json");
                 let type_filter = rest.windows(2).find(|w| w[0] == "--type").map(|w| w[1].as_str());
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
-                let top = rest.windows(2).find(|w| w[0] == "--top").and_then(|w| w[1].parse::<usize>().ok()).unwrap_or(10);
+                let top = cliargs::or_exit(cliargs::usize_value("topics", rest, "--top")).unwrap_or(10);
                 let code = topics::cmd_topics(&elems, type_filter, top, config, json);
                 if code != 0 {
                     std::process::exit(code);
@@ -1026,7 +1055,7 @@ fn main() {
                 let json = rest.iter().any(|a| a == "--json");
                 let type_filter = rest.windows(2).find(|w| w[0] == "--type").map(|w| w[1].as_str());
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
-                let k = rest.windows(2).find(|w| w[0] == "--k").and_then(|w| w[1].parse::<usize>().ok()).unwrap_or(8);
+                let k = cliargs::or_exit(cliargs::usize_value("clusters", rest, "--k")).unwrap_or(8);
                 let code = clusters::cmd_clusters(&elems, type_filter, k, config, json);
                 if code != 0 {
                     std::process::exit(code);
@@ -1437,7 +1466,7 @@ fn main() {
             "sbom" => {
                 // SBOM generation (§18, GH #66). Read-only.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let format = rest.windows(2).find(|w| w[0] == "--format").map(|w| w[1].as_str()).unwrap_or("cyclonedx");
+                let format = cliargs::or_exit(cliargs::enum_value("sbom", rest, "--format", &["cyclonedx", "spdx"], "cyclonedx"));
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 let scope = rest.windows(2).find(|w| w[0] == "--scope").map(|w| w[1].as_str());
                 let output = rest.windows(2).find(|w| w[0] == "--output").map(|w| w[1].as_str());
@@ -1460,8 +1489,8 @@ fn main() {
                 // Behavioral coverage report (§20, GH #72). Read-only.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let scope = first_positional(rest, &["--depth", "--format"]);
-                let depth = rest.windows(2).find(|w| w[0] == "--depth").and_then(|w| w[1].parse::<usize>().ok());
-                let format = rest.windows(2).find(|w| w[0] == "--format").map(|w| w[1].as_str()).unwrap_or("text");
+                let depth = cliargs::or_exit(cliargs::usize_value("behavioral-coverage", rest, "--depth"));
+                let format = cliargs::or_exit(cliargs::enum_value("behavioral-coverage", rest, "--format", &["text", "json"], "text"));
                 let opts = bcov::BcovOptions {
                     scope,
                     depth,
@@ -1481,13 +1510,19 @@ fn main() {
                         std::process::exit(2);
                     }
                 };
-                let direction = match rest.windows(2).find(|w| w[0] == "--direction").map(|w| w[1].as_str()) {
-                    Some("upstream") => impact::Direction::Upstream,
-                    Some("both") => impact::Direction::Both,
+                let direction = match cliargs::or_exit(cliargs::enum_value(
+                    "impact",
+                    rest,
+                    "--direction",
+                    &["downstream", "upstream", "both"],
+                    "downstream",
+                )) {
+                    "upstream" => impact::Direction::Upstream,
+                    "both" => impact::Direction::Both,
                     _ => impact::Direction::Downstream,
                 };
-                let depth = rest.windows(2).find(|w| w[0] == "--depth").and_then(|w| w[1].parse::<usize>().ok());
-                let format = rest.windows(2).find(|w| w[0] == "--format").map(|w| w[1].as_str()).unwrap_or("text");
+                let depth = cliargs::or_exit(cliargs::usize_value("impact", rest, "--depth"));
+                let format = cliargs::or_exit(cliargs::enum_value("impact", rest, "--format", &["text", "json", "dot"], "text"));
                 let kinds = rest
                     .windows(2)
                     .find(|w| w[0] == "--kinds")
@@ -1499,16 +1534,8 @@ fn main() {
                 // N² interface matrix (§16, GH #64). Read-only.
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let scope = first_positional(rest, &["--depth", "--format"]);
-                let depth = rest
-                    .windows(2)
-                    .find(|w| w[0] == "--depth")
-                    .and_then(|w| w[1].parse::<usize>().ok())
-                    .unwrap_or(1);
-                let format = rest
-                    .windows(2)
-                    .find(|w| w[0] == "--format")
-                    .map(|w| w[1].as_str())
-                    .unwrap_or("text");
+                let depth = cliargs::or_exit(cliargs::usize_value("n2", rest, "--depth")).unwrap_or(1);
+                let format = cliargs::or_exit(cliargs::enum_value("n2", rest, "--format", &["text", "html", "json"], "text"));
                 let opts = n2::N2Options {
                     scope,
                     depth,
@@ -1599,10 +1626,17 @@ fn main() {
                     .map(|w| w[1].as_str())
                     .unwrap_or("");
                 let all = subcommand_args.iter().any(|a| a == "--all-configs");
-                let format = subcommand_args.windows(2)
-                    .find(|w| w[0] == "--format")
-                    .map(|w| w[1].as_str())
-                    .unwrap_or("json");
+                // --all-configs always emits a JSON array, so only `json` is valid there.
+                let formats: &[&'static str] = if all {
+                    &["json"]
+                } else {
+                    &["cmake", "c-header", "makefile", "env", "json", "kconfig"]
+                };
+                let format = match cliargs::enum_value("build-config", subcommand_args, "--format", formats, "json") {
+                    Ok(f) => f,
+                    Err(m) if all => cliargs::usage_exit(&format!("{m} (--all-configs always emits JSON)")),
+                    Err(m) => cliargs::usage_exit(&m),
+                };
                 let prefix = subcommand_args.windows(2)
                     .find(|w| w[0] == "--prefix")
                     .map(|w| w[1].as_str())
@@ -1740,10 +1774,7 @@ fn main() {
                 let sil = rest.windows(2).find(|w| w[0] == "--sil").map(|w| w[1].as_str());
                 let status = rest.windows(2).find(|w| w[0] == "--status").map(|w| w[1].as_str());
                 let json = rest.iter().any(|a| a == "--json");
-                let min_levels = rest
-                    .windows(2)
-                    .find(|w| w[0] == "--min-levels")
-                    .and_then(|w| w[1].parse::<usize>().ok());
+                let min_levels = cliargs::or_exit(cliargs::usize_value("verification-depth", rest, "--min-levels"));
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 let plan = rest.windows(2).find(|w| w[0] == "--plan").map(|w| w[1].as_str());
                 // --plan lens (REQ-TRS-PLAN-006), composing with --config.
@@ -1800,13 +1831,29 @@ fn main() {
             }
             "lint-docs" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                let json = rest.iter().any(|a| a == "--json");
-                let paths: Vec<&str> = rest.iter().filter(|a| !a.starts_with("--")).map(|s| s.as_str()).collect();
+                const USAGE: &str = "Usage: syscribe -m <model> lint-docs <path>... [--json] [--deny <CODES>]";
+                let parsed = match lint_docs::parse_lint_args(rest) {
+                    Ok(p) => p,
+                    Err(msg) => {
+                        eprintln!("Error: {msg}");
+                        eprintln!("{USAGE}");
+                        std::process::exit(1);
+                    }
+                };
+                let paths: Vec<&str> = parsed.paths.iter().map(|s| s.as_str()).collect();
                 if paths.is_empty() {
-                    eprintln!("Usage: syscribe -m <model> lint-docs <path>... [--json]");
+                    eprintln!("{USAGE}");
                     std::process::exit(1);
                 }
-                let code = lint_docs::cmd_lint_docs(&elems, &paths, json);
+                // A nonexistent path is a usage error, not a clean run (issue #130).
+                let missing = lint_docs::missing_paths(&paths);
+                if !missing.is_empty() {
+                    for p in &missing {
+                        eprintln!("Error: lint-docs: path '{p}' does not exist");
+                    }
+                    std::process::exit(1);
+                }
+                let code = lint_docs::cmd_lint_docs(&elems, &paths, parsed.json, &parsed.deny);
                 if code != 0 {
                     std::process::exit(code);
                 }

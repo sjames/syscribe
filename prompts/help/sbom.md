@@ -20,5 +20,10 @@ Supported registries: `crates.io:`, `npm:`, `pypi:`, `maven:`, `nuget:`, `github
     --include-tests     Include TestCase sourceFile entries as components.
     --scope qname       Restrict to a namespace subtree.
 
+## EXIT CODES
+    0  SBOM written
+    1  usage error: a --format outside cyclonedx|spdx, an unknown option, or an
+       unresolvable --config (message on stderr, nothing on stdout)
+
 ## SEE ALSO
     behavioral-coverage, links

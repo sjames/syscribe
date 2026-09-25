@@ -13,6 +13,7 @@ Beyond a single lens, the tool **shall** provide checks that range over the conf
 
 - `validate --all-configs` **shall** run the lens validation ([[REQ-TRS-PROJ-002]], [[REQ-TRS-PROJ-003]]) for **every stored `Configuration`** and summarise the per-variant outcome (pass / finding counts).
 - It **shall** exit non-zero if **any** configuration has an error-severity finding — the CI gate that every shipped product validates.
+- It **shall** honour the `validate` gating options (`--deny`, `--max-warnings`, `--warnings-as-errors`, `--profile`), evaluated **per variant**, and exit `2` when any variant trips a gate and no variant has an error (errors dominate: `1` > `2` > `0`, [[REQ-TRS-OUT-006]]). The summary **shall** show each variant's outcome (pass / gate / fail).
 - `--json` **shall** emit a per-configuration result list.
 
 ### Dead elements
@@ -31,4 +32,4 @@ All four are dormant when no feature model is present.
 
 **Source:** ADR-PROJ-001.
 
-**Acceptance criteria:** `validate --all-configs` lists each stored configuration with its outcome and exits non-zero iff some variant has an error; an element whose `appliesWhen` is unsatisfiable under the feature model is reported `W021`; a requirement active in some configuration and covered in none is reported `W022`; `diff --config A --config B` lists the symmetric difference of active elements between A and B.
+**Acceptance criteria:** `validate --all-configs` lists each stored configuration with its outcome and exits non-zero iff some variant has an error or (with a gating option) trips a gate; an element whose `appliesWhen` is unsatisfiable under the feature model is reported `W021`; a requirement active in some configuration and covered in none is reported `W022`; `diff --config A --config B` lists the symmetric difference of active elements between A and B.

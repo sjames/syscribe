@@ -10,8 +10,11 @@ type.
 
 ## OPTIONS
     --where custom.<key>[<op><value>]   Filter to elements whose `custom_fields:` match.
-                                        `<op>` is `=`, `!=`, `~` (contains), `>`, `<`,
-                                        `>=`, `<=`; a bare `custom.<key>` tests presence.
+                                        `<op>` is `=` (exact; any list element), `=~`
+                                        (regex, substring fallback) or `~=` (list
+                                        membership); a bare `custom.<key>` tests presence.
+                                        Any other operator (`!=`, `==`, `~`, `>`, `<`,
+                                        `>=`, `<=`) is a usage error (exit 1).
                                         Repeatable — multiple `--where` are ANDed.
 
 ## EXAMPLES

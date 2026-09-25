@@ -358,7 +358,7 @@ Use this to verify your L2 model is complete before moving to L3:
 
 | Work product | syscribe element(s) | Check |
 |---|---|---|
-| Software subsystem decomposition | `PartDef` (one per subsystem, `domain: software`) | `list PartDef --domain software` |
+| Software subsystem decomposition | `PartDef` (one per subsystem, `domain: software`) | `export --ndjson \| jq -r 'select(.type=="PartDef" and .frontmatter.domain=="software") \| .qname'` |
 | Interface specifications (between subsystems) | `PortDef`, `InterfaceDef`, `connections:` | `list PortDef` + `list InterfaceDef` |
 | Data flow | `ItemDef`, `flowConnections:` | `connectivity` + review `flowConnections` |
 | Control flow / scheduling model | `ActionDef` (`mg_cell: W2`), `successionConnections:` | `list ActionDef` |
@@ -373,7 +373,8 @@ Use this to verify your L2 model is complete before moving to L3:
 ```bash
 # Run the L2 completeness check
 syscribe -m model matrix                          # W300 = subsystem not satisfying any req
-syscribe -m model list PartDef --domain software  # inventory of SW subsystems
+syscribe -m model export --ndjson \
+  | jq -r 'select(.type=="PartDef" and .frontmatter.domain=="software") | .qname'  # inventory of SW subsystems
 syscribe -m model matrix --allocations            # function → subsystem allocation gaps
 ```
 
@@ -827,7 +828,8 @@ syscribe -m model connectivity Architecture::Logical::Scheduler --depth 3 --form
 
 # Coverage — which L3 units satisfy no requirements?
 syscribe -m model matrix                                 # W300 = unsatisfied leaf requirement
-syscribe -m model list PartDef --domain software         # cross-reference with matrix gaps
+syscribe -m model export --ndjson \
+  | jq -r 'select(.type=="PartDef" and .frontmatter.domain=="software") | .qname'  # SW units: cross-reference with matrix gaps
 
 # WCET coverage
 syscribe -m model list Requirement --has-wcet            # reqs with WCET claims

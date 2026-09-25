@@ -5871,6 +5871,10 @@ Gating is opt-in via flags on `validate`:
 
 `Error` findings always dominate (exit `1`) regardless of gating flags. With no gating flag, warning-only models exit `0`. This enables a phased rollout: warn during burndown, then `--deny` to enforce.
 
+The contract is identical under the configuration lens (§9.10). `validate --config <C>` gates (and applies `--file` to) the projected variant's findings. `validate --all-configs` evaluates the gate **per variant** — `--max-warnings N` is a per-variant budget — and exits with the worst variant under the precedence `1` > `2` > `0`: `1` if any variant has an `Error` finding, else `2` if any variant tripped a gate, else `0`.
+
+A **usage error** on `validate` — an undefined `--profile` name, an unresolvable `--config` argument, a malformed `--max-warnings` value, an unknown option, an unreadable `--results` file — prints a message to stderr, prints nothing to stdout, and exits `1`. Exit `2` is reserved exclusively for a tripped gate, so it always means "no errors, but a gate failed".
+
 ##### Named severity profiles (`[profiles.*]`)
 
 Reusable gating policies are declared as `[profiles.<name>]` tables in `<model_root>/.syscribe.toml` and selected with `validate --profile <name>`. A profile promotes the warning codes in its `promote` list to gate failures, optionally **scoped** to the integrity level / status / tag of the element each finding concerns:

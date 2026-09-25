@@ -11,7 +11,8 @@ When `lint-docs` scans an `_index.md` file that belongs to a package of the load
 **shall** report `W103` if the body (outside the frontmatter) mentions three or more distinct
 stable ids that resolve to that package's own direct members. The finding **shall** name the count
 and point the author to the generated listing (`show <package>`). `W103` is advisory: it **shall
-not** by itself make `lint-docs` exit non-zero. Mentions of fewer than three direct members, of
+not** by itself make `lint-docs` exit non-zero, unless the caller opts in with `lint-docs
+--deny W103` ([[REQ-TRS-LINT-001]]), which makes it gating. Mentions of fewer than three direct members, of
 ids outside the package, or in files that are not a package's `_index.md` **shall not** raise it.
 
 **Acceptance criteria:** an `_index.md` enumerating three members raises `W103` and `lint-docs`

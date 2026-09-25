@@ -1915,6 +1915,14 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         let paths: Vec<&str> = args.paths.iter().map(|s| s.as_str()).collect();
+        // A nonexistent path is an error, not a clean scan (issue #130).
+        let missing = crate::lint_docs::missing_paths(&paths);
+        if !missing.is_empty() {
+            return Err(ErrorData::invalid_params(
+                format!("lint_docs: path(s) do not exist: {}", missing.join(", ")),
+                None,
+            ));
+        }
         let findings = lint_docs_findings(&store.elements, &paths, args.codes.as_deref());
         ok(json!({ "findings": findings }))
     }

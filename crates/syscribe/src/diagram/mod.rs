@@ -166,7 +166,8 @@ fn build_cli() -> Command {
                     Arg::new("kind")
                         .long("kind")
                         .help("Diagram kind for compose: bdd | ibd | arch (default: from placement file)")
-                        .value_name("KIND"),
+                        .value_name("KIND")
+                        .value_parser(clap::builder::PossibleValuesParser::new(DIAGRAM_KINDS)),
                 )
                 .arg(
                     Arg::new("svg")
@@ -205,7 +206,8 @@ fn build_cli() -> Command {
                     Arg::new("depth")
                         .long("depth")
                         .help("Maximum tree depth to show (default: all)")
-                        .value_name("N"),
+                        .value_name("N")
+                        .value_parser(non_negative_integer),
                 )
                 .arg(
                     Arg::new("show-verify")
@@ -247,6 +249,7 @@ fn build_cli() -> Command {
                     Arg::new("kind")
                         .long("kind")
                         .value_name("KIND")
+                        .value_parser(clap::builder::PossibleValuesParser::new(DIAGRAM_KINDS))
                         .help("Diagram kind: bdd | ibd | arch (default: arch)")
                         .required(false),
                 )
@@ -259,12 +262,26 @@ fn build_cli() -> Command {
         )
 }
 
+/// Valid `--kind` values (REQ-TRS-CLI-009 / GH #133: anything else is rejected).
+const DIAGRAM_KINDS: [&str; 3] = ["bdd", "ibd", "arch"];
+
+/// clap value parser: a non-negative integer, kept as the original string.
+fn non_negative_integer(v: &str) -> Result<String, String> {
+    v.parse::<usize>()
+        .map(|_| v.to_string())
+        .map_err(|_| format!("expects a non-negative integer, got '{v}'"))
+}
+
 fn view_args() -> Vec<Arg> {
     vec![
         Arg::new("view")
             .long("view")
             .help("View preset: full | ports | features | compact | name | requirement")
             .value_name("PRESET")
+            .ignore_case(true)
+            .value_parser(clap::builder::PossibleValuesParser::new([
+                "full", "ports", "features", "compact", "name", "requirement", "req",
+            ]))
             .default_value("full"),
         Arg::new("include-ports")
             .long("include-ports")
@@ -277,7 +294,12 @@ fn view_args() -> Vec<Arg> {
         Arg::new("min-width")
             .long("min-width")
             .help("Minimum box width in pixels")
-            .value_name("N"),
+            .value_name("N")
+            .value_parser(|v: &str| {
+                v.parse::<f64>()
+                    .map(|_| v.to_string())
+                    .map_err(|_| format!("expects a number, got '{v}'"))
+            }),
     ]
 }
 
