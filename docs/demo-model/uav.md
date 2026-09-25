@@ -188,8 +188,8 @@ Nine test cases cover the leaf requirements. Each is a `TestCase` element with a
 
 | ID | File | Status | Subject |
 |---|---|---|---|
-| ADR-SYS-001 | `SafetyDecompositionADR` | accepted | Safety requirement decomposition strategy |
-| ADR-SYS-002 | `PerformanceDecompositionADR` | accepted | Performance requirement decomposition strategy |
+| ADR-SYS-SAFE-001 | `SafetyDecompositionADR` | accepted | Safety requirement decomposition strategy |
+| ADR-SYS-PERF-001 | `PerformanceDecompositionADR` | accepted | Performance requirement decomposition strategy |
 
 ---
 
