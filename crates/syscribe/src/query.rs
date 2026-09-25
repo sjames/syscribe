@@ -3371,21 +3371,31 @@ type: StateDef
 name: MyStateDef
 subStates:
   - name: Idle
+    isInitial: true          # exactly one initial state per region (W073/W074)
+    transitions:             # nested: the enclosing state is the implicit source
+      - target: Active
+        accept: Signals::StartCommand     # accept: <item def> or {payload:, via:}
   - name: Active
+    # entryAction: Actions::MyEntryAction
+    # doAction: Actions::MyDoAction
+    transitions:
+      - target: Fault
+        accept:
+          payload: Signals::ErrorSignal
+        guard: "errorCount > 0"
+        # effect: Actions::RecordFault
   - name: Fault
-transitions:
-  - from: Idle
-    to: Active
-    trigger: start
-  - from: Active
-    to: Fault
-    trigger: error
-  - from: Fault
-    to: Idle
-    trigger: reset
+transitions:                 # top-level form: `source:` is required here
+  - source: Fault
+    target: Idle
+    accept: Signals::ResetCommand
+    # guard: "..."
+    # effect: Actions::ClearFault
 ---
 
-Description of this state machine.
+Description of this state machine. Transitions use the canonical SysML v2 keys
+`source`/`target`/`accept`/`guard`/`effect` (§22.1); the old `from`/`to`/`trigger`
+keys are deprecated (W075).
 "#,
         "flowdef" => r#"---
 type: FlowDef
@@ -3411,6 +3421,8 @@ type: UseCaseDef
 name: MyUseCaseDef
 actors:
   - Operator
+refines:                     # the requirement(s) this use case elaborates (W307)
+  - REQ-PREFIX-001
 # includes:
 #   - UseCases::SomeOtherUseCase
 ---
@@ -3672,6 +3684,14 @@ edges: []
 
 Describe the purpose and scope of this diagram.
 
+Each `shapes:`/`edges:` id must match an `id` attribute in the inline SVG, and vice versa (W406/W407):
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="80">
+  <rect id="shape-a" x="10" y="10" width="160" height="50" fill="none" stroke="black"/>
+</svg>
+```
+
 <!-- When using pumlMode: companion, add an img tag pointing to the anticipated SVG:
 <img src="./MyDiagram.svg" alt="MyDiagram" width="100%"/>
 -->
@@ -3877,6 +3897,187 @@ entries:
 
 Describe the system boundary and assumptions for this FMEA.
 "#,
+        "baseline" => r#"---
+type: Baseline
+id: BL-PREFIX-001             # BL-* (need not end in a number, e.g. BL-2026-07)
+name: "Release [x.y] baseline"
+status: draft                 # draft | approved | released | superseded
+date: "2026-01-31"
+approver: "[reviewer]"
+gitTag: REL-PREFIX-001        # version-control tag — distinct from the BL-* id
+gitCommit: "[commit captured by baseline create]"
+frozenScope:                  # any combination; omit for the whole model
+  package: Requirements
+  # config: CONF-PREFIX-001   # freeze a projected product-line variant
+  # closureFrom: [REQ-PREFIX-001]
+  # types: [Requirement, TestCase]
+  # status: [approved]
+  # tags: [release]
+seal:                         # generated — do not hand-edit
+  aggregateHash: "blake3:[computed by baseline create]"
+  elementCount: 0
+  manifest: baselines/BL-PREFIX-001.manifest.json
+# supersedes: BL-PREFIX-000
+---
+
+Release baseline. Prefer `syscribe baseline create --tag <tag> [--frozen-scope ...]`,
+which computes the seal and writes the manifest; this skeleton documents the fields
+it writes.
+"#,
+        "occurrencedef" => r#"---
+type: OccurrenceDef
+name: MyOccurrenceDef
+# supertype: Occurrences::Occurrence
+# timeSlices:
+#   - name: operatingPhase
+#     typedBy: Parts::MyPartDef
+#     isPortion: true
+---
+
+Description of this occurrence definition (a thing with temporal extent).
+"#,
+        "occurrence" => r#"---
+type: Occurrence
+name: myOccurrence
+typedBy: Occurrences::MyOccurrenceDef
+---
+
+Description of this occurrence usage.
+"#,
+        "eventoccurrencedef" => r#"---
+type: EventOccurrenceDef
+name: MyEventOccurrenceDef
+---
+
+Description of this momentary (zero-duration) event occurrence definition.
+"#,
+        "eventoccurrence" => r#"---
+type: EventOccurrence
+name: myEventOccurrence
+typedBy: Events::MyEventOccurrenceDef
+# direction: in               # in = observed, out = emitted
+---
+
+Description of this event occurrence usage.
+"#,
+        "individualdef" => r#"---
+type: IndividualDef
+name: MyIndividualDef
+# supertype: Parts::MyPartDef
+---
+
+Description of this individual definition (a specific, uniquely identified thing).
+"#,
+        "individual" => r#"---
+type: Individual
+name: myIndividual
+typedBy: Individuals::MyIndividualDef
+isIndividual: true
+---
+
+Description of this specific individual.
+"#,
+        "concerndef" => r#"---
+type: ConcernDef
+name: MyConcernDef
+# subject: Parts::MyPartDef
+# stakeholders:
+#   - Stakeholders::MyStakeholder
+---
+
+Description of this stakeholder concern.
+"#,
+        "concern" => r#"---
+type: Concern
+name: myConcern
+typedBy: Concerns::MyConcernDef
+---
+
+Description of this concern usage.
+"#,
+        "casedef" => r#"---
+type: CaseDef
+name: MyCaseDef
+# subject: Parts::MyPartDef
+---
+
+Description of this case definition.
+"#,
+        "case" => r#"---
+type: Case
+name: myCase
+typedBy: Cases::MyCaseDef
+---
+
+Description of this case usage.
+"#,
+        "successiondef" => r#"---
+type: SuccessionDef
+name: MySuccessionDef
+---
+
+Description of this succession definition (an ordering between occurrences).
+"#,
+        "succession" => r#"---
+type: Succession
+name: mySuccession
+typedBy: Successions::MySuccessionDef
+---
+
+Description of this succession usage. Ordering inside an action is usually
+written inline as `successionConnections:` (`after:`/`before:`) on the action.
+"#,
+        "renderingdef" => r#"---
+type: RenderingDef
+name: MyRenderingDef
+---
+
+Description of this rendering method for views.
+"#,
+        "rendering" => r#"---
+type: Rendering
+name: myRendering
+typedBy: Renderings::MyRenderingDef
+---
+
+Description of this rendering usage.
+"#,
+        "attribute" => r#"---
+type: Attribute
+name: myAttribute
+typedBy: ScalarValues::Real
+# unit: SI::kg
+# value: 0.0
+---
+
+Description of this attribute usage. Simple attributes are usually declared
+inline in the owner's `features:` list instead.
+"#,
+        "flow" => r#"---
+type: Flow
+name: myFlow
+typedBy: Flows::MyFlowDef
+---
+
+Description of this flow usage. Flows between ports are usually declared inline
+as `flowConnections:` on the owning part.
+"#,
+        "exhibitstate" => r#"---
+type: ExhibitState
+name: myExhibitState
+typedBy: States::MyStateDef
+---
+
+Description of this exhibited state usage (a part exhibiting a state machine).
+"#,
+        "bindingconnector" => r#"---
+type: BindingConnector
+name: myBinding
+---
+
+Description of this binding connector. Bindings are usually declared inline as
+`bindingConnections:` on the owning part.
+"#,
         "fmeaentry" => return None,
         "tarasheet" => r#"---
 type: TARASheet
@@ -3884,31 +4085,34 @@ id: TARA-PREFIX-001
 name: "TARA — [system or asset name]"
 status: draft
 damageTable:
-  - id: DS-PREFIX-001
+  - id: DS-PREFIX-010
     name: "Unauthorized [action] enables [damage]"
-    damageSeverity: severe    # severe | major | moderate | negligible
+    damageSeverity: major     # severe | major | moderate | negligible
     impactCategories:
       - safety                # safety | financial | operational | privacy
+    hazardRef: HE-PREFIX-001  # required for a safety impact (W030)
 threatTable:
-  - id: TS-PREFIX-001
+  - id: TS-PREFIX-010
     name: "Attacker [action] via [attack surface]"
     attackFeasibility: medium # high | medium | low | very_low
     attackVector: network     # network | adjacent | local | physical
     damageScenarios:
-      - DS-PREFIX-001
+      - DS-PREFIX-010
 goalTable:
-  - id: CSG-PREFIX-001
+  - id: CSG-PREFIX-010
     name: "Ensure [security property] of [asset]"
+    # risk = severity + feasibility: major + medium = high → at least CAL3 (W032);
+    # a severe damage or high feasibility would make it critical → CAL4.
     calLevel: CAL3            # CAL1 | CAL2 | CAL3 | CAL4
     securityProperty: integrity # confidentiality | integrity | availability | authenticity
     threatScenarios:
-      - TS-PREFIX-001
+      - TS-PREFIX-010
 controlTable:
-  - id: SC-PREFIX-001
+  - id: SC-PREFIX-010
     name: "Implement [control mechanism]"
     controlType: prevention   # prevention | detection | response | recovery
     implementsGoals:
-      - CSG-PREFIX-001
+      - CSG-PREFIX-010
 ---
 
 ## Scope
@@ -3983,9 +4187,10 @@ type: DamageScenario
 id: DS-PREFIX-001
 name: "Unauthorized [action] enables [damage]"
 status: draft
-damageSeverity: severe    # severe | major | moderate | negligible
+damageSeverity: major     # severe | major | moderate | negligible
 impactCategories:
   - safety                # safety | financial | operational | privacy
+hazardRef: HE-PREFIX-001  # required for a safety impact (W030): HazardousEvent/SafetyGoal
 assets:                   # optional: Asset(s) this scenario damages (§15.3 -> §15.4 trace)
   - ASSET-PREFIX-001
 ---
@@ -4129,37 +4334,78 @@ pub fn cmd_template(type_name: &str) {
         Some(out) => print!("{}", out),
         None => {
             eprintln!("Unknown type '{}'. Known types:", type_name);
-            eprintln!("  Native elements:  Requirement, TestCase, TestPlan, ADR, PlanningItem");
-            eprintln!("  Structural:       PartDef, Part, ItemDef, Item");
-            eprintln!("  Interfaces:       PortDef, Port, InterfaceDef, Interface");
-            eprintln!("  Connections:      ConnectionDef, Connection");
-            eprintln!("  Actions:          ActionDef, Action");
-            eprintln!("  Attributes:       AttributeDef, EnumerationDef, Enumeration");
-            eprintln!("  Calculations:     CalculationDef, Calculation");
-            eprintln!("  Constraints:      ConstraintDef, Constraint");
-            eprintln!("  States:           StateDef, State");
-            eprintln!("  Use cases:        UseCaseDef, UseCase");
-            eprintln!("  Flows:            FlowDef");
-            eprintln!("  Requirements:     RequirementDef");
-            eprintln!("  Verification:     VerificationCaseDef, VerificationCase");
-            eprintln!("  Analysis:         AnalysisCaseDef, AnalysisCase");
-            eprintln!("  Allocation:       AllocationDef, Allocation");
-            eprintln!("  Views:            ViewDef, View, ViewpointDef, Diagram");
-            eprintln!("  Metadata:         MetadataDef, Metadata");
-            eprintln!("  Packages:         Package, LibraryPackage, Namespace");
-            eprintln!("  PLE:              FeatureDef, FeatureModel, Configuration");
-            eprintln!("  Misc:             Dependency");
-            eprintln!("  Safety (HARA):    HazardousEvent, SafetyGoal");
-            eprintln!("  Security (TARA):  Asset, DamageScenario, ThreatScenario, CybersecurityGoal,");
-            eprintln!("                    SecurityControl, VulnerabilityReport, TARASheet");
-            eprintln!("  FTA:              FaultTree, FaultTreeGate, FaultTreeEvent");
-            eprintln!("  FMEA:             FMEASheet");
-            eprintln!("  APA:              AttackTree, AttackTreeGate, AttackStep");
-            eprintln!("  Confirmation:     ConfirmationMeasure");
-            eprintln!("  Safety case (GSN): Argument, AssumptionOfUse");
+            // Generated from the same inventory the templates are keyed by, so
+            // the list can never omit a supported type (GH #135); the grouping
+            // only orders it.
+            let names = template_type_names();
+            for group in TEMPLATE_GROUPS {
+                let members: Vec<&str> =
+                    names.iter().copied().filter(|n| template_group(n) == *group).collect();
+                if members.is_empty() {
+                    continue;
+                }
+                let label = format!("{group}:");
+                let mut line = format!("  {label:<19}");
+                let mut first = true;
+                for n in members {
+                    if !first && line.len() + n.len() + 2 > 92 {
+                        eprintln!("{},", line.trim_end_matches(", "));
+                        line = format!("  {:<19}", "");
+                        first = true;
+                    }
+                    if !first {
+                        line.push_str(", ");
+                    }
+                    line.push_str(n);
+                    first = false;
+                }
+                eprintln!("{line}");
+            }
+            eprintln!("  (FMEAEntry rows are authored inside `template FMEASheet`.)");
             std::process::exit(1);
         }
     }
+}
+
+/// Display groups for the unknown-type "Known types" list, in print order.
+const TEMPLATE_GROUPS: &[&str] = &[
+    "Native elements",
+    "SysML definitions",
+    "SysML usages",
+    "Packages & views",
+    "PLE",
+    "Safety",
+    "Security",
+];
+
+/// The display group of a template type. Purely presentational: a type not
+/// named here falls into the SysML definition/usage group by its name, so every
+/// type in [`template_type_names`] is always printed.
+fn template_group(name: &str) -> &'static str {
+    match name {
+        "Requirement" | "TestCase" | "TestPlan" | "ADR" | "Baseline" | "PlanningItem"
+        | "ReviewRecord" | "TradeStudy" => "Native elements",
+        "Package" | "LibraryPackage" | "Namespace" | "Dependency" | "Diagram" => "Packages & views",
+        "FeatureDef" | "FeatureModel" | "Configuration" => "PLE",
+        "HazardousEvent" | "SafetyGoal" | "FaultTree" | "FaultTreeGate" | "FaultTreeEvent"
+        | "FMEASheet" | "FMEAEntry" | "ConfirmationMeasure" | "Argument" | "AssumptionOfUse" => "Safety",
+        "Asset" | "DamageScenario" | "ThreatScenario" | "CybersecurityGoal" | "SecurityControl"
+        | "VulnerabilityReport" | "TARASheet" | "AttackTree" | "AttackTreeGate" | "AttackStep"
+        | "Zone" | "Conduit" => "Security",
+        n if n.ends_with("Def") => "SysML definitions",
+        _ => "SysML usages",
+    }
+}
+
+/// Every element type `template` has a skeleton for, in `ElementType`
+/// declaration order — i.e. every authorable type except the synthesised
+/// `FMEAEntry`. Drives the unknown-type error's "Known types" list.
+pub fn template_type_names() -> Vec<&'static str> {
+    ElementType::ALL
+        .iter()
+        .map(|t| t.name())
+        .filter(|n| template_str(n).is_some())
+        .collect()
 }
 
 pub fn print_help() {
@@ -4587,5 +4833,102 @@ mod planning_item_template_tests {
     fn planning_item_lookup_is_case_insensitive() {
         assert!(template_str("planningitem").is_some());
         assert!(template_str("PLANNINGITEM").is_some());
+    }
+}
+
+#[cfg(test)]
+mod every_template_tests {
+    //! GH #135 / REQ-TRS-CLI-010 — every element type has a current-schema
+    //! skeleton, and all of them validate together in one scratch model.
+    use super::*;
+    use std::path::{Path, PathBuf};
+    use syscribe_model::config::ValidateConfig;
+    use syscribe_model::validator::validate_with_config;
+    use syscribe_model::walker::walk_model;
+
+    /// Coverage warnings whose satisfying element is deliberately outside the
+    /// skeleton set (a Requirement deriving from each goal, a cybersecurity
+    /// assessment, an active TestCase, a mitigated vulnerability).
+    const ALLOWED: &[&str] = &["W005", "W007", "W039", "W613", "W803", "W804", "W805"];
+
+    fn field(out: &str, key: &str) -> Option<String> {
+        let fm = out.split("---").nth(1)?;
+        fm.lines().find_map(|l| {
+            let v = l.strip_prefix(key)?.strip_prefix(':')?;
+            let v = v.split(" #").next().unwrap_or(v).trim().trim_matches('"');
+            (!v.is_empty()).then(|| v.to_string())
+        })
+    }
+
+    /// Where a skeleton goes, following its own placement comments.
+    fn placement(root: &Path, ty: &str, out: &str) -> PathBuf {
+        let dir = match ty {
+            "FaultTreeGate" | "FaultTreeEvent" => root.join("FaultTree").join("FT-PREFIX-001"),
+            "AttackTreeGate" | "AttackStep" => root.join("AttackTree").join("AT-PREFIX-001"),
+            _ => root.join(ty),
+        };
+        if matches!(ty, "Package" | "LibraryPackage" | "Namespace") {
+            return dir.join("_index.md");
+        }
+        let stem = field(out, "id")
+            .or_else(|| field(out, "name"))
+            .filter(|s| s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-'))
+            .unwrap_or_else(|| ty.to_string());
+        dir.join(format!("{stem}.md"))
+    }
+
+    #[test]
+    fn every_element_type_has_a_template_except_fmea_entry() {
+        let missing: Vec<&str> = ElementType::ALL
+            .iter()
+            .map(|t| t.name())
+            .filter(|n| *n != "FMEAEntry" && template_str(n).is_none())
+            .collect();
+        assert!(missing.is_empty(), "no template for: {missing:?}");
+        assert_eq!(template_type_names().len(), ElementType::ALL.len() - 1);
+        for t in ["ReviewRecord", "TradeStudy", "Zone", "Conduit", "Baseline"] {
+            assert!(template_type_names().contains(&t), "known types omit {t}");
+        }
+    }
+
+    #[test]
+    fn templates_use_the_current_schema() {
+        let sd = template_str("StateDef").unwrap();
+        assert!(sd.contains("isInitial: true") && sd.contains("target:") && sd.contains("source:"));
+        for dep in ["\n    from:", "\n  - from:", "\n    to:", "trigger:"] {
+            assert!(!sd.contains(dep), "StateDef template uses deprecated key {dep:?}");
+        }
+        let bl = template_str("Baseline").unwrap();
+        for k in ["gitTag:", "gitCommit:", "frozenScope:", "seal:", "aggregateHash:", "elementCount:", "manifest:"] {
+            assert!(bl.contains(k), "Baseline template lacks {k}");
+        }
+    }
+
+    #[test]
+    fn all_templates_validate_together_with_only_placeholder_findings() {
+        let root = std::env::temp_dir().join(format!("syscribe-templates-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        for name in template_type_names() {
+            let out = template_str(name).unwrap();
+            let path = placement(&root, name, out);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, out).unwrap();
+        }
+        let elements = walk_model(&root).expect("walk scratch model");
+        let cfg = ValidateConfig { model_root: Some(root.clone()), ..ValidateConfig::default() };
+        let result = validate_with_config(&elements, &cfg);
+        let _ = std::fs::remove_dir_all(&root);
+
+        let unexpected: Vec<String> = result
+            .findings
+            .iter()
+            .filter(|f| !ALLOWED.contains(&f.code))
+            .filter(|f| {
+                let m = f.message.to_ascii_lowercase();
+                !(m.contains("does not resolve") || m.contains("unresolved"))
+            })
+            .map(|f| format!("{} {} {}", f.code, f.file, f.message))
+            .collect();
+        assert!(unexpected.is_empty(), "templates raise unexpected findings:\n{}", unexpected.join("\n"));
     }
 }
