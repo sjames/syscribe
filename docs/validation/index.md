@@ -33,7 +33,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 
 | Range | Group | Description |
 |---|---|---|
-| E000–E015, E019–E026 | Parse-time | Missing frontmatter delimiter (E001), invalid YAML, required fields, ID patterns, status/testLevel/integrity enums, Gherkin structure, ASPICE fields, ID-digit cap (E023), removed `title:` (E025; E003/E024 retired); E000 is an internal fallback that should never appear |
+| E000–E015, E019–E027 | Parse-time | Missing frontmatter delimiter (E001), invalid YAML, required fields, ID patterns, status/testLevel/integrity enums, Gherkin structure, ASPICE fields, ID-digit cap (E023), removed `title:` (E025; E003/E024 retired); E000 is an internal fallback that should never appear |
 | E016–E018, E107 | Cycle detection | Cycles in `supertype:`, `derivedFrom:`, `subsets:` and `typedBy:` graphs |
 | W001–W010, I010 | Parse-time and source drift | Normative `shall`, leaf test coverage (W002/W003), orphan requirements, SIL/ASIL pairing, unused type defs, missing `type:`, `sourceFile`/test-function drift, ingested test results; I010 flags a planned test not yet present |
 | E101–E108, E110–E114 | Cross-reference | Duplicate ids (E101) and qualified names (E108), unresolved or ill-typed `verifies`/`derivedFrom`, scenario names, unresolved `supertype`/`typedBy`/`subsets`/`redefines`/`satisfies` |
@@ -42,7 +42,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | W011–W027, W048 | Product-line warnings (§9) | Dead/always-selected features, untested active requirements, unbound parameters, false-optional, escaping/violable references, orphan features, runtime bindings, empty gating packages, misplaced feature-model fields |
 | W023, W028, W029 | Implementation and external refs | Missing `implementedBy:` path (§12.8), duplicate `extRef`, unmeasured `wcet:` claim |
 | W030–W040 | Safety↔security | Co-engineering, cyber-risk treatment and CAL, HW metrics, freedom from interference, attack-tree feasibility, responsibility and independent assessment, orphan GSN nodes |
-| W041–W047, W049, W051 | Schema hygiene | Nested `custom_fields`, non-basic names, standard-library typos and unit/quantity mismatches, stereotype tagged values, `[ids.prefixes]` entries, unrecognised frontmatter keys |
+| W041–W047, W049, W051, W052 | Schema hygiene | Nested `custom_fields`, non-basic names, standard-library typos and unit/quantity mismatches, stereotype tagged values, `[ids.prefixes]` entries, unrecognised frontmatter keys |
 | E300–E304 | ADR | ID pattern, required fields, status enum, reqDomain/domain enums |
 | E310–E318 | §12 Traceability and metadata | breakdownAdr, parent in satisfies, domain mismatch, deployment allocation, HW/SW independence, `refines:` (E316), stereotype resolution/applicability (E317, E318) |
 | W300–W311 | Traceability and planning warnings | Leaf satisfaction, domain refinement, proposed breakdown ADR, deployment domain, parent integration tests, unsatisfied safety mechanism, use cases without `refines:` (W301 retired); PlanningItem staleness, roster, completion bar, overlapping work (W308–W311) |

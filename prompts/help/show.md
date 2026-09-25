@@ -9,6 +9,12 @@ domain, …), its inline features, and its documentation body. Accepts a qualifi
 name (Pkg::Sub::Name) or a stable id (REQ-*, TC-*, SG-*, …). User-defined links
 (`links:`) appear as one `links.<type>` row per link type.
 
+After the documentation body come the §3.10 annotations attached from other files:
+one `## Documentation (<locale>)` section per locale variant (`locale:` +
+`qualifiedName:`), and one `## Note: <name>` section per `about:` comment that lists
+the element (with the comment's source file and locale). A `localeDocs` / `notes`
+row in the field table summarises them.
+
 For a package (`Package`/`LibraryPackage`/`Namespace`) — or any element that owns
 child elements in the directory tree — a `## Members (N)` table lists its **direct**
 children (Element = stable id else qualified name, Type, Name, Status), sorted by

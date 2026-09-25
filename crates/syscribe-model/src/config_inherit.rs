@@ -305,6 +305,7 @@ mod tests {
             derived: Default::default(),
             derive_findings: Vec::new(),
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 

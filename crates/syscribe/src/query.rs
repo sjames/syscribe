@@ -672,6 +672,9 @@ pub fn cmd_show(
         let locs: Vec<&str> = elem.locale_docs.keys().map(String::as_str).collect();
         println!("| **localeDocs** | {} |", locs.join(", "));
     }
+    if !elem.about_notes.is_empty() {
+        println!("| **notes** | {} |", elem.about_notes.len());
+    }
     if fm.is_abstract == Some(true) { println!("| **abstract** | true |"); }
     if let Some(ref d) = fm.domain { println!("| **domain** | {} |", d); }
     if let Some(ref rk) = fm.requirement_kind { println!("| **requirementKind** | {} |", rk); }
@@ -1056,6 +1059,22 @@ pub fn cmd_show(
         println!("## Documentation ({})", locale);
         println!();
         println!("{}", body);
+    }
+    // §3.10 `about:` comments (REQ-TRS-PARSE-011): one section per comment
+    // naming this element, in walk order, with its source file.
+    for note in &elem.about_notes {
+        println!();
+        println!("## Note: {}", note.name);
+        println!();
+        match &note.locale {
+            Some(l) => println!("_From `{}` ({})._", note.file, l),
+            None => println!("_From `{}`._", note.file),
+        }
+        let body = note.body.trim();
+        if !body.is_empty() {
+            println!();
+            println!("{}", body);
+        }
     }
 
     // Members (REQ-TRS-PKG-001, GH #120) — generated from the directory tree,
@@ -4400,6 +4419,7 @@ mod custom_where_tests {
             derived: std::collections::HashMap::new(),
             derive_findings: Vec::new(),
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 

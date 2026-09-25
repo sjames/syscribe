@@ -57,6 +57,7 @@ mod tests {
             derived: Default::default(),
             derive_findings: vec![],
             locale_docs: Default::default(),
+            about_notes: Default::default(),
         }
     }
 

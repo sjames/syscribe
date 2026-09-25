@@ -77,6 +77,7 @@ const TOLERATED: &[(&str, &str)] = &[
     ("E110", "unresolved supertype target"),
     ("E111", "unresolved typedBy target"),
     ("E114", "unresolved satisfies target"),
+    ("E027", "unresolved about: comment entry"),
     ("E209", "unresolved appliesWhen feature"),
     ("E234", "Configuration derivedFrom base not in the snippet"),
     ("E311", "unresolved breakdownAdr"),
