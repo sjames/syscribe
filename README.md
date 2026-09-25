@@ -4,6 +4,13 @@
 
 **[Documentation →](https://sjames.github.io/syscribe)**
 
+**Ways to use it:**
+- **CLI:** validate, query, trace and report on a model (`syscribe -m model/ …`).
+- **GitHub Action:** gate pull requests on model validity with `uses: sjames/syscribe@v0` ([see below](#installation)).
+- **MCP server:** let an LLM agent read, analyze and safely edit the model with `syscribe -m model/ mcp` ([setup](#agent-native--the-mcp-server)).
+- **LSP server:** diagnostics, navigation, completion and rename in your editor (`syscribe lsp`).
+- **Web browser:** browse the model and its diagrams with `syscribe-server`.
+
 ---
 
 ## The Idea
@@ -110,6 +117,29 @@ Syscribe is a [Model Context Protocol](https://modelcontextprotocol.io) server, 
 syscribe -m model_auto/ mcp                # stdio MCP server (`syscribe help mcp` lists the tools)
 syscribe -m model_auto/ mcp --read-only    # analysis only; write tools hidden & refused
 ```
+
+**Connect it to an MCP client.** Install the `syscribe` binary (see [Installation](#installation)), then register it with the model directory it should serve.
+
+For Claude Code:
+
+```bash
+claude mcp add syscribe -- /abs/path/to/syscribe -m /abs/path/to/model mcp
+```
+
+For clients configured with an `mcpServers` JSON block (such as Claude Desktop):
+
+```json
+{
+  "mcpServers": {
+    "syscribe": {
+      "command": "/abs/path/to/syscribe",
+      "args": ["-m", "/abs/path/to/model", "mcp"]
+    }
+  }
+}
+```
+
+Add `"--read-only"` after `"mcp"` for an analysis-only server. The server speaks MCP over stdio, needs no network access, and serves exactly the model directory passed with `-m`.
 
 Read tools cover retrieval, fuzzy search, the containment/graph, `trace` / `impact`, validation, coverage, and the suspect/baseline surfaces. **Writes are guarded**: every `create_element` / `update_element` / `move_element` / `delete_element` / `apply_changes` call defaults to `dry_run: true`, returns the **validation delta** the change would cause (newly introduced and resolved errors and warnings), and refuses to commit anything that would break referential integrity — so an agent can propose a change, inspect its exact effect, and only then commit it. Sealing a release stays a deliberate CLI/CI action.
 
