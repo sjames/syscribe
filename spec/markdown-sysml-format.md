@@ -5577,7 +5577,7 @@ A conformant parser MUST report errors for:
 - `multiplicity:` strings that do not conform to the syntax in Section 6.
 - `direction:` values other than `in`, `out`, `inout`, or `return` (where `return` is valid only for parameters).
 - `visibility:` values other than `public`, `protected`, or `private`.
-- Two elements in the same directory with the same effective `name:`.
+- Two elements with the same qualified name (`E108`) — possible only through a file/directory clash or a synthesized element, since qualified names are path-derived (§4.5).
 - `supertype:` used on a usage (should be `typedBy:` and/or `subsets:`).
 - `typedBy:` used on a definition (should be `supertype:`).
 - `isVariant: true` on an element not owned by a variation element (an element with `isVariation: true`).
