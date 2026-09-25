@@ -256,8 +256,20 @@ fn effective(
 /// Materialize inheritance: every `Configuration` with a valid base gets its
 /// effective selection/bindings stored in the non-serialized
 /// `frontmatter.inherited` slot. Configurations without a (valid) base are left
-/// exactly as authored. Called once by the walker after all elements load.
+/// exactly as authored. Called by the walker after all elements load.
+///
+/// Idempotent over the **full** element set: any previously materialized slot
+/// is cleared first, so it is safe — and required — to re-run after a
+/// consumer rebuilds some elements' frontmatter from YAML (the slot is
+/// `#[serde(skip)]`, so a re-parsed `Configuration` silently loses its
+/// inherited selection) or edits a `derivedFrom:` base. The LSP's rename
+/// candidate model is one such consumer (GH #146, `REQ-TRS-VAR-007`). A
+/// single `Configuration` must never be re-derived on its own: its effective
+/// selection depends on its base chain, so only the full set is meaningful.
 pub fn apply_configuration_inheritance(elements: &mut [RawElement]) {
+    for e in elements.iter_mut() {
+        e.frontmatter.inherited = None;
+    }
     let (base_of, _) = analyse(elements);
     if base_of.is_empty() {
         return;
@@ -312,6 +324,30 @@ mod tests {
         assert!(b.get("F::Y.q").is_none(), "binding for a deselected feature is dropped");
         // The base is untouched.
         assert!(els[0].frontmatter.inherited.is_none());
+    }
+
+    #[test]
+    fn reapplying_after_a_reparse_restores_the_inherited_selection() {
+        // GH #146: the `inherited` slot is `#[serde(skip)]`, so a consumer that
+        // re-deserializes a child's frontmatter (the LSP rename candidate) loses
+        // it; re-running over the full set must restore it, and re-running must
+        // be idempotent (a stale slot is cleared, not kept).
+        let mut els = vec![
+            conf("CONF-A-001", "approved", None, "  F::X: true", "parameterBindings:\n  F::X.p: 1\n"),
+            conf("CONF-B-001", "draft", Some("CONF-A-001"), "  F::Y: true", ""),
+        ];
+        apply_configuration_inheritance(&mut els);
+        let reparsed: RawFrontmatter =
+            serde_yaml::from_value(serde_yaml::to_value(&els[1].frontmatter).expect("ser")).expect("de");
+        els[1].frontmatter = reparsed;
+        assert!(els[1].frontmatter.inherited.is_none(), "a re-parse drops the slot");
+        apply_configuration_inheritance(&mut els);
+        assert_eq!(els[1].frontmatter.feature_selections().get("F::X"), Some(&true));
+        // Dropping the base link and re-applying clears the now-stale slot.
+        els[1].frontmatter.derived_from = None;
+        apply_configuration_inheritance(&mut els);
+        assert!(els[1].frontmatter.inherited.is_none());
+        assert_eq!(els[1].frontmatter.feature_selections().get("F::X"), None);
     }
 
     #[test]

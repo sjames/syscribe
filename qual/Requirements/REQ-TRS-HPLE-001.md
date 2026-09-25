@@ -15,6 +15,11 @@ error), that element **shall** itself be a `Configuration` (else a wrong-type er
 not-internally-valid error). For a peer entry, validity **shall** be established by genuinely
 loading and validating that repo's model, not merely by confirming the name exists.
 
+A peer entry **shall** resolve by the peer's native qualified name, by global stable id, **or**
+through a `repoImports:` mount path (`<package>::<as>::X` → the peer's `<qname>::X`, §14.4) exactly
+as the other cross-repo reference fields do; a mount path naming nothing in its peer is a
+dangling-reference error (GH #146).
+
 A consolidated `Configuration` **shall** be judged — for validity, for the parameters it already
 closes, and for what it selects — on its **effective** selection and bindings, including those it
 inherits from a base through `derivedFrom:` (spec §9.8, `REQ-TRS-VAR-007`).
@@ -24,4 +29,6 @@ inherits from a base through `derivedFrom:` (spec §9.8, `REQ-TRS-VAR-007`).
 **Acceptance criteria:** a `Configuration` naming a real, internally-valid `Configuration` (local or
 peer) via `subConfigurations:` validates cleanly; a dangling name, a name resolving to a
 non-`Configuration` element, and a name resolving to a `Configuration` that is itself SAT-invalid
-are each independently reported as errors.
+are each independently reported as errors; a `subConfigurations:` entry written through a
+`repoImports:` mount path resolves and is validity-checked in that peer (no `E516`), while a mount
+path naming no element of the peer raises `E516`.

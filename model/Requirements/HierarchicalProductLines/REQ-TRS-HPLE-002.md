@@ -17,7 +17,10 @@ The existing `Configuration.parameterBindings:` field (a flat map keyed by the c
 belonging to any `FeatureDef` reachable through `subConfigurations:` — at any depth, not only this
 `Configuration`'s own local features — using the parameter's ordinary, already-mounted qname. No new
 field, and no new cross-repo addressing syntax distinct from an ordinary qualified name, is
-introduced.
+introduced. The `<FeatureDef>` part of a key may be the peer-native qname or a `repoImports:` mount
+path (`<package>::<as>::X`, §14.4), which resolves to the peer's `<qname>::X` — for the binding
+itself, for detecting that a nearer tier already closed the parameter (that tier's own keys resolve
+through that tier's own mounts), and for the open-parameter closure of `REQ-TRS-HPLE-004` (GH #146).
 
 ## Rationale
 

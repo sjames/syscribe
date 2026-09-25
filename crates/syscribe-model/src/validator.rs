@@ -8047,6 +8047,55 @@ fn element_type_label(t: &Option<ElementType>) -> String {
     }
 }
 
+/// `config` with `elements`' own `repoImports:` mount points installed
+/// (§14.3/§14.4) — what `validate_with_config` does on entry, repeated here so
+/// the HPLE entry points below also resolve `<package>::<as>::X` mount paths
+/// when called directly (e.g. `feature-check` calls
+/// [`parameter_binding_findings`] without going through `validate_with_config`)
+/// and for each peer tier they recurse into (GH #146). Borrows `config`
+/// unchanged when no repo is configured or the mounts are already installed.
+fn with_repo_mounts<'a>(elements: &[RawElement], config: &'a ValidateConfig) -> std::borrow::Cow<'a, ValidateConfig> {
+    if config.has_repos() && config.repo_mounts.is_empty() {
+        let mounts = crate::config::repo_mounts(elements, &config.repos);
+        if !mounts.is_empty() {
+            let mut mounted = config.clone();
+            mounted.repo_mounts = mounts;
+            return std::borrow::Cow::Owned(mounted);
+        }
+    }
+    std::borrow::Cow::Borrowed(config)
+}
+
+/// The loaded peer repo a `subConfigurations:` entry `sc` that did not resolve
+/// locally should be looked up in, with the name to resolve it by there
+/// (REQ-TRS-HPLE-001, §14.4 order). A `repoImports:` mount path
+/// (`<package>::<as>::X`) names exactly one repo and translates to that
+/// peer's native qualified name (GH #146); otherwise the first loaded repo
+/// whose qname/stable-id index knows `sc` (exact, or as a trailing `::`
+/// segment) is used with `sc` itself. `None` when no loaded repo can hold it.
+fn sub_configuration_peer<'a>(config: &'a ValidateConfig, sc: &str) -> Option<(&'a crate::config::LoadedRepo, String)> {
+    if let Some((repo, native)) = config.unmount(sc) {
+        return repo.exists.then_some((repo, native));
+    }
+    let suffix = format!("::{sc}");
+    config
+        .repos
+        .iter()
+        .filter(|repo| repo.exists)
+        .find(|repo| {
+            repo.stable_ids.contains(sc) || repo.qnames.contains(sc) || repo.qnames.iter().any(|q| q.ends_with(&suffix))
+        })
+        .map(|repo| (repo, sc.to_string()))
+}
+
+/// A `parameterBindings:` key with its `<FeatureDef>` part translated through
+/// `config`'s `repoImports:` mounts to the peer-native qualified name (GH
+/// #146), or `None` when the key is not a dotted path under a mount.
+fn unmount_binding_key(config: &ValidateConfig, key: &str) -> Option<String> {
+    let (feat, pname) = key.rsplit_once('.')?;
+    config.unmount(feat).map(|(_, native)| format!("{native}.{pname}"))
+}
+
 /// Run `validate_with_config` + `check_feature_model_deep` against a peer's
 /// elements on a dedicated thread carrying a generous, fixed-size stack
 /// ([`HPLE_PEER_STACK_SIZE`]) rather than whatever stack the caller happens
@@ -8146,6 +8195,7 @@ pub fn sub_configuration_findings(
     resolver: &Resolver,
     prior_findings: &[Finding],
 ) -> Vec<Finding> {
+    let config = &*with_repo_mounts(elements, config);
     let mut own_findings: Vec<Finding> = Vec::new();
 
     let configs: Vec<&RawElement> = elements
@@ -8351,138 +8401,147 @@ pub fn sub_configuration_findings(
                 continue;
             }
 
-            // 2. Each loaded peer repo, in declaration order.
+            // 2. A loaded peer repo: the one a `repoImports:` mount path names
+            // (translated to the peer-native qname, GH #146), else the first,
+            // in declaration order, whose index knows the name.
             let mut resolved_in_repo = false;
-            for repo in &config.repos {
-                if !repo.exists {
-                    continue;
-                }
-                let suffix = format!("::{sc}");
-                let quick_match = repo.stable_ids.contains(sc)
-                    || repo.qnames.contains(sc)
-                    || repo.qnames.iter().any(|q| q.ends_with(&suffix));
-                if !quick_match {
-                    continue;
-                }
+            if let Some((repo, peer_name)) = sub_configuration_peer(config, sc) {
+                let peer_name = peer_name.as_str();
                 resolved_in_repo = true;
+                'peer: {
+                    // Genuinely load and parse the peer — the shallow qname/id
+                    // index only proves existence (ADR-SYS-HPLE-001 Decision 1).
+                    let peer_elements = peer_cache
+                        .entry(repo.model_root.clone())
+                        .or_insert_with(|| crate::walker::walk_model(&repo.model_root).ok());
 
-                // Genuinely load and parse the peer — the shallow qname/id
-                // index only proves existence (ADR-SYS-HPLE-001 Decision 1).
-                let peer_elements = peer_cache
-                    .entry(repo.model_root.clone())
-                    .or_insert_with(|| crate::walker::walk_model(&repo.model_root).ok());
+                    let Some(peer_elements) = peer_elements else {
+                        let f = error(
+                            "E516",
+                            &cfg.file_path,
+                            &format!(
+                                "subConfigurations '{}' names a Configuration in repo '{}', but the repo could not be loaded",
+                                sc, repo.alias
+                            ),
+                        );
+                        effective.push(f.clone());
+                        own_findings.push(f);
+                        break 'peer;
+                    };
 
-                let Some(peer_elements) = peer_elements else {
-                    let f = error(
-                        "E516",
-                        &cfg.file_path,
-                        &format!(
-                            "subConfigurations '{}' names a Configuration in repo '{}', but the repo could not be loaded",
-                            sc, repo.alias
-                        ),
-                    );
-                    effective.push(f.clone());
-                    own_findings.push(f);
-                    break;
-                };
+                    let peer_resolver = Resolver::new(peer_elements);
+                    let Some(target) = peer_resolver.resolve_ref(peer_elements, peer_name) else {
+                        // The shallow index (or the mount) said it exists but the
+                        // real parse disagrees — degrade to dangling rather than
+                        // accepting it.
+                        let f = error(
+                            "E516",
+                            &cfg.file_path,
+                            &format!(
+                                "subConfigurations '{}' does not resolve to any element in repo '{}'",
+                                sc, repo.alias
+                            ),
+                        );
+                        effective.push(f.clone());
+                        own_findings.push(f);
+                        break 'peer;
+                    };
 
-                let peer_resolver = Resolver::new(peer_elements);
-                let Some(target) = peer_resolver.resolve_ref(peer_elements, sc) else {
-                    // The shallow index said it exists but the real parse
-                    // disagrees — degrade to dangling rather than accepting it.
-                    let f = error(
-                        "E516",
-                        &cfg.file_path,
-                        &format!(
-                            "subConfigurations '{}' does not resolve to any element in repo '{}'",
-                            sc, repo.alias
-                        ),
-                    );
-                    effective.push(f.clone());
-                    own_findings.push(f);
-                    break;
-                };
+                    if !matches!(target.frontmatter.element_type, Some(ElementType::Configuration)) {
+                        let f = error(
+                            "E517",
+                            &cfg.file_path,
+                            &format!(
+                                "subConfigurations '{}' resolves to a {} in repo '{}', not a Configuration",
+                                sc,
+                                element_type_label(&target.frontmatter.element_type),
+                                repo.alias
+                            ),
+                        );
+                        effective.push(f.clone());
+                        own_findings.push(f);
+                        break 'peer;
+                    }
 
-                if !matches!(target.frontmatter.element_type, Some(ElementType::Configuration)) {
-                    let f = error(
-                        "E517",
-                        &cfg.file_path,
-                        &format!(
-                            "subConfigurations '{}' resolves to a {} in repo '{}', not a Configuration",
-                            sc,
-                            element_type_label(&target.frontmatter.element_type),
-                            repo.alias
-                        ),
-                    );
-                    effective.push(f.clone());
-                    own_findings.push(f);
-                    break;
-                }
+                    let tgt_id = target
+                        .frontmatter
+                        .id
+                        .clone()
+                        .unwrap_or_else(|| target.qualified_name.clone());
 
-                let tgt_id = target
-                    .frontmatter
-                    .id
-                    .clone()
-                    .unwrap_or_else(|| target.qualified_name.clone());
-
-                // Bounded recursion guard (see HPLE_MAX_DEPTH doc comment).
-                // Read on *this* thread; the recursive step below seeds the
-                // *new* thread's own copy from `next_depth` (thread-locals do
-                // not propagate across a thread spawn).
-                let depth = HPLE_DEPTH.with(|d| d.get());
-                if depth >= HPLE_MAX_DEPTH {
-                    let f = error(
-                        "E518",
-                        &cfg.file_path,
-                        &format!(
-                            "subConfigurations '{}' (Configuration '{}' in repo '{}') exceeds the maximum consolidation depth ({}) — check for a circular subConfigurations chain",
-                            sc, tgt_id, repo.alias, HPLE_MAX_DEPTH
-                        ),
-                    );
-                    effective.push(f.clone());
-                    own_findings.push(f);
-                    break;
-                }
-                // Loading a peer config installs that peer's `[linkTypes]` as the
-                // process-wide vocabulary (REQ-TRS-LINKTYPE-001); restore ours after.
-                let saved_link_types = crate::link_types::active();
-                let peer_config = ValidateConfig::with_model_root(repo.model_root.clone());
-                crate::link_types::install(&saved_link_types);
-                match run_peer_validation_on_dedicated_thread(peer_elements, &peer_config, depth + 1) {
-                    Ok((peer_errors, peer_void, peer_invalid_configs)) => {
-                        if !peer_errors.is_empty() {
+                    // Bounded recursion guard (see HPLE_MAX_DEPTH doc comment).
+                    // Read on *this* thread; the recursive step below seeds the
+                    // *new* thread's own copy from `next_depth` (thread-locals do
+                    // not propagate across a thread spawn).
+                    let depth = HPLE_DEPTH.with(|d| d.get());
+                    if depth >= HPLE_MAX_DEPTH {
+                        let f = error(
+                            "E518",
+                            &cfg.file_path,
+                            &format!(
+                                "subConfigurations '{}' (Configuration '{}' in repo '{}') exceeds the maximum consolidation depth ({}) — check for a circular subConfigurations chain",
+                                sc, tgt_id, repo.alias, HPLE_MAX_DEPTH
+                            ),
+                        );
+                        effective.push(f.clone());
+                        own_findings.push(f);
+                        break 'peer;
+                    }
+                    // Loading a peer config installs that peer's `[linkTypes]` as the
+                    // process-wide vocabulary (REQ-TRS-LINKTYPE-001); restore ours after.
+                    let saved_link_types = crate::link_types::active();
+                    let peer_config = ValidateConfig::with_model_root(repo.model_root.clone());
+                    crate::link_types::install(&saved_link_types);
+                    match run_peer_validation_on_dedicated_thread(peer_elements, &peer_config, depth + 1) {
+                        Ok((peer_errors, peer_void, peer_invalid_configs)) => {
+                            if !peer_errors.is_empty() {
+                                let f = error(
+                                    "E518",
+                                    &cfg.file_path,
+                                    &format!(
+                                        "subConfigurations '{}' names Configuration '{}' in repo '{}', which is not internally valid: {} validation error(s) in that repo (e.g. {}: {})",
+                                        sc,
+                                        tgt_id,
+                                        repo.alias,
+                                        peer_errors.len(),
+                                        peer_errors[0].code,
+                                        peer_errors[0].message
+                                    ),
+                                );
+                                effective.push(f.clone());
+                                own_findings.push(f);
+                            } else if peer_void {
+                                let f = error(
+                                    "E518",
+                                    &cfg.file_path,
+                                    &format!(
+                                        "subConfigurations '{}' names Configuration '{}' in repo '{}', but that repo's feature model is void (no valid configuration exists)",
+                                        sc, tgt_id, repo.alias
+                                    ),
+                                );
+                                effective.push(f.clone());
+                                own_findings.push(f);
+                            } else if peer_invalid_configs.contains(&tgt_id) {
+                                let f = error(
+                                    "E518",
+                                    &cfg.file_path,
+                                    &format!(
+                                        "subConfigurations '{}' names Configuration '{}' in repo '{}', which is not a valid model of that repo's feature model (feature-check --deep: E225)",
+                                        sc, tgt_id, repo.alias
+                                    ),
+                                );
+                                effective.push(f.clone());
+                                own_findings.push(f);
+                            }
+                        }
+                        Err(()) => {
+                            // Fail closed: a validity gate that cannot confirm
+                            // validity must not silently treat the target as valid.
                             let f = error(
                                 "E518",
                                 &cfg.file_path,
                                 &format!(
-                                    "subConfigurations '{}' names Configuration '{}' in repo '{}', which is not internally valid: {} validation error(s) in that repo (e.g. {}: {})",
-                                    sc,
-                                    tgt_id,
-                                    repo.alias,
-                                    peer_errors.len(),
-                                    peer_errors[0].code,
-                                    peer_errors[0].message
-                                ),
-                            );
-                            effective.push(f.clone());
-                            own_findings.push(f);
-                        } else if peer_void {
-                            let f = error(
-                                "E518",
-                                &cfg.file_path,
-                                &format!(
-                                    "subConfigurations '{}' names Configuration '{}' in repo '{}', but that repo's feature model is void (no valid configuration exists)",
-                                    sc, tgt_id, repo.alias
-                                ),
-                            );
-                            effective.push(f.clone());
-                            own_findings.push(f);
-                        } else if peer_invalid_configs.contains(&tgt_id) {
-                            let f = error(
-                                "E518",
-                                &cfg.file_path,
-                                &format!(
-                                    "subConfigurations '{}' names Configuration '{}' in repo '{}', which is not a valid model of that repo's feature model (feature-check --deep: E225)",
+                                    "subConfigurations '{}' names Configuration '{}' in repo '{}', but validating it failed unexpectedly — treating as not internally valid",
                                     sc, tgt_id, repo.alias
                                 ),
                             );
@@ -8490,22 +8549,7 @@ pub fn sub_configuration_findings(
                             own_findings.push(f);
                         }
                     }
-                    Err(()) => {
-                        // Fail closed: a validity gate that cannot confirm
-                        // validity must not silently treat the target as valid.
-                        let f = error(
-                            "E518",
-                            &cfg.file_path,
-                            &format!(
-                                "subConfigurations '{}' names Configuration '{}' in repo '{}', but validating it failed unexpectedly — treating as not internally valid",
-                                sc, tgt_id, repo.alias
-                            ),
-                        );
-                        effective.push(f.clone());
-                        own_findings.push(f);
-                    }
                 }
-                break;
             }
 
             if !resolved_in_repo {
@@ -8659,18 +8703,27 @@ fn config_label(cfg: &RawElement, repo_alias: Option<&str>) -> String {
 /// `REQ-TRS-HPLE-003`'s "any one tier along the path" phrasing: whichever
 /// binding is closest to the top wins the label, though only *whether* one
 /// exists (`Some`/`None`) actually drives `E523`.
+///
+/// `tier_config` is the configuration of the model `target` lives in: a key
+/// that tier wrote through one of *its own* `repoImports:` mounts is matched
+/// by its peer-native form too (GH #146).
 fn mark_already_bound_by(
     target: &RawElement,
     label: &str,
+    tier_config: &ValidateConfig,
     out: &mut HashMap<String, HashMap<String, TransitiveParamStatus>>,
 ) {
     let Some(serde_yaml::Value::Mapping(m)) = target.frontmatter.effective_parameter_bindings() else {
         return;
     };
-    let own_keys: HashSet<&str> = m.keys().filter_map(|k| k.as_str()).collect();
+    let own_keys: HashSet<String> = m
+        .keys()
+        .filter_map(|k| k.as_str())
+        .flat_map(|k| std::iter::once(k.to_string()).chain(unmount_binding_key(tier_config, k)))
+        .collect();
     for (fname, pmap) in out.iter_mut() {
         for (pname, status) in pmap.iter_mut() {
-            if own_keys.contains(format!("{fname}.{pname}").as_str()) {
+            if own_keys.contains(&format!("{fname}.{pname}")) {
                 status.already_bound_by = Some(label.to_string());
             }
         }
@@ -8715,7 +8768,7 @@ fn collect_reachable_feature_params(
     elements: &[RawElement],
     resolver: &Resolver,
     cfg: &RawElement,
-    repos: &[crate::config::LoadedRepo],
+    config: &ValidateConfig,
     depth: u32,
     visiting: &mut HashSet<String>,
     out: &mut HashMap<String, HashMap<String, TransitiveParamStatus>>,
@@ -8741,37 +8794,29 @@ fn collect_reachable_feature_params(
             if !visiting.insert(key.clone()) {
                 continue; // already on the walk stack — local cycle, skip.
             }
-            collect_reachable_feature_params(elements, resolver, target, repos, depth + 1, visiting, out);
-            mark_already_bound_by(target, &config_label(target, None), out);
+            collect_reachable_feature_params(elements, resolver, target, config, depth + 1, visiting, out);
+            mark_already_bound_by(target, &config_label(target, None), config, out);
             visiting.remove(&key);
             continue;
         }
 
-        // 2. Each configured peer repo, in declaration order.
-        for repo in repos {
-            if !repo.exists {
-                continue;
-            }
-            let suffix = format!("::{sc}");
-            let quick_match = repo.stable_ids.contains(sc)
-                || repo.qnames.contains(sc)
-                || repo.qnames.iter().any(|q| q.ends_with(&suffix));
-            if !quick_match {
-                continue;
-            }
+        // 2. The peer repo `sc` names — through a `repoImports:` mount path
+        // (GH #146) or, failing that, the first in declaration order whose
+        // index knows it — mirroring `sub_configuration_findings`.
+        if let Some((repo, peer_name)) = sub_configuration_peer(config, sc) {
             let Ok(peer_elements) = crate::walker::walk_model(&repo.model_root) else {
-                break;
+                continue;
             };
             let peer_resolver = Resolver::new(&peer_elements);
-            let Some(target) = peer_resolver.resolve_ref(&peer_elements, sc) else {
-                break;
+            let Some(target) = peer_resolver.resolve_ref(&peer_elements, &peer_name) else {
+                continue;
             };
             if !matches!(target.frontmatter.element_type, Some(ElementType::Configuration)) {
-                break;
+                continue;
             }
             let key = format!("{}::{}", repo.model_root.display(), target.qualified_name);
             if !visiting.insert(key.clone()) {
-                break; // already on the walk stack — cross-repo cycle, skip.
+                continue; // already on the walk stack — cross-repo cycle, skip.
             }
             let (peer_params, _peer_findings) = build_feature_params(&peer_elements);
             let peer_sel = crate::variability::canon_selection(
@@ -8796,18 +8841,19 @@ fn collect_reachable_feature_params(
             let saved_link_types = crate::link_types::active();
             let peer_config = ValidateConfig::with_model_root(repo.model_root.clone());
             crate::link_types::install(&saved_link_types);
+            // The peer tier's own `repoImports:` mounts, for its own entries/keys.
+            let peer_config = with_repo_mounts(&peer_elements, &peer_config);
             collect_reachable_feature_params(
                 &peer_elements,
                 &peer_resolver,
                 target,
-                &peer_config.repos,
+                &peer_config,
                 depth + 1,
                 visiting,
                 out,
             );
-            mark_already_bound_by(target, &config_label(target, Some(&repo.alias)), out);
+            mark_already_bound_by(target, &config_label(target, Some(&repo.alias)), &peer_config, out);
             visiting.remove(&key);
-            break;
         }
     }
 }
@@ -8847,6 +8893,7 @@ pub fn parameter_binding_findings(
         return findings;
     }
     let num = |v: &serde_yaml::Value| v.as_f64().or_else(|| v.as_i64().map(|i| i as f64));
+    let config = &*with_repo_mounts(elements, config);
 
     let (feature_params, param_meta_findings) = build_feature_params(elements);
     findings.extend(param_meta_findings);
@@ -8889,11 +8936,18 @@ pub fn parameter_binding_findings(
                         let mut table = HashMap::new();
                         let mut visiting = HashSet::new();
                         collect_reachable_feature_params(
-                            elements, resolver, cfg, &config.repos, 0, &mut visiting, &mut table,
+                            elements, resolver, cfg, config, 0, &mut visiting, &mut table,
                         );
                         table
                     });
-                    table.get(feat).and_then(|p| p.get(pname))
+                    // The table is keyed by peer-native FeatureDef qname; a key
+                    // written through a `repoImports:` mount path is looked up
+                    // by its translated form (GH #146).
+                    let unmounted = config.unmount(feat).map(|(_, native)| native);
+                    table
+                        .get(feat)
+                        .or_else(|| unmounted.as_ref().and_then(|n| table.get(n)))
+                        .and_then(|p| p.get(pname))
                 } else {
                     None
                 };
@@ -9015,6 +9069,7 @@ pub fn open_parameter_findings(
     resolver: &Resolver,
 ) -> Vec<Finding> {
     let mut findings: Vec<Finding> = Vec::new();
+    let config = &*with_repo_mounts(elements, config);
     for cfg in elements
         .iter()
         .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration)))
@@ -9024,14 +9079,18 @@ pub fn open_parameter_findings(
         }
         let mut table: HashMap<String, HashMap<String, TransitiveParamStatus>> = HashMap::new();
         let mut visiting: HashSet<String> = HashSet::new();
-        collect_reachable_feature_params(elements, resolver, cfg, &config.repos, 0, &mut visiting, &mut table);
+        collect_reachable_feature_params(elements, resolver, cfg, config, 0, &mut visiting, &mut table);
         if table.is_empty() {
             continue; // purely local chain — see doc comment.
         }
+        // Own keys in both their written and (for a mount path, GH #146)
+        // peer-native forms — the table is keyed by peer-native qname.
         let own_bound: HashSet<String> = match cfg.frontmatter.effective_parameter_bindings() {
-            Some(serde_yaml::Value::Mapping(m)) => {
-                m.keys().filter_map(|k| k.as_str()).map(|s| s.to_string()).collect()
-            }
+            Some(serde_yaml::Value::Mapping(m)) => m
+                .keys()
+                .filter_map(|k| k.as_str())
+                .flat_map(|k| std::iter::once(k.to_string()).chain(unmount_binding_key(config, k)))
+                .collect(),
             _ => HashSet::new(),
         };
 

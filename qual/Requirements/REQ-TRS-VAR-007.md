@@ -32,6 +32,12 @@ validation rules (parameter binding, group, coverage and missing-selection rules
 `subConfigurations:` consolidation (a consolidated Configuration's inherited bindings close its
 parameters). `show` **shall** mark entries the file inherits.
 
+The effective selection is a property of the **full** element set (it depends on the base chain).
+Any consumer that rebuilds a `Configuration`'s frontmatter on its own — re-parsing a single file or
+re-deserializing an edited frontmatter, such as the language server's rename-safety candidate model
+— **shall** re-derive inheritance over the full element set before using it, so the re-parsed
+`Configuration` keeps its inherited selection (GH #146).
+
 ### Checks
 
 A Configuration's `derivedFrom:` is not a requirement derivation and **shall not** raise `E105`,
@@ -47,7 +53,7 @@ A Configuration's `derivedFrom:` is not a requirement derivation and **shall not
 
 A configuration with any of `E234`–`E237` inherits nothing.
 
-**Source:** spec §9.8, §9.11, §9.12; GH #137.
+**Source:** spec §9.8, §9.11, §9.12; GH #137, GH #146.
 
 **Acceptance criteria:** a child naming an approved base validates without `E105`, `W016` or `W017`
 and projects (`list --config`) onto the union of inherited and own selections; a child that
@@ -56,4 +62,6 @@ child's own binding replaces the inherited value (an out-of-range override raise
 child only); `configure` and `matrix` use the effective selection; `validate --all-configs` passes;
 a consolidating tier whose `subConfigurations:` names an inheriting peer Configuration raises
 neither `E518` nor `W513` for the inherited binding; each of `E234`, `E235`, `E236`, `E237` and
-`E215` is raised for its crafted condition and none of them raises `E105` or `E017`.
+`E215` is raised for its crafted condition and none of them raises `E105` or `E017`; the language
+server renames the id of a base Configuration that an inheriting child names in `derivedFrom:`
+without refusing on spurious findings from the child losing its inherited selection.
