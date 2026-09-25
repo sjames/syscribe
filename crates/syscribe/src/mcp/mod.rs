@@ -6,6 +6,7 @@
 mod store;
 mod util;
 mod variability;
+mod watch;
 mod write;
 
 use std::collections::HashSet;
@@ -1366,7 +1367,9 @@ impl SyscribeMcp {
     }
 
     #[tool(
-        description = "Re-read the model from disk. Returns the element count.",
+        description = "Re-read the model from disk now. Returns the element count. Normally \
+        unnecessary: the server reloads automatically when model files change (unless started \
+        with --no-watch).",
         annotations(read_only_hint = true)
     )]
     async fn reload(&self, peer: Peer<RoleServer>) -> Result<CallToolResult, ErrorData> {
@@ -2748,7 +2751,9 @@ impl ServerHandler for SyscribeMcp {
              introduce new validation errors. Relationship vocabulary is per-project: call \
              the `link_types` tool to discover the project's declared link types before \
              authoring a `links:` field, and never invent an undeclared one (E630); use \
-             `follow` to traverse any link."
+             `follow` to traverse any link. The server watches the model files and \
+             reloads automatically when they change on disk (unless started with \
+             --no-watch); call `reload` only to force a re-read."
                 .to_string(),
         )
     }
@@ -3009,15 +3014,24 @@ impl ServerHandler for SyscribeMcp {
 }
 
 /// `syscribe mcp` entry point: build a runtime, load the store, serve over stdio.
-/// `read_only` hides and rejects the write tools (`--read-only`).
-pub fn cmd_mcp(model_root: &Path, read_only: bool) -> anyhow::Result<()> {
+/// `read_only` hides and rejects the write tools (`--read-only`); `watch`
+/// enables the file-watch auto-reload (off with `--no-watch`, REQ-TRS-MCP-048).
+pub fn cmd_mcp(model_root: &Path, read_only: bool, watch: bool) -> anyhow::Result<()> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;
     rt.block_on(async move {
         let store = McpStore::load(model_root)?;
-        let handler = SyscribeMcp::new(Arc::new(RwLock::new(store)), read_only);
+        // Register the file watches before serving so no edit made after the
+        // client connects is missed (REQ-TRS-MCP-048).
+        let armed = watch.then(|| watch::arm(&store.inputs.roots));
+        let store = Arc::new(RwLock::new(store));
+        let handler = SyscribeMcp::new(store.clone(), read_only);
         let service = handler.serve(rmcp::transport::stdio()).await?;
+        if let Some(armed) = armed {
+            // A background task: dropped with the runtime once stdin closes.
+            watch::spawn(armed, store, service.peer().clone());
+        }
         service.waiting().await?;
         Ok::<(), anyhow::Error>(())
     })

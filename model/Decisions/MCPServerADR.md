@@ -99,7 +99,9 @@ runtime dependency — consistent with Syscribe being a self-contained Rust tool
   and the Markdown body are preserved on edit; `create_element` adds an existence check the
   server's overwrite-style `put_element` does not have.
 - The model is loaded once into a shared store and rebuilt after each successful write; a
-  `reload` tool covers external edits. No filesystem watcher in the stdio process.
+  `reload` tool covers external edits. (Amended by GH #181 / REQ-TRS-MCP-048: the stdio process
+  now also runs a debounced, fingerprint-gated `notify` watcher over the model inputs, reloading
+  off-lock and swapping the store in; `--no-watch` disables it and `reload` stays.)
 - Subsequent requirements built atop this decision: per-element resources (REQ-TRS-MCP-017),
   feature-model/projection tools (REQ-TRS-MCP-028..032), and a guarded read-only `run_report`
   passthrough (REQ-TRS-MCP-033) that runs an allowlisted, model-root-confined report command and

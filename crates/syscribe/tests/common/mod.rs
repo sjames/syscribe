@@ -50,7 +50,7 @@ pub fn fixture_copy() -> PathBuf {
 /// A minimal MCP client over the subprocess's stdio.
 pub struct Mcp {
     child: Child,
-    stdin: ChildStdin,
+    stdin: Option<ChildStdin>,
     reader: BufReader<std::process::ChildStdout>,
     next_id: i64,
     pub model_root: PathBuf,
@@ -81,14 +81,29 @@ impl Mcp {
             .expect("spawn syscribe mcp");
         let stdin = child.stdin.take().unwrap();
         let reader = BufReader::new(child.stdout.take().unwrap());
-        Mcp { child, stdin, reader, next_id: 1, model_root: model_root.to_path_buf(), notifications: Vec::new() }
+        Mcp { child, stdin: Some(stdin), reader, next_id: 1, model_root: model_root.to_path_buf(), notifications: Vec::new() }
     }
 
     fn send(&mut self, msg: &Value) {
         let line = serde_json::to_string(msg).unwrap();
-        self.stdin.write_all(line.as_bytes()).unwrap();
-        self.stdin.write_all(b"\n").unwrap();
-        self.stdin.flush().unwrap();
+        let stdin = self.stdin.as_mut().expect("stdin already closed");
+        stdin.write_all(line.as_bytes()).unwrap();
+        stdin.write_all(b"\n").unwrap();
+        stdin.flush().unwrap();
+    }
+
+    /// Close the server's stdin and wait up to `timeout` for the process to exit.
+    /// Returns true if it exited on its own within the timeout.
+    pub fn close_stdin_and_wait(&mut self, timeout: std::time::Duration) -> bool {
+        drop(self.stdin.take());
+        let deadline = std::time::Instant::now() + timeout;
+        while std::time::Instant::now() < deadline {
+            if let Ok(Some(_)) = self.child.try_wait() {
+                return true;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        false
     }
 
     /// Read JSON-RPC messages until one carries the given id; returns its `result`

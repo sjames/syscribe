@@ -24,5 +24,6 @@ graph, resolver, and validation config) shared across all tool calls, and shall 
 - After any successful write (REQ-TRS-MCP-005..007) the server shall rebuild the store
   automatically so subsequent reads reflect the change without an explicit `reload`.
 
-No filesystem watcher is required in the stdio process; the explicit `reload` tool is the
-recovery path for edits made outside the server.
+Edits made outside the server are picked up automatically by the file watcher
+(REQ-TRS-MCP-048, GH #181); the explicit `reload` tool remains as a way to force a re-read, and is
+the recovery path when the server runs with `--no-watch`.

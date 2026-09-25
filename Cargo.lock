@@ -2278,6 +2278,7 @@ dependencies = [
  "clap",
  "fontdb",
  "libc",
+ "notify",
  "pathfinding",
  "petgraph",
  "pulldown-cmark",

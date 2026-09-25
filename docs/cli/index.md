@@ -1474,6 +1474,7 @@ syscribe ships a first-class **Model Context Protocol server** over stdio — no
 ```bash
 syscribe -m model/ mcp              # full read + guarded-write surface
 syscribe -m model/ mcp --read-only  # read/query only (write tools hidden)
+syscribe -m model/ mcp --no-watch   # do not auto-reload on file changes
 ```
 
 Register it with Claude Code:
@@ -1497,6 +1498,8 @@ It exposes structured read tools and a small set of guarded-write tools; referen
 | Guarded writes | `create_element`, `update_element`, `move_element`, `delete_element`, `apply_changes`, `ingest_results`, `suspect_accept` |
 
 It also serves the format spec, project config, and each element as **resources**; offers element-reference **completion**; and exposes authoring **prompts** (`create-model`, `create-magicgrid-model`, `add-requirement`, `break-down-requirement`, `add-testcase-for`, `traceability-review`).
+
+The server watches the model root (including `.syscribe.toml` and `.syscribe/results.json`) and every `[repos]` peer root, and reloads its in-memory model automatically when a model input changes on disk (an editor save, a branch switch, another tool), so you rarely need the `reload` tool. Event bursts are debounced and a path/size/mtime fingerprint of the inputs (`.md`, `.sysml`, `.kerml`, `.rhai`, `.syscribe.toml`, `.sysmlignore`, `results.json`, and files under `foreignFormat:`/`annotationFormat:` packages) decides whether anything actually changed, so the server's own writes are not reloaded twice. A half-saved file whose frontmatter does not parse defers the reload (the current model is kept, a warning is logged) until the next change. Each automatic reload sends a `{"event":"reload","source":"watch"}` logging message and `resources/list_changed`. `--no-watch` turns this off; `--read-only` servers still watch.
 
 ### The built-in language server (`syscribe lsp`)
 

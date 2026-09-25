@@ -21,6 +21,5 @@ the model it serves changes, so a long-lived client can keep its view in sync.
 - When the model changes as a result of a committed write tool (REQ-TRS-MCP-005..008,
   020, 021) or an explicit `reload` (REQ-TRS-MCP-002), the server shall emit a
   `notifications/resources/list_changed` notification.
-- The notification mechanism is driven by the server's own model mutations and `reload`; a
-  filesystem watcher for edits made entirely outside the server is **not** required (the
-  `reload` tool covers that case).
+- The same notification is emitted after an automatic reload triggered by a file change made
+  outside the server (REQ-TRS-MCP-048, GH #181).

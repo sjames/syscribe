@@ -5,7 +5,7 @@ speaks newline-delimited JSON-RPC 2.0 over **stdio**. It lets an MCP-capable LLM
 client query and guard-write the Syscribe model bound at `-m`.
 
 ## SYNOPSIS
-    syscribe -m <root> mcp [--read-only]
+    syscribe -m <root> mcp [--read-only] [--no-watch]
 
 ## USAGE
 
@@ -15,9 +15,38 @@ MCP client (an editor, an agent runtime, …), not invoked interactively.
 - `--read-only` starts the server with the guarded-write tools (listed under
   **Guarded-write tools** below) hidden and rejected; the full read/query surface
   stays available.
+- `--no-watch` disables the file watcher (see **Live reload** below); the model
+  is then re-read only after the server's own writes or an explicit `reload`.
 - The server advertises `tools`, `resources`, `prompts`, `completions`, and
   `logging` capabilities, and emits a `resources/list_changed` notification after
-  any committed write or a `reload`.
+  any committed write, a `reload`, or an automatic reload.
+
+## Live reload
+
+The server watches the model root (including `.syscribe.toml` and the
+`.syscribe/results.json` verdict sidecar) and every `[repos]` peer model root,
+so edits made outside it (an editor save, a branch switch, another tool) are
+picked up without calling `reload`. `--read-only` servers watch too.
+
+- Bursts of file events are debounced (~250 ms). The server then fingerprints the
+  model inputs (relative path, size and mtime of every `.md`, `.sysml`, `.kerml`
+  and `.rhai` file, `.syscribe.toml`, `.sysmlignore`, `.syscribe/results.json`,
+  and every file under a `foreignFormat:`/`annotationFormat:` package) and
+  reloads only if the fingerprint changed since the loaded store was built, so
+  the server's own writes, and edits to other files, cause no reload. `.git/`,
+  `.syscribe/cache/` and editor swap/backup files (`*.swp`, `*~`, `.#*`,
+  `4913`, `*.tmp`) are ignored.
+- The new store is built in the background and swapped in, so reads are never
+  blocked. After a reload the server sends the logging message
+  `{"event":"reload","source":"watch","count":N}` and
+  `notifications/resources/list_changed`.
+- If the reload fails, or a file's frontmatter stops parsing (typically a
+  half-saved file), the reload is deferred: the current model is kept, a warning
+  `{"event":"reload_deferred","source":"watch",...}` is logged (and printed to
+  stderr), and the next file change retries. The `reload` tool always re-reads.
+- Watching is best-effort: if the watcher cannot be created (e.g. the inotify
+  watch limit is exhausted), a `watch_unavailable` warning is logged once and the
+  server keeps serving without it.
 
 Every tool returns structured JSON. Element references (`ref`) are accepted as a
 stable id, a qualified name, or a display name. List/grid tools accept
@@ -42,7 +71,8 @@ stable id, a qualified name, or a display name. List/grid tools accept
   (a declared type, its inverse, or a built-in link/reverse-index name); same data
   as `follow --format json`.
 - `validate {file?, severity?, limit?}` / `validate_element {ref}` — findings.
-- `reload {}` — re-read the model from disk.
+- `reload {}` — re-read the model from disk now (normally unnecessary: the
+  server reloads automatically on file changes, see **Live reload**).
 
 ## Read tools — authoring helpers
 
