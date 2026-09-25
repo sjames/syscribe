@@ -712,24 +712,71 @@ pub(crate) fn known_type_names() -> Vec<&'static str> {
 }
 
 /// Look up a finding code's human explanation from the embedded `validation` spec
-/// section. Rows look like `| `W001` | Native Requirement … |`.
-fn explain_code(code: &str) -> Option<String> {
+/// section (GH #128). See [`explain_code_in`].
+pub(crate) fn explain_code(code: &str) -> Option<String> {
     let (_, text) = spec::SECTIONS.iter().find(|(n, _)| *n == "validation")?;
+    explain_code_in(text, code)
+}
+
+/// `true` for a cell that holds only a severity word (`error`, `Warning`, …) —
+/// never an acceptable explanation.
+fn is_severity_word(cell: &str) -> bool {
+    matches!(
+        cell.trim().trim_matches('*').to_ascii_lowercase().as_str(),
+        "error" | "warning" | "info" | "information" | "informational"
+    )
+}
+
+/// Find `code`'s explanation in a Markdown catalogue whose tables look like
+/// `| Code | Condition |` or `| Code | Severity | Condition |`. The explanation
+/// column is chosen by the most recent header row (`Condition`/`Description`/
+/// `Meaning`/`Explanation`), falling back to the last column; a bare severity
+/// word is never returned.
+pub(crate) fn explain_code_in(text: &str, code: &str) -> Option<String> {
+    let split = |line: &str| -> Vec<String> {
+        line.trim().trim_matches('|').split('|').map(|c| c.trim().to_string()).collect()
+    };
+    let mut expl_col: Option<usize> = None;
+    let mut prev_was_table = false;
     for line in text.lines() {
         let line = line.trim();
         if !line.starts_with('|') {
+            prev_was_table = false;
             continue;
         }
-        let cells: Vec<&str> = line.trim_matches('|').split('|').collect();
+        let cells = split(line);
+        // A header row is the first row of a table: remember its explanation column.
+        if !prev_was_table {
+            prev_was_table = true;
+            expl_col = cells.iter().position(|c| {
+                matches!(
+                    c.to_ascii_lowercase().as_str(),
+                    "condition" | "description" | "meaning" | "explanation"
+                )
+            });
+            continue;
+        }
         if cells.len() < 2 {
             continue;
         }
-        let cell_code = cells[0].trim().trim_matches('`').trim();
-        if cell_code.eq_ignore_ascii_case(code) {
-            let explanation = cells[1].trim();
-            if !explanation.is_empty() {
-                return Some(explanation.to_string());
-            }
+        let cell_code = cells[0].trim_matches('`').trim();
+        if !cell_code.eq_ignore_ascii_case(code) {
+            continue;
+        }
+        let pick = expl_col
+            .filter(|&i| i > 0 && i < cells.len())
+            .unwrap_or(cells.len() - 1);
+        let mut candidate = cells[pick].as_str();
+        if candidate.is_empty() || is_severity_word(candidate) {
+            // Header didn't help: take the first non-empty, non-severity cell.
+            candidate = cells[1..]
+                .iter()
+                .map(String::as_str)
+                .find(|c| !c.is_empty() && !is_severity_word(c))
+                .unwrap_or("");
+        }
+        if !candidate.is_empty() {
+            return Some(candidate.to_string());
         }
     }
     None
@@ -2966,4 +3013,108 @@ pub fn cmd_mcp(model_root: &Path, read_only: bool) -> anyhow::Result<()> {
         service.waiting().await?;
         Ok::<(), anyhow::Error>(())
     })
+}
+
+#[cfg(test)]
+mod catalogue_tests {
+    //! GH #128 — the validation-code catalogue (`prompts/spec/validation.md`)
+    //! must explain every code the implementation can emit, and
+    //! `explain_finding` must return that explanation, never a severity word.
+    use super::{explain_code, explain_code_in, is_severity_word};
+    use std::collections::BTreeSet;
+    use std::path::Path;
+
+    /// Codes owned by a concurrent branch (derive-pass renumbering) — excluded
+    /// from the completeness gate until that branch lands.
+    const EXCLUDED: &[&str] = &[
+        "E500", "E501", "E502", "E503", "E504", "E505", "E506", "E110", "E111", "E112", "E113",
+        "E114",
+    ];
+
+    /// Every `"E###"`/`"W###"`/`"I###"` string literal in non-test Rust source
+    /// under `crates/` (files under a `tests/` directory are skipped; a file is
+    /// truncated at its first `#[cfg(test)]`).
+    fn emitted_codes() -> BTreeSet<String> {
+        let crates_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+        let mut out = BTreeSet::new();
+        for entry in walkdir::WalkDir::new(&crates_dir).into_iter().filter_map(|e| e.ok()) {
+            let p = entry.path();
+            if p.extension().and_then(|e| e.to_str()) != Some("rs")
+                || p.components()
+                    .any(|c| matches!(c.as_os_str().to_str(), Some("tests") | Some("target")))
+            {
+                continue;
+            }
+            let Ok(text) = std::fs::read_to_string(p) else { continue };
+            let text = match text.find("#[cfg(test)]") {
+                Some(i) => &text[..i],
+                None => text.as_str(),
+            };
+            let b = text.as_bytes();
+            for i in 0..b.len().saturating_sub(5) {
+                if b[i] == b'"'
+                    && matches!(b[i + 1], b'E' | b'W' | b'I')
+                    && b[i + 2..i + 5].iter().all(u8::is_ascii_digit)
+                    && b[i + 5] == b'"'
+                {
+                    out.insert(text[i + 1..i + 5].to_string());
+                }
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn source_scan_finds_codes() {
+        let codes = emitted_codes();
+        // Sanity: the scan must actually see the validator and the CLI.
+        for c in ["E101", "W001", "W047", "I010", "W103"] {
+            assert!(codes.contains(c), "source scan missed {c}; scanned {} codes", codes.len());
+        }
+    }
+
+    #[test]
+    fn every_emitted_code_has_a_catalogue_explanation() {
+        let mut missing = Vec::new();
+        for code in emitted_codes() {
+            if EXCLUDED.contains(&code.as_str()) {
+                continue;
+            }
+            match explain_code(&code) {
+                Some(e) if !is_severity_word(&e) && !e.trim().is_empty() => {}
+                other => missing.push(format!("{code} -> {other:?}")),
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "prompts/spec/validation.md lacks a (non-severity) explanation for: {missing:#?}"
+        );
+    }
+
+    #[test]
+    fn three_column_tables_explain_the_condition_not_the_severity() {
+        for code in ["E600", "W610", "W041", "W042", "E317", "E318", "W045"] {
+            let e = explain_code(code).unwrap_or_default();
+            assert!(!e.is_empty() && !is_severity_word(&e), "{code} -> {e:?}");
+        }
+    }
+
+    #[test]
+    fn header_selects_the_explanation_column() {
+        let md = "| Code | Severity | Condition |\n|---|---|---|\n| `X001` | error | the thing broke |\n\n\
+                  | Code | Condition |\n|---|---|\n| `X002` | two-col row |\n";
+        assert_eq!(explain_code_in(md, "X001").as_deref(), Some("the thing broke"));
+        assert_eq!(explain_code_in(md, "X002").as_deref(), Some("two-col row"));
+        assert_eq!(explain_code_in(md, "X003"), None);
+    }
+
+    #[test]
+    fn stale_rows_are_corrected() {
+        let w7 = explain_code("W007").unwrap_or_default();
+        assert!(w7.contains("supertype") && !w7.contains("Unrecognised frontmatter key ("), "{w7}");
+        let w10 = explain_code("W010").unwrap_or_default();
+        assert!(w10.contains("test results") && !w10.starts_with("`Configuration`"), "{w10}");
+        let e3 = explain_code("E003").unwrap_or_default();
+        assert!(e3.contains("RETIRED"), "{e3}");
+    }
 }
