@@ -137,9 +137,13 @@ docs/                 # MkDocs documentation source
 |---|---|
 | Linux x86_64 | `syscribe-x86_64-unknown-linux-gnu` |
 | Linux aarch64 | `syscribe-aarch64-unknown-linux-gnu` |
+| Linux x86_64, static (musl) | `syscribe-x86_64-unknown-linux-musl` |
+| Linux aarch64, static (musl) | `syscribe-aarch64-unknown-linux-musl` |
 | macOS Intel | `syscribe-x86_64-apple-darwin` |
 | macOS Apple silicon | `syscribe-aarch64-apple-darwin` |
 | Windows x86_64 | `syscribe-x86_64-pc-windows-msvc.exe` |
+
+The musl builds (from v0.41.0) are fully static: they run on Alpine, `scratch`/distroless containers and hosts with an old glibc.
 
 ```bash
 curl -fsSL -o syscribe \

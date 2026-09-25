@@ -2,6 +2,74 @@
 
 `RELEASES`
 
+## 0.41.0 — 2026-09-25
+
+This release comes out of a full documentation and specification consistency review. The review checked the spec, the LLM prompts, the help pages and the guides against the code and the binary, found about 110 inconsistencies, and logged 37 tool bugs (#125–#179). All are fixed; #150 turned out not to be a bug. Several documented behaviours change as a result, so read the **Behaviour changes** section before upgrading a CI gate.
+
+### Behaviour changes
+
+- **Unresolved structural references are now errors.** Before, they were silently accepted. The new codes are E110 `supertype`, E111 `typedBy` (on the element or an inline feature), E112 `subsets`, E113 `redefines` and E114 `satisfies`. `[repos]` models still report them as E512. (#125)
+- **`validate` gates:**
+  - `--all-configs` now applies `--deny`, `--max-warnings`, `--warnings-as-errors`, `--profile` and `--file` to each variant, and `--config` honours `--profile` and `--file`.
+  - Exit codes are consistent everywhere: 0 clean, 1 errors or a usage error, 2 a gate tripped. An unresolvable `--config` now exits 1; it used to exit 2. (#126)
+- **`--config` on a model with no feature model:** it must now name a stored Configuration, and anything else is a usage error instead of a silent whole-model fallback.
+  - `trace`, `why`, `who-verifies`, `refs` and `links` now apply the lens. (#139)
+- **Code renumbering:** the derive pass moves to E504–E506 (derive cycles are now detected, as E504). E500–E503 are only the Allocation codes. (#127, #141)
+- **Argument checking:** unsupported `--where` operators, invalid enum and count values, and unknown options are now usage errors; before, they matched nothing or were silently ignored. `lint-docs` on a missing path now fails. `diagram` subcommands now fail on an unknown element. (#129, #130, #133, #168)
+- **Removed false positives:**
+  - W406/W407 only check inline-SVG diagrams, which removes 90 warnings from the bundled models. (#158)
+  - Package-registry `implementedBy:` values are external, so they no longer raise W023. (#134)
+  - Requirements derived from a safety or cybersecurity goal are not W005 orphans. (#151)
+  - W301 had already been retired in 0.40.x.
+
+### New and completed features
+
+- **Configuration inheritance** through `derivedFrom:` (spec §9.8), with E234–E237. (#137)
+- **`repoImports` mounting:** peers mount at `<package>::<as>`, including for `subConfigurations:` and cross-tier bindings. E515 now also catches the same id exported by two peers. (#138, #146)
+- **SysMLv2 `allocation def`** is mapped, and `allocate … to …` clauses become allocation edges. (#142, #144)
+- **New and completed fields:**
+  - `about:` comments on elements, with E027/W052.
+  - `locale:` documentation variants.
+  - ADR `deciders:`.
+  - FaultTreeEvent `ref:`, with E927.
+  - `derive:` is a recognised field.
+  - The `qualifiedName:` identity override is removed; it now raises W049. (#164, #160, #159, #148, #141)
+- **Constraints now enforced:** ConfirmationMeasure `status` (E924), SL range (E925), Zone/Conduit `status` (E926), a transition with no endpoint (W929), a features-form allocation outside an Allocation element (W930), an FMEA row with no id (E923), and an overridden `rpn:` (W928). (#136, #142, #132)
+- **Commands:**
+  - `template` works for every element type. (#135)
+  - `list` matches every type. (#167)
+  - MCP `explain_finding` explains every code. (#128)
+  - `set evidence.add` no longer duplicates entries and keeps comments. (#152)
+  - `summarize --no-cache` doesn't write the cache. (#169)
+  - The attack-tree roll-up starts from the structural root. (#149)
+  - The report is titled from the model's root package. (#174)
+  - lint-docs and validate share the shape-ref rule. (#172)
+- **Concurrency fix:** the guarded-write temp directory could collide under concurrent writes; each write now gets a unique directory. (#156)
+
+### Documentation
+
+- **Spec, spec digests, LLM prompt and guides** now agree with the tool.
+  - Field names are corrected, e.g. `allocatedFrom`/`allocatedTo` and `diagramKind`.
+  - The qualified-name rule is stated correctly, and the ISO 26262/21434/61508 examples use the real schema.
+  - Every element type is inventoried, and Asset and Baseline get schema sections.
+- **Guarded by tests:**
+  - every documented YAML example validates (287 checked);
+  - the validation-code catalogue, the rules page and spec §11.12 match the emitted codes;
+  - `--help` is generated from the command registry;
+  - the CLI reference, help pages and MCP/LSP pages cover the binary, and help-page examples run.
+- **Site:**
+  - The landing page, README and web-UI docs are refreshed; the retired `/canvas` is gone.
+  - Release notes for 0.1.1–0.39.0 are backfilled.
+  - `mkdocs build --strict` passes.
+
+### CI and distribution
+
+- **Static musl Linux binaries:** `syscribe-x86_64-unknown-linux-musl` and `syscribe-aarch64-unknown-linux-musl` are published alongside the existing five.
+- **More CI coverage:**
+  - The qualification workflow now runs `cargo test --workspace`, about 950 tests. (#179)
+  - It triggers on `prompts/`, `spec/`, `docs/` and workflow changes. (#154)
+  - A SIGPIPE race that made qual harnesses flaky is fixed. (#178)
+
 ## 0.40.1 — 2026-09-24
 
 **This release replaces 0.40.0, which has been withdrawn.** The 0.40.0 release accidentally committed about 23 MB of unrelated, in-progress test fixtures (`crates/syscribe-model/tests/fixtures/plugins-src`, including `node_modules` and built `.wasm`). The affected commits were rewritten to remove them, and the 0.40.0 tag and release were deleted. 0.40.1 contains everything listed under 0.40.0 below, plus:
