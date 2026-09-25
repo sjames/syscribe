@@ -38,16 +38,20 @@
      - 8.11.6 [Native `Requirement` Type](#8116-native-requirement-type)
    - 8.12 [Case Elements (Analysis, Verification, Use Case)](#812-case-elements-analysis-verification-use-case)
      - 8.12.5 [Native `TestCase` Type](#8125-native-testcase-type)
+     - 8.12.6 [Native `TestPlan` Type](#8126-native-testplan-type)
    - 8.13 [Allocation Elements](#813-allocation-elements)
    - 8.14 [View, Viewpoint, and Rendering Elements](#814-view-viewpoint-and-rendering-elements)
    - 8.15 [Metadata Elements](#815-metadata-elements)
+   - 8.16 [Diagram Elements](#816-diagram-elements)
    - 8.17 [Architecture Decision Records (ADR)](#817-architecture-decision-records-adr)
    - 8.18 [Safety and Security Analysis Elements](#818-safety-and-security-analysis-elements)
+     - 8.18.7 [`Asset` (ISO/SAE 21434 §15.3)](#8187-asset-isosae-21434-153)
+   - 8.19 [Release Baselines (`Baseline`)](#819-release-baselines-baseline)
 9. [Variability and Variation Points](#9-variability-and-variation-points)
    - 9.1–9.4 [Structural Variation (isVariation / isVariant)](#91-variation-definitions)
    - 9.5 [Product Line Engineering Overview](#95-product-line-engineering-overview)
    - 9.6 [`FeatureDef`: Feature Model Element](#96-featuredef-feature-model-element)
-   - 9.6a [Single-file authoring: `type: FeatureModel`](#96a-single-file-authoring-type-featuremodel-req-trs-fm-005)
+   - 9.6a [Single-file authoring: `type: FeatureModel` (REQ-TRS-FM-005)](#96a-single-file-authoring-type-featuremodel-req-trs-fm-005)
    - 9.7 [Feature Parametrization](#97-feature-parametrization)
    - 9.8 [`Configuration`: Feature Selection](#98-configuration-feature-selection)
    - 9.9 [Two-Level Feature Models](#99-two-level-feature-models)
@@ -60,16 +64,16 @@
     - 11.11 [Computed Reverse Indices and Coverage](#1111-computed-reverse-indices-and-coverage)
     - 11.12 [Validation Rule Reference](#1112-validation-rule-reference)
 12. [Traceability Rules and Domain Conventions](#12-traceability-rules-and-domain-conventions)
-    - 12.1 [OSLC Link Direction Convention](#121-oslc-link-direction-convention)
-    - 12.2 [Requirement Breakdown and ADRs](#122-requirement-breakdown-and-adrs)
-    - 12.3 [Leaf-Level Assignment Rule](#123-leaf-level-assignment-rule)
-    - 12.4 [Parent Requirements Cannot Be Assigned](#124-parent-requirements-cannot-be-assigned)
-    - 12.5 [Requirement Domain Classification](#125-requirement-domain-classification)
-    - 12.6 [Hardware/Software Architecture Independence](#126-hardwaresoftware-architecture-independence)
-    - 12.7 [Safety/Security Integrity Level Propagation](#127-safetysecurity-integrity-level-propagation)
-    - 12.8 [Implementation Trace](#128-implementation-trace)
-    - 12.9 [Allocation: Two Forms over One Edge Model](#129-allocation-two-forms-over-one-edge-model)
-    - 12.10 [User-Defined Link Types (`[linkTypes]`, `links:`)](#1210-user-defined-link-types-linktypes-links)
+   - 12.1 [OSLC Link Direction Convention](#121-oslc-link-direction-convention)
+   - 12.2 [Requirement Breakdown and ADRs](#122-requirement-breakdown-and-adrs)
+   - 12.3 [Leaf-Level Assignment Rule](#123-leaf-level-assignment-rule)
+   - 12.4 [Parent Requirements Cannot Be Assigned](#124-parent-requirements-cannot-be-assigned)
+   - 12.5 [Requirement Domain Classification](#125-requirement-domain-classification)
+   - 12.6 [Hardware/Software Architecture Independence](#126-hardwaresoftware-architecture-independence)
+   - 12.7 [Safety/Security Integrity Level Propagation](#127-safetysecurity-integrity-level-propagation)
+   - 12.8 [Implementation Trace](#128-implementation-trace)
+   - 12.9 [Allocation: Two Forms over One Edge Model](#129-allocation-two-forms-over-one-edge-model)
+   - 12.10 [User-Defined Link Types (`[linkTypes]`, `links:`)](#1210-user-defined-link-types-linktypes-links)
 13. [IEC 62443 Industrial Cybersecurity (Zone/Conduit Model)](#13-iec-62443-industrial-cybersecurity-zoneconduit-model)
 14. [Multi-Repository Model Composition](#14-multi-repository-model-composition)
 15. [General-Purpose Trade Study](#15-general-purpose-trade-study)
@@ -80,10 +84,13 @@
 20. [Behavioral Coverage](#20-behavioral-coverage)
 21. [ReqIF Export](#21-reqif-export)
 22. [Extensions to Existing Sections](#22-extensions-to-existing-sections)
-    - 22.1 [State Machine Completeness Validation](#221-state-machine-completeness-validation-extends-88)
-    - 22.2 [Budget Expression Language](#222-budget-expression-language-extends-89)
-    - 22.3 [ASIL/SIL Decomposition Pair Completeness](#223-asilsil-decomposition-pair-completeness-extends-127)
-    - 22.4 [Sequence Diagram Send/Receive Completeness](#224-sequence-diagram-sendreceive-completeness-extends-81683)
+   - 22.1 [State Machine Completeness Validation (extends §8.8)](#221-state-machine-completeness-validation-extends-88)
+   - 22.2 [Budget Expression Language (extends §8.9)](#222-budget-expression-language-extends-89)
+   - 22.3 [ASIL/SIL Decomposition Pair Completeness (extends §12.7)](#223-asilsil-decomposition-pair-completeness-extends-127)
+   - 22.4 [Sequence Diagram Send/Receive Completeness (extends §8.16.8.3)](#224-sequence-diagram-sendreceive-completeness-extends-81683)
+23. [Native PlanningItem: Work-Item Tracking](#23-native-planningitem-work-item-tracking)
+- [Appendix A: Frontmatter Field Reference](#appendix-a-frontmatter-field-reference)
+- [Appendix B: Mapping of SysML Textual Keywords to `type:` Values](#appendix-b-mapping-of-sysml-textual-keywords-to-type-values)
 
 ---
 
@@ -6150,217 +6157,6 @@ A finding trips the gate when its `code` is listed in `promote` **and** either t
 
 ---
 
-## Appendix A: Frontmatter Field Reference
-
-**A.1** below lists the core SysML-structural and common fields with their types and defaults. **A.2** indexes every other recognised field by the section that specifies it. Together they cover all fields the parser recognises (any other key raises `W047`, §3.17); `syscribe spec fields` prints the reference for the installed tool.
-
-### A.1 Core fields
-
-| Field | Applies to | Type | Default | Section |
-|---|---|---|---|---|
-| `type` | All | string | — (required) | 3.1 |
-| `name` | All | string | filename stem | 3.1 |
-| `shortName` | All | string | absent | 3.1 |
-| `qualifiedName` | All | string | derived | 3.1 |
-| `visibility` | All | string | `public` | 3.1 |
-| `extRef` | All | string or list | absent | 3.1 |
-| `isAbstract` | All | bool | `false` | 3.2 |
-| `isVariation` | Def/Usage | bool | `false` | 3.2 |
-| `isVariant` | Usage | bool | `false` | 3.2 |
-| `isIndividual` | Occurrence | bool | `false` | 3.2 |
-| `isReadonly` | Usage | bool | `false` | 3.2 |
-| `isDerived` | Usage | bool | `false` | 3.2 |
-| `isEnd` | Usage | bool | `false` | 3.2 |
-| `isPortion` | Occurrence usage | bool | `false` | 3.2 |
-| `isReference` | Usage | bool | `false` | 3.2 |
-| `isComposite` | Usage | bool | `true` | 3.2 |
-| `isConstant` | Usage | bool | `false` | 3.2 |
-| `isOrdered` | Usage | bool | `false` | 3.2 |
-| `isNonunique` | Usage | bool | `false` | 3.2 |
-| `supertype` | Def | string or list | absent | 3.3 |
-| `typedBy` | Usage | string or list | absent | 3.3 |
-| `subsets` | Usage | list | absent | 3.3 |
-| `redefines` | Usage | list | absent | 3.3 |
-| `conjugates` | PortDef | string | absent | 3.3 |
-| `multiplicity` | Usage | string | `"1"` or `"0..*"` | 3.4, 6 |
-| `direction` | Port, Parameter | string | absent | 3.5 |
-| `features` | Def/Usage | list | absent | 3.6 |
-| `imports` | Package | list | absent | 3.7 |
-| `aliases` | All | list | absent | 3.7 |
-| `filterCondition` | Package | string | absent | 3.7 |
-| `metadata` | All | list | absent | 3.8 |
-| `dependsOn` | All | list | absent | 3.9 |
-| `requires` | All | list | absent | 3.11 |
-| `assume` | All | list | absent | 3.11 |
-| `rep` | All | string | absent | 3.12 |
-| `connections` | PartDef/Part | list | absent | 8.4.1 |
-| `flowConnections` | PartDef/Part | list | absent | 8.6.2 |
-| `successionConnections` | ActionDef/Action | list | absent | 8.4.4 |
-| `bindingConnections` | Def/Usage | list | absent | 8.4.3 |
-| `performs` | PartDef/Part | list | absent | 8.2.1 |
-| `exhibitsStates` | PartDef/Part | list | absent | 8.2.1 |
-| `parameters` | ActionDef/CalcDef/etc. | list | absent | 8.7.2 |
-| `returnType` | CalculationDef/VerificationCaseDef | string | absent | 8.9.1, 8.12.3 |
-| `body` | CalculationDef/ActionDef | string | absent | 8.7.1, 8.9.1 |
-| `bodyLanguage` | CalculationDef/ActionDef | string | `"ocl"` | 8.7.1, 8.9.1 |
-| `subActions` | ActionDef/Action/CaseDef | list | absent | 8.7.3 |
-| `controlNodes` | ActionDef/Action | list | absent | 8.7.4 |
-| `entryAction` | StateDef/State | string or map | absent | 8.8.1 |
-| `doAction` | StateDef/State | string or map | absent | 8.8.1 |
-| `exitAction` | StateDef/State | string or map | absent | 8.8.1 |
-| `subStates` | StateDef/State | list | absent | 8.8.2 |
-| `transitions` | StateDef/State | list | absent | 8.8.3 |
-| `isParallel` | StateDef/State | bool | `false` | 8.8.1 |
-| `isAsserted` | Constraint | bool | `false` | 8.10.2 |
-| `isNegated` | Constraint | bool | `false` | 8.10.2 |
-| `expression` | ConstraintDef | string | absent | 8.10.1 |
-| `subject` | Req/Case | string | absent | 8.11.1, 8.12.1 |
-| `actors` | Req/UseCase | list | absent | 8.11.1, 8.12.4 |
-| `stakeholders` | Req/Viewpoint | list | absent | 8.11.1, 8.14.1 |
-| `concerns` | Req/Viewpoint | list | absent | 8.11.1, 8.14.1 |
-| `framedConcerns` | RequirementDef | list | absent | 8.11.1 |
-| `derivedFrom` | RequirementDef/Requirement | list | absent | 8.11.1 |
-| `satisfies` | Part/PartDef is the common case; not type-restricted — see §12.3 for the full endorsed shape list | list | absent | 8.11.4, 12.3 |
-| `implementedBy` | Part/PartDef | string or list | absent | 8.11.4 / 12.8 |
-| `verifies` | VerificationCase | list | absent | 8.12.3 |
-| `verdictExpression` | VerificationCase | string | absent | 8.12.3 |
-| `verdictType` | VerificationCaseDef | string | `VerificationCases::VerdictKind` | 8.12.3 |
-| `objectives` | CaseDef | list | absent | 8.12.1 |
-| `result` | CaseDef | string | absent | 8.12.1 |
-| `includes` | UseCaseDef | list | absent | 8.12.4 |
-| `extends` | UseCaseDef | list | absent | 8.12.4 |
-| `extensionPoints` | UseCaseDef | list | absent | 8.12.4 |
-| `allocations` | AllocationDef/Package/PartDef | list | absent | 8.13.1, 8.13.2 |
-| `constraints` | InterfaceDef | list | absent | 8.3.3 |
-| `expose` | ViewDef | list | absent | 8.14.2 |
-| `rendering` | ViewDef | string | absent | 8.14.2 |
-| `satisfiedBy` | ViewpointDef | list | absent | 8.14.1 |
-| `methods` | ViewpointDef | list | absent | 8.14.1 |
-| `values` | EnumerationDef | list | — (required) | 8.5.2 |
-| `annotates` | MetadataDef | list | absent (unrestricted) | 8.15.1 |
-| `isSemantic` | MetadataDef | bool | `false` | 8.15.1 |
-| `ends` | ConnDef/IntfDef | list | absent | 8.3.3, 8.4.2 |
-| `timeSlices` | OccurrenceDef | list | absent | 8.2.4 |
-| `snapshots` | OccurrenceDef | list | absent | 8.2.4 |
-| `variantOf` | Part/Usage | string | absent | 9.4 |
-| `isConjugated` | Port | bool | `false` | 8.3.2 |
-| `itemType` | FlowDef | string | absent | 8.6.1 |
-| `id` | native Requirement/TestCase | string | — (required) | 8.11.6, 8.12.5 |
-| `name` | native Requirement/TestCase | string | — (required; free prose) | 8.11.6, 8.12.5 |
-| `status` | native Requirement/TestCase | string | — (required) | 8.11.6, 8.12.5 |
-| `testLevel` | native TestCase | string | — (required) | 8.12.5 |
-| `silLevel` | native Requirement | integer | absent | 8.11.6 |
-| `asilLevel` | native Requirement | string | absent | 8.11.6 |
-| `plLevel` | native Requirement / SafetyGoal | string | absent | 8.11.6, 8.18.1 |
-| `derivedFromSafetyGoal` | native Requirement | string | absent | 8.11.6, 8.18.1 |
-| `derivedFromCybersecurityGoal` | native Requirement | string | absent | 8.11.6, 8.18.2 |
-| `verificationMethod` | native Requirement | string | absent | 8.11.6 |
-| `wcet` | native Requirement | string | absent | 8.11.6 |
-| `allocatedFrom` | `Allocation` (with `allocatedTo`); any other element only as a legacy input — derived reverse of `allocatedTo` (§12.9) | string or list | absent | 8.13.2, 8.18.2, 12.9 |
-| `allocatedTo` | Any element (the allocated source, §12.9 form 1) or `Allocation` | string or list | absent | 8.13.2, 8.18.2, 12.9 |
-| `ffiRationale` | Any element | string | absent | 11.12 (W034) — freedom-from-interference / partitioning rationale; excuses a mixed-criticality shared-allocation pair |
-| `responsibility` | Any element | string | absent | 3, 11.12 (W038) — accountable party/organisation for a work product (DIA/CIA split) |
-| `measureType` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E849) — confirmation_review / functional_safety_audit / functional_safety_assessment / cybersecurity_assessment |
-| `independenceLevel` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E850) — I1 / I2 / I3 |
-| `confirms` | ConfirmationMeasure | string or list | absent | 8.18.2, 11.12 (E851) — confirmed work-product ref(s) |
-| `argumentType` | Argument | enum (`claim`/`strategy`/`solution`) | `claim` | 8.18.6, 11.12 (E854) |
-| `supports` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — SafetyGoal/parent Argument argued for |
-| `evidence` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — Requirement/TestCase/sub-Argument/AssumptionOfUse refs |
-| `appliesTo` | AssumptionOfUse | string or list | absent | 8.18.6, 11.12 (E858) — SafetyGoal/Argument/Requirement constrained |
-| `hazardRef` | DamageScenario / ThreatScenario | string or list | absent | 8.18.2 |
-| `riskTreatment` | ThreatScenario | enum (`avoid`/`reduce`/`share`/`retain`) | absent | 8.18.2 |
-| `residualRisk` | ThreatScenario | string | absent | 8.18.2 |
-| `sourceFile` | native TestCase | string | absent | 8.12.5 |
-| `testFunctions` | native TestCase | list | absent | 8.12.5 |
-| `tags` | native Requirement/TestCase | list of strings | absent | 8.11.6, 8.12.5 |
-| `links` | Any element | map: declared link-type name → string or list | absent | 12.10 — user-defined outbound links; keys must be declared in `[linkTypes]` (`E630`) |
-| `derive` | Any element | map: field name → formula string | absent | 3.18 — computed fields, dependency-ordered; cycle `E504`, malformed `E505`, unknown element `E506` |
-
-### A.2 Fields specified in their own sections
-
-| Area | Fields | Section |
-|---|---|---|
-| Common / cross-cutting | `appliesWhen`, `domain`, `customFields`, `displayOrder`, `traceBaselines`, `refines`, `rationale`, `locale`, `about`, `text`, `steps`, `valueKind`, `value`, `portionKind` | 3.8–3.19, 8.2–8.11, 12.10 |
-| Native `Requirement` | `reqClass`, `requirementKind`, `reqDomain`, `breakdownAdr`, `decompositionKind`, `dalLevel` | 8.11.6, 12.2, 12.5, 22.3 |
-| Native `TestCase` / `TestPlan` | `coverageTarget`, `securityTestMethod`, `scope`, `configurations`, `demonstrates`, `testCases`, `selection` | 8.12.5, 8.12.6 |
-| Structural extras | `isDeploymentPackage`, `operations`, `clients`, `suppliers`, `evaluate`, `objective`, `viewpoint` | 2.4, 8.3.4, 8.12, 8.14, 12.6, 22.2 |
-| Diagram | `diagramKind`, `svgMode`, `svgFile`, `pumlMode`, `pumlFile`, `shapes`, `edges`, `layout` | 8.16 |
-| HARA | `severity`, `exposure`, `controllability`, `consequence`, `freqExposure`, `avoidance`, `demandRate`, `operationalSituation`, `hazardousEvents`, `safeState`, `ftti` | 8.18.1 |
-| TARA | `assets`, `damageSeverity`, `impactCategories`, `damageScenarios`, `attackFeasibility`, `attackVector`, `securityProperty`, `calLevel`, `threatScenarios`, `controlType`, `implementsGoals`, `cveId`, `cvssScore`, `mitigatedBy`, `affectedElements`, `damageTable`, `threatTable`, `goalTable`, `controlTable` | 8.18.2 |
-| `Asset` | `cybersecurityProperties`, `assetOwner`, `relatedSafetyGoal` | 8.18.7 |
-| FTA / FMEA / attack trees | `topEvent`, `missionTime`, `gateType`, `inputs`, `eventKind`, `failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `probability`, `fmeaRef`, `entries`, `failureMode`, `effect`, `cause`, `fmeaSeverity`, `occurrence`, `detection`, `rpn`, `recommendedAction`, `ftaRef`, `threatRef` | 8.18.3–8.18.5 |
-| `Baseline` | `date`, `approver`, `gitTag`, `gitCommit`, `frozenScope`, `seal`, `supersedes` | 8.19 |
-| Product-line engineering | `groupKind`, `mandatory`, `cardinality`, `parentFeature`, `excludes`, `contributesTo`, `featureModel`, `parameterBindings`, `parameterConstraints`, `subConfigurations`, `baselineRef`, `buildExports`, `buildOverrides`, `featureTree`, `crossTreeConstraints` | 9.6–9.10, 14.7 |
-| IEC 62443 | `targetSL`, `achievedSL`, `members`, `inZone`, `fromZone`, `toZone`, `protocols` | 13 |
-| Multi-repo, plugins, annotated source, SysMLv2 ingestion | `repoImports`, `foreignFormat`, `annotationFormat`, `marker`, `include`, `exclude`, `sysmlSubmodel` | 14.3; `docs/model-guide/stdio-plugins.md`, `annotated-source.md`, `sysmlv2-submodel.md` |
-| `TradeStudy` | `criteria`, `alternatives`, `scores`, `decision` | 15.2 |
-| `ReviewRecord` | `reviewType`, `reviewDate`, `reviewedBy`, `reviews`, `items`, `recordedAt` | 19.2 |
-| `PlanningItem` | `parent`, `achieves`, `itemType`, `evidence`, `blockedBy`, `assignedTo`, `claimedBy`, `claimedAt` | 23 |
-| Removed | `title` — parsed only to report `E025` | 3.1 |
-
----
-
-## Appendix B: Mapping of SysML Textual Keywords to `type:` Values
-
-| SysML textual keyword | Markdown-SysML `type:` |
-|---|---|
-| `part def` | `PartDef` |
-| `item def` | `ItemDef` |
-| `port def` | `PortDef` |
-| `connection def` | `ConnectionDef` |
-| `interface def` | `InterfaceDef` |
-| `action def` | `ActionDef` |
-| `calc def` | `CalculationDef` |
-| `constraint def` | `ConstraintDef` |
-| `requirement def` | `RequirementDef` |
-| `concern def` | `ConcernDef` |
-| `case def` | `CaseDef` |
-| `analysis def` | `AnalysisCaseDef` |
-| `verification def` | `VerificationCaseDef` |
-| `use case def` | `UseCaseDef` |
-| `occurrence def` | `OccurrenceDef` |
-| `individual def` | `IndividualDef` |
-| `flow def` | `FlowDef` |
-| `succession def` | `SuccessionDef` |
-| `state def` | `StateDef` |
-| `attribute def` | `AttributeDef` |
-| `enum def` | `EnumerationDef` |
-| `allocation def` | `AllocationDef` |
-| `metadata def` | `MetadataDef` |
-| `view def` | `ViewDef` |
-| `viewpoint def` | `ViewpointDef` |
-| `rendering def` | `RenderingDef` |
-| `part` | `Part` |
-| `item` | `Item` |
-| `port` | `Port` |
-| `connection` | `Connection` |
-| `interface` | `Interface` |
-| `action` | `Action` |
-| `calc` | `Calculation` |
-| `constraint` | `Constraint` |
-| `requirement` | `Requirement` |
-| `concern` | `Concern` |
-| `case` | `Case` |
-| `analysis` | `AnalysisCase` |
-| `verification` | `VerificationCase` |
-| `use case` | `UseCase` |
-| `occurrence` | `Occurrence` |
-| `individual` | `Individual` |
-| `flow` | `Flow` |
-| `succession` | `Succession` |
-| `state` | `State` |
-| `attribute` | `Attribute` |
-| `enum` | `Enumeration` |
-| `allocation` | `Allocation` |
-| `metadata` | `Metadata` |
-| `view` | `View` |
-| `rendering` | `Rendering` |
-| `package` | `Package` |
-| `library package` | `LibraryPackage` |
-| *(native — no SysML keyword)* | `TestCase` |
-
----
-
 ## 12 Traceability Rules and Domain Conventions
 
 This section defines mandatory traceability rules that govern how requirements, architecture elements, and design decisions are linked. These rules are normative — a conformant tool MUST enforce them via the validation codes defined in §11.12.
@@ -7972,3 +7768,214 @@ overlaps by:
 each overlapping pair exactly once rather than once from each side. This is the validator-side
 counterpart to `claim`/`release`: it fires whether or not either item was ever actually claimed,
 since `status: in_progress` alone already signals active work.
+
+---
+
+## Appendix A: Frontmatter Field Reference
+
+**A.1** below lists the core SysML-structural and common fields with their types and defaults. **A.2** indexes every other recognised field by the section that specifies it. Together they cover all fields the parser recognises (any other key raises `W047`, §3.17); `syscribe spec fields` prints the reference for the installed tool.
+
+### A.1 Core fields
+
+| Field | Applies to | Type | Default | Section |
+|---|---|---|---|---|
+| `type` | All | string | — (required) | 3.1 |
+| `name` | All | string | filename stem | 3.1 |
+| `shortName` | All | string | absent | 3.1 |
+| `qualifiedName` | All | string | derived | 3.1 |
+| `visibility` | All | string | `public` | 3.1 |
+| `extRef` | All | string or list | absent | 3.1 |
+| `isAbstract` | All | bool | `false` | 3.2 |
+| `isVariation` | Def/Usage | bool | `false` | 3.2 |
+| `isVariant` | Usage | bool | `false` | 3.2 |
+| `isIndividual` | Occurrence | bool | `false` | 3.2 |
+| `isReadonly` | Usage | bool | `false` | 3.2 |
+| `isDerived` | Usage | bool | `false` | 3.2 |
+| `isEnd` | Usage | bool | `false` | 3.2 |
+| `isPortion` | Occurrence usage | bool | `false` | 3.2 |
+| `isReference` | Usage | bool | `false` | 3.2 |
+| `isComposite` | Usage | bool | `true` | 3.2 |
+| `isConstant` | Usage | bool | `false` | 3.2 |
+| `isOrdered` | Usage | bool | `false` | 3.2 |
+| `isNonunique` | Usage | bool | `false` | 3.2 |
+| `supertype` | Def | string or list | absent | 3.3 |
+| `typedBy` | Usage | string or list | absent | 3.3 |
+| `subsets` | Usage | list | absent | 3.3 |
+| `redefines` | Usage | list | absent | 3.3 |
+| `conjugates` | PortDef | string | absent | 3.3 |
+| `multiplicity` | Usage | string | `"1"` or `"0..*"` | 3.4, 6 |
+| `direction` | Port, Parameter | string | absent | 3.5 |
+| `features` | Def/Usage | list | absent | 3.6 |
+| `imports` | Package | list | absent | 3.7 |
+| `aliases` | All | list | absent | 3.7 |
+| `filterCondition` | Package | string | absent | 3.7 |
+| `metadata` | All | list | absent | 3.8 |
+| `dependsOn` | All | list | absent | 3.9 |
+| `requires` | All | list | absent | 3.11 |
+| `assume` | All | list | absent | 3.11 |
+| `rep` | All | string | absent | 3.12 |
+| `connections` | PartDef/Part | list | absent | 8.4.1 |
+| `flowConnections` | PartDef/Part | list | absent | 8.6.2 |
+| `successionConnections` | ActionDef/Action | list | absent | 8.4.4 |
+| `bindingConnections` | Def/Usage | list | absent | 8.4.3 |
+| `performs` | PartDef/Part | list | absent | 8.2.1 |
+| `exhibitsStates` | PartDef/Part | list | absent | 8.2.1 |
+| `parameters` | ActionDef/CalcDef/etc. | list | absent | 8.7.2 |
+| `returnType` | CalculationDef/VerificationCaseDef | string | absent | 8.9.1, 8.12.3 |
+| `body` | CalculationDef/ActionDef | string | absent | 8.7.1, 8.9.1 |
+| `bodyLanguage` | CalculationDef/ActionDef | string | `"ocl"` | 8.7.1, 8.9.1 |
+| `subActions` | ActionDef/Action/CaseDef | list | absent | 8.7.3 |
+| `controlNodes` | ActionDef/Action | list | absent | 8.7.4 |
+| `entryAction` | StateDef/State | string or map | absent | 8.8.1 |
+| `doAction` | StateDef/State | string or map | absent | 8.8.1 |
+| `exitAction` | StateDef/State | string or map | absent | 8.8.1 |
+| `subStates` | StateDef/State | list | absent | 8.8.2 |
+| `transitions` | StateDef/State | list | absent | 8.8.3 |
+| `isParallel` | StateDef/State | bool | `false` | 8.8.1 |
+| `isAsserted` | Constraint | bool | `false` | 8.10.2 |
+| `isNegated` | Constraint | bool | `false` | 8.10.2 |
+| `expression` | ConstraintDef | string | absent | 8.10.1 |
+| `subject` | Req/Case | string | absent | 8.11.1, 8.12.1 |
+| `actors` | Req/UseCase | list | absent | 8.11.1, 8.12.4 |
+| `stakeholders` | Req/Viewpoint | list | absent | 8.11.1, 8.14.1 |
+| `concerns` | Req/Viewpoint | list | absent | 8.11.1, 8.14.1 |
+| `framedConcerns` | RequirementDef | list | absent | 8.11.1 |
+| `derivedFrom` | RequirementDef/Requirement | list | absent | 8.11.1 |
+| `satisfies` | Part/PartDef is the common case; not type-restricted — see §12.3 for the full endorsed shape list | list | absent | 8.11.4, 12.3 |
+| `implementedBy` | Part/PartDef | string or list | absent | 8.11.4 / 12.8 |
+| `verifies` | VerificationCase | list | absent | 8.12.3 |
+| `verdictExpression` | VerificationCase | string | absent | 8.12.3 |
+| `verdictType` | VerificationCaseDef | string | `VerificationCases::VerdictKind` | 8.12.3 |
+| `objectives` | CaseDef | list | absent | 8.12.1 |
+| `result` | CaseDef | string | absent | 8.12.1 |
+| `includes` | UseCaseDef | list | absent | 8.12.4 |
+| `extends` | UseCaseDef | list | absent | 8.12.4 |
+| `extensionPoints` | UseCaseDef | list | absent | 8.12.4 |
+| `allocations` | AllocationDef/Package/PartDef | list | absent | 8.13.1, 8.13.2 |
+| `constraints` | InterfaceDef | list | absent | 8.3.3 |
+| `expose` | ViewDef | list | absent | 8.14.2 |
+| `rendering` | ViewDef | string | absent | 8.14.2 |
+| `satisfiedBy` | ViewpointDef | list | absent | 8.14.1 |
+| `methods` | ViewpointDef | list | absent | 8.14.1 |
+| `values` | EnumerationDef | list | — (required) | 8.5.2 |
+| `annotates` | MetadataDef | list | absent (unrestricted) | 8.15.1 |
+| `isSemantic` | MetadataDef | bool | `false` | 8.15.1 |
+| `ends` | ConnDef/IntfDef | list | absent | 8.3.3, 8.4.2 |
+| `timeSlices` | OccurrenceDef | list | absent | 8.2.4 |
+| `snapshots` | OccurrenceDef | list | absent | 8.2.4 |
+| `variantOf` | Part/Usage | string | absent | 9.4 |
+| `isConjugated` | Port | bool | `false` | 8.3.2 |
+| `itemType` | FlowDef | string | absent | 8.6.1 |
+| `id` | native Requirement/TestCase | string | — (required) | 8.11.6, 8.12.5 |
+| `name` | native Requirement/TestCase | string | — (required; free prose) | 8.11.6, 8.12.5 |
+| `status` | native Requirement/TestCase | string | — (required) | 8.11.6, 8.12.5 |
+| `testLevel` | native TestCase | string | — (required) | 8.12.5 |
+| `silLevel` | native Requirement | integer | absent | 8.11.6 |
+| `asilLevel` | native Requirement | string | absent | 8.11.6 |
+| `plLevel` | native Requirement / SafetyGoal | string | absent | 8.11.6, 8.18.1 |
+| `derivedFromSafetyGoal` | native Requirement | string | absent | 8.11.6, 8.18.1 |
+| `derivedFromCybersecurityGoal` | native Requirement | string | absent | 8.11.6, 8.18.2 |
+| `verificationMethod` | native Requirement | string | absent | 8.11.6 |
+| `wcet` | native Requirement | string | absent | 8.11.6 |
+| `allocatedFrom` | `Allocation` (with `allocatedTo`); any other element only as a legacy input — derived reverse of `allocatedTo` (§12.9) | string or list | absent | 8.13.2, 8.18.2, 12.9 |
+| `allocatedTo` | Any element (the allocated source, §12.9 form 1) or `Allocation` | string or list | absent | 8.13.2, 8.18.2, 12.9 |
+| `ffiRationale` | Any element | string | absent | 11.12 (W034) — freedom-from-interference / partitioning rationale; excuses a mixed-criticality shared-allocation pair |
+| `responsibility` | Any element | string | absent | 3, 11.12 (W038) — accountable party/organisation for a work product (DIA/CIA split) |
+| `measureType` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E849) — confirmation_review / functional_safety_audit / functional_safety_assessment / cybersecurity_assessment |
+| `independenceLevel` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E850) — I1 / I2 / I3 |
+| `confirms` | ConfirmationMeasure | string or list | absent | 8.18.2, 11.12 (E851) — confirmed work-product ref(s) |
+| `argumentType` | Argument | enum (`claim`/`strategy`/`solution`) | `claim` | 8.18.6, 11.12 (E854) |
+| `supports` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — SafetyGoal/parent Argument argued for |
+| `evidence` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — Requirement/TestCase/sub-Argument/AssumptionOfUse refs |
+| `appliesTo` | AssumptionOfUse | string or list | absent | 8.18.6, 11.12 (E858) — SafetyGoal/Argument/Requirement constrained |
+| `hazardRef` | DamageScenario / ThreatScenario | string or list | absent | 8.18.2 |
+| `riskTreatment` | ThreatScenario | enum (`avoid`/`reduce`/`share`/`retain`) | absent | 8.18.2 |
+| `residualRisk` | ThreatScenario | string | absent | 8.18.2 |
+| `sourceFile` | native TestCase | string | absent | 8.12.5 |
+| `testFunctions` | native TestCase | list | absent | 8.12.5 |
+| `tags` | native Requirement/TestCase | list of strings | absent | 8.11.6, 8.12.5 |
+| `links` | Any element | map: declared link-type name → string or list | absent | 12.10 — user-defined outbound links; keys must be declared in `[linkTypes]` (`E630`) |
+| `derive` | Any element | map: field name → formula string | absent | 3.18 — computed fields, dependency-ordered; cycle `E504`, malformed `E505`, unknown element `E506` |
+
+### A.2 Fields specified in their own sections
+
+| Area | Fields | Section |
+|---|---|---|
+| Common / cross-cutting | `appliesWhen`, `domain`, `customFields`, `displayOrder`, `traceBaselines`, `refines`, `rationale`, `locale`, `about`, `text`, `steps`, `valueKind`, `value`, `portionKind` | 3.8–3.19, 8.2–8.11, 12.10 |
+| Native `Requirement` | `reqClass`, `requirementKind`, `reqDomain`, `breakdownAdr`, `decompositionKind`, `dalLevel` | 8.11.6, 12.2, 12.5, 22.3 |
+| Native `TestCase` / `TestPlan` | `coverageTarget`, `securityTestMethod`, `scope`, `configurations`, `demonstrates`, `testCases`, `selection` | 8.12.5, 8.12.6 |
+| Structural extras | `isDeploymentPackage`, `operations`, `clients`, `suppliers`, `evaluate`, `objective`, `viewpoint` | 2.4, 8.3.4, 8.12, 8.14, 12.6, 22.2 |
+| Diagram | `diagramKind`, `svgMode`, `svgFile`, `pumlMode`, `pumlFile`, `shapes`, `edges`, `layout` | 8.16 |
+| HARA | `severity`, `exposure`, `controllability`, `consequence`, `freqExposure`, `avoidance`, `demandRate`, `operationalSituation`, `hazardousEvents`, `safeState`, `ftti` | 8.18.1 |
+| TARA | `assets`, `damageSeverity`, `impactCategories`, `damageScenarios`, `attackFeasibility`, `attackVector`, `securityProperty`, `calLevel`, `threatScenarios`, `controlType`, `implementsGoals`, `cveId`, `cvssScore`, `mitigatedBy`, `affectedElements`, `damageTable`, `threatTable`, `goalTable`, `controlTable` | 8.18.2 |
+| `Asset` | `cybersecurityProperties`, `assetOwner`, `relatedSafetyGoal` | 8.18.7 |
+| FTA / FMEA / attack trees | `topEvent`, `missionTime`, `gateType`, `inputs`, `eventKind`, `failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `probability`, `fmeaRef`, `entries`, `failureMode`, `effect`, `cause`, `fmeaSeverity`, `occurrence`, `detection`, `rpn`, `recommendedAction`, `ftaRef`, `threatRef` | 8.18.3–8.18.5 |
+| `Baseline` | `date`, `approver`, `gitTag`, `gitCommit`, `frozenScope`, `seal`, `supersedes` | 8.19 |
+| Product-line engineering | `groupKind`, `mandatory`, `cardinality`, `parentFeature`, `excludes`, `contributesTo`, `featureModel`, `parameterBindings`, `parameterConstraints`, `subConfigurations`, `baselineRef`, `buildExports`, `buildOverrides`, `featureTree`, `crossTreeConstraints` | 9.6–9.10, 14.7 |
+| IEC 62443 | `targetSL`, `achievedSL`, `members`, `inZone`, `fromZone`, `toZone`, `protocols` | 13 |
+| Multi-repo, plugins, annotated source, SysMLv2 ingestion | `repoImports`, `foreignFormat`, `annotationFormat`, `marker`, `include`, `exclude`, `sysmlSubmodel` | 14.3; `docs/model-guide/stdio-plugins.md`, `annotated-source.md`, `sysmlv2-submodel.md` |
+| `TradeStudy` | `criteria`, `alternatives`, `scores`, `decision` | 15.2 |
+| `ReviewRecord` | `reviewType`, `reviewDate`, `reviewedBy`, `reviews`, `items`, `recordedAt` | 19.2 |
+| `PlanningItem` | `parent`, `achieves`, `itemType`, `evidence`, `blockedBy`, `assignedTo`, `claimedBy`, `claimedAt` | 23 |
+| Removed | `title` — parsed only to report `E025` | 3.1 |
+
+---
+
+## Appendix B: Mapping of SysML Textual Keywords to `type:` Values
+
+| SysML textual keyword | Markdown-SysML `type:` |
+|---|---|
+| `part def` | `PartDef` |
+| `item def` | `ItemDef` |
+| `port def` | `PortDef` |
+| `connection def` | `ConnectionDef` |
+| `interface def` | `InterfaceDef` |
+| `action def` | `ActionDef` |
+| `calc def` | `CalculationDef` |
+| `constraint def` | `ConstraintDef` |
+| `requirement def` | `RequirementDef` |
+| `concern def` | `ConcernDef` |
+| `case def` | `CaseDef` |
+| `analysis def` | `AnalysisCaseDef` |
+| `verification def` | `VerificationCaseDef` |
+| `use case def` | `UseCaseDef` |
+| `occurrence def` | `OccurrenceDef` |
+| `individual def` | `IndividualDef` |
+| `flow def` | `FlowDef` |
+| `succession def` | `SuccessionDef` |
+| `state def` | `StateDef` |
+| `attribute def` | `AttributeDef` |
+| `enum def` | `EnumerationDef` |
+| `allocation def` | `AllocationDef` |
+| `metadata def` | `MetadataDef` |
+| `view def` | `ViewDef` |
+| `viewpoint def` | `ViewpointDef` |
+| `rendering def` | `RenderingDef` |
+| `part` | `Part` |
+| `item` | `Item` |
+| `port` | `Port` |
+| `connection` | `Connection` |
+| `interface` | `Interface` |
+| `action` | `Action` |
+| `calc` | `Calculation` |
+| `constraint` | `Constraint` |
+| `requirement` | `Requirement` |
+| `concern` | `Concern` |
+| `case` | `Case` |
+| `analysis` | `AnalysisCase` |
+| `verification` | `VerificationCase` |
+| `use case` | `UseCase` |
+| `occurrence` | `Occurrence` |
+| `individual` | `Individual` |
+| `flow` | `Flow` |
+| `succession` | `Succession` |
+| `state` | `State` |
+| `attribute` | `Attribute` |
+| `enum` | `Enumeration` |
+| `allocation` | `Allocation` |
+| `metadata` | `Metadata` |
+| `view` | `View` |
+| `rendering` | `Rendering` |
+| `package` | `Package` |
+| `library package` | `LibraryPackage` |
+| *(native — no SysML keyword)* | `Requirement` (native, §8.11.6), `TestCase`, `TestPlan`, `FeatureDef`, `FeatureModel`, `Configuration`, `Diagram`, and the record and safety/security types of §2.6–§2.7 |
