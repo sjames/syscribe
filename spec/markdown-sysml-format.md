@@ -2269,8 +2269,7 @@ Defines a boolean-valued condition that can be evaluated.
 |---|---|---|---|
 | `supertype` | string or list | absent | Supertype ConstraintDefs |
 | `parameters` | list | absent | Parameters for parameterized constraints |
-| `expression` | string | absent | Constraint expression body (opaque string) |
-| `expressionLanguage` | string | `"ocl"` | Language for `expression` |
+| `expression` | string | absent | Constraint expression body (opaque string; the language is not declared or interpreted — there is no `expressionLanguage` field) |
 
 **Example** (`model/Requirements/MassConstraint.md`):
 
@@ -2286,7 +2285,6 @@ parameters:
     typedBy: ISQ::MassValue
     direction: in
 expression: "actualMass <= maxMass"
-expressionLanguage: ocl
 ---
 Constraint that the actual mass does not exceed the maximum allowed mass.
 ```
@@ -2347,8 +2345,7 @@ Each entry in `requires:` or `assume:`:
 | Sub-field | YAML type | Required | Description |
 |---|---|---|---|
 | `typedBy` | string | optional | Qualified name of a ConstraintDef |
-| `expression` | string | optional | Inline constraint expression (opaque) |
-| `expressionLanguage` | string | optional | Language for `expression`; default `"ocl"` |
+| `expression` | string | optional | Inline constraint expression (opaque; the language is not declared or interpreted) |
 | `isAsserted` | bool | optional | Whether asserted (default `true` for `requires:`, `false` for `assume:`) |
 
 **Example** (`model/Requirements/MassRequirementDef.md`):
@@ -2413,7 +2410,8 @@ Top-level satisfaction and verification fields on any element:
 |---|---|---|---|
 | `satisfies` | list of strings | absent | Qualified names of Requirement usages this element satisfies |
 | `implementedBy` | string or list | absent | Path(s) to the source artifact(s) realising this `Part`/`PartDef`. Resolved like `sourceFile`; missing local paths emit W023 (§12.8) |
-| `verifiedBy` | list of strings | absent | Qualified names of VerificationCase usages that verify this requirement |
+
+`verifiedBy` is **not** an authored field. It is the reverse index of `verifies:`, computed at load time (§11.11) and never written to a file (§12.1); author the link on the verifying element with `verifies:`.
 
 #### 8.11.5 `ConcernDef` and `Concern`
 
@@ -2438,7 +2436,6 @@ stakeholders:
   - Stakeholders::CustomerRep
 requires:
   - expression: "subject.mass <= 2000.0"
-    expressionLanguage: ocl
 ---
 Concern regarding the total weight of the vehicle impacting fuel economy and performance.
 ```
@@ -2958,7 +2955,7 @@ Defines a stakeholder viewpoint describing what model information is relevant.
 | `stakeholders` | list of strings | absent | Qualified names of stakeholder PartDefs |
 | `concerns` | list of strings | absent | Qualified names of ConcernDefs addressed |
 | `methods` | list of strings | absent | Qualified names of ViewDefs or RenderingDefs satisfying this viewpoint |
-| `satisfiedBy` | list of strings | absent | ViewDefs/Views that satisfy this viewpoint |
+| `satisfiedBy` | list of strings | absent | ViewDefs/Views that satisfy this viewpoint. An authored SysML viewpoint-conformance list, stored as written (it is not resolved and is not merged into the computed `satisfiedBy` index of §11.11/§12.1, which is the reverse of `satisfies:`) |
 
 ```yaml
 ---
@@ -5167,7 +5164,6 @@ parameters:
     direction: in
 requires:
   - expression: "subject.mass <= maxMass"
-    expressionLanguage: ocl
 stakeholders:
   - Stakeholders::VehicleEngineer
 concerns:
@@ -6061,7 +6057,6 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `isAsserted` | Constraint | bool | `false` | 8.10.2 |
 | `isNegated` | Constraint | bool | `false` | 8.10.2 |
 | `expression` | ConstraintDef | string | absent | 8.10.1 |
-| `expressionLanguage` | ConstraintDef | string | `"ocl"` | 8.10.1 |
 | `subject` | Req/Case | string | absent | 8.11.1, 8.12.1 |
 | `actors` | Req/UseCase | list | absent | 8.11.1, 8.12.4 |
 | `stakeholders` | Req/Viewpoint | list | absent | 8.11.1, 8.14.1 |
@@ -6070,7 +6065,6 @@ The following table is a consolidated index of all frontmatter fields defined in
 | `derivedFrom` | RequirementDef/Requirement | list | absent | 8.11.1 |
 | `satisfies` | Part/PartDef is the common case; not type-restricted — see §12.3 for the full endorsed shape list | list | absent | 8.11.4, 12.3 |
 | `implementedBy` | Part/PartDef | string or list | absent | 8.11.4 / 12.8 |
-| `verifiedBy` | Requirement | list | absent | 8.11.4 |
 | `verifies` | VerificationCase | list | absent | 8.12.3 |
 | `verdictExpression` | VerificationCase | string | absent | 8.12.3 |
 | `verdictType` | VerificationCaseDef | string | `VerificationCases::VerdictKind` | 8.12.3 |
@@ -6206,7 +6200,7 @@ All traceability links in Markdown-SysML follow OSLC (Open Services for Lifecycl
 | `allocatedTo:` | source → target | The element being allocated (the logical function, software package, or security control) holds `allocatedTo:` naming the element that realises it (§12.9 form 1). `allocatedFrom` is **derived** — the reverse index on the target — never the recommended thing to author; a standalone `Allocation` element (§12.9 form 2) names both ends because it *is* the relationship. An `allocatedFrom:` authored on a non-`Allocation` target is accepted only as a legacy input form (§12.9) |
 | `breakdownAdr:` | requirement → ADR | This requirement's breakdown is documented in the ADR |
 
-No reverse links are stored in model files. Reverse indices (`verifiedBy`, `derivedChildren`, `satisfiedBy`) are computed by the parser at load time and never written to disk.
+No reverse links are stored in model files. Reverse indices (`verifiedBy`, `derivedChildren`, `satisfiedBy`, `allocatedFrom`) are computed by the parser at load time and never written to disk; `verifiedBy:` and `derivedChildren:` are not frontmatter fields at all. Two authored fields share a name with a computed index and are **not** the index: a `ViewpointDef`'s `satisfiedBy:` (§8.14.1), an authored viewpoint-conformance list that is stored as written and never merged into the computed index; and `allocatedFrom:` on a standalone `Allocation` element (§12.9 form 2), where naming both ends is the relationship itself (plus its legacy input form on a non-`Allocation` target, §12.9).
 
 The same convention governs user-defined link types (§12.10): the element holding a `links:` entry is the source, and the declared `inverse` is computed, never authored.
 
