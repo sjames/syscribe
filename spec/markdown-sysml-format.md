@@ -38,16 +38,20 @@
      - 8.11.6 [Native `Requirement` Type](#8116-native-requirement-type)
    - 8.12 [Case Elements (Analysis, Verification, Use Case)](#812-case-elements-analysis-verification-use-case)
      - 8.12.5 [Native `TestCase` Type](#8125-native-testcase-type)
+     - 8.12.6 [Native `TestPlan` Type](#8126-native-testplan-type)
    - 8.13 [Allocation Elements](#813-allocation-elements)
    - 8.14 [View, Viewpoint, and Rendering Elements](#814-view-viewpoint-and-rendering-elements)
    - 8.15 [Metadata Elements](#815-metadata-elements)
+   - 8.16 [Diagram Elements](#816-diagram-elements)
    - 8.17 [Architecture Decision Records (ADR)](#817-architecture-decision-records-adr)
    - 8.18 [Safety and Security Analysis Elements](#818-safety-and-security-analysis-elements)
+     - 8.18.7 [`Asset` (ISO/SAE 21434 §15.3)](#8187-asset-isosae-21434-153)
+   - 8.19 [Release Baselines (`Baseline`)](#819-release-baselines-baseline)
 9. [Variability and Variation Points](#9-variability-and-variation-points)
    - 9.1–9.4 [Structural Variation (isVariation / isVariant)](#91-variation-definitions)
    - 9.5 [Product Line Engineering Overview](#95-product-line-engineering-overview)
    - 9.6 [`FeatureDef`: Feature Model Element](#96-featuredef-feature-model-element)
-   - 9.6a [Single-file authoring: `type: FeatureModel`](#96a-single-file-authoring-type-featuremodel-req-trs-fm-005)
+   - 9.6a [Single-file authoring: `type: FeatureModel` (REQ-TRS-FM-005)](#96a-single-file-authoring-type-featuremodel-req-trs-fm-005)
    - 9.7 [Feature Parametrization](#97-feature-parametrization)
    - 9.8 [`Configuration`: Feature Selection](#98-configuration-feature-selection)
    - 9.9 [Two-Level Feature Models](#99-two-level-feature-models)
@@ -60,16 +64,16 @@
     - 11.11 [Computed Reverse Indices and Coverage](#1111-computed-reverse-indices-and-coverage)
     - 11.12 [Validation Rule Reference](#1112-validation-rule-reference)
 12. [Traceability Rules and Domain Conventions](#12-traceability-rules-and-domain-conventions)
-    - 12.1 [OSLC Link Direction Convention](#121-oslc-link-direction-convention)
-    - 12.2 [Requirement Breakdown and ADRs](#122-requirement-breakdown-and-adrs)
-    - 12.3 [Leaf-Level Assignment Rule](#123-leaf-level-assignment-rule)
-    - 12.4 [Parent Requirements Cannot Be Assigned](#124-parent-requirements-cannot-be-assigned)
-    - 12.5 [Requirement Domain Classification](#125-requirement-domain-classification)
-    - 12.6 [Hardware/Software Architecture Independence](#126-hardwaresoftware-architecture-independence)
-    - 12.7 [Safety/Security Integrity Level Propagation](#127-safetysecurity-integrity-level-propagation)
-    - 12.8 [Implementation Trace](#128-implementation-trace)
-    - 12.9 [Allocation: Two Forms over One Edge Model](#129-allocation-two-forms-over-one-edge-model)
-    - 12.10 [User-Defined Link Types (`[linkTypes]`, `links:`)](#1210-user-defined-link-types-linktypes-links)
+   - 12.1 [OSLC Link Direction Convention](#121-oslc-link-direction-convention)
+   - 12.2 [Requirement Breakdown and ADRs](#122-requirement-breakdown-and-adrs)
+   - 12.3 [Leaf-Level Assignment Rule](#123-leaf-level-assignment-rule)
+   - 12.4 [Parent Requirements Cannot Be Assigned](#124-parent-requirements-cannot-be-assigned)
+   - 12.5 [Requirement Domain Classification](#125-requirement-domain-classification)
+   - 12.6 [Hardware/Software Architecture Independence](#126-hardwaresoftware-architecture-independence)
+   - 12.7 [Safety/Security Integrity Level Propagation](#127-safetysecurity-integrity-level-propagation)
+   - 12.8 [Implementation Trace](#128-implementation-trace)
+   - 12.9 [Allocation: Two Forms over One Edge Model](#129-allocation-two-forms-over-one-edge-model)
+   - 12.10 [User-Defined Link Types (`[linkTypes]`, `links:`)](#1210-user-defined-link-types-linktypes-links)
 13. [IEC 62443 Industrial Cybersecurity (Zone/Conduit Model)](#13-iec-62443-industrial-cybersecurity-zoneconduit-model)
 14. [Multi-Repository Model Composition](#14-multi-repository-model-composition)
 15. [General-Purpose Trade Study](#15-general-purpose-trade-study)
@@ -80,10 +84,13 @@
 20. [Behavioral Coverage](#20-behavioral-coverage)
 21. [ReqIF Export](#21-reqif-export)
 22. [Extensions to Existing Sections](#22-extensions-to-existing-sections)
-    - 22.1 [State Machine Completeness Validation](#221-state-machine-completeness-validation-extends-88)
-    - 22.2 [Budget Expression Language](#222-budget-expression-language-extends-89)
-    - 22.3 [ASIL/SIL Decomposition Pair Completeness](#223-asilsil-decomposition-pair-completeness-extends-127)
-    - 22.4 [Sequence Diagram Send/Receive Completeness](#224-sequence-diagram-sendreceive-completeness-extends-81683)
+   - 22.1 [State Machine Completeness Validation (extends §8.8)](#221-state-machine-completeness-validation-extends-88)
+   - 22.2 [Budget Expression Language (extends §8.9)](#222-budget-expression-language-extends-89)
+   - 22.3 [ASIL/SIL Decomposition Pair Completeness (extends §12.7)](#223-asilsil-decomposition-pair-completeness-extends-127)
+   - 22.4 [Sequence Diagram Send/Receive Completeness (extends §8.16.8.3)](#224-sequence-diagram-sendreceive-completeness-extends-81683)
+23. [Native PlanningItem: Work-Item Tracking](#23-native-planningitem-work-item-tracking)
+- [Appendix A: Frontmatter Field Reference](#appendix-a-frontmatter-field-reference)
+- [Appendix B: Mapping of SysML Textual Keywords to `type:` Values](#appendix-b-mapping-of-sysml-textual-keywords-to-type-values)
 
 ---
 
@@ -202,14 +209,6 @@ Every `.md` file must have a `type:` field drawn from the following table. The `
 | `Configuration` | *(PLE native)* | A complete feature selection with parameter bindings; produces one concrete product variant. See §9.8. |
 | `FeatureModel` | *(PLE native)* | Single-file, additive alternative to a `FeatureDef`-per-file layout: a sheet whose `featureTree:`/`crossTreeConstraints:` explode into ordinary `FeatureDef` elements. See §9.6a. |
 
-### 2.6 Record Types
-
-Record elements are project-management and process artifacts that live in the model directory tree for traceability. They have no SysML counterpart.
-
-| `type:` value | Description |
-|---|---|
-| `ADR` | Architecture Decision Record documenting a model-level design decision. See §8.17. |
-
 ### 2.3 Namespace/Package Types
 
 | `type:` value | SysML keyword(s) | Description |
@@ -225,14 +224,6 @@ Relationship elements are directed relationships between named elements. Unlike 
 | `type:` value | SysML keyword | Description |
 |---|---|---|
 | `Dependency` | `dependency` | Directed relationship from one or more client elements to one or more supplier elements |
-
-### 2.5 Diagram Types
-
-Diagrams are visual representations of model elements. They are not SysML language constructs but a format extension for storing LLM-generated SVG diagrams with full model traceability.
-
-| `type:` value | Description |
-|---|---|
-| `Diagram` | An SVG diagram with a frontmatter manifest linking shapes and edges to model elements |
 
 **Specializations** of `Dependency` (e.g., `Realization`, `Derivation`) are expressed via `supertype:` referencing library types rather than requiring distinct `type:` values:
 
@@ -257,6 +248,59 @@ The logical engine control function is realized by the physical ECU.
 | `suppliers` | list of strings | **Required** | Qualified names of the elements depended upon (suppliers) |
 
 **Placement convention:** Dependency files live either alongside the primary client element or in a dedicated `Dependencies/` package when they cross package boundaries.
+
+### 2.5 Diagram Types
+
+Diagrams are visual representations of model elements. They are not SysML language constructs but a format extension for diagrams that trace back to the model elements they depict.
+
+| `type:` value | Description |
+|---|---|
+| `Diagram` | A diagram of part of the model — structured SVG, PlantUML companion, Mermaid, inline PlantUML, or hand-authored SVG with a frontmatter manifest linking shapes and edges to model elements (`diagramKind:`, §8.16) |
+
+### 2.6 Record Types
+
+Record elements are engineering-process artifacts that live in the model directory tree for traceability. They have no SysML counterpart. All are **id-identified**: the file is `<id>.md`, cross-references resolve by `id`, and `name` is a required free-prose label.
+
+| `type:` value | ID pattern | Description |
+|---|---|---|
+| `ADR` | `ADR-*` | Architecture Decision Record documenting a model-level design decision; referenced by `breakdownAdr:`. See §8.17. |
+| `TestPlan` | `TP-*` | Groups `TestCase`s by configuration and scope into a test campaign with a rolled-up verdict. See §8.12.6. |
+| `Baseline` | `BL-*` | Sealed, content-hashed release snapshot of a model scope, anchored to a commit (written by `syscribe baseline create`). See §8.19. |
+| `PlanningItem` | `PI-*` | Work item (epic/story/task) in a single-parent tree that `achieves:` Requirements. See §23. |
+| `ReviewRecord` | `RR-*` | Record of a formal review of model elements, with findings and action items. See §19. |
+| `TradeStudy` | `TRD-*` | Weighted-criteria evaluation of design alternatives, linked to the informing Requirement and the deciding ADR. See §15. |
+
+### 2.7 Safety and Security Analysis Types
+
+Native, id-identified element types for functional safety (ISO 26262, IEC 61508, ISO 13849-1), automotive cybersecurity (ISO/SAE 21434), and industrial cybersecurity (IEC 62443).
+
+| `type:` value | ID pattern | Description |
+|---|---|---|
+| `HazardousEvent` | `HE-*` | Hazard in an operational situation, with HARA risk parameters. §8.18.1 |
+| `SafetyGoal` | `SG-*` | Top-level safety requirement from the HARA, carrying an integrity level. §8.18.1 |
+| `Asset` | `ASSET-*` | Item of value to protect, with the cybersecurity properties at stake. §8.18.7 |
+| `DamageScenario` | `DS-*` | Adverse consequence to a stakeholder if an asset is compromised. §8.18.2 |
+| `ThreatScenario` | `TS-*` | Potential attack causing damage scenarios; carries attack feasibility and risk treatment. §8.18.2 |
+| `CybersecurityGoal` | `CSG-*` | High-level security requirement countering threat scenarios, with a CAL. §8.18.2 |
+| `SecurityControl` | `SC-*` | Concrete countermeasure implementing cybersecurity goals. §8.18.2 |
+| `VulnerabilityReport` | `VR-*` | Tracked vulnerability with CVSS score and mitigations. §8.18.2 |
+| `TARASheet` | `TARA-*` | Single-file TARA whose tables explode into the TARA element types above. §8.18.2 |
+| `ConfirmationMeasure` | `CM-*` | Confirmation review, audit, or assessment with its independence level. §8.18.2 |
+| `FaultTree` | `FT-*` | Root of a fault tree for a `SafetyGoal`. §8.18.3 |
+| `FaultTreeGate` | `FTG-*` | Logic gate in a fault tree. §8.18.3 |
+| `FaultTreeEvent` | `FTE-*` | Basic, undeveloped, or house event in a fault tree. §8.18.3 |
+| `FMEASheet` | `FMEA-*` | FMEA table whose `entries:` rows become `FMEAEntry` elements. §8.18.4 |
+| `FMEAEntry` | `FM-*` | One failure-mode row, synthesized from an `FMEASheet` (not authored as its own file). §8.18.4 |
+| `AttackTree` | `AT-*` | Root of an attack tree substantiating a `ThreatScenario`. §8.18.5 |
+| `AttackTreeGate` | `ATG-*` | `AND`/`OR` combinator in an attack tree. §8.18.5 |
+| `AttackStep` | `ATS-*` | Leaf attack step with an attack feasibility. §8.18.5 |
+| `Argument` | `ARG-*` | GSN claim, strategy, or solution node in the safety argument. §8.18.6 |
+| `AssumptionOfUse` | `AOU-*` | Safety-related application condition constraining goals, arguments, or requirements. §8.18.6 |
+| `Zone` | `ZN-*` | IEC 62443 security zone with a target security level. §13.2 |
+| `Conduit` | `CD-*` | IEC 62443 conduit connecting two zones, with an achieved security level. §13.3 |
+
+The native `Requirement` (`REQ-*`, §8.11.6), `TestCase` (`TC-*`, §8.12.5), `FeatureDef` (`FEAT-*`), `Configuration` (`CONF-*`) and `FeatureModel` types are listed with the usage types in §2.2. `syscribe spec types` prints the list known to the installed tool.
+
 
 ---
 
@@ -552,9 +596,9 @@ These fields may appear on **any** element, not only on `RequirementDef`/`Requir
 
 | Field | YAML type | Required | Default | Description |
 |---|---|---|---|---|
-| `appliesWhen` | string or list of strings | optional | absent | Qualified name of a `FeatureDef` (or AND-list of `FeatureDef` names) that must be selected in a `Configuration` for this element to be included in the projected model. Absent = unconditionally included. See §9.10. |
+| `appliesWhen` | string or list of strings | optional | absent | Feature condition for inclusion in a projected `Configuration`: a `FeatureDef` qualified name or `FEAT-*` id, an AND-list of them, or a boolean expression using `and` / `or` / `not` and parentheses over them. Absent = unconditionally included. See §9.10. |
 
-`appliesWhen:` may appear on **any** element type, including `Requirement`, `PartDef`, `Part`, `TestCase`, `Allocation`, `ActionDef`, `Connection`, `Diagram`, and all others — and on a **`Package`**, where it applies transitively to the whole subtree (the *effective condition*; §9.10, error `E228` enforces one declaration per path). It is the sole mechanism by which model elements are conditioned on feature selections. A string value is a reference to a single `FeatureDef`; a list means all listed features must be selected (AND semantics). OR semantics are expressed in the feature model itself via `groupKind: or` (see §9.6).
+`appliesWhen:` may appear on **any** element type, including `Requirement`, `PartDef`, `Part`, `TestCase`, `Allocation`, `ActionDef`, `Connection`, `Diagram`, and all others — and on a **`Package`**, where it applies transitively to the whole subtree (the *effective condition*; §9.10, error `E228` enforces one declaration per path). It is the sole mechanism by which model elements are conditioned on feature selections. A string value is either a single `FeatureDef` reference or a boolean expression (`"A and B"`, `"A or B"`, `"not A"`, parentheses; precedence `not` > `and` > `or`); a list means all listed features must be selected (AND semantics). Every operand must resolve to a `FeatureDef` and the expression must parse — otherwise error `E209` (§9.10). Feature qualified names use `::` between every segment (`SystemFeatures::Propulsion::HexRotorPropulsion`); `.` is reserved for the feature/parameter boundary in parameter references (§9.7) and is not valid inside an `appliesWhen:` operand.
 
 ### 3.14 Domain Classification
 
@@ -726,6 +770,33 @@ Rules:
   reference evaluates to null.
 - `derive:` is a recognised schema field: it never raises `W047` (§3.17).
 
+### 3.19 Suspect-Link Baselines (`traceBaselines:`)
+
+A **suspect link** is a trace link whose target changed after the link was last reviewed (`ADR-SYS-SUSLINK-001`). The element that holds the link (the source, §12.1) may record, for each reviewed target, a hash of the target's content at review time:
+
+| Field | YAML type | Required | Default | Description |
+|---|---|---|---|---|
+| `traceBaselines` | map of string → string | optional | absent | Key: the link target exactly as authored on the link (stable id or qualified name). Value: `blake3:<hex>` of the target's **normative projection** — its Markdown body plus its frontmatter minus the editorial fields `name`, `displayOrder`, `extRef`, `title`, `traceBaselines`, `layout`, `shapes`, `edges`, `svgFile`, `pumlFile`. One map covers every link kind on the element. |
+
+Frontmatter excerpt (the TestCase's Gherkin body is omitted; the hash is illustrative):
+
+```yaml
+---
+type: TestCase
+id: TC-BRK-001
+name: Brake response time
+status: active
+testLevel: L2
+verifies: [REQ-BRK-001]
+traceBaselines:
+  REQ-BRK-001: blake3:9f2c1e0d4b7a6c5e8d3f1a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d0e2f4a6b8c0d
+---
+```
+
+The map is **written by tooling**, not by hand: `syscribe suspect accept <source> <target>` baselines one reviewed link, `suspect accept --all` re-baselines every suspect link, and `suspect accept --all-unbaselined` baselines every link that has no baseline yet (onboarding; it never overwrites an existing entry). Links tracked: `verifies`, `derivedFrom`, `satisfies`, `refines`, `implementedBy`, `subsets`, `supertype`, `redefines`, `typedBy`, `breakdownAdr`, `hazardRef`, `mitigatedBy`, `supports`, `confirms`, scalar `evidence` entries, a `ViewpointDef`'s `satisfiedBy`, and user-defined `links:` whose type does not declare `suspect = false` (§12.10.6).
+
+**Validation.** `validate` recomputes each baselined target's projection hash; a mismatch is warning **`W090`** (suspect link — review the source, then re-run `suspect accept`). The feature is opt-in and additive: a link with no baseline raises nothing in `validate` and is listed only by `suspect list`, and a baselined target that no longer resolves is left to the unresolved-reference checks rather than reported as `W090`. Gate CI on stale links with `--deny W090`.
+
 ---
 
 ## 4 Directory and Namespace Conventions
@@ -738,7 +809,7 @@ The root directory **may** contain an `_index.md` with `type: Namespace` or `typ
 
 ### 4.2 Package Directories
 
-A directory maps to a SysML `package`. The package's name is the directory name unless overridden by `name:` in the directory's `_index.md`.
+A directory maps to a SysML `package`. The package's qualified-name segment is **always** the directory name. A `name:` in the directory's `_index.md` is only the package's human-readable label (display name); it never changes the qualified name (§11.3).
 
 ```
 model/
@@ -758,7 +829,7 @@ An `_index.md` file may carry any fields from Section 3, plus the following pack
 | Field | YAML type | Description |
 |---|---|---|
 | `type` | string | Must be `Package`, `LibraryPackage`, or `Namespace` |
-| `name` | string | Override the directory name as the package name |
+| `name` | string | Display label for the package. Does **not** change the qualified name — the segment is always the directory name (§11.3) |
 | `imports` | list | Import declarations (Section 3.7.1) |
 | `aliases` | list | Alias declarations (Section 3.7.2) |
 | `filterCondition` | string | Package filter condition (opaque KerML expression) |
@@ -780,11 +851,11 @@ International System of Quantities domain library.
 
 ### 4.5 Name Collision Rules
 
-1. The `name:` field in frontmatter, if present, is the element's declared name and takes precedence over the filename stem for display and cross-reference purposes.
-2. The filename stem is always used as the unique file identifier for file-system operations.
-3. If `name:` differs from the filename stem, the qualified name uses `name:`. The filename may be anything valid for the OS.
-4. Two elements in the same directory must not have the same effective `name:` (after applying the `name:` override). This is a validation error.
-5. A file named `_index.md` is never assigned its own qualified name segment; it represents the containing directory's package.
+1. The qualified name is **purely path-derived** (§11.3): the element's last segment is its filename stem, and each package segment is a directory name. The `name:` field is only the element's label (SysML `declaredName` used for display); it never changes the qualified name and never participates in collision detection.
+2. Because the qualified name comes from the path, two elements in the same directory cannot share a qualified name — the file system already forbids two files with the same stem. Two elements in the same directory **may** carry the same `name:` label without error.
+3. For name-identified types, author `name:` equal to the filename stem so the label and the identity segment agree; the stem (not `name:`) is what `::` references resolve against. For id-identified types (`Requirement`, `TestCase`, …) the stem is the stable `id` and `name:` is free prose.
+4. A file named `_index.md` is never assigned its own qualified name segment; it represents the containing directory's package.
+5. A qualified name produced by more than one element — e.g. a file `Foo.md` next to a directory `Foo/` that has an `_index.md`, or a synthesized element (a `FeatureModel` sheet entry, an FMEA/TARA row, a plugin- or annotation-emitted element) colliding with a file-backed one — is error `E108`.
 
 ### 4.6 Visibility Within Directories
 
@@ -910,7 +981,7 @@ Use `self` to refer to the element defined by the current file, within constrain
 
 ### 5.6 Feature Chains
 
-Feature chains (dot-notation paths through usages) are written using `.` within qualified names that appear in `connections:`, `flow_connections:`, and `succession_connections:` entries. For example:
+Feature chains (dot-notation paths through usages) are written using `.` within qualified names that appear in `connections:`, `flowConnections:`, and `successionConnections:` entries. For example:
 
 ```yaml
 connections:
@@ -2269,8 +2340,7 @@ Defines a boolean-valued condition that can be evaluated.
 |---|---|---|---|
 | `supertype` | string or list | absent | Supertype ConstraintDefs |
 | `parameters` | list | absent | Parameters for parameterized constraints |
-| `expression` | string | absent | Constraint expression body (opaque string) |
-| `expressionLanguage` | string | `"ocl"` | Language for `expression` |
+| `expression` | string | absent | Constraint expression body (opaque string; the language is not declared or interpreted — there is no `expressionLanguage` field) |
 
 **Example** (`model/Requirements/MassConstraint.md`):
 
@@ -2286,7 +2356,6 @@ parameters:
     typedBy: ISQ::MassValue
     direction: in
 expression: "actualMass <= maxMass"
-expressionLanguage: ocl
 ---
 Constraint that the actual mass does not exceed the maximum allowed mass.
 ```
@@ -2347,8 +2416,7 @@ Each entry in `requires:` or `assume:`:
 | Sub-field | YAML type | Required | Description |
 |---|---|---|---|
 | `typedBy` | string | optional | Qualified name of a ConstraintDef |
-| `expression` | string | optional | Inline constraint expression (opaque) |
-| `expressionLanguage` | string | optional | Language for `expression`; default `"ocl"` |
+| `expression` | string | optional | Inline constraint expression (opaque; the language is not declared or interpreted) |
 | `isAsserted` | bool | optional | Whether asserted (default `true` for `requires:`, `false` for `assume:`) |
 
 **Example** (`model/Requirements/MassRequirementDef.md`):
@@ -2413,7 +2481,8 @@ Top-level satisfaction and verification fields on any element:
 |---|---|---|---|
 | `satisfies` | list of strings | absent | Qualified names of Requirement usages this element satisfies |
 | `implementedBy` | string or list | absent | Path(s) to the source artifact(s) realising this `Part`/`PartDef`. Resolved like `sourceFile`; missing local paths emit W023 (§12.8) |
-| `verifiedBy` | list of strings | absent | Qualified names of VerificationCase usages that verify this requirement |
+
+`verifiedBy` is **not** an authored field. It is the reverse index of `verifies:`, computed at load time (§11.11) and never written to a file (§12.1); author the link on the verifying element with `verifies:`.
 
 #### 8.11.5 `ConcernDef` and `Concern`
 
@@ -2438,7 +2507,6 @@ stakeholders:
   - Stakeholders::CustomerRep
 requires:
   - expression: "subject.mass <= 2000.0"
-    expressionLanguage: ocl
 ---
 Concern regarding the total weight of the vehicle impacting fuel economy and performance.
 ```
@@ -2447,7 +2515,7 @@ Concern regarding the total weight of the vehicle impacting fuel economy and per
 
 The native `Requirement` type is a **first-class element** designed for safety-critical and regulated engineering contexts where every requirement must carry a stable, opaque identifier that never changes (regardless of file renames or restructuring), a structured lifecycle status, and a normative textual statement in the Markdown body.
 
-This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed by a `RequirementDef`. Native requirements are dispatched by the parser based on the `id:` field matching the `REQ-*` pattern (§11.5 step 0).
+This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed by a `RequirementDef`. Native requirements are dispatched by the parser based on the `id:` field matching the `REQ-*` pattern (§11.10, step 0).
 
 **Frontmatter fields:**
 
@@ -2457,19 +2525,22 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `id` | string | **Required** | Stable opaque ID matching `^REQ(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`. Unique across the model. Never changes. |
 | `name` | string | **Required** | One-line human-readable label — free prose (spaces/punctuation allowed; `W042` does not apply). Max 120 chars. No newlines. |
 | `status` | enum | **Required** | Lifecycle state: `draft`, `review`, `approved`, `implemented`, `verified`. |
-| `reqClass` | enum | optional | Classification in the stakeholder/system decomposition: `stakeholder`, `system`, or `derived`. Recognised, first-class field (REQ-TRS-SCHEMA-002); records authoring intent independently of `derivedFrom`. |
+| `reqClass` | enum | optional | Position in the stakeholder→system **decomposition**: `stakeholder`, `system`, or `derived`. Recognised, first-class field (REQ-TRS-SCHEMA-002); records authoring intent independently of `derivedFrom`. Informational only: the value is **not** validated and drives no rule. |
+| `requirementKind` | enum | optional | **Kind of requirement by its subject**: `stakeholder`, `system`, `software`, or `hardware`. Emitted by `syscribe template Requirement`. The value **is** validated — anything else is error `E022`. It drives no traceability rule; the domain rules of §12.5 use `reqDomain`. |
 | `derivedFrom` | list of id-or-qualname | optional | IDs (`REQ-*`) or qualified names of parent Requirements. Absent = stakeholder-level requirement. |
 | `silLevel` | integer 1–4 | optional | IEC 61508 SIL level. Mutually exclusive with `asilLevel` — do not set both (W006). |
 | `asilLevel` | enum A\|B\|C\|D | optional | ISO 26262 ASIL level. Mutually exclusive with `silLevel` — do not set both (W006). |
-| `plLevel` | enum a\|b\|c\|d\|e | optional | ISO 13849-1 Performance Level. Mutually exclusive with `asilLevel`/`silLevel`. |
-| `derivedFromSafetyGoal` | string | optional | ID or qualified name of the `SafetyGoal` that motivated this requirement (§8.18.2). When set the SafetyGoal's integrity level must also appear on this element (E841). |
-| `derivedFromCybersecurityGoal` | string | optional | ID or qualified name of the `CybersecurityGoal` that motivated this requirement (§8.18.4). Implies `verificationMethod:` should be set (W807). `derivedFromSecurityGoal` is a legacy serde alias for this same field, honored for backward compatibility (REQ-TRS-SEC-006). |
+| `plLevel` | enum a\|b\|c\|d\|e | optional | ISO 13849-1 Performance Level. Should not be combined with `asilLevel`/`silLevel` (not checked — `W006` covers only the ASIL/SIL pair). Not part of integrity-level propagation (§12.7). |
+| `derivedFromSafetyGoal` | string | optional | ID or qualified name of the `SafetyGoal` that motivated this requirement (§8.18.1). When set and the SafetyGoal carries `asilLevel:`/`silLevel:`, this element must also carry one of them (E841; §12.7). |
+| `derivedFromCybersecurityGoal` | string | optional | ID or qualified name of the `CybersecurityGoal` that motivated this requirement (§8.18.2). Implies `verificationMethod:` should be set (W807). `derivedFromSecurityGoal` is a legacy serde alias for this same field, honored for backward compatibility (REQ-TRS-SEC-006). |
 | `verificationMethod` | enum | optional | How this requirement will be verified: `test`, `inspection`, `analysis`, or `demonstration`. Required for ASIL B/C/D requirements (W701). |
 | `wcet` | string | optional | WCET claim (opaque). E.g. `"O(1)"`, `"≤ 200 cycles @ 72 MHz"`. |
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
 | `displayOrder` | number | optional | Reading/presentation order among peer requirements in the report and coverage matrix; ascending, unset last, id tie-break. Generic field — see §3.16. |
 | `reqDomain` | enum | optional | Engineering domain of this requirement: `system`, `hardware`, or `software`. Leaf requirements at `implemented`/`verified` status should be refined to `hardware` or `software` (warning `W302`). |
 | `breakdownAdr` | string | optional | `ADR-*` id or qualified name of the ADR documenting the rationale for this requirement's derivation from its parent(s). Required when `derivedFrom:` is non-empty (error `E310`). Also required when the requirement's integrity level is lower than its source's (W808; see §12.7). |
+
+**`reqClass` vs `requirementKind` vs `reqDomain`.** Three optional classification fields coexist; none replaces another. `reqClass` records where the requirement sits in the decomposition (stakeholder need, system requirement, derived requirement) and is unvalidated. `requirementKind` records what kind of requirement it is by subject (stakeholder, system, software, hardware) and is enum-checked (`E022`). `reqDomain` (`system`/`hardware`/`software`) is the one the traceability rules read (§12.5, `E313`, `W302`).
 
 **Status values:**
 
@@ -2482,7 +2553,7 @@ This is distinct from the SysML-usage `Requirement` (§8.11.3), which is typed b
 | `verified` | Covered by at least one `active` TestCase. |
 
 **ID pattern:** `^REQ(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
-- Prefix `REQ`, one or more uppercase-alphanumeric segments (2–12 chars each), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
+- Prefix `REQ`, zero or more uppercase-alphanumeric category segments (2–12 chars each; a bare `REQ-001` is valid), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
 - Examples: `REQ-SCHED-001`, `REQ-SCHED-BITMAP-001`, `REQ-BRAKE-CTRL-003`
 
 > **Configurable additional prefixes (`[ids.prefixes]`).** The built-in prefix above is not the only one a type may accept. A project may add extra stable-ID prefixes per element type in the `[ids.prefixes]` table of `<model_root>/.syscribe.toml` — keyed by element-type name (`Requirement`, `TestCase`, …), each value a list of prefixes. Extra prefixes are **additive** (the built-in always stays valid) and **pure identity** (they affect only id recognition and id-based resolution; no other field is implied). Each prefix must match `^[A-Z][A-Z0-9]{1,11}$`; an additional prefix `P` accepts the same id grammar as the type's built-in with `P` substituted, and the `[ids] max_digits` cap (`E023`) applies equally. An entry keyed by a non-id-identified type, or a prefix failing the prefix grammar, raises warning `W046` and is ignored (well-formed siblings still apply). Example: `Requirement = ["STK", "SYS"]` makes `STK-SCHED-001` and `SYS-SCHED-001` valid `Requirement` ids alongside `REQ-SCHED-001`.
@@ -2848,7 +2919,7 @@ selection:
 Integration plan executed before each delivery/survey release.
 ```
 
-**Tooling:** the `testplan` command lists plans (scope, configurations, effective-TestCase count, coverage %, verdict) and shows per-plan detail (`testplan TP-X`, `--json`); coverage and the `pass`/`fail`/`incomplete`/`empty` verdict reuse the `matrix` coverage computation and the ingested-results fold. The `--plan TP-X` lens on `matrix`, `verification-depth`, and `audit` restricts those reports to a plan's scope (composing with `--config`). See `spec/markdown` validation rules `E600`–`E606` / `W610`–`W616` (§11.12 reference) and the CLI guide.
+**Tooling:** the `testplan` command lists plans (scope, configurations, effective-TestCase count, coverage %, verdict) and shows per-plan detail (`testplan TP-X`, `--json`); coverage and the `pass`/`fail`/`incomplete`/`empty` verdict reuse the `matrix` coverage computation and the ingested-results fold. The `--plan TP-X` lens on `matrix`, `verification-depth`, and `audit` restricts those reports to a plan's scope (composing with `--config`). The validation rules `E600`–`E606` / `W610`–`W616` are summarised below; see `syscribe help testplan` for the CLI.
 
 **Validation summary:** `E600` (missing `id`/`name`/`status` or malformed `TP-*` id), `E601` (member not a TestCase), `E602` (bad `selection.testLevels`), `E603` (`demonstrates` unresolved), `E604` (bad `status`), `E605` (bad `selection.domains`), `E606` (`configurations` entry not a Configuration); `W610` (non-recommended `scope`), `W611` (escaping member), `W612` (empty plan), `W613` (pinned draft/retired member), `W614` (approved plan demonstrates a goal no member verifies, honouring goal-closure), `W615` (results-gated: approved plan with a Fail/Missing member), `W616` (duplicate `(configurations, scope)`). A duplicate `id` is the generic `E101`.
 
@@ -2958,7 +3029,7 @@ Defines a stakeholder viewpoint describing what model information is relevant.
 | `stakeholders` | list of strings | absent | Qualified names of stakeholder PartDefs |
 | `concerns` | list of strings | absent | Qualified names of ConcernDefs addressed |
 | `methods` | list of strings | absent | Qualified names of ViewDefs or RenderingDefs satisfying this viewpoint |
-| `satisfiedBy` | list of strings | absent | ViewDefs/Views that satisfy this viewpoint |
+| `satisfiedBy` | list of strings | absent | ViewDefs/Views that satisfy this viewpoint. An authored SysML viewpoint-conformance list, stored as written (it is not resolved and is not merged into the computed `satisfiedBy` index of §11.11/§12.1, which is the reverse of `satisfies:`) |
 
 ```yaml
 ---
@@ -3115,11 +3186,19 @@ The following metadata types from the SysML Standard Library are referenced by t
 
 #### 8.16.1 Overview
 
-A `Diagram` file stores an LLM-generated SVG diagram alongside a structured frontmatter manifest that links every SVG shape and edge to a model element by qualified name. The frontmatter is the canonical source of traceability; the SVG is the visual geometry. A parser can validate the diagram entirely from the frontmatter without touching the SVG.
+A `Diagram` file (`type: Diagram`) depicts part of the model. Its `diagramKind:` selects the rendering path:
 
-The SVG uses a `sysml:` XML namespace on shapes for redundant inline traceability, enabling the SVG to be opened standalone in any viewer.
+| Rendering path | How to author | Notes |
+|---|---|---|
+| **Structured SVG** (`BDD`, `IBD`, `StateMachine`, `Requirement`) | `shapes:` / `edges:` manifest plus a `layout:` block | The web server builds the SVG from the manifest; without `layout:` nothing is drawn. |
+| **PlantUML companion** (`BDD`, `IBD`, `StateMachine`, `Sequence`, `Requirement`) | `pumlMode: companion` (+ optional `pumlFile:`) and an image reference to the anticipated `.svg` in the body | `syscribe plantuml` generates the `.puml` from the manifest and the model; `syscribe plantuml render` turns it into SVG. Preferred for these kinds. |
+| **Mermaid** (`diagramKind: Mermaid`) | A fenced ` ```mermaid ` block in the body | Rendered client-side. Annotate nodes with `%% ref: <QualifiedName>` (and `%% link: <NodeId> <QualifiedName>`) so they trace to model elements. |
+| **Inline PlantUML** (`diagramKind: PlantUML`) | A fenced ` ```plantuml ` block in the body | Hand-written PlantUML source. |
+| **Hand-authored SVG** (any kind, including `Allocation`, `UseCase`, `Sequence`, `Custom`) | `shapes:` / `edges:` manifest plus an SVG, inline or companion (below) | The SVG geometry is authored (typically by an LLM); the manifest links every shape and edge to a model element. |
 
-**Two storage modes are supported.** The frontmatter schema is identical in both; only the Markdown body differs:
+The rest of this section specifies the manifest and the hand-authored SVG conventions. In the manifest the frontmatter is the canonical source of traceability and the SVG is the visual geometry, so a parser can validate the diagram from the frontmatter without touching the SVG. The SVG uses a `sysml:` XML namespace (`urn:syscribe:1.0`) on shapes for redundant inline traceability, so the SVG can be opened standalone in any viewer.
+
+**Two SVG storage modes are supported.** The frontmatter schema is identical in both; only the Markdown body differs:
 
 | Mode | Body content | GitHub rendering | Files |
 |---|---|---|---|
@@ -3136,14 +3215,15 @@ Choose **inline** when GitHub rendering is not required and keeping everything i
 |---|---|---|---|---|
 | `type` | string | **Required** | — | `Diagram` |
 | `name` | string | optional | filename stem | Display name for the diagram |
-| `kind` | string | **Required** | — | Diagram kind: `BDD`, `IBD`, `Sequence`, `StateMachine`, `Requirement`, `Allocation`, `UseCase`, `Custom` |
-| `subject` | string | **Required** | — | Qualified name of the model element this diagram depicts |
+| `diagramKind` | string | recommended | — | Diagram kind: `BDD`, `IBD`, `StateMachine`, `Sequence`, `Requirement`, `Mermaid`, `PlantUML`; `Allocation`, `UseCase` and `Custom` are accepted for hand-authored SVG (no generator). Absent → warning `W400` (suppressed when `svgMode: companion`). The field is `diagramKind`, not `kind` (an unknown `kind:` key is `W047`). |
+| `subject` | string | recommended | — | Qualified name of the model element this diagram depicts. An unresolved subject is warning `W401`. |
 | `svgMode` | string | optional | `inline` | Storage mode: `inline` (fenced block in body) or `companion` (separate `.svg` file) |
 | `svgFile` | string | optional | `<stem>.svg` | Companion file path relative to the `.md` file; only used when `svgMode: companion` |
 | `shapes` | map | optional | absent | Shape manifest; see §8.16.3 |
 | `edges` | map | optional | absent | Edge manifest; see §8.16.4 |
-| `symbolLib` | string | optional | `_diagram-symbols.svg` | Path (relative to model root) to the shared SVG symbol library |
-| `generatedBy` | string | optional | absent | Free-text note on how the SVG was produced (e.g., `"claude-sonnet-4-6"`) |
+| `layout` | map | optional | absent | Shape id → `{x, y, w, h}` pixel coordinates. Triggers the server-side structured SVG renderer. |
+| `pumlMode` | string | optional | absent | `companion` (the only value; anything else is `E403`) opts into the PlantUML workflow. Requires `diagramKind` (`E404`); the body must reference the anticipated SVG (`![…](….svg)` or `<img`, else `W413`); a not-yet-generated `.puml` is `W414`. |
+| `pumlFile` | string | optional | `<stem>.puml` | Companion `.puml` path relative to the `.md` file; only used with `pumlMode: companion`. |
 
 #### 8.16.3 Shape Manifest
 
@@ -3229,7 +3309,7 @@ The `svgFile:` frontmatter field identifies the companion file. If absent, the p
 **Namespace declaration:**
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:sysml="urn:sysml-md:1.0"
+     xmlns:sysml="urn:syscribe:1.0"
      viewBox="0 0 W H">
 ```
 
@@ -3251,7 +3331,7 @@ The `svgFile:` frontmatter field identifies the companion file. If absent, the p
       marker-end="url(#arrow-flow)"/>
 ```
 
-**Symbol library** (`<defs>` or referenced via `symbolLib:`): defines reusable symbols for each SysML element kind. Shapes reference them via `<use href="#sym-<TypeName>">`. A default symbol library is provided at `_diagram-symbols.svg` in the model root.
+**Symbol library**: reusable symbols for each SysML element kind are defined as `<symbol>`s in `<defs>`, and shapes reference them via `<use href="#sym-<TypeName>">`. The SVG may carry its own `<defs>`; in addition, the web server injects the `<defs>` of `_diagram-symbols.svg` at the model root, when that file exists (a fixed path — there is no frontmatter field for it).
 
 **CSS classes** on shapes and edges correspond to SysML element types and control visual style:
 
@@ -3275,11 +3355,10 @@ The frontmatter and SVG body live in one file. GitHub displays code, not an imag
 ````markdown
 ---
 type: Diagram
-kind: IBD
+diagramKind: IBD
 name: VehiclePowertrainIBD
 subject: VehicleSystem::Vehicle
 svgMode: companion
-generatedBy: claude-sonnet-4-6
 shapes:
   vehicle-boundary: VehicleSystem::Vehicle
   engine-rect:
@@ -3313,7 +3392,7 @@ edges:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:sysml="urn:sysml-md:1.0"
+     xmlns:sysml="urn:syscribe:1.0"
      viewBox="0 0 800 500">
   <!-- shapes, edges, etc. with sysml:ref attributes -->
 </svg>
@@ -3324,10 +3403,9 @@ edges:
 ````markdown
 ---
 type: Diagram
-kind: IBD
+diagramKind: IBD
 name: VehiclePowertrainIBD
 subject: VehicleSystem::Vehicle
-generatedBy: claude-sonnet-4-6
 shapes:
   vehicle-boundary: VehicleSystem::Vehicle
   engine-rect:
@@ -3345,7 +3423,7 @@ edges:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:sysml="urn:sysml-md:1.0"
+     xmlns:sysml="urn:syscribe:1.0"
      viewBox="0 0 800 500">
   ...
 </svg>
@@ -3357,10 +3435,9 @@ edges:
 ````markdown
 ---
 type: Diagram
-kind: IBD
+diagramKind: IBD
 name: VehiclePowertrainIBD
 subject: VehicleSystem::Vehicle
-generatedBy: claude-sonnet-4-6
 shapes:
   vehicle-boundary: VehicleSystem::Vehicle
   engine-rect:
@@ -3406,7 +3483,7 @@ edges:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg"
-     xmlns:sysml="urn:sysml-md:1.0"
+     xmlns:sysml="urn:syscribe:1.0"
      viewBox="0 0 800 500">
   <defs>
     <marker id="arrow-flow" markerWidth="10" markerHeight="7"
@@ -3471,20 +3548,21 @@ edges:
 
 A conformant parser must:
 
-1. **Reference validation** — every `ref` value in `shapes:` and `edges:` must resolve to a model element. Unresolved references are errors.
+1. **Reference validation** — every `ref` value in `shapes:` must resolve to a model element. An unresolved shape `ref` is warning `W402` (suppressed when an ancestor qualified name resolves, which covers inline features such as `Part::port`). A shape `link:` that does not resolve is `W411`; an SVG `href` that matches no model element is `W412`.
 2. **Type compatibility** — the CSS class on an SVG shape must match the `type:` of the referenced model element (e.g., a shape with `class="PartDef"` whose `ref` resolves to a `RequirementDef` is an error).
-3. **ID consistency** — every `id` key in the frontmatter `shapes:` and `edges:` maps must appear as an `id` attribute in the SVG (inline or companion), and vice versa. Orphaned IDs in either direction are warnings.
-4. **Edge endpoint validity** — `source` and `target` values in `edges:` must be keys present in `shapes:`.
-5. **Subject existence** — the `subject:` qualified name must resolve to a model element.
-6. **Companion file existence** — when `svgMode: companion`, the parser must verify the companion `.svg` file exists at the path given by `svgFile:` (or the default stem-matched path). A missing companion file is an error.
-7. **Mode consistency** — when `svgMode: inline`, the body must contain a fenced `svg` block. When `svgMode: companion`, the body must contain an `<img>` tag. A mismatch is a warning.
-8. **Completeness warnings** (optional, non-blocking) — for `IBD` diagrams, the parser may warn if sub-parts or connections declared in the subject element's `.md` file do not appear in `shapes:` or `edges:`.
+3. **ID consistency** — for inline SVG, every `id` key in the frontmatter `shapes:` and `edges:` maps must appear as an `id` attribute in the SVG (`W406`), and every SVG `id` must appear in the manifest (`W407`).
+4. **Edge endpoint validity** — `source` and `target` values in `edges:` must be keys present in `shapes:`; otherwise warning `W403`.
+5. **Subject existence** — the `subject:` qualified name must resolve to a model element; otherwise warning `W401`.
+6. **Companion file existence** — when `svgMode: companion` (or `svgFile:` is set), the `.svg` file must exist at the path given by `svgFile:` (or the default stem-matched path). A missing companion file is error `E402`.
+7. **Mode consistency** — when `svgMode: inline`, the body must contain a fenced `svg` block. When `svgMode: companion`, the body must contain an `<img>` tag. A mismatch is warning `W405`.
+8. **Rendering-path bodies** — `diagramKind: Mermaid` requires a ` ```mermaid ` block (`E400`); `diagramKind: PlantUML` requires a ` ```plantuml ` block (`E401`). In Mermaid blocks, an unresolved `%% ref:` is `W408`, a diagram with no `%% ref:` annotation at all is `W409`, and an unresolved `%% link:` is `W410`. The `pumlMode` checks (`E403`, `E404`, `W413`, `W414`) are listed in §8.16.2; a missing `[plantuml] style_file` is `W415`.
+9. **Completeness warnings** (optional, non-blocking) — for `IBD` diagrams, the parser may warn if sub-parts or connections declared in the subject element's `.md` file do not appear in `shapes:` or `edges:`.
 
 ---
 
 #### 8.16.8 Kind-Specific Diagram Conventions
 
-Each `kind:` value imposes constraints on which element types are valid for `subject:`, which values are valid for `kind:` in shape and edge descriptors, which CSS classes and SVG primitives to use, and which model elements the parser must check for completeness. The `Custom` kind has no prescribed conventions — all shape and edge `kind:` values are user-defined and no completeness rules are enforced.
+Each `diagramKind:` value imposes constraints on which element types are valid for `subject:`, which values are valid for `kind:` in shape and edge descriptors, which CSS classes and SVG primitives to use, and which model elements the parser must check for completeness. The `Custom` kind has no prescribed conventions — all shape and edge `kind:` values are user-defined and no completeness rules are enforced.
 
 ---
 
@@ -3519,7 +3597,7 @@ A BDD shows classifiers (definitions) and their relationships in a given package
 
 ```yaml
 type: Diagram
-kind: BDD
+diagramKind: BDD
 name: PowertrainBDD
 subject: VehicleSystem::Powertrain
 shapes:
@@ -3585,7 +3663,7 @@ An IBD shows the internal structure of a single `PartDef` or `Part` — its owne
 
 ```yaml
 type: Diagram
-kind: IBD
+diagramKind: IBD
 name: EngineInternalIBD
 subject: VehicleSystem::Powertrain::Engine
 shapes:
@@ -3651,7 +3729,7 @@ A Sequence diagram shows time-ordered message exchanges between lifelines. Time 
 
 ```yaml
 type: Diagram
-kind: Sequence
+diagramKind: Sequence
 name: EngineStartSequence
 subject: VehicleSystem::Actions::EngineStart
 shapes:
@@ -3719,7 +3797,7 @@ A StateMachine diagram shows the states and transitions of a `StateDef`. Initial
 
 ```yaml
 type: Diagram
-kind: StateMachine
+diagramKind: StateMachine
 name: EngineStateMachine
 subject: VehicleSystem::States::EngineStateDef
 shapes:
@@ -3790,7 +3868,7 @@ A Requirement diagram shows requirements and their inter-relationships within a 
 
 ```yaml
 type: Diagram
-kind: Requirement
+diagramKind: Requirement
 name: SafetyRequirementsDiagram
 subject: VehicleSystem::Requirements::Safety
 shapes:
@@ -3855,7 +3933,7 @@ An Allocation diagram shows `«allocate»` relationships between logical/functio
 
 ```yaml
 type: Diagram
-kind: Allocation
+diagramKind: Allocation
 name: FunctionToHardwareAllocation
 subject: VehicleSystem::Allocations
 shapes:
@@ -3924,7 +4002,7 @@ A UseCase diagram shows actors, use cases, the system boundary, and their relati
 
 ```yaml
 type: Diagram
-kind: UseCase
+diagramKind: UseCase
 name: VehicleUseCaseDiagram
 subject: VehicleSystem::UseCases
 shapes:
@@ -3974,7 +4052,7 @@ An `ADR` file is a first-class model element that documents a significant design
 | `tags` | list of strings | optional | Free labels for filtering/grouping. |
 
 **ID pattern:** `^ADR(-[A-Z0-9]{2,12})*-[0-9]{3,8}$`
-- Prefix `ADR`, one or more uppercase-alphanumeric segments (2–12 chars), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
+- Prefix `ADR`, zero or more uppercase-alphanumeric category segments (2–12 chars each; a bare `ADR-001` is valid), 3–8 digit numeric suffix (default cap 8; configurable via `[ids] max_digits`, minimum 3).
 - Examples: `ADR-SYS-001`, `ADR-SW-SCHED-001`, `ADR-UAV-PWR-002`
 
 **Status values:**
@@ -4075,7 +4153,7 @@ Used in Hazard Analysis and Risk Assessment (HARA) per ISO 26262-3 or IEC 61508.
 | `HazardousEvent` | `HE-*` | A combination of a hazard and an operational situation; carries ISO 26262 risk parameters (`severity`, `exposure`, `controllability`) or IEC 61508 risk graph parameters (`consequence`, `freqExposure`, `avoidance`, `demandRate`). |
 | `SafetyGoal` | `SG-*` | A top-level safety requirement derived from the HARA; carries `asilLevel:` (ISO 26262), `silLevel:` (IEC 61508), or `plLevel:` (ISO 13849-1), and `hazardousEvents:` referencing the events it addresses. |
 
-**Integrity level rules (W801, W806, E841, W808):** A `SafetyGoal` must carry an integrity level (W801). It must reference at least one `HazardousEvent` via `hazardousEvents:` (W806). Any `Requirement` derived from a `SafetyGoal` via `derivedFromSafetyGoal:` must carry the same integrity level field (E841), and may carry a lower level only when `breakdownAdr:` is set (W808; see §12.7).
+**Integrity level rules (W801, W806, E841, W808):** A `SafetyGoal` must carry an integrity level (W801). It must reference at least one `HazardousEvent` via `hazardousEvents:` (W806). Any element derived from a `SafetyGoal` via `derivedFromSafetyGoal:` must carry an integrity level — `asilLevel:` or `silLevel:` — when the goal carries one (E841), and may carry a lower level only when `breakdownAdr:` is set (W808; see §12.7).
 
 #### 8.18.2 Tier 2 — TARA Elements
 
@@ -4098,7 +4176,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 
 **Binding SecurityControls to architecture:** allocate the control (source) to the architecture element that realises it (target) with a standalone `Allocation` element — `allocatedFrom: SC-*` + `allocatedTo: <element>` (§12.9 form 2); the element then lists the control in its derived `allocatedFrom` index. Both fields accept a single string or a list of strings, so one `Allocation` can bind several controls. An `allocatedFrom:` authored directly on the architecture element (the pre-GH #131 guidance) is still accepted as a legacy input form (§12.9), but is not recommended.
 
-**Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:` (`planned` · `in_progress` · `completed`; invalid → E924), and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`name`/`status` → E847; an `id` not matching `CM-*` → E848. An `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; only ASIL D → I3 and CAL4 → I3 are gated, lower levels are future tightening).
+**Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:` (`planned` · `in_progress` · `completed`; invalid → E924), and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`name`/`status` → E847; an `id` not matching `CM-*` → E848. A `SafetyGoal`/native `Requirement` at `asilLevel: D`, `silLevel: 3` or `silLevel: 4` not confirmed by an I3 `functional_safety_assessment`, a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, or a `calLevel: CAL3` `CybersecurityGoal` not confirmed by an I2-or-I3 `cybersecurity_assessment` (REQ-TRS-SEC-007), warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; lower levels are not gated).
 
 #### 8.18.3 Tier 4 — Fault Tree Analysis (FTA)
 
@@ -4165,6 +4243,94 @@ supporting `Argument` tree (recursing into sub-Arguments), each Argument's evide
 `AssumptionOfUse` nodes. It also folds in the implicit chain
 `SafetyGoal ← Requirement (derivedFromSafetyGoal) ← TestCase (verifies)` so it is useful
 on models that have goals + requirements + tests but no explicit `Argument` nodes.
+
+#### 8.18.7 `Asset` (ISO/SAE 21434 §15.3)
+
+An `Asset` is an item of value that an attacker may want to compromise — the starting point of a TARA. Damage scenarios name the assets they harm with `assets:`.
+
+| Field | YAML type | Required | Description |
+|---|---|---|---|
+| `type` | literal `Asset` | **Required** | Discriminator. |
+| `id` | string | **Required** | Stable id matching `^ASSET(-[A-Z0-9]{2,12})+-[0-9]{3,8}$` (at least one category segment). Malformed → `E862`. |
+| `name` | string | **Required** | Free-prose label. |
+| `status` | string | **Required** | Lifecycle status (e.g. `draft`, `approved`). Missing `id`/`name`/`status` → `E861`. |
+| `cybersecurityProperties` | list of strings | optional | The properties at stake: `confidentiality`, `integrity`, `availability`, `authenticity`. Any other value → `E863`. |
+| `assetOwner` | string | optional | Qualified name or id of the architecture element that owns the asset. Informational (not resolved). |
+| `relatedSafetyGoal` | string | optional | `SG-*` id or qualified name of a related `SafetyGoal` (safety↔security co-engineering). Informational (not resolved). |
+
+`DamageScenario.assets:` (string or list) references `Asset`s by id or qualified name; an entry that does not resolve, or resolves to a non-`Asset`, is `E864`. An `Asset` that no `DamageScenario.assets:` references raises warning `W810` (an identified asset with no damage scenario yet).
+
+```yaml
+---
+type: Asset
+id: ASSET-KERNEL-001
+name: "Thread Control Block (TCB)"
+status: approved
+cybersecurityProperties:
+  - integrity
+  - availability
+assetOwner: Software::KernelCore
+relatedSafetyGoal: SG-KERNEL-002
+---
+The TCB holds the thread's register save area, stack pointer, priority, and
+IPC wait-list link. Corruption enables priority inversion or control-flow hijack.
+```
+
+```yaml
+---
+type: DamageScenario
+id: DS-KERNEL-001
+name: "Corrupted scheduler state causes priority inversion"
+status: approved
+damageSeverity: severe
+impactCategories: [safety, operational]
+assets: [ASSET-KERNEL-001]
+hazardRef: SG-KERNEL-002
+---
+```
+
+### 8.19 Release Baselines (`Baseline`)
+
+A `Baseline` (`ADR-SYS-BASELINE-001`) is a named, dated, approved, frozen snapshot of a scope of the model — the artifact an assessor points at. It is **generated**, not hand-authored: `syscribe baseline create --tag <tag>` resolves the in-scope elements, hashes each element's full canonical content (BLAKE3), aggregates a **seal**, records the current `HEAD` commit, and writes both the `Baseline` element (default `model/Baselines/<id>.md`) and a JSON **manifest** (default `<git-root>/baselines/<id>.manifest.json`). Both locations are configurable with a `[baselines]` table (`element_dir`, `manifest_dir`) in `.syscribe.toml`. The author then edits only `status:` (and `supersedes:`) as the baseline is approved and released.
+
+**ID pattern:** `^BL(-[A-Z0-9]{2,12})+$` — like `FEAT-*`, a baseline id need not end in a number (`BL-2026-07`, `BL-QUARTERLY-001`). The `id` is the model identity and is distinct from the version-control tag in `gitTag:`.
+
+| Field | YAML type | Written by `create` | Description |
+|---|---|---|---|
+| `type` | literal `Baseline` | yes | Discriminator. |
+| `id` | string | yes | `BL-*` id (`--id`, else derived from `--tag`). |
+| `name` | string | yes | Free-prose label (`--name`, default the tag). |
+| `status` | enum | yes (`draft`) | `draft` · `approved` · `released` · `superseded`. Grades drift severity (below). |
+| `date` | string | yes | Baseline date (`--date`, default the `HEAD` commit date). |
+| `approver` | string | when `--approver` is given | Accountable identity that approved the baseline. |
+| `gitTag` | string | yes (`--tag`) | Intended source-control tag. `create` does not create the tag; `baseline verify` checks that it resolves to `gitCommit` when it exists. |
+| `gitCommit` | string | yes | The commit the baseline was sealed at. `create` expects a clean working tree (`--allow-dirty` overrides). |
+| `frozenScope` | map | yes (`--frozen-scope`) | Scope selector; all keys optional and ANDed: `package` (a package subtree; absent → whole model), `types`, `status`, `tags` (lists), `config` (freeze a projected product-line variant, §9.10), `closureFrom` (list of seeds whose transitive trace closure is the scope). `Baseline` elements are never in scope. |
+| `seal` | map | yes | Generated: `aggregateHash` (`blake3:<hex>`), `elementCount`, `manifest` (manifest path). Never edit by hand. |
+| `supersedes` | string | no | The `Baseline` this one replaces (id or qualified name). Unresolved → `E522`. |
+
+**Validation.** Whenever a `Baseline` exists, `validate` recomputes the in-scope aggregate and compares it with the seal. Drift is graded by `status:`: `released` → error `E520`, `approved` → warning `W520`, `draft` → silent, `superseded` → not checked. A seal that disagrees with its manifest is `E521`. The full-content hash reuses the suspect-link hashing (§12.10.6) over the whole element rather than its normative projection. `baseline verify`, `baseline diff`, `baseline list` and `baseline show` operate on existing baselines.
+
+```yaml
+---
+type: Baseline
+id: BL-2026-07
+name: July 2026 safety release
+status: draft
+date: 2026-07-31
+approver: J. Roe
+gitTag: REL-2026-07
+gitCommit: 3f9c2a1d8e7b6c5a4f3e2d1c0b9a8f7e6d5c4b3a
+frozenScope:
+  package: VehicleSystem
+  status: [approved]
+seal:
+  aggregateHash: blake3:5d41402abc4b2a76b9719d911017c592ae2f4c7f1e0c9b8a7d6e5f4a3b2c1d0e
+  elementCount: 42
+  manifest: baselines/BL-2026-07.manifest.json
+---
+July 2026 safety release — release baseline.
+```
 
 ---
 
@@ -4250,7 +4416,7 @@ A variant part (`isVariant: true`) is typically *selected* by a `FeatureDef` —
 
 1. **Problem space / solution space separation.** The feature model (`FeatureDef` hierarchy under `SystemFeatures/`) is the problem space — it describes what varies from a customer perspective. Architecture, requirements, code, and tests are the solution space. The connection between them is `appliesWhen:` (solution → feature) and `satisfies:` (component configuration → system feature).
 2. **Single binding direction.** The solution space points at features; features do not point at the solution space. This keeps the feature model implementation-agnostic.
-3. **`appliesWhen:` is always a cross-reference, never an expression.** Feature conditions are structured as references to `FeatureDef` elements so they are typed, resolvable, and graph-traversable.
+3. **`appliesWhen:` operands are always cross-references.** A condition is a single `FeatureDef` reference, an AND-list of references, or a boolean `and`/`or`/`not` expression whose every operand is a `FeatureDef` qualified name or `FEAT-*` id (§9.10). Operands are therefore typed, resolvable, and graph-traversable; an unresolved operand or malformed expression is `E209`. No other expression language (arithmetic, parameters, comparisons) is permitted in `appliesWhen:`.
 4. **Parametrization lives on features, not on configurations.** A `FeatureDef` declares what parameters it carries; a `Configuration` assigns values to them. This separates schema from data.
 5. **Two-level feature models reduce complexity.** A system-level feature model captures product-visible variability; component-level feature models capture implementation variability. A system `Configuration` selects system features; a component `Configuration` implements them.
 
@@ -4303,7 +4469,7 @@ SystemFeatures/
   Safety/
     _index.md               # FeatureDef, groupKind: or — one or more safety features
     DualIMU.md              # FeatureDef, optional
-    ASIL_D_FC.md            # FeatureDef, optional; requires: [SystemFeatures::Safety.DualIMU]
+    ASIL_D_FC.md            # FeatureDef, optional; requires: [SystemFeatures::Safety::DualIMU]
   Communication/
     StandardLink.md         # FeatureDef, mandatory
     LongRangeLink.md        # FeatureDef, optional
@@ -4319,7 +4485,7 @@ name: HexRotorPropulsion
 groupKind: optional
 requires: []
 excludes:
-  - SystemFeatures::Propulsion.QuadRotorPropulsion
+  - SystemFeatures::Propulsion::QuadRotorPropulsion
 parameters:
   - name: numMotors
     type: ScalarValues::Integer
@@ -4523,8 +4689,9 @@ A component-level `FeatureDef` parameter may declare `bindTo:` to receive its va
 # UAV/Propulsion/Features/SixMotorLayout.md
 ---
 type: FeatureDef
+id: FEAT-SIXMOTOR
 name: SixMotorLayout
-contributesTo: SystemFeatures::Propulsion.HexRotorPropulsion
+contributesTo: SystemFeatures::Propulsion::HexRotorPropulsion
 parameters:
   - name: motorKV
     type: ScalarValues::Real
@@ -4609,14 +4776,15 @@ name: "Heavy-lift survey UAV — hex-rotor, dual-IMU, long-range link"
 status: approved
 featureModel: SystemFeatures
 features:
-  SystemFeatures::Propulsion.QuadRotorPropulsion: false
-  SystemFeatures::Propulsion.HexRotorPropulsion: true
-  SystemFeatures::Safety.DualIMU: true
-  SystemFeatures::Safety.ASIL_D_FC: false
-  SystemFeatures::Communication.StandardLink: true
-  SystemFeatures::Communication.LongRangeLink: true
-  SystemFeatures::Payload.SurveyCamera: true
-  SystemFeatures::Payload.MultispectralCamera: false
+  SystemFeatures::Propulsion::QuadRotorPropulsion: false
+  SystemFeatures::Propulsion::HexRotorPropulsion: true
+  SystemFeatures::Safety::DualIMU: true
+  SystemFeatures::Safety::ASIL_D_FC: false
+  SystemFeatures::Communication::StandardLink: true
+  SystemFeatures::Communication::LongRangeLink: true
+  SystemFeatures::Payload::SurveyCamera: true
+  SystemFeatures::Payload::MultispectralCamera: false
+  SystemFeatures::Mission::Endurance: true
 parameterBindings:
   SystemFeatures::Propulsion::HexRotorPropulsion.motorKV: 1050.0
   SystemFeatures::Propulsion::HexRotorPropulsion.propDiameterIn: 13.0
@@ -4643,7 +4811,7 @@ featureModel: SystemFeatures
 derivedFrom: CONF-UAV-HVY-001   # inherits all from the heavy-lift base (id or qname)
 features:
   # Only overrides differ from the base
-  SystemFeatures::Communication.LongRangeLink: true  # already true — no change
+  SystemFeatures::Communication::LongRangeLink: true  # already true — no change
 parameterBindings:
   # Override a single parameter; all others inherited from base
   SystemFeatures::Communication::LongRangeLink.frequencyBandGHz: 2.4
@@ -4695,15 +4863,15 @@ model/
     Propulsion/
       Features/            # Level 2 — one per contributing package
         _index.md          # type: Package
-        SixMotorLayout.md  # type: FeatureDef, contributesTo: SystemFeatures::Propulsion.HexRotorPropulsion
-        FourMotorLayout.md # type: FeatureDef, contributesTo: SystemFeatures::Propulsion.QuadRotorPropulsion
+        SixMotorLayout.md  # type: FeatureDef, contributesTo: SystemFeatures::Propulsion::HexRotorPropulsion
+        FourMotorLayout.md # type: FeatureDef, contributesTo: SystemFeatures::Propulsion::QuadRotorPropulsion
         ESCProtocol/
           DSHOT.md         # type: FeatureDef, groupKind: alternative (internal — no contributesTo)
           PWM.md           # type: FeatureDef, groupKind: alternative (internal)
       Configurations/      # Component-level configurations
         _index.md          # type: Package
-        HexConfig.md       # type: Configuration, satisfies: [SystemFeatures::Propulsion.HexRotorPropulsion]
-        QuadConfig.md      # type: Configuration, satisfies: [SystemFeatures::Propulsion.QuadRotorPropulsion]
+        HexConfig.md       # type: Configuration, satisfies: [SystemFeatures::Propulsion::HexRotorPropulsion]
+        QuadConfig.md      # type: Configuration, satisfies: [SystemFeatures::Propulsion::QuadRotorPropulsion]
 ```
 
 ### Binding rules
@@ -4738,13 +4906,13 @@ featureModel: UAV::Propulsion::Features
 features:
   UAV::Propulsion::Features::SixMotorLayout: true
   UAV::Propulsion::Features::FourMotorLayout: false
-  UAV::Propulsion::Features::ESCProtocol.DSHOT: true
-  UAV::Propulsion::Features::ESCProtocol.PWM: false
+  UAV::Propulsion::Features::ESCProtocol::DSHOT: true
+  UAV::Propulsion::Features::ESCProtocol::PWM: false
 # motorKV is NOT bound here — it is propagated from SystemFeatures::Propulsion::HexRotorPropulsion.motorKV
 # via SixMotorLayout.motorKV.bindTo
 parameterBindings: {}
 satisfies:
-  - SystemFeatures::Propulsion.HexRotorPropulsion
+  - SystemFeatures::Propulsion::HexRotorPropulsion
 ---
 
 Hex-rotor configuration using DSHOT ESC protocol. Motor KV is propagated
@@ -4835,19 +5003,24 @@ This lets a project adopt variability incrementally without disturbing existing 
 # Requirement — only applies to hex-rotor products
 type: Requirement
 id: REQ-UAV-THRUST-002
-appliesWhen: SystemFeatures::Propulsion.HexRotorPropulsion
+name: Hex-rotor thrust margin
+status: draft
+appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
 
 # Architecture variant
 type: PartDef
 name: HexRotorConfig
 isVariant: true
 variantOf: UAV::Propulsion::PropulsionSystem
-appliesWhen: SystemFeatures::Propulsion.HexRotorPropulsion
+appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
 
-# Test case — only run for hex-rotor products
+# Test case — only run for hex-rotor products (body with the gherkin block omitted)
 type: TestCase
 id: TC-UAV-THRUST-002
-appliesWhen: SystemFeatures::Propulsion.HexRotorPropulsion
+name: Hex-rotor thrust margin test
+status: draft
+testLevel: L4
+appliesWhen: SystemFeatures::Propulsion::HexRotorPropulsion
 verifies:
   - REQ-UAV-THRUST-002
 
@@ -4855,8 +5028,8 @@ verifies:
 type: Allocation
 name: HexMixingAlgorithmAlloc
 appliesWhen:
-  - SystemFeatures::Propulsion.HexRotorPropulsion
-  - SystemFeatures::Safety.DualIMU
+  - SystemFeatures::Propulsion::HexRotorPropulsion
+  - SystemFeatures::Safety::DualIMU
 ```
 
 ### `appliesWhen:` at Level 2
@@ -5153,7 +5326,6 @@ parameters:
     direction: in
 requires:
   - expression: "subject.mass <= maxMass"
-    expressionLanguage: ocl
 stakeholders:
   - Stakeholders::VehicleEngineer
 concerns:
@@ -5316,12 +5488,8 @@ This section defines the normative behavior required of a conformant Markdown-Sy
 Given a file at path `<root>/<seg1>/<seg2>/.../<segN>/<filename>.md`:
 
 1. Collect the path segments from the model root to the file, exclusive of the root itself.
-2. For each intermediate directory segment, the package name is:
-   - The `name:` field in `<segN>/_index.md` if present.
-   - Otherwise the directory name itself.
-3. For the file itself, the element name segment is:
-   - The `name:` field in the file's frontmatter if present.
-   - Otherwise the filename stem (filename without `.md`).
+2. Each intermediate directory contributes its directory name as the package segment. A `name:` in that directory's `_index.md` is a display label only and is ignored here.
+3. The file itself contributes its filename stem (filename without `.md`). The file's `name:` field is a display label only and is ignored here.
    - Exception: `_index.md` contributes no name segment; it represents the directory's package.
 4. The qualified name is `seg1::seg2::...::segN::elementName`.
 5. The root namespace itself has no name segment.
@@ -5334,7 +5502,7 @@ Given a file at path `<root>/<seg1>/<seg2>/.../<segN>/<filename>.md`:
 - Filename stem: `Engine`
 - Qualified name: `VehicleSystem::Powertrain::Engine`
 
-If `model/VehicleSystem/_index.md` contains `name: VS`, the qualified name becomes `VS::Powertrain::Engine`.
+If `model/VehicleSystem/_index.md` contains `name: VS`, the qualified name is **still** `VehicleSystem::Powertrain::Engine`; `VS` is only the label shown for the package. To change a qualified name, rename the directory or file (e.g. with `syscribe move`).
 
 > **The model-root package `name:` is not part of qualified names.** Qualified names are derived *relative to the model root*, and the root package (the root `_index.md`) contributes **no** segment (step 5 above). A cross-reference therefore starts at the first sub-namespace — e.g. `VehicleSystem::Powertrain::Engine`, **never** `<RootName>::VehicleSystem::Powertrain::Engine` even when the root `_index.md` declares `name: <RootName>`. Writing the root package name as the leading segment is a common authoring mistake (humans and LLMs alike); when an unresolved cross-reference begins with the root package name followed by `::` and the *stripped* remainder resolves, the tool appends a diagnostic hint naming the corrected reference (REQ-TRS-XREF-006). The hint is advisory only — it adds explanatory text to the existing unresolved-reference finding (`E102`/`E103`/`E311`/`E316`/`E502`/`E503`/`E506`/`E632` and the structural supertype/typedBy/subsets/redefines and satisfies resolution errors `E110`–`E114`); it never changes resolution and never rewrites the model. The hint does not fire when the root package has no `name:`, nor when stripping the prefix still does not resolve.
 
@@ -5409,7 +5577,7 @@ A conformant parser MUST report errors for:
 - `multiplicity:` strings that do not conform to the syntax in Section 6.
 - `direction:` values other than `in`, `out`, `inout`, or `return` (where `return` is valid only for parameters).
 - `visibility:` values other than `public`, `protected`, or `private`.
-- Two elements in the same directory with the same effective `name:`.
+- Two elements with the same qualified name (`E108`) — possible only through a file/directory clash or a synthesized element, since qualified names are path-derived (§4.5).
 - `supertype:` used on a usage (should be `typedBy:` and/or `subsets:`).
 - `typedBy:` used on a definition (should be `supertype:`).
 - `isVariant: true` on an element not owned by a variation element (an element with `isVariation: true`).
@@ -5703,13 +5871,13 @@ Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` 
 | `E925` | `targetSL:`/`achievedSL:` on a `Zone`, `Conduit`, `PartDef` or `Part` is outside the Security Level range `1`–`4` |
 | `E926` | `Zone`/`Conduit` `status:` is not `draft`/`review`/`approved`/`deprecated` |
 | `W950` | `Zone.achievedSL` < `Zone.targetSL` — security level not yet achieved |
-| `W951` | `Conduit.achievedSL` < min(`fromZone.targetSL`, `toZone.targetSL`) — conduit boundary weaker than connected zones (opt-in) |
+| `W951` | `Conduit.achievedSL` < max(`fromZone.targetSL`, `toZone.targetSL`) — the conduit is below the higher connected zone's target (opt-in) |
 | `W952` | `PartDef`/`Part` has `targetSL:` but no zone membership (opt-in) |
 | `W953` | Approved `Zone` with `targetSL >= 2` has no referencing `Conduit` |
 
 #### MagicGrid gate (`MG###`, REQ-TRS-MG-002..011)
 
-The `MG###` namespace is **opt-in**: these checks fire only under the MagicGrid profile (`[profiles.<name>] magicgrid = true`, e.g. `validate --profile magicgrid`). The data they validate rides on `mg_`-prefixed `custom_fields:` and the base `actors:` field, all of which stay inert in the base format. All `MG###` findings are Error severity.
+The `MG###` namespace is **opt-in**: these checks fire only under the MagicGrid profile (`[profiles.<name>] magicgrid = true`, e.g. `validate --profile magicgrid`). The data they validate rides on `mg_`-prefixed `custom_fields:` and the base `actors:` field, all of which stay inert in the base format. The `MG010`–`MG070` findings below are Error severity; the completeness codes `MG080`–`MG083` further down are warnings.
 
 **MagicGrid overlay fields (`custom_fields:`).** In addition to `mg_external`, `mg_cell`, `mg_moe*`, and `mg_layer`, three further markers are recognised (all flat scalars, inert in the base format):
 
@@ -5751,7 +5919,7 @@ The next four codes are **completeness / coverage warnings** (`Severity::Warning
 
 #### Integrity-level propagation errors (E841–E843)
 
-Once any element in the traceability chain carries `asilLevel:`, `silLevel:`, or `plLevel:`, all downstream elements reachable via `derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:` must also carry the same field. See §12.7.
+When an upstream element carries `asilLevel:` or `silLevel:`, every element referencing it via `derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:` must carry `asilLevel:` or `silLevel:` too (either field satisfies the check; `plLevel:` is ignored). See §12.7.
 
 | Code | Condition |
 |---|---|
@@ -5831,7 +5999,7 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 | `E851` | Error | a `confirms:` ref does not resolve to any model element |
 | `E924` | Error | `ConfirmationMeasure.status` is not `planned`/`in_progress`/`completed` |
 | `W038` | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. Opt-in; gateable with `--deny W038`; promotable |
-| `W039` | Warning | An `asilLevel: D` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
+| `W039` | Warning | An `asilLevel: D` / `silLevel: 3` / `silLevel: 4` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, or a `calLevel: CAL3` `CybersecurityGoal` lacks an I2-or-I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
 
 #### GSN safety-argument layer (E852–E858, W040)
 
@@ -5989,195 +6157,6 @@ A finding trips the gate when its `code` is listed in `promote` **and** either t
 
 ---
 
-## Appendix A: Complete Frontmatter Field Reference
-
-The following table is a consolidated index of all frontmatter fields defined in this specification.
-
-| Field | Applies to | Type | Default | Section |
-|---|---|---|---|---|
-| `type` | All | string | — (required) | 3.1 |
-| `name` | All | string | filename stem | 3.1 |
-| `shortName` | All | string | absent | 3.1 |
-| `qualifiedName` | All | string | derived | 3.1 |
-| `visibility` | All | string | `public` | 3.1 |
-| `extRef` | All | string or list | absent | 3.1 |
-| `isAbstract` | All | bool | `false` | 3.2 |
-| `isVariation` | Def/Usage | bool | `false` | 3.2 |
-| `isVariant` | Usage | bool | `false` | 3.2 |
-| `isIndividual` | Occurrence | bool | `false` | 3.2 |
-| `isReadonly` | Usage | bool | `false` | 3.2 |
-| `isDerived` | Usage | bool | `false` | 3.2 |
-| `isEnd` | Usage | bool | `false` | 3.2 |
-| `isPortion` | Occurrence usage | bool | `false` | 3.2 |
-| `isReference` | Usage | bool | `false` | 3.2 |
-| `isComposite` | Usage | bool | `true` | 3.2 |
-| `isConstant` | Usage | bool | `false` | 3.2 |
-| `isOrdered` | Usage | bool | `false` | 3.2 |
-| `isNonunique` | Usage | bool | `false` | 3.2 |
-| `supertype` | Def | string or list | absent | 3.3 |
-| `typedBy` | Usage | string or list | absent | 3.3 |
-| `subsets` | Usage | list | absent | 3.3 |
-| `redefines` | Usage | list | absent | 3.3 |
-| `conjugates` | PortDef | string | absent | 3.3 |
-| `multiplicity` | Usage | string | `"1"` or `"0..*"` | 3.4, 6 |
-| `direction` | Port, Parameter | string | absent | 3.5 |
-| `features` | Def/Usage | list | absent | 3.6 |
-| `imports` | Package | list | absent | 3.7 |
-| `aliases` | All | list | absent | 3.7 |
-| `filterCondition` | Package | string | absent | 3.7 |
-| `metadata` | All | list | absent | 3.8 |
-| `dependsOn` | All | list | absent | 3.9 |
-| `requires` | All | list | absent | 3.11 |
-| `assume` | All | list | absent | 3.11 |
-| `rep` | All | string | absent | 3.12 |
-| `connections` | PartDef/Part | list | absent | 8.4.1 |
-| `flowConnections` | PartDef/Part | list | absent | 8.6.2 |
-| `successionConnections` | ActionDef/Action | list | absent | 8.4.4 |
-| `bindingConnections` | Def/Usage | list | absent | 8.4.3 |
-| `performs` | PartDef/Part | list | absent | 8.2.1 |
-| `exhibitsStates` | PartDef/Part | list | absent | 8.2.1 |
-| `parameters` | ActionDef/CalcDef/etc. | list | absent | 8.7.2 |
-| `returnType` | CalculationDef/VerificationCaseDef | string | absent | 8.9.1, 8.12.3 |
-| `body` | CalculationDef/ActionDef | string | absent | 8.7.1, 8.9.1 |
-| `bodyLanguage` | CalculationDef/ActionDef | string | `"ocl"` | 8.7.1, 8.9.1 |
-| `subActions` | ActionDef/Action/CaseDef | list | absent | 8.7.3 |
-| `controlNodes` | ActionDef/Action | list | absent | 8.7.4 |
-| `entryAction` | StateDef/State | string or map | absent | 8.8.1 |
-| `doAction` | StateDef/State | string or map | absent | 8.8.1 |
-| `exitAction` | StateDef/State | string or map | absent | 8.8.1 |
-| `subStates` | StateDef/State | list | absent | 8.8.2 |
-| `transitions` | StateDef/State | list | absent | 8.8.3 |
-| `isParallel` | StateDef/State | bool | `false` | 8.8.1 |
-| `isAsserted` | Constraint | bool | `false` | 8.10.2 |
-| `isNegated` | Constraint | bool | `false` | 8.10.2 |
-| `expression` | ConstraintDef | string | absent | 8.10.1 |
-| `expressionLanguage` | ConstraintDef | string | `"ocl"` | 8.10.1 |
-| `subject` | Req/Case | string | absent | 8.11.1, 8.12.1 |
-| `actors` | Req/UseCase | list | absent | 8.11.1, 8.12.4 |
-| `stakeholders` | Req/Viewpoint | list | absent | 8.11.1, 8.14.1 |
-| `concerns` | Req/Viewpoint | list | absent | 8.11.1, 8.14.1 |
-| `framedConcerns` | RequirementDef | list | absent | 8.11.1 |
-| `derivedFrom` | RequirementDef/Requirement | list | absent | 8.11.1 |
-| `satisfies` | Part/PartDef is the common case; not type-restricted — see §12.3 for the full endorsed shape list | list | absent | 8.11.4, 12.3 |
-| `implementedBy` | Part/PartDef | string or list | absent | 8.11.4 / 12.8 |
-| `verifiedBy` | Requirement | list | absent | 8.11.4 |
-| `verifies` | VerificationCase | list | absent | 8.12.3 |
-| `verdictExpression` | VerificationCase | string | absent | 8.12.3 |
-| `verdictType` | VerificationCaseDef | string | `VerificationCases::VerdictKind` | 8.12.3 |
-| `objectives` | CaseDef | list | absent | 8.12.1 |
-| `result` | CaseDef | string | absent | 8.12.1 |
-| `includes` | UseCaseDef | list | absent | 8.12.4 |
-| `extends` | UseCaseDef | list | absent | 8.12.4 |
-| `extensionPoints` | UseCaseDef | list | absent | 8.12.4 |
-| `allocations` | AllocationDef/Package/PartDef | list | absent | 8.13.1, 8.13.2 |
-| `constraints` | InterfaceDef | list | absent | 8.3.3 |
-| `expose` | ViewDef | list | absent | 8.14.2 |
-| `rendering` | ViewDef | string | absent | 8.14.2 |
-| `satisfiedBy` | ViewpointDef | list | absent | 8.14.1 |
-| `methods` | ViewpointDef | list | absent | 8.14.1 |
-| `values` | EnumerationDef | list | — (required) | 8.5.2 |
-| `annotates` | MetadataDef | list | absent (unrestricted) | 8.15.1 |
-| `isSemantic` | MetadataDef | bool | `false` | 8.15.1 |
-| `ends` | ConnDef/IntfDef | list | absent | 8.3.3, 8.4.2 |
-| `timeSlices` | OccurrenceDef | list | absent | 8.2.4 |
-| `snapshots` | OccurrenceDef | list | absent | 8.2.4 |
-| `variantOf` | Part/Usage | string | absent | 9.4 |
-| `isConjugated` | Port | bool | `false` | 8.3.2 |
-| `itemType` | FlowDef | string | absent | 8.6.1 |
-| `id` | native Requirement/TestCase | string | — (required) | 8.11.6, 8.12.5 |
-| `name` | native Requirement/TestCase | string | — (required; free prose) | 8.11.6, 8.12.5 |
-| `status` | native Requirement/TestCase | string | — (required) | 8.11.6, 8.12.5 |
-| `testLevel` | native TestCase | string | — (required) | 8.12.5 |
-| `silLevel` | native Requirement | integer | absent | 8.11.6 |
-| `asilLevel` | native Requirement | string | absent | 8.11.6 |
-| `plLevel` | native Requirement / SafetyGoal | string | absent | 8.11.6, 8.18.1 |
-| `derivedFromSafetyGoal` | native Requirement | string | absent | 8.11.6, 8.18.1 |
-| `derivedFromCybersecurityGoal` | native Requirement | string | absent | 8.11.6, 8.18.2 |
-| `verificationMethod` | native Requirement | string | absent | 8.11.6 |
-| `wcet` | native Requirement | string | absent | 8.11.6 |
-| `allocatedFrom` | `Allocation` (with `allocatedTo`); any other element only as a legacy input — derived reverse of `allocatedTo` (§12.9) | string or list | absent | 8.13.2, 8.18.2, 12.9 |
-| `allocatedTo` | Any element (the allocated source, §12.9 form 1) or `Allocation` | string or list | absent | 8.13.2, 8.18.2, 12.9 |
-| `ffiRationale` | Any element | string | absent | 11.12 (W034) — freedom-from-interference / partitioning rationale; excuses a mixed-criticality shared-allocation pair |
-| `responsibility` | Any element | string | absent | 3, 11.12 (W038) — accountable party/organisation for a work product (DIA/CIA split) |
-| `measureType` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E849) — confirmation_review / functional_safety_audit / functional_safety_assessment / cybersecurity_assessment |
-| `independenceLevel` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E850) — I1 / I2 / I3 |
-| `confirms` | ConfirmationMeasure | string or list | absent | 8.18.2, 11.12 (E851) — confirmed work-product ref(s) |
-| `argumentType` | Argument | enum (`claim`/`strategy`/`solution`) | `claim` | 8.18.6, 11.12 (E854) |
-| `supports` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — SafetyGoal/parent Argument argued for |
-| `evidence` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — Requirement/TestCase/sub-Argument/AssumptionOfUse refs |
-| `appliesTo` | AssumptionOfUse | string or list | absent | 8.18.6, 11.12 (E858) — SafetyGoal/Argument/Requirement constrained |
-| `hazardRef` | DamageScenario / ThreatScenario | string or list | absent | 8.18.2 |
-| `riskTreatment` | ThreatScenario | enum (`avoid`/`reduce`/`share`/`retain`) | absent | 8.18.2 |
-| `residualRisk` | ThreatScenario | string | absent | 8.18.2 |
-| `sourceFile` | native TestCase | string | absent | 8.12.5 |
-| `testFunctions` | native TestCase | list | absent | 8.12.5 |
-| `tags` | native Requirement/TestCase | list of strings | absent | 8.11.6, 8.12.5 |
-| `links` | Any element | map: declared link-type name → string or list | absent | 12.10 — user-defined outbound links; keys must be declared in `[linkTypes]` (`E630`) |
-| `derive` | Any element | map: field name → formula string | absent | 3.18 — computed fields, dependency-ordered; cycle `E504`, malformed `E505`, unknown element `E506` |
-
----
-
-## Appendix B: Mapping of SysML Textual Keywords to `type:` Values
-
-| SysML textual keyword | Markdown-SysML `type:` |
-|---|---|
-| `part def` | `PartDef` |
-| `item def` | `ItemDef` |
-| `port def` | `PortDef` |
-| `connection def` | `ConnectionDef` |
-| `interface def` | `InterfaceDef` |
-| `action def` | `ActionDef` |
-| `calc def` | `CalculationDef` |
-| `constraint def` | `ConstraintDef` |
-| `requirement def` | `RequirementDef` |
-| `concern def` | `ConcernDef` |
-| `case def` | `CaseDef` |
-| `analysis def` | `AnalysisCaseDef` |
-| `verification def` | `VerificationCaseDef` |
-| `use case def` | `UseCaseDef` |
-| `occurrence def` | `OccurrenceDef` |
-| `individual def` | `IndividualDef` |
-| `flow def` | `FlowDef` |
-| `succession def` | `SuccessionDef` |
-| `state def` | `StateDef` |
-| `attribute def` | `AttributeDef` |
-| `enum def` | `EnumerationDef` |
-| `allocation def` | `AllocationDef` |
-| `metadata def` | `MetadataDef` |
-| `view def` | `ViewDef` |
-| `viewpoint def` | `ViewpointDef` |
-| `rendering def` | `RenderingDef` |
-| `part` | `Part` |
-| `item` | `Item` |
-| `port` | `Port` |
-| `connection` | `Connection` |
-| `interface` | `Interface` |
-| `action` | `Action` |
-| `calc` | `Calculation` |
-| `constraint` | `Constraint` |
-| `requirement` | `Requirement` |
-| `concern` | `Concern` |
-| `case` | `Case` |
-| `analysis` | `AnalysisCase` |
-| `verification` | `VerificationCase` |
-| `use case` | `UseCase` |
-| `occurrence` | `Occurrence` |
-| `individual` | `Individual` |
-| `flow` | `Flow` |
-| `succession` | `Succession` |
-| `state` | `State` |
-| `attribute` | `Attribute` |
-| `enum` | `Enumeration` |
-| `allocation` | `Allocation` |
-| `metadata` | `Metadata` |
-| `view` | `View` |
-| `rendering` | `Rendering` |
-| `package` | `Package` |
-| `library package` | `LibraryPackage` |
-| *(native — no SysML keyword)* | `TestCase` |
-
----
-
 ## 12 Traceability Rules and Domain Conventions
 
 This section defines mandatory traceability rules that govern how requirements, architecture elements, and design decisions are linked. These rules are normative — a conformant tool MUST enforce them via the validation codes defined in §11.12.
@@ -6196,7 +6175,7 @@ All traceability links in Markdown-SysML follow OSLC (Open Services for Lifecycl
 | `allocatedTo:` | source → target | The element being allocated (the logical function, software package, or security control) holds `allocatedTo:` naming the element that realises it (§12.9 form 1). `allocatedFrom` is **derived** — the reverse index on the target — never the recommended thing to author; a standalone `Allocation` element (§12.9 form 2) names both ends because it *is* the relationship. An `allocatedFrom:` authored on a non-`Allocation` target is accepted only as a legacy input form (§12.9) |
 | `breakdownAdr:` | requirement → ADR | This requirement's breakdown is documented in the ADR |
 
-No reverse links are stored in model files. Reverse indices (`verifiedBy`, `derivedChildren`, `satisfiedBy`) are computed by the parser at load time and never written to disk.
+No reverse links are stored in model files. Reverse indices (`verifiedBy`, `derivedChildren`, `satisfiedBy`, `allocatedFrom`) are computed by the parser at load time and never written to disk; `verifiedBy:` and `derivedChildren:` are not frontmatter fields at all. Two authored fields share a name with a computed index and are **not** the index: a `ViewpointDef`'s `satisfiedBy:` (§8.14.1), an authored viewpoint-conformance list that is stored as written and never merged into the computed index; and `allocatedFrom:` on a standalone `Allocation` element (§12.9 form 2), where naming both ends is the relationship itself (plus its legacy input form on a non-`Allocation` target, §12.9).
 
 The same convention governs user-defined link types (§12.10): the element holding a `links:` entry is the source, and the declared `inverse` is computed, never authored.
 
@@ -6335,11 +6314,11 @@ metadata:
 
 ### 12.7 Safety/Security Integrity Level Propagation
 
-**Rule R-007:** Once any element in the traceability chain carries a safety or security integrity level (`asilLevel:`, `silLevel:`, or `plLevel:`), **all downstream elements** reached via `derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:` links must also carry the same field. An element that omits the field when its upstream source has one is an error (E841, E842, or E843 depending on the link kind).
+**Rule R-007:** Once an element in the traceability chain carries an ASIL or SIL integrity level (`asilLevel:` or `silLevel:`), **every downstream element** that references it via `derivedFromSafetyGoal:`, `derivedFrom:`, or `satisfies:` must also carry an integrity level — **either** `asilLevel:` **or** `silLevel:` (the check does not require the *same* field as the source). An element that carries neither when its upstream source carries one is an error (E841, E842, or E843 depending on the link kind). `plLevel:` (ISO 13849-1) does not take part in propagation: it neither triggers the rule on a source nor satisfies it on a downstream element.
 
 **Level constraint:** The downstream element's level may be the same as or lower than the upstream element's. A lower level indicates an ASIL/SIL decomposition (ISO 26262-9, IEC 61508-2 §7.4.9): the model asserts that the downstream component achieves the weaker target through architectural independence or redundancy arguments.
 
-**ADR requirement for decomposition:** When a downstream element carries a lower level than its source, `breakdownAdr:` must reference an `accepted` ADR documenting the decomposition rationale (W808 if absent).
+**ADR requirement for decomposition:** When a downstream element carries a lower level than its source, it must set `breakdownAdr:` to the ADR documenting the decomposition rationale (W808 if `breakdownAdr:` is absent). The level is compared only when both elements use the same scale (both `asilLevel:` or both `silLevel:`); a mixed ASIL/SIL pair is never reported as lower.
 
 | Link | Enforced by | Missing field | Lower level without ADR |
 |---|---|---|---|
@@ -6351,8 +6330,8 @@ metadata:
 
 - `asilLevel:` ranks A < B < C < D.
 - `silLevel:` ranks 1 < 2 < 3 < 4.
-- `plLevel:` (ISO 13849-1) has values `a`–`e` but is not numerically compared with ASIL or SIL.
-- Mixing `asilLevel:` on one element with `silLevel:` on another is architecturally unusual and not validated cross-element; W006 flags the case where both appear on the *same* element.
+- `plLevel:` (ISO 13849-1) has values `a`–`e`; it is not compared and is ignored by R-007.
+- Mixing `asilLevel:` on one element with `silLevel:` on another satisfies the presence check but is never compared for level; W006 flags the case where both `asilLevel:` and `silLevel:` appear on the *same* element.
 
 **Example — ASIL D requirement decomposed to ASIL B:**
 
@@ -6602,7 +6581,7 @@ The MCP server exposes two read-only tools: `link_types` (same data as `link-typ
 
 #### 12.10.6 Suspect links
 
-Custom link targets are trace links for suspect-link detection (`ADR-SYS-SUSLINK-001`): `suspect list` lists them, `suspect accept` baselines them into the source's `traceBaselines:` map, and validation raises `W090` when a baselined target's normative content changes. A type declaring `suspect = false` is excluded from all three — appropriate for purely informational relationships (`conflictsWith`, `informs`) whose validity does not depend on the target's exact wording.
+Custom link targets are trace links for suspect-link detection (`ADR-SYS-SUSLINK-001`): `suspect list` lists them, `suspect accept` baselines them into the source's `traceBaselines:` map (§3.19), and validation raises `W090` when a baselined target's normative content changes. A type declaring `suspect = false` is excluded from all three — appropriate for purely informational relationships (`conflictsWith`, `informs`) whose validity does not depend on the target's exact wording.
 
 #### 12.10.7 LLM discoverability
 
@@ -6724,7 +6703,7 @@ When `inZone:` is present, the element is implicitly added to that zone's member
 | `E925` | A `targetSL:` or `achievedSL:` on a `Zone`, `Conduit`, `PartDef` or `Part` is outside the Security Level range `1`–`4` (IEC 62443-3-3 defines SL 1–4 only) |
 | `E926` | A `Zone`'s or `Conduit`'s `status:` is not one of `draft` / `review` / `approved` / `deprecated` |
 | `W950` | `Zone.achievedSL` is less than `Zone.targetSL` — the zone's security level is not yet achieved |
-| `W951` | `Conduit.achievedSL` is less than the `targetSL` of either connected zone — the conduit boundary is weaker than both zones it connects (opt-in; gateable with `--deny W951`) |
+| `W951` | `Conduit.achievedSL` is less than the **higher** of the two connected zones' `targetSL` (i.e. below the target of at least one zone it connects) — the conduit boundary is weaker than the more demanding zone (opt-in; gateable with `--deny W951`) |
 | `W952` | `PartDef`/`Part` has `targetSL:` but is not referenced by any `Zone.members:` and declares no `inZone:` — isolated SL claim (opt-in) |
 | `W953` | `Zone` with `targetSL >= 2` and `status: approved` has no `Conduit` referencing it — an approved zone that is unreachable from any conduit may be a modelling gap |
 
@@ -6833,7 +6812,7 @@ shared    ../shared-library      main     ✓         behind (3 commits)
 | `E515` | Two repos export the same stable ID — the local model and a peer (e.g., `REQ-SCHED-001` appears in both), or two different peer repos (two `[repos]` aliases resolving to the same peer model root are one repo) |
 | `W510` | A repo in `[repos]` has no `ref:` — composition is not pinned to a reproducible snapshot (opt-in; gateable with `--deny W510`) |
 | `W511` | A peer repo's git `HEAD` has drifted from its configured `ref:` — the checkout is not at the pinned snapshot. Detected by comparing the peer work tree's `HEAD` commit with the commit the `ref:` resolves to; never raised when drift cannot be determined (git unavailable, not a work tree, `ref:` unresolved). Opt-in; gateable with `--deny W511` as a CI reproducibility gate. `repos status` reports the same drift and exits `2`. |
-| `W512` | A peer repo's `path` is a **git submodule** of the composing model's repository, and the commit its `ref:` resolves to differs from the **gitlink** the parent repo records for that path — i.e. `.syscribe.toml` disagrees with `.gitmodules`. Detected by comparing `git ls-tree HEAD <submodule-path>` in the parent against the `ref:` commit; never raised when `path` is not a submodule, no `ref:` is configured, or either commit cannot be resolved. Independent of `W511` (gitlink pin vs `ref:`, not checkout vs `ref:`). Opt-in; gateable with `--deny W512`. |
+| `W512` | A peer repo's `path` is a **git submodule** of the composing model's repository, and the commit its `ref:` resolves to differs from the **gitlink** the parent repo records for that path — i.e. `.syscribe.toml` disagrees with the submodule commit pinned in the parent repository's tree (`.gitmodules` only records the path and URL, not the commit). Detected by comparing `git ls-tree HEAD <submodule-path>` in the parent against the `ref:` commit; never raised when `path` is not a submodule, no `ref:` is configured, or either commit cannot be resolved. Independent of `W511` (gitlink pin vs `ref:`, not checkout vs `ref:`). Opt-in; gateable with `--deny W512`. |
 
 `repos sync` brings a drifted repo back to its pinned `ref:`. Git submodules and `[repos]` are complementary: a submodule provides the pinned checkout, while `[repos]` adds the model-level cross-reference resolution and the `W511`/`W512` reproducibility checks on top.
 
@@ -6877,7 +6856,7 @@ shared    ../shared-library      main     ✓         behind (3 commits)
 
 A `TradeStudy` records a formal weighted-criteria evaluation of design alternatives. It is a first-class model element that links to the requirement it informs and the ADR recording its outcome, making the rationale for architecture decisions navigable from the model.
 
-This section defines a general-purpose trade study facility independent of the MagicGrid profile. The MagicGrid MoE-weighted `trade-study` command (§9, REQ-TRS-MG-007) remains active under `--profile magicgrid`; the command described here operates on `TradeStudy` elements and requires no profile.
+This section defines a general-purpose trade study facility independent of the MagicGrid profile. The `trade-study` command dispatches on the model's content, not on a profile: when the model contains at least one `TradeStudy` element it runs the facility described here (§15.4); otherwise it falls back to the MagicGrid MoE-weighted scoring of `Configuration`s (REQ-TRS-MG-007, see the MagicGrid gate in §11.12). Neither mode requires `--profile`.
 
 ### 15.2 `TradeStudy` Element
 
@@ -6984,7 +6963,7 @@ that best balances real-time performance, bandwidth, cost, and industry maturity
 The tool computes, but does not author, the following derived values:
 
 1. **Normalised score per alternative per criterion** — min-max normalisation within each criterion column (0 = worst in set, 1 = best). Direction is applied before normalisation.
-2. **Weighted score per alternative per criterion** — `normalized_score × weight`
+2. **Weighted score per alternative per criterion** — `normalized_score × (weight / Σ weights)` (weights are normalised to sum to 1)
 3. **Total weighted score per alternative** — sum of weighted scores across all criteria
 4. **Rank** — alternatives ordered by total descending
 
@@ -6998,11 +6977,14 @@ These appear in `show <TRD-id>` and the `trade-study` command output; they are n
 Trade Study: TRD-COMM-001 — Communication Bus Architecture Trade
 Objective: REQ-COMM-001   Decision ADR: ADR-COMM-BUS-001
 
-Alternative    latency(0.4)  bandwidth(0.3)  cost(0.2)  maturity(0.1)  Total   Rank
-CAN-FD         0.000         0.008           1.000      1.000          0.509   #2
-Ethernet-TSN   1.000         1.000           0.000      0.000          0.700   #1
-FlexRay        0.500         0.010           0.455      0.667          0.436   #3
+| Alternative    | latency(0.4) | bandwidth(0.3) | cost(0.2) | maturity(0.1) | Total | Rank |
+|---|---|---|---|---|---|---|
+| Ethernet-TSN   | 1.000 | 1.000 | 0.000 | 0.000 | 0.700 | #1 |
+| FlexRay        | 0.500 | 0.002 | 0.545 | 0.500 | 0.360 | #2 |
+| CAN-FD         | 0.000 | 0.000 | 1.000 | 1.000 | 0.300 | #3 |
 ```
+
+(Output of the §15.2 example. Rows are ordered by rank; each cell is the min-max-normalised score, and `Total` is the weight-normalised sum — here the weights already sum to 1.)
 
 ### 15.5 Validation Rules
 
@@ -7022,7 +7004,7 @@ FlexRay        0.500         0.010           0.455      0.667          0.436   #
 | `W063` | `scores:` matrix is incomplete — at least one (alternative, criterion) pair has no score entry |
 | `W064` | `TradeStudy.alternatives[].element` is present but unresolved |
 
-> **Code note:** these were drafted as `E400`–`E408` / `W400`–`W403`, which collide with the Diagram codes (`E400`–`E402`, `W400`–`W403`, §11.12). They are reassigned to `E869`–`E877` / `W061`–`W064`.
+> **Code note:** these were drafted as `E400`–`E408` / `W400`–`W403`, which collide with the Diagram codes (`E400`–`E404`, `W400`–`W415`, §8.16.7). They are reassigned to `E869`–`E877` / `W061`–`W064`.
 
 ---
 
@@ -7516,7 +7498,7 @@ No new element types. No new validation rules.
 
 ### 22.1 State Machine Completeness Validation (extends §8.8)
 
-The following validation rules apply to a **single-region** `StateDef`/`State` that declares at least one `subStates:` entry — i.e. a flat (non-`isParallel`, non-composite) state machine. A machine is composite when any substate carries `typedBy:`, an inline `subStates:`, or `isParallel:`; parallel and composite machines are **out of scope** for these flat checks (their region/hierarchy-aware treatment is handled separately) and raise none of W070–W074. The rules fire at model-time, after all cross-references are resolved, over the directed `(source → target)` edge set produced by the canonical transition extractor (§8.8.3, both nested and top-level placements).
+The following validation rules apply to every **region** of a `StateDef`/`State` that declares at least one `subStates:` entry. For a flat (single-region, non-`isParallel`, non-composite) machine the region is the machine itself; a **parallel** machine is checked **per region**, and a **composite** machine is checked **recursively**, one region per level (both described below — they are not out of scope). The rules fire at model-time, after all cross-references are resolved, over the directed `(source → target)` edge set produced by the canonical transition extractor (§8.8.3, both nested and top-level placements).
 
 | Code | Condition |
 |---|---|
@@ -7585,16 +7567,7 @@ IDENT  ::= [A-Za-z_][A-Za-z0-9_]*
 | `E868` | `bodyLanguage: budget` expression references a `feature_ref` that does not resolve to an attribute (drafted as `E802`) |
 | `W060` | `CalculationDef` with `bodyLanguage: budget` evaluates to a value that violates the `evaluate:` constraint (opt-in — dormant unless `bodyLanguage: budget` is present; gateable with `--deny W060`) |
 
-**New CLI command:**
-
-**`syscribe budgets [<qname>] [--json]`** — Evaluates all `CalculationDef` elements with `bodyLanguage: budget` in scope, shows the computed value, the constraint bound, and a pass/fail verdict.
-
-```
-Budget                              Value    Bound      Pass
-Propulsion::ThrustBudget            4250 N   ≤ 5000 N   ✓
-Propulsion::FuelMassFlowBudget      1.4 kg/s ≤ 1.2 kg/s ✗  ← violates constraint
-Navigation::TimingBudget            82 ms    ≤ 100 ms   ✓
-```
+**Tooling.** Budget evaluation is part of `syscribe validate`: the checks above (`E866`–`E868`, `W060`) run over every `CalculationDef` with `bodyLanguage: budget`. There is **no** dedicated `budgets` command that tabulates computed values and bounds (not implemented); a violated budget surfaces as a `W060` finding.
 
 ### 22.3 ASIL/SIL Decomposition Pair Completeness (extends §12.7)
 
@@ -7620,13 +7593,15 @@ The following extends Section 12.7 Rule R-007 with an additional structural chec
 
 ### 22.4 Sequence Diagram Send/Receive Completeness (extends §8.16.8.3)
 
-The completeness rule described in §8.16.8.3 for `Sequence` diagrams is now normative and enforced. A `Sequence` diagram element `D` with `subject:` pointing to an `ActionDef` `A` must include an edge entry for every `SendAction` and every `AcceptAction` reachable via `A.subActions:` or `A.steps:`.
+The completeness rule described in §8.16.8.3 for `Sequence` diagrams is now normative and enforced. A `Sequence` diagram element `D` with `subject:` pointing to an `ActionDef` `A` must include an edge entry (matched by the edge's `ref:`) for every `SendAction` and every `AcceptAction` reachable via `A.subActions:` — recursing into nested `subActions:` and the `then`/`else` branches of an `IfAction`. `A.steps:` is not walked.
 
 **New validation rule:**
 
 | Code | Condition |
 |---|---|
 | `W080` | A `Sequence` diagram's `subject:` `ActionDef` has a `SendAction` or `AcceptAction` in its sub-action tree that is not referenced by any entry in the diagram's `edges:` list — the sequence diagram is missing an edge for a known message event |
+
+`W080` is **draft-suppressed** (not emitted for `Sequence` diagrams with `status: draft`). Gateable with `--deny W080`.
 
 ---
 
@@ -7712,11 +7687,11 @@ evidence:
 
 ### 23.5 Computed Reverse Index
 
-Mirroring `Requirement.derivedChildren`, the validator computes `children` for every `PlanningItem` — the set of other `PlanningItem`s whose `parent:` names it. A **leaf** is a `PlanningItem` with an empty (or absent) computed `children` set; "leaf" is not a declared schema concept, it falls out structurally, exactly as elsewhere in this format. `refs <PlanningItem>` (§10, generic inbound-reference query) lists a `PlanningItem`'s children (`parent` relationship), what it blocks (`blockedBy` relationship, inbound), and, for a `Requirement`, which `PlanningItem`s `achieves` it.
+Mirroring `Requirement.derivedChildren`, the validator computes `children` for every `PlanningItem` — the set of other `PlanningItem`s whose `parent:` names it. A **leaf** is a `PlanningItem` with an empty (or absent) computed `children` set; "leaf" is not a declared schema concept, it falls out structurally, exactly as elsewhere in this format. `refs <PlanningItem>` (the generic inbound-reference query) lists a `PlanningItem`'s children (`parent` relationship), what it blocks (`blockedBy` relationship, inbound), and, for a `Requirement`, which `PlanningItem`s `achieves` it.
 
 ### 23.6 CLI and MCP Surface
 
-No dedicated CLI subcommand or MCP tool exists yet — deliberately: the ADR holds this feature to schema + validation only until the shape has been used and proven. A `PlanningItem` is authored, listed, and inspected via the existing generic surface:
+The only `PlanningItem`-specific commands are `syscribe claim` and `syscribe release`, which set and clear the advisory `claimedBy:`/`claimedAt:` markers (§23.9). There is no other dedicated CLI subcommand and no dedicated MCP tool — deliberately: the ADR holds the rest of the feature to schema + validation. Every other field is authored, listed, and inspected via the existing generic surface:
 
 - `syscribe list PlanningItem` / `syscribe show <PI-id>` / `syscribe ls Planning` / `syscribe find <text>` — discovery and inspection, same as any other element type.
 - `syscribe refs <PI-id-or-Requirement-id>` — inbound `parent:`/`achieves:` references (§23.5).
@@ -7794,4 +7769,213 @@ each overlapping pair exactly once rather than once from each side. This is the 
 counterpart to `claim`/`release`: it fires whether or not either item was ever actually claimed,
 since `status: in_progress` alone already signals active work.
 
-`W080` is **draft-suppressed** (not emitted for `Sequence` diagrams with `status: draft`). Gateable with `--deny W080`.
+---
+
+## Appendix A: Frontmatter Field Reference
+
+**A.1** below lists the core SysML-structural and common fields with their types and defaults. **A.2** indexes every other recognised field by the section that specifies it. Together they cover all fields the parser recognises (any other key raises `W047`, §3.17); `syscribe spec fields` prints the reference for the installed tool.
+
+### A.1 Core fields
+
+| Field | Applies to | Type | Default | Section |
+|---|---|---|---|---|
+| `type` | All | string | — (required) | 3.1 |
+| `name` | All | string | filename stem | 3.1 |
+| `shortName` | All | string | absent | 3.1 |
+| `qualifiedName` | All | string | derived | 3.1 |
+| `visibility` | All | string | `public` | 3.1 |
+| `extRef` | All | string or list | absent | 3.1 |
+| `isAbstract` | All | bool | `false` | 3.2 |
+| `isVariation` | Def/Usage | bool | `false` | 3.2 |
+| `isVariant` | Usage | bool | `false` | 3.2 |
+| `isIndividual` | Occurrence | bool | `false` | 3.2 |
+| `isReadonly` | Usage | bool | `false` | 3.2 |
+| `isDerived` | Usage | bool | `false` | 3.2 |
+| `isEnd` | Usage | bool | `false` | 3.2 |
+| `isPortion` | Occurrence usage | bool | `false` | 3.2 |
+| `isReference` | Usage | bool | `false` | 3.2 |
+| `isComposite` | Usage | bool | `true` | 3.2 |
+| `isConstant` | Usage | bool | `false` | 3.2 |
+| `isOrdered` | Usage | bool | `false` | 3.2 |
+| `isNonunique` | Usage | bool | `false` | 3.2 |
+| `supertype` | Def | string or list | absent | 3.3 |
+| `typedBy` | Usage | string or list | absent | 3.3 |
+| `subsets` | Usage | list | absent | 3.3 |
+| `redefines` | Usage | list | absent | 3.3 |
+| `conjugates` | PortDef | string | absent | 3.3 |
+| `multiplicity` | Usage | string | `"1"` or `"0..*"` | 3.4, 6 |
+| `direction` | Port, Parameter | string | absent | 3.5 |
+| `features` | Def/Usage | list | absent | 3.6 |
+| `imports` | Package | list | absent | 3.7 |
+| `aliases` | All | list | absent | 3.7 |
+| `filterCondition` | Package | string | absent | 3.7 |
+| `metadata` | All | list | absent | 3.8 |
+| `dependsOn` | All | list | absent | 3.9 |
+| `requires` | All | list | absent | 3.11 |
+| `assume` | All | list | absent | 3.11 |
+| `rep` | All | string | absent | 3.12 |
+| `connections` | PartDef/Part | list | absent | 8.4.1 |
+| `flowConnections` | PartDef/Part | list | absent | 8.6.2 |
+| `successionConnections` | ActionDef/Action | list | absent | 8.4.4 |
+| `bindingConnections` | Def/Usage | list | absent | 8.4.3 |
+| `performs` | PartDef/Part | list | absent | 8.2.1 |
+| `exhibitsStates` | PartDef/Part | list | absent | 8.2.1 |
+| `parameters` | ActionDef/CalcDef/etc. | list | absent | 8.7.2 |
+| `returnType` | CalculationDef/VerificationCaseDef | string | absent | 8.9.1, 8.12.3 |
+| `body` | CalculationDef/ActionDef | string | absent | 8.7.1, 8.9.1 |
+| `bodyLanguage` | CalculationDef/ActionDef | string | `"ocl"` | 8.7.1, 8.9.1 |
+| `subActions` | ActionDef/Action/CaseDef | list | absent | 8.7.3 |
+| `controlNodes` | ActionDef/Action | list | absent | 8.7.4 |
+| `entryAction` | StateDef/State | string or map | absent | 8.8.1 |
+| `doAction` | StateDef/State | string or map | absent | 8.8.1 |
+| `exitAction` | StateDef/State | string or map | absent | 8.8.1 |
+| `subStates` | StateDef/State | list | absent | 8.8.2 |
+| `transitions` | StateDef/State | list | absent | 8.8.3 |
+| `isParallel` | StateDef/State | bool | `false` | 8.8.1 |
+| `isAsserted` | Constraint | bool | `false` | 8.10.2 |
+| `isNegated` | Constraint | bool | `false` | 8.10.2 |
+| `expression` | ConstraintDef | string | absent | 8.10.1 |
+| `subject` | Req/Case | string | absent | 8.11.1, 8.12.1 |
+| `actors` | Req/UseCase | list | absent | 8.11.1, 8.12.4 |
+| `stakeholders` | Req/Viewpoint | list | absent | 8.11.1, 8.14.1 |
+| `concerns` | Req/Viewpoint | list | absent | 8.11.1, 8.14.1 |
+| `framedConcerns` | RequirementDef | list | absent | 8.11.1 |
+| `derivedFrom` | RequirementDef/Requirement | list | absent | 8.11.1 |
+| `satisfies` | Part/PartDef is the common case; not type-restricted — see §12.3 for the full endorsed shape list | list | absent | 8.11.4, 12.3 |
+| `implementedBy` | Part/PartDef | string or list | absent | 8.11.4 / 12.8 |
+| `verifies` | VerificationCase | list | absent | 8.12.3 |
+| `verdictExpression` | VerificationCase | string | absent | 8.12.3 |
+| `verdictType` | VerificationCaseDef | string | `VerificationCases::VerdictKind` | 8.12.3 |
+| `objectives` | CaseDef | list | absent | 8.12.1 |
+| `result` | CaseDef | string | absent | 8.12.1 |
+| `includes` | UseCaseDef | list | absent | 8.12.4 |
+| `extends` | UseCaseDef | list | absent | 8.12.4 |
+| `extensionPoints` | UseCaseDef | list | absent | 8.12.4 |
+| `allocations` | AllocationDef/Package/PartDef | list | absent | 8.13.1, 8.13.2 |
+| `constraints` | InterfaceDef | list | absent | 8.3.3 |
+| `expose` | ViewDef | list | absent | 8.14.2 |
+| `rendering` | ViewDef | string | absent | 8.14.2 |
+| `satisfiedBy` | ViewpointDef | list | absent | 8.14.1 |
+| `methods` | ViewpointDef | list | absent | 8.14.1 |
+| `values` | EnumerationDef | list | — (required) | 8.5.2 |
+| `annotates` | MetadataDef | list | absent (unrestricted) | 8.15.1 |
+| `isSemantic` | MetadataDef | bool | `false` | 8.15.1 |
+| `ends` | ConnDef/IntfDef | list | absent | 8.3.3, 8.4.2 |
+| `timeSlices` | OccurrenceDef | list | absent | 8.2.4 |
+| `snapshots` | OccurrenceDef | list | absent | 8.2.4 |
+| `variantOf` | Part/Usage | string | absent | 9.4 |
+| `isConjugated` | Port | bool | `false` | 8.3.2 |
+| `itemType` | FlowDef | string | absent | 8.6.1 |
+| `id` | native Requirement/TestCase | string | — (required) | 8.11.6, 8.12.5 |
+| `name` | native Requirement/TestCase | string | — (required; free prose) | 8.11.6, 8.12.5 |
+| `status` | native Requirement/TestCase | string | — (required) | 8.11.6, 8.12.5 |
+| `testLevel` | native TestCase | string | — (required) | 8.12.5 |
+| `silLevel` | native Requirement | integer | absent | 8.11.6 |
+| `asilLevel` | native Requirement | string | absent | 8.11.6 |
+| `plLevel` | native Requirement / SafetyGoal | string | absent | 8.11.6, 8.18.1 |
+| `derivedFromSafetyGoal` | native Requirement | string | absent | 8.11.6, 8.18.1 |
+| `derivedFromCybersecurityGoal` | native Requirement | string | absent | 8.11.6, 8.18.2 |
+| `verificationMethod` | native Requirement | string | absent | 8.11.6 |
+| `wcet` | native Requirement | string | absent | 8.11.6 |
+| `allocatedFrom` | `Allocation` (with `allocatedTo`); any other element only as a legacy input — derived reverse of `allocatedTo` (§12.9) | string or list | absent | 8.13.2, 8.18.2, 12.9 |
+| `allocatedTo` | Any element (the allocated source, §12.9 form 1) or `Allocation` | string or list | absent | 8.13.2, 8.18.2, 12.9 |
+| `ffiRationale` | Any element | string | absent | 11.12 (W034) — freedom-from-interference / partitioning rationale; excuses a mixed-criticality shared-allocation pair |
+| `responsibility` | Any element | string | absent | 3, 11.12 (W038) — accountable party/organisation for a work product (DIA/CIA split) |
+| `measureType` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E849) — confirmation_review / functional_safety_audit / functional_safety_assessment / cybersecurity_assessment |
+| `independenceLevel` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E850) — I1 / I2 / I3 |
+| `confirms` | ConfirmationMeasure | string or list | absent | 8.18.2, 11.12 (E851) — confirmed work-product ref(s) |
+| `argumentType` | Argument | enum (`claim`/`strategy`/`solution`) | `claim` | 8.18.6, 11.12 (E854) |
+| `supports` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — SafetyGoal/parent Argument argued for |
+| `evidence` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — Requirement/TestCase/sub-Argument/AssumptionOfUse refs |
+| `appliesTo` | AssumptionOfUse | string or list | absent | 8.18.6, 11.12 (E858) — SafetyGoal/Argument/Requirement constrained |
+| `hazardRef` | DamageScenario / ThreatScenario | string or list | absent | 8.18.2 |
+| `riskTreatment` | ThreatScenario | enum (`avoid`/`reduce`/`share`/`retain`) | absent | 8.18.2 |
+| `residualRisk` | ThreatScenario | string | absent | 8.18.2 |
+| `sourceFile` | native TestCase | string | absent | 8.12.5 |
+| `testFunctions` | native TestCase | list | absent | 8.12.5 |
+| `tags` | native Requirement/TestCase | list of strings | absent | 8.11.6, 8.12.5 |
+| `links` | Any element | map: declared link-type name → string or list | absent | 12.10 — user-defined outbound links; keys must be declared in `[linkTypes]` (`E630`) |
+| `derive` | Any element | map: field name → formula string | absent | 3.18 — computed fields, dependency-ordered; cycle `E504`, malformed `E505`, unknown element `E506` |
+
+### A.2 Fields specified in their own sections
+
+| Area | Fields | Section |
+|---|---|---|
+| Common / cross-cutting | `appliesWhen`, `domain`, `customFields`, `displayOrder`, `traceBaselines`, `refines`, `rationale`, `locale`, `about`, `text`, `steps`, `valueKind`, `value`, `portionKind` | 3.8–3.19, 8.2–8.11, 12.10 |
+| Native `Requirement` | `reqClass`, `requirementKind`, `reqDomain`, `breakdownAdr`, `decompositionKind`, `dalLevel` | 8.11.6, 12.2, 12.5, 22.3 |
+| Native `TestCase` / `TestPlan` | `coverageTarget`, `securityTestMethod`, `scope`, `configurations`, `demonstrates`, `testCases`, `selection` | 8.12.5, 8.12.6 |
+| Structural extras | `isDeploymentPackage`, `operations`, `clients`, `suppliers`, `evaluate`, `objective`, `viewpoint` | 2.4, 8.3.4, 8.12, 8.14, 12.6, 22.2 |
+| Diagram | `diagramKind`, `svgMode`, `svgFile`, `pumlMode`, `pumlFile`, `shapes`, `edges`, `layout` | 8.16 |
+| HARA | `severity`, `exposure`, `controllability`, `consequence`, `freqExposure`, `avoidance`, `demandRate`, `operationalSituation`, `hazardousEvents`, `safeState`, `ftti` | 8.18.1 |
+| TARA | `assets`, `damageSeverity`, `impactCategories`, `damageScenarios`, `attackFeasibility`, `attackVector`, `securityProperty`, `calLevel`, `threatScenarios`, `controlType`, `implementsGoals`, `cveId`, `cvssScore`, `mitigatedBy`, `affectedElements`, `damageTable`, `threatTable`, `goalTable`, `controlTable` | 8.18.2 |
+| `Asset` | `cybersecurityProperties`, `assetOwner`, `relatedSafetyGoal` | 8.18.7 |
+| FTA / FMEA / attack trees | `topEvent`, `missionTime`, `gateType`, `inputs`, `eventKind`, `failureRate`, `diagnosticCoverage`, `latentDiagnosticCoverage`, `probability`, `fmeaRef`, `entries`, `failureMode`, `effect`, `cause`, `fmeaSeverity`, `occurrence`, `detection`, `rpn`, `recommendedAction`, `ftaRef`, `threatRef` | 8.18.3–8.18.5 |
+| `Baseline` | `date`, `approver`, `gitTag`, `gitCommit`, `frozenScope`, `seal`, `supersedes` | 8.19 |
+| Product-line engineering | `groupKind`, `mandatory`, `cardinality`, `parentFeature`, `excludes`, `contributesTo`, `featureModel`, `parameterBindings`, `parameterConstraints`, `subConfigurations`, `baselineRef`, `buildExports`, `buildOverrides`, `featureTree`, `crossTreeConstraints` | 9.6–9.10, 14.7 |
+| IEC 62443 | `targetSL`, `achievedSL`, `members`, `inZone`, `fromZone`, `toZone`, `protocols` | 13 |
+| Multi-repo, plugins, annotated source, SysMLv2 ingestion | `repoImports`, `foreignFormat`, `annotationFormat`, `marker`, `include`, `exclude`, `sysmlSubmodel` | 14.3; `docs/model-guide/stdio-plugins.md`, `annotated-source.md`, `sysmlv2-submodel.md` |
+| `TradeStudy` | `criteria`, `alternatives`, `scores`, `decision` | 15.2 |
+| `ReviewRecord` | `reviewType`, `reviewDate`, `reviewedBy`, `reviews`, `items`, `recordedAt` | 19.2 |
+| `PlanningItem` | `parent`, `achieves`, `itemType`, `evidence`, `blockedBy`, `assignedTo`, `claimedBy`, `claimedAt` | 23 |
+| Removed | `title` — parsed only to report `E025` | 3.1 |
+
+---
+
+## Appendix B: Mapping of SysML Textual Keywords to `type:` Values
+
+| SysML textual keyword | Markdown-SysML `type:` |
+|---|---|
+| `part def` | `PartDef` |
+| `item def` | `ItemDef` |
+| `port def` | `PortDef` |
+| `connection def` | `ConnectionDef` |
+| `interface def` | `InterfaceDef` |
+| `action def` | `ActionDef` |
+| `calc def` | `CalculationDef` |
+| `constraint def` | `ConstraintDef` |
+| `requirement def` | `RequirementDef` |
+| `concern def` | `ConcernDef` |
+| `case def` | `CaseDef` |
+| `analysis def` | `AnalysisCaseDef` |
+| `verification def` | `VerificationCaseDef` |
+| `use case def` | `UseCaseDef` |
+| `occurrence def` | `OccurrenceDef` |
+| `individual def` | `IndividualDef` |
+| `flow def` | `FlowDef` |
+| `succession def` | `SuccessionDef` |
+| `state def` | `StateDef` |
+| `attribute def` | `AttributeDef` |
+| `enum def` | `EnumerationDef` |
+| `allocation def` | `AllocationDef` |
+| `metadata def` | `MetadataDef` |
+| `view def` | `ViewDef` |
+| `viewpoint def` | `ViewpointDef` |
+| `rendering def` | `RenderingDef` |
+| `part` | `Part` |
+| `item` | `Item` |
+| `port` | `Port` |
+| `connection` | `Connection` |
+| `interface` | `Interface` |
+| `action` | `Action` |
+| `calc` | `Calculation` |
+| `constraint` | `Constraint` |
+| `requirement` | `Requirement` |
+| `concern` | `Concern` |
+| `case` | `Case` |
+| `analysis` | `AnalysisCase` |
+| `verification` | `VerificationCase` |
+| `use case` | `UseCase` |
+| `occurrence` | `Occurrence` |
+| `individual` | `Individual` |
+| `flow` | `Flow` |
+| `succession` | `Succession` |
+| `state` | `State` |
+| `attribute` | `Attribute` |
+| `enum` | `Enumeration` |
+| `allocation` | `Allocation` |
+| `metadata` | `Metadata` |
+| `view` | `View` |
+| `rendering` | `Rendering` |
+| `package` | `Package` |
+| `library package` | `LibraryPackage` |
+| *(native — no SysML keyword)* | `Requirement` (native, §8.11.6), `TestCase`, `TestPlan`, `FeatureDef`, `FeatureModel`, `Configuration`, `Diagram`, and the record and safety/security types of §2.6–§2.7 |
