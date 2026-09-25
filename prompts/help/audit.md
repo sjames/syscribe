@@ -28,10 +28,10 @@ mechanism) is present, or — with --profile — any finding the profile promote
 
 ## EXAMPLES
     syscribe -m model/ audit
-    syscribe -m model/ audit --profile safety
-    syscribe -m model/ audit --config CONF-LM3S-QEMU-001   # variant-scoped readiness
-    syscribe -m model/ audit --all-configs                 # gate every variant
+    syscribe -m model/ audit --config CONF-UAV-DELIVERY-001   # variant-scoped readiness
+    syscribe -m model/ audit --all-configs                    # gate every variant
     syscribe -m model/ audit --json
+    syscribe -m model_mg/ audit --profile magicgrid           # model_mg/ defines [profiles.magicgrid]
 
 ## EXIT CODES
     0  PASS    2  FAIL (verdict, or any variant under --all-configs)    1  undefined --profile / bad --config

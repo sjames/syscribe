@@ -62,9 +62,10 @@ An absent scripts directory is not an error — the model simply has no extensio
                 `--warnings-as-errors`. Independent of the built-in `validate`.
 
 ## EXAMPLES
-    syscribe -m model/ scripts list
-    syscribe -m model/ scripts run coverage
-    syscribe -m model/ scripts validate --deny naming/NOASIL
+    # with the [scripts] configuration shown above (the bundled models define none)
+    syscribe -m <root> scripts list
+    syscribe -m <root> scripts run coverage
+    syscribe -m <root> scripts validate --deny naming/NOASIL
 
 ## SEE ALSO
     validate, export

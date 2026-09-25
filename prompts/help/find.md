@@ -18,9 +18,9 @@ type.
                                         Repeatable — multiple `--where` are ANDed.
 
 ## EXAMPLES
-    syscribe -m model/ find throttle
-    syscribe -m model/ find "brake release"
-    syscribe -m model/ find . --where custom.supplier=Bosch
+    syscribe -m model_auto/ find throttle
+    syscribe -m model_auto/ find "position sensor"
+    syscribe -m model_mg/ find . --where custom.mg_layer=logical
 
 ## SEE ALSO
     list, extref, show

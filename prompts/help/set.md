@@ -52,12 +52,13 @@ The Markdown body is never touched.
     --dry-run        Preview the unified diff without writing.
 
 ## EXAMPLES
-    syscribe -m model/ set REQ-UAV-NAV-001 status=approved
-    syscribe -m model/ set TC-UAV-NAV-001 status=active --dry-run
-    syscribe -m model/ set PI-HPLE-001 status=done
-    syscribe -m model/ set PI-HPLE-001 evidence.add ref=TC-UAV-NAV-001
-    syscribe -m model/ set PI-HPLE-001 evidence.add path=src/nav/controller.rs
-    syscribe -m model/ set PI-HPLE-001 achieves.add REQ-UAV-NAV-002
+    # against the bundled PlanningItem example (examples/planning-item/model/)
+    syscribe -m examples/planning-item/model/ set REQ-RTH-003 status=implemented
+    syscribe -m examples/planning-item/model/ set TC-RTH-NOISE-001 status=retired --dry-run
+    syscribe -m examples/planning-item/model/ set PI-RTH-DOCS-001 status=in_progress
+    syscribe -m examples/planning-item/model/ set PI-RTH-DOCS-001 evidence.add ref=TC-RTH-BATT-001
+    syscribe -m examples/planning-item/model/ set PI-RTH-DOCS-001 evidence.add path=docs/rth-design.txt
+    syscribe -m examples/planning-item/model/ set PI-RTH-DOCS-001 achieves.add REQ-RTH-002
 
 ## SEE ALSO
     applies-when, move, show

@@ -38,8 +38,8 @@ gating flags promote chosen warnings to build failures.
     # CI gate: fail the build on coverage drift in safety areas
     syscribe -m model/ validate --deny W015,W300,W306
 
-    # Apply a named policy from .syscribe.toml
-    syscribe -m model/ validate --profile safety
+    # Apply a named policy from .syscribe.toml ([profiles.magicgrid] in model_mg/)
+    syscribe -m model_mg/ validate --profile magicgrid
 
     # Certify one product variant
     syscribe -m model/ validate --config CONF-UAV-DELIVERY-001

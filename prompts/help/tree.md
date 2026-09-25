@@ -10,7 +10,8 @@ indented line per element with its type. For the connection/relationship graph
 
 ## EXAMPLES
     syscribe -m model/ tree
-    syscribe -m model/ tree System::Software
+    syscribe -m model/ tree UAV::Avionics
+    syscribe -m model_auto/ tree System::Software
 
 ## SEE ALSO
     ls, connectivity

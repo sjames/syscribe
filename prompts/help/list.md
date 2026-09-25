@@ -29,9 +29,9 @@ for tags, feature gating, lifecycle status, integrity level, and WCET claims.
 ## EXAMPLES
     syscribe -m model/ list Requirement
     syscribe -m model/ list PartDef UAV::Avionics
-    syscribe -m model/ list Requirement --status draft --sil 4
-    syscribe -m model/ list Requirement --has-wcet --json
-    syscribe -m model/ list PartDef --where custom.supplier=Bosch
+    syscribe -m model_sil/ list Requirement --status approved --sil 4
+    syscribe -m model_sil/ list Requirement --has-wcet --json
+    syscribe -m model_mg/ list PartDef --where custom.mg_layer=physical
 
 ## SEE ALSO
     types, find, matrix, verification-depth
