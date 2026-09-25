@@ -147,7 +147,8 @@ If there are errors, the LLM fixes them in the same response before declaring th
 
 ```
 0 errors
-≤ 2 warnings (W404 for ScalarValues::* standard-library types — expected)
+0 warnings — or only advisory warnings you have reviewed and accepted
+(standard-library types such as ScalarValues::* resolve built-in and raise nothing)
 ```
 
 ---
@@ -160,6 +161,7 @@ This is optional — nothing about the eight-batch workflow requires it. It's mo
 
 ```yaml
 # model/Planning/MyFeature/PI-MYFEATURE-001.md — one PlanningItem per unit of work
+---
 type: PlanningItem
 id: PI-MYFEATURE-001
 name: "Add the thing"
@@ -174,19 +176,19 @@ evidence:
 Prefer `syscribe set`/`claim`/`release` over hand-editing these fields once a `PlanningItem` exists:
 
 ```bash
-syscribe set PI-MYFEATURE-001 evidence.add path=crates/syscribe-model/tests/myfeature.rs
-syscribe set PI-MYFEATURE-001 status=done   # refuses a typo'd enum value outright; on a
-                                             # PlanningItem this also warns (non-blocking) if
-                                             # an achieves: Requirement isn't actually verified
-                                             # yet (W310), instead of that surfacing later,
-                                             # buried in a full-model `validate` run
+syscribe -m model/ set PI-MYFEATURE-001 evidence.add path=crates/syscribe-model/tests/myfeature.rs
+syscribe -m model/ set PI-MYFEATURE-001 status=done   # refuses a typo'd enum value outright; on a
+                                                      # PlanningItem this also warns (non-blocking) if
+                                                      # an achieves: Requirement isn't actually verified
+                                                      # yet (W310), instead of that surfacing later,
+                                                      # buried in a full-model `validate` run
 ```
 
 For a multi-agent effort specifically, `claim`/`release` make "is anyone already on this?" answerable without reconstructing it from `git status` or an orchestrator's own memory of what it dispatched:
 
 ```bash
-syscribe claim PI-MYFEATURE-001 --by agent-session-01VRUS   # refuses if claimed by someone else
-syscribe release PI-MYFEATURE-001                            # on completion or handoff
+syscribe -m model/ claim PI-MYFEATURE-001 --by agent-session-01VRUS   # refuses if claimed by someone else
+syscribe -m model/ release PI-MYFEATURE-001                           # on completion or handoff
 ```
 
 Two simultaneously-active (`in_progress` or claimed) `PlanningItem`s that overlap by `achieves:`

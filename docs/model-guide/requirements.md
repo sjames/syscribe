@@ -122,4 +122,4 @@ The document body must contain at least one ` ```gherkin ` fenced block (E011). 
 
 ### Coverage
 
-A Requirement at `approved` or `implemented` status with no active TestCase (`status: active`) fires **W002**. Coverage is tracked in the traceability matrix section of the validation report.
+A **leaf** Requirement (one that no other requirement names in its `derivedFrom:`) at `approved` or `implemented` status with no active TestCase (`status: active`) fires **W002**. A parent requirement is covered through its leaf descendants instead, and needs an active integration-level TestCase (`testLevel` L3–L5) of its own (**W305**). Coverage is tracked in the traceability matrix section of the validation report.

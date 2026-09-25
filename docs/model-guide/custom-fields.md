@@ -4,9 +4,10 @@ Sometimes you need to attach data to a model element that the Syscribe schema do
 define — a supplier name, a cost centre, a maturity tag, a list of part numbers. The
 `custom_fields:` map is the intentional, addressable home for that data.
 
-Without it, any unrecognised top-level frontmatter key is silently swallowed: no
-namespace, no validation, no way to query it, and no way to tell a typo'd schema field
-from deliberate custom data. `custom_fields:` fixes that.
+Without it, an unrecognised top-level frontmatter key only raises warning `W047`
+(unknown key) and is otherwise ignored: no namespace, no way to query it, and no way to
+tell a typo'd schema field from deliberate custom data. `custom_fields:` fixes that —
+its keys never raise `W047`.
 
 ## Declaring custom fields
 
