@@ -271,7 +271,7 @@ the parser to add real support was considered and rejected.
 |---|---|
 | `W540` | A `_index.md` found anywhere inside a `sysmlSubmodel: true` package's subtree, other than that package's own anchor `_index.md` |
 | `W541` | Either a `.sysml`/`.kerml` file failed to read (e.g. invalid UTF-8), or `sysml-v2-parser` failed to parse its contents |
-| `W542` | A `connect` endpoint's genuinely two-segment chain fell back to a head-only edge because the tail isn't a locally-redeclared feature (§8's redeclaration lookahead didn't match) — identifies the dropped segment |
+| `W542` | A `connect` endpoint's genuinely two-segment chain fell back to a head-only edge because the tail isn't a locally-redeclared feature (§8's redeclaration lookahead didn't match) — identifies the dropped segment. Also raised when an `allocation` usage's `allocate` endpoint chain is truncated (§20) |
 
 All three share a **dedicated code range**, distinct from the [stdio-subprocess plugin
 family](stdio-plugins.md) (`E550`/`E551`/`W550`–`W553`) — this is native, always-on ingestion of a
@@ -804,8 +804,41 @@ one thin `DefinitionBody` AST type). Because the definition now exists in-model,
 from `E111`, which also hid genuinely dangling types (GH #142). A usage typed by a standard-library
 name (`Allocations::Allocation`, bare `Allocation`) is a library reference and is never flagged.
 
-**Not yet lifted:** an allocation usage's `allocate <source> to <target>` clause does **not**
-become `allocatedFrom:`/`allocatedTo:` on the synthesized `Allocation`, so an ingested allocation
-contributes no edge to §12.9's unified allocation set yet (it needs feature-chain endpoint
-resolution, like `connect`) — author the edge natively (`allocatedTo:` on the source, or a
-Markdown `Allocation` element) meanwhile.
+### The `allocate` clause becomes an allocation edge (GH #144)
+
+A named allocation usage's `allocate <source> to <target>` clause is lifted onto the synthesized
+`Allocation` as `allocatedFrom: [<source>]` / `allocatedTo: [<target>]` — a §12.9 **form 2**
+allocation — so an ingested allocation feeds the unified allocation-edge set exactly like a
+Markdown `Allocation` element: `E314` (deployment allocation), `W034` (freedom from
+interference), `W503` (redundancy), `matrix --allocations` and the derived `allocatedFrom` index.
+
+```sysml
+package Deploy {
+    part def Controller { part ctl : CtlSw; }
+    part def Hw { part mcu : Mcu; }
+    part sys : Controller;
+    part board : Hw;
+
+    allocation deploy : SoftwareToHardware allocate Arch::SwPackage to Arch::Board;
+    allocation chained allocate sys.ctl to board.mcu;
+    allocation truncated allocate sys.nosuch to board;   // W542, edge sys -> board
+    allocation dangling allocate NoSuchSource to NoSuchTarget;   // E502 / E503
+}
+```
+
+Unlike `connect` lifting (§8/§10, a purely local AST lookahead), allocation endpoints are
+resolved **after** the whole model is merged, because they routinely cross packages and name
+features a usage inherits from its type:
+
+| Endpoint | Resolution |
+|---|---|
+| `Arch::SwPackage` | Head resolved innermost scope first — `Deploy::Arch::SwPackage`, then each enclosing namespace, then the model root — so a native Markdown element resolves too |
+| `sys.ctl` | Head `sys` → `Deploy::sys`; `ctl` is not declared on the usage, so it is looked up through `sys`'s `typedBy:`/`supertype:` chain → `Deploy::Controller::ctl` |
+| `sys.nosuch` | No such feature anywhere on the chain: truncated to the deepest resolved prefix (`Deploy::sys`) with a `W542` naming the endpoint |
+| `NoSuchSource` | Resolves nowhere: kept as written (`.` → `::`), reported by `E502` (`allocatedFrom`) / `E503` (`allocatedTo`) |
+| `'REQ-X-001'` | A stable id is global and kept verbatim |
+
+The optional `end ::>` end-name prefix (`allocate logical ::> a to physical ::> b`) is accepted and
+ignored. The **anonymous** `allocate a to b;` statement has no identity to synthesize an
+`Allocation` element against and stays unmapped — give it a name (`allocation n allocate a to b;`)
+or author the edge natively (`allocatedTo:` on the source).

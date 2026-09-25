@@ -17,7 +17,10 @@ field naming one or more other `Configuration` elements — reachable locally or
 via the existing `repoImports:` mounting of a lower-tier product-line repo into the local qname
 namespace. Each named `Configuration` shall resolve to a real `Configuration` element, and that
 element shall itself be internally valid (SAT-satisfiable and clean per `feature-check --deep`/the
-equivalent of `validate --config` run against wherever it actually lives).
+equivalent of `validate --config` run against wherever it actually lives). A peer entry resolves by
+the peer's native qualified name, by global stable id, or through a `repoImports:` mount path
+(`<package>::<as>::X` → the peer's `<qname>::X`, §14.4) exactly like the other cross-repo reference
+fields (GH #146).
 
 A consolidated `Configuration` shall be judged — for validity, for the parameters it already closes,
 and for what it selects — on its effective selection and bindings, including those it inherits from

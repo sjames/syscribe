@@ -628,3 +628,66 @@ fn a_parse_failure_in_one_file_does_not_abort_the_rest_of_the_subtree() {
     // A parse failure is a warning, never an error — never aborts the rest of validate.
     assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
 }
+
+#[test]
+fn allocation_usage_allocate_clause_lifts_into_resolved_allocation_edges() {
+    // REQ-TRS-SYSMLV2-029 (GH #144): `allocate <source> to <target>` becomes
+    // allocatedFrom/allocatedTo, resolved against the full model — scoped
+    // qualified names, feature chains through the head's type or supertype,
+    // a truncated chain (W542), and a typing cycle that must not hang the
+    // feature walk.
+    let root = tempdir();
+    write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(&root, "Hw/_index.md", "---\ntype: Package\nname: Hw\n---\n");
+    write(&root, "Hw/Board.md", "---\ntype: PartDef\nname: Board\ndomain: hardware\n---\nBoard.\n");
+    write(
+        &root,
+        "SysML2/_index.md",
+        "---\ntype: Package\nname: SysML2\nsysmlSubmodel: true\n---\n",
+    );
+    write(
+        &root,
+        "SysML2/Deploy.sysml",
+        "package Deploy {\n\
+         part def Ctl { part core; }\n\
+         part def Base { part inherited; }\n\
+         part def Derived :> Base;\n\
+         part def Loop :> Loop;\n\
+         part sys : Ctl;\n\
+         part d : Derived;\n\
+         part l : Loop;\n\
+         allocation a1 allocate sys.core to Hw::Board;\n\
+         allocation a2 allocate d.inherited to 'REQ-X-001';\n\
+         allocation a3 allocate l.nothing to sys;\n\
+         allocate anon to Hw::Board;\n\
+         }\n",
+    );
+
+    let elements = walk_model(&root).unwrap();
+    let find = |q: &str| {
+        elements
+            .iter()
+            .find(|e| e.qualified_name == q)
+            .unwrap_or_else(|| panic!("missing {q}"))
+    };
+    let from = |q: &str| find(q).frontmatter.allocated_from.clone().unwrap_or_default();
+    let to = |q: &str| find(q).frontmatter.allocated_to.clone().unwrap_or_default();
+
+    assert_eq!(from("SysML2::Deploy::a1"), vec!["SysML2::Deploy::Ctl::core"]);
+    assert_eq!(to("SysML2::Deploy::a1"), vec!["Hw::Board"]);
+    // Inherited through Derived's `:>` supertype; a stable id is kept verbatim.
+    assert_eq!(from("SysML2::Deploy::a2"), vec!["SysML2::Deploy::Base::inherited"]);
+    assert_eq!(to("SysML2::Deploy::a2"), vec!["REQ-X-001"]);
+    // Cyclic specialization: truncated to the head, with a W542 on the allocation.
+    assert_eq!(from("SysML2::Deploy::a3"), vec!["SysML2::Deploy::l"]);
+    assert_eq!(to("SysML2::Deploy::a3"), vec!["SysML2::Deploy::sys"]);
+    assert!(find("SysML2::Deploy::a3").derive_findings.iter().any(|f| f.0 == "W542"));
+    // The anonymous `allocate` statement has no identity: nothing synthesized for it.
+    assert!(!elements
+        .iter()
+        .any(|e| e.frontmatter.allocated_from.as_deref() == Some(&["anon".to_string()][..])));
+
+    let resolver = syscribe_model::resolver::Resolver::new(&elements);
+    let edges = syscribe_model::validator::allocation_edges(&elements, &resolver);
+    assert!(edges.contains(&("SysML2::Deploy::Ctl::core".to_string(), "Hw::Board".to_string())));
+}

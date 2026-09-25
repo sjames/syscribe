@@ -803,3 +803,29 @@ precedent of one requirement per distinct `ElementType` pair even when the under
   have zero validation rules today, for any origin (confirmed: `grep -n "CaseDef\|AnalysisCase\|
   VerificationCase" validator.rs` returns zero hits) — the same class of pre-existing, unrelated,
   noted-but-not-fixed gap as Enumeration's missing §11.7 rules.
+
+## Addendum: `allocate` clause lifting with post-merge endpoint resolution (`REQ-TRS-SYSMLV2-029`, GH #144)
+
+A named `allocation` usage's `allocate <source> to <target>` clause is lifted onto the synthesized
+`Allocation` as `allocatedFrom:`/`allocatedTo:` (§12.9 form 2), so ingested allocations feed the
+unified allocation-edge set (`E314`, `W034`, `W503`, `matrix --allocations`) with no validator
+change.
+
+- **Resolution runs after the merge, not inside `ingest`.** `connect` lifting (`REQ-TRS-SYSMLV2-010`/
+  `-013`) qualifies endpoints against the owning part with a purely local AST lookahead, because a
+  connect endpoint is always a feature of the enclosing body. Allocation endpoints are the opposite
+  case: they routinely cross packages (`allocate Logical::ctrl to Physical::ecu`) and name features
+  a usage inherits from its type (`allocate sys.ctl to board.mcu`). `ingest` therefore carries the
+  raw endpoint text, and `sysmlv2::resolve_allocation_endpoints` rewrites it once
+  `ingest_sysml_submodels` has merged every synthesized element into the full element list
+  (native Markdown elements included).
+- **Head: innermost scope outward** — the same lookup order `Resolver::resolve_scoped_ref` already
+  applies to ingested `typedBy:`/`supertype:` (`REQ-TRS-SYSMLV2-016`).
+- **Chain tail: declared or inherited.** Each `.` segment resolves as `<cur>::<seg>`, or through
+  `<cur>`'s `typedBy:`/`supertype:` chain (cycle-safe). This is the full-model resolver the
+  `REQ-TRS-SYSMLV2-013` addendum noted `connect` lifting lacks; `connect` lifting is left unchanged
+  here (out of scope for GH #144).
+- **Failure modes reuse existing codes.** A truncated tail raises `W542` (widened from connect-only)
+  and keeps the deepest resolved prefix as the edge endpoint; an unresolvable head is left as written
+  for `E502`/`E503`. No new code.
+- **Anonymous `allocate a to b;` stays unmapped** — no identity to synthesize an element against.
