@@ -106,7 +106,13 @@ for tc_file in "${TC_FILES[@]}"; do
     TOTAL=$((TOTAL + 1))
     start_tc "$tc_id" "${tc_title:-$tc_id}"
     source "$tc_script"
+    # Assertions in TC harnesses are `cmd | grep -q …` pipelines judged by the last
+    # command. Under pipefail, a grep -q that matches early and exits makes the
+    # writer die of SIGPIPE and fails the pipeline although the text is present
+    # (flaky once output exceeds a few KB). Run each TC without pipefail (#178).
+    set +o pipefail
     "$fn_name" "$FIXTURES"
+    set -o pipefail
     end_tc "$tc_verifies"
 
     if [ "$TC_FAILED" -eq 0 ]; then
