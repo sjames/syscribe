@@ -274,9 +274,9 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W415 | The `[plantuml] style_file` path configured in `.syscribe.toml` does not exist on disk (REQ-TRS-PUML-042) |
 | W080 | `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` in its sub-action tree not referenced by any `edges:` entry (draft-suppressed; `--deny W080`) |
 
-## State machine warnings (W070–W079, §22.1)
+## State machine warnings (W070–W079, W929, §22.1)
 
-SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppressed and gateable with `--deny W07x`.
+SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppressed and gateable with `--deny W07x` / `--deny W929`.
 
 | Code | Condition |
 |---|---|
@@ -290,6 +290,7 @@ SysMLv2-faithful state-machine checks on `StateDef`/`State`. All draft-suppresse
 | W077 | Cross-region transition — a transition connects substates in two different regions of an `isParallel` state (illegal in SysMLv2). |
 | W078 | Parallel arity — an `isParallel: true` state declares fewer than two regions. |
 | W079 | Unresolved behavior — a state `entryAction`/`doAction`/`exitAction` or a transition `effect` references an action that resolves to no model element. |
+| W929 | Incomplete transition — a top-level transition (the machine's own `transitions:`) has no `source:` (nor `from:`), or any transition has no `target:` (nor `to:`), §8.8.3. Such a transition yields no edge, so it was previously ignored silently by every check above (GH #136). A nested transition's `source` is implicit and never reported. |
 
 The checks apply **recursively** over the state hierarchy: each level's substates are checked by `W070`–`W074` (composite substates as nodes), inline-`subStates:` substates are recursed into, and parallel (`isParallel`) levels are checked per region plus `W077`/`W078`. `W076` covers transition endpoints that resolve to no state.
 
@@ -324,7 +325,7 @@ A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes no
 | W063 | The score matrix is incomplete (draft-suppressed). |
 | W064 | An `alternatives[].element` is present but unresolved (draft-suppressed). |
 
-## IEC 62443 Zone/Conduit (E950–E956, W950–W953, §13)
+## IEC 62443 Zone/Conduit (E950–E956, E925, E926, W950–W953, §13)
 
 | Code | Condition |
 |---|---|
@@ -335,6 +336,8 @@ A `TradeStudy` (`TRD-*`) is a weighted-criteria evaluation; the tool computes no
 | E954 | `Conduit.fromZone`/`toZone` unresolved or not a `Zone`. |
 | E955 | `Zone.members:` entry unresolved or not a `PartDef`/`Part`. |
 | E956 | `PartDef`/`Part.inZone:` unresolved or not a `Zone`. |
+| E925 | `targetSL:`/`achievedSL:` on a `Zone`, `Conduit`, `PartDef` or `Part` is outside the Security Level range `1`–`4` (GH #136 — e.g. `achievedSL: 7` was accepted). |
+| E926 | `Zone`/`Conduit` `status:` is not one of `draft · review · approved · deprecated`. |
 | W950 | `Zone.achievedSL < targetSL` (SL gap). |
 | W951 | `Conduit.achievedSL` below a connected zone's `targetSL` (opt-in). |
 | W952 | A part declares `targetSL` but belongs to no zone (opt-in). |
@@ -770,7 +773,7 @@ one** of the two sources declares a non-empty `ffiRationale:` string, OR carries
 
 See `docs/model-guide/safety-analysis.md`.
 
-## Confirmation measures & DIA/CIA responsibility (E847–E851, E860, W038, W039)
+## Confirmation measures & DIA/CIA responsibility (E847–E851, E860, E924, W038, W039)
 
 ISO 26262-2 §6 confirmation measures, ISO 26262-8 §5 Development Interface Agreement (DIA),
 and ISO/SAE 21434 §7 Cybersecurity Interface Agreement (CIA). Both checks are **opt-in**.
@@ -780,7 +783,7 @@ work product (the DIA/CIA split, e.g. `OEM` / `Supplier-X`).
 
 **ConfirmationMeasure** (`type: ConfirmationMeasure`, `CM-*` id) — a confirmation review, FS
 audit, FS assessment, or cybersecurity assessment, with `measureType:`, `independenceLevel:`
-(`I1`/`I2`/`I3`), `status:`, and `confirms:` (work-product ref(s) resolved via the `Resolver`).
+(`I1`/`I2`/`I3`), `status:` (`planned`/`in_progress`/`completed`), and `confirms:` (work-product ref(s) resolved via the `Resolver`).
 
 The ASIL/CAL → independence mapping is intentionally minimal: only `asilLevel: D → I3
 functional_safety_assessment` and `calLevel: CAL4 → I3 cybersecurity_assessment` are gated.
@@ -793,6 +796,7 @@ Lower integrity levels are documented as future tightening and are not gated.
 | E849 | Error | `measureType` is not one of `confirmation_review · functional_safety_audit · functional_safety_assessment · cybersecurity_assessment` |
 | E850 | Error | `independenceLevel` is not one of `I1 · I2 · I3` |
 | E851 | Error | a `confirms:` ref does not resolve to any model element |
+| E924 | Error | `ConfirmationMeasure.status` is not one of `planned · in_progress · completed` (GH #136 — previously documented but unchecked) |
 | E860 | Error | a `ConfirmationMeasure.confirms` ref resolves to an element that is not a `SafetyGoal`, `CybersecurityGoal`, `HazardousEvent`, or native `Requirement` (REQ-TRS-SEC-005) |
 | W038 | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. **Opt-in:** dormant unless some element declares `responsibility:`. Gate with `--deny W038`; promotable via `[profiles]` |
 | W039 | Warning | A high-integrity item lacks its required independent assessment: an `asilLevel: D` **or `silLevel: 3`/`silLevel: 4`** `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment` (ISO 26262-2 §6 / IEC 61508-1 §8); or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039`; promotable via `[profiles]` |

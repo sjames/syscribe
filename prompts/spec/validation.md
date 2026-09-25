@@ -109,7 +109,7 @@ must also carry the same field. A lower level is allowed only with `breakdownAdr
 
 Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 
-## Confirmation measures & DIA/CIA responsibility (E847–E851, W038, W039)
+## Confirmation measures & DIA/CIA responsibility (E847–E851, E924, W038, W039)
 
 | Code | Condition |
 |---|---|
@@ -118,6 +118,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E849` | `ConfirmationMeasure.measureType` not in `confirmation_review · functional_safety_audit · functional_safety_assessment · cybersecurity_assessment` |
 | `E850` | `ConfirmationMeasure.independenceLevel` not in `I1 · I2 · I3` |
 | `E851` | A `confirms:` ref does not resolve to any model element |
+| `E924` | `ConfirmationMeasure.status` not in `planned · in_progress · completed` |
 | `W038` | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) has no `responsibility:` field. **Opt-in:** dormant unless some element declares `responsibility:`. Gate with `--deny W038` |
 | `W039` | A high-integrity item lacks its required independent assessment: an `asilLevel: D` **or** `silLevel: 3`/`silLevel: 4` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`; or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`. **Opt-in:** dormant unless at least one `ConfirmationMeasure` exists. Gate with `--deny W039` |
 
@@ -261,7 +262,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W063` | The score matrix is incomplete (draft-suppressed) |
 | `W064` | An `alternatives[].element` is present but unresolved (draft-suppressed) |
 
-## State machine warnings (W070–W080, §22.1)
+## State machine warnings (W070–W080, W929, §22.1)
 
 | Code | Condition |
 |---|---|
@@ -275,6 +276,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W077` | Cross-region transition between two regions of an `isParallel` state |
 | `W078` | Parallel arity — an `isParallel: true` state declares fewer than two regions |
 | `W079` | Unresolved behavior — a state `entry`/`do`/`exit` action or transition `effect` resolves to no element |
+| `W929` | Incomplete transition — a top-level transition has no `source:`, or any transition has no `target:` (§8.8.3); it would otherwise contribute no edge. Draft-suppressed; `--deny W929` |
 | `W080` | A `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` not referenced by any `edges:` entry |
 
 ## Diagram errors and warnings (E400–E404, W400–W415)
@@ -377,7 +379,7 @@ write path. Every other PlanningItem field is still queried via `list`/`show`/`l
 and written via the generic MCP element tools; no dedicated CLI subcommand or MCP tool for
 those yet.
 
-## IEC 62443 Zone/Conduit (E950–E956, W950–W953, §13)
+## IEC 62443 Zone/Conduit (E950–E956, E925, E926, W950–W953, §13)
 
 | Code | Condition |
 |---|---|
@@ -388,6 +390,8 @@ those yet.
 | `E954` | `Conduit.fromZone`/`toZone` unresolved or not a `Zone` |
 | `E955` | `Zone.members:` entry unresolved or not a `PartDef`/`Part` |
 | `E956` | `PartDef`/`Part.inZone:` unresolved or not a `Zone` |
+| `E925` | `targetSL:`/`achievedSL:` on a `Zone`/`Conduit`/`PartDef`/`Part` outside the Security Level range `1`–`4` |
+| `E926` | `Zone`/`Conduit` `status:` not in `draft · review · approved · deprecated` |
 | `W950` | `Zone.achievedSL < targetSL` (SL gap) |
 | `W951` | `Conduit.achievedSL` below a connected zone's `targetSL` (opt-in) |
 | `W952` | A part declares `targetSL` but belongs to no zone (opt-in) |

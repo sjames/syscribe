@@ -64,5 +64,6 @@ the element's documentation. Directory path encodes namespace ownership.
 | `ADR` | `proposed` · `accepted` · `deprecated` · `superseded` |
 | `ReviewRecord` | `open` · `closed` · `waived` |
 | Safety/security (HE, SG, Asset, DS, TS, CSG, SC, VR, FT, FMEA, AT, ARG, AOU) | `status:` required but not enum-checked (use `draft`/`review`/`approved`) |
-| `ConfirmationMeasure` | `planned` · `in_progress` · `completed` |
+| `ConfirmationMeasure` | `planned` · `in_progress` · `completed` (else `E924`) |
+| `Zone` / `Conduit` | `draft` · `review` · `approved` · `deprecated` (else `E926`; `targetSL`/`achievedSL` must be 1–4, else `E925`) |
 | Other elements | no mandated status field |

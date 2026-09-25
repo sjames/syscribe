@@ -65,8 +65,8 @@ Errors block a clean build. Warnings are advisory.
 | W513 | Hierarchical product lines (REQ-TRS-HPLE-004) | Opt-in, `--deny`-gateable: a required parameter anywhere in a consolidated `subConfigurations:` subtree remains unbound after every tier's own `parameterBindings:` |
 | E865, E866–E868, W060, W860 | Decomposition & budgets (§22.2) | Sibling-satisfy decomposition, budget expression syntax/rollup |
 | E869–E877, W061–W064 | Trade studies (§15) | TradeStudy required fields, criteria/alternatives/scores matrix, weights, objective/decision |
-| E950–E956, W950–W953 | IEC 62443 (§13) | Zone/Conduit required fields, ID patterns, zone/member/conduit resolution, Security-Level gaps |
-| W070–W079, W080 | Behavior (§22.1) | State-machine completeness (dead/trap/initial/parallel/transition), sequence-diagram send/receive completeness |
+| E950–E956, E925, E926, W950–W953 | IEC 62443 (§13) | Zone/Conduit required fields, ID patterns, status set, SL range 1–4, zone/member/conduit resolution, Security-Level gaps |
+| W070–W079, W929, W080 | Behavior (§22.1) | State-machine completeness (dead/trap/initial/parallel/transition, incomplete transitions), sequence-diagram send/receive completeness |
 
 See [Rule Reference](rules.md) for every code.
 

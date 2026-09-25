@@ -2047,6 +2047,10 @@ both yielding the same `(source → target)` edge:
 2. **top-level** — under the `StateDef`'s `transitions:` list; here `source:` is
    **required**.
 
+A transition missing a required endpoint — a top-level transition with no `source:`, or any
+transition with no `target:` — yields no edge; it is reported as warning **`W929`**
+(draft-suppressed, gateable with `--deny W929`) rather than silently ignored.
+
 A single transition extractor consumes both placements, so the state-machine completeness
 checks (§22.1) see one consistent edge model regardless of authoring style.
 
@@ -4056,7 +4060,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 
 **Binding SecurityControls to architecture:** allocate the control (source) to the architecture element that realises it (target) with a standalone `Allocation` element — `allocatedFrom: SC-*` + `allocatedTo: <element>` (§12.9 form 2); the element then lists the control in its derived `allocatedFrom` index. Both fields accept a single string or a list of strings, so one `Allocation` can bind several controls. An `allocatedFrom:` authored directly on the architecture element (the pre-GH #131 guidance) is still accepted as a legacy input form (§12.9), but is not recommended.
 
-**Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:`, and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`name`/`status` → E847; an `id` not matching `CM-*` → E848. An `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; only ASIL D → I3 and CAL4 → I3 are gated, lower levels are future tightening).
+**Confirmation measures (ISO 26262-2 §6 / ISO/SAE 21434 §7):** A `ConfirmationMeasure` (`type: ConfirmationMeasure`, `CM-*` id) records a confirmation review, functional-safety audit, functional-safety assessment, or cybersecurity assessment, with its required independence level. Fields: `measureType:` (`confirmation_review` · `functional_safety_audit` · `functional_safety_assessment` · `cybersecurity_assessment`; invalid → E849), `independenceLevel:` (`I1` · `I2` · `I3`; invalid → E850), `status:` (`planned` · `in_progress` · `completed`; invalid → E924), and `confirms:` (string or list — the confirmed work-product ref(s), each resolved via the resolver; unresolved → E851). Missing `id`/`name`/`status` → E847; an `id` not matching `CM-*` → E848. An `asilLevel: D` `SafetyGoal`/native `Requirement` not confirmed by an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` not confirmed by an I3 `cybersecurity_assessment`, warns **W039** (opt-in — dormant unless at least one `ConfirmationMeasure` exists; only ASIL D → I3 and CAL4 → I3 are gated, lower levels are future tightening).
 
 #### 8.18.3 Tier 4 — Fault Tree Analysis (FTA)
 
@@ -5518,7 +5522,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
 | `W503` | **Redundant allocation** — the same `source → target` edge is declared by **both** an `allocatedTo:` on the source **and** a standalone `Allocation` element (§12.9). Emitted once per duplicated edge; pick one form. A single edge in a single form raises nothing. Gateable with `--deny W503` |
 
-#### State machine completeness warnings (W070–W079, §22.1)
+#### State machine completeness warnings (W070–W079, W929, §22.1)
 
 | Code | Condition |
 |---|---|
@@ -5532,6 +5536,7 @@ This section defines the normative set of parse-time errors, model-time errors, 
 | `W077` | Cross-region transition — a transition connects substates in two different regions of a parallel state (illegal in SysMLv2) |
 | `W078` | Parallel arity — an `isParallel: true` state declares fewer than two regions |
 | `W079` | Unresolved behavior — a state `entryAction`/`doAction`/`exitAction` or a transition `effect` references an action that resolves to no model element |
+| `W929` | Incomplete transition — a top-level transition has no `source:` (nor `from:`), or any transition has no `target:` (nor `to:`); it contributes no edge, so the checks above would otherwise ignore it (§8.8.3). Draft-suppressed; gateable with `--deny W929` |
 
 #### Sequence diagram completeness (W080, §22.4)
 
@@ -5630,7 +5635,7 @@ Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` 
 | `W630` | A `[linkTypes.<name>]` entry is malformed (bad/colliding name or `inverse`, unparseable `cardinality`, non-zero lower bound without `sourceTypes`, unknown element type, unsupported `extends`, `relax`/`coverage` without `extends`, non-relaxable `relax` code) — the entry is ignored as a whole; or an entry carries an unknown key (key ignored). Attached to `.syscribe.toml` |
 | `W631` | A non-`draft` element whose `type:` is in a link type's `sourceTypes` holds fewer targets than the `cardinality` lower bound (opt-in; `--deny W631`) |
 
-#### IEC 62443 Zone/Conduit validation (E950–E956, W950–W953, §13.5)
+#### IEC 62443 Zone/Conduit validation (E950–E956, E925, E926, W950–W953, §13.5)
 
 | Code | Condition |
 |---|---|
@@ -5641,6 +5646,8 @@ Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` 
 | `E954` | `Conduit.fromZone` or `toZone` unresolved or not a `Zone` |
 | `E955` | `Zone.members:` entry unresolved or not a `PartDef`/`Part` |
 | `E956` | `PartDef`/`Part.inZone:` unresolved or not a `Zone` |
+| `E925` | `targetSL:`/`achievedSL:` on a `Zone`, `Conduit`, `PartDef` or `Part` is outside the Security Level range `1`–`4` |
+| `E926` | `Zone`/`Conduit` `status:` is not `draft`/`review`/`approved`/`deprecated` |
 | `W950` | `Zone.achievedSL` < `Zone.targetSL` — security level not yet achieved |
 | `W951` | `Conduit.achievedSL` < min(`fromZone.targetSL`, `toZone.targetSL`) — conduit boundary weaker than connected zones (opt-in) |
 | `W952` | `PartDef`/`Part` has `targetSL:` but no zone membership (opt-in) |
@@ -5750,7 +5757,7 @@ ISO 26262-9 §7 dependent-failure analysis. Two elements **share a resource** wh
 | `W034` | Warning | For an allocation target with ≥2 sources, a mixed-criticality source pair has no freedom-from-interference argument (one finding per `(target, sourceA, sourceB)`, naming both sources and their tags). Gateable with `--deny W034`; promotable via `[profiles]` |
 | `W035` | Warning | An `AttackTree`'s computed (weakest-link) feasibility does not match the `attackFeasibility` of the `ThreatScenario` it substantiates (`threatRef`). Gateable with `--deny W035`; promotable via `[profiles]` |
 
-#### Confirmation measures & DIA/CIA responsibility (E847–E851, W038, W039)
+#### Confirmation measures & DIA/CIA responsibility (E847–E851, E924, W038, W039)
 
 ISO 26262-2 §6 confirmation measures, ISO 26262-8 §5 DIA, ISO/SAE 21434 §7 CIA. The
 `responsibility:` common field (§3) names the accountable party for a work product. A
@@ -5768,6 +5775,7 @@ assessment and CAL4 → I3 cybersecurity assessment are gated.
 | `E849` | Error | `measureType` is not `confirmation_review`/`functional_safety_audit`/`functional_safety_assessment`/`cybersecurity_assessment` |
 | `E850` | Error | `independenceLevel` is not `I1`/`I2`/`I3` |
 | `E851` | Error | a `confirms:` ref does not resolve to any model element |
+| `E924` | Error | `ConfirmationMeasure.status` is not `planned`/`in_progress`/`completed` |
 | `W038` | Warning | A non-draft work product (`Requirement`, `PartDef`, `Part`, `SafetyGoal`, `CybersecurityGoal`) declares no `responsibility:`. Opt-in; gateable with `--deny W038`; promotable |
 | `W039` | Warning | An `asilLevel: D` `SafetyGoal`/`Requirement` lacks an I3 `functional_safety_assessment`, or a `calLevel: CAL4` `CybersecurityGoal` lacks an I3 `cybersecurity_assessment`, confirming it. Opt-in; gateable with `--deny W039`; promotable |
 
@@ -6657,6 +6665,8 @@ When `inZone:` is present, the element is implicitly added to that zone's member
 | `E954` | `Conduit.fromZone` or `Conduit.toZone` unresolved, or resolves to an element that is not a `Zone` |
 | `E955` | `Zone.members:` entry unresolved, or resolves to an element that is not a `PartDef` / `Part` |
 | `E956` | `PartDef`/`Part.inZone:` unresolved, or resolves to a non-`Zone` element |
+| `E925` | A `targetSL:` or `achievedSL:` on a `Zone`, `Conduit`, `PartDef` or `Part` is outside the Security Level range `1`–`4` (IEC 62443-3-3 defines SL 1–4 only) |
+| `E926` | A `Zone`'s or `Conduit`'s `status:` is not one of `draft` / `review` / `approved` / `deprecated` |
 | `W950` | `Zone.achievedSL` is less than `Zone.targetSL` — the zone's security level is not yet achieved |
 | `W951` | `Conduit.achievedSL` is less than the `targetSL` of either connected zone — the conduit boundary is weaker than both zones it connects (opt-in; gateable with `--deny W951`) |
 | `W952` | `PartDef`/`Part` has `targetSL:` but is not referenced by any `Zone.members:` and declares no `inZone:` — isolated SL claim (opt-in) |
@@ -7477,7 +7487,13 @@ The following validation rules apply to a **single-region** `StateDef`/`State` t
 |---|---|
 | `W079` | **Unresolved behavior** — a state `entryAction`/`doAction`/`exitAction` or a transition `effect` references an action that resolves to no model element. |
 
-All of these codes are **draft-suppressed** (not emitted for `status: draft`) and gateable with `--deny W07x`.
+**Incomplete transitions.** Every check above consumes `(source → target)` edges; a transition that lacks an endpoint the schema requires (§8.8.3) produces no edge and would otherwise be ignored silently. It is reported instead — for any machine, with or without `subStates:`:
+
+| Code | Condition |
+|---|---|
+| `W929` | **Incomplete transition** — a top-level transition (the machine's own `transitions:`) has no `source:` (nor `from:`), or any transition, top-level or nested at any depth, has no `target:` (nor `to:`). A nested transition's `source` is implicit (its enclosing substate) and is never reported. |
+
+All of these codes are **draft-suppressed** (not emitted for `status: draft`) and gateable with `--deny W07x` / `--deny W929`.
 
 ### 22.2 Budget Expression Language (extends §8.9)
 

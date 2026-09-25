@@ -420,6 +420,66 @@ fn collect_machine(
     edges.extend(transitions_from(Some(sub_states), sibling_top));
 }
 
+/// Collect `W929` messages for transitions missing a required endpoint (§8.8.3): a
+/// **top-level** transition (the machine's own `transitions:`) needs `source:`/`from:`,
+/// and **every** transition — top-level or nested at any depth under `subStates:` — needs
+/// `target:`/`to:`. A nested transition's `source` is implicit (its enclosing substate).
+/// Such a transition yields no usable `(source → target)` edge, so without this check the
+/// §22.1 completeness rules would silently ignore it (REQ-TRS-SM-009, GH #136).
+fn incomplete_transitions(
+    sub_states: &[serde_yaml::Value],
+    top: Option<&[serde_yaml::Value]>,
+    out: &mut Vec<String>,
+) {
+    fn describe(m: &serde_yaml::Mapping, known: Option<&str>, which: &str) -> String {
+        match yaml_field(m, "name").and_then(|v| v.as_str()) {
+            Some(n) => format!("transition '{}'", n),
+            None => match known {
+                Some(k) => format!("transition {} '{}'", which, k),
+                None => "transition".to_string(),
+            },
+        }
+    }
+    fn endpoint<'a>(m: &'a serde_yaml::Mapping, canon: &str, alias: &str) -> Option<&'a str> {
+        yaml_field(m, canon).or_else(|| yaml_field(m, alias)).and_then(|v| v.as_str())
+    }
+    for t in top.unwrap_or(&[]) {
+        let Some(m) = t.as_mapping() else { continue };
+        let (src, tgt) = (endpoint(m, "source", "from"), endpoint(m, "target", "to"));
+        if src.is_none() {
+            out.push(format!(
+                "top-level {} has no `source:` — a transition not nested under its source substate must name it (§8.8.3)",
+                describe(m, tgt, "to")
+            ));
+        }
+        if tgt.is_none() {
+            out.push(format!(
+                "top-level {} has no `target:` — every transition must name its target state (§8.8.3)",
+                describe(m, src, "from")
+            ));
+        }
+    }
+    for s in sub_states {
+        let Some(sm) = s.as_mapping() else { continue };
+        let state = yaml_field(sm, "name").and_then(|v| v.as_str());
+        if let Some(serde_yaml::Value::Sequence(ts)) = yaml_field(sm, "transitions") {
+            for t in ts {
+                let Some(m) = t.as_mapping() else { continue };
+                if endpoint(m, "target", "to").is_none() {
+                    let src = endpoint(m, "source", "from").or(state);
+                    out.push(format!(
+                        "{} has no `target:` — every transition must name its target state (§8.8.3)",
+                        describe(m, src, "from")
+                    ));
+                }
+            }
+        }
+        if let Some(serde_yaml::Value::Sequence(inner)) = yaml_field(sm, "subStates") {
+            incomplete_transitions(inner, None, out);
+        }
+    }
+}
+
 /// Recursively collect every state-machine **behavior reference** (`W079`): each state's
 /// `entryAction`/`doAction`/`exitAction` and each transition's `effect`, given either as a
 /// qualified-name string or a `{typedBy: <qn>}` map. `accept.payload` is intentionally
@@ -2087,6 +2147,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.id.is_none() { findings.push(error("E847", &file, "`id` is required on ConfirmationMeasure")); }
             if fm.name.is_none() { findings.push(error("E847", &file, "`name` is required on ConfirmationMeasure")); }
             if fm.status.is_none() { findings.push(error("E847", &file, "`status` is required on ConfirmationMeasure")); }
+            // E924: status enum (§8.18.2; REQ-TRS-VAL-018, GH #136).
+            if let Some(ref s) = fm.status {
+                if !["planned", "in_progress", "completed"].contains(&s.as_str()) {
+                    findings.push(error("E924", &file, &format!("ConfirmationMeasure.status '{}' must be planned, in_progress, or completed", s)));
+                }
+            }
             // E848: id pattern (CM-*)
             if let Some(ref id) = fm.id {
                 if !is_cm_id(id) {
@@ -3076,6 +3142,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     &file,
                     "state-machine transition uses deprecated keys `from`/`to`/`trigger` — migrate to canonical `source`/`target`/`accept` (§8.8.3)",
                 ));
+            }
+
+            // W929 — a transition missing a required endpoint (REQ-TRS-SM-009).
+            let mut incomplete = Vec::new();
+            incomplete_transitions(subs_opt.unwrap_or(&[]), fm.transitions.as_deref(), &mut incomplete);
+            for msg in incomplete {
+                findings.push(warning("W929", &file, &msg));
             }
 
             if let Some(subs) = subs_opt {
@@ -4706,6 +4779,28 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         let is_part = |e: &RawElement| {
             matches!(e.frontmatter.element_type, Some(ElementType::PartDef) | Some(ElementType::Part))
         };
+        let is_conduit = |e: &RawElement| matches!(e.frontmatter.element_type, Some(ElementType::Conduit));
+        // E925 / E926 — documented value sets (§13.2–§13.4; REQ-TRS-VAL-018, GH #136).
+        for e in elements.iter().filter(|e| is_zone(e) || is_conduit(e) || is_part(e)) {
+            let fm = &e.frontmatter;
+            for (v, label) in [(fm.target_sl, "targetSL"), (fm.achieved_sl, "achievedSL")] {
+                if let Some(sl) = v {
+                    if !(1..=4).contains(&sl) {
+                        findings.push(error("E925", &e.file_path, &format!(
+                            "{} {} is outside the IEC 62443 Security Level range 1–4", label, sl)));
+                    }
+                }
+            }
+            if is_zone(e) || is_conduit(e) {
+                if let Some(s) = fm.status.as_deref() {
+                    if !["draft", "review", "approved", "deprecated"].contains(&s) {
+                        let kind = if is_zone(e) { "Zone" } else { "Conduit" };
+                        findings.push(error("E926", &e.file_path, &format!(
+                            "{}.status '{}' must be draft, review, approved, or deprecated", kind, s)));
+                    }
+                }
+            }
+        }
         // Zones referenced by any conduit (fromZone/toZone) → for W953.
         let mut conduit_zone_refs: HashSet<String> = HashSet::new();
         for c in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Conduit))) {

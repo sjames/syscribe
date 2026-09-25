@@ -488,7 +488,7 @@ responsibility: OEM
 type: ConfirmationMeasure
 id: CM-BRK-001
 name: "Independent functional-safety assessment of the braking goal"
-status: completed                 # planned | in_progress | completed
+status: completed                 # planned | in_progress | completed  (else E924)
 measureType: functional_safety_assessment
 #   confirmation_review | functional_safety_audit |
 #   functional_safety_assessment | cybersecurity_assessment   (else E849)
@@ -497,8 +497,8 @@ confirms:                         # work product ref(s), resolved via the Resolv
   - SG-BRK-001
 ```
 
-Structural errors: E847 (missing `id`/`name`/`status`), E848 (`id` not `CM-*`), E849/E850
-(invalid enum), E851 (unresolved `confirms:`).
+Structural errors: E847 (missing `id`/`name`/`status`), E848 (`id` not `CM-*`), E849/E850/E924
+(invalid `measureType`/`independenceLevel`/`status`), E851 (unresolved `confirms:`).
 
 **W039** flags a high-integrity item that lacks its required independent assessment: an
 `asilLevel: D` `SafetyGoal`/native `Requirement` with no I3 `functional_safety_assessment`
