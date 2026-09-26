@@ -150,13 +150,25 @@ These mirror the CLI corpus commands of the same name (`--json` output).
 ## Guarded-write tools
 
 All write tools default to `dry_run: true`: they report the validation delta of
-the proposed change without touching disk. Pass `dry_run: false` to commit. A
-commit that would introduce a *new* validation error is refused
-(`written: false`) unless `SYSCRIBE_MCP_ALLOW_NEW_ERRORS=1` is set — a new
-unresolved reference (`EREF`) or a new user-defined-link error (`E630`–`E636`,
-e.g. an undeclared link type, whose message names the declared ones); after a
-successful commit the in-memory store is rebuilt. Writes are confined to the
-model root. (Hidden under `--read-only`.)
+the proposed change without touching disk. Pass `dry_run: false` to commit.
+
+The delta (`validationDelta`) lists every finding the change introduces or
+resolves: `newErrors` / `resolvedErrors` / `newWarnings` / `resolvedWarnings`.
+Each error carries a `gating` flag. A commit is refused (`written: false`)
+unless `SYSCRIBE_MCP_ALLOW_NEW_ERRORS=1` is set only when it introduces a
+`gating: true` error — a new unresolved reference (`EREF`) or a new
+user-defined-link error (`E630`–`E636`, e.g. an undeclared link type, whose
+message names the declared ones). Every other new error (for example `E310`, a
+derived requirement with no `breakdownAdr`) is reported with `gating: false`
+and does not block, so incomplete drafts stay creatable — read `newErrors` and
+fix them, or run `validate`. After a successful commit the in-memory store is
+rebuilt. Writes are confined to the model root. (Hidden under `--read-only`.)
+
+The change is validated in a copy of the model staged beside the model root (a
+hidden `.syscribe-mcp-cand-*` directory in its parent, removed afterwards; the
+system temp dir if the parent is not writable), so paths relative to the model
+root that leave it (`style_file = "../…"`, `sourceFile: ../tests/…`) resolve as
+they do in the real tree.
 
 - `create_element {qname, type, fields?, doc?, dry_run?}`
 - `update_element {ref, fields?, doc?, dry_run?}`

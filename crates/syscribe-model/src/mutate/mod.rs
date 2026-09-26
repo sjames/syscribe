@@ -17,7 +17,7 @@ pub mod update;
 pub use create::{plan_create, CreateError, CreatePlan};
 pub use diff::{file_unified_diff, tree_unified_diff};
 pub use guard::{
-    element_ref_strings, guarded_write, ref_errors, referrers, validator_warnings,
+    element_ref_strings, guarded_write, is_gating_error, ref_errors, referrers, validator_warnings,
     write_confined, Entry, GuardedWriteOutcome, WriteConfinedError,
 };
 pub use mv::{move_element, valid_qname, MoveError, MoveReport};

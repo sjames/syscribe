@@ -1483,7 +1483,7 @@ Register it with Claude Code:
 claude mcp add syscribe -- /abs/path/to/syscribe -m /abs/path/to/model mcp
 ```
 
-It exposes structured read tools and a small set of guarded-write tools; references are accepted as id / qualified-name / display-name, and write tools are `dry_run`-by-default with a new-error commit gate. Run **`syscribe help mcp`** for the full, current tool list (kept in sync with the server by a test). By category:
+It exposes structured read tools and a small set of guarded-write tools; references are accepted as id / qualified-name / display-name, and write tools are `dry_run`-by-default, return every new/resolved finding (errors carry a `gating` flag), and refuse commits that leave a dangling reference or link-type error. Run **`syscribe help mcp`** for the full, current tool list (kept in sync with the server by a test). By category:
 
 | Category | Tools |
 |---|---|

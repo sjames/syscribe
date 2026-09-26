@@ -48,7 +48,8 @@ capability.
   flag that **defaults to true** and returns the validation delta; a real commit refuses any
   write that breaks referential integrity (leaves a previously-resolving cross-reference
   dangling) unless explicitly overridden. The gate targets graph corruption rather than every
-  validator `Error`, so incomplete drafts stay creatable (see REQ-TRS-MCP-008).
+  validator `Error`, so incomplete drafts stay creatable; the delta nevertheless reports every
+  new error, flagged `gating: true|false` (see REQ-TRS-MCP-008).
 - **Curated tool surface, not a 1:1 CLI mirror.** ~13 composable tools (search, get_element,
   list_by_type, tree, neighbors, a generic graph_query, trace, impact, validate,
   validate_element, reload, and the three write tools). Token efficiency is a first-class

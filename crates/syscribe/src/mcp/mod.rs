@@ -2748,7 +2748,8 @@ impl ServerHandler for SyscribeMcp {
         .with_instructions(
             "Query and guard-write a Syscribe systems model over MCP. Read tools are \
              token-efficient; write tools default to dry_run and refuse commits that \
-             introduce new validation errors. Relationship vocabulary is per-project: call \
+             leave a dangling reference or link-type error; every other new error is \
+             listed in the delta with gating:false, so read newErrors. Relationship vocabulary is per-project: call \
              the `link_types` tool to discover the project's declared link types before \
              authoring a `links:` field, and never invent an undeclared one (E630); use \
              `follow` to traverse any link. The server watches the model files and \

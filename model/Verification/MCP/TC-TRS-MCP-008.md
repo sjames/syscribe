@@ -35,6 +35,31 @@ Feature: Guarded write protocol
     Then the call reports written=false and the offending new error in the delta
     And disk is unchanged
 
+  Scenario: errors the gate does not cover are still reported, flagged non-gating (GH #187)
+    Given a change that introduces E310 (a derived requirement with no breakdownAdr)
+    When the write tool is called with dry_run=true and again with dry_run=false
+    Then newErrors contains E310 with gating=false and the commit succeeds
+    And an EREF or E630-E636 error carries gating=true
+
+  Scenario: resolving a non-gating error is reported
+    When a change supplies the missing breakdownAdr
+    Then resolvedErrors contains E310
+
+  Scenario: paths leaving the model root resolve as in the real tree (GH #186)
+    Given a [plantuml] style_file of "../style.iuml" that exists beside the model root
+    When a write tool is called
+    Then the delta reports no W415, new or resolved
+
+  Scenario: a finding present before and after cancels out (GH #186)
+    Given a style_file that does not exist
+    When a write tool is called
+    Then the pre-existing W415 appears in neither newWarnings nor resolvedWarnings
+
+  Scenario: the staging directory is removed and an unwritable parent falls back to the temp dir
+    When writes are dry-run, committed and refused
+    Then no .syscribe-mcp-cand-* directory remains beside the model
+    And with an unwritable parent the guard still returns a delta
+
   Scenario: a clean commit rebuilds the store
     When a valid change is committed with dry_run=false
     Then a subsequent read reflects the change without an explicit reload

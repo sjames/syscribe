@@ -10,7 +10,7 @@
 use std::path::Path;
 
 use serde_json::{json, Map, Value};
-use syscribe_model::mutate::{guarded_write as model_guarded_write, Entry, GuardedWriteOutcome};
+use syscribe_model::mutate::{guarded_write as model_guarded_write, is_gating_error, Entry, GuardedWriteOutcome};
 
 use super::store::McpStore;
 
@@ -21,7 +21,15 @@ pub use syscribe_model::mutate::referrers;
 fn entries_json(entries: &[Entry], severity: &str) -> Vec<Value> {
     entries
         .iter()
-        .map(|e| json!({ "code": e.0, "severity": severity, "file": e.1, "message": e.2 }))
+        .map(|e| {
+            let mut v = json!({ "code": e.0, "severity": severity, "file": e.1, "message": e.2 });
+            // Errors say whether they can refuse a commit (GH #187): `true` for an unresolved
+            // reference or link-type error, `false` for every other validator error.
+            if severity == "error" {
+                v["gating"] = Value::Bool(is_gating_error(&e.0));
+            }
+            v
+        })
         .collect()
 }
 
