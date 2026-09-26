@@ -2,6 +2,32 @@
 
 `RELEASES`
 
+## 0.43.0 — 2026-09-26
+
+### MCP guarded writes: the delta now reports every error (#187)
+
+- **Before:** `validationDelta.newErrors` and `resolvedErrors` contained only dangling references (`EREF`) and user-defined link-type errors (`E630`–`E636`). A change that failed a full `validate` (for example `E310`, a derived requirement with no `breakdownAdr`) came back with `newErrors: []` and could be committed unnoticed.
+- **Now:** both lists contain every validator error the change introduces or resolves, and each error entry has a boolean `gating`. It is `true` for `EREF` and `E630`–`E636` only.
+- **Commit gate unchanged:** only `gating: true` errors refuse a commit, so incomplete drafts stay creatable. The rest are reported with `gating: false`.
+- **Note:** some failures now list two errors, for example `EREF` and `E103` for a dangling `derivedFrom`. REQ-TRS-MCP-008 / TC-TRS-MCP-008.
+
+### MCP guarded writes: no spurious findings for paths outside the model root (#186)
+
+- **Before:** the candidate copy was validated in the system temp directory, so a model-relative path leaving the model root (`[plantuml] style_file = "../.plantuml/x.iuml"`, `sourceFile: ../tests/t.py`) never resolved there. Every write showed a spurious `W415` or `W004`, once as new and once as resolved.
+- **Now:** the candidate is staged as a sibling of the model root (a hidden `.syscribe-mcp-cand-*` directory, removed after every call), so `../` paths resolve as in the real tree. If the parent is not writable it falls back to the temp directory. Finding messages that named the candidate root are rewritten to the real root, so a finding present before and after cancels out of the delta.
+
+### Install script and release checksums
+
+- **`install.sh`:** `curl -fsSL https://raw.githubusercontent.com/sjames/syscribe/main/install.sh | sh` installs the latest release binary for Linux (static musl build) or macOS into `~/.local/bin` (`--dir` or `SYSCRIBE_INSTALL_DIR` to change it).
+- **Checksums:** each release now publishes `<asset>.sha256` next to every binary, uploaded in the same step. The installer verifies the download against it and aborts on a mismatch. A release with no checksum asset, such as 0.42.0 and earlier, installs with a warning.
+- **Mirrors:** `SYSCRIBE_DOWNLOAD_BASE` overrides the download location.
+
+### Docs
+
+- **README:** reorganised around agent-safe writes, with a tagline, a real demo transcript and GIF (`demo/`), a short quickstart, `cargo install --git` instructions, and `--read-only` next to the MCP config examples. The long feature list moved to "Full Feature List".
+- **Example:** `examples/chat-to-code/` is a real agent session that took an idea to a tested library through design discussion, ADRs, requirements, tests, a plan and implementation.
+- **Site:** the docs site description and title follow the new tagline.
+
 ## 0.42.0 — 2026-09-25
 
 ### MCP server reloads automatically when model files change (#181)
