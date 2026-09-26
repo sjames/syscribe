@@ -88,18 +88,30 @@ fn make_temp_copy(model_root: &Path) -> std::io::Result<PathBuf> {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos())
         .unwrap_or(0);
-    let root = loop {
-        let candidate = std::env::temp_dir().join(format!(
-            "syscribe-mcp-cand-{}-{}-{}",
-            std::process::id(),
-            nanos,
-            SEQ.fetch_add(1, Ordering::Relaxed)
-        ));
-        match std::fs::create_dir(&candidate) {
-            Ok(()) => break candidate,
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(e) => return Err(e),
+    // GH #186: stage the copy as a *sibling* of the model root, so a path that is relative to
+    // the model root and leaves it (`style_file = "../.plantuml/x.iuml"`, a `sourceFile:
+    // ../tests/t.py`, a `[repos]` peer) resolves to the same file it does for the real tree.
+    // Falls back to the system temp dir when the parent is missing or not writable, where such
+    // paths cannot resolve (the delta then over-reports missing-path findings).
+    let sibling_parent = model_root.canonicalize().ok().and_then(|r| r.parent().map(Path::to_path_buf));
+    let claim = |base: &Path| -> std::io::Result<PathBuf> {
+        loop {
+            let candidate = base.join(format!(
+                ".syscribe-mcp-cand-{}-{}-{}",
+                std::process::id(),
+                nanos,
+                SEQ.fetch_add(1, Ordering::Relaxed)
+            ));
+            match std::fs::create_dir(&candidate) {
+                Ok(()) => return Ok(candidate),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e),
+            }
         }
+    };
+    let root = match sibling_parent.as_deref().map(claim) {
+        Some(Ok(dir)) => dir,
+        _ => claim(&std::env::temp_dir())?,
     };
     if let Err(e) = copy_dir_all(model_root, &root) {
         let _ = std::fs::remove_dir_all(&root);
@@ -242,7 +254,15 @@ pub fn validator_warnings(elements: &[RawElement], config: &ValidateConfig, root
 /// user-defined link-type errors (REQ-TRS-LINKTYPE-002..005).
 const GATED_VALIDATOR_ERRORS: &[&str] = &["E630", "E631", "E632", "E633", "E634", "E635", "E636"];
 
-/// One validator run, normalised: `(gated link-type errors, all warnings)`.
+/// Whether an error code can refuse a guarded commit: an unresolved reference (`EREF`)
+/// or a user-defined link-type error (`E630`–`E636`). Every other validator error is
+/// still reported in the delta (GH #187) but never blocks — incremental authoring of
+/// incomplete drafts must stay possible (`REQ-TRS-MCP-008`).
+pub fn is_gating_error(code: &str) -> bool {
+    code == "EREF" || GATED_VALIDATOR_ERRORS.contains(&code)
+}
+
+/// One validator run, normalised: `(all errors, all warnings)`.
 fn validator_findings(elements: &[RawElement], config: &ValidateConfig, root: &Path) -> (Vec<Entry>, Vec<Entry>) {
     let mut errors = Vec::new();
     let mut warnings = Vec::new();
@@ -250,11 +270,19 @@ fn validator_findings(elements: &[RawElement], config: &ValidateConfig, root: &P
         let entry = (f.code.to_string(), rel_file(&f.file, root), f.message.clone());
         match f.severity {
             Severity::Warning => warnings.push(entry),
-            Severity::Error if GATED_VALIDATOR_ERRORS.contains(&f.code) => errors.push(entry),
+            Severity::Error => errors.push(entry),
             _ => {}
         }
     }
     (errors, warnings)
+}
+
+/// Rewrite the candidate copy's root path to the real model root inside finding messages
+/// (GH #186), so a finding present both before and after the change has identical text
+/// and cancels out of the delta instead of showing as one new plus one resolved.
+fn normalise_root(entries: Vec<Entry>, cand_root: &Path, real_root: &Path) -> Vec<Entry> {
+    let (from, to) = (cand_root.to_string_lossy(), real_root.to_string_lossy());
+    entries.into_iter().map(|(c, f, m)| (c, f, m.replace(from.as_ref(), to.as_ref()))).collect()
 }
 
 /// Normalise an absolute file path to a model-root-relative path, so findings
@@ -339,6 +367,10 @@ where
         Ok(elems) => {
             let cfg = ValidateConfig::with_model_root(&cand_root);
             let (link_errs, warns) = validator_findings(&elems, &cfg, &cand_root);
+            let (link_errs, warns) = (
+                normalise_root(link_errs, &cand_root, model_root),
+                normalise_root(warns, &cand_root, model_root),
+            );
             // `with_model_root` installed the candidate's link-type vocabulary
             // and `[ids.prefixes]` as the process-wide ones; restore the
             // caller's (same content unless the write edits `.syscribe.toml`).
@@ -367,7 +399,7 @@ where
     let resolved_errors = added(&base_errs, &cand_err_set);
     let new_warnings = added(&cand_warns, &base_warn_set);
     let resolved_warnings = added(&base_warns, &cand_warn_set);
-    let new_error_count = new_errors.len();
+    let new_error_count = new_errors.iter().filter(|(c, _, _)| is_gating_error(c)).count();
 
     let mut outcome = GuardedWriteOutcome {
         written: false,

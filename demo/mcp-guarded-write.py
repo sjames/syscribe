@@ -17,10 +17,6 @@ PACE = float(os.environ.get("DEMO_PACE", "0"))  # seconds between lines; ~0.8 wh
 tmp = pathlib.Path(tempfile.mkdtemp(prefix="syscribe-demo-"))
 model = tmp / "model_auto"
 shutil.copytree(ROOT / "model_auto", model)
-# The copy lives outside the repo, so the repo-relative PlantUML style path in the
-# demo model's config would not resolve; drop it to keep the demo output focused.
-cfg = model / ".syscribe.toml"
-cfg.write_text("".join(l for l in cfg.read_text().splitlines(True) if "style_file" not in l))
 
 p = subprocess.Popen([BIN, "-m", str(model), "mcp"], stdin=subprocess.PIPE,
                      stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
@@ -54,7 +50,7 @@ def proposal(parent):
 def report(r):
     d = r["validationDelta"]
     for e in d["newErrors"]:
-        say(f"  ✗ new error   {e['code']}  {e['message']}")
+        say(f"  ✗ new error   {e['code']}  {e['message']}" + ("  [blocks commit]" if e["gating"] else ""))
     for w in d["newWarnings"]:
         say(f"  ! new warning {w['code']}  {w['message']}")
     if not (d["newErrors"] or d["newWarnings"]):

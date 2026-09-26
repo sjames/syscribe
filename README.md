@@ -8,19 +8,19 @@ Syscribe keeps structured project state — requirements, architecture, tests, d
 
 ## See it work
 
-<!-- TODO(demo): record `DEMO_PACE=0.8 python3 demo/mcp-guarded-write.py` with asciinema (see demo/README.md),
-     upload it, and replace this comment with the embed, e.g.
-     [![asciicast](https://asciinema.org/a/<ID>.svg)](https://asciinema.org/a/<ID>) -->
+![Terminal recording: an agent's write is refused, fixed, and committed](demo/guarded-write.gif)
 
 An agent proposes a requirement that traces to something that doesn't exist. The dry run shows the damage, the commit gate refuses it, and the fixed version goes in. This is real output from a live `syscribe mcp` server on the bundled ISO 26262 demo model (`python3 demo/mcp-guarded-write.py` replays it):
 
 ```text
 agent> create_element  Requirements::Safety::FaultLogging  derivedFrom: [REQ-ENG-SAFE-099]  dry_run: true
-  ✗ new error   EREF  `derivedFrom` reference 'REQ-ENG-SAFE-099' does not resolve to any model element
+  ✗ new error   EREF  `derivedFrom` reference 'REQ-ENG-SAFE-099' does not resolve to any model element  [blocks commit]
+  ✗ new error   E103  unresolved derivedFrom reference 'REQ-ENG-SAFE-099'
   written: false
 
 agent> create_element  Requirements::Safety::FaultLogging  derivedFrom: [REQ-ENG-SAFE-099]  dry_run: false
-  ✗ new error   EREF  `derivedFrom` reference 'REQ-ENG-SAFE-099' does not resolve to any model element
+  ✗ new error   EREF  `derivedFrom` reference 'REQ-ENG-SAFE-099' does not resolve to any model element  [blocks commit]
+  ✗ new error   E103  unresolved derivedFrom reference 'REQ-ENG-SAFE-099'
   ⛔ refused: commit would introduce an unresolved reference
   written: false
 
@@ -139,7 +139,7 @@ The safety monitor shall perform a complete supervision cycle within 100 ms...
 
 Syscribe is a [Model Context Protocol](https://modelcontextprotocol.io) server, so an LLM agent works with the model as a first-class client — reading, analyzing, and *safely writing* it — not just generating files from a prompt.
 
-**Writes are guarded.** Every `create_element` / `update_element` / `move_element` / `delete_element` / `apply_changes` call defaults to `dry_run: true`, returns the **validation delta** the change would cause, and refuses to commit anything that would break referential integrity — so an agent can propose a change, inspect its effect, and only then commit it. The delta lists every newly introduced or resolved *warning*, but among *errors* only dangling references (`EREF`) and user-defined link-type violations (`E630`–`E636`) — those are also what gate the commit. Other errors (for example `E310`, a derived requirement with no `breakdownAdr`) show up in a full `validate`, so agents (and CI) should still run it. Sealing a release stays a deliberate CLI/CI action.
+**Writes are guarded.** Every `create_element` / `update_element` / `move_element` / `delete_element` / `apply_changes` call defaults to `dry_run: true`, returns the **validation delta** the change would cause, and refuses to commit anything that would break referential integrity — so an agent can propose a change, inspect its effect, and only then commit it. The delta lists every newly introduced or resolved warning and error. Each error carries a `gating` flag: only dangling references (`EREF`) and user-defined link-type violations (`E630`–`E636`) refuse the commit, so incomplete drafts stay creatable. Other errors (for example `E310`, a derived requirement with no `breakdownAdr`) are reported with `gating: false`; agents (and CI) should fix them or run a full `validate`. Sealing a release stays a deliberate CLI/CI action.
 
 ```bash
 syscribe -m model_auto/ mcp                # stdio MCP server (`syscribe help mcp` lists the tools)

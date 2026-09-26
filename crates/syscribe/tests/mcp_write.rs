@@ -390,3 +390,164 @@ fn create_with_undeclared_link_type_is_refused_with_e630() {
     );
     assert_eq!(ok.get("written").and_then(|w| w.as_bool()), Some(true), "declared type commits: {ok}");
 }
+
+// ---- TC-TRS-MCP-008: delta scope and location independence (GH #186, #187) ----
+
+fn codes(delta: &serde_json::Value, key: &str) -> Vec<String> {
+    delta[key]
+        .as_array()
+        .map(|a| a.iter().filter_map(|e| e["code"].as_str().map(String::from)).collect())
+        .unwrap_or_default()
+}
+
+/// GH #187: an error the commit gate does not cover (E310, a derived requirement with no
+/// `breakdownAdr`) is still reported in the delta, flagged `gating: false`; the gate itself is
+/// unchanged, so the drafts-stay-creatable rule of REQ-TRS-MCP-008 holds.
+#[test]
+fn delta_reports_non_gating_errors_flagged_and_does_not_gate_them() {
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let args = |dry_run: bool| {
+        json!({"qname": "Requirements::NoAdr", "type": "Requirement", "dry_run": dry_run,
+               "fields": {"id": "REQ-FX-090", "name": "Derived without a breakdown ADR", "status": "draft",
+                          "reqDomain": "software", "derivedFrom": ["REQ-FX-001"]},
+               "doc": "The system shall do the thing."})
+    };
+
+    let dry = mcp.call_tool("create_element", args(true));
+    let delta = &dry["validationDelta"];
+    let e310 = delta["newErrors"]
+        .as_array()
+        .and_then(|a| a.iter().find(|e| e["code"] == "E310"))
+        .unwrap_or_else(|| panic!("E310 in newErrors: {dry}"));
+    assert_eq!(e310["gating"], json!(false), "E310 is reported but does not gate: {e310}");
+    assert_eq!(dry["written"], json!(false), "dry run writes nothing");
+
+    let commit = mcp.call_tool("create_element", args(false));
+    assert_eq!(commit["written"], json!(true), "a non-gating error does not block the commit: {commit}");
+    assert!(codes(&commit["validationDelta"], "newErrors").contains(&"E310".to_string()), "still reported on commit: {commit}");
+}
+
+/// GH #187: every error entry carries `gating`; the ones that refuse the commit say `true`.
+#[test]
+fn gating_errors_are_flagged_gating_true() {
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let res = mcp.call_tool(
+        "update_element",
+        json!({"ref": "Parts::Derived", "fields": {"supertype": "Parts::DoesNotExist"}, "dry_run": true}),
+    );
+    let eref = res["validationDelta"]["newErrors"]
+        .as_array()
+        .and_then(|a| a.iter().find(|e| e["code"] == "EREF"))
+        .unwrap_or_else(|| panic!("EREF in newErrors: {res}"));
+    assert_eq!(eref["gating"], json!(true), "{eref}");
+}
+
+/// GH #187: fixing a non-gating error shows up under `resolvedErrors`.
+#[test]
+fn resolving_a_non_gating_error_is_reported() {
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let created = mcp.call_tool(
+        "create_element",
+        json!({"qname": "Requirements::NoAdr", "type": "Requirement", "dry_run": false,
+               "fields": {"id": "REQ-FX-090", "name": "Derived without a breakdown ADR", "status": "draft",
+                          "reqDomain": "software", "derivedFrom": ["REQ-FX-001"]},
+               "doc": "The system shall do the thing."}),
+    );
+    assert_eq!(created["written"], json!(true), "{created}");
+    let fix = mcp.call_tool(
+        "update_element",
+        json!({"ref": "REQ-FX-090", "fields": {"breakdownAdr": "Decisions::ADR-FX-001"}, "dry_run": true}),
+    );
+    assert!(codes(&fix["validationDelta"], "resolvedErrors").contains(&"E310".to_string()), "{fix}");
+}
+
+fn set_plantuml_style(model: &std::path::Path, style: &str) {
+    let mut cfg = std::fs::read_to_string(model.join(".syscribe.toml")).unwrap();
+    cfg.push_str(&format!("\n[plantuml]\nstyle_file = \"{style}\"\n"));
+    std::fs::write(model.join(".syscribe.toml"), cfg).unwrap();
+}
+
+fn create_part_dry_run(mcp: &mut Mcp) -> serde_json::Value {
+    mcp.call_tool("create_element", json!({"qname": "Parts::Extra", "type": "PartDef", "dry_run": true}))
+}
+
+/// GH #186: a config path that is relative to the model root but points outside it must
+/// resolve the same way when the candidate is validated, so it yields no spurious W415.
+#[test]
+fn relative_path_outside_model_root_gives_no_spurious_finding() {
+    let model = fixture_copy();
+    std::fs::write(model.parent().unwrap().join("style.iuml"), "skinparam monochrome true\n").unwrap();
+    set_plantuml_style(&model, "../style.iuml");
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let res = create_part_dry_run(&mut mcp);
+    let delta = &res["validationDelta"];
+    for key in ["newWarnings", "resolvedWarnings"] {
+        assert!(!codes(delta, key).contains(&"W415".to_string()), "no W415 in {key}: {res}");
+    }
+}
+
+/// GH #186: a finding that exists both before and after (here a genuinely missing style file)
+/// must cancel out — its message names the model root, which differs between the real tree
+/// and the candidate copy, so the messages must be normalised before the delta is taken.
+#[test]
+fn preexisting_finding_is_not_reported_as_new_and_resolved() {
+    let model = fixture_copy();
+    set_plantuml_style(&model, "../does-not-exist.iuml");
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let res = create_part_dry_run(&mut mcp);
+    let delta = &res["validationDelta"];
+    for key in ["newWarnings", "resolvedWarnings"] {
+        assert!(!codes(delta, key).contains(&"W415".to_string()), "pre-existing W415 must cancel in {key}: {res}");
+    }
+}
+
+fn leftover_candidates(dir: &std::path::Path) -> Vec<String> {
+    std::fs::read_dir(dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with(".syscribe-mcp-cand-"))
+        .collect()
+}
+
+/// GH #186: the sibling staging directory is removed after dry-run, commit and refusal alike.
+#[test]
+fn candidate_staging_dir_is_cleaned_up() {
+    let model = fixture_copy();
+    let parent = model.parent().unwrap().to_path_buf();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    create_part_dry_run(&mut mcp);
+    mcp.call_tool("create_element", json!({"qname": "Parts::Committed", "type": "PartDef", "dry_run": false}));
+    mcp.call_tool(
+        "update_element",
+        json!({"ref": "Parts::Derived", "fields": {"supertype": "Parts::DoesNotExist"}, "dry_run": false}),
+    );
+    assert_eq!(leftover_candidates(&parent), Vec::<String>::new(), "no staging directory left behind");
+}
+
+/// GH #186: when the model root's parent is not writable the guard still works, staging in the
+/// system temp dir instead (and leaves nothing behind in the parent).
+#[cfg(unix)]
+#[test]
+fn unwritable_parent_falls_back_to_temp_staging() {
+    use std::os::unix::fs::PermissionsExt;
+    let model = fixture_copy();
+    let parent = model.parent().unwrap().to_path_buf();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o555)).unwrap();
+    let res = create_part_dry_run(&mut mcp);
+    std::fs::set_permissions(&parent, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert!(res.get("validationDelta").is_some(), "guard still produces a delta: {res}");
+    assert_eq!(res["written"], json!(false));
+    assert_eq!(leftover_candidates(&parent), Vec::<String>::new());
+}
