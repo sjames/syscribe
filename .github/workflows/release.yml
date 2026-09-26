@@ -64,10 +64,21 @@ jobs:
         run: |
           TARGET="${{ matrix.target }}"
           if [[ "$TARGET" == *"windows"* ]]; then
-            cp "target/${TARGET}/release/syscribe.exe" "syscribe-${TARGET}.exe"
+            ASSET="syscribe-${TARGET}.exe"
+            cp "target/${TARGET}/release/syscribe.exe" "$ASSET"
           else
-            cp "target/${TARGET}/release/syscribe" "syscribe-${TARGET}"
+            ASSET="syscribe-${TARGET}"
+            cp "target/${TARGET}/release/syscribe" "$ASSET"
           fi
+          # Publish a SHA-256 next to each binary ("<hex>  <asset name>", the
+          # `sha256sum -c` format), uploaded in the same step as the binary so the
+          # two are never out of step. install.sh verifies the download against it.
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$ASSET" > "$ASSET.sha256"
+          else
+            shasum -a 256 "$ASSET" > "$ASSET.sha256"
+          fi
+          cat "$ASSET.sha256"
 
       - name: Upload to release
         shell: bash

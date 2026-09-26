@@ -1,21 +1,95 @@
 # Syscribe
 
-> Markdown-native SysMLv2 modeling — human-readable, agent-native, version-controlled, and traceable across the whole life of a program.
+> Structured project knowledge your AI agent can safely edit.
+
+Syscribe keeps structured project state — requirements, architecture, tests, decisions, work items — as plain Markdown files with YAML frontmatter in your git repo, and gives LLM agents an [MCP](https://modelcontextprotocol.io) server to read and edit it. Writes default to a dry run that reports what the change would break, and a commit that would leave a dangling reference or violate a declared link type is refused.
 
 **[Documentation →](https://sjames.github.io/syscribe)**
 
+## See it work
+
+<!-- TODO(demo): record `DEMO_PACE=0.8 python3 demo/mcp-guarded-write.py` with asciinema (see demo/README.md),
+     upload it, and replace this comment with the embed, e.g.
+     [![asciicast](https://asciinema.org/a/<ID>.svg)](https://asciinema.org/a/<ID>) -->
+
+An agent proposes a requirement that traces to something that doesn't exist. The dry run shows the damage, the commit gate refuses it, and the fixed version goes in. This is real output from a live `syscribe mcp` server on the bundled ISO 26262 demo model (`python3 demo/mcp-guarded-write.py` replays it):
+
+```text
+agent> create_element  Requirements::Safety::FaultLogging  derivedFrom: [REQ-ENG-SAFE-099]  dry_run: true
+  ✗ new error   EREF  `derivedFrom` reference 'REQ-ENG-SAFE-099' does not resolve to any model element
+  written: false
+
+agent> create_element  Requirements::Safety::FaultLogging  derivedFrom: [REQ-ENG-SAFE-099]  dry_run: false
+  ✗ new error   EREF  `derivedFrom` reference 'REQ-ENG-SAFE-099' does not resolve to any model element
+  ⛔ refused: commit would introduce an unresolved reference
+  written: false
+
+agent> create_element  Requirements::Safety::FaultLogging  derivedFrom: [REQ-ENG-SAFE-000]  dry_run: true
+  ✓ no new errors or warnings
+  written: false
+
+agent> create_element  Requirements::Safety::FaultLogging  derivedFrom: [REQ-ENG-SAFE-000]  dry_run: false
+  ✓ no new errors or warnings
+  written: true
+```
+
+The result is an ordinary, diffable file in your repo — review it, revert it, or open a PR like any other change.
+
+## Quickstart
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sjames/syscribe/main/install.sh | sh   # -> ~/.local/bin/syscribe
+git clone https://github.com/sjames/syscribe                                        # for the demo models
+
+# Claude Code — add --read-only to `mcp` for analysis-only (write tools hidden and refused)
+claude mcp add syscribe -- "$HOME/.local/bin/syscribe" -m "$PWD/syscribe/model_auto" mcp
+```
+
+Other MCP clients (Claude Desktop, …): [connect with a JSON block](#agent-native--the-mcp-server).
+
 **Ways to use it:**
+- **MCP server:** let an LLM agent read, analyze and safely edit the model with `syscribe -m model/ mcp` ([setup](#agent-native--the-mcp-server)).
 - **CLI:** validate, query, trace and report on a model (`syscribe -m model/ …`).
 - **GitHub Action:** gate pull requests on model validity with `uses: sjames/syscribe@v0` ([see below](#installation)).
-- **MCP server:** let an LLM agent read, analyze and safely edit the model with `syscribe -m model/ mcp` ([setup](#agent-native--the-mcp-server)).
 - **LSP server:** diagnostics, navigation, completion and rename in your editor (`syscribe lsp`).
 - **Web browser:** browse the model and its diagrams with `syscribe-server`.
 
+## Build a project by talking to it
+
+The MCP server isn't only for small edits. With it connected, one agent conversation can carry a project from an idea to tested, traced code — and the design, decisions, requirements, tests and plan stay in your repo as reviewable files instead of scrolling away in a chat. [`examples/chat-to-code/`](examples/chat-to-code/) is a real session (the agent's output as produced; only a file path in the test-results sidecar was made relative) that built a small thread-safe rate limiter in Python. What the human typed, and what landed in git:
+
+| You said | The agent did |
+|---|---|
+| *"Set the model up for this project. Don't invent design decisions yet."* | Scaffolded the model: packages for requirements, design, tests and plan |
+| *"Token bucket, sliding window or fixed window? Trade-offs and a recommendation — don't change the model yet."* | Compared them for your constraints, recommended one, changed nothing |
+| *"Token bucket it is. Write the design down."* | `ADR-RL-001` (with the rejected alternatives), and a three-part architecture, flagging which parts were its own proposal |
+| *"Write the requirements. Lean, and traced to the ADR."* | 8 requirements — stakeholder → testable leaves, each breakdown citing an ADR, each leaf linked to the part that satisfies it |
+| *"Write the test cases, and decide the API you need."* | 6 test cases with Gherkin scenarios, a test plan, and the public API recorded as an ADR |
+| *"Plan the work."* | An epic that `achieves` the requirements, six tasks with `blockedBy` ordering |
+| *"Implement the plan. Claim each item, run pytest, mark done only when tests pass."* | Wrote ~100 lines of code and 17 tests, claimed each item, closed it with evidence |
+
+```text
+PI-RL-001  Deliver the rate-limiting library     [done]  achieves REQ-RL-001…008
+├─ PI-RL-002  Scaffold the project               [done]
+├─ PI-RL-003  Write the pytest suite             [done]
+├─ PI-RL-004  Clock, decision, try_acquire       [done]
+├─ PI-RL-005  Blocking acquire                   [done]
+├─ PI-RL-006  Make the limiter thread-safe       [done]
+└─ PI-RL-007  Run the suite and close out        [done]
+                                                          8/8 requirements verified · 0 validation errors
+```
+
+It is also honest about the rough edges. Midway the agent stopped rather than fake a test run, because `pytest` wasn't installed and it lacked permission to install it. It caught its own thread-safety test being too weak to detect a missing lock and strengthened it. Its architecture and API choices were proposals for you to review, and it promoted requirements to `verified` on its own, skipping a human sign-off. The example's README lists every message the human sent, and the resulting model validates clean: `syscribe -m examples/chat-to-code/model validate`.
+
+## Built for safety-critical work
+
+The model behind those guardrails is a subset of [SysMLv2](https://www.omg.org/sysml/sysmlv2/) with 200+ validation rules drawn from safety-critical practice: enforced requirement → architecture → code → test traceability, ASIL/SIL integrity-level consistency, hazard and threat analysis, and content-hashed release baselines. The repo ships four demo models — an ISO 26262 ASIL D engine ECU, an IEC 61508 SIL 4 railway interlocking, a UAV flight system and an EV charging station ([Demo Models](#demo-models)). You don't need to know SysMLv2 to use any of it, and nothing about the write guardrails is specific to that domain.
+
 ---
 
-## The Idea
+## The Format
 
-Systems modeling tools have traditionally been built around proprietary binary formats or complex XML schemas. They are powerful but opaque — hard for humans to read in raw form, and nearly impossible for LLMs to generate or reason about reliably.
+Systems-modeling tools have traditionally been built around proprietary binary formats or complex XML schemas — powerful but opaque, hard for humans to read raw and nearly impossible for LLMs to generate or reason about reliably. Syscribe takes the opposite bet: the project state is plain text, so people, git and agents can all work on it directly.
 
 Syscribe maps SysMLv2 semantics onto plain Markdown files with YAML frontmatter. Every model element is a `.md` file. The directory structure encodes the namespace hierarchy. YAML frontmatter declares the element type and its structural relationships. The Markdown body is the documentation.
 
@@ -61,31 +135,43 @@ The safety monitor shall perform a complete supervision cycle within 100 ms...
 
 **For external tools** — because every element is a separate file, it has a stable URL in any git host. A GitHub permalink to `model_auto/Requirements/Safety/REQ-ENG-SAFE-001.md` points to that exact requirement at that exact commit forever. JIRA tickets, Confluence pages, code review comments, and CI reports can all link directly to a specific requirement, test case, or architecture decision — at the branch tip, at a release tag, or pinned to a specific commit hash.
 
-## What It Supports
+## Agent-Native — the MCP Server
 
-- **40+ element types** covering SysMLv2 structural, behavioral, and requirements constructs
-- **Native Requirement** elements (REQ-* stable IDs) with SIL/ASIL, lifecycle status, domain classification, derivation trees
-- **Native TestCase** elements (TC-* IDs) with L1–L5 test levels and Gherkin scenarios
-- **Architecture Decision Records** (ADR-*) — every requirement decomposition cites an accepted ADR
-- **Safety analysis**: HARA, SafetyGoal, HazardousEvent, FaultTree (file-per-node), FMEA (exploded entries)
-- **Security analysis**: TARA, DamageScenario, ThreatScenario, CybersecurityGoal, SecurityControl, VulnerabilityReport
-- **Variability / product lines**: feature models (`FeatureDef`, `Configuration`), `appliesWhen:` conditioning, SAT-backed `feature-check`, and the `--config` projection lens
-- **Multi-repository composition** (§14): import namespaces from peer repos via `[repos]` + `repoImports:`, resolve cross-repo references by global stable ID, and gate reproducibility on git ref drift / submodule gitlink (`W510`–`W512`)
-- **Hierarchical product lines** (§14.7): a `Configuration` consolidates already-configured lower-tier `Configuration`s — local or in a `[repos]`-mounted product-line repo, at any depth — via `subConfigurations:`, with parameter bindings resolved across tiers (`examples/hple-multitier/`)
-- **Work tracking** — native `PlanningItem` (`PI-*`) epics/stories/tasks tied to the `Requirement`s they achieve, with evidence-backed `done`, `blockedBy:`, `assignedTo:`, `syscribe set` for status/evidence edits, and `claim` / `release` advisory ownership for concurrent multi-agent work
-- **User-defined link types** — declare project relationships (`mitigates`, `conflictsWith`, …) as `[linkTypes.*]` in `.syscribe.toml` with source/target types, cardinality and acyclicity; author them under `links:`, list the vocabulary with `link-types`, and walk them with `follow`
-- **Foreign sources in one graph** — native SysMLv2 textual submodels (`sysmlSubmodel:`), any custom notation through stdio-subprocess plugins (`foreignFormat:`), and elements declared in ordinary source-code comments (`annotationFormat:`), all validated and traced like hand-written elements
-- **IEC 62443 zones & conduits**, **review records**, **trade studies**, and **state-machine / sequence completeness** checks
-- **Seven §12 traceability rules** enforced by the validator: OSLC link direction, breakdown ADR, leaf assignment, domain classification, HW/SW independence, deployment allocation, implementation trace (`implementedBy:`)
-- **200+ validation rules** across parse-time, cross-reference, safety/security, behavior, and composition: cross-reference resolution, integrity level consistency, diagram annotation, documentation completeness
-- **Suspect links** — content-baseline (`traceBaselines:`, BLAKE3) detection of *stale* trace links: when a reviewed relationship's target changes, it surfaces as `W090` and is cleared by re-review (`suspect accept`)
-- **Release baselines** — first-class, git-anchored, content-hashed frozen release snapshots (`Baseline`, `BL-*`) with drift detection, scoped to the whole model, a package, a product-line variant, or a safety goal's trace closure
-- **MCP server** — `syscribe mcp` exposes structured tools to LLM agents: read/query/trace/validate plus *guarded* writes (dry-run → validation delta → referential-integrity commit gate)
-- **LSP server** — `syscribe lsp` gives editors live diagnostics and model-aware navigation over stdio (a VS Code extension lives in `editors/vscode/`)
-- **Static HTML export** — `syscribe export-html` renders the whole model as a standalone, offline site for reviewers without the toolchain
-- **Diagrams** — server-rendered SVG, client-side Mermaid, an editable diagram view in the web UI, and PlantUML companion generation/rendering
-- **Coverage & product-line matrices** — Requirement × Configuration coverage grids, variant-aware verification depth, SAT-backed feature analysis
-- **LLM-scale corpus tools** — `stats` / `digest` / `search-text` / `summarize` / `topics` / `clusters` for navigating large models, plus `impact` change analysis and ReqIF/SBOM export
+Syscribe is a [Model Context Protocol](https://modelcontextprotocol.io) server, so an LLM agent works with the model as a first-class client — reading, analyzing, and *safely writing* it — not just generating files from a prompt.
+
+**Writes are guarded.** Every `create_element` / `update_element` / `move_element` / `delete_element` / `apply_changes` call defaults to `dry_run: true`, returns the **validation delta** the change would cause, and refuses to commit anything that would break referential integrity — so an agent can propose a change, inspect its effect, and only then commit it. The delta lists every newly introduced or resolved *warning*, but among *errors* only dangling references (`EREF`) and user-defined link-type violations (`E630`–`E636`) — those are also what gate the commit. Other errors (for example `E310`, a derived requirement with no `breakdownAdr`) show up in a full `validate`, so agents (and CI) should still run it. Sealing a release stays a deliberate CLI/CI action.
+
+```bash
+syscribe -m model_auto/ mcp                # stdio MCP server (`syscribe help mcp` lists the tools)
+syscribe -m model_auto/ mcp --read-only    # analysis only; write tools hidden & refused
+```
+
+**Connect it to an MCP client.** Install the `syscribe` binary (see [Installation](#installation)), then register it with the model directory it should serve. The commands below assume the [install script](#installation)'s default location, `~/.local/bin/syscribe` (use `~/.cargo/bin/syscribe` if you installed with `cargo install`). Use absolute paths. Add `--read-only` after `mcp` whenever the agent should only look, not touch.
+
+For Claude Code:
+
+```bash
+claude mcp add syscribe -- "$HOME/.local/bin/syscribe" -m /abs/path/to/model mcp
+# or, analysis only:
+claude mcp add syscribe -- "$HOME/.local/bin/syscribe" -m /abs/path/to/model mcp --read-only
+```
+
+For clients configured with an `mcpServers` JSON block (such as Claude Desktop, in `claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "syscribe": {
+      "command": "/home/you/.local/bin/syscribe",
+      "args": ["-m", "/abs/path/to/model", "mcp"]
+    }
+  }
+}
+```
+
+JSON does not expand `~` or `$HOME`, so write your home directory out in full (`/home/you/…` on Linux, `/Users/you/…` on macOS). Use `"args": ["-m", "/abs/path/to/model", "mcp", "--read-only"]` for an analysis-only server. Claude Desktop only reads its config at launch, so fully quit and reopen it after editing. The server speaks MCP over stdio, needs no network access, and serves exactly the model directory passed with `-m`. It watches that directory and reloads automatically when files change outside MCP (an editor, the CLI, `git checkout`); pass `--no-watch` to disable.
+
+Read tools cover retrieval, fuzzy search, the containment/graph, `trace` / `impact`, validation, coverage, and the suspect/baseline surfaces.
 
 ## Traceability That Survives Change
 
@@ -109,57 +195,15 @@ syscribe -m model_auto/ baseline diff BL-2026-06 BL-2026-07   # what changed bet
 
 Together these turn a git-controlled model into an **audit trail**: every relationship is either confirmed-current or flagged for review, and every release is a provable, comparable snapshot.
 
-## Agent-Native — the MCP Server
-
-Syscribe is a [Model Context Protocol](https://modelcontextprotocol.io) server, so an LLM agent works with the model as a first-class client — reading, analyzing, and *safely writing* it — not just generating files from a prompt.
-
-```bash
-syscribe -m model_auto/ mcp                # stdio MCP server (`syscribe help mcp` lists the tools)
-syscribe -m model_auto/ mcp --read-only    # analysis only; write tools hidden & refused
-```
-
-**Connect it to an MCP client.** Install the `syscribe` binary (see [Installation](#installation)), then register it with the model directory it should serve.
-
-For Claude Code:
-
-```bash
-claude mcp add syscribe -- /abs/path/to/syscribe -m /abs/path/to/model mcp
-```
-
-For clients configured with an `mcpServers` JSON block (such as Claude Desktop):
-
-```json
-{
-  "mcpServers": {
-    "syscribe": {
-      "command": "/abs/path/to/syscribe",
-      "args": ["-m", "/abs/path/to/model", "mcp"]
-    }
-  }
-}
-```
-
-Add `"--read-only"` after `"mcp"` for an analysis-only server. The server speaks MCP over stdio, needs no network access, and serves exactly the model directory passed with `-m`. It watches that directory and reloads automatically when files change outside MCP (an editor, the CLI, `git checkout`); pass `--no-watch` to disable.
-
-Read tools cover retrieval, fuzzy search, the containment/graph, `trace` / `impact`, validation, coverage, and the suspect/baseline surfaces. **Writes are guarded**: every `create_element` / `update_element` / `move_element` / `delete_element` / `apply_changes` call defaults to `dry_run: true`, returns the **validation delta** the change would cause (newly introduced and resolved errors and warnings), and refuses to commit anything that would break referential integrity — so an agent can propose a change, inspect its exact effect, and only then commit it. Sealing a release stays a deliberate CLI/CI action.
-
-## Repository Structure
-
-```
-crates/
-  syscribe/           # CLI validator and query tool
-  syscribe-model/     # core library: parser, walker, graph builder, resolver, renderer
-  syscribe-server/    # Axum web server + Askama templates + HTMX frontend
-model/                # UAV autonomous flight system demo model
-model_auto/           # Engine ECU demo model (ISO 26262 / ISO/SAE 21434)
-model_sil/            # SIL 4 railway interlocking demo model (IEC 61508 / EN 50128)
-model_mg/             # EV DC fast-charging station demo model (MagicGrid)
-prompts/              # LLM authoring prompt (embedded in the CLI binary)
-spec/                 # Syscribe format specification
-docs/                 # MkDocs documentation source
-```
-
 ## Installation
+
+**Install script (Linux, macOS).** Downloads the latest release binary for your platform (the static musl build on Linux), verifies it against the SHA-256 published with the release, checks that it runs, and puts it in `~/.local/bin`. A checksum mismatch aborts the install:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sjames/syscribe/main/install.sh | sh
+# or choose the install directory:
+curl -fsSL https://raw.githubusercontent.com/sjames/syscribe/main/install.sh | sh -s -- --dir /usr/local/bin
+```
 
 **Prebuilt binaries.** Each [GitHub release](https://github.com/sjames/syscribe/releases) ships a standalone `syscribe` CLI binary, named `syscribe-<target>` (`.exe` on Windows):
 
@@ -173,6 +217,8 @@ docs/                 # MkDocs documentation source
 | macOS Apple silicon | `syscribe-aarch64-apple-darwin` |
 | Windows x86_64 | `syscribe-x86_64-pc-windows-msvc.exe` |
 
+Releases also publish `<asset>.sha256` next to each binary (check with `sha256sum -c syscribe-<target>.sha256`, or `shasum -a 256 -c` on macOS). The checksum comes from the same place as the binary, so it guards against corrupt or truncated downloads, not against a compromised release.
+
 The musl builds (from v0.41.0) are fully static: they run on Alpine, `scratch`/distroless containers and hosts with an old glibc.
 
 ```bash
@@ -181,13 +227,22 @@ curl -fsSL -o syscribe \
 chmod +x syscribe
 ```
 
-**From source.** The web server (`syscribe-server`) is not a release asset — build it from source (Rust stable):
+**From source.** Needs a recent stable Rust toolchain ([rustup.rs](https://rustup.rs)). `syscribe` is not published on crates.io, so install straight from the repository:
 
 ```bash
-cargo build --workspace            # target/debug/syscribe and target/debug/syscribe-server
-cargo install --path crates/syscribe          # or install either binary
-cargo install --path crates/syscribe-server
+cargo install --git https://github.com/sjames/syscribe --locked syscribe     # CLI + MCP server -> ~/.cargo/bin/syscribe
+cargo install --git https://github.com/sjames/syscribe --locked syscribe-server   # web browser (not a release asset)
 ```
+
+Or from a checkout, which is also how you get the demo models:
+
+```bash
+git clone https://github.com/sjames/syscribe && cd syscribe
+cargo install --path crates/syscribe --locked          # add crates/syscribe-server for the web UI
+cargo build --workspace                                # dev build: target/debug/syscribe and target/debug/syscribe-server
+```
+
+A release build takes a few minutes. Make sure `~/.cargo/bin` is on your `PATH`.
 
 **In GitHub Actions.** The repository is also a reusable action that downloads the release binary for the runner and validates a model:
 
@@ -346,6 +401,48 @@ syscribe --agent-instructions | llm "Create a brake-by-wire model for ISO 26262 
 ```
 
 The prompt and the validator are always in sync — `--agent-instructions` is embedded at compile time from `prompts/create-model.md`. For interactive, guarded authoring where the agent inspects each change before committing, run the [MCP server](#agent-native--the-mcp-server) instead. See the [LLM Workflow guide](https://sjames.github.io/syscribe/model-guide/llm-workflow/) for the full incremental authoring workflow.
+
+## Full Feature List
+
+- **40+ element types** covering SysMLv2 structural, behavioral, and requirements constructs
+- **Native Requirement** elements (REQ-* stable IDs) with SIL/ASIL, lifecycle status, domain classification, derivation trees
+- **Native TestCase** elements (TC-* IDs) with L1–L5 test levels and Gherkin scenarios
+- **Architecture Decision Records** (ADR-*) — every requirement decomposition cites an accepted ADR
+- **Safety analysis**: HARA, SafetyGoal, HazardousEvent, FaultTree (file-per-node), FMEA (exploded entries)
+- **Security analysis**: TARA, DamageScenario, ThreatScenario, CybersecurityGoal, SecurityControl, VulnerabilityReport
+- **Variability / product lines**: feature models (`FeatureDef`, `Configuration`), `appliesWhen:` conditioning, SAT-backed `feature-check`, and the `--config` projection lens
+- **Multi-repository composition** (§14): import namespaces from peer repos via `[repos]` + `repoImports:`, resolve cross-repo references by global stable ID, and gate reproducibility on git ref drift / submodule gitlink (`W510`–`W512`)
+- **Hierarchical product lines** (§14.7): a `Configuration` consolidates already-configured lower-tier `Configuration`s — local or in a `[repos]`-mounted product-line repo, at any depth — via `subConfigurations:`, with parameter bindings resolved across tiers (`examples/hple-multitier/`)
+- **Work tracking** — native `PlanningItem` (`PI-*`) epics/stories/tasks tied to the `Requirement`s they achieve, with evidence-backed `done`, `blockedBy:`, `assignedTo:`, `syscribe set` for status/evidence edits, and `claim` / `release` advisory ownership for concurrent multi-agent work
+- **User-defined link types** — declare project relationships (`mitigates`, `conflictsWith`, …) as `[linkTypes.*]` in `.syscribe.toml` with source/target types, cardinality and acyclicity; author them under `links:`, list the vocabulary with `link-types`, and walk them with `follow`
+- **Foreign sources in one graph** — native SysMLv2 textual submodels (`sysmlSubmodel:`), any custom notation through stdio-subprocess plugins (`foreignFormat:`), and elements declared in ordinary source-code comments (`annotationFormat:`), all validated and traced like hand-written elements
+- **IEC 62443 zones & conduits**, **review records**, **trade studies**, and **state-machine / sequence completeness** checks
+- **Seven §12 traceability rules** enforced by the validator: OSLC link direction, breakdown ADR, leaf assignment, domain classification, HW/SW independence, deployment allocation, implementation trace (`implementedBy:`)
+- **200+ validation rules** across parse-time, cross-reference, safety/security, behavior, and composition: cross-reference resolution, integrity level consistency, diagram annotation, documentation completeness
+- **Suspect links** — content-baseline (`traceBaselines:`, BLAKE3) detection of *stale* trace links: when a reviewed relationship's target changes, it surfaces as `W090` and is cleared by re-review (`suspect accept`)
+- **Release baselines** — first-class, git-anchored, content-hashed frozen release snapshots (`Baseline`, `BL-*`) with drift detection, scoped to the whole model, a package, a product-line variant, or a safety goal's trace closure
+- **MCP server** — `syscribe mcp` exposes structured tools to LLM agents: read/query/trace/validate plus *guarded* writes (dry-run → validation delta → referential-integrity commit gate)
+- **LSP server** — `syscribe lsp` gives editors live diagnostics and model-aware navigation over stdio (a VS Code extension lives in `editors/vscode/`)
+- **Static HTML export** — `syscribe export-html` renders the whole model as a standalone, offline site for reviewers without the toolchain
+- **Diagrams** — server-rendered SVG, client-side Mermaid, an editable diagram view in the web UI, and PlantUML companion generation/rendering
+- **Coverage & product-line matrices** — Requirement × Configuration coverage grids, variant-aware verification depth, SAT-backed feature analysis
+- **LLM-scale corpus tools** — `stats` / `digest` / `search-text` / `summarize` / `topics` / `clusters` for navigating large models, plus `impact` change analysis and ReqIF/SBOM export
+
+## Repository Structure
+
+```
+crates/
+  syscribe/           # CLI validator and query tool
+  syscribe-model/     # core library: parser, walker, graph builder, resolver, renderer
+  syscribe-server/    # Axum web server + Askama templates + HTMX frontend
+model/                # UAV autonomous flight system demo model
+model_auto/           # Engine ECU demo model (ISO 26262 / ISO/SAE 21434)
+model_sil/            # SIL 4 railway interlocking demo model (IEC 61508 / EN 50128)
+model_mg/             # EV DC fast-charging station demo model (MagicGrid)
+prompts/              # LLM authoring prompt (embedded in the CLI binary)
+spec/                 # Syscribe format specification
+docs/                 # MkDocs documentation source
+```
 
 ## Prior Work
 

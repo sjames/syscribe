@@ -1,7 +1,8 @@
 site_name: Syscribe
 site_description: >-
-  A Markdown-native SysMLv2 modeling format for systems engineers.
-  Human-readable, LLM-friendly, version-controlled, fully traceable.
+  Structured project knowledge your AI agent can safely edit. Git-native
+  Markdown models with guarded MCP writes: every change is dry-run and
+  validated before it is committed.
 site_url: https://sjames.github.io/syscribe
 repo_url: https://github.com/sjames/syscribe
 repo_name: sjames/syscribe
