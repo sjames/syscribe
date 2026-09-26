@@ -5,7 +5,7 @@ Not posted. Fill in the `<…>` placeholders once the demo is recorded (see `dem
 ## Title options
 
 - Show HN: Guarded MCP writes so an LLM agent can't corrupt structured project state
-- Show HN: Syscribe – Markdown models your AI agent can edit, validated before every write
+- Show HN: Syscribe – Markdown models your AI agent can edit, dry-run and validated before commit
 - (r/rust) Syscribe: a single-binary MCP server that dry-runs every LLM write against a validator
 
 ## Body
@@ -17,9 +17,10 @@ rename that leaves dangling links. Syscribe is my attempt at making that class o
 Project state (requirements, architecture, tests, decisions, work items) lives as plain Markdown files with YAML
 frontmatter in your git repo. `syscribe mcp` exposes it to an agent over the Model Context Protocol. Every write
 tool (`create_element`, `update_element`, `move_element`, `delete_element`, `apply_changes`) defaults to a dry run
-that returns the *validation delta* — the errors and warnings the change would introduce or resolve — and a commit
-that would introduce an unresolved reference is refused. So the loop is: agent proposes, sees exactly what it would
-break, fixes it, commits. The result is a normal file diff you review in git. `--read-only` hides the write tools
+that returns the *validation delta* — every new or resolved warning, plus errors for dangling references and
+violated link-type rules — and a commit that would introduce an unresolved reference is refused. (Other validator
+errors show up in a full `validate`; the delta is deliberately narrower.) So the loop is: agent proposes, sees what it
+would break, fixes it, commits. The result is a normal file diff you review in git. `--read-only` hides the write tools
 entirely.
 
 Demo (real output from the bundled ISO 26262 example model): <asciinema/GIF link>

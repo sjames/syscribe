@@ -2,7 +2,7 @@
 
 > Structured project knowledge your AI agent can safely edit.
 
-Syscribe keeps structured project state — requirements, architecture, tests, decisions, work items — as plain Markdown files with YAML frontmatter in your git repo, and gives LLM agents an [MCP](https://modelcontextprotocol.io) server to read and edit it. Every write is a dry run first: the agent sees exactly which validation errors the change would cause, and a commit that would break the model is refused.
+Syscribe keeps structured project state — requirements, architecture, tests, decisions, work items — as plain Markdown files with YAML frontmatter in your git repo, and gives LLM agents an [MCP](https://modelcontextprotocol.io) server to read and edit it. Writes default to a dry run that reports what the change would break, and a commit that would leave a dangling reference or violate a declared link type is refused.
 
 **[Documentation →](https://sjames.github.io/syscribe)**
 
@@ -53,6 +53,33 @@ Other MCP clients (Claude Desktop, …): [connect with a JSON block](#agent-nati
 - **GitHub Action:** gate pull requests on model validity with `uses: sjames/syscribe@v0` ([see below](#installation)).
 - **LSP server:** diagnostics, navigation, completion and rename in your editor (`syscribe lsp`).
 - **Web browser:** browse the model and its diagrams with `syscribe-server`.
+
+## Build a project by talking to it
+
+The MCP server isn't only for small edits. With it connected, one agent conversation can carry a project from an idea to tested, traced code — and the design, decisions, requirements, tests and plan stay in your repo as reviewable files instead of scrolling away in a chat. [`examples/chat-to-code/`](examples/chat-to-code/) is a real session (the agent's output as produced; only a file path in the test-results sidecar was made relative) that built a small thread-safe rate limiter in Python. What the human typed, and what landed in git:
+
+| You said | The agent did |
+|---|---|
+| *"Set the model up for this project. Don't invent design decisions yet."* | Scaffolded the model: packages for requirements, design, tests and plan |
+| *"Token bucket, sliding window or fixed window? Trade-offs and a recommendation — don't change the model yet."* | Compared them for your constraints, recommended one, changed nothing |
+| *"Token bucket it is. Write the design down."* | `ADR-RL-001` (with the rejected alternatives), and a three-part architecture, flagging which parts were its own proposal |
+| *"Write the requirements. Lean, and traced to the ADR."* | 8 requirements — stakeholder → testable leaves, each breakdown citing an ADR, each leaf linked to the part that satisfies it |
+| *"Write the test cases, and decide the API you need."* | 6 test cases with Gherkin scenarios, a test plan, and the public API recorded as an ADR |
+| *"Plan the work."* | An epic that `achieves` the requirements, six tasks with `blockedBy` ordering |
+| *"Implement the plan. Claim each item, run pytest, mark done only when tests pass."* | Wrote ~100 lines of code and 17 tests, claimed each item, closed it with evidence |
+
+```text
+PI-RL-001  Deliver the rate-limiting library     [done]  achieves REQ-RL-001…008
+├─ PI-RL-002  Scaffold the project               [done]
+├─ PI-RL-003  Write the pytest suite             [done]
+├─ PI-RL-004  Clock, decision, try_acquire       [done]
+├─ PI-RL-005  Blocking acquire                   [done]
+├─ PI-RL-006  Make the limiter thread-safe       [done]
+└─ PI-RL-007  Run the suite and close out        [done]
+                                                          8/8 requirements verified · 0 validation errors
+```
+
+It is also honest about the rough edges. Midway the agent stopped rather than fake a test run, because `pytest` wasn't installed and it lacked permission to install it. It caught its own thread-safety test being too weak to detect a missing lock and strengthened it. Its architecture and API choices were proposals for you to review, and it promoted requirements to `verified` on its own, skipping a human sign-off. The example's README lists every message the human sent, and the resulting model validates clean: `syscribe -m examples/chat-to-code/model validate`.
 
 ## Built for safety-critical work
 
@@ -112,7 +139,7 @@ The safety monitor shall perform a complete supervision cycle within 100 ms...
 
 Syscribe is a [Model Context Protocol](https://modelcontextprotocol.io) server, so an LLM agent works with the model as a first-class client — reading, analyzing, and *safely writing* it — not just generating files from a prompt.
 
-**Writes are guarded.** Every `create_element` / `update_element` / `move_element` / `delete_element` / `apply_changes` call defaults to `dry_run: true`, returns the **validation delta** the change would cause (newly introduced and resolved errors and warnings), and refuses to commit anything that would break referential integrity — so an agent can propose a change, inspect its exact effect, and only then commit it. Sealing a release stays a deliberate CLI/CI action.
+**Writes are guarded.** Every `create_element` / `update_element` / `move_element` / `delete_element` / `apply_changes` call defaults to `dry_run: true`, returns the **validation delta** the change would cause, and refuses to commit anything that would break referential integrity — so an agent can propose a change, inspect its effect, and only then commit it. The delta lists every newly introduced or resolved *warning*, but among *errors* only dangling references (`EREF`) and user-defined link-type violations (`E630`–`E636`) — those are also what gate the commit. Other errors (for example `E310`, a derived requirement with no `breakdownAdr`) show up in a full `validate`, so agents (and CI) should still run it. Sealing a release stays a deliberate CLI/CI action.
 
 ```bash
 syscribe -m model_auto/ mcp                # stdio MCP server (`syscribe help mcp` lists the tools)

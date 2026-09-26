@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "format": "junit",
+  "source": "../test-results.xml",
+  "ingested_at_unix": 1790393658,
+  "count": 17,
+  "by_leaf": {
+    "test_admitted_after_retry_after_elapses": "pass",
+    "test_admitted_call_has_zero_retry_after": "pass",
+    "test_declares_python_3_10_minimum": "pass",
+    "test_keys_are_independent": "pass",
+    "test_refused_call_reports_retry_after": "pass",
+    "test_acquire_does_not_sleep_when_token_available": "pass",
+    "test_e2e_refused_key_gets_retry_after_and_other_key_unaffected": "pass",
+    "test_acquire_sleeps_once_for_retry_after": "pass",
+    "test_e2e_blocking_caller_waits_on_real_clock": "pass",
+    "test_e2e_threads_are_held_to_the_sustained_rate": "pass",
+    "test_refills_with_elapsed_time_up_to_capacity": "pass",
+    "test_admits_up_to_capacity_then_refuses": "pass",
+    "test_concurrent_callers_never_exceed_capacity": "pass",
+    "test_api_is_synchronous": "pass",
+    "test_acquire_consumes_the_token_it_waited_for": "pass",
+    "test_imports_are_stdlib_only": "pass",
+    "test_retry_after_shrinks_as_time_passes": "pass"
+  },
+  "by_scenario": {},
+  "leaf_meta": {
+    "format": "junit",
+    "source": "../test-results.xml",
+    "ingested_at_unix": 1790393658,
+    "count": 17
+  }
+}
