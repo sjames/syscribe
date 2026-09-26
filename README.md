@@ -119,14 +119,14 @@ syscribe -m model_auto/ mcp                # stdio MCP server (`syscribe help mc
 syscribe -m model_auto/ mcp --read-only    # analysis only; write tools hidden & refused
 ```
 
-**Connect it to an MCP client.** Install the `syscribe` binary (see [Installation](#installation)), then register it with the model directory it should serve. Use absolute paths. Add `--read-only` after `mcp` whenever the agent should only look, not touch.
+**Connect it to an MCP client.** Install the `syscribe` binary (see [Installation](#installation)), then register it with the model directory it should serve. The commands below assume the [install script](#installation)'s default location, `~/.local/bin/syscribe` (use `~/.cargo/bin/syscribe` if you installed with `cargo install`). Use absolute paths. Add `--read-only` after `mcp` whenever the agent should only look, not touch.
 
 For Claude Code:
 
 ```bash
-claude mcp add syscribe -- /abs/path/to/syscribe -m /abs/path/to/model mcp
+claude mcp add syscribe -- "$HOME/.local/bin/syscribe" -m /abs/path/to/model mcp
 # or, analysis only:
-claude mcp add syscribe -- /abs/path/to/syscribe -m /abs/path/to/model mcp --read-only
+claude mcp add syscribe -- "$HOME/.local/bin/syscribe" -m /abs/path/to/model mcp --read-only
 ```
 
 For clients configured with an `mcpServers` JSON block (such as Claude Desktop, in `claude_desktop_config.json`):
@@ -135,14 +135,14 @@ For clients configured with an `mcpServers` JSON block (such as Claude Desktop, 
 {
   "mcpServers": {
     "syscribe": {
-      "command": "/abs/path/to/syscribe",
+      "command": "/home/you/.local/bin/syscribe",
       "args": ["-m", "/abs/path/to/model", "mcp"]
     }
   }
 }
 ```
 
-Use `"args": ["-m", "/abs/path/to/model", "mcp", "--read-only"]` for an analysis-only server. Claude Desktop only reads its config at launch, so fully quit and reopen it after editing. The server speaks MCP over stdio, needs no network access, and serves exactly the model directory passed with `-m`. It watches that directory and reloads automatically when files change outside MCP (an editor, the CLI, `git checkout`); pass `--no-watch` to disable.
+JSON does not expand `~` or `$HOME`, so write your home directory out in full (`/home/you/…` on Linux, `/Users/you/…` on macOS). Use `"args": ["-m", "/abs/path/to/model", "mcp", "--read-only"]` for an analysis-only server. Claude Desktop only reads its config at launch, so fully quit and reopen it after editing. The server speaks MCP over stdio, needs no network access, and serves exactly the model directory passed with `-m`. It watches that directory and reloads automatically when files change outside MCP (an editor, the CLI, `git checkout`); pass `--no-watch` to disable.
 
 Read tools cover retrieval, fuzzy search, the containment/graph, `trace` / `impact`, validation, coverage, and the suspect/baseline surfaces.
 
