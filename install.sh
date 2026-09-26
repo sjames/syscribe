@@ -7,7 +7,8 @@
 #   -d, --dir <path>   install directory   (SYSCRIBE_INSTALL_DIR, default: ~/.local/bin)
 #   -h, --help
 #
-# Always installs the latest release.
+# Always installs the latest release, and verifies the download against the SHA-256
+# published alongside it. Set SYSCRIBE_DOWNLOAD_BASE to install from a mirror.
 #
 # Linux gets the fully static musl build, which runs on any distribution. Windows: download
 # syscribe-x86_64-pc-windows-msvc.exe from the releases page.
@@ -43,19 +44,54 @@ case "$os" in
 esac
 
 asset="syscribe-$target"
-url="https://github.com/$REPO/releases/latest/download/$asset"
+base="${SYSCRIBE_DOWNLOAD_BASE:-https://github.com/$REPO/releases/latest/download}"
+url="$base/$asset"
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-say "Downloading $url"
-if command -v curl >/dev/null 2>&1; then
-  curl -fsSL "$url" -o "$tmp/syscribe" || die "download failed"
-elif command -v wget >/dev/null 2>&1; then
-  wget -qO "$tmp/syscribe" "$url" || die "download failed"
-else
+# fetch <url> <file>: exit 0 ok, 44 = HTTP error status (e.g. 404), anything else = failure.
+fetch() {
+  if command -v curl >/dev/null 2>&1; then
+    rc=0; curl -fsL "$1" -o "$2" || rc=$?
+    [ "$rc" -eq 0 ] && return 0
+    [ "$rc" -eq 22 ] && return 44
+    return 1
+  elif command -v wget >/dev/null 2>&1; then
+    rc=0; wget -qO "$2" "$1" || rc=$?
+    [ "$rc" -eq 0 ] && return 0
+    [ "$rc" -eq 8 ] && return 44
+    return 1
+  fi
   die "need curl or wget"
-fi
+}
+
+sha256_of() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
+  elif command -v shasum >/dev/null 2>&1; then shasum -a 256 "$1" | cut -d' ' -f1
+  fi
+}
+command -v sha256sum >/dev/null 2>&1 || command -v shasum >/dev/null 2>&1 \
+  || die "need sha256sum or shasum to verify the download"
+
+say "Downloading $url"
+fetch "$url" "$tmp/syscribe" || die "download failed: $url"
+
+rc=0; fetch "$url.sha256" "$tmp/syscribe.sha256" || rc=$?
+case "$rc" in
+  0)
+    expected="$(cut -d' ' -f1 "$tmp/syscribe.sha256" | tr 'A-F' 'a-f')"
+    actual="$(sha256_of "$tmp/syscribe")"
+    [ -n "$expected" ] && [ "$expected" = "$actual" ] \
+      || die "checksum mismatch for $asset (expected ${expected:-<empty>}, got $actual); not installing"
+    say "Verified SHA-256 $actual"
+    ;;
+  44)
+    # Releases cut before checksums were published have no .sha256 asset.
+    say "Warning: no checksum is published for this release; skipping verification." >&2
+    ;;
+  *) die "could not download the checksum file" ;;
+esac
 chmod +x "$tmp/syscribe"
 
 installed="$("$tmp/syscribe" --version 2>&1)" || die "the downloaded binary does not run on this system"

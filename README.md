@@ -197,7 +197,7 @@ Together these turn a git-controlled model into an **audit trail**: every relati
 
 ## Installation
 
-**Install script (Linux, macOS).** Downloads the latest release binary for your platform (the static musl build on Linux), checks that it runs, and puts it in `~/.local/bin`:
+**Install script (Linux, macOS).** Downloads the latest release binary for your platform (the static musl build on Linux), verifies it against the SHA-256 published with the release, checks that it runs, and puts it in `~/.local/bin`. A checksum mismatch aborts the install:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sjames/syscribe/main/install.sh | sh
@@ -216,6 +216,8 @@ curl -fsSL https://raw.githubusercontent.com/sjames/syscribe/main/install.sh | s
 | macOS Intel | `syscribe-x86_64-apple-darwin` |
 | macOS Apple silicon | `syscribe-aarch64-apple-darwin` |
 | Windows x86_64 | `syscribe-x86_64-pc-windows-msvc.exe` |
+
+Releases also publish `<asset>.sha256` next to each binary (check with `sha256sum -c syscribe-<target>.sha256`, or `shasum -a 256 -c` on macOS). The checksum comes from the same place as the binary, so it guards against corrupt or truncated downloads, not against a compromised release.
 
 The musl builds (from v0.41.0) are fully static: they run on Alpine, `scratch`/distroless containers and hosts with an old glibc.
 
