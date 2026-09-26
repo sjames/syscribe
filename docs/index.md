@@ -1,6 +1,6 @@
 ---
 template: home.html
-title: Syscribe — Markdown-native SysMLv2 modeling
+title: Syscribe — structured project knowledge your AI agent can safely edit
 hide:
   - navigation
   - toc
