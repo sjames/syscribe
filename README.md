@@ -8,9 +8,7 @@ Syscribe keeps structured project state — requirements, architecture, tests, d
 
 ## See it work
 
-<!-- TODO(demo): record `DEMO_PACE=0.8 python3 demo/mcp-guarded-write.py` with asciinema (see demo/README.md),
-     upload it, and replace this comment with the embed, e.g.
-     [![asciicast](https://asciinema.org/a/<ID>.svg)](https://asciinema.org/a/<ID>) -->
+![Terminal recording: an agent's write is refused, fixed, and committed](demo/guarded-write.gif)
 
 An agent proposes a requirement that traces to something that doesn't exist. The dry run shows the damage, the commit gate refuses it, and the fixed version goes in. This is real output from a live `syscribe mcp` server on the bundled ISO 26262 demo model (`python3 demo/mcp-guarded-write.py` replays it):
 

@@ -1,6 +1,6 @@
 # Show HN / r/rust draft
 
-Not posted. Fill in the `<…>` placeholders once the demo is recorded (see `demo/README.md`).
+Not posted. The demo GIF is in `demo/` (see `demo/README.md`); the link below works once the demo files are on `main`.
 
 ## Title options
 
@@ -23,7 +23,7 @@ incomplete drafts stay creatable.) So the loop is: agent proposes, sees what it
 would break, fixes it, commits. The result is a normal file diff you review in git. `--read-only` hides the write tools
 entirely.
 
-Demo (real output from the bundled ISO 26262 example model): <asciinema/GIF link>
+Demo (real output from the bundled ISO 26262 example model): https://github.com/sjames/syscribe/blob/main/demo/guarded-write.gif
 
 The validator underneath comes from safety-critical engineering — it's a Markdown/YAML rendering of a subset of
 SysMLv2 with 200+ rules (traceability, ASIL/SIL consistency, release baselines) — and the repo ships automotive and
