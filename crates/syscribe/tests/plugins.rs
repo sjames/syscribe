@@ -30,10 +30,16 @@ fn run(model: &Path, args: &[&str]) -> (String, String, i32) {
         .args(args)
         .output()
         .expect("spawn syscribe");
+    // A child killed by a signal has no exit code; surface the whole status
+    // (`signal: 9 (SIGKILL)` etc.) so a CI-only failure is diagnosable.
+    let code = out.status.code().unwrap_or_else(|| {
+        eprintln!("syscribe {:?} exited abnormally: {}", args, out.status);
+        -1
+    });
     (
         String::from_utf8_lossy(&out.stdout).into_owned(),
         String::from_utf8_lossy(&out.stderr).into_owned(),
-        out.status.code().unwrap_or(-1),
+        code,
     )
 }
 
@@ -74,7 +80,10 @@ fn run_without_dry_run_flag_is_a_usage_error() {
 #[test]
 fn run_missing_alias_entry_fails_clearly() {
     let model = new_model_with_plugin("echo '{}'");
-    let (_stdout, stderr, code) = run(&model, &["plugins", "run", "not-configured", "--dry-run"]);
+    let (stdout, stderr, code) = run(&model, &["plugins", "run", "not-configured", "--dry-run"]);
     assert_ne!(code, 0);
-    assert!(stderr.contains("no [plugins.not-configured] entry"), "stderr: {stderr}");
+    assert!(
+        stderr.contains("no [plugins.not-configured] entry"),
+        "exit code {code}; stdout: {stdout:?}; stderr: {stderr:?}"
+    );
 }
