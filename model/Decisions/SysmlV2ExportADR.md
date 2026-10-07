@@ -111,3 +111,12 @@ text that is a placeholder (`<conditional expression>`) or fails the expression 
 Successions and control nodes are emitted flat at the owning element's body, matching how ingestion
 flattens them. Exported behaviour is still a one-way projection: nothing is read back as the same
 Syscribe elements except by the explicit parse-back path.
+
+## Addendum: named steps and dangling successions (REQ-TRS-SYSMLV2-061..063)
+
+A control entry (`if`/`while`/`loop`/`for`/`assign`/`terminate`) whose name is not the synthesized
+positional one now exports as `action <name> { <stmt> }`, the form ingestion reads back with that name
+(REQ-TRS-SYSMLV2-060), instead of being commented out. A succession is exported only when each endpoint
+that names an entry of the same body was itself exported; otherwise it is commented with the missing
+endpoint named, so exported text never references a step the file does not contain. Compound units are
+written as unit expressions (`[N*m]`), not quoted names (REQ-TRS-SYSMLV2-065).

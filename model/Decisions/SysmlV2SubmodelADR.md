@@ -919,3 +919,21 @@ that already existed in the schema, so no new `ElementType` was needed.
 - **Report accuracy.** `syscribe sysml`/`sysml_submodels` take their per-file unmapped counts from
   the ingestion pass itself, so unresolved package-level `satisfy` (and `include`) counted by `W543`
   now also appear in the report. No code is added or changed.
+
+## Addendum: named steps, standard-library tables, compound units (REQ-TRS-SYSMLV2-060..066)
+
+- **Named control steps are a Syscribe convention over 0.54.** The pinned parser gives
+  `if`/`while`/`loop`/`for`/`assign`/`terminate` no name field, so a declared name cannot be read off
+  the statement. The faithful SysML spelling of a named step is an action usage owning the statement,
+  `action navigate { for w in ws { … } }`. Ingestion recognises exactly that shape (no typing,
+  subsetting, redefinition or accept/send clause; one statement in the body) and gives the entry the
+  usage's name; every other nested action usage stays a `PerformAction`. A named step leaves the
+  synthesized-name counters alone, so existing positional names are stable.
+- **No full library import.** The existing built-in tables (`ScalarValues`/`Base` members, the ISQ
+  quantity and SI unit dimension tables, the standard-library package list) are completed and
+  extended, and a compound unit expression derives its dimension from the same table. Unknown names
+  keep their prior handling (strict for the two closed packages, lenient for open library packages).
+- **Compound units.** The 0.54 lexer reads `[N*m]` as one token but `[N * m]` as an operator
+  expression, which ingestion used to drop silently; both now store the whitespace-free text, and
+  export writes the expression form rather than a quoted name.
+- **`W544`** is a plain advisory on ingested multiplicity text; it does not evaluate non-literal bounds.
