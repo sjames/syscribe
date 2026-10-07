@@ -6792,7 +6792,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           while (current) {
             if (current instanceof SModelRootImpl)
               return current;
-            else if (current instanceof SChildElementImpl)
+            else if (current instanceof SChildElementImpl2)
               current = current.parent;
             else
               current = void 0;
@@ -6894,9 +6894,9 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         }
       };
       exports.SParentElementImpl = SParentElementImpl;
-      var SChildElementImpl = class extends SParentElementImpl {
+      var SChildElementImpl2 = class extends SParentElementImpl {
       };
-      exports.SChildElementImpl = SChildElementImpl;
+      exports.SChildElementImpl = SChildElementImpl2;
       var SModelRootImpl = class extends SParentElementImpl {
         constructor(index = new ModelIndexImpl()) {
           super();
@@ -14309,7 +14309,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           this.opacity = 1;
         }
         canConnect(routable, role) {
-          return this.children.find((c3) => c3 instanceof SPortImpl) === void 0;
+          return this.children.find((c3) => c3 instanceof SPortImpl3) === void 0;
         }
         get incomingEdges() {
           const index = this.index;
@@ -14340,7 +14340,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         model_5.hoverFeedbackFeature,
         model_5.popupFeature
       ];
-      var SPortImpl = class extends model_7.SConnectableElementImpl {
+      var SPortImpl3 = class extends model_7.SConnectableElementImpl {
         constructor() {
           super(...arguments);
           this.selected = false;
@@ -14362,8 +14362,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return super.outgoingEdges.filter((e2) => e2 instanceof SEdgeImpl3);
         }
       };
-      exports.SPortImpl = SPortImpl;
-      SPortImpl.DEFAULT_FEATURES = [
+      exports.SPortImpl = SPortImpl3;
+      SPortImpl3.DEFAULT_FEATURES = [
         model_7.connectableFeature,
         model_8.selectFeature,
         model_1.boundsFeature,
@@ -14386,7 +14386,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         model_4.fadeFeature,
         model_5.hoverFeedbackFeature
       ];
-      var SLabelImpl = class extends model_1.SShapeElementImpl {
+      var SLabelImpl3 = class extends model_1.SShapeElementImpl {
         constructor() {
           super(...arguments);
           this.selected = false;
@@ -14394,22 +14394,22 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           this.opacity = 1;
         }
       };
-      exports.SLabelImpl = SLabelImpl;
-      SLabelImpl.DEFAULT_FEATURES = [
+      exports.SLabelImpl = SLabelImpl3;
+      SLabelImpl3.DEFAULT_FEATURES = [
         model_1.boundsFeature,
         model_1.alignFeature,
         model_1.layoutableChildFeature,
         model_2.edgeLayoutFeature,
         model_4.fadeFeature
       ];
-      var SCompartmentImpl = class extends model_1.SShapeElementImpl {
+      var SCompartmentImpl3 = class extends model_1.SShapeElementImpl {
         constructor() {
           super(...arguments);
           this.opacity = 1;
         }
       };
-      exports.SCompartmentImpl = SCompartmentImpl;
-      SCompartmentImpl.DEFAULT_FEATURES = [
+      exports.SCompartmentImpl = SCompartmentImpl3;
+      SCompartmentImpl3.DEFAULT_FEATURES = [
         model_1.boundsFeature,
         model_1.layoutContainerFeature,
         model_1.layoutableChildFeature,
@@ -25387,62 +25387,481 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
 
   // src/views.tsx
   var import_sprotty = __toESM(require_lib2());
-  function nodeStyle(kind) {
+
+  // src/types.ts
+  function isPortSchema(child) {
+    return child.type === "port";
+  }
+  function isShapeSchema(child) {
+    return child.type === "node" || child.type === "port";
+  }
+  function isEdgeSchema(child) {
+    return child.type === "edge";
+  }
+  function isLabelSchema(child) {
+    return child.type === "label";
+  }
+  function isCompartmentSchema(child) {
+    return child.type === "compartment";
+  }
+  function childrenOf(parent) {
+    return parent.children ?? [];
+  }
+  function* walkTree(parent) {
+    for (const element of childrenOf(parent)) {
+      yield { element, container: parent };
+      if (!isEdgeSchema(element)) {
+        yield* walkTree(element);
+      }
+    }
+  }
+  function findShape(model, id) {
+    for (const { element } of walkTree(model)) {
+      if (element.id === id && isShapeSchema(element)) {
+        return element;
+      }
+    }
+    return void 0;
+  }
+  function containerOf(model, id) {
+    for (const { element, container } of walkTree(model)) {
+      if (element.id === id) {
+        return container;
+      }
+    }
+    return void 0;
+  }
+  function allShapes(model) {
+    const out = [];
+    for (const { element } of walkTree(model)) {
+      if (isShapeSchema(element)) {
+        out.push(element);
+      }
+    }
+    return out;
+  }
+  function subtreeIds(element) {
+    const ids = [element.id];
+    if (!isEdgeSchema(element)) {
+      for (const { element: e2 } of walkTree(element)) {
+        ids.push(e2.id);
+      }
+    }
+    return ids;
+  }
+  function removeFromTree(model, ids) {
+    const prune = (parent) => {
+      const kids = parent.children;
+      if (!kids) {
+        return;
+      }
+      parent.children = kids.filter((c3) => !ids.includes(c3.id));
+      for (const c3 of parent.children) {
+        if (!isEdgeSchema(c3)) {
+          prune(c3);
+        }
+      }
+    };
+    prune(model);
+  }
+
+  // src/layout-shim.ts
+  var PORT_SIZE = 12;
+  var PADDING = 24;
+  var HEADER = 36;
+  var GAP = 40;
+  var LINE_HEIGHT = 14;
+  var MAX_PER_ROW = 4;
+  var MAX_PER_COLUMN = 3;
+  function defaultSize(kind) {
     switch (kind) {
+      case "port":
+        return { width: PORT_SIZE, height: PORT_SIZE };
+      case "boundary":
+      case "system-boundary":
+      case "swimlane":
+        return { width: 400, height: 260 };
+      case "requirement":
+      case "testcase":
+        return { width: 180, height: 70 };
+      case "state":
+      case "usecase":
+        return { width: 140, height: 50 };
+      case "note":
+        return { width: 160, height: 60 };
+      case "actor":
+        return { width: 60, height: 90 };
+      case "lifeline":
+        return { width: 120, height: 300 };
+      case "initial":
+      case "final":
+      case "choice":
+      case "history":
+        return { width: 24, height: 24 };
+      case "fragment":
+        return { width: 300, height: 160 };
+      default:
+        return { width: 160, height: 50 };
+    }
+  }
+  function ensureSize(el, kind) {
+    if (!el.size || el.size.width <= 0 || el.size.height <= 0) {
+      el.size = defaultSize(kind);
+    }
+    return el.size;
+  }
+  function portSide(port) {
+    switch (port.side) {
+      case "north":
+      case "east":
+      case "south":
+      case "west":
+        return port.side;
+    }
+    switch (port.direction) {
+      case "in":
+        return "west";
+      case "out":
+        return "east";
+      case "inout":
+        return "south";
+      default:
+        return "north";
+    }
+  }
+  function placeShape(shape, direction) {
+    const kids = childrenOf(shape);
+    const blocks = kids.filter(isShapeSchema).filter((c3) => !isPortSchema(c3));
+    const ports = kids.filter(isPortSchema);
+    const compartments = kids.filter(isCompartmentSchema);
+    const labels = kids.filter(isLabelSchema);
+    const childSizes = /* @__PURE__ */ new Map();
+    for (const b3 of blocks) {
+      childSizes.set(b3.id, placeShape(b3, direction));
+    }
+    const own = ensureSize(shape, shape.kind);
+    let width = own.width;
+    let height = own.height;
+    if (blocks.length > 0) {
+      let cursorX = PADDING;
+      let cursorY = HEADER;
+      let maxX = 0;
+      let maxY = 0;
+      for (const b3 of blocks.filter((b4) => b4.position)) {
+        const s3 = childSizes.get(b3.id);
+        maxX = Math.max(maxX, b3.position.x + s3.width);
+        maxY = Math.max(maxY, b3.position.y + s3.height);
+      }
+      const horizontal = direction === "RIGHT";
+      if (horizontal) {
+        cursorX = maxX > 0 ? maxX + GAP : PADDING;
+      } else {
+        cursorY = maxY > 0 ? maxY + GAP : HEADER;
+      }
+      for (const b3 of blocks.filter((b4) => !b4.position)) {
+        const s3 = childSizes.get(b3.id);
+        b3.position = { x: cursorX, y: cursorY };
+        maxX = Math.max(maxX, cursorX + s3.width);
+        maxY = Math.max(maxY, cursorY + s3.height);
+        if (horizontal) {
+          cursorX += s3.width + GAP;
+        } else {
+          cursorY += s3.height + GAP;
+        }
+      }
+      width = Math.max(width, maxX + PADDING);
+      height = Math.max(height, maxY + PADDING);
+    }
+    let compY = Math.max(own.height, HEADER + 8);
+    for (const c3 of compartments) {
+      const h3 = LINE_HEIGHT * Math.max(1, c3.lines.length) + 8;
+      if (!c3.position) {
+        c3.position = { x: 0, y: compY };
+      }
+      if (!c3.size) {
+        c3.size = { width, height: h3 };
+      }
+      compY = c3.position.y + (c3.size?.height ?? h3);
+      height = Math.max(height, compY);
+    }
+    for (const c3 of compartments) {
+      if (c3.size && c3.size.width < width) {
+        c3.size = { width, height: c3.size.height };
+      }
+    }
+    shape.size = { width, height };
+    const bySide = /* @__PURE__ */ new Map();
+    for (const p3 of ports) {
+      ensureSize(p3, "port");
+      if (p3.position) {
+        continue;
+      }
+      const side = portSide(p3);
+      bySide.set(side, [...bySide.get(side) ?? [], p3]);
+    }
+    for (const [side, list] of bySide) {
+      list.forEach((p3, i2) => {
+        const t3 = (i2 + 1) / (list.length + 1);
+        const half = PORT_SIZE / 2;
+        switch (side) {
+          case "west":
+            p3.position = { x: -half, y: height * t3 - half };
+            break;
+          case "east":
+            p3.position = { x: width - half, y: height * t3 - half };
+            break;
+          case "south":
+            p3.position = { x: width * t3 - half, y: height - half };
+            break;
+          default:
+            p3.position = { x: width * t3 - half, y: -half };
+        }
+      });
+    }
+    for (const p3 of ports) {
+      placeLabels(p3, "port", PORT_SIZE, PORT_SIZE);
+    }
+    placeLabels(shape, shape.kind, width, height, labels);
+    return shape.size;
+  }
+  function placeLabels(shape, kind, width, height, labels) {
+    const list = labels ?? childrenOf(shape).filter(isLabelSchema);
+    for (const l3 of list) {
+      if (l3.position) {
+        continue;
+      }
+      if (kind === "port") {
+        l3.position = { x: width / 2, y: -3 };
+      } else if (isContainerKind(kind)) {
+        l3.position = { x: 12, y: 18 };
+      } else {
+        l3.position = { x: width / 2, y: height > 40 ? 32 : height / 2 + 4 };
+      }
+    }
+  }
+  function isContainerKind(kind) {
+    return kind === "boundary" || kind === "system-boundary" || kind === "swimlane" || kind === "fragment";
+  }
+  function applyPhase0Layout(model) {
+    const direction = String(model.layoutOptions?.["elk.direction"] ?? "DOWN");
+    const roots = model.children.filter((c3) => !isEdgeSchema(c3));
+    const sizes = /* @__PURE__ */ new Map();
+    for (const r3 of roots) {
+      if (isShapeSchema(r3)) {
+        sizes.set(r3.id, placeShape(r3, direction));
+      } else if (isCompartmentSchema(r3)) {
+        const h3 = LINE_HEIGHT * Math.max(1, r3.lines.length) + 8;
+        r3.size = r3.size ?? { width: 160, height: h3 };
+        sizes.set(r3.id, r3.size);
+      } else {
+        sizes.set(r3.id, { width: 0, height: 0 });
+      }
+    }
+    let maxX = 0;
+    let maxY = 0;
+    for (const r3 of roots.filter((r4) => r4.position)) {
+      const s3 = sizes.get(r3.id);
+      maxX = Math.max(maxX, r3.position.x + s3.width);
+      maxY = Math.max(maxY, r3.position.y + s3.height);
+    }
+    const horizontal = direction === "RIGHT";
+    const originX = horizontal && maxX > 0 ? maxX + GAP : GAP;
+    const originY = !horizontal && maxY > 0 ? maxY + GAP : GAP;
+    const pending = roots.filter((r3) => !r3.position);
+    const per = horizontal ? MAX_PER_COLUMN : MAX_PER_ROW;
+    let lineStart = 0;
+    let cursor = 0;
+    let lineExtent = 0;
+    pending.forEach((r3, i2) => {
+      const s3 = sizes.get(r3.id);
+      if (i2 > 0 && i2 % per === 0) {
+        lineStart += lineExtent + GAP;
+        cursor = 0;
+        lineExtent = 0;
+      }
+      if (horizontal) {
+        r3.position = { x: originX + lineStart, y: originY + cursor };
+        cursor += s3.height + GAP;
+        lineExtent = Math.max(lineExtent, s3.width);
+      } else {
+        r3.position = { x: originX + cursor, y: originY + lineStart };
+        cursor += s3.width + GAP;
+        lineExtent = Math.max(lineExtent, s3.height);
+      }
+    });
+  }
+
+  // src/views.tsx
+  function nodeStyle(elementType, kind) {
+    switch (elementType) {
       case "RequirementDef":
-        return { fill: "#f9f7ff", stroke: "#4a0a6e", headerFill: "#4a0a6e", stereotype: "requirement def" };
       case "Requirement":
-        return { fill: "#f9f7ff", stroke: "#4a0a6e", headerFill: "#4a0a6e", stereotype: "requirement" };
+        return { fill: "#f9f7ff", stroke: "#4a0a6e", headerFill: "#4a0a6e" };
       case "TestCase":
       case "TestCaseDef":
-        return { fill: "#f0fff4", stroke: "#1e6b2e", headerFill: "#1e6b2e", stereotype: "test case" };
+        return { fill: "#f0fff4", stroke: "#1e6b2e", headerFill: "#1e6b2e" };
       case "PartDef":
-        return { fill: "#f5f5fa", stroke: "#3a3a4a", stereotype: "part def" };
       case "Part":
-        return { fill: "#f5f5fa", stroke: "#3a3a4a", stereotype: "part" };
+        return { fill: "#f5f5fa", stroke: "#3a3a4a" };
+    }
+    switch (kind) {
+      case "boundary":
+      case "system-boundary":
+      case "swimlane":
+      case "fragment":
+        return { fill: "#fafafa", stroke: "#3a3a4a" };
+      case "requirement":
+        return { fill: "#f9f7ff", stroke: "#4a0a6e", headerFill: "#4a0a6e" };
+      case "testcase":
+        return { fill: "#f0fff4", stroke: "#1e6b2e", headerFill: "#1e6b2e" };
+      case "note":
+        return { fill: "#fffbe6", stroke: "#8a7a2a" };
+      case "state":
+        return { fill: "#fff7f0", stroke: "#8a4a1e" };
       default:
-        return { fill: "#f5f5fa", stroke: "#666", stereotype: kind };
+        return { fill: "#f5f5fa", stroke: "#666" };
     }
   }
   function edgeStyle(kind) {
     switch (kind) {
-      case "derivedFrom":
-        return { stroke: "#555", dash: "5,3", label: "derived from" };
-      case "verifies":
-        return { stroke: "#3a6ea5", label: "verifies" };
-      case "allocatedTo":
-        return { stroke: "#7a3ea5", dash: "3,3", label: "allocated to" };
+      case "flow":
+        return { stroke: "#3a6ea5" };
+      case "binding":
+        return { stroke: "#3a6ea5", dash: "5,3" };
+      case "connection":
+      case "succession":
+        return { stroke: "#555" };
+      case "inheritance":
+      case "composition":
+      case "aggregation":
+      case "association":
+      case "containment":
+        return { stroke: "#333" };
+      case "dependency":
+      case "include":
+      case "extend":
+        return { stroke: "#555", dash: "5,3" };
+      case "derive":
+      case "refine":
+      case "trace":
+      case "copy":
+        return { stroke: "#555", dash: "5,3" };
+      case "satisfy":
+      case "verify":
+        return { stroke: "#3a6ea5", dash: "5,3" };
+      case "allocation":
+        return { stroke: "#7a3ea5", dash: "3,3" };
       default:
-        return { stroke: "#888", label: kind };
+        return { stroke: "#888" };
     }
   }
   var SysmlNodeView = class extends import_sprotty.ShapeView {
-    render(node, _context, _args) {
+    render(node, context, _args) {
+      if (!this.isVisible(node, context)) {
+        return void 0;
+      }
       const n = node;
-      const width = n.size?.width ?? 200;
-      const height = n.size?.height ?? 50;
-      const style = nodeStyle(n.kind);
+      const width = Math.max(n.size?.width ?? 0, 0) || 160;
+      const height = Math.max(n.size?.height ?? 0, 0) || 50;
+      const container = isContainerKind(n.kind);
+      const style = nodeStyle(n.elementType, n.kind);
       const selected = !!n.selected;
-      const outlineWidth = selected ? 2.5 : 1.5;
+      const unresolved = n.resolved === false;
+      const outlineWidth = selected ? 2.5 : container ? 1.2 : 1.5;
       const outlineColor = selected ? "#1d4ed8" : style.stroke;
-      return /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-sysml-node": true, "class-selected": selected }, /* @__PURE__ */ (0, import_sprotty.svg)(
+      const stereotype = n.stereotype ? `\xAB${n.stereotype}\xBB` : void 0;
+      return /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-sysml-node": true, "class-selected": selected, "class-unresolved": unresolved }, /* @__PURE__ */ (0, import_sprotty.svg)(
         "rect",
         {
           x: 0,
           y: 0,
           width,
           height,
-          rx: 4,
+          rx: container ? 8 : 4,
           fill: style.fill,
           stroke: outlineColor,
-          "stroke-width": outlineWidth
+          "stroke-width": outlineWidth,
+          "stroke-dasharray": unresolved ? "6,3" : void 0
         }
-      ), style.headerFill && /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 0, y: 0, width, height: 18, rx: 4, fill: style.headerFill, opacity: 0.12 }), /* @__PURE__ */ (0, import_sprotty.svg)("text", { x: width / 2, y: 13, "text-anchor": "middle", "font-size": 9, fill: style.stroke, "font-style": "italic" }, "\xAB", style.stereotype, "\xBB"), /* @__PURE__ */ (0, import_sprotty.svg)("text", { x: width / 2, y: height / 2 + 12, "text-anchor": "middle", "font-size": 12, "font-weight": "bold", fill: "#222" }, n.name), n.isAbstract && /* @__PURE__ */ (0, import_sprotty.svg)("text", { x: width / 2, y: height - 4, "text-anchor": "middle", "font-size": 9, fill: "#666", "font-style": "italic" }, "isAbstract"));
+      ), style.headerFill && !container && /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 0, y: 0, width, height: 18, rx: 4, fill: style.headerFill, opacity: 0.12 }), stereotype && !container && /* @__PURE__ */ (0, import_sprotty.svg)("text", { x: width / 2, y: 13, "text-anchor": "middle", "font-size": 9, fill: style.stroke, "font-style": "italic" }, stereotype), stereotype && container && /* @__PURE__ */ (0, import_sprotty.svg)("text", { x: 12, y: 30, "font-size": 9, fill: style.stroke, "font-style": "italic" }, stereotype), n.isAbstract && /* @__PURE__ */ (0, import_sprotty.svg)(
+        "text",
+        {
+          x: container ? 12 : width / 2,
+          y: container ? 42 : height - 4,
+          "text-anchor": container ? "start" : "middle",
+          "font-size": 9,
+          fill: "#666",
+          "font-style": "italic"
+        },
+        "isAbstract"
+      ), context.renderChildren(node));
     }
   };
   SysmlNodeView = __decorateClass([
     Kt()
   ], SysmlNodeView);
+  var SysmlPortView = class extends import_sprotty.ShapeView {
+    render(port, context, _args) {
+      if (!this.isVisible(port, context)) {
+        return void 0;
+      }
+      const p3 = port;
+      const size = p3.size?.width > 0 ? p3.size.width : PORT_SIZE;
+      const selected = !!p3.selected;
+      const unresolved = p3.resolved === false;
+      const dark = "#333";
+      const fill = p3.direction === "out" ? dark : "#fff";
+      return /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-sysml-port": true, "class-selected": selected }, /* @__PURE__ */ (0, import_sprotty.svg)(
+        "rect",
+        {
+          x: 0,
+          y: 0,
+          width: size,
+          height: size,
+          fill,
+          stroke: selected ? "#1d4ed8" : dark,
+          "stroke-width": selected ? 2 : 1.2,
+          "stroke-dasharray": unresolved ? "2,2" : void 0
+        }
+      ), p3.direction === "inout" && /* @__PURE__ */ (0, import_sprotty.svg)("polygon", { points: `0,0 ${size},0 0,${size}`, fill: dark }), context.renderChildren(port));
+    }
+  };
+  SysmlPortView = __decorateClass([
+    Kt()
+  ], SysmlPortView);
+  var SysmlLabelView = class extends import_sprotty.ShapeView {
+    render(label, _context, _args) {
+      const parent = label.parent;
+      const onPort = parent.type === "port";
+      const inContainer = parent.kind !== void 0 && isContainerKind(parent.kind);
+      const fontSize = onPort ? 8 : 12;
+      return /* @__PURE__ */ (0, import_sprotty.svg)(
+        "text",
+        {
+          "class-sysml-label": true,
+          "text-anchor": inContainer ? "start" : "middle",
+          "font-size": fontSize,
+          "font-weight": onPort ? "normal" : "bold",
+          fill: "#222"
+        },
+        label.text
+      );
+    }
+  };
+  SysmlLabelView = __decorateClass([
+    Kt()
+  ], SysmlLabelView);
+  var SysmlCompartmentView = class {
+    render(compartment, context, _args) {
+      const c3 = compartment;
+      const width = c3.size?.width > 0 ? c3.size.width : 160;
+      const lines = c3.lines ?? [];
+      return /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-sysml-compartment": true }, /* @__PURE__ */ (0, import_sprotty.svg)("line", { x1: 0, y1: 0, x2: width, y2: 0, stroke: "#888", "stroke-width": 1 }), lines.map((line, i2) => /* @__PURE__ */ (0, import_sprotty.svg)("text", { x: 6, y: 12 + i2 * 14, "font-size": 10, fill: "#333" }, line)), context.renderChildren(compartment));
+    }
+  };
+  SysmlCompartmentView = __decorateClass([
+    Kt()
+  ], SysmlCompartmentView);
   var SysmlEdgeView = class extends import_sprotty.PolylineEdgeView {
     renderLine(edge, segments, context, args) {
       const vnode = super.renderLine(edge, segments, context, args);
@@ -25490,6 +25909,9 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     });
     (0, import_sprotty2.configureModelElement)(container, "graph", import_sprotty2.SGraphImpl, import_sprotty2.SGraphView);
     (0, import_sprotty2.configureModelElement)(container, "node", import_sprotty2.SNodeImpl, SysmlNodeView);
+    (0, import_sprotty2.configureModelElement)(container, "port", import_sprotty2.SPortImpl, SysmlPortView);
+    (0, import_sprotty2.configureModelElement)(container, "label", import_sprotty2.SLabelImpl, SysmlLabelView);
+    (0, import_sprotty2.configureModelElement)(container, "compartment", import_sprotty2.SCompartmentImpl, SysmlCompartmentView);
     (0, import_sprotty2.configureModelElement)(container, "edge", import_sprotty2.SEdgeImpl, SysmlEdgeView);
     (0, import_sprotty2.configureCommand)(container, import_sprotty2.CreateElementCommand);
     (0, import_sprotty2.configureCommand)(container, import_sprotty2.DeleteElementCommand);
@@ -25509,39 +25931,42 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   // src/connect-listener.ts
   var import_sprotty3 = __toESM(require_lib2());
   var import_sprotty_protocol2 = __toESM(require_lib());
+  function connectableAncestor(target) {
+    let el = target;
+    while (el) {
+      if (el.type === "node" || el.type === "port") {
+        return el;
+      }
+      el = el instanceof import_sprotty3.SChildElementImpl ? el.parent : void 0;
+    }
+    return void 0;
+  }
   var ConnectMouseListener = class extends import_sprotty3.MouseListener {
     constructor() {
       super(...arguments);
       this.pendingSourceId = null;
     }
     mouseDown(target, _event) {
-      if (target.type !== "node") {
+      const shape = connectableAncestor(target);
+      if (!shape) {
         return [];
       }
       if (this.pendingSourceId === null) {
-        this.pendingSourceId = target.id;
-        return [import_sprotty_protocol2.SelectAction.create({ selectedElementsIDs: [target.id] })];
+        this.pendingSourceId = shape.id;
+        return [import_sprotty_protocol2.SelectAction.create({ selectedElementsIDs: [shape.id] })];
       }
-      if (target.id === this.pendingSourceId) {
+      if (shape.id === this.pendingSourceId) {
         return [];
       }
       const sourceId = this.pendingSourceId;
       this.pendingSourceId = null;
-      this.onConnected?.(sourceId, target.id);
+      this.onConnected?.(sourceId, shape.id);
       return [import_sprotty_protocol2.SelectAction.create({ deselectedElementsIDs: [sourceId] })];
     }
     reset() {
       this.pendingSourceId = null;
     }
   };
-
-  // src/types.ts
-  function isNodeSchema(child) {
-    return child.type === "node";
-  }
-  function isEdgeSchema(child) {
-    return child.type === "edge";
-  }
 
   // src/editor.ts
   var HOST_ID = "sprotty-host";
@@ -25585,6 +26010,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       let model = this.cache.get(qname);
       if (!model) {
         model = await fetchDiagramModel(qname);
+        applyPhase0Layout(model);
         this.cache.set(qname, model);
       }
       await this.modelSource.setModel(model);
@@ -25616,14 +26042,18 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       }
       const shapeId = `s-${ref.replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}-${Date.now().toString(36)}`;
       const position = this.nextCascadePosition(model);
+      const name = nodeName(ref);
       const schema = {
         id: shapeId,
         type: "node",
         ref,
-        kind,
-        name: nodeName(ref),
+        resolved: true,
+        kind: "block",
+        elementType: kind,
+        name,
         position,
-        size: { width: 200, height: 50 }
+        size: defaultSize("block"),
+        children: [{ id: `${shapeId}-label`, type: "label", text: name, position: { x: 80, y: 32 } }]
       };
       model.children.push(schema);
       await this.dispatcher.dispatch(import_sprotty_protocol3.CreateElementAction.create(schema, { containerId: model.id }));
@@ -25633,7 +26063,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         diagram: { qname, shapeId, x: position.x, y: position.y, kind }
       });
       if (!resp.written) {
-        this.removeLocal(model, [shapeId]);
+        removeFromTree(model, [shapeId]);
         await this.dispatcher.dispatch(import_sprotty_protocol3.DeleteElementAction.create([shapeId]));
         this.toast(`Create failed: ${resp.reason ?? summarizeFindings(resp.newErrors)}`);
       }
@@ -25653,22 +26083,31 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       }
     }
     async deleteNode(model, shapeId) {
-      const node = model.children.find((c3) => c3.id === shapeId && isNodeSchema(c3));
+      const node = findShape(model, shapeId);
       if (!node) {
         return;
       }
-      const connectedEdgeIds = model.children.filter(isEdgeSchema).filter((e2) => e2.sourceId === shapeId || e2.targetId === shapeId).map((e2) => e2.id);
-      const removedIds = [shapeId, ...connectedEdgeIds];
-      const removedSchemas = model.children.filter((c3) => removedIds.includes(c3.id));
-      this.removeLocal(model, removedIds);
+      const removedNodeIds = subtreeIds(node);
+      const connectedEdges = model.children.filter(isEdgeSchema).filter((e2) => removedNodeIds.includes(e2.sourceId) || removedNodeIds.includes(e2.targetId));
+      const parent = containerOf(model, shapeId);
+      const parentId = parent ? parent.id : model.id;
+      const removedIds = [shapeId, ...connectedEdges.map((e2) => e2.id)];
+      removeFromTree(model, removedIds);
       await this.dispatcher.dispatch(import_sprotty_protocol3.DeleteElementAction.create(removedIds));
       const resp = await deleteElement(node.ref);
       if (resp.written) {
         return;
       }
-      model.children.push(...removedSchemas);
-      for (const schema of removedSchemas) {
-        await this.dispatcher.dispatch(import_sprotty_protocol3.CreateElementAction.create(schema, { containerId: model.id }));
+      const parentChildren = parent?.children;
+      if (parentChildren && parent !== model) {
+        parentChildren.push(node);
+      } else {
+        model.children.push(node);
+      }
+      model.children.push(...connectedEdges);
+      await this.dispatcher.dispatch(import_sprotty_protocol3.CreateElementAction.create(node, { containerId: parentId }));
+      for (const edge of connectedEdges) {
+        await this.dispatcher.dispatch(import_sprotty_protocol3.CreateElementAction.create(edge, { containerId: model.id }));
       }
       if (resp.blockedBy && resp.blockedBy.length > 0) {
         const refs = resp.blockedBy.map((b3) => b3.qname).join(", ");
@@ -25701,14 +26140,16 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       this.mouseTool.register(this.moveListener);
       this.mouseTool.register(this.selectListener);
     }
+    /** Both ends may be nodes or ports anywhere in the tree; the edge joins
+     * their ids and sits at the root, where sprotty resolves them. */
     async handleConnect(sourceShapeId, targetShapeId) {
       const qname = this.currentQname;
       const model = this.activeModel();
       if (!qname || !model) {
         return;
       }
-      const source = model.children.find((c3) => c3.id === sourceShapeId && isNodeSchema(c3));
-      const target = model.children.find((c3) => c3.id === targetShapeId && isNodeSchema(c3));
+      const source = findShape(model, sourceShapeId);
+      const target = findShape(model, targetShapeId);
       if (!source || !target) {
         return;
       }
@@ -25730,7 +26171,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         diagram: { qname, edgeId, sourceShapeId, targetShapeId }
       });
       if (!resp.written) {
-        this.removeLocal(model, [edgeId]);
+        removeFromTree(model, [edgeId]);
         await this.dispatcher.dispatch(import_sprotty_protocol3.DeleteElementAction.create([edgeId]));
         this.toast(`Connect failed: ${resp.reason ?? summarizeFindings(resp.newErrors)}`);
       }
@@ -25738,6 +26179,12 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     // -----------------------------------------------------------------
     // Move (REQ-TRS-DE-004 — reuses PATCH /api/diagrams/layout unchanged)
     // -----------------------------------------------------------------
+    /** `MoveAction`'s `toPosition` is the element's new `position`, which in
+     * sprotty is always relative to its parent (`MoveMouseListener.
+     * createElementMove` adds the drag delta to `element.position`, and
+     * `LocationPostprocessor` translates each child by that same local
+     * value). So for a nested node the patch is parent-relative — exactly
+     * the pin semantics `vis::sprotty` documents, no conversion needed. */
     handleMoveFinished(moves) {
       const qname = this.currentQname;
       const model = this.activeModel();
@@ -25746,16 +26193,26 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       }
       const patch = {};
       for (const move of moves) {
-        patch[move.elementId] = { x: Math.round(move.toPosition.x), y: Math.round(move.toPosition.y) };
-        const node = model.children.find((c3) => c3.id === move.elementId && isNodeSchema(c3));
-        if (node) {
-          node.position = move.toPosition;
+        const node = findShape(model, move.elementId);
+        if (!node) {
+          continue;
         }
+        patch[move.elementId] = { x: Math.round(move.toPosition.x), y: Math.round(move.toPosition.y) };
+        node.position = move.toPosition;
+      }
+      if (Object.keys(patch).length === 0) {
+        return;
       }
       patchLayout(qname, patch).then(async (resp) => {
         if (!resp.written) {
           await this.revertMoves(model, moves);
           this.toast(`Move failed: ${resp.reason ?? summarizeFindings(resp.newErrors)}`);
+        } else {
+          for (const id of Object.keys(patch)) {
+            if (!model.pinned.includes(id)) {
+              model.pinned.push(id);
+            }
+          }
         }
       }).catch(async (err) => {
         await this.revertMoves(model, moves);
@@ -25777,7 +26234,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       }
       await this.dispatcher.dispatch(import_sprotty_protocol3.MoveAction.create(reverts, { animate: true, finished: true }));
       for (const r3 of reverts) {
-        const node = model.children.find((c3) => c3.id === r3.elementId && isNodeSchema(c3));
+        const node = findShape(model, r3.elementId);
         if (node) {
           node.position = r3.toPosition;
         }
@@ -25797,11 +26254,8 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     activeModel() {
       return this.currentQname ? this.cache.get(this.currentQname) : void 0;
     }
-    removeLocal(model, ids) {
-      model.children = model.children.filter((c3) => !ids.includes(c3.id));
-    }
     nextCascadePosition(model) {
-      const count = model.children.filter(isNodeSchema).length;
+      const count = allShapes(model).length;
       const step = 24 * (count % 10);
       return { x: 60 + step, y: 60 + step };
     }

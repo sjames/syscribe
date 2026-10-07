@@ -6,27 +6,45 @@
 // (sprotty's standalone extension point for custom mouse gestures), toggled
 // in and out of `MouseTool` by `DiagramEditor.toggleConnectMode` so it
 // doesn't fight the default move/select listeners over the same clicks.
-import { MouseListener, SModelElementImpl } from 'sprotty';
+//
+// With the nested graph (`REQ-TRS-VIS-006`) a click usually lands on a
+// node's label or compartment child, so the listener walks up to the nearest
+// connectable ancestor (`node` or `port`). Port-to-port connects produce an
+// edge between the port ids; the port-aware refusal rules of design §6.3 are
+// Phase 2.
+import { MouseListener, SChildElementImpl, SModelElementImpl } from 'sprotty';
 import { Action, SelectAction } from 'sprotty-protocol';
+
+function connectableAncestor(target: SModelElementImpl): SModelElementImpl | undefined {
+    let el: SModelElementImpl | undefined = target;
+    while (el) {
+        if (el.type === 'node' || el.type === 'port') {
+            return el;
+        }
+        el = el instanceof SChildElementImpl ? el.parent : undefined;
+    }
+    return undefined;
+}
 
 export class ConnectMouseListener extends MouseListener {
     pendingSourceId: string | null = null;
     onConnected?: (sourceId: string, targetId: string) => void;
 
     override mouseDown(target: SModelElementImpl, _event: MouseEvent): (Action | Promise<Action>)[] {
-        if (target.type !== 'node') {
+        const shape = connectableAncestor(target);
+        if (!shape) {
             return [];
         }
         if (this.pendingSourceId === null) {
-            this.pendingSourceId = target.id;
-            return [SelectAction.create({ selectedElementsIDs: [target.id] })];
+            this.pendingSourceId = shape.id;
+            return [SelectAction.create({ selectedElementsIDs: [shape.id] })];
         }
-        if (target.id === this.pendingSourceId) {
+        if (shape.id === this.pendingSourceId) {
             return [];
         }
         const sourceId = this.pendingSourceId;
         this.pendingSourceId = null;
-        this.onConnected?.(sourceId, target.id);
+        this.onConnected?.(sourceId, shape.id);
         return [SelectAction.create({ deselectedElementsIDs: [sourceId] })];
     }
 

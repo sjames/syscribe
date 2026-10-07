@@ -19,11 +19,14 @@ import {
     moveModule,
     onAction,
     routingModule,
+    SCompartmentImpl,
     SEdgeImpl,
     selectModule,
     SGraphImpl,
     SGraphView,
+    SLabelImpl,
     SNodeImpl,
+    SPortImpl,
     TYPES,
     undoRedoModule,
     updateModule,
@@ -31,7 +34,7 @@ import {
     zorderModule,
 } from 'sprotty';
 import { Action, ElementMove, MoveAction, SelectAction } from 'sprotty-protocol';
-import { SysmlEdgeView, SysmlNodeView } from './views';
+import { SysmlCompartmentView, SysmlEdgeView, SysmlLabelView, SysmlNodeView, SysmlPortView } from './views';
 
 export interface DiagramCallbacks {
     /** Fired once per completed drag (`MoveAction.finished`), REQ-TRS-DE-004's move gesture. */
@@ -60,11 +63,12 @@ export function createDiagramContainer(hostDivId: string, callbacks: DiagramCall
     container.bind(LocalModelSource).toSelf().inSingletonScope();
     container.bind(TYPES.ModelSource).toService(LocalModelSource);
 
-    // No server-side/hidden-render layout pass: the diagram-model endpoint
-    // already supplies explicit `position`/`size` per node (from the
-    // diagram's `layout:` frontmatter), so `setModel` can submit directly
-    // (`LocalModelSource.submitModel` skips the `RequestBoundsAction` round
-    // trip whenever `needsClientLayout` is false).
+    // No hidden-render measuring pass in Phase 0: the endpoint supplies
+    // `position`/`size` for pinned nodes only (`REQ-TRS-VIS-006`) and
+    // `layout-shim.ts` fills in the rest before `setModel`, so
+    // `LocalModelSource.submitModel` can skip the `RequestBoundsAction` round
+    // trip. Phase 2 (`REQ-TRS-VIS-007`) turns `needsClientLayout` on so label
+    // bounds are measured before ELK runs.
     configureViewerOptions(container, {
         baseDiv: hostDivId,
         hiddenDiv: hostDivId + '-hidden',
@@ -72,8 +76,13 @@ export function createDiagramContainer(hostDivId: string, callbacks: DiagramCall
         needsServerLayout: false,
     });
 
+    // The nested schema (`vis::sprotty`): nodes contain ports, a name label,
+    // compartments and nested nodes; edges stay at the root.
     configureModelElement(container, 'graph', SGraphImpl, SGraphView);
     configureModelElement(container, 'node', SNodeImpl, SysmlNodeView);
+    configureModelElement(container, 'port', SPortImpl, SysmlPortView);
+    configureModelElement(container, 'label', SLabelImpl, SysmlLabelView);
+    configureModelElement(container, 'compartment', SCompartmentImpl, SysmlCompartmentView);
     configureModelElement(container, 'edge', SEdgeImpl, SysmlEdgeView);
 
     // Registered so `DiagramEditor` can dispatch `CreateElementAction`/

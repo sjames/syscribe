@@ -1,10 +1,10 @@
 /** @jsx svg */
-// Minimal node/edge views for the SysML block-style diagrams
-// (`ADR-SYS-DE-001`). Colors intentionally mirror
-// `crates/syscribe-model/src/renderer.rs`'s `render_shape`/`edge_style` so the
-// sprotty editor and the legacy read-only SVG renderer (still used for
-// `Mermaid`-kind diagrams and anywhere `render_diagram` is called directly)
-// look like the same visual language rather than two unrelated tools.
+// Views for the nested SysML graph (`ADR-SYS-VIS-001`, `REQ-TRS-VIS-006`):
+// one node view that distinguishes containers (boundary) from blocks, a port
+// view filled by direction, a label view and a compartment view. Colours are
+// chosen by the resolved element type first and the IR role second; Phase 2
+// moves this table to `vis::style` in Rust so one visual language is shared
+// with the PlantUML/Mermaid/SVG writers.
 import { injectable } from 'inversify';
 import { VNode } from 'snabbdom';
 import {
@@ -12,92 +12,244 @@ import {
     IViewArgs,
     PolylineEdgeView,
     RenderingContext,
+    SCompartmentImpl,
     SEdgeImpl,
     ShapeView,
+    SLabelImpl,
     SNodeImpl,
+    SPortImpl,
     svg,
 } from 'sprotty';
 import { Point } from 'sprotty-protocol';
+import { isContainerKind, PORT_SIZE } from './layout-shim';
 
 /** Extra fields sprotty's `SModelFactory` copies onto the instance verbatim
- * from `SysmlNodeSchema`/`SysmlEdgeSchema` (see `types.ts`) — not part of
- * `SNodeImpl`/`SEdgeImpl` themselves, so views read them through this cast. */
-type WithSysmlNodeFields = SNodeImpl & { kind: string; name: string; ref: string; isAbstract?: boolean };
+ * from the schemas in `types.ts` — not part of the `S*Impl` classes
+ * themselves, so views read them through these casts. */
+type WithShapeFields = {
+    kind: string;
+    name: string;
+    ref: string;
+    resolved?: boolean;
+    elementType?: string;
+    stereotype?: string;
+    isAbstract?: boolean;
+    direction?: string;
+};
+type SysmlNode = SNodeImpl & WithShapeFields;
+type SysmlPort = SPortImpl & WithShapeFields;
+type SysmlCompartment = SCompartmentImpl & { lines?: string[] };
 type WithSysmlEdgeFields = SEdgeImpl & { kind: string };
 
 interface KindStyle {
     fill: string;
     stroke: string;
     headerFill?: string;
-    stereotype: string;
 }
 
-function nodeStyle(kind: string): KindStyle {
-    switch (kind) {
+function nodeStyle(elementType: string | undefined, kind: string): KindStyle {
+    switch (elementType) {
         case 'RequirementDef':
-            return { fill: '#f9f7ff', stroke: '#4a0a6e', headerFill: '#4a0a6e', stereotype: 'requirement def' };
         case 'Requirement':
-            return { fill: '#f9f7ff', stroke: '#4a0a6e', headerFill: '#4a0a6e', stereotype: 'requirement' };
+            return { fill: '#f9f7ff', stroke: '#4a0a6e', headerFill: '#4a0a6e' };
         case 'TestCase':
         case 'TestCaseDef':
-            return { fill: '#f0fff4', stroke: '#1e6b2e', headerFill: '#1e6b2e', stereotype: 'test case' };
+            return { fill: '#f0fff4', stroke: '#1e6b2e', headerFill: '#1e6b2e' };
         case 'PartDef':
-            return { fill: '#f5f5fa', stroke: '#3a3a4a', stereotype: 'part def' };
         case 'Part':
-            return { fill: '#f5f5fa', stroke: '#3a3a4a', stereotype: 'part' };
+            return { fill: '#f5f5fa', stroke: '#3a3a4a' };
+    }
+    switch (kind) {
+        case 'boundary':
+        case 'system-boundary':
+        case 'swimlane':
+        case 'fragment':
+            return { fill: '#fafafa', stroke: '#3a3a4a' };
+        case 'requirement':
+            return { fill: '#f9f7ff', stroke: '#4a0a6e', headerFill: '#4a0a6e' };
+        case 'testcase':
+            return { fill: '#f0fff4', stroke: '#1e6b2e', headerFill: '#1e6b2e' };
+        case 'note':
+            return { fill: '#fffbe6', stroke: '#8a7a2a' };
+        case 'state':
+            return { fill: '#fff7f0', stroke: '#8a4a1e' };
         default:
-            return { fill: '#f5f5fa', stroke: '#666', stereotype: kind };
+            return { fill: '#f5f5fa', stroke: '#666' };
     }
 }
 
-function edgeStyle(kind: string): { stroke: string; dash?: string; label: string } {
+function edgeStyle(kind: string): { stroke: string; dash?: string } {
     switch (kind) {
-        case 'derivedFrom':
-            return { stroke: '#555', dash: '5,3', label: 'derived from' };
-        case 'verifies':
-            return { stroke: '#3a6ea5', label: 'verifies' };
-        case 'allocatedTo':
-            return { stroke: '#7a3ea5', dash: '3,3', label: 'allocated to' };
+        case 'flow':
+            return { stroke: '#3a6ea5' };
+        case 'binding':
+            return { stroke: '#3a6ea5', dash: '5,3' };
+        case 'connection':
+        case 'succession':
+            return { stroke: '#555' };
+        case 'inheritance':
+        case 'composition':
+        case 'aggregation':
+        case 'association':
+        case 'containment':
+            return { stroke: '#333' };
+        case 'dependency':
+        case 'include':
+        case 'extend':
+            return { stroke: '#555', dash: '5,3' };
+        case 'derive':
+        case 'refine':
+        case 'trace':
+        case 'copy':
+            return { stroke: '#555', dash: '5,3' };
+        case 'satisfy':
+        case 'verify':
+            return { stroke: '#3a6ea5', dash: '5,3' };
+        case 'allocation':
+            return { stroke: '#7a3ea5', dash: '3,3' };
         default:
-            return { stroke: '#888', label: kind };
+            return { stroke: '#888' };
     }
 }
 
 @injectable()
 export class SysmlNodeView extends ShapeView implements IView {
-    render(node: Readonly<SNodeImpl>, _context: RenderingContext, _args?: IViewArgs): VNode | undefined {
-        const n = node as Readonly<WithSysmlNodeFields>;
-        const width = n.size?.width ?? 200;
-        const height = n.size?.height ?? 50;
-        const style = nodeStyle(n.kind);
+    render(node: Readonly<SNodeImpl>, context: RenderingContext, _args?: IViewArgs): VNode | undefined {
+        if (!this.isVisible(node, context)) {
+            return undefined;
+        }
+        const n = node as Readonly<SysmlNode>;
+        const width = Math.max(n.size?.width ?? 0, 0) || 160;
+        const height = Math.max(n.size?.height ?? 0, 0) || 50;
+        const container = isContainerKind(n.kind);
+        const style = nodeStyle(n.elementType, n.kind);
         // `selected` also doubles as the connect-mode "pending source" highlight
         // (`ConnectMouseListener` dispatches a plain `SelectAction`) — one less
         // bespoke visual state to wire up for a gesture that's inherently
         // transient (cleared as soon as the second node is clicked).
         const selected = !!n.selected;
-        const outlineWidth = selected ? 2.5 : 1.5;
+        const unresolved = n.resolved === false;
+        const outlineWidth = selected ? 2.5 : container ? 1.2 : 1.5;
         const outlineColor = selected ? '#1d4ed8' : style.stroke;
+        const stereotype = n.stereotype ? `«${n.stereotype}»` : undefined;
 
         return (
-            <g class-sysml-node={true} class-selected={selected}>
+            <g class-sysml-node={true} class-selected={selected} class-unresolved={unresolved}>
                 <rect
-                    x={0} y={0} width={width} height={height} rx={4}
-                    fill={style.fill} stroke={outlineColor} stroke-width={outlineWidth}
+                    x={0}
+                    y={0}
+                    width={width}
+                    height={height}
+                    rx={container ? 8 : 4}
+                    fill={style.fill}
+                    stroke={outlineColor}
+                    stroke-width={outlineWidth}
+                    stroke-dasharray={unresolved ? '6,3' : undefined}
                 />
-                {style.headerFill && (
+                {style.headerFill && !container && (
                     <rect x={0} y={0} width={width} height={18} rx={4} fill={style.headerFill} opacity={0.12} />
                 )}
-                <text x={width / 2} y={13} text-anchor="middle" font-size={9} fill={style.stroke} font-style="italic">
-                    &#171;{style.stereotype}&#187;
-                </text>
-                <text x={width / 2} y={height / 2 + 12} text-anchor="middle" font-size={12} font-weight="bold" fill="#222">
-                    {n.name}
-                </text>
+                {stereotype && !container && (
+                    <text x={width / 2} y={13} text-anchor="middle" font-size={9} fill={style.stroke} font-style="italic">
+                        {stereotype}
+                    </text>
+                )}
+                {stereotype && container && (
+                    <text x={12} y={30} font-size={9} fill={style.stroke} font-style="italic">
+                        {stereotype}
+                    </text>
+                )}
                 {n.isAbstract && (
-                    <text x={width / 2} y={height - 4} text-anchor="middle" font-size={9} fill="#666" font-style="italic">
+                    <text
+                        x={container ? 12 : width / 2}
+                        y={container ? 42 : height - 4}
+                        text-anchor={container ? 'start' : 'middle'}
+                        font-size={9}
+                        fill="#666"
+                        font-style="italic"
+                    >
                         isAbstract
                     </text>
                 )}
+                {context.renderChildren(node)}
+            </g>
+        );
+    }
+}
+
+/** A 12×12 square on its parent's border, filled by direction:
+ * `in` white, `out` dark, `inout` half and half. */
+@injectable()
+export class SysmlPortView extends ShapeView implements IView {
+    render(port: Readonly<SPortImpl>, context: RenderingContext, _args?: IViewArgs): VNode | undefined {
+        if (!this.isVisible(port, context)) {
+            return undefined;
+        }
+        const p = port as Readonly<SysmlPort>;
+        const size = p.size?.width > 0 ? p.size.width : PORT_SIZE;
+        const selected = !!p.selected;
+        const unresolved = p.resolved === false;
+        const dark = '#333';
+        const fill = p.direction === 'out' ? dark : '#fff';
+        return (
+            <g class-sysml-port={true} class-selected={selected}>
+                <rect
+                    x={0}
+                    y={0}
+                    width={size}
+                    height={size}
+                    fill={fill}
+                    stroke={selected ? '#1d4ed8' : dark}
+                    stroke-width={selected ? 2 : 1.2}
+                    stroke-dasharray={unresolved ? '2,2' : undefined}
+                />
+                {p.direction === 'inout' && <polygon points={`0,0 ${size},0 0,${size}`} fill={dark} />}
+                {context.renderChildren(port)}
+            </g>
+        );
+    }
+}
+
+/** The name label of a node/port (its `<id>-label` child) or a free label
+ * shape. Anchored by what it belongs to: left in a container, centred on a
+ * block, centred above a port. */
+@injectable()
+export class SysmlLabelView extends ShapeView implements IView {
+    render(label: Readonly<SLabelImpl>, _context: RenderingContext, _args?: IViewArgs): VNode | undefined {
+        const parent = label.parent as unknown as Partial<WithShapeFields> & { type?: string };
+        const onPort = parent.type === 'port';
+        const inContainer = parent.kind !== undefined && isContainerKind(parent.kind);
+        const fontSize = onPort ? 8 : 12;
+        return (
+            <text
+                class-sysml-label={true}
+                text-anchor={inContainer ? 'start' : 'middle'}
+                font-size={fontSize}
+                font-weight={onPort ? 'normal' : 'bold'}
+                fill="#222"
+            >
+                {label.text}
+            </text>
+        );
+    }
+}
+
+/** A compartment: a separator line and one text row per `lines` entry. */
+@injectable()
+export class SysmlCompartmentView implements IView {
+    render(compartment: Readonly<SCompartmentImpl>, context: RenderingContext, _args?: IViewArgs): VNode | undefined {
+        const c = compartment as Readonly<SysmlCompartment>;
+        const width = c.size?.width > 0 ? c.size.width : 160;
+        const lines = c.lines ?? [];
+        return (
+            <g class-sysml-compartment={true}>
+                <line x1={0} y1={0} x2={width} y2={0} stroke="#888" stroke-width={1} />
+                {lines.map((line, i) => (
+                    <text x={6} y={12 + i * 14} font-size={10} fill="#333">
+                        {line}
+                    </text>
+                ))}
+                {context.renderChildren(compartment)}
             </g>
         );
     }

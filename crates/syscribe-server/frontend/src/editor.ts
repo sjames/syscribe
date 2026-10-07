@@ -6,6 +6,13 @@
 // `ModelViewer` patches a *specific* DOM node by id (`viewerOptions.baseDiv`)
 // and losing that node (e.g. via an `innerHTML` reset elsewhere) would break
 // future patches — see the code comment on `HOST_ID` below.
+//
+// The schema is the nested graph of `REQ-TRS-VIS-006` (see `types.ts`), so
+// every lookup walks the tree (`findShape`/`containerOf`/`removeFromTree`)
+// rather than scanning `model.children`, and every position — in the schema,
+// in `MoveAction`, and in what `PATCH /api/diagrams/layout` receives — is
+// relative to the element's parent (sprotty's own convention; the server's
+// pin semantics match, see `vis::sprotty`'s module doc).
 import 'reflect-metadata';
 import { Container } from 'inversify';
 import { IActionDispatcher, LocalModelSource, MouseTool, MoveMouseListener, SelectMouseListener, TYPES } from 'sprotty';
@@ -13,7 +20,20 @@ import { CreateElementAction, DeleteElementAction, ElementMove, MoveAction } fro
 import * as api from './api';
 import { createDiagramContainer } from './container';
 import { ConnectMouseListener } from './connect-listener';
-import { DiagramModelSchema, Finding, isEdgeSchema, isNodeSchema, SysmlChildSchema, SysmlNodeSchema } from './types';
+import { applyPhase0Layout, defaultSize } from './layout-shim';
+import {
+    allShapes,
+    containerOf,
+    DiagramModelSchema,
+    findShape,
+    Finding,
+    isEdgeSchema,
+    removeFromTree,
+    subtreeIds,
+    SysmlChildSchema,
+    SysmlEdgeSchema,
+    SysmlNodeSchema,
+} from './types';
 
 /** Id of the persistent DOM div sprotty renders into — see `index.html`. It
  * must never be recreated (no `innerHTML = ...` on it or an ancestor) for as
@@ -73,6 +93,8 @@ export class DiagramEditor {
         let model = this.cache.get(qname);
         if (!model) {
             model = await api.fetchDiagramModel(qname);
+            // Phase 0: place everything the server left unpinned (ELK in Phase 2).
+            applyPhase0Layout(model);
             this.cache.set(qname, model);
         }
         await this.modelSource.setModel(model);
@@ -107,14 +129,21 @@ export class DiagramEditor {
         }
         const shapeId = `s-${ref.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase()}-${Date.now().toString(36)}`;
         const position = this.nextCascadePosition(model);
+        const name = nodeName(ref);
+        // A new shape is a root-level block (the manifest's `kind:` is the
+        // element type, which the IR maps to the `block` role); its label
+        // child mirrors what `vis::sprotty` would emit on the next fetch.
         const schema: SysmlNodeSchema = {
             id: shapeId,
             type: 'node',
             ref,
-            kind,
-            name: nodeName(ref),
+            resolved: true,
+            kind: 'block',
+            elementType: kind,
+            name,
             position,
-            size: { width: 200, height: 50 },
+            size: defaultSize('block'),
+            children: [{ id: `${shapeId}-label`, type: 'label', text: name, position: { x: 80, y: 32 } }],
         };
 
         // Optimistic apply.
@@ -128,7 +157,7 @@ export class DiagramEditor {
         });
 
         if (!resp.written) {
-            this.removeLocal(model, [shapeId]);
+            removeFromTree(model, [shapeId]);
             await this.dispatcher.dispatch(DeleteElementAction.create([shapeId]));
             this.toast(`Create failed: ${resp.reason ?? summarizeFindings(resp.newErrors)}`);
         }
@@ -151,19 +180,23 @@ export class DiagramEditor {
     }
 
     private async deleteNode(model: DiagramModelSchema, shapeId: string): Promise<void> {
-        const node = model.children.find(c => c.id === shapeId && isNodeSchema(c)) as SysmlNodeSchema | undefined;
+        const node = findShape(model, shapeId);
         if (!node) {
             return;
         }
-        const connectedEdgeIds = model.children
+        // The node's whole subtree goes with it (ports, labels, nested blocks),
+        // and so does every root edge touching anything in that subtree. The
+        // server prunes the same set from the manifest on its side.
+        const removedNodeIds = subtreeIds(node);
+        const connectedEdges = model.children
             .filter(isEdgeSchema)
-            .filter(e => e.sourceId === shapeId || e.targetId === shapeId)
-            .map(e => e.id);
-        const removedIds = [shapeId, ...connectedEdgeIds];
-        const removedSchemas = model.children.filter(c => removedIds.includes(c.id));
+            .filter(e => removedNodeIds.includes(e.sourceId) || removedNodeIds.includes(e.targetId));
+        const parent = containerOf(model, shapeId);
+        const parentId = parent ? parent.id : model.id;
+        const removedIds = [shapeId, ...connectedEdges.map(e => e.id)];
 
-        // Optimistic apply.
-        this.removeLocal(model, removedIds);
+        // Optimistic apply (sprotty's delete removes the subtree with the node).
+        removeFromTree(model, removedIds);
         await this.dispatcher.dispatch(DeleteElementAction.create(removedIds));
 
         const resp = await api.deleteElement(node.ref);
@@ -171,11 +204,19 @@ export class DiagramEditor {
             return;
         }
 
-        // Revert: disk is unchanged (REQ-TRS-DE-005), so put every removed
-        // schema (the node and its dangling edges) back exactly as it was.
-        model.children.push(...removedSchemas);
-        for (const schema of removedSchemas) {
-            await this.dispatcher.dispatch(CreateElementAction.create(schema, { containerId: model.id }));
+        // Revert: disk is unchanged (REQ-TRS-DE-005), so put the node back
+        // into its original container and the edges back at the root, exactly
+        // as they were.
+        const parentChildren = (parent as { children?: SysmlChildSchema[] } | undefined)?.children;
+        if (parentChildren && parent !== model) {
+            parentChildren.push(node);
+        } else {
+            model.children.push(node);
+        }
+        model.children.push(...connectedEdges);
+        await this.dispatcher.dispatch(CreateElementAction.create(node, { containerId: parentId }));
+        for (const edge of connectedEdges) {
+            await this.dispatcher.dispatch(CreateElementAction.create(edge, { containerId: model.id }));
         }
         if (resp.blockedBy && resp.blockedBy.length > 0) {
             const refs = resp.blockedBy.map(b => b.qname).join(', ');
@@ -212,24 +253,22 @@ export class DiagramEditor {
         this.mouseTool.register(this.selectListener);
     }
 
+    /** Both ends may be nodes or ports anywhere in the tree; the edge joins
+     * their ids and sits at the root, where sprotty resolves them. */
     private async handleConnect(sourceShapeId: string, targetShapeId: string): Promise<void> {
         const qname = this.currentQname;
         const model = this.activeModel();
         if (!qname || !model) {
             return;
         }
-        const source = model.children.find(c => c.id === sourceShapeId && isNodeSchema(c)) as
-            | SysmlNodeSchema
-            | undefined;
-        const target = model.children.find(c => c.id === targetShapeId && isNodeSchema(c)) as
-            | SysmlNodeSchema
-            | undefined;
+        const source = findShape(model, sourceShapeId);
+        const target = findShape(model, targetShapeId);
         if (!source || !target) {
             return;
         }
 
         const edgeId = `e-${sourceShapeId}-${targetShapeId}-${Date.now().toString(36)}`;
-        const schema: SysmlChildSchema = {
+        const schema: SysmlEdgeSchema = {
             id: edgeId,
             type: 'edge',
             sourceId: sourceShapeId,
@@ -256,7 +295,7 @@ export class DiagramEditor {
         });
 
         if (!resp.written) {
-            this.removeLocal(model, [edgeId]);
+            removeFromTree(model, [edgeId]);
             await this.dispatcher.dispatch(DeleteElementAction.create([edgeId]));
             this.toast(`Connect failed: ${resp.reason ?? summarizeFindings(resp.newErrors)}`);
         }
@@ -266,6 +305,12 @@ export class DiagramEditor {
     // Move (REQ-TRS-DE-004 — reuses PATCH /api/diagrams/layout unchanged)
     // -----------------------------------------------------------------
 
+    /** `MoveAction`'s `toPosition` is the element's new `position`, which in
+     * sprotty is always relative to its parent (`MoveMouseListener.
+     * createElementMove` adds the drag delta to `element.position`, and
+     * `LocationPostprocessor` translates each child by that same local
+     * value). So for a nested node the patch is parent-relative — exactly
+     * the pin semantics `vis::sprotty` documents, no conversion needed. */
     private handleMoveFinished(moves: ElementMove[]): void {
         const qname = this.currentQname;
         const model = this.activeModel();
@@ -274,26 +319,33 @@ export class DiagramEditor {
         }
         const patch: Record<string, { x: number; y: number }> = {};
         for (const move of moves) {
-            patch[move.elementId] = { x: Math.round(move.toPosition.x), y: Math.round(move.toPosition.y) };
-            const node = model.children.find(c => c.id === move.elementId && isNodeSchema(c)) as
-                | SysmlNodeSchema
-                | undefined;
-            if (node) {
-                node.position = move.toPosition;
+            const node = findShape(model, move.elementId);
+            if (!node) {
+                // Routing handles and other non-shape moves are not pins.
+                continue;
             }
+            patch[move.elementId] = { x: Math.round(move.toPosition.x), y: Math.round(move.toPosition.y) };
+            node.position = move.toPosition;
+        }
+        if (Object.keys(patch).length === 0) {
+            return;
         }
 
         api.patchLayout(qname, patch)
             .then(async resp => {
-                // `patch_layout` now returns a `WriteResponse` (it moved onto
-                // the guarded-write engine) instead of the always-`{ok:true}`
-                // body the retired `routes::write::patch_layout` returned —
-                // an always-200 refusal is now possible in principle (e.g. a
-                // future validation gate on layout), so revert on
+                // `patch_layout` returns a `WriteResponse` (the guarded-write
+                // engine), so an always-200 refusal is possible in principle
+                // (e.g. a future validation gate on layout): revert on
                 // `written:false` too, not just on a network-level throw.
                 if (!resp.written) {
                     await this.revertMoves(model, moves);
                     this.toast(`Move failed: ${resp.reason ?? summarizeFindings(resp.newErrors)}`);
+                } else {
+                    for (const id of Object.keys(patch)) {
+                        if (!model.pinned.includes(id)) {
+                            model.pinned.push(id);
+                        }
+                    }
                 }
             })
             .catch(async err => {
@@ -317,9 +369,7 @@ export class DiagramEditor {
         }
         await this.dispatcher.dispatch(MoveAction.create(reverts, { animate: true, finished: true }));
         for (const r of reverts) {
-            const node = model.children.find(c => c.id === r.elementId && isNodeSchema(c)) as
-                | SysmlNodeSchema
-                | undefined;
+            const node = findShape(model, r.elementId);
             if (node) {
                 node.position = r.toPosition;
             }
@@ -343,12 +393,8 @@ export class DiagramEditor {
         return this.currentQname ? this.cache.get(this.currentQname) : undefined;
     }
 
-    private removeLocal(model: DiagramModelSchema, ids: string[]): void {
-        model.children = model.children.filter(c => !ids.includes(c.id));
-    }
-
     private nextCascadePosition(model: DiagramModelSchema): { x: number; y: number } {
-        const count = model.children.filter(isNodeSchema).length;
+        const count = allShapes(model).length;
         const step = 24 * (count % 10);
         return { x: 60 + step, y: 60 + step };
     }
