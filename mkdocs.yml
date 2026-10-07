@@ -103,6 +103,7 @@ nav:
       - tool-qualification/index.md
   - Design Notes:
       - Suspect Links: design/suspect-links.md
+      - Visualisation: design/visualisation.md
   - Releases: releases/index.md
 
 extra_css:
