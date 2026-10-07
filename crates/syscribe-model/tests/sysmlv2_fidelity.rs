@@ -119,7 +119,7 @@ const NAMED_MODEL: &str = "---\ntype: ActionDef\nname: Mission\nsubActions:\n\
     \x20 - name: setAlt\n    kind: AssignmentAction\n    target: alt\n    value: \"5\"\n\
     \x20 - name: halt\n    kind: TerminateAction\n    target: done\n\
     \x20 - name: spin\n    kind: LoopAction\n    loopKind: loop\n\
-    \x20 - name: until_ground\n    kind: LoopAction\n    loopKind: until\n    condition: \"a\"\n\
+    \x20 - name: until_ground\n    kind: LoopAction\n    loopKind: repeat\n    condition: \"a\"\n\
 successionConnections:\n  - after: navigate\n    before: checkWeather\n  - after: checkWeather\n    before: setAlt\n  - after: halt\n    before: until_ground\n---\n";
 
 fn reimport(text: &str) -> Vec<RawElement> {
@@ -136,7 +136,7 @@ fn named_control_entries_export_as_named_steps_and_read_back_identically() {
     // `if_1` is exactly the synthesized name where it sits only if no other `if_N` preceded it:
     // `checkWeather` is named, so the bare `if x {}` reads back as `if_1`.
     assert!(text.contains("\n        if x {") || text.contains("\n            if x {"), "{text}");
-    assert!(text.contains("// subAction not exported (unknown loopKind 'until'): LoopAction until_ground"), "{text}");
+    assert!(text.contains("// subAction not exported (unknown loopKind 'repeat'): LoopAction until_ground"), "{text}");
     let back = reimport(&text);
     let orig = find(&els, "B::Mission");
     let got = find(&back, "Imp::B::Mission");
@@ -168,7 +168,7 @@ fn succession_with_a_commented_endpoint_is_commented_too() {
     let els = native(
         "---\ntype: ActionDef\nname: Mission\nsubActions:\n\
          \x20 - name: a\n    kind: PerformAction\n\
-         \x20 - name: b\n    kind: SendAction\n    payload: P\n    via: out\n\
+         \x20 - name: b\n    kind: SendAction\n    payload: P\n    bogus: out\n\
          \x20 - name: c\n    kind: PerformAction\n\
          successionConnections:\n  - after: a\n    before: b\n  - after: b\n    before: c\n  - after: a\n    before: c\n  - after: a\n    before: elsewhere\n---\n",
     );
@@ -217,7 +217,7 @@ fn cross_entry_consistency_holds_for_a_degraded_body() {
     let els = native(
         "---\ntype: ActionDef\nname: Mission\nsubActions:\n\
          \x20 - name: a\n    kind: PerformAction\n\
-         \x20 - name: b\n    kind: SendAction\n    payload: P\n    via: out\n\
+         \x20 - name: b\n    kind: SendAction\n    payload: P\n    bogus: out\n\
          \x20 - name: c\n    kind: PerformAction\n\
          successionConnections:\n  - after: a\n    before: b\n  - after: b\n    before: c\n  - after: a\n    before: c\n---\n",
     );

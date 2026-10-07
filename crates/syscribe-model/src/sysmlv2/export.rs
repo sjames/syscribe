@@ -33,6 +33,10 @@ pub struct ExportReport {
     pub skipped: BTreeMap<String, usize>,
     /// `(qname, type)` of every skipped element, in output order.
     pub skipped_elements: Vec<(String, String)>,
+    /// Behaviour entries (`subActions:`, `subStates:`, `transitions:`, …) written as `// … not
+    /// exported (…)` comments because ingestion would not read them back identically
+    /// (`REQ-TRS-SYSMLV2-072`).
+    pub degraded_behaviour: usize,
 }
 
 impl ExportReport {
@@ -52,11 +56,12 @@ impl ExportReport {
             }
         };
         format!(
-            "exported {} element(s) ({}); skipped {} ({})",
+            "exported {} element(s) ({}); skipped {} ({}); behaviour entries degraded to comments: {}",
             self.exported_total(),
             fmt(&self.exported),
             self.skipped_total(),
-            fmt(&self.skipped)
+            fmt(&self.skipped),
+            self.degraded_behaviour
         )
     }
 }
@@ -370,14 +375,14 @@ impl Writer {
         {
             // `REQ-TRS-SYSMLV2-056`..`-058`: action/state bodies, only as ingestion reads them back.
             let r = |s: &str| self.reference(s);
-            match fm.element_type {
-                Some(ElementType::ActionDef) => body.push_str(&super::export_behavior::action_body(fm, false, &inner, &r)),
-                Some(ElementType::Action) => body.push_str(&super::export_behavior::action_body(fm, true, &inner, &r)),
-                Some(ElementType::StateDef) | Some(ElementType::State) => {
-                    body.push_str(&super::export_behavior::state_body(fm, &inner, &r))
-                }
-                _ => {}
-            }
+            let text = match fm.element_type {
+                Some(ElementType::ActionDef) => super::export_behavior::action_body(fm, false, &inner, &r),
+                Some(ElementType::Action) => super::export_behavior::action_body(fm, true, &inner, &r),
+                Some(ElementType::StateDef) | Some(ElementType::State) => super::export_behavior::state_body(fm, &inner, &r),
+                _ => String::new(),
+            };
+            self.report.degraded_behaviour += super::export_behavior::count_degraded(&text);
+            body.push_str(&text);
         }
         let mut child_buf = String::new();
         if is_package {
@@ -571,7 +576,7 @@ fn sysml_unit(u: &str) -> String {
     }
 }
 
-fn esc_single(s: &str) -> String {
+pub(super) fn esc_single(s: &str) -> String {
     s.replace('\\', "\\\\").replace('\'', "\\'")
 }
 

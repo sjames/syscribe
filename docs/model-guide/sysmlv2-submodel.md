@@ -1012,7 +1012,8 @@ entry is re-parsed through the real ingestion converters and emitted only if it 
 | `transitions:` | `transition first s accept a [via p] if g do effect then t;` (nested: the `first s` clause is the stored `source`, omitted when absent) |
 
 **What becomes a comment** (`// subAction not exported (<reason>): <what>`): an unknown `kind:`/`loopKind`;
-extra fields ingestion cannot hold (`via:`, `referent:`, `trigger:`, …); a guard/condition/effect that is
+extra fields ingestion cannot hold (anything but the documented set, including the `@SyscribeStep` fields
+of §28); a guard/condition/effect that is
 not valid SysML text (e.g. a `<conditional expression>` placeholder); a top-level transition without
 `source:`; a non-string `entryAction:`. Nothing is approximated. A `first a then b;` whose endpoint names a
 step that was itself commented out is commented too (`successionConnection not exported (endpoint 'b' was
@@ -1038,7 +1039,8 @@ action navigateWaypoints { for waypoint in waypoints { action awaitArrival; } }
 `model/` leaves 10 entry comments (8 top-level, down from 10, plus 2 now visible inside the newly exported `navigateWaypoints` and `checkWeather`): they need fields ingestion has no slot for
 (`via:`/`referent:`/`valueKind:`/`trigger:`, `loopKind: until`) or a form it reads back in another shape
 (`accept: {payload: …}` mapping vs the string form; `and` vs `&&` spelling in a guard), plus 3 successions
-commented because an endpoint is among them.
+commented because an endpoint is among them. All of those are closed by §28: the repository `model/`
+now exports with zero such comments.
 
 **Standard-library tables.** Nothing is imported; three small tables answer every reference:
 `ScalarValues` (`Boolean`, `String`, `NumericalValue`, `Number`, `Complex`, `Real`, `Rational`,
@@ -1055,3 +1057,58 @@ export writes `= 4 [N*m]` — an expression, not the quoted name `['N*m']`.
 
 **`W544`.** `part sub : M [3..1];` (and `[-1..2]`, `[1.5..3]`) raises the advisory on the ingested usage;
 `[n]`, `[0..n]` and `[0..*]` do not. The multiplicity text itself is stored unchanged.
+
+## 28. Closing the remaining degradations — `REQ-TRS-SYSMLV2-067`..`-072`
+
+**Canonical forms in the read-back check.** `export-sysml` writes an entry only if re-ingesting its text
+gives the same entry. That comparison now runs both sides through the form ingestion itself produces,
+instead of comparing raw YAML:
+
+| Authored | Read back | Treated as equal |
+|---|---|---|
+| `accept: {payload: Cmd}` (no `via`) | `accept: Cmd` | yes — the plain string is canonical; a mapping is `{payload, via}` only when a `via:` is present (spec §8.8.3 already defines the string as shorthand for `{payload: …}`) |
+| `guard: "a and b"` | `guard: "a && b"` | yes — guards, conditions, assigned values/targets and `for` sequences all pass through ingestion's one expression renderer |
+| `value: 10` | `value: "10"` | yes |
+| `guard: "<conditional expression>"` | does not parse | no — still a comment |
+
+The authored spelling is what is written to the `.sysml` text; only the comparison is canonical.
+
+**`@SyscribeStep`.** The pinned 0.54 parser has no syntax for `via` on an action `accept`/`send`, for
+`referent`/`valueKind` on an `assign`, for an accept `trigger`, or for an `until` loop. Rather than loosen
+the check, those native fields travel in a Syscribe metadata annotation inside the step's own body (the
+same family as `@SyscribeDomain`/`@SyscribeImplementedBy`); the statement itself stays plain SysML:
+
+```sysml
+send commandDescent : Items::ControlCommand { @SyscribeStep { via = 'controlOut'; } }
+action setThrottle {
+    assign self := 0.6;
+    @SyscribeStep { feature = 'throttlePercent'; valueKind = 'initial'; }
+}
+action waitForGround {
+    loop { accept monitorDescent : Items::GPSFix { @SyscribeStep { via = 'gpsIn'; } } }
+    @SyscribeStep { loopKind = 'until'; condition = 'self.altitudeM <= 0.1'; }
+}
+accept awaitArrival : Items::GPSFix { @SyscribeStep { triggerKind = 'change'; triggerCondition = 'd < 2.0'; } }
+```
+
+| Native field | Annotation attribute | Applies to |
+|---|---|---|
+| `via` | `via` | `AcceptAction`, `SendAction` |
+| `trigger: {kind, condition}` | `triggerKind`, `triggerCondition` | `AcceptAction` |
+| `referent` | `feature` (the 0.54 lexer drops an attribute spelled `referent`) | `AssignmentAction` |
+| `valueKind` | `valueKind` | `AssignmentAction` |
+| `loopKind: until` + `condition` | `loopKind = 'until'`, `condition` | an unconditioned `loop { … }` |
+
+Ingestion reads the annotation back into the same entry fields; a statement that carries one is written
+as the named-step wrapper (§27), which owns the annotation, and so never takes a synthesized name. Other
+SysML v2 tools see valid SysML and ignore the metadata, so an exported `until` loop reads in them as an
+unconditioned `loop` — the condition is in the annotation only. Values must be plain text; any other
+extra field, a `via` that is not a string, or a `trigger` with keys other than `kind`/`condition` still
+degrades to a comment.
+
+**Reporting.** The summary line ends `behaviour entries degraded to comments: N` (stderr and the trailing
+`// ---- export summary ----` block). A repository test (`crates/syscribe-model/tests/sysmlv2_export_ratchet.rs`)
+exports every `.md`-native `ActionDef`/`Action`/`StateDef`/`State` in `model/`, `model_auto/`, `model_mg/`,
+`model_sil/` and the `examples/*/model` roots and compares the total with a recorded budget, failing when
+it grows or shrinks (lower the budget to lock in the gain). Over those roots the budget is 4, all in
+`model_sil`: a `guard:` on a `successionConnections:` entry, for which the 0.54 parser exposes no slot.

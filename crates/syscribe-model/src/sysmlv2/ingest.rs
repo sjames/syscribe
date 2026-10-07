@@ -2317,10 +2317,12 @@ fn handle_nested_action_usage(b: &mut ActionBodyBuilder, au: &sysml_v2_parser::A
     // falling back to the default `PerformAction` otherwise.
     if let Some(payload) = &au.accept {
         push_payload_entry(b, payload, "AcceptAction");
+        apply_step_annotation(b, &au.body);
         return;
     }
     if let Some(payload) = &au.send {
         push_payload_entry(b, payload, "SendAction");
+        apply_step_annotation(b, &au.body);
         return;
     }
     if handle_named_step(b, au) {
@@ -2347,12 +2349,14 @@ fn handle_named_step(b: &mut ActionBodyBuilder, au: &sysml_v2_parser::ActionUsag
         && !au.is_variation
         && !au.is_reference;
     let sysml_v2_parser::ActionUsageBody::Brace { elements } = &au.body else { return false };
-    if !plain || elements.len() != 1 {
+    // `REQ-TRS-SYSMLV2-069`: a `@SyscribeStep` annotation beside the statement is not a second statement.
+    let stmts: Vec<_> = elements.iter().filter(|e| !matches!(&e.value, E::MetadataAnnotation(_))).collect();
+    if !plain || stmts.len() != 1 {
         return false;
     }
     let before = b.sub_actions.len();
     b.forced_name = Some(au.name.clone());
-    match &elements[0].value {
+    match &stmts[0].value {
         E::Assign(a) => handle_assign(b, &a.value),
         E::WhileStmt(w) => handle_while(b, &w.value),
         E::LoopStmt(l) => handle_loop(b, &l.value),
@@ -2362,7 +2366,65 @@ fn handle_named_step(b: &mut ActionBodyBuilder, au: &sysml_v2_parser::ActionUsag
         _ => {}
     }
     b.forced_name = None;
-    b.sub_actions.len() > before
+    let pushed = b.sub_actions.len() > before;
+    if pushed {
+        apply_step_annotation(b, &au.body);
+    }
+    pushed
+}
+
+/// `REQ-TRS-SYSMLV2-069`/`-070`: the fields the pinned 0.54 grammar has no syntax for travel in a
+/// `@SyscribeStep { via = '…'; feature = '…' (the `referent`); valueKind = '…'; triggerKind = '…';
+/// triggerCondition = '…'; loopKind = 'until'; condition = '…'; }` metadata annotation inside the
+/// step's own body. This folds it into the entry just pushed (the last `subActions:` item).
+/// `loopKind`/`condition` only ever turn an unconditioned `loop` into an `until` loop.
+fn apply_step_annotation(b: &mut ActionBodyBuilder, body: &sysml_v2_parser::ActionUsageBody) {
+    let sysml_v2_parser::ActionUsageBody::Brace { elements } = body else { return };
+    let Some(ann) = elements.iter().rev().find_map(|e| match &e.value {
+        sysml_v2_parser::ActionUsageBodyElement::MetadataAnnotation(m) if m.value.name == "SyscribeStep" => {
+            Some(&m.value)
+        }
+        _ => None,
+    }) else {
+        return;
+    };
+    let Some(serde_yaml::Value::Mapping(entry)) = b.sub_actions.last_mut() else { return };
+    let kind = entry.get(ykey("kind")).and_then(|v| v.as_str()).unwrap_or("").to_string();
+    let get = |k: &str| attribute_body_string(&ann.body, k);
+    let set = |entry: &mut serde_yaml::Mapping, k: &str, v: String| {
+        entry.insert(ykey(k), serde_yaml::Value::String(v));
+    };
+    if matches!(kind.as_str(), "AcceptAction" | "SendAction") {
+        if let Some(v) = get("via") {
+            set(entry, "via", v);
+        }
+    }
+    if kind == "AcceptAction" {
+        if let (Some(k), Some(c)) = (get("triggerKind"), get("triggerCondition")) {
+            let mut t = serde_yaml::Mapping::new();
+            t.insert(ykey("kind"), serde_yaml::Value::String(k));
+            t.insert(ykey("condition"), serde_yaml::Value::String(c));
+            entry.insert(ykey("trigger"), serde_yaml::Value::Mapping(t));
+        }
+    }
+    if kind == "AssignmentAction" {
+        // The annotation spells `referent` as `feature`: the 0.54 lexer reads an attribute named
+        // `referent` as the `ref` keyword plus a stray identifier and drops the value.
+        for (ann_key, field) in [("feature", "referent"), ("valueKind", "valueKind")] {
+            if let Some(v) = get(ann_key) {
+                set(entry, field, v);
+            }
+        }
+    }
+    if kind == "LoopAction"
+        && entry.get(ykey("loopKind")).and_then(|v| v.as_str()) == Some("loop")
+        && get("loopKind").as_deref() == Some("until")
+    {
+        if let Some(c) = get("condition") {
+            set(entry, "loopKind", "until".to_string());
+            set(entry, "condition", c);
+        }
+    }
 }
 
 /// Build and push one `AcceptAction`/`SendAction` `subActions:` entry —
@@ -4528,6 +4590,18 @@ pub(crate) fn probe_action_body(is_usage: bool, body: &str) -> Option<ProbedActi
         }
     }
     None
+}
+
+/// `REQ-TRS-SYSMLV2-068`: the text of `expr` after ingestion's own expression renderer (so `a and b`
+/// becomes `a && b`), or `None` when it does not parse as an expression.
+pub(crate) fn canonical_expression(expr: &str) -> Option<String> {
+    let p = probe_action_body(false, &format!("assign t := {expr};"))?;
+    match p.sub_actions.as_slice() {
+        [serde_yaml::Value::Mapping(m)] if p.control_nodes.is_empty() => {
+            m.get(ykey("value")).and_then(|v| v.as_str()).map(str::to_string)
+        }
+        _ => None,
+    }
 }
 
 /// Same as [`probe_action_body`] for a `state def` body.

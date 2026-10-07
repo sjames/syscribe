@@ -12,8 +12,8 @@ use std::collections::HashMap;
 
 use serde_yaml::{Mapping, Value};
 
-use super::export::sysml_ident;
-use super::ingest::{probe_action_body, probe_state_body};
+use super::export::{esc_single, sysml_ident};
+use super::ingest::{canonical_expression, probe_action_body, probe_state_body};
 use crate::element::RawFrontmatter;
 
 type Refs<'a> = &'a dyn Fn(&str) -> String;
@@ -56,6 +56,12 @@ fn comment(pad: &str, what: &str, label: &str, reason: &str) -> String {
     format!("{pad}// {what} not exported ({reason}): {label}\n")
 }
 
+/// Number of `// … not exported (…): …` comment lines in generated behaviour text (the format
+/// [`comment`] writes), for the export report (`REQ-TRS-SYSMLV2-072`).
+pub(super) fn count_degraded(text: &str) -> usize {
+    text.lines().filter(|l| l.trim_start().starts_with("// ") && l.contains(" not exported (")).count()
+}
+
 fn describe(v: &Value) -> String {
     match v.as_mapping() {
         Some(m) => {
@@ -65,6 +71,75 @@ fn describe(v: &Value) -> String {
         }
         None => "non-mapping entry".to_string(),
     }
+}
+
+/// Keys whose value is expression text that ingestion re-renders (`and` becomes `&&`, a bare number
+/// becomes its text, …). `REQ-TRS-SYSMLV2-068`.
+const EXPRESSION_KEYS: &[&str] = &["guard", "condition", "value", "sequence", "target"];
+
+/// The canonical form of a native value for the read-back comparison: expression fields in the
+/// rendering ingestion produces, and an `accept:` mapping holding only `payload:` as the plain
+/// string (`REQ-TRS-SYSMLV2-067`/`-068`). Applied to both sides, so only genuinely different
+/// content still degrades.
+fn canon(v: &Value) -> Value {
+    match v {
+        Value::Mapping(m) => {
+            let mut out = Mapping::new();
+            for (k, val) in m {
+                let name = k.as_str().unwrap_or("");
+                let nv = if EXPRESSION_KEYS.contains(&name) {
+                    match val {
+                        Value::String(_) | Value::Number(_) | Value::Bool(_) => {
+                            let raw = match val {
+                                Value::String(s) => s.clone(),
+                                other => scalar_text(other),
+                            };
+                            Value::String(canonical_expression(&raw).unwrap_or(raw))
+                        }
+                        other => canon(other),
+                    }
+                } else if name == "accept" {
+                    match val {
+                        Value::Mapping(am) if am.len() == 1 && am.get(key("payload")).is_some_and(Value::is_string) => {
+                            am.get(key("payload")).cloned().unwrap_or(Value::Null)
+                        }
+                        other => canon(other),
+                    }
+                } else {
+                    canon(val)
+                };
+                out.insert(k.clone(), nv);
+            }
+            Value::Mapping(out)
+        }
+        Value::Sequence(seq) => Value::Sequence(seq.iter().map(canon).collect()),
+        other => other.clone(),
+    }
+}
+
+fn scalar_text(v: &Value) -> String {
+    match v {
+        Value::Number(n) => n.to_string(),
+        Value::Bool(b) => b.to_string(),
+        _ => String::new(),
+    }
+}
+
+fn canon_list(list: &[Value]) -> Vec<Value> {
+    list.iter().map(canon).collect()
+}
+
+/// `@SyscribeStep { k = 'v'; … }` for the extension fields of one step (`REQ-TRS-SYSMLV2-069`/`-070`).
+fn step_annotation(fields: &[(&str, String)], pad: &str) -> String {
+    if fields.is_empty() {
+        return String::new();
+    }
+    let mut s = format!("{pad}@SyscribeStep {{\n");
+    for (k, v) in fields {
+        s.push_str(&format!("{pad}    {k} = '{}';\n", esc_single(v)));
+    }
+    s.push_str(&format!("{pad}}}\n"));
+    s
 }
 
 // ── Actions ────────────────────────────────────────────────────────────────
@@ -126,13 +201,16 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
     // Kinds whose name ingestion synthesizes: the bare statement when the name is exactly the
     // positional one, otherwise the named-step wrapper `action <name> { <stmt> }`
     // (REQ-TRS-SYSMLV2-060/-061), which leaves the synthesized-name counters untouched.
-    let bare_for = |c: &Counters, k: &'static str| name == c.expected(k);
+    // An entry with `@SyscribeStep` extras is always written as the wrapper, which owns the annotation.
+    let has_extras = ["referent", "valueKind"].iter().any(|k| get(m, k).is_some())
+        || text(m, "loopKind") == Some("until");
+    let bare_for = |c: &Counters, k: &'static str| !has_extras && name == c.expected(k);
     let inner_pad = |bare: bool| if bare { pad.to_string() } else { format!("{pad}    ") };
-    let wrap = |bare: bool, stmt: String| -> String {
+    let wrap = |bare: bool, stmt: String, ann: String| -> String {
         if bare {
             stmt
         } else {
-            format!("{pad}action {} {{\n{stmt}{pad}}}\n", sysml_ident(name))
+            format!("{pad}action {} {{\n{stmt}{ann}{pad}}}\n", sysml_ident(name))
         }
     };
 
@@ -150,32 +228,64 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
             Ok((s, Value::Mapping(base)))
         }
         "AcceptAction" | "SendAction" => {
-            if !only_keys(m, &["name", "kind", "payload"]) {
+            let accept = kind == "AcceptAction";
+            let allowed: &[&str] =
+                if accept { &["name", "kind", "payload", "via", "trigger"] } else { &["name", "kind", "payload", "via"] };
+            if !only_keys(m, allowed) {
                 return Err("unsupported fields".into());
             }
             let payload = text(m, "payload").ok_or("no payload")?;
-            let kw = if kind == "AcceptAction" { "accept" } else { "send" };
+            let mut extras: Vec<(&str, String)> = Vec::new();
+            if let Some(v) = get(m, "via") {
+                let via = v.as_str().ok_or("`via` is not text")?;
+                extras.push(("via", via.to_string()));
+                base.insert(key("via"), key(via));
+            }
+            if let Some(t) = get(m, "trigger") {
+                let tm = t.as_mapping().filter(|tm| only_keys(tm, &["kind", "condition"])).ok_or("unsupported trigger")?;
+                let (k, c) = (text(tm, "kind").ok_or("trigger has no kind")?, scalar(tm, "condition").ok_or("trigger has no condition")?);
+                extras.push(("triggerKind", k.to_string()));
+                extras.push(("triggerCondition", c.clone()));
+                let mut tv = Mapping::new();
+                tv.insert(key("kind"), key(k));
+                tv.insert(key("condition"), key(&c));
+                base.insert(key("trigger"), Value::Mapping(tv));
+            }
+            let kw = if accept { "accept" } else { "send" };
             let mut s = format!("{pad}{kw} {}", sysml_ident(name));
             if payload != name {
                 s.push_str(&format!(" : {}", r(payload)));
             }
-            s.push_str(";\n");
+            if extras.is_empty() {
+                s.push_str(";\n");
+            } else {
+                s.push_str(&format!(" {{\n{}{pad}}}\n", step_annotation(&extras, &format!("{pad}    "))));
+            }
             base.insert(key("payload"), key(payload));
             Ok((s, Value::Mapping(base)))
         }
         "AssignmentAction" => {
-            if !only_keys(m, &["name", "kind", "target", "value"]) {
+            if !only_keys(m, &["name", "kind", "target", "value", "referent", "valueKind"]) {
                 return Err("unsupported fields".into());
             }
             let bare = bare_for(c, "assign");
             let (t, v) = (scalar(m, "target").ok_or("no target")?, scalar(m, "value").ok_or("no value")?);
             base.insert(key("target"), key(&t));
             base.insert(key("value"), key(&v));
+            let mut extras: Vec<(&str, String)> = Vec::new();
+            for k in ["referent", "valueKind"] {
+                if let Some(x) = get(m, k) {
+                    let x = x.as_str().ok_or_else(|| format!("`{k}` is not text"))?;
+                    extras.push((if k == "referent" { "feature" } else { k }, x.to_string()));
+                    base.insert(key(k), key(x));
+                }
+            }
             if bare {
                 c.bump("assign");
             }
             let stmt = format!("{}assign {t} := {v};\n", inner_pad(bare));
-            Ok((wrap(bare, stmt), Value::Mapping(base)))
+            let ann = step_annotation(&extras, &inner_pad(bare));
+            Ok((wrap(bare, stmt, ann), Value::Mapping(base)))
         }
         "TerminateAction" => {
             if !only_keys(m, &["name", "kind", "target"]) {
@@ -189,9 +299,9 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
             match text(m, "target") {
                 Some(t) => {
                     base.insert(key("target"), key(t));
-                    Ok((wrap(bare, format!("{ip}terminate {};\n", chain(t))), Value::Mapping(base)))
+                    Ok((wrap(bare, format!("{ip}terminate {};\n", chain(t)), String::new()), Value::Mapping(base)))
                 }
-                None => Ok((wrap(bare, format!("{ip}terminate;\n")), Value::Mapping(base))),
+                None => Ok((wrap(bare, format!("{ip}terminate;\n"), String::new()), Value::Mapping(base))),
             }
         }
         "LoopAction" => {
@@ -203,6 +313,13 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
                     format!("while {}", scalar(m, "condition").ok_or("no condition")?),
                 ),
                 "loop" => (&["name", "kind", "loopKind", "body"], "loop", "loop".to_string()),
+                // `REQ-TRS-SYSMLV2-070`: no `until` in the 0.54 grammar -- an unconditioned `loop`
+                // plus the `@SyscribeStep` annotation carrying `loopKind`/`condition`.
+                "until" => (
+                    &["name", "kind", "loopKind", "condition", "body"],
+                    "loop",
+                    "loop".to_string(),
+                ),
                 "for" => (
                     &["name", "kind", "loopKind", "variable", "sequence", "body"],
                     "for",
@@ -229,7 +346,13 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
             if bare {
                 c.bump(kind_key);
             }
-            Ok((wrap(bare, format!("{ip}{head} {{\n{body}{ip}}}\n")), with_list(base, "body", kept)))
+            let ann = if loop_kind == "until" {
+                let cond = scalar(m, "condition").ok_or("no condition")?;
+                step_annotation(&[("loopKind", "until".to_string()), ("condition", cond)], &ip)
+            } else {
+                String::new()
+            };
+            Ok((wrap(bare, format!("{ip}{head} {{\n{body}{ip}}}\n"), ann), with_list(base, "body", kept)))
         }
         "IfAction" => {
             if !only_keys(m, &["name", "kind", "condition", "then", "else"]) {
@@ -255,7 +378,7 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
             if bare {
                 c.bump("if");
             }
-            Ok((wrap(bare, s), out))
+            Ok((wrap(bare, s, String::new()), out))
         }
         other => Err(format!("unsupported kind '{other}'")),
     }
@@ -342,7 +465,7 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
 fn verify_action_entry(v: &Value, is_usage: bool, r: Refs) -> Result<(), String> {
     let (txt, kept) = action_entry(v, &mut Counters::default(), "", r)?;
     let probed = probe_action_body(is_usage, &txt).ok_or("does not parse")?;
-    if probed.sub_actions == vec![kept] && probed.control_nodes.is_empty() && probed.successions.is_empty() {
+    if canon_list(&probed.sub_actions) == canon_list(&[kept]) && probed.control_nodes.is_empty() && probed.successions.is_empty() {
         Ok(())
     } else {
         Err("does not read back identically".to_string())
@@ -575,7 +698,7 @@ pub(super) fn state_body(fm: &RawFrontmatter, pad: &str, r: Refs) -> String {
 fn verify_substate(v: &Value, r: Refs) -> Result<(), String> {
     let (stmt, mk, kept) = substate(v, "", r)?;
     let p = probe_state_body(&format!("{stmt}{mk}")).ok_or("does not parse")?;
-    if p.sub_states == vec![kept] && p.transitions.is_empty() && p.entry.is_none() && p.do_action.is_none() && p.exit.is_none() {
+    if canon_list(&p.sub_states) == canon_list(&[kept]) && p.transitions.is_empty() && p.entry.is_none() && p.do_action.is_none() && p.exit.is_none() {
         Ok(())
     } else {
         Err("does not read back identically".to_string())
@@ -585,7 +708,7 @@ fn verify_substate(v: &Value, r: Refs) -> Result<(), String> {
 fn verify_transition(t: &Value, r: Refs) -> Result<(), String> {
     let line = transition_text(t, false, "", r)?;
     let p = probe_state_body(&line).ok_or("does not parse")?;
-    if p.transitions == vec![t.clone()] && p.sub_states.is_empty() {
+    if canon_list(&p.transitions) == canon_list(&[t.clone()]) && p.sub_states.is_empty() {
         Ok(())
     } else {
         Err("does not read back identically".to_string())
