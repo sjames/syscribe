@@ -1043,3 +1043,22 @@ package-level `actor` (no actor element type and the AST keeps only the identifi
 `filter` (no native target — `filter:` exists only on views), KerML declarations, a bare root-level
 member other than `alias` (the files' packages are the anchor's members; a definition outside any
 package should be wrapped in one), and the unresolved forms of `satisfy`/`include`/`about`.
+
+## Addendum: bare root-level members merge under the anchor (REQ-TRS-SYSMLV2-098)
+
+The previous addendum left a definition or usage declared outside every `package` unmapped ("no
+package of its own to merge under; wrap it in a `package`"). That reasoning was incomplete: the
+anchor package *is* the package every file's root-level content belongs to. `REQ-TRS-SYSMLV2-007`
+already makes each file's `package`s the anchor's members, and the 0.57 AST carries a root-level
+member as the very same `PackageBodyElement` a package body carries (`RootElement::Member`), so
+treating the file root as the anchor package's own body is the one consistent reading — the
+alternative of fabricating a per-file package would invent a namespace the author never declared
+and would split same-named members across files instead of merging them. Root-level content
+therefore flows through the same merged-package path as a package body: definitions and usages
+become `<anchor>::X`, a `#T` prefix applies to the next member, a `satisfy` lifts, a metadata
+application lifts onto the anchor's own `_index.md` element (resolved the same innermost-scope-first
+way), a `doc` comment appends to its documentation, and a named `alias` keeps its
+`REQ-TRS-SYSMLV2-095` lift — now as a plain consequence of the general rule rather than a special
+case. `export-sysml` writes an `<anchor>::X` back as a direct member of the anchor package's body,
+so the round trip holds. `W543` stops counting `root-level member`; a root-level member counts
+under exactly the kind it would count under inside a package.
