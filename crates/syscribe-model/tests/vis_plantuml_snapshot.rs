@@ -53,7 +53,9 @@ fn companion_diagrams_of_the_demo_model_match_their_snapshots() {
         let qname = &elem.qualified_name;
         let rendered = render_plantuml(elem, &elements, None)
             .unwrap_or_else(|| panic!("{qname}: a companion diagram's kind has a PlantUML mapping"));
-        let path = snapshot_dir().join(format!("{qname}.puml"));
+        // `::` is not a legal path character on Windows (the release matrix checks
+        // the repository out there), so a qualified name maps to `__` in the file name.
+        let path = snapshot_dir().join(format!("{}.puml", qname.replace("::", "__")));
         if update {
             std::fs::create_dir_all(snapshot_dir()).unwrap();
             std::fs::write(&path, &rendered).unwrap();
@@ -84,7 +86,7 @@ fn snapshot_directory_has_no_orphans() {
     let qnames: std::collections::BTreeSet<String> = elements
         .iter()
         .filter(|e| e.frontmatter.puml_mode.as_deref() == Some("companion"))
-        .map(|e| e.qualified_name.clone())
+        .map(|e| e.qualified_name.replace("::", "__"))
         .collect();
     for entry in std::fs::read_dir(snapshot_dir()).expect("snapshot directory exists") {
         let name = entry.unwrap().file_name().to_string_lossy().to_string();
