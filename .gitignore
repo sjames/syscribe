@@ -1,7 +1,6 @@
 target/
 temp/
 site/
-*.layout.json
 # summarize cache, under any model root (model/, model_auto/, examples/…/model/)
 **/.syscribe/cache/
 

@@ -30,8 +30,6 @@ tc_TRS_CLI_009() {
     _c9_bad "$G" "--all-configs"             build-config --all-configs --format cmake
     _c9_bad "$M" "cargo-json, junit"         validate --results "$M/Engine.md" --format bogus
     _c9_bad "$M" "nonexist.json"             validate --results "$M/nonexist.json"
-    _c9_bad "$M" "bogus"                     diagram render Engine --view bogus
-    [ "$rc" -eq 2 ] && pass "diagram keeps clap's usage exit code 2" || fail "diagram --view bogus exit $rc (expected clap's 2)"
 
     SCENARIO_NAME="non-integer counts are rejected"; printf "  ▶ %s\n" "$SCENARIO_NAME"
     while IFS= read -r c; do
@@ -51,7 +49,6 @@ topics --top x
 clusters --k x
 verification-depth --min-levels x
 CMDS
-    _c9_bad "$M" "--min-width" diagram render Engine --min-width wide
 
     SCENARIO_NAME="unknown options are rejected on the checked commands"; printf "  ▶ %s\n" "$SCENARIO_NAME"
     while IFS= read -r c; do
@@ -105,5 +102,4 @@ CMDS
     _c9_ok "$M" export --ndjson
     _c9_ok "$M" find engine --where custom.supplier
     _c9_ok "$M" ls --where custom.supplier
-    _c9_ok "$M" diagram render Engine --view REQ
 }

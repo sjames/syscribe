@@ -13,8 +13,8 @@ the model elements it shows injected. <diagram-path> is the element's file path
 - any other `diagramKind` — the embedded ```svg block, with `<a href>` wrappers
   added around shapes that reference model elements.
 
-It does not lay out or generate a diagram: to generate SVG from the model graph
-use `diagram` (render/compose/seq/req); for PlantUML sources use `plantuml`.
+It does not lay out or generate a diagram: companion SVG files come from the
+browser (Save companion SVG) or from `plantuml render`.
 
 ## EXIT CODES
     0  printed    1  no element at the path, no `diagramKind:`, or the expected
@@ -24,4 +24,4 @@ use `diagram` (render/compose/seq/req); for PlantUML sources use `plantuml`.
     syscribe -m model/ render model/Diagrams/RequirementTraceMermaid.md
 
 ## SEE ALSO
-    diagram
+    plantuml

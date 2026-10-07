@@ -19,9 +19,7 @@ fontdb = "0.23.0"
 serde_json.workspace = true
 serde = { workspace = true, features = ["derive"] }
 clap = "4"
-cassowary = "0.3.0"
 svg = "0.18.0"
-pathfinding = "4"
 rhai = "=1.25.1"
 rmcp = { version = "1", features = ["server", "transport-io", "macros"] }
 pulldown-cmark = { version = "0.12", default-features = false, features = ["html"] }

@@ -249,7 +249,7 @@ Seven enforced traceability rules govern how model elements relate to each other
 
 - **Backend**: Rust (`syscribe-server`) — Axum parses the model directory tree, builds an in-memory graph, exposes REST + WebSocket endpoints, and serves HTML via Askama templates.
 - **Frontend**: Askama templates (server-side HTML rendering) + HTMX for dynamic interactions. No JavaScript framework.
-- **Diagrams**: SVG built server-side by `syscribe-model::renderer`; Mermaid rendered client-side; non-Mermaid diagrams open in an editable sprotty client (`crates/syscribe-server/frontend/`, esbuild-bundled). All JS is vendored under `static/` (no CDN). The Cytoscape `/canvas` + `/api/graph` explorer was retired in v0.33.0.
+- **Diagrams**: one Diagram IR in `syscribe-model::vis`; the sprotty client renders; Mermaid client-side; non-Mermaid diagrams open in an editable sprotty client (`crates/syscribe-server/frontend/`, esbuild-bundled). All JS is vendored under `static/` (no CDN). The Cytoscape `/canvas` + `/api/graph` explorer was retired in v0.33.0.
 - **Live reload**: `notify` crate watches the model directory; changes are pushed to connected clients over WebSocket.
 
 ### Crate layout
@@ -295,7 +295,6 @@ Seven enforced traceability rules govern how model elements relate to each other
 - Qualified name resolution handles circular references gracefully (reports, does not panic).
 - The Syscribe format is the source of truth. The web service's write routes (`POST`/`PUT`/`DELETE`/`PATCH` above) all go through the shared guarded-write engine (`syscribe_model::mutate`, the same one the MCP write tools use) — candidate copy, re-validation, referential-integrity commit gate — never raw disk writes.
 - The LLM generation prompt lives at `prompts/create-model.md` and is embedded in the validator binary via `include_str!` — edit the `.md` file, not the Rust source.
-- **Diagram layout files** (`*.layout.json`) are ephemeral workspace inputs to `diagram compose` — they are not part of the Syscribe schema and must never be committed. Name them `<anything>.layout.json` so the `.gitignore` pattern excludes them automatically.
 
 ## LLM Workflow
 

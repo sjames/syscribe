@@ -11,7 +11,6 @@ mod coanalysis;
 mod coverage;
 mod cyberrisk;
 mod connectivity;
-mod diagram;
 mod digest;
 mod discover;
 mod export;
@@ -38,6 +37,7 @@ mod reqif;
 mod reviews;
 mod safety_case;
 mod sbom;
+mod svgkit;
 mod claim;
 mod scaffold;
 mod scripting;
@@ -858,11 +858,6 @@ fn main() {
                     std::process::exit(1);
                 }
                 render::cmd_render(&elems, &resolver, key, &vcfg);
-            }
-            "diagram" => {
-                let sub = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
-                let rest: Vec<String> = subcommand_args.get(2..).unwrap_or(&[]).to_vec();
-                diagram::cmd_diagram(&elems, &resolver, sub, &rest, &vcfg);
             }
             "validate" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);

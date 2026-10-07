@@ -2,6 +2,15 @@
 
 `RELEASES`
 
+## Unreleased
+
+### CLI `diagram` toolkit removed (ADR-SYS-VIS-001, REQ-TRS-VIS-013)
+
+- **Removed:** the `syscribe diagram` command and all of its subcommands — `list`, `render`, `measure`, `compose`, `layout`, `seq`, `req` — together with its taffy/Cassowary/A\* layout engine, `*.layout.json` workspace files, `syscribe help diagram`, the `docs/cli` section, the composed-SVG workflow in the authoring prompt, and the qualification cases `REQ-TRS-DIAG-004`/`TC-TRS-DIAG-004` and `REQ-TRS-META-002`/`TC-TRS-META-002`. `TC-TRS-LINK-002` is retired; `REQ-TRS-LINK-002` will be re-verified against `syscribe diagram export --format svg` when it lands.
+- **Why:** the visualisation redesign (`ADR-SYS-VIS-001`, `docs/design/visualisation.md`) makes one Diagram IR in `syscribe-model::vis` the only rendering path, laid out in the browser; no backwards compatibility is kept for the old renderers. Phase 0 clears the ground.
+- **Unchanged:** `render <diagram_path>`, `syscribe plantuml` / `plantuml render`, every `Diagram` validation rule (`E400`–`E404`, `W400`–`W415`), and `magicgrid --svg`, which keeps its text metrics and element theme under `crates/syscribe/src/svgkit/`.
+- **Dependencies:** `cassowary` and `pathfinding` dropped from the `syscribe` crate.
+
 ## 0.43.0 — 2026-09-26
 
 ### MCP guarded writes: the delta now reports every error (#187)

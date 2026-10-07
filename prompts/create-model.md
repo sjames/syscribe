@@ -222,7 +222,7 @@ Write `Allocation` elements. Validate: fix E502/E503 (unresolved `allocatedFrom`
 Write `Diagram` elements after all model elements are in place.
 
 - **Mermaid** — write the `.md` directly with a fenced ` ```mermaid ` block. Validate: fix E400, W408, W409.
-- **svgMode: companion** (composed SVG) — use the 4-step CLI workflow: `diagram list` → `diagram measure` → author `*.layout.json` → `diagram compose --output <path>`. Commit both `.md` and generated `.svg`.
+- **svgMode: companion** (companion SVG) — the `.svg` is saved from the browser (Save companion SVG) or produced by `syscribe -m model/ plantuml render`; there is no CLI command that composes it. Commit both `.md` and the `.svg`.
 - **pumlMode: companion** (PlantUML) — preferred for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Set `pumlMode: companion` and `pumlFile: ./<Name>.puml`. Then run:
   ```bash
   syscribe -m model/ plantuml          # generates .puml files and injects ![name](./stem.svg) if absent
@@ -791,7 +791,7 @@ Every diagram is a `type: Diagram` element in `Diagrams/`. Four authoring approa
 
 - **PlantUML companion** (`pumlMode: companion`) — **preferred** for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Syscribe generates a `.puml` source file; PlantUML renders it to SVG. Each shape carries a clickable hyperlink back to its element in the web browser. Set `pumlMode: companion`, `pumlFile:`, and add an `<img>` tag in the body referencing the anticipated SVG. Run `syscribe -m model/ plantuml` then `syscribe -m model/ plantuml render`.
 - **Mermaid** — for traceability trees, flow diagrams, simple state machines. Set `diagramKind: Mermaid`. Include a fenced ` ```mermaid ` block (error E400 if absent).
-- **Composed SVG** (`syscribe diagram` CLI) — element-card architecture diagrams. Cards generated from live model data. Commit the generated SVG as a companion file.
+- **Companion SVG** (`svgMode: companion`) — an SVG file next to the `.md`, saved from the browser (Save companion SVG) or rendered by `syscribe -m model/ plantuml render`. Commit the SVG as a companion file.
 - **Embedded SVG** — hand-coded SVG using the symbol library, for precise SysML notation.
 
 ### Diagram element frontmatter
@@ -833,60 +833,6 @@ graph TD
   FC --> REQ
 ```
 ````
-
-### Composed SVG diagrams (syscribe diagram CLI)
-
-#### Step 1 — Inventory elements
-
-```bash
-syscribe -m model/ diagram list
-syscribe -m model/ diagram list --type PartDef,Part --namespace UAV
-```
-
-#### Step 2 — Measure elements
-
-```bash
-syscribe -m model/ diagram measure \
-  "UAV::Power::BatteryPack,UAV::Power::PowerDistributionUnit" \
-  --view ports
-```
-
-Output JSON: `width`, `height`, `port_anchors`, `peers`.
-
-**`--view` presets:** `full` · `ports` · `features` · `compact` · `name` · `requirement`
-
-#### Step 3 — Author the layout JSON
-
-Name it `<anything>.layout.json` — gitignored. **Never commit layout files.**
-
-```json
-{
-  "title": "UAV Power Architecture",
-  "canvas": { "padding": 40, "bg": "#fafafa" },
-  "elements": [
-    { "qname": "UAV::Power::BatteryPack",           "x": 20,  "y": 80, "view": "ports" },
-    { "qname": "UAV::Power::PowerDistributionUnit", "x": 240, "y": 80, "view": "ports" }
-  ],
-  "edges": [
-    {
-      "from": { "qname": "UAV::Power::BatteryPack",           "port": "powerOut" },
-      "to":   { "qname": "UAV::Power::PowerDistributionUnit", "port": "powerIn" },
-      "kind": "flow"
-    }
-  ]
-}
-```
-
-**Edge kinds:** `flow` · `derive` · `verify` · `allocate` · `satisfy` · `generalize`
-
-#### Step 4 — Compose the SVG
-
-```bash
-syscribe -m model/ diagram compose my-arch.layout.json \
-  --output model/Views/MyDiagram.svg
-```
-
-Commit the generated SVG. For the Diagram element, use `svgMode: companion` and `expose:` listing the qualified names shown.
 
 ### Embedded SVG — available symbols
 

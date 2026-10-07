@@ -44,7 +44,7 @@ syscribe <command> --help  # the same page, e.g. `syscribe validate --help` (als
 
 **Command routing.** The top-level command line is parsed by a clap router whose subcommand registry is derived from the man-page list, so an **unknown command is rejected** with a clear error and a **non-zero** exit (`error: unrecognized subcommand '<name>'`), independent of whether a model directory is present. Each command's own flags are passed through to it unchanged.
 
-**Usage errors.** Invalid input is never silently replaced by a default. An option value outside its documented set (`impact --direction sideways`, `--format xml` on `impact`/`n2`/`behavioral-coverage`/`sbom`/`build-config`), a non-integer count (`n2 --depth abc`, `digest --limit x`, …), or an unknown option on the commands that check theirs — `validate`, `list`, `show`, `trace`, `why`, `who-verifies`, `impact`, `links`, `refs`, `export`, `find`, `ls`, `tree`, `extref`, `n2`, `behavioral-coverage`, `sbom`, `build-config`, `stats`, `digest`, `search-text`, `summarize`, `topics`, `clusters`, `verification-depth` (plus `lint-docs`, `follow`, `connectivity` and the `diagram` family, which parse strictly themselves) — is a **usage error**: a message on stderr naming the option (and, for an enumerated option, its valid values), nothing on stdout, exit `1`. The option check runs before the model is loaded. (`diagram` subcommands report through clap and exit `2`.) Options are spelled `--opt <value>`; the inline `--opt=<value>` form is accepted only where a page documents it (`validate --deny=`/`--max-warnings=`, `--where=`, `lint-docs --deny=`).
+**Usage errors.** Invalid input is never silently replaced by a default. An option value outside its documented set (`impact --direction sideways`, `--format xml` on `impact`/`n2`/`behavioral-coverage`/`sbom`/`build-config`), a non-integer count (`n2 --depth abc`, `digest --limit x`, …), or an unknown option on the commands that check theirs — `validate`, `list`, `show`, `trace`, `why`, `who-verifies`, `impact`, `links`, `refs`, `export`, `find`, `ls`, `tree`, `extref`, `n2`, `behavioral-coverage`, `sbom`, `build-config`, `stats`, `digest`, `search-text`, `summarize`, `topics`, `clusters`, `verification-depth` (plus `lint-docs`, `follow` and `connectivity`, which parse strictly themselves) — is a **usage error**: a message on stderr naming the option (and, for an enumerated option, its valid values), nothing on stdout, exit `1`. The option check runs before the model is loaded. Options are spelled `--opt <value>`; the inline `--opt=<value>` form is accepted only where a page documents it (`validate --deny=`/`--max-warnings=`, `--where=`, `lint-docs --deny=`).
 
 ---
 
@@ -619,28 +619,18 @@ syscribe -m model/ fault-tree render <FaultTree-id>
 
 `fmea report` rolls up the `FMEAEntry` rows (grouped by `FMEASheet`) — each entry's failure mode, severity/occurrence/detection ratings, computed **RPN**, and recommended actions. `--fmea-sheet <id>` restricts the report to a single sheet; `--json` emits the structured document. `fault-tree render <FaultTree-id>` prints one `FaultTree` as a Mermaid `flowchart TD` (gates with their AND/OR type, basic events with their ids and referenced elements, edges from each gate's `inputs`); the same λ/DC data feeds the quantitative `metrics` rollup. Both are read-only. See the [safety-analysis guide](../model-guide/safety-analysis.md).
 
-## Diagrams (`render`, `diagram`, `plantuml`)
+## Diagrams (`render`, `plantuml`)
 
-The model carries native SVG/Mermaid diagram rendering plus a PlantUML companion-file generator.
+`render` prints a hand-authored diagram with element links injected; `plantuml` generates PlantUML companion files. The former CLI `diagram` toolkit (`list`/`render`/`measure`/`compose`/`layout`/`seq`/`req`) was removed under `ADR-SYS-VIS-001` (`REQ-TRS-VIS-013`); companion SVG files are saved from the browser or rendered by `plantuml render`.
 
 ```bash
 syscribe -m model/ render <diagram_path>                         # one Diagram element → stdout
-syscribe -m model/ diagram <subcommand> [args...]                # SVG generation toolkit
 syscribe -m model/ plantuml [<qname>] [--output <file>|-] [--dry-run]   # generate .puml
 syscribe -m model/ plantuml render [--jar <path>] [--dry-run]    # render .puml → .svg
 ```
 
-- **`render <diagram_path>`** prints the diagram embedded in one `Diagram` element (addressed by file path) with element links injected: the ```` ```mermaid ```` block plus `click` directives for `diagramKind: Mermaid`, otherwise the embedded ```` ```svg ```` block with `<a href>` wrappers. It does not generate a diagram — `diagram` does.
-- **`diagram`** is the SVG toolkit (each subcommand takes `--output <file>` / `-o`, default stdout):
-  - `diagram list [--type <T>] [--namespace <NS>]` — list candidate elements for diagram generation, filtered by comma-separated element types and/or a qualified-name prefix.
-  - `diagram render <qname> [--view full|ports|features|compact|name|requirement] [--include-ports <csv>] [--include-features <csv>] [--min-width <N>]` — render one element with a view preset.
-  - `diagram measure <qnames>` — print computed box dimensions for a comma-separated list of qnames.
-  - `diagram compose <layout.json|qname> [--kind bdd|ibd|arch] [--emit-placement]` — compose a multi-element SVG from a layout file or a `Diagram` element; `--emit-placement` emits the auto-generated placement JSON instead of SVG.
-  - `diagram layout <placement.json|-> [--compose] [--kind bdd|ibd|arch] [--svg <file>]` — resolve a placement file (or stdin via `-`) into a final layout; `--compose` pipes the result into compose and emits SVG to `--svg`.
-  - `diagram seq <qname>` — render a Sequence `Diagram` element to SVG.
-  - `diagram req <root> [--depth N] [--show-verify] [--show-satisfy]` — render a requirement-breakdown tree; `--show-verify` adds verifying TestCases, `--show-satisfy` adds satisfying architecture elements.
-  - **Unknown elements are errors.** Every subcommand that draws or measures named elements fails when one does not exist — a `measure` qname, a placed `qname` in a layout/placement file, an `expose:` entry of the composed `Diagram`, or the `render`/`seq`/`req` target: it prints `error: element '<qname>' not found` on stderr for each, writes nothing to stdout and exits `1`. An element is never silently skipped or drawn at a placeholder size.
-- **`plantuml`** generates PlantUML `.puml` source from `Diagram` elements — batch (every `pumlMode: companion` diagram) or a single `<qname>`; `--output -` writes to stdout, `--dry-run` previews paths. **`plantuml render`** invokes PlantUML on the companion `.puml` files and writes `.svg` alongside, resolving the engine via `--jar` → `[plantuml] jar` in `.syscribe.toml` → `PLANTUML_JAR` → `plantuml` on `PATH`. See `syscribe help plantuml` and `syscribe help diagram`.
+- **`render <diagram_path>`** prints the diagram embedded in one `Diagram` element (addressed by file path) with element links injected: the ```` ```mermaid ```` block plus `click` directives for `diagramKind: Mermaid`, otherwise the embedded ```` ```svg ```` block with `<a href>` wrappers. It does not generate a diagram.
+- **`plantuml`** generates PlantUML `.puml` source from `Diagram` elements — batch (every `pumlMode: companion` diagram) or a single `<qname>`; `--output -` writes to stdout, `--dry-run` previews paths. **`plantuml render`** invokes PlantUML on the companion `.puml` files and writes `.svg` alongside, resolving the engine via `--jar` → `[plantuml] jar` in `.syscribe.toml` → `PLANTUML_JAR` → `plantuml` on `PATH`. See `syscribe help plantuml`.
 
 ---
 
