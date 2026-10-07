@@ -129,9 +129,6 @@ struct MergedPackage {
     body: Vec<(sysml_v2_parser::PackageBodyElement, String, DocRef)>,
     /// Nested packages, keyed by name and merged the same way as this level.
     children: BTreeMap<String, MergedPackage>,
-    /// `REQ-TRS-SYSMLV2-095` -- `alias` members declared at a file's root, outside every
-    /// package; lifted onto the anchor package's own element. Only set on the top level.
-    root_aliases: Vec<serde_yaml::Value>,
 }
 
 /// Every `.sysml`/`.kerml` file under `dir`, recursively — however nested, since a
@@ -159,6 +156,10 @@ pub(crate) fn find_sysml_files(dir: &Path) -> Vec<PathBuf> {
 /// by `pkg_qname`. A read or parse failure pushes a `W541` finding onto `owner`
 /// (the package's own `_index.md` element) and contributes zero elements from
 /// that file — never aborts the rest of the subtree.
+///
+/// The top-level [`MergedPackage`] *is* the anchor package (`REQ-TRS-SYSMLV2-098`): a file's
+/// root-level members are its body, exactly like a package body, so a bare `part def X;` becomes
+/// `<pkg_qname>::X` and a root-level `alias`/`doc`/metadata application lifts onto `owner`.
 pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Vec<RawElement> {
     ingest_subtree_detailed(owner, pkg_qname, dir).elements
 }
@@ -214,10 +215,23 @@ pub(crate) fn ingest_subtree_detailed(owner: &mut RawElement, pkg_qname: &str, d
     let unresolved = lift_package_satisfies(&merged, pkg_qname, &mut out);
     let unresolved_includes = resolve_includes(&mut out);
     resolve_dependency_ends(&mut out);
-    let unresolved_about = resolve_metadata(&mut out);
-    // `REQ-TRS-SYSMLV2-095`: a root-level alias belongs to the anchor package itself.
-    if !merged.root_aliases.is_empty() {
-        owner.frontmatter.aliases.get_or_insert_with(Vec::new).extend(merged.root_aliases.iter().cloned());
+    let mut unresolved_about = resolve_metadata(&mut out);
+    // `REQ-TRS-SYSMLV2-095`/`-098`: what a package body lifts onto its `Package` element, the
+    // file root lifts onto the anchor package's own element.
+    let root_aliases = package_aliases(&merged);
+    if !root_aliases.is_empty() {
+        owner.frontmatter.aliases.get_or_insert_with(Vec::new).extend(root_aliases);
+    }
+    let root_doc = package_doc(&merged);
+    if !root_doc.is_empty() {
+        if !owner.doc.trim().is_empty() {
+            owner.doc = format!("{}\n\n{root_doc}", owner.doc.trim_end());
+        } else {
+            owner.doc = root_doc;
+        }
+    }
+    for (file, n) in lift_root_metadata(&merged, pkg_qname, owner, &mut out) {
+        *unresolved_about.entry(file).or_insert(0) += n;
     }
     let mut detailed = Vec::new();
     for (file_path, mut counts) in file_counts {
@@ -440,31 +454,19 @@ pub(crate) fn count_unmapped_root(root: &sysml_v2_parser::RootNamespace, counts:
                 }
             }
             R::Import(_) => {}
-            // `REQ-TRS-SYSMLV2-095`: a named root-level alias lifts onto the anchor package; every
-            // other bare root member has no package to merge under and is counted as such
-            // (`REQ-TRS-SYSMLV2-097`), except documentation and parse-error nodes, which stay quiet.
-            R::Member(m) => {
-                use sysml_v2_parser::PackageBodyElement as E;
-                let kind = match &m.value {
-                    E::AliasDef(a) if ident_name(&a.value.identification).is_some() => None,
-                    E::Annotating(a) if annotating_meta(a).is_none() => unmapped_kind(&m.value, false),
-                    E::Error(_) => None,
-                    other => unmapped_kind(other, false).or(Some("root-level member")),
-                };
-                if let Some(k) = kind {
-                    *counts.entry(k).or_insert(0) += 1;
-                }
-            }
+            // `REQ-TRS-SYSMLV2-098`: the file root is the anchor package's own (named) body, so a
+            // bare root member counts under exactly the kind it would count under in a package.
+            R::Member(m) => count_unmapped_body(std::slice::from_ref(&**m), counts, true),
         }
     }
 }
 
-/// Merge one file's already-parsed root namespace into `target`. Only
-/// `Package` is handled so far — `REQ-TRS-SYSMLV2-007`'s remaining fixed kinds
-/// land in later commits; everything else (bare root members, `library
-/// package`, `namespace`, imports) is silently invisible for now (parse-broad,
-/// map-narrow — same posture the full mapping will keep for constructs outside
-/// the fixed set).
+/// Merge one file's already-parsed root namespace into `target`, the anchor package. A
+/// `package`/`library package`/`namespace` merges by name into `target.children`; every other
+/// root member is the anchor's own body member (`REQ-TRS-SYSMLV2-098`), exactly as the same
+/// member inside a package body would be — a definition or usage becomes `<anchor>::X`, a named
+/// `alias` lifts onto the anchor (`REQ-TRS-SYSMLV2-095`). Imports are namespace plumbing and
+/// carry nothing to merge.
 fn merge_root(target: &mut MergedPackage, root: sysml_v2_parser::RootNamespace, file_path: &str, doc: &DocRef) {
     use sysml_v2_parser::RootElement as R;
     for node in root.elements {
@@ -473,13 +475,8 @@ fn merge_root(target: &mut MergedPackage, root: sysml_v2_parser::RootNamespace, 
             // `REQ-TRS-SYSMLV2-044`: library packages and namespaces become Packages.
             R::LibraryPackage(p) => merge_named(target, &p.value.identification, p.value.body, file_path, doc),
             R::Namespace(p) => merge_named(target, &p.value.identification, p.value.body, file_path, doc),
-            // `REQ-TRS-SYSMLV2-095`: a root-level `alias` is the anchor package's own.
-            R::Member(m) => {
-                if let sysml_v2_parser::PackageBodyElement::AliasDef(a) = &m.value {
-                    target.root_aliases.extend(alias_entry(&a.value));
-                }
-            }
-            _ => {}
+            R::Member(m) => merge_package_body(target, vec![*m], file_path, doc),
+            R::Import(_) => {}
         }
     }
 }
@@ -1520,19 +1517,106 @@ fn metadata_usage_entries(u: &sysml_v2_parser::ast::MetadataUsage) -> Vec<serde_
 /// The `metadata:` entries declared directly in one merged package's body (`@T;`, `#T { }`,
 /// `metadata m : T;`, with or without `about`).
 fn package_metadata(merged: &MergedPackage) -> Vec<serde_yaml::Value> {
+    package_metadata_by_file(merged).into_iter().map(|(entry, _)| entry).collect()
+}
+
+/// [`package_metadata`] paired with the file each entry was declared in.
+fn package_metadata_by_file(merged: &MergedPackage) -> Vec<(serde_yaml::Value, String)> {
     use sysml_v2_parser::PackageBodyElement as E;
     merged
         .body
         .iter()
-        .flat_map(|(e, _, doc)| {
-            with_doc(doc, || match e {
+        .flat_map(|(e, file, doc)| {
+            let entries = with_doc(doc, || match e {
                 E::Annotating(a) => annotating_meta(a).map(MetaMember::Annotation).map(meta_member_entries).unwrap_or_default(),
                 E::MetadataKeywordUsage(k) => meta_member_entries(MetaMember::Keyword(&k.value)),
                 E::MetadataUsage(u) => metadata_usage_entries(&u.value),
                 _ => Vec::new(),
-            })
+            });
+            entries.into_iter().map(move |entry| (entry, file.clone()))
         })
         .collect()
+}
+
+/// `REQ-TRS-SYSMLV2-098`: the file root's metadata applications are the anchor package's own,
+/// resolved exactly like [`resolve_metadata`] does for a synthesized element — `type:` rewritten
+/// to the ingested `MetadataDef`, a resolvable `about` target receiving the entry itself, an
+/// unresolved one kept on `owner` and counted per file for `W543`. Runs after
+/// [`resolve_metadata`], so the index it resolves against is complete.
+fn lift_root_metadata(
+    merged: &MergedPackage,
+    pkg_qname: &str,
+    owner: &mut RawElement,
+    out: &mut [RawElement],
+) -> BTreeMap<String, usize> {
+    let mut unresolved = BTreeMap::new();
+    let entries = package_metadata_by_file(merged);
+    if entries.is_empty() {
+        return unresolved;
+    }
+    let (index, defs) = metadata_indices(out);
+    for (entry, file) in entries {
+        match resolve_metadata_entry(entry, pkg_qname, &index, &defs) {
+            ResolvedMetadata::Moved(target, entry) => {
+                if let Some(t) = out.iter_mut().find(|e| e.qualified_name == target) {
+                    t.frontmatter.metadata.get_or_insert_with(Vec::new).push(entry);
+                }
+            }
+            ResolvedMetadata::Kept(entry, dangling) => {
+                if dangling {
+                    *unresolved.entry(file).or_insert(0) += 1;
+                }
+                owner.frontmatter.metadata.get_or_insert_with(Vec::new).push(entry);
+            }
+        }
+    }
+    unresolved
+}
+
+/// The two lookup indices [`resolve_metadata`] needs: every synthesized qname (for `about`
+/// targets) and the `MetadataDef` qnames (for `type:`).
+fn metadata_indices(out: &[RawElement]) -> (super::EndpointIndex, super::EndpointIndex) {
+    let index: super::EndpointIndex = out.iter().map(|e| (e.qualified_name.clone(), (None, None))).collect();
+    let defs: super::EndpointIndex = out
+        .iter()
+        .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::MetadataDef)))
+        .map(|e| (e.qualified_name.clone(), (None, None)))
+        .collect();
+    (index, defs)
+}
+
+/// What [`resolve_metadata_entry`] decided for one `metadata:` entry.
+enum ResolvedMetadata {
+    /// The entry's `about` target resolved: it moves onto that element (`about:` removed).
+    Moved(String, serde_yaml::Value),
+    /// The entry stays on its holder; `true` when it carries an `about:` that did not resolve.
+    Kept(serde_yaml::Value, bool),
+}
+
+/// Resolve one entry from `holder`'s scope: `type:` rewritten to the `MetadataDef` it resolves to
+/// (kept as written otherwise), then the `about` target looked up the same way.
+fn resolve_metadata_entry(
+    entry: serde_yaml::Value,
+    holder: &str,
+    index: &super::EndpointIndex,
+    defs: &super::EndpointIndex,
+) -> ResolvedMetadata {
+    let serde_yaml::Value::Mapping(mut m) = entry else {
+        return ResolvedMetadata::Kept(entry, false);
+    };
+    if let Some(t) = m.get(ykey("type")).and_then(|v| v.as_str()).map(str::to_string) {
+        if let Some(q) = super::lookup_scoped(defs, holder, &t) {
+            m.insert(ykey("type"), ykey(&q));
+        }
+    }
+    let about = m.get(ykey("about")).and_then(|v| v.as_str()).map(str::to_string);
+    match about.as_deref().and_then(|a| super::lookup_scoped(index, holder, a)) {
+        Some(target) => {
+            m.remove(ykey("about"));
+            ResolvedMetadata::Moved(target, serde_yaml::Value::Mapping(m))
+        }
+        None => ResolvedMetadata::Kept(serde_yaml::Value::Mapping(m), about.is_some()),
+    }
 }
 
 /// `REQ-TRS-SYSMLV2-086`/`-087`: after the whole subtree is merged, rewrite each `metadata:`
@@ -1541,12 +1625,7 @@ fn package_metadata(merged: &MergedPackage) -> Vec<serde_yaml::Value> {
 /// carrying an `about:` onto the element that target resolves to. An unresolved target keeps
 /// the entry on the holder, `about:` intact, and is counted per file for `W543`.
 fn resolve_metadata(out: &mut [RawElement]) -> BTreeMap<String, usize> {
-    let index: super::EndpointIndex = out.iter().map(|e| (e.qualified_name.clone(), (None, None))).collect();
-    let defs: super::EndpointIndex = out
-        .iter()
-        .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::MetadataDef)))
-        .map(|e| (e.qualified_name.clone(), (None, None)))
-        .collect();
+    let (index, defs) = metadata_indices(out);
     let mut unresolved = BTreeMap::new();
     let mut moved: Vec<(String, serde_yaml::Value)> = Vec::new();
     for e in out.iter_mut() {
@@ -1554,26 +1633,13 @@ fn resolve_metadata(out: &mut [RawElement]) -> BTreeMap<String, usize> {
         let holder = e.qualified_name.clone();
         let mut kept = Vec::new();
         for entry in entries {
-            let serde_yaml::Value::Mapping(mut m) = entry else {
-                kept.push(entry);
-                continue;
-            };
-            if let Some(t) = m.get(ykey("type")).and_then(|v| v.as_str()).map(str::to_string) {
-                if let Some(q) = super::lookup_scoped(&defs, &holder, &t) {
-                    m.insert(ykey("type"), ykey(&q));
-                }
-            }
-            let about = m.get(ykey("about")).and_then(|v| v.as_str()).map(str::to_string);
-            match about.as_deref().and_then(|a| super::lookup_scoped(&index, &holder, a)) {
-                Some(target) => {
-                    m.remove(ykey("about"));
-                    moved.push((target, serde_yaml::Value::Mapping(m)));
-                }
-                None => {
-                    if about.is_some() {
+            match resolve_metadata_entry(entry, &holder, &index, &defs) {
+                ResolvedMetadata::Moved(target, entry) => moved.push((target, entry)),
+                ResolvedMetadata::Kept(entry, dangling) => {
+                    if dangling {
                         *unresolved.entry(e.file_path.clone()).or_insert(0) += 1;
                     }
-                    kept.push(serde_yaml::Value::Mapping(m));
+                    kept.push(entry);
                 }
             }
         }
@@ -3993,23 +4059,27 @@ fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>
     for (name, child) in &merged.children {
         let child_qname = format!("{qname}::{name}");
         let file_path = child.declared_in.as_deref().unwrap_or(qname);
-        // `REQ-TRS-SYSMLV2-036`: package-level `doc` lifts onto the Package.
-        let doc = child
-            .body
-            .iter()
-            .filter_map(|(e, _, d)| match e {
-                sysml_v2_parser::PackageBodyElement::Annotating(a) => with_doc(d, || annotating_doc(a)),
-                _ => None,
-            })
-            .map(|t| t.trim().to_string())
-            .filter(|t| !t.is_empty())
-            .collect::<Vec<_>>()
-            .join("\n\n");
         let spec = Spec { aliases: nonempty_vec(package_aliases(child)), ..Default::default() }
             .with_metadata(package_metadata(child));
-        push_synth(out, &child_qname, file_path, ElementType::Package, name, spec.with_doc(doc));
+        push_synth(out, &child_qname, file_path, ElementType::Package, name, spec.with_doc(package_doc(child)));
         convert_merged(child, &child_qname, out);
     }
+}
+
+/// `REQ-TRS-SYSMLV2-036`: a package's own `doc` members, joined in source order — lifted onto the
+/// `Package` (or, for the file root, onto the anchor package's element; `REQ-TRS-SYSMLV2-098`).
+fn package_doc(merged: &MergedPackage) -> String {
+    merged
+        .body
+        .iter()
+        .filter_map(|(e, _, d)| match e {
+            sysml_v2_parser::PackageBodyElement::Annotating(a) => with_doc(d, || annotating_doc(a)),
+            _ => None,
+        })
+        .map(|t| t.trim().to_string())
+        .filter(|t| !t.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n\n")
 }
 
 /// Dispatch one top-level (package-body) member. Only the kinds in

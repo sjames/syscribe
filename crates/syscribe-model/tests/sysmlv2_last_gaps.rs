@@ -358,12 +358,13 @@ fn a_root_level_alias_lifts_onto_the_anchor_package() {
 }
 
 #[test]
-fn other_bare_root_members_are_counted() {
-    let els = load("part def Loose;\ndoc /* root doc */\npackage P { part def X; }\n");
-    assert!(els.iter().all(|e| e.qualified_name != "S::Loose"));
-    let w = w543(&els);
-    assert_eq!(w.len(), 1, "{w:?}");
-    assert!(w[0].contains("root-level member x1"), "{w:?}");
+fn other_bare_root_members_merge_under_the_anchor() {
+    // `REQ-TRS-SYSMLV2-098`: a bare root-level definition is the anchor's own member now (it was
+    // counted as `root-level member` before); the alias lift itself is unchanged.
+    let els = load("part def Loose;\ndoc /* root doc */\nalias Top for P::X;\npackage P { part def X; }\n");
+    assert_eq!(find(&els, "S::Loose").frontmatter.element_type, Some(ElementType::PartDef));
+    assert_eq!(find(&els, "S").frontmatter.aliases.as_ref().map(Vec::len), Some(1));
+    assert!(w543(&els).is_empty(), "{:?}", w543(&els));
 }
 
 // ── REQ-TRS-SYSMLV2-096 ────────────────────────────────────────────────────
@@ -396,10 +397,12 @@ fn w543_names_exactly_the_final_unmapped_kinds() {
     );
     let w = w543(&els);
     assert_eq!(w.len(), 1, "{w:?}");
-    for k in ["actor x1", "filter x1", "metadata x1", "root-level member x1", "KerML declaration x1"] {
+    for k in ["actor x1", "filter x1", "metadata x1", "KerML declaration x1"] {
         assert!(w[0].contains(k), "missing {k}: {w:?}");
     }
-    for k in ["occurrence", "dependency", "alias", "metadata x2"] {
+    // `REQ-TRS-SYSMLV2-098`: the root-level `part def Loose;` is `S::Loose`, not a count.
+    assert_eq!(find(&els, "S::Loose").frontmatter.element_type, Some(ElementType::PartDef));
+    for k in ["occurrence", "dependency", "alias", "metadata x2", "root-level member"] {
         assert!(!w[0].contains(k), "{k} must not be counted: {w:?}");
     }
 }

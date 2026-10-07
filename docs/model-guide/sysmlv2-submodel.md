@@ -95,7 +95,8 @@ below), — as of `REQ-TRS-SYSMLV2-029` — `AllocationDef` (§20, below), and �
 Also, as of `REQ-TRS-SYSMLV2-083`/`-084`: `OccurrenceDef`, `IndividualDef`, `Occurrence`,
 `EventOccurrence` and a named `Dependency` (§29); and as of `REQ-TRS-SYSMLV2-086`..`-096`: metadata
 applications into `metadata:`, anonymous dependencies, portion-kind occurrences, root-level
-aliases, and the last behaviour-body slots (§30).
+aliases, and the last behaviour-body slots (§30); and as of `REQ-TRS-SYSMLV2-098`: every bare
+root-level member of a file, merged under the anchor package (§31).
 
 A construct outside that set — `actor`, package-level `filter`, KerML declarations
 and similar (the full list with the reason for each is in §6) — parses without error but
@@ -279,7 +280,7 @@ the parser to add real support was considered and rejected.
 | `W540` | A `_index.md` found anywhere inside a `sysmlSubmodel: true` package's subtree, other than that package's own anchor `_index.md` |
 | `W541` | Either a `.sysml`/`.kerml` file failed to read (e.g. invalid UTF-8), or `sysml-v2-parser` failed to parse its contents |
 | `W542` | A `connect` endpoint's genuinely two-segment chain fell back to a head-only edge because the tail isn't a locally-redeclared feature (§8's redeclaration lookahead didn't match) — identifies the dropped segment. Also raised when an `allocation` usage's `allocate` endpoint chain is truncated (§20) |
-| `W543` | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`actor`, package-level `filter`, a KerML declaration, a `metadata` application whose `about` target does not resolve, a bare `root-level member` other than `alias`, an `other package member` such as a package-level `connect`/`ref`/`succession`, an unresolved package-level `satisfy`/`include`, …; the full list with reasons is §6); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030/-097). Example: `actor x2, filter x1`. It does not cover members nested inside a mapped definition's body (e.g. a requirement's `frame`/constraint body); gate it with `--deny W543` |
+| `W543` | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`actor`, package-level `filter`, a KerML declaration, a `metadata` application whose `about` target does not resolve, an `other package member` such as a package-level `connect`/`ref`/`succession`, an unresolved package-level `satisfy`/`include`, …; the full list with reasons is §6); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030/-097). Example: `actor x2, filter x1`. It does not cover members nested inside a mapped definition's body (e.g. a requirement's `frame`/constraint body); gate it with `--deny W543` |
 | `W544` | Advisory: an ingested usage's multiplicity has integer bounds with lower greater than upper, a negative bound, or a non-integer numeric literal bound (REQ-TRS-SYSMLV2-066); name or expression bounds are not evaluated |
 
 All of them share a **dedicated code range**, distinct from the [stdio-subprocess plugin
@@ -324,7 +325,6 @@ itself drops before Syscribe sees them, so they cannot be counted.
 | package-level `filter <expr>;` (`filter`) | No native target: `filter:` exists only on `View`/`expose`, and a package-level filter scopes imports, which the model does not carry. |
 | KerML declarations (`classifier`, `feature`, `type`, `struct`, `inv`, `connector`, a bare relationship, ...) (`KerML declaration`) | KerML is the semantic layer below SysML structure; mapping a KerML `feature` to a SysML usage would assert semantics the source did not state. |
 | a `metadata` application whose `about` target does not resolve (`metadata`) | Nothing in the submodel to attach it to. The application is still kept on its holder with `about:` set to the written target (§30), so the content is not lost; the count flags the dangling target. |
-| a bare root-level member other than `alias` (`root-level member`) | The files' `package`s are the anchor package's members (`REQ-TRS-SYSMLV2-007`); a definition or usage outside every package has no package of its own to merge under. Wrap it in a `package`. A root-level `alias` carries no body and lifts onto the anchor (§30). |
 | an anonymous `alias`, or one in an anonymous package (`alias`) | No name to declare, or no synthesized `Package` to carry `aliases:`. |
 | a package-level `ref`, `connect`, `binding`, `succession`, `exhibit`, `include`, `expose`, `perform`, `assert constraint`, keyword-less `name = expr;`, a user-defined-keyword declaration (`#kw def X`), and grammar the parser marks unsupported (`other package member`) | These are usage/relationship members of a *definition body* in the native format (`connections:`, `successionConnections:`, `performs:`, `exhibitsStates:`, `includes:`, `expose:` all live on an element); at package level there is no element to own them. Declare them inside the part/action/use case they belong to. |
 | a `textual representation` (`rep`) (`textual representation`) | No native field for an opaque representation in another language. |
@@ -962,7 +962,7 @@ More of what the parser exposes now lands in a native target; each stops countin
 
 | SysML v2 | Native | Notes |
 |---|---|---|
-| `alias m for X;` in a named package | `aliases: [{name: m, for: X}]` on that `Package` | the field the scoped resolver already reads (spec 3.7.2); `<s>` short names become `shortName`; a **root-level** alias has no package to carry it and stays counted |
+| `alias m for X;` in a named package | `aliases: [{name: m, for: X}]` on that `Package` | the field the scoped resolver already reads (spec 3.7.2); `<s>` short names become `shortName`; a **root-level** alias lifts onto the anchor package since `REQ-TRS-SYSMLV2-095` (§30) |
 | `library package` / `namespace` | `Package` | at the file root or nested; same-named declarations merge; the `standard` flag is dropped |
 | `metadata def N :> S` | `MetadataDef` | `supertype:`, `isAbstract:`, doc, and since §30 its `attribute` members as `features:`; metadata *applications* are mapped since `REQ-TRS-SYSMLV2-086` (§30) |
 | `satisfy R by X;` at package level | `X`'s `satisfies:` gains `R` | `X` is resolved innermost-scope-first after the whole subtree is merged; an unresolved subject, the bare `satisfy R;` shorthand, a negated or inline one stay counted as `satisfy` |
@@ -1246,7 +1246,27 @@ form (`accept 'odd name';`) for genuine restricted names.
 
 **The final unmapped list (`-097`).** `W543` counts exactly the kinds in §6 — `actor`, `filter`,
 `KerML declaration` (every KerML-only member kind, which includes `classifier`/`feature`/`inv`
-forms that were silently invisible before), `metadata` (unresolved `about` only), `root-level member`,
-`alias` (anonymous), `other package member` (package-level usage/relationship members, user-defined
+forms that were silently invisible before), `metadata` (unresolved `about` only), `alias` (anonymous), `other package member` (package-level usage/relationship members, user-defined
 keyword declarations and parser-unsupported grammar, all previously silent), `textual representation`,
 and the unresolved `satisfy`/`include` — and §6 names the two forms the parser does not represent.
+(`root-level member`, also in this list at the time, stopped counting with `REQ-TRS-SYSMLV2-098`, §31.)
+
+## 31. Bare root-level members — `REQ-TRS-SYSMLV2-098`
+
+A `.sysml`/`.kerml` file need not wrap its content in a `package`. The anchor package (the
+`sysmlSubmodel: true` `_index.md`) *is* the package every file's root-level content belongs to, so
+the file root is treated as the anchor's own body — exactly the same path a package body takes:
+
+| At the file root | Native |
+|---|---|
+| `part def X;`, `requirement def R;`, `part p : X;`, any other mapped definition or usage | `<anchor>::X` — the same element, with the same fields, the same member inside a `package` gets; same-named content merges across files (§2) |
+| `#T part def X;` | `{type: T}` on `X` (§30) |
+| `satisfy R by X;` | `R` appended to `X`'s `satisfies:` (§24) |
+| `metadata m : T;`, `@T;`, `@T about X;` | an entry on the anchor's own element, or on the resolvable `about` target; an unresolved target stays on the anchor and counts as `metadata` (§30) |
+| `doc /* ... */` | appended to the anchor's documentation, after the `_index.md` body |
+| `alias n for X;` | `aliases:` on the anchor (`REQ-TRS-SYSMLV2-095`, §30) — now a consequence of the general rule |
+
+`export-sysml <anchor>` writes an `<anchor>::X` back as a direct member of the anchor package's
+body (`package S { part def X; ... }`), so a root-level member round-trips. `W543` no longer has a
+`root-level member` kind: a root member that maps to nothing counts under exactly the kind it would
+count under inside a package (`actor`, `filter`, `KerML declaration`, ...).

@@ -9,7 +9,7 @@ verifies:
 sourceFile: repo:crates/syscribe-model/tests/sysmlv2_last_gaps.rs
 testFunctions:
   - a_root_level_alias_lifts_onto_the_anchor_package
-  - other_bare_root_members_are_counted
+  - other_bare_root_members_merge_under_the_anchor
 tags:
   - sysmlv2
 ---
