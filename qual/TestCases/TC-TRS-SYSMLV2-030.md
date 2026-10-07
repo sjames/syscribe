@@ -17,9 +17,9 @@ testFunctions:
 Feature: unmapped SysMLv2 constructs are reported (TC-TRS-SYSMLV2-030)
 
   Scenario: one W543 per file with per-kind counts
-    Given a sysmlSubmodel file declaring two calc defs, a constraint def and a use case def
+    Given a sysmlSubmodel file declaring two metadata defs, an occurrence def and an alias
     When the tool validates the model
-    Then exactly one W543 is raised for that file and it lists calc def x2, constraint def x1 and use case def x1
+    Then exactly one W543 is raised for that file and it lists metadata def x2, occurrence def x1 and alias x1
 
   Scenario: a fully mapped file is silent
     Given a sysmlSubmodel file declaring only a part def

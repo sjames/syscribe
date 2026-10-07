@@ -400,12 +400,9 @@ fn a_whitespace_only_doc_block_is_dropped_not_kept_as_a_blank_line() {
 }
 
 #[test]
-fn a_package_level_doc_block_is_not_lifted_anywhere() {
-    // Packages are synthesized via Spec::default() (ingest.rs's
-    // convert_merged), never reading PackageBodyElement::Doc even though
-    // that variant exists on the enum — packages aren't in
-    // REQ-TRS-SYSMLV2-009's scope. Pinning this as deliberate, not an
-    // oversight the next reader should "fix."
+fn a_package_level_doc_block_is_lifted_onto_the_package() {
+    // Originally pinned as *not* lifted (REQ-TRS-SYSMLV2-009 scope);
+    // REQ-TRS-SYSMLV2-036 lifts it onto the synthesized Package.
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
     write(
@@ -417,7 +414,7 @@ fn a_package_level_doc_block_is_not_lifted_anywhere() {
         &root,
         "SysML2Legacy/CarOS.sysml",
         "package CarOS {\n\
-         doc /* Package-level doc — out of scope. */\n\
+         doc /* Package-level doc. */\n\
          part def Plain;\n\
          }\n",
     );
@@ -427,7 +424,7 @@ fn a_package_level_doc_block_is_not_lifted_anywhere() {
         .iter()
         .find(|e| e.qualified_name == "SysML2Legacy::CarOS")
         .unwrap();
-    assert_eq!(pkg.doc, "");
+    assert_eq!(pkg.doc, "Package-level doc.");
 }
 
 #[test]

@@ -829,3 +829,39 @@ change.
   and keeps the deepest resolved prefix as the edge endpoint; an unresolvable head is left as written
   for `E502`/`E503`. No new code.
 - **Anonymous `allocate a to b;` stays unmapped** — no identity to synthesize an element against.
+
+## Addendum: `constraint`, `calc`, `use case` and package `doc` mapping (`REQ-TRS-SYSMLV2-033`..`-036`)
+
+Four of the kinds `W543` (`REQ-TRS-SYSMLV2-030`) reported as dropped now map onto native types
+that already existed in the schema, so no new `ElementType` was needed.
+
+- **Targets.** `constraint def`/`constraint` -> `ConstraintDef`/`Constraint` (§8.10);
+  `calc def`/`calc` -> `CalculationDef`/`Calculation` (§8.9; the native name is `Calculation`, not
+  `Calc`); `use case def`/`use case` -> `UseCaseDef`/`UseCase` (§8.12.4); package-level `doc` -> the
+  `Package` element's doc body.
+- **Expression text is preserved as an opaque string**, never interpreted: `expression:` on a
+  constraint, `body:` (+ `bodyLanguage: kerml`) on a calc, produced by the existing
+  `render_expression` used for transition guards. Constructs that renderer cannot print
+  (conditional, select, collect, ...) appear as its fixed placeholder text — the same documented
+  limitation as elsewhere. `bodyLanguage: budget` and `evaluate:` stay hand-authored.
+- **`parameters:`** from `in`/`out`/`inout` declarations as `{name, typedBy, direction}`; a calc's
+  `return` declarations are added with `direction: return` and the first also sets `returnType:`.
+- **Use cases reuse the case-family lift** (`case_body_fields`) because the parser gives use cases
+  the same body type as `case def`: `subject`, `actors`, `objectives`, `result`, `isAbstract`, doc.
+  `include`/`extend` are not lifted: the AST carries a usage name, not the qualified target of the
+  native `includes:`/`extends:`. A non-draft ingested `UseCaseDef` raises the existing advisory
+  `W307`; no code is added or changed.
+- **Reachability follows the parser.** Package level: constraint def/usage, calc def, use case
+  def/usage. A `calc` *usage* and `use case` usage are also reachable in a `part def` body,
+  `constraint` usage also in a `part` usage body; a package-level `calc` usage or a nested
+  constraint *def* does not parse, so there is nothing to map (graceful `W541` as before).
+- **`typedBy:` scoping is unchanged**: the new usages' `typedBy:` and defs' `supertype:` go through
+  the same scoped resolver (`REQ-TRS-SYSMLV2-016`), so an unresolved target is `E111`/`W600` as for
+  any other ingested element.
+- **`W543` accounting.** The mapped kinds were removed from `unmapped_kind`; the advisory,
+  `syscribe sysml` and MCP `sysml_submodels` therefore stop listing them. Remaining unmapped kinds:
+  `metadata def`/`metadata`, `occurrence def`/`occurrence`, `individual def`, `actor`, `alias`,
+  `satisfy` (package level), `dependency`, `filter`, `textual representation`, `library package`,
+  `namespace` and the KerML declaration forms. No code is added or changed.
+- **Not done.** Nested constraint members of a constraint body, `assert`/negation flags (not
+  surfaced by the parser), `doc` on `requirement def`/`requirement`.

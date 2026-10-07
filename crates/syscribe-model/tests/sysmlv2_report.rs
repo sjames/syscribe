@@ -36,7 +36,7 @@ fn model(files: &[(&str, &str)]) -> PathBuf {
 #[test]
 fn report_lists_files_kinds_unmapped_and_findings() {
     let root = model(&[
-        ("A.sysml", "package P {\n  part def X;\n  part def Y;\n  calc def C { return r : Real; }\n}\n"),
+        ("A.sysml", "package P {\n  part def X;\n  part def Y;\n  metadata def C;\n}\n"),
         ("B.sysml", "package Q { port def Pt; }\n"),
         ("Bad.sysml", "package { this is not valid ((("),
     ]);
@@ -49,7 +49,7 @@ fn report_lists_files_kinds_unmapped_and_findings() {
     assert_eq!(s.files_parsed(), 2);
     assert_eq!(s.elements_by_kind.get("PartDef"), Some(&2));
     assert_eq!(s.elements_by_kind.get("PortDef"), Some(&1));
-    assert_eq!(s.unmapped.get("calc def"), Some(&1));
+    assert_eq!(s.unmapped.get("metadata def"), Some(&1));
     let codes: Vec<&str> = s.findings.iter().map(|f| f.code.as_str()).collect();
     assert!(codes.contains(&"W543"), "{codes:?}");
     assert!(codes.contains(&"W541"), "{codes:?}");

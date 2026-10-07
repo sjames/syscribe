@@ -88,10 +88,11 @@ cross-referenceable `RawElement`s:
 `REQ-TRS-SYSMLV2-024` — `FlowDef`/`Flow` (§17, below), — as of `REQ-TRS-SYSMLV2-025` —
 `EnumerationDef`/`Enumeration` (§18, below), — as of `REQ-TRS-SYSMLV2-026`/`-027`/`-028` —
 `CaseDef`/`Case`, `AnalysisCaseDef`/`AnalysisCase`, `VerificationCaseDef`/`VerificationCase` (§19,
-below; **not** `UseCaseDef`/`UseCase`, still deliberately unmapped), and — as of
-`REQ-TRS-SYSMLV2-029` — `AllocationDef` (§20, below).
+below), — as of `REQ-TRS-SYSMLV2-029` — `AllocationDef` (§20, below), and — as of
+`REQ-TRS-SYSMLV2-033`..`-036` — `ConstraintDef`/`Constraint`, `CalculationDef`/`Calculation`,
+`UseCaseDef`/`UseCase` and package-level `doc` (§22, below).
 
-A construct outside that set — `use case def`, `calc`/`constraint def`, and similar — parses without
+A construct outside that set — `metadata def`, `occurrence`, `actor`, `alias`, and similar — parses without
 error but contributes **nothing** to the graph: no element, no `Finding`, invisible, the same way a
 native Markdown model has no way to express content that isn't frontmatter or documentation body.
 Parse-broad, map-narrow.
@@ -99,7 +100,7 @@ Parse-broad, map-narrow.
 ```sysml
 package Propulsion {
     part def MappedPart;          // becomes SysML2::Propulsion::MappedPart
-    calc def UnmappedCalc;        // parses fine, contributes nothing
+    metadata def UnmappedMeta;    // parses fine, contributes nothing (W543)
 }
 ```
 
@@ -272,7 +273,7 @@ the parser to add real support was considered and rejected.
 | `W540` | A `_index.md` found anywhere inside a `sysmlSubmodel: true` package's subtree, other than that package's own anchor `_index.md` |
 | `W541` | Either a `.sysml`/`.kerml` file failed to read (e.g. invalid UTF-8), or `sysml-v2-parser` failed to parse its contents |
 | `W542` | A `connect` endpoint's genuinely two-segment chain fell back to a head-only edge because the tail isn't a locally-redeclared feature (§8's redeclaration lookahead didn't match) — identifies the dropped segment. Also raised when an `allocation` usage's `allocate` endpoint chain is truncated (§20) |
-| `W543` | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`calc def`, `constraint`, `use case`, `metadata`, package-level `doc`, …); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030). Example: `calc def x2, constraint def x1, doc x3`. It does not cover members nested inside a mapped definition's body (e.g. a requirement's `frame`/constraint body); gate it with `--deny W543` |
+| `W543` | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`metadata`, `occurrence`, `individual def`, `actor`, `alias`, …); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030). Example: `metadata def x2, alias x1`. It does not cover members nested inside a mapped definition's body (e.g. a requirement's `frame`/constraint body); gate it with `--deny W543` |
 
 All four share a **dedicated code range**, distinct from the [stdio-subprocess plugin
 family](stdio-plugins.md) (`E550`/`E551`/`W550`–`W553`) — this is native, always-on ingestion of a
@@ -313,10 +314,9 @@ Explicitly out of scope, tracked as follow-on if a concrete need arises:
   standard-library-aware inheritance. The AST-only parser used here resolves cross-boundary
   references through Syscribe's own resolver, not SysML v2 semantic legality; that stays a
   standards-compliant tool's (e.g. `spec42`) job, run separately.
-- **`doc /* ... */` comment lift on `Package`/`Requirement`** — §7 below covers every other
-  mapped element kind, but a nested `package Inner { doc /* ... */ ... }` or a `requirement`/
-  `requirement def`'s own doc block is not lifted; a deliberate, matching-issue-scope descope
-  (`REQ-TRS-SYSMLV2-009`'s Scope section), not an oversight.
+- **`doc /* ... */` comment lift on `Requirement`** — §7 below covers every other mapped element
+  kind and §22 adds `Package`, but a `requirement`/`requirement def`'s own doc block is not lifted;
+  a deliberate descope (`REQ-TRS-SYSMLV2-009`'s Scope section), not an oversight.
 
 ## 7. `doc /* ... */` comment lift
 
@@ -867,3 +867,40 @@ zero, also when the model has no submodel (the JSON then has an empty `submodels
 The read-only MCP tool `sysml_submodels` (no arguments) returns exactly the same JSON from the
 server's in-memory model. The data comes from `syscribe_model::sysmlv2::report`.
 
+
+## 22. Constraints, calcs, use cases and package docs — `REQ-TRS-SYSMLV2-033`..`-036`
+
+`constraint def`/`constraint`, `calc def`/`calc`, `use case def`/`use case` and a package-level
+`doc` are ingested into the existing native types, and `W543` no longer counts them.
+
+```sysml
+package Analysis {
+    doc /* Mass and economy analysis. */          // -> the Analysis package's doc text
+    constraint def MassLimit {
+        in actualMass : Real;
+        in maxMass : Real;
+        actualMass <= maxMass                       // -> expression: "actualMass <= maxMass"
+    }
+    constraint massCheck : MassLimit;               // -> Constraint, typedBy: MassLimit
+    calc def FuelEconomy {
+        in distance : Real;
+        in fuel : Real;
+        return economy : Real;                      // -> returnType: Real
+        distance / fuel                             // -> body: "distance / fuel", bodyLanguage: kerml
+    }
+    use case def Drive { subject v : Vehicle; actor d : Driver; }
+}
+```
+
+| SysMLv2 | Native | Lifted fields |
+|---|---|---|
+| `constraint def` / `constraint` | `ConstraintDef` / `Constraint` | `supertype:` or `typedBy:`, `parameters:`, `expression:` (opaque string), doc |
+| `calc def` / `calc` | `CalculationDef` / `Calculation` | `typedBy:`, `parameters:` (incl. `direction: return`), `returnType:`, `body:` + `bodyLanguage: kerml`, doc |
+| `use case def` / `use case` | `UseCaseDef` / `UseCase` | `supertype:`/`typedBy:`, `subject:`, `actors:`, `objectives:`, `result:`, `isAbstract:`, doc |
+| `doc /* ... */` in a package | the `Package` element | doc text |
+
+Expression text is kept as an opaque string and never evaluated. Where the parser allows them:
+package level (constraint/calc def, use case def/usage, constraint usage); a `calc`/`use case`/
+`constraint` usage in a `part def` body; a `constraint` usage in a `part` usage body. A non-`draft`
+ingested `UseCaseDef` raises the existing advisory `W307` (no `refines:`). Not lifted: nested
+constraint members, `assert`/negation, `include`/`extend`, and `doc` on a requirement.

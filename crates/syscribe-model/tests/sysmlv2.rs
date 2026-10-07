@@ -35,8 +35,8 @@ fn unmapped_sysml_constructs_stay_invisible_while_the_package_anchor_still_parse
     // AllocationUsage, variation/variant membership, and — as of later
     // commits — State/Action, View/Viewpoint/Rendering, Concern, Flow,
     // Enumeration, and Case/AnalysisCase/VerificationCase (but not `use
-    // case`). `calc def`/`constraint def`/`use case def` stay outside that
-    // set (`REQ-TRS-SYSMLV2-000`'s explicitly deferred scope) — `calc def`
+    // case`). `metadata def` stays outside that
+    // set (`REQ-TRS-SYSMLV2-000`'s explicitly deferred scope) — `metadata def`
     // here must keep synthesizing zero elements no matter how much of the
     // fixed set later commits add support for.
     // Wrapped in a real `package { ... }` (not bare file-root content) since
@@ -54,14 +54,14 @@ fn unmapped_sysml_constructs_stay_invisible_while_the_package_anchor_still_parse
     write(
         &root,
         "SysML2Legacy/Sensor.sysml",
-        "package Behavior {\n    calc def ComputeMargin;\n}\n",
+        "package Behavior {\n    metadata def ComputeMargin;\n}\n",
     );
 
     let elements = walk_model(&root).unwrap();
 
     assert!(
         !elements.iter().any(|e| e.qualified_name.ends_with("ComputeMargin")),
-        "calc def is outside the fixed mapped set and must stay invisible: {:#?}",
+        "metadata def is outside the fixed mapped set and must stay invisible: {:#?}",
         elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
     );
     // The package's own _index.md, and the Behavior package the calc def

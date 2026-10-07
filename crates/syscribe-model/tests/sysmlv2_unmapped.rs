@@ -38,7 +38,7 @@ fn one_w543_per_file_with_per_kind_counts() {
     let root = model(&[
         (
             "A.sysml",
-            "package P {\n  part def Keep;\n  calc def C1 { return x : Real; }\n  calc def C2 { return y : Real; }\n  constraint def K { }\n  use case def U;\n}\n",
+            "package P {\n  part def Keep;\n  metadata def C1;\n  metadata def C2;\n  occurrence def K;\n  alias Z for Keep;\n}\n",
         ),
         ("B.sysml", "package Q { part def Keep2; }\n"),
     ]);
@@ -47,7 +47,7 @@ fn one_w543_per_file_with_per_kind_counts() {
     let w: Vec<_> = result.findings.iter().filter(|f| f.code == "W543").collect();
     assert_eq!(w.len(), 1, "{:#?}", result.findings);
     assert!(w[0].file.ends_with("A.sysml"));
-    for k in ["calc def x2", "constraint def x1", "use case def x1"] {
+    for k in ["metadata def x2", "occurrence def x1", "alias x1"] {
         assert!(w[0].message.contains(k), "missing {k} in {}", w[0].message);
     }
     // Advisory: the mapped part defs are still synthesized.

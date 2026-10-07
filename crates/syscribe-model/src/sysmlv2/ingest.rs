@@ -125,19 +125,13 @@ pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Ve
 fn unmapped_kind(e: &sysml_v2_parser::PackageBodyElement) -> Option<&'static str> {
     use sysml_v2_parser::PackageBodyElement as E;
     Some(match e {
-        E::Doc(_) => "doc",
         E::TextualRep(_) => "textual representation",
         E::Filter(_) => "filter",
         E::LibraryPackage(_) => "library package",
         E::AliasDef(_) => "alias",
         E::Satisfy(_) => "satisfy",
-        E::UseCaseDef(_) => "use case def",
-        E::UseCaseUsage(_) => "use case",
         E::Actor(_) => "actor",
         E::IndividualDef(_) => "individual def",
-        E::ConstraintDef(_) => "constraint def",
-        E::ConstraintUsage(_) => "constraint",
-        E::CalcDef(_) => "calc def",
         E::MetadataDef(_) => "metadata def",
         E::MetadataUsage(_) => "metadata",
         E::OccurrenceDef(_) => "occurrence def",
@@ -364,6 +358,17 @@ struct Spec {
     /// [`super::resolve_allocation_endpoints`] once the whole model is merged.
     allocated_from: Option<Vec<String>>,
     allocated_to: Option<Vec<String>>,
+    /// `REQ-TRS-SYSMLV2-033`/`-034` -- a `constraint def`/`calc def`'s `in`/
+    /// `out`/`inout` parameter declarations as `{name, typedBy, direction}`
+    /// maps (`direction: return` for a `calc`'s `return` declaration).
+    parameters: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-033` -- a constraint's expression text (opaque).
+    expression: Option<String>,
+    /// `REQ-TRS-SYSMLV2-034` -- a calc's expression text (opaque) + language.
+    body: Option<String>,
+    body_language: Option<String>,
+    /// `REQ-TRS-SYSMLV2-034` -- a calc's first `return` declaration's type.
+    return_type: Option<String>,
 }
 
 impl Spec {
@@ -489,6 +494,11 @@ fn push_synth(
             is_abstract: spec.is_abstract,
             allocated_from: spec.allocated_from,
             allocated_to: spec.allocated_to,
+            parameters: spec.parameters,
+            expression: spec.expression,
+            body: spec.body,
+            body_language: spec.body_language,
+            return_type: spec.return_type,
             ..Default::default()
         },
         doc: spec.doc,
@@ -2579,7 +2589,18 @@ fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>
     for (name, child) in &merged.children {
         let child_qname = format!("{qname}::{name}");
         let file_path = child.declared_in.as_deref().unwrap_or(qname);
-        push_synth(out, &child_qname, file_path, ElementType::Package, name, Spec::default());
+        // `REQ-TRS-SYSMLV2-036`: package-level `doc` lifts onto the Package.
+        let doc = child
+            .body
+            .iter()
+            .filter_map(|(e, _)| match e {
+                sysml_v2_parser::PackageBodyElement::Doc(d) => Some(d.value.text.trim()),
+                _ => None,
+            })
+            .filter(|t| !t.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        push_synth(out, &child_qname, file_path, ElementType::Package, name, Spec::default().with_doc(doc));
         convert_merged(child, &child_qname, out);
     }
 }
@@ -2652,6 +2673,12 @@ fn convert_package_body_element(
         E::AnalysisCaseUsage(node) => convert_analysis_case_usage(&node.value, qname, file_path, out),
         E::VerificationCaseDef(node) => convert_verification_case_def(&node.value, qname, file_path, out),
         E::VerificationCaseUsage(node) => convert_verification_case_usage(&node.value, qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-033`/`-034`/`-035`.
+        E::ConstraintDef(node) => convert_constraint_def(&node.value, qname, file_path, out),
+        E::ConstraintUsage(node) => convert_constraint_usage(&node.value, qname, file_path, out),
+        E::CalcDef(node) => convert_calc_def(&node.value, qname, file_path, out),
+        E::UseCaseDef(node) => convert_use_case_def(&node.value, qname, file_path, out),
+        E::UseCaseUsage(node) => convert_use_case_usage(&node.value, qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2810,6 +2837,10 @@ fn convert_part_def_body_element(
         E::AnalysisCaseUsage(node) => convert_analysis_case_usage(&node.value, part_qname, file_path, out),
         E::VerificationCaseDef(node) => convert_verification_case_def(&node.value, part_qname, file_path, out),
         E::VerificationCaseUsage(node) => convert_verification_case_usage(&node.value, part_qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-033`/`-034`/`-035`: usage variants reachable here.
+        E::ConstraintUsage(node) => convert_constraint_usage(&node.value, part_qname, file_path, out),
+        E::CalcUsage(node) => convert_calc_usage(&node.value, part_qname, file_path, out),
+        E::UseCaseUsage(node) => convert_use_case_usage(&node.value, part_qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -2873,6 +2904,8 @@ fn convert_part_usage_body_element(
         // single-enum gap used.
         E::AnalysisCaseDef(node) => convert_analysis_case_def(&node.value, part_qname, file_path, out),
         E::AnalysisCaseUsage(node) => convert_analysis_case_usage(&node.value, part_qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-033`.
+        E::ConstraintUsage(node) => convert_constraint_usage(&node.value, part_qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
     }
 }
@@ -3785,4 +3818,193 @@ fn convert_variant_usage(
             // `@SyscribeFeature`).
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// `REQ-TRS-SYSMLV2-033`/`-034`/`-035`: constraint, calc and use case families.
+// ---------------------------------------------------------------------------
+
+fn direction_str(d: sysml_v2_parser::ast::InOut) -> &'static str {
+    match d {
+        sysml_v2_parser::ast::InOut::In => "in",
+        sysml_v2_parser::ast::InOut::Out => "out",
+        sysml_v2_parser::ast::InOut::InOut => "inout",
+    }
+}
+
+fn parameter_entry(name: &str, type_name: &str, direction: &str) -> serde_yaml::Value {
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), ykey(name));
+    if !type_name.is_empty() {
+        m.insert(ykey("typedBy"), ykey(type_name));
+    }
+    m.insert(ykey("direction"), ykey(direction));
+    serde_yaml::Value::Mapping(m)
+}
+
+/// Joined rendering of every body expression -- one per line, in source
+/// order; `None` when the body has none.
+fn join_expressions(exprs: Vec<String>) -> Option<String> {
+    nonempty(exprs.join("\n"))
+}
+
+struct ConstraintBodyFields {
+    parameters: Option<Vec<serde_yaml::Value>>,
+    expression: Option<String>,
+    doc: String,
+}
+
+fn constraint_body_fields(body: &sysml_v2_parser::ast::ConstraintDefBody) -> ConstraintBodyFields {
+    use sysml_v2_parser::ast::ConstraintDefBodyElement as B;
+    let sysml_v2_parser::ast::ConstraintDefBody::Brace { elements } = body else {
+        return ConstraintBodyFields { parameters: None, expression: None, doc: String::new() };
+    };
+    let mut params = Vec::new();
+    let mut exprs = Vec::new();
+    for n in elements {
+        match &n.value {
+            B::InOutDecl(d) => params.push(parameter_entry(&d.value.name, &d.value.type_name, direction_str(d.value.direction))),
+            B::Expression(e) => exprs.push(render_expression(&e.value)),
+            _ => {}
+        }
+    }
+    let doc = collect_doc(elements, |e| match e {
+        B::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    });
+    ConstraintBodyFields { parameters: nonempty_vec(params), expression: join_expressions(exprs), doc }
+}
+
+fn convert_constraint_def(c: &sysml_v2_parser::ast::ConstraintDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&c.identification) else {
+        return; // anonymous: no identity to qname against
+    };
+    let fields = constraint_body_fields(&c.body);
+    let spec = Spec {
+        supertype: c.specializes.as_ref().map(|t| t.value.target_display()),
+        parameters: fields.parameters,
+        expression: fields.expression,
+        ..Default::default()
+    }
+    .with_doc(fields.doc);
+    push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::ConstraintDef, &name, spec);
+}
+
+fn convert_constraint_usage(c: &sysml_v2_parser::ast::ConstraintUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if c.name.is_empty() {
+        return;
+    }
+    let fields = constraint_body_fields(&c.body);
+    let spec = Spec {
+        typed_by: c.type_name.clone(),
+        parameters: fields.parameters,
+        expression: fields.expression,
+        ..Default::default()
+    }
+    .with_doc(fields.doc);
+    push_synth(out, &format!("{qname}::{}", c.name), file_path, ElementType::Constraint, &c.name, spec);
+}
+
+struct CalcBodyFields {
+    parameters: Option<Vec<serde_yaml::Value>>,
+    return_type: Option<String>,
+    body: Option<String>,
+    doc: String,
+}
+
+fn calc_body_fields(body: &sysml_v2_parser::ast::CalcDefBody) -> CalcBodyFields {
+    use sysml_v2_parser::ast::CalcDefBodyElement as B;
+    let sysml_v2_parser::ast::CalcDefBody::Brace { elements } = body else {
+        return CalcBodyFields { parameters: None, return_type: None, body: None, doc: String::new() };
+    };
+    let mut params = Vec::new();
+    let mut exprs = Vec::new();
+    let mut return_type = None;
+    for n in elements {
+        match &n.value {
+            B::InOutDecl(d) => params.push(parameter_entry(&d.value.name, &d.value.type_name, direction_str(d.value.direction))),
+            B::ReturnDecl(r) => {
+                // First return type wins (the native `returnType:` is one
+                // string); every return also stays visible as a parameter.
+                return_type = return_type.or_else(|| nonempty(r.value.type_name.clone()));
+                params.push(parameter_entry(&r.value.name, &r.value.type_name, "return"));
+            }
+            B::Expression(e) => exprs.push(render_expression(&e.value)),
+            _ => {}
+        }
+    }
+    let doc = collect_doc(elements, |e| match e {
+        B::Doc(d) => Some(d.value.text.as_str()),
+        _ => None,
+    });
+    CalcBodyFields { parameters: nonempty_vec(params), return_type, body: join_expressions(exprs), doc }
+}
+
+fn convert_calc_def(c: &sysml_v2_parser::ast::CalcDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&c.identification) else {
+        return;
+    };
+    let f = calc_body_fields(&c.body);
+    let spec = Spec {
+        body_language: f.body.as_ref().map(|_| "kerml".to_string()),
+        parameters: f.parameters,
+        return_type: f.return_type,
+        body: f.body,
+        ..Default::default()
+    }
+    .with_doc(f.doc);
+    push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::CalculationDef, &name, spec);
+}
+
+fn convert_calc_usage(c: &sysml_v2_parser::ast::CalcUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&c.identification) else {
+        return;
+    };
+    let f = calc_body_fields(&c.body);
+    let spec = Spec {
+        typed_by: c.type_name.clone(),
+        body_language: f.body.as_ref().map(|_| "kerml".to_string()),
+        parameters: f.parameters,
+        return_type: f.return_type,
+        body: f.body,
+        ..Default::default()
+    }
+    .with_doc(f.doc);
+    push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::Calculation, &name, spec);
+}
+
+fn convert_use_case_def(c: &sysml_v2_parser::ast::UseCaseDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&c.identification) else {
+        return;
+    };
+    let f = case_body_fields(&c.body);
+    let spec = Spec {
+        supertype: c.specializes.as_ref().map(|t| t.value.target_display()),
+        is_abstract: c.is_abstract.then_some(true),
+        subject: f.subject,
+        actors: f.actors,
+        objectives: f.objectives,
+        result_type: f.result_type,
+        ..Default::default()
+    }
+    .with_doc(f.doc);
+    push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::UseCaseDef, &name, spec);
+}
+
+fn convert_use_case_usage(c: &sysml_v2_parser::ast::UseCaseUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    if c.name.is_empty() {
+        return;
+    }
+    let f = case_body_fields(&c.body);
+    let spec = Spec {
+        typed_by: c.type_name.clone(),
+        is_abstract: c.is_abstract.then_some(true),
+        subject: f.subject,
+        actors: f.actors,
+        objectives: f.objectives,
+        result_type: f.result_type,
+        ..Default::default()
+    }
+    .with_doc(f.doc);
+    push_synth(out, &format!("{qname}::{}", c.name), file_path, ElementType::UseCase, &c.name, spec);
 }
