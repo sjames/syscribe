@@ -3,10 +3,13 @@
 **Status:** Proposed — decisions ratified in `ADR-SYS-VIS-001`, requirements `REQ-TRS-VIS-000..015`
 **Date:** 2026-10-07
 
-> **Implementation note.** Nothing in this document has landed yet. It records the
-> design the four user decisions of 2026-10-07 fixed (§3) and is the reference the
-> `REQ-TRS-VIS-*` requirements and `PI-VIS-*` planning items point at. Sections are
-> updated in place as phases ship.
+> **Implementation note.** Phase 0 (§9) landed on 2026-10-07: `syscribe_model::vis::{ir,
+> manifest, sprotty}`, `E405`/`W416`, the PlantUML writer on the IR, the nested
+> `/api/diagrams/model` contract with a client that renders it, and the removals of §11
+> (`PI-VIS-001`). The §1 table now describes history. Phases 1–4 are open.
+> This document records the design the four user decisions of 2026-10-07 fixed (§3) and
+> is the reference the `REQ-TRS-VIS-*` requirements and `PI-VIS-*` planning items point
+> at. Sections are updated in place as phases ship.
 >
 > **Compatibility.** The same day the user ruled that no backwards compatibility is
 > owed to any existing rendering path: the legacy server renderer, the CLI `diagram`
