@@ -95,3 +95,19 @@ becomes a real package-level `satisfy R by X;` and `verifies:` on requirement el
 opaque text ingestion stores; unprintable placeholders become comments). Everything else in the
 decision, including loss accounting and parse-back verification, is unchanged. `action`/`state`
 bodies still export as header-plus-doc only.
+
+## Addendum: behaviour export (REQ-TRS-SYSMLV2-056..058)
+
+The last clause of the previous addendum ("`action`/`state` bodies still export as header-plus-doc
+only") is superseded. `ActionDef`/`Action` and `StateDef`/`State` bodies now export in the exact
+statement forms REQ-TRS-SYSMLV2-018/-019 ingestion reads: the writer is constrained to the grammar the
+reader accepts, and each construct is covered by a parse-back test that re-ingests the text and compares
+the resulting `subActions:`/`controlNodes:`/`successionConnections:` or `subStates:`/`transitions:`/
+`entryAction:`/`doAction:`/`exitAction:` with the originals. Anything the reader would not reproduce
+identically is written as a `//` comment rather than approximated: an unknown `kind:`, an
+`AssignmentAction`/`IfAction`/`LoopAction`/`TerminateAction` whose name is not the one ingestion will
+re-synthesize for that position (`assign_1`, `if_1`, `while_1`, …), and any guard, condition or effect
+text that is a placeholder (`<conditional expression>`) or fails the expression parse check.
+Successions and control nodes are emitted flat at the owning element's body, matching how ingestion
+flattens them. Exported behaviour is still a one-way projection: nothing is read back as the same
+Syscribe elements except by the explicit parse-back path.

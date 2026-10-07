@@ -883,3 +883,39 @@ that already existed in the schema, so no new `ElementType` was needed.
   resolves to a non-definition kind was evaluated and not added: the native model already reports
   unresolved targets (`E111`) and the strict part-vs-item typing rule is not one the native format
   enforces for hand-authored elements, so an ingestion-only check would be inconsistent and noisy.
+
+## Addendum: parser upgrade evaluation, include/attribute-value ingestion, report accuracy (REQ-TRS-SYSMLV2-053..055, -059)
+
+- **Parser upgrade evaluated and deferred.** `sysml-v2-parser` 0.57.0 (current; 0.56.0 also in the
+  local cache) was tried against the whole workspace. The break is introduced by 0.55.0, not 0.56/0.57:
+  every declaration name, short name and qualified reference became a source-span handle
+  (`DeclarationName`, `QualifiedReferenceId`) that can only be read through the owning
+  `ParsedDocument`, literal and comment text became spans likewise, the `Doc` variants were removed
+  from the body-element enums, `Expression` was restructured (`MemberAccess`, `Index`, `Bracket`,
+  `LiteralWithUnit`, `Tuple` and `Parenthesized` changed shape or were removed), `StateDefBody` and
+  `PackageBody` gained span fields, and `Satisfy`, `TextualRep`, `FlowUsage`/`ConnectionUsageMember`
+  and the use-case/metadata nodes changed fields. Compiling `syscribe-model` against 0.57 produced 363
+  errors, all inside the 4,265-line `ingest.rs`, and fixing them is a re-derivation of every
+  construct reader (names threaded through a document handle, a new expression renderer, new
+  doc/metadata extraction), not an adaptation. A change of that size to the layer that every
+  submodel test and every ingested model depends on cannot be validated in one change without
+  risking silent mapping regressions, so the pin stays at `0.54.0` (reverted, tree clean).
+  The upgrade is now a scoped follow-up: it must (1) thread a `&ParsedDocument` through every
+  `convert_*` function, (2) rewrite `render_expression`/`connection_end_display`, (3) re-home
+  `Doc`/`MetadataAnnotation` extraction, and (4) re-establish the full `sysmlv2_*` suite as the
+  regression gate. What 0.57 would add that 0.54 cannot expose: a resolvable `include` target
+  (`IncludeUseCase::target`) including the qualified and declaring forms, and richer
+  connection/view usage declarations.
+- **A drift guard replaces silent staleness.** The version is reported (`syscribe sysml`, MCP
+  `sysml_submodels`) from a constant in `sysmlv2::report`, and a test reads the pin from
+  `crates/syscribe-model/Cargo.toml` and fails when they differ, so the upgrade cannot land without
+  the report following.
+- **`include` maps for the reference form.** The earlier "no resolvable target" statement is
+  refined: 0.54 exposes the *simple name* in `include X;`. That name is resolved innermost-scope-first
+  against the ingested use-case elements and stored in `includes:`; an unresolved name is counted in
+  `W543` as `include`. The qualified and declaring forms stay unparsed by 0.54.
+- **Attribute values.** A literal `= v [unit]` maps to `value:`/`unit:` on the `Attribute`; other
+  expressions are intentionally not mapped (a `value:` stays a literal).
+- **Report accuracy.** `syscribe sysml`/`sysml_submodels` take their per-file unmapped counts from
+  the ingestion pass itself, so unresolved package-level `satisfy` (and `include`) counted by `W543`
+  now also appear in the report. No code is added or changed.
