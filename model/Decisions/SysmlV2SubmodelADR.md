@@ -1062,3 +1062,37 @@ way), a `doc` comment appends to its documentation, and a named `alias` keeps it
 case. `export-sysml` writes an `<anchor>::X` back as a direct member of the anchor package's body,
 so the round trip holds. `W543` stops counting `root-level member`; a root-level member counts
 under exactly the kind it would count under inside a package.
+
+## Addendum: the section 6 audit — usage prefixes, calc usages, qualified-name packages (REQ-TRS-SYSMLV2-099..100)
+
+Reading every remaining line of the guide's §6 against `ingest.rs` and the 0.57 AST found two
+statements that were not true and two members that vanished without a count.
+
+The parser does *not* drop a `#T` prefix inside a definition body. It keeps it in one of two shapes:
+as an extension keyword on the usage's own occurrence prefix (`part`, `item`, `port`, `connection`,
+`occurrence`, `constraint`, `view`, analysis case — the kinds whose prefix is an
+`OccurrenceUsagePrefix`), or as a bodiless `#T` member immediately preceding the usage (`attribute`,
+`action`, `state`, `interface`, `requirement`, `flow`, `allocation`, a `ref` usage). Ingestion was
+dropping both. The same `{type: T}` entry a package-level `#T part def B;` already receives is the
+sound target, so both shapes now lift onto the prefixed usage, wherever it is declared. The prefix
+on a member that becomes no element (an `actor`, a `ref`) is dropped, as before, and said so.
+
+An anonymous `alias` is a parse error in 0.57, so "anonymous alias" was never a reachable `W543`
+kind; the only reachable `alias` count was an alias inside a package declared with a *qualified*
+name (`package A::B { }`), a shape the parser accepts and the language gives no meaning to. Such a
+package was treated as anonymous and its whole body vanished, uncounted. There is no sound mapping
+(nesting `A` → `B` would invent a declaration the author did not write), so it is now counted once
+as `qualified package` and its members stay out. A package-level `calc estimate [1];` (a usage
+shape the parser cannot read as a `calc def`) had a converter already used inside part bodies and
+simply no package-level dispatch arm; it now maps to `Calculation`.
+
+The audit also found the §6 preamble over-claiming that every body member has a native target.
+`W543` counts package-level members only; inside a mapped definition's body, members outside the
+mapped set (`ref`, `bind`, `assert constraint`, `exhibit`, a nested `package`/`alias`/`import`/
+`metadata def`, a requirement's `require`/`frame` constraints, ...) are skipped silently. That
+is an accepted limit — counting body members would make `W543` fire on nearly every realistic
+submodel for content the format cannot carry — and the guide now says so instead of denying it.
+Every other §6 line checked out: `actor` keeps only its identification in the AST, a package-level
+`filter` scopes imports, KerML declarations are below SysML structure, an unresolved `about`/
+`satisfy`/`include` target has nothing to attach to, a `rep` has no native field, and the
+`other package member` relationship kinds have no package-level owner in the format.
