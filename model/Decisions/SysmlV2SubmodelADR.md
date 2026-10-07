@@ -992,3 +992,23 @@ only when it reads back identically; the ratchet budget drops to zero. (2) `incl
 the simple-name reference form: a qualified target and the declaring form `include use case v : V;`
 now both resolve through the same scoped lookup. (3) A bare package-level `attribute`/`port`/`item`
 was read as a definition and its value was lost: it is now the usage it is, with `value:`/`unit:`.
+
+## Addendum: native syntax for step fields, nested kinds, occurrences and dependencies (REQ-TRS-SYSMLV2-077..085)
+
+Read against the 0.57 grammar, most of what `@SyscribeStep` carried has native syntax after all.
+`accept x via p`/`send x via p to t` (`ActionUsage::accept`/`via`/`to`), `accept at/after/when e`
+(`TransitionAccept::TimeTrigger`), `assign a.b := v` and `loop { } until c;` are parsed, so ingestion
+and export now use them: `via`, `to`, `trigger`, `referent` and `until` are native, and the annotation
+survives only as a deprecated read path plus the two cases with no syntax (`valueKind` of an assign,
+a trigger beside a payload). `to` and the trigger kind `at` are additive native sub-fields. A
+`while c { } until d;` has no native counterpart and keeps only its `while` condition. The 0.57
+grammar also reaches views/viewpoints/renderings inside a `part` usage, names and multiplicities on
+a succession, and `then fork/join/decide/accept/send/if`; these map to existing native elements and
+fields, plus additive succession multiplicity sub-fields. `occurrence def`, `individual def`,
+`occurrence`/`event occurrence` usages and named `dependency` have native element types and are now
+ingested and exported. Not mapped, with the reason recorded in the guide: `actor` (no actor
+element type, and the AST keeps only the identification), package-level `filter` (no native target),
+`metadata` usages (the `metadata X about Y` form is ambiguous between name and type in the parser,
+and generic `@X { }` annotations would need a `metadata:` lift and export), KerML declarations
+(KerML semantics are not SysML structure), anonymous `dependency`, portion-kind occurrences, and a
+`then fork` body.
