@@ -73,6 +73,9 @@ stable id, a qualified name, or a display name. List/grid tools accept
 - `sysml_submodels {}` — the SysMLv2 submodels (`sysmlSubmodel: true` packages): files
   parsed, ingested element counts per kind, unmapped-construct counts and W540-W543
   findings; same data as `sysml --json`. Read-only.
+- `export_sysml {package?}` — the model (or one package's subtree) as SysML v2 textual
+  notation, one-way and lossy (unsupported elements become `// skipped:` comments);
+  same text as `export-sysml [<package>]`. Returns text; never writes to disk.
 - `validate {file?, severity?, limit?}` / `validate_element {ref}` — findings.
 - `reload {}` — re-read the model from disk now (normally unnecessary: the
   server reloads automatically on file changes, see **Live reload**).

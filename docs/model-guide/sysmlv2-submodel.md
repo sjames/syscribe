@@ -904,3 +904,31 @@ package level (constraint/calc def, use case def/usage, constraint usage); a `ca
 `constraint` usage in a `part def` body; a `constraint` usage in a `part` usage body. A non-`draft`
 ingested `UseCaseDef` raises the existing advisory `W307` (no `refines:`). Not lifted: nested
 constraint members, `assert`/negation, `include`/`extend`, and `doc` on a requirement.
+
+
+## 23. Exporting native elements as SysML v2 text — `export-sysml` (`ADR-SYS-SYSMLV2-002`, `REQ-TRS-SYSMLV2-037`..`-042`)
+
+Ingestion is read-only; **export** is a separate, one-way writer for handing a Syscribe model to
+SysML v2 tooling:
+
+```bash
+syscribe -m model/ export-sysml                       # whole model to stdout
+syscribe -m model/ export-sysml UAV --out uav.sysml   # one package subtree to a file
+syscribe -m model/ export-sysml --out out/            # one .sysml per top-level package
+```
+
+| Syscribe | SysML v2 |
+|---|---|
+| directory / `Package` | nested `package` (missing levels become implicit packages) |
+| `PartDef` / `Part` | `part def` / `part` (`supertype` -> `:>`, `typedBy` -> `:`, `multiplicity` -> `[n]`, `isAbstract` -> `abstract`) |
+| `PortDef`/`Port`, `AttributeDef`/`Attribute`, `ConnectionDef`/`Connection`, `InterfaceDef`/`Interface`, `ItemDef`/`Item` | the matching `... def` / usage |
+| `RequirementDef`, native `Requirement` | `requirement def` (native ones named by their stable id, e.g. `'REQ-X-001'`; body as `doc /* */`) |
+| `ActionDef`/`StateDef`/`ConstraintDef`/`CalculationDef` and usages | header + doc only (no behaviour or expression bodies) |
+| `satisfies:` on a part | `satisfy <target>;` in its body |
+| inline `features:` / `connections:` on a part | `attribute`/`port` members, `connection ... connect a.x to b.y;` |
+| anything else (`TestCase`, `ADR`, `PlanningItem`, `FeatureDef`, ...) | `// skipped: <qname> (<type>)` and a count in the summary |
+
+The export is lossy and deterministic; re-importing it into a `sysmlSubmodel: true` package
+reproduces the supported kinds and qnames (a native `Requirement` returns as a `RequirementDef`),
+which is exactly what the parse-back tests check. The MCP tool `export_sysml {package?}` returns
+the same text without writing anything. The writer is `syscribe_model::sysmlv2::export`.

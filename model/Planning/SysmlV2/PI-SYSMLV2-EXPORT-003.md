@@ -2,10 +2,12 @@
 type: PlanningItem
 id: PI-SYSMLV2-EXPORT-003
 name: "Add the syscribe export-sysml CLI command, help topic and docs"
-status: todo
+status: done
 itemType: task
 parent: PI-SYSMLV2-EXPORT-001
 achieves: [REQ-TRS-SYSMLV2-037]
+evidence:
+  - path: "repo:crates/syscribe/tests/sysml_export.rs"
 tags:
   - sysmlv2
   - export

@@ -183,6 +183,13 @@ struct LinkTypesArgs {}
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct SysmlSubmodelsArgs {}
 
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct ExportSysmlArgs {
+    /// Optional package (or element) qualified name; only its subtree is exported.
+    #[serde(default)]
+    package: Option<String>,
+}
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct FollowArgs {
     /// Start element (stable id or qualified name).
@@ -2519,6 +2526,24 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         ok(syscribe_model::sysmlv2::report::submodels_json(&store.elements))
+    }
+
+    #[tool(
+        description = "Export the model (or the subtree of `package`) as SysML v2 textual \
+        notation: one-way, lossy, export-only (ADR-SYS-SYSMLV2-002). Returns the SysML text \
+        (unsupported elements appear as `// skipped:` comments and a trailing summary); \
+        same text as `export-sysml [<package>]`. Never writes to disk.",
+        annotations(read_only_hint = true)
+    )]
+    async fn export_sysml(
+        &self,
+        Parameters(args): Parameters<ExportSysmlArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        match syscribe_model::sysmlv2::export::export_sysml(&store.elements, args.package.as_deref()) {
+            Ok(e) => Ok(CallToolResult::success(vec![Content::text(e.text)])),
+            Err(e) => tool_error(e.to_string()),
+        }
     }
 
     #[tool(

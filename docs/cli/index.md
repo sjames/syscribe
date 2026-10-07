@@ -536,6 +536,14 @@ syscribe -m model/ export-reqif [--output <file>] [--scope <qname>] [--config <C
 
 Exports native `Requirement` elements (and their packages) as a **ReqIF 1.2** XML document (§21) for import into DOORS Next / Jama / Polarion / PTC. Each requirement → a `SPEC-OBJECT` (id/name/status/sil/asil/domain attributes + an XHTML `DESC` from the body); packages → a nested `SPEC-HIERARCHY`; `derivedFrom:` → `DERIVED_FROM` relations; `--include-tests` adds `TEST_CASE` objects + `VERIFIED_BY`. `--output` writes `<file>.reqif` (`.reqifz` with `--zip`). Export-only.
 
+## SysML v2 export (`export-sysml`)
+
+```bash
+syscribe -m model/ export-sysml [<package-qname>] [--out <file|dir>]
+```
+
+One-way export of the model (or one package's subtree) as **SysML v2 textual notation** (`ADR-SYS-SYSMLV2-002`, `REQ-TRS-SYSMLV2-037`..`-042`). The directory/qname tree becomes nested `package`s; `PartDef`/`Part`, `PortDef`/`Port`, `AttributeDef`/`Attribute`, `ConnectionDef`/`Connection`, `InterfaceDef`/`Interface`, `ItemDef`/`Item`, `RequirementDef` and native `Requirement` (as `requirement def`, body as `doc /* */`) are rendered with `supertype:` as `:>`, `typedBy:` as `:`, `multiplicity:` as `[n]` and `satisfies:` as `satisfy <target>;`; `ActionDef`/`StateDef`/`ConstraintDef`/`CalculationDef` (and their usages) as header-plus-doc declarations. Names that are not basic identifiers (stable ids such as `REQ-X-001`, reserved words) are `'quoted'`. Every other element type becomes a `// skipped: <qname> (<type>)` comment and is counted in the trailing summary and on stderr. Output goes to stdout, to one file (`--out <file>`) or, with an existing directory / trailing `/`, one `<TopLevel>.sysml` per top-level element. Deterministic, never modifies the model; ingestion of `.sysml` stays read-only. MCP equivalent: the read-only `export_sysml` tool (returns the same text).
+
 ## SBOM generation (`sbom`)
 
 ```bash
@@ -1495,7 +1503,7 @@ It exposes structured read tools and a small set of guarded-write tools; referen
 
 | Category | Tools |
 |---|---|
-| Navigate / query | `get_element`, `search`, `list_by_type`, `tree`, `neighbors`, `graph_query`, `trace`, `impact`, `link_types`, `follow`, `sysml_submodels`, `validate`, `validate_element`, `reload` |
+| Navigate / query | `get_element`, `search`, `list_by_type`, `tree`, `neighbors`, `graph_query`, `trace`, `impact`, `link_types`, `follow`, `sysml_submodels`, `export_sysml`, `validate`, `validate_element`, `reload` |
 | Large-model overview & search | `stats`, `digest`, `search_text`, `summarize`, `topics`, `clusters` |
 | Suspect links & baselines | `suspect_list`, `baseline_list`, `baseline_verify`, `baseline_diff` |
 | Authoring helpers | `describe_type`, `template`, `explain_finding`, `check_ref`, `next_id`, `coverage` |

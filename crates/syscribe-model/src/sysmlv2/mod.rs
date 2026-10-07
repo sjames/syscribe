@@ -24,6 +24,7 @@
 //! completely alone — they keep participating in the namespace exactly as
 //! they would outside a `sysmlSubmodel` package.
 
+pub mod export;
 pub mod ingest;
 pub mod report;
 
