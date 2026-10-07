@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="https://syscribe.dev/ns/sysml" width="200" height="80" viewBox="0 0 200 80">
+  <rect id="s-base" class="block PartDef" sysml:ref="Parts::Base" x="20" y="20" width="160" height="40" fill="#D4E6F1" stroke="#1A4A7A"/>
+  <text id="fx-companion-marker" x="100" y="45" text-anchor="middle">Base</text>
+</svg>

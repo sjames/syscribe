@@ -281,7 +281,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W929` | Incomplete transition — a top-level transition has no `source:`, or any transition has no `target:` (§8.8.3); it would otherwise contribute no edge. Draft-suppressed; `--deny W929` |
 | `W080` | A `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` not referenced by any `edges:` entry |
 
-## Diagram errors and warnings (E400–E404, W400–W415)
+## Diagram errors and warnings (E400–E405, W400–W416)
 
 | Code | Condition |
 |---|---|
@@ -290,6 +290,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E402` | `svgFile:`/companion SVG path does not exist on disk |
 | `E403` | `pumlMode:` declares an unrecognised value (only `companion`) |
 | `E404` | `pumlMode: companion` set but the element has no `diagramKind:` |
+| `E405` | `shapes:`, `edges:` or `layout:` is present but malformed — not a map, an entry missing `ref`/`source`/`target`, an unknown `kind:`, a `parent:` naming no shape, or a `layout:` entry without numeric `x`/`y`; the entry is skipped instead of the diagram rendering empty (REQ-TRS-VIS-002) |
 | `W400` | Diagram has no `diagramKind` — rendering mode ambiguous |
 | `W401` | `subject:` does not resolve to a known element |
 | `W402` | Shape `ref:` does not resolve (and is not a sub-feature of a known element) |
@@ -306,6 +307,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W413` | `pumlMode: companion` body contains no image reference to its companion (REQ-TRS-PUML-030) |
 | `W414` | `pumlMode: companion` `.puml` file not yet generated (REQ-TRS-PUML-031) |
 | `W415` | `[plantuml] style_file` path in `.syscribe.toml` does not exist (REQ-TRS-PUML-042) |
+| `W416` | A `layout:` key names no shape or edge of the diagram (stale pin) (REQ-TRS-VIS-002) |
 
 ## Build-system integration (E050, W050, §9.9)
 

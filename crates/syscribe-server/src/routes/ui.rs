@@ -4,7 +4,7 @@ use axum::{
 };
 use askama::Template;
 use serde::Deserialize;
-use syscribe_model::diagram::DEFAULT_DIAGRAM_KIND;
+use syscribe_model::vis::DEFAULT_DIAGRAM_KIND;
 use syscribe_model::frontmatter::split_frontmatter;
 use crate::state::SharedState;
 
@@ -387,14 +387,13 @@ pub async fn diagram(
             ))
         }
         _ => {
-            // SVG / BDD / IBD / StateMachine — no longer served over this HTML
-            // route now that the sprotty editor claims every non-Mermaid
-            // `diagram_kind` (opened via `/api/diagrams/model/{*qname}`
-            // instead). `syscribe_model::renderer::render_diagram` itself is
-            // still used by the CLI's HTML export
-            // (`crates/syscribe/src/export_html.rs`) — only this HTTP branch
-            // is retired. A direct hit here (e.g. a stale bookmark) gets a
-            // plain fallback rather than a panic.
+            // SVG / BDD / IBD / StateMachine — not served over this HTML
+            // route: every non-Mermaid `diagram_kind` is a Diagram IR
+            // (`syscribe_model::vis`) that the sprotty editor fetches from
+            // `/api/diagrams/model/{*qname}` and lays out in the browser
+            // (`REQ-TRS-VIS-001`); there is no server-side SVG renderer any
+            // more (`REQ-TRS-VIS-013`). A direct hit here (e.g. a stale
+            // bookmark) gets a plain fallback rather than a panic.
             Html(
                 r#"<p class="diagram-empty">This diagram type isn't served here — open it as a diagram tab.</p>"#
                     .to_string(),

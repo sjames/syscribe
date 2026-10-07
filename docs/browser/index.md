@@ -82,10 +82,7 @@ Validation findings are available as JSON from `/api/validation`; run `syscribe 
 
 ## Diagram rendering
 
-The `diagram` handler dispatches on `diagramKind`:
-
-- **Mermaid** — extracts the ` ```mermaid ` block from the doc body and wraps it in a `<pre class="mermaid">` that Mermaid.js renders client-side on tab activation.
-- **All others** — calls `render_diagram()` in `syscribe-model::renderer`, which builds SVG from the element's `shapes`, `edges`, and `layout` frontmatter. Returns a `<div class="diagram-svg-wrapper">` or a `<p class="diagram-empty">` if no layout is defined.
+A `diagramKind: Mermaid` diagram is still rendered client-side by Mermaid.js from the ` ```mermaid ` block in its body. Every other kind is served as a Diagram IR (`syscribe_model::vis`): the server builds one graph per `Diagram` element from its `shapes:`/`edges:`/`layout:` manifest — the single parser that also reports a malformed manifest as `E405` — and `GET /api/diagrams/model/<qname>` hands it to the sprotty editor as a graph model. The browser lays the graph out; the server never computes positions and there is no server-side SVG renderer. Entries in `layout:` are pins: a pinned shape keeps the position recorded for it while the unpinned rest is laid out around it, and a pin that names no shape is `W416`.
 
 ## Layout persistence
 

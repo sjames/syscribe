@@ -14,7 +14,7 @@ edges:
   e-spec:
     source: s-derived
     target: s-base
-    kind: supertype
+    kind: inheritance
 layout:
   s-base:
     x: 40

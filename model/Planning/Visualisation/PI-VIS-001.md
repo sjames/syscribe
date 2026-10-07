@@ -2,7 +2,7 @@
 type: PlanningItem
 id: PI-VIS-001
 name: "Phase 0 — Diagram IR, one manifest parser, E405/W416, nested sprotty model, legacy renderers and CLI diagram toolkit removed"
-status: todo
+status: in_progress
 itemType: feature
 achieves: [REQ-TRS-VIS-001, REQ-TRS-VIS-002, REQ-TRS-VIS-013]
 tags:

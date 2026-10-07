@@ -2916,6 +2916,20 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             if fm.diagram_kind.is_none() && fm.svg_mode.as_deref() != Some("companion") {
                 findings.push(warning("W400", &file, "Diagram element has no `diagramKind` — rendering mode ambiguous"));
             }
+            // E405 / W416: the manifest (`shapes:`/`edges:`/`layout:`) must be
+            // well-formed (REQ-TRS-VIS-002). The one manifest parser
+            // (`vis::manifest`) reports each malformed entry it had to skip as
+            // `E405` and each stale `layout:` pin as `W416`; only diagram kinds
+            // with an IR are checked (`Mermaid`/`PlantUML` bodies have none).
+            if let Some((_graph, issues)) = crate::vis::build_graph(elem, elements, &resolver) {
+                for issue in issues {
+                    match issue.code {
+                        "E405" => findings.push(error("E405", &file, &issue.message)),
+                        "W416" => findings.push(warning("W416", &file, &issue.message)),
+                        _ => {}
+                    }
+                }
+            }
             // E400: Mermaid diagrams require a ```mermaid fenced block in the body
             if fm.diagram_kind.as_deref() == Some("Mermaid") && !elem.doc.contains("```mermaid") {
                 findings.push(error("E400", &file, "`diagramKind: Mermaid` but body has no ```mermaid fenced block"));

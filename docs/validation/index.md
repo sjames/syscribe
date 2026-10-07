@@ -46,7 +46,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E300–E304 | ADR | ID pattern, required fields, status enum, reqDomain/domain enums |
 | E310–E318 | §12 Traceability and metadata | breakdownAdr, parent in satisfies, domain mismatch, deployment allocation, HW/SW independence, `refines:` (E316), stereotype resolution/applicability (E317, E318) |
 | W300–W311 | Traceability and planning warnings | Leaf satisfaction, domain refinement, proposed breakdown ADR, deployment domain, parent integration tests, unsatisfied safety mechanism, use cases without `refines:` (W301 retired); PlanningItem staleness, roster, completion bar, overlapping work (W308–W311) |
-| E400–E404, W400–W415 | Diagrams (§8.16) | Mermaid/PlantUML bodies, companion SVG/PUML, `pumlMode`, diagramKind, subject/shape/edge resolution, SVG ids and hrefs, Mermaid annotations, operation types, PlantUML style file |
+| E400–E405, W400–W416 | Diagrams (§8.16) | Mermaid/PlantUML bodies, companion SVG/PUML, `pumlMode`, diagramKind, subject/shape/edge resolution, malformed `shapes:`/`edges:`/`layout:` manifests and stale pins, SVG ids and hrefs, Mermaid annotations, operation types, PlantUML style file |
 | W070–W080, W929 | Behavior (§22.1, §22.4) | State-machine completeness (dead/trap/initial/parallel/transitions), sequence-diagram send/receive completeness |
 | E500–E506, W500–W503, W930 | Allocation, derive, structure | Allocation resolution, `derive:` cycles/parse/unknown elements, View viewpoint/expose, exhibitsStates, redundant or misplaced allocations |
 | E510–E515, W510–W512 | Multi-repository (§14) | Circular import, missing path, cross-repo ref resolution, import alias/qname, duplicate stable ID, ref pin / drift / submodule gitlink |

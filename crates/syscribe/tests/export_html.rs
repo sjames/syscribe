@@ -98,11 +98,29 @@ fn pages_carry_navigation() {
 
 // ---- TC-TRS-HTML-004 --------------------------------------------------------
 
+// REQ-TRS-VIS-010 fallback chain (Phase 0 part): companion SVG, else a
+// PlantUML-rendered SVG, else a placeholder. No server-side layout.
+
 #[test]
-fn svg_diagram_is_inlined() {
+fn companion_svg_diagram_is_embedded() {
+    let (out, _) = run_export(&[]);
+    let page = read(&elem_page(&out, "Diagrams::FxCompanion"));
+    assert!(page.contains("<svg"), "companion SVG is embedded inline; got {page}");
+    assert!(page.contains("fx-companion-marker"), "the embedded SVG is the companion file's content");
+    assert!(!page.contains("<?xml"), "the XML prolog is stripped before inlining");
+    assert!(!page.contains("diagram-placeholder"), "no placeholder when a companion SVG exists");
+}
+
+#[test]
+fn diagram_without_a_picture_gets_a_placeholder() {
     let (out, _) = run_export(&[]);
     let page = read(&elem_page(&out, "Diagrams::FxBlock"));
-    assert!(page.contains("<svg"), "BDD diagram is inlined as SVG");
+    assert!(page.contains("class=\"diagram diagram-placeholder\""), "placeholder div present; got {page}");
+    assert!(page.contains("Open this diagram in the syscribe-server browser to lay it out."));
+    assert!(page.contains("FxBlock"), "placeholder names the diagram");
+    assert!(page.contains("BDD diagram"), "placeholder names the kind");
+    assert!(page.contains("<code>Parts</code>"), "placeholder names the subject");
+    assert!(!page.contains("<svg"), "nothing is drawn server-side for an unpinned, companion-less diagram");
 }
 
 #[test]

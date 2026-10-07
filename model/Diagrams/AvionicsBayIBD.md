@@ -16,8 +16,8 @@ shapes:
   s-fc-ctrl: {ref: "UAV::Avionics::FlightController::controlOut", kind: Port}
   s-fc-telem: {ref: "UAV::Avionics::FlightController::telemetryOut", kind: Port}
 edges:
-  e-power: {ref: "UAV::Avionics::AvionicsBay", source: s-fc-power, target: s-imu, kind: flowConnection}
-  e-ctrl: {ref: "UAV::Avionics::AvionicsBay", source: s-fc-ctrl, target: s-gps, kind: flowConnection}
+  e-power: {ref: "UAV::Avionics::AvionicsBay", source: s-fc-power, target: s-imu, kind: flow}
+  e-ctrl: {ref: "UAV::Avionics::AvionicsBay", source: s-fc-ctrl, target: s-gps, kind: flow}
 ---
 
 ![AvionicsBayIBD](./AvionicsBayIBD.svg)

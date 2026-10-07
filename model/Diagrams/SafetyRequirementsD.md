@@ -19,10 +19,10 @@ shapes:
     kind: Requirement
   s-fc-test:
     ref: Verification::FCFaultInjectionTest
-    kind: TestCaseDef
+    kind: TestCase
   s-land-test:
     ref: Verification::SafeLandingTest
-    kind: TestCaseDef
+    kind: TestCase
   s-fc-hw:
     ref: UAV::Avionics::FlightController
     kind: PartDef

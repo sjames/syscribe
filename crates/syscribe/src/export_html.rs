@@ -11,7 +11,6 @@ use std::path::{Path, PathBuf};
 
 use syscribe_model::config::ValidateConfig;
 use syscribe_model::element::{ElementType, RawElement, RawFrontmatter};
-use syscribe_model::renderer::render_diagram;
 use syscribe_model::resolver::Resolver;
 use syscribe_model::validator::{self, Severity, ValidationResult};
 
@@ -412,19 +411,90 @@ fn element_page(
         body.push_str("</section>\n");
     }
 
-    // Diagrams: Mermaid is already in the rendered doc; otherwise inline the SVG.
+    // Diagrams: Mermaid is already in the rendered doc; an inline `PlantUML`
+    // body likewise. Everything else follows the `REQ-TRS-VIS-010` fallback
+    // chain (Phase 0 part): a companion SVG, else a PlantUML-rendered SVG,
+    // else a placeholder — the server never computes a layout.
     if matches!(fm.element_type, Some(ElementType::Diagram))
-        && fm.diagram_kind.as_deref() != Some("Mermaid")
+        && !matches!(fm.diagram_kind.as_deref(), Some("Mermaid") | Some("PlantUML"))
     {
-        if let Some(svg) = render_diagram(elem, resolver, elements) {
-            body.push_str("<div class=\"diagram\">\n");
-            body.push_str(&svg);
-            body.push_str("\n</div>\n");
-        }
+        body.push_str(&diagram_embed(elem));
     }
 
     let nav = build_nav(elements, rel_root, &elem.qualified_name);
     page_shell(&name, rel_root, &nav, &body, "", "")
+}
+
+// ── diagrams ───────────────────────────────────────────────────────────────
+
+/// The `<div class="diagram …">` for a `Diagram` element, by the first
+/// applicable rule of `REQ-TRS-VIS-010`'s fallback chain (the Phase 0 part,
+/// without the pinned-IR SVG writer of Phase 3):
+///
+/// 1. a companion SVG (`svgMode: companion` or `svgFile:` set; default
+///    `<stem>.svg` beside the `.md`) that exists on disk is embedded;
+/// 2. else a PlantUML-rendered `.svg` beside the companion `.puml`
+///    (`pumlFile:`, default `<stem>.puml`, same stem with `.svg`) is embedded;
+/// 3. else a placeholder names the diagram, its kind and subject and points
+///    the reader at the syscribe-server browser, where the diagram is laid out.
+fn diagram_embed(elem: &RawElement) -> String {
+    let fm = &elem.frontmatter;
+    let md_path = Path::new(&elem.file_path);
+    let md_dir = md_path.parent().unwrap_or(Path::new("."));
+
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if fm.svg_mode.as_deref() == Some("companion") || fm.svg_file.is_some() {
+        candidates.push(match &fm.svg_file {
+            Some(sf) => md_dir.join(sf.trim_start_matches("./")),
+            None => md_path.with_extension("svg"),
+        });
+    }
+    let puml = match &fm.puml_file {
+        Some(pf) => md_dir.join(pf.trim_start_matches("./")),
+        None => md_path.with_extension("puml"),
+    };
+    candidates.push(puml.with_extension("svg"));
+
+    for path in candidates {
+        if let Ok(svg) = std::fs::read_to_string(&path) {
+            let svg = strip_xml_prolog(&svg);
+            if svg.contains("<svg") {
+                return format!("<div class=\"diagram\">\n{}\n</div>\n", svg.trim());
+            }
+        }
+    }
+
+    let name = fm.name.clone().unwrap_or_else(|| elem.qualified_name.rsplit("::").next().unwrap_or(&elem.qualified_name).to_string());
+    let kind = fm.diagram_kind.as_deref().unwrap_or("Custom");
+    let subject = fm.subject.as_deref().unwrap_or("—");
+    format!(
+        "<div class=\"diagram diagram-placeholder\">\n<p><strong>{}</strong> · {} diagram · subject <code>{}</code></p>\n<p>Open this diagram in the syscribe-server browser to lay it out.</p>\n</div>\n",
+        esc(&name),
+        esc(kind),
+        esc(subject),
+    )
+}
+
+/// Drop a leading `<?xml …?>` declaration and `<!DOCTYPE …>` so a standalone
+/// SVG file can be inlined into an HTML document.
+fn strip_xml_prolog(svg: &str) -> String {
+    let mut s = svg.trim_start();
+    loop {
+        if s.starts_with("<?xml") {
+            match s.find("?>") {
+                Some(i) => s = s[i + 2..].trim_start(),
+                None => break,
+            }
+        } else if s.starts_with("<!DOCTYPE") {
+            match s.find('>') {
+                Some(i) => s = s[i + 1..].trim_start(),
+                None => break,
+            }
+        } else {
+            break;
+        }
+    }
+    s.to_string()
 }
 
 // ── reports ────────────────────────────────────────────────────────────────

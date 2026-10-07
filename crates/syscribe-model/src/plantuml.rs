@@ -1,17 +1,21 @@
-use std::collections::{HashMap, HashSet};
+//! PlantUML writer (`REQ-TRS-VIS-009`, `REQ-TRS-PUML-*`).
+//!
+//! A pure function of the Diagram IR ([`crate::vis::DiagramGraph`]): the
+//! `Diagram` element's `shapes:`/`edges:`/`layout:` frontmatter is never read
+//! here — [`crate::vis::build_graph`] is the one manifest parser, and each
+//! `render_*` below walks the graph it produced. The output for the demo
+//! model's `pumlMode: companion` diagrams is snapshot-tested
+//! (`tests/vis_plantuml_snapshot.rs`) so a change to the IR or to this writer
+//! is visible as a diff.
+
+use std::collections::HashSet;
 
 use crate::config::PlantumlConfig;
 use crate::element::RawElement;
+use crate::resolver::Resolver;
+use crate::vis::{self, DiagramGraph, DiagramKind, Edge, EdgeKind, Node, NodeKind};
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
-
-fn lookup_name(qref: &str, elements: &[RawElement]) -> String {
-    elements
-        .iter()
-        .find(|e| e.qualified_name == qref)
-        .and_then(|e| e.frontmatter.name.clone())
-        .unwrap_or_else(|| short_name(qref))
-}
 
 fn short_name(qname: &str) -> String {
     qname.rsplit("::").next().unwrap_or(qname).to_string()
@@ -22,94 +26,59 @@ fn sanitize_id(s: &str) -> String {
     s.replace('-', "_")
 }
 
+/// An edge's role label when it carries no explicit `label:`: the short name
+/// of the element it refers to, else its id without the conventional `e-`
+/// prefix.
 fn edge_label(key: &str, eref: Option<&str>) -> String {
     eref.map(short_name)
-        .unwrap_or_else(|| key.strip_prefix("e-").unwrap_or(key).to_string())
+        .unwrap_or_else(|| key_label(key))
 }
 
-// ── YAML parsing ──────────────────────────────────────────────────────────────
-
-struct Shape {
-    key: String,
-    qref: String,
-    kind: String,
-    parent: Option<String>,
-    label: Option<String>,
+/// An edge id without its conventional `e-` prefix (`e-propulsion` → `propulsion`).
+fn key_label(key: &str) -> String {
+    key.strip_prefix("e-").unwrap_or(key).to_string()
 }
 
-struct Edge {
-    key: String,
-    qref: Option<String>,
-    source: String,
-    target: String,
-    kind: String,
-    label: Option<String>,
-}
-
-fn parse_shapes(val: &serde_yaml::Value) -> Vec<Shape> {
-    let mut out = Vec::new();
-    let Some(map) = val.as_mapping() else { return out };
-    for (k, v) in map {
-        let key = k.as_str().unwrap_or("").to_string();
-        let qref = v.get("ref").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        // Normalise to lowercase so renderers use simple equality checks regardless
-        // of whether the diagram uses "block"/"port" or "Part"/"Port" etc.
-        let kind = v.get("kind").and_then(|x| x.as_str()).unwrap_or("").to_lowercase();
-        let parent = v.get("parent").and_then(|x| x.as_str()).map(str::to_string);
-        let label = v.get("label").and_then(|x| x.as_str()).map(str::to_string);
-        out.push(Shape { key, qref, kind, parent, label });
+/// The `<<stereotype>>` text of a class-diagram node: the IR's stereotype
+/// (the resolved element's type, or the type an element-type-named `kind:`
+/// implied), else `part` for a plain `block`, else the role name itself.
+fn class_stereotype(node: &Node) -> String {
+    match node.stereotype.as_deref() {
+        Some(s) => s.to_string(),
+        None if node.kind == NodeKind::Block => "part".to_string(),
+        None => node.kind.as_str().to_string(),
     }
-    out
-}
-
-fn parse_edges(val: &serde_yaml::Value) -> Vec<Edge> {
-    let mut out = Vec::new();
-    let Some(map) = val.as_mapping() else { return out };
-    for (k, v) in map {
-        let key = k.as_str().unwrap_or("").to_string();
-        let qref = v.get("ref").and_then(|x| x.as_str()).map(str::to_string);
-        let source = v.get("source").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let target = v.get("target").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let kind = v.get("kind").and_then(|x| x.as_str()).unwrap_or("").to_string();
-        let label = v.get("label").and_then(|x| x.as_str()).map(str::to_string);
-        out.push(Edge { key, qref, source, target, kind, label });
-    }
-    out
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /// Generate a PlantUML `.puml` source string from a `Diagram` element.
-/// Returns `None` when the `diagramKind` has no PlantUML mapping (e.g. `Mermaid`).
+/// Returns `None` when the element is not a `Diagram` or its `diagramKind`
+/// has no PlantUML mapping (`Mermaid`, `PlantUML`, `Allocation`, `UseCase`,
+/// `Custom`/absent).
 pub fn render_plantuml(
     element: &RawElement,
     elements: &[RawElement],
     cfg: Option<&PlantumlConfig>,
 ) -> Option<String> {
-    let kind = element.frontmatter.diagram_kind.as_deref()?;
-
-    // Display label used inside the diagram (may contain spaces/punctuation).
-    let name = element
-        .frontmatter
-        .name
-        .as_deref()
-        .unwrap_or_else(|| element.qualified_name.rsplit("::").next().unwrap_or(&element.qualified_name));
+    let resolver = Resolver::new(elements);
+    let (graph, _issues) = vis::build_graph(element, elements, &resolver)?;
 
     // @startuml identifier / PlantUML output filename stem — must not contain
     // spaces so PlantUML names the .svg predictably.  Derive from the file stem.
     let file_stem: String = std::path::Path::new(&element.file_path)
         .file_stem()
         .and_then(|s| s.to_str())
-        .unwrap_or(name)
+        .unwrap_or(&graph.name)
         .replace(' ', "_");
 
-    match kind {
-        "BDD" => Some(render_bdd(element, elements, name, &file_stem, cfg)),
-        "IBD" => Some(render_ibd(element, elements, name, &file_stem, cfg)),
-        "StateMachine" => Some(render_state_machine(element, elements, name, &file_stem, cfg)),
-        "Sequence" => Some(render_sequence(element, elements, name, &file_stem, cfg)),
-        "Requirement" => Some(render_requirement(element, elements, name, &file_stem, cfg)),
-        _ => None,
+    match graph.kind {
+        DiagramKind::Bdd => Some(render_bdd(&graph, &file_stem, cfg)),
+        DiagramKind::Ibd => Some(render_ibd(&graph, &file_stem, cfg)),
+        DiagramKind::StateMachine => Some(render_state_machine(&graph, &file_stem, cfg)),
+        DiagramKind::Sequence => Some(render_sequence(&graph, &file_stem, cfg)),
+        DiagramKind::Requirement => Some(render_requirement(&graph, &file_stem, cfg)),
+        DiagramKind::Allocation | DiagramKind::UseCase | DiagramKind::Custom => None,
     }
 }
 
@@ -130,7 +99,7 @@ fn element_url(qref: &str, cfg: Option<&PlantumlConfig>) -> String {
 }
 
 /// Emit the style preamble: `!include`, `!theme`, or built-in SysML skinparams.
-fn style_preamble(cfg: Option<&PlantumlConfig>, _diagram_kind: &str) -> String {
+fn style_preamble(cfg: Option<&PlantumlConfig>) -> String {
     if let Some(c) = cfg {
         if let Some(ref sf) = c.style_file {
             return format!("!include {}\n", sf.display());
@@ -281,37 +250,34 @@ skinparam sequence {
 
 // ── BDD ───────────────────────────────────────────────────────────────────────
 
-fn render_bdd(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
-    let shapes = element.frontmatter.shapes.as_ref().map(parse_shapes).unwrap_or_default();
-    let edges = element.frontmatter.edges.as_ref().map(parse_edges).unwrap_or_default();
-
+fn render_bdd(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> String {
     let mut out = String::new();
     out.push_str(&format!("@startuml {}\n", id));
-    out.push_str(&style_preamble(cfg, "BDD"));
+    out.push_str(&style_preamble(cfg));
     out.push_str("hide empty members\n\n");
 
-    for s in &shapes {
-        let display = lookup_name(&s.qref, elements);
-        let stereo = match s.kind.as_str() {
-            "partdef" => "part def",
-            "part" | "block" => "part",
-            other => other,
-        };
-        let url = element_url(&s.qref, cfg);
-        out.push_str(&format!("class \"{}\" as {} <<{}>> {}\n", display, sanitize_id(&s.key), stereo, url));
+    for node in &graph.nodes {
+        let url = element_url(&node.element_ref, cfg);
+        out.push_str(&format!(
+            "class \"{}\" as {} <<{}>> {}\n",
+            node.label,
+            sanitize_id(&node.id),
+            class_stereotype(node),
+            url
+        ));
     }
 
     out.push('\n');
 
-    for e in &edges {
+    for e in &graph.edges {
         // For BDD edges the ref often points to the owning element rather than
-        // the member, so the edge key (e.g. "e-propulsion" → "propulsion") is
+        // the member, so the edge id (e.g. "e-propulsion" → "propulsion") is
         // the most reliable role label.
-        let label = e.key.strip_prefix("e-").unwrap_or(&e.key).to_string();
-        let connector = match e.kind.as_str() {
-            "composition" => "*--",
-            "usage" => "..>",
-            "generalization" | "specialization" | "inheritance" => "--|>",
+        let label = key_label(&e.id);
+        let connector = match e.kind {
+            EdgeKind::Composition => "*--",
+            EdgeKind::Dependency => "..>",
+            EdgeKind::Inheritance => "--|>",
             _ => "-->",
         };
         out.push_str(&format!(
@@ -330,68 +296,46 @@ fn render_bdd(element: &RawElement, elements: &[RawElement], _name: &str, id: &s
 // ── IBD ───────────────────────────────────────────────────────────────────────
 
 fn render_ibd_container(
-    key: &str,
-    shapes: &[Shape],
-    container_keys: &std::collections::HashSet<String>,
-    elements: &[RawElement],
+    node: &Node,
+    graph: &DiagramGraph,
+    container_ids: &HashSet<&str>,
     cfg: Option<&PlantumlConfig>,
     indent: usize,
     out: &mut String,
 ) {
     let pad = "  ".repeat(indent);
-    let s = match shapes.iter().find(|s| s.key == key) {
-        Some(s) => s,
-        None => return,
-    };
-    let name = lookup_name(&s.qref, elements);
-    let url = element_url(&s.qref, cfg);
-    out.push_str(&format!("{}rectangle \"{}\" as {} {} {{\n", pad, name, sanitize_id(key), url));
-    for child in shapes {
-        if child.parent.as_deref() != Some(key) || child.kind == "port" {
+    let url = element_url(&node.element_ref, cfg);
+    out.push_str(&format!("{}rectangle \"{}\" as {} {} {{\n", pad, node.label, sanitize_id(&node.id), url));
+    for child in graph.children_of(&node.id) {
+        if child.kind == NodeKind::Port {
             continue;
         }
-        if container_keys.contains(&child.key) {
-            render_ibd_container(&child.key, shapes, container_keys, elements, cfg, indent + 1, out);
+        if container_ids.contains(child.id.as_str()) {
+            render_ibd_container(child, graph, container_ids, cfg, indent + 1, out);
         } else {
-            let cname = lookup_name(&child.qref, elements);
-            let curl = element_url(&child.qref, cfg);
-            out.push_str(&format!("{}  component \"{}\" as {} {}\n", pad, cname, sanitize_id(&child.key), curl));
+            let curl = element_url(&child.element_ref, cfg);
+            out.push_str(&format!("{}  component \"{}\" as {} {}\n", pad, child.label, sanitize_id(&child.id), curl));
         }
     }
     out.push_str(&format!("{}}}\n", pad));
 }
 
-fn render_ibd(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
-    let shapes = element.frontmatter.shapes.as_ref().map(parse_shapes).unwrap_or_default();
-    let edges = element.frontmatter.edges.as_ref().map(parse_edges).unwrap_or_default();
-
-    // Map shape key → parent key (for ports resolving to their parent block)
-    let parent_map: HashMap<&str, &str> = shapes
-        .iter()
-        .filter_map(|s| s.parent.as_deref().map(|p| (s.key.as_str(), p)))
-        .collect();
-
-    // Resolve a shape key through its parent chain to the nearest block/boundary.
-    // If the port has no explicit `parent:`, fall back to finding a block/part whose
-    // qref is a proper prefix of the port's qref (i.e. the port's owning element).
+fn render_ibd(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> String {
+    // Resolve a node id through its parent to the block that owns it: a port
+    // is drawn on its parent, so an edge between ports becomes an edge between
+    // their blocks. A port with no `parent:` falls back to the block whose
+    // element reference is the port reference's owner prefix.
     let resolve_to_block = |id: &str| -> String {
-        let shape = shapes.iter().find(|s| s.key == id);
-        let kind = shape.map(|s| s.kind.as_str()).unwrap_or("");
-        if kind == "port" {
-            if let Some(parent_key) = parent_map.get(id) {
-                return parent_key.to_string();
+        let node = graph.node(id);
+        if let Some(port) = node.filter(|n| n.kind == NodeKind::Port) {
+            if let Some(parent) = port.parent.as_deref() {
+                return parent.to_string();
             }
-            // Fallback: find a block whose qref is a prefix of this port's qref
-            if let Some(port_qref) = shape.map(|s| s.qref.as_str()) {
-                let prefix = match port_qref.rfind("::") {
-                    Some(i) => &port_qref[..i],
-                    None => "",
-                };
+            if let Some(i) = port.element_ref.rfind("::") {
+                let prefix = &port.element_ref[..i];
                 if !prefix.is_empty() {
-                    if let Some(owner) = shapes.iter().find(|s| {
-                        (s.kind == "block" || s.kind == "part") && s.qref == prefix
-                    }) {
-                        return owner.key.clone();
+                    if let Some(owner) = graph.nodes.iter().find(|n| n.kind == NodeKind::Block && n.element_ref == prefix) {
+                        return owner.id.clone();
                     }
                 }
             }
@@ -399,49 +343,45 @@ fn render_ibd(element: &RawElement, elements: &[RawElement], _name: &str, id: &s
         id.to_string()
     };
 
-    // Shapes whose key appears as `parent:` on another shape are containers.
-    // Detected structurally so explicit `kind: boundary` is not required.
-    let container_keys: std::collections::HashSet<String> = shapes
-        .iter()
-        .filter_map(|s| s.parent.clone())
-        .collect();
+    // Nodes that some other node names as `parent:` are containers. Detected
+    // structurally so explicit `kind: boundary` is not required.
+    let container_ids: HashSet<&str> = graph.nodes.iter().filter_map(|n| n.parent.as_deref()).collect();
 
     let mut out = String::new();
     out.push_str(&format!("@startuml {}\n", id));
-    out.push_str(&style_preamble(cfg, "IBD"));
+    out.push_str(&style_preamble(cfg));
     out.push('\n');
 
     // Top-level containers: have children and no parent themselves.
-    for s in &shapes {
-        if s.kind == "port" || s.parent.is_some() || !container_keys.contains(&s.key) {
+    for n in graph.roots() {
+        if n.kind == NodeKind::Port || !container_ids.contains(n.id.as_str()) {
             continue;
         }
-        render_ibd_container(&s.key, &shapes, &container_keys, elements, cfg, 0, &mut out);
+        render_ibd_container(n, graph, &container_ids, cfg, 0, &mut out);
     }
 
     // Standalone components: no parent, no children, not a port.
-    for s in &shapes {
-        if s.kind != "port" && s.parent.is_none() && !container_keys.contains(&s.key) {
-            let cname = lookup_name(&s.qref, elements);
-            let url = element_url(&s.qref, cfg);
-            out.push_str(&format!("component \"{}\" as {} {}\n", cname, sanitize_id(&s.key), url));
+    for n in graph.roots() {
+        if n.kind != NodeKind::Port && !container_ids.contains(n.id.as_str()) {
+            let url = element_url(&n.element_ref, cfg);
+            out.push_str(&format!("component \"{}\" as {} {}\n", n.label, sanitize_id(&n.id), url));
         }
     }
 
     out.push('\n');
 
     // Edges: resolve ports → parent block, skip self-connections
-    for e in &edges {
+    for e in &graph.edges {
         let src = resolve_to_block(&e.source);
         let tgt = resolve_to_block(&e.target);
         if src == tgt {
             continue;
         }
-        let connector = match e.kind.as_str() {
-            "binding" => "..>",
+        let connector = match e.kind {
+            EdgeKind::Binding => "..>",
             _ => "-->",
         };
-        out.push_str(&format!("{} {} {} : {}\n", sanitize_id(&src), connector, sanitize_id(&tgt), &e.kind));
+        out.push_str(&format!("{} {} {} : {}\n", sanitize_id(&src), connector, sanitize_id(&tgt), e.kind.as_str()));
     }
 
     out.push_str("\n@enduml\n");
@@ -450,39 +390,30 @@ fn render_ibd(element: &RawElement, elements: &[RawElement], _name: &str, id: &s
 
 // ── StateMachine ──────────────────────────────────────────────────────────────
 
-fn render_state_machine(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
-    let shapes = element.frontmatter.shapes.as_ref().map(parse_shapes).unwrap_or_default();
-    let edges = element.frontmatter.edges.as_ref().map(parse_edges).unwrap_or_default();
-
-    let initial_keys: HashSet<&str> = shapes
+fn render_state_machine(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> String {
+    let initial_ids: HashSet<&str> = graph
+        .nodes
         .iter()
-        .filter(|s| s.kind == "initial")
-        .map(|s| s.key.as_str())
+        .filter(|n| n.kind == NodeKind::Initial)
+        .map(|n| n.id.as_str())
         .collect();
 
     let mut out = String::new();
     out.push_str(&format!("@startuml {}\n", id));
-    out.push_str(&style_preamble(cfg, "StateMachine"));
+    out.push_str(&style_preamble(cfg));
     out.push('\n');
 
-    for s in &shapes {
-        if s.kind == "state" {
-            // Prefer explicit label:; fall back to element name or qref short segment.
-            let sname = s.label.as_deref()
-                .map(str::to_string)
-                .unwrap_or_else(|| lookup_name(&s.qref, elements));
-            let url = element_url(&s.qref, cfg);
-            out.push_str(&format!("state \"{}\" as {} {}\n", sname, sanitize_id(&s.key), url));
-        }
+    for n in graph.nodes.iter().filter(|n| n.kind == NodeKind::State) {
+        let url = element_url(&n.element_ref, cfg);
+        out.push_str(&format!("state \"{}\" as {} {}\n", n.label, sanitize_id(&n.id), url));
     }
 
     out.push('\n');
 
-    for e in &edges {
-        // Prefer explicit label:; fall back to key stem.
-        let label: &str = e.label.as_deref()
-            .unwrap_or_else(|| e.key.strip_prefix("e-").unwrap_or(&e.key));
-        if initial_keys.contains(e.source.as_str()) {
+    for e in &graph.edges {
+        // Prefer explicit label:; fall back to the id stem.
+        let label = e.label.clone().unwrap_or_else(|| key_label(&e.id));
+        if initial_ids.contains(e.source.as_str()) {
             if label.is_empty() {
                 out.push_str(&format!("[*] --> {}\n", sanitize_id(&e.target)));
             } else {
@@ -504,32 +435,26 @@ fn render_state_machine(element: &RawElement, elements: &[RawElement], _name: &s
 
 // ── Sequence ──────────────────────────────────────────────────────────────────
 
-fn render_sequence(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
-    let shapes = element.frontmatter.shapes.as_ref().map(parse_shapes).unwrap_or_default();
-    let edges = element.frontmatter.edges.as_ref().map(parse_edges).unwrap_or_default();
-
+fn render_sequence(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> String {
     let mut out = String::new();
     out.push_str(&format!("@startuml {}\n", id));
-    out.push_str(&style_preamble(cfg, "Sequence"));
+    out.push_str(&style_preamble(cfg));
     out.push('\n');
 
-    for s in &shapes {
-        let pname = lookup_name(&s.qref, elements);
-        let url = element_url(&s.qref, cfg);
-        match s.kind.as_str() {
-            "actor" => out.push_str(&format!("actor \"{}\" as {} {}\n", pname, sanitize_id(&s.key), url)),
-            "lifeline" => out.push_str(&format!("participant \"{}\" as {} {}\n", pname, sanitize_id(&s.key), url)),
+    for n in &graph.nodes {
+        let url = element_url(&n.element_ref, cfg);
+        match n.kind {
+            NodeKind::Actor => out.push_str(&format!("actor \"{}\" as {} {}\n", n.label, sanitize_id(&n.id), url)),
+            NodeKind::Lifeline => out.push_str(&format!("participant \"{}\" as {} {}\n", n.label, sanitize_id(&n.id), url)),
             _ => {} // activation, fragment — skipped (REQ-TRS-PUML-023)
         }
     }
 
     out.push('\n');
 
-    for e in &edges {
-        let label = e.label.as_deref()
-            .map(str::to_string)
-            .unwrap_or_else(|| edge_label(&e.key, e.qref.as_deref()));
-        let arrow = if e.kind == "return" { "-->" } else { "->" };
+    for e in &graph.edges {
+        let label = e.label.clone().unwrap_or_else(|| edge_label(&e.id, e.element_ref.as_deref()));
+        let arrow = if e.kind == EdgeKind::Return { "-->" } else { "->" };
         out.push_str(&format!(
             "{} {} {} : {}\n",
             sanitize_id(&e.source),
@@ -545,41 +470,37 @@ fn render_sequence(element: &RawElement, elements: &[RawElement], _name: &str, i
 
 // ── Requirement diagram ───────────────────────────────────────────────────────
 
-fn render_requirement(element: &RawElement, elements: &[RawElement], _name: &str, id: &str, cfg: Option<&PlantumlConfig>) -> String {
-    let shapes = element.frontmatter.shapes.as_ref().map(parse_shapes).unwrap_or_default();
-    let edges = element.frontmatter.edges.as_ref().map(parse_edges).unwrap_or_default();
+fn requirement_connector(e: &Edge) -> (&'static str, &'static str) {
+    match e.kind {
+        EdgeKind::Derive => ("..>", "derivedFrom"),
+        EdgeKind::Verify => ("..>", "verifies"),
+        EdgeKind::Allocation => ("..>", "allocated to"),
+        EdgeKind::Satisfy => ("-->", "satisfies"),
+        other => ("-->", other.as_str()),
+    }
+}
 
+fn render_requirement(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> String {
     let mut out = String::new();
     out.push_str(&format!("@startuml {}\n", id));
-    out.push_str(&style_preamble(cfg, "Requirement"));
+    out.push_str(&style_preamble(cfg));
     out.push_str("hide empty members\n\n");
 
-    for s in &shapes {
-        let sname = lookup_name(&s.qref, elements);
-        let stereo = match s.kind.as_str() {
-            "requirement" => "requirement",
-            "requirementdef" => "requirement def",
-            "testcase" => "test case",
-            "testcasedef" => "test case def",
-            "partdef" | "itemdef" => "part def",
-            "part" | "item" | "block" => "part",
-            "actiondef" => "action def",
-            "action" => "action",
-            other => other,
-        };
-        let url = element_url(&s.qref, cfg);
-        out.push_str(&format!("class \"{}\" as {} <<{}>> {}\n", sname, sanitize_id(&s.key), stereo, url));
+    for n in &graph.nodes {
+        let url = element_url(&n.element_ref, cfg);
+        out.push_str(&format!(
+            "class \"{}\" as {} <<{}>> {}\n",
+            n.label,
+            sanitize_id(&n.id),
+            class_stereotype(n),
+            url
+        ));
     }
 
     out.push('\n');
 
-    for e in &edges {
-        let (connector, label) = match e.kind.as_str() {
-            "derivedFrom" => ("..>", "derivedFrom"),
-            "verifies" => ("..>", "verifies"),
-            "allocatedTo" => ("..>", "allocated to"),
-            other => ("-->", other),
-        };
+    for e in &graph.edges {
+        let (connector, label) = requirement_connector(e);
         out.push_str(&format!(
             "{} {} {} : {}\n",
             sanitize_id(&e.source),

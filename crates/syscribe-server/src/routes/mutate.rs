@@ -32,19 +32,20 @@
 //! ## Diagram frontmatter shapes (`REQ-TRS-DE-003`)
 //!
 //! `shapes:`/`edges:`/`layout:` are untyped `serde_yaml::Value` frontmatter
-//! fields (`RawFrontmatter::shapes/edges/layout`); `syscribe_model::renderer`
-//! privately deserializes them as:
-//! - `shapes: { <shapeId>: { ref: <qname>, kind: <string> } }`
+//! fields (`RawFrontmatter::shapes/edges/layout`); the one manifest parser,
+//! `syscribe_model::vis::manifest` (`REQ-TRS-VIS-002`), reads them as:
+//! - `shapes: { <shapeId>: { ref: <qname>, kind: <string> } }` (or the
+//!   string shorthand `<shapeId>: <qname>`)
 //! - `edges: { <edgeId>: { ref?: <qname>, source: <shapeId>, target: <shapeId>, kind: <string> } }`
 //! - `layout: { <shapeId>: { x: <num>, y: <num>, w?: <num>, h?: <num> } }`
 //!
 //! The helpers below hand-build/patch YAML mappings matching those exact
-//! shapes — they *write* YAML rather than deserialize it, so the typed
-//! `syscribe_model::diagram::{DiagramShape, DiagramEdge, ShapeLayout}` structs
-//! (and their `parse_shapes`/`parse_edges`/`parse_layout` helpers) aren't the
-//! right tool here, but the key names (`shapes`/`edges`/`layout`/`ref`/`kind`)
-//! are shared via that same module's `KEY_*` constants so this write side and
-//! `renderer.rs`/`diagram_model.rs`'s read side agree on one spelling.
+//! shapes — they *write* YAML rather than build the IR — but the key names
+//! (`shapes`/`edges`/`layout`/`ref`/`kind`) are shared via that module's
+//! `KEY_*` constants so this write side and the parser agree on one spelling.
+//! A section that is present but not a map is never silently replaced
+//! (`sub_mapping` refuses, and the guarded write with it): that would destroy
+//! the author's data, and the validator already reports it as `E405`.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -56,7 +57,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use syscribe_model::connections::{add_connection as add_conn_entry, remove_connection as remove_conn_entry};
-use syscribe_model::diagram::{KEY_EDGES, KEY_KIND, KEY_LAYOUT, KEY_REF, KEY_SHAPES};
+use syscribe_model::vis::manifest::{KEY_EDGES, KEY_KIND, KEY_LAYOUT, KEY_REF, KEY_SHAPES};
 use syscribe_model::element::ElementType;
 use syscribe_model::frontmatter::patch_frontmatter;
 use syscribe_model::mutate::{
@@ -351,14 +352,51 @@ pub struct RemoveConnectionRequest {
 // Diagram-sync helpers (REQ-TRS-DE-003)
 // ---------------------------------------------------------------------------
 
-/// Fetch-or-create the sub-mapping at `map[key]`, replacing a non-mapping value.
-fn sub_mapping<'m>(map: &'m mut serde_yaml::Mapping, key: &str) -> &'m mut serde_yaml::Mapping {
-    if !matches!(map.get(key), Some(serde_yaml::Value::Mapping(_))) {
-        map.insert(key.into(), serde_yaml::Value::Mapping(serde_yaml::Mapping::new()));
+/// Fetch-or-create the sub-mapping at `map[key]`. An absent or `null` value
+/// becomes an empty map; a value of any other shape (a scalar, a sequence) is
+/// refused with a message naming the key, so a guarded write never replaces
+/// an author's malformed-but-present section with an empty one.
+fn sub_mapping<'m>(map: &'m mut serde_yaml::Mapping, key: &str) -> Result<&'m mut serde_yaml::Mapping, String> {
+    match map.get(key) {
+        None | Some(serde_yaml::Value::Null) => {
+            map.insert(key.into(), serde_yaml::Value::Mapping(serde_yaml::Mapping::new()));
+        }
+        Some(serde_yaml::Value::Mapping(_)) => {}
+        Some(other) => {
+            let shape = match other {
+                serde_yaml::Value::Sequence(_) => "a sequence",
+                serde_yaml::Value::String(_) => "a string",
+                serde_yaml::Value::Number(_) => "a number",
+                serde_yaml::Value::Bool(_) => "a boolean",
+                _ => "not a map",
+            };
+            return Err(format!(
+                "`{key}:` is {shape}, not a map of entries — fix the frontmatter (validate reports it as E405) before editing it from a diagram"
+            ));
+        }
     }
     match map.get_mut(key) {
-        Some(serde_yaml::Value::Mapping(m)) => m,
+        Some(serde_yaml::Value::Mapping(m)) => Ok(m),
         _ => unreachable!("just ensured a Mapping is present at this key"),
+    }
+}
+
+/// Run `patch_frontmatter` with a mutation that may refuse (a `sub_mapping`
+/// error): the refusal is propagated and the file is left untouched.
+fn patch_frontmatter_checked(
+    content: &str,
+    mutate: impl FnOnce(&mut serde_yaml::Mapping) -> Result<(), String>,
+) -> Result<String, String> {
+    let mut refused: Option<String> = None;
+    let new_content = patch_frontmatter(content, None, |map| {
+        if let Err(e) = mutate(map) {
+            refused = Some(e);
+        }
+    })
+    .map_err(|e| e.to_string())?;
+    match refused {
+        Some(e) => Err(e),
+        None => Ok(new_content),
     }
 }
 
@@ -367,20 +405,20 @@ fn sub_mapping<'m>(map: &'m mut serde_yaml::Mapping, key: &str) -> &'m mut serde
 fn sync_shape_add(root: &Path, d: &ShapeDiagramContext, new_qname: &str) -> Result<(), String> {
     let file = resolve_file(root, &d.qname)?;
     let content = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
-    let new_content = patch_frontmatter(&content, None, |map| {
-        let shapes = sub_mapping(map, KEY_SHAPES);
+    let new_content = patch_frontmatter_checked(&content, |map| {
+        let shapes = sub_mapping(map, KEY_SHAPES)?;
         let mut shape = serde_yaml::Mapping::new();
         shape.insert(KEY_REF.into(), new_qname.into());
         shape.insert(KEY_KIND.into(), d.kind.clone().into());
         shapes.insert(d.shape_id.clone().into(), serde_yaml::Value::Mapping(shape));
 
-        let layout = sub_mapping(map, KEY_LAYOUT);
+        let layout = sub_mapping(map, KEY_LAYOUT)?;
         let mut pos = serde_yaml::Mapping::new();
         pos.insert("x".into(), d.x.into());
         pos.insert("y".into(), d.y.into());
         layout.insert(d.shape_id.clone().into(), serde_yaml::Value::Mapping(pos));
-    })
-    .map_err(|e| e.to_string())?;
+        Ok(())
+    })?;
     std::fs::write(&file, new_content).map_err(|e| e.to_string())
 }
 
@@ -464,18 +502,18 @@ fn sync_edge_add(root: &Path, d: &EdgeDiagramContext) -> Result<(), String> {
         .ok_or_else(|| "diagram.targetShapeId is required to add an edge".to_string())?;
     let file = resolve_file(root, &d.qname)?;
     let content = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
-    let new_content = patch_frontmatter(&content, None, |map| {
-        let edges = sub_mapping(map, KEY_EDGES);
+    let new_content = patch_frontmatter_checked(&content, |map| {
+        let edges = sub_mapping(map, KEY_EDGES)?;
         let mut edge = serde_yaml::Mapping::new();
         edge.insert("source".into(), src.clone().into());
         edge.insert("target".into(), tgt.clone().into());
         // No richer semantic kind is available from a bare port-to-port
-        // connect gesture; "connection" is the generic renderer fallback
-        // style (`edge_style`'s `_ =>` arm), same as an unrecognised kind.
+        // connect gesture; `connection` is the manifest's default edge kind
+        // (`EdgeKind::Connection`, spec §8.16.4).
         edge.insert(KEY_KIND.into(), "connection".into());
         edges.insert(d.edge_id.clone().into(), serde_yaml::Value::Mapping(edge));
-    })
-    .map_err(|e| e.to_string())?;
+        Ok(())
+    })?;
     std::fs::write(&file, new_content).map_err(|e| e.to_string())
 }
 
@@ -788,10 +826,10 @@ pub async fn patch_layout(
     let apply = move |root: &Path| -> Result<(), String> {
         let file = root.join(&rel);
         let content = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
-        let new_content = patch_frontmatter(&content, None, |map| {
-            let layout = sub_mapping(map, KEY_LAYOUT);
+        let new_content = patch_frontmatter_checked(&content, |map| {
+            let layout = sub_mapping(map, KEY_LAYOUT)?;
             for (shape_id, pos) in &positions {
-                let shape = sub_mapping(layout, shape_id);
+                let shape = sub_mapping(layout, shape_id)?;
                 shape.insert(
                     "x".into(),
                     serde_yaml::Value::Number(serde_yaml::Number::from(pos.x.round() as i64)),
@@ -803,8 +841,8 @@ pub async fn patch_layout(
                 // w/h are intentionally left untouched, matching the retired
                 // hand-rolled implementation.
             }
-        })
-        .map_err(|e| e.to_string())?;
+            Ok(())
+        })?;
         std::fs::write(&file, new_content).map_err(|e| e.to_string())
     };
 
@@ -818,4 +856,76 @@ pub async fn patch_layout(
         apply,
     );
     Json(to_response(&outcome))
+}
+
+#[cfg(test)]
+mod sub_mapping_tests {
+    //! `sub_mapping` must never replace an author's present-but-malformed
+    //! `shapes:`/`edges:`/`layout:` section with an empty map (data loss);
+    //! it refuses, and the guarded write that called it is refused with it.
+    use super::{patch_frontmatter_checked, sub_mapping, KEY_LAYOUT, KEY_SHAPES};
+
+    fn yaml(s: &str) -> serde_yaml::Mapping {
+        match serde_yaml::from_str(s).unwrap() {
+            serde_yaml::Value::Mapping(m) => m,
+            other => panic!("not a mapping: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn absent_or_null_section_becomes_an_empty_map() {
+        let mut m = yaml("type: Diagram\nlayout: ~\n");
+        assert!(sub_mapping(&mut m, KEY_SHAPES).unwrap().is_empty());
+        assert!(sub_mapping(&mut m, KEY_LAYOUT).unwrap().is_empty());
+        assert!(matches!(m.get(KEY_SHAPES), Some(serde_yaml::Value::Mapping(_))));
+        assert!(matches!(m.get(KEY_LAYOUT), Some(serde_yaml::Value::Mapping(_))));
+    }
+
+    #[test]
+    fn existing_map_is_returned_untouched() {
+        let mut m = yaml("shapes:\n  a:\n    ref: X::A\n    kind: block\n");
+        let shapes = sub_mapping(&mut m, KEY_SHAPES).unwrap();
+        assert_eq!(shapes.len(), 1);
+        assert!(shapes.contains_key("a"));
+    }
+
+    #[test]
+    fn non_map_section_is_refused_and_left_as_is() {
+        for (fm, what) in [
+            ("shapes:\n  - X::A\n  - X::B\n", "a sequence"),
+            ("shapes: 42\n", "a number"),
+            ("shapes: just text\n", "a string"),
+            ("shapes: true\n", "a boolean"),
+        ] {
+            let mut m = yaml(fm);
+            let before = m.clone();
+            let err = sub_mapping(&mut m, KEY_SHAPES).expect_err(fm);
+            assert!(err.contains("`shapes:`"), "{err}");
+            assert!(err.contains(what), "{err}");
+            assert!(err.contains("E405"), "{err}");
+            assert_eq!(m, before, "the malformed section is not replaced: {fm}");
+        }
+    }
+
+    #[test]
+    fn a_refused_sub_mapping_refuses_the_whole_patch() {
+        let content = "---\ntype: Diagram\nname: D\nshapes:\n  - X::A\n---\n\nBody.\n";
+        let result = patch_frontmatter_checked(content, |map| {
+            let shapes = sub_mapping(map, KEY_SHAPES)?;
+            shapes.insert("b".into(), "X::B".into());
+            Ok(())
+        });
+        let err = result.expect_err("a sequence at `shapes:` refuses the write");
+        assert!(err.contains("`shapes:` is a sequence"), "{err}");
+
+        // The same patch on a well-formed file goes through and keeps the body.
+        let ok = patch_frontmatter_checked("---\ntype: Diagram\nshapes:\n  a: X::A\n---\n\nBody.\n", |map| {
+            let shapes = sub_mapping(map, KEY_SHAPES)?;
+            shapes.insert("b".into(), "X::B".into());
+            Ok(())
+        })
+        .unwrap();
+        assert!(ok.contains("b: X::B"), "{ok}");
+        assert!(ok.contains("Body."), "{ok}");
+    }
 }

@@ -16,8 +16,12 @@ tags:
 stereotype text (`«part def»`, `«part»`, `«port»`, …), fill and stroke colours, header
 treatment and the abstract (italic) rendering; per `EdgeKind` the stroke, dash pattern and
 arrowhead (hollow triangle for inheritance, filled diamond for composition, filled arrow for
-flow, dashed with `=` for binding, none for connection); and per port direction the glyph
-(`in`, `out`, `inout`). The sprotty model shall carry the resolved style per node and edge so
+flow, dashed with `=` for binding, none for connection); per port direction the glyph
+(`in`, `out`, `inout`); and, for an element that applies one or more `MetadataDef`
+stereotypes (`REQ-TRS-META-001`), an additional `«Name»` banner per applied stereotype beneath
+the kind stereotype, in the same font and colour (this subsumes the retired qualification
+requirement `REQ-TRS-META-002`, which verified banners in the deleted CLI renderer). The
+sprotty model shall carry the resolved style per node and edge so
 the client's views read it rather than hold their own table, and `vis::svg` shall emit the same
 values, so a diagram rendered in the browser and the same diagram saved or exported look alike.
 

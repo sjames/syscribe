@@ -3249,7 +3249,7 @@ Choose **inline** when GitHub rendering is not required and keeping everything i
 | `svgFile` | string | optional | `<stem>.svg` | Companion file path relative to the `.md` file; only used when `svgMode: companion` |
 | `shapes` | map | optional | absent | Shape manifest; see §8.16.3 |
 | `edges` | map | optional | absent | Edge manifest; see §8.16.4 |
-| `layout` | map | optional | absent | Shape id → `{x, y, w, h}` pixel coordinates. Triggers the server-side structured SVG renderer. |
+| `layout` | map | optional | absent | Shape id → `{x, y, w, h}` pixel coordinates (an edge id → `{points: [[x, y], …]}` pins its routing). Entries are **pins** (`REQ-TRS-VIS-007`): a pinned shape keeps its position while the browser lays the unpinned rest out around it; `w`/`h` are optional. A key naming no shape or edge is `W416`; an entry without numeric `x`/`y` is `E405`. |
 | `pumlMode` | string | optional | absent | `companion` (the only value; anything else is `E403`) opts into the PlantUML workflow. Requires `diagramKind` (`E404`); the body must reference the anticipated SVG (`![…](….svg)` or `<img`, else `W413`); a not-yet-generated `.puml` is `W414`. |
 | `pumlFile` | string | optional | `<stem>.puml` | Companion `.puml` path relative to the `.md` file; only used with `pumlMode: companion`. |
 
@@ -3586,6 +3586,7 @@ A conformant parser must:
 7. **Mode consistency** — when `svgMode: inline`, the body must contain a fenced `svg` block. When `svgMode: companion`, the body must contain an `<img>` tag. A mismatch is warning `W405`.
 8. **Rendering-path bodies** — `diagramKind: Mermaid` requires a ` ```mermaid ` block (`E400`); `diagramKind: PlantUML` requires a ` ```plantuml ` block (`E401`). In Mermaid blocks, an unresolved `%% ref:` is `W408`, a diagram with no `%% ref:` annotation at all is `W409`, and an unresolved `%% link:` is `W410`. The `pumlMode` checks (`E403`, `E404`, `W413`, `W414`) are listed in §8.16.2; a missing `[plantuml] style_file` is `W415`.
 9. **Completeness warnings** (optional, non-blocking) — for `IBD` diagrams, the parser may warn if sub-parts or connections declared in the subject element's `.md` file do not appear in `shapes:` or `edges:`.
+10. **Manifest well-formedness** (`REQ-TRS-VIS-002`) — a `shapes:`, `edges:` or `layout:` value that is present but malformed is error `E405` naming the entry: the value is not a map, an entry is neither a map nor a qualified-name string, a shape has no `ref` or an edge no `source`/`target`, a `kind:` is outside the §8.16.8 vocabulary, a `parent:` names no shape of the diagram (or forms a cycle), or a `layout:` entry has no numeric `x`/`y`. The offending entry is skipped and the rest of the diagram still builds — a malformed manifest never renders the diagram empty. A `layout:` key that names no shape or edge of the diagram is warning `W416` (a stale pin). The check applies only to diagram kinds that build an IR; `Mermaid` and `PlantUML` bodies have no manifest to check.
 
 ---
 
@@ -5722,7 +5723,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
 | `W308`–`W311`, `E706`–`E723` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.9; §8.18.6 for `E718` |
-| `E400`–`E404`, `W400`–`W415` | Diagram elements | §8.16.2, §8.16.7 |
+| `E400`–`E405`, `W400`–`W416` | Diagram elements | §8.16.2, §8.16.7 |
 | `E516`–`E519`, `E523`, `W513` | Hierarchical product-line composition | §14.7 |
 | `E520`–`E522`, `W520` | Release baselines | §8.19 |
 | `E530`–`E532`, `W530`–`W534` | **Reserved** for the parked sandboxed-WASM plugin design (`ADR-SYS-PLUGIN-001`); never emitted | — |

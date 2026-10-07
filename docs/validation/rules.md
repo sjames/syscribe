@@ -253,7 +253,7 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 - **Not a cross-reference** — `extRef` is an external pointer; it is never a target for `supertype:`/`verifies:`/`derivedFrom:` etc.
 - **Gateable** — `validate --deny W028` exits non-zero when any W028 is present.
 
-## Diagram errors (E400–E404)
+## Diagram errors (E400–E405)
 
 | Code | Condition |
 |---|---|
@@ -262,8 +262,9 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | E402 | `svgFile:`/companion SVG path does not exist on disk (`svgMode: companion`, or `svgFile:` set without `svgMode`) |
 | E403 | `pumlMode:` declares an unrecognised value (only `companion` is supported) |
 | E404 | `pumlMode: companion` is set but the element has no `diagramKind:` to derive the PlantUML companion from |
+| E405 | `shapes:`, `edges:` or `layout:` is present but malformed — not a map, an entry missing `ref`/`source`/`target`, an unknown `kind:`, a `parent:` naming no shape, or a `layout:` entry without numeric `x`/`y`; the entry is skipped instead of the diagram rendering empty. Only diagram kinds with an IR are checked — a `Mermaid`/`PlantUML` body has none (REQ-TRS-VIS-002) |
 
-## Diagram warnings (W400–W415, W080)
+## Diagram warnings (W400–W416, W080)
 
 | Code | Condition |
 |---|---|
@@ -283,6 +284,7 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W413 | `pumlMode: companion` element's body contains no image reference at all (no `![…](…)` and no `<img`) — so its rendered PlantUML companion is never shown (REQ-TRS-PUML-030) |
 | W414 | `pumlMode: companion` element's `.puml` companion file has not been generated yet — run `plantuml` (REQ-TRS-PUML-031) |
 | W415 | The `[plantuml] style_file` path configured in `.syscribe.toml` does not exist on disk (REQ-TRS-PUML-042) |
+| W416 | A `layout:` key names no shape or edge of the diagram (stale pin) — the entry is ignored; delete it or rename it to the shape it was meant to pin (REQ-TRS-VIS-002) |
 | W080 | `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` in its sub-action tree not referenced by any `edges:` entry (draft-suppressed; `--deny W080`) |
 
 ## State machine warnings (W070–W079, W929, §22.1)
