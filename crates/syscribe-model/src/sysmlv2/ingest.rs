@@ -83,7 +83,27 @@ pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Ve
             }
         };
         match sysml_v2_parser::parse(&content) {
-            Ok(root) => merge_root(&mut merged, root, &file_path),
+            Ok(root) => {
+                // `REQ-TRS-SYSMLV2-030`: surface what map-narrow ingestion drops.
+                let mut counts = BTreeMap::new();
+                count_unmapped_root(&root, &mut counts);
+                if !counts.is_empty() {
+                    let total: usize = counts.values().sum();
+                    let list = counts
+                        .iter()
+                        .map(|(k, n)| format!("{k} x{n}"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    owner.derive_findings.push(finding(
+                        "W543",
+                        &file_path,
+                        &format!(
+                            "'{file_path}': {total} parsed construct(s) have no Syscribe mapping and were not ingested: {list}"
+                        ),
+                    ));
+                }
+                merge_root(&mut merged, root, &file_path)
+            }
             Err(e) => {
                 owner.derive_findings.push(finding(
                     "W541",
@@ -97,6 +117,72 @@ pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Ve
     let mut out = Vec::new();
     convert_merged(&merged, pkg_qname, &mut out);
     out
+}
+
+/// Human-readable kind of a package-body member that ingestion parses but
+/// does not map (`REQ-TRS-SYSMLV2-030`). `None` for mapped kinds and for pure
+/// namespace plumbing (`import`, `comment`, parse-error nodes), which stay quiet.
+fn unmapped_kind(e: &sysml_v2_parser::PackageBodyElement) -> Option<&'static str> {
+    use sysml_v2_parser::PackageBodyElement as E;
+    Some(match e {
+        E::Doc(_) => "doc",
+        E::TextualRep(_) => "textual representation",
+        E::Filter(_) => "filter",
+        E::LibraryPackage(_) => "library package",
+        E::AliasDef(_) => "alias",
+        E::Satisfy(_) => "satisfy",
+        E::UseCaseDef(_) => "use case def",
+        E::UseCaseUsage(_) => "use case",
+        E::Actor(_) => "actor",
+        E::IndividualDef(_) => "individual def",
+        E::ConstraintDef(_) => "constraint def",
+        E::ConstraintUsage(_) => "constraint",
+        E::CalcDef(_) => "calc def",
+        E::MetadataDef(_) => "metadata def",
+        E::MetadataUsage(_) => "metadata",
+        E::OccurrenceDef(_) => "occurrence def",
+        E::OccurrenceUsage(_) => "occurrence",
+        E::Dependency(_) => "dependency",
+        E::FeatureDecl(_) | E::ClassifierDecl(_) | E::KermlSemanticDecl(_) | E::KermlFeatureDecl(_)
+        | E::ExtendedLibraryDecl(_) => "KerML declaration",
+        _ => return None,
+    })
+}
+
+fn count_unmapped_body(
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::PackageBodyElement>],
+    counts: &mut BTreeMap<&'static str, usize>,
+) {
+    for n in elements {
+        if let sysml_v2_parser::PackageBodyElement::Package(inner) = &n.value {
+            if let sysml_v2_parser::PackageBody::Brace { elements } = &inner.value.body {
+                count_unmapped_body(elements, counts);
+            }
+        } else if let Some(k) = unmapped_kind(&n.value) {
+            *counts.entry(k).or_insert(0) += 1;
+        }
+    }
+}
+
+fn count_unmapped_root(root: &sysml_v2_parser::RootNamespace, counts: &mut BTreeMap<&'static str, usize>) {
+    use sysml_v2_parser::RootElement as R;
+    for n in &root.elements {
+        match &n.value {
+            R::Package(p) => {
+                if let sysml_v2_parser::PackageBody::Brace { elements } = &p.value.body {
+                    count_unmapped_body(elements, counts);
+                }
+            }
+            R::LibraryPackage(_) => *counts.entry("library package").or_insert(0) += 1,
+            R::Namespace(_) => *counts.entry("namespace").or_insert(0) += 1,
+            R::Import(_) => {}
+            R::Member(m) => {
+                if let Some(k) = unmapped_kind(&m.value) {
+                    *counts.entry(k).or_insert(0) += 1;
+                }
+            }
+        }
+    }
 }
 
 /// Merge one file's already-parsed root namespace into `target`. Only

@@ -5710,7 +5710,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E516`–`E519`, `E523`, `W513` | Hierarchical product-line composition | §14.7 |
 | `E520`–`E522`, `W520` | Release baselines | §8.19 |
 | `E530`–`E532`, `W530`–`W534` | **Reserved** for the parked sandboxed-WASM plugin design (`ADR-SYS-PLUGIN-001`); never emitted | — |
-| `W540`–`W542` | Native SysML v2 submodel ingestion (`sysmlSubmodel:`) | `ADR-SYS-SYSMLV2-001`; catalogue |
+| `W540`–`W543` | Native SysML v2 submodel ingestion (`sysmlSubmodel:`) | `ADR-SYS-SYSMLV2-001`; catalogue |
 | `E550`–`E551`, `W550`–`W553` | Foreign-format stdio plugins (`foreignFormat:`) | `ADR-SYS-PLUGIN-002`; catalogue |
 | `E560`–`E561`, `W560`–`W563` | Annotated-source ingestion (`annotationFormat:`) | `ADR-SYS-ANNOTATE-001`; catalogue |
 | `E600`–`E606`, `W610`–`W616` | Native `TestPlan` | §8.12.6 |

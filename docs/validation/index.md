@@ -53,7 +53,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E516–E519, E523, W513 | Hierarchical product lines (§14.7) | `subConfigurations:` dangling / wrong type / not internally valid; cross-tier `parameterBindings:`; open required parameters across the subtree |
 | E520–E522, W520 | Release baselines (§8.19) | Drift of a released (E520) or approved (W520) baseline, seal/manifest tamper, unresolved `supersedes` |
 | E530–E532, W530–W534 | Reserved | Parked sandboxed-WASM plugin design (`ADR-SYS-PLUGIN-001`); never emitted |
-| W540–W542 | SysML v2 submodel ingestion | Stray `.md` in a submodel, unreadable/unparseable `.sysml`, truncated feature chains |
+| W540–W543 | SysML v2 submodel ingestion | Stray `.md` in a submodel, unreadable/unparseable `.sysml`, truncated feature chains, unmapped constructs |
 | E550–E551, W550–W553 | Stdio plugins | Missing command or `[plugins]` entry, execution failure, bad envelope, dropped elements |
 | E560–E561, W560–W563 | Annotated source | Bad `annotationFormat:` config, invalid marker YAML, skipped blocks, conflicting ingestion modes, auto-filled `implementedBy:` |
 | W090 | Suspect links | A baselined trace-link target changed since review |

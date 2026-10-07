@@ -906,6 +906,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 // the tail wasn't a locally-redeclared feature -- same
                 // dedicated code range as W540/W541.
                 "W542" => "W542",
+                // REQ-TRS-SYSMLV2-030: advisory per-file count of parsed but
+                // unmapped constructs.
+                "W543" => "W543",
                 // REQ-TRS-FM-005: single-file `featureTree:` sheet explosion
                 // (`walker::explode_feature_model_trees`) — a node with no
                 // `name:` (E231), a qname collision (E232), or `featureTree:`

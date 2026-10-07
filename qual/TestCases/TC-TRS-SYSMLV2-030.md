@@ -1,0 +1,28 @@
+---
+id: TC-TRS-SYSMLV2-030
+type: TestCase
+testLevel: L3
+status: active
+name: "Verify an ingested SysMLv2 file with parsed-but-unmapped constructs raises exactly one advisory W543 listing per-kind counts, and a fully mapped file raises none."
+verifies:
+  - REQ-TRS-SYSMLV2-030
+---
+
+```gherkin
+Feature: unmapped SysMLv2 constructs are reported (TC-TRS-SYSMLV2-030)
+
+  Scenario: one W543 per file with per-kind counts
+    Given a sysmlSubmodel file declaring two calc defs, a constraint def and a use case def
+    When the tool validates the model
+    Then exactly one W543 is raised for that file and it lists calc def x2, constraint def x1 and use case def x1
+
+  Scenario: a fully mapped file is silent
+    Given a sysmlSubmodel file declaring only a part def
+    When the tool validates the model
+    Then no W543 is raised
+
+  Scenario: the finding is advisory
+    Given a file with unmapped constructs and a mapped part def
+    When the tool validates the model
+    Then W543 is a warning and the part def is still synthesized
+```
