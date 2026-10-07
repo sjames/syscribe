@@ -113,6 +113,12 @@ export function isContainerKind(kind: string | undefined): boolean {
     return kind === 'boundary' || kind === 'system-boundary' || kind === 'swimlane' || kind === 'fragment';
 }
 
+/** A pseudostate or control-node glyph (`vis::size::glyph_size`): a fixed
+ * box whose label is placed beside it, outside, by ELK. */
+export function isGlyphKind(kind: string | undefined): boolean {
+    return kind === 'initial' || kind === 'final' || kind === 'fork' || kind === 'join' || kind === 'decision' || kind === 'merge';
+}
+
 /** A placeholder size for a shape created locally before the next measuring
  * pass (`DiagramEditor.addNode`); the server reload replaces it. */
 export function defaultSize(kind: string): { width: number; height: number } {
@@ -373,6 +379,11 @@ export class SyscribeLayoutConfigurator implements ILayoutConfigurator {
         if (hierarchy) {
             opts['elk.hierarchyHandling'] = hierarchy;
         }
+        // The behaviour kinds layer from their initial node (`vis::sprotty::LayoutOptions::for_graph`).
+        const cycleBreaking = str('elk.layered.cycleBreaking.strategy');
+        if (cycleBreaking) {
+            opts['elk.layered.cycleBreaking.strategy'] = cycleBreaking;
+        }
         if (this.state.anyPinned && !this.state.allPinned) {
             Object.assign(opts, INTERACTIVE_OPTIONS);
         }
@@ -397,11 +408,22 @@ export class SyscribeLayoutConfigurator implements ILayoutConfigurator {
         const opts: LayoutOptions = {
             'elk.nodeSize.constraints': server && !compound ? 'PORTS MINIMUM_SIZE' : 'NODE_LABELS PORTS PORT_LABELS MINIMUM_SIZE',
             'elk.nodeSize.minimum': `(${minW}, ${minH})`,
-            'elk.nodeLabels.placement': container ? '[H_LEFT, V_TOP, INSIDE]' : '[H_CENTER, V_TOP, INSIDE]',
+            'elk.nodeLabels.placement': isGlyphKind(node.kind)
+                ? '[H_RIGHT, V_CENTER, OUTSIDE]'
+                : container
+                  ? '[H_LEFT, V_TOP, INSIDE]'
+                  : '[H_CENTER, V_TOP, INSIDE]',
             'elk.nodeLabels.padding': '[top=4,left=8,bottom=4,right=8]',
             'elk.portLabels.placement': 'OUTSIDE',
             'elk.portConstraints': anySide ? 'FIXED_SIDE' : 'FREE',
         };
+        // An initial node opens its region and a final one closes it
+        // (`vis::layout`), whatever the cycle breaker makes of the rest.
+        if (node.kind === 'initial') {
+            opts['elk.layered.layering.layerConstraint'] = 'FIRST';
+        } else if (node.kind === 'final') {
+            opts['elk.layered.layering.layerConstraint'] = 'LAST';
+        }
         if (compound) {
             // ELK adds the inside label area to this padding itself.
             const p = COMPOUND_PADDING;
@@ -476,7 +498,16 @@ function sideOf(port: ElkPort, parent: ElkNode): 'north' | 'east' | 'south' | 'w
 /** Place port labels outside the parent next to their port, node labels
  * stacked at the top, and edge labels at the midpoint of the straight line
  * between the edge's ends — what ELK's `fixed` algorithm leaves undone. */
-function placeLabelsFixed(root: ElkNode): void {
+/** The sequence elements of a graph (`REQ-TRS-VIS-021`): its `message`/
+ * `return` edges, and its `fragment` nodes, whose labels sit top-left in
+ * the keyword tab even when the fragment nests nothing. */
+interface SequenceIds {
+    messages: ReadonlySet<string>;
+    fragments: ReadonlySet<string>;
+}
+
+function placeLabelsFixed(root: ElkNode, seq: SequenceIds): void {
+    const messages = seq.messages;
     const centres = new Map<string, { x: number; y: number }>();
     for (const { node, ax, ay } of walkElkNodes(root)) {
         centres.set(node.id, { x: ax + (node.width ?? 0) / 2, y: ay + (node.height ?? 0) / 2 });
@@ -485,7 +516,24 @@ function placeLabelsFixed(root: ElkNode): void {
         }
     }
     for (const { edge } of walkElkEdges(root)) {
+        const labels = edge.labels ?? [];
+        const stack = labels.reduce((h, l) => h + (l.height ?? 0) + 1, 0);
+        const stackAbove = (m: { x: number; y: number }): void => {
+            let y = m.y - stack - 3;
+            for (const l of labels) {
+                l.x = m.x - (l.width ?? 0) / 2;
+                l.y = y;
+                y += (l.height ?? 0) + 1;
+            }
+        };
         if (edge.sections && edge.sections.length > 0) {
+            // A sequence message pinned to its row (`REQ-TRS-VIS-021`): its
+            // labels stack above the midpoint of its own polyline, as
+            // `vis::svg::pinned_layout` places them.
+            if (messages.has(edge.id)) {
+                const s = edge.sections[0];
+                stackAbove(polylineMidpoint([s.startPoint, ...(s.bendPoints ?? []), s.endPoint]));
+            }
             continue;
         }
         const a = centres.get(edge.sources[0]);
@@ -493,24 +541,18 @@ function placeLabelsFixed(root: ElkNode): void {
         if (!a || !b) {
             continue;
         }
-        const labels = edge.labels ?? [];
-        const stack = labels.reduce((h, l) => h + (l.height ?? 0) + 1, 0);
-        let y = (a.y + b.y) / 2 - stack - 3;
-        for (const l of labels) {
-            l.x = (a.x + b.x) / 2 - (l.width ?? 0) / 2;
-            l.y = y;
-            y += (l.height ?? 0) + 1;
-        }
+        stackAbove({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
     }
     for (const { node } of walkElkNodes(root)) {
         if (node === root) {
             continue;
         }
         const compound = (node.children ?? []).length > 0;
+        const topLeft = compound || seq.fragments.has(node.id);
         let y = 4;
         for (const l of node.labels ?? []) {
             const lw = l.width ?? 0;
-            l.x = compound ? 8 : Math.max(0, ((node.width ?? 0) - lw) / 2);
+            l.x = topLeft ? 8 : Math.max(0, ((node.width ?? 0) - lw) / 2);
             l.y = y;
             y += (l.height ?? 0) + 1;
         }
@@ -542,6 +584,46 @@ function placeLabelsFixed(root: ElkNode): void {
             }
         }
     }
+}
+
+/** The point halfway along a polyline (`vis::svg::midpoint`). */
+function polylineMidpoint(pts: { x: number; y: number }[]): { x: number; y: number } {
+    const len = (a: { x: number; y: number }, b: { x: number; y: number }): number => Math.hypot(b.x - a.x, b.y - a.y);
+    let total = 0;
+    for (let i = 1; i < pts.length; i++) {
+        total += len(pts[i - 1], pts[i]);
+    }
+    let remaining = total / 2;
+    for (let i = 1; i < pts.length; i++) {
+        const l = len(pts[i - 1], pts[i]);
+        if (l >= remaining || l === 0) {
+            const f = l === 0 ? 0 : remaining / l;
+            return { x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * f, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * f };
+        }
+        remaining -= l;
+    }
+    return pts[pts.length - 1] ?? { x: 0, y: 0 };
+}
+
+/** The sequence elements of a graph: `message`/`return` edges (always root
+ * children) and `fragment` nodes (at any depth). */
+function sequenceIds(graph: SGraph): SequenceIds {
+    const messages = new Set<string>();
+    const fragments = new Set<string>();
+    const walk = (parent: { children?: unknown[] }): void => {
+        for (const c of (parent.children ?? []) as (SModelElement & { kind?: string })[]) {
+            if (c.type === 'edge' && (c.kind === 'message' || c.kind === 'return')) {
+                messages.add(c.id);
+            } else if (c.type === 'node') {
+                if (c.kind === 'fragment') {
+                    fragments.add(c.id);
+                }
+                walk(c as { children?: unknown[] });
+            }
+        }
+    };
+    walk(graph);
+    return { messages, fragments };
 }
 
 function* walkElkEdges(node: ElkNode): Generator<{ edge: ElkExtendedEdge; owner: ElkNode }> {
@@ -592,7 +674,7 @@ export class SyscribeLayoutProcessor implements ILayoutPreprocessor, ILayoutPost
         }
     }
 
-    postprocess(elkGraph: ElkNode, _sgraph: SGraph, _index: SModelIndex): void {
+    postprocess(elkGraph: ElkNode, sgraph: SGraph, _index: SModelIndex): void {
         const offsets = new Map<string, { x: number; y: number }>();
         for (const { node, ax, ay } of walkElkNodes(elkGraph)) {
             offsets.set(node.id, { x: ax, y: ay });
@@ -626,7 +708,7 @@ export class SyscribeLayoutProcessor implements ILayoutPreprocessor, ILayoutPost
             }
         }
         if (this.state.allPinned) {
-            placeLabelsFixed(elkGraph);
+            placeLabelsFixed(elkGraph, sequenceIds(sgraph));
         }
     }
 }

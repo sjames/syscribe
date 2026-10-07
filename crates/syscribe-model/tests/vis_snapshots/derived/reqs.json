@@ -1,0 +1,170 @@
+{
+  "kind": "Requirement",
+  "qualifiedName": "Diagrams::ReqsD",
+  "name": "ReqsD",
+  "subject": "Reqs",
+  "nodes": [
+    {
+      "id": "s-reqs-safety",
+      "elementRef": "Reqs::Safety",
+      "resolved": true,
+      "elementType": "RequirementDef",
+      "kind": "requirement",
+      "label": "Safety",
+      "stereotype": "requirement def",
+      "isAbstract": true
+    },
+    {
+      "id": "s-reqs-safety-left",
+      "elementRef": "Reqs::Safety::Left",
+      "resolved": true,
+      "elementType": "Requirement",
+      "kind": "requirement",
+      "label": "Left requirement",
+      "stereotype": "requirement",
+      "isAbstract": false
+    },
+    {
+      "id": "s-reqs-safety-left-compartment",
+      "elementRef": "Reqs::Safety::Left",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-reqs-safety-left",
+      "lines": [
+        "id = REQ-TR-002",
+        "status = draft"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-reqs-safety-right",
+      "elementRef": "Reqs::Safety::Right",
+      "resolved": true,
+      "elementType": "Requirement",
+      "kind": "requirement",
+      "label": "Right requirement",
+      "stereotype": "requirement",
+      "isAbstract": false
+    },
+    {
+      "id": "s-reqs-safety-right-compartment",
+      "elementRef": "Reqs::Safety::Right",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-reqs-safety-right",
+      "lines": [
+        "id = REQ-TR-003"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-reqs-top",
+      "elementRef": "Reqs::Top",
+      "resolved": true,
+      "elementType": "Requirement",
+      "kind": "requirement",
+      "label": "Top requirement",
+      "stereotype": "requirement",
+      "isAbstract": false
+    },
+    {
+      "id": "s-reqs-top-compartment",
+      "elementRef": "Reqs::Top",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-reqs-top",
+      "lines": [
+        "id = REQ-TR-001",
+        "status = approved"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-arch-ctrl",
+      "elementRef": "Arch::Ctrl",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "Ctrl",
+      "stereotype": "part def",
+      "isAbstract": false
+    },
+    {
+      "id": "s-tests-ctrltest",
+      "elementRef": "Tests::CtrlTest",
+      "resolved": true,
+      "elementType": "TestCase",
+      "kind": "testCase",
+      "label": "Controller test",
+      "stereotype": "test case",
+      "isAbstract": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-containment-s-reqs-safety-s-reqs-safety-left",
+      "elementRef": "Reqs::Safety",
+      "source": "s-reqs-safety",
+      "target": "s-reqs-safety-left",
+      "kind": "containment"
+    },
+    {
+      "id": "e-containment-s-reqs-safety-s-reqs-safety-right",
+      "elementRef": "Reqs::Safety",
+      "source": "s-reqs-safety",
+      "target": "s-reqs-safety-right",
+      "kind": "containment"
+    },
+    {
+      "id": "e-derive-s-reqs-safety-left-s-reqs-top",
+      "elementRef": "Reqs::Safety::Left",
+      "source": "s-reqs-safety-left",
+      "target": "s-reqs-top",
+      "kind": "derive"
+    },
+    {
+      "id": "e-derive-s-reqs-safety-right-s-reqs-top",
+      "elementRef": "Reqs::Safety::Right",
+      "source": "s-reqs-safety-right",
+      "target": "s-reqs-top",
+      "kind": "derive"
+    },
+    {
+      "id": "e-refine-s-reqs-safety-right-s-reqs-safety-left",
+      "elementRef": "Reqs::Safety::Right",
+      "source": "s-reqs-safety-right",
+      "target": "s-reqs-safety-left",
+      "kind": "refine"
+    },
+    {
+      "id": "e-satisfy-s-arch-ctrl-s-reqs-safety-left",
+      "elementRef": "Arch::Ctrl",
+      "source": "s-arch-ctrl",
+      "target": "s-reqs-safety-left",
+      "kind": "satisfy"
+    },
+    {
+      "id": "e-verify-s-tests-ctrltest-s-reqs-safety-right",
+      "elementRef": "Tests::CtrlTest",
+      "source": "s-tests-ctrltest",
+      "target": "s-reqs-safety-right",
+      "kind": "verify"
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "layered",
+    "direction": "down",
+    "hierarchical": false,
+    "portConstraints": "free",
+    "reversedKinds": [
+      "derive",
+      "satisfy",
+      "verify",
+      "refine"
+    ]
+  },
+  "derived": true
+}

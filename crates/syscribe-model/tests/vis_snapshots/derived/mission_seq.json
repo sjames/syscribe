@@ -1,0 +1,230 @@
+{
+  "kind": "Sequence",
+  "qualifiedName": "Diagrams::MissionSeq",
+  "name": "MissionSeq",
+  "subject": "Sys::Mission",
+  "nodes": [
+    {
+      "id": "s-sys-mission",
+      "elementRef": "Sys::Mission",
+      "resolved": true,
+      "elementType": "ActionDef",
+      "kind": "lifeline",
+      "label": "Mission",
+      "stereotype": "action def",
+      "isAbstract": false,
+      "pin": {
+        "x": 0.0,
+        "y": 0.0,
+        "w": 120.0,
+        "h": 40.0
+      }
+    },
+    {
+      "id": "s-sys-mission-sys-flightcontroller",
+      "elementRef": "Sys::FlightController",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "lifeline",
+      "label": "FlightController",
+      "stereotype": "part def",
+      "isAbstract": false,
+      "pin": {
+        "x": 200.0,
+        "y": 0.0,
+        "w": 120.0,
+        "h": 40.0
+      }
+    },
+    {
+      "id": "s-sys-mission-sys-propulsion",
+      "elementRef": "Sys::Propulsion",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "lifeline",
+      "label": "Propulsion",
+      "stereotype": "part def",
+      "isAbstract": false,
+      "pin": {
+        "x": 400.0,
+        "y": 0.0,
+        "w": 120.0,
+        "h": 40.0
+      }
+    },
+    {
+      "id": "s-sys-mission-relay-link",
+      "elementRef": "relay.link",
+      "resolved": false,
+      "kind": "lifeline",
+      "label": "relay.link",
+      "isAbstract": false,
+      "pin": {
+        "x": 600.0,
+        "y": 0.0,
+        "w": 120.0,
+        "h": 40.0
+      }
+    },
+    {
+      "id": "s-sys-mission-sys-groundstation",
+      "elementRef": "Sys::GroundStation",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "actor",
+      "label": "GroundStation",
+      "isAbstract": false,
+      "pin": {
+        "x": 800.0,
+        "y": 0.0,
+        "w": 120.0,
+        "h": 56.0
+      }
+    },
+    {
+      "id": "s-sys-mission-activation",
+      "elementRef": "Sys::Mission",
+      "resolved": true,
+      "kind": "activation",
+      "label": "",
+      "parent": "s-sys-mission",
+      "isAbstract": false,
+      "pin": {
+        "x": 54.0,
+        "y": 88.0,
+        "w": 12.0,
+        "h": 300.0
+      }
+    },
+    {
+      "id": "s-sys-mission-navigate",
+      "elementRef": "Sys::Mission::navigate",
+      "resolved": true,
+      "kind": "fragment",
+      "label": "[for wp in waypoints]",
+      "stereotype": "loop",
+      "isAbstract": false,
+      "pin": {
+        "x": 36.0,
+        "y": 172.0,
+        "w": 448.0,
+        "h": 88.0
+      }
+    },
+    {
+      "id": "s-sys-mission-checkwind",
+      "elementRef": "Sys::Mission::checkWind",
+      "resolved": true,
+      "kind": "fragment",
+      "label": "[wind > 12]",
+      "stereotype": "alt",
+      "isAbstract": false,
+      "pin": {
+        "x": 36.0,
+        "y": 272.0,
+        "w": 648.0,
+        "h": 136.0
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-sys-mission-awaitfix",
+      "elementRef": "Sys::Mission::awaitFix",
+      "source": "s-sys-mission-sys-flightcontroller",
+      "target": "s-sys-mission",
+      "kind": "message",
+      "label": "awaitFix(GpsFix)",
+      "waypoints": [
+        {
+          "x": 260.0,
+          "y": 96.0
+        },
+        {
+          "x": 60.0,
+          "y": 96.0
+        }
+      ]
+    },
+    {
+      "id": "e-sys-mission-setthrottle",
+      "elementRef": "Sys::Mission::setThrottle",
+      "source": "s-sys-mission",
+      "target": "s-sys-mission-sys-propulsion",
+      "kind": "message",
+      "label": "setThrottle(ThrottleCmd)",
+      "waypoints": [
+        {
+          "x": 60.0,
+          "y": 144.0
+        },
+        {
+          "x": 460.0,
+          "y": 144.0
+        }
+      ]
+    },
+    {
+      "id": "e-sys-mission-steer",
+      "elementRef": "Sys::Mission::steer",
+      "source": "s-sys-mission",
+      "target": "s-sys-mission-sys-propulsion",
+      "kind": "message",
+      "label": "steer(SteerCmd)",
+      "waypoints": [
+        {
+          "x": 60.0,
+          "y": 232.0
+        },
+        {
+          "x": 460.0,
+          "y": 232.0
+        }
+      ]
+    },
+    {
+      "id": "e-sys-mission-abort",
+      "elementRef": "Sys::Mission::abort",
+      "source": "s-sys-mission",
+      "target": "s-sys-mission-sys-propulsion",
+      "kind": "message",
+      "label": "abort(AbortCmd)",
+      "waypoints": [
+        {
+          "x": 60.0,
+          "y": 332.0
+        },
+        {
+          "x": 460.0,
+          "y": 332.0
+        }
+      ]
+    },
+    {
+      "id": "e-sys-mission-notifyrelay",
+      "elementRef": "Sys::Mission::notifyRelay",
+      "source": "s-sys-mission",
+      "target": "s-sys-mission-relay-link",
+      "kind": "message",
+      "label": "notifyRelay(Status)",
+      "waypoints": [
+        {
+          "x": 60.0,
+          "y": 380.0
+        },
+        {
+          "x": 660.0,
+          "y": 380.0
+        }
+      ]
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "fixed",
+    "direction": "down",
+    "hierarchical": false,
+    "portConstraints": "free",
+    "reversedKinds": []
+  },
+  "derived": true
+}

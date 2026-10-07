@@ -1,0 +1,129 @@
+{
+  "kind": "Allocation",
+  "qualifiedName": "Diagrams::AllocD",
+  "name": "AllocD",
+  "subject": "Allocations",
+  "nodes": [
+    {
+      "id": "s-allocations-logical",
+      "elementRef": "Allocations",
+      "resolved": true,
+      "kind": "swimlane",
+      "label": "Logical",
+      "isAbstract": false
+    },
+    {
+      "id": "s-allocations-physical",
+      "elementRef": "Allocations",
+      "resolved": true,
+      "kind": "swimlane",
+      "label": "Physical",
+      "isAbstract": false
+    },
+    {
+      "id": "s-allocations-ctrlsw",
+      "elementRef": "Allocations::CtrlSw",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "CtrlSw",
+      "stereotype": "part def",
+      "parent": "s-allocations-logical",
+      "isAbstract": false
+    },
+    {
+      "id": "s-arch-nav",
+      "elementRef": "Arch::Nav",
+      "resolved": true,
+      "elementType": "ActionDef",
+      "kind": "block",
+      "label": "Nav",
+      "stereotype": "action def",
+      "parent": "s-allocations-logical",
+      "isAbstract": false
+    },
+    {
+      "id": "s-arch-ctrl",
+      "elementRef": "Arch::Ctrl",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "Ctrl",
+      "stereotype": "part def",
+      "parent": "s-allocations-logical",
+      "isAbstract": false
+    },
+    {
+      "id": "s-arch-ecu",
+      "elementRef": "Arch::Ecu",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "Ecu",
+      "stereotype": "part def",
+      "parent": "s-allocations-physical",
+      "isAbstract": false
+    },
+    {
+      "id": "s-hw-ghost",
+      "elementRef": "Hw::Ghost",
+      "resolved": false,
+      "kind": "block",
+      "label": "Hw::Ghost",
+      "parent": "s-allocations-physical",
+      "isAbstract": false
+    },
+    {
+      "id": "s-arch-ctrl-physical",
+      "elementRef": "Arch::Ctrl",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "Ctrl",
+      "stereotype": "part def",
+      "parent": "s-allocations-physical",
+      "isAbstract": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-allocation-s-allocations-ctrlsw-s-arch-ecu",
+      "elementRef": "Allocations::CtrlSw",
+      "source": "s-allocations-ctrlsw",
+      "target": "s-arch-ecu",
+      "kind": "allocation"
+    },
+    {
+      "id": "e-allocation-s-arch-nav-s-arch-ecu-navtoecu",
+      "elementRef": "Allocations::FnAlloc",
+      "source": "s-arch-nav",
+      "target": "s-arch-ecu",
+      "kind": "allocation",
+      "label": "navToEcu"
+    },
+    {
+      "id": "e-allocation-s-arch-ctrl-s-hw-ghost-ctrltoghost",
+      "elementRef": "Allocations::FnAlloc",
+      "source": "s-arch-ctrl",
+      "target": "s-hw-ghost",
+      "kind": "allocation",
+      "label": "ctrlToGhost"
+    },
+    {
+      "id": "e-allocation-s-arch-nav-s-arch-ctrl-physical-navtoctrl",
+      "elementRef": "Allocations::FnDef",
+      "source": "s-arch-nav",
+      "target": "s-arch-ctrl-physical",
+      "kind": "allocation",
+      "label": "navToCtrl"
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "layered",
+    "direction": "right",
+    "hierarchical": true,
+    "portConstraints": "free",
+    "reversedKinds": []
+  },
+  "derived": true
+}

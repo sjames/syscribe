@@ -279,7 +279,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W078` | Parallel arity — an `isParallel: true` state declares fewer than two regions |
 | `W079` | Unresolved behavior — a state `entry`/`do`/`exit` action or transition `effect` resolves to no element |
 | `W929` | Incomplete transition — a top-level transition has no `source:`, or any transition has no `target:` (§8.8.3); it would otherwise contribute no edge. Draft-suppressed; `--deny W929` |
-| `W080` | A `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` not referenced by any `edges:` entry |
+| `W080` | A manifest `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` not referenced by any `edges:` entry (never raised on a derived Sequence diagram, which generates every message itself) |
 
 ## Diagram errors and warnings (E400–E405, W400–W418)
 

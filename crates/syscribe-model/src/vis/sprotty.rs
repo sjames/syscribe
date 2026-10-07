@@ -143,11 +143,27 @@ pub struct LayoutOptions {
     /// client reverses them for layering only. Not an ELK id — syscribe's own.
     #[serde(rename = "syscribe.reversedEdgeKinds")]
     pub reversed_edge_kinds: Vec<&'static str>,
+    /// `DEPTH_FIRST` for the behaviour kinds (StateMachine, Action): the
+    /// layering follows the flow from its initial node instead of the greedy
+    /// cycle breaker's pick, so a cyclic machine still reads top-down.
+    #[serde(rename = "elk.layered.cycleBreaking.strategy", skip_serializing_if = "Option::is_none")]
+    pub cycle_breaking: Option<&'static str>,
 }
 
 impl LayoutOptions {
+    /// The options of a graph: its kind's hints, plus the behaviour kinds'
+    /// cycle-breaking strategy.
+    pub fn for_graph(graph: &DiagramGraph) -> LayoutOptions {
+        let mut o = LayoutOptions::from_hints(&graph.layout_hints);
+        if matches!(graph.kind, super::ir::DiagramKind::StateMachine | super::ir::DiagramKind::Action) {
+            o.cycle_breaking = Some("DEPTH_FIRST");
+        }
+        o
+    }
+
     pub fn from_hints(hints: &LayoutHints) -> LayoutOptions {
         LayoutOptions {
+            cycle_breaking: None,
             algorithm: match hints.algorithm {
                 LayoutAlgorithm::Layered => "layered",
                 LayoutAlgorithm::Fixed => "fixed",
@@ -431,7 +447,7 @@ pub fn to_sgraph_with(graph: &DiagramGraph, sizes: &Sizes) -> SGraph {
         qualified_name: graph.qualified_name.clone(),
         diagram_kind: graph.kind.as_str(),
         subject: graph.subject.clone(),
-        layout_options: LayoutOptions::from_hints(&graph.layout_hints),
+        layout_options: LayoutOptions::for_graph(graph),
         pinned: graph.pinned_ids().into_iter().map(str::to_string).collect(),
         derived: graph.derived,
         children,

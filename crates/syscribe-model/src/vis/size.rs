@@ -287,6 +287,35 @@ fn free_label_sizing(metrics: &dyn TextMetrics, node: &Node) -> NodeSizing {
     NodeSizing { size: s, labels: Vec::new(), compartments: Vec::new() }
 }
 
+/// Pseudostate and control-node glyphs (`REQ-TRS-VIS-018`/`-019`) have a
+/// fixed box: initial/final 20×20, fork/join bars 60×6, decision/merge
+/// diamonds 28×28. The initial and final circles carry no text; a fork, join,
+/// decision or merge shows its label (a control node's name, a decision's
+/// condition) beside the glyph, to the right and vertically centred —
+/// the layout engines place it `OUTSIDE` the node.
+pub fn glyph_size(kind: NodeKind) -> Option<Size> {
+    Some(match kind {
+        NodeKind::Initial | NodeKind::Final => Size { w: 20.0, h: 20.0 },
+        NodeKind::Fork | NodeKind::Join => Size { w: 60.0, h: 6.0 },
+        NodeKind::Decision | NodeKind::Merge => Size { w: 28.0, h: 28.0 },
+        _ => return None,
+    })
+}
+
+/// Horizontal gap between a glyph and its outside label.
+pub const GLYPH_LABEL_GAP: f64 = 6.0;
+
+fn glyph_sizing(metrics: &dyn TextMetrics, node: &Node, size: Size) -> NodeSizing {
+    let mut labels = Vec::new();
+    if !matches!(node.kind, NodeKind::Initial | NodeKind::Final) && !node.label.trim().is_empty() {
+        let mut l = label(metrics, format!("{}-label", node.id), node.label.clone(), LabelRole::Line);
+        l.x = size.w + GLYPH_LABEL_GAP;
+        l.y = ((size.h - l.h) / 2.0).round();
+        labels.push(l);
+    }
+    NodeSizing { size, labels, compartments: Vec::new() }
+}
+
 /// Size one node from its already-sized children (compartments, free labels).
 fn node_sizing(metrics: &dyn TextMetrics, graph: &DiagramGraph, node: &Node, sized: &BTreeMap<String, NodeSizing>) -> NodeSizing {
     let mut labels: Vec<LabelBox> = Vec::new();
@@ -397,7 +426,9 @@ pub fn size_graph(graph: &DiagramGraph, metrics: &dyn TextMetrics) -> Sizes {
         }
     }
     for n in &graph.nodes {
-        if !matches!(n.kind, NodeKind::Compartment | NodeKind::Port | NodeKind::Label) {
+        if let Some(s) = glyph_size(n.kind) {
+            nodes.insert(n.id.clone(), glyph_sizing(metrics, n, s));
+        } else if !matches!(n.kind, NodeKind::Compartment | NodeKind::Port | NodeKind::Label) {
             let s = node_sizing(metrics, graph, n, &nodes);
             nodes.insert(n.id.clone(), s);
         }

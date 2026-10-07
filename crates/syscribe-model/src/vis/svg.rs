@@ -23,7 +23,7 @@
 
 use std::collections::BTreeMap;
 
-use super::ir::{DiagramGraph, Edge, Node, NodeKind, Point};
+use super::ir::{DiagramGraph, Edge, EdgeKind, Node, NodeKind, Point};
 use super::layout::{self, Bounds, EdgeRoute, Layout, LayoutError};
 use super::metrics::DIAGRAM_FAMILIES;
 use super::size::{carried_size, size_graph_default, LabelRole, Sizes};
@@ -74,7 +74,7 @@ fn num(v: f64) -> String {
 fn is_container(node: &Node) -> bool {
     matches!(
         node.kind,
-        NodeKind::Boundary | NodeKind::SystemBoundary | NodeKind::Swimlane | NodeKind::Fragment | NodeKind::State
+        NodeKind::Boundary | NodeKind::SystemBoundary | NodeKind::Swimlane | NodeKind::Fragment | NodeKind::State | NodeKind::Action
     )
 }
 
@@ -186,9 +186,12 @@ pub fn pinned_layout(graph: &DiagramGraph, sizes: &Sizes) -> Layout {
             }
             _ => {
                 let compound = graph.children_of(&n.id).any(|c| !matches!(c.kind, NodeKind::Port | NodeKind::Compartment | NodeKind::Label));
+                // A fragment's labels sit in its top-left keyword tab even
+                // when it nests nothing (`REQ-TRS-VIS-021`).
+                let top_left = compound || n.kind == NodeKind::Fragment;
                 let mut y = 4.0;
                 for l in sizing.labels.iter().filter(|l| l.role != LabelRole::Free) {
-                    let x = if compound { 8.0 } else { ((b.w - l.w) / 2.0).max(0.0) };
+                    let x = if top_left { 8.0 } else { ((b.w - l.w) / 2.0).max(0.0) };
                     out.labels.insert(l.id.clone(), Bounds { x: b.x + x, y: b.y + y, w: l.w, h: l.h });
                     y += l.h + 1.0;
                 }
@@ -197,6 +200,25 @@ pub fn pinned_layout(graph: &DiagramGraph, sizes: &Sizes) -> Layout {
     }
     for e in &graph.edges {
         let (Some(s), Some(t)) = (out.nodes.get(&e.source), out.nodes.get(&e.target)) else { continue };
+        if matches!(e.kind, EdgeKind::Message | EdgeKind::Return) {
+            // A sequence message with pinned waypoints runs along them alone
+            // (stem to stem at its row, `REQ-TRS-VIS-021`): the header boxes
+            // are not its ends, so there is nothing to clip. Labels stack
+            // above the midpoint, as for every pinned edge.
+            if let Some(wp) = e.waypoints.as_ref().filter(|w| w.len() >= 2) {
+                let m = midpoint(wp);
+                if let Some(labels) = sizes.edges.get(&e.id) {
+                    let stack: f64 = labels.iter().map(|l| l.h + 1.0).sum();
+                    let mut y = m.y - stack - 3.0;
+                    for l in labels {
+                        out.labels.insert(l.id.clone(), Bounds { x: m.x - l.w / 2.0, y, w: l.w, h: l.h });
+                        y += l.h + 1.0;
+                    }
+                }
+                out.edges.insert(e.id.clone(), EdgeRoute { points: wp.clone(), routed: true });
+                continue;
+            }
+        }
         let mut points = vec![Point { x: s.cx(), y: s.cy() }];
         points.extend(e.waypoints.iter().flatten().copied());
         points.push(Point { x: t.cx(), y: t.cy() });
@@ -348,6 +370,12 @@ impl Drawer<'_> {
         self.layout.labels.get(id).map(|b| Bounds { x: b.x + self.shift.0, y: b.y + self.shift.1, w: b.w, h: b.h })
     }
 
+    /// Where a lifeline's stem ends: just below the lowest node of the
+    /// drawing (sequence diagrams, `REQ-TRS-VIS-021`).
+    fn stem_bottom(&self) -> f64 {
+        self.layout.nodes.values().map(Bounds::bottom).fold(0.0, f64::max) + self.shift.1 + 12.0
+    }
+
     /// The labels of `node` (name, stereotype, banners, lines, port name)
     /// with their boxes.
     fn labels_of(&self, node: &Node, style: &NodeStyle, out: &mut String) {
@@ -422,6 +450,36 @@ impl Drawer<'_> {
                     )),
                 }
             }
+            NodeKind::Fork | NodeKind::Join => {
+                // A thick synchronisation bar (REQ-TRS-VIS-019); its name sits beside it.
+                out.push_str(&format!(
+                    "    <rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"2\" fill=\"{}\" stroke=\"none\"/>\n",
+                    num(r.x),
+                    num(r.y),
+                    num(r.w),
+                    num(r.h),
+                    style.fill
+                ));
+                self.labels_of(node, &style, out);
+            }
+            NodeKind::Decision | NodeKind::Merge => {
+                // A diamond; a decision's condition is drawn beside it.
+                let (cx, cy) = (r.cx(), r.cy());
+                out.push_str(&format!(
+                    "    <path d=\"M {},{} L {},{} L {},{} L {},{} z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.4\"{dash}/>\n",
+                    num(cx),
+                    num(r.y),
+                    num(r.right()),
+                    num(cy),
+                    num(cx),
+                    num(r.bottom()),
+                    num(r.x),
+                    num(cy),
+                    style.fill,
+                    style.stroke
+                ));
+                self.labels_of(node, &style, out);
+            }
             NodeKind::Compartment => {
                 out.push_str(&format!(
                     "    <rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1\"{dash}/>\n",
@@ -433,8 +491,105 @@ impl Drawer<'_> {
                 ));
                 self.labels_of(node, &style, out);
             }
+            // Sequence kinds (spec §8.16.8.3, `REQ-TRS-VIS-021`).
+            NodeKind::Lifeline | NodeKind::Actor => {
+                // A header box (a lifeline) or a stick figure under the name
+                // (an actor), then a dashed stem down to the drawing's bottom.
+                let cx = r.cx();
+                if node.kind == NodeKind::Lifeline {
+                    out.push_str(&format!(
+                        "    <rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.4\"{dash}/>\n",
+                        num(r.x),
+                        num(r.y),
+                        num(r.w),
+                        num(r.h),
+                        style.fill,
+                        style.stroke
+                    ));
+                } else {
+                    let top = self.label(&format!("{}-label", node.id)).map(|b| b.bottom() + 2.0).unwrap_or(r.y + 20.0);
+                    let (head_r, body, arms, legs) = (5.0, 12.0, 9.0, 10.0);
+                    let (hy, by, ly) = (top + head_r, top + 2.0 * head_r, top + 2.0 * head_r + body);
+                    out.push_str(&format!(
+                        "    <circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.4\"{dash}/>\n",
+                        num(cx), num(hy), num(head_r), style.fill, style.stroke
+                    ));
+                    out.push_str(&format!(
+                        "    <path d=\"M {cx},{by} L {cx},{ly} M {ax},{ay} L {bx},{ay} M {cx},{ly} L {lx1},{ly2} M {cx},{ly} L {lx2},{ly2}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.4\"{dash}/>\n",
+                        style.stroke,
+                        cx = num(cx),
+                        by = num(by),
+                        ly = num(ly),
+                        ax = num(cx - arms),
+                        bx = num(cx + arms),
+                        ay = num(by + 4.0),
+                        lx1 = num(cx - 7.0),
+                        lx2 = num(cx + 7.0),
+                        ly2 = num(ly + legs)
+                    ));
+                }
+                let bottom = self.stem_bottom();
+                if bottom > r.bottom() {
+                    out.push_str(&format!(
+                        "    <line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" stroke=\"{}\" stroke-width=\"1.2\" stroke-dasharray=\"6,4\"/>\n",
+                        num(cx),
+                        num(r.bottom()),
+                        num(cx),
+                        num(bottom),
+                        style.stroke
+                    ));
+                }
+                self.labels_of(node, &style, out);
+            }
+            NodeKind::Activation => {
+                // A narrow bar on the stem; it carries no text.
+                out.push_str(&format!(
+                    "    <rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.2\"/>\n",
+                    num(r.x),
+                    num(r.y),
+                    num(r.w),
+                    num(r.h),
+                    style.fill,
+                    style.stroke
+                ));
+            }
+            NodeKind::Fragment => {
+                // An open box (the stems and messages show through) with a
+                // keyword tab around its label stack in the top-left corner.
+                out.push_str(&format!(
+                    "    <rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" fill=\"none\" stroke=\"{}\" stroke-width=\"1.4\"{dash}/>\n",
+                    num(r.x),
+                    num(r.y),
+                    num(r.w),
+                    num(r.h),
+                    style.stroke
+                ));
+                if let Some(sizing) = self.sizes.node(&node.id) {
+                    let boxes: Vec<Bounds> = sizing.labels.iter().filter(|l| l.role != LabelRole::Free).filter_map(|l| self.label(&l.id)).collect();
+                    if let Some(bottom) = boxes.iter().map(Bounds::bottom).fold(None, |m: Option<f64>, b| Some(m.map_or(b, |m| m.max(b)))) {
+                        let right = boxes.iter().map(Bounds::right).fold(r.x, f64::max) + 8.0;
+                        let (tw, th) = ((right - r.x).min(r.w), (bottom + 4.0 - r.y).min(r.h));
+                        out.push_str(&format!(
+                            "    <path d=\"M {},{} L {},{} L {},{} L {},{} L {},{} z\" fill=\"{}\" stroke=\"{}\" stroke-width=\"1.2\"/>\n",
+                            num(r.x),
+                            num(r.y),
+                            num(r.x + tw),
+                            num(r.y),
+                            num(r.x + tw),
+                            num(r.y + th - 6.0),
+                            num(r.x + tw - 6.0),
+                            num(r.y + th),
+                            num(r.x),
+                            num(r.y + th),
+                            style.fill,
+                            style.stroke
+                        ));
+                    }
+                }
+                self.labels_of(node, &style, out);
+            }
             _ => {
-                let rounded = matches!(node.kind, NodeKind::Boundary | NodeKind::State | NodeKind::UseCase | NodeKind::SystemBoundary);
+                let rounded = matches!(node.kind, NodeKind::Boundary | NodeKind::State | NodeKind::Action | NodeKind::UseCase | NodeKind::SystemBoundary);
                 let rx = if rounded { " rx=\"8\"" } else { "" };
                 out.push_str(&format!(
                     "    <rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\"{rx} fill=\"{}\" stroke=\"{}\" stroke-width=\"1.4\"{dash}/>\n",

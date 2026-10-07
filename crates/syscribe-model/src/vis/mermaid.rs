@@ -175,15 +175,20 @@ fn flow_node(node: &Node) -> String {
         NodeKind::Actor => format!("{id}[/\"{label}\"/]"),
         NodeKind::Note => format!("{id}>\"{label}\"]"),
         NodeKind::Initial | NodeKind::Final => format!("{id}(( ))"),
+        // Action flows (REQ-TRS-VIS-019): diamonds for decision/merge, bars for fork/join.
+        NodeKind::Decision | NodeKind::Merge => format!("{id}{{{{\"{}\"}}}}", if label.is_empty() { " " } else { &label }),
+        NodeKind::Fork | NodeKind::Join => format!("{id}[[\"{}\"]]", if label.is_empty() { " " } else { &label }),
         _ => format!("{id}[\"{label}\"]"),
     }
 }
 
 /// Whether a node is drawn as a `subgraph` with its children inside: a
-/// container role, or anything that has children.
+/// container role, or anything that has drawable children (a compartment or
+/// a label child is text, not a nested shape — an action step with its
+/// `typedBy` compartment stays a box).
 fn is_subgraph(graph: &DiagramGraph, node: &Node) -> bool {
     matches!(node.kind, NodeKind::Boundary | NodeKind::SystemBoundary | NodeKind::Swimlane)
-        || graph.children_of(&node.id).next().is_some()
+        || graph.children_of(&node.id).any(|c| !matches!(c.kind, NodeKind::Compartment | NodeKind::Label))
 }
 
 fn flow_nodes(graph: &DiagramGraph, node: &Node, depth: usize, out: &mut String, drawn: &mut Vec<String>) {
@@ -249,23 +254,50 @@ fn render_flowchart(graph: &DiagramGraph, direction: &str, links: &dyn Fn(&str) 
 
 // ── stateDiagram-v2 ──────────────────────────────────────────────────────────
 
+fn is_pseudo_state(n: &Node) -> bool {
+    matches!(n.kind, NodeKind::Initial | NodeKind::Final)
+}
+
+/// One state (or choice/history) declaration, with a composite state's
+/// nested states inside `{ … }` and its entry/do/exit compartment lines as
+/// `id : line` descriptions (a derived StateMachine, REQ-TRS-VIS-018).
+fn state_nodes(graph: &DiagramGraph, node: &Node, depth: usize, out: &mut String) {
+    if is_pseudo_state(node) || matches!(node.kind, NodeKind::Compartment | NodeKind::Label) {
+        return;
+    }
+    let indent = "  ".repeat(depth + 1);
+    ref_line(out, &indent, node);
+    let id = mermaid_id(&node.id);
+    match node.kind {
+        NodeKind::Choice => out.push_str(&format!("{indent}state {id} <<choice>>\n")),
+        _ => {
+            let nested: Vec<&Node> = graph.children_of(&node.id).filter(|c| !matches!(c.kind, NodeKind::Compartment | NodeKind::Label)).collect();
+            if nested.is_empty() || depth >= graph.nodes.len() {
+                out.push_str(&format!("{indent}state \"{}\" as {id}\n", text(&node.label)));
+            } else {
+                out.push_str(&format!("{indent}state \"{}\" as {id} {{\n", text(&node.label)));
+                for c in nested {
+                    state_nodes(graph, c, depth + 1, out);
+                }
+                out.push_str(&format!("{indent}}}\n"));
+            }
+        }
+    }
+    for line in class_lines(graph, node) {
+        out.push_str(&format!("{indent}{id} : {}\n", text(line)));
+    }
+}
+
 fn render_state(graph: &DiagramGraph) -> String {
     let mut out = String::from("stateDiagram-v2\n");
-    let pseudo = |n: &Node| matches!(n.kind, NodeKind::Initial | NodeKind::Final);
-    for n in graph.nodes.iter().filter(|n| !pseudo(n) && !matches!(n.kind, NodeKind::Compartment | NodeKind::Label)) {
-        ref_line(&mut out, "  ", n);
-        let id = mermaid_id(&n.id);
-        match n.kind {
-            NodeKind::Choice => out.push_str(&format!("  state {id} <<choice>>\n")),
-            NodeKind::History => out.push_str(&format!("  state \"{}\" as {id}\n", text(&n.label))),
-            _ => out.push_str(&format!("  state \"{}\" as {id}\n", text(&n.label))),
-        }
+    for n in graph.nodes.iter().filter(|n| is_root(graph, n)) {
+        state_nodes(graph, n, 0, &mut out);
     }
     if !graph.edges.is_empty() {
         out.push('\n');
     }
     let end = |id: &str| match graph.node(id) {
-        Some(n) if pseudo(n) => "[*]".to_string(),
+        Some(n) if is_pseudo_state(n) => "[*]".to_string(),
         _ => mermaid_id(id),
     };
     for e in &graph.edges {

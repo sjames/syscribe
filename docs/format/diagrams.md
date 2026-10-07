@@ -11,13 +11,14 @@ Diagrams are `type: Diagram` elements. The `diagramKind:` field selects the rend
 | `BDD` | SVG (server / PlantUML) | Block Definition Diagram — part/item type hierarchy and compositions |
 | `IBD` | SVG (server / PlantUML) | Internal Block Diagram — part usages, ports, and connections within a block |
 | `StateMachine` | SVG (server / PlantUML) | State machine — states, transitions, and guards |
+| `Action` | SVG (server / Mermaid) | Action diagram — action steps, fork/join/decision/merge control nodes, successions and flows |
 | `Requirement` | SVG (server / PlantUML) | Requirement diagram — requirements, derivation, and verification links |
 | `Sequence` | SVG (PlantUML) | Sequence diagram — lifelines, messages, returns |
 | `Mermaid` | Mermaid.js (client) | Any diagram expressible in Mermaid graph syntax |
 
-## Structured diagrams (BDD, IBD, StateMachine, Requirement)
+## Structured diagrams (BDD, IBD, StateMachine, Action, Requirement, Sequence)
 
-These diagrams carry their content in YAML frontmatter, from one of two sources. A `BDD` or `IBD` with a `subject:` and no `shapes:` is **derived** from the model (next section) — the preferred form for those kinds. A diagram with a `shapes:` block is **manifest**-sourced: the hand-listed alternative, where the author enumerates the `shapes`, `edges`, and optional `layout` pins, and the only form for kinds that have no generator yet. The presence of `shapes:` selects the source; there is no mode field.
+These diagrams carry their content in YAML frontmatter, from one of two sources. A `BDD`, `IBD`, `StateMachine`, `Action`, `Sequence`, `Requirement` or `Allocation` diagram with a `subject:` and no `shapes:` is **derived** from the model (next section) — the preferred form for those kinds. A diagram with a `shapes:` block is **manifest**-sourced: the hand-listed alternative, where the author enumerates the `shapes`, `edges`, and optional `layout` pins, and the only form for kinds that have no generator yet. The presence of `shapes:` selects the source; there is no mode field.
 
 ### `shapes:` — mapping of shape-id to descriptor
 
@@ -65,10 +66,11 @@ layout:
 
 `layout:` is the trigger for the SVG renderer. A diagram without a `layout:` block renders as "no layout defined."
 
-## Derived diagrams (BDD, IBD)
+## Derived diagrams (BDD, IBD, StateMachine, Action, Sequence, Requirement, Allocation)
 
-A `BDD` or `IBD` needs no manifest at all. Declare the kind and the subject, and the
-generator reads the content from the model every time the diagram is built:
+A `BDD`, `IBD`, `StateMachine`, `Action` or `Sequence` diagram needs no manifest at all. Declare the kind
+and the subject, and the generator reads the content from the model every time the diagram is
+built:
 
 ```yaml
 ---
@@ -113,8 +115,99 @@ as a manifest).
   is a usage or a boundary port. A chain that reaches nothing draws no edge — the generator
   never invents a port.
 
-Other kinds (`StateMachine`, `Requirement`, …) have no generator yet; a derived diagram of
-such a kind is drawn empty, so keep using a manifest for them.
+**StateMachine** — subject: a `StateDef` (or a `State`/`ExhibitState` usage, which reads the
+`StateDef` it is typed by). Demo: `Diagrams::FlightStatesDerivedSM`.
+
+- One rounded state per `subStates:` entry, with `entry / …`, `do / …` and `exit / …`
+  compartment lines from `entryAction`/`doAction`/`exitAction`. A substate typed by a `StateDef`
+  with its own `subStates:` becomes a container holding that machine's states, one level deep.
+- An initial pseudostate per region with a transition to each `isInitial: true` state, and a
+  final node every `isFinal: true` state transitions to.
+- One transition edge per transition in either placement (nested under its source substate, or
+  top-level with `source:`; the deprecated `from`/`to`/`trigger` keys are read like the
+  canonical ones), labelled `accept [guard] / effect` with the absent parts omitted — the
+  payload's last segment (or `after …`/`when …`/`at …` for a time or change trigger), the guard
+  in brackets, the effect's name or type. A transition whose endpoint is not on the diagram draws
+  nothing (that is W929's job).
+
+**Action** — subject: an `ActionDef` (or an `Action` usage, which reads its definition). A new
+`diagramKind: Action` (spec §8.16.8.8). Demo: `Diagrams::MissionExecutionDerivedAction`.
+
+- One rounded step per `subActions:` entry, stereotyped by its kind (`perform`, `send`,
+  `accept`, `assign`, `terminate`, or plain `action`), with a compartment for its `typedBy`,
+  `payload`, trigger and `via`/`to` chains.
+- An `IfAction` as a decision diamond labelled by its condition, its `then`/`else` steps joined
+  to it by `[then]`/`[else]` successions and rejoining at a merge; a `LoopAction` as a container
+  stereotyped `loop`, labelled `name [for v in seq]` (or `[while c]`/`[until c]`), holding its
+  body in order.
+- A fork/join bar or decision/merge diamond per `controlNodes:` entry.
+- A succession edge per `successionConnections:` entry (labelled `[guard]` when present; an
+  `IfAction` endpoint enters at its decision and leaves from its merge) and a flow edge per
+  `flowConnections:` entry.
+- An initial node feeding every step with no incoming succession and a final node reached from
+  every step with no outgoing one — only when the action declares at least one succession;
+  otherwise the steps are drawn unordered.
+
+**Requirement** — subject: a `Package`, `RequirementDef` or `Requirement`
+(`REQ-TRS-VIS-020`; demo: `Diagrams::RequirementsDerived`).
+
+- One requirement box per native `Requirement`, `RequirementDef` or SysML `Requirement` that is
+  the subject or lies under it at any depth, labelled by `name` (else id), with a compartment
+  showing `id = …` and `status = …` when present.
+- `derive` edges from each requirement to its `derivedFrom:` targets and `refine` edges to its
+  `refines:` targets (child below parent — the layout puts the target above the source).
+- `satisfy` edges from every element whose `satisfies:` names a requirement on the diagram,
+  drawn as a block with its real type's stereotype, and `verify` edges from every `TestCase`
+  whose `verifies:` names one. These context nodes appear only through such an edge.
+- `containment` edges from a `RequirementDef` to the requirements it owns.
+- `include:`/`exclude:` apply to requirements and context nodes alike, by qualified name,
+  stable id (`REQ-UAV-FC-001`, `TC-UAV-FC-001`) or short name — the way to keep a large
+  requirements package readable.
+
+**Allocation** — subject: a `Package`, `AllocationDef` or `Allocation`
+(`REQ-TRS-VIS-022`; demo: `Diagrams::FunctionAllocationDerived`).
+
+- Every allocation pair under the subject: an `Allocation` element's `allocatedFrom:`/
+  `allocatedTo:`, its `features:` entries of `type: Allocation`, an `AllocationDef`'s
+  `allocations:` entries, and `allocatedTo:` on a `Part`/`PartDef`/`Action`/`ActionDef` (the
+  element itself is the source).
+- Two swimlanes, *Logical* (sources) and *Physical* (targets), each holding one block per
+  distinct element with its real type's stereotype; an end that does not resolve is a dashed
+  block labelled by the reference text; an element on both sides appears once in each lane.
+- One `«allocate»` edge per pair, labelled by the usage name when it has one.
+- `include:`/`exclude:` apply to the end elements; an edge is drawn only when both ends are
+  kept.
+
+**Sequence** — subject: an `ActionDef` or `Action` (or a `UseCaseDef`/`UseCase` with
+`actors:`) (`REQ-TRS-VIS-021`; demo: `Diagrams::MissionExecutionDerivedSeq`, compare the
+hand-listed `Diagrams::MissionExecutionSeq`).
+
+- One lifeline per participant, in first-appearance order: the subject first, then every
+  element a `SendAction`'s `to:` chain or an `AcceptAction`'s/`SendAction`'s `via:` chain
+  resolves to — a port chain resolves to the part that owns the port (an inline feature of the
+  subject, a port element's owner, or the part in the model that owns a port of that name,
+  preferring one that `performs:` the subject); an unresolved chain is a dashed lifeline
+  labelled by the chain text — then each entry of the subject's `actors:` as an actor.
+- One message per `SendAction` (subject → participant, labelled `name(Payload)`) and per
+  `AcceptAction` (participant → subject, labelled by the payload, else the trigger), in
+  execution order: `successionConnections:` topological order when declared, else declaration
+  order, descending into an `IfAction`'s `then`/`else` and a `LoopAction`'s `body`. A nested
+  `PerformAction` is a step in the order but is not expanded; no return, create or destroy
+  messages are generated.
+- One `alt` fragment per `IfAction` and one `loop` fragment per `LoopAction`, labelled by the
+  condition, enclosing the messages it contains; an activation on the subject's lifeline
+  spanning its messages.
+- The generator places everything itself — lifelines left to right at a fixed pitch, messages
+  top to bottom in order, fragments around their span — as pins, with horizontal waypoints on
+  every message, so every renderer (SVG export, the browser editor, Mermaid, PlantUML) draws it
+  with the `fixed` algorithm and no layout-engine run. A `layout:` block can still move a
+  lifeline or fragment by its id (`s-<subject>-<participant>`, `s-<subject>-<action>`).
+- `include:`/`exclude:` name participants (qualified or short name; never the subject); a
+  dropped participant takes its messages with it. `W080` (manifest completeness) is never raised
+  on a derived Sequence diagram.
+
+`UseCase` and `Custom` have no generator; a derived diagram of such a kind is drawn empty, so
+keep using a manifest for them.
 
 ### Narrowing the view: `include:` / `exclude:`
 
@@ -149,7 +242,7 @@ layout:
 | Code | Condition |
 |---|---|
 | W417 | `include:`/`exclude:` on a manifest diagram (ignored), or an entry that names no member of the subject |
-| W418 | A derived diagram's `subject:` type is not valid for its `diagramKind:` (BDD: `Package`/`PartDef`/`ItemDef`; IBD: `PartDef`/`Part`); the diagram is drawn empty |
+| W418 | A derived diagram's `subject:` type is not valid for its `diagramKind:` (BDD: `Package`/`PartDef`/`ItemDef`; IBD: `PartDef`/`Part`; StateMachine: `StateDef`/`State`/`ExhibitState`; Action: `ActionDef`/`Action`; Requirement: `Package`/`RequirementDef`/`Requirement`; Allocation: `Package`/`AllocationDef`/`Allocation`; Sequence: `ActionDef`/`Action`/`UseCaseDef`/`UseCase`); the diagram is drawn empty |
 
 An unresolved `subject:` is still W401, and a derived diagram never raises W402/W403 for the
 shapes it generates.

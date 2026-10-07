@@ -18,6 +18,7 @@ import {
     IViewArgs,
     PolylineEdgeView,
     RenderingContext,
+    RoutedPoint,
     SCompartmentImpl,
     SEdgeImpl,
     SGraphImpl,
@@ -244,6 +245,45 @@ function addClasses(vnode: VNode, names: string[]): VNode {
     return vnode;
 }
 
+/** The SVG of a glyph-kind node, or `undefined` for a box kind. The server
+ * sizes these (`vis::size::glyph_size`): initial/final 20×20, fork/join
+ * 60×6, decision/merge 28×28. */
+function glyphShape(kind: string, width: number, height: number, style: NodeStyle, selected: boolean): VNode | undefined {
+    const cx = width / 2;
+    const cy = height / 2;
+    const outline = selected ? '#1d4ed8' : style.stroke;
+    switch (kind) {
+        case 'initial': {
+            const r = Math.min(width, height) / 2;
+            return <circle cx={cx} cy={cy} r={r} fill="#222" stroke={outline} stroke-width={selected ? 2.5 : 0} />;
+        }
+        case 'final': {
+            const r = Math.min(width, height) / 2;
+            return (
+                <g>
+                    <circle cx={cx} cy={cy} r={r} fill="#fff" stroke={outline} stroke-width={selected ? 2.5 : 1.2} />
+                    <circle cx={cx} cy={cy} r={r * 0.6} fill="#222" />
+                </g>
+            );
+        }
+        case 'fork':
+        case 'join':
+            return <rect x={0} y={0} width={width} height={height} rx={2} fill={style.fill} stroke={outline} stroke-width={selected ? 1.5 : 0} />;
+        case 'decision':
+        case 'merge':
+            return (
+                <path
+                    d={`M ${cx},0 L ${width},${cy} L ${cx},${height} L 0,${cy} z`}
+                    fill={style.fill}
+                    stroke={outline}
+                    stroke-width={selected ? 2.5 : 1.4}
+                />
+            );
+        default:
+            return undefined;
+    }
+}
+
 function labelStackHeight(node: Readonly<SNodeImpl>): number {
     let bottom = 0;
     for (const c of node.children) {
@@ -252,6 +292,49 @@ function labelStackHeight(node: Readonly<SNodeImpl>): number {
         }
     }
     return bottom;
+}
+
+/** The right edge of a node's label stack (a fragment's keyword tab). */
+function labelStackRight(node: Readonly<SNodeImpl>): number {
+    let right = 0;
+    for (const c of node.children) {
+        if (c instanceof SLabelImpl) {
+            right = Math.max(right, c.bounds.x + c.bounds.width);
+        }
+    }
+    return right;
+}
+
+/** The lowest edge of any node of the diagram, in root coordinates — where a
+ * lifeline's stem ends (sequence diagrams, `REQ-TRS-VIS-021`). */
+function diagramBottom(node: Readonly<SNodeImpl>): number {
+    let bottom = 0;
+    const walk = (parent: { readonly children: readonly unknown[] }, ay: number): void => {
+        for (const c of parent.children) {
+            if (c instanceof SNodeImpl) {
+                const y = ay + c.bounds.y;
+                bottom = Math.max(bottom, y + c.bounds.height);
+                walk(c, y);
+            }
+        }
+    };
+    walk(node.root, 0);
+    return bottom;
+}
+
+/** A stick figure with its head's top at `top`, centred on `cx`. */
+function stickFigure(cx: number, top: number, style: NodeStyle, dashed: boolean): VNode {
+    const headR = 5;
+    const hy = top + headR;
+    const by = top + 2 * headR;
+    const ly = by + 12;
+    const d = `M ${cx},${by} L ${cx},${ly} M ${cx - 9},${by + 4} L ${cx + 9},${by + 4} M ${cx},${ly} L ${cx - 7},${ly + 10} M ${cx},${ly} L ${cx + 7},${ly + 10}`;
+    return (
+        <g class-sysml-actor-figure={true}>
+            <circle cx={cx} cy={hy} r={headR} fill={style.fill} stroke={style.stroke} stroke-width={1.4} stroke-dasharray={dashed ? '3,2' : undefined} />
+            <path d={d} fill="none" stroke={style.stroke} stroke-width={1.4} stroke-dasharray={dashed ? '3,2' : undefined} />
+        </g>
+    );
 }
 
 @injectable()
@@ -274,6 +357,75 @@ export class SysmlNodeView extends ShapeView implements IView {
         const outlineColor = selected ? '#1d4ed8' : style.stroke;
         const header = style.headerFill && !container ? labelStackHeight(n) + 4 : 0;
 
+        // Pseudostate and control-node glyphs (StateMachine / Action kinds,
+        // `REQ-TRS-VIS-018`/`-019`): an initial dot, a final bullseye, a
+        // fork/join bar, a decision/merge diamond. Their label children (a
+        // control node's name, a decision's condition) are placed by ELK
+        // beside the glyph (`isGlyphKind` in `layout.ts`).
+        const glyph = glyphShape(n.kind, width, height, style, selected);
+        if (glyph) {
+            const gnode = (
+                <g class-sysml-node={true} class-selected={selected} class-unresolved={unresolved} data-sysml-ref={n.ref}>
+                    {glyph}
+                    {context.renderChildren(node)}
+                </g>
+            );
+            return addClasses(gnode, [`kind-${n.kind}`, n.elementType ?? '']);
+        }
+
+        // Sequence kinds (spec §8.16.8.3, `REQ-TRS-VIS-021`), drawn as
+        // `vis::svg` draws them: a lifeline is its header box (an actor its
+        // stick figure under the name) plus a dashed stem to the diagram's
+        // bottom; an activation a bare bar; a fragment an open box with a
+        // keyword tab around its label stack.
+        if (n.kind === 'lifeline' || n.kind === 'actor') {
+            // The header is the carried (server) size: a lifeline that nests
+            // its activation is a compound node ELK's `fixed` run grows
+            // around the child, but the box drawn is the header alone.
+            const carried = (n as unknown as { serverSize?: { width: number; height: number } }).serverSize;
+            const headerW = carried?.width ?? width;
+            const headerH = carried?.height ?? height;
+            const cx = headerW / 2;
+            const stemEnd = diagramBottom(n) - n.bounds.y + 12;
+            const seq = (
+                <g class-sysml-node={true} class-selected={selected} class-unresolved={unresolved} data-sysml-ref={n.ref}>
+                    {n.kind === 'lifeline' ? (
+                        <rect x={0} y={0} width={headerW} height={headerH} fill={style.fill} stroke={outlineColor} stroke-width={outlineWidth} stroke-dasharray={dashed ? '6,3' : undefined} />
+                    ) : (
+                        stickFigure(cx, labelStackHeight(n) + 2, style, dashed)
+                    )}
+                    {stemEnd > headerH && (
+                        <line x1={cx} y1={headerH} x2={cx} y2={stemEnd} stroke={outlineColor} stroke-width={1.2} stroke-dasharray="6,4" />
+                    )}
+                    {context.renderChildren(node)}
+                </g>
+            );
+            return addClasses(seq, [`kind-${n.kind}`, n.elementType ?? '']);
+        }
+        if (n.kind === 'activation') {
+            const seq = (
+                <g class-sysml-node={true} class-selected={selected} data-sysml-ref={n.ref}>
+                    <rect x={0} y={0} width={width} height={height} fill={style.fill} stroke={outlineColor} stroke-width={selected ? 2 : 1.2} />
+                </g>
+            );
+            return addClasses(seq, [`kind-${n.kind}`]);
+        }
+        if (n.kind === 'fragment') {
+            const tw = Math.min(width, labelStackRight(n) + 8);
+            const th = Math.min(height, labelStackHeight(n) + 4);
+            const seq = (
+                <g class-sysml-node={true} class-selected={selected} class-unresolved={unresolved} data-sysml-ref={n.ref}>
+                    <rect x={0} y={0} width={width} height={height} fill="none" stroke={outlineColor} stroke-width={outlineWidth} stroke-dasharray={dashed ? '6,3' : undefined} />
+                    {th > 0 && (
+                        <path d={`M 0,0 L ${tw},0 L ${tw},${th - 6} L ${tw - 6},${th} L 0,${th} z`} fill={style.fill} stroke={outlineColor} stroke-width={1.2} />
+                    )}
+                    {context.renderChildren(node)}
+                </g>
+            );
+            return addClasses(seq, [`kind-${n.kind}`]);
+        }
+
+        const rounded = container || n.kind === 'state' || n.kind === 'action';
         const vnode = (
             <g
                 class-sysml-node={true}
@@ -287,7 +439,7 @@ export class SysmlNodeView extends ShapeView implements IView {
                     y={0}
                     width={width}
                     height={height}
-                    rx={container ? 8 : 4}
+                    rx={rounded ? 8 : 4}
                     fill={style.fill}
                     stroke={outlineColor}
                     stroke-width={outlineWidth}
@@ -441,11 +593,31 @@ export class SysmlEdgeLabelImpl extends SLabelImpl {
 @injectable()
 export class SysmlEdgeView extends PolylineEdgeView {
     override render(edge: Readonly<SEdgeImpl>, context: RenderingContext, args?: IViewArgs): VNode | undefined {
-        const vnode = super.render(edge, context, args);
+        const e = edge as Readonly<SysmlEdge>;
+        const pts = edge.routingPoints;
+        let vnode: VNode | undefined;
+        if ((e.kind === 'message' || e.kind === 'return') && pts.length >= 2) {
+            // A sequence message pinned to its row (`REQ-TRS-VIS-021`) runs
+            // along its waypoints alone — stem to stem — never from the header
+            // boxes, exactly as `vis::svg::pinned_layout` routes it.
+            const route: RoutedPoint[] = pts.map((p, i) => ({
+                kind: i === 0 ? 'source' : i === pts.length - 1 ? 'target' : 'linear',
+                x: p.x,
+                y: p.y,
+            }));
+            vnode = (
+                <g class-sprotty-edge={true} class-mouseover={edge.hoverFeedback}>
+                    {this.renderLine(edge, route, context, args)}
+                    {this.renderAdditionals(edge, route, context)}
+                    {context.renderChildren(edge, { route })}
+                </g>
+            );
+        } else {
+            vnode = super.render(edge, context, args);
+        }
         if (!vnode) {
             return vnode;
         }
-        const e = edge as Readonly<SysmlEdge>;
         vnode.data = vnode.data ?? {};
         vnode.data.attrs = {
             ...(vnode.data.attrs ?? {}),

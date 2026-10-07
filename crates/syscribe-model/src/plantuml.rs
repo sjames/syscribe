@@ -403,29 +403,54 @@ fn render_state_machine(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlCon
     out.push_str(&style_preamble(cfg));
     out.push('\n');
 
-    for n in graph.nodes.iter().filter(|n| n.kind == NodeKind::State) {
+    let final_ids: HashSet<&str> = graph
+        .nodes
+        .iter()
+        .filter(|n| n.kind == NodeKind::Final)
+        .map(|n| n.id.as_str())
+        .collect();
+
+    // A composite state (a derived machine's substate typed by a machine of
+    // its own, REQ-TRS-VIS-018) declares its nested states inside `{ … }`;
+    // entry/do/exit compartment lines become `id : line` descriptions.
+    fn state_decl(graph: &DiagramGraph, n: &NodeRef, depth: usize, cfg: Option<&PlantumlConfig>, out: &mut String) {
+        let indent = "  ".repeat(depth);
+        let id = sanitize_id(&n.id);
         let url = element_url(&n.element_ref, cfg);
-        out.push_str(&format!("state \"{}\" as {} {}\n", n.label, sanitize_id(&n.id), url));
+        let nested: Vec<&NodeRef> = graph.children_of(&n.id).filter(|c| c.kind == NodeKind::State).collect();
+        if nested.is_empty() || depth >= graph.nodes.len() {
+            out.push_str(&format!("{indent}state \"{}\" as {} {}\n", n.label, id, url));
+        } else {
+            out.push_str(&format!("{indent}state \"{}\" as {} {}{{\n", n.label, id, url));
+            for c in nested {
+                state_decl(graph, c, depth + 1, cfg, out);
+            }
+            out.push_str(&format!("{indent}}}\n"));
+        }
+        for c in graph.children_of(&n.id).filter(|c| c.kind == NodeKind::Compartment) {
+            for line in &c.lines {
+                out.push_str(&format!("{indent}{id} : {line}\n"));
+            }
+        }
+    }
+    type NodeRef = vis::Node;
+    let is_root = |n: &NodeRef| n.parent.as_deref().map(|p| graph.node(p).is_none()).unwrap_or(true);
+    for n in graph.nodes.iter().filter(|n| n.kind == NodeKind::State && is_root(n)) {
+        state_decl(graph, n, 0, cfg, &mut out);
     }
 
     out.push('\n');
 
     for e in &graph.edges {
-        // Prefer explicit label:; fall back to the id stem.
-        let label = e.label.clone().unwrap_or_else(|| key_label(&e.id));
-        if initial_ids.contains(e.source.as_str()) {
-            if label.is_empty() {
-                out.push_str(&format!("[*] --> {}\n", sanitize_id(&e.target)));
-            } else {
-                out.push_str(&format!("[*] --> {} : {}\n", sanitize_id(&e.target), label));
-            }
+        // Prefer explicit label:; a derived edge without one is unlabelled,
+        // a manifest edge falls back to the id stem.
+        let label = e.label.clone().unwrap_or_else(|| if graph.derived { String::new() } else { key_label(&e.id) });
+        let src = if initial_ids.contains(e.source.as_str()) { "[*]".to_string() } else { sanitize_id(&e.source) };
+        let tgt = if final_ids.contains(e.target.as_str()) { "[*]".to_string() } else { sanitize_id(&e.target) };
+        if label.is_empty() {
+            out.push_str(&format!("{src} --> {tgt}\n"));
         } else {
-            out.push_str(&format!(
-                "{} --> {} : {}\n",
-                sanitize_id(&e.source),
-                sanitize_id(&e.target),
-                label
-            ));
+            out.push_str(&format!("{src} --> {tgt} : {label}\n"));
         }
     }
 
@@ -476,6 +501,8 @@ fn requirement_connector(e: &Edge) -> (&'static str, &'static str) {
         EdgeKind::Verify => ("..>", "verifies"),
         EdgeKind::Allocation => ("..>", "allocated to"),
         EdgeKind::Satisfy => ("-->", "satisfies"),
+        EdgeKind::Refine => ("..>", "refines"),
+        EdgeKind::Containment => ("--", "contains"),
         other => ("-->", other.as_str()),
     }
 }
@@ -486,15 +513,37 @@ fn render_requirement(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfi
     out.push_str(&style_preamble(cfg));
     out.push_str("hide empty members\n\n");
 
-    for n in &graph.nodes {
+    // A derived requirement diagram (REQ-TRS-VIS-020) carries the stable id
+    // and status as a `compartment` child of each requirement: those lines
+    // become the class body, and the compartment is never a class of its own.
+    for n in graph.nodes.iter().filter(|n| !matches!(n.kind, NodeKind::Compartment | NodeKind::Label)) {
         let url = element_url(&n.element_ref, cfg);
-        out.push_str(&format!(
-            "class \"{}\" as {} <<{}>> {}\n",
-            n.label,
-            sanitize_id(&n.id),
-            class_stereotype(n),
-            url
-        ));
+        let lines: Vec<&str> = graph
+            .children_of(&n.id)
+            .filter(|c| c.kind == NodeKind::Compartment)
+            .flat_map(|c| c.lines.iter().map(String::as_str))
+            .collect();
+        if lines.is_empty() {
+            out.push_str(&format!(
+                "class \"{}\" as {} <<{}>> {}\n",
+                n.label,
+                sanitize_id(&n.id),
+                class_stereotype(n),
+                url
+            ));
+        } else {
+            out.push_str(&format!(
+                "class \"{}\" as {} <<{}>> {} {{\n",
+                n.label,
+                sanitize_id(&n.id),
+                class_stereotype(n),
+                url
+            ));
+            for l in lines {
+                out.push_str(&format!("  {}\n", l.replace(['{', '}'], "")));
+            }
+            out.push_str("}\n");
+        }
     }
 
     out.push('\n');

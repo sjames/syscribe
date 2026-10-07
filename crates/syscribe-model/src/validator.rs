@@ -3153,8 +3153,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // W080 (§22.4): a `Sequence` diagram must include an edge for every
             // SendAction/AcceptAction reachable through its subject ActionDef's
             // sub-action tree. Draft-suppressed; gateable with `--deny W080`.
+            // A derived Sequence diagram (`subject:` and neither `shapes:`
+            // nor `edges:`, REQ-TRS-VIS-021) generates one edge per message
+            // itself, so only a hand-listed `edges:` list is checked.
             if fm.diagram_kind.as_deref() == Some("Sequence")
                 && fm.status.as_deref() != Some("draft")
+                && (crate::vis::source_of(fm) == crate::vis::Source::Manifest || fm.edges.is_some())
             {
                 if let Some(subj_qn) = fm.subject.as_deref() {
                     if let Some(subj_el) = resolver.resolve_ref(elements, subj_qn) {

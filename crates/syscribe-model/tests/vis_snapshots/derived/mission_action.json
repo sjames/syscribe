@@ -1,0 +1,287 @@
+{
+  "kind": "Action",
+  "qualifiedName": "Diagrams::MissionAction",
+  "name": "MissionAction",
+  "subject": "Beh::Mission",
+  "nodes": [
+    {
+      "id": "s-beh-mission-initial",
+      "elementRef": "Beh::Mission",
+      "resolved": true,
+      "kind": "initial",
+      "label": "",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-takeoff",
+      "elementRef": "Beh::Mission::takeoff",
+      "resolved": true,
+      "kind": "action",
+      "label": "takeoff",
+      "stereotype": "perform",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-takeoff-compartment",
+      "elementRef": "Beh::Mission::takeoff",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-beh-mission-takeoff",
+      "lines": [
+        ": Takeoff"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-checkweather",
+      "elementRef": "Beh::Mission::checkWeather",
+      "resolved": true,
+      "kind": "decision",
+      "label": "wind > 12",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-checkweather-abort",
+      "elementRef": "Beh::Mission::checkWeather::abort",
+      "resolved": true,
+      "kind": "action",
+      "label": "abort",
+      "stereotype": "send",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-checkweather-abort-compartment",
+      "elementRef": "Beh::Mission::checkWeather::abort",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-beh-mission-checkweather-abort",
+      "lines": [
+        "send Command",
+        "via ctrlOut"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-checkweather-proceed",
+      "elementRef": "Beh::Mission::checkWeather::proceed",
+      "resolved": true,
+      "kind": "action",
+      "label": "proceed",
+      "stereotype": "perform",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-checkweather-proceed-compartment",
+      "elementRef": "Beh::Mission::checkWeather::proceed",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-beh-mission-checkweather-proceed",
+      "lines": [
+        ": Nav"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-checkweather-merge",
+      "elementRef": "Beh::Mission::checkWeather",
+      "resolved": true,
+      "kind": "merge",
+      "label": "",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-navigate",
+      "elementRef": "Beh::Mission::navigate",
+      "resolved": true,
+      "kind": "action",
+      "label": "navigate [for wp in waypoints]",
+      "stereotype": "loop",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-navigate-awaitarrival",
+      "elementRef": "Beh::Mission::navigate::awaitArrival",
+      "resolved": true,
+      "kind": "action",
+      "label": "awaitArrival",
+      "stereotype": "accept",
+      "parent": "s-beh-mission-navigate",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-navigate-awaitarrival-compartment",
+      "elementRef": "Beh::Mission::navigate::awaitArrival",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-beh-mission-navigate-awaitarrival",
+      "lines": [
+        "accept Fix",
+        "when near(wp)"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-navigate-advance",
+      "elementRef": "Beh::Mission::navigate::advance",
+      "resolved": true,
+      "kind": "action",
+      "label": "advance",
+      "stereotype": "action",
+      "parent": "s-beh-mission-navigate",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-land",
+      "elementRef": "Beh::Mission::land",
+      "resolved": true,
+      "kind": "action",
+      "label": "land",
+      "stereotype": "perform",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-land-compartment",
+      "elementRef": "Beh::Mission::land",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-beh-mission-land",
+      "lines": [
+        ": Land"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-start",
+      "elementRef": "Beh::Mission::start",
+      "resolved": true,
+      "kind": "fork",
+      "label": "start",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-end",
+      "elementRef": "Beh::Mission::end",
+      "resolved": true,
+      "kind": "join",
+      "label": "end",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-mission-final",
+      "elementRef": "Beh::Mission",
+      "resolved": true,
+      "kind": "final",
+      "label": "",
+      "isAbstract": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-succession-s-beh-mission-checkweather-s-beh-mission-checkweather-abort",
+      "elementRef": "Beh::Mission::checkWeather",
+      "source": "s-beh-mission-checkweather",
+      "target": "s-beh-mission-checkweather-abort",
+      "kind": "succession",
+      "label": "[then]"
+    },
+    {
+      "id": "e-succession-s-beh-mission-checkweather-abort-s-beh-mission-checkweather-merge",
+      "elementRef": "Beh::Mission::checkWeather",
+      "source": "s-beh-mission-checkweather-abort",
+      "target": "s-beh-mission-checkweather-merge",
+      "kind": "succession"
+    },
+    {
+      "id": "e-succession-s-beh-mission-checkweather-s-beh-mission-checkweather-proceed",
+      "elementRef": "Beh::Mission::checkWeather",
+      "source": "s-beh-mission-checkweather",
+      "target": "s-beh-mission-checkweather-proceed",
+      "kind": "succession",
+      "label": "[else]"
+    },
+    {
+      "id": "e-succession-s-beh-mission-checkweather-proceed-s-beh-mission-checkweather-merge",
+      "elementRef": "Beh::Mission::checkWeather",
+      "source": "s-beh-mission-checkweather-proceed",
+      "target": "s-beh-mission-checkweather-merge",
+      "kind": "succession"
+    },
+    {
+      "id": "e-succession-s-beh-mission-navigate-awaitarrival-s-beh-mission-navigate-advance",
+      "elementRef": "Beh::Mission::navigate",
+      "source": "s-beh-mission-navigate-awaitarrival",
+      "target": "s-beh-mission-navigate-advance",
+      "kind": "succession"
+    },
+    {
+      "id": "e-succession-s-beh-mission-initial-s-beh-mission-start",
+      "elementRef": "Beh::Mission",
+      "source": "s-beh-mission-initial",
+      "target": "s-beh-mission-start",
+      "kind": "succession"
+    },
+    {
+      "id": "e-succession-s-beh-mission-start-s-beh-mission-takeoff",
+      "elementRef": "Beh::Mission",
+      "source": "s-beh-mission-start",
+      "target": "s-beh-mission-takeoff",
+      "kind": "succession"
+    },
+    {
+      "id": "e-succession-s-beh-mission-takeoff-s-beh-mission-checkweather",
+      "elementRef": "Beh::Mission",
+      "source": "s-beh-mission-takeoff",
+      "target": "s-beh-mission-checkweather",
+      "kind": "succession"
+    },
+    {
+      "id": "e-succession-s-beh-mission-checkweather-merge-s-beh-mission-navigate",
+      "elementRef": "Beh::Mission",
+      "source": "s-beh-mission-checkweather-merge",
+      "target": "s-beh-mission-navigate",
+      "kind": "succession",
+      "label": "[ok]"
+    },
+    {
+      "id": "e-succession-s-beh-mission-navigate-s-beh-mission-land",
+      "elementRef": "Beh::Mission",
+      "source": "s-beh-mission-navigate",
+      "target": "s-beh-mission-land",
+      "kind": "succession"
+    },
+    {
+      "id": "e-succession-s-beh-mission-land-s-beh-mission-end",
+      "elementRef": "Beh::Mission",
+      "source": "s-beh-mission-land",
+      "target": "s-beh-mission-end",
+      "kind": "succession"
+    },
+    {
+      "id": "e-flow-s-beh-mission-takeoff-s-beh-mission-navigate",
+      "elementRef": "Beh::Mission",
+      "source": "s-beh-mission-takeoff",
+      "target": "s-beh-mission-navigate",
+      "kind": "flow"
+    },
+    {
+      "id": "e-succession-s-beh-mission-end-s-beh-mission-final",
+      "elementRef": "Beh::Mission",
+      "source": "s-beh-mission-end",
+      "target": "s-beh-mission-final",
+      "kind": "succession"
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "layered",
+    "direction": "down",
+    "hierarchical": true,
+    "portConstraints": "free",
+    "reversedKinds": []
+  },
+  "derived": true
+}

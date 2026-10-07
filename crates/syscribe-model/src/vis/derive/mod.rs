@@ -338,6 +338,106 @@ pub(crate) mod testkit {
             raw("Sys::Sensor", ElementType::PartDef, |fm| {
                 fm.metadata = Some(yaml_list("- Sys::Safety\n- {type: ModelingMetadata::Rationale, text: why}\n"));
             }),
+            // A state machine (REQ-TRS-VIS-018): nested transitions in both
+            // accept spellings, a top-level one in the deprecated aliases,
+            // entry/do actions in string and map form, initial and final.
+            raw("Sys::Modes", ElementType::StateDef, |fm| {
+                fm.sub_states = Some(yaml_list(
+                    "- name: off\n  isInitial: true\n  transitions:\n    - target: on\n      accept: {payload: Cmds::StartCommand}\n      guard: \"fuel > 0\"\n      effect: {name: doStart, typedBy: Sys::Startup}\n\
+                     - name: on\n  entryAction: Sys::Startup\n  doAction: {name: runLoop, typedBy: Sys::Loop}\n  transitions:\n    - target: off\n      accept: Cmds::StopCommand\n      effect: Sys::Shutdown\n    - target: fault\n      guard: \"temp > max\"\n\
+                     - name: fault\n  isFinal: true\n",
+                ));
+                fm.transitions = Some(yaml_list("- {from: fault, to: off, trigger: Cmds::ResetCommand}\n"));
+            }),
+            // A machine whose `active` substate is typed by `Modes` (a container, one level deep).
+            raw("Sys::Mission", ElementType::StateDef, |fm| {
+                fm.sub_states = Some(yaml_list(
+                    "- name: idle\n  isInitial: true\n  transitions:\n    - target: active\n      accept: Cmds::Go\n- name: active\n  typedBy: Sys::Modes\n  transitions:\n    - target: idle\n      guard: done\n",
+                ));
+            }),
+            // A state usage subject reads its definition.
+            raw("Sys::modes", ElementType::State, |fm| fm.typed_by = Some(yaml("Sys::Modes"))),
+            // An action flow (REQ-TRS-VIS-019): perform/send/accept steps, an
+            // if/else, a loop, fork/join control nodes and successions.
+            raw("Sys::Flight", ElementType::ActionDef, |fm| {
+                fm.sub_actions = Some(yaml_list(
+                    "- {name: takeoff, kind: PerformAction, typedBy: Sys::Startup}\n\
+                     - name: check\n  kind: IfAction\n  condition: \"wind > 12\"\n  then:\n    - {name: abort, kind: SendAction, payload: Cmds::Abort, via: ctrlOut}\n  else:\n    - {name: proceed, kind: PerformAction, typedBy: Sys::Nav}\n\
+                     - name: cruise\n  kind: LoopAction\n  loopKind: for\n  variable: wp\n  sequence: waypoints\n  body:\n    - {name: await, kind: AcceptAction, payload: Cmds::Fix, trigger: {kind: change, condition: \"near(wp)\"}}\n    - {name: advance, kind: Action}\n\
+                     - {name: land, kind: PerformAction, typedBy: Sys::Shutdown}\n",
+                ));
+                fm.control_nodes = Some(yaml_list("- {name: start, kind: ForkNode}\n- {name: end, kind: JoinNode}\n"));
+                fm.succession_connections = Some(yaml_list(
+                    "- {after: start, before: takeoff}\n- {after: takeoff, before: check}\n- {after: check, before: cruise, guard: ok}\n- {after: cruise, before: land}\n- {after: land, before: end}\n",
+                ));
+                fm.flow_connections = Some(yaml_list("- {from: takeoff.alt, to: cruise.alt}\n"));
+            }),
+            // An action usage subject reads its definition.
+            raw("Sys::flight", ElementType::Action, |fm| fm.typed_by = Some(yaml("Sys::Flight"))),
+            // A requirements package (REQ-TRS-VIS-020): a parent requirement, a
+            // RequirementDef owning a derived child, a satisfying PartDef and a
+            // verifying TestCase. Kept out of `Sys` so the BDD tests above see
+            // exactly the members they list.
+            raw("Reqs", ElementType::Package, |_| {}),
+            raw("Reqs::Parent", ElementType::Requirement, |fm| {
+                fm.name = Some("Parent requirement".into());
+                fm.id = Some("REQ-TK-001".into());
+                fm.status = Some("approved".into());
+            }),
+            raw("Reqs::Safety", ElementType::RequirementDef, |fm| fm.is_abstract = Some(true)),
+            raw("Reqs::Safety::Child", ElementType::Requirement, |fm| {
+                fm.id = Some("REQ-TK-002".into());
+                fm.derived_from = Some(vec!["REQ-TK-001".into()]);
+            }),
+            raw("Reqs::Controller", ElementType::PartDef, |fm| fm.satisfies = Some(vec!["REQ-TK-002".into()])),
+            raw("Reqs::ControllerTest", ElementType::TestCase, |fm| {
+                fm.id = Some("TC-TK-001".into());
+                fm.verifies = Some(vec!["REQ-TK-002".into()]);
+            }),
+            // An allocations package (REQ-TRS-VIS-022) with every pair form: a
+            // part's own `allocatedTo:`, an AllocationDef's `allocations:` (both
+            // key spellings), and an Allocation element's top-level pair plus an
+            // inline `features:` entry whose target does not resolve.
+            raw("Alloc", ElementType::Package, |_| {}),
+            raw("Alloc::CtrlSw", ElementType::PartDef, |fm| fm.allocated_to = Some(vec!["Sys::Motor".into()])),
+            raw("Alloc::FnDef", ElementType::AllocationDef, |fm| {
+                fm.allocations = Some(yaml_list(
+                    "- {name: navToCtrl, allocatedFrom: Sys::Startup, allocatedTo: Alloc::CtrlSw}\n- {name: navToMotor, from: Sys::Startup, to: Sys::Motor}\n",
+                ));
+            }),
+            raw("Alloc::FnToHw", ElementType::Allocation, |fm| {
+                fm.allocated_from = Some(vec!["Sys::Startup".into()]);
+                fm.allocated_to = Some(vec!["Sys::Engine".into()]);
+                fm.features = Some(yaml_list("- {name: ctrlToGhost, type: Allocation, allocatedFrom: Reqs::Controller, allocatedTo: Ghost::Hw}\n"));
+            }),
+            // A behaviour package for the Sequence generator (REQ-TRS-VIS-021),
+            // outside `Sys` so the BDD member list above is untouched: a
+            // controller that performs `Startup` and owns the `statusIn` port,
+            // a motor, an operator actor, and the action with a send `to` a
+            // part, an accept `via` a port, an if with a send in each branch
+            // (one to an unresolvable chain), a loop with a body send, and
+            // successions that reorder the declaration.
+            raw("Flow", ElementType::Package, |_| {}),
+            raw("Flow::Controller", ElementType::PartDef, |fm| {
+                fm.features = Some(yaml_list("- {name: statusIn, type: Port, typedBy: Sys::PowerPort, direction: in}\n"));
+                fm.performs = Some(yaml_list("- {name: run, typedBy: Flow::Startup}\n"));
+            }),
+            raw("Flow::Motor", ElementType::PartDef, |_| {}),
+            raw("Flow::Operator", ElementType::PartDef, |_| {}),
+            raw("Flow::Startup", ElementType::ActionDef, |fm| {
+                fm.actors = Some(vec!["Flow::Operator".into()]);
+                fm.sub_actions = Some(yaml_list(
+                    "- {name: spinUp, kind: PerformAction, typedBy: Sys::Startup}\n\
+                     - {name: sendPower, kind: SendAction, payload: Flow::PowerCmd, to: Flow::Motor}\n\
+                     - {name: awaitReady, kind: AcceptAction, payload: Flow::Ready, via: statusIn}\n\
+                     - {name: checkTemp, kind: IfAction, condition: \"temp > 90\", then: [{name: coolDown, kind: SendAction, payload: Flow::Cool, to: fan.ctrl}], else: [{name: proceed, kind: SendAction, payload: Flow::Go, to: Flow::Motor}]}\n\
+                     - {name: pollLoop, kind: LoopAction, loopKind: while, condition: \"not ready\", body: [{name: poll, kind: SendAction, payload: Flow::Poll, via: statusIn}]}\n\
+                     - {name: finish, kind: PerformAction, typedBy: Sys::Startup}\n",
+                ));
+                fm.succession_connections = Some(yaml_list(
+                    "- {after: spinUp, before: awaitReady}\n- {after: awaitReady, before: sendPower}\n- {after: sendPower, before: pollLoop}\n- {after: pollLoop, before: checkTemp}\n- {after: checkTemp, before: finish}\n",
+                ));
+            }),
         ]
     }
 
@@ -402,7 +502,7 @@ mod tests {
 
     #[test]
     fn kinds_without_a_generator_yield_an_empty_graph() {
-        let d = diagram("StateMachine", "Sys::Engine", |_| {});
+        let d = diagram("UseCase", "Sys::Engine", |_| {});
         let (g, issues) = derive_it(&d);
         assert!(g.nodes.is_empty() && issues.is_empty());
         assert!(g.derived, "a derived graph is flagged even when its generator yields nothing");

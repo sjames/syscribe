@@ -1,0 +1,212 @@
+{
+  "kind": "StateMachine",
+  "qualifiedName": "Diagrams::FlightSM",
+  "name": "FlightSM",
+  "subject": "Beh::Flight",
+  "nodes": [
+    {
+      "id": "s-beh-flight-initial",
+      "elementRef": "Beh::Flight",
+      "resolved": true,
+      "kind": "initial",
+      "label": "",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-disarmed",
+      "elementRef": "Beh::Flight::disarmed",
+      "resolved": true,
+      "elementType": "State",
+      "kind": "state",
+      "label": "disarmed",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-armed",
+      "elementRef": "Beh::Flight::armed",
+      "resolved": true,
+      "elementType": "State",
+      "kind": "state",
+      "label": "armed",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-armed-compartment",
+      "elementRef": "Beh::Flight::armed",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-beh-flight-armed",
+      "lines": [
+        "entry / Takeoff"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-flying",
+      "elementRef": "Beh::Flight::flying",
+      "resolved": true,
+      "elementType": "State",
+      "kind": "state",
+      "label": "flying",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-flying-compartment",
+      "elementRef": "Beh::Flight::flying",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-beh-flight-flying",
+      "lines": [
+        "do / navigate"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-flying-initial",
+      "elementRef": "Beh::Flight::flying",
+      "resolved": true,
+      "kind": "initial",
+      "label": "",
+      "parent": "s-beh-flight-flying",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-flying-hold",
+      "elementRef": "Beh::Flight::flying::hold",
+      "resolved": true,
+      "elementType": "State",
+      "kind": "state",
+      "label": "hold",
+      "parent": "s-beh-flight-flying",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-flying-track",
+      "elementRef": "Beh::Flight::flying::track",
+      "resolved": true,
+      "elementType": "State",
+      "kind": "state",
+      "label": "track",
+      "parent": "s-beh-flight-flying",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-flying-final",
+      "elementRef": "Beh::Flight::flying",
+      "resolved": true,
+      "kind": "final",
+      "label": "",
+      "parent": "s-beh-flight-flying",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-landed",
+      "elementRef": "Beh::Flight::landed",
+      "resolved": true,
+      "elementType": "State",
+      "kind": "state",
+      "label": "landed",
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-landed-compartment",
+      "elementRef": "Beh::Flight::landed",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-beh-flight-landed",
+      "lines": [
+        "exit / Land"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-beh-flight-final",
+      "elementRef": "Beh::Flight",
+      "resolved": true,
+      "kind": "final",
+      "label": "",
+      "isAbstract": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-transition-s-beh-flight-flying-initial-s-beh-flight-flying-hold",
+      "elementRef": "Beh::Flight::flying::hold",
+      "source": "s-beh-flight-flying-initial",
+      "target": "s-beh-flight-flying-hold",
+      "kind": "transition"
+    },
+    {
+      "id": "e-transition-s-beh-flight-flying-track-s-beh-flight-flying-final",
+      "elementRef": "Beh::Flight::flying::track",
+      "source": "s-beh-flight-flying-track",
+      "target": "s-beh-flight-flying-final",
+      "kind": "transition"
+    },
+    {
+      "id": "e-transition-s-beh-flight-initial-s-beh-flight-disarmed",
+      "elementRef": "Beh::Flight::disarmed",
+      "source": "s-beh-flight-initial",
+      "target": "s-beh-flight-disarmed",
+      "kind": "transition"
+    },
+    {
+      "id": "e-transition-s-beh-flight-landed-s-beh-flight-final",
+      "elementRef": "Beh::Flight::landed",
+      "source": "s-beh-flight-landed",
+      "target": "s-beh-flight-final",
+      "kind": "transition"
+    },
+    {
+      "id": "e-transition-s-beh-flight-flying-hold-s-beh-flight-flying-track",
+      "elementRef": "Beh::Flight::flying::hold",
+      "source": "s-beh-flight-flying-hold",
+      "target": "s-beh-flight-flying-track",
+      "kind": "transition",
+      "label": "Fix"
+    },
+    {
+      "id": "e-transition-s-beh-flight-disarmed-s-beh-flight-armed",
+      "elementRef": "Beh::Flight::disarmed",
+      "source": "s-beh-flight-disarmed",
+      "target": "s-beh-flight-armed",
+      "kind": "transition",
+      "label": "Command [armed == false]"
+    },
+    {
+      "id": "e-transition-s-beh-flight-armed-s-beh-flight-flying",
+      "elementRef": "Beh::Flight::armed",
+      "source": "s-beh-flight-armed",
+      "target": "s-beh-flight-flying",
+      "kind": "transition",
+      "label": "Command [ready] / startTakeoff"
+    },
+    {
+      "id": "e-transition-s-beh-flight-flying-s-beh-flight-landed",
+      "elementRef": "Beh::Flight::flying",
+      "source": "s-beh-flight-flying",
+      "target": "s-beh-flight-landed",
+      "kind": "transition",
+      "label": "[altitude <= 0.1] / Land"
+    },
+    {
+      "id": "e-transition-s-beh-flight-flying-s-beh-flight-disarmed",
+      "elementRef": "Beh::Flight::abort",
+      "source": "s-beh-flight-flying",
+      "target": "s-beh-flight-disarmed",
+      "kind": "transition",
+      "label": "Command"
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "layered",
+    "direction": "down",
+    "hierarchical": true,
+    "portConstraints": "free",
+    "reversedKinds": []
+  },
+  "derived": true
+}

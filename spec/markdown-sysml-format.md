@@ -3218,7 +3218,7 @@ A `Diagram` file (`type: Diagram`) depicts part of the model. Its `diagramKind:`
 
 | Rendering path | How to author | Notes |
 |---|---|---|
-| **Structured SVG** (`BDD`, `IBD`, `StateMachine`, `Requirement`) | `shapes:` / `edges:` manifest plus a `layout:` block | The web server builds the SVG from the manifest; without `layout:` nothing is drawn. |
+| **Structured SVG** (`BDD`, `IBD`, `StateMachine`, `Requirement`, `Action`) | `shapes:` / `edges:` manifest plus a `layout:` block | The web server builds the SVG from the manifest; without `layout:` nothing is drawn. |
 | **PlantUML companion** (`BDD`, `IBD`, `StateMachine`, `Sequence`, `Requirement`) | `pumlMode: companion` (+ optional `pumlFile:`) and an image reference to the anticipated `.svg` in the body | `syscribe plantuml` generates the `.puml` from the manifest and the model; `syscribe plantuml render` turns it into SVG. Preferred for these kinds. |
 | **Mermaid** (`diagramKind: Mermaid`) | A fenced ` ```mermaid ` block in the body | Rendered client-side. Annotate nodes with `%% ref: <QualifiedName>` (and `%% link: <NodeId> <QualifiedName>`) so they trace to model elements. |
 | **Inline PlantUML** (`diagramKind: PlantUML`) | A fenced ` ```plantuml ` block in the body | Hand-written PlantUML source. |
@@ -3234,7 +3234,7 @@ A `Diagram` file (`type: Diagram`) depicts part of the model. Its `diagramKind:`
 
 A `shapes:` key with a null value does not select the manifest. Only kinds that build an IR (everything but `Mermaid` and `PlantUML`) have a source at all.
 
-**Derived diagrams.** A derived diagram is two lines of frontmatter — `diagramKind:` and `subject:` — and follows the model: adding a part, a port or a `supertype:` changes the picture without editing the diagram. Generators exist for `BDD` (§8.16.8.1) and `IBD` (§8.16.8.2); a derived diagram of any other kind yields an empty picture until its generator ships (`REQ-TRS-VIS-015`). Every generated shape has a **deterministic id** — `s-` followed by the depicted element's qualified name lower-cased with `::` and every other non-alphanumeric run replaced by `-` (`UAV::Power::PowerSystem::pdu` → `s-uav-power-powersystem-pdu`; a compartment is `<block id>-compartment`) — so `layout:` pins (§8.16.2) apply to a derived diagram unchanged, survive regeneration, and a renamed element merely loses its pin. `include:`/`exclude:` (§8.16.2) narrow the content; `W417`/`W418` (§8.16.7) report a filter that names nothing and a subject of the wrong type.
+**Derived diagrams.** A derived diagram is two lines of frontmatter — `diagramKind:` and `subject:` — and follows the model: adding a part, a port or a `supertype:` changes the picture without editing the diagram. Generators exist for `BDD` (§8.16.8.1), `IBD` (§8.16.8.2), `Sequence` (§8.16.8.3), `StateMachine` (§8.16.8.4), `Requirement` (§8.16.8.5), `Allocation` (§8.16.8.6) and `Action` (§8.16.8.8); a derived `UseCase` or `Custom` diagram yields an empty picture (`REQ-TRS-VIS-015`). Every generated shape has a **deterministic id** — `s-` followed by the depicted element's qualified name lower-cased with `::` and every other non-alphanumeric run replaced by `-` (`UAV::Power::PowerSystem::pdu` → `s-uav-power-powersystem-pdu`; a compartment is `<block id>-compartment`) — so `layout:` pins (§8.16.2) apply to a derived diagram unchanged, survive regeneration, and a renamed element merely loses its pin. `include:`/`exclude:` (§8.16.2) narrow the content; `W417`/`W418` (§8.16.7) report a filter that names nothing and a subject of the wrong type.
 
 The rest of this section specifies the manifest and the hand-authored SVG conventions. In the manifest the frontmatter is the canonical source of traceability and the SVG is the visual geometry, so a parser can validate the diagram from the frontmatter without touching the SVG. The SVG uses a `sysml:` XML namespace (`urn:syscribe:1.0`) on shapes for redundant inline traceability, so the SVG can be opened standalone in any viewer.
 
@@ -3255,7 +3255,7 @@ Choose **inline** when GitHub rendering is not required and keeping everything i
 |---|---|---|---|---|
 | `type` | string | **Required** | — | `Diagram` |
 | `name` | string | optional | filename stem | Display name for the diagram |
-| `diagramKind` | string | recommended | — | Diagram kind: `BDD`, `IBD`, `StateMachine`, `Sequence`, `Requirement`, `Mermaid`, `PlantUML`; `Allocation`, `UseCase` and `Custom` are accepted for hand-authored SVG (no generator). Absent → warning `W400` (suppressed when `svgMode: companion`). The field is `diagramKind`, not `kind` (an unknown `kind:` key is `W047`). |
+| `diagramKind` | string | recommended | — | Diagram kind: `BDD`, `IBD`, `StateMachine`, `Action`, `Sequence`, `Requirement`, `Mermaid`, `PlantUML`; `Allocation`, `UseCase` and `Custom` are accepted for hand-authored SVG (no generator). Absent → warning `W400` (suppressed when `svgMode: companion`). The field is `diagramKind`, not `kind` (an unknown `kind:` key is `W047`). |
 | `subject` | string | recommended | — | Qualified name of the model element this diagram depicts. An unresolved subject is warning `W401`. |
 | `svgMode` | string | optional | `inline` | Storage mode: `inline` (fenced block in body) or `companion` (separate `.svg` file) |
 | `svgFile` | string | optional | `<stem>.svg` | Companion file path relative to the `.md` file; only used when `svgMode: companion` |
@@ -3827,7 +3827,16 @@ edges:
     kind: return
 ```
 
-**Completeness rule:** the parser must warn if any `SendAction` or `AcceptAction` in the subject `ActionDef`'s sub-actions (reachable via `subActions:` or `steps:`) is absent from `edges:`.
+**Completeness rule:** the parser must warn if any `SendAction` or `AcceptAction` in the subject `ActionDef`'s sub-actions (reachable via `subActions:` or `steps:`) is absent from `edges:`. The rule applies to a manifest diagram only: a derived Sequence diagram (below) generates one edge per message itself, so `W080` is never raised on it.
+
+**Derived content** (a `subject:` and no `shapes:`, §8.16.2; `REQ-TRS-VIS-021`): for a subject that is an `ActionDef` or `Action` (or a `UseCaseDef`/`UseCase` with `actors:`), the generator produces:
+
+- one `lifeline` per participant, in first-appearance order: the subject itself first, then every element a `SendAction`'s `to:` chain or an `AcceptAction`'s/`SendAction`'s `via:` chain resolves to (a port chain resolves to the part that owns the port — an inline feature of the subject, a port element's owner, or the part in the model that owns a port of that name, a part that `performs:` the subject first; an unresolved chain becomes a lifeline labelled by the chain text, drawn dashed), then each entry of the subject's `actors:` as an `actor`;
+- one `message` edge per `SendAction` (from the subject's lifeline to the `to:`/`via:` participant, labelled `name(Payload)` from the payload's last segment and the action name) and one per `AcceptAction` (from the `via:` participant to the subject's lifeline, labelled by the payload, else the trigger), in execution order: `successionConnections:` topological order when declared (ties and unmentioned steps in declaration order), else declaration order, descending into an `IfAction`'s `then`/`else` and a `LoopAction`'s `body`;
+- one `fragment` per `IfAction` (keyword `alt`, labelled by its condition) and `LoopAction` (keyword `loop`, labelled by its condition — `for v in s` for the `for` form), spanning the messages it contains;
+- one `activation` on the subject's lifeline spanning its messages.
+
+Because a sequence diagram's geometry is fixed by its order, the generator places every node itself — lifelines left to right at a fixed pitch (200 px, headers 120 × 40, an actor 120 × 56), messages top to bottom in order at a fixed pitch (48 px) below the headers, fragments around their span, the activation around the subject's messages — as pins, and gives every message edge its two horizontal waypoints (source stem to target stem at the message's row), so every renderer draws the diagram with the `fixed` algorithm and no layout-engine run. Shape ids are `derived_shape_id("<subject>::<participant|action>")` (the subject's own lifeline is `derived_shape_id("<subject>")`, its activation that id suffixed `-activation`; a message edge is the action's id with an `e-` prefix). `include:`/`exclude:` name participants by qualified name or short name (never the subject); a subject of another type is `W418`. Return, create and destroy messages are not generated (no model field declares them), and a nested `PerformAction` is a step in the order but is not expanded into its definition's messages.
 
 ---
 
@@ -3835,7 +3844,7 @@ edges:
 
 A StateMachine diagram shows the states and transitions of a `StateDef`. Initial and final pseudostates, choice pseudostates, and history pseudostates are first-class shape kinds.
 
-**Valid `subject:` types:** `StateDef`
+**Valid `subject:` types:** `StateDef`; a `State` or `ExhibitState` usage is accepted for a derived diagram and reads the `StateDef` it is typed by.
 
 **Shape kinds:**
 
@@ -3896,13 +3905,22 @@ edges:
 
 **Completeness rule:** the parser must warn if any sub-state listed in the subject `StateDef`'s `subStates:` field is absent from `shapes:`, and if any transition listed in `transitions:` is absent from `edges:`.
 
+**Derived content** (`REQ-TRS-VIS-018`): a StateMachine with a `subject:` and no `shapes:` is generated from the model. The subject is a `StateDef`, or a `State`/`ExhibitState` usage (the generator reads the `StateDef` it is typed by); anything else is `W418`. The generator produces:
+
+- one `state` per `subStates:` entry (§8.8.2), labelled by its `name`, with compartment lines `entry / <action>`, `do / <action>` and `exit / <action>` for `entryAction`/`doAction`/`exitAction` (string form: the last `::` segment; map form: its `name`, else the last segment of its `typedBy`); a substate whose `typedBy:` resolves to a `StateDef` with its own `subStates:` becomes a container holding that machine's states, one level deep;
+- one `initial` pseudostate per region with a `transition` edge to each `isInitial: true` state, and one `final` node that every `isFinal: true` state transitions to (a region without an initial or final state has no such node);
+- one `transition` edge per transition in either placement (§8.8.3) — nested under a substate, or top-level with `source:`; the deprecated `from`/`to`/`trigger` aliases are read like the canonical keys, exactly as the `W075` extractor does — labelled `<accept> [<guard>] / <effect>` with the absent parts omitted: `accept` is the payload's last segment (or `after <expr>`/`when <expr>`/`at <expr>` for a time or change trigger), `effect` is the effect's `name` or the last segment of its `typedBy`;
+- an edge only when both endpoint states are nodes of the diagram; a transition with a missing endpoint produces no edge and is left to `W929`.
+
+Shape ids are `s-` plus `<subject>::<stateName>` in the deterministic form of §8.16.1 (a nested state is `<subject>::<container>::<stateName>`; a compartment is `<state id>-compartment`); the pseudostates are `<subject id>-initial` and `<subject id>-final` (a nested region's are `<container id>-initial`/`-final`). `include:`/`exclude:` name top-level substates by `name` or `<subject>::<name>`. Parallel regions (`isParallel: true`) are drawn as sibling containers when the substates are themselves typed machines; orthogonal-region dividers, history and choice pseudostates are not generated. Layout hints are layered, top-to-bottom, hierarchical.
+
 ---
 
 ##### 8.16.8.5 Requirement
 
 A Requirement diagram shows requirements and their inter-relationships within a package or rooted at a `RequirementDef`. All relationship edges are dashed with `«keyword»` labels following SysML requirement relationship notation.
 
-**Valid `subject:` types:** `Package`, `RequirementDef`
+**Valid `subject:` types:** `Package`, `RequirementDef`, `Requirement`
 
 **Shape kinds:**
 
@@ -3967,13 +3985,22 @@ edges:
 
 **Completeness rule:** the parser must warn if any `Requirement` owned by the subject package or sub-`RequirementDef` is absent from `shapes:`, and if any `satisfies:`, `verifies:`, or `derivedFrom:` link declared in any requirement's `.md` file within the subject scope is absent from `edges:`.
 
+**Derived content** (`REQ-TRS-VIS-020`): a Requirement diagram with a `subject:` and no `shapes:` is generated from the model. The subject is a `Package` (`LibraryPackage` and `Namespace` count as packages), a `RequirementDef` or a `Requirement`; anything else is `W418`. The generator produces:
+
+- one `requirement` node per native `Requirement`, SysML `RequirementDef` or `Requirement` whose qualified name is the subject or lies under it at any depth, carrying the SysMLv2 stereotype (`requirement`, `requirement def`) and labelled by its `name` (else its stable `id`, else its short name), with a `compartment` child listing `id = <stable id>` and `status = <status>` when present (no compartment when neither is);
+- a `derive` edge from each requirement to each `derivedFrom:` target on the diagram (named by stable id or qualified name) and a `refine` edge for each `refines:` target;
+- a `satisfy` edge from a `block` context node — the satisfying architecture element, drawn with its real type's stereotype (`part def`, `part`, …) — to the requirement, for every element in the model whose `satisfies:` names a requirement on the diagram; and a `verify` edge from a `testcase` context node for every `TestCase` whose `verifies:` names one. A context node appears only when at least one such edge reaches a requirement on the diagram; a requirement on the diagram that itself `satisfies:` another draws the `satisfy` edge from its own node;
+- a `containment` edge from a `RequirementDef` to each requirement it owns (a direct member by qualified name), when both are on the diagram.
+
+`include:`/`exclude:` apply to requirements and to context nodes alike, each entry naming an element by qualified name, stable id or short name. Edges carry no label of their own — the `«deriveReqt»`/`«satisfy»`/`«verify»`/`«refine»` keyword is the edge kind's notation (§8.16.8 tables). Shape ids are the deterministic ids of the depicted elements' qualified names (a compartment is `<requirement id>-compartment`); edge ids are `e-<kind>-<source id>-<target id>`. Layout hints are layered, top-to-bottom, with `derive`, `satisfy`, `verify` and `refine` edges oriented so a parent requirement sits above what derives from, satisfies or verifies it. Suspect-link state (`W090`) and status colours are not drawn.
+
 ---
 
 ##### 8.16.8.6 Allocation
 
 An Allocation diagram shows `«allocate»` relationships between logical/functional elements and physical/hardware elements. The diagram is conventionally divided into two swim lanes — one for logical elements and one for physical elements.
 
-**Valid `subject:` types:** `Package`, `AllocationDef`
+**Valid `subject:` types:** `Package`, `AllocationDef`, `Allocation`
 
 **Shape kinds:**
 
@@ -4032,6 +4059,13 @@ edges:
 ```
 
 **Completeness rule:** the parser must warn if any `allocatedFrom`/`allocatedTo` pair declared in any `Allocation` or `AllocationDef` within the subject package is absent from `edges:`.
+
+**Derived content** (`REQ-TRS-VIS-022`): an Allocation diagram with a `subject:` and no `shapes:` is generated from the model. The subject is a `Package` (`LibraryPackage` and `Namespace` count as packages), an `AllocationDef` or an `Allocation`; anything else is `W418`. The generator collects every allocation pair declared by the subject or by any element under it (any depth): an `Allocation` element's top-level `allocatedFrom:`/`allocatedTo:` (the usage name being the element's `name`), each `features:` entry of `type: Allocation` carrying those two fields, each `allocations:` entry of an `AllocationDef` (`allocatedFrom`/`allocatedTo`, or the bulk `from`/`to` spelling, accepted on any element under the subject), and each `allocatedTo:` on a `Part`/`PartDef`/`Action`/`ActionDef` (its source being the element itself, with no usage name). It produces:
+
+- two `swimlane` nodes, `logical` and `physical`, labelled *Logical* and *Physical* and referencing the subject, containing one `block` per distinct source element and per distinct target element respectively, each drawn with its real type's stereotype (`action def`, `part def`, `requirement`, …); an end that does not resolve becomes a dashed (unresolved) block labelled by the reference text as written. An element that is both a source and a target is drawn once in each lane;
+- one `allocation` edge per pair from the source block to the target block, labelled by the allocation usage's `name` when present, with the `«allocate»` keyword as the edge kind's notation; the edge references the element that declares the pair.
+
+`include:`/`exclude:` apply to the end elements, each entry naming one by qualified name, stable id or short name (an unresolved end by its reference text); an edge is drawn only when both of its ends are kept. Shape ids are the deterministic ids of the end elements' qualified names (the reference text for an unresolved end); an element drawn in both lanes keeps the plain id in the logical lane and takes `-physical` in the physical lane. The lanes are `<subject id>-logical` and `<subject id>-physical`; edge ids are `e-allocation-<source id>-<target id>` with `-<usage name>` appended when the pair is named. Layout hints are layered, left-to-right, with hierarchy handling including children so the lanes are laid out around their blocks. Allocation of requirements (`RequirementAllocation`) is included on the same terms when its ends resolve.
 
 ---
 
@@ -4095,6 +4129,94 @@ edges:
 ```
 
 **Completeness rule:** the parser must warn if any `UseCase` owned by the subject, or any actor association, `includes:`, or `extends:` link declared in any use case's `.md` file within the subject scope, is absent from `shapes:` or `edges:`.
+
+---
+
+##### 8.16.8.8 Action
+
+An Action diagram (SysMLv2's action definition diagram, `REQ-TRS-VIS-019`) shows the action flow of an `ActionDef`: its sub-action steps, the control nodes that split, join, branch and merge the flow, and the successions and item flows between them. Conditionals (`IfAction`) are drawn as a decision diamond whose branches rejoin at a merge; loops (`LoopAction`) as a container holding their body.
+
+**Valid `subject:` types:** `ActionDef`, `Action` (an `Action` usage reads the `ActionDef` it is typed by)
+
+**Shape kinds:**
+
+| `kind` value | Description | SVG primitive | CSS class | Symbol |
+|---|---|---|---|---|
+| `action` | A step — rounded rectangle with the step's name and a `«kind»` stereotype (`action`, `perform`, `send`, `accept`, `assign`, `terminate`, `loop`); may contain a compartment and, for a loop, nested steps | `<rect rx="8">` | `action` | `#sym-action` |
+| `compartment` | The step's `typedBy`, `payload`, `via`/`to` lines, drawn inside its `action`; `parent` is the step | `<rect>` + `<line>` divider | `compartment` | — |
+| `fork` | Fork control node — thick horizontal bar | `<rect class="fork">` (60×6) | `fork` | `#sym-fork` |
+| `join` | Join control node — thick horizontal bar | `<rect class="join">` (60×6) | `join` | `#sym-join` |
+| `decision` | Decision node — diamond; its label (the condition) sits beside it | `<path>` (28×28 diamond) | `decision` | `#sym-decision` |
+| `merge` | Merge node — diamond | `<path>` (28×28 diamond) | `merge` | `#sym-merge` |
+| `initial` | Initial node — filled circle | `<circle class="initial">` (20×20) | `initial` | `#sym-initial` |
+| `final` | Final node — bullseye | `<circle class="final-outer">` + `<circle class="final-inner">` (20×20) | `final` | `#sym-final` |
+| `note` | A comment annotation box | `<rect class="note">` + fold line | `note` | `#sym-note` |
+
+**Edge kinds:**
+
+| `kind` value | Description | SVG primitive | CSS class | Arrowhead |
+|---|---|---|---|---|
+| `succession` | Control succession (`first a then b`) — solid arrow, labelled by its guard (`[guard]`) or branch (`[then]`/`[else]`) when present | `<path>` | `edge succession` | `url(#arrow-filled)` |
+| `flow` | Item flow between steps (`flowConnections:`) — solid arrow, labelled by the flow's name or type | `<path>` | `edge flow` | `url(#arrow-filled)` |
+
+**SVG body notes:** steps use `<rect>` with `rx="8"`; a loop step encloses its body steps; the fork and join bars are filled `<rect>` elements with no outline; decision and merge diamonds are closed `<path>` elements, a decision's condition rendered as `<text>` to the right of the diamond; initial and final nodes are drawn as in a StateMachine; succession labels are `<text>` elements near the midpoint of the path.
+
+**Minimal YAML manifest example:**
+
+```yaml
+type: Diagram
+diagramKind: Action
+name: ProvidePowerFlow
+subject: VehicleBehavior::ProvidePower
+shapes:
+  start:
+    ref: VehicleBehavior::ProvidePower
+    kind: initial
+  start-engine:
+    ref: VehicleBehavior::ProvidePower::startEngine
+    kind: action
+  fuel-check:
+    ref: VehicleBehavior::ProvidePower::checkFuel
+    kind: decision
+    label: "fuel.level > 0"
+  regulate:
+    ref: VehicleBehavior::ProvidePower::regulatePower
+    kind: action
+  done:
+    ref: VehicleBehavior::ProvidePower
+    kind: final
+edges:
+  s1:
+    source: start
+    target: start-engine
+    kind: succession
+  s2:
+    source: start-engine
+    target: fuel-check
+    kind: succession
+  s3:
+    source: fuel-check
+    target: regulate
+    kind: succession
+    label: "[then]"
+  s4:
+    source: regulate
+    target: done
+    kind: succession
+```
+
+**Completeness rule:** the parser must warn if any `subActions:` or `controlNodes:` entry of the subject `ActionDef` is absent from `shapes:`, or any `successionConnections:` entry is absent from `edges:`.
+
+**Derived content** (`REQ-TRS-VIS-019`): an Action diagram with a `subject:` and no `shapes:` is generated from the model. The subject is an `ActionDef` or an `Action` usage (the generator reads its `ActionDef`); anything else is `W418`. The generator produces:
+
+- one `action` per `subActions:` entry (§8.7.3), labelled by `name`, stereotyped by its kind (`action`, `perform`, `send`, `accept`, `assign`, `terminate`) with a compartment line for `typedBy` (`: <last segment>`), `payload` (`send <Item>`/`accept <Item>`), a time/change `trigger` (`after …`/`at …`/`when …`) and the `via`/`to` chains;
+- an `IfAction` as a `decision` labelled by its `condition`, its `then`/`else` sub-actions as nodes, `succession` edges from the decision to the first action of each branch labelled `[then]`/`[else]` (an empty or absent branch succeeds straight to the merge), successions along each branch in order, and a `merge` that the last action of each branch succeeds to;
+- a `LoopAction` as a container `action` stereotyped `loop`, labelled by its `name` and condition (`name [while c]`, `name [until c]`, `name [for v in seq]`), holding its `body` sub-actions with successions in body order;
+- one `fork`/`join`/`decision`/`merge` per `controlNodes:` entry (and per `subActions` entry of those kinds), labelled by its name;
+- one `succession` edge per `successionConnections:` entry (`after` → `before`, labelled `[guard]` when a guard is present; an endpoint naming an `IfAction` enters at its decision and leaves from its merge), and one `flow` edge per `flowConnections:` entry (a dotted pin chain such as `takeoff.alt` names the step);
+- an `initial` node with a succession to every top-level step that has no incoming succession, and a `final` node reached from every top-level step with no outgoing one, only when the subject declares at least one succession (otherwise the steps are drawn unordered).
+
+Shape ids are `s-` plus `<subject>::<stepName>` in the deterministic form of §8.16.1, nested branch and body names included in the path (`<subject>::checkWeather::abortMission`); the merge an `IfAction` closes with is `<subject>::<ifName>::merge`, a compartment is `<step id>-compartment`, and the initial and final nodes are `<subject id>-initial`/`-final`. `include:`/`exclude:` name top-level steps and control nodes by `name` or `<subject>::<name>`. Parameter pins and object-flow items are rendered as compartment text, not as separate nodes. Layout hints are layered, top-to-bottom, hierarchical.
 
 ---
 

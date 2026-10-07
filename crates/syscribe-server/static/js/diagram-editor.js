@@ -112730,6 +112730,9 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
   function isContainerKind(kind) {
     return kind === "boundary" || kind === "system-boundary" || kind === "swimlane" || kind === "fragment";
   }
+  function isGlyphKind(kind) {
+    return kind === "initial" || kind === "final" || kind === "fork" || kind === "join" || kind === "decision" || kind === "merge";
+  }
   function defaultSize(kind) {
     switch (kind) {
       case "port":
@@ -112947,6 +112950,10 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       if (hierarchy) {
         opts["elk.hierarchyHandling"] = hierarchy;
       }
+      const cycleBreaking = str("elk.layered.cycleBreaking.strategy");
+      if (cycleBreaking) {
+        opts["elk.layered.cycleBreaking.strategy"] = cycleBreaking;
+      }
       if (this.state.anyPinned && !this.state.allPinned) {
         Object.assign(opts, INTERACTIVE_OPTIONS);
       }
@@ -112966,11 +112973,16 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       const opts = {
         "elk.nodeSize.constraints": server && !compound ? "PORTS MINIMUM_SIZE" : "NODE_LABELS PORTS PORT_LABELS MINIMUM_SIZE",
         "elk.nodeSize.minimum": `(${minW}, ${minH})`,
-        "elk.nodeLabels.placement": container ? "[H_LEFT, V_TOP, INSIDE]" : "[H_CENTER, V_TOP, INSIDE]",
+        "elk.nodeLabels.placement": isGlyphKind(node.kind) ? "[H_RIGHT, V_CENTER, OUTSIDE]" : container ? "[H_LEFT, V_TOP, INSIDE]" : "[H_CENTER, V_TOP, INSIDE]",
         "elk.nodeLabels.padding": "[top=4,left=8,bottom=4,right=8]",
         "elk.portLabels.placement": "OUTSIDE",
         "elk.portConstraints": anySide ? "FIXED_SIDE" : "FREE"
       };
+      if (node.kind === "initial") {
+        opts["elk.layered.layering.layerConstraint"] = "FIRST";
+      } else if (node.kind === "final") {
+        opts["elk.layered.layering.layerConstraint"] = "LAST";
+      }
       if (compound) {
         const p3 = COMPOUND_PADDING;
         opts["elk.padding"] = `[top=${p3},left=${p3},bottom=${p3},right=${p3}]`;
@@ -113029,7 +113041,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
     dist.sort((a3, b3) => a3.d - b3.d);
     return dist[0].side;
   }
-  function placeLabelsFixed(root) {
+  function placeLabelsFixed(root, seq) {
+    const messages = seq.messages;
     const centres = /* @__PURE__ */ new Map();
     for (const { node, ax, ay } of walkElkNodes(root)) {
       centres.set(node.id, { x: ax + (node.width ?? 0) / 2, y: ay + (node.height ?? 0) / 2 });
@@ -113038,7 +113051,21 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       }
     }
     for (const { edge } of walkElkEdges(root)) {
+      const labels = edge.labels ?? [];
+      const stack = labels.reduce((h3, l3) => h3 + (l3.height ?? 0) + 1, 0);
+      const stackAbove = (m3) => {
+        let y3 = m3.y - stack - 3;
+        for (const l3 of labels) {
+          l3.x = m3.x - (l3.width ?? 0) / 2;
+          l3.y = y3;
+          y3 += (l3.height ?? 0) + 1;
+        }
+      };
       if (edge.sections && edge.sections.length > 0) {
+        if (messages.has(edge.id)) {
+          const s3 = edge.sections[0];
+          stackAbove(polylineMidpoint([s3.startPoint, ...s3.bendPoints ?? [], s3.endPoint]));
+        }
         continue;
       }
       const a3 = centres.get(edge.sources[0]);
@@ -113046,24 +113073,18 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       if (!a3 || !b3) {
         continue;
       }
-      const labels = edge.labels ?? [];
-      const stack = labels.reduce((h3, l3) => h3 + (l3.height ?? 0) + 1, 0);
-      let y3 = (a3.y + b3.y) / 2 - stack - 3;
-      for (const l3 of labels) {
-        l3.x = (a3.x + b3.x) / 2 - (l3.width ?? 0) / 2;
-        l3.y = y3;
-        y3 += (l3.height ?? 0) + 1;
-      }
+      stackAbove({ x: (a3.x + b3.x) / 2, y: (a3.y + b3.y) / 2 });
     }
     for (const { node } of walkElkNodes(root)) {
       if (node === root) {
         continue;
       }
       const compound = (node.children ?? []).length > 0;
+      const topLeft = compound || seq.fragments.has(node.id);
       let y3 = 4;
       for (const l3 of node.labels ?? []) {
         const lw = l3.width ?? 0;
-        l3.x = compound ? 8 : Math.max(0, ((node.width ?? 0) - lw) / 2);
+        l3.x = topLeft ? 8 : Math.max(0, ((node.width ?? 0) - lw) / 2);
         l3.y = y3;
         y3 += (l3.height ?? 0) + 1;
       }
@@ -113093,6 +113114,41 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         }
       }
     }
+  }
+  function polylineMidpoint(pts) {
+    const len = (a3, b3) => Math.hypot(b3.x - a3.x, b3.y - a3.y);
+    let total = 0;
+    for (let i2 = 1; i2 < pts.length; i2++) {
+      total += len(pts[i2 - 1], pts[i2]);
+    }
+    let remaining = total / 2;
+    for (let i2 = 1; i2 < pts.length; i2++) {
+      const l3 = len(pts[i2 - 1], pts[i2]);
+      if (l3 >= remaining || l3 === 0) {
+        const f3 = l3 === 0 ? 0 : remaining / l3;
+        return { x: pts[i2 - 1].x + (pts[i2].x - pts[i2 - 1].x) * f3, y: pts[i2 - 1].y + (pts[i2].y - pts[i2 - 1].y) * f3 };
+      }
+      remaining -= l3;
+    }
+    return pts[pts.length - 1] ?? { x: 0, y: 0 };
+  }
+  function sequenceIds(graph) {
+    const messages = /* @__PURE__ */ new Set();
+    const fragments = /* @__PURE__ */ new Set();
+    const walk = (parent) => {
+      for (const c3 of parent.children ?? []) {
+        if (c3.type === "edge" && (c3.kind === "message" || c3.kind === "return")) {
+          messages.add(c3.id);
+        } else if (c3.type === "node") {
+          if (c3.kind === "fragment") {
+            fragments.add(c3.id);
+          }
+          walk(c3);
+        }
+      }
+    };
+    walk(graph);
+    return { messages, fragments };
   }
   function* walkElkEdges(node) {
     for (const e2 of node.edges ?? []) {
@@ -113138,7 +113194,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         edge.labels?.forEach(stamp);
       }
     }
-    postprocess(elkGraph, _sgraph, _index) {
+    postprocess(elkGraph, sgraph, _index) {
       const offsets = /* @__PURE__ */ new Map();
       for (const { node, ax, ay } of walkElkNodes(elkGraph)) {
         offsets.set(node.id, { x: ax, y: ay });
@@ -113169,7 +113225,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         }
       }
       if (this.state.allPinned) {
-        placeLabelsFixed(elkGraph);
+        placeLabelsFixed(elkGraph, sequenceIds(sgraph));
       }
     }
   };
@@ -115004,6 +115060,37 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     }
     return vnode;
   }
+  function glyphShape(kind, width, height, style, selected) {
+    const cx = width / 2;
+    const cy = height / 2;
+    const outline = selected ? "#1d4ed8" : style.stroke;
+    switch (kind) {
+      case "initial": {
+        const r3 = Math.min(width, height) / 2;
+        return /* @__PURE__ */ (0, import_sprotty.svg)("circle", { cx, cy, r: r3, fill: "#222", stroke: outline, "stroke-width": selected ? 2.5 : 0 });
+      }
+      case "final": {
+        const r3 = Math.min(width, height) / 2;
+        return /* @__PURE__ */ (0, import_sprotty.svg)("g", null, /* @__PURE__ */ (0, import_sprotty.svg)("circle", { cx, cy, r: r3, fill: "#fff", stroke: outline, "stroke-width": selected ? 2.5 : 1.2 }), /* @__PURE__ */ (0, import_sprotty.svg)("circle", { cx, cy, r: r3 * 0.6, fill: "#222" }));
+      }
+      case "fork":
+      case "join":
+        return /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 0, y: 0, width, height, rx: 2, fill: style.fill, stroke: outline, "stroke-width": selected ? 1.5 : 0 });
+      case "decision":
+      case "merge":
+        return /* @__PURE__ */ (0, import_sprotty.svg)(
+          "path",
+          {
+            d: `M ${cx},0 L ${width},${cy} L ${cx},${height} L 0,${cy} z`,
+            fill: style.fill,
+            stroke: outline,
+            "stroke-width": selected ? 2.5 : 1.4
+          }
+        );
+      default:
+        return void 0;
+    }
+  }
   function labelStackHeight(node) {
     let bottom = 0;
     for (const c3 of node.children) {
@@ -115012,6 +115099,37 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       }
     }
     return bottom;
+  }
+  function labelStackRight(node) {
+    let right = 0;
+    for (const c3 of node.children) {
+      if (c3 instanceof import_sprotty.SLabelImpl) {
+        right = Math.max(right, c3.bounds.x + c3.bounds.width);
+      }
+    }
+    return right;
+  }
+  function diagramBottom(node) {
+    let bottom = 0;
+    const walk = (parent, ay) => {
+      for (const c3 of parent.children) {
+        if (c3 instanceof import_sprotty.SNodeImpl) {
+          const y3 = ay + c3.bounds.y;
+          bottom = Math.max(bottom, y3 + c3.bounds.height);
+          walk(c3, y3);
+        }
+      }
+    };
+    walk(node.root, 0);
+    return bottom;
+  }
+  function stickFigure(cx, top, style, dashed) {
+    const headR = 5;
+    const hy = top + headR;
+    const by = top + 2 * headR;
+    const ly = by + 12;
+    const d3 = `M ${cx},${by} L ${cx},${ly} M ${cx - 9},${by + 4} L ${cx + 9},${by + 4} M ${cx},${ly} L ${cx - 7},${ly + 10} M ${cx},${ly} L ${cx + 7},${ly + 10}`;
+    return /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-sysml-actor-figure": true }, /* @__PURE__ */ (0, import_sprotty.svg)("circle", { cx, cy: hy, r: headR, fill: style.fill, stroke: style.stroke, "stroke-width": 1.4, "stroke-dasharray": dashed ? "3,2" : void 0 }), /* @__PURE__ */ (0, import_sprotty.svg)("path", { d: d3, fill: "none", stroke: style.stroke, "stroke-width": 1.4, "stroke-dasharray": dashed ? "3,2" : void 0 }));
   }
   var SysmlNodeView = class extends import_sprotty.ShapeView {
     render(node, context, _args) {
@@ -115029,6 +115147,31 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       const outlineWidth = selected ? 2.5 : container ? 1.2 : 1.5;
       const outlineColor = selected ? "#1d4ed8" : style.stroke;
       const header = style.headerFill && !container ? labelStackHeight(n) + 4 : 0;
+      const glyph = glyphShape(n.kind, width, height, style, selected);
+      if (glyph) {
+        const gnode = /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-sysml-node": true, "class-selected": selected, "class-unresolved": unresolved, "data-sysml-ref": n.ref }, glyph, context.renderChildren(node));
+        return addClasses(gnode, [`kind-${n.kind}`, n.elementType ?? ""]);
+      }
+      if (n.kind === "lifeline" || n.kind === "actor") {
+        const carried = n.serverSize;
+        const headerW = carried?.width ?? width;
+        const headerH = carried?.height ?? height;
+        const cx = headerW / 2;
+        const stemEnd = diagramBottom(n) - n.bounds.y + 12;
+        const seq = /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-sysml-node": true, "class-selected": selected, "class-unresolved": unresolved, "data-sysml-ref": n.ref }, n.kind === "lifeline" ? /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 0, y: 0, width: headerW, height: headerH, fill: style.fill, stroke: outlineColor, "stroke-width": outlineWidth, "stroke-dasharray": dashed ? "6,3" : void 0 }) : stickFigure(cx, labelStackHeight(n) + 2, style, dashed), stemEnd > headerH && /* @__PURE__ */ (0, import_sprotty.svg)("line", { x1: cx, y1: headerH, x2: cx, y2: stemEnd, stroke: outlineColor, "stroke-width": 1.2, "stroke-dasharray": "6,4" }), context.renderChildren(node));
+        return addClasses(seq, [`kind-${n.kind}`, n.elementType ?? ""]);
+      }
+      if (n.kind === "activation") {
+        const seq = /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-sysml-node": true, "class-selected": selected, "data-sysml-ref": n.ref }, /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 0, y: 0, width, height, fill: style.fill, stroke: outlineColor, "stroke-width": selected ? 2 : 1.2 }));
+        return addClasses(seq, [`kind-${n.kind}`]);
+      }
+      if (n.kind === "fragment") {
+        const tw = Math.min(width, labelStackRight(n) + 8);
+        const th = Math.min(height, labelStackHeight(n) + 4);
+        const seq = /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-sysml-node": true, "class-selected": selected, "class-unresolved": unresolved, "data-sysml-ref": n.ref }, /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 0, y: 0, width, height, fill: "none", stroke: outlineColor, "stroke-width": outlineWidth, "stroke-dasharray": dashed ? "6,3" : void 0 }), th > 0 && /* @__PURE__ */ (0, import_sprotty.svg)("path", { d: `M 0,0 L ${tw},0 L ${tw},${th - 6} L ${tw - 6},${th} L 0,${th} z`, fill: style.fill, stroke: outlineColor, "stroke-width": 1.2 }), context.renderChildren(node));
+        return addClasses(seq, [`kind-${n.kind}`]);
+      }
+      const rounded = container || n.kind === "state" || n.kind === "action";
       const vnode = /* @__PURE__ */ (0, import_sprotty.svg)(
         "g",
         {
@@ -115045,7 +115188,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
             y: 0,
             width,
             height,
-            rx: container ? 8 : 4,
+            rx: rounded ? 8 : 4,
             fill: style.fill,
             stroke: outlineColor,
             "stroke-width": outlineWidth,
@@ -115175,11 +115318,22 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   };
   var SysmlEdgeView = class extends import_sprotty.PolylineEdgeView {
     render(edge, context, args) {
-      const vnode = super.render(edge, context, args);
+      const e2 = edge;
+      const pts = edge.routingPoints;
+      let vnode;
+      if ((e2.kind === "message" || e2.kind === "return") && pts.length >= 2) {
+        const route = pts.map((p3, i2) => ({
+          kind: i2 === 0 ? "source" : i2 === pts.length - 1 ? "target" : "linear",
+          x: p3.x,
+          y: p3.y
+        }));
+        vnode = /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-sprotty-edge": true, "class-mouseover": edge.hoverFeedback }, this.renderLine(edge, route, context, args), this.renderAdditionals(edge, route, context), context.renderChildren(edge, { route }));
+      } else {
+        vnode = super.render(edge, context, args);
+      }
       if (!vnode) {
         return vnode;
       }
-      const e2 = edge;
       vnode.data = vnode.data ?? {};
       vnode.data.attrs = {
         ...vnode.data.attrs ?? {},

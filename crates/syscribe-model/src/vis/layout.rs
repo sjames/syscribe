@@ -261,9 +261,27 @@ impl Builder<'_> {
         }
         opts.insert(
             "elk.nodeLabels.placement".into(),
-            json!(if container { "[H_LEFT, V_TOP, INSIDE]" } else { "[H_CENTER, V_TOP, INSIDE]" }),
+            json!(if super::size::glyph_size(node.kind).is_some() {
+                // A fork/join bar or decision/merge diamond shows its label beside the glyph (`layout.ts` `isGlyphKind`).
+                "[H_RIGHT, V_CENTER, OUTSIDE]"
+            } else if container {
+                "[H_LEFT, V_TOP, INSIDE]"
+            } else {
+                "[H_CENTER, V_TOP, INSIDE]"
+            }),
         );
         opts.insert("elk.nodeLabels.padding".into(), json!("[top=4,left=8,bottom=4,right=8]"));
+        // An initial node opens its region and a final one closes it, whatever
+        // the cycle breaker makes of the transitions between (`layout.ts`).
+        match node.kind {
+            NodeKind::Initial => {
+                opts.insert("elk.layered.layering.layerConstraint".into(), json!("FIRST"));
+            }
+            NodeKind::Final => {
+                opts.insert("elk.layered.layering.layerConstraint".into(), json!("LAST"));
+            }
+            _ => {}
+        }
         opts.insert("elk.portLabels.placement".into(), json!("OUTSIDE"));
         opts.insert("elk.portConstraints".into(), json!(if any_side { "FIXED_SIDE" } else { "FREE" }));
         if compound {
@@ -324,7 +342,7 @@ impl Builder<'_> {
 
 /// Build the ELK JSON for `graph` with `sizes`, as the client would.
 pub fn elk_input(graph: &DiagramGraph, sizes: &Sizes) -> ElkInput {
-    let opts = LayoutOptions::from_hints(&graph.layout_hints);
+    let opts = LayoutOptions::for_graph(graph);
     let node_ids: Vec<&str> = graph.nodes.iter().filter(|n| sprotty_type(n.kind) == TYPE_NODE).map(|n| n.id.as_str()).collect();
     let pinned = |id: &str| graph.node(id).map(|n| n.pin.is_some()).unwrap_or(false);
     let any_pinned = node_ids.iter().any(|id| pinned(id));
@@ -345,6 +363,9 @@ pub fn elk_input(graph: &DiagramGraph, sizes: &Sizes) -> ElkInput {
     graph_opts.insert("elk.padding".into(), json!("[top=20,left=20,bottom=20,right=20]"));
     if let Some(h) = opts.hierarchy_handling {
         graph_opts.insert("elk.hierarchyHandling".into(), json!(h));
+    }
+    if let Some(c) = opts.cycle_breaking {
+        graph_opts.insert("elk.layered.cycleBreaking.strategy".into(), json!(c));
     }
     if any_pinned && !all_pinned {
         interactive_options(&mut graph_opts);
