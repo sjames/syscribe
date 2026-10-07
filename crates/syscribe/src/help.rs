@@ -57,6 +57,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
         "Traceability & coverage",
         &[
             ("trace", include_str!("../../../prompts/help/trace.md")),
+            ("trace-export", include_str!("../../../prompts/help/trace-export.md")),
             ("why", include_str!("../../../prompts/help/why.md")),
             ("who-verifies", include_str!("../../../prompts/help/who-verifies.md")),
             ("links", include_str!("../../../prompts/help/links.md")),

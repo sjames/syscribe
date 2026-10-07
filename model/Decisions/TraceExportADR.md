@@ -2,7 +2,7 @@
 type: ADR
 id: ADR-SYS-TREX-001
 name: "Traceability export: one read-only JSON document of the whole requirement trace graph, projected by configuration, with a stable sort"
-status: proposed
+status: accepted
 tags:
   - traceability
   - export

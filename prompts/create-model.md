@@ -111,6 +111,7 @@ Use these commands throughout the workflow. Run them in the project root.
 | Command | Purpose |
 |---|---|
 | `syscribe -m model/ trace <qname\|req-id>` | Full traceability slice for a requirement |
+| `syscribe -m model/ trace-export [--config <C>] [--sort directory\|asc\|desc] [--out <f>]` | One JSON document of every requirement's trace (derivedFrom/children, breakdownAdr, satisfiedBy, verifiedBy, refinedBy, coverage) for CI coverage checks; MCP `trace_export` |
 | `syscribe -m model/ why <qname>` | What requirements this element satisfies |
 | `syscribe -m model/ who-verifies <req-id>` | Which test cases cover a requirement |
 | `syscribe -m model/ suspect list` / `suspect accept <src> <tgt>` | Suspect links: trace links whose target changed since review (W090). `accept` writes the reviewed hash into the source's `traceBaselines:` — never hand-edit that map |

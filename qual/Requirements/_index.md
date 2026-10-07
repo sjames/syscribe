@@ -28,6 +28,7 @@ Normative requirements for the Syscribe tool. Grouped by functional area:
 | `REQ-TRS-TAG` | Generic tag filtering (orthogonal to variability) |
 | `REQ-TRS-CFLD` | User-defined `custom_fields:` frontmatter: shape validation (`W041`), the `--where` query predicate, and read-only CLI/web rendering (GH #39) |
 | `REQ-TRS-OUT` | Output and reporting |
+| `REQ-TRS-TREX` | Single-document traceability export: the `trace-export` command and `trace_export` MCP tool — schema with full qualified names and a coverage block, `--config` projection, `--sort` orders (`ADR-SYS-TREX-001`) |
 | `REQ-TRS-SEARCH` | Full-text retrieval and text analysis over normative text — BM25 ranked search, TF-IDF per-package keywords (`topics`), TF-IDF cosine clustering (`clusters`) |
 | `REQ-TRS-CLI` | CLI interface |
 | `REQ-TRS-SM` | SysMLv2-faithful state machines: one canonical transition schema (`source`/`target`/`accept`/`guard`/`effect`), legacy `from`/`to`/`trigger` deprecation (`W075`), and hierarchy/region-aware completeness (`W070`–`W079`, §8.8/§22.1; GH #68) |

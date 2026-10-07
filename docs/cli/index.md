@@ -44,7 +44,7 @@ syscribe <command> --help  # the same page, e.g. `syscribe validate --help` (als
 
 **Command routing.** The top-level command line is parsed by a clap router whose subcommand registry is derived from the man-page list, so an **unknown command is rejected** with a clear error and a **non-zero** exit (`error: unrecognized subcommand '<name>'`), independent of whether a model directory is present. Each command's own flags are passed through to it unchanged.
 
-**Usage errors.** Invalid input is never silently replaced by a default. An option value outside its documented set (`impact --direction sideways`, `--format xml` on `impact`/`n2`/`behavioral-coverage`/`sbom`/`build-config`), a non-integer count (`n2 --depth abc`, `digest --limit x`, …), or an unknown option on the commands that check theirs — `validate`, `list`, `show`, `trace`, `why`, `who-verifies`, `impact`, `links`, `refs`, `export`, `find`, `ls`, `tree`, `extref`, `n2`, `behavioral-coverage`, `sbom`, `build-config`, `stats`, `digest`, `search-text`, `summarize`, `topics`, `clusters`, `verification-depth` (plus `lint-docs`, `follow` and `connectivity`, which parse strictly themselves) — is a **usage error**: a message on stderr naming the option (and, for an enumerated option, its valid values), nothing on stdout, exit `1`. The option check runs before the model is loaded. Options are spelled `--opt <value>`; the inline `--opt=<value>` form is accepted only where a page documents it (`validate --deny=`/`--max-warnings=`, `--where=`, `lint-docs --deny=`).
+**Usage errors.** Invalid input is never silently replaced by a default. An option value outside its documented set (`impact --direction sideways`, `--format xml` on `impact`/`n2`/`behavioral-coverage`/`sbom`/`build-config`), a non-integer count (`n2 --depth abc`, `digest --limit x`, …), or an unknown option on the commands that check theirs — `validate`, `list`, `show`, `trace`, `why`, `who-verifies`, `impact`, `links`, `refs`, `export`, `find`, `ls`, `tree`, `extref`, `n2`, `behavioral-coverage`, `sbom`, `build-config`, `stats`, `digest`, `search-text`, `summarize`, `topics`, `clusters`, `verification-depth`, `trace-export` (plus `lint-docs`, `follow` and `connectivity`, which parse strictly themselves) — is a **usage error**: a message on stderr naming the option (and, for an enumerated option, its valid values), nothing on stdout, exit `1`. The option check runs before the model is loaded. Options are spelled `--opt <value>`; the inline `--opt=<value>` form is accepted only where a page documents it (`validate --deny=`/`--max-warnings=`, `--where=`, `lint-docs --deny=`).
 
 ---
 
@@ -1051,6 +1051,37 @@ When a results sidecar (`<model_root>/.syscribe/results.json`) is present, the *
 ```
 $ syscribe -m model/ trace REQ-ENG-SAFE-001 --linked-only   # ignore ingested results
 ```
+
+### Traceability export (`trace-export`)
+
+`trace-export` writes **one JSON document** covering every requirement in the model — native `Requirement` and SysML `RequirementDef`/`Requirement` — with its full trace, for coverage checks in CI and for external tools (`ADR-SYS-TREX-001`, `REQ-TRS-TREX-000..004`). Where `trace` answers for one requirement and `export` dumps every element, this is the whole trace graph in one schema, computed from the same reverse indices `validate` maintains. Read-only.
+
+```
+syscribe -m model/ trace-export > trace.json
+syscribe -m model/ trace-export --sort asc --out build/trace.json
+syscribe -m model/ trace-export --config CONF-UAV-SURVEY-001
+```
+
+The document is `{ "version": 1, "modelRoot", "config", "sort", "requirements": [...], "summary" }`; field order is fixed and the output is byte-identical across runs, so two exports diff cleanly.
+
+| Entry field | Content |
+|---|---|
+| `qname`, `id`, `name`, `type` | full qualified name, stable id (or null), label, `Requirement` or `RequirementDef` |
+| `status`, `reqClass`, `reqDomain`, `file` | lifecycle status, class, domain, model-root-relative path |
+| `derivedFrom`, `derivedChildren` | `[{qname, id}]` — parents (authored) and children (reverse index) |
+| `breakdownAdr` | `{qname, id, status}` or null |
+| `satisfiedBy` | `[{qname, id, type, domain}]` — every satisfying element |
+| `verifiedBy` | `[{qname, id, testLevel, status, verdict}]` — `verdict` is `pass`/`fail`/`unknown` from the results sidecar, or null without one |
+| `refinedBy` | `[{qname, id}]` — use cases / behaviours that `refines:` it |
+| `coverage` | `{leaf, satisfied, verified, integrationVerified}` |
+
+`coverage` applies exactly the rules `W300`, `W002` and `W305` enforce: a leaf (no `derivedChildren`) is `satisfied` when at least one element satisfies it, `verified` when at least one `active` TestCase verifies it, and `integrationVerified` when an `active` L3/L4/L5 TestCase does; a `retired` TestCase is listed but never counts. `summary` gives the counts of requirements, leaves, satisfied, verified and integration-verified. A user-defined link type that `extends` a built-in link with `coverage = true` contributes to the same lists. Every reference is a full qualified name plus `id`; a reference that does not resolve is kept as `{ "qname": "<as written>", "unresolved": true }`, never dropped.
+
+- **`--config <C>`** projects the model onto a configuration exactly as `export --config` does (a stored `Configuration` id/qname or an ad-hoc `Features::A,Features::B` set): requirements, satisfiers, verifiers, parents and children inactive in `C` are omitted from every list, `coverage` is computed over the projected lists, and `config` records `{ "id", "qname", "name", "activeFeatures": [...] }` (`id`/`qname` null for an ad-hoc set). An unresolvable configuration is a usage error (stderr names it, nothing on stdout, exit 1). Without it `config` is `null`.
+- **`--sort directory|asc|desc`** orders the requirement list *and every nested list*: `directory` (the default) is the walker's file order (the order `export` and `ls` use), `asc`/`desc` by full qualified name; the choice is recorded in `sort`. An unknown value is a usage error naming the three.
+- **`--out <file>`** writes the document (creating parent directories) instead of printing it.
+
+The MCP server exposes the same document as the read-only `trace_export {config?, sort?}` tool. See `syscribe help trace-export`.
 
 ### What does this component satisfy?
 

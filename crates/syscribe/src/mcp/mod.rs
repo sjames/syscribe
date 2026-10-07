@@ -308,6 +308,18 @@ struct SuspectAcceptArgs {
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct BaselineListArgs {}
 
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct TraceExportArgs {
+    /// Optional configuration lens: a stored Configuration id/qname or an ad-hoc
+    /// `Features::A,Features::B` set (same as `trace-export --config`).
+    #[serde(default)]
+    config: Option<String>,
+    /// Order of the requirement list and every nested list: `directory`
+    /// (default, the walker's file order), `asc` or `desc` by qualified name.
+    #[serde(default)]
+    sort: Option<String>,
+}
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct BaselineDiffArgs {
     /// The earlier baseline id.
@@ -2718,6 +2730,49 @@ impl SyscribeMcp {
             })
             .collect();
         ok(json!({ "baselines": list }))
+    }
+
+    #[tool(
+        description = "Single-document traceability export (ADR-SYS-TREX-001): every \
+        requirement (native Requirement and SysML RequirementDef/Requirement) with its \
+        identity, derivedFrom/derivedChildren, breakdownAdr, satisfiedBy, verifiedBy (with \
+        ingested verdicts), refinedBy and a computed coverage block (leaf, satisfied, \
+        verified, integrationVerified — the W300/W002/W305 rules), plus a summary. Every \
+        reference is a full qualified name + id; a dangling one is {qname, unresolved: true}. \
+        Optional `config` projects onto a Configuration (inactive elements omitted, the \
+        configuration recorded); `sort` is directory (default) | asc | desc. Same document as \
+        `syscribe trace-export`. Read-only.",
+        annotations(read_only_hint = true)
+    )]
+    async fn trace_export(
+        &self,
+        Parameters(args): Parameters<TraceExportArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let sort = match args.sort.as_deref() {
+            None => crate::trace_export::Sort::Directory,
+            Some(s) => match crate::trace_export::Sort::parse(s) {
+                Some(sort) => sort,
+                None => {
+                    return tool_error(format!(
+                        "invalid value '{s}' for sort; valid values: {}",
+                        crate::trace_export::SORT_VALUES.join(", ")
+                    ))
+                }
+            },
+        };
+        let store = self.store.read().await;
+        match crate::trace_export::build_document(
+            &store.model_root,
+            &store.elements,
+            &store.config,
+            args.config.as_deref(),
+            sort,
+        ) {
+            // Pre-serialised so the field order REQ-TRS-TREX-001 fixes survives
+            // (a `Value` object would re-sort its keys).
+            Ok(doc) => Ok(CallToolResult::success(vec![Content::text(crate::trace_export::to_json(&doc))])),
+            Err(m) => tool_error(m),
+        }
     }
 
     #[tool(

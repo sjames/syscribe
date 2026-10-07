@@ -50,6 +50,7 @@ mod sysml_export;
 mod testplan;
 mod textstats;
 mod topics;
+mod trace_export;
 mod tradestudy;
 mod repos;
 mod plugins;
@@ -1180,6 +1181,12 @@ fn main() {
             "export-html" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 export_html::cmd_export_html(&elems, &resolver, &vcfg, rest);
+            }
+            "trace-export" => {
+                // ADR-SYS-TREX-001 / REQ-TRS-TREX-004 — the single-document
+                // traceability export. Read-only; `--config` mirrors `export`.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                trace_export::cmd_trace_export(model_root, &elems, &vcfg, rest);
             }
             "types" => {
                 query::cmd_types(&elems);

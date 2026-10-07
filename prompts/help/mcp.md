@@ -130,6 +130,20 @@ These mirror the CLI corpus commands of the same name (`--json` output).
 - `coverage_gaps {config?, status?, class?}` — the actionable subset:
   `uncovered` / `failing` / `unverified-claim` (`W010`/`W015`/`W029`).
 - `evidence {ref}` — a requirement's verification chain with ingested verdicts.
+- `trace_export {config?, sort?}` — the single-document traceability export
+  (ADR-SYS-TREX-001): `{version: 1, modelRoot, config, sort, requirements[],
+  summary}`, one entry per requirement (native `Requirement` and SysML
+  `RequirementDef`/`Requirement`) with `qname`, `id`, `name`, `type`, `status`,
+  `reqClass`, `reqDomain`, `file`, `derivedFrom`/`derivedChildren` (`{qname, id}`),
+  `breakdownAdr` (`{qname, id, status}`), `satisfiedBy` (`{qname, id, type,
+  domain}`), `verifiedBy` (`{qname, id, testLevel, status, verdict}`), `refinedBy`
+  and `coverage {leaf, satisfied, verified, integrationVerified}` — the
+  `W300`/`W002`/`W305` rules; a retired TestCase is listed but never counts. Every
+  reference is a full qualified name; a dangling one is `{qname, unresolved: true}`.
+  `config` projects onto a Configuration (inactive elements omitted, the
+  configuration and its `activeFeatures` recorded; an invalid one is a tool
+  error); `sort` is `directory` (default) | `asc` | `desc` for the requirement list
+  and every nested list. Same document as `syscribe trace-export`.
 
 ## Read tools — diagram & documentation integrity
 

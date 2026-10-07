@@ -60,9 +60,54 @@ fn tools_list_includes_core_tools() {
         .iter()
         .filter_map(|t| t.get("name").and_then(|n| n.as_str()).map(String::from))
         .collect();
-    for expected in ["get_element", "search", "validate", "create_element"] {
+    for expected in ["get_element", "search", "validate", "create_element", "trace_export"] {
         assert!(names.contains(&expected.to_string()), "tool {expected} listed; got {names:?}");
     }
+}
+
+// ---- TC-TRS-TREX-004: trace_export (ADR-SYS-TREX-001) -----------------------
+
+#[test]
+fn trace_export_returns_the_same_document_as_the_cli() {
+    let model = fixture_copy();
+    let mut mcp = Mcp::start(&model);
+    mcp.initialize();
+    let res = mcp.call_tool("trace_export", json!({}));
+    assert_eq!(res["version"], 1, "{res}");
+    assert!(res["config"].is_null());
+    assert_eq!(res["sort"], "directory");
+    let reqs = res["requirements"].as_array().expect("requirements array");
+    let find = |id: &str| reqs.iter().find(|r| r["id"].as_str() == Some(id)).unwrap_or_else(|| panic!("{id} in {res}"));
+    // Full qualified names on every reference, the reverse indices, and coverage.
+    let child = find("REQ-FXCHILD-001");
+    assert_eq!(child["derivedFrom"][0]["qname"], "Requirements::REQ-FXPARENT-001");
+    assert_eq!(child["breakdownAdr"]["qname"], "Decisions::ADR-FX-001");
+    assert_eq!(child["coverage"]["leaf"], true);
+    let fx = find("REQ-FX-001");
+    assert_eq!(fx["verifiedBy"][0]["qname"], "Verification::TC-FX-001");
+    assert_eq!(fx["verifiedBy"][0]["testLevel"], "L2");
+    assert_eq!(fx["coverage"]["verified"], true);
+    assert_eq!(res["summary"]["requirements"].as_u64(), Some(reqs.len() as u64));
+    // Byte-identical to the CLI document for the same model and options.
+    let cli = std::process::Command::new(env!("CARGO_BIN_EXE_syscribe"))
+        .arg("-m").arg(&model).arg("trace-export").output().unwrap();
+    let cli_doc: serde_json::Value = serde_json::from_slice(&cli.stdout).unwrap();
+    assert_eq!(cli_doc, res);
+    // `sort` and `config` parameters; an invalid value is a tool error.
+    let asc = mcp.call_tool("trace_export", json!({"sort": "asc"}));
+    assert_eq!(asc["sort"], "asc");
+    let mut q: Vec<&str> = asc["requirements"].as_array().unwrap().iter().map(|r| r["qname"].as_str().unwrap()).collect();
+    let sorted = { let mut s = q.clone(); s.sort(); s };
+    assert_eq!(q, sorted);
+    q.clear();
+    let lens = mcp.call_tool("trace_export", json!({"config": "CONF-FX-001"}));
+    assert_eq!(lens["config"]["id"], "CONF-FX-001", "{lens}");
+    assert_eq!(lens["config"]["qname"], "Configurations::CONF-FX-001");
+    let bad = mcp.call_tool_raw("trace_export", json!({"sort": "random"}));
+    assert_eq!(bad["isError"], true, "{bad}");
+    let bad = mcp.call_tool_raw("trace_export", json!({"config": "CONF-NOPE-001"}));
+    assert_eq!(bad["isError"], true, "{bad}");
+    assert!(bad.to_string().contains("CONF-NOPE-001"));
 }
 
 // ---- TC-TRS-MCP-002: shared store & reload ----------------------------------

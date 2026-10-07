@@ -1,7 +1,7 @@
 tc_TRS_CLI_005() {
     # The full set of dispatchable commands (must each have a man page).
     local CMDS="validate report audit show ls tree find extref list types untyped \
-        connectivity export trace why who-verifies links refs matrix verification-depth \
+        connectivity export trace trace-export why who-verifies links refs matrix verification-depth \
         metrics cyber-risk co-analysis safety-case feature-check features feature why-active \
         configure diff template next-id check-ref path-for move scaffold-gherkin \
         ingest-results render diagram spec help"
