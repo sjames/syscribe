@@ -69,6 +69,9 @@ pub(crate) fn find_sysml_files(dir: &Path) -> Vec<PathBuf> {
 /// that file — never aborts the rest of the subtree.
 pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Vec<RawElement> {
     let mut merged = MergedPackage::default();
+    // Per-file unmapped counts; W543 is emitted after conversion so unresolved
+    // package-level `satisfy` statements (`REQ-TRS-SYSMLV2-046`) can be added.
+    let mut file_counts: Vec<(String, BTreeMap<&'static str, usize>)> = Vec::new();
     for path in find_sysml_files(dir) {
         let file_path = path.display().to_string();
         let content = match std::fs::read_to_string(&path) {
@@ -87,21 +90,7 @@ pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Ve
                 // `REQ-TRS-SYSMLV2-030`: surface what map-narrow ingestion drops.
                 let mut counts = BTreeMap::new();
                 count_unmapped_root(&root, &mut counts);
-                if !counts.is_empty() {
-                    let total: usize = counts.values().sum();
-                    let list = counts
-                        .iter()
-                        .map(|(k, n)| format!("{k} x{n}"))
-                        .collect::<Vec<_>>()
-                        .join(", ");
-                    owner.derive_findings.push(finding(
-                        "W543",
-                        &file_path,
-                        &format!(
-                            "'{file_path}': {total} parsed construct(s) have no Syscribe mapping and were not ingested: {list}"
-                        ),
-                    ));
-                }
+                file_counts.push((file_path.clone(), counts));
                 merge_root(&mut merged, root, &file_path)
             }
             Err(e) => {
@@ -116,23 +105,121 @@ pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Ve
 
     let mut out = Vec::new();
     convert_merged(&merged, pkg_qname, &mut out);
+    let unresolved = lift_package_satisfies(&merged, pkg_qname, &mut out);
+    for (file_path, mut counts) in file_counts {
+        if let Some(n) = unresolved.get(&file_path) {
+            *counts.entry("satisfy").or_insert(0) += n;
+        }
+        if counts.is_empty() {
+            continue;
+        }
+        let total: usize = counts.values().sum();
+        let list = counts
+            .iter()
+            .map(|(k, n)| format!("{k} x{n}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        owner.derive_findings.push(finding(
+            "W543",
+            &file_path,
+            &format!(
+                "'{file_path}': {total} parsed construct(s) have no Syscribe mapping and were not ingested: {list}"
+            ),
+        ));
+    }
     out
+}
+
+/// `REQ-TRS-SYSMLV2-046`: the subject of a package-level `satisfy <req> by
+/// <subject>;`, as a `::`-joined reference, or `None` when the statement is
+/// negated, inline-declared, the bare shorthand (no distinct subject), or the
+/// subject is not a plain feature reference.
+fn satisfy_subject(s: &sysml_v2_parser::ast::Satisfy) -> Option<String> {
+    if s.is_negated || s.inline_requirement.is_some() || s.source.value == s.target.value {
+        return None;
+    }
+    match &s.target.value {
+        sysml_v2_parser::Expression::FeatureRef(r) => Some(r.clone()),
+        sysml_v2_parser::Expression::FeatureChainRef(c) => Some(c.segments.join("::")),
+        _ => None,
+    }
+}
+
+/// Resolve every liftable package-level `satisfy` against the converted
+/// elements and append the requirement to the subject's `satisfies:`. Returns
+/// per-file counts of the statements that could not be lifted.
+fn lift_package_satisfies(
+    merged: &MergedPackage,
+    qname: &str,
+    out: &mut Vec<RawElement>,
+) -> BTreeMap<String, usize> {
+    let mut pending: Vec<(String, String, String, String)> = Vec::new(); // scope, req, subject, file
+    collect_package_satisfies(merged, qname, &mut pending);
+    let mut unresolved = BTreeMap::new();
+    if pending.is_empty() {
+        return unresolved;
+    }
+    let index: super::EndpointIndex = out
+        .iter()
+        .map(|e| (e.qualified_name.clone(), (None, None)))
+        .collect();
+    for (scope, req, subject, file) in pending {
+        let target = super::lookup_scoped(&index, &scope, &subject);
+        let elem = target.and_then(|q| out.iter_mut().find(|e| e.qualified_name == q));
+        match elem {
+            Some(e) => {
+                let list = e.frontmatter.satisfies.get_or_insert_with(Vec::new);
+                if !list.contains(&req) {
+                    list.push(req);
+                }
+            }
+            None => *unresolved.entry(file).or_insert(0) += 1,
+        }
+    }
+    unresolved
+}
+
+fn collect_package_satisfies(
+    merged: &MergedPackage,
+    qname: &str,
+    pending: &mut Vec<(String, String, String, String)>,
+) {
+    for (elem, file) in &merged.body {
+        if let sysml_v2_parser::PackageBodyElement::Satisfy(n) = elem {
+            if let (Some(req), Some(subject)) = (satisfy_target(&n.value), satisfy_subject(&n.value)) {
+                pending.push((qname.to_string(), req, subject, file.clone()));
+            }
+        }
+    }
+    for (name, child) in &merged.children {
+        collect_package_satisfies(child, &format!("{qname}::{name}"), pending);
+    }
 }
 
 /// Human-readable kind of a package-body member that ingestion parses but
 /// does not map (`REQ-TRS-SYSMLV2-030`). `None` for mapped kinds and for pure
 /// namespace plumbing (`import`, `comment`, parse-error nodes), which stay quiet.
-fn unmapped_kind(e: &sysml_v2_parser::PackageBodyElement) -> Option<&'static str> {
+fn unmapped_kind(e: &sysml_v2_parser::PackageBodyElement, in_named_pkg: bool) -> Option<&'static str> {
     use sysml_v2_parser::PackageBodyElement as E;
     Some(match e {
         E::TextualRep(_) => "textual representation",
         E::Filter(_) => "filter",
-        E::LibraryPackage(_) => "library package",
-        E::AliasDef(_) => "alias",
-        E::Satisfy(_) => "satisfy",
+        // `REQ-TRS-SYSMLV2-043`: lifted onto the enclosing named package.
+        E::AliasDef(a) => {
+            if in_named_pkg && ident_name(&a.value.identification).is_some() {
+                return None;
+            }
+            "alias"
+        }
+        // `REQ-TRS-SYSMLV2-046`: liftable ones are counted after resolution.
+        E::Satisfy(s) => {
+            if in_named_pkg && satisfy_target(&s.value).is_some() && satisfy_subject(&s.value).is_some() {
+                return None;
+            }
+            "satisfy"
+        }
         E::Actor(_) => "actor",
         E::IndividualDef(_) => "individual def",
-        E::MetadataDef(_) => "metadata def",
         E::MetadataUsage(_) => "metadata",
         E::OccurrenceDef(_) => "occurrence def",
         E::OccurrenceUsage(_) => "occurrence",
@@ -146,14 +233,26 @@ fn unmapped_kind(e: &sysml_v2_parser::PackageBodyElement) -> Option<&'static str
 fn count_unmapped_body(
     elements: &[sysml_v2_parser::Node<sysml_v2_parser::PackageBodyElement>],
     counts: &mut BTreeMap<&'static str, usize>,
+    in_named_pkg: bool,
 ) {
+    use sysml_v2_parser::PackageBodyElement as E;
     for n in elements {
-        if let sysml_v2_parser::PackageBodyElement::Package(inner) = &n.value {
-            if let sysml_v2_parser::PackageBody::Brace { elements } = &inner.value.body {
-                count_unmapped_body(elements, counts);
+        match &n.value {
+            E::Package(inner) => {
+                if let sysml_v2_parser::PackageBody::Brace { elements } = &inner.value.body {
+                    count_unmapped_body(elements, counts, ident_name(&inner.value.identification).is_some());
+                }
             }
-        } else if let Some(k) = unmapped_kind(&n.value) {
-            *counts.entry(k).or_insert(0) += 1;
+            E::LibraryPackage(inner) => {
+                if let sysml_v2_parser::PackageBody::Brace { elements } = &inner.value.body {
+                    count_unmapped_body(elements, counts, ident_name(&inner.value.identification).is_some());
+                }
+            }
+            other => {
+                if let Some(k) = unmapped_kind(other, in_named_pkg) {
+                    *counts.entry(k).or_insert(0) += 1;
+                }
+            }
         }
     }
 }
@@ -164,14 +263,22 @@ pub(crate) fn count_unmapped_root(root: &sysml_v2_parser::RootNamespace, counts:
         match &n.value {
             R::Package(p) => {
                 if let sysml_v2_parser::PackageBody::Brace { elements } = &p.value.body {
-                    count_unmapped_body(elements, counts);
+                    count_unmapped_body(elements, counts, ident_name(&p.value.identification).is_some());
                 }
             }
-            R::LibraryPackage(_) => *counts.entry("library package").or_insert(0) += 1,
-            R::Namespace(_) => *counts.entry("namespace").or_insert(0) += 1,
+            R::LibraryPackage(p) => {
+                if let sysml_v2_parser::PackageBody::Brace { elements } = &p.value.body {
+                    count_unmapped_body(elements, counts, ident_name(&p.value.identification).is_some());
+                }
+            }
+            R::Namespace(p) => {
+                if let sysml_v2_parser::PackageBody::Brace { elements } = &p.value.body {
+                    count_unmapped_body(elements, counts, ident_name(&p.value.identification).is_some());
+                }
+            }
             R::Import(_) => {}
             R::Member(m) => {
-                if let Some(k) = unmapped_kind(&m.value) {
+                if let Some(k) = unmapped_kind(&m.value, false) {
                     *counts.entry(k).or_insert(0) += 1;
                 }
             }
@@ -186,18 +293,28 @@ pub(crate) fn count_unmapped_root(root: &sysml_v2_parser::RootNamespace, counts:
 /// map-narrow — same posture the full mapping will keep for constructs outside
 /// the fixed set).
 fn merge_root(target: &mut MergedPackage, root: sysml_v2_parser::RootNamespace, file_path: &str) {
+    use sysml_v2_parser::RootElement as R;
     for node in root.elements {
-        if let sysml_v2_parser::RootElement::Package(pkg_node) = node.value {
-            merge_package(target, pkg_node.value, file_path);
+        match node.value {
+            R::Package(p) => merge_named(target, &p.value.identification, p.value.body, file_path),
+            // `REQ-TRS-SYSMLV2-044`: library packages and namespaces become Packages.
+            R::LibraryPackage(p) => merge_named(target, &p.value.identification, p.value.body, file_path),
+            R::Namespace(p) => merge_named(target, &p.value.identification, p.value.body, file_path),
+            _ => {}
         }
     }
 }
 
-/// Merge one `package` declaration into `target.children`, combining with
-/// whatever a same-named package already contributed (from this file or an
-/// earlier one).
-fn merge_package(target: &mut MergedPackage, pkg: sysml_v2_parser::Package, file_path: &str) {
-    let Some(name) = ident_name(&pkg.identification) else {
+/// Merge one `package`/`library package`/`namespace` declaration into
+/// `target.children`, combining with whatever a same-named package already
+/// contributed (from this file or an earlier one).
+fn merge_named(
+    target: &mut MergedPackage,
+    identification: &sysml_v2_parser::Identification,
+    body: sysml_v2_parser::PackageBody,
+    file_path: &str,
+) {
+    let Some(name) = ident_name(identification) else {
         return; // anonymous package: no identity to qname or merge against
     };
     let is_new = !target.children.contains_key(&name);
@@ -205,7 +322,7 @@ fn merge_package(target: &mut MergedPackage, pkg: sysml_v2_parser::Package, file
     if is_new {
         entry.declared_in = Some(file_path.to_string());
     }
-    if let sysml_v2_parser::PackageBody::Brace { elements } = pkg.body {
+    if let sysml_v2_parser::PackageBody::Brace { elements } = body {
         merge_package_body(entry, elements, file_path);
     }
 }
@@ -218,7 +335,10 @@ fn merge_package_body(
     for node in elements {
         match node.value {
             sysml_v2_parser::PackageBodyElement::Package(inner) => {
-                merge_package(target, inner.value, file_path);
+                merge_named(target, &inner.value.identification, inner.value.body, file_path);
+            }
+            sysml_v2_parser::PackageBodyElement::LibraryPackage(inner) => {
+                merge_named(target, &inner.value.identification, inner.value.body, file_path);
             }
             other => target.body.push((other, file_path.to_string())),
         }
@@ -369,6 +489,12 @@ struct Spec {
     body_language: Option<String>,
     /// `REQ-TRS-SYSMLV2-034` -- a calc's first `return` declaration's type.
     return_type: Option<String>,
+    /// `REQ-TRS-SYSMLV2-043` -- a package's `alias` members as `{name, for}` maps.
+    aliases: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-048` -- a usage's multiplicity text, `subsets`, `redefines`.
+    multiplicity: Option<String>,
+    subsets: Option<Vec<String>>,
+    redefines: Option<serde_yaml::Value>,
 }
 
 impl Spec {
@@ -382,6 +508,23 @@ impl Spec {
         self.pl_level = meta.pl_level;
         self.short_name = meta.short_name;
         self.implemented_by = meta.implemented_by;
+        self
+    }
+
+    /// Set `REQ-TRS-SYSMLV2-048`'s lifted multiplicity/subsets/redefines.
+    fn with_usage_relations(
+        mut self,
+        multiplicity: Option<&sysml_v2_parser::ast::Multiplicity>,
+        subsets: Option<&sysml_v2_parser::ast::SubsettingRelationship>,
+        redefines: Option<&sysml_v2_parser::ast::SubsettingRelationship>,
+    ) -> Self {
+        self.multiplicity = multiplicity.map(multiplicity_text);
+        self.subsets = subsets.map(subsetting_targets).filter(|v| !v.is_empty());
+        self.redefines = redefines.map(subsetting_targets).and_then(|mut v| match v.len() {
+            0 => None,
+            1 => Some(serde_yaml::Value::String(v.remove(0))),
+            _ => Some(serde_yaml::Value::Sequence(v.into_iter().map(serde_yaml::Value::String).collect())),
+        });
         self
     }
 
@@ -499,6 +642,10 @@ fn push_synth(
             body: spec.body,
             body_language: spec.body_language,
             return_type: spec.return_type,
+            aliases: spec.aliases,
+            multiplicity: spec.multiplicity,
+            subsets: spec.subsets,
+            redefines: spec.redefines,
             ..Default::default()
         },
         doc: spec.doc,
@@ -2582,6 +2729,48 @@ fn convert_rendering_usage(r: &sysml_v2_parser::ast::RenderingUsage, qname: &str
 }
 
 /// Walk the merged package tree, emitting `RawElement`s under `qname`.
+/// `REQ-TRS-SYSMLV2-048`: native multiplicity text -- `2`, `0..1`, `1..*`, `*`.
+fn multiplicity_text(m: &sysml_v2_parser::ast::Multiplicity) -> String {
+    let bound = |b: &Option<Box<sysml_v2_parser::Node<sysml_v2_parser::Expression>>>| {
+        b.as_ref().map_or_else(|| "*".to_string(), |e| render_expression(&e.value))
+    };
+    match (&m.lower, &m.upper) {
+        (None, None) => "*".to_string(),
+        (l, u) if l == u => bound(l),
+        (l, u) => format!("{}..{}", bound(l), bound(u)),
+    }
+}
+
+fn subsetting_targets(r: &sysml_v2_parser::ast::SubsettingRelationship) -> Vec<String> {
+    r.target.iter().map(|t| t.value.to_display_string()).collect()
+}
+
+/// `REQ-TRS-SYSMLV2-043`: `alias <name> for <target>;` members of one merged package.
+fn package_aliases(merged: &MergedPackage) -> Vec<serde_yaml::Value> {
+    merged
+        .body
+        .iter()
+        .filter_map(|(e, _)| match e {
+            sysml_v2_parser::PackageBodyElement::AliasDef(a) => {
+                let id = &a.value.identification;
+                let (name, short) = match (&id.name, &id.short_name) {
+                    (Some(n), s) => (n.clone(), s.clone()),
+                    (None, Some(s)) => (s.clone(), None),
+                    (None, None) => return None,
+                };
+                let mut m = serde_yaml::Mapping::new();
+                m.insert(ykey("name"), ykey(&name));
+                if let Some(s) = short {
+                    m.insert(ykey("shortName"), ykey(&s));
+                }
+                m.insert(ykey("for"), ykey(&a.value.target.to_display_string()));
+                Some(serde_yaml::Value::Mapping(m))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>) {
     for (elem, file_path) in &merged.body {
         convert_package_body_element(elem, qname, file_path, out);
@@ -2600,7 +2789,8 @@ fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>
             .filter(|t| !t.is_empty())
             .collect::<Vec<_>>()
             .join("\n\n");
-        push_synth(out, &child_qname, file_path, ElementType::Package, name, Spec::default().with_doc(doc));
+        let spec = Spec { aliases: nonempty_vec(package_aliases(child)), ..Default::default() };
+        push_synth(out, &child_qname, file_path, ElementType::Package, name, spec.with_doc(doc));
         convert_merged(child, &child_qname, out);
     }
 }
@@ -2677,6 +2867,7 @@ fn convert_package_body_element(
         E::ConstraintDef(node) => convert_constraint_def(&node.value, qname, file_path, out),
         E::ConstraintUsage(node) => convert_constraint_usage(&node.value, qname, file_path, out),
         E::CalcDef(node) => convert_calc_def(&node.value, qname, file_path, out),
+        E::MetadataDef(node) => convert_metadata_def(&node.value, qname, file_path, out),
         E::UseCaseDef(node) => convert_use_case_def(&node.value, qname, file_path, out),
         E::UseCaseUsage(node) => convert_use_case_usage(&node.value, qname, file_path, out),
         _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
@@ -2759,6 +2950,11 @@ fn convert_part_usage(
         applies_when: part_usage_syscribe_feature_id(elements),
         ..Default::default()
     }
+    .with_usage_relations(
+        part.multiplicity.as_ref().map(|m| &m.value),
+        part.subsets.as_ref().map(|(r, _)| &r.value),
+        part.redefines.as_ref().map(|r| &r.value),
+    )
     .with_syscribe_meta(part_usage_syscribe_meta(elements))
     .with_doc(part_usage_doc(elements))
     .with_connections(connections)
@@ -2964,6 +3160,7 @@ fn convert_attribute_usage(
         typed_by: a.typing.as_ref().map(|t| t.value.target_display()),
         ..Default::default()
     }
+    .with_usage_relations(None, a.subsets.as_ref().map(|r| &r.value), a.redefines.as_ref().map(|r| &r.value))
     .with_doc(attribute_body_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::Attribute, &a.name, spec);
 }
@@ -3039,6 +3236,11 @@ fn convert_port_usage(
         typed_by: p.type_name.clone(),
         ..Default::default()
     }
+    .with_usage_relations(
+        p.multiplicity.as_ref().map(|m| &m.value),
+        p.subsets.as_ref().map(|(r, _)| &r.value),
+        p.redefines.as_ref().map(|r| &r.value),
+    )
     .with_doc(port_usage_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::Port, &p.name, spec);
 }
@@ -3587,6 +3789,11 @@ fn convert_item_usage(
         typed_by: i.type_name.clone(),
         ..Default::default()
     }
+    .with_usage_relations(
+        i.multiplicity.as_ref().map(|m| &m.value),
+        None,
+        i.redefines.as_ref().map(|r| &r.value),
+    )
     .with_doc(attribute_body_doc(elements));
     push_synth(out, &elem_qname, file_path, ElementType::Item, &i.name, spec);
 }
@@ -3615,7 +3822,8 @@ fn convert_requirement_def(
         // whether it's specifically a variation/variant.
         applies_when: requirement_body_syscribe_feature_id(&r.body),
         ..Default::default()
-    };
+    }
+    .with_doc(requirement_def_body_doc(&r.body));
     push_synth(out, &elem_qname, file_path, ElementType::RequirementDef, &name, spec);
 }
 
@@ -3642,7 +3850,8 @@ fn convert_requirement_usage(
         // here exactly like it is on a Part.
         applies_when: requirement_body_syscribe_feature_id(&r.body),
         ..Default::default()
-    };
+    }
+    .with_doc(requirement_def_body_doc(&r.body));
     push_synth(out, &elem_qname, file_path, ElementType::Requirement, &r.name, spec);
 }
 
@@ -3875,6 +4084,34 @@ fn constraint_body_fields(body: &sysml_v2_parser::ast::ConstraintDefBody) -> Con
     ConstraintBodyFields { parameters: nonempty_vec(params), expression: join_expressions(exprs), doc }
 }
 
+/// `REQ-TRS-SYSMLV2-052`: whether `text`, written as the single body statement
+/// block of a `constraint def`/`calc def`, is read back by ingestion as exactly
+/// the same expression text. The parser recovers from nearly any input, so
+/// "parses" proves nothing; only an exact read-back makes the text safe to
+/// export as source.
+pub(crate) fn expression_round_trips(is_calc: bool, text: &str) -> bool {
+    let kw = if is_calc { "calc" } else { "constraint" };
+    let probe = format!("package P {{ {kw} def X {{\n{text}\n}} }}");
+    let Ok(root) = sysml_v2_parser::parse(&probe) else { return false };
+    let norm = |t: &str| t.split_whitespace().collect::<Vec<_>>().join(" ");
+    for n in &root.elements {
+        let sysml_v2_parser::RootElement::Package(p) = &n.value else { continue };
+        let sysml_v2_parser::PackageBody::Brace { elements } = &p.value.body else { continue };
+        for e in elements {
+            match &e.value {
+                sysml_v2_parser::PackageBodyElement::ConstraintDef(c) if !is_calc => {
+                    return constraint_body_fields(&c.value.body).expression.is_some_and(|x| norm(&x) == norm(text));
+                }
+                sysml_v2_parser::PackageBodyElement::CalcDef(c) if is_calc => {
+                    return calc_body_fields(&c.value.body).body.is_some_and(|x| norm(&x) == norm(text));
+                }
+                _ => {}
+            }
+        }
+    }
+    false
+}
+
 fn convert_constraint_def(c: &sysml_v2_parser::ast::ConstraintDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
     let Some(name) = ident_name(&c.identification) else {
         return; // anonymous: no identity to qname against
@@ -3971,6 +4208,24 @@ fn convert_calc_usage(c: &sysml_v2_parser::ast::CalcUsage, qname: &str, file_pat
     }
     .with_doc(f.doc);
     push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::Calculation, &name, spec);
+}
+
+/// `REQ-TRS-SYSMLV2-045`: a package-level `metadata def` -> native `MetadataDef`.
+fn convert_metadata_def(m: &sysml_v2_parser::ast::MetadataDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
+    let Some(name) = ident_name(&m.identification) else {
+        return;
+    };
+    let elements = match &m.body {
+        sysml_v2_parser::AttributeBody::Brace { elements } => elements.as_slice(),
+        sysml_v2_parser::AttributeBody::Semicolon => &[],
+    };
+    let spec = Spec {
+        supertype: m.specializes.as_ref().map(|t| t.value.target_display()),
+        is_abstract: m.is_abstract.then_some(true),
+        ..Default::default()
+    }
+    .with_doc(attribute_body_doc(elements));
+    push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::MetadataDef, &name, spec);
 }
 
 fn convert_use_case_def(c: &sysml_v2_parser::ast::UseCaseDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {

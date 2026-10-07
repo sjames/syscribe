@@ -199,7 +199,11 @@ pub fn export_sysml(elements: &[RawElement], scope: Option<&str>) -> Result<Sysm
     let mut text = String::from(HEADER);
     for (name, qname, node) in tops {
         let mut buf = String::new();
-        w.render_node(&name, &qname, node, 0, &mut buf);
+        let mut sats = Vec::new();
+        w.render_node(&name, &qname, node, 0, &mut buf, &mut sats);
+        for line in sats {
+            buf.push_str(&line);
+        }
         let mut part = String::from(HEADER);
         part.push('\n');
         part.push_str(&buf);
@@ -224,12 +228,27 @@ impl Writer {
         }
     }
 
-    fn render_node(&mut self, name: &str, qname: &str, node: &Node<'_>, depth: usize, out: &mut String) {
+    /// `sats` collects the real `satisfy <req> by <subject>;` statements
+    /// (`REQ-TRS-SYSMLV2-051`) owed to the nearest enclosing package body; a
+    /// package-like node drains its own buffer into its body.
+    fn render_node(
+        &mut self,
+        name: &str,
+        qname: &str,
+        node: &Node<'_>,
+        depth: usize,
+        out: &mut String,
+        sats: &mut Vec<String>,
+    ) {
         let pad = "    ".repeat(depth);
         let Some(elem) = node.elem else {
             // Implicit intermediate namespace -> package (structure, not counted).
             out.push_str(&format!("{pad}package {} {{\n", sysml_ident(name)));
-            self.render_children(qname, node, depth + 1, out);
+            let mut own = Vec::new();
+            self.render_children(qname, node, depth + 1, out, &mut own);
+            for line in own {
+                out.push_str(&line);
+            }
             out.push_str(&format!("{pad}}}\n"));
             return;
         };
@@ -284,6 +303,17 @@ impl Writer {
                 head.push_str(&format!(" [{m}]"));
             }
         }
+        if !is_def && !is_package && !native_req {
+            // `REQ-TRS-SYSMLV2-049`: `:>` subsetting, `:>>` redefinition.
+            let subs: Vec<String> = fm.subsets.iter().flatten().map(|s| self.reference(s)).collect();
+            if !subs.is_empty() {
+                head.push_str(&format!(" :> {}", subs.join(", ")));
+            }
+            let reds: Vec<String> = ref_list(fm.redefines.as_ref()).iter().map(|s| self.reference(s)).collect();
+            if !reds.is_empty() {
+                head.push_str(&format!(" :>> {}", reds.join(", ")));
+            }
+        }
         if matches!(fm.element_type, Some(ElementType::Attribute)) {
             if let Some(v) = fm.value.as_ref().and_then(render_value) {
                 head.push_str(&format!(" = {v}"));
@@ -317,12 +347,32 @@ impl Writer {
         for s in sat {
             if in_part {
                 body.push_str(&format!("{inner}satisfy {};\n", self.reference(s)));
-            } else {
-                body.push_str(&format!("{inner}// satisfies: {s}\n"));
+            } else if !is_package {
+                // `REQ-TRS-SYSMLV2-051`: a real package-level statement.
+                let pkg_pad = if is_package { String::new() } else { "    ".repeat(depth) };
+                sats.push(format!("{pkg_pad}satisfy {} by {};\n", self.reference(s), qualified(qname)));
             }
         }
+        // `REQ-TRS-SYSMLV2-051`: `verify` is accepted (and ingested) inside requirement bodies only.
+        let is_req = matches!(fm.element_type, Some(ElementType::RequirementDef) | Some(ElementType::Requirement));
+        for v in fm.verifies.as_deref().unwrap_or(&[]) {
+            if is_req {
+                body.push_str(&format!("{inner}verify {};\n", self.reference(v)));
+            } else {
+                body.push_str(&format!("{inner}// verifies: {v}\n"));
+            }
+        }
+        self.push_behaviour_body(elem, &inner, &mut body);
         let mut child_buf = String::new();
-        self.render_children(qname, node, depth + 1, &mut child_buf);
+        if is_package {
+            let mut own = Vec::new();
+            self.render_children(qname, node, depth + 1, &mut child_buf, &mut own);
+            for line in own {
+                child_buf.push_str(&line);
+            }
+        } else {
+            self.render_children(qname, node, depth + 1, &mut child_buf, sats);
+        }
         body.push_str(&child_buf);
 
         if body.is_empty() {
@@ -332,10 +382,62 @@ impl Writer {
         }
     }
 
-    fn render_children(&mut self, qname: &str, node: &Node<'_>, depth: usize, out: &mut String) {
+    fn render_children(
+        &mut self,
+        qname: &str,
+        node: &Node<'_>,
+        depth: usize,
+        out: &mut String,
+        sats: &mut Vec<String>,
+    ) {
         for (name, child) in &node.children {
             let cq = format!("{qname}::{name}");
-            self.render_node(name, &cq, child, depth, out);
+            self.render_node(name, &cq, child, depth, out, sats);
+        }
+    }
+
+    /// `REQ-TRS-SYSMLV2-052`: `parameters:` and the opaque expression text of a
+    /// constraint/calc, so ingestion's `expression:`/`body:` round-trips.
+    fn push_behaviour_body(&self, e: &RawElement, inner: &str, body: &mut String) {
+        let fm = &e.frontmatter;
+        let (is_constraint, is_calc) = match fm.element_type {
+            Some(ElementType::ConstraintDef) | Some(ElementType::Constraint) => (true, false),
+            Some(ElementType::CalculationDef) | Some(ElementType::Calculation) => (false, true),
+            _ => return,
+        };
+        for p in fm.parameters.as_deref().unwrap_or(&[]) {
+            let Some(m) = p.as_mapping() else { continue };
+            let get = |k: &str| m.get(serde_yaml::Value::String(k.to_string())).and_then(|v| v.as_str());
+            let Some(pname) = get("name") else { continue };
+            let dir = match get("direction") {
+                Some("return") if is_calc => "return",
+                Some("out") => "out",
+                Some("inout") => "inout",
+                _ => "in",
+            };
+            let mut line = format!("{dir} {}", sysml_ident(pname));
+            if let Some(t) = get("typedBy") {
+                line.push_str(&format!(" : {}", self.reference(t)));
+            }
+            body.push_str(&format!("{inner}{line};\n"));
+        }
+        let text = if is_constraint {
+            fm.expression.as_deref()
+        } else if is_calc && fm.body_language.as_deref().is_none_or(|l| l == "kerml") {
+            fm.body.as_deref()
+        } else {
+            None
+        };
+        let Some(text) = text.map(str::trim).filter(|t| !t.is_empty()) else { return };
+        let printable = !text.contains("expression>") && super::ingest::expression_round_trips(is_calc, text);
+        if printable {
+            for l in text.lines() {
+                body.push_str(&format!("{inner}{}\n", l.trim()));
+            }
+        } else {
+            for l in text.lines() {
+                body.push_str(&format!("{inner}// expression (not valid SysML v2 text): {}\n", l.trim()));
+            }
         }
     }
 
@@ -383,13 +485,20 @@ impl Writer {
         if let Some(mu) = get("multiplicity").and_then(|v| v.as_str()).filter(|m| *m != "1" && !m.is_empty()) {
             s.push_str(&format!(" [{mu}]"));
         }
+        let unit = get("unit").and_then(|v| v.as_str()).map(str::trim).filter(|u| !u.is_empty());
+        let mut unit_used = false;
         if kind == "attribute" {
             if let Some(v) = get("value").and_then(render_value) {
                 s.push_str(&format!(" = {v}"));
+                // `REQ-TRS-SYSMLV2-050`: a numeric value carries its unit as a literal-with-unit.
+                if let Some(u) = unit.filter(|_| v.parse::<f64>().is_ok()) {
+                    s.push_str(&format!(" [{}]", sysml_unit(u)));
+                    unit_used = true;
+                }
             }
         }
         s.push(';');
-        if let Some(u) = get("unit").and_then(|v| v.as_str()) {
+        if let Some(u) = unit.filter(|_| !unit_used) {
             s.push_str(&format!(" // unit: {u}"));
         }
         Some(s)
@@ -424,6 +533,19 @@ fn ref_list(v: Option<&serde_yaml::Value>) -> Vec<String> {
             .filter(|s| !s.is_empty())
             .collect(),
         _ => Vec::new(),
+    }
+}
+
+/// A unit expression inside `[...]`: a bare/qualified name stays as is, anything
+/// else is single-quoted as a restricted name.
+fn sysml_unit(u: &str) -> String {
+    if u.split("::").all(|seg| {
+        let mut c = seg.chars();
+        c.next().is_some_and(|f| f.is_ascii_alphabetic() || f == '_') && seg.chars().all(|x| x.is_ascii_alphanumeric() || x == '_')
+    }) {
+        u.to_string()
+    } else {
+        sysml_ident(u)
     }
 }
 

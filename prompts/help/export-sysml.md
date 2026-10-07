@@ -7,9 +7,11 @@
 One-way, lossy export of native Syscribe elements to SysML v2 textual notation
 (ADR-SYS-SYSMLV2-002). Package directories become nested `package`s; part, port,
 attribute, connection, interface, item and requirement definitions/usages are rendered
-with `:>` (supertype), `:` (typedBy), `[n]` (multiplicity), `doc /* */` (body) and
-`satisfy` (satisfies). Action/state/constraint/calc elements are emitted as header plus
-doc. Element types with no mapping (TestCase, ADR, PlanningItem, ...) are written as
+with `:>` (supertype or usage subsets), `:>>` (redefines), `:` (typedBy), `[n]`
+(multiplicity), `doc /* */` (body), `satisfy` (satisfies; a package-level
+`satisfy R by X;` for non-part elements), `verify` (verifies on requirements) and
+`= 5 [kg]` (inline attribute value with unit). Constraint/calc elements carry their
+parameters and expression text. Action/state elements are emitted as header plus doc. Element types with no mapping (TestCase, ADR, PlanningItem, ...) are written as
 `// skipped: <qname> (<type>)` comments and counted. Names that are not basic SysML
 identifiers (e.g. REQ-X-001) are single-quoted. Read-only on the model; ingestion of
 `.sysml` files is unaffected.

@@ -383,7 +383,7 @@ fn dangling_bare_variant_reference_synthesizes_nothing() {
 
 #[test]
 fn a_file_mixing_mapped_and_unmapped_constructs_parses_fully_and_keeps_the_mapped_ones() {
-    // REQ-TRS-SYSMLV2-007: full-grammar parsing, fixed-set mapping. `metadata
+    // REQ-TRS-SYSMLV2-007: full-grammar parsing, fixed-set mapping. `occurrence
     // def` (still outside the fixed set; calc/constraint/use case were
     // mapped by REQ-TRS-SYSMLV2-033/-034/-035) must not fail the parse or drop the
     // file — they are simply invisible, while a mapped `part def` in the
@@ -400,8 +400,8 @@ fn a_file_mixing_mapped_and_unmapped_constructs_parses_fully_and_keeps_the_mappe
         "SysML2Legacy/Mixed.sysml",
         "package Boundary {\n\
          part def Vehicle;\n\
-         metadata def ComputeMargin;\n\
-         metadata def InspectVehicle;\n\
+         occurrence def ComputeMargin;\n\
+         occurrence def InspectVehicle;\n\
          }\n",
     );
 

@@ -236,7 +236,7 @@ fn inline_features_and_connections_render_and_still_parse() {
     let elements = walk_model(&r).unwrap();
     let out = export_sysml(&elements, None).unwrap();
     let t = &out.text;
-    assert!(t.contains("attribute mass : ScalarValues::Real = 12.5; // unit: kg"), "{t}");
+    assert!(t.contains("attribute mass : ScalarValues::Real = 12.5 [kg];"), "{t}");
     assert!(t.contains("port cmd : P::Rod;"), "{t}");
     assert!(t.contains("connection feed connect a.outPort to b.inPort;"), "{t}");
     let back = reimport(t);

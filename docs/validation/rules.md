@@ -524,7 +524,7 @@ subtree. See the [SysML v2 submodel guide](../model-guide/sysmlv2-submodel.md).
 | W540 | A nested `_index.md` (or other stray `.md`) inside a `sysmlSubmodel:` subtree is ignored — nested files carry no namespace meaning there |
 | W541 | A `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree could not be read, or failed to parse as SysML v2/KerML; its content is skipped |
 | W542 | A `connect` endpoint's two-segment feature chain was truncated to a head-only edge because the tail is not a locally redeclared feature (REQ-TRS-SYSMLV2-015); or an ingested `allocation` usage's `allocate` endpoint chain was truncated to its deepest resolved prefix because a segment is neither declared on nor inherited (via `typedBy:`/`supertype:`) by the element reached so far (REQ-TRS-SYSMLV2-029) |
-| W543 | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`calc def`, `constraint`, `use case`, `metadata`, package-level `doc`, …); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030) |
+| W543 | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`occurrence`, `individual def`, `actor`, `metadata` usages, a root-level `alias`, an unresolved package-level `satisfy`, …); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030) |
 
 ## Suspect links (W090, ADR-SYS-SUSLINK-001)
 

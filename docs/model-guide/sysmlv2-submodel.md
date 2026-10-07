@@ -92,7 +92,7 @@ below), — as of `REQ-TRS-SYSMLV2-029` — `AllocationDef` (§20, below), and �
 `REQ-TRS-SYSMLV2-033`..`-036` — `ConstraintDef`/`Constraint`, `CalculationDef`/`Calculation`,
 `UseCaseDef`/`UseCase` and package-level `doc` (§22, below).
 
-A construct outside that set — `metadata def`, `occurrence`, `actor`, `alias`, and similar — parses without
+A construct outside that set — `occurrence`, `actor`, `dependency`, `metadata` usages, and similar — parses without
 error but contributes **nothing** to the graph: no element, no `Finding`, invisible, the same way a
 native Markdown model has no way to express content that isn't frontmatter or documentation body.
 Parse-broad, map-narrow.
@@ -100,7 +100,7 @@ Parse-broad, map-narrow.
 ```sysml
 package Propulsion {
     part def MappedPart;          // becomes SysML2::Propulsion::MappedPart
-    metadata def UnmappedMeta;    // parses fine, contributes nothing (W543)
+    occurrence def UnmappedOcc;   // parses fine, contributes nothing (W543)
 }
 ```
 
@@ -273,7 +273,7 @@ the parser to add real support was considered and rejected.
 | `W540` | A `_index.md` found anywhere inside a `sysmlSubmodel: true` package's subtree, other than that package's own anchor `_index.md` |
 | `W541` | Either a `.sysml`/`.kerml` file failed to read (e.g. invalid UTF-8), or `sysml-v2-parser` failed to parse its contents |
 | `W542` | A `connect` endpoint's genuinely two-segment chain fell back to a head-only edge because the tail isn't a locally-redeclared feature (§8's redeclaration lookahead didn't match) — identifies the dropped segment. Also raised when an `allocation` usage's `allocate` endpoint chain is truncated (§20) |
-| `W543` | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`metadata`, `occurrence`, `individual def`, `actor`, `alias`, …); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030). Example: `metadata def x2, alias x1`. It does not cover members nested inside a mapped definition's body (e.g. a requirement's `frame`/constraint body); gate it with `--deny W543` |
+| `W543` | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`metadata` usages, `occurrence`, `individual def`, `actor`, a root-level `alias`, an unresolved package-level `satisfy`, …); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030). Example: `metadata def x2, alias x1`. It does not cover members nested inside a mapped definition's body (e.g. a requirement's `frame`/constraint body); gate it with `--deny W543` |
 
 All four share a **dedicated code range**, distinct from the [stdio-subprocess plugin
 family](stdio-plugins.md) (`E550`/`E551`/`W550`–`W553`) — this is native, always-on ingestion of a
@@ -314,9 +314,8 @@ Explicitly out of scope, tracked as follow-on if a concrete need arises:
   standard-library-aware inheritance. The AST-only parser used here resolves cross-boundary
   references through Syscribe's own resolver, not SysML v2 semantic legality; that stays a
   standards-compliant tool's (e.g. `spec42`) job, run separately.
-- **`doc /* ... */` comment lift on `Requirement`** — §7 below covers every other mapped element
-  kind and §22 adds `Package`, but a `requirement`/`requirement def`'s own doc block is not lifted;
-  a deliberate descope (`REQ-TRS-SYSMLV2-009`'s Scope section), not an oversight.
+- **`include`/`extend` of use cases** — the pinned parser's `IncludeUseCase` carries only a name and
+  a body (no resolvable target) and SysML v2 has no `extend`; see §24.
 
 ## 7. `doc /* ... */` comment lift
 
@@ -903,7 +902,7 @@ Expression text is kept as an opaque string and never evaluated. Where the parse
 package level (constraint/calc def, use case def/usage, constraint usage); a `calc`/`use case`/
 `constraint` usage in a `part def` body; a `constraint` usage in a `part` usage body. A non-`draft`
 ingested `UseCaseDef` raises the existing advisory `W307` (no `refines:`). Not lifted: nested
-constraint members, `assert`/negation, `include`/`extend`, and `doc` on a requirement.
+constraint members, `assert`/negation, `include`/`extend` (see §24).
 
 
 ## 23. Exporting native elements as SysML v2 text — `export-sysml` (`ADR-SYS-SYSMLV2-002`, `REQ-TRS-SYSMLV2-037`..`-042`)
@@ -922,13 +921,52 @@ syscribe -m model/ export-sysml --out out/            # one .sysml per top-level
 | directory / `Package` | nested `package` (missing levels become implicit packages) |
 | `PartDef` / `Part` | `part def` / `part` (`supertype` -> `:>`, `typedBy` -> `:`, `multiplicity` -> `[n]`, `isAbstract` -> `abstract`) |
 | `PortDef`/`Port`, `AttributeDef`/`Attribute`, `ConnectionDef`/`Connection`, `InterfaceDef`/`Interface`, `ItemDef`/`Item` | the matching `... def` / usage |
-| `RequirementDef`, native `Requirement` | `requirement def` (native ones named by their stable id, e.g. `'REQ-X-001'`; body as `doc /* */`) |
-| `ActionDef`/`StateDef`/`ConstraintDef`/`CalculationDef` and usages | header + doc only (no behaviour or expression bodies) |
+| `RequirementDef`, native `Requirement` | `requirement def` (native ones named by their stable id, e.g. `'REQ-X-001'`; body as `doc /* */`; `verifies:` -> `verify <target>;`) |
+| `ActionDef`/`StateDef` and usages | header + doc only (no behaviour bodies) |
+| `ConstraintDef`/`CalculationDef` and usages | header, doc, `in`/`out`/`return` parameters and the `expression:`/`body:` text (REQ-TRS-SYSMLV2-052) |
 | `satisfies:` on a part | `satisfy <target>;` in its body |
-| inline `features:` / `connections:` on a part | `attribute`/`port` members, `connection ... connect a.x to b.y;` |
+| `satisfies:` on any other element | a package-level `satisfy <target> by <element>;` (REQ-TRS-SYSMLV2-051) |
+| usage `subsets:` / `redefines:` | `:> a, b` / `:>> a` after the typing and multiplicity (REQ-TRS-SYSMLV2-049) |
+| inline `features:` / `connections:` on a part | `attribute`/`port` members (a numeric `value:` with `unit:` becomes `= 5 [kg]`), `connection ... connect a.x to b.y;` |
 | anything else (`TestCase`, `ADR`, `PlanningItem`, `FeatureDef`, ...) | `// skipped: <qname> (<type>)` and a count in the summary |
 
 The export is lossy and deterministic; re-importing it into a `sysmlSubmodel: true` package
 reproduces the supported kinds and qnames (a native `Requirement` returns as a `RequirementDef`),
 which is exactly what the parse-back tests check. The MCP tool `export_sysml {package?}` returns
 the same text without writing anything. The writer is `syscribe_model::sysmlv2::export`.
+
+## 24. Closing ingestion gaps — `REQ-TRS-SYSMLV2-043`..`-048`
+
+More of what the parser exposes now lands in a native target; each stops counting toward `W543`.
+
+| SysML v2 | Native | Notes |
+|---|---|---|
+| `alias m for X;` in a named package | `aliases: [{name: m, for: X}]` on that `Package` | the field the scoped resolver already reads (spec 3.7.2); `<s>` short names become `shortName`; a **root-level** alias has no package to carry it and stays counted |
+| `library package` / `namespace` | `Package` | at the file root or nested; same-named declarations merge; the `standard` flag is dropped |
+| `metadata def N :> S` | `MetadataDef` | `supertype:`, `isAbstract:`, doc; `metadata` *usages* stay unmapped |
+| `satisfy R by X;` at package level | `X`'s `satisfies:` gains `R` | `X` is resolved innermost-scope-first after the whole subtree is merged; an unresolved subject, the bare `satisfy R;` shorthand, a negated or inline one stay counted as `satisfy` |
+| `doc /* */` in `requirement def` / `requirement` | the element's doc text | joined and trimmed like every other doc lift |
+| `part`/`attribute`/`port`/`item` usage `[m]`, `:>`, `:>>` | `multiplicity:` (`2`, `0..1`, `1..*`, `*`), `subsets:`, `redefines:` | resolved by the `E112`/`E113` structural checks like `typedBy:` |
+
+```sysml
+package P {
+    part def Axle;
+    part def Car {
+        part wheels : Axle [2];
+        part spare  : Axle [0..1] :> wheels;      // multiplicity: "0..1", subsets: [wheels]
+    }
+    alias Wheelset for Car;                        // P gains aliases: [{name: Wheelset, for: Car}]
+    satisfy 'REQ-X-001' by Car;                    // Car gains satisfies: ['REQ-X-001']
+}
+```
+
+**Deliberately not mapped** (still `W543`): `include`/`extend` of use cases — the pinned parser's
+`IncludeUseCase` carries a usage name and body but no resolvable target, and SysML v2 has no
+`extend`; `metadata` usages, `occurrence`, `individual def`, package-level `actor`, `dependency`,
+`filter`, textual representation and the KerML declaration forms have no native target. `item`
+usages are limited by the parser to `item name [m] : T` (a trailing `T[m]` is not read), and a
+package-level `item` usage is read without its typing. No new validation code was added: an
+advisory for a usage typed by a non-definition was evaluated and skipped, since the native format
+does not enforce that rule for hand-authored elements either. `syscribe sysml`/`sysml_submodels`
+report counts only the statically unmapped kinds; an unresolved package-level `satisfy` appears in
+`W543` but not in that report.
