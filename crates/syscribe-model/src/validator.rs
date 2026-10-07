@@ -2923,9 +2923,13 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // with an IR are checked (`Mermaid`/`PlantUML` bodies have none).
             if let Some((_graph, issues)) = crate::vis::build_graph(elem, elements, &resolver) {
                 for issue in issues {
+                    // W417/W418 come from the derived-content generators
+                    // (REQ-TRS-VIS-003): a filter entry naming no member of the
+                    // subject (or filters on a manifest diagram), and a subject
+                    // whose type is not valid for the diagram kind.
                     match issue.code {
                         "E405" => findings.push(error("E405", &file, &issue.message)),
-                        "W416" => findings.push(warning("W416", &file, &issue.message)),
+                        "W416" | "W417" | "W418" => findings.push(warning(issue.code, &file, &issue.message)),
                         _ => {}
                     }
                 }

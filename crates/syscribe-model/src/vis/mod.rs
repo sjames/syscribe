@@ -10,6 +10,7 @@
 //! Source selection needs no mode field (`REQ-TRS-VIS-003`): the presence of
 //! `shapes:` picks the manifest; a `subject:` alone picks derivation.
 
+pub mod derive;
 pub mod ir;
 pub mod manifest;
 pub mod sprotty;
@@ -57,21 +58,28 @@ pub fn has_ir(elem: &RawElement) -> bool {
         && DiagramKind::parse(elem.frontmatter.diagram_kind.as_deref()).is_some()
 }
 
-/// Build the IR of a `Diagram` element, with the manifest issues (`E405`/
-/// `W416`) found on the way. `None` when the element is not a `Diagram` or
-/// its kind has no IR (`Mermaid`, `PlantUML`).
-///
-/// A derived diagram (`Source::Derived`) currently yields an empty graph with
-/// its subject set; the BDD/IBD generators of `REQ-TRS-VIS-004`/`-005` fill
-/// it in.
+/// Build the IR of a `Diagram` element, with the issues found on the way:
+/// `E405`/`W416` from the manifest parser, `W417`/`W418` from the generators.
+/// `None` when the element is not a `Diagram` or its kind has no IR
+/// (`Mermaid`, `PlantUML`).
 pub fn build_graph(elem: &RawElement, elements: &[RawElement], resolver: &Resolver) -> Option<(DiagramGraph, Vec<Issue>)> {
     if !matches!(elem.frontmatter.element_type, Some(ElementType::Diagram)) {
         return None;
     }
     let kind = DiagramKind::parse(elem.frontmatter.diagram_kind.as_deref())?;
     match source_of(&elem.frontmatter) {
-        Source::Manifest => Some(manifest::build(elem, kind, elements, resolver)),
-        Source::Derived | Source::Empty => {
+        Source::Manifest => {
+            let (graph, mut issues) = manifest::build(elem, kind, elements, resolver);
+            let filters = derive::Filters::of(elem);
+            if !filters.is_empty() {
+                issues.push(derive::w417(
+                    "`include`/`exclude` apply only to a derived diagram (one with a `subject` and no `shapes`) — ignored".to_string(),
+                ));
+            }
+            Some((graph, issues))
+        }
+        Source::Derived => Some(derive::derive(elem, kind, elements, resolver)),
+        Source::Empty => {
             let name = elem
                 .frontmatter
                 .name

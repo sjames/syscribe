@@ -227,6 +227,50 @@ fn parse_points(v: &Value) -> Option<Vec<Point>> {
     Some(out)
 }
 
+/// Apply a `layout:` map to an already-built graph: shape ids become pins,
+/// edge ids with `points:` become waypoints, anything else is `W416`, and a
+/// malformed entry is `E405`. Shared by the manifest and derived sources
+/// (`REQ-TRS-VIS-003`: pins survive regeneration).
+pub(super) fn apply_layout(graph: &mut DiagramGraph, layout: Option<&Value>, issues: &mut Vec<Issue>) {
+    if let Some(v) = layout {
+        match v {
+            Value::Mapping(m) => {
+                for (k, entry) in m {
+                    let id = match k.as_str() {
+                        Some(s) => s,
+                        None => {
+                            issues.push(e405("`layout` has a non-string key".to_string()));
+                            continue;
+                        }
+                    };
+                    let Value::Mapping(em) = entry else {
+                        issues.push(e405(format!("`layout` entry `{id}` is not a map")));
+                        continue;
+                    };
+                    if let Some(node) = graph.nodes.iter_mut().find(|n| n.id == id) {
+                        match (f64_of(em, "x"), f64_of(em, "y")) {
+                            (Some(x), Some(y)) => {
+                                node.pin = Some(Rect { x, y, w: f64_of(em, "w"), h: f64_of(em, "h") });
+                            }
+                            _ => issues.push(e405(format!("`layout` entry `{id}` needs numeric `x` and `y`"))),
+                        }
+                    } else if let Some(edge) = graph.edges.iter_mut().find(|e| e.id == id) {
+                        match em.get(Value::String(KEY_POINTS.into())).and_then(parse_points) {
+                            Some(points) => edge.waypoints = Some(points),
+                            None => issues.push(e405(format!("`layout` entry `{id}` for an edge needs a `points` list of `[x, y]` pairs"))),
+                        }
+                    } else {
+                        issues.push(w416(format!("`layout` entry `{id}` names no shape or edge of this diagram")));
+                    }
+                }
+            }
+            Value::Null => {}
+            _ => issues.push(e405("`layout` must be a map of shape id → {x, y, w, h}".to_string())),
+        }
+    }
+
+}
+
 /// Build the IR of a manifest-sourced `Diagram` element.
 ///
 /// `kind` is the diagram kind the caller already determined (see
@@ -353,43 +397,7 @@ pub fn build(
         }
     }
 
-    // ── layout (pins) ───────────────────────────────────────────────────
-    if let Some(v) = fm.layout.as_ref() {
-        match v {
-            Value::Mapping(m) => {
-                for (k, entry) in m {
-                    let id = match k.as_str() {
-                        Some(s) => s,
-                        None => {
-                            issues.push(e405("`layout` has a non-string key".to_string()));
-                            continue;
-                        }
-                    };
-                    let Value::Mapping(em) = entry else {
-                        issues.push(e405(format!("`layout` entry `{id}` is not a map")));
-                        continue;
-                    };
-                    if let Some(node) = graph.nodes.iter_mut().find(|n| n.id == id) {
-                        match (f64_of(em, "x"), f64_of(em, "y")) {
-                            (Some(x), Some(y)) => {
-                                node.pin = Some(Rect { x, y, w: f64_of(em, "w"), h: f64_of(em, "h") });
-                            }
-                            _ => issues.push(e405(format!("`layout` entry `{id}` needs numeric `x` and `y`"))),
-                        }
-                    } else if let Some(edge) = graph.edges.iter_mut().find(|e| e.id == id) {
-                        match em.get(Value::String(KEY_POINTS.into())).and_then(parse_points) {
-                            Some(points) => edge.waypoints = Some(points),
-                            None => issues.push(e405(format!("`layout` entry `{id}` for an edge needs a `points` list of `[x, y]` pairs"))),
-                        }
-                    } else {
-                        issues.push(w416(format!("`layout` entry `{id}` names no shape or edge of this diagram")));
-                    }
-                }
-            }
-            Value::Null => {}
-            _ => issues.push(e405("`layout` must be a map of shape id → {x, y, w, h}".to_string())),
-        }
-    }
+    apply_layout(&mut graph, fm.layout.as_ref(), &mut issues);
 
     (graph, issues)
 }

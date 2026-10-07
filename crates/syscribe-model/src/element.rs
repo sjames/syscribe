@@ -875,8 +875,11 @@ pub struct RawFrontmatter {
     /// `include:` — glob patterns (relative to this package's directory,
     /// `**`/`*`/`?` supported) selecting which files are scanned for markers.
     /// Required, non-empty, when `annotationFormat:` is set (`E560` otherwise).
+    /// On a derived `Diagram` (`REQ-TRS-VIS-003`) the same key lists the
+    /// members of the subject to show.
     pub include: Option<Vec<String>>,
-    /// `exclude:` — glob patterns excluded from `include:`'s matches.
+    /// `exclude:` — glob patterns excluded from `include:`'s matches; on a
+    /// derived `Diagram`, members of the subject to drop.
     pub exclude: Option<Vec<String>>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
     pub control_nodes: Option<Vec<serde_yaml::Value>>,

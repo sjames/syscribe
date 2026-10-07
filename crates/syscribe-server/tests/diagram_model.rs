@@ -175,16 +175,21 @@ async fn qname_accepts_both_separators() {
     assert_eq!(ja, jb);
 }
 
-/// A `subject:`-only diagram is the (still empty, until Phase 1) derived
-/// graph — a mountable root, not a 404.
+/// A `subject:`-only diagram is derived from the model (`REQ-TRS-VIS-003`):
+/// an IBD of a bare `PartDef` is its boundary alone.
 #[tokio::test]
-async fn derived_diagram_returns_an_empty_graph_with_its_subject() {
+async fn derived_diagram_returns_the_generated_graph_for_its_subject() {
     let app = build_app().await;
     let (status, j) = get(&app, "/api/diagrams/model/Diagrams/Derived").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(j["subject"], "Sys::Engine");
     assert_eq!(j["diagramKind"], "IBD");
-    assert_eq!(j["children"], json!([]));
+    let children = j["children"].as_array().unwrap();
+    assert_eq!(children.len(), 1);
+    assert_eq!(children[0]["id"], "s-sys-engine");
+    assert_eq!(children[0]["kind"], "boundary");
+    assert_eq!(children[0]["ref"], "Sys::Engine");
+    assert_eq!(children[0]["isAbstract"], json!(true));
     assert_eq!(j["pinned"], json!([]));
 }
 

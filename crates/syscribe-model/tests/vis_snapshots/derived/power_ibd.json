@@ -1,0 +1,123 @@
+{
+  "kind": "Ibd",
+  "qualifiedName": "Diagrams::PowerIBD",
+  "name": "PowerIBD",
+  "subject": "Sys::PowerSystem",
+  "nodes": [
+    {
+      "id": "s-sys-powersystem",
+      "elementRef": "Sys::PowerSystem",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "boundary",
+      "label": "PowerSystem",
+      "stereotype": "part def",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-powersystem-mainout",
+      "elementRef": "Sys::PowerSystem::mainOut",
+      "resolved": true,
+      "elementType": "Port",
+      "kind": "port",
+      "label": "mainOut",
+      "stereotype": "port",
+      "parent": "s-sys-powersystem",
+      "direction": "out",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-powersystem-engine",
+      "elementRef": "Sys::PowerSystem::engine",
+      "resolved": true,
+      "elementType": "Part",
+      "kind": "block",
+      "label": "engine : Engine",
+      "stereotype": "part",
+      "parent": "s-sys-powersystem",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-powersystem-engine-powerout",
+      "elementRef": "Sys::PowerSystem::engine::powerOut",
+      "resolved": true,
+      "elementType": "Port",
+      "kind": "port",
+      "label": "powerOut",
+      "stereotype": "port",
+      "parent": "s-sys-powersystem-engine",
+      "direction": "out",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-powersystem-motor",
+      "elementRef": "Sys::PowerSystem::motor",
+      "resolved": true,
+      "elementType": "Part",
+      "kind": "block",
+      "label": "motor : Motor [2]",
+      "stereotype": "part",
+      "parent": "s-sys-powersystem",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-powersystem-motor-powerin",
+      "elementRef": "Sys::PowerSystem::motor::powerIn",
+      "resolved": true,
+      "elementType": "Port",
+      "kind": "port",
+      "label": "powerIn",
+      "stereotype": "port",
+      "parent": "s-sys-powersystem-motor",
+      "direction": "in",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-powersystem-aux",
+      "elementRef": "Sys::PowerSystem::aux",
+      "resolved": true,
+      "elementType": "Part",
+      "kind": "block",
+      "label": "aux : Motor",
+      "stereotype": "part",
+      "parent": "s-sys-powersystem",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-powersystem-aux-powerin",
+      "elementRef": "Sys::PowerSystem::aux::powerIn",
+      "resolved": true,
+      "elementType": "Port",
+      "kind": "port",
+      "label": "powerIn",
+      "stereotype": "port",
+      "parent": "s-sys-powersystem-aux",
+      "direction": "in",
+      "isAbstract": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-connection-s-sys-powersystem-engine-powerout-s-sys-powersystem-motor-powerin",
+      "elementRef": "Sys::PowerSystem",
+      "source": "s-sys-powersystem-engine-powerout",
+      "target": "s-sys-powersystem-motor-powerin",
+      "kind": "connection",
+      "label": "PowerLink"
+    },
+    {
+      "id": "e-binding-s-sys-powersystem-motor-powerin-s-sys-powersystem-mainout",
+      "elementRef": "Sys::PowerSystem",
+      "source": "s-sys-powersystem-motor-powerin",
+      "target": "s-sys-powersystem-mainout",
+      "kind": "binding"
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "layered",
+    "direction": "right",
+    "hierarchical": true,
+    "portConstraints": "fixedSide",
+    "reversedKinds": []
+  }
+}

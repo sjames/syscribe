@@ -1,0 +1,162 @@
+{
+  "kind": "Bdd",
+  "qualifiedName": "Diagrams::SysBDD",
+  "name": "SysBDD",
+  "subject": "Sys",
+  "nodes": [
+    {
+      "id": "s-sys-base",
+      "elementRef": "Sys::Base",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "Base",
+      "stereotype": "part def",
+      "isAbstract": true
+    },
+    {
+      "id": "s-sys-engine",
+      "elementRef": "Sys::Engine",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "Engine",
+      "stereotype": "part def",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-engine-compartment",
+      "elementRef": "Sys::Engine",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-sys-engine",
+      "lines": [
+        "mass : Real [kg]",
+        "port powerOut : PowerPort (out)"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-motor",
+      "elementRef": "Sys::Motor",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "Motor",
+      "stereotype": "part def",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-motor-compartment",
+      "elementRef": "Sys::Motor",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-sys-motor",
+      "lines": [
+        "port powerIn : PowerPort (in)"
+      ],
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-powerlink",
+      "elementRef": "Sys::PowerLink",
+      "resolved": true,
+      "elementType": "ConnectionDef",
+      "kind": "block",
+      "label": "PowerLink",
+      "stereotype": "connection def",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-powerport",
+      "elementRef": "Sys::PowerPort",
+      "resolved": true,
+      "elementType": "PortDef",
+      "kind": "block",
+      "label": "PowerPort",
+      "stereotype": "port def",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-powersystem",
+      "elementRef": "Sys::PowerSystem",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "PowerSystem",
+      "stereotype": "part def",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sys-powersystem-compartment",
+      "elementRef": "Sys::PowerSystem",
+      "resolved": true,
+      "kind": "compartment",
+      "label": "",
+      "parent": "s-sys-powersystem",
+      "lines": [
+        "port mainOut : PowerPort (out)"
+      ],
+      "isAbstract": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-inheritance-s-sys-engine-s-sys-base",
+      "elementRef": "Sys::Engine",
+      "source": "s-sys-engine",
+      "target": "s-sys-base",
+      "kind": "inheritance"
+    },
+    {
+      "id": "e-inheritance-s-sys-motor-s-sys-base",
+      "elementRef": "Sys::Motor",
+      "source": "s-sys-motor",
+      "target": "s-sys-base",
+      "kind": "inheritance"
+    },
+    {
+      "id": "e-association-s-sys-engine-s-sys-motor-powerlink",
+      "elementRef": "Sys::PowerLink",
+      "source": "s-sys-engine",
+      "target": "s-sys-motor",
+      "kind": "association",
+      "label": "PowerLink"
+    },
+    {
+      "id": "e-composition-s-sys-powersystem-s-sys-engine-engine",
+      "elementRef": "Sys::PowerSystem::engine",
+      "source": "s-sys-powersystem",
+      "target": "s-sys-engine",
+      "kind": "composition",
+      "label": "engine"
+    },
+    {
+      "id": "e-composition-s-sys-powersystem-s-sys-motor-motor",
+      "elementRef": "Sys::PowerSystem::motor",
+      "source": "s-sys-powersystem",
+      "target": "s-sys-motor",
+      "kind": "composition",
+      "label": "motor [2]"
+    },
+    {
+      "id": "e-composition-s-sys-powersystem-s-sys-motor-aux",
+      "elementRef": "Sys::PowerSystem::aux",
+      "source": "s-sys-powersystem",
+      "target": "s-sys-motor",
+      "kind": "composition",
+      "label": "aux"
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "layered",
+    "direction": "down",
+    "hierarchical": false,
+    "portConstraints": "free",
+    "reversedKinds": [
+      "inheritance"
+    ]
+  }
+}
