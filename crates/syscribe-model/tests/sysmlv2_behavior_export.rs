@@ -367,7 +367,10 @@ fn unrepresentable_state_entries_become_comments_and_the_rest_round_trips() {
         "// entryAction not exported (entryAction is not a plain action name)",
         "// subState not exported (unsupported fields): odd",
         "// transition not exported (top-level transition has no source): (implicit) -> done",
-        "// transition not exported (does not read back identically): idle -> done",
+        // The placeholder guard `<conditional expression>` is no expression: 0.54 accepted it and read
+        // it back as something else; 0.55+ rejects it, so the reason is "does not parse"
+        // (`REQ-TRS-SYSMLV2-073`, documented parser-strictness difference).
+        "// transition not exported (does not parse): idle -> done",
         "// transition not exported (unsupported fields): idle -> done",
     ] {
         assert!(text.contains(what), "missing `{what}`\n{text}");

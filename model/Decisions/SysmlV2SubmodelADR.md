@@ -940,13 +940,44 @@ that already existed in the schema, so no new `ElementType` was needed.
 
 ## Addendum: parser migration to 0.57.0 (REQ-TRS-SYSMLV2-073)
 
-The deferred upgrade is now executed as a behaviour-preserving migration, gated by the existing
-`sysmlv2*` suites, the export round-trip tests and the repository ratchet. Plan, in order, keeping the
-tree compiling at each step: (1) bump the pin and thread the `ParsedDocument` handle through every
-`convert_*` function so names, short names and qualified references resolve; (2) rewrite
-`render_expression` and `connection_end_display` for the restructured `Expression`; (3) re-home
-`Doc`/`MetadataAnnotation` extraction; (4) adapt `Satisfy`, `TextualRep`, `FlowUsage`/
-`ConnectionUsageMember`, use-case and metadata field changes; (5) run the whole workspace. The
-reported parser version follows the pin (guard test). Improvements that 0.57 enables are specified as
-separate requirements after the migration is green. If the gate cannot be made green with identical
-behaviour, the pin stays at 0.54.0 and the blockers are recorded here.
+The deferred upgrade was executed as a behaviour-preserving migration, gated by the existing
+`sysmlv2*` suites, the export round-trip tests and the repository ratchet, plus a differential run of
+the old (0.54) and new binaries over every `.sysml` fixture under `qual/fixtures`, `examples/` and
+`model/` (`sysml --json`, `export --ndjson`, `validate`, `export-sysml`: identical apart from an
+unrelated ordering of one `W407`).
+
+- **Design: the document is held in a scoped thread-local, not threaded through ~170 signatures.**
+  Every name/reference/literal is a span handle readable only through the owning `ParsedDocument`.
+  The converters are pure functions of the AST, so `ingest.rs` splits each parsed document into its
+  movable root and an `Rc<ParsedDocument>` shell (source plus reference arena, empty root), stores the
+  shell beside every merged body element, and installs it with `with_doc` for exactly the extent of
+  one conversion (`convert_merged`, the satisfy lift, each probe). `dn`/`qr`/`qr_segments` and the
+  `NameStr` helper read through it. This keeps the diff reviewable and makes a cross-file handle mix-up
+  impossible by construction (two files merging into one package each convert under their own
+  document; `names_resolve_against_their_own_file_when_packages_merge` locks it).
+- **Expression renderer rewritten for the new shape.** `MemberAccess{base,member,separator}`,
+  `Index`/`Bracket`/`Sequence` with a `SequenceExpressionList`, `FeatureRef`/`FeatureChainRef` ids and
+  span-backed literals. `12.5 [kg]` is a `Bracket` over the literal (was `LiteralWithUnit`);
+  `(a)`/`(a, b)` are both a parenthesised `Sequence`; a range renders `1..3` without spaces as before.
+- **Doc/metadata re-homed.** `Doc` and `MetadataAnnotation` are `Annotating(AnnotatingMember)`
+  members of every body; `@Name { k = v; }` bodies are `MetadataBody` (`Usage` redefinitions or
+  `Definition` attribute usages). Only the element kinds that read an annotation on 0.54 still do.
+- **Documented behaviour differences (all parser-driven, none lose data):**
+  1. A bare package-level `attribute x : T;`, `port p : T;`, `item i : T;` is the usage it is in SysML
+     v2 (`Attribute`/`Port`/`Item` with `typedBy:`); 0.54 read them as definitions (`supertype:`). A
+     bare `interface` stays an `InterfaceDef`. This is what makes a package-level attribute value
+     mappable.
+  2. Constructs 0.54 rejected for the whole file (`W541`) now parse: a `view` inside a `part` usage
+     (still not mapped as its own element), `then fork/join/decide/accept/send/if` successions (no
+     edge is emitted for them), anonymous `fork;`/`join;`, a `variant` reference body.
+  3. A placeholder guard such as `<conditional expression>` is no expression: 0.55+ rejects it, so the
+     export comment reason is "does not parse" (0.54: "does not read back identically").
+  4. `include use case v : V;` (declaring form) maps to nothing and is not counted; `include X;` is
+     unchanged.
+- **Test edits.** `sysmlv2_gaps` (literal-with-unit assertion now `Bracket` over a literal),
+  `sysmlv2_ingest` (differences 1), `sysmlv2_views` (difference 2), `sysmlv2_behavior_export`
+  (difference 3), `sysml_inspect` (version string). No behavioural expectation was loosened beyond
+  these.
+- **What the new parser now exposes that follow-up requirements can use:** `GuardedSuccession`
+  (`first a if g then b`), `IncludeUseCase::target` for qualified references, an attribute `value` on
+  package-level usages, `ActionUsage::via`/`to` and `TransitionAccept` `via`.

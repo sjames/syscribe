@@ -979,17 +979,19 @@ take their counts from the ingestion pass itself, so an unresolved package-level
 | `include Pay;` / `then include Pay;` in a `use case def`/`use case` body | `includes: [<qname of Pay>]` | `Pay` is resolved innermost-scope-first against the ingested `UseCaseDef`/`UseCase` elements; an unresolved name (or one naming a non-use-case, or the use case itself) is dropped and counted as `include` in `W543` |
 | `attribute mass : Real = 12.5 [kg];` (in a `part def`/`part` body) | `Attribute` with `value: 12.5`, `unit: kg` | only *literal* values (number, string, boolean) map; any other expression leaves `value:` unset. `unit:` is a standard element field (the spec's inline-feature shorthand) |
 
-`export-sysml` writes `unit:` back as `= 12.5 [kg]`. A package-level `attribute x = v;` is read by the
-pinned parser as an attribute *definition*, so its value is not an attribute usage value.
+`export-sysml` writes `unit:` back as `= 12.5 [kg]`. A package-level `attribute x : T = v;` is an attribute usage on the pinned parser, like any other.
 
 `syscribe sysml` prints `Parser: sysml-v2-parser <version> (AST <n>)` and `--json`/MCP `sysml_submodels`
 carry `parser: {name, version, astVersion}`. A test compares the reported version with the pin in
 `crates/syscribe-model/Cargo.toml`, so it cannot go stale.
 
-**Parser upgrade status.** `sysml-v2-parser` is pinned at 0.54.0. 0.57.0 was evaluated and **not**
-adopted: since 0.55 every name and reference is a span handle resolved through the parsed document, the
-`Doc` body variants and several `Expression` shapes changed — 363 compile errors, all in the 4,265-line
-`ingest.rs` (see the `ADR-SYS-SYSMLV2-001` addendum for the full inventory and the migration steps).
+**Parser version.** `sysml-v2-parser` is pinned at 0.57.0 (`REQ-TRS-SYSMLV2-073`). Behaviour is the
+same as on 0.54 apart from four documented, parser-driven differences, recorded in the
+`ADR-SYS-SYSMLV2-001` migration addendum: a bare package-level `attribute`/`port`/`item` is read as
+the usage it is (not a definition), constructs 0.54 rejected for the whole file (a `view` in a `part`
+usage, `then fork`/`join`/`decide`) no longer raise `W541`, a placeholder guard that is not an
+expression is exported as a comment with the reason "does not parse", and the declaring form
+`include use case v : V;` maps to nothing.
 
 ## 26. Exported behaviour bodies — `REQ-TRS-SYSMLV2-056`..`-058`
 

@@ -209,10 +209,11 @@ fn export_attribute_unit_is_a_literal_with_unit() {
     assert!(text.contains("attribute mass : Sys::Mass = 5 [kg];"), "{text}");
     assert!(!text.contains("unit: kg\n    attribute mass"), "{text}");
     assert!(text.contains("attribute limit : Sys::Mass; // unit: kg"), "{text}");
-    // The literal really is a literal-with-unit to the parser.
+    // The literal really is a literal-with-unit to the parser (0.55+ spells that `Bracket` over a
+    // literal base; 0.54 had a dedicated `LiteralWithUnit` node).
     let root = sysml_v2_parser::parse(&text).expect("parses");
     let dump = format!("{root:?}");
-    assert!(dump.contains("LiteralWithUnit"), "{dump}");
+    assert!(dump.contains("Bracket { base: Node { span: Span") && dump.contains("LiteralInteger(5)"), "{dump}");
 }
 
 #[test]

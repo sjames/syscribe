@@ -11,7 +11,7 @@ use crate::element::RawElement;
 
 /// The `sysml-v2-parser` release this build links (`REQ-TRS-SYSMLV2-053`). A test compares it with
 /// the version pinned in `Cargo.toml`, so an upgrade cannot leave the report stale.
-pub const PARSER_VERSION: &str = "0.54.0";
+pub const PARSER_VERSION: &str = "0.57.0";
 
 /// The parser's own AST schema version (`sysml_v2_parser::PARSE_AST_VERSION`).
 pub const PARSER_AST_VERSION: u32 = sysml_v2_parser::PARSE_AST_VERSION;

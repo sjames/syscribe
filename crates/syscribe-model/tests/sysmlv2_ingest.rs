@@ -168,10 +168,9 @@ fn variation_part_def_carries_is_variation() {
 fn remaining_fixed_set_kinds_map_attribute_port_connection_interface_item_requirement_allocation() {
     // What syntax without an explicit `def` keyword resolves to (`*Def` vs.
     // `*Usage`) is the parser's own disambiguation call, confirmed against its
-    // actual AST output rather than assumed: bare `attribute`/`port`/
-    // `interface`/`item` land as `*Def` (their "def" keyword is optional to
-    // this parser), while bare `connection`/`requirement`/`allocation` land as
-    // `*Usage`. Either way, a Def's `:`/`:>` clause maps to `supertype` and a
+    // actual AST output rather than assumed: since 0.55 every bare
+    // `attribute`/`port`/`item`/`connection`/`requirement`/`allocation` is the
+    // `*Usage` it is in SysML v2 (0.54 read `attribute`/`port`/`item` as `*Def`; a bare `interface` is still an `InterfaceDef`). Either way, a Def's `:`/`:>` clause maps to `supertype` and a
     // Usage's maps to `typed_by` — this test locks in that observed mapping.
     let root = tempdir();
     write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
@@ -228,11 +227,14 @@ fn remaining_fixed_set_kinds_map_attribute_port_connection_interface_item_requir
         );
     };
 
-    expect_supertype("SysML2Legacy::Mixed::mass", ElementType::AttributeDef, "Real");
-    expect_supertype("SysML2Legacy::Mixed::fuelPort", ElementType::PortDef, "FuelPort");
+    // 0.55+ reads a bare package-level `attribute x : T;` as the usage it is (0.54: an attribute
+    // definition) -- `REQ-TRS-SYSMLV2-073`'s documented improvement; this is what makes a
+    // package-level attribute value mappable.
+    expect_typed_by("SysML2Legacy::Mixed::mass", ElementType::Attribute, "Real");
+    expect_typed_by("SysML2Legacy::Mixed::fuelPort", ElementType::Port, "FuelPort");
     expect_typed_by("SysML2Legacy::Mixed::wiring", ElementType::Connection, "Wire");
     expect_supertype("SysML2Legacy::Mixed::iface", ElementType::InterfaceDef, "SomeInterface");
-    expect_supertype("SysML2Legacy::Mixed::fuel", ElementType::ItemDef, "Fuel");
+    expect_typed_by("SysML2Legacy::Mixed::fuel", ElementType::Item, "Fuel");
     expect_typed_by(
         "SysML2Legacy::Mixed::enduranceReq",
         ElementType::Requirement,

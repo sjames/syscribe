@@ -202,13 +202,10 @@ fn a_view_nested_inside_a_part_def_becomes_a_real_element() {
 fn a_view_nested_inside_a_part_usage_stays_invisible() {
     let root = tempdir();
     base_model(&root);
-    // `PartUsageBodyElement` carries no variant for the whole
-    // view/viewpoint/rendering family at all per this grammar
-    // (`REQ-TRS-SYSMLV2-020`/`-021`/`-022`'s documented gap) -- stronger
-    // than a silent per-element skip, this is an outright parser rejection:
-    // a `view` declared directly inside a `part` usage body fails to parse
-    // at all, gracefully degrading to a `W541` finding
-    // (`REQ-TRS-SYSMLV2-006`) rather than a crash or a synthesized element.
+    // 0.54 rejected a `view` declared directly inside a `part` usage body outright (a `W541`
+    // for the whole file). Since 0.55 the file parses; the nested view is simply not a mapped
+    // construct there, so it stays invisible as its own element (`REQ-TRS-SYSMLV2-073`: a
+    // documented improvement -- the file's other elements are no longer lost).
     write(
         &root,
         "SysML2Legacy/Nested.sysml",
@@ -228,7 +225,11 @@ fn a_view_nested_inside_a_part_usage_stays_invisible() {
         elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
     );
     let result = validate(&elements);
-    assert!(codes(&result.findings).contains(&"W541"), "{:#?}", result.findings);
+    assert!(!codes(&result.findings).contains(&"W541"), "{:#?}", result.findings);
+    assert!(
+        elements.iter().any(|e| e.qualified_name == "SysML2Legacy::Behavior::Housing"),
+        "the rest of the file still ingests"
+    );
 }
 
 #[test]

@@ -45,7 +45,7 @@ fn cli_sysml_text_report() {
     assert!(out.contains("individual def x1"), "{out}");
     assert!(out.contains("W543"), "{out}");
     // REQ-TRS-SYSMLV2-053: the parser release is reported.
-    assert!(out.contains("Parser: sysml-v2-parser 0.54.0 (AST "), "{out}");
+    assert!(out.contains("Parser: sysml-v2-parser 0.57.0 (AST "), "{out}");
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn cli_sysml_json_report() {
     assert_eq!(s["unmapped"]["individual def"], 1);
     assert_eq!(s["findings"][0]["code"], "W543");
     assert_eq!(v["parser"]["name"], "sysml-v2-parser");
-    assert_eq!(v["parser"]["version"], "0.54.0");
+    assert_eq!(v["parser"]["version"], "0.57.0");
     assert!(v["parser"]["astVersion"].as_u64().is_some(), "{out}");
 }
 
