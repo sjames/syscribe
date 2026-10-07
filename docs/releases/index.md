@@ -2,7 +2,13 @@
 
 `RELEASES`
 
-## Unreleased
+## 0.44.0 — 2026-10-08
+
+### Traceability export (ADR-SYS-TREX-001)
+
+- **New command:** `syscribe trace-export [--config <C>] [--sort directory|asc|desc] [--out <file>]` and the read-only MCP tool `trace_export {config?, sort?}` emit **one JSON document** covering every requirement in the model — native `Requirement` and SysML `RequirementDef`/`Requirement` — with its identity (`qname`, `id`, `name`, `type`, `status`, `reqClass`, `reqDomain`, `file`), derivation (`derivedFrom`, `derivedChildren`, `breakdownAdr`), satisfaction (`satisfiedBy` with type and domain), verification (`verifiedBy` with level, status and the ingested verdict), `refinedBy`, and a computed `coverage` block (`leaf`, `satisfied`, `verified`, `integrationVerified`) plus a `summary` of the counts (`REQ-TRS-TREX-000..004`).
+- **Why:** coverage questions were answered one requirement at a time (`trace`, `why`, `who-verifies`), as a grid (`matrix`) or by joining the whole-model `export` by hand; none of those could be restricted to a product-line variant and sorted predictably. One schema computed from the same reverse indices `validate` maintains — `coverage` applies exactly the `W300`/`W002`/`W305` rules, a retired TestCase is listed but never counts, and a `coverage = true` link type that `extends` a built-in link contributes — keeps an external checker and the validator in agreement.
+- **Usage:** every reference is a full qualified name plus `id`; a dangling one is kept as `{ "qname": "<as written>", "unresolved": true }`. `--config` projects onto a stored `Configuration` or an ad-hoc feature set exactly as `export --config` does (inactive elements omitted from every list; `config` records `{id, qname, name, activeFeatures}`; an invalid configuration is a usage error). `--sort` fixes the order of the requirement list and every nested list (`directory`, the walker order, is the default); the output is byte-identical across runs. Documented in `syscribe help trace-export`, `docs/cli` and the MCP help; qualified by `REQ/TC-TRS-TREX-001..004` (`PI-TREX-001`).
 
 ### CLI `diagram` toolkit removed (ADR-SYS-VIS-001, REQ-TRS-VIS-013)
 
@@ -10,6 +16,19 @@
 - **Why:** the visualisation redesign (`ADR-SYS-VIS-001`, `docs/design/visualisation.md`) makes one Diagram IR in `syscribe-model::vis` the only rendering path, laid out in the browser; no backwards compatibility is kept for the old renderers. Phase 0 clears the ground.
 - **Unchanged:** `render <diagram_path>`, `syscribe plantuml` / `plantuml render`, every `Diagram` validation rule (`E400`–`E404`, `W400`–`W415`), and `magicgrid --svg`, which keeps its text metrics and element theme under `crates/syscribe/src/svgkit/`.
 - **Dependencies:** `cassowary` and `pathfinding` dropped from the `syscribe` crate.
+
+### Visualisation rebuilt on one Diagram IR (ADR-SYS-VIS-001, REQ-TRS-VIS-000..022)
+
+- **One representation:** every `Diagram` is built as one intermediate representation in `syscribe-model::vis` — from a hand-listed `shapes:`/`edges:`/`layout:` manifest, or **derived from the model** when the diagram declares only `diagramKind:` and `subject:` — and every renderer and exporter reads that IR. Design: `docs/design/visualisation.md`.
+- **Derived diagrams** for seven kinds: `BDD` (definitions, inheritance, composition, attribute/port compartments), `IBD` (boundary, owned parts, ports with direction, connections/flows/bindings), `StateMachine` (states, initial/final pseudostates, transitions labelled `event [guard] / effect`), the new **`Action`** kind (steps, decision/merge, fork/join, loops, successions — SysMLv2's action-flow view), `Requirement` (deriveReqt/satisfy/verify/containment with satisfying and verifying context nodes), `Sequence` (lifelines, messages in succession order, `alt`/`loop` fragments, activations) and `Allocation` (logical/physical lanes). `include:`/`exclude:` narrow a derived diagram; shape ids are deterministic (`s-<qualified-name-slug>`) so `layout:` pins survive regeneration. Demo diagrams: `Diagrams::*Derived*`.
+- **Browser editor:** the sprotty client lays diagrams out with **ELK** (`sprotty-elk` + `elkjs`, vendored, no CDN) — measured labels, orthogonal routing, ports on borders, inheritance pointing up. A dragged node becomes a pin; **Pin all**, **Auto-layout** and **Save companion SVG** are the three new toolbar actions; the connect gesture is port-aware and writes dotted chains relative to the subject. One style table (`vis::style`, stereotypes, arrowheads per spec §8.16.8, applied-`MetadataDef` banners) is owned in Rust and served to the client.
+- **The same ELK engine inside the executable:** the vendored `elk.bundled.js` runs under an embedded QuickJS, with node sizes computed once in Rust from shared font metrics and sent to the browser, so `diagram export --format svg`, `export-html`, MkDocs and MCP draw **every** diagram — pinned or not — with the same layout the browser shows. A committed Node-versus-QuickJS determinism test and a bundle-version pin guard it.
+- **New command:** `syscribe diagram export <qname> --format plantuml|mermaid|svg [--out <file>]`; MCP `render_diagram` accepts the same formats. Mermaid output carries `%% ref:` annotations; SVG output carries `sysml:ref`/`sysml:source`/`sysml:target` and `[links]` hyperlinks (`REQ-TRS-LINK-002` re-verified).
+- **New API routes:** `DELETE /api/diagrams/layout/{qname}` (clear every pin; `PATCH` accepts `null` to remove one and `w`/`h` to pin a size) and `PUT /api/diagrams/svg/{qname}` (save a companion SVG, setting `svgMode`/`svgFile`).
+- **New validation codes:** `E405` a malformed `shapes:`/`edges:`/`layout:` entry (previously the diagram rendered empty, silently), `W416` a stale `layout:` pin, `W417` an `include:`/`exclude:` entry naming no member (or filters on a manifest diagram), `W418` a derived diagram whose `subject:` type does not fit its kind. `W080` now applies only to manifest-sourced sequence diagrams.
+- **Behaviour changes:** manifest `kind:` values outside the spec vocabulary (`TestCaseDef`, `flowConnection`, `supertype`) are `E405` — the demo model's three were corrected; `export-html` draws the IR first and uses a companion SVG only when there is nothing to draw; the PlantUML writer takes a block's stereotype from the element's real type rather than the manifest's word for it.
+- **Dependencies:** `rquickjs` (QuickJS, MIT; a C compiler is needed at build time), `ab_glyph`/`fontdb` moved to `syscribe-model`; frontend adds `sprotty-elk` and `elkjs` (EPL-2.0, vendored under `crates/syscribe-model/vendor/elkjs/`). Binaries grow by roughly 2.5 MB.
+- **Qualification:** `REQ/TC-TRS-VIS-001..022` (plus `-013` for the removal and `-014` for coverage), `TC-TRS-LINK-002` revived; `PI-VIS-001..012` track the phases. Noted limits: a 200-node/300-edge layout takes about 7 s in a debug build under QuickJS (0.9 s under Node); release builds are faster.
 
 ## 0.43.0 — 2026-09-26
 
