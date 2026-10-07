@@ -301,7 +301,14 @@ fn any_extra_matches(s: &str) -> bool {
 /// (REQ-TRS-LIB-001). Import-only packages (`SI`, `ISQ`, …) are intentionally absent —
 /// their membership is not enumerated, so they stay lenient.
 pub const BUILTIN_TYPE_PACKAGES: &[(&str, &[&str])] = &[
-    ("ScalarValues", &["Integer", "Real", "Natural", "Boolean", "String"]),
+    // The KerML `ScalarValues` primitives (REQ-TRS-LIB-001, completed by REQ-TRS-SYSMLV2-064).
+    (
+        "ScalarValues",
+        &[
+            "Integer", "Real", "Natural", "Boolean", "String", "Rational", "Complex", "Number",
+            "NumericalValue", "ScalarValue",
+        ],
+    ),
     ("Base", &["Anything", "DataValue"]),
 ];
 

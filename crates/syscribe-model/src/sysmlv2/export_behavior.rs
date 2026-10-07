@@ -123,9 +123,17 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
     base.insert(key("name"), key(name));
     base.insert(key("kind"), key(kind));
 
-    // Kinds whose name ingestion synthesizes must carry exactly that name.
-    let synth = |c: &Counters, k: &'static str| -> Result<(), String> {
-        (name == c.expected(k)).then_some(()).ok_or_else(|| format!("name '{name}' is not the synthesized '{}'", c.expected(k)))
+    // Kinds whose name ingestion synthesizes: the bare statement when the name is exactly the
+    // positional one, otherwise the named-step wrapper `action <name> { <stmt> }`
+    // (REQ-TRS-SYSMLV2-060/-061), which leaves the synthesized-name counters untouched.
+    let bare_for = |c: &Counters, k: &'static str| name == c.expected(k);
+    let inner_pad = |bare: bool| if bare { pad.to_string() } else { format!("{pad}    ") };
+    let wrap = |bare: bool, stmt: String| -> String {
+        if bare {
+            stmt
+        } else {
+            format!("{pad}action {} {{\n{stmt}{pad}}}\n", sysml_ident(name))
+        }
     };
 
     match kind {
@@ -159,25 +167,31 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
             if !only_keys(m, &["name", "kind", "target", "value"]) {
                 return Err("unsupported fields".into());
             }
-            synth(c, "assign")?;
+            let bare = bare_for(c, "assign");
             let (t, v) = (scalar(m, "target").ok_or("no target")?, scalar(m, "value").ok_or("no value")?);
             base.insert(key("target"), key(&t));
             base.insert(key("value"), key(&v));
-            c.bump("assign");
-            Ok((format!("{pad}assign {t} := {v};\n"), Value::Mapping(base)))
+            if bare {
+                c.bump("assign");
+            }
+            let stmt = format!("{}assign {t} := {v};\n", inner_pad(bare));
+            Ok((wrap(bare, stmt), Value::Mapping(base)))
         }
         "TerminateAction" => {
             if !only_keys(m, &["name", "kind", "target"]) {
                 return Err("unsupported fields".into());
             }
-            synth(c, "terminate")?;
-            c.bump("terminate");
+            let bare = bare_for(c, "terminate");
+            if bare {
+                c.bump("terminate");
+            }
+            let ip = inner_pad(bare);
             match text(m, "target") {
                 Some(t) => {
                     base.insert(key("target"), key(t));
-                    Ok((format!("{pad}terminate {};\n", chain(t)), Value::Mapping(base)))
+                    Ok((wrap(bare, format!("{ip}terminate {};\n", chain(t))), Value::Mapping(base)))
                 }
-                None => Ok((format!("{pad}terminate;\n"), Value::Mapping(base))),
+                None => Ok((wrap(bare, format!("{ip}terminate;\n")), Value::Mapping(base))),
             }
         }
         "LoopAction" => {
@@ -203,30 +217,34 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
             if !only_keys(m, allowed) {
                 return Err("unsupported fields".into());
             }
-            synth(c, kind_key)?;
+            let bare = bare_for(c, kind_key);
+            let ip = inner_pad(bare);
             base.insert(key("loopKind"), key(loop_kind));
             for k in ["condition", "variable", "sequence"] {
                 if let Some(t) = scalar(m, k) {
                     base.insert(key(k), key(&t));
                 }
             }
-            let (body, kept) = nested(m, "body", pad, r)?;
-            c.bump(kind_key);
-            Ok((format!("{pad}{head} {{\n{body}{pad}}}\n"), with_list(base, "body", kept)))
+            let (body, kept) = nested(m, "body", &ip, r)?;
+            if bare {
+                c.bump(kind_key);
+            }
+            Ok((wrap(bare, format!("{ip}{head} {{\n{body}{ip}}}\n")), with_list(base, "body", kept)))
         }
         "IfAction" => {
             if !only_keys(m, &["name", "kind", "condition", "then", "else"]) {
                 return Err("unsupported fields".into());
             }
-            synth(c, "if")?;
+            let bare = bare_for(c, "if");
+            let ip = inner_pad(bare);
             let cond = scalar(m, "condition").ok_or("no condition")?;
             base.insert(key("condition"), key(&cond));
-            let (then_t, then_k) = nested(m, "then", pad, r)?;
-            let mut s = format!("{pad}if {cond} {{\n{then_t}{pad}}}");
+            let (then_t, then_k) = nested(m, "then", &ip, r)?;
+            let mut s = format!("{ip}if {cond} {{\n{then_t}{ip}}}");
             let mut out = with_list(base, "then", then_k);
             if get(m, "else").is_some() {
-                let (else_t, else_k) = nested(m, "else", pad, r)?;
-                s.push_str(&format!(" else {{\n{else_t}{pad}}}"));
+                let (else_t, else_k) = nested(m, "else", &ip, r)?;
+                s.push_str(&format!(" else {{\n{else_t}{ip}}}"));
                 if let Value::Mapping(om) = &mut out {
                     if !else_k.is_empty() {
                         om.insert(key("else"), Value::Sequence(else_k));
@@ -234,8 +252,10 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
                 }
             }
             s.push('\n');
-            c.bump("if");
-            Ok((s, out))
+            if bare {
+                c.bump("if");
+            }
+            Ok((wrap(bare, s), out))
         }
         other => Err(format!("unsupported kind '{other}'")),
     }
@@ -245,6 +265,8 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
 pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Refs) -> String {
     let mut out = String::new();
     let mut counters = Counters::default();
+    // Names of top-level entries written as comments: a succession must not reference them.
+    let mut dropped: Vec<String> = Vec::new();
     for v in fm.sub_actions.as_deref().unwrap_or(&[]) {
         let verdict = verify_action_entry(v, is_usage, r).and_then(|()| {
             let (t, _) = action_entry(v, &mut counters, pad, r)?;
@@ -252,7 +274,10 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
         });
         match verdict {
             Ok(t) => out.push_str(&t),
-            Err(reason) => out.push_str(&comment(pad, "subAction", &describe(v), &reason)),
+            Err(reason) => {
+                dropped.extend(v.as_mapping().and_then(|m| text(m, "name")).map(str::to_string));
+                out.push_str(&comment(pad, "subAction", &describe(v), &reason));
+            }
         }
     }
     for v in fm.control_nodes.as_deref().unwrap_or(&[]) {
@@ -279,7 +304,10 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
         })();
         match verdict {
             Ok(t) => out.push_str(&t),
-            Err(reason) => out.push_str(&comment(pad, "controlNode", &describe(v), &reason)),
+            Err(reason) => {
+                dropped.extend(v.as_mapping().and_then(|m| text(m, "name")).map(str::to_string));
+                out.push_str(&comment(pad, "controlNode", &describe(v), &reason));
+            }
         }
     }
     for v in fm.succession_connections.as_deref().unwrap_or(&[]) {
@@ -289,6 +317,10 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
                 return Err("unsupported fields".into());
             }
             let (a, b) = (text(m, "after").ok_or("no after")?, text(m, "before").ok_or("no before")?);
+            // REQ-TRS-SYSMLV2-062: never reference a step this body did not export.
+            if let Some(gone) = [a, b].into_iter().find(|n| dropped.iter().any(|d| d == n)) {
+                return Err(format!("endpoint '{gone}' was not exported"));
+            }
             let line = format!("first {} then {};\n", chain(a), chain(b));
             let p = probe_action_body(is_usage, &line).ok_or("does not parse")?;
             if p.successions == vec![v.clone()] && p.sub_actions.is_empty() && p.control_nodes.is_empty() {
@@ -308,33 +340,12 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
 /// Read-back check for one top-level entry, in isolation: it is first in its body, so a
 /// synthesized name is `<kind>_1` on both sides. Nested bodies compare verbatim.
 fn verify_action_entry(v: &Value, is_usage: bool, r: Refs) -> Result<(), String> {
-    let m = v.as_mapping().ok_or("not a mapping")?;
-    let mut iso = m.clone();
-    if let Some(k) = synth_kind(m) {
-        iso.insert(key("name"), key(&format!("{k}_1")));
-    }
-    let (txt, kept) = action_entry(&Value::Mapping(iso), &mut Counters::default(), "", r)?;
+    let (txt, kept) = action_entry(v, &mut Counters::default(), "", r)?;
     let probed = probe_action_body(is_usage, &txt).ok_or("does not parse")?;
     if probed.sub_actions == vec![kept] && probed.control_nodes.is_empty() && probed.successions.is_empty() {
         Ok(())
     } else {
         Err("does not read back identically".to_string())
-    }
-}
-
-/// The synthesized-name family an entry belongs to, if any.
-fn synth_kind(m: &Mapping) -> Option<&'static str> {
-    match text(m, "kind")? {
-        "AssignmentAction" => Some("assign"),
-        "TerminateAction" => Some("terminate"),
-        "IfAction" => Some("if"),
-        "LoopAction" => match text(m, "loopKind")? {
-            "while" => Some("while"),
-            "loop" => Some("loop"),
-            "for" => Some("for"),
-            _ => None,
-        },
-        _ => None,
     }
 }
 

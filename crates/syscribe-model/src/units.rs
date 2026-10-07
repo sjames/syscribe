@@ -55,6 +55,13 @@ fn quantity_table(name: &str) -> Option<Dim> {
         "AngleValue" | "DimensionlessValue" => d(0, 0, 0, 0, 0, 0, 0),
         "AreaValue" => d(2, 0, 0, 0, 0, 0, 0),
         "VolumeValue" => d(3, 0, 0, 0, 0, 0, 0),
+        "TorqueValue" | "MomentOfForceValue" => d(2, 1, -2, 0, 0, 0, 0),
+        "AngularVelocityValue" | "AngularSpeedValue" => d(0, 0, -1, 0, 0, 0, 0),
+        "AngularAccelerationValue" => d(0, 0, -2, 0, 0, 0, 0),
+        "MassDensityValue" | "DensityValue" => d(-3, 1, 0, 0, 0, 0, 0),
+        "VolumeFlowRateValue" => d(3, 0, -1, 0, 0, 0, 0),
+        "MomentumValue" => d(1, 1, -1, 0, 0, 0, 0),
+        "JerkValue" => d(1, 0, -3, 0, 0, 0, 0),
         "SpeedValue" | "VelocityValue" => d(1, 0, -1, 0, 0, 0, 0),
         "AccelerationValue" => d(1, 0, -2, 0, 0, 0, 0),
         "ForceValue" => d(1, 1, -2, 0, 0, 0, 0),
@@ -101,7 +108,9 @@ fn unit_table(name: &str) -> Option<Dim> {
         "siemens" => d(-2, -1, 3, 2, 0, 0, 0),
         "weber" | "Wb" => d(2, 1, -2, -1, 0, 0, 0),
         "tesla" => d(0, 1, -2, -1, 0, 0, 0),
-        "radian" | "rad" | "steradian" | "sr" => d(0, 0, 0, 0, 0, 0, 0),
+        "radian" | "rad" | "steradian" | "sr" | "degree" | "deg" => d(0, 0, 0, 0, 0, 0, 0),
+        "rpm" => d(0, 0, -1, 0, 0, 0, 0),
+        "newtonMetre" | "newtonMeter" | "Nm" => d(2, 1, -2, 0, 0, 0, 0),
         "litre" | "liter" | "L" | "millilitre" | "mL" => d(3, 0, 0, 0, 0, 0, 0),
         "metrePerSecond" | "mps" | "kilometrePerHour" | "kph" | "kmh" => d(1, 0, -1, 0, 0, 0, 0),
         _ => return None,
@@ -113,9 +122,43 @@ pub fn quantity_dimension(s: &str) -> Option<Dim> {
     quantity_table(s.strip_prefix("ISQ::").unwrap_or(s))
 }
 
-/// Dimension of a `unit:` reference (`SI::kilogram`, `SI::kg`, or a bare symbol `kg`).
+/// Dimension of a `unit:` reference (`SI::kilogram`, `SI::kg`, or a bare symbol `kg`), or of a
+/// compound unit expression built from table units with `*`, `/` and `^` (`m/s`, `N*m`, `m^2`,
+/// `kg*m/s^2`), evaluated left to right (REQ-TRS-SYSMLV2-064).
 pub fn unit_dimension(s: &str) -> Option<Dim> {
-    unit_table(s.strip_prefix("SI::").unwrap_or(s))
+    let s = s.trim();
+    if let Some(d) = unit_table(s.strip_prefix("SI::").unwrap_or(s)) {
+        return Some(d);
+    }
+    if !s.contains(['*', '/', '^']) {
+        return None;
+    }
+    let mut acc = Dim([0; 7]);
+    let mut op = '*';
+    let mut term = String::new();
+    let flush = |acc: &mut Dim, op: char, term: &str| -> Option<()> {
+        let (base, exp) = match term.split_once('^') {
+            Some((b, e)) => (b.trim(), e.trim().parse::<i8>().ok()?),
+            None => (term.trim(), 1),
+        };
+        let td = if base == "1" { Dim([0; 7]) } else { unit_table(base.strip_prefix("SI::").unwrap_or(base))? };
+        let sign = if op == '*' { 1i8 } else { -1i8 };
+        for (a, t) in acc.0.iter_mut().zip(td.0) {
+            *a = a.checked_add(sign.checked_mul(t.checked_mul(exp)?)?)?;
+        }
+        Some(())
+    };
+    for c in s.chars() {
+        if c == '*' || c == '/' {
+            flush(&mut acc, op, &term)?;
+            op = c;
+            term.clear();
+        } else {
+            term.push(c);
+        }
+    }
+    flush(&mut acc, op, &term)?;
+    Some(acc)
 }
 
 /// Whether `s` is a recognised built-in type reference, for `W404` suppression

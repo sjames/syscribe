@@ -909,6 +909,9 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 // REQ-TRS-SYSMLV2-030: advisory per-file count of parsed but
                 // unmapped constructs.
                 "W543" => "W543",
+                // REQ-TRS-SYSMLV2-066: ingested multiplicity with a reversed or
+                // non-natural literal bound.
+                "W544" => "W544",
                 // REQ-TRS-FM-005: single-file `featureTree:` sheet explosion
                 // (`walker::explode_feature_model_trees`) — a node with no
                 // `name:` (E231), a qname collision (E232), or `featureTree:`

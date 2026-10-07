@@ -514,7 +514,7 @@ only when a package declares `annotationFormat:`**. See the
 Annotation-synthesized elements take part in `E108` and in the `E104` widening above, exactly
 like plugin-synthesized ones.
 
-## Native SysML v2 submodel ingestion (W540–W543, ADR-SYS-SYSMLV2-001)
+## Native SysML v2 submodel ingestion (W540–W544, ADR-SYS-SYSMLV2-001)
 
 A package marked `sysmlSubmodel: true` is populated from the `.sysml`/`.kerml` files in its
 subtree. See the [SysML v2 submodel guide](../model-guide/sysmlv2-submodel.md).
@@ -525,6 +525,7 @@ subtree. See the [SysML v2 submodel guide](../model-guide/sysmlv2-submodel.md).
 | W541 | A `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree could not be read, or failed to parse as SysML v2/KerML; its content is skipped |
 | W542 | A `connect` endpoint's two-segment feature chain was truncated to a head-only edge because the tail is not a locally redeclared feature (REQ-TRS-SYSMLV2-015); or an ingested `allocation` usage's `allocate` endpoint chain was truncated to its deepest resolved prefix because a segment is neither declared on nor inherited (via `typedBy:`/`supertype:`) by the element reached so far (REQ-TRS-SYSMLV2-029) |
 | W543 | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`occurrence`, `individual def`, `actor`, `metadata` usages, a root-level `alias`, an unresolved package-level `satisfy`, …); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030) |
+| W544 | Advisory: an ingested usage's multiplicity has integer bounds with lower greater than upper, a negative bound, or a non-integer numeric literal bound (REQ-TRS-SYSMLV2-066); name or expression bounds are not evaluated |
 
 ## Suspect links (W090, ADR-SYS-SUSLINK-001)
 

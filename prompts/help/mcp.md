@@ -71,7 +71,7 @@ stable id, a qualified name, or a display name. List/grid tools accept
   (a declared type, its inverse, or a built-in link/reverse-index name); same data
   as `follow --format json`.
 - `sysml_submodels {}` — the SysMLv2 submodels (`sysmlSubmodel: true` packages): files
-  parsed, ingested element counts per kind, unmapped-construct counts and W540-W543
+  parsed, ingested element counts per kind, unmapped-construct counts and W540-W544
   findings; same data as `sysml --json`. Read-only.
 - `export_sysml {package?}` — the model (or one package's subtree) as SysML v2 textual
   notation, one-way and lossy (unsupported elements become `// skipped:` comments);

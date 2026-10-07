@@ -646,6 +646,12 @@ fn push_synth(
     name: &str,
     spec: Spec,
 ) {
+    let derive_findings = spec
+        .multiplicity
+        .as_deref()
+        .and_then(multiplicity_problem)
+        .map(|why| vec![finding("W544", file_path, &format!("'{qname}': multiplicity [{}] {why}", spec.multiplicity.as_deref().unwrap_or("")))])
+        .unwrap_or_default();
     out.push(RawElement {
         qualified_name: qname.to_string(),
         file_path: file_path.to_string(),
@@ -707,10 +713,50 @@ fn push_synth(
         doc: spec.doc,
         parse_issue: None,
         derived: Default::default(),
-        derive_findings: Vec::new(),
+        derive_findings,
         locale_docs: Default::default(),
         about_notes: Default::default(),
     });
+}
+
+/// `REQ-TRS-SYSMLV2-066` (`W544`): what is wrong with multiplicity text `3..1`/`-1`/`1.5..2`, if
+/// anything. Only literal bounds are judged; a name or other expression is never evaluated.
+fn multiplicity_problem(text: &str) -> Option<&'static str> {
+    enum B {
+        Star,
+        Nat(u64),
+        Other,
+        Bad(&'static str),
+    }
+    let bound = |t: &str| -> B {
+        let t = t.trim();
+        if t == "*" {
+            B::Star
+        } else if !t.is_empty() && t.chars().all(|c| c.is_ascii_digit()) {
+            t.parse().map_or(B::Other, B::Nat)
+        } else if t.starts_with('-') && t[1..].chars().next().is_some_and(|c| c.is_ascii_digit()) {
+            B::Bad("has a negative bound")
+        } else if t.contains('.') && t.replace('.', "").chars().all(|c| c.is_ascii_digit()) {
+            B::Bad("has a non-integer bound")
+        } else {
+            B::Other
+        }
+    };
+    let (lo, hi) = match text.split_once("..") {
+        Some((l, u)) if !u.contains("..") => (bound(l), Some(bound(u))),
+        Some(_) => return None,
+        None => (bound(text), None),
+    };
+    for b in std::iter::once(&lo).chain(hi.iter()) {
+        if let B::Bad(why) = b {
+            return Some(why);
+        }
+    }
+    match (lo, hi) {
+        (B::Nat(l), Some(B::Nat(u))) if l > u => Some("has a lower bound greater than its upper bound"),
+        (B::Star, Some(B::Nat(_))) => Some("has a lower bound greater than its upper bound"),
+        _ => None,
+    }
 }
 
 /// Push each of `REQ-TRS-SYSMLV2-015`'s connect-endpoint truncation messages
@@ -2194,10 +2240,16 @@ struct ActionBodyBuilder {
     succession_connections: Vec<serde_yaml::Value>,
     last_named: Option<String>,
     counters: std::collections::HashMap<&'static str, u32>,
+    /// `REQ-TRS-SYSMLV2-060`: a name declared by an enclosing single-statement `action <name> {…}`
+    /// usage; consumed by the next `synth_name` call instead of a synthesized one.
+    forced_name: Option<String>,
 }
 
 impl ActionBodyBuilder {
     fn synth_name(&mut self, kind: &'static str) -> String {
+        if let Some(name) = self.forced_name.take() {
+            return name;
+        }
         let n = self.counters.entry(kind).or_insert(0);
         *n += 1;
         format!("{kind}_{n}")
@@ -2271,8 +2323,46 @@ fn handle_nested_action_usage(b: &mut ActionBodyBuilder, au: &sysml_v2_parser::A
         push_payload_entry(b, payload, "SendAction");
         return;
     }
+    if handle_named_step(b, au) {
+        return;
+    }
     let type_name = (!au.type_name.is_empty()).then_some(au.type_name.as_str());
     push_perform_entry(b, &au.name, type_name);
+}
+
+/// `REQ-TRS-SYSMLV2-060`: `action <name> { <one control statement> }` with no typing, subsetting,
+/// redefinition, multiplicity or accept/send clause is a *named* `if`/`while`/`loop`/`for`/`assign`/
+/// `terminate` step -- the 0.54 grammar gives those statements no name of their own. The entry takes
+/// the usage's name and leaves the synthesized-name counters alone. Returns `false` (nothing pushed)
+/// for any other shape, which stays a `PerformAction`.
+fn handle_named_step(b: &mut ActionBodyBuilder, au: &sysml_v2_parser::ActionUsage) -> bool {
+    use sysml_v2_parser::ActionUsageBodyElement as E;
+    let plain = !au.name.is_empty()
+        && au.type_name.is_empty()
+        && au.typing.is_none()
+        && au.subsets.is_none()
+        && au.redefines.is_none()
+        && au.multiplicity.is_none()
+        && !au.is_abstract
+        && !au.is_variation
+        && !au.is_reference;
+    let sysml_v2_parser::ActionUsageBody::Brace { elements } = &au.body else { return false };
+    if !plain || elements.len() != 1 {
+        return false;
+    }
+    let before = b.sub_actions.len();
+    b.forced_name = Some(au.name.clone());
+    match &elements[0].value {
+        E::Assign(a) => handle_assign(b, &a.value),
+        E::WhileStmt(w) => handle_while(b, &w.value),
+        E::LoopStmt(l) => handle_loop(b, &l.value),
+        E::ForLoop(f) => handle_for_loop(b, &f.value),
+        E::IfStmt(i) => handle_if(b, &i.value),
+        E::TerminateStmt(t) => handle_terminate(b, &t.value),
+        _ => {}
+    }
+    b.forced_name = None;
+    b.sub_actions.len() > before
 }
 
 /// Build and push one `AcceptAction`/`SendAction` `subActions:` entry —
@@ -3197,12 +3287,23 @@ fn literal_value(e: &sysml_v2_parser::Expression) -> Option<(serde_yaml::Value, 
             let u = match inner {
                 E::FeatureRef(s) => s.clone(),
                 E::FeatureChainRef(c) => c.segments.join("::"),
-                _ => return None,
+                // `REQ-TRS-SYSMLV2-065`: a spaced compound (`N * m`) lexes as an operator
+                // expression; keep its whitespace-free text rather than dropping the unit.
+                other => compound_unit_text(other)?,
             };
             Some((scalar(&value.value)?, Some(u)))
         }
         other => Some((scalar(other)?, None)),
     }
+}
+
+/// `REQ-TRS-SYSMLV2-065`: the whitespace-free text of a compound unit expression (names joined by
+/// `*`, `/`, `^` and integer exponents), or `None` for any other shape.
+fn compound_unit_text(e: &sysml_v2_parser::Expression) -> Option<String> {
+    let text = render_expression(e).replace(' ', "");
+    let ok = text.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && text.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | ':' | '*' | '/' | '^' | '-' | '.'));
+    ok.then_some(text)
 }
 
 fn convert_attribute_def(
@@ -3244,15 +3345,24 @@ fn convert_attribute_usage(
         sysml_v2_parser::AttributeBody::Brace { elements } => elements.as_slice(),
         sysml_v2_parser::AttributeBody::Semicolon => &[],
     };
-    let (value, unit) = a
+    let (value, mut unit) = a
         .value
         .as_ref()
         .and_then(|v| literal_value(&v.value.expression.value))
         .unzip();
+    let mut unit = unit.take().flatten();
+    // `REQ-TRS-SYSMLV2-065`: in `= 4 [N * m]` the 0.54 parser reads a *spaced* compound as a
+    // trailing multiplicity (`[N*m]`, unspaced, is one unit token). A bracket after a literal
+    // value is a unit, never a multiplicity (that precedes `=`), so recover it from the bounds.
+    if let (Some(v), Some(m), None) = (a.value.as_ref(), a.multiplicity.as_ref(), unit.as_ref()) {
+        if value.is_some() && m.span.offset >= v.span.offset {
+            unit = m.value.lower.as_ref().and_then(|l| compound_unit_text(&l.value));
+        }
+    }
     let spec = Spec {
         typed_by: a.typing.as_ref().map(|t| t.value.target_display()),
         value,
-        unit: unit.flatten(),
+        unit,
         ..Default::default()
     }
     .with_usage_relations(None, a.subsets.as_ref().map(|r| &r.value), a.redefines.as_ref().map(|r| &r.value))

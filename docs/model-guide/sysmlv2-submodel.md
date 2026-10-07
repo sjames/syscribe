@@ -274,8 +274,9 @@ the parser to add real support was considered and rejected.
 | `W541` | Either a `.sysml`/`.kerml` file failed to read (e.g. invalid UTF-8), or `sysml-v2-parser` failed to parse its contents |
 | `W542` | A `connect` endpoint's genuinely two-segment chain fell back to a head-only edge because the tail isn't a locally-redeclared feature (§8's redeclaration lookahead didn't match) — identifies the dropped segment. Also raised when an `allocation` usage's `allocate` endpoint chain is truncated (§20) |
 | `W543` | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`metadata` usages, `occurrence`, `individual def`, `actor`, a root-level `alias`, an unresolved package-level `satisfy`, …); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030). Example: `metadata def x2, alias x1`. It does not cover members nested inside a mapped definition's body (e.g. a requirement's `frame`/constraint body); gate it with `--deny W543` |
+| `W544` | Advisory: an ingested usage's multiplicity has integer bounds with lower greater than upper, a negative bound, or a non-integer numeric literal bound (REQ-TRS-SYSMLV2-066); name or expression bounds are not evaluated |
 
-All four share a **dedicated code range**, distinct from the [stdio-subprocess plugin
+All of them share a **dedicated code range**, distinct from the [stdio-subprocess plugin
 family](stdio-plugins.md) (`E550`/`E551`/`W550`–`W553`) — this is native, always-on ingestion of a
 trusted, compile-time dependency, not plugin execution, and conflating the two ranges would
 misattribute the failure mode to anyone grepping a validation report.
@@ -1011,9 +1012,46 @@ entry is re-parsed through the real ingestion converters and emitted only if it 
 | `transitions:` | `transition first s accept a [via p] if g do effect then t;` (nested: the `first s` clause is the stored `source`, omitted when absent) |
 
 **What becomes a comment** (`// subAction not exported (<reason>): <what>`): an unknown `kind:`/`loopKind`;
-extra fields ingestion cannot hold; a hand-chosen name on an `if`/`while`/`loop`/`for`/`assign`/`terminate`
-(ingestion re-synthesizes `if_1`, `while_1`, … so the name would change); a guard/condition/effect that is
+extra fields ingestion cannot hold (`via:`, `referent:`, `trigger:`, …); a guard/condition/effect that is
 not valid SysML text (e.g. a `<conditional expression>` placeholder); a top-level transition without
-`source:`; a non-string `entryAction:`. Nothing is approximated. Because a succession can then reference a
-node whose own entry was commented out, the `first a then b;` line is still written (it re-ingests
-identically) — treat such text as a projection, not a standalone model.
+`source:`; a non-string `entryAction:`. Nothing is approximated. A `first a then b;` whose endpoint names a
+step that was itself commented out is commented too (`successionConnection not exported (endpoint 'b' was
+not exported)`), so the exported body never references a step it does not contain.
+
+## 27. Named control steps, standard-library tables, compound units — `REQ-TRS-SYSMLV2-060`..`-066`
+
+**Named steps.** The pinned parser gives `if`/`while`/`loop`/`for`/`assign`/`terminate` no name, so
+ingestion synthesizes `if_1`, `while_1`, …. A hand-chosen name is spelled with the action usage that owns
+the one statement, and both directions read it:
+
+```sysml
+action navigateWaypoints { for waypoint in waypoints { action awaitArrival; } }
+```
+
+| SysML v2 | Native |
+|---|---|
+| `action <name> { <one if/while/loop/for/assign/terminate> }` — no typing, `:>`, `:>>`, multiplicity or `accept`/`send`, exactly one statement in the body | the statement's `subActions:` entry (`IfAction`, `LoopAction`, …) named `<name>`; the synthesized counter is not advanced |
+| any other nested `action` usage | `PerformAction` (unchanged) |
+
+`export-sysml` writes the bare statement when the entry's name is the synthesized positional one
+(`if_1`, the first bare `if`), and the wrapper above for any other name. Running it over this repository's
+`model/` leaves 10 entry comments (8 top-level, down from 10, plus 2 now visible inside the newly exported `navigateWaypoints` and `checkWeather`): they need fields ingestion has no slot for
+(`via:`/`referent:`/`valueKind:`/`trigger:`, `loopKind: until`) or a form it reads back in another shape
+(`accept: {payload: …}` mapping vs the string form; `and` vs `&&` spelling in a guard), plus 3 successions
+commented because an endpoint is among them.
+
+**Standard-library tables.** Nothing is imported; three small tables answer every reference:
+`ScalarValues` (`Boolean`, `String`, `NumericalValue`, `Number`, `Complex`, `Real`, `Rational`,
+`Integer`, `Natural`, `ScalarValue`) and `Base` are closed, so a misspelt member is `W043` while every
+real one resolves; `ISQ::…Value` quantity names and `SI` unit names/symbols (`kg`, `m`, `s`, `N`, `W`,
+`rpm`, `deg`, `Nm`, `ISQ::TorqueValue`, …) are recognised for `W044`'s quantity/unit dimension check; the
+remaining standard-library package names are lenient. `export-sysml` emits all of them verbatim.
+
+**Compound units.** A unit built from table units with `*`, `/` and `^` (`N*m`, `m/s`, `m^2`,
+`kg*m/s^2`) has a derived dimension, so `W044` checks `unit: N*m` against `ISQ::TorqueValue`. The 0.54
+lexer reads `[N*m]` as one token but `[N * m]` as an operator expression that it attaches to the attribute
+as a multiplicity; ingestion recovers it as the unit (a bracket after a literal value is a unit), and
+export writes `= 4 [N*m]` — an expression, not the quoted name `['N*m']`.
+
+**`W544`.** `part sub : M [3..1];` (and `[-1..2]`, `[1.5..3]`) raises the advisory on the ingested usage;
+`[n]`, `[0..n]` and `[0..*]` do not. The multiplicity text itself is stored unchanged.

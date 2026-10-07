@@ -327,7 +327,7 @@ fn unrepresentable_action_entries_become_comments_and_the_rest_round_trips() {
     let (text, back) = export_and_back(&els);
     for what in [
         "// subAction not exported (unsupported kind 'SomethingElse'): SomethingElse weird",
-        "// subAction not exported (name 'set_alt' is not the synthesized 'assign_1'): AssignmentAction set_alt",
+        "action set_alt {",
         "// subAction not exported (unsupported fields): PerformAction extra",
         "// subAction not exported (does not parse): IfAction cond",
         "// controlNode not exported (unknown control node kind): Wibble bad",
@@ -345,7 +345,7 @@ fn unrepresentable_action_entries_become_comments_and_the_rest_round_trips() {
         .iter()
         .map(|v| v.get("name").and_then(Value::as_str).unwrap().to_string())
         .collect();
-    assert_eq!(names, vec!["takeoff", "assign_1"], "{text}");
+    assert_eq!(names, vec!["takeoff", "set_alt", "assign_1"], "{text}");
     assert_eq!(b.frontmatter.control_nodes.as_ref().map(Vec::len), Some(1));
     assert_eq!(b.frontmatter.succession_connections.as_ref().map(Vec::len), Some(1));
 }

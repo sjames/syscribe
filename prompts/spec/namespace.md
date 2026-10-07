@@ -43,7 +43,7 @@ model/
 
 | Package | Contents |
 |---|---|
-| `ScalarValues` | `Integer`, `Real`, `String`, `Boolean`, `Natural` |
+| `ScalarValues` | `Integer`, `Real`, `String`, `Boolean`, `Natural`, `Rational`, `Complex`, `Number`, `NumericalValue`, `ScalarValue` |
 | `Base` | `Anything`, `DataValue` |
 
 **Available via explicit `imports:`:**

@@ -552,13 +552,19 @@ fn ref_list(v: Option<&serde_yaml::Value>) -> Vec<String> {
     }
 }
 
-/// A unit expression inside `[...]`: a bare/qualified name stays as is, anything
-/// else is single-quoted as a restricted name.
+/// A unit expression inside `[...]`: a bare/qualified name, or a compound of such names joined by
+/// `*`, `/` and `^N` (`N*m`, `m/s`, `m^2`; REQ-TRS-SYSMLV2-065), stays as is; anything else is
+/// single-quoted as a restricted name.
 fn sysml_unit(u: &str) -> String {
-    if u.split("::").all(|seg| {
+    let name = |seg: &str| {
         let mut c = seg.chars();
         c.next().is_some_and(|f| f.is_ascii_alphabetic() || f == '_') && seg.chars().all(|x| x.is_ascii_alphanumeric() || x == '_')
-    }) {
+    };
+    let term = |t: &str| {
+        let (base, exp) = t.split_once('^').map_or((t, None), |(b, e)| (b, Some(e)));
+        base.split("::").all(name) && exp.map_or(true, |e| e.strip_prefix('-').unwrap_or(e).chars().all(|c| c.is_ascii_digit()) && !e.is_empty())
+    };
+    if u.split(['*', '/']).all(term) {
         u.to_string()
     } else {
         sysml_ident(u)
