@@ -96,7 +96,8 @@ Also, as of `REQ-TRS-SYSMLV2-083`/`-084`: `OccurrenceDef`, `IndividualDef`, `Occ
 `EventOccurrence` and a named `Dependency` (§29); and as of `REQ-TRS-SYSMLV2-086`..`-096`: metadata
 applications into `metadata:`, anonymous dependencies, portion-kind occurrences, root-level
 aliases, and the last behaviour-body slots (§30); and as of `REQ-TRS-SYSMLV2-098`: every bare
-root-level member of a file, merged under the anchor package (§31).
+root-level member of a file, merged under the anchor package (§31); and as of `REQ-TRS-SYSMLV2-099`/`-100`:
+`#T` prefixes on usages wherever they are declared, and package-level `calc` usage shapes (§32).
 
 A construct outside that set — `actor`, package-level `filter`, KerML declarations
 and similar (the full list with the reason for each is in §6) — parses without error but
@@ -280,7 +281,7 @@ the parser to add real support was considered and rejected.
 | `W540` | A `_index.md` found anywhere inside a `sysmlSubmodel: true` package's subtree, other than that package's own anchor `_index.md` |
 | `W541` | Either a `.sysml`/`.kerml` file failed to read (e.g. invalid UTF-8), or `sysml-v2-parser` failed to parse its contents |
 | `W542` | A `connect` endpoint's genuinely two-segment chain fell back to a head-only edge because the tail isn't a locally-redeclared feature (§8's redeclaration lookahead didn't match) — identifies the dropped segment. Also raised when an `allocation` usage's `allocate` endpoint chain is truncated (§20) |
-| `W543` | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`actor`, package-level `filter`, a KerML declaration, a `metadata` application whose `about` target does not resolve, an `other package member` such as a package-level `connect`/`ref`/`succession`, an unresolved package-level `satisfy`/`include`, …; the full list with reasons is §6); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030/-097). Example: `actor x2, filter x1`. It does not cover members nested inside a mapped definition's body (e.g. a requirement's `frame`/constraint body); gate it with `--deny W543` |
+| `W543` | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`actor`, package-level `filter`, a KerML declaration, a `metadata` application whose `about` target does not resolve, a package declared with a qualified name, an `other package member` such as a package-level `connect`/`ref`/`succession`, an unresolved package-level `satisfy`/`include`, …; the full list with reasons is §6); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030/-097/-098/-100). Example: `actor x2, filter x1`. It does not cover members nested inside a mapped definition's body (e.g. a requirement's `frame`/constraint body); gate it with `--deny W543` |
 | `W544` | Advisory: an ingested usage's multiplicity has integer bounds with lower greater than upper, a negative bound, or a non-integer numeric literal bound (REQ-TRS-SYSMLV2-066); name or expression bounds are not evaluated |
 
 All of them share a **dedicated code range**, distinct from the [stdio-subprocess plugin
@@ -314,10 +315,11 @@ own SysMLv2 submodel looks unexpectedly noisy.
 
 ## 6. What's not built yet
 
-What is **not** mapped, and why. Everything else the 0.57 grammar parses in a package, part, action or
-state body has a native target (§§14-30). An unmapped construct is counted per kind in the file's
-`W543` advisory under the kind name shown; the two rows marked *not represented* are forms the parser
-itself drops before Syscribe sees them, so they cannot be counted.
+What is **not** mapped, and why. `W543` counts **package-level** members — a file's root being
+the anchor package's own body (§31) — per kind, under the kind name shown. Members *inside* a mapped
+definition's body that are outside the mapped set are skipped **and not counted** (last rows); the
+list below is exact as of `REQ-TRS-SYSMLV2-100`, checked line by line against the 0.57 AST and
+`ingest.rs`.
 
 | Construct (`W543` kind) | Why there is no mapping |
 |---|---|
@@ -325,12 +327,12 @@ itself drops before Syscribe sees them, so they cannot be counted.
 | package-level `filter <expr>;` (`filter`) | No native target: `filter:` exists only on `View`/`expose`, and a package-level filter scopes imports, which the model does not carry. |
 | KerML declarations (`classifier`, `feature`, `type`, `struct`, `inv`, `connector`, a bare relationship, ...) (`KerML declaration`) | KerML is the semantic layer below SysML structure; mapping a KerML `feature` to a SysML usage would assert semantics the source did not state. |
 | a `metadata` application whose `about` target does not resolve (`metadata`) | Nothing in the submodel to attach it to. The application is still kept on its holder with `about:` set to the written target (§30), so the content is not lost; the count flags the dangling target. |
-| an anonymous `alias`, or one in an anonymous package (`alias`) | No name to declare, or no synthesized `Package` to carry `aliases:`. |
-| a package-level `ref`, `connect`, `binding`, `succession`, `exhibit`, `include`, `expose`, `perform`, `assert constraint`, keyword-less `name = expr;`, a user-defined-keyword declaration (`#kw def X`), and grammar the parser marks unsupported (`other package member`) | These are usage/relationship members of a *definition body* in the native format (`connections:`, `successionConnections:`, `performs:`, `exhibitsStates:`, `includes:`, `expose:` all live on an element); at package level there is no element to own them. Declare them inside the part/action/use case they belong to. |
+| a `package`/`library package`/`namespace` declared with a qualified name (`package A::B { ... }`) (`qualified package`) | The parser accepts the form, but the language gives it no meaning (a declaration takes a simple name), so reading it as `A` nested in `B` — or the reverse — would invent a declaration the author never wrote. Counted once per declaration; its members are not ingested (`REQ-TRS-SYSMLV2-100`). An anonymous `package { }` or `alias for X;` is a parse error in 0.57, so neither can occur. |
+| a package-level `ref`, `connect`, `binding`, `succession`, `exhibit`, `include`, `expose`, `perform`, `assert constraint`, keyword-less `name = expr;`, a user-defined-keyword declaration (`#kw def X`, `#kw x : X;`), and grammar the parser marks unsupported (`other package member`) | These are usage/relationship members of a *definition body* in the native format (`connections:`, `successionConnections:`, `performs:`, `exhibitsStates:`, `includes:`, `expose:` all live on an element); at package level there is no element to own them. Of these, only `connect`/`succession` (part bodies), `perform` (action bodies), `include` (use-case bodies) and `expose` (view bodies) are read inside a body — see the body row below for the rest. |
 | a `textual representation` (`rep`) (`textual representation`) | No native field for an opaque representation in another language. |
 | an unresolved package-level `satisfy`/`include` (`satisfy`, `include`) | No resolvable subject/target (§24, §25). |
-| a `#T` prefix inside a definition body (`#Safety part a : A;`) — *not represented* | The 0.57 parser keeps a `#T` prefix member only at package level (where it is mapped, §30); inside a body it drops the tag outright, so there is nothing to lift or count. Write `@T;` inside the usage's own body instead. |
-| a `#T` prefix on a member that itself maps to nothing (`#T actor A;`) — *not represented* | The prefix is consumed by the member it precedes; the member is counted (as `actor`), the tag is not. |
+| a `#T` prefix on a member that itself maps to nothing (`#T actor A;`) — *not counted* | The prefix is consumed by the member it precedes; the member is counted (as `actor`), the tag is not. A prefix on a usage that *does* map lifts onto it wherever it is declared (§32). |
+| members inside a mapped definition's body outside the mapped set — *not counted* | A `ref`/`end`/`in`/`out` declaration, `bind`, `assert constraint`, `exhibit`, a nested `package`/`alias`/`import`/`metadata def`/`calc def`/`constraint def`/`use case def`, a requirement's `require`/`frame` constraints and `subject;`, a view's `filter`, and the KerML forms a body admits are skipped silently: the format has no slot for them on the owning element, and counting body members would make `W543` fire on nearly every realistic submodel. This is the one place parse-broad/map-narrow stays silent. |
 | **Full SysML v2 static semantic validation** | Type-checking, multiplicity legality and standard-library-aware inheritance are a standards-compliant tool's job (e.g. `spec42`), not this AST-only ingestion; cross-boundary references resolve through Syscribe's own resolver. |
 | `extend` of use cases | SysML v2 has no `extend`; an `include X;` whose name resolves to an ingested use case maps to `includes:` (§25). |
 
@@ -1213,8 +1215,8 @@ tagged value keeps its YAML type (integer, real, boolean, string — a quoted re
 reads as the string `x`); any other expression is carried as its rendered text. A `metadata def`'s
 `attribute` members become its `features:`, which is what `W045` checks the keys against. The
 reserved `@Syscribe*` annotations keep their fixed field lift (§3, §28) and never appear in
-`metadata:`; the one form the parser does not represent (a `#T` prefix inside a definition body)
-is listed in §6.
+`metadata:`. (A `#T` prefix on a usage inside a definition body, left unmapped here, lifts since
+`REQ-TRS-SYSMLV2-099`, §32.)
 
 `export-sysml` writes the list back as annotations in the element's body — `@T;`, `@T { k = v; }`,
 `@n : T { ... }`, `@T about Y;` for an entry kept with `about:` — with strings double-quoted and
@@ -1246,10 +1248,11 @@ form (`accept 'odd name';`) for genuine restricted names.
 
 **The final unmapped list (`-097`).** `W543` counts exactly the kinds in §6 — `actor`, `filter`,
 `KerML declaration` (every KerML-only member kind, which includes `classifier`/`feature`/`inv`
-forms that were silently invisible before), `metadata` (unresolved `about` only), `alias` (anonymous), `other package member` (package-level usage/relationship members, user-defined
+forms that were silently invisible before), `metadata` (unresolved `about` only), `other package member` (package-level usage/relationship members, user-defined
 keyword declarations and parser-unsupported grammar, all previously silent), `textual representation`,
-and the unresolved `satisfy`/`include` — and §6 names the two forms the parser does not represent.
-(`root-level member`, also in this list at the time, stopped counting with `REQ-TRS-SYSMLV2-098`, §31.)
+and the unresolved `satisfy`/`include`. (`root-level member`, also in this list at the time, stopped
+counting with `REQ-TRS-SYSMLV2-098`, §31; `qualified package` was added by `REQ-TRS-SYSMLV2-100`, §32,
+whose audit also found that the parser does keep a `#T` prefix inside a definition body.)
 
 ## 31. Bare root-level members — `REQ-TRS-SYSMLV2-098`
 
@@ -1270,3 +1273,31 @@ the file root is treated as the anchor's own body — exactly the same path a pa
 body (`package S { part def X; ... }`), so a root-level member round-trips. `W543` no longer has a
 `root-level member` kind: a root member that maps to nothing counts under exactly the kind it would
 count under inside a package (`actor`, `filter`, `KerML declaration`, ...).
+
+## 32. The section 6 audit — `REQ-TRS-SYSMLV2-099`/`-100`
+
+A line-by-line check of §6 against the 0.57 AST and `ingest.rs` found two claims that were not
+true and two members that vanished without a count.
+
+**`#T` prefixes on usages (`-099`).** The parser does keep a `#T` prefix inside a definition body —
+in one of two shapes, depending on the usage kind — and ingestion was dropping both. Each now lifts
+the same `{type: T}` entry a package-level `#T part def B;` already receives (§30), wherever the
+usage is declared (file root, package body, definition or usage body):
+
+| SysML v2 | Parser shape | Native |
+|---|---|---|
+| `#Safety part a : A;`, and `item`/`port`/`connection`/`occurrence`/`constraint`/`view`/analysis-case usages | an extension keyword on the usage's own occurrence prefix | `metadata: [{type: <pkg>::Safety}]` on `a`, ahead of the body's own applications |
+| `#Safety attribute x : Real;`, and `action`/`state`/`interface`/`requirement`/`flow`/`allocation`/`ref` usages | a bodiless `#Safety` member immediately before the usage | the same entry on `x` |
+| `#Safety actor A;` | a bodiless member before a member that maps to nothing | dropped; the actor counts (§6) |
+
+`export-sysml` writes the entry as `@<T>;` inside the usage's body, so an export re-ingests to the
+same entry.
+
+**Package-level members never silently dropped (`-100`).** A package-level `calc estimate [1];` (a
+usage shape the parser cannot read as a `calc def`) maps to `Calculation`, as it already did inside
+a part body. A package declared with a qualified name (`package A::B { }`) — which the parser
+accepts and the language gives no meaning to — is counted once as `qualified package` and its
+members are not ingested, instead of vanishing; an anonymous `package`/`alias` turned out to be a
+parse error in 0.57, so `alias` is no longer a listed kind. The §6 preamble no longer claims every
+body member has a native target: members inside a mapped definition's body that are outside the
+mapped set are skipped and not counted, and §6 says which.

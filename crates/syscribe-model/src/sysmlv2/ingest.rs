@@ -362,21 +362,24 @@ fn collect_package_satisfies(
 /// Human-readable kind of a package-body member that ingestion parses but
 /// does not map (`REQ-TRS-SYSMLV2-030`). `None` for mapped kinds and for pure
 /// namespace plumbing (`import`, `comment`, parse-error nodes), which stay quiet.
-fn unmapped_kind(e: &sysml_v2_parser::PackageBodyElement, in_named_pkg: bool) -> Option<&'static str> {
+/// Only ever asked about a member of a *named* package (the anchor included): a package declared
+/// with a qualified name is counted whole by [`count_unmapped_package`] and never walked.
+fn unmapped_kind(e: &sysml_v2_parser::PackageBodyElement) -> Option<&'static str> {
     use sysml_v2_parser::PackageBodyElement as E;
     Some(match e {
         E::Annotating(sysml_v2_parser::ast::AnnotatingMember::TextualRep(_)) => "textual representation",
         E::Filter(_) => "filter",
-        // `REQ-TRS-SYSMLV2-043`: lifted onto the enclosing named package.
+        // `REQ-TRS-SYSMLV2-043`: lifted onto the enclosing package. The 0.57 parser rejects an
+        // anonymous alias, so this arm is defensive only.
         E::AliasDef(a) => {
-            if in_named_pkg && ident_name(&a.value.identification).is_some() {
+            if ident_name(&a.value.identification).is_some() {
                 return None;
             }
             "alias"
         }
         // `REQ-TRS-SYSMLV2-046`: liftable ones are counted after resolution.
         E::Satisfy(s) => {
-            if in_named_pkg && satisfy_target(&s.value).is_some() && satisfy_subject(&s.value).is_some() {
+            if satisfy_target(&s.value).is_some() && satisfy_subject(&s.value).is_some() {
                 return None;
             }
             "satisfy"
@@ -410,23 +413,14 @@ fn unmapped_kind(e: &sysml_v2_parser::PackageBodyElement, in_named_pkg: bool) ->
 fn count_unmapped_body(
     elements: &[sysml_v2_parser::Node<sysml_v2_parser::PackageBodyElement>],
     counts: &mut BTreeMap<&'static str, usize>,
-    in_named_pkg: bool,
 ) {
     use sysml_v2_parser::PackageBodyElement as E;
     for n in elements {
         match &n.value {
-            E::Package(inner) => {
-                if let sysml_v2_parser::PackageBody::Brace { elements, .. } = &inner.value.body {
-                    count_unmapped_body(elements, counts, qident_name(&inner.value.identification).is_some());
-                }
-            }
-            E::LibraryPackage(inner) => {
-                if let sysml_v2_parser::PackageBody::Brace { elements, .. } = &inner.value.body {
-                    count_unmapped_body(elements, counts, qident_name(&inner.value.identification).is_some());
-                }
-            }
+            E::Package(inner) => count_unmapped_package(&inner.value.identification, &inner.value.body, counts),
+            E::LibraryPackage(inner) => count_unmapped_package(&inner.value.identification, &inner.value.body, counts),
             other => {
-                if let Some(k) = unmapped_kind(other, in_named_pkg) {
+                if let Some(k) = unmapped_kind(other) {
                     *counts.entry(k).or_insert(0) += 1;
                 }
             }
@@ -434,29 +428,36 @@ fn count_unmapped_body(
     }
 }
 
+/// A `package`/`library package`/`namespace` declaration: its body is walked when it has a simple
+/// name. `REQ-TRS-SYSMLV2-100`: one declared with a *qualified* name (`package A::B { }`, which
+/// the parser accepts and the language gives no meaning to) has no identity to merge under
+/// (`merge_named` skips it), so it is counted once as `qualified package` and its members —
+/// which are not ingested — are not walked.
+fn count_unmapped_package(
+    id: &sysml_v2_parser::QualifiedIdentification,
+    body: &sysml_v2_parser::PackageBody,
+    counts: &mut BTreeMap<&'static str, usize>,
+) {
+    if qident_name(id).is_none() {
+        *counts.entry("qualified package").or_insert(0) += 1;
+        return;
+    }
+    if let sysml_v2_parser::PackageBody::Brace { elements, .. } = body {
+        count_unmapped_body(elements, counts);
+    }
+}
+
 pub(crate) fn count_unmapped_root(root: &sysml_v2_parser::RootNamespace, counts: &mut BTreeMap<&'static str, usize>) {
     use sysml_v2_parser::RootElement as R;
     for n in &root.elements {
         match &n.value {
-            R::Package(p) => {
-                if let sysml_v2_parser::PackageBody::Brace { elements, .. } = &p.value.body {
-                    count_unmapped_body(elements, counts, qident_name(&p.value.identification).is_some());
-                }
-            }
-            R::LibraryPackage(p) => {
-                if let sysml_v2_parser::PackageBody::Brace { elements, .. } = &p.value.body {
-                    count_unmapped_body(elements, counts, qident_name(&p.value.identification).is_some());
-                }
-            }
-            R::Namespace(p) => {
-                if let sysml_v2_parser::PackageBody::Brace { elements, .. } = &p.value.body {
-                    count_unmapped_body(elements, counts, qident_name(&p.value.identification).is_some());
-                }
-            }
+            R::Package(p) => count_unmapped_package(&p.value.identification, &p.value.body, counts),
+            R::LibraryPackage(p) => count_unmapped_package(&p.value.identification, &p.value.body, counts),
+            R::Namespace(p) => count_unmapped_package(&p.value.identification, &p.value.body, counts),
             R::Import(_) => {}
             // `REQ-TRS-SYSMLV2-098`: the file root is the anchor package's own (named) body, so a
             // bare root member counts under exactly the kind it would count under in a package.
-            R::Member(m) => count_unmapped_body(std::slice::from_ref(&**m), counts, true),
+            R::Member(m) => count_unmapped_body(std::slice::from_ref(&**m), counts),
         }
     }
 }
@@ -528,8 +529,8 @@ fn ident_name(id: &sysml_v2_parser::Identification) -> Option<String> {
 }
 
 /// Name of a package-like declaration. A *qualified* declared name (`package A::B`, new in the
-/// 0.55 grammar) is not a simple identity, so it is treated like an anonymous package exactly as
-/// 0.54 (which could not parse it) never produced one.
+/// 0.55 grammar) is not a simple identity, so the declaration is not merged (`None`); its members
+/// are not ingested and `REQ-TRS-SYSMLV2-100` counts the declaration once in `W543`.
 fn qident_name(id: &sysml_v2_parser::QualifiedIdentification) -> Option<String> {
     id.simple_name().map(dn).or_else(|| odn(id.short_name))
 }
@@ -1474,11 +1475,59 @@ fn meta_member_entries(m: MetaMember<'_>) -> Vec<serde_yaml::Value> {
             a.about_targets.iter().map(|t| qr(*t)).collect(),
         ),
         // A `#T` with no body of its own is a prefix on the member that follows, not an application
-        // on the holder (handled by the package-level walk; the parser drops the form inside a body).
+        // on the holder: `convert_merged` applies it at package level, `convert_body_with_prefixes`
+        // inside a body (`REQ-TRS-SYSMLV2-099`).
         MetaMember::Keyword(k) => match &k.body {
             Some(body) => metadata_entries(qr(k.reference), None, attribute_body_values(body), Vec::new()),
             None => Vec::new(),
         },
+    }
+}
+
+/// `REQ-TRS-SYSMLV2-099`: the `#T` prefixes the parser keeps on a usage's own occurrence prefix
+/// (`#Safety part a : A;` for `part`/`item`/`port`/`connection`/`occurrence`/`constraint`/`view`/
+/// analysis-case usages), as `{type: T}` entries ahead of the body's own applications.
+fn prefix_keyword_entries(prefix: &sysml_v2_parser::ast::OccurrenceUsagePrefix) -> Vec<serde_yaml::Value> {
+    prefix
+        .extension_keywords
+        .iter()
+        .flat_map(|k| metadata_entries(qr(k.value.annotation), None, Vec::new(), Vec::new()))
+        .collect()
+}
+
+/// [`prefix_keyword_entries`] followed by `body`.
+fn with_prefix_keywords(prefix: &sysml_v2_parser::ast::OccurrenceUsagePrefix, body: Vec<serde_yaml::Value>) -> Vec<serde_yaml::Value> {
+    let mut v = prefix_keyword_entries(prefix);
+    v.extend(body);
+    v
+}
+
+/// `REQ-TRS-SYSMLV2-099`: convert a body's members in order, applying a bodiless `#T` member
+/// (the shape the parser keeps for a prefix on an `attribute`/`action`/`state`/`interface`/
+/// `requirement`/`flow`/`allocation`/`ref` usage) as `{type: T}` on the next member that
+/// synthesizes an element — the same rule `convert_merged` applies at package level. A prefix
+/// whose member produces no element is dropped.
+fn convert_body_with_prefixes<T: MetaBody>(
+    elements: &[sysml_v2_parser::Node<T>],
+    out: &mut Vec<RawElement>,
+    mut convert: impl FnMut(&T, &mut Vec<RawElement>),
+) {
+    let mut prefix: Option<String> = None;
+    for node in elements {
+        if let Some(MetaMember::Keyword(k)) = node.value.meta_member() {
+            if k.body.is_none() {
+                prefix = Some(qr(k.reference));
+                continue;
+            }
+        }
+        let before = out.len();
+        convert(&node.value, out);
+        if let Some(type_ref) = prefix.take() {
+            if out.len() > before {
+                let entries = metadata_entries(type_ref, None, Vec::new(), Vec::new());
+                out[before].frontmatter.metadata.get_or_insert_with(Vec::new).extend(entries);
+            }
+        }
     }
 }
 
@@ -3774,9 +3823,7 @@ fn convert_action_def(a: &sysml_v2_parser::ActionDef, qname: &str, file_path: &s
     .with_metadata(body_metadata(elements))
     .with_behavior(body.sub_actions, body.control_nodes, body.succession_connections);
     push_synth(out, &action_qname, file_path, ElementType::ActionDef, &name, spec);
-    for node in elements {
-        convert_action_def_body_element(&node.value, &action_qname, file_path, out);
-    }
+    convert_body_with_prefixes(elements, out, |e, out| convert_action_def_body_element(e, &action_qname, file_path, out));
 }
 
 fn convert_action_usage(a: &sysml_v2_parser::ActionUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
@@ -3798,9 +3845,7 @@ fn convert_action_usage(a: &sysml_v2_parser::ActionUsage, qname: &str, file_path
     .with_metadata(body_metadata(elements))
     .with_behavior(body.sub_actions, body.control_nodes, body.succession_connections);
     push_synth(out, &action_qname, file_path, ElementType::Action, &a_name, spec);
-    for node in elements {
-        convert_action_usage_body_element(&node.value, &action_qname, file_path, out);
-    }
+    convert_body_with_prefixes(elements, out, |e, out| convert_action_usage_body_element(e, &action_qname, file_path, out));
 }
 
 /// `REQ-TRS-SYSMLV2-020` — a `view def` synthesizes a real `ViewDef`.
@@ -3847,7 +3892,7 @@ fn convert_view_usage(v: &sysml_v2_parser::ast::ViewUsage, qname: &str, file_pat
         ..Default::default()
     }
     .with_doc(view_usage_doc(elements))
-    .with_metadata(body_metadata(elements))
+    .with_metadata(with_prefix_keywords(&v.prefix, body_metadata(elements)))
     .with_view(
         view_expose_entries(elements),
         view_satisfy_viewpoint(elements),
@@ -4157,6 +4202,9 @@ fn convert_package_body_element(
         E::MetadataDef(node) => convert_metadata_def(&node.value, qname, file_path, out),
         E::UseCaseDef(node) => convert_use_case_def(&node.value, qname, file_path, out),
         E::UseCaseUsage(node) => convert_use_case_usage(&node.value, qname, file_path, out),
+        // `REQ-TRS-SYSMLV2-100`: a usage shape the parser cannot read as a `calc def`
+        // (`calc estimate [1];`), already converted this way inside part bodies.
+        E::CalcUsage(node) => convert_calc_usage(&node.value, qname, file_path, out),
         // `REQ-TRS-SYSMLV2-083`/`-084`.
         E::OccurrenceDef(node) => convert_occurrence_def(&node.value, qname, file_path, out),
         E::IndividualDef(node) => convert_individual_def(&node.value, qname, file_path, out),
@@ -4208,9 +4256,7 @@ fn convert_part_def(
     push_synth(out, &part_qname, file_path, ElementType::PartDef, &name, spec);
     push_connection_truncation_findings(out, file_path, truncations);
     push_connection_truncation_findings(out, file_path, flow_truncations);
-    for node in elements {
-        convert_part_def_body_element(&node.value, &part_qname, file_path, out);
-    }
+    convert_body_with_prefixes(elements, out, |e, out| convert_part_def_body_element(e, &part_qname, file_path, out));
 }
 
 fn convert_part_usage(
@@ -4254,15 +4300,13 @@ fn convert_part_usage(
     )
     .with_syscribe_meta(part_usage_syscribe_meta(elements))
     .with_doc(part_usage_doc(elements))
-    .with_metadata(body_metadata(elements))
+    .with_metadata(with_prefix_keywords(&part.prefix, body_metadata(elements)))
     .with_connections(connections)
     .with_flow_connections(flow_connections);
     push_synth(out, &part_qname, file_path, ElementType::Part, &part.name.s(), spec);
     push_connection_truncation_findings(out, file_path, truncations);
     push_connection_truncation_findings(out, file_path, flow_truncations);
-    for node in elements {
-        convert_part_usage_body_element(&node.value, &part_qname, file_path, out);
-    }
+    convert_body_with_prefixes(elements, out, |e, out| convert_part_usage_body_element(e, &part_qname, file_path, out));
 }
 
 /// `None` for an empty `Vec` — several `Spec` fields are `Option<Vec<T>>`
@@ -4588,9 +4632,7 @@ fn convert_port_def(
     .with_syscribe_meta(meta)
     .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::PortDef, &name, spec);
-    for node in elements {
-        convert_port_def_body_element(&node.value, &elem_qname, file_path, out);
-    }
+    convert_body_with_prefixes(elements, out, |e, out| convert_port_def_body_element(e, &elem_qname, file_path, out));
 }
 
 /// Dispatch a member of a `port def` body — nested attributes/items only
@@ -4645,7 +4687,7 @@ fn convert_port_usage(
         p.redefines.as_ref().map(|r| &r.value),
     )
     .with_doc(port_usage_doc(elements))
-    .with_metadata(body_metadata(elements));
+    .with_metadata(with_prefix_keywords(&p.prefix, body_metadata(elements)));
     push_synth(out, &elem_qname, file_path, ElementType::Port, &p.name.s(), spec);
 }
 
@@ -4675,9 +4717,7 @@ fn convert_connection_def(
     .with_syscribe_meta(meta)
     .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::ConnectionDef, &name, spec);
-    for node in elements {
-        convert_connection_def_body_element(&node.value, &elem_qname, file_path, out);
-    }
+    convert_body_with_prefixes(elements, out, |e, out| convert_connection_def_body_element(e, &elem_qname, file_path, out));
 }
 
 /// Dispatch a member of a `connection def` body — real SysML v2 source uses
@@ -4724,7 +4764,7 @@ fn convert_connection_usage(
         ..Default::default()
     }
     .with_doc(connection_def_doc(elements))
-    .with_metadata(body_metadata(elements));
+    .with_metadata(with_prefix_keywords(&c.prefix, body_metadata(elements)));
     push_synth(out, &elem_qname, file_path, ElementType::Connection, &name, spec);
 }
 
@@ -5041,7 +5081,7 @@ fn convert_analysis_case_usage(a: &sysml_v2_parser::AnalysisCaseUsage, qname: &s
         ..Default::default()
     }
     .with_doc(fields.doc)
-    .with_metadata(fields.metadata);
+    .with_metadata(with_prefix_keywords(&a.prefix, fields.metadata));
     push_synth(out, &case_qname, file_path, ElementType::AnalysisCase, &a.name.s(), spec);
 }
 
@@ -5111,9 +5151,7 @@ fn convert_interface_def(
     .with_syscribe_meta(meta)
     .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::InterfaceDef, &name, spec);
-    for node in elements {
-        convert_interface_def_body_element(&node.value, &elem_qname, file_path, out);
-    }
+    convert_body_with_prefixes(elements, out, |e, out| convert_interface_def_body_element(e, &elem_qname, file_path, out));
 }
 
 /// Dispatch a member of an `interface def` body — e.g. a named port on the
@@ -5190,9 +5228,7 @@ fn convert_item_def(
     .with_doc(attribute_body_doc(elements))
     .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::ItemDef, &name, spec);
-    for node in elements {
-        convert_attribute_body_element(&node.value, &elem_qname, file_path, out);
-    }
+    convert_body_with_prefixes(elements, out, |e, out| convert_attribute_body_element(e, &elem_qname, file_path, out));
 }
 
 /// Dispatch a member of an `item def` body — e.g. a named attribute on the item.
@@ -5240,7 +5276,7 @@ fn convert_item_usage(
         i.redefines.as_ref().map(|r| &r.value),
     )
     .with_doc(attribute_body_doc(elements))
-    .with_metadata(body_metadata(elements));
+    .with_metadata(with_prefix_keywords(&i.prefix, body_metadata(elements)));
     push_synth(out, &elem_qname, file_path, ElementType::Item, &i.name.s(), spec);
 }
 
@@ -5307,7 +5343,7 @@ fn convert_occurrence_usage(o: &sysml_v2_parser::ast::OccurrenceUsage, qname: &s
     }
     .with_usage_relations(o.multiplicity.as_ref().map(|m| &m.value), o.subsets.as_ref().map(|r| &r.value), o.redefines.as_ref().map(|r| &r.value))
     .with_doc(doc)
-    .with_metadata(body_metadata(elements));
+    .with_metadata(with_prefix_keywords(&o.prefix, body_metadata(elements)));
     let ty = if o.is_event { ElementType::EventOccurrence } else { ElementType::Occurrence };
     push_synth(out, &format!("{qname}::{name}"), file_path, ty, &name, spec);
 }
@@ -5717,7 +5753,7 @@ fn convert_constraint_usage(c: &sysml_v2_parser::ast::ConstraintUsage, qname: &s
         ..Default::default()
     }
     .with_doc(fields.doc)
-    .with_metadata(fields.metadata);
+    .with_metadata(with_prefix_keywords(&c.prefix, fields.metadata));
     push_synth(out, &format!("{qname}::{}", c.name.s()), file_path, ElementType::Constraint, &c.name.s(), spec);
 }
 
