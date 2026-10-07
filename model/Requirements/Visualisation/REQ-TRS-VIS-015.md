@@ -12,12 +12,14 @@ tags:
   - visualisation
 ---
 
-After BDD and IBD, derived generators shall be added on the same IR, in this order, each with
-its own golden tests and writer support: `StateMachine` (states, nested regions, transitions
-with trigger/guard/effect labels), `Action` (action steps and successions), `Requirement`
-(derivation tree with satisfying and verifying elements), `Sequence` (lifelines and messages,
-consistent with the `W080` completeness rule) and `Allocation` (allocation map). Until a kind's
-generator lands, a `Diagram` of that kind is manifest-sourced only.
+After BDD and IBD, derived generators shall be added on the same IR for the remaining SysMLv2
+view kinds, each specified by its own requirement: `StateMachine` (`REQ-TRS-VIS-018`), `Action`
+(`REQ-TRS-VIS-019`, a new `diagramKind`), `Requirement` (`REQ-TRS-VIS-020`), `Sequence`
+(`REQ-TRS-VIS-021`) and `Allocation` (`REQ-TRS-VIS-022`). Each generator follows the rules of
+`REQ-TRS-VIS-003` (source selection by frontmatter, `include:`/`exclude:`, deterministic shape
+ids, `W417`/`W418`), has golden IR tests, and is drawable by every writer (`REQ-TRS-VIS-009`,
+`-010`) and the browser (`REQ-TRS-VIS-006`). Until a kind's generator lands, a `Diagram` of that
+kind is manifest-sourced only.
 
 ## Rationale
 
@@ -26,5 +28,7 @@ honest: every enum and layout hint added for BDD/IBD must leave room for these.
 
 ## Scope
 
-- Order may change with user priority; each generator is its own planning item when scheduled.
-- No ELK option beyond the layered and fixed algorithms is assumed.
+- The child requirements name the exact model fields each generator reads; this requirement only
+  fixes the set of kinds and the shared rules.
+- No ELK option beyond the layered and fixed algorithms is assumed; the Sequence generator places
+  its own content (`REQ-TRS-VIS-021`).

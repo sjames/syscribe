@@ -25,6 +25,8 @@ pub enum DiagramKind {
     Requirement,
     Allocation,
     UseCase,
+    /// `diagramKind: Action` — an action-flow view (`REQ-TRS-VIS-019`).
+    Action,
     /// `diagramKind: Custom`, the legacy `SVG` default, or no `diagramKind` at
     /// all: a manifest with no kind-specific conventions.
     Custom,
@@ -43,6 +45,7 @@ impl DiagramKind {
             Some("Requirement") => Some(DiagramKind::Requirement),
             Some("Allocation") => Some(DiagramKind::Allocation),
             Some("UseCase") => Some(DiagramKind::UseCase),
+            Some("Action") => Some(DiagramKind::Action),
             _ => None,
         }
     }
@@ -57,6 +60,7 @@ impl DiagramKind {
             DiagramKind::Requirement => "Requirement",
             DiagramKind::Allocation => "Allocation",
             DiagramKind::UseCase => "UseCase",
+            DiagramKind::Action => "Action",
             DiagramKind::Custom => "Custom",
         }
     }
@@ -95,6 +99,12 @@ pub enum NodeKind {
     // UseCase
     SystemBoundary,
     UseCase,
+    // Action (REQ-TRS-VIS-019)
+    Action,
+    Fork,
+    Join,
+    Decision,
+    Merge,
 }
 
 impl NodeKind {
@@ -121,6 +131,11 @@ impl NodeKind {
             NodeKind::Swimlane => "swimlane",
             NodeKind::SystemBoundary => "system-boundary",
             NodeKind::UseCase => "usecase",
+            NodeKind::Action => "action",
+            NodeKind::Fork => "fork",
+            NodeKind::Join => "join",
+            NodeKind::Decision => "decision",
+            NodeKind::Merge => "merge",
         }
     }
 
@@ -149,6 +164,11 @@ impl NodeKind {
             "swimlane" => NodeKind::Swimlane,
             "systemboundary" => NodeKind::SystemBoundary,
             "usecase" => NodeKind::UseCase,
+            "action" => NodeKind::Action,
+            "fork" | "forknode" => NodeKind::Fork,
+            "join" | "joinnode" => NodeKind::Join,
+            "decision" | "decisionnode" => NodeKind::Decision,
+            "merge" | "mergenode" => NodeKind::Merge,
             _ => return None,
         })
     }
@@ -158,7 +178,13 @@ impl NodeKind {
     pub fn is_container(&self) -> bool {
         matches!(
             self,
-            NodeKind::Boundary | NodeKind::Block | NodeKind::Swimlane | NodeKind::SystemBoundary | NodeKind::Fragment | NodeKind::State
+            NodeKind::Boundary
+                | NodeKind::Block
+                | NodeKind::Swimlane
+                | NodeKind::SystemBoundary
+                | NodeKind::Fragment
+                | NodeKind::State
+                | NodeKind::Action
         )
     }
 }
@@ -483,6 +509,13 @@ impl LayoutHints {
                 hierarchical: true,
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![EdgeKind::Inheritance],
+            },
+            DiagramKind::Action => LayoutHints {
+                algorithm: LayoutAlgorithm::Layered,
+                direction: LayoutDirection::Down,
+                hierarchical: true,
+                port_constraints: PortConstraints::Free,
+                reversed_kinds: vec![],
             },
             DiagramKind::Custom => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,

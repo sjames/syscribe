@@ -102,7 +102,7 @@ pub fn render_mermaid(graph: &DiagramGraph, links: &dyn Fn(&str) -> Option<Strin
         DiagramKind::StateMachine => render_state(graph),
         DiagramKind::Sequence => render_sequence(graph),
         DiagramKind::Allocation | DiagramKind::UseCase => render_flowchart(graph, "LR", links),
-        DiagramKind::Custom => render_flowchart(graph, "TD", links),
+        DiagramKind::Action | DiagramKind::Custom => render_flowchart(graph, "TD", links),
     })
 }
 

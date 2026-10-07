@@ -12,8 +12,13 @@
 //! diagram kind; the graph is then empty) — never as a panic or a silent
 //! empty picture.
 
+pub mod action;
+pub mod allocation;
 pub mod bdd;
 pub mod ibd;
+pub mod requirement;
+pub mod sequence;
+pub mod state;
 
 use crate::element::{ElementType, RawElement};
 use crate::resolver::Resolver;
@@ -88,7 +93,13 @@ pub fn derive(elem: &RawElement, kind: DiagramKind, elements: &[RawElement], res
         match kind {
             DiagramKind::Bdd => bdd::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
             DiagramKind::Ibd => ibd::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
-            // REQ-TRS-VIS-015: not yet derivable; manifest-only kinds.
+            // REQ-TRS-VIS-018..022 (the follow-on kinds of REQ-TRS-VIS-015).
+            DiagramKind::StateMachine => state::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
+            DiagramKind::Action => action::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
+            DiagramKind::Requirement => requirement::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
+            DiagramKind::Sequence => sequence::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
+            DiagramKind::Allocation => allocation::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
+            // UseCase and Custom have no generator.
             _ => {}
         }
     }

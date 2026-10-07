@@ -78,7 +78,7 @@ pub fn render_plantuml(
         DiagramKind::StateMachine => Some(render_state_machine(&graph, &file_stem, cfg)),
         DiagramKind::Sequence => Some(render_sequence(&graph, &file_stem, cfg)),
         DiagramKind::Requirement => Some(render_requirement(&graph, &file_stem, cfg)),
-        DiagramKind::Allocation | DiagramKind::UseCase | DiagramKind::Custom => None,
+        DiagramKind::Allocation | DiagramKind::UseCase | DiagramKind::Action | DiagramKind::Custom => None,
     }
 }
 

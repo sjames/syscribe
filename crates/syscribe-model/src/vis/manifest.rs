@@ -124,6 +124,7 @@ fn role_stereotype(kind: NodeKind) -> Option<&'static str> {
     match kind {
         NodeKind::Port => Some("port"),
         NodeKind::State => Some("state"),
+        NodeKind::Action => Some("action"),
         NodeKind::Actor => Some("actor"),
         NodeKind::Requirement => Some("requirement"),
         NodeKind::TestCase => Some("test case"),

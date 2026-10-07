@@ -109,6 +109,9 @@ fn by_node_kind(kind: NodeKind) -> (&'static str, &'static str, bool) {
         NodeKind::Requirement => ("#f9f7ff", "#4a0a6e", true),
         NodeKind::TestCase => ("#f0fff4", "#1e6b2e", true),
         NodeKind::State => ("#f3eefa", "#5b2c8e", false),
+        NodeKind::Action => ("#fef9e7", "#9a7d0a", false),
+        NodeKind::Fork | NodeKind::Join => ("#333", "#333", false),
+        NodeKind::Decision | NodeKind::Merge => ("#fff", "#333", false),
         NodeKind::UseCase => ("#fff8e1", "#8d6e00", false),
         _ => ("#f5f5fa", "#666", false),
     }
