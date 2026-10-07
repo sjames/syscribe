@@ -509,6 +509,12 @@ pub struct DiagramGraph {
     pub nodes: Vec<Node>,
     pub edges: Vec<Edge>,
     pub layout_hints: LayoutHints,
+    /// Whether the content was generated from the model (`subject:` and no
+    /// `shapes:`, `REQ-TRS-VIS-003`) rather than listed in a manifest. A
+    /// derived graph is regenerated on every build, so its node set is not
+    /// something an editor can add to or delete from; only pins persist.
+    #[serde(default)]
+    pub derived: bool,
 }
 
 impl DiagramGraph {
@@ -521,6 +527,7 @@ impl DiagramGraph {
             nodes: Vec::new(),
             edges: Vec::new(),
             layout_hints: LayoutHints::for_kind(kind),
+            derived: false,
         }
     }
 
@@ -709,5 +716,11 @@ mod tests {
         let back: DiagramGraph = serde_json::from_str(&json).unwrap();
         assert_eq!(back, g);
         assert!(json.contains("\"kind\":\"inheritance\""));
+        assert!(json.contains("\"derived\":false"));
+        // An older JSON without the flag still deserialises (manifest default).
+        let legacy = json.replace(",\"derived\":false", "");
+        assert!(!legacy.contains("derived"));
+        let back: DiagramGraph = serde_json::from_str(&legacy).unwrap();
+        assert!(!back.derived);
     }
 }

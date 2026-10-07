@@ -78,6 +78,7 @@ pub fn derive(elem: &RawElement, kind: DiagramKind, elements: &[RawElement], res
         .clone()
         .unwrap_or_else(|| elem.qualified_name.rsplit("::").next().unwrap_or(&elem.qualified_name).to_string());
     let mut graph = DiagramGraph::empty(kind, &elem.qualified_name, &name, fm.subject.as_deref());
+    graph.derived = true;
     let mut issues = Vec::new();
     let filters = Filters::of(elem);
 
@@ -393,6 +394,7 @@ mod tests {
         let d = diagram("StateMachine", "Sys::Engine", |_| {});
         let (g, issues) = derive_it(&d);
         assert!(g.nodes.is_empty() && issues.is_empty());
+        assert!(g.derived, "a derived graph is flagged even when its generator yields nothing");
     }
 
     #[test]

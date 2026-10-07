@@ -15,13 +15,8 @@ edges:
     source: s-derived
     target: s-base
     kind: inheritance
-layout:
-  s-base:
-    x: 40
-    y: 40
-  s-derived:
-    x: 40
-    y: 220
 ---
 
-Block diagram of the fixture parts (SVG-rendered).
+Block diagram of the fixture parts: a manifest with no `layout:`, so it is
+not pinned — `export-html` shows a placeholder (REQ-TRS-VIS-010, rule 4) and
+`--format svg` is refused.

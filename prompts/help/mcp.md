@@ -136,9 +136,13 @@ These mirror the CLI corpus commands of the same name (`--json` output).
 - `lint_docs {paths, codes?}` — unresolvable references in `.md`/`.svg`
   (`W099`–`W102`), plus the advisory `W103` (a package `_index.md` hand-listing
   its own members).
-- `render_diagram {ref, format?}` — a Diagram's **source** (PlantUML by default,
-  or the Mermaid source) plus its `W400`–`W415` structural findings. It does not
-  render an image; rendering is left to your toolchain.
+- `render_diagram {ref, format?}` — a Diagram's **source** plus its `W400`–`W415`
+  structural findings. `format` is `plantuml` (default), `mermaid` (generated
+  from the Diagram IR, `%% ref:` per node) or `svg` (static SVG per spec §8.16.5,
+  only for a fully pinned diagram — otherwise a tool error asks for *Pin all* in
+  the browser or a text format); a hand-authored `diagramKind: Mermaid` diagram
+  returns its own body. It does not render an image; rendering is left to your
+  toolchain. Same output as `syscribe diagram export`.
 - `diagram_coverage {root?, types?}` — elements referenced by no Diagram shape,
   plus shape refs that don't resolve (the `W402` set).
 - `generate_view {kind, root?, format?}` — synthesise Mermaid from the model

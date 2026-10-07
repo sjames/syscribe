@@ -11,6 +11,7 @@ mod coanalysis;
 mod coverage;
 mod cyberrisk;
 mod connectivity;
+mod diagram_export;
 mod digest;
 mod discover;
 mod export;
@@ -851,6 +852,15 @@ fn main() {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let puml_cfg = syscribe_model::config::load_plantuml_config(model_root);
                 plantuml::cmd_plantuml(&elems, rest, &puml_cfg);
+            }
+            "diagram" => {
+                // `diagram export <qname> --format plantuml|mermaid|svg [--out <file>]`
+                // (REQ-TRS-VIS-009/010) — the one diagram subcommand after ADR-SYS-VIS-001.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = diagram_export::cmd_diagram(&elems, &resolver, model_root, &vcfg, rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "render" => {
                 if key.is_empty() {

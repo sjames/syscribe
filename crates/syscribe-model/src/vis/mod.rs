@@ -13,15 +13,26 @@
 pub mod derive;
 pub mod ir;
 pub mod manifest;
+pub mod mermaid;
 pub mod sprotty;
 pub mod style;
+pub mod svg;
 
 use crate::element::{ElementType, RawElement, RawFrontmatter};
 use crate::resolver::Resolver;
 
 pub use ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, LayoutHints, Node, NodeKind, Point, PortDirection, Rect, Side};
 pub use manifest::Issue;
+pub use mermaid::render_mermaid;
 pub use style::{ArrowHead, EdgeStyle, NodeStyle, PortStyle};
+pub use svg::render_svg;
+
+/// The message every surface uses when an SVG is asked of a diagram that
+/// is not fully pinned (`REQ-TRS-VIS-010`): the CLI, MCP `render_diagram`
+/// and the server agree on the wording.
+pub fn not_fully_pinned_message(qname: &str) -> String {
+    format!("'{qname}' is not fully pinned — open it in the browser and use Pin all, or export plantuml/mermaid")
+}
 
 /// The applied-stereotype banners of an element (`REQ-TRS-VIS-012`): one
 /// entry per `metadata:` application, naming the applied `MetadataDef` — its

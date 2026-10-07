@@ -143,6 +143,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
         &[
             ("render", include_str!("../../../prompts/help/render.md")),
             ("plantuml", include_str!("../../../prompts/help/plantuml.md")),
+            ("diagram", include_str!("../../../prompts/help/diagram.md")),
         ],
     ),
     (

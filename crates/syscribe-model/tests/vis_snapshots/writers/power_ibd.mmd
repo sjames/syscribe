@@ -1,0 +1,24 @@
+flowchart LR
+  %% ref: Sys::PowerSystem
+  subgraph s_sys_powersystem["PowerSystem"]
+    %% ref: Sys::PowerSystem::mainOut
+    s_sys_powersystem_mainout((mainOut))
+    %% ref: Sys::PowerSystem::engine
+    subgraph s_sys_powersystem_engine["engine : Engine"]
+      %% ref: Sys::PowerSystem::engine::powerOut
+      s_sys_powersystem_engine_powerout((powerOut))
+    end
+    %% ref: Sys::PowerSystem::motor
+    subgraph s_sys_powersystem_motor["motor : Motor [2]"]
+      %% ref: Sys::PowerSystem::motor::powerIn
+      s_sys_powersystem_motor_powerin((powerIn))
+    end
+    %% ref: Sys::PowerSystem::aux
+    subgraph s_sys_powersystem_aux["aux : Motor"]
+      %% ref: Sys::PowerSystem::aux::powerIn
+      s_sys_powersystem_aux_powerin((powerIn))
+    end
+  end
+
+  s_sys_powersystem_engine_powerout ---|PowerLink| s_sys_powersystem_motor_powerin
+  s_sys_powersystem_motor_powerin -.-|=| s_sys_powersystem_mainout

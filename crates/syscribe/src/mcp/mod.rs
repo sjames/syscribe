@@ -47,7 +47,6 @@ use crate::matrix::matrix_json;
 use crate::mv;
 use crate::query::{fuzzy_score, next_id_value, tc_verdict, template_str, type_label, TcVerdict};
 use crate::spec;
-use syscribe_model::plantuml::render_plantuml;
 use syscribe_model::results::{FnVerdict, ResultsData};
 use store::McpStore;
 use util::{elem_detail, elem_summary, finding_json, rel_file, severity_str};
@@ -1988,8 +1987,11 @@ impl SyscribeMcp {
     }
 
     #[tool(
-        description = "Return a Diagram element's SOURCE (PlantUML by default, or the Mermaid \
-        source) plus its W400-W415 structural findings. Does not render an image.",
+        description = "Return a Diagram element's SOURCE plus its W400-W415 structural findings. \
+        `format` is `plantuml` (default), `mermaid` (generated from the Diagram IR, with `%% ref:` \
+        per node) or `svg` (a static SVG per spec 8.16.5; only for a fully pinned diagram — \
+        otherwise a tool error asks for Pin all in the browser or a text format). A hand-authored \
+        `diagramKind: Mermaid` diagram always returns its own Mermaid body. Does not render an image.",
         annotations(read_only_hint = true)
     )]
     async fn render_diagram(
@@ -2015,8 +2017,20 @@ impl SyscribeMcp {
         let (format, source) = if elem.frontmatter.diagram_kind.as_deref() == Some("Mermaid") {
             ("mermaid".to_string(), extract_mermaid(&elem.doc).unwrap_or_default())
         } else {
-            let src = render_plantuml(elem, &store.elements, None).unwrap_or_default();
-            (args.format.clone().unwrap_or_else(|| "plantuml".to_string()), src)
+            // REQ-TRS-VIS-009/010: every format is a pure function of the Diagram
+            // IR; `svg` refuses an unpinned diagram with the CLI's exact message.
+            let format = args.format.clone().unwrap_or_else(|| "plantuml".to_string());
+            match crate::diagram_export::export_diagram(
+                elem,
+                &store.elements,
+                &store.resolver,
+                &store.model_root,
+                &store.config,
+                &format,
+            ) {
+                Ok(src) => (format, src),
+                Err(msg) => return tool_error(msg),
+            }
         };
         ok(json!({ "format": format, "source": source, "findings": findings }))
     }

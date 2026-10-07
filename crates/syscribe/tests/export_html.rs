@@ -98,8 +98,20 @@ fn pages_carry_navigation() {
 
 // ---- TC-TRS-HTML-004 --------------------------------------------------------
 
-// REQ-TRS-VIS-010 fallback chain (Phase 0 part): companion SVG, else a
-// PlantUML-rendered SVG, else a placeholder. No server-side layout.
+// REQ-TRS-VIS-010 fallback chain: a fully pinned IR drawn by the SVG writer,
+// else a companion SVG, else a PlantUML-rendered SVG, else a placeholder. No
+// server-side layout.
+
+#[test]
+fn fully_pinned_diagram_is_drawn_inline_by_the_svg_writer() {
+    let (out, _) = run_export(&[]);
+    let page = read(&elem_page(&out, "Diagrams::FxPinned"));
+    assert!(page.contains("class=\"diagram diagram-pinned\""), "rule 1 applies; got {page}");
+    assert!(page.contains("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:sysml=\"urn:syscribe:1.0\""), "inline SVG with the sysml namespace");
+    assert!(page.contains("sysml:ref=\"Parts::Base\"") && page.contains("sysml:ref=\"Parts::Derived\""), "every shape carries sysml:ref");
+    assert!(page.contains("sysml:source=\"s-derived\" sysml:target=\"s-base\""), "the edge carries its endpoints");
+    assert!(!page.contains("diagram-placeholder"), "no placeholder for a pinned diagram");
+}
 
 #[test]
 fn companion_svg_diagram_is_embedded() {

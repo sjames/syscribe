@@ -12,8 +12,8 @@
 //!   value into a usage error naming the valid values.
 //!
 //! Commands absent from the table are not checked (they either have their own
-//! strict parser — `lint-docs`, `follow`, `connectivity`, the clap `diagram`
-//! family — or are not yet covered).
+//! strict parser — `lint-docs`, `follow`, `connectivity` — or are not yet
+//! covered).
 
 /// How an option consumes the command line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -62,6 +62,7 @@ fn spec_for(cmd: &str) -> Option<Spec> {
             ("--json", Switch),
         ],
         "show" => &[("--no-related", Switch)],
+        "diagram" => &[("--format", Value), ("--out", Value)],
         "trace" => &[("--linked-only", Switch), LENS],
         "why" | "who-verifies" | "links" | "refs" => &[LENS],
         "tree" => &[],

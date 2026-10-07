@@ -2,7 +2,7 @@
 id: REQ-TRS-LINK-002
 type: Requirement
 name: Tool shall wrap each element's SVG shape in a hyperlink to its hosted URL
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---
@@ -23,16 +23,20 @@ shape group in an SVG hyperlink to that element's resolved URL.
   state, use-case diagrams, and the MagicGrid grid / allocation-matrix / trade-study SVGs.
 - Inert when `[links]` is not configured (the SVG is byte-for-byte as today).
 
-**Verification note:** the previous verification (`TC-TRS-LINK-002`, via `diagram req`) was retired
-with the CLI diagram toolkit (`ADR-SYS-VIS-001`); the SVG hyperlink behaviour will be re-verified
-against `syscribe diagram export --format svg` (`REQ-TRS-VIS-009`/`REQ-TRS-VIS-010`) when it lands.
+**Verification note:** the original verification (`TC-TRS-LINK-002`, via `diagram req`) was retired
+with the CLI diagram toolkit (`ADR-SYS-VIS-001`). It is revived against the static SVG writer:
+`TC-TRS-LINK-002` now exercises `syscribe diagram export --format svg` on a fully pinned diagram
+(`REQ-TRS-VIS-009`/`REQ-TRS-VIS-010`), asserting the anchor wrapper with and without `[links]`,
+and additionally checks the `click` directives of `--format mermaid` (the Mermaid counterpart,
+`REQ-TRS-LINK-003`'s convention applied to generated text).
 
 **Source:** clickable element links in exported SVG diagrams. Consumes [[REQ-TRS-LINK-001]].
 The live-server SVG affordance is [[REQ-TRS-LINK-005]].
 
 **Acceptance criteria:**
 
-- With `[links]` configured, an exported SVG (e.g. `magicgrid --svg`, or a rendered BDD) wraps
-  each element's shape in `<a … href="<the element's URL>" target="_blank">`.
+- With `[links]` configured, an exported SVG (`diagram export --format svg` of a fully pinned
+  diagram, or `magicgrid --svg`) wraps each element's shape in
+  `<a … href="<the element's URL>" target="_blank">`.
 - An element with no resolved URL has its shape rendered with **no** surrounding `<a>`.
 - With no `[links]` table, the SVG contains no `<a>` element wrappers.

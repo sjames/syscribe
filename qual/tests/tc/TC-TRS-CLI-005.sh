@@ -4,7 +4,7 @@ tc_TRS_CLI_005() {
         connectivity export trace why who-verifies links refs matrix verification-depth \
         metrics cyber-risk co-analysis safety-case feature-check features feature why-active \
         configure diff template next-id check-ref path-for move scaffold-gherkin \
-        ingest-results render spec help"
+        ingest-results render diagram spec help"
 
     SCENARIO_NAME="help <cmd> and <cmd> --help print a man page for every command"
     printf "  ▶ %s\n" "$SCENARIO_NAME"

@@ -158,5 +158,6 @@
     "reversedKinds": [
       "inheritance"
     ]
-  }
+  },
+  "derived": true
 }

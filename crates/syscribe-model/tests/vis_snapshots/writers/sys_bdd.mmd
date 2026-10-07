@@ -1,0 +1,36 @@
+classDiagram
+  %% ref: Sys::Base
+  class s_sys_base["Base"] {
+    <<part def>>
+  }
+  %% ref: Sys::Engine
+  class s_sys_engine["Engine"] {
+    <<part def>>
+    +mass : Real [kg]
+    +port powerOut : PowerPort (out)
+  }
+  %% ref: Sys::Motor
+  class s_sys_motor["Motor"] {
+    <<part def>>
+    +port powerIn : PowerPort (in)
+  }
+  %% ref: Sys::PowerLink
+  class s_sys_powerlink["PowerLink"] {
+    <<connection def>>
+  }
+  %% ref: Sys::PowerPort
+  class s_sys_powerport["PowerPort"] {
+    <<port def>>
+  }
+  %% ref: Sys::PowerSystem
+  class s_sys_powersystem["PowerSystem"] {
+    <<part def>>
+    +port mainOut : PowerPort (out)
+  }
+
+  s_sys_base <|-- s_sys_engine
+  s_sys_base <|-- s_sys_motor
+  s_sys_engine -- s_sys_motor : PowerLink
+  s_sys_powersystem *-- s_sys_engine : engine
+  s_sys_powersystem *-- s_sys_motor : motor [2]
+  s_sys_powersystem *-- s_sys_motor : aux

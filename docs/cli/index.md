@@ -619,18 +619,21 @@ syscribe -m model/ fault-tree render <FaultTree-id>
 
 `fmea report` rolls up the `FMEAEntry` rows (grouped by `FMEASheet`) — each entry's failure mode, severity/occurrence/detection ratings, computed **RPN**, and recommended actions. `--fmea-sheet <id>` restricts the report to a single sheet; `--json` emits the structured document. `fault-tree render <FaultTree-id>` prints one `FaultTree` as a Mermaid `flowchart TD` (gates with their AND/OR type, basic events with their ids and referenced elements, edges from each gate's `inputs`); the same λ/DC data feeds the quantitative `metrics` rollup. Both are read-only. See the [safety-analysis guide](../model-guide/safety-analysis.md).
 
-## Diagrams (`render`, `plantuml`)
+## Diagrams (`diagram export`, `render`, `plantuml`)
 
-`render` prints a hand-authored diagram with element links injected; `plantuml` generates PlantUML companion files. The former CLI `diagram` toolkit (`list`/`render`/`measure`/`compose`/`layout`/`seq`/`req`) was removed under `ADR-SYS-VIS-001` (`REQ-TRS-VIS-013`); companion SVG files are saved from the browser or rendered by `plantuml render`.
+`diagram export` writes one `Diagram` element as PlantUML, Mermaid or static SVG from its Diagram IR; `render` prints a hand-authored diagram with element links injected; `plantuml` generates PlantUML companion files. The former CLI `diagram` toolkit (`list`/`render`/`measure`/`compose`/`layout`/`seq`/`req`) was removed under `ADR-SYS-VIS-001` (`REQ-TRS-VIS-013`) — `export` is the one `diagram` subcommand; layout happens in the browser, and companion SVG files are saved from there or rendered by `plantuml render`.
 
 ```bash
+syscribe -m model/ diagram export <qname> [--format plantuml|mermaid|svg] [--out <file>]   # one Diagram → stdout or file
 syscribe -m model/ render <diagram_path>                         # one Diagram element → stdout
 syscribe -m model/ plantuml [<qname>] [--output <file>|-] [--dry-run]   # generate .puml
 syscribe -m model/ plantuml render [--jar <path>] [--dry-run]    # render .puml → .svg
 ```
 
+- **`diagram export <qname>`** (`REQ-TRS-VIS-009`/`-010`) writes the chosen output for one `Diagram` element, built from its IR (the `shapes:`/`edges:`/`layout:` manifest or the content derived from its `subject:`). `--format plantuml` (default) is the text `syscribe plantuml` writes; `--format mermaid` maps BDD/Requirement to a `classDiagram` and IBD/Allocation/UseCase/Custom to a `flowchart` with a `subgraph` per boundary and nested block (StateMachine → `stateDiagram-v2`, Sequence → `sequenceDiagram`), every node preceded by `%% ref: <QualifiedName>` so `W408`/`W409` apply to generated text; `--format svg` draws a standalone SVG per spec §8.16.5 (`sysml:ref` on every shape, `sysml:ref`/`sysml:source`/`sysml:target` on every edge) **only from pins** — every node must carry a `layout:` entry (open the diagram in the browser and use *Pin all*), otherwise it exits 1 with `'<qname>' is not fully pinned — …`. With a `[links]` table, Mermaid gains `click <id> href "<url>" _blank` lines and each linked SVG shape is wrapped in `<a xlink:href="<url>" href="<url>" target="_blank" rel="noopener">` (`REQ-TRS-LINK-002`). An unknown `<qname>` prints `error: element '<qname>' not found` on stderr, nothing on stdout, exit 1; `--out <file>` writes the file (creating parent directories). The same output is available through MCP `render_diagram {ref, format}`. See `syscribe help diagram`.
 - **`render <diagram_path>`** prints the diagram embedded in one `Diagram` element (addressed by file path) with element links injected: the ```` ```mermaid ```` block plus `click` directives for `diagramKind: Mermaid`, otherwise the embedded ```` ```svg ```` block with `<a href>` wrappers. It does not generate a diagram.
 - **`plantuml`** generates PlantUML `.puml` source from `Diagram` elements — batch (every `pumlMode: companion` diagram) or a single `<qname>`; `--output -` writes to stdout, `--dry-run` previews paths. **`plantuml render`** invokes PlantUML on the companion `.puml` files and writes `.svg` alongside, resolving the engine via `--jar` → `[plantuml] jar` in `.syscribe.toml` → `PLANTUML_JAR` → `plantuml` on `PATH`. See `syscribe help plantuml`.
+- **`export-html`** embeds each `Diagram` by the first applicable rule of `REQ-TRS-VIS-010`: a fully pinned IR drawn by the SVG writer, else a companion SVG, else a PlantUML-rendered `.svg`, else a placeholder naming the diagram, its kind and subject.
 
 ---
 

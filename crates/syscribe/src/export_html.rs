@@ -413,12 +413,13 @@ fn element_page(
 
     // Diagrams: Mermaid is already in the rendered doc; an inline `PlantUML`
     // body likewise. Everything else follows the `REQ-TRS-VIS-010` fallback
-    // chain (Phase 0 part): a companion SVG, else a PlantUML-rendered SVG,
-    // else a placeholder — the server never computes a layout.
+    // chain: a fully pinned IR drawn by `vis::svg`, else a companion SVG, else
+    // a PlantUML-rendered SVG, else a placeholder — the server never computes
+    // a layout.
     if matches!(fm.element_type, Some(ElementType::Diagram))
         && !matches!(fm.diagram_kind.as_deref(), Some("Mermaid") | Some("PlantUML"))
     {
-        body.push_str(&diagram_embed(elem));
+        body.push_str(&diagram_embed(elem, elements, resolver, config));
     }
 
     let nav = build_nav(elements, rel_root, &elem.qualified_name);
@@ -428,19 +429,29 @@ fn element_page(
 // ── diagrams ───────────────────────────────────────────────────────────────
 
 /// The `<div class="diagram …">` for a `Diagram` element, by the first
-/// applicable rule of `REQ-TRS-VIS-010`'s fallback chain (the Phase 0 part,
-/// without the pinned-IR SVG writer of Phase 3):
+/// applicable rule of `REQ-TRS-VIS-010`'s fallback chain:
 ///
-/// 1. a companion SVG (`svgMode: companion` or `svgFile:` set; default
+/// 1. the Diagram IR is fully pinned (every node has a `layout:` entry): it is
+///    drawn by `vis::svg`, with `[links]` hyperlinks on the shapes;
+/// 2. else a companion SVG (`svgMode: companion` or `svgFile:` set; default
 ///    `<stem>.svg` beside the `.md`) that exists on disk is embedded;
-/// 2. else a PlantUML-rendered `.svg` beside the companion `.puml`
+/// 3. else a PlantUML-rendered `.svg` beside the companion `.puml`
 ///    (`pumlFile:`, default `<stem>.puml`, same stem with `.svg`) is embedded;
-/// 3. else a placeholder names the diagram, its kind and subject and points
+/// 4. else a placeholder names the diagram, its kind and subject and points
 ///    the reader at the syscribe-server browser, where the diagram is laid out.
-fn diagram_embed(elem: &RawElement) -> String {
+fn diagram_embed(elem: &RawElement, elements: &[RawElement], resolver: &Resolver, config: &ValidateConfig) -> String {
     let fm = &elem.frontmatter;
     let md_path = Path::new(&elem.file_path);
     let md_dir = md_path.parent().unwrap_or(Path::new("."));
+
+    if let Some((graph, _issues)) = syscribe_model::vis::build_graph(elem, elements, resolver) {
+        if graph.is_fully_pinned() {
+            let links = crate::diagram_export::link_resolver(elements, resolver, config);
+            if let Some(svg) = syscribe_model::vis::render_svg(&graph, &links) {
+                return format!("<div class=\"diagram diagram-pinned\">\n{}\n</div>\n", svg.trim());
+            }
+        }
+    }
 
     let mut candidates: Vec<PathBuf> = Vec::new();
     if fm.svg_mode.as_deref() == Some("companion") || fm.svg_file.is_some() {

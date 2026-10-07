@@ -47,7 +47,9 @@
 //! always means "a human pinned this".
 //!
 //! `pinned` lists the ids of pinned nodes in declaration order, so the client
-//! can tell "fixed by a human" from "placed by the layout engine".
+//! can tell "fixed by a human" from "placed by the layout engine". `derived`
+//! is `true` when the content was generated from a `subject:` rather than
+//! listed in `shapes:`.
 //!
 //! ## Style (`REQ-TRS-VIS-012`)
 //!
@@ -271,6 +273,10 @@ pub struct SGraph {
     pub layout_options: LayoutOptions,
     /// Ids of pinned nodes, in declaration order.
     pub pinned: Vec<String>,
+    /// Whether the content is generated from the model
+    /// ([`DiagramGraph::derived`]): the client can tell a regenerated node set
+    /// from an authored one without guessing from the ids.
+    pub derived: bool,
     pub children: Vec<SChild>,
 }
 
@@ -395,6 +401,7 @@ pub fn to_sgraph(graph: &DiagramGraph) -> SGraph {
         subject: graph.subject.clone(),
         layout_options: LayoutOptions::from_hints(&graph.layout_hints),
         pinned: graph.pinned_ids().into_iter().map(str::to_string).collect(),
+        derived: graph.derived,
         children,
     }
 }
@@ -639,6 +646,10 @@ mod tests {
         assert!(j.get("subject").is_none());
         assert_eq!(j["children"], json!([]));
         assert_eq!(j["pinned"], json!([]));
+        assert_eq!(j["derived"], json!(false), "a manifest/empty graph is not derived");
+        let mut derived = DiagramGraph::empty(DiagramKind::Bdd, "D", "D", Some("Sys"));
+        derived.derived = true;
+        assert_eq!(to_sgraph_json(&derived)["derived"], json!(true));
         let seq = DiagramGraph::empty(DiagramKind::Sequence, "D", "D", None);
         assert_eq!(to_sgraph_json(&seq)["layoutOptions"]["elk.algorithm"], "fixed");
     }

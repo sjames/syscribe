@@ -119,5 +119,6 @@
     "hierarchical": true,
     "portConstraints": "fixedSide",
     "reversedKinds": []
-  }
+  },
+  "derived": true
 }
