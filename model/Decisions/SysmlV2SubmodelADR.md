@@ -937,3 +937,16 @@ that already existed in the schema, so no new `ElementType` was needed.
   expression, which ingestion used to drop silently; both now store the whitespace-free text, and
   export writes the expression form rather than a quoted name.
 - **`W544`** is a plain advisory on ingested multiplicity text; it does not evaluate non-literal bounds.
+
+## Addendum: parser migration to 0.57.0 (REQ-TRS-SYSMLV2-073)
+
+The deferred upgrade is now executed as a behaviour-preserving migration, gated by the existing
+`sysmlv2*` suites, the export round-trip tests and the repository ratchet. Plan, in order, keeping the
+tree compiling at each step: (1) bump the pin and thread the `ParsedDocument` handle through every
+`convert_*` function so names, short names and qualified references resolve; (2) rewrite
+`render_expression` and `connection_end_display` for the restructured `Expression`; (3) re-home
+`Doc`/`MetadataAnnotation` extraction; (4) adapt `Satisfy`, `TextualRep`, `FlowUsage`/
+`ConnectionUsageMember`, use-case and metadata field changes; (5) run the whole workspace. The
+reported parser version follows the pin (guard test). Improvements that 0.57 enables are specified as
+separate requirements after the migration is green. If the gate cannot be made green with identical
+behaviour, the pin stays at 0.54.0 and the blockers are recorded here.
