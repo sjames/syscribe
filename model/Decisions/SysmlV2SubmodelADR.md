@@ -865,3 +865,21 @@ that already existed in the schema, so no new `ElementType` was needed.
   `namespace` and the KerML declaration forms. No code is added or changed.
 - **Not done.** Nested constraint members of a constraint body, `assert`/negation flags (not
   surfaced by the parser), `doc` on `requirement def`/`requirement`.
+
+## Addendum: ingestion gap closure (REQ-TRS-SYSMLV2-043..048)
+
+- **Mapped where a sound native target exists.** `alias` inside a named package -> the Package's
+  existing `aliases:` field (the scoped resolver already honours it, so no new resolver);
+  `library package`/`namespace` -> `Package` (the `standard` flag is dropped); package-level
+  `metadata def` -> `MetadataDef`; package-level `satisfy R by X` -> `X`'s `satisfies:` when `X`
+  resolves after the whole subtree is merged; `doc` on `requirement def`/`requirement`; and usage
+  `multiplicity`/`subsets`/`redefines` into the same native fields a hand-authored usage uses.
+- **Deliberately still unmapped.** `include`/`extend` of use cases: the pinned parser's
+  `IncludeUseCase` carries only a name and a body, with no resolvable target, and SysML v2 has no
+  `extend` construct; `metadata` usages, `occurrence`, `individual def`, `actor` (package level),
+  `dependency`, `filter`, textual representation and the KerML declaration forms have no native
+  target. They stay counted by `W543`.
+- **No new validation code for typed-by kind.** An advisory when an ingested usage's `typedBy`
+  resolves to a non-definition kind was evaluated and not added: the native model already reports
+  unresolved targets (`E111`) and the strict part-vs-item typing rule is not one the native format
+  enforces for hand-authored elements, so an ingestion-only check would be inconsistent and noisy.

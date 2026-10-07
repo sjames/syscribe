@@ -85,3 +85,13 @@ text no SysML tool accepts.
   Syscribe-only types). It is not intended to be re-imported as the same Syscribe elements.
 - Re-importing exported text into a `sysmlSubmodel: true` package is possible and is exactly what
   the parse-back tests do, but it yields `RequirementDef`s, not native `Requirement`s.
+
+## Addendum: export gap closure (REQ-TRS-SYSMLV2-049..052)
+
+Sub-decision 4's "behavioural bodies are not emitted" narrows: usages now export `:>`/`:>>` and
+multiplicity, inline attribute units export as literal-with-unit, `satisfies:` on non-part elements
+becomes a real package-level `satisfy R by X;` and `verifies:` on requirement elements a real
+`verify T;`, and constraint/calc elements export their parameters and expression text (the same
+opaque text ingestion stores; unprintable placeholders become comments). Everything else in the
+decision, including loss accounting and parse-back verification, is unchanged. `action`/`state`
+bodies still export as header-plus-doc only.
