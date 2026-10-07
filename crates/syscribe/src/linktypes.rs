@@ -198,3 +198,49 @@ pub fn cmd_link_types(elements: &[RawElement], reg: &LinkTypeRegistry, json: boo
         }
     }
 }
+
+/// REQ-TRS-SYSMLV2-031 — `sysml [--json]`: every `sysmlSubmodel: true` package with its
+/// parsed files, ingested element counts per kind, unmapped-construct counts and
+/// W540–W543 findings. Read-only; exit 0 even with none.
+pub fn cmd_sysml(elements: &[RawElement], json: bool) {
+    if json {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&syscribe_model::sysmlv2::report::submodels_json(elements))
+                .unwrap_or_default()
+        );
+        return;
+    }
+    let subs = syscribe_model::sysmlv2::report::submodels(elements);
+    if subs.is_empty() {
+        println!("No SysMLv2 submodels (no package declares `sysmlSubmodel: true`).");
+        return;
+    }
+    let fmt = |m: &std::collections::BTreeMap<String, usize>, sep: &str| -> String {
+        if m.is_empty() {
+            "—".to_string()
+        } else {
+            m.iter().map(|(k, n)| format!("{k}{sep}{n}")).collect::<Vec<_>>().join(", ")
+        }
+    };
+    for s in &subs {
+        println!("# SysMLv2 submodel `{}`", s.package);
+        println!();
+        println!("- Files parsed: {}/{}", s.files_parsed(), s.files.len());
+        for f in &s.files {
+            let status = if f.parsed { "ok" } else { "FAILED" };
+            println!("  - {} ({status})", f.path);
+        }
+        println!("- Ingested elements: {} ({})", s.element_total(), fmt(&s.elements_by_kind, ": "));
+        println!("- Unmapped constructs: {} ({})", s.unmapped_total(), fmt(&s.unmapped, " x"));
+        if s.findings.is_empty() {
+            println!("- Findings: none");
+        } else {
+            println!("- Findings:");
+            for f in &s.findings {
+                println!("  - {} {}", f.code, f.message);
+            }
+        }
+        println!();
+    }
+}

@@ -70,6 +70,9 @@ stable id, a qualified name, or a display name. List/grid tools accept
 - `follow {element, link, reverse?, transitive?, depth?}` — walk one named link
   (a declared type, its inverse, or a built-in link/reverse-index name); same data
   as `follow --format json`.
+- `sysml_submodels {}` — the SysMLv2 submodels (`sysmlSubmodel: true` packages): files
+  parsed, ingested element counts per kind, unmapped-construct counts and W540-W543
+  findings; same data as `sysml --json`. Read-only.
 - `validate {file?, severity?, limit?}` / `validate_element {ref}` — findings.
 - `reload {}` — re-read the model from disk now (normally unnecessary: the
   server reloads automatically on file changes, see **Live reload**).

@@ -45,7 +45,7 @@ struct MergedPackage {
 /// Every `.sysml`/`.kerml` file under `dir`, recursively — however nested, since a
 /// `sysmlSubmodel` subtree's directory layout below the marked root carries no
 /// namespace meaning of its own (`REQ-TRS-SYSMLV2-001`). Sorted for determinism.
-fn find_sysml_files(dir: &Path) -> Vec<PathBuf> {
+pub(crate) fn find_sysml_files(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = WalkDir::new(dir)
         .follow_links(false)
         .into_iter()
@@ -164,7 +164,7 @@ fn count_unmapped_body(
     }
 }
 
-fn count_unmapped_root(root: &sysml_v2_parser::RootNamespace, counts: &mut BTreeMap<&'static str, usize>) {
+pub(crate) fn count_unmapped_root(root: &sysml_v2_parser::RootNamespace, counts: &mut BTreeMap<&'static str, usize>) {
     use sysml_v2_parser::RootElement as R;
     for n in &root.elements {
         match &n.value {

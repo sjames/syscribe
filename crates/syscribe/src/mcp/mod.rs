@@ -180,6 +180,9 @@ struct CoverageArgs {}
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct LinkTypesArgs {}
 
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct SysmlSubmodelsArgs {}
+
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct FollowArgs {
     /// Start element (stable id or qualified name).
@@ -2501,6 +2504,21 @@ impl SyscribeMcp {
     ) -> Result<CallToolResult, ErrorData> {
         let store = self.store.read().await;
         ok(syscribe_model::link_types::link_types_json(&store.elements, &store.config.link_types))
+    }
+
+    #[tool(
+        description = "Inspect the SysMLv2 submodels (packages declaring `sysmlSubmodel: true`): \
+        per package the .sysml/.kerml files parsed, ingested element counts per kind, \
+        unmapped-construct counts (the data behind W543) and the W540-W543 findings. \
+        Same data as `sysml --json`.",
+        annotations(read_only_hint = true)
+    )]
+    async fn sysml_submodels(
+        &self,
+        Parameters(_args): Parameters<SysmlSubmodelsArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        ok(syscribe_model::sysmlv2::report::submodels_json(&store.elements))
     }
 
     #[tool(

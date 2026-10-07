@@ -820,6 +820,11 @@ fn main() {
                 let json = subcommand_args.iter().any(|a| a == "--json");
                 linktypes::cmd_link_types(&elems, &vcfg.link_types, json);
             }
+            "sysml" => {
+                // REQ-TRS-SYSMLV2-031 — SysMLv2 submodel inspection. Read-only.
+                let json = subcommand_args.iter().any(|a| a == "--json");
+                linktypes::cmd_sysml(&elems, json);
+            }
             "connectivity" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
                 let code = connectivity::cmd_connectivity(&elems, &resolver, rest);

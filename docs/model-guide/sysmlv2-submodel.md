@@ -843,3 +843,27 @@ The optional `end ::>` end-name prefix (`allocate logical ::> a to physical ::> 
 ignored. The **anonymous** `allocate a to b;` statement has no identity to synthesize an
 `Allocation` element against and stays unmapped — give it a name (`allocation n allocate a to b;`)
 or author the edge natively (`allocatedTo:` on the source).
+
+---
+
+## 21. Inspecting a submodel — `syscribe sysml` / MCP `sysml_submodels` (`REQ-TRS-SYSMLV2-031`/`-032`)
+
+```bash
+syscribe -m model/ sysml          # human-readable report
+syscribe -m model/ sysml --json   # machine-readable
+```
+
+For each `sysmlSubmodel: true` package the report shows the files parsed (and whether each
+parsed — a failure is also a `W541`), the ingested element counts per kind, the unmapped-construct
+counts per kind (the data behind `W543`) and the `W540`-`W543` findings. It is read-only and exits
+zero, also when the model has no submodel (the JSON then has an empty `submodels` array).
+
+```json
+{"submodels": [{"package": "model::PropulsionSubsystem", "fileCount": 3, "filesParsed": 3,
+  "elementTotal": 26, "elementsByKind": {"PartDef": 3, "Port": 3},
+  "unmappedTotal": 0, "unmapped": {}, "findings": []}]}
+```
+
+The read-only MCP tool `sysml_submodels` (no arguments) returns exactly the same JSON from the
+server's in-memory model. The data comes from `syscribe_model::sysmlv2::report`.
+

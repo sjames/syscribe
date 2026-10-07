@@ -25,6 +25,7 @@
 //! they would outside a `sysmlSubmodel` package.
 
 pub mod ingest;
+pub mod report;
 
 use std::path::{Path, PathBuf};
 

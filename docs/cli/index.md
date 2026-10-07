@@ -1183,6 +1183,14 @@ $ syscribe -m examples/link-types/model/ follow REQ-BRK-003 mitigatedBy --format
 $ syscribe -m examples/link-types/model/ follow REQ-BRK-001 derivedChildren --depth 3 --format dot | dot -Tsvg > tree.svg
 ```
 
+### Inspect SysMLv2 submodels (`sysml`)
+
+```
+$ syscribe -m model/ sysml [--json]
+```
+
+Read-only. For every package declaring `sysmlSubmodel: true` ([Native SysMLv2 Submodels](../model-guide/sysmlv2-submodel.md)) it lists the `.sysml`/`.kerml` files parsed (and whether each parsed), the number of ingested elements per element kind, the parsed-but-unmapped construct counts per kind (the data behind `W543`) and the `W540`-`W543` findings raised for the submodel. `--json` emits `{"submodels": [{package, indexFile, fileCount, filesParsed, files, elementTotal, elementsByKind, unmappedTotal, unmapped, findings}]}`. With no submodel it says so and exits zero (MCP equivalent: the read-only `sysml_submodels` tool, same JSON).
+
 ### List the project's link types (`link-types`)
 
 ```
@@ -1487,7 +1495,7 @@ It exposes structured read tools and a small set of guarded-write tools; referen
 
 | Category | Tools |
 |---|---|
-| Navigate / query | `get_element`, `search`, `list_by_type`, `tree`, `neighbors`, `graph_query`, `trace`, `impact`, `link_types`, `follow`, `validate`, `validate_element`, `reload` |
+| Navigate / query | `get_element`, `search`, `list_by_type`, `tree`, `neighbors`, `graph_query`, `trace`, `impact`, `link_types`, `follow`, `sysml_submodels`, `validate`, `validate_element`, `reload` |
 | Large-model overview & search | `stats`, `digest`, `search_text`, `summarize`, `topics`, `clusters` |
 | Suspect links & baselines | `suspect_list`, `baseline_list`, `baseline_verify`, `baseline_diff` |
 | Authoring helpers | `describe_type`, `template`, `explain_finding`, `check_ref`, `next_id`, `coverage` |
