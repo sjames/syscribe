@@ -120,3 +120,17 @@ positional one now exports as `action <name> { <stmt> }`, the form ingestion rea
 that names an entry of the same body was itself exported; otherwise it is commented with the missing
 endpoint named, so exported text never references a step the file does not contain. Compound units are
 written as unit expressions (`[N*m]`), not quoted names (REQ-TRS-SYSMLV2-065).
+
+## Addendum: closing behaviour degradations (REQ-TRS-SYSMLV2-067..072)
+
+Two kinds of comment-outs remained over the repository model. Equal-meaning spellings (`accept:
+{payload: X}` against `accept: X`; `and` against `&&`) were rejected only because the read-back check
+compared raw values; the check now compares both sides in the canonical form ingestion itself produces
+(the plain string for a `via`-less accept; the one expression renderer for guards, conditions, values,
+targets and sequences), so the authored spelling is exported and nothing is loosened blindly. Fields the
+0.54 parser has no syntax for (`via` on an action accept/send, `referent`/`valueKind` on an assign, an
+accept `trigger`, `loopKind: until`) travel in one Syscribe-owned `@SyscribeStep { … }` metadata
+annotation inside the step's own body, read back by ingestion into the same entry; the statement itself
+is written as plain SysML (an `until` loop is an unconditioned `loop` plus the annotation), so other tools
+see valid SysML and merely do not see the extension. The 0.57 parser migration stays deferred. The
+summary now counts degraded entries and a repository test ratchets that count.
