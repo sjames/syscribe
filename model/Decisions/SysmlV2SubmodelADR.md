@@ -1012,3 +1012,34 @@ element type, and the AST keeps only the identification), package-level `filter`
 and generic `@X { }` annotations would need a `metadata:` lift and export), KerML declarations
 (KerML semantics are not SysML structure), anonymous `dependency`, portion-kind occurrences, and a
 `then fork` body.
+
+## Addendum: metadata applications and the last small gaps (REQ-TRS-SYSMLV2-086..097)
+
+The 0.57 AST represents every metadata application form (`@T { k = v; }`, `@n : T`, `#T;`, a
+package-level `#T` prefix member, `metadata m : T about Y`, `@T about Y`), so the earlier reason for
+leaving them unmapped — "the parser reads `metadata X about Y` as a name" — no longer holds: a usage
+with no `:` typing has only one qualified name and the grammar's required typing makes it the type.
+They are lifted into the format's own `metadata:` application list (spec 3.8) rather than a new
+field: `type:` resolved innermost-scope-first to the ingested `MetadataDef`, tagged values typed from
+their literals, and two additive reserved keys — `name:` for a declared usage name and `about:` for a
+target that did not resolve — which `metadata_applications` skips so the existing `E317`/`E318`/`W045`
+rules apply unchanged. A resolvable `about` target receives the entry itself; an unresolved one stays
+on the holder and is the one case still counted in `W543`. `@Syscribe*` stays a separate, fixed
+channel. Export writes `@T { k = v; }` with double-quoted strings and bare numbers/booleans, so the
+lift is a round trip. The one form the parser drops outright (a `#T` prefix inside a definition body)
+is documented, not mapped.
+
+The remaining small items each had an additive native slot after all: `untilCondition:` on a
+`while` loop (keeping both conditions), `parameters:` on a control node (the pins of `fork f { in a; }`),
+`typedBy:` on a succession entry, `successionConnections:` on `PartDef`/`Part` (structural
+successions), `isPortion`/`portionKind` on an occurrence usage (already in spec 3.2), a synthesized
+`dependency_N` name (the same convention as `accept_N`/`if_N`), and the anchor package's `aliases:`
+for a root-level alias. Each is written back by `export-sysml` under the same read-back-identically
+rule. An expression payload (`send new Cmd() via p`) is now written unquoted when it re-parses and
+renders back identically, so the quoted-name form is reserved for genuine restricted names.
+
+Deliberately unmapped, with the reason recorded in the guide's §6 and counted by `W543`:
+package-level `actor` (no actor element type and the AST keeps only the identification) and
+`filter` (no native target — `filter:` exists only on views), KerML declarations, a bare root-level
+member other than `alias` (the files' packages are the anchor's members; a definition outside any
+package should be wrapped in one), and the unresolved forms of `satisfy`/`include`/`about`.
