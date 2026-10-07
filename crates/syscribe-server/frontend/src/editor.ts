@@ -13,14 +13,29 @@
 // in `MoveAction`, and in what `PATCH /api/diagrams/layout` receives — is
 // relative to the element's parent (sprotty's own convention; the server's
 // pin semantics match, see `vis::sprotty`'s module doc).
+//
+// Layout (`REQ-TRS-VIS-007`): `setModel` runs sprotty's hidden measuring pass
+// and then ELK (`container.ts`/`layout.ts`); the result lives only in the
+// cached schema. The model changes only when the user drags a node (one
+// pin), presses *Pin all* (every shape, one PATCH) or *Auto-layout* (DELETE
+// every pin, re-fetch, re-run ELK).
 import 'reflect-metadata';
 import { Container } from 'inversify';
 import { IActionDispatcher, LocalModelSource, MouseTool, MoveMouseListener, SelectMouseListener, TYPES } from 'sprotty';
-import { CreateElementAction, DeleteElementAction, ElementMove, MoveAction } from 'sprotty-protocol';
+import {
+    CreateElementAction,
+    DeleteElementAction,
+    ElementMove,
+    FitToScreenAction,
+    MoveAction,
+    SetViewportAction,
+} from 'sprotty-protocol';
 import * as api from './api';
+import { isDerivedDiagram, portChain, resolveConnectEnds } from './connect-rules';
 import { createDiagramContainer } from './container';
 import { ConnectMouseListener } from './connect-listener';
-import { applyPhase0Layout, defaultSize } from './layout-shim';
+import { defaultSize, prepareForLayout, prepareNode } from './layout';
+import { serialiseDiagramSvg } from './svg-export';
 import {
     allShapes,
     containerOf,
@@ -33,6 +48,7 @@ import {
     SysmlChildSchema,
     SysmlEdgeSchema,
     SysmlNodeSchema,
+    WriteResponse,
 } from './types';
 
 /** Id of the persistent DOM div sprotty renders into — see `index.html`. It
@@ -43,6 +59,10 @@ const HOST_ID = 'sprotty-host';
 
 function summarizeFindings(findings: Finding[]): string {
     return findings.map(f => `${f.code}: ${f.message}`).join('; ');
+}
+
+function refusalText(resp: WriteResponse): string {
+    return resp.reason ?? summarizeFindings(resp.newErrors);
 }
 
 function nodeName(qname: string): string {
@@ -93,8 +113,8 @@ export class DiagramEditor {
         let model = this.cache.get(qname);
         if (!model) {
             model = await api.fetchDiagramModel(qname);
-            // Phase 0: place everything the server left unpinned (ELK in Phase 2).
-            applyPhase0Layout(model);
+            // Micro-layout for the measuring pass; ELK runs inside `setModel`.
+            prepareForLayout(model);
             this.cache.set(qname, model);
         }
         await this.modelSource.setModel(model);
@@ -132,7 +152,8 @@ export class DiagramEditor {
         const name = nodeName(ref);
         // A new shape is a root-level block (the manifest's `kind:` is the
         // element type, which the IR maps to the `block` role); its label
-        // child mirrors what `vis::sprotty` would emit on the next fetch.
+        // child mirrors what `vis::sprotty` would emit on the next fetch,
+        // and `prepareNode` gives it the same micro-layout as a fetched one.
         const schema: SysmlNodeSchema = {
             id: shapeId,
             type: 'node',
@@ -143,8 +164,10 @@ export class DiagramEditor {
             name,
             position,
             size: defaultSize('block'),
-            children: [{ id: `${shapeId}-label`, type: 'label', text: name, position: { x: 80, y: 32 } }],
+            children: [{ id: `${shapeId}-label`, type: 'label', text: name, position: { x: 8, y: 8 } }],
         };
+        prepareNode(schema);
+        delete schema.pinnedSize;
 
         // Optimistic apply.
         model.children.push(schema);
@@ -159,7 +182,7 @@ export class DiagramEditor {
         if (!resp.written) {
             removeFromTree(model, [shapeId]);
             await this.dispatcher.dispatch(DeleteElementAction.create([shapeId]));
-            this.toast(`Create failed: ${resp.reason ?? summarizeFindings(resp.newErrors)}`);
+            this.toast(`Create failed: ${refusalText(resp)}`);
         }
     }
 
@@ -222,12 +245,12 @@ export class DiagramEditor {
             const refs = resp.blockedBy.map(b => b.qname).join(', ');
             this.toast(`Delete blocked — still referenced by: ${refs}`);
         } else {
-            this.toast(`Delete failed: ${resp.reason ?? summarizeFindings(resp.newErrors)}`);
+            this.toast(`Delete failed: ${refusalText(resp)}`);
         }
     }
 
     // -----------------------------------------------------------------
-    // Connect edge (REQ-TRS-DE-004)
+    // Connect edge (REQ-TRS-DE-004, port-aware per REQ-TRS-VIS-008)
     // -----------------------------------------------------------------
 
     toggleConnectMode(): boolean {
@@ -253,26 +276,33 @@ export class DiagramEditor {
         this.mouseTool.register(this.selectListener);
     }
 
-    /** Both ends may be nodes or ports anywhere in the tree; the edge joins
-     * their ids and sits at the root, where sprotty resolves them. */
+    /** The gesture starts and ends on ports. A block stands in for its one
+     * compatible port; otherwise the gesture is refused with a toast
+     * (`connect-rules.ts`). The edge joins the two port ids at the root. */
     private async handleConnect(sourceShapeId: string, targetShapeId: string): Promise<void> {
         const qname = this.currentQname;
         const model = this.activeModel();
         if (!qname || !model) {
             return;
         }
-        const source = findShape(model, sourceShapeId);
-        const target = findShape(model, targetShapeId);
-        if (!source || !target) {
+        const sourceShape = findShape(model, sourceShapeId);
+        const targetShape = findShape(model, targetShapeId);
+        if (!sourceShape || !targetShape) {
             return;
         }
+        const ends = resolveConnectEnds(sourceShape, targetShape);
+        if (!ends.ok) {
+            this.toast(`Connect refused: ${ends.reason}`);
+            return;
+        }
+        const { source, target } = ends;
 
-        const edgeId = `e-${sourceShapeId}-${targetShapeId}-${Date.now().toString(36)}`;
+        const edgeId = `e-${source.id}-${target.id}-${Date.now().toString(36)}`;
         const schema: SysmlEdgeSchema = {
             id: edgeId,
             type: 'edge',
-            sourceId: sourceShapeId,
-            targetId: targetShapeId,
+            sourceId: source.id,
+            targetId: target.id,
             kind: 'connection',
         };
 
@@ -284,20 +314,23 @@ export class DiagramEditor {
         // connect gesture's `connections:` mutation (see
         // `routes::diagram_model`'s doc comment) — the diagram itself has no
         // `connections:` list of its own. Falls back to the diagram's own
-        // qname if `subject` is unset, matching `AddConnectionRequest.qname`
-        // resolving through the same `Resolver` either way.
+        // qname if `subject` is unset. `from`/`to` are the dotted chains
+        // `add_connection` resolves relative to that owner. A derived diagram
+        // has no manifest to sync an edge into, so the `diagram:` block is
+        // sent only for a manifest diagram.
         const ownerQname = model.subject ?? qname;
+        const derived = isDerivedDiagram(model);
         const resp = await api.addConnection({
             qname: ownerQname,
-            from: source.ref,
-            to: target.ref,
-            diagram: { qname, edgeId, sourceShapeId, targetShapeId },
+            from: portChain(model, source, ownerQname),
+            to: portChain(model, target, ownerQname),
+            diagram: derived ? undefined : { qname, edgeId, sourceShapeId: source.id, targetShapeId: target.id },
         });
 
         if (!resp.written) {
             removeFromTree(model, [edgeId]);
             await this.dispatcher.dispatch(DeleteElementAction.create([edgeId]));
-            this.toast(`Connect failed: ${resp.reason ?? summarizeFindings(resp.newErrors)}`);
+            this.toast(`Connect failed: ${refusalText(resp)}`);
         }
     }
 
@@ -317,7 +350,7 @@ export class DiagramEditor {
         if (!qname || !model || moves.length === 0) {
             return;
         }
-        const patch: Record<string, { x: number; y: number }> = {};
+        const patch: Record<string, api.LayoutPin> = {};
         for (const move of moves) {
             const node = findShape(model, move.elementId);
             if (!node) {
@@ -339,7 +372,7 @@ export class DiagramEditor {
                 // `written:false` too, not just on a network-level throw.
                 if (!resp.written) {
                     await this.revertMoves(model, moves);
-                    this.toast(`Move failed: ${resp.reason ?? summarizeFindings(resp.newErrors)}`);
+                    this.toast(`Move failed: ${refusalText(resp)}`);
                 } else {
                     for (const id of Object.keys(patch)) {
                         if (!model.pinned.includes(id)) {
@@ -377,6 +410,115 @@ export class DiagramEditor {
     }
 
     // -----------------------------------------------------------------
+    // Pin all / Auto-layout / Save companion SVG (REQ-TRS-VIS-007/011)
+    // -----------------------------------------------------------------
+
+    /** Write every placed shape's current position and size as pins in one
+     * PATCH. Nothing is optimistic here (the picture does not change), so a
+     * refusal only needs reporting; on success the whole diagram counts as
+     * pinned, which switches the next layout run to ELK's `fixed` mode. */
+    async pinAll(): Promise<void> {
+        const qname = this.currentQname;
+        const model = this.activeModel();
+        if (!qname || !model) {
+            return;
+        }
+        const patch: Record<string, api.LayoutPin> = {};
+        for (const shape of allShapes(model)) {
+            if (!shape.position) {
+                continue;
+            }
+            const pin: api.LayoutPin = { x: Math.round(shape.position.x), y: Math.round(shape.position.y) };
+            if (shape.size && shape.size.width > 0 && shape.size.height > 0) {
+                pin.w = Math.round(shape.size.width);
+                pin.h = Math.round(shape.size.height);
+            }
+            patch[shape.id] = pin;
+        }
+        const count = Object.keys(patch).length;
+        if (count === 0) {
+            this.toast('Nothing to pin yet — the diagram has not been laid out');
+            return;
+        }
+        try {
+            const resp = await api.patchLayout(qname, patch);
+            if (!resp.written) {
+                this.toast(`Pin all failed: ${refusalText(resp)}`);
+                return;
+            }
+            for (const id of Object.keys(patch)) {
+                if (!model.pinned.includes(id)) {
+                    model.pinned.push(id);
+                }
+            }
+            for (const shape of allShapes(model)) {
+                if (shape.type === 'node' && shape.size) {
+                    shape.pinnedSize = { ...shape.size };
+                }
+            }
+            this.toast(`Pinned ${count} shapes`, 'info');
+        } catch (err) {
+            this.toast(`Pin all failed: ${(err as Error).message}`);
+        }
+    }
+
+    /** Clear every pin on the server, then re-fetch and let ELK lay the
+     * diagram out from scratch. The cached model is only dropped once the
+     * DELETE was accepted, so a refusal leaves the picture as it was. */
+    async autoLayout(): Promise<void> {
+        const qname = this.currentQname;
+        if (!qname) {
+            return;
+        }
+        try {
+            const resp = await api.deleteLayout(qname);
+            if (!resp.written) {
+                this.toast(`Auto-layout failed: ${refusalText(resp)}`);
+                return;
+            }
+        } catch (err) {
+            this.toast(`Auto-layout failed: ${(err as Error).message}`);
+            return;
+        }
+        this.forget(qname);
+        await this.activate(qname);
+    }
+
+    /** Serialise the live render (`svg-export.ts`) and write it as the
+     * diagram's companion SVG through the guarded-write engine. */
+    async saveSvg(): Promise<void> {
+        const qname = this.currentQname;
+        if (!qname) {
+            return;
+        }
+        // sprotty culls shapes outside the canvas at render time, so the DOM
+        // only holds what is on screen. Fit the whole diagram into view for
+        // one frame, serialise, then put the viewport back where it was.
+        const model = this.activeModel();
+        const viewport = await this.modelSource.getViewport();
+        await this.dispatcher.dispatch(FitToScreenAction.create([], { padding: 0, animate: false }));
+        await this.nextFrame();
+        const svg = serialiseDiagramSvg(HOST_ID, qname);
+        await this.dispatcher.dispatch(
+            SetViewportAction.create(model?.id ?? 'sysml-diagram', { scroll: viewport.scroll, zoom: viewport.zoom }, { animate: false }),
+        );
+        if (!svg) {
+            this.toast('No diagram is mounted');
+            return;
+        }
+        try {
+            const resp = await api.putSvg(qname, svg);
+            if (!resp.written) {
+                this.toast(`Save companion SVG failed: ${refusalText(resp)}`);
+                return;
+            }
+            this.toast('Companion SVG saved', 'info');
+        } catch (err) {
+            this.toast(`Save companion SVG failed: ${(err as Error).message}`);
+        }
+    }
+
+    // -----------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------
 
@@ -389,6 +531,12 @@ export class DiagramEditor {
         }
     }
 
+    /** The viewer patches the DOM on the next animation frame after a model
+     * or viewport change. */
+    private nextFrame(): Promise<void> {
+        return new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()));
+    }
+
     private activeModel(): DiagramModelSchema | undefined {
         return this.currentQname ? this.cache.get(this.currentQname) : undefined;
     }
@@ -399,17 +547,22 @@ export class DiagramEditor {
         return { x: 60 + step, y: 60 + step };
     }
 
-    private toast(message: string): void {
+    private toast(message: string, level: 'error' | 'info' = 'error'): void {
         const el = document.getElementById('sprotty-toast');
         if (!el) {
-            console.error('[diagram-editor]', message);
+            if (level === 'error') {
+                console.error('[diagram-editor]', message);
+            } else {
+                console.info('[diagram-editor]', message);
+            }
             return;
         }
         el.textContent = message;
+        el.classList.toggle('info', level === 'info');
         el.style.display = 'block';
         window.clearTimeout((el as unknown as { _hideTimer?: number })._hideTimer);
         (el as unknown as { _hideTimer?: number })._hideTimer = window.setTimeout(() => {
             el.style.display = 'none';
-        }, 6000);
+        }, level === 'info' ? 3000 : 6000);
     }
 }

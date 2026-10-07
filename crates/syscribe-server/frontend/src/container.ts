@@ -4,17 +4,20 @@
 // the active diagram changes) rather than rebuilding the whole DI graph per
 // diagram open.
 import { Container } from 'inversify';
+import ElkConstructor from 'elkjs/lib/elk.bundled';
 import {
     boundsModule,
     configureCommand,
     configureModelElement,
     configureViewerOptions,
+    ConsoleLogger,
     CreateElementCommand,
     defaultModule,
     DeleteElementCommand,
     fadeModule,
     hoverModule,
     LocalModelSource,
+    LogLevel,
     modelSourceModule,
     moveModule,
     onAction,
@@ -23,7 +26,6 @@ import {
     SEdgeImpl,
     selectModule,
     SGraphImpl,
-    SGraphView,
     SLabelImpl,
     SNodeImpl,
     SPortImpl,
@@ -33,8 +35,25 @@ import {
     viewportModule,
     zorderModule,
 } from 'sprotty';
+import {
+    ElkFactory,
+    ElkLayoutEngine,
+    elkLayoutModule,
+    ILayoutConfigurator,
+    ILayoutPostprocessor,
+    ILayoutPreprocessor,
+} from 'sprotty-elk/lib/inversify';
 import { Action, ElementMove, MoveAction, SelectAction } from 'sprotty-protocol';
-import { SysmlCompartmentView, SysmlEdgeView, SysmlLabelView, SysmlNodeView, SysmlPortView } from './views';
+import { LayoutState, SyscribeLayoutConfigurator, SyscribeLayoutProcessor } from './layout';
+import {
+    SysmlCompartmentView,
+    SysmlEdgeLabelImpl,
+    SysmlEdgeView,
+    SysmlGraphView,
+    SysmlLabelView,
+    SysmlNodeView,
+    SysmlPortView,
+} from './views';
 
 export interface DiagramCallbacks {
     /** Fired once per completed drag (`MoveAction.finished`), REQ-TRS-DE-004's move gesture. */
@@ -58,30 +77,52 @@ export function createDiagramContainer(hostDivId: string, callbacks: DiagramCall
         fadeModule,
         routingModule,
         modelSourceModule,
+        elkLayoutModule,
     );
 
     container.bind(LocalModelSource).toSelf().inSingletonScope();
     container.bind(TYPES.ModelSource).toService(LocalModelSource);
 
-    // No hidden-render measuring pass in Phase 0: the endpoint supplies
-    // `position`/`size` for pinned nodes only (`REQ-TRS-VIS-006`) and
-    // `layout-shim.ts` fills in the rest before `setModel`, so
-    // `LocalModelSource.submitModel` can skip the `RequestBoundsAction` round
-    // trip. Phase 2 (`REQ-TRS-VIS-007`) turns `needsClientLayout` on so label
-    // bounds are measured before ELK runs.
+    // sprotty's default is a `NullLogger`, which swallows a failed layout
+    // run (`LocalModelSource.doSubmitModel` catches and logs) and leaves a
+    // blank canvas with no trace; surface errors and warnings on the console.
+    container.rebind(TYPES.ILogger).to(ConsoleLogger).inSingletonScope();
+    container.rebind(TYPES.LogLevel).toConstantValue(LogLevel.warn);
+
+    // ELK in the browser (`REQ-TRS-VIS-007`, design §6.2): the bundled elkjs
+    // build runs on the main thread; `sprotty-elk` transforms the sprotty
+    // graph, our configurator/processor pair (`layout.ts`) maps the server's
+    // `layoutOptions`, pins and reversed edge kinds onto it.
+    const layoutState = new LayoutState();
+    container.bind(ElkFactory).toConstantValue(() => new ElkConstructor());
+    container.rebind(ILayoutConfigurator).toConstantValue(new SyscribeLayoutConfigurator(layoutState));
+    const processor = new SyscribeLayoutProcessor(layoutState);
+    container.bind(ILayoutPreprocessor).toConstantValue(processor);
+    container.bind(ILayoutPostprocessor).toConstantValue(processor);
+    container.bind(TYPES.IModelLayoutEngine).toService(ElkLayoutEngine);
+
+    // `needsClientLayout: true` makes `LocalModelSource.submitModel` run the
+    // hidden measuring pass (`RequestBoundsAction` → `ComputedBoundsAction`)
+    // first, so every label has real bounds and every `vbox` node a measured
+    // size before the layout engine sees the graph.
     configureViewerOptions(container, {
         baseDiv: hostDivId,
         hiddenDiv: hostDivId + '-hidden',
-        needsClientLayout: false,
+        needsClientLayout: true,
         needsServerLayout: false,
     });
 
     // The nested schema (`vis::sprotty`): nodes contain ports, a name label,
     // compartments and nested nodes; edges stay at the root.
-    configureModelElement(container, 'graph', SGraphImpl, SGraphView);
+    configureModelElement(container, 'graph', SGraphImpl, SysmlGraphView);
     configureModelElement(container, 'node', SNodeImpl, SysmlNodeView);
     configureModelElement(container, 'port', SPortImpl, SysmlPortView);
     configureModelElement(container, 'label', SLabelImpl, SysmlLabelView);
+    // An edge's keyword/label children are placed by ELK (absolute, root
+    // coordinates). Plain `SLabelImpl` carries `edgeLayoutFeature`, which
+    // makes `LocationPostprocessor` skip them in favour of the (unloaded)
+    // edge-layout module, so they get a class without that feature.
+    configureModelElement(container, 'label:edge', SysmlEdgeLabelImpl, SysmlLabelView);
     configureModelElement(container, 'compartment', SCompartmentImpl, SysmlCompartmentView);
     configureModelElement(container, 'edge', SEdgeImpl, SysmlEdgeView);
 

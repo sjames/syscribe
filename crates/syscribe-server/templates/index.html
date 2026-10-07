@@ -36,7 +36,17 @@
       <button class="canvas-btn" onclick="window.DiagramEditor && window.DiagramEditor.deleteSelected()" title="Delete selected node (Del)">&#x2715;</button>
       <button class="canvas-btn" id="connect-mode-btn"
               onclick="window.DiagramEditor && (this.classList.toggle('active', window.DiagramEditor.toggleConnectMode()))"
-              title="Connect mode: click a source shape, then a target shape">&#x2194;</button>
+              title="Connect mode: click a source port, then a target port">&#x2194;</button>
+      <!-- Layout authority buttons (REQ-TRS-VIS-011): each is one guarded
+           write. Pin all PATCHes every shape's position/size; Auto-layout
+           DELETEs every pin and re-runs ELK; Save companion SVG PUTs the
+           live render as the diagram's svgFile. -->
+      <button class="canvas-btn" onclick="window.DiagramEditor && window.DiagramEditor.pinAll()"
+              title="Pin all: write every shape's current position and size as pins">&#x1F4CC;</button>
+      <button class="canvas-btn" onclick="window.DiagramEditor && window.DiagramEditor.autoLayout()"
+              title="Auto-layout: clear every pin and lay the diagram out again">&#x21BB;</button>
+      <button class="canvas-btn" onclick="window.DiagramEditor && window.DiagramEditor.saveSvg()"
+              title="Save companion SVG: write this render as the diagram's companion .svg">&#x1F5BC;</button>
     </div>
 
     <div id="sprotty-toast"></div>

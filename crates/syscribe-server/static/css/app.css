@@ -451,6 +451,13 @@ header .subtitle {
   font-size: 12px;
   z-index: 10;
 }
+#sprotty-toast.info {
+  background: #eef6ff;
+  border-color: #93c5fd;
+  color: #1e40af;
+}
+.sysml-port { cursor: crosshair; }
+.sysml-label, .sysml-edge-label { pointer-events: none; user-select: none; }
 
 /* ── Diagram error notice ── */
 .diagram-error {

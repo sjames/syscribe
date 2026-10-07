@@ -8,9 +8,50 @@
 // nested blocks live in its `children`; edges are always root children and
 // reference nodes or ports by id across the whole tree. `position`/`size` are
 // present only for pinned nodes (parent-relative when nested); everything
-// else is placed by `layout-shim.ts` in Phase 0 and by ELK from Phase 2.
+// else is measured by sprotty's hidden render and placed by ELK (`layout.ts`).
 
 import { SCompartment, SEdge, SGraph, SLabel, SNode, SPort } from 'sprotty-protocol';
+
+// ---------------------------------------------------------------------------
+// Resolved style (`vis::style`, REQ-TRS-VIS-012) — carried per node, port and
+// edge so the views read it instead of holding their own colour table. Every
+// field is optional on the wire so an older server (or a hand-made schema in
+// `editor.ts`) still renders through the fallback tables in `views.tsx`.
+// ---------------------------------------------------------------------------
+
+export interface NodeStyle {
+    fill: string;
+    stroke: string;
+    headerFill?: string | null;
+    text?: string;
+    dashed?: boolean;
+}
+
+export type PortGlyph = 'in' | 'out' | 'inout' | 'none';
+
+export interface PortStyle {
+    fill: string;
+    stroke: string;
+    glyph?: PortGlyph;
+}
+
+export type ArrowHead =
+    | 'none'
+    | 'filled'
+    | 'open'
+    | 'hollowTriangle'
+    | 'filledDiamond'
+    | 'hollowDiamond'
+    | 'filledCircle';
+
+export interface EdgeStyle {
+    stroke: string;
+    dash?: string | null;
+    width?: number;
+    arrowTarget?: ArrowHead;
+    arrowSource?: ArrowHead;
+    keyword?: string | null;
+}
 
 /** Fields every IR-backed shape (`node` and `port`) carries. */
 interface SysmlShapeFields {
@@ -36,22 +77,38 @@ interface SysmlShapeFields {
 /** A container/block-like IR node (boundary, block, state, requirement, …). */
 export interface SysmlNodeSchema extends SNode, SysmlShapeFields {
     type: 'node';
+    style?: NodeStyle;
+    /** Extra `«Name»` lines under the stereotype (applied `MetadataDef`s). */
+    banners?: string[];
+    /** The `size` the server sent with a pin (`w`/`h`), stashed by
+     * `prepareForLayout` before the hidden render overwrites `size` with the
+     * measured one — ELK gets the larger of the two as the node's minimum. */
+    pinnedSize?: { width: number; height: number };
     children?: SysmlNodeChildSchema[];
 }
 
 /** An IR port, nested inside its block. */
 export interface SysmlPortSchema extends SPort, SysmlShapeFields {
     type: 'port';
+    style?: PortStyle;
     children?: SysmlNodeChildSchema[];
 }
+
+/** What a label child stands for — set by `prepareForLayout` so the label
+ * view picks the font, and the ELK configurator its placement. */
+export type LabelRole = 'name' | 'stereotype' | 'banner' | 'line' | 'free' | 'edge' | 'keyword';
 
 /** A text label: the synthetic `<id>-label` child of every node/port, or a
  * free IR `kind: label` shape (which then also carries the shape fields). */
 export interface SysmlLabelSchema extends SLabel {
-    type: 'label';
+    /** `label:edge` for an edge's keyword/label children: same basic type for
+     * sprotty-elk, but a model class without sprotty's `edgeLayoutFeature`
+     * so the ELK-placed position is honoured (see `container.ts`). */
+    type: 'label' | 'label:edge';
     text: string;
     kind?: string;
     ref?: string;
+    role?: LabelRole;
 }
 
 /** An IR compartment: one entry of `lines` per rendered line. */
@@ -74,6 +131,9 @@ export interface SysmlEdgeSchema extends SEdge {
     kind: string;
     ref?: string;
     label?: string;
+    style?: EdgeStyle;
+    /** `keyword`/`label` as label children (`prepareEdge`) so ELK places them. */
+    children?: SysmlLabelSchema[];
 }
 
 /** A root child: a top-level IR node (of any sprotty type) or an edge. */
@@ -118,7 +178,7 @@ export function isEdgeSchema(child: SysmlChildSchema): child is SysmlEdgeSchema 
 }
 
 export function isLabelSchema(child: SysmlChildSchema): child is SysmlLabelSchema {
-    return child.type === 'label';
+    return child.type === 'label' || child.type === 'label:edge';
 }
 
 export function isCompartmentSchema(child: SysmlChildSchema): child is SysmlCompartmentSchema {
