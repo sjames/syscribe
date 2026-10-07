@@ -508,6 +508,8 @@ Each entry in `metadata:` is a map:
 | Sub-field | YAML type | Required | Default | Description |
 |---|---|---|---|---|
 | `type` | string | **Required** | — | Qualified name of the `MetadataDef` being applied |
+| `name` | string | optional | absent | The application's own declared name (SysML v2 `@n : T` / `metadata n : T`); reserved, never a tagged value |
+| `about` | string | optional | absent | Reserved: the written target of an application a SysML v2 submodel could not attach to its element (`@T about Y;` with an unresolved `Y`, REQ-TRS-SYSMLV2-087); an application on the element itself never carries it |
 | `<attribute_name>` | any | optional | absent | Attribute values of the metadata instance; key is the attribute name, value is a literal |
 
 Example:
@@ -1214,6 +1216,7 @@ A usage of a PartDef in a specific context.
 | `isReference` | bool | `false` | `ref` — referential rather than composite |
 | `isPortion` | bool | `false` | Time-slice portion of the owning occurrence |
 | `connections` | list | absent | Internal connections (if this part usage owns sub-parts) |
+| `successionConnections` | list | absent | Structural successions between the owned usages; see 8.4.4 |
 | `features` | list | absent | Additional features scoped to this usage |
 | `performs` | list of strings | absent | Actions performed in this usage context |
 
@@ -1683,6 +1686,7 @@ The `successionConnections:` field specifies ordering between occurrences/action
 | Sub-field | YAML type | Required | Description |
 |---|---|---|---|
 | `name` | string | optional | Named succession usage |
+| `typedBy` | string | optional | The succession usage's own type (`succession s : HappensBefore first a then b;`) |
 | `after` | string | **Required** | Feature chain of the preceding action/occurrence |
 | `before` | string | **Required** | Feature chain of the succeeding action/occurrence |
 | `guard` | string | optional | Boolean guard expression (opaque string) |
@@ -1697,6 +1701,10 @@ successionConnections:
     before: engageTransmission
     guard: "engine.rpm > 600"
 ```
+
+The field is accepted on `ActionDef`/`Action` (ordering between sub-actions) and on `PartDef`/`Part`,
+where it carries the *structural* successions between the owned usages (SysML v2's
+`first a then b;` / `succession s first a then b;` inside a `part def` body).
 
 ### 8.5 Attribute and Enumeration Elements
 
@@ -1927,6 +1935,7 @@ Each entry in `controlNodes:`:
 |---|---|---|---|
 | `name` | string | **Required** | Node name |
 | `kind` | string | **Required** | `DecisionNode`, `ForkNode`, `JoinNode`, `MergeNode` |
+| `parameters` | list | optional | The node's own `in`/`out`/`inout` pin declarations (`fork f { in a; out b : T; }`), each `{name, direction, typedBy?}` as in 8.7.2; `direction` defaults to `in` |
 
 **Example** (`model/VehicleBehavior/ProvidePower.md`):
 
@@ -2022,6 +2031,7 @@ When `subActions` entries have `kind: LoopAction`, the following additional sub-
 |---|---|---|---|---|
 | `loopKind` | string | optional | `while` | Loop form: `while`, `until`, or `for` |
 | `condition` | string | optional* | — | Boolean expression; *required for `while` and `until` forms |
+| `untilCondition` | string | optional | — | For the `while` form only: the trailing `until` condition of SysML v2's `while c { ... } until d;` (both conditions apply) |
 | `variable` | string | optional* | — | Iteration variable name; *required for `for` form |
 | `sequence` | string | optional* | — | Feature chain to the collection being iterated; *required for `for` form |
 | `body` | list of sub-action maps | **Required** | — | Sub-actions executed each iteration; same schema as `subActions:` |
@@ -7917,7 +7927,7 @@ since `status: in_progress` alone already signals active work.
 | `rep` | All | string | absent | 3.12 |
 | `connections` | PartDef/Part | list | absent | 8.4.1 |
 | `flowConnections` | PartDef/Part | list | absent | 8.6.2 |
-| `successionConnections` | ActionDef/Action | list | absent | 8.4.4 |
+| `successionConnections` | ActionDef/Action/PartDef/Part | list | absent | 8.4.4 |
 | `bindingConnections` | Def/Usage | list | absent | 8.4.3 |
 | `performs` | PartDef/Part | list | absent | 8.2.1 |
 | `exhibitsStates` | PartDef/Part | list | absent | 8.2.1 |

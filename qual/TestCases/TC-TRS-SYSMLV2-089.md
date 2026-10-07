@@ -1,0 +1,25 @@
+---
+id: TC-TRS-SYSMLV2-089
+type: TestCase
+testLevel: L3
+status: active
+name: "Verify a while loop keeps its until condition."
+verifies:
+  - REQ-TRS-SYSMLV2-089
+sourceFile: repo:crates/syscribe-model/tests/sysmlv2_last_gaps.rs
+testFunctions:
+  - a_while_loop_keeps_its_until_condition
+tags:
+  - sysmlv2
+---
+
+Hosted integration tests in `crates/syscribe-model/tests/sysmlv2_last_gaps.rs`; run with `cargo test -p syscribe-model --test sysmlv2_last_gaps`.
+
+```gherkin
+Feature: SysMLv2 metadata applications and last gaps (TC-TRS-SYSMLV2-089)
+
+  Scenario: A while loop keeps its until condition
+    Given a SysMLv2 source or a native element using the construct
+    When it is ingested or exported as the requirement states
+    Then the observable result matches the requirement
+```

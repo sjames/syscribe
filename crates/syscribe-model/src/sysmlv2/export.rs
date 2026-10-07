@@ -151,6 +151,8 @@ fn kind_of(t: &ElementType) -> Option<(&'static str, bool)> {
         T::EventOccurrence => ("event occurrence", false),
         T::CalculationDef => ("calc", true),
         T::Calculation => ("calc", false),
+        // `REQ-TRS-SYSMLV2-088`: the def a `metadata:` application resolves to.
+        T::MetadataDef => ("metadata", true),
         _ => return None,
     })
 }
@@ -309,8 +311,13 @@ impl Writer {
         if fm.is_variant == Some(true) && !is_def {
             head.push_str("variant ");
         }
-        if fm.is_individual == Some(true) && matches!(fm.element_type, Some(ElementType::Occurrence) | Some(ElementType::EventOccurrence)) {
+        let is_occurrence = matches!(fm.element_type, Some(ElementType::Occurrence) | Some(ElementType::EventOccurrence));
+        if fm.is_individual == Some(true) && is_occurrence {
             head.push_str("individual ");
+        }
+        // `REQ-TRS-SYSMLV2-094`: `snapshot`/`timeslice` (the spec's default portion kind) occurrence.
+        if fm.is_portion == Some(true) && is_occurrence {
+            head.push_str(if fm.portion_kind.as_deref() == Some("snapshot") { "snapshot " } else { "timeslice " });
         }
         head.push_str(kw);
         if is_def || native_req {
@@ -366,6 +373,7 @@ impl Writer {
         if matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) {
             self.push_syscribe_meta(elem, &inner, &mut body);
         }
+        self.push_metadata(elem, &inner, &mut body);
         for f in fm.features.as_deref().unwrap_or(&[]) {
             if let Some(line) = self.render_feature(f) {
                 body.push_str(&format!("{inner}{line}\n"));
@@ -406,6 +414,9 @@ impl Writer {
                 Some(ElementType::ActionDef) => super::export_behavior::action_body(fm, false, &inner, &r),
                 Some(ElementType::Action) => super::export_behavior::action_body(fm, true, &inner, &r),
                 Some(ElementType::StateDef) | Some(ElementType::State) => super::export_behavior::state_body(fm, &inner, &r),
+                // `REQ-TRS-SYSMLV2-092`: structural successions of a part.
+                Some(ElementType::PartDef) => super::export_behavior::part_successions(fm, false, &inner, &r),
+                Some(ElementType::Part) => super::export_behavior::part_successions(fm, true, &inner, &r),
                 _ => String::new(),
             };
             self.report.degraded_behaviour += super::export_behavior::count_degraded(&text);
@@ -515,6 +526,45 @@ impl Writer {
         }
     }
 
+    /// `REQ-TRS-SYSMLV2-088`: every `metadata:` application as a metadata annotation in the body --
+    /// `@T;`, `@T { k = v; }`, `@n : T { ... }`, or `@T about Y;` for an entry kept with `about:`.
+    /// Strings are double-quoted and numbers/booleans bare, so ingestion reads the same entry back.
+    fn push_metadata(&self, e: &RawElement, inner: &str, body: &mut String) {
+        const RESERVED_KEYS: &[&str] = &["type", "apply", "def", "name", "about"];
+        for entry in e.frontmatter.metadata.iter().flatten() {
+            let m = match entry {
+                serde_yaml::Value::String(s) if !s.trim().is_empty() => {
+                    body.push_str(&format!("{inner}@{};\n", self.reference(s.trim())));
+                    continue;
+                }
+                serde_yaml::Value::Mapping(m) => m,
+                _ => continue,
+            };
+            let get = |k: &str| m.get(serde_yaml::Value::String(k.to_string())).and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty());
+            let Some(ty) = get("type").or_else(|| get("apply")).or_else(|| get("def")) else { continue };
+            let mut head = match get("name") {
+                Some(n) => format!("@{} : {}", sysml_ident(n), self.reference(ty)),
+                None => format!("@{}", self.reference(ty)),
+            };
+            if let Some(a) = get("about") {
+                head.push_str(&format!(" about {}", about_ref(a)));
+            }
+            let mut lines = Vec::new();
+            for (k, v) in m {
+                let Some(k) = k.as_str().filter(|k| !RESERVED_KEYS.contains(k)) else { continue };
+                match render_meta_value(v) {
+                    Some(text) => lines.push(format!("{inner}    {} = {text};\n", sysml_ident(k))),
+                    None => lines.push(format!("{inner}    // metadata value not exported (not a scalar): {k}\n")),
+                }
+            }
+            if lines.is_empty() {
+                body.push_str(&format!("{inner}{head};\n"));
+            } else {
+                body.push_str(&format!("{inner}{head} {{\n{}{inner}}}\n", lines.concat()));
+            }
+        }
+    }
+
     /// One inline `features:` entry as an `attribute`/`port` member.
     fn render_feature(&self, f: &serde_yaml::Value) -> Option<String> {
         let m = f.as_mapping()?;
@@ -605,6 +655,27 @@ fn sysml_unit(u: &str) -> String {
 
 pub(super) fn esc_single(s: &str) -> String {
     s.replace('\\', "\\\\").replace('\'', "\\'")
+}
+
+/// A written `about:` target (`A`, `P::A`, `a.b`) with each name segment rendered by [`sysml_ident`].
+fn about_ref(target: &str) -> String {
+    target
+        .split("::")
+        .map(|seg| seg.split('.').map(sysml_ident).collect::<Vec<_>>().join("."))
+        .collect::<Vec<_>>()
+        .join("::")
+}
+
+/// A metadata tagged value as a SysML literal that ingestion reads back with the same YAML type:
+/// numbers and booleans bare, every string double-quoted (`REQ-TRS-SYSMLV2-088`). `None` for a
+/// non-scalar value, which has no literal form.
+fn render_meta_value(v: &serde_yaml::Value) -> Option<String> {
+    match v {
+        serde_yaml::Value::Bool(b) => Some(b.to_string()),
+        serde_yaml::Value::Number(n) => Some(n.to_string()),
+        serde_yaml::Value::String(s) => Some(format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\""))),
+        _ => None,
+    }
 }
 
 /// A scalar `value:` as a SysML literal (numbers/bools bare, text double-quoted).

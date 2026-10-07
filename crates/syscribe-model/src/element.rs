@@ -465,7 +465,9 @@ pub struct MetaApply {
 /// Parse an element's `metadata:` list into stereotype applications. Each entry is either a
 /// bare string reference, or a map carrying tagged values whose `apply` (alias `def`) key
 /// names the MetadataDef and whose other keys are the tagged values. Entries without a
-/// resolvable `def` reference are skipped.
+/// resolvable `def` reference are skipped. The reserved keys `name` (the application's own
+/// declared name, `@n : T` in SysML v2) and `about` (the written target of an application a
+/// SysML v2 submodel could not attach, REQ-TRS-SYSMLV2-087) are never tagged values.
 pub fn metadata_applications(metadata: &Option<Vec<serde_yaml::Value>>) -> Vec<MetaApply> {
     let mut out = Vec::new();
     let Some(list) = metadata else { return out };
@@ -484,7 +486,7 @@ pub fn metadata_applications(metadata: &Option<Vec<serde_yaml::Value>>) -> Vec<M
                     let values = m
                         .iter()
                         .filter_map(|(k, v)| k.as_str().map(|k| (k.to_string(), v.clone())))
-                        .filter(|(k, _)| k != "type" && k != "apply" && k != "def")
+                        .filter(|(k, _)| !matches!(k.as_str(), "type" | "apply" | "def" | "name" | "about"))
                         .collect();
                     out.push(MetaApply { def: def.to_string(), values });
                 }

@@ -323,11 +323,9 @@ fn occurrences_and_individuals_are_native_elements() {
     assert!(phase.doc.contains("running phase"));
     assert_eq!(find(&els, "S::P::special").frontmatter.is_individual, Some(true));
     assert_eq!(find(&els, "S::P::boom").frontmatter.element_type, Some(ElementType::EventOccurrence));
-    // A portion kind has no native target: unmapped, counted.
-    assert!(els.iter().all(|e| e.qualified_name != "S::P::frozen"));
-    let w = w543(&els);
-    assert_eq!(w.len(), 1, "{w:?}");
-    assert!(w[0].contains("occurrence x1") && !w[0].contains("def"), "{w:?}");
+    // A portion kind is the native `isPortion`/`portionKind` since `REQ-TRS-SYSMLV2-094`.
+    assert_eq!(find(&els, "S::P::frozen").frontmatter.portion_kind.as_deref(), Some("snapshot"));
+    assert!(w543(&els).is_empty(), "{:?}", w543(&els));
 }
 
 #[test]
@@ -362,9 +360,9 @@ fn a_named_dependency_is_ingested_with_resolved_ends() {
     assert_eq!(d.frontmatter.element_type, Some(ElementType::Dependency));
     assert_eq!(d.frontmatter.clients, Some(vec!["S::P::X".to_string(), "S::P::Y".to_string()]));
     assert_eq!(d.frontmatter.suppliers, Some(vec!["S::P::Z".to_string()]));
-    let w = w543(&els);
-    assert_eq!(w.len(), 1, "{w:?}");
-    assert!(w[0].contains("dependency x1"), "{w:?}");
+    // An anonymous one is `dependency_N` since `REQ-TRS-SYSMLV2-093`.
+    assert_eq!(find(&els, "S::P::dependency_1").frontmatter.clients, Some(vec!["S::P::X".to_string()]));
+    assert!(w543(&els).is_empty(), "{:?}", w543(&els));
 }
 
 #[test]
@@ -387,15 +385,17 @@ fn a_native_dependency_exports_and_reads_back() {
 
 #[test]
 fn w543_names_exactly_the_remaining_unmapped_kinds() {
+    // `REQ-TRS-SYSMLV2-087`/`-097`: a metadata usage whose `about` resolves is lifted; only an
+    // unresolved target still counts.
     let els = load(
-        "package P {\n  part def X;\n  occurrence def O;\n  individual def I;\n  dependency d from X to O;\n  actor Act;\n  filter @Tag;\n  metadata m about X;\n  alias Z for X;\n}\n",
+        "package P {\n  part def X;\n  occurrence def O;\n  individual def I;\n  dependency d from X to O;\n  actor Act;\n  filter @Tag;\n  metadata m about X;\n  metadata m2 about Nope;\n  alias Z for X;\n}\n",
     );
     let w = w543(&els);
     assert_eq!(w.len(), 1, "{w:?}");
     for k in ["actor x1", "filter x1", "metadata x1"] {
         assert!(w[0].contains(k), "missing {k}: {w:?}");
     }
-    for k in ["occurrence", "individual", "dependency"] {
+    for k in ["occurrence", "individual", "dependency", "alias"] {
         assert!(!w[0].contains(k), "{k} must not be counted: {w:?}");
     }
 }

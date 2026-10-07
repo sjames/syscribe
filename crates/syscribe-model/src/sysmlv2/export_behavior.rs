@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use serde_yaml::{Mapping, Value};
 
 use super::export::{esc_single, sysml_ident};
-use super::ingest::{canonical_expression, probe_action_body, probe_state_body};
+use super::ingest::{canonical_expression, probe_action_body, probe_part_body, probe_state_body};
 use crate::element::RawFrontmatter;
 
 type Refs<'a> = &'a dyn Fn(&str) -> String;
@@ -75,7 +75,12 @@ fn describe(v: &Value) -> String {
 
 /// Keys whose value is expression text that ingestion re-renders (`and` becomes `&&`, a bare number
 /// becomes its text, …). `REQ-TRS-SYSMLV2-068`.
-const EXPRESSION_KEYS: &[&str] = &["guard", "condition", "value", "sequence", "target"];
+const EXPRESSION_KEYS: &[&str] = &["guard", "condition", "untilCondition", "value", "sequence", "target"];
+
+/// A plain (possibly qualified or dotted) name, as opposed to an expression (`REQ-TRS-SYSMLV2-096`).
+fn is_plain_ref(s: &str) -> bool {
+    !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '.' || c == ':')
+}
 
 /// The canonical form of a native value for the read-back comparison: expression fields in the
 /// rendering ingestion produces, and an `accept:` mapping holding only `payload:` as the plain
@@ -306,9 +311,16 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
                 base.insert(key("trigger"), Value::Mapping(tv));
             }
             let kw = if accept { "accept" } else { "send" };
-            let mut s = format!("{pad}{kw} {}", sysml_ident(name));
-            if payload != name {
-                s.push_str(&format!(" : {}", r(payload)));
+            let mut s = format!("{pad}{kw} ");
+            // `REQ-TRS-SYSMLV2-096`: a payload that is an expression (`new Cmd()`) is written as that
+            // expression, unquoted, when ingestion renders it back identically; a quoted name otherwise.
+            if payload == name && !is_plain_ref(name) && canonical_expression(name).as_deref() == Some(name) {
+                s.push_str(name);
+            } else {
+                s.push_str(&sysml_ident(name));
+                if payload != name {
+                    s.push_str(&format!(" : {}", r(payload)));
+                }
             }
             s.push_str(&tail);
             if extras.is_empty() {
@@ -366,8 +378,9 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
         "LoopAction" => {
             let loop_kind = text(m, "loopKind").ok_or("no loopKind")?;
             let (allowed, kind_key, head): (&[&str], &'static str, String) = match loop_kind {
+                // `REQ-TRS-SYSMLV2-089`: `while c { } until d;` keeps both conditions.
                 "while" => (
-                    &["name", "kind", "loopKind", "condition", "body"],
+                    &["name", "kind", "loopKind", "condition", "untilCondition", "body"],
                     "while",
                     format!("while {}", scalar(m, "condition").ok_or("no condition")?),
                 ),
@@ -391,7 +404,7 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
             let bare = bare_for(c, kind_key);
             let ip = inner_pad(bare);
             base.insert(key("loopKind"), key(loop_kind));
-            for k in ["condition", "variable", "sequence"] {
+            for k in ["condition", "untilCondition", "variable", "sequence"] {
                 if let Some(t) = scalar(m, k) {
                     base.insert(key(k), key(&t));
                 }
@@ -400,10 +413,10 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
             if bare {
                 c.bump(kind_key);
             }
-            let until = if loop_kind == "until" {
-                format!(" until {};", scalar(m, "condition").ok_or("no condition")?)
-            } else {
-                String::new()
+            let until = match loop_kind {
+                "until" => format!(" until {};", scalar(m, "condition").ok_or("no condition")?),
+                "while" => scalar(m, "untilCondition").map(|u| format!(" until {u};")).unwrap_or_default(),
+                _ => String::new(),
             };
             Ok((wrap(bare, format!("{ip}{head} {{\n{body}{ip}}}{until}\n"), String::new()), with_list(base, "body", kept)))
         }
@@ -459,7 +472,7 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
     for v in fm.control_nodes.as_deref().unwrap_or(&[]) {
         let verdict = (|| -> Result<String, String> {
             let m = v.as_mapping().ok_or("not a mapping")?;
-            if !only_keys(m, &["name", "kind"]) {
+            if !only_keys(m, &["name", "kind", "parameters"]) {
                 return Err("unsupported fields".into());
             }
             let kw = match text(m, "kind") {
@@ -470,9 +483,43 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
                 _ => return Err("unknown control node kind".into()),
             };
             let name = text(m, "name").ok_or("no name")?;
-            let line = format!("{kw} {};\n", chain(name));
+            // `REQ-TRS-SYSMLV2-090`: the node's pins as its body; a parameter with no `direction`
+            // is an `in` one, which is what ingestion reads back.
+            let (line, expected) = match get(m, "parameters") {
+                None => (format!("{kw} {};\n", chain(name)), v.clone()),
+                Some(Value::Sequence(ps)) => {
+                    let mut s = format!("{kw} {} {{\n", chain(name));
+                    let mut norm = Vec::new();
+                    for p in ps {
+                        let pm = p.as_mapping().ok_or("parameter is not a mapping")?;
+                        if !only_keys(pm, &["name", "direction", "typedBy"]) {
+                            return Err("unsupported parameter fields".into());
+                        }
+                        let pn = text(pm, "name").ok_or("parameter has no name")?;
+                        let dir = match text(pm, "direction") {
+                            Some("out") => "out",
+                            Some("inout") => "inout",
+                            None | Some("in") => "in",
+                            Some(_) => return Err("unknown parameter direction".into()),
+                        };
+                        s.push_str(&format!("{pad}    {dir} {}", sysml_ident(pn)));
+                        let mut nm = pm.clone();
+                        if let Some(t) = text(pm, "typedBy") {
+                            s.push_str(&format!(" : {}", r(t)));
+                        }
+                        s.push_str(";\n");
+                        nm.insert(key("direction"), key(dir));
+                        norm.push(Value::Mapping(nm));
+                    }
+                    s.push_str(&format!("{pad}}}\n"));
+                    let mut em = m.clone();
+                    em.insert(key("parameters"), Value::Sequence(norm));
+                    (s, Value::Mapping(em))
+                }
+                Some(_) => return Err("`parameters` is not a list".into()),
+            };
             let p = probe_action_body(is_usage, &line).ok_or("does not parse")?;
-            if p.control_nodes == vec![v.clone()] && p.sub_actions.is_empty() && p.successions.is_empty() {
+            if p.control_nodes == vec![expected] && p.sub_actions.is_empty() && p.successions.is_empty() {
                 Ok(format!("{pad}{line}"))
             } else {
                 Err("does not read back identically".into())
@@ -489,36 +536,63 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
     for v in fm.succession_connections.as_deref().unwrap_or(&[]) {
         let verdict = (|| -> Result<String, String> {
             let m = v.as_mapping().ok_or("not a mapping")?;
-            if !only_keys(m, &["name", "after", "before", "guard", "multiplicity", "afterMultiplicity", "beforeMultiplicity"]) {
-                return Err("unsupported fields".into());
-            }
-            let (a, b) = (text(m, "after").ok_or("no after")?, text(m, "before").ok_or("no before")?);
-            // REQ-TRS-SYSMLV2-062: never reference a step this body did not export.
-            if let Some(gone) = [a, b].into_iter().find(|n| dropped.iter().any(|d| d == n)) {
-                return Err(format!("endpoint '{gone}' was not exported"));
-            }
-            // `REQ-TRS-SYSMLV2-074`: a guarded succession is `first a if <guard> then b;`.
-            // `REQ-TRS-SYSMLV2-081`: an own name and multiplicities are `succession [n] [m] first [x] a then [y] b;`.
-            let name = text(m, "name").map(sysml_ident);
-            let mult = |k: &str| scalar(m, k).map(|x| format!("[{x}] "));
-            let (sm, am, bm) = (mult("multiplicity"), mult("afterMultiplicity"), mult("beforeMultiplicity"));
-            let line = match scalar(m, "guard") {
-                Some(_) if sm.is_some() || am.is_some() || bm.is_some() => return Err("guarded succession with multiplicities".into()),
-                Some(g) => {
-                    let head = name.map(|n| format!("succession {n} ")).unwrap_or_default();
-                    format!("{head}first {} if {g} then {};\n", chain(a), chain(b))
-                }
-                None => {
-                    let head = if name.is_some() || sm.is_some() {
-                        format!("succession {}{}", name.map(|n| format!("{n} ")).unwrap_or_default(), sm.unwrap_or_default())
-                    } else {
-                        String::new()
-                    };
-                    format!("{head}first {}{} then {}{};\n", am.unwrap_or_default(), chain(a), bm.unwrap_or_default(), chain(b))
-                }
-            };
+            let line = succession_line(m, &dropped, r)?;
             let p = probe_action_body(is_usage, &line).ok_or("does not parse")?;
             if canon_list(&p.successions) == canon_list(&[v.clone()]) && p.sub_actions.is_empty() && p.control_nodes.is_empty() {
+                Ok(format!("{pad}{line}"))
+            } else {
+                Err("does not read back identically".into())
+            }
+        })();
+        match verdict {
+            Ok(t) => out.push_str(&t),
+            Err(reason) => out.push_str(&comment(pad, "successionConnection", &describe_succession(v), &reason)),
+        }
+    }
+    out
+}
+
+/// One `successionConnections:` entry as a `first`/`succession` statement (no indentation).
+/// `REQ-TRS-SYSMLV2-074`: a guarded succession is `first a if <guard> then b;`.
+/// `REQ-TRS-SYSMLV2-081`: an own name and multiplicities are `succession n [m] first [x] a then [y] b;`.
+/// `REQ-TRS-SYSMLV2-091`: an own type is `succession n : T first a then b;`.
+fn succession_line(m: &Mapping, dropped: &[String], r: Refs) -> Result<String, String> {
+    if !only_keys(m, &["name", "typedBy", "after", "before", "guard", "multiplicity", "afterMultiplicity", "beforeMultiplicity"]) {
+        return Err("unsupported fields".into());
+    }
+    let (a, b) = (text(m, "after").ok_or("no after")?, text(m, "before").ok_or("no before")?);
+    // REQ-TRS-SYSMLV2-062: never reference a step this body did not export.
+    if let Some(gone) = [a, b].into_iter().find(|n| dropped.iter().any(|d| d == n)) {
+        return Err(format!("endpoint '{gone}' was not exported"));
+    }
+    let name = text(m, "name").map(sysml_ident);
+    let typed = text(m, "typedBy").map(|t| format!(": {} ", r(t)));
+    let mult = |k: &str| scalar(m, k).map(|x| format!("[{x}] "));
+    let (sm, am, bm) = (mult("multiplicity"), mult("afterMultiplicity"), mult("beforeMultiplicity"));
+    let decl = |sm: Option<String>| format!("succession {}{}{}", name.clone().map(|n| format!("{n} ")).unwrap_or_default(), typed.clone().unwrap_or_default(), sm.unwrap_or_default());
+    Ok(match scalar(m, "guard") {
+        Some(_) if sm.is_some() || am.is_some() || bm.is_some() => return Err("guarded succession with multiplicities".into()),
+        Some(g) => {
+            let head = if name.is_some() || typed.is_some() { decl(None) } else { String::new() };
+            format!("{head}first {} if {g} then {};\n", chain(a), chain(b))
+        }
+        None => {
+            let head = if name.is_some() || typed.is_some() || sm.is_some() { decl(sm) } else { String::new() };
+            format!("{head}first {}{} then {}{};\n", am.unwrap_or_default(), chain(a), bm.unwrap_or_default(), chain(b))
+        }
+    })
+}
+
+/// `REQ-TRS-SYSMLV2-092`: the `successionConnections:` of a `PartDef`/`Part` as structural
+/// `first`/`succession` statements, each only when a `part def`/`part` body reads it back identically.
+pub(super) fn part_successions(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Refs) -> String {
+    let mut out = String::new();
+    for v in fm.succession_connections.as_deref().unwrap_or(&[]) {
+        let verdict = (|| -> Result<String, String> {
+            let m = v.as_mapping().ok_or("not a mapping")?;
+            let line = succession_line(m, &[], r)?;
+            let p = probe_part_body(is_usage, &line).ok_or("does not parse")?;
+            if canon_list(&p) == canon_list(&[v.clone()]) {
                 Ok(format!("{pad}{line}"))
             } else {
                 Err("does not read back identically".into())

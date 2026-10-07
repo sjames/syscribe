@@ -129,6 +129,9 @@ struct MergedPackage {
     body: Vec<(sysml_v2_parser::PackageBodyElement, String, DocRef)>,
     /// Nested packages, keyed by name and merged the same way as this level.
     children: BTreeMap<String, MergedPackage>,
+    /// `REQ-TRS-SYSMLV2-095` -- `alias` members declared at a file's root, outside every
+    /// package; lifted onto the anchor package's own element. Only set on the top level.
+    root_aliases: Vec<serde_yaml::Value>,
 }
 
 /// Every `.sysml`/`.kerml` file under `dir`, recursively — however nested, since a
@@ -211,6 +214,11 @@ pub(crate) fn ingest_subtree_detailed(owner: &mut RawElement, pkg_qname: &str, d
     let unresolved = lift_package_satisfies(&merged, pkg_qname, &mut out);
     let unresolved_includes = resolve_includes(&mut out);
     resolve_dependency_ends(&mut out);
+    let unresolved_about = resolve_metadata(&mut out);
+    // `REQ-TRS-SYSMLV2-095`: a root-level alias belongs to the anchor package itself.
+    if !merged.root_aliases.is_empty() {
+        owner.frontmatter.aliases.get_or_insert_with(Vec::new).extend(merged.root_aliases.iter().cloned());
+    }
     let mut detailed = Vec::new();
     for (file_path, mut counts) in file_counts {
         if let Some(n) = unresolved.get(&file_path) {
@@ -218,6 +226,9 @@ pub(crate) fn ingest_subtree_detailed(owner: &mut RawElement, pkg_qname: &str, d
         }
         if let Some(n) = unresolved_includes.get(&file_path) {
             *counts.entry("include").or_insert(0) += n;
+        }
+        if let Some(n) = unresolved_about.get(&file_path) {
+            *counts.entry("metadata").or_insert(0) += n;
         }
         detailed.push((file_path.clone(), counts.clone()));
         if counts.is_empty() {
@@ -357,24 +368,27 @@ fn unmapped_kind(e: &sysml_v2_parser::PackageBodyElement, in_named_pkg: bool) ->
             "satisfy"
         }
         E::Actor(_) => "actor",
-        // `REQ-TRS-SYSMLV2-083`/`-084`: mapped (named dependencies, occurrences without a portion kind).
-        E::IndividualDef(_) => return None,
-        E::MetadataUsage(_) => "metadata",
-        E::OccurrenceDef(_) => return None,
+        // `REQ-TRS-SYSMLV2-083`/`-084`/`-093`/`-094`: mapped (every dependency, every named
+        // occurrence usage). `REQ-TRS-SYSMLV2-086`/`-087`: a metadata usage is lifted; only an
+        // unresolved `about` target is counted, after resolution.
+        E::IndividualDef(_) | E::MetadataUsage(_) | E::OccurrenceDef(_) | E::Dependency(_) => return None,
         E::OccurrenceUsage(o) => {
             if occurrence_usage_mappable(&o.value) {
                 return None;
             }
             "occurrence"
         }
-        E::Dependency(d) => {
-            if d.value.identification.as_ref().and_then(ident_name).is_some_and(|n| !n.is_empty()) {
-                return None;
-            }
-            "dependency"
-        }
         E::FeatureDecl(_) | E::ClassifierDecl(_) | E::KermlSemanticDecl(_) | E::KermlFeatureDecl(_)
-        | E::ExtendedLibraryDecl(_) => "KerML declaration",
+        | E::ExtendedLibraryDecl(_) | E::KermlClassifier(_) | E::KermlInvariant(_) | E::KermlConnector(_)
+        | E::KermlRelationship(_) | E::KermlFeature(_) | E::KermlBareDeclaration(_) => "KerML declaration",
+        // `REQ-TRS-SYSMLV2-097`: package-level usage/relationship members with no package-level
+        // native target (they are definition-body members in the native format), user-defined
+        // keyword declarations, and grammar the parser itself marks unsupported.
+        E::Unsupported(_) | E::Expose(_) | E::Ref(_) | E::Connect(_) | E::DefaultReferenceUsage(_)
+        | E::AssertConstraint(_) | E::PerformUsage(_) | E::BindingConnectorUsage(_) | E::Succession(_)
+        | E::ExhibitState(_) | E::IncludeUseCase(_) | E::ExtendedDefinition(_) | E::ExtendedUsage(_) => {
+            "other package member"
+        }
         _ => return None,
     })
 }
@@ -426,8 +440,18 @@ pub(crate) fn count_unmapped_root(root: &sysml_v2_parser::RootNamespace, counts:
                 }
             }
             R::Import(_) => {}
+            // `REQ-TRS-SYSMLV2-095`: a named root-level alias lifts onto the anchor package; every
+            // other bare root member has no package to merge under and is counted as such
+            // (`REQ-TRS-SYSMLV2-097`), except documentation and parse-error nodes, which stay quiet.
             R::Member(m) => {
-                if let Some(k) = unmapped_kind(&m.value, false) {
+                use sysml_v2_parser::PackageBodyElement as E;
+                let kind = match &m.value {
+                    E::AliasDef(a) if ident_name(&a.value.identification).is_some() => None,
+                    E::Annotating(a) if annotating_meta(a).is_none() => unmapped_kind(&m.value, false),
+                    E::Error(_) => None,
+                    other => unmapped_kind(other, false).or(Some("root-level member")),
+                };
+                if let Some(k) = kind {
                     *counts.entry(k).or_insert(0) += 1;
                 }
             }
@@ -449,6 +473,12 @@ fn merge_root(target: &mut MergedPackage, root: sysml_v2_parser::RootNamespace, 
             // `REQ-TRS-SYSMLV2-044`: library packages and namespaces become Packages.
             R::LibraryPackage(p) => merge_named(target, &p.value.identification, p.value.body, file_path, doc),
             R::Namespace(p) => merge_named(target, &p.value.identification, p.value.body, file_path, doc),
+            // `REQ-TRS-SYSMLV2-095`: a root-level `alias` is the anchor package's own.
+            R::Member(m) => {
+                if let sysml_v2_parser::PackageBodyElement::AliasDef(a) = &m.value {
+                    target.root_aliases.extend(alias_entry(&a.value));
+                }
+            }
             _ => {}
         }
     }
@@ -664,6 +694,14 @@ struct Spec {
     /// `REQ-TRS-SYSMLV2-084` -- a `dependency`'s endpoints (raw text until resolved after the merge).
     clients: Option<Vec<String>>,
     suppliers: Option<Vec<String>>,
+    /// `REQ-TRS-SYSMLV2-086`/`-087` -- the element's `metadata:` applications; `type:` and a
+    /// pending `about:` are raw text until [`resolve_metadata`] runs over the merged subtree.
+    metadata: Option<Vec<serde_yaml::Value>>,
+    /// `REQ-TRS-SYSMLV2-094` -- `snapshot`/`timeslice` on an occurrence usage.
+    is_portion: Option<bool>,
+    portion_kind: Option<String>,
+    /// `REQ-TRS-SYSMLV2-086` -- a `metadata def`'s attribute members as inline `features:`.
+    features: Option<Vec<serde_yaml::Value>>,
 }
 
 impl Spec {
@@ -700,6 +738,12 @@ impl Spec {
     /// Set `REQ-TRS-SYSMLV2-009`'s lifted `doc` text.
     fn with_doc(mut self, doc: String) -> Self {
         self.doc = doc;
+        self
+    }
+
+    /// Set `REQ-TRS-SYSMLV2-086`'s lifted `metadata:` applications.
+    fn with_metadata(mut self, metadata: Vec<serde_yaml::Value>) -> Self {
+        self.metadata = nonempty_vec(metadata);
         self
     }
 
@@ -827,6 +871,10 @@ fn push_synth(
             is_individual: spec.is_individual,
             clients: spec.clients,
             suppliers: spec.suppliers,
+            metadata: spec.metadata,
+            is_portion: spec.is_portion,
+            portion_kind: spec.portion_kind,
+            features: spec.features,
             ..Default::default()
         },
         doc: spec.doc,
@@ -1251,6 +1299,292 @@ fn annotating_meta(a: &sysml_v2_parser::ast::AnnotatingMember) -> Option<&sysml_
         sysml_v2_parser::ast::AnnotatingMember::MetadataAnnotation(m) => Some(&m.value),
         _ => None,
     }
+}
+
+// ── Metadata applications (REQ-TRS-SYSMLV2-086/-087) ───────────────────────
+
+/// One metadata application member of a body: the `@T { ... }` / `@n : T` / `@T about Y` form,
+/// or the standalone `#T;` / `#T { ... }` keyword form.
+enum MetaMember<'a> {
+    Annotation(&'a sysml_v2_parser::ast::MetadataAnnotation),
+    Keyword(&'a sysml_v2_parser::ast::MetadataKeywordUsage),
+}
+
+/// A body-element enum that can carry a metadata application member.
+trait MetaBody {
+    fn meta_member(&self) -> Option<MetaMember<'_>>;
+}
+
+macro_rules! impl_meta_body {
+    ($t:ty, keyword) => {
+        impl MetaBody for $t {
+            fn meta_member(&self) -> Option<MetaMember<'_>> {
+                match self {
+                    Self::Annotating(a) => annotating_meta(a).map(MetaMember::Annotation),
+                    Self::MetadataKeywordUsage(k) => Some(MetaMember::Keyword(&k.value)),
+                    _ => None,
+                }
+            }
+        }
+    };
+    ($t:ty) => {
+        impl MetaBody for $t {
+            fn meta_member(&self) -> Option<MetaMember<'_>> {
+                match self {
+                    Self::Annotating(a) => annotating_meta(a).map(MetaMember::Annotation),
+                    _ => None,
+                }
+            }
+        }
+    };
+}
+
+impl_meta_body!(sysml_v2_parser::PartDefBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::PartUsageBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::PortDefBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::PortBodyElement);
+impl_meta_body!(sysml_v2_parser::ConnectionDefBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::InterfaceDefBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::InterfaceUsageBodyElement);
+impl_meta_body!(sysml_v2_parser::ast::AttributeBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::ast::StateDefBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::ActionDefBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::ActionUsageBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::RequirementDefBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::ast::UseCaseDefBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::ast::ViewDefBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::ast::ViewBodyElement);
+impl_meta_body!(sysml_v2_parser::ast::RenderingDefBodyElement);
+impl_meta_body!(sysml_v2_parser::ast::RenderingUsageBodyElement);
+impl_meta_body!(sysml_v2_parser::ast::OccurrenceBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::ast::RelationshipBodyElement);
+impl_meta_body!(sysml_v2_parser::ast::ConstraintDefBodyElement, keyword);
+impl_meta_body!(sysml_v2_parser::ast::CalcDefBodyElement, keyword);
+
+impl MetaBody for sysml_v2_parser::ast::DefinitionBodyElement {
+    fn meta_member(&self) -> Option<MetaMember<'_>> {
+        match self {
+            Self::OccurrenceMember(m) => m.value.meta_member(),
+            _ => None,
+        }
+    }
+}
+
+/// Whether a metadata type reference is one of the reserved `@Syscribe*` annotations, which
+/// keep their own fixed field lift and never appear in `metadata:`.
+fn is_syscribe_annotation(type_ref: &str) -> bool {
+    type_ref.rsplit("::").next().is_some_and(|s| s.starts_with("Syscribe"))
+}
+
+/// The YAML value of one tagged value: a literal keeps its type (`3`, `2.5`, `true`, `"text"`,
+/// a quoted restricted name `'text'`); any other expression is carried as its rendered text.
+fn metadata_literal(e: &sysml_v2_parser::Expression) -> serde_yaml::Value {
+    use sysml_v2_parser::Expression as E;
+    match e {
+        E::LiteralInteger(i) => serde_yaml::Value::Number((*i).into()),
+        E::LiteralReal(_) => {
+            let text = render_expression(e);
+            text.parse::<f64>().map_or(serde_yaml::Value::String(text), |f| serde_yaml::Value::Number(f.into()))
+        }
+        E::LiteralBoolean(b) => serde_yaml::Value::Bool(*b),
+        E::LiteralString(_) | E::FeatureRef(_) => serde_yaml::Value::String(attribute_body_text(e).unwrap_or_else(|| render_expression(e))),
+        E::UnaryOp { op: sysml_v2_parser::ast::UnaryOperator::Minus, operand } => match &operand.value {
+            E::LiteralInteger(i) => serde_yaml::Value::Number((-*i).into()),
+            _ => serde_yaml::Value::String(render_expression(e)),
+        },
+        other => serde_yaml::Value::String(render_expression(other)),
+    }
+}
+
+/// The decoded text of a string literal or quoted/bare name expression.
+fn attribute_body_text(e: &sysml_v2_parser::Expression) -> Option<String> {
+    match e {
+        sysml_v2_parser::Expression::LiteralString(s) => with_cur(|d| d.decoded_string_literal(*s).map(|c| c.into_owned())).flatten(),
+        other => feature_ref_string(other),
+    }
+}
+
+/// Every `k = v;` member of a `MetadataBody`, in source order.
+fn metadata_body_values(body: &sysml_v2_parser::ast::MetadataBody) -> Vec<(String, serde_yaml::Value)> {
+    use sysml_v2_parser::ast::MetadataBodyElement as M;
+    body.members()
+        .filter_map(|n| match &n.value {
+            M::Usage(u) => u.value.value.as_ref().map(|fv| (qr(u.value.target), metadata_literal(&fv.value.expression.value))),
+            M::Definition(d) => match &d.value {
+                sysml_v2_parser::ast::AttributeBodyElement::AttributeUsage(a) => {
+                    a.value.value.as_ref().map(|fv| (a.value.name.s(), metadata_literal(&fv.value.expression.value)))
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .filter(|(k, _)| !k.is_empty())
+        .collect()
+}
+
+/// Every `k = v;` member of a `#T { ... }` keyword body (an `AttributeBody`).
+fn attribute_body_values(body: &sysml_v2_parser::AttributeBody) -> Vec<(String, serde_yaml::Value)> {
+    let sysml_v2_parser::AttributeBody::Brace { elements, .. } = body else { return Vec::new() };
+    elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::ast::AttributeBodyElement::AttributeUsage(a) => {
+                a.value.value.as_ref().map(|fv| (a.value.name.s(), metadata_literal(&fv.value.expression.value)))
+            }
+            _ => None,
+        })
+        .filter(|(k, _)| !k.is_empty())
+        .collect()
+}
+
+/// Build the `metadata:` entries of one application: `{type, name?, <values>}`, plus `about:`
+/// (one entry per written target) when the application names targets -- resolved, moved or
+/// counted by [`resolve_metadata`] once the whole subtree is merged.
+fn metadata_entries(type_ref: String, name: Option<String>, values: Vec<(String, serde_yaml::Value)>, about: Vec<String>) -> Vec<serde_yaml::Value> {
+    if type_ref.is_empty() || is_syscribe_annotation(&type_ref) {
+        return Vec::new();
+    }
+    let base = |about: Option<&str>| {
+        let mut m = serde_yaml::Mapping::new();
+        m.insert(ykey("type"), ykey(&type_ref));
+        if let Some(n) = name.as_deref().filter(|n| !n.is_empty()) {
+            m.insert(ykey("name"), ykey(n));
+        }
+        if let Some(a) = about {
+            m.insert(ykey("about"), ykey(a));
+        }
+        for (k, v) in &values {
+            if k != "type" && k != "name" && k != "about" {
+                m.insert(ykey(k), v.clone());
+            }
+        }
+        serde_yaml::Value::Mapping(m)
+    };
+    if about.is_empty() {
+        vec![base(None)]
+    } else {
+        about.iter().map(|a| base(Some(a))).collect()
+    }
+}
+
+/// The `metadata:` entries of one `@`/`#` body member (`REQ-TRS-SYSMLV2-086`).
+fn meta_member_entries(m: MetaMember<'_>) -> Vec<serde_yaml::Value> {
+    match m {
+        MetaMember::Annotation(a) => metadata_entries(
+            qr(a.type_reference),
+            a.declared_name.as_ref().and_then(|d| ident_name(&d.value.identification)),
+            metadata_body_values(&a.body),
+            a.about_targets.iter().map(|t| qr(*t)).collect(),
+        ),
+        // A `#T` with no body of its own is a prefix on the member that follows, not an application
+        // on the holder (handled by the package-level walk; the parser drops the form inside a body).
+        MetaMember::Keyword(k) => match &k.body {
+            Some(body) => metadata_entries(qr(k.reference), None, attribute_body_values(body), Vec::new()),
+            None => Vec::new(),
+        },
+    }
+}
+
+/// `metadata:` entries of a `RequirementDefBody`-shaped body (requirement, viewpoint, concern).
+fn requirement_def_body_metadata(body: &sysml_v2_parser::RequirementDefBody) -> Vec<serde_yaml::Value> {
+    match body {
+        sysml_v2_parser::RequirementDefBody::Brace { elements, .. } => body_metadata(elements),
+        _ => Vec::new(),
+    }
+}
+
+/// `metadata:` entries of a thin `DefinitionBody` (flow, allocation def, occurrence def).
+fn definition_body_metadata(body: &sysml_v2_parser::ast::DefinitionBody) -> Vec<serde_yaml::Value> {
+    match body {
+        sysml_v2_parser::ast::DefinitionBody::Brace { elements, .. } => body_metadata(elements),
+        _ => Vec::new(),
+    }
+}
+
+/// Lift every metadata application member of a body into `metadata:` entries, in source order.
+fn body_metadata<T: MetaBody>(elements: &[sysml_v2_parser::Node<T>]) -> Vec<serde_yaml::Value> {
+    elements.iter().filter_map(|n| n.value.meta_member()).flat_map(meta_member_entries).collect()
+}
+
+/// `REQ-TRS-SYSMLV2-087`: a package-level `metadata m : T about Y { ... }` / `metadata T about Y;`
+/// usage. A usage with no `:` typing has only one qualified name, and the grammar's required
+/// `OwnedFeatureTyping` makes it the type, so the parser's `name` is read as the type then.
+fn metadata_usage_entries(u: &sysml_v2_parser::ast::MetadataUsage) -> Vec<serde_yaml::Value> {
+    let (type_ref, name) = match u.type_reference {
+        Some(t) => (qr(t), Some(dn(u.name))),
+        None => (dn(u.name), None),
+    };
+    metadata_entries(type_ref, name, metadata_body_values(&u.body), u.about_targets.iter().map(|t| qr(*t)).collect())
+}
+
+/// The `metadata:` entries declared directly in one merged package's body (`@T;`, `#T { }`,
+/// `metadata m : T;`, with or without `about`).
+fn package_metadata(merged: &MergedPackage) -> Vec<serde_yaml::Value> {
+    use sysml_v2_parser::PackageBodyElement as E;
+    merged
+        .body
+        .iter()
+        .flat_map(|(e, _, doc)| {
+            with_doc(doc, || match e {
+                E::Annotating(a) => annotating_meta(a).map(MetaMember::Annotation).map(meta_member_entries).unwrap_or_default(),
+                E::MetadataKeywordUsage(k) => meta_member_entries(MetaMember::Keyword(&k.value)),
+                E::MetadataUsage(u) => metadata_usage_entries(&u.value),
+                _ => Vec::new(),
+            })
+        })
+        .collect()
+}
+
+/// `REQ-TRS-SYSMLV2-086`/`-087`: after the whole subtree is merged, rewrite each `metadata:`
+/// entry's `type:` to the qualified name of the ingested `MetadataDef` it resolves to
+/// (innermost-scope-first from the holder; kept as written otherwise), and move each entry
+/// carrying an `about:` onto the element that target resolves to. An unresolved target keeps
+/// the entry on the holder, `about:` intact, and is counted per file for `W543`.
+fn resolve_metadata(out: &mut [RawElement]) -> BTreeMap<String, usize> {
+    let index: super::EndpointIndex = out.iter().map(|e| (e.qualified_name.clone(), (None, None))).collect();
+    let defs: super::EndpointIndex = out
+        .iter()
+        .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::MetadataDef)))
+        .map(|e| (e.qualified_name.clone(), (None, None)))
+        .collect();
+    let mut unresolved = BTreeMap::new();
+    let mut moved: Vec<(String, serde_yaml::Value)> = Vec::new();
+    for e in out.iter_mut() {
+        let Some(entries) = e.frontmatter.metadata.take() else { continue };
+        let holder = e.qualified_name.clone();
+        let mut kept = Vec::new();
+        for entry in entries {
+            let serde_yaml::Value::Mapping(mut m) = entry else {
+                kept.push(entry);
+                continue;
+            };
+            if let Some(t) = m.get(ykey("type")).and_then(|v| v.as_str()).map(str::to_string) {
+                if let Some(q) = super::lookup_scoped(&defs, &holder, &t) {
+                    m.insert(ykey("type"), ykey(&q));
+                }
+            }
+            let about = m.get(ykey("about")).and_then(|v| v.as_str()).map(str::to_string);
+            match about.as_deref().and_then(|a| super::lookup_scoped(&index, &holder, a)) {
+                Some(target) => {
+                    m.remove(ykey("about"));
+                    moved.push((target, serde_yaml::Value::Mapping(m)));
+                }
+                None => {
+                    if about.is_some() {
+                        *unresolved.entry(e.file_path.clone()).or_insert(0) += 1;
+                    }
+                    kept.push(serde_yaml::Value::Mapping(m));
+                }
+            }
+        }
+        e.frontmatter.metadata = nonempty_vec(kept);
+    }
+    for (target, entry) in moved {
+        if let Some(t) = out.iter_mut().find(|e| e.qualified_name == target) {
+            t.frontmatter.metadata.get_or_insert_with(Vec::new).push(entry);
+        }
+    }
+    unresolved
 }
 
 /// `doc /* ... */` lift over a `part def` body's already-sliced members.
@@ -2052,6 +2386,7 @@ fn convert_state_def(s: &sysml_v2_parser::ast::StateDef, qname: &str, file_path:
     }
     .with_syscribe_meta(state_def_syscribe_meta(elements))
     .with_doc(state_def_doc(elements))
+    .with_metadata(body_metadata(elements))
     .with_state_machine(body.sub_states, body.transitions);
     push_synth(out, &state_qname, file_path, ElementType::StateDef, &name, spec);
 }
@@ -2075,6 +2410,7 @@ fn convert_state_usage(s: &sysml_v2_parser::ast::StateUsage, qname: &str, file_p
     }
     .with_syscribe_meta(state_def_syscribe_meta(elements))
     .with_doc(state_def_doc(elements))
+    .with_metadata(body_metadata(elements))
     .with_state_machine(body.sub_states, body.transitions);
     push_synth(out, &state_qname, file_path, ElementType::State, &s_name, spec);
 }
@@ -2560,10 +2896,14 @@ impl ActionBodyBuilder {
     /// (`FirstMergeBody::Brace` carries no data), so there is nothing to
     /// recurse into even in principle. A non-negotiable upstream ceiling,
     /// not a Syscribe scope choice (see `ADR-SYS-SYSMLV2-001`'s addendum).
-    fn push_control_node(&mut self, name: String, kind: &str) {
+    fn push_control_node(&mut self, name: String, kind: &str, parameters: Vec<serde_yaml::Value>) {
         let mut m = serde_yaml::Mapping::new();
         m.insert(ykey("name"), serde_yaml::Value::String(name.clone()));
         m.insert(ykey("kind"), serde_yaml::Value::String(kind.to_string()));
+        // `REQ-TRS-SYSMLV2-090`: the node's `in`/`out` pin declarations.
+        if !parameters.is_empty() {
+            m.insert(ykey("parameters"), serde_yaml::Value::Sequence(parameters));
+        }
         self.last_named = Some(name);
         self.control_nodes.push(serde_yaml::Value::Mapping(m));
     }
@@ -2575,28 +2915,115 @@ impl ActionBodyBuilder {
     /// A succession edge, with the native `guard:` text when the statement carried one
     /// (`REQ-TRS-SYSMLV2-074`) and its own name/multiplicities (`REQ-TRS-SYSMLV2-081`).
     fn push_guarded_succession(&mut self, after: String, before: String, guard: Option<String>, extras: SuccessionExtras) {
-        let mut m = serde_yaml::Mapping::new();
-        if let Some(n) = extras.name.filter(|n| !n.is_empty()) {
-            m.insert(ykey("name"), serde_yaml::Value::String(n));
-        }
-        m.insert(ykey("after"), serde_yaml::Value::String(after));
-        m.insert(ykey("before"), serde_yaml::Value::String(before));
-        if let Some(g) = guard.filter(|g| !g.is_empty()) {
-            m.insert(ykey("guard"), serde_yaml::Value::String(g));
-        }
-        for (k, v) in [("multiplicity", extras.multiplicity), ("afterMultiplicity", extras.after_multiplicity), ("beforeMultiplicity", extras.before_multiplicity)] {
-            if let Some(v) = v {
-                m.insert(ykey(k), serde_yaml::Value::String(v));
-            }
-        }
-        self.succession_connections.push(serde_yaml::Value::Mapping(m));
+        self.succession_connections.push(succession_entry(after, before, guard, extras));
     }
+}
+
+/// One `successionConnections:` entry (`REQ-TRS-SYSMLV2-019`/`-074`/`-081`/`-091`/`-092`).
+fn succession_entry(after: String, before: String, guard: Option<String>, extras: SuccessionExtras) -> serde_yaml::Value {
+    let mut m = serde_yaml::Mapping::new();
+    if let Some(n) = extras.name.filter(|n| !n.is_empty()) {
+        m.insert(ykey("name"), serde_yaml::Value::String(n));
+    }
+    // `REQ-TRS-SYSMLV2-091`: the succession's own type.
+    if let Some(t) = extras.typed_by.filter(|t| !t.is_empty()) {
+        m.insert(ykey("typedBy"), serde_yaml::Value::String(t));
+    }
+    m.insert(ykey("after"), serde_yaml::Value::String(after));
+    m.insert(ykey("before"), serde_yaml::Value::String(before));
+    if let Some(g) = guard.filter(|g| !g.is_empty()) {
+        m.insert(ykey("guard"), serde_yaml::Value::String(g));
+    }
+    for (k, v) in [("multiplicity", extras.multiplicity), ("afterMultiplicity", extras.after_multiplicity), ("beforeMultiplicity", extras.before_multiplicity)] {
+        if let Some(v) = v {
+            m.insert(ykey(k), serde_yaml::Value::String(v));
+        }
+    }
+    serde_yaml::Value::Mapping(m)
+}
+
+/// `REQ-TRS-SYSMLV2-090`: the `in`/`out`/`inout` parameter declarations of a control node's body
+/// (`fork f { in a; out b : T; }`), as `parameters:` entries.
+fn control_node_parameters(body: &sysml_v2_parser::ast::FirstMergeBody) -> Vec<serde_yaml::Value> {
+    body.braced_elements()
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::ast::FirstMergeBodyElement::Member(m) => match &m.value {
+                sysml_v2_parser::ActionDefBodyElement::InOutDecl(d) => {
+                    Some(parameter_entry(&d.value.name.s(), &oqr(d.value.type_name).unwrap_or_default(), direction_str(d.value.direction)))
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+/// The `(after, before, extras)` of a `first X then Y;` statement, or `None` for the bare
+/// entry-point marker `first X;` (no edge to emit).
+fn first_stmt_parts(f: &sysml_v2_parser::ast::FirstStmt) -> Option<(String, String, SuccessionExtras)> {
+    let then = f.then.as_ref()?;
+    let first_name = connection_end_display(&f.first.value).unwrap_or_else(|| render_expression(&f.first.value));
+    let then_name = connection_end_display(&then.value).unwrap_or_else(|| render_expression(&then.value));
+    let mult = |m: &Option<sysml_v2_parser::Node<sysml_v2_parser::ast::Multiplicity>>| m.as_ref().map(|m| multiplicity_text(&m.value));
+    let extras = SuccessionExtras {
+        name: odn(f.succession_name),
+        typed_by: oqr(f.succession_type),
+        multiplicity: mult(&f.succession_multiplicity),
+        after_multiplicity: mult(&f.first_multiplicity),
+        before_multiplicity: mult(&f.then_multiplicity),
+    };
+    Some((first_name, then_name, extras))
+}
+
+/// The `(after, before, extras)` of a keyword-form `succession s : T [m] first [x] a then [y] b;`.
+fn succession_usage_parts(s: &sysml_v2_parser::ast::SuccessionUsage) -> (String, String, SuccessionExtras) {
+    let mult = |m: &Option<sysml_v2_parser::Node<sysml_v2_parser::ast::Multiplicity>>| m.as_ref().map(|m| multiplicity_text(&m.value));
+    let extras = SuccessionExtras {
+        name: odn(s.name),
+        typed_by: oqr(s.type_name),
+        multiplicity: mult(&s.multiplicity),
+        after_multiplicity: mult(&s.source_multiplicity),
+        before_multiplicity: mult(&s.target_multiplicity),
+    };
+    (expr_text(&s.source), expr_text(&s.target), extras)
+}
+
+/// `REQ-TRS-SYSMLV2-092`: the structural successions declared directly in a `part def` body.
+fn part_def_successions(elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>]) -> Vec<serde_yaml::Value> {
+    use sysml_v2_parser::PartDefBodyElement as E;
+    elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            // A `part def` body parses both spellings as `FirstStmt`.
+            E::FirstStmt(f) => first_stmt_parts(&f.value),
+            _ => None,
+        })
+        .map(|(a, b, x)| succession_entry(a, b, None, x))
+        .collect()
+}
+
+/// `REQ-TRS-SYSMLV2-092`: the structural successions declared directly in a `part` usage body.
+fn part_usage_successions(elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>]) -> Vec<serde_yaml::Value> {
+    use sysml_v2_parser::PartUsageBodyElement as E;
+    elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            // A `part` usage body parses both spellings as `SuccessionUsage`.
+            E::SuccessionUsage(s) => Some(succession_usage_parts(&s.value)),
+            _ => None,
+        })
+        .map(|(a, b, x)| succession_entry(a, b, None, x))
+        .collect()
 }
 
 /// The optional own-name and multiplicities of a succession statement (`REQ-TRS-SYSMLV2-081`).
 #[derive(Default)]
 struct SuccessionExtras {
     name: Option<String>,
+    /// `REQ-TRS-SYSMLV2-091`: the succession's own type.
+    typed_by: Option<String>,
     multiplicity: Option<String>,
     after_multiplicity: Option<String>,
     before_multiplicity: Option<String>,
@@ -2949,6 +3376,10 @@ fn handle_while(b: &mut ActionBodyBuilder, w: &sysml_v2_parser::ast::WhileStmt) 
     m.insert(ykey("kind"), serde_yaml::Value::String("LoopAction".to_string()));
     m.insert(ykey("loopKind"), serde_yaml::Value::String("while".to_string()));
     m.insert(ykey("condition"), serde_yaml::Value::String(render_expression(&w.condition.value)));
+    // `REQ-TRS-SYSMLV2-089`: `while c { } until d;` keeps both conditions.
+    if let Some(u) = &w.until {
+        m.insert(ykey("untilCondition"), serde_yaml::Value::String(render_expression(&u.expression.value)));
+    }
     let sub_actions = absorb(b, inner);
     if !sub_actions.is_empty() {
         m.insert(ykey("body"), serde_yaml::Value::Sequence(sub_actions));
@@ -3044,27 +3475,18 @@ fn handle_terminate(b: &mut ActionBodyBuilder, t: &sysml_v2_parser::ast::Termina
     b.push_sub_action(name, m);
 }
 
-fn handle_control_node(b: &mut ActionBodyBuilder, decl: &sysml_v2_parser::ast::ControlNodeDeclaration, kind: &str) {
+fn handle_control_node(b: &mut ActionBodyBuilder, decl: &sysml_v2_parser::ast::ControlNodeDeclaration, kind: &str, body: &sysml_v2_parser::ast::FirstMergeBody) {
     // An anonymous node (`fork;`) has no name to key a succession against; 0.54 could not parse one.
     let Some(expr) = control_node_expr(decl) else { return };
     let name = connection_end_display(&expr.value).unwrap_or_else(|| render_expression(&expr.value));
-    b.push_control_node(name, kind);
+    b.push_control_node(name, kind, control_node_parameters(body));
 }
 
 /// `first X [then Y];` — the succession edge (`X` → `Y`). A bare `first X;`
 /// with no `then` is an entry-point marker with no edge to emit; there is no
 /// dedicated "entry point" field in this schema, so it's a documented no-op.
 fn handle_first_stmt(b: &mut ActionBodyBuilder, f: &sysml_v2_parser::ast::FirstStmt) {
-    let Some(then) = &f.then else { return };
-    let first_name = connection_end_display(&f.first.value).unwrap_or_else(|| render_expression(&f.first.value));
-    let then_name = connection_end_display(&then.value).unwrap_or_else(|| render_expression(&then.value));
-    let mult = |m: &Option<sysml_v2_parser::Node<sysml_v2_parser::ast::Multiplicity>>| m.as_ref().map(|m| multiplicity_text(&m.value));
-    let extras = SuccessionExtras {
-        name: odn(f.succession_name),
-        multiplicity: mult(&f.succession_multiplicity),
-        after_multiplicity: mult(&f.first_multiplicity),
-        before_multiplicity: mult(&f.then_multiplicity),
-    };
+    let Some((first_name, then_name, extras)) = first_stmt_parts(f) else { return };
     b.push_guarded_succession(first_name, then_name, None, extras);
 }
 
@@ -3074,7 +3496,9 @@ fn handle_guarded_succession(b: &mut ActionBodyBuilder, g: &sysml_v2_parser::ast
     let first = qr_segments(g.first).join(".");
     let then = qr_segments(g.target.value.target).join(".");
     let name = g.succession.as_ref().and_then(|d| odn(d.declaration.value.identification.name));
-    b.push_guarded_succession(first, then, Some(render_expression(&g.guard.value)), SuccessionExtras { name, ..Default::default() });
+    // `REQ-TRS-SYSMLV2-091`: the succession's own type.
+    let typed_by = g.succession.as_ref().and_then(|d| typing_first(d.declaration.value.typing.as_ref()));
+    b.push_guarded_succession(first, then, Some(render_expression(&g.guard.value)), SuccessionExtras { name, typed_by, ..Default::default() });
 }
 
 /// `then <target>;` succession shorthand — connects from whatever node was
@@ -3111,17 +3535,17 @@ fn handle_then_action(b: &mut ActionBodyBuilder, t: &sysml_v2_parser::ast::ThenA
         // has a real endpoint. An anonymous `then fork;` has no name to key an edge against.
         T::Fork(f) => {
             let Some(name) = node_name(&f.value.declaration) else { return };
-            b.push_control_node(name.clone(), "ForkNode");
+            b.push_control_node(name.clone(), "ForkNode", control_node_parameters(&f.value.body));
             name
         }
         T::Decide(d) => {
             let Some(name) = node_name(&d.value.declaration) else { return };
-            b.push_control_node(name.clone(), "DecisionNode");
+            b.push_control_node(name.clone(), "DecisionNode", control_node_parameters(&d.value.body));
             name
         }
         T::Join(j) => {
             let Some(name) = node_name(&j.value.declaration) else { return };
-            b.push_control_node(name.clone(), "JoinNode");
+            b.push_control_node(name.clone(), "JoinNode", control_node_parameters(&j.value.body));
             name
         }
         T::Accept(acc) => {
@@ -3172,10 +3596,10 @@ fn build_action_def_body(elements: &[sysml_v2_parser::Node<sysml_v2_parser::Acti
             E::ForLoop(f) => handle_for_loop(&mut b, &f.value),
             E::IfStmt(i) => handle_if(&mut b, &i.value),
             E::TerminateStmt(t) => handle_terminate(&mut b, &t.value),
-            E::ForkStmt(f) => handle_control_node(&mut b, &f.value.declaration, "ForkNode"),
-            E::JoinStmt(j) => handle_control_node(&mut b, &j.value.declaration, "JoinNode"),
-            E::DecisionStmt(d) => handle_control_node(&mut b, &d.value.declaration, "DecisionNode"),
-            E::MergeStmt(m) => handle_control_node(&mut b, &m.value.declaration, "MergeNode"),
+            E::ForkStmt(f) => handle_control_node(&mut b, &f.value.declaration, "ForkNode", &f.value.body),
+            E::JoinStmt(j) => handle_control_node(&mut b, &j.value.declaration, "JoinNode", &j.value.body),
+            E::DecisionStmt(d) => handle_control_node(&mut b, &d.value.declaration, "DecisionNode", &d.value.body),
+            E::MergeStmt(m) => handle_control_node(&mut b, &m.value.declaration, "MergeNode", &m.value.body),
             E::FirstStmt(f) => handle_first_stmt(&mut b, &f.value),
             E::GuardedSuccession(g) => handle_guarded_succession(&mut b, &g.value),
             E::ThenAction(t) => handle_then_action(&mut b, &t.value),
@@ -3217,10 +3641,10 @@ fn build_action_usage_body(elements: &[sysml_v2_parser::Node<sysml_v2_parser::Ac
             E::ForLoop(f) => handle_for_loop(&mut b, &f.value),
             E::IfStmt(i) => handle_if(&mut b, &i.value),
             E::TerminateStmt(t) => handle_terminate(&mut b, &t.value),
-            E::ForkStmt(f) => handle_control_node(&mut b, &f.value.declaration, "ForkNode"),
-            E::JoinStmt(j) => handle_control_node(&mut b, &j.value.declaration, "JoinNode"),
-            E::DecisionStmt(d) => handle_control_node(&mut b, &d.value.declaration, "DecisionNode"),
-            E::MergeStmt(m) => handle_control_node(&mut b, &m.value.declaration, "MergeNode"),
+            E::ForkStmt(f) => handle_control_node(&mut b, &f.value.declaration, "ForkNode", &f.value.body),
+            E::JoinStmt(j) => handle_control_node(&mut b, &j.value.declaration, "JoinNode", &j.value.body),
+            E::DecisionStmt(d) => handle_control_node(&mut b, &d.value.declaration, "DecisionNode", &d.value.body),
+            E::MergeStmt(m) => handle_control_node(&mut b, &m.value.declaration, "MergeNode", &m.value.body),
             E::FirstStmt(f) => handle_first_stmt(&mut b, &f.value),
             E::GuardedSuccession(g) => handle_guarded_succession(&mut b, &g.value),
             E::ThenAction(t) => handle_then_action(&mut b, &t.value),
@@ -3281,6 +3705,7 @@ fn convert_action_def(a: &sysml_v2_parser::ActionDef, qname: &str, file_path: &s
     }
     .with_syscribe_meta(action_def_syscribe_meta(elements))
     .with_doc(action_def_doc(elements))
+    .with_metadata(body_metadata(elements))
     .with_behavior(body.sub_actions, body.control_nodes, body.succession_connections);
     push_synth(out, &action_qname, file_path, ElementType::ActionDef, &name, spec);
     for node in elements {
@@ -3304,6 +3729,7 @@ fn convert_action_usage(a: &sysml_v2_parser::ActionUsage, qname: &str, file_path
     }
     .with_syscribe_meta(action_usage_syscribe_meta(elements))
     .with_doc(action_usage_doc(elements))
+    .with_metadata(body_metadata(elements))
     .with_behavior(body.sub_actions, body.control_nodes, body.succession_connections);
     push_synth(out, &action_qname, file_path, ElementType::Action, &a_name, spec);
     for node in elements {
@@ -3332,6 +3758,7 @@ fn convert_view_def(v: &sysml_v2_parser::ast::ViewDef, qname: &str, file_path: &
         ..Default::default()
     }
     .with_doc(view_def_doc(elements))
+    .with_metadata(body_metadata(elements))
     .with_view(Vec::new(), None, view_def_rendering(elements));
     push_synth(out, &view_qname, file_path, ElementType::ViewDef, &name, spec);
 }
@@ -3354,6 +3781,7 @@ fn convert_view_usage(v: &sysml_v2_parser::ast::ViewUsage, qname: &str, file_pat
         ..Default::default()
     }
     .with_doc(view_usage_doc(elements))
+    .with_metadata(body_metadata(elements))
     .with_view(
         view_expose_entries(elements),
         view_satisfy_viewpoint(elements),
@@ -3381,6 +3809,7 @@ fn convert_viewpoint_def(v: &sysml_v2_parser::ast::ViewpointDef, qname: &str, fi
         ..Default::default()
     }
     .with_doc(requirement_def_body_doc(&v.body))
+    .with_metadata(requirement_def_body_metadata(&v.body))
     .with_stakeholders_concerns(stakeholders, concerns);
     push_synth(out, &vp_qname, file_path, ElementType::ViewpointDef, &name, spec);
 }
@@ -3404,6 +3833,7 @@ fn convert_viewpoint_usage(v: &sysml_v2_parser::ast::ViewpointUsage, qname: &str
         ..Default::default()
     }
     .with_doc(requirement_def_body_doc(&v.body))
+    .with_metadata(requirement_def_body_metadata(&v.body))
     .with_stakeholders_concerns(stakeholders, concerns);
     push_synth(out, &vp_qname, file_path, ElementType::View, &v_name, spec);
 }
@@ -3437,6 +3867,7 @@ fn convert_concern_usage(c: &sysml_v2_parser::ast::ConcernUsage, qname: &str, fi
         ..Default::default()
     }
     .with_doc(requirement_def_body_doc(&c.body))
+    .with_metadata(requirement_def_body_metadata(&c.body))
     // `ConcernDef` has no `concerns:` self-field (§8.11.5) -- only the
     // stakeholders half of the tuple is used; `requires:`/`assume:`/
     // `parameters:` are explicitly out of scope for this requirement (see
@@ -3463,7 +3894,8 @@ fn convert_rendering_def(r: &sysml_v2_parser::ast::RenderingDef, qname: &str, fi
         supertype: r.specializes.as_ref().map(|t| refs_display(&t.value.target)),
         ..Default::default()
     }
-    .with_doc(rendering_def_doc(elements));
+    .with_doc(rendering_def_doc(elements))
+    .with_metadata(body_metadata(elements));
     push_synth(out, &rendering_qname, file_path, ElementType::RenderingDef, &name, spec);
 }
 
@@ -3486,7 +3918,8 @@ fn convert_rendering_usage(r: &sysml_v2_parser::ast::RenderingUsage, qname: &str
         typed_by: oqr(r.type_name),
         ..Default::default()
     }
-    .with_doc(rendering_usage_doc(elements));
+    .with_doc(rendering_usage_doc(elements))
+    .with_metadata(body_metadata(elements));
     push_synth(out, &rendering_qname, file_path, ElementType::Rendering, &r_name, spec);
 }
 
@@ -3507,35 +3940,55 @@ fn subsetting_targets(r: &sysml_v2_parser::ast::SubsettingRelationship) -> Vec<S
     r.target.iter().map(|t| qr(*t)).collect()
 }
 
+/// One `alias <name> for <target>;` as an `aliases:` entry (`REQ-TRS-SYSMLV2-043`/`-095`);
+/// `None` for an anonymous alias. Must run under the declaring file's document.
+fn alias_entry(a: &sysml_v2_parser::ast::AliasDef) -> Option<serde_yaml::Value> {
+    let id = &a.identification;
+    let (name, short) = match (odn(id.name), odn(id.short_name)) {
+        (Some(n), s) => (n, s),
+        (None, Some(s)) => (s, None),
+        (None, None) => return None,
+    };
+    let mut m = serde_yaml::Mapping::new();
+    m.insert(ykey("name"), ykey(&name));
+    if let Some(s) = short {
+        m.insert(ykey("shortName"), ykey(&s));
+    }
+    m.insert(ykey("for"), ykey(&qr(a.target)));
+    Some(serde_yaml::Value::Mapping(m))
+}
+
 /// `REQ-TRS-SYSMLV2-043`: `alias <name> for <target>;` members of one merged package.
 fn package_aliases(merged: &MergedPackage) -> Vec<serde_yaml::Value> {
     merged
         .body
         .iter()
         .filter_map(|(e, _, doc)| match e {
-            sysml_v2_parser::PackageBodyElement::AliasDef(a) => with_doc(doc, || {
-                let id = &a.value.identification;
-                let (name, short) = match (odn(id.name), odn(id.short_name)) {
-                    (Some(n), s) => (n, s),
-                    (None, Some(s)) => (s, None),
-                    (None, None) => return None,
-                };
-                let mut m = serde_yaml::Mapping::new();
-                m.insert(ykey("name"), ykey(&name));
-                if let Some(s) = short {
-                    m.insert(ykey("shortName"), ykey(&s));
-                }
-                m.insert(ykey("for"), ykey(&qr(a.value.target)));
-                Some(serde_yaml::Value::Mapping(m))
-            }),
+            sysml_v2_parser::PackageBodyElement::AliasDef(a) => with_doc(doc, || alias_entry(&a.value)),
             _ => None,
         })
         .collect()
 }
 
 fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>) {
+    // `REQ-TRS-SYSMLV2-086`: a package-level `#T` with no body of its own prefixes the member
+    // that follows it in the same file (`#T part def B;`), which receives `{type: T}`.
+    let mut prefix: Option<(String, String)> = None;
     for (elem, file_path, doc) in &merged.body {
+        if let sysml_v2_parser::PackageBodyElement::MetadataKeywordUsage(k) = elem {
+            if k.value.body.is_none() {
+                prefix = Some((with_doc(doc, || qr(k.value.reference)), file_path.clone()));
+                continue;
+            }
+        }
+        let before = out.len();
         with_doc(doc, || convert_package_body_element(elem, qname, file_path, out));
+        if let Some((type_ref, file)) = prefix.take() {
+            if file == *file_path && out.len() > before {
+                let entries = metadata_entries(type_ref, None, Vec::new(), Vec::new());
+                out[before].frontmatter.metadata.get_or_insert_with(Vec::new).extend(entries);
+            }
+        }
     }
     for (name, child) in &merged.children {
         let child_qname = format!("{qname}::{name}");
@@ -3552,7 +4005,8 @@ fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>
             .filter(|t| !t.is_empty())
             .collect::<Vec<_>>()
             .join("\n\n");
-        let spec = Spec { aliases: nonempty_vec(package_aliases(child)), ..Default::default() };
+        let spec = Spec { aliases: nonempty_vec(package_aliases(child)), ..Default::default() }
+            .with_metadata(package_metadata(child));
         push_synth(out, &child_qname, file_path, ElementType::Package, name, spec.with_doc(doc));
         convert_merged(child, &child_qname, out);
     }
@@ -3672,10 +4126,13 @@ fn convert_part_def(
         is_variation: is_variation_prefix(&part.definition_prefix),
         satisfies,
         applies_when: part_def_syscribe_feature_id(elements),
+        // `REQ-TRS-SYSMLV2-092`: structural successions between owned usages.
+        succession_connections: nonempty_vec(part_def_successions(elements)),
         ..Default::default()
     }
     .with_syscribe_meta(part_def_syscribe_meta(elements))
     .with_doc(part_def_doc(elements))
+    .with_metadata(body_metadata(elements))
     .with_connections(connections)
     .with_flow_connections(flow_connections);
     push_synth(out, &part_qname, file_path, ElementType::PartDef, &name, spec);
@@ -3716,6 +4173,8 @@ fn convert_part_usage(
         is_variation: usage_variation(&part.prefix).then_some(true),
         satisfies,
         applies_when: part_usage_syscribe_feature_id(elements),
+        // `REQ-TRS-SYSMLV2-092`: structural successions between owned usages.
+        succession_connections: nonempty_vec(part_usage_successions(elements)),
         ..Default::default()
     }
     .with_usage_relations(
@@ -3725,6 +4184,7 @@ fn convert_part_usage(
     )
     .with_syscribe_meta(part_usage_syscribe_meta(elements))
     .with_doc(part_usage_doc(elements))
+    .with_metadata(body_metadata(elements))
     .with_connections(connections)
     .with_flow_connections(flow_connections);
     push_synth(out, &part_qname, file_path, ElementType::Part, &part.name.s(), spec);
@@ -3987,7 +4447,8 @@ fn convert_attribute_def(
         supertype: a.typing.as_ref().map(|t| refs_display(&t.value.target)),
         ..Default::default()
     }
-    .with_doc(attribute_body_doc(elements));
+    .with_doc(attribute_body_doc(elements))
+    .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::AttributeDef, &a.name.s(), spec);
 }
 
@@ -4026,7 +4487,8 @@ fn convert_attribute_usage(
         ..Default::default()
     }
     .with_usage_relations(None, a.subsets.as_ref().map(|r| &r.value), a.redefines.as_ref().map(|r| &r.value))
-    .with_doc(attribute_body_doc(elements));
+    .with_doc(attribute_body_doc(elements))
+    .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::Attribute, &a.name.s(), spec);
 }
 
@@ -4053,7 +4515,8 @@ fn convert_port_def(
         ..Default::default()
     }
     .with_doc(doc)
-    .with_syscribe_meta(meta);
+    .with_syscribe_meta(meta)
+    .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::PortDef, &name, spec);
     for node in elements {
         convert_port_def_body_element(&node.value, &elem_qname, file_path, out);
@@ -4111,7 +4574,8 @@ fn convert_port_usage(
         p.subsets.as_ref().map(|(r, _)| &r.value),
         p.redefines.as_ref().map(|r| &r.value),
     )
-    .with_doc(port_usage_doc(elements));
+    .with_doc(port_usage_doc(elements))
+    .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::Port, &p.name.s(), spec);
 }
 
@@ -4138,7 +4602,8 @@ fn convert_connection_def(
         ..Default::default()
     }
     .with_doc(doc)
-    .with_syscribe_meta(meta);
+    .with_syscribe_meta(meta)
+    .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::ConnectionDef, &name, spec);
     for node in elements {
         convert_connection_def_body_element(&node.value, &elem_qname, file_path, out);
@@ -4180,15 +4645,16 @@ fn convert_connection_usage(
     // convert_connection_def already reads its own body through — reused
     // unchanged here, REQ-TRS-SYSMLV2-012 (the sibling usage-body doc lift
     // REQ-TRS-SYSMLV2-009 didn't reach).
-    let doc = match &c.body {
-        sysml_v2_parser::ConnectionDefBody::Brace { elements, .. } => connection_def_doc(elements),
-        sysml_v2_parser::ConnectionDefBody::Semicolon { .. } => String::new(),
+    let elements = match &c.body {
+        sysml_v2_parser::ConnectionDefBody::Brace { elements, .. } => elements.as_slice(),
+        sysml_v2_parser::ConnectionDefBody::Semicolon { .. } => &[],
     };
     let spec = Spec {
         typed_by: typing_first(c.typing.as_ref()),
         ..Default::default()
     }
-    .with_doc(doc);
+    .with_doc(connection_def_doc(elements))
+    .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::Connection, &name, spec);
 }
 
@@ -4236,7 +4702,8 @@ fn convert_flow_def(f: &sysml_v2_parser::FlowDef, qname: &str, file_path: &str, 
         supertype: f.specializes.as_ref().map(|t| refs_display(&t.value.target)),
         ..Default::default()
     }
-    .with_doc(flow_body_doc(&f.body));
+    .with_doc(flow_body_doc(&f.body))
+    .with_metadata(definition_body_metadata(&f.body));
     push_synth(out, &flow_qname, file_path, ElementType::FlowDef, &name, spec);
 }
 
@@ -4255,7 +4722,8 @@ fn convert_flow_usage(f: &sysml_v2_parser::FlowUsage, qname: &str, file_path: &s
         item_type: flow_item_type(f),
         ..Default::default()
     }
-    .with_doc(flow_body_doc(&f.body));
+    .with_doc(flow_body_doc(&f.body))
+    .with_metadata(definition_body_metadata(&f.body));
     push_synth(out, &flow_qname, file_path, ElementType::Flow, &name, spec);
 }
 
@@ -4323,7 +4791,8 @@ fn convert_enum_usage(e: &sysml_v2_parser::ast::EnumerationUsage, qname: &str, f
         typed_by: oqr(e.type_name),
         ..Default::default()
     }
-    .with_doc(attribute_body_doc(elements));
+    .with_doc(attribute_body_doc(elements))
+    .with_metadata(body_metadata(elements));
     push_synth(out, &enum_qname, file_path, ElementType::Enumeration, &e.name.s(), spec);
 }
 
@@ -4346,6 +4815,8 @@ struct CaseBodyFields {
     /// `REQ-TRS-SYSMLV2-054` -- raw names of `include X;` / `then include X;` members.
     includes: Vec<String>,
     doc: String,
+    /// `REQ-TRS-SYSMLV2-086` -- metadata applications in the body.
+    metadata: Vec<serde_yaml::Value>,
 }
 
 /// The use case an `include` member references (`REQ-TRS-SYSMLV2-054`/`-075`): the target of
@@ -4364,6 +4835,7 @@ fn case_body_fields(body: &sysml_v2_parser::ast::UseCaseDefBody) -> CaseBodyFiel
             result_type: None,
             includes: Vec::new(),
             doc: String::new(),
+            metadata: Vec::new(),
         };
     };
     let mut subject = None;
@@ -4419,6 +4891,7 @@ fn case_body_fields(body: &sysml_v2_parser::ast::UseCaseDefBody) -> CaseBodyFiel
         result_type,
         includes,
         doc,
+        metadata: body_metadata(elements),
     }
 }
 
@@ -4437,7 +4910,8 @@ fn convert_case_def(c: &sysml_v2_parser::CaseDef, qname: &str, file_path: &str, 
         result_type: fields.result_type,
         ..Default::default()
     }
-    .with_doc(fields.doc);
+    .with_doc(fields.doc)
+    .with_metadata(fields.metadata);
     push_synth(out, &case_qname, file_path, ElementType::CaseDef, &name, spec);
 }
 
@@ -4456,7 +4930,8 @@ fn convert_case_usage(c: &sysml_v2_parser::CaseUsage, qname: &str, file_path: &s
         result_type: fields.result_type,
         ..Default::default()
     }
-    .with_doc(fields.doc);
+    .with_doc(fields.doc)
+    .with_metadata(fields.metadata);
     push_synth(out, &case_qname, file_path, ElementType::Case, &c.name.s(), spec);
 }
 
@@ -4475,7 +4950,8 @@ fn convert_analysis_case_def(a: &sysml_v2_parser::AnalysisCaseDef, qname: &str, 
         result_type: fields.result_type,
         ..Default::default()
     }
-    .with_doc(fields.doc);
+    .with_doc(fields.doc)
+    .with_metadata(fields.metadata);
     push_synth(out, &case_qname, file_path, ElementType::AnalysisCaseDef, &name, spec);
 }
 
@@ -4494,7 +4970,8 @@ fn convert_analysis_case_usage(a: &sysml_v2_parser::AnalysisCaseUsage, qname: &s
         result_type: fields.result_type,
         ..Default::default()
     }
-    .with_doc(fields.doc);
+    .with_doc(fields.doc)
+    .with_metadata(fields.metadata);
     push_synth(out, &case_qname, file_path, ElementType::AnalysisCase, &a.name.s(), spec);
 }
 
@@ -4513,7 +4990,8 @@ fn convert_verification_case_def(v: &sysml_v2_parser::VerificationCaseDef, qname
         result_type: fields.result_type,
         ..Default::default()
     }
-    .with_doc(fields.doc);
+    .with_doc(fields.doc)
+    .with_metadata(fields.metadata);
     push_synth(out, &case_qname, file_path, ElementType::VerificationCaseDef, &name, spec);
 }
 
@@ -4532,7 +5010,8 @@ fn convert_verification_case_usage(v: &sysml_v2_parser::VerificationCaseUsage, q
         result_type: fields.result_type,
         ..Default::default()
     }
-    .with_doc(fields.doc);
+    .with_doc(fields.doc)
+    .with_metadata(fields.metadata);
     push_synth(out, &case_qname, file_path, ElementType::VerificationCase, &v.name.s(), spec);
 }
 
@@ -4559,7 +5038,8 @@ fn convert_interface_def(
         ..Default::default()
     }
     .with_doc(doc)
-    .with_syscribe_meta(meta);
+    .with_syscribe_meta(meta)
+    .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::InterfaceDef, &name, spec);
     for node in elements {
         convert_interface_def_body_element(&node.value, &elem_qname, file_path, out);
@@ -4611,7 +5091,8 @@ fn convert_interface_usage(
             typed_by: oqr(*interface_type),
             ..Default::default()
         }
-        .with_doc(interface_usage_doc(body.braced_elements().unwrap_or(&[])));
+        .with_doc(interface_usage_doc(body.braced_elements().unwrap_or(&[])))
+        .with_metadata(body_metadata(body.braced_elements().unwrap_or(&[])));
         push_synth(out, &elem_qname, file_path, ElementType::Interface, &name, spec);
     }
 }
@@ -4636,7 +5117,8 @@ fn convert_item_def(
         supertype: i.specializes.as_ref().map(|t| refs_display(&t.value.target)),
         ..Default::default()
     }
-    .with_doc(attribute_body_doc(elements));
+    .with_doc(attribute_body_doc(elements))
+    .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::ItemDef, &name, spec);
     for node in elements {
         convert_attribute_body_element(&node.value, &elem_qname, file_path, out);
@@ -4687,7 +5169,8 @@ fn convert_item_usage(
         None,
         i.redefines.as_ref().map(|r| &r.value),
     )
-    .with_doc(attribute_body_doc(elements));
+    .with_doc(attribute_body_doc(elements))
+    .with_metadata(body_metadata(elements));
     push_synth(out, &elem_qname, file_path, ElementType::Item, &i.name.s(), spec);
 }
 
@@ -4702,7 +5185,8 @@ fn convert_occurrence_def(o: &sysml_v2_parser::ast::OccurrenceDef, qname: &str, 
         is_variation: is_variation_prefix(&o.definition_prefix),
         ..Default::default()
     }
-    .with_doc(flow_body_doc(&o.body));
+    .with_doc(flow_body_doc(&o.body))
+    .with_metadata(definition_body_metadata(&o.body));
     push_synth(out, &format!("{qname}::{name}"), file_path, ty, &name, spec);
 }
 
@@ -4719,24 +5203,26 @@ fn convert_individual_def(i: &sysml_v2_parser::ast::IndividualDef, qname: &str, 
         is_variation: is_variation_prefix(&i.definition_prefix),
         ..Default::default()
     }
-    .with_doc(attribute_body_doc(elements));
+    .with_doc(attribute_body_doc(elements))
+    .with_metadata(body_metadata(elements));
     push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::IndividualDef, &name, spec);
 }
 
-/// Whether an `occurrence` usage maps natively: named, and no `snapshot`/`timeslice` portion kind
-/// (`REQ-TRS-SYSMLV2-083`).
+/// Whether an `occurrence` usage maps natively: named (`REQ-TRS-SYSMLV2-083`; a portion kind is
+/// native since `REQ-TRS-SYSMLV2-094`).
 fn occurrence_usage_mappable(o: &sysml_v2_parser::ast::OccurrenceUsage) -> bool {
-    let portion = matches!(&o.prefix.head, sysml_v2_parser::ast::OccurrenceUsagePrefixHead::Basic { portion: Some(_), .. });
-    !portion && odn(o.name).is_some_and(|n| !n.is_empty())
+    odn(o.name).is_some_and(|n| !n.is_empty())
 }
 
-/// `REQ-TRS-SYSMLV2-083` -- `occurrence o : T [m];` / `individual occurrence` / `event occurrence`.
+/// `REQ-TRS-SYSMLV2-083` -- `occurrence o : T [m];` / `individual occurrence` / `event occurrence`;
+/// `REQ-TRS-SYSMLV2-094` -- `snapshot`/`timeslice` is the native `isPortion`/`portionKind`.
 fn convert_occurrence_usage(o: &sysml_v2_parser::ast::OccurrenceUsage, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
     if !occurrence_usage_mappable(o) {
         return;
     }
     let name = odn(o.name).unwrap_or_default();
     let individual = matches!(&o.prefix.head, sysml_v2_parser::ast::OccurrenceUsagePrefixHead::Basic { individual_span: Some(_), .. });
+    let portion = o.prefix.portion().map(|p| p.value.keyword().to_string());
     let elements = o.body.braced_elements().unwrap_or(&[]);
     let doc = collect_doc(elements, |e| match e {
         sysml_v2_parser::ast::OccurrenceBodyElement::Annotating(a) => annotating_doc(a),
@@ -4745,18 +5231,30 @@ fn convert_occurrence_usage(o: &sysml_v2_parser::ast::OccurrenceUsage, qname: &s
     let spec = Spec {
         typed_by: oqr(o.type_name).filter(|t| !t.is_empty()),
         is_individual: individual.then_some(true),
+        is_portion: portion.is_some().then_some(true),
+        portion_kind: portion,
         ..Default::default()
     }
     .with_usage_relations(o.multiplicity.as_ref().map(|m| &m.value), o.subsets.as_ref().map(|r| &r.value), o.redefines.as_ref().map(|r| &r.value))
-    .with_doc(doc);
+    .with_doc(doc)
+    .with_metadata(body_metadata(elements));
     let ty = if o.is_event { ElementType::EventOccurrence } else { ElementType::Occurrence };
     push_synth(out, &format!("{qname}::{name}"), file_path, ty, &name, spec);
 }
 
-/// `REQ-TRS-SYSMLV2-084` -- a *named* `dependency n from a, b to c;`.
+/// `REQ-TRS-SYSMLV2-084` -- `dependency n from a, b to c;`; `REQ-TRS-SYSMLV2-093` -- an anonymous
+/// one is named `dependency_N`, N counting from 1 in source order within the owning scope and
+/// skipping a name already taken there (the same convention as `accept_N`/`if_N`).
 fn convert_dependency(d: &sysml_v2_parser::ast::Dependency, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
-    let Some(name) = d.identification.as_ref().and_then(ident_name).filter(|n| !n.is_empty()) else { return };
-    let doc = collect_doc(d.body.braced_elements().unwrap_or(&[]), |e| match e {
+    let name = match d.identification.as_ref().and_then(ident_name).filter(|n| !n.is_empty()) {
+        Some(n) => n,
+        None => (1..)
+            .map(|n| format!("dependency_{n}"))
+            .find(|n| !out.iter().any(|e| e.qualified_name == format!("{qname}::{n}")))
+            .unwrap_or_default(),
+    };
+    let elements = d.body.braced_elements().unwrap_or(&[]);
+    let doc = collect_doc(elements, |e| match e {
         sysml_v2_parser::ast::RelationshipBodyElement::Annotating(a) => annotating_doc(a),
         _ => None,
     });
@@ -4765,7 +5263,8 @@ fn convert_dependency(d: &sysml_v2_parser::ast::Dependency, qname: &str, file_pa
         suppliers: nonempty_vec(d.suppliers.iter().map(|c| qr_segments(*c).join("::")).collect()),
         ..Default::default()
     }
-    .with_doc(doc);
+    .with_doc(doc)
+    .with_metadata(body_metadata(elements));
     push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::Dependency, &name, spec);
 }
 
@@ -4813,7 +5312,8 @@ fn convert_requirement_def(
         applies_when: requirement_body_syscribe_feature_id(&r.body),
         ..Default::default()
     }
-    .with_doc(requirement_def_body_doc(&r.body));
+    .with_doc(requirement_def_body_doc(&r.body))
+    .with_metadata(requirement_def_body_metadata(&r.body));
     push_synth(out, &elem_qname, file_path, ElementType::RequirementDef, &name, spec);
 }
 
@@ -4841,7 +5341,8 @@ fn convert_requirement_usage(
         applies_when: requirement_body_syscribe_feature_id(&r.body),
         ..Default::default()
     }
-    .with_doc(requirement_def_body_doc(&r.body));
+    .with_doc(requirement_def_body_doc(&r.body))
+    .with_metadata(requirement_def_body_metadata(&r.body));
     push_synth(out, &elem_qname, file_path, ElementType::Requirement, &r.name.s(), spec);
 }
 
@@ -4901,7 +5402,8 @@ fn convert_allocation_def(
         supertype: a.specializes.as_ref().map(|t| refs_display(&t.value.target)),
         ..Default::default()
     }
-    .with_doc(flow_body_doc(&a.body));
+    .with_doc(flow_body_doc(&a.body))
+    .with_metadata(definition_body_metadata(&a.body));
     push_synth(out, &def_qname, file_path, ElementType::AllocationDef, &name, spec);
 }
 
@@ -4998,7 +5500,8 @@ fn convert_variant_usage(
             let mut spec = base_spec();
             spec.typed_by = au.value.typing.as_ref().map(|t| refs_display(&t.value.target));
             if let sysml_v2_parser::AttributeBody::Brace { elements, .. } = &au.value.body {
-                spec = spec.with_doc(attribute_body_doc(elements));
+                spec = spec.with_doc(attribute_body_doc(elements))
+    .with_metadata(body_metadata(elements));
             }
             push_synth(out, &elem_qname, file_path, ElementType::Attribute, &v_name, spec);
         }
@@ -5006,7 +5509,8 @@ fn convert_variant_usage(
             let mut spec = base_spec();
             spec.typed_by = oqr(iu.value.type_name);
             if let sysml_v2_parser::AttributeBody::Brace { elements, .. } = &iu.value.body {
-                spec = spec.with_doc(attribute_body_doc(elements));
+                spec = spec.with_doc(attribute_body_doc(elements))
+    .with_metadata(body_metadata(elements));
             }
             push_synth(out, &elem_qname, file_path, ElementType::Item, &v_name, spec);
         }
@@ -5054,12 +5558,13 @@ struct ConstraintBodyFields {
     parameters: Option<Vec<serde_yaml::Value>>,
     expression: Option<String>,
     doc: String,
+    metadata: Vec<serde_yaml::Value>,
 }
 
 fn constraint_body_fields(body: &sysml_v2_parser::ast::ConstraintDefBody) -> ConstraintBodyFields {
     use sysml_v2_parser::ast::ConstraintDefBodyElement as B;
     let sysml_v2_parser::ast::ConstraintDefBody::Brace { elements, .. } = body else {
-        return ConstraintBodyFields { parameters: None, expression: None, doc: String::new() };
+        return ConstraintBodyFields { parameters: None, expression: None, doc: String::new(), metadata: Vec::new() };
     };
     let mut params = Vec::new();
     let mut exprs = Vec::new();
@@ -5078,7 +5583,7 @@ fn constraint_body_fields(body: &sysml_v2_parser::ast::ConstraintDefBody) -> Con
         B::Annotating(a) => annotating_doc(a),
         _ => None,
     });
-    ConstraintBodyFields { parameters: nonempty_vec(params), expression: join_expressions(exprs), doc }
+    ConstraintBodyFields { parameters: nonempty_vec(params), expression: join_expressions(exprs), doc, metadata: body_metadata(elements) }
 }
 
 /// `REQ-TRS-SYSMLV2-052`: whether `text`, written as the single body statement
@@ -5125,7 +5630,8 @@ fn convert_constraint_def(c: &sysml_v2_parser::ast::ConstraintDef, qname: &str, 
         expression: fields.expression,
         ..Default::default()
     }
-    .with_doc(fields.doc);
+    .with_doc(fields.doc)
+    .with_metadata(fields.metadata);
     push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::ConstraintDef, &name, spec);
 }
 
@@ -5140,7 +5646,8 @@ fn convert_constraint_usage(c: &sysml_v2_parser::ast::ConstraintUsage, qname: &s
         expression: fields.expression,
         ..Default::default()
     }
-    .with_doc(fields.doc);
+    .with_doc(fields.doc)
+    .with_metadata(fields.metadata);
     push_synth(out, &format!("{qname}::{}", c.name.s()), file_path, ElementType::Constraint, &c.name.s(), spec);
 }
 
@@ -5149,12 +5656,13 @@ struct CalcBodyFields {
     return_type: Option<String>,
     body: Option<String>,
     doc: String,
+    metadata: Vec<serde_yaml::Value>,
 }
 
 fn calc_body_fields(body: &sysml_v2_parser::ast::CalcDefBody) -> CalcBodyFields {
     use sysml_v2_parser::ast::CalcDefBodyElement as B;
     let sysml_v2_parser::ast::CalcDefBody::Brace { elements, .. } = body else {
-        return CalcBodyFields { parameters: None, return_type: None, body: None, doc: String::new() };
+        return CalcBodyFields { parameters: None, return_type: None, body: None, doc: String::new(), metadata: Vec::new() };
     };
     let mut params = Vec::new();
     let mut exprs = Vec::new();
@@ -5185,7 +5693,7 @@ fn calc_body_fields(body: &sysml_v2_parser::ast::CalcDefBody) -> CalcBodyFields 
         B::Annotating(a) => annotating_doc(a),
         _ => None,
     });
-    CalcBodyFields { parameters: nonempty_vec(params), return_type, body: join_expressions(exprs), doc }
+    CalcBodyFields { parameters: nonempty_vec(params), return_type, body: join_expressions(exprs), doc, metadata: body_metadata(elements) }
 }
 
 fn convert_calc_def(c: &sysml_v2_parser::ast::CalcDef, qname: &str, file_path: &str, out: &mut Vec<RawElement>) {
@@ -5200,7 +5708,8 @@ fn convert_calc_def(c: &sysml_v2_parser::ast::CalcDef, qname: &str, file_path: &
         body: f.body,
         ..Default::default()
     }
-    .with_doc(f.doc);
+    .with_doc(f.doc)
+    .with_metadata(f.metadata);
     push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::CalculationDef, &name, spec);
 }
 
@@ -5217,7 +5726,8 @@ fn convert_calc_usage(c: &sysml_v2_parser::ast::CalcUsage, qname: &str, file_pat
         body: f.body,
         ..Default::default()
     }
-    .with_doc(f.doc);
+    .with_doc(f.doc)
+    .with_metadata(f.metadata);
     push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::Calculation, &name, spec);
 }
 
@@ -5230,12 +5740,30 @@ fn convert_metadata_def(m: &sysml_v2_parser::ast::MetadataDef, qname: &str, file
         sysml_v2_parser::AttributeBody::Brace { elements, .. } => elements.as_slice(),
         sysml_v2_parser::AttributeBody::Semicolon { .. } => &[],
     };
+    // `REQ-TRS-SYSMLV2-086`: the def's `attribute` members are its `features:` (the declared
+    // tagged-value keys `W045` checks an application against).
+    let features = elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::ast::AttributeBodyElement::AttributeUsage(a) if !a.value.name.s().is_empty() => {
+                let mut f = serde_yaml::Mapping::new();
+                f.insert(ykey("name"), ykey(&a.value.name.s()));
+                if let Some(t) = a.value.typing.as_ref().map(|t| refs_display(&t.value.target)).filter(|t| !t.is_empty()) {
+                    f.insert(ykey("typedBy"), ykey(&t));
+                }
+                Some(serde_yaml::Value::Mapping(f))
+            }
+            _ => None,
+        })
+        .collect();
     let spec = Spec {
         supertype: m.specializes.as_ref().map(|t| refs_display(&t.value.target)),
         is_abstract: m.is_abstract.then_some(true),
+        features: nonempty_vec(features),
         ..Default::default()
     }
-    .with_doc(attribute_body_doc(elements));
+    .with_doc(attribute_body_doc(elements))
+    .with_metadata(body_metadata(elements));
     push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::MetadataDef, &name, spec);
 }
 
@@ -5254,7 +5782,8 @@ fn convert_use_case_def(c: &sysml_v2_parser::ast::UseCaseDef, qname: &str, file_
         includes: nonempty_vec(f.includes),
         ..Default::default()
     }
-    .with_doc(f.doc);
+    .with_doc(f.doc)
+    .with_metadata(f.metadata);
     push_synth(out, &format!("{qname}::{name}"), file_path, ElementType::UseCaseDef, &name, spec);
 }
 
@@ -5273,7 +5802,8 @@ fn convert_use_case_usage(c: &sysml_v2_parser::ast::UseCaseUsage, qname: &str, f
         includes: nonempty_vec(f.includes),
         ..Default::default()
     }
-    .with_doc(f.doc);
+    .with_doc(f.doc)
+    .with_metadata(f.metadata);
     push_synth(out, &format!("{qname}::{}", c.name.s()), file_path, ElementType::UseCase, &c.name.s(), spec);
 }
 
@@ -5328,6 +5858,41 @@ fn probe_action_root(is_usage: bool, root: &sysml_v2_parser::RootNamespace) -> O
         }
     }
     None
+}
+
+/// `REQ-TRS-SYSMLV2-092`: the exporter's faithfulness check for a structural succession -- parse
+/// `body` as the body of a `part def` (or `part` usage) and return the `successionConnections:`
+/// entries ingestion reads out of it, or `None` when the text does not parse.
+pub(crate) fn probe_part_body(is_usage: bool, body: &str) -> Option<Vec<serde_yaml::Value>> {
+    let kw = if is_usage { "part x" } else { "part def X" };
+    let probe = format!("package P {{ {kw} {{\n{body}\n}} }}");
+    let (doc, root) = split_document(sysml_v2_parser::parse(&probe).ok()?);
+    with_doc(&doc, || {
+        for n in &root.elements {
+            let sysml_v2_parser::RootElement::Package(p) = &n.value else { continue };
+            let sysml_v2_parser::PackageBody::Brace { elements, .. } = &p.value.body else { continue };
+            for e in elements {
+                match &e.value {
+                    sysml_v2_parser::PackageBodyElement::PartDef(d) if !is_usage => {
+                        let els = match &d.value.body {
+                            sysml_v2_parser::PartDefBody::Brace { elements, .. } => elements.as_slice(),
+                            sysml_v2_parser::PartDefBody::Semicolon { .. } => &[],
+                        };
+                        return Some(part_def_successions(els));
+                    }
+                    sysml_v2_parser::PackageBodyElement::PartUsage(u) if is_usage => {
+                        let els = match &u.value.body {
+                            sysml_v2_parser::PartUsageBody::Brace { elements, .. } => elements.as_slice(),
+                            sysml_v2_parser::PartUsageBody::Semicolon { .. } => &[],
+                        };
+                        return Some(part_usage_successions(els));
+                    }
+                    _ => {}
+                }
+            }
+        }
+        None
+    })
 }
 
 /// `REQ-TRS-SYSMLV2-068`: the text of `expr` after ingestion's own expression renderer (so `a and b`
