@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-016
 type: Requirement
 name: REQ-TRS-VAL-017's W600 typedBy documentation fallback resolves a package-relative typedBy reference across SysMLv2 packages
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-029
 type: Requirement
 name: Tool shall map a SysMLv2 allocation def to a native AllocationDef and check an ingested allocation usage's typedBy like any other (E111), and shall lift its allocate clause into allocatedFrom/allocatedTo
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

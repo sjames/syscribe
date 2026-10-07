@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-012
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a named connection usage's own trailing doc /* ... */ body lifts into the synthesized Connection element's doc field, with no regression for a connection usage with no trailing body."
 verifies:
   - REQ-TRS-SYSMLV2-012

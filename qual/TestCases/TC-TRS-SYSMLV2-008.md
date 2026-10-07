@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-008
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify @SyscribeDomain/@SyscribeIntegrity/@SyscribeShortName/@SyscribeImplementedBy lift onto a SysMLv2 part def/part, existing validation fires unchanged, and a no-annotation part is unaffected."
 verifies:
   - REQ-TRS-SYSMLV2-008

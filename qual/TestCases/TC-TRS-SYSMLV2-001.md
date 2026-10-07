@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-001
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify sysmlSubmodel: true scopes a subtree out of native parsing: subtree excluded, stray nested _index.md warned, .md siblings still parse, no-marker baseline unaffected."
 verifies:
   - REQ-TRS-SYSMLV2-001

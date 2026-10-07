@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-017
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a package-relative typedBy: reference across SysMLv2 packages suppresses W007 on the referenced def, is a real connectivity-visible TypedBy edge, and a genuinely unused def still raises W007."
 verifies:
   - REQ-TRS-SYSMLV2-017

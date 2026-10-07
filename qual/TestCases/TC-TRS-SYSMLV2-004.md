@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-004
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a native TestCase's verifies: field resolves against a SysMLv2-mapped element by qname, and still works unchanged against a native Requirement."
 verifies:
   - REQ-TRS-SYSMLV2-004

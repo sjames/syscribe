@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-019
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify an ingested SysMLv2 allocation usage's allocate clause is lifted into allocatedFrom/allocatedTo with full-model endpoint resolution, feeds matrix --allocations and E314, truncates an unresolvable chain tail with W542, and reports unresolvable endpoints with E502/E503."
 verifies:
   - REQ-TRS-SYSMLV2-029

@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-014
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a doc-comment @Syscribe*: directive lifts shortName/implementedBy onto an interface def and domain/asilLevel onto a port def, drives W023, strips the directive line from doc:, and leaves an unrecognized @...: line and a plain interface def unaffected."
 verifies:
   - REQ-TRS-SYSMLV2-014

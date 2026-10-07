@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-009
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify SysML v2 doc /* ... */ comments lift into the synthesized element's doc body across part def/port def/interface usage, concatenate across multiple blocks, clear W600, and a no-doc element is unaffected."
 verifies:
   - REQ-TRS-SYSMLV2-009

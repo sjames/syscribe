@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-003
 type: Requirement
 name: A SysMLv2 element's native satisfy/verify relationship shall be able to target a native Requirement
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

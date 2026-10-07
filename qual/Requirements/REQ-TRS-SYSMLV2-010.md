@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-010
 type: Requirement
 name: A named connection usage's connect endpoints shall lift into resolvable connectivity/n2 graph edges on the owning part
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

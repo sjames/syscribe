@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-030
 type: Requirement
 name: Tool shall report, once per SysMLv2 file, an advisory W543 listing per-kind counts of parsed-but-unmapped constructs that ingestion dropped
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

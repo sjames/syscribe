@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-011
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify n2's scoped subpart axis includes SysMLv2-synthesized direct children and a lifted connection populates the off-diagonal cell, with no regression to unscoped n2 or the existing features:-only native n2 behavior."
 verifies:
   - REQ-TRS-SYSMLV2-011

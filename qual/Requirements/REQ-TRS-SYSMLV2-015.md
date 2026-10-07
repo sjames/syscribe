@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-015
 type: Requirement
 name: A genuinely two-segment connect endpoint that falls back to head-only raises W542 identifying the dropped segment
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

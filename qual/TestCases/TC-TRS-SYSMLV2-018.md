@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-018
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a SysMLv2 allocation def (package-level or nested in a part def) synthesizes a native AllocationDef, an allocation usage typed by it resolves (no E111), and an allocation usage typed by an unknown name raises E111."
 verifies:
   - REQ-TRS-SYSMLV2-029

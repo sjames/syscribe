@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-006
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a malformed sysmlSubmodel: value, a .sysml parse failure, and an unmapped construct each degrade gracefully without aborting validate."
 verifies:
   - REQ-TRS-SYSMLV2-006
@@ -20,8 +20,8 @@ Feature: SysMLv2 ingestion failures degrade gracefully
     When the model is validated
     Then a Finding names that file, it contributes zero elements, and validation completes
 
-  Scenario: an unmapped construct produces no finding at all
+  Scenario: an unmapped construct produces no finding other than the advisory W543
     Given a .sysml file containing only constructs outside the mapped element set
     When the model is validated
-    Then validation completes with zero errors and zero warnings attributable to that file
+    Then validation completes with zero errors and no finding attributable to that file other than the single advisory W543
 ```

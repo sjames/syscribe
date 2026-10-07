@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-005
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify @SyscribeFeature lifts a SysMLv2 variant into appliesWhen, feature-check --deep/--config project it correctly, and a no-annotation variant stays purely structural."
 verifies:
   - REQ-TRS-SYSMLV2-005

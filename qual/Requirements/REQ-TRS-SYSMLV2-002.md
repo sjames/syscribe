@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-002
 type: Requirement
 name: Tool shall natively parse .sysml/.kerml content and merge it into the graph as qname-mapped elements
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

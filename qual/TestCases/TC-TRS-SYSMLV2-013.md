@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-013
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a two-segment connect endpoint resolves to a redeclared nested feature when one exists, falls back to head-only otherwise, and a three-segment chain always falls back."
 verifies:
   - REQ-TRS-SYSMLV2-013

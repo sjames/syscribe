@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-007
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a file mixing mapped and unmapped SysMLv2 constructs parses fully and keeps only the mapped elements."
 verifies:
   - REQ-TRS-SYSMLV2-007

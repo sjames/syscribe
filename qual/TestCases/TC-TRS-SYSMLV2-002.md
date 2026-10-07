@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-002
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify native SysMLv2 parsing + qname-mapped merge: multi-file package merge, qname derivation, and parse-failure isolation."
 verifies:
   - REQ-TRS-SYSMLV2-002

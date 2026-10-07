@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-008
 type: Requirement
 name: A fixed set of @Syscribe* metadata annotations shall lift domain, integrity level, shortName, and implementedBy onto a SysMLv2 part def/part
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

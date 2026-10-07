@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-004
 type: Requirement
 name: A native TestCase's verifies field shall be able to target a SysMLv2-originated element
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

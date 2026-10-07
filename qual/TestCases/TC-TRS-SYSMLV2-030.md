@@ -6,6 +6,11 @@ status: active
 name: "Verify an ingested SysMLv2 file with parsed-but-unmapped constructs raises exactly one advisory W543 listing per-kind counts, and a fully mapped file raises none."
 verifies:
   - REQ-TRS-SYSMLV2-030
+sourceFile: repo:crates/syscribe-model/tests/sysmlv2_unmapped.rs
+testFunctions:
+  - one_w543_per_file_with_per_kind_counts
+  - fully_mapped_file_is_silent
+  - nested_package_members_are_counted
 ---
 
 ```gherkin

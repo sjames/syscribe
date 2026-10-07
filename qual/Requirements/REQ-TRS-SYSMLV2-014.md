@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-014
 type: Requirement
 name: A doc-comment directive syntax lifts the fixed @Syscribe* field set onto interface def/port def/connection def
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

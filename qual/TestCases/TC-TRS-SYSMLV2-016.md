@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-016
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a package-relative typedBy: reference to a documented target across SysMLv2 packages suppresses W600, an equally-undocumented cross-package target still raises it, and the total W600 count matches exactly the elements expected to still fire."
 verifies:
   - REQ-TRS-SYSMLV2-016

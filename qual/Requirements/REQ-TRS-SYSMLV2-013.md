@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-013
 type: Requirement
 name: A connect endpoint's dotted chain shall resolve to a direct nested feature of its head when one is actually declared, falling back to the head-only edge otherwise
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-001
 type: Requirement
 name: Tool shall scope a sysmlSubmodel package's subtree out of native Markdown parsing
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

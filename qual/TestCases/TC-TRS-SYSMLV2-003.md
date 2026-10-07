@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-003
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a SysMLv2 element's satisfy/verify resolves against a native Requirement by both quoted-id and qualified-name form."
 verifies:
   - REQ-TRS-SYSMLV2-003

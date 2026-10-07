@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-010
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a named SysML v2 connection usage's connect endpoints lift onto the owning part's connections: field and resolve to real connectivity edges, both binary and n-ary form, with no regression for connect-less usages."
 verifies:
   - REQ-TRS-SYSMLV2-010

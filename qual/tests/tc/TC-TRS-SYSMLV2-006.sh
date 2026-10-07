@@ -21,12 +21,13 @@ tc_TRS_SYSMLV2_006() {
         && fail "process panicked" || pass "no panic"
 
     # 3. an unmapped construct produces no finding at all
-    _scn "an unmapped construct produces no finding at all"
+    _scn "an unmapped construct produces no finding other than the advisory W543"
     out=$("$SYSCRIBE" -m "$FX/unmapped" validate 2>&1) && rc=0 || rc=$?
     [ "$rc" -eq 0 ] \
         && pass "validate exits 0 on a subtree containing only unmapped constructs" \
         || fail "validate exited non-zero (rc=$rc) on a subtree containing only unmapped constructs"
-    printf '%s' "$out" | grep -qE '^\| [EW][0-9]' \
-        && fail "unexpected finding for an unmapped-only subtree: $out" \
-        || pass "zero findings for an unmapped-only subtree"
+    # REQ-TRS-SYSMLV2-030: the drop is reported once per file as advisory W543 -- nothing else.
+    printf '%s' "$out" | grep -E '^\| [EW][0-9]' | grep -vqE '^\| W543 ' \
+        && fail "unexpected finding (other than W543) for an unmapped-only subtree: $out" \
+        || pass "only the advisory W543 for an unmapped-only subtree"
 }

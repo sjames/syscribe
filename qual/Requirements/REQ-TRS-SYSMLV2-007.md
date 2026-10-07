@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-007
 type: Requirement
 name: Tool shall parse the full SysMLv2 grammar but map only a fixed set of element kinds
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

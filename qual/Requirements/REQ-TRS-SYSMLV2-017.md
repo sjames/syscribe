@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-017
 type: Requirement
 name: W007 usage tracking and graph.rs's TypedBy edge resolve a package-relative typedBy/supertype reference across SysMLv2 packages
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

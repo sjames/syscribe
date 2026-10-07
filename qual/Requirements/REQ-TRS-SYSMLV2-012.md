@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-012
 type: Requirement
 name: A named connection usage's own trailing doc /* ... */ body shall lift into the synthesized Connection element's doc field
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

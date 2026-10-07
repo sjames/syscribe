@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-006
 type: Requirement
 name: A SysMLv2 ingestion failure shall degrade gracefully and never abort validation
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---
@@ -22,4 +22,4 @@ including sibling packages — validating normally and the process never crashin
 with a syntax error produces a `Finding` naming that file and contributes zero elements, without
 aborting validation of the rest of the model; a construct outside the mapped element set (a
 `state`/`action` body) parses without error and contributes zero elements, without any `Finding`
-at all.
+other than the single advisory `W543` (`REQ-TRS-SYSMLV2-030`).

@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-009
 type: Requirement
 name: SysML v2 doc /* ... */ comments shall lift into the synthesized element's doc body
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

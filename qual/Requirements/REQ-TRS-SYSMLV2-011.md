@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-011
 type: Requirement
 name: n2's subpart axis shall include a scope's synthesized SysMLv2 children via containment, not only features:-declared subparts
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

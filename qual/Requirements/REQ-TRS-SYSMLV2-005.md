@@ -2,7 +2,7 @@
 id: REQ-TRS-SYSMLV2-005
 type: Requirement
 name: A SysMLv2 variation point shall be able to target a Syscribe FeatureDef via a SyscribeFeature metadata annotation
-status: draft
+status: verified
 reqDomain: software
 verificationMethod: test
 ---

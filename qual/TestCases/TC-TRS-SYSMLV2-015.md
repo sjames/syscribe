@@ -2,7 +2,7 @@
 id: TC-TRS-SYSMLV2-015
 type: TestCase
 testLevel: L3
-status: draft
+status: active
 name: "Verify a genuinely two-segment, non-redeclared connect endpoint raises W542 for each truncated end, while a redeclared endpoint, a bare endpoint, and a three-segment endpoint all raise none."
 verifies:
   - REQ-TRS-SYSMLV2-015
