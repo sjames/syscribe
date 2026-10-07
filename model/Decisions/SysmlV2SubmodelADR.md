@@ -981,3 +981,14 @@ unrelated ordering of one `W407`).
 - **What the new parser now exposes that follow-up requirements can use:** `GuardedSuccession`
   (`first a if g then b`), `IncludeUseCase::target` for qualified references, an attribute `value` on
   package-level usages, `ActionUsage::via`/`to` and `TransitionAccept` `via`.
+
+## Addendum: exploiting the 0.57 parser (REQ-TRS-SYSMLV2-074..076)
+
+Three limitations recorded earlier in this ADR were upstream parser ceilings and are removed by the
+migration. (1) The `guard:` of a `successionConnections:` entry had no ingestion slot, so the four
+guarded successions of `model_sil` degraded to comments on export: 0.57 parses `first a if g then b;`
+(`GuardedSuccession`), which is ingested into the existing native `guard:` sub-field and exported
+only when it reads back identically; the ratchet budget drops to zero. (2) `include` was limited to
+the simple-name reference form: a qualified target and the declaring form `include use case v : V;`
+now both resolve through the same scoped lookup. (3) A bare package-level `attribute`/`port`/`item`
+was read as a definition and its value was lost: it is now the usage it is, with `value:`/`unit:`.
