@@ -2,7 +2,7 @@
 id: REQ-TRS-VIS-008
 type: Requirement
 name: Create, delete, port-aware connect and move work on manifest and derived diagrams through the guarded-write engine
-status: approved
+status: verified
 reqDomain: software
 verificationMethod: test
 ---
@@ -26,13 +26,14 @@ surface the `WriteResponse` delta; a refusal **shall** revert the optimistic cha
 
 **Source:** `REQ-TRS-VIS-008` (product model).
 
-**Verification status:** `approved`, not `verified`. The connect rules live in
-`crates/syscribe-server/frontend/src/connect-rules.ts` as pure functions and have no automated
-test yet; a Node test driving `resolveConnectEnds`, `portChain` and `isDerivedDiagram` over fixture
-schemas is owed, and `TC-TRS-VIS-008` stays `draft` until it lands. The guarded-write round trip of
-create/delete/move is covered by the existing `REQ-TRS-DE-004`/`-005` cases.
+**Verification:** the connect rules live in `crates/syscribe-server/frontend/src/connect-rules.ts`
+as pure functions and are exercised by `TC-TRS-VIS-008`, a Node test
+(`crates/syscribe-server/frontend/test/connect-rules.test.mjs`, run by `npm test`) driving
+`resolveConnectEnds`, `compatible`, `portChain` and `isDerivedDiagram` over fixture schemas. The
+guarded-write round trip of create/delete/move is covered by the existing
+`REQ-TRS-DE-004`/`-005` cases.
 
-**Acceptance criteria (when the test lands):** (a) port→port with `out`→`in` is accepted;
+**Acceptance criteria:** (a) port→port with `out`→`in` is accepted;
 (b) `out`→`out` is refused naming both directions; (c) a block with one compatible port stands in
 for it; (d) a block with two compatible ports is refused as ambiguous, listing the pairs; (e) a
 block with no ports is refused; (f) `portChain` spells a nested port as `block.port` relative to the

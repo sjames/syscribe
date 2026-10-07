@@ -2,24 +2,35 @@
 id: TC-TRS-VIS-008
 type: TestCase
 testLevel: L2
-status: draft
+status: active
 name: "Verify the port-aware connect rules: a compatible port pair is accepted, same-direction ports are refused, a block stands in for its single compatible port and is refused when it has none or several, the connections entry is spelled as a dotted chain relative to the subject, and a derived diagram sends no manifest sync block."
 verifies:
   - REQ-TRS-VIS-008
-sourceFile: repo:crates/syscribe-server/frontend/src/connect-rules.ts
+sourceFile: repo:crates/syscribe-server/frontend/test/connect-rules.test.mjs
 tags:
   - diagram
   - visualisation
   - sprotty
 ---
 
-**Draft.** The rules under test are the pure functions `resolveConnectEnds`, `compatible`,
-`portChain` and `isDerivedDiagram` in `crates/syscribe-server/frontend/src/connect-rules.ts`;
-they have no automated test yet. This case becomes `active` when a Node script under
-`crates/syscribe-server/frontend/test/` (run by `npm test`) exercises them over fixture schemas,
-at which point `sourceFile` moves to that script. Until then the scenarios below are the
-specification the script must satisfy; they were checked by hand against the source on
-2026-10-07.
+A Node script, not Rust test functions: run with `npm test` from
+`crates/syscribe-server/frontend/` (after `npm ci`). The rules under test are the pure
+functions `resolveConnectEnds`, `compatible`, `portChain` and `isDerivedDiagram` in
+`crates/syscribe-server/frontend/src/connect-rules.ts`; the script bundles that TypeScript
+module with the local esbuild into `test/.build/connect-rules.mjs` (gitignored), imports it,
+and drives each function over hand-built `DiagramModelSchema` fixtures — a derived IBD of
+subject `A::B` (boundary with its own `mainPowerOut`, a `battery` block with one out port, a
+`pdu` block with an in and an out port, all with `vis::derive`'s slug ids) and manifest
+variants with author-chosen ids and port refs not spelled under the subject. No DOM, sprotty
+or elkjs is involved. The script exits non-zero on the first failed assertion and prints one
+`ok - <scenario>` line per scenario plus `connect-rules: ok (8 scenarios)` otherwise.
+
+The first six scenarios are asserted directly on the rule functions. The last two are
+asserted at the decision point the editor branches on: `isDerivedDiagram` is what
+`src/editor.ts` consults to omit or include the `diagram:` sync block in the
+`POST /api/connections` body, so the script pins its answer for slug-id, author-id, mixed
+and subject-less diagrams, and checks that the resolved ends on a manifest diagram are the
+port shapes whose ids the edge carries.
 
 ```gherkin
 Feature: the connect gesture is port-aware (TC-TRS-VIS-008)
