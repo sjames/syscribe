@@ -284,8 +284,9 @@ tested against fixture models with golden IR snapshots.
 
 - a `node` per IR node, with `children` for nested blocks, `port` children for ports,
   a `label` child for the name and a `compartment` child for compartment lines;
-- `size` present only when the pin carries `w`/`h`; otherwise omitted so sprotty
-  measures the rendered label and ELK sizes the node;
+- `size` on every node, port, compartment and label — the Rust-computed box of
+  `vis::size`, or a pin's own `w`/`h` when it records both (Phase 3b,
+  `REQ-TRS-VIS-017`; before it, only a pin's size was sent and sprotty measured the rest);
 - `position` present only for pinned nodes;
 - `edge` per IR edge with `kind` and optional `routingPoints` from pinned waypoints;
 - a root-level `layoutOptions` map (ELK option ids, from `LayoutHints`) and a `pinned`
@@ -312,12 +313,16 @@ turns on so label bounds are measured in the hidden render pass before ELK runs.
 
 As built (`frontend/src/layout.ts`), the client does three things before and after ELK:
 
-- **Micro-layout for measurement.** `prepareForLayout` turns every node and compartment
-  into a sprotty `vbox`, adds the `«stereotype»` and applied-stereotype `banners` as label
-  children above the name label, expands a compartment's `lines` into label children, and
-  gives ports a fixed 12×12 size, so the hidden measuring pass yields a real size for every
-  element. An edge's `«keyword»` and `label` become `label:edge` children, so **ELK lays
-  out edge labels too** and reserves room for them along the route.
+- **Sizes from the server (Phase 3b, `REQ-TRS-VIS-017`).** Every node, port, compartment
+  and label — the `«stereotype»`/`banner`/name labels of a node, a compartment's line
+  labels, a port's name label, an edge's `«keyword»`/`label` children — arrives with a
+  `size` computed in Rust (`vis::size`) from the shared text metrics (`vis::metrics`:
+  Helvetica → Arial → Liberation Sans → DejaVu Sans, with an approximate fallback and an
+  8 % + 2 px width margin), following the client's own `vbox` recipe. The client treats a
+  carried size as authoritative (`prepareForLayout` keeps it, the hidden pass measures only
+  what arrived without one), so the browser's ELK and the embedded ELK start from identical
+  numbers. A sized leaf node is laid out at exactly its size (`PORTS MINIMUM_SIZE`); a sized
+  compound node uses it as its minimum.
 - **Configuration.** `SyscribeLayoutConfigurator` maps the root's `layoutOptions` onto the
   ELK graph with the project's spacing defaults and `elk.edgeRouting: ORTHOGONAL`; node
   sizes come from the measured bounds (`NODE_LABELS PORTS PORT_LABELS MINIMUM_SIZE`), port
@@ -437,16 +442,26 @@ every edge is routed.
 |---|---|---|---|
 | PlantUML `.puml` | `vis::plantuml` from the IR | PlantUML's own | `syscribe plantuml`, MCP `render_diagram format=plantuml`, docs |
 | Mermaid text | `vis::mermaid` from the IR (BDD → `classDiagram`, IBD → `flowchart` with `subgraph` nesting) | Mermaid's own | `syscribe diagram export --format mermaid`, MCP `render_diagram format=mermaid`, GitHub Markdown |
-| SVG | `vis::svg` from an IR whose geometry is complete | pins, or a browser-saved companion | `export-html`, MkDocs, GitHub (companion mode) |
+| SVG | `vis::svg` from any IR with shapes | pins, else the embedded ELK (`vis::layout`) | `syscribe diagram export --format svg`, MCP `render_diagram format=svg`, `export-html`, MkDocs |
 
-The static-SVG policy follows from "the browser is the layout authority":
+The static-SVG policy (Phase 3b, `REQ-TRS-VIS-016`; the ADR addendum "the same ELK engine
+inside the executable") is: **draw the IR**. `vis::svg` draws a fully pinned diagram from its
+pins and lays out every other one first with `vis::layout` — the vendored `elk.bundled.js`
+(`crates/syscribe-model/vendor/elkjs/`, pinned to the client's `elkjs` version by a test) run
+in-process under QuickJS with the client's own options (§6.2), the client's pin handling
+(`elk.position` + interactive strategies; `fixed` when every node is pinned) and the
+Rust-computed sizes of §6.2 — so the executable and the browser produce the same picture from
+the same diagram, verified by a Node-vs-QuickJS determinism test. A companion SVG is no longer
+needed to show a diagram anywhere; it remains the way to publish a picture on GitHub.
 
-1. If every node of the IR has a pin, `vis::svg` draws it.
+`export-html` embeds each diagram by the first applicable rule:
+
+1. The IR has shapes: `vis::svg` draws it (from pins, or laid out).
 2. Else if the diagram has a companion SVG (`svgMode: companion`, or a file the browser
    saved with *Save companion SVG*), that file is used.
 3. Else if a PlantUML companion `.svg` exists, that is used.
-4. Else `export-html` emits a placeholder: the diagram's name, kind and subject, and a
-   link that opens it in the browser.
+4. Else a placeholder: the diagram's name, kind and subject, and a link that opens it in
+   the browser.
 
 Mermaid text generated by Syscribe carries `%% ref:` annotations for every node, so the
 existing `W408`/`W409` lints apply to generated output exactly as to hand-written blocks.
@@ -490,6 +505,7 @@ in the same commit as the code that emits them):
 | **1 — Derived BDD/IBD** | `derive::bdd`, `derive::ibd`, source selection by frontmatter, `include:`/`exclude:`, `W417`/`W418`, spec §8.16 update, golden tests. | `-003`, `-004`, `-005` |
 | **2 — ELK in the browser** (landed: `cacff379`, `d2e72234`) | `sprotty-elk` + `elkjs` vendored; measured labels; pins semantics; Pin all / Auto-layout / Save companion SVG; port-aware connect; nested rendering with the shared style. | `-006`, `-007`, `-008`, `-011`, `-012` |
 | **3 — Exports and static SVG** | `vis::mermaid`, `vis::svg`, `syscribe diagram export`, MCP `render_diagram format=mermaid`, the §7 fallback chain in `export-html`. | `-009`, `-010` |
+| **3b — ELK in the executable** (landed) | `vis::metrics` (promoted from `svgkit`), `vis::size` (Rust-owned sizes carried as `size` on every sprotty element and consumed by the client), `vis::layout` (the vendored `elk.bundled.js` under QuickJS with the client's configuration), `vis::svg` drawing any diagram, `diagram export`/`export-html`/MCP `render_diagram` without pins, the Node-vs-QuickJS determinism test and the bundle-version pin test. | `-016`, `-017` |
 | **4 — Coverage** | Endpoint integration tests, Node-side ELK smoke test on a fixture IR, snapshot tests for every writer. Runs alongside every phase; listed separately so it is never "later". | `-014` |
 | **Follow-on** | State, Action, Requirement, Sequence, Allocation generators on the same IR. | `-015` |
 

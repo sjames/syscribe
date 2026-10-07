@@ -396,7 +396,7 @@ export class SysmlLabelView extends ShapeView implements IView {
                 font-size={fontSize}
                 font-weight={weight}
                 font-style={italic ? 'italic' : undefined}
-                font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+                font-family="Helvetica, Arial, 'Liberation Sans', 'DejaVu Sans', sans-serif"
                 fill={fill}
                 stroke={halo ? '#fff' : undefined}
                 stroke-width={halo ? 3 : undefined}

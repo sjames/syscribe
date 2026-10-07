@@ -88,9 +88,16 @@ async fn ibd_is_served_nested_with_pins_layout_options_and_root_edges() {
     assert_eq!(boundary["resolved"], true);
     assert_eq!(boundary["elementType"], "Package");
     assert!(boundary.get("position").is_none(), "unpinned: no position");
-    assert!(boundary.get("size").is_none());
-    assert_eq!(child_ids(boundary), vec!["s-sys-label", "s-engine", "s-motor", "s-ghost"]);
-    assert_eq!(child(boundary, "s-sys-label"), &json!({ "id": "s-sys-label", "type": "label", "text": "Sys" }));
+    // Every element carries the server-computed size (REQ-TRS-VIS-017).
+    assert!(boundary["size"]["width"].as_f64().unwrap() > 0.0 && boundary["size"]["height"].as_f64().unwrap() > 0.0);
+    // The «package» stereotype label precedes the name label (the client's stacking order).
+    assert_eq!(child_ids(boundary), vec!["s-sys-stereotype", "s-sys-label", "s-engine", "s-motor", "s-ghost"]);
+    assert_eq!(child(boundary, "s-sys-stereotype")["role"], "stereotype");
+    let label = child(boundary, "s-sys-label");
+    assert_eq!(label["type"], "label");
+    assert_eq!(label["text"], "Sys");
+    assert_eq!(label["role"], "name");
+    assert!(label["size"]["width"].as_f64().unwrap() > 0.0);
 
     // Block under the boundary, port under the block.
     let engine = child(boundary, "s-engine");
@@ -101,7 +108,8 @@ async fn ibd_is_served_nested_with_pins_layout_options_and_root_edges() {
     assert_eq!(engine["isAbstract"], true);
     assert_eq!(engine["name"], "Engine");
     assert!(engine.get("position").is_none());
-    assert_eq!(child_ids(engine), vec!["s-engine-label", "s-pout"]);
+    assert_eq!(child_ids(engine), vec!["s-engine-stereotype", "s-engine-label", "s-pout"]);
+    assert!(engine["size"]["width"].as_f64().unwrap() >= 120.0, "a leaf block carries at least the client's minimum width");
     let port = child(engine, "s-pout");
     assert_eq!(port["type"], "port");
     assert_eq!(port["kind"], "port");

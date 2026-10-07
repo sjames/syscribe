@@ -88,7 +88,7 @@ A `diagramKind: Mermaid` diagram is still rendered client-side by Mermaid.js fro
 
 ## The diagram editor
 
-Opening a non-Mermaid diagram runs **ELK automatic layout in the browser**: the client measures every label in a hidden render pass, then `sprotty-elk` lays the measured graph out with the bundled `elkjs` (layered, top-down for a BDD with supertypes above subtypes, left-to-right with nesting for an IBD, orthogonal edge routing, ports on the block border, edge keywords and labels placed along the route). Nothing is written back: an automatic layout lives only in the browser until you act, so `git diff` on a diagram file always shows a human's intent.
+Opening a non-Mermaid diagram runs **ELK automatic layout in the browser**: every node, port, compartment and label arrives with its size already computed by the server from shared text metrics (`REQ-TRS-VIS-017`; the client measures in the DOM only what came without one), then `sprotty-elk` lays the sized graph out with the bundled `elkjs` (layered, top-down for a BDD with supertypes above subtypes, left-to-right with nesting for an IBD, orthogonal edge routing, ports on the block border, edge keywords and labels placed along the route). Nothing is written back: an automatic layout lives only in the browser until you act, so `git diff` on a diagram file always shows a human's intent.
 
 Entries in `layout:` are **pins**. A pinned shape keeps the position (and size, when `w`/`h` are recorded) its entry holds while ELK places the unpinned rest around it; when every shape is pinned ELK takes the positions as given and only routes the edges. A pin that names no shape is `W416`.
 

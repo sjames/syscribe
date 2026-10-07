@@ -5,15 +5,21 @@
 //! either from the author's `shapes:`/`edges:`/`layout:` manifest
 //! ([`manifest`]) or — when the element declares a `subject:` and no
 //! `shapes:` — derived from the model by the generator for its kind. Every
-//! renderer and exporter is a pure function of that value.
+//! renderer and exporter is a pure function of that value. Node sizes come
+//! from the shared text metrics ([`metrics`], [`size`]) and automatic layout
+//! from the embedded ELK ([`layout`]) — the same engine and sizes the
+//! browser client uses (`REQ-TRS-VIS-016`/`-017`).
 //!
 //! Source selection needs no mode field (`REQ-TRS-VIS-003`): the presence of
 //! `shapes:` picks the manifest; a `subject:` alone picks derivation.
 
 pub mod derive;
 pub mod ir;
+pub mod layout;
 pub mod manifest;
 pub mod mermaid;
+pub mod metrics;
+pub mod size;
 pub mod sprotty;
 pub mod style;
 pub mod svg;
@@ -22,17 +28,13 @@ use crate::element::{ElementType, RawElement, RawFrontmatter};
 use crate::resolver::Resolver;
 
 pub use ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, LayoutHints, Node, NodeKind, Point, PortDirection, Rect, Side};
+pub use layout::{layout, Layout, LayoutError};
 pub use manifest::Issue;
 pub use mermaid::render_mermaid;
+pub use metrics::TextMetrics;
+pub use size::{size_graph, Sizes};
 pub use style::{ArrowHead, EdgeStyle, NodeStyle, PortStyle};
-pub use svg::render_svg;
-
-/// The message every surface uses when an SVG is asked of a diagram that
-/// is not fully pinned (`REQ-TRS-VIS-010`): the CLI, MCP `render_diagram`
-/// and the server agree on the wording.
-pub fn not_fully_pinned_message(qname: &str) -> String {
-    format!("'{qname}' is not fully pinned — open it in the browser and use Pin all, or export plantuml/mermaid")
-}
+pub use svg::{render_svg, SvgError};
 
 /// The applied-stereotype banners of an element (`REQ-TRS-VIS-012`): one
 /// entry per `metadata:` application, naming the applied `MetadataDef` — its

@@ -429,26 +429,32 @@ fn element_page(
 // ── diagrams ───────────────────────────────────────────────────────────────
 
 /// The `<div class="diagram …">` for a `Diagram` element, by the first
-/// applicable rule of `REQ-TRS-VIS-010`'s fallback chain:
+/// applicable rule of `REQ-TRS-VIS-010`'s fallback chain as `REQ-TRS-VIS-016`
+/// reduced it:
 ///
-/// 1. the Diagram IR is fully pinned (every node has a `layout:` entry): it is
-///    drawn by `vis::svg`, with `[links]` hyperlinks on the shapes;
+/// 1. the Diagram IR has shapes: it is drawn by `vis::svg` — from its pins
+///    when fully pinned, else laid out by the embedded ELK — with `[links]`
+///    hyperlinks on the shapes;
 /// 2. else a companion SVG (`svgMode: companion` or `svgFile:` set; default
 ///    `<stem>.svg` beside the `.md`) that exists on disk is embedded;
 /// 3. else a PlantUML-rendered `.svg` beside the companion `.puml`
 ///    (`pumlFile:`, default `<stem>.puml`, same stem with `.svg`) is embedded;
 /// 4. else a placeholder names the diagram, its kind and subject and points
-///    the reader at the syscribe-server browser, where the diagram is laid out.
+///    the reader at the syscribe-server browser.
 fn diagram_embed(elem: &RawElement, elements: &[RawElement], resolver: &Resolver, config: &ValidateConfig) -> String {
     let fm = &elem.frontmatter;
     let md_path = Path::new(&elem.file_path);
     let md_dir = md_path.parent().unwrap_or(Path::new("."));
 
     if let Some((graph, _issues)) = syscribe_model::vis::build_graph(elem, elements, resolver) {
-        if graph.is_fully_pinned() {
+        if !graph.nodes.is_empty() {
             let links = crate::diagram_export::link_resolver(elements, resolver, config);
-            if let Some(svg) = syscribe_model::vis::render_svg(&graph, &links) {
-                return format!("<div class=\"diagram diagram-pinned\">\n{}\n</div>\n", svg.trim());
+            match syscribe_model::vis::render_svg(&graph, &links) {
+                Ok(svg) => {
+                    let class = if graph.is_fully_pinned() { "diagram diagram-pinned" } else { "diagram diagram-laid-out" };
+                    return format!("<div class=\"{class}\">\n{}\n</div>\n", svg.trim());
+                }
+                Err(e) => eprintln!("warning: {}: {e}; falling back to a companion picture", elem.qualified_name),
             }
         }
     }

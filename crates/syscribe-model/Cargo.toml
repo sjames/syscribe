@@ -21,3 +21,10 @@ batsat = "=0.6.0"
 blake3 = "1"
 # Native SysML v2/KerML textual-notation AST parser (MIT, pure Rust; ADR-SYS-SYSMLV2-001).
 sysml-v2-parser = "0.57.0"
+# Diagram text metrics (`vis::metrics`, REQ-TRS-VIS-017): system-font glyph advances.
+ab_glyph = "0.2.32"
+fontdb = "0.23.0"
+# Embedded JavaScript engine running the vendored `elk.bundled.js` in-process
+# (`vis::layout`, REQ-TRS-VIS-016; QuickJS, MIT; built by `cc` — a C compiler is
+# needed at build time).
+rquickjs = "0.14"

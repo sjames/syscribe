@@ -18,5 +18,5 @@ edges:
 ---
 
 Block diagram of the fixture parts: a manifest with no `layout:`, so it is
-not pinned — `export-html` shows a placeholder (REQ-TRS-VIS-010, rule 4) and
-`--format svg` is refused.
+not pinned — `export-html` and `--format svg` lay it out with the embedded
+ELK (REQ-TRS-VIS-016).

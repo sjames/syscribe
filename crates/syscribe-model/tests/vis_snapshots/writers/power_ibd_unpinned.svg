@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 730 223" width="730" height="223" class="syscribe-diagram IBD" sysml:ref="Diagrams::Bare">
+  <title>Bare</title>
+  <g id="s-sys-powersystem" class="boundary PartDef" sysml:ref="Sys::PowerSystem">
+    <rect x="20" y="20" width="638" height="183" rx="8" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="54.5" y="34" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part def»</text>
+    <text x="67.5" y="50" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">PowerSystem</text>
+  </g>
+  <g id="s-sys-powersystem-mainout" class="port Port out" sysml:ref="Sys::PowerSystem::mainOut">
+    <rect x="652" y="133" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="689" y="156" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">mainOut</text>
+  </g>
+  <g id="s-sys-powersystem-engine" class="block Part" sysml:ref="Sys::PowerSystem::engine">
+    <rect x="132" y="75" width="131" height="44" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="194.5" y="88" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="194.5" y="103" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">engine : Engine</text>
+  </g>
+  <g id="s-sys-powersystem-engine-powerout" class="port Port out" sysml:ref="Sys::PowerSystem::engine::powerOut">
+    <rect x="257" y="91" width="12" height="12" fill="#333" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="294" y="113" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">powerOut</text>
+  </g>
+  <g id="s-sys-powersystem-motor" class="block Part" sysml:ref="Sys::PowerSystem::motor">
+    <rect x="466" y="75" width="146" height="44" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="542" y="88" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="542" y="103" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">motor : Motor [2]</text>
+  </g>
+  <g id="s-sys-powersystem-motor-powerin" class="port Port in" sysml:ref="Sys::PowerSystem::motor::powerIn">
+    <rect x="460" y="91" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="438" y="113" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">powerIn</text>
+  </g>
+  <g id="s-sys-powersystem-aux" class="block Part" sysml:ref="Sys::PowerSystem::aux">
+    <rect x="181" y="139" width="120" height="44" fill="#f5f5fa" stroke="#3a3a4a" stroke-width="1.4"/>
+    <text x="244" y="152" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#3a3a4a">«part»</text>
+    <text x="244" y="167" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">aux : Motor</text>
+  </g>
+  <g id="s-sys-powersystem-aux-powerin" class="port Port in" sysml:ref="Sys::PowerSystem::aux::powerIn">
+    <rect x="175" y="155" width="12" height="12" fill="#fff" stroke="#1f497d" stroke-width="1.2"/>
+    <text x="153" y="177" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#222">powerIn</text>
+  </g>
+  <path id="e-connection-s-sys-powersystem-engine-powerout-s-sys-powersystem-motor-powerin" class="edge connection" sysml:ref="Sys::PowerSystem" sysml:source="s-sys-powersystem-engine-powerout" sysml:target="s-sys-powersystem-motor-powerin" d="M 269,97 L 460,97" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+    <text x="367.5" y="110" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#1f497d" stroke="#fff" stroke-width="3" paint-order="stroke">PowerLink</text>
+  <path id="e-binding-s-sys-powersystem-motor-powerin-s-sys-powersystem-mainout" class="edge binding" sysml:ref="Sys::PowerSystem" sysml:source="s-sys-powersystem-motor-powerin" sysml:target="s-sys-powersystem-mainout" stroke-dasharray="4,4" d="M 460,97 L 407,97 L 407,139 L 664,139" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+    <text x="514.5" y="152" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#1f497d" stroke="#fff" stroke-width="3" paint-order="stroke">=</text>
+</svg>

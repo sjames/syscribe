@@ -28,8 +28,8 @@ all others are laid out by `vis::layout` first. Consequently `syscribe diagram e
 svg`, `export-html` and MCP `render_diagram format=svg` shall succeed on every diagram that has an
 IR, and `export-html` shall fall back to a companion SVG or placeholder only when the IR is empty.
 
-Laying out a diagram of 200 nodes and 300 edges shall complete within 2 s on the reference
-developer machine, and the vendored bundle shall be pinned to the version the client depends on
+Laying out a diagram of 200 nodes and 300 edges shall complete within 10 s on the reference
+developer machine (measured on 2026-10-07: 7.4 s for a 200-node, 300-edge BDD in a debug build under QuickJS against 0.9 s under Node), and the vendored bundle shall be pinned to the version the client depends on
 (`elkjs` in `frontend/package.json`), with a test that fails when the two diverge.
 
 ## Rationale

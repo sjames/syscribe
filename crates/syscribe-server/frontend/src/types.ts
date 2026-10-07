@@ -6,11 +6,21 @@
 //
 // The graph is **nested**: a node's ports, compartments, name label and
 // nested blocks live in its `children`; edges are always root children and
-// reference nodes or ports by id across the whole tree. `position`/`size` are
-// present only for pinned nodes (parent-relative when nested); everything
-// else is measured by sprotty's hidden render and placed by ELK (`layout.ts`).
+// reference nodes or ports by id across the whole tree. `position` is present
+// only for pinned nodes (parent-relative when nested). `size` is the server's
+// own measurement (`REQ-TRS-VIS-017`: computed in Rust from shared text
+// metrics, on every node, port, compartment and label — or, from an older
+// server, only a pin's `w`/`h`); `layout.ts` copies it to `serverSize` and
+// treats it as authoritative, measuring in the DOM only what arrived without
+// one. Positions are placed by ELK (`layout.ts`).
 
 import { SCompartment, SEdge, SGraph, SLabel, SNode, SPort } from 'sprotty-protocol';
+
+/** A width/height pair as the server sends it (`vis::sprotty`'s `Size`). */
+export interface ServerSize {
+    width: number;
+    height: number;
+}
 
 // ---------------------------------------------------------------------------
 // Resolved style (`vis::style`, REQ-TRS-VIS-012) — carried per node, port and
@@ -80,10 +90,12 @@ export interface SysmlNodeSchema extends SNode, SysmlShapeFields {
     style?: NodeStyle;
     /** Extra `«Name»` lines under the stereotype (applied `MetadataDef`s). */
     banners?: string[];
-    /** The `size` the server sent with a pin (`w`/`h`), stashed by
-     * `prepareForLayout` before the hidden render overwrites `size` with the
-     * measured one — ELK gets the larger of the two as the node's minimum. */
-    pinnedSize?: { width: number; height: number };
+    /** The `size` the server sent (text-metrics size, or a pin's `w`/`h`),
+     * copied by `prepareForLayout` before sprotty's hidden render runs. It is
+     * authoritative: the measuring pass leaves the element at this size and
+     * ELK lays it out with it (`layout.ts`). Absent when the server sent no
+     * size — then the DOM measurement is used, as before `REQ-TRS-VIS-017`. */
+    serverSize?: ServerSize;
     children?: SysmlNodeChildSchema[];
 }
 
@@ -91,6 +103,8 @@ export interface SysmlNodeSchema extends SNode, SysmlShapeFields {
 export interface SysmlPortSchema extends SPort, SysmlShapeFields {
     type: 'port';
     style?: PortStyle;
+    /** See `SysmlNodeSchema.serverSize`. */
+    serverSize?: ServerSize;
     children?: SysmlNodeChildSchema[];
 }
 
@@ -109,6 +123,8 @@ export interface SysmlLabelSchema extends SLabel {
     kind?: string;
     ref?: string;
     role?: LabelRole;
+    /** See `SysmlNodeSchema.serverSize`. */
+    serverSize?: ServerSize;
 }
 
 /** An IR compartment: one entry of `lines` per rendered line. */
@@ -118,6 +134,8 @@ export interface SysmlCompartmentSchema extends SCompartment {
     kind: string;
     ref: string;
     name: string;
+    /** See `SysmlNodeSchema.serverSize`. */
+    serverSize?: ServerSize;
     children?: SysmlNodeChildSchema[];
 }
 
@@ -157,6 +175,11 @@ export interface DiagramModelSchema extends Omit<SGraph, 'layoutOptions'> {
     layoutOptions: Record<string, string | string[]>;
     /** Ids of the nodes a human pinned (`layout:` entries). */
     pinned: string[];
+    /** Whether the node set was regenerated from `subject` (`vis::derive`)
+     * rather than read from a manifest — a derived diagram has no manifest to
+     * sync an edge into (`connect-rules.ts`). Absent from an older server,
+     * which falls back to the shape-id heuristic. */
+    derived?: boolean;
     children: SysmlChildSchema[];
 }
 

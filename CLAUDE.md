@@ -297,6 +297,7 @@ Seven enforced traceability rules govern how model elements relate to each other
 - Qualified name resolution handles circular references gracefully (reports, does not panic).
 - The Syscribe format is the source of truth. The web service's write routes (`POST`/`PUT`/`DELETE`/`PATCH` above) all go through the shared guarded-write engine (`syscribe_model::mutate`, the same one the MCP write tools use) — candidate copy, re-validation, referential-integrity commit gate — never raw disk writes.
 - The LLM generation prompt lives at `prompts/create-model.md` and is embedded in the validator binary via `include_str!` — edit the `.md` file, not the Rust source.
+- `crates/syscribe-model/vendor/elkjs/elk.bundled.js` (EPL-2.0, with `LICENSE.md` and `VERSION`) is the browser's `elkjs` bundle vendored verbatim and embedded via `include_str!` for in-process layout (`vis::layout`, QuickJS); `tests/vis_elk_vendor.rs` fails if `VERSION` drifts from the `elkjs` pin in `crates/syscribe-server/frontend/package-lock.json` — re-copy `node_modules/elkjs/lib/elk.bundled.js` and bump `VERSION` together.
 
 ## LLM Workflow
 

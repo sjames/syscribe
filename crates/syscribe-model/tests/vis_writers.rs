@@ -5,15 +5,25 @@
 //! `SYSCRIBE_UPDATE_SNAPSHOTS=1 cargo test -p syscribe-model --test vis_writers`
 //! and review the diff. The unit assertions cover the contract the snapshots
 //! cannot name: a `%% ref:` per Mermaid node, `sysml:ref` per SVG node and
-//! `sysml:source`/`sysml:target` per edge, refusal of an unpinned graph, and
-//! the `REQ-TRS-LINK-002` hyperlink wrapper driven by the `links` closure.
+//! `sysml:source`/`sysml:target` per edge, an unpinned graph laid out by the
+//! embedded ELK (`REQ-TRS-VIS-016`), and the `REQ-TRS-LINK-002` hyperlink
+//! wrapper driven by the `links` closure. The SVG tests size the graph with
+//! the approximate metrics so the snapshots do not depend on the fonts
+//! installed on the machine running them.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use syscribe_model::resolver::Resolver;
-use syscribe_model::vis::{build_graph, render_mermaid, render_svg, DiagramGraph, NodeKind};
+use syscribe_model::vis::metrics::ApproxMetrics;
+use syscribe_model::vis::svg::render_svg_with;
+use syscribe_model::vis::{build_graph, render_mermaid, size_graph, DiagramGraph, NodeKind, SvgError};
 use syscribe_model::walker::walk_model;
+
+/// The SVG writer over the font-independent approximate metrics.
+fn render_svg(g: &DiagramGraph, links: &dyn Fn(&str) -> Option<String>) -> Result<String, SvgError> {
+    render_svg_with(g, &size_graph(g, &ApproxMetrics), links)
+}
 
 fn tempdir() -> PathBuf {
     static N: AtomicU64 = AtomicU64::new(0);
@@ -227,18 +237,34 @@ fn svg_of_the_pinned_derived_ibd_matches_its_snapshot_and_bounds_the_boundary() 
 }
 
 #[test]
-fn svg_refuses_a_graph_with_an_unpinned_node() {
+fn svg_of_the_unpinned_derived_ibd_is_laid_out_by_elk_and_matches_its_snapshot() {
+    // REQ-TRS-VIS-016: no pins at all — the embedded ELK lays the graph out
+    // and the writer draws its rectangles, routed edges and label positions.
     let root = fixture_model();
-    // Everything but `aux` pinned.
+    add_diagram(&root, "Bare", "diagramKind: IBD\nsubject: Sys::PowerSystem\n");
+    let g = graph_of(&root, "Diagrams::Bare");
+    assert!(!g.is_fully_pinned() && g.pinned_ids().is_empty());
+    let s = render_svg(&g, &no_links).expect("laid out by the embedded ELK");
+    for n in &g.nodes {
+        assert!(s.contains(&format!("<g id=\"{}\" class=\"{}", n.id, n.kind.as_str())), "node group for {}: {s}", n.id);
+        assert!(s.contains(&format!("sysml:ref=\"{}\"", n.element_ref)), "sysml:ref for {}", n.id);
+    }
+    assert_eq!(s.matches("<path id=\"e-").count(), g.edges.len(), "every edge routed: {s}");
+    assert!(s.contains(">PowerLink</text>") && s.contains(">=</text>"), "edge labels placed by ELK: {s}");
+    assert_snapshot("power_ibd_unpinned.svg", &s);
+
+    // Everything but `aux` pinned: still drawn, around the pins.
     let partial = IBD_LAYOUT.lines().filter(|l| !l.contains("s-sys-powersystem-aux:")).collect::<Vec<_>>().join("\n") + "\n";
-    add_diagram(&root, "PowerIBD", &format!("diagramKind: IBD\nsubject: Sys::PowerSystem\n{partial}"));
-    let g = graph_of(&root, "Diagrams::PowerIBD");
+    add_diagram(&root, "Partial", &format!("diagramKind: IBD\nsubject: Sys::PowerSystem\n{partial}"));
+    let g = graph_of(&root, "Diagrams::Partial");
     assert!(!g.is_fully_pinned());
     assert_eq!(g.nodes.iter().filter(|n| n.pin.is_none()).map(|n| n.id.as_str()).collect::<Vec<_>>(), vec!["s-sys-powersystem-aux"]);
-    assert!(render_svg(&g, &no_links).is_none());
-    // And a diagram with no layout at all.
-    add_diagram(&root, "Bare", "diagramKind: IBD\nsubject: Sys::PowerSystem\n");
-    assert!(render_svg(&graph_of(&root, "Diagrams::Bare"), &no_links).is_none());
+    let s = render_svg(&g, &no_links).expect("a partially pinned graph draws");
+    assert_eq!(s.matches("<g id=\"").count(), g.nodes.len());
+
+    // Only a graph with nothing to draw is refused.
+    add_diagram(&root, "Empty", "diagramKind: IBD\nsubject: Sys\n");
+    assert!(matches!(render_svg(&graph_of(&root, "Diagrams::Empty"), &no_links), Err(SvgError::Empty)));
 }
 
 #[test]

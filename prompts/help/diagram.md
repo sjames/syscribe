@@ -8,8 +8,8 @@ Writes one `Diagram` element's picture source, generated from its Diagram IR
 (the `shapes:`/`edges:`/`layout:` manifest, or the content derived from its
 `subject:`), to stdout or to `--out`. `export` is the only `diagram`
 subcommand; the former toolkit (`list`, `render`, `measure`, `compose`,
-`layout`, `seq`, `req`) was removed under `ADR-SYS-VIS-001` and layout now
-happens in the browser.
+`layout`, `seq`, `req`) was removed under `ADR-SYS-VIS-001`; automatic layout
+is ELK, in the browser and embedded in this executable alike.
 
     plantuml   PlantUML source (the default) — the same text `syscribe plantuml`
                writes to a companion `.puml`, with `[plantuml] base_url` links.
@@ -21,10 +21,13 @@ happens in the browser.
                lints apply to the generated text exactly as to a hand-written
                block.
     svg        A standalone SVG per spec §8.16.5 (`sysml:ref` on every shape,
-               `sysml:ref`/`sysml:source`/`sysml:target` on every edge), drawn
-               only from pins: every node must carry a `layout:` entry (open
-               the diagram in the browser and use Pin all). The server never
-               computes a layout.
+               `sysml:ref`/`sysml:source`/`sysml:target` on every edge) for
+               any diagram with an IR. A fully pinned diagram is drawn from
+               its `layout:` pins; any other is laid out first by the embedded
+               ELK — the browser's own `elk.bundled.js`, run in-process with
+               the same options and the same Rust-computed node sizes, so the
+               picture matches the browser's — with pins still honoured. No
+               Node, browser or network is involved.
 
 When `.syscribe.toml` has a `[links]` table, Mermaid output gains a
 `click <id> href "<url>" _blank` line per linked node and every linked SVG shape
@@ -40,7 +43,7 @@ is wrapped in `<a xlink:href="<url>" href="<url>" target="_blank" rel="noopener"
 ## EXIT CODES
     0  written
     1  element '<qname>' not found (nothing on stdout); '<qname>' is not a
-       Diagram; svg requested for a diagram that is not fully pinned; a
+       Diagram; svg requested for a diagram with no shapes to draw; a
        diagramKind with no mapping for the format; invalid --format
 
 ## EXAMPLES

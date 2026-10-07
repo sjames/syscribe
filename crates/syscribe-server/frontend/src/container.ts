@@ -3,7 +3,7 @@
 // every diagram tab (`editor.ts` calls `LocalModelSource.setModel(...)` when
 // the active diagram changes) rather than rebuilding the whole DI graph per
 // diagram open.
-import { Container } from 'inversify';
+import { Container, injectable } from 'inversify';
 import ElkConstructor from 'elkjs/lib/elk.bundled';
 import {
     boundsModule,
@@ -15,7 +15,9 @@ import {
     defaultModule,
     DeleteElementCommand,
     fadeModule,
+    HiddenBoundsUpdater,
     hoverModule,
+    InternalBoundsAware,
     LocalModelSource,
     LogLevel,
     modelSourceModule,
@@ -27,6 +29,7 @@ import {
     selectModule,
     SGraphImpl,
     SLabelImpl,
+    SModelElementImpl,
     SNodeImpl,
     SPortImpl,
     TYPES,
@@ -35,6 +38,7 @@ import {
     viewportModule,
     zorderModule,
 } from 'sprotty';
+import { Bounds } from 'sprotty-protocol';
 import {
     ElkFactory,
     ElkLayoutEngine,
@@ -44,7 +48,7 @@ import {
     ILayoutPreprocessor,
 } from 'sprotty-elk/lib/inversify';
 import { Action, ElementMove, MoveAction, SelectAction } from 'sprotty-protocol';
-import { LayoutState, SyscribeLayoutConfigurator, SyscribeLayoutProcessor } from './layout';
+import { LayoutState, serverSizeOf, SizedSchema, SyscribeLayoutConfigurator, SyscribeLayoutProcessor } from './layout';
 import {
     SysmlCompartmentView,
     SysmlEdgeLabelImpl,
@@ -54,6 +58,28 @@ import {
     SysmlNodeView,
     SysmlPortView,
 } from './views';
+
+/** The hidden measuring pass, with server sizes left alone (`layout.ts`'s
+ * module doc, `REQ-TRS-VIS-017`): an element that carries `serverSize`
+ * reports that width/height instead of its `getBBox()` extent. The measured
+ * `x`/`y` are kept — for a `<text>` they are the glyph box's offset from the
+ * anchor, which sprotty turns into the label's alignment so its top-left
+ * corner lands on `position`. With the reported size equal to the element's
+ * bounds, `HiddenBoundsUpdater` records no change and the size survives
+ * the pass; the `vbox` layouter, run next, is told not to resize such
+ * containers (`resizeContainer: false`), so it only positions their
+ * children inside the carried size. */
+@injectable()
+export class SyscribeHiddenBoundsUpdater extends HiddenBoundsUpdater {
+    protected override getBounds(elm: Node, element: SModelElementImpl & InternalBoundsAware): Bounds {
+        const measured = super.getBounds(elm, element);
+        const server = serverSizeOf(element as unknown as SizedSchema);
+        if (!server) {
+            return measured;
+        }
+        return { x: measured.x, y: measured.y, width: server.width, height: server.height };
+    }
+}
 
 export interface DiagramCallbacks {
     /** Fired once per completed drag (`MoveAction.finished`), REQ-TRS-DE-004's move gesture. */
@@ -104,7 +130,11 @@ export function createDiagramContainer(hostDivId: string, callbacks: DiagramCall
     // `needsClientLayout: true` makes `LocalModelSource.submitModel` run the
     // hidden measuring pass (`RequestBoundsAction` → `ComputedBoundsAction`)
     // first, so every label has real bounds and every `vbox` node a measured
-    // size before the layout engine sees the graph.
+    // size before the layout engine sees the graph — except what the server
+    // already sized (`SyscribeHiddenBoundsUpdater`; `boundsModule` binds the
+    // base class to itself and aliases `TYPES.HiddenVNodePostprocessor` to
+    // it, so rebinding the class is enough).
+    container.rebind(HiddenBoundsUpdater).to(SyscribeHiddenBoundsUpdater).inSingletonScope();
     configureViewerOptions(container, {
         baseDiv: hostDivId,
         hiddenDiv: hostDivId + '-hidden',

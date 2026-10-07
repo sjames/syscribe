@@ -1,0 +1,263 @@
+{
+  "children": [
+    {
+      "children": [
+        {
+          "edges": [],
+          "height": 44.0,
+          "id": "s-sys-powersystem-engine",
+          "labels": [
+            {
+              "height": 12.0,
+              "id": "s-sys-powersystem-engine-stereotype",
+              "text": "«part»",
+              "width": 36.0,
+              "x": 0.0,
+              "y": 4.0
+            },
+            {
+              "height": 15.0,
+              "id": "s-sys-powersystem-engine-label",
+              "text": "engine : Engine",
+              "width": 115.0,
+              "x": 0.0,
+              "y": 17.0
+            }
+          ],
+          "layoutOptions": {
+            "elk.nodeLabels.padding": "[top=4,left=8,bottom=4,right=8]",
+            "elk.nodeLabels.placement": "[H_CENTER, V_TOP, INSIDE]",
+            "elk.nodeSize.constraints": "PORTS MINIMUM_SIZE",
+            "elk.nodeSize.minimum": "(131, 44)",
+            "elk.portConstraints": "FIXED_SIDE",
+            "elk.portLabels.placement": "OUTSIDE"
+          },
+          "ports": [
+            {
+              "height": 12.0,
+              "id": "s-sys-powersystem-engine-powerout",
+              "labels": [
+                {
+                  "height": 12.0,
+                  "id": "s-sys-powersystem-engine-powerout-label",
+                  "text": "powerOut",
+                  "width": 48.0
+                }
+              ],
+              "layoutOptions": {
+                "elk.port.borderOffset": "-6",
+                "elk.port.side": "EAST"
+              },
+              "width": 12.0
+            }
+          ],
+          "width": 131.0
+        },
+        {
+          "edges": [],
+          "height": 44.0,
+          "id": "s-sys-powersystem-motor",
+          "labels": [
+            {
+              "height": 12.0,
+              "id": "s-sys-powersystem-motor-stereotype",
+              "text": "«part»",
+              "width": 36.0,
+              "x": 0.0,
+              "y": 4.0
+            },
+            {
+              "height": 15.0,
+              "id": "s-sys-powersystem-motor-label",
+              "text": "motor : Motor [2]",
+              "width": 130.0,
+              "x": 0.0,
+              "y": 17.0
+            }
+          ],
+          "layoutOptions": {
+            "elk.nodeLabels.padding": "[top=4,left=8,bottom=4,right=8]",
+            "elk.nodeLabels.placement": "[H_CENTER, V_TOP, INSIDE]",
+            "elk.nodeSize.constraints": "PORTS MINIMUM_SIZE",
+            "elk.nodeSize.minimum": "(146, 44)",
+            "elk.portConstraints": "FIXED_SIDE",
+            "elk.portLabels.placement": "OUTSIDE"
+          },
+          "ports": [
+            {
+              "height": 12.0,
+              "id": "s-sys-powersystem-motor-powerin",
+              "labels": [
+                {
+                  "height": 12.0,
+                  "id": "s-sys-powersystem-motor-powerin-label",
+                  "text": "powerIn",
+                  "width": 42.0
+                }
+              ],
+              "layoutOptions": {
+                "elk.port.borderOffset": "-6",
+                "elk.port.side": "WEST"
+              },
+              "width": 12.0
+            }
+          ],
+          "width": 146.0
+        },
+        {
+          "edges": [],
+          "height": 44.0,
+          "id": "s-sys-powersystem-aux",
+          "labels": [
+            {
+              "height": 12.0,
+              "id": "s-sys-powersystem-aux-stereotype",
+              "text": "«part»",
+              "width": 36.0,
+              "x": 0.0,
+              "y": 4.0
+            },
+            {
+              "height": 15.0,
+              "id": "s-sys-powersystem-aux-label",
+              "text": "aux : Motor",
+              "width": 85.0,
+              "x": 0.0,
+              "y": 17.0
+            }
+          ],
+          "layoutOptions": {
+            "elk.nodeLabels.padding": "[top=4,left=8,bottom=4,right=8]",
+            "elk.nodeLabels.placement": "[H_CENTER, V_TOP, INSIDE]",
+            "elk.nodeSize.constraints": "PORTS MINIMUM_SIZE",
+            "elk.nodeSize.minimum": "(120, 44)",
+            "elk.portConstraints": "FIXED_SIDE",
+            "elk.portLabels.placement": "OUTSIDE"
+          },
+          "ports": [
+            {
+              "height": 12.0,
+              "id": "s-sys-powersystem-aux-powerin",
+              "labels": [
+                {
+                  "height": 12.0,
+                  "id": "s-sys-powersystem-aux-powerin-label",
+                  "text": "powerIn",
+                  "width": 42.0
+                }
+              ],
+              "layoutOptions": {
+                "elk.port.borderOffset": "-6",
+                "elk.port.side": "WEST"
+              },
+              "width": 12.0
+            }
+          ],
+          "width": 120.0
+        }
+      ],
+      "edges": [],
+      "height": 36.0,
+      "id": "s-sys-powersystem",
+      "labels": [
+        {
+          "height": 12.0,
+          "id": "s-sys-powersystem-stereotype",
+          "text": "«part def»",
+          "width": 59.0,
+          "x": 0.0,
+          "y": 4.0
+        },
+        {
+          "height": 15.0,
+          "id": "s-sys-powersystem-label",
+          "text": "PowerSystem",
+          "width": 85.0,
+          "x": 0.0,
+          "y": 17.0
+        }
+      ],
+      "layoutOptions": {
+        "elk.nodeLabels.padding": "[top=4,left=8,bottom=4,right=8]",
+        "elk.nodeLabels.placement": "[H_LEFT, V_TOP, INSIDE]",
+        "elk.nodeSize.constraints": "NODE_LABELS PORTS PORT_LABELS MINIMUM_SIZE",
+        "elk.nodeSize.minimum": "(120, 40)",
+        "elk.padding": "[top=20,left=20,bottom=20,right=20]",
+        "elk.portConstraints": "FIXED_SIDE",
+        "elk.portLabels.placement": "OUTSIDE"
+      },
+      "ports": [
+        {
+          "height": 12.0,
+          "id": "s-sys-powersystem-mainout",
+          "labels": [
+            {
+              "height": 12.0,
+              "id": "s-sys-powersystem-mainout-label",
+              "text": "mainOut",
+              "width": 42.0
+            }
+          ],
+          "layoutOptions": {
+            "elk.port.borderOffset": "-6",
+            "elk.port.side": "EAST"
+          },
+          "width": 12.0
+        }
+      ],
+      "width": 85.0
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-connection-s-sys-powersystem-engine-powerout-s-sys-powersystem-motor-powerin",
+      "labels": [
+        {
+          "height": 13.0,
+          "id": "e-connection-s-sys-powersystem-engine-powerout-s-sys-powersystem-motor-powerin-label",
+          "text": "PowerLink",
+          "width": 59.0
+        }
+      ],
+      "sources": [
+        "s-sys-powersystem-engine-powerout"
+      ],
+      "targets": [
+        "s-sys-powersystem-motor-powerin"
+      ]
+    },
+    {
+      "id": "e-binding-s-sys-powersystem-motor-powerin-s-sys-powersystem-mainout",
+      "labels": [
+        {
+          "height": 13.0,
+          "id": "e-binding-s-sys-powersystem-motor-powerin-s-sys-powersystem-mainout-keyword",
+          "text": "=",
+          "width": 9.0
+        }
+      ],
+      "sources": [
+        "s-sys-powersystem-motor-powerin"
+      ],
+      "targets": [
+        "s-sys-powersystem-mainout"
+      ]
+    }
+  ],
+  "id": "sysml-diagram",
+  "layoutOptions": {
+    "elk.algorithm": "layered",
+    "elk.direction": "RIGHT",
+    "elk.edgeRouting": "ORTHOGONAL",
+    "elk.hierarchyHandling": "INCLUDE_CHILDREN",
+    "elk.layered.spacing.edgeNodeBetweenLayers": "30",
+    "elk.layered.spacing.nodeNodeBetweenLayers": "60",
+    "elk.padding": "[top=20,left=20,bottom=20,right=20]",
+    "elk.spacing.edgeNode": "30",
+    "elk.spacing.labelLabel": "1",
+    "elk.spacing.labelPortHorizontal": "4",
+    "elk.spacing.labelPortVertical": "2",
+    "elk.spacing.nodeNode": "40",
+    "elk.spacing.portPort": "16"
+  }
+}

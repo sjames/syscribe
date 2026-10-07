@@ -1,7 +1,8 @@
 //! `syscribe diagram export` (`REQ-TRS-VIS-009`, `REQ-TRS-VIS-010`).
 //! Black-box: runs the binary against the checked-in fixture model
 //! (`tests/fixtures/model`), whose `Diagrams::FxBlock` is an unpinned manifest
-//! BDD and `Diagrams::FxPinned` a fully pinned one.
+//! BDD (laid out by the embedded ELK, `REQ-TRS-VIS-016`), `Diagrams::FxPinned`
+//! a fully pinned one and `Diagrams::FxEmpty` one with nothing to draw.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -88,15 +89,21 @@ fn out_writes_the_file_and_creates_parents() {
 }
 
 #[test]
-fn svg_is_refused_for_an_unpinned_diagram() {
+fn svg_lays_out_an_unpinned_diagram_with_the_embedded_elk() {
+    // REQ-TRS-VIS-016: no pins, no browser — the executable lays it out.
     let o = run(&["export", "Diagrams::FxBlock", "--format", "svg"]);
+    assert_eq!(o.status.code(), Some(0), "{}", stderr(&o));
+    let s = stdout(&o);
+    assert!(s.starts_with("<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:sysml=\"urn:syscribe:1.0\""), "{s}");
+    assert!(s.contains("<g id=\"s-base\" class=\"block PartDef\" sysml:ref=\"Parts::Base\">"), "{s}");
+    assert!(s.contains("<g id=\"s-derived\" class=\"block PartDef\" sysml:ref=\"Parts::Derived\">"), "{s}");
+    assert!(s.contains("class=\"edge inheritance\" sysml:source=\"s-derived\" sysml:target=\"s-base\""), "{s}");
+    assert!(s.contains("marker-end=\"url(#arrow-inherit)\""), "{s}");
+    // Only a diagram with nothing to draw is refused.
+    let o = run(&["export", "Diagrams::FxEmpty", "--format", "svg"]);
     assert_eq!(o.status.code(), Some(1));
     assert_eq!(stdout(&o), "");
-    assert!(
-        stderr(&o).contains("error: 'Diagrams::FxBlock' is not fully pinned — open it in the browser and use Pin all, or export plantuml/mermaid"),
-        "{}",
-        stderr(&o)
-    );
+    assert!(stderr(&o).contains("error: 'Diagrams::FxEmpty' has no shapes to draw"), "{}", stderr(&o));
 }
 
 #[test]

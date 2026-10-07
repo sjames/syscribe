@@ -122,11 +122,15 @@ export function portChain(model: DiagramModelSchema, port: SysmlPortSchema, owne
 }
 
 /** Whether the diagram is derived from its `subject:` (no manifest to sync).
- * The endpoint does not flag this explicitly; a derived view's shape ids are
- * all `s-<ref slug>` (`vis::derive`'s deterministic ids), whereas a manifest
- * uses the author's keys, so a root shape whose id is not its ref's slug
- * means a manifest exists. */
+ * The graph root carries the answer as `derived` (`vis::sprotty`), which wins
+ * whenever it is present. An older server sends no flag; then a derived
+ * view is recognised by its shape ids: all `s-<ref slug>` (`vis::derive`'s
+ * deterministic ids), whereas a manifest uses the author's keys, so a root
+ * shape whose id is not its ref's slug means a manifest exists. */
 export function isDerivedDiagram(model: DiagramModelSchema): boolean {
+    if (typeof model.derived === 'boolean') {
+        return model.derived;
+    }
     if (!model.subject) {
         return false;
     }

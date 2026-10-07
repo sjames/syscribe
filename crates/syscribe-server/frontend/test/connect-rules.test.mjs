@@ -273,6 +273,25 @@ scenario('a derived diagram sends no diagram sync block', () => {
     assert.equal(isDerivedDiagram(graph(SUBJECT, [])), false, 'no root shapes → not derived');
 });
 
+// --- Scenario: the root's explicit `derived` flag wins over the id heuristic ----------
+scenario('the explicit derived flag wins over the id heuristic', () => {
+    // `derived: true` on a graph the heuristic would call a manifest (author ids).
+    const flaggedDerived = { ...graph(SUBJECT, [boundary('frame', SUBJECT, 'B', [mainPowerOut, battery, pdu])]), derived: true };
+    assert.equal(isDerivedDiagram(flaggedDerived), true, 'derived: true wins over author ids');
+    // `derived: false` on a graph the heuristic would call derived (slug ids + subject).
+    const flaggedManifest = { ...derived, derived: false };
+    assert.equal(isDerivedDiagram(flaggedManifest), false, 'derived: false wins over slug ids');
+    // The flag even overrides the no-subject / no-shapes short-cuts.
+    assert.equal(isDerivedDiagram({ ...graph(undefined, []), derived: true }), true, 'derived: true without a subject');
+    assert.equal(isDerivedDiagram({ ...graph(SUBJECT, []), derived: true }), true, 'derived: true without shapes');
+    // Anything but a boolean (absent, null, a string) is an older server: heuristic as before.
+    assert.equal(isDerivedDiagram({ ...derived, derived: undefined }), true, 'undefined → heuristic (derived)');
+    assert.equal(isDerivedDiagram({ ...derived, derived: null }), true, 'null → heuristic (derived)');
+    assert.equal(isDerivedDiagram({ ...derived, derived: 'true' }), true, 'a string is not the flag');
+    const manifestNoFlag = graph(SUBJECT, [boundary('frame', SUBJECT, 'B', [mainPowerOut, battery, pdu])]);
+    assert.equal(isDerivedDiagram(manifestNoFlag), false, 'absent → heuristic (manifest)');
+});
+
 // --- Scenario: a manifest diagram syncs the edge ------------------------------------------
 scenario('a manifest diagram syncs the edge', () => {
     // Author-chosen ids mean a manifest exists: the editor then sends the `diagram:` block.

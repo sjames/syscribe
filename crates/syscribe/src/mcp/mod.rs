@@ -1989,9 +1989,10 @@ impl SyscribeMcp {
     #[tool(
         description = "Return a Diagram element's SOURCE plus its W400-W415 structural findings. \
         `format` is `plantuml` (default), `mermaid` (generated from the Diagram IR, with `%% ref:` \
-        per node) or `svg` (a static SVG per spec 8.16.5; only for a fully pinned diagram — \
-        otherwise a tool error asks for Pin all in the browser or a text format). A hand-authored \
-        `diagramKind: Mermaid` diagram always returns its own Mermaid body. Does not render an image.",
+        per node) or `svg` (a static SVG per spec 8.16.5, drawn from the diagram's pins when it is \
+        fully pinned and laid out by the embedded ELK otherwise; a diagram with no shapes is a tool \
+        error). A hand-authored `diagramKind: Mermaid` diagram always returns its own Mermaid body. \
+        Does not render an image.",
         annotations(read_only_hint = true)
     )]
     async fn render_diagram(
@@ -2017,8 +2018,9 @@ impl SyscribeMcp {
         let (format, source) = if elem.frontmatter.diagram_kind.as_deref() == Some("Mermaid") {
             ("mermaid".to_string(), extract_mermaid(&elem.doc).unwrap_or_default())
         } else {
-            // REQ-TRS-VIS-009/010: every format is a pure function of the Diagram
-            // IR; `svg` refuses an unpinned diagram with the CLI's exact message.
+            // REQ-TRS-VIS-009/010/016: every format is a pure function of the
+            // Diagram IR; `svg` lays an unpinned diagram out with the embedded
+            // ELK, and fails with the CLI's exact message only for an empty one.
             let format = args.format.clone().unwrap_or_else(|| "plantuml".to_string());
             match crate::diagram_export::export_diagram(
                 elem,

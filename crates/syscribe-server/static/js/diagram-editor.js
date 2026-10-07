@@ -6792,7 +6792,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       exports.ModelIndexImpl = exports.createRandomId = exports.SModelRootImpl = exports.SChildElementImpl = exports.SParentElementImpl = exports.isParent = exports.SModelElementImpl = void 0;
       var geometry_1 = require_geometry();
       var iterable_1 = require_iterable();
-      var SModelElementImpl2 = class {
+      var SModelElementImpl3 = class {
         get root() {
           let current = this;
           while (current) {
@@ -6816,13 +6816,13 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return this.features !== void 0 && this.features.has(feature);
         }
       };
-      exports.SModelElementImpl = SModelElementImpl2;
+      exports.SModelElementImpl = SModelElementImpl3;
       function isParent(element) {
         const children = element.children;
         return children !== void 0 && children.constructor === Array;
       }
       exports.isParent = isParent;
-      var SParentElementImpl = class extends SModelElementImpl2 {
+      var SParentElementImpl = class extends SModelElementImpl3 {
         constructor() {
           super(...arguments);
           this.children = [];
@@ -11890,7 +11890,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       var BoundsData = class {
       };
       exports.BoundsData = BoundsData;
-      var HiddenBoundsUpdater = class HiddenBoundsUpdater {
+      var HiddenBoundsUpdater2 = class HiddenBoundsUpdater {
         constructor() {
           this.element2boundsData = /* @__PURE__ */ new Map();
         }
@@ -12001,22 +12001,22 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           };
         }
       };
-      exports.HiddenBoundsUpdater = HiddenBoundsUpdater;
+      exports.HiddenBoundsUpdater = HiddenBoundsUpdater2;
       __decorate([
         (0, inversify_1.inject)(types_1.TYPES.ILogger),
         __metadata("design:type", Object)
-      ], HiddenBoundsUpdater.prototype, "logger", void 0);
+      ], HiddenBoundsUpdater2.prototype, "logger", void 0);
       __decorate([
         (0, inversify_1.inject)(types_1.TYPES.IActionDispatcher),
         __metadata("design:type", Object)
-      ], HiddenBoundsUpdater.prototype, "actionDispatcher", void 0);
+      ], HiddenBoundsUpdater2.prototype, "actionDispatcher", void 0);
       __decorate([
         (0, inversify_1.inject)(types_1.TYPES.Layouter),
         __metadata("design:type", layout_1.Layouter)
-      ], HiddenBoundsUpdater.prototype, "layouter", void 0);
-      exports.HiddenBoundsUpdater = HiddenBoundsUpdater = __decorate([
+      ], HiddenBoundsUpdater2.prototype, "layouter", void 0);
+      exports.HiddenBoundsUpdater = HiddenBoundsUpdater2 = __decorate([
         (0, inversify_1.injectable)()
-      ], HiddenBoundsUpdater);
+      ], HiddenBoundsUpdater2);
       exports.ATTR_BBOX_ELEMENT = "bboxElement";
     }
   });
@@ -112713,6 +112713,15 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
 
   // src/layout.ts
   var PORT_SIZE = 12;
+  function adoptServerSize(el) {
+    if (!el.serverSize && el.size && el.size.width > 0 && el.size.height > 0) {
+      el.serverSize = { width: el.size.width, height: el.size.height };
+    }
+  }
+  function serverSizeOf(el) {
+    const s3 = el?.serverSize;
+    return s3 && s3.width > 0 && s3.height > 0 ? s3 : void 0;
+  }
   var NODE_NODE_SPACING = 40;
   var LAYER_SPACING = 60;
   var COMPOUND_PADDING = 20;
@@ -112740,8 +112749,9 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
     return { id, type, text, role };
   }
   function prepareCompartment(c3) {
+    adoptServerSize(c3);
     c3.layout = "vbox";
-    c3.layoutOptions = { ...COMPARTMENT_VBOX };
+    c3.layoutOptions = { ...COMPARTMENT_VBOX, resizeContainer: !c3.serverSize };
     const existing = new Set((c3.children ?? []).map((k3) => k3.id));
     const lines = c3.lines ?? [];
     const kids = [...c3.children ?? []];
@@ -112752,21 +112762,33 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       }
     });
     c3.children = kids;
+    for (const k3 of kids) {
+      if (isLabelSchema(k3)) {
+        adoptServerSize(k3);
+        if (k3.role === void 0) {
+          k3.role = "line";
+        }
+      }
+    }
   }
   function preparePort(p3) {
-    p3.size = { width: PORT_SIZE, height: PORT_SIZE };
+    adoptServerSize(p3);
+    if (!p3.serverSize) {
+      p3.size = { width: PORT_SIZE, height: PORT_SIZE };
+    }
     for (const k3 of childrenOf(p3)) {
-      if (isLabelSchema(k3) && k3.role === void 0) {
-        k3.role = "name";
+      if (isLabelSchema(k3)) {
+        adoptServerSize(k3);
+        if (k3.role === void 0) {
+          k3.role = "name";
+        }
       }
     }
   }
   function prepareNode(n) {
-    if (n.size && n.size.width > 0 && n.size.height > 0 && !n.pinnedSize) {
-      n.pinnedSize = { ...n.size };
-    }
+    adoptServerSize(n);
     n.layout = "vbox";
-    n.layoutOptions = { ...NODE_VBOX };
+    n.layoutOptions = { ...NODE_VBOX, resizeContainer: !n.serverSize };
     const kids = [...n.children ?? []];
     const existing = new Set(kids.map((k3) => k3.id));
     const extra = [];
@@ -112782,6 +112804,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
     n.children = [...extra, ...kids];
     for (const k3 of n.children) {
       if (isLabelSchema(k3)) {
+        adoptServerSize(k3);
         if (k3.role === void 0) {
           k3.role = k3.id === `${n.id}-label` ? "name" : "free";
         }
@@ -112796,6 +112819,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
   }
   function prepareEdge(e2) {
     const kids = [...e2.children ?? []];
+    kids.forEach(adoptServerSize);
     const existing = new Set(kids.map((k3) => k3.id));
     const keyword = e2.style?.keyword;
     if (keyword && !existing.has(`${e2.id}-keyword`)) {
@@ -112818,8 +112842,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         preparePort(child);
       } else if (isCompartmentSchema(child)) {
         prepareCompartment(child);
-      } else if (isLabelSchema(child) && child.role === void 0) {
-        child.role = "free";
+      } else if (isLabelSchema(child)) {
+        adoptServerSize(child);
+        if (child.role === void 0) {
+          child.role = "free";
+        }
       }
     }
   }
@@ -112929,15 +112956,16 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       const kids = childrenOf(node);
       const compound = kids.some(isNodeSchema);
       const ports = kids.filter(isPortSchema);
+      const server = serverSizeOf(node);
       const measured = node.size ?? { width: 0, height: 0 };
-      const pinnedSize = node.pinnedSize ?? { width: 0, height: 0 };
-      const minW = Math.max(MIN_NODE_WIDTH, compound ? 0 : measured.width, pinnedSize.width);
-      const minH = Math.max(MIN_NODE_HEIGHT, compound ? 0 : measured.height, pinnedSize.height);
+      const own = server ?? (compound ? { width: 0, height: 0 } : measured);
+      const minW = server && !compound ? server.width : Math.ceil(Math.max(MIN_NODE_WIDTH, own.width));
+      const minH = server && !compound ? server.height : Math.ceil(Math.max(MIN_NODE_HEIGHT, own.height));
       const anySide = ports.some((p3) => !!p3.side);
       const container = isContainerKind(node.kind);
       const opts = {
-        "elk.nodeSize.constraints": "NODE_LABELS PORTS PORT_LABELS MINIMUM_SIZE",
-        "elk.nodeSize.minimum": `(${Math.ceil(minW)}, ${Math.ceil(minH)})`,
+        "elk.nodeSize.constraints": server && !compound ? "PORTS MINIMUM_SIZE" : "NODE_LABELS PORTS PORT_LABELS MINIMUM_SIZE",
+        "elk.nodeSize.minimum": `(${minW}, ${minH})`,
         "elk.nodeLabels.placement": container ? "[H_LEFT, V_TOP, INSIDE]" : "[H_CENTER, V_TOP, INSIDE]",
         "elk.nodeLabels.padding": "[top=4,left=8,bottom=4,right=8]",
         "elk.portLabels.placement": "OUTSIDE",
@@ -112958,7 +112986,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       return opts;
     }
     portOptions(port, index) {
-      const opts = { "elk.port.borderOffset": String(-PORT_SIZE / 2) };
+      const extent = serverSizeOf(port)?.width ?? port.size?.width ?? PORT_SIZE;
+      const opts = { "elk.port.borderOffset": String(-extent / 2) };
       const parent = index.getParent(port.id);
       const siblings = parent ? childrenOf(parent).filter(isPortSchema) : [];
       const parentFixed = siblings.some((p3) => !!p3.side);
@@ -113088,12 +113117,25 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           this.state.flippedEdges.add(edge.id);
         }
       }
-      for (const { node } of walkElkNodes(elkGraph)) {
-        const snode = index.getById(node.id);
-        if (snode && snode.pinnedSize) {
-          node.width = Math.max(node.width ?? 0, snode.pinnedSize.width);
-          node.height = Math.max(node.height ?? 0, snode.pinnedSize.height);
+      const stamp = (shape) => {
+        const s3 = shape.id ? serverSizeOf(index.getById(shape.id)) : void 0;
+        if (s3) {
+          shape.width = s3.width;
+          shape.height = s3.height;
         }
+      };
+      for (const { node } of walkElkNodes(elkGraph)) {
+        if (node !== elkGraph) {
+          stamp(node);
+        }
+        node.labels?.forEach(stamp);
+        for (const p3 of node.ports ?? []) {
+          stamp(p3);
+          p3.labels?.forEach(stamp);
+        }
+      }
+      for (const { edge } of walkElkEdges(elkGraph)) {
+        edge.labels?.forEach(stamp);
       }
     }
     postprocess(elkGraph, _sgraph, _index) {
@@ -113215,6 +113257,9 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
     return parts.join(".");
   }
   function isDerivedDiagram(model) {
+    if (typeof model.derived === "boolean") {
+      return model.derived;
+    }
     if (!model.subject) {
       return false;
     }
@@ -115098,7 +115143,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
           "font-size": fontSize,
           "font-weight": weight,
           "font-style": italic ? "italic" : void 0,
-          "font-family": "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
+          "font-family": "Helvetica, Arial, 'Liberation Sans', 'DejaVu Sans', sans-serif",
           fill,
           stroke: halo ? "#fff" : void 0,
           "stroke-width": halo ? 3 : void 0,
@@ -115171,6 +115216,19 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   ], SysmlEdgeView);
 
   // src/container.ts
+  var SyscribeHiddenBoundsUpdater = class extends import_sprotty2.HiddenBoundsUpdater {
+    getBounds(elm, element) {
+      const measured = super.getBounds(elm, element);
+      const server = serverSizeOf(element);
+      if (!server) {
+        return measured;
+      }
+      return { x: measured.x, y: measured.y, width: server.width, height: server.height };
+    }
+  };
+  SyscribeHiddenBoundsUpdater = __decorateClass([
+    Kt()
+  ], SyscribeHiddenBoundsUpdater);
   function createDiagramContainer(hostDivId, callbacks) {
     const container = new Pt();
     container.load(
@@ -115199,6 +115257,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     container.bind(import_inversify3.ILayoutPreprocessor).toConstantValue(processor);
     container.bind(import_inversify3.ILayoutPostprocessor).toConstantValue(processor);
     container.bind(import_sprotty2.TYPES.IModelLayoutEngine).toService(import_inversify3.ElkLayoutEngine);
+    container.rebind(import_sprotty2.HiddenBoundsUpdater).to(SyscribeHiddenBoundsUpdater).inSingletonScope();
     (0, import_sprotty2.configureViewerOptions)(container, {
       baseDiv: hostDivId,
       hiddenDiv: hostDivId + "-hidden",
@@ -115424,7 +115483,8 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         children: [{ id: `${shapeId}-label`, type: "label", text: name, position: { x: 8, y: 8 } }]
       };
       prepareNode(schema);
-      delete schema.pinnedSize;
+      delete schema.serverSize;
+      schema.layoutOptions = { ...schema.layoutOptions, resizeContainer: true };
       model.children.push(schema);
       await this.dispatcher.dispatch(import_sprotty_protocol3.CreateElementAction.create(schema, { containerId: model.id }));
       const resp = await createElement({
@@ -115660,8 +115720,11 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
           }
         }
         for (const shape of allShapes(model)) {
-          if (shape.type === "node" && shape.size) {
-            shape.pinnedSize = { ...shape.size };
+          if (shape.size && shape.size.width > 0 && shape.size.height > 0) {
+            shape.serverSize = { ...shape.size };
+            if (shape.type === "node") {
+              shape.layoutOptions = { ...shape.layoutOptions, resizeContainer: false };
+            }
           }
         }
         this.toast(`Pinned ${count} shapes`, "info");

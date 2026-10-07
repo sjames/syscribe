@@ -167,7 +167,10 @@ export class DiagramEditor {
             children: [{ id: `${shapeId}-label`, type: 'label', text: name, position: { x: 8, y: 8 } }],
         };
         prepareNode(schema);
-        delete schema.pinnedSize;
+        // The placeholder size is not a server size: let the next measuring
+        // pass size the new block from its label.
+        delete schema.serverSize;
+        schema.layoutOptions = { ...schema.layoutOptions, resizeContainer: true };
 
         // Optimistic apply.
         model.children.push(schema);
@@ -451,9 +454,14 @@ export class DiagramEditor {
                     model.pinned.push(id);
                 }
             }
+            // The pinned `w`/`h` is what the server will send back as the
+            // shape's size from now on; treat it that way already.
             for (const shape of allShapes(model)) {
-                if (shape.type === 'node' && shape.size) {
-                    shape.pinnedSize = { ...shape.size };
+                if (shape.size && shape.size.width > 0 && shape.size.height > 0) {
+                    shape.serverSize = { ...shape.size };
+                    if (shape.type === 'node') {
+                        shape.layoutOptions = { ...shape.layoutOptions, resizeContainer: false };
+                    }
                 }
             }
             this.toast(`Pinned ${count} shapes`, 'info');

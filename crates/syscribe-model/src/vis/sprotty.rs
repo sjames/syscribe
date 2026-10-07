@@ -25,26 +25,35 @@
 //! root, because sprotty resolves `sourceId`/`targetId` through the root
 //! index regardless of nesting.
 //!
-//! Each `node`/`port` element also carries a synthetic label child
-//! `{ id: "<id>-label", type: "label", text }` as its *first* child, so the
-//! client's hidden render pass can measure the text in Phase 2
-//! (`REQ-TRS-VIS-007`). An IR [`NodeKind::Label`] node is itself a `label`
-//! element and carries its `text` directly; a [`NodeKind::Compartment`] node is
-//! a `compartment` element carrying `lines` and gets no label child.
+//! Each `node`/`port` element also carries its synthetic label children
+//! (`REQ-TRS-VIS-017`): `{ id: "<id>-stereotype", type: "label", text:
+//! "«…»", role: "stereotype", size }`, one `{ id: "<id>-banner-<i>", role:
+//! "banner" }` per applied stereotype, then `{ id: "<id>-label", role:
+//! "name" }` — in that order, the order the client stacks them. A `port`
+//! carries only its name label. A [`NodeKind::Compartment`] node is a
+//! `compartment` element carrying `lines` and one `{ id:
+//! "<id>-line-<i>", role: "line", size }` label child per line. An IR
+//! [`NodeKind::Label`] node is itself a `label` element (`role: "free"`)
+//! and carries its `text` directly. An `edge` carries its `«keyword»`
+//! (`{ id: "<id>-keyword", type: "label:edge", role: "keyword" }`) and
+//! `label` (`role: "edge"`) as `children` when it has them.
 //!
 //! ## Geometry
 //!
 //! `position` is present **only** when the IR node is pinned
-//! ([`Node::pin`]), and `size` only when that pin carries both `w` and `h`.
-//! A pinned position of a *nested* node is relative to its parent's origin —
-//! sprotty's own local-coordinate convention, and exactly what
-//! `PATCH /api/diagrams/layout` writes back from a drag of a nested node, so
-//! `layout:` round-trips without conversion. Unpinned nodes carry no geometry
-//! at all; in Phase 0 the client places them with a trivial deterministic
-//! arrangement and default sizes by kind (`frontend/src/layout-shim.ts`), and
-//! Phase 2 replaces that shim with measured sizes and ELK. Keeping the shim
-//! out of this writer keeps the contract honest: a `position` in the JSON
-//! always means "a human pinned this".
+//! ([`Node::pin`]). A pinned position of a *nested* node is relative to its
+//! parent's origin — sprotty's own local-coordinate convention, and exactly
+//! what `PATCH /api/diagrams/layout` writes back from a drag of a nested
+//! node, so `layout:` round-trips without conversion. A `position` in the
+//! JSON always means "a human pinned this".
+//!
+//! `size` is present on **every** node, port, compartment and label
+//! (`REQ-TRS-VIS-017`): the box [`super::size::size_graph`] computes from the
+//! shared text metrics — or, for a node whose pin records both `w` and `h`,
+//! that pin's size ([`super::size::carried_size`]). The client treats it as
+//! authoritative instead of measuring in the DOM, and the embedded ELK
+//! ([`super::layout`]) starts from the same numbers, so both renderers lay
+//! the same diagram out identically.
 //!
 //! `pinned` lists the ids of pinned nodes in declaration order, so the client
 //! can tell "fixed by a human" from "placed by the layout engine". `derived`
@@ -74,6 +83,7 @@ use super::ir::{
     DiagramGraph, Edge, EdgeKind, LayoutAlgorithm, LayoutDirection, LayoutHints, Node, NodeKind, Point,
     PortConstraints, PortDirection, Rect, Side,
 };
+use super::size::{carried_size, size_graph_default, LabelBox, Sizes};
 use super::style::{edge_style, node_style, port_style, EdgeStyle, NodeStyle, PortStyle};
 
 /// The root element id. One editor instance hosts one graph at a time, so a
@@ -156,14 +166,28 @@ impl LayoutOptions {
     }
 }
 
-/// The synthetic name label of a node or port.
+/// A synthetic label of a node, port, compartment or edge.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct SLabel {
     pub id: String,
     #[serde(rename = "type")]
     pub element_type: &'static str,
     pub text: String,
+    /// The client's `LabelRole` (`name`, `stereotype`, `banner`, `line`,
+    /// `keyword`, `edge`), which fixes the font.
+    pub role: &'static str,
+    /// The text box from the shared metrics (`REQ-TRS-VIS-017`).
+    pub size: Size,
 }
+
+impl SLabel {
+    fn of(l: &LabelBox, element_type: &'static str) -> SLabel {
+        SLabel { id: l.id.clone(), element_type, text: l.text.clone(), role: l.role.as_str(), size: Size { width: l.w, height: l.h } }
+    }
+}
+
+/// sprotty element `type` for an edge's labels.
+pub const TYPE_EDGE_LABEL: &str = "label:edge";
 
 /// A child of a node: its synthetic label, or a nested IR node.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -216,9 +240,11 @@ pub struct SNode {
     /// Present only for a pinned node; parent-relative when nested.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub position: Option<Position>,
-    /// Present only when the pin carries both `w` and `h`.
+    /// Always present: the carried size (module doc).
+    pub size: Size,
+    /// `label`-typed elements only: the client's `LabelRole` (`free`).
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub size: Option<Size>,
+    pub role: Option<&'static str>,
     /// `node` and `port` elements only (`REQ-TRS-VIS-012`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub style: Option<SStyle>,
@@ -248,6 +274,10 @@ pub struct SEdge {
     pub routing_points: Option<Vec<Position>>,
     /// The kind's notation (`REQ-TRS-VIS-012`).
     pub style: EdgeStyle,
+    /// The `«keyword»` and label as sized `label:edge` children; omitted
+    /// when the edge has neither.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub children: Vec<SLabel>,
 }
 
 /// A root child: a top-level node or an edge.
@@ -292,7 +322,7 @@ fn side_str(side: Side) -> &'static str {
 /// A port's side: the IR's, else the conventional side for its direction
 /// (inputs enter from the west, outputs leave east, bidirectional ports sit
 /// south), else none.
-fn port_side(node: &Node) -> Option<&'static str> {
+pub fn port_side(node: &Node) -> Option<&'static str> {
     node.side.map(side_str).or(match node.direction {
         Some(PortDirection::In) => Some("west"),
         Some(PortDirection::Out) => Some("east"),
@@ -305,13 +335,6 @@ fn position_of(pin: &Rect) -> Position {
     Position { x: pin.x, y: pin.y }
 }
 
-fn size_of(pin: &Rect) -> Option<Size> {
-    match (pin.w, pin.h) {
-        (Some(width), Some(height)) => Some(Size { width, height }),
-        _ => None,
-    }
-}
-
 /// Whether `node` is drawn at the root: it has no parent, or names a parent
 /// that is not in the graph (the manifest already drops those, but a
 /// generator must not be able to make this writer lose a node).
@@ -322,23 +345,24 @@ fn is_root(graph: &DiagramGraph, node: &Node) -> bool {
     }
 }
 
-fn build_node(graph: &DiagramGraph, node: &Node, depth: usize) -> SNode {
+fn build_node(graph: &DiagramGraph, sizes: &Sizes, node: &Node, depth: usize) -> SNode {
     let element_type_ = sprotty_type(node.kind);
     let mut children = Vec::new();
-    if matches!(element_type_, TYPE_NODE | TYPE_PORT) {
-        children.push(SNodeChild::Label(SLabel {
-            id: format!("{}{}", node.id, LABEL_SUFFIX),
-            element_type: TYPE_LABEL,
-            text: node.label.clone(),
-        }));
+    if let Some(sizing) = sizes.node(&node.id) {
+        // Stereotype, banners, name (node/port); lines (compartment). A free
+        // IR label inside a node is a child of its own below, not a label here.
+        for l in sizing.labels.iter().filter(|l| l.role != super::size::LabelRole::Free) {
+            children.push(SNodeChild::Label(SLabel::of(l, TYPE_LABEL)));
+        }
     }
     // A `parent:` cycle cannot survive the manifest parser, but bound the
     // recursion by the node count anyway so a bad generator can't overflow.
     if depth < graph.nodes.len() {
         for child in graph.children_of(&node.id) {
-            children.push(SNodeChild::Node(build_node(graph, child, depth + 1)));
+            children.push(SNodeChild::Node(build_node(graph, sizes, child, depth + 1)));
         }
     }
+    let carried = carried_size(node, sizes);
     SNode {
         id: node.id.clone(),
         element_type_,
@@ -354,7 +378,8 @@ fn build_node(graph: &DiagramGraph, node: &Node, depth: usize) -> SNode {
         direction: node.direction.map(|d| d.as_str()),
         side: if element_type_ == TYPE_PORT { Some(port_side(node)) } else { node.side.map(side_str).map(Some) },
         position: node.pin.as_ref().map(position_of),
-        size: node.pin.as_ref().and_then(size_of),
+        size: Size { width: carried.w, height: carried.h },
+        role: (element_type_ == TYPE_LABEL).then_some("free"),
         style: match element_type_ {
             TYPE_NODE => Some(SStyle::Node(node_style(node))),
             TYPE_PORT => Some(SStyle::Port(port_style(node.direction))),
@@ -365,8 +390,9 @@ fn build_node(graph: &DiagramGraph, node: &Node, depth: usize) -> SNode {
     }
 }
 
-fn build_edge(edge: &Edge) -> SEdge {
+fn build_edge(edge: &Edge, sizes: &Sizes) -> SEdge {
     SEdge {
+        children: sizes.edges.get(&edge.id).map(|ls| ls.iter().map(|l| SLabel::of(l, TYPE_EDGE_LABEL)).collect()).unwrap_or_default(),
         id: edge.id.clone(),
         element_type_: TYPE_EDGE,
         source_id: edge.source.clone(),
@@ -383,16 +409,22 @@ fn build_edge(edge: &Edge) -> SEdge {
 }
 
 /// Serialise the IR as a nested sprotty `SGraph` (see the module doc for the
-/// contract). Serialise the result with `serde_json` or wrap it in axum's
-/// `Json`; [`to_sgraph_json`] does the former.
+/// contract), sizing every element with the process-wide diagram metrics.
+/// Serialise the result with `serde_json` or wrap it in axum's `Json`;
+/// [`to_sgraph_json`] does the former.
 pub fn to_sgraph(graph: &DiagramGraph) -> SGraph {
+    to_sgraph_with(graph, &size_graph_default(graph))
+}
+
+/// [`to_sgraph`] with precomputed [`Sizes`].
+pub fn to_sgraph_with(graph: &DiagramGraph, sizes: &Sizes) -> SGraph {
     let mut children: Vec<SChild> = graph
         .nodes
         .iter()
         .filter(|n| is_root(graph, n))
-        .map(|n| SChild::Node(build_node(graph, n, 0)))
+        .map(|n| SChild::Node(build_node(graph, sizes, n, 0)))
         .collect();
-    children.extend(graph.edges.iter().map(|e| SChild::Edge(build_edge(e))));
+    children.extend(graph.edges.iter().map(|e| SChild::Edge(build_edge(e, sizes))));
     SGraph {
         id: ROOT_ID,
         element_type_: "graph",
@@ -491,7 +523,21 @@ mod tests {
         assert_eq!(pout["direction"], "out");
         assert_eq!(pout["side"], "east");
         assert_eq!(pout["stereotype"], "port");
-        assert_eq!(pout["children"], json!([{ "id": "pout-label", "type": "label", "text": "POUT" }]));
+        // A port carries only its name label, sized (`REQ-TRS-VIS-017`).
+        let kids = pout["children"].as_array().unwrap();
+        assert_eq!(kids.len(), 1);
+        assert_eq!(kids[0]["id"], "pout-label");
+        assert_eq!(kids[0]["type"], "label");
+        assert_eq!(kids[0]["text"], "POUT");
+        assert_eq!(kids[0]["role"], "name");
+        assert!(kids[0]["size"]["width"].as_f64().unwrap() > 0.0 && kids[0]["size"]["height"].as_f64().unwrap() > 0.0);
+        assert_eq!(pout["size"], json!({ "width": 12.0, "height": 12.0 }));
+        // A node with a stereotype carries it before its name label.
+        let motor = &sys["children"][2];
+        assert_eq!(child_ids(motor), vec!["motor-stereotype", "motor-label"]);
+        assert_eq!(motor["children"][0]["role"], "stereotype");
+        assert_eq!(motor["children"][0]["text"], "«part def»");
+        assert_eq!(motor["children"][1]["role"], "name");
     }
 
     #[test]
@@ -553,13 +599,18 @@ mod tests {
     }
 
     #[test]
-    fn position_only_for_pinned_nodes_and_size_only_with_w_and_h() {
+    fn position_only_for_pinned_nodes_and_size_on_every_element() {
         let j = to_sgraph_json(&ibd());
         let sys = &j["children"][0];
         assert!(sys.get("position").is_none(), "unpinned boundary has no position");
-        assert!(sys.get("size").is_none());
+        // Every node carries a size: the metrics box for an unpinned node …
+        let sys_size = &sys["size"];
+        assert!(sys_size["width"].as_f64().unwrap() > 0.0 && sys_size["height"].as_f64().unwrap() > 0.0);
         let engine = &sys["children"][1];
         assert!(engine.get("position").is_none());
+        let engine_w = engine["size"]["width"].as_f64().unwrap();
+        assert!(engine_w >= 120.0, "a leaf is at least the client's minimum: {engine_w}");
+        // … and the pin's own `w`/`h` for a node that records both.
         let motor = &sys["children"][2];
         assert_eq!(motor["position"], json!({ "x": 220.0, "y": 40.0 }));
         assert_eq!(motor["size"], json!({ "width": 150.0, "height": 60.0 }));
@@ -571,22 +622,29 @@ mod tests {
         assert_eq!(motor["resolved"], true);
         assert_eq!(j["pinned"], json!(["motor"]));
 
-        // A pin with only x/y: position, no size.
+        // A pin with only x/y (or w without h): position, and the metrics size.
         let mut g = ibd();
         g.node_mut("engine").pin = Some(Rect { x: 1.0, y: 2.0, w: Some(10.0), h: None });
         let j = to_sgraph_json(&g);
         let engine = &j["children"][0]["children"][1];
         assert_eq!(engine["position"], json!({ "x": 1.0, "y": 2.0 }));
-        assert!(engine.get("size").is_none(), "w without h is not a size");
+        assert_eq!(engine["size"]["width"], engine_w, "w without h is not a carried size");
         assert_eq!(j["pinned"], json!(["engine", "motor"]));
     }
 
     #[test]
     fn edges_stay_top_level_with_kind_ref_label_and_routing_points() {
         let j = to_sgraph_json(&ibd());
-        let e = &j["children"][1];
+        let mut e = j["children"][1].clone();
+        // The label is also a sized `label:edge` child (`REQ-TRS-VIS-017`).
+        let kids = e.as_object_mut().unwrap().remove("children").expect("edge label children");
+        assert_eq!(kids[0]["id"], "e1-label");
+        assert_eq!(kids[0]["type"], "label:edge");
+        assert_eq!(kids[0]["role"], "edge");
+        assert_eq!(kids[0]["text"], "power");
+        assert!(kids[0]["size"]["width"].as_f64().unwrap() > 0.0);
         assert_eq!(
-            *e,
+            e,
             json!({
                 "id": "e1", "type": "edge", "sourceId": "pout", "targetId": "motor",
                 "kind": "flow", "ref": "Sys", "label": "power",
@@ -605,14 +663,23 @@ mod tests {
         assert_eq!(s["arrowSource"], "filledDiamond");
         assert_eq!(s["arrowTarget"], "none");
         g.edges[0].kind = EdgeKind::Binding;
-        let s = &to_sgraph_json(&g)["children"][1]["style"];
+        let e = &to_sgraph_json(&g)["children"][1];
+        let s = &e["style"];
         assert_eq!(s["dash"], "4,4");
         assert_eq!(s["keyword"], "=");
+        assert_eq!(child_ids(e), vec!["e1-keyword", "e1-label"], "keyword before label");
+        assert_eq!(e["children"][0]["role"], "keyword");
+        assert_eq!(e["children"][0]["text"], "=");
         g.edges[0].kind = EdgeKind::Verify;
-        let s = &to_sgraph_json(&g)["children"][1]["style"];
+        let e = &to_sgraph_json(&g)["children"][1];
+        let s = &e["style"];
         assert_eq!(s["stroke"], "#3a6ea5");
         assert_eq!(s["keyword"], "«verify»");
         assert_eq!(s["arrowTarget"], "open");
+        assert_eq!(e["children"][0]["text"], "«verify»");
+        g.edges[0].kind = EdgeKind::Connection;
+        g.edges[0].label = None;
+        assert!(to_sgraph_json(&g)["children"][1].get("children").is_none(), "no keyword, no label: no children key");
         // The nested nodes carry no edges.
         let walk = |v: &Value| v["children"].as_array().unwrap().iter().all(|c| c["type"] != "edge");
         assert!(walk(&j["children"][0]));
@@ -668,11 +735,18 @@ mod tests {
         assert_eq!(comp["type"], "compartment");
         assert_eq!(comp["kind"], "compartment");
         assert_eq!(comp["lines"], json!(["mass : Real [kg]", "powerOut : PowerPort"]));
-        assert_eq!(comp["children"], json!([]), "a compartment gets no label child");
+        // One sized `line` label per line (`REQ-TRS-VIS-017`).
+        assert_eq!(child_ids(comp), vec!["a-attrs-line-0", "a-attrs-line-1"]);
+        assert_eq!(comp["children"][1]["role"], "line");
+        assert_eq!(comp["children"][1]["text"], "powerOut : PowerPort");
+        assert!(comp["children"][1]["size"]["height"].as_f64().unwrap() > 0.0);
+        assert!(comp["size"]["width"].as_f64().unwrap() > 0.0);
         assert!(comp.get("text").is_none());
         let free = &j["children"][1];
         assert_eq!(free["type"], "label");
         assert_eq!(free["text"], "FREE");
+        assert_eq!(free["role"], "free");
+        assert!(free["size"]["width"].as_f64().unwrap() > 0.0);
         assert!(free.get("lines").is_none());
         assert_eq!(free["children"], json!([]));
     }

@@ -2,9 +2,13 @@
 type: PlanningItem
 id: PI-VIS-006
 name: "Phase 3b — ELK embedded in the executable (QuickJS + vendored elkjs), Rust-owned node sizes shared with the browser, SVG export and docs without pins"
-status: todo
+status: done
 itemType: feature
 achieves: [REQ-TRS-VIS-016, REQ-TRS-VIS-017]
+evidence:
+  - path: repo:crates/syscribe-model/src/vis/layout.rs
+  - path: repo:crates/syscribe-model/tests/vis_layout.rs
+  - path: repo:crates/syscribe-model/vendor/elkjs/VERSION
 tags:
   - visualisation
 ---

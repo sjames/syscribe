@@ -139,9 +139,10 @@ These mirror the CLI corpus commands of the same name (`--json` output).
 - `render_diagram {ref, format?}` — a Diagram's **source** plus its `W400`–`W415`
   structural findings. `format` is `plantuml` (default), `mermaid` (generated
   from the Diagram IR, `%% ref:` per node) or `svg` (static SVG per spec §8.16.5,
-  only for a fully pinned diagram — otherwise a tool error asks for *Pin all* in
-  the browser or a text format); a hand-authored `diagramKind: Mermaid` diagram
-  returns its own body. It does not render an image; rendering is left to your
+  drawn from the diagram's pins when it is fully pinned and laid out by the
+  embedded ELK otherwise — pins honoured; only a diagram with no shapes is a
+  tool error); a hand-authored `diagramKind: Mermaid` diagram returns its own
+  body. It does not render an image; rendering is left to your
   toolchain. Same output as `syscribe diagram export`.
 - `diagram_coverage {root?, types?}` — elements referenced by no Diagram shape,
   plus shape refs that don't resolve (the `W402` set).

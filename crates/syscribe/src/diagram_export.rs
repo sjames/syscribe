@@ -4,7 +4,9 @@
 //! The one `diagram` subcommand left after `ADR-SYS-VIS-001` retired the CLI
 //! toolkit: it writes one `Diagram` element's PlantUML, Mermaid or static
 //! SVG — each a pure function of the Diagram IR (`syscribe_model::vis`) — to
-//! stdout or to `--out`. Mermaid and SVG take their `[links]` hyperlinks from
+//! stdout or to `--out`. SVG works on any diagram with an IR: pins are
+//! honoured, and an unpinned diagram is laid out by the embedded ELK
+//! (`REQ-TRS-VIS-016`). Mermaid and SVG take their `[links]` hyperlinks from
 //! `ValidateConfig::hosted_url_for` (inert when `[links]` is absent); PlantUML
 //! keeps its own `[plantuml] base_url` links.
 
@@ -86,7 +88,12 @@ pub fn export_diagram(
             if format == "mermaid" {
                 vis::render_mermaid(&graph, &links).ok_or_else(|| format!("'{qname}' has no Mermaid mapping"))
             } else {
-                vis::render_svg(&graph, &links).ok_or_else(|| vis::not_fully_pinned_message(qname))
+                // REQ-TRS-VIS-016: drawn from pins when fully pinned, else
+                // laid out by the embedded ELK first.
+                vis::render_svg(&graph, &links).map_err(|e| match e {
+                    vis::SvgError::Empty => format!("'{qname}' has no shapes to draw"),
+                    other => format!("'{qname}': {other}"),
+                })
             }
         }
         other => Err(format!("invalid value '{other}' for --format; valid values: {}", FORMATS.join(", "))),

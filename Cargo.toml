@@ -26,3 +26,10 @@ quick-xml = "0.40"
 clap = { version = "4", features = ["derive", "env"] }
 rust-embed = { version = "8", features = ["compression"] }
 mime_guess = "2"
+
+# QuickJS (the embedded ELK engine, `syscribe-model::vis::layout`) is C code
+# built by `cc`, which takes its `-O` level from the profile: at the dev
+# profile's `-O0` the interpreter is an order of magnitude slower, so debug
+# builds and tests always compile it optimised.
+[profile.dev.package.rquickjs-sys]
+opt-level = 3

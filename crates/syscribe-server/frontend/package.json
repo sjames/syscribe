@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc --noEmit -p . && node esbuild.config.mjs",
     "typecheck": "tsc --noEmit -p .",
-    "test": "node test/elk-layout.test.mjs && node test/connect-rules.test.mjs"
+    "test": "node test/elk-layout.test.mjs && node test/connect-rules.test.mjs && node test/server-sizes.test.mjs"
   },
   "dependencies": {
     "elkjs": "^0.8.2",
