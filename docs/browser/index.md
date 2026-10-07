@@ -24,10 +24,10 @@ Pass the model root with `-m <path>` (or set `SYSCRIBE_MODEL`); change the liste
 | HTTP server | Axum (Rust) |
 | HTML templates | Askama (server-side rendering) |
 | Dynamic updates | HTMX (partial-page swaps — no JS framework) |
-| Diagram rendering | SVG (server-built) + Mermaid.js; an editable sprotty-based diagram client for non-Mermaid diagrams |
+| Diagram rendering | Mermaid.js for `diagramKind: Mermaid`; an editable sprotty-based diagram client with ELK layout (`sprotty-elk` + `elkjs`) for every other kind |
 | File watching | `notify` crate + WebSocket push |
 
-All JavaScript (HTMX, Mermaid, the bundled diagram editor) is vendored and served from the binary under `/static/` — no CDN is needed at runtime.
+All JavaScript (HTMX, Mermaid, the bundled diagram editor including `sprotty-elk` and `elkjs`) is vendored and served from the binary under `/static/` — no CDN is needed at runtime and no Node runtime is needed on the server.
 
 ## UI routes
 
@@ -36,7 +36,7 @@ All JavaScript (HTMX, Mermaid, the bundled diagram editor) is vendored and serve
 | `GET /` | Root — renders the model tree browser |
 | `GET /ui/tree?parent=<qname>` | HTMX — returns tree items for a namespace (top level when `parent` is omitted) |
 | `GET /ui/detail/<qname>` | HTMX — element detail panel (rendered Markdown, custom fields, generated member list, edit form) |
-| `GET /ui/diagram/<qname>` | HTMX — diagram panel (SVG or Mermaid) |
+| `GET /ui/diagram/<qname>` | HTMX — diagram panel (Mermaid, or the host for the sprotty editor) |
 | `GET /static/<path>` | Vendored JS/CSS assets |
 
 ## API routes
@@ -52,7 +52,7 @@ All JavaScript (HTMX, Mermaid, the bundled diagram editor) is vendored and serve
 | `GET` | `/api/connections?of=<qname>` | An element's connection frontmatter (`connections`, flow/binding/succession connections, `exhibitsStates`) |
 | `POST` | `/api/connections` | Add a `connections:` entry to the element named by `qname` in the body (guarded write) |
 | `DELETE` | `/api/connections` | Remove a `connections:` entry (guarded write) |
-| `GET` | `/api/diagrams/model/<qname>` | A `Diagram` element as a sprotty graph model (nodes from `shapes:`/`layout:`, edges from `edges:`) |
+| `GET` | `/api/diagrams/model/<qname>` | A `Diagram` element as a nested sprotty graph model (from its manifest or derived from its `subject:`), with ELK `layoutOptions`, the `pinned` set and the resolved style per element; `404` for Mermaid, non-diagram or unknown names |
 | `PATCH` | `/api/diagrams/layout/<qname>` | Persist pins: `{ "<shapeId>": {x, y, w?, h?} }` writes the pin (`w`/`h` when given); a `null` value removes that shape's pin (guarded write) |
 | `DELETE` | `/api/diagrams/layout/<qname>` | Remove every pin — drops the diagram's whole `layout:` key (the *Auto-layout* button; guarded write) |
 | `PUT` | `/api/diagrams/svg/<qname>` | Save a companion SVG: body `{ "svg": "<svg …>…</svg>" }` is written to `svgFile:` (default `<stem>.svg` beside the `.md`), setting `svgMode: companion`/`svgFile:` and appending an `<img>` to the body when absent (guarded write; refused unless the body is an SVG document) |
@@ -84,8 +84,23 @@ Validation findings are available as JSON from `/api/validation`; run `syscribe 
 
 ## Diagram rendering
 
-A `diagramKind: Mermaid` diagram is still rendered client-side by Mermaid.js from the ` ```mermaid ` block in its body. Every other kind is served as a Diagram IR (`syscribe_model::vis`): the server builds one graph per `Diagram` element from its `shapes:`/`edges:`/`layout:` manifest — the single parser that also reports a malformed manifest as `E405` — and `GET /api/diagrams/model/<qname>` hands it to the sprotty editor as a graph model. The browser lays the graph out; the server never computes positions and there is no server-side SVG renderer. Entries in `layout:` are pins: a pinned shape keeps the position recorded for it while the unpinned rest is laid out around it, and a pin that names no shape is `W416`.
+A `diagramKind: Mermaid` diagram is still rendered client-side by Mermaid.js from the ` ```mermaid ` block in its body. Every other kind is served as a Diagram IR (`syscribe_model::vis`): the server builds one graph per `Diagram` element — from its `shapes:`/`edges:`/`layout:` manifest (the single parser that also reports a malformed manifest as `E405`), or derived from its `subject:` when it declares no `shapes:` — and `GET /api/diagrams/model/<qname>` hands it to the sprotty editor as a nested graph model: ports inside their block, blocks inside the boundary, a label and compartments per node, edges at the root, the ELK `layoutOptions` for the diagram's kind, the `pinned` set, and the resolved style (colours, arrowheads, stereotype banners, port glyphs) per element, owned once in Rust (`vis::style`) so the views hold no colour table. The browser lays the graph out; the server never computes positions and there is no server-side SVG renderer.
 
-## Layout persistence
+## The diagram editor
 
-Drag a shape in the browser to reposition it. The client sends a `PATCH /api/diagrams/layout/<qname>` with the new coordinates. The server writes the updated `layout:` block back to the `.md` file on disk. The file watcher then reloads the element and notifies all connected clients.
+Opening a non-Mermaid diagram runs **ELK automatic layout in the browser**: the client measures every label in a hidden render pass, then `sprotty-elk` lays the measured graph out with the bundled `elkjs` (layered, top-down for a BDD with supertypes above subtypes, left-to-right with nesting for an IBD, orthogonal edge routing, ports on the block border, edge keywords and labels placed along the route). Nothing is written back: an automatic layout lives only in the browser until you act, so `git diff` on a diagram file always shows a human's intent.
+
+Entries in `layout:` are **pins**. A pinned shape keeps the position (and size, when `w`/`h` are recorded) its entry holds while ELK places the unpinned rest around it; when every shape is pinned ELK takes the positions as given and only routes the edges. A pin that names no shape is `W416`.
+
+Three gestures and three buttons change the model, each one guarded write that returns the usual `WriteResponse` delta and shows a toast on refusal:
+
+- **Drag** a shape to pin it — one `PATCH /api/diagrams/layout/<qname>` carrying that shape's new position (relative to its parent). A refused move snaps back.
+- **Pin all** writes every placed shape's current position and ELK-sized width/height as pins in a single `PATCH`, so the picture ELK produced becomes explicit, reviewable `layout:` entries and reopens exactly as it looks now.
+- **Auto-layout** clears every pin with `DELETE /api/diagrams/layout/<qname>` (the whole `layout:` key goes), re-fetches the diagram and lets ELK lay it out from scratch. The cached picture is only dropped once the delete was accepted.
+- **Save companion SVG** serialises the current render — with `sysml:ref` on every node and port, `sysml:source`/`sysml:target` on every edge and sprotty's interactive state stripped — and `PUT`s it to `/api/diagrams/svg/<qname>`. The server writes it to the diagram's `svgFile:` (default `<stem>.svg` beside the `.md`), sets `svgMode: companion` and `svgFile:` when absent, and appends one `<img>` to the body (never twice), so GitHub and `export-html` show the picture you approved. Saving does not write pins; press *Pin all* for that. A body that is not an SVG document is refused and nothing is written.
+- **Add** and **Delete** create and remove elements as before (`REQ-TRS-DE-004`); on a derived diagram the element is created under the subject and the view regenerates on reload.
+- **Connect** mode is port-aware: click a source port, then a target port. An `out` port joins an `in` port (an `inout` or undirected port joins anything); two ports of the same direction are refused. You may click a block instead of a port when the block has exactly one port compatible with the other end — a block with no ports, no compatible pair, or several compatible pairs is refused with a toast naming the reason (for several pairs, the toast lists them and asks you to connect the two ports directly). An accepted gesture adds a `connections:` entry on the diagram's `subject:` with `from`/`to` spelled as dotted feature chains relative to it (`battery.powerOut` → `pdu.powerIn`), plus the manifest edge on a manifest diagram.
+
+The ELK bundle is vendored (`sprotty-elk` and `elkjs` in `crates/syscribe-server/frontend/package.json`, built by esbuild into `static/js/diagram-editor.js`); `npm test` in that directory runs the bundled ELK over a fixture IBD and checks that ports sit on their block's border and siblings do not overlap.
+
+After any committed write the file watcher reloads the element and notifies all connected clients.

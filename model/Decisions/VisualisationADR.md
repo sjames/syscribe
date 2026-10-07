@@ -140,3 +140,45 @@ one.
 - Behaviour and traceability views are deliberately later (`REQ-TRS-VIS-015`); until
   then State/Sequence/Requirement diagrams are reachable only as manifest diagrams and
   through the PlantUML backend.
+
+## Addendum: the same ELK engine inside the executable (REQ-TRS-VIS-016, REQ-TRS-VIS-017)
+
+**Context.** Decision 3 put layout in the browser and accepted that the CLI could only draw a
+diagram that was fully pinned or had a saved companion SVG. On 2026-10-07 the user asked
+whether the engine behind sprotty's layout quality could also produce SVG from the executable.
+Sprotty itself cannot run outside a DOM and is not needed outside it — the Rust SVG writer
+(`vis::svg`, `REQ-TRS-VIS-010`) plays its drawing role against the same `vis::style` — but the
+engine behind it, ELK, is plain JavaScript. A spike embedded QuickJS (the `rquickjs` crate) in a
+Rust binary, loaded the identical `elk.bundled.js` the browser bundle uses, and laid out an
+IBD-shaped graph with nested ports and routed edges in roughly 0.4 s cold, including loading the
+1.5 MB bundle; no Node, no browser, two global shims (`window`/`global`, a `setTimeout` queue).
+
+**Decision.**
+1. `syscribe-model` gains `vis::layout`: the vendored `elk.bundled.js` (EPL-2.0, committed under
+   `crates/syscribe-model/vendor/elkjs/` with its licence) embedded with `include_str!` and run
+   in-process under QuickJS. It takes an IR plus node sizes and returns absolute positions, port
+   placements and edge routes. It uses the same ELK options the client's configurator sends
+   (direction, hierarchy, port constraints, interactive layering for pins, `fixed` when every
+   node is pinned), so the two renderers are one engine with one configuration.
+2. Node sizing moves to Rust and becomes authoritative (`REQ-TRS-VIS-017`): the text metrics
+   `svgkit` already holds for MagicGrid are promoted into `syscribe-model` (`vis::metrics`),
+   every node, port and label in the sprotty graph is sent with a `size`, and the client uses
+   those sizes instead of measuring in the DOM. Because ELK is deterministic, identical input
+   sizes and options yield identical coordinates in the browser and in the CLI.
+3. `vis::svg` accepts any diagram: a fully pinned one is drawn as before; otherwise it calls
+   `vis::layout` first. `diagram export --format svg`, `export-html` and MkDocs therefore never
+   need pins or a browser visit; `Save companion SVG` remains the way to freeze a hand-adjusted
+   layout. Decision 6's placeholder chain is reduced to: draw; fall back to a companion only when
+   the IR is empty.
+
+**Rationale.** The user chose ELK for its quality; running the same engine on both sides removes
+the one real cost of decision 3 without reopening the server-side-Node option the ADR rejected:
+QuickJS is a small MIT-licensed C library compiled into the binary, not a runtime dependency.
+Rust-side sizing is what makes "the same picture" literally true rather than approximately true.
+
+**Consequences.** About 2.5 MB added to the binaries (ELK bundle plus QuickJS); a C compiler is
+required at build time (QuickJS is built by `cc`); ELK under QuickJS is slower than under V8 —
+acceptable for the diagram sizes a model holds, and bounded by `REQ-TRS-VIS-016`. The font family
+used for metrics and the CSS font stack of the client must stay the same, and the metrics carry a
+safety margin so a slightly wider browser font never clips a label. `REQ-TRS-VIS-010`'s pinned-only
+rule and `ADR` decision 6's fallback chain are superseded as described above.

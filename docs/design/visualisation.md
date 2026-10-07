@@ -6,10 +6,21 @@
 > **Implementation note.** Phase 0 (§9) landed on 2026-10-07: `syscribe_model::vis::{ir,
 > manifest, sprotty}`, `E405`/`W416`, the PlantUML writer on the IR, the nested
 > `/api/diagrams/model` contract with a client that renders it, and the removals of §11
-> (`PI-VIS-001`). The §1 table now describes history. Phases 1–4 are open.
+> (`PI-VIS-001`). Phase 1 followed the same day (`c2adb37c`, `d348f9be`): `vis::derive::{bdd,
+> ibd}`, source selection by frontmatter, `include:`/`exclude:`, `W417`/`W418` (`PI-VIS-002`).
+> Phase 2 landed in `cacff379` (backend) and `d2e72234` (client), `PI-VIS-003`: one visual
+> language in Rust (`vis::style`) carried per node/port/edge in the sprotty graph; `sprotty-elk`
+> and `elkjs` vendored into the esbuild bundle with ELK layout on open over measured labels,
+> orthogonal routing and edge keywords/labels placed by ELK; pins honoured through ELK's
+> interactive layering (or the `fixed` algorithm when every node is pinned); `PATCH` `null`
+> unpins one shape and `DELETE /api/diagrams/layout` clears every pin; `PUT /api/diagrams/svg`
+> saves a companion SVG; the *Pin all* / *Auto-layout* / *Save companion SVG* buttons; a
+> port-aware connect gesture that sends dotted feature chains; and `npm test` running the ELK
+> layout check (`REQ-TRS-VIS-006/007/008/011/012`). The §1 table now describes history.
+> Phases 3 and 4 are open.
 > This document records the design the four user decisions of 2026-10-07 fixed (§3) and
 > is the reference the `REQ-TRS-VIS-*` requirements and `PI-VIS-*` planning items point
-> at. Sections are updated in place as phases ship.
+> at. Sections are updated in place as phases ship; §6 describes the client as built.
 >
 > **Compatibility.** The same day the user ruled that no backwards compatibility is
 > owed to any existing rendering path: the legacy server renderer, the CLI `diagram`
@@ -278,11 +289,20 @@ tested against fixture models with golden IR snapshots.
 - `position` present only for pinned nodes;
 - `edge` per IR edge with `kind` and optional `routingPoints` from pinned waypoints;
 - a root-level `layoutOptions` map (ELK option ids, from `LayoutHints`) and a `pinned`
-  array of node ids.
+  array of node ids;
+- the resolved style per element (§6.5): `style: {fill, stroke, headerFill, text, dashed}`
+  and optional `banners` on a node, `style: {fill, stroke, glyph}` and `side` on a port,
+  `style: {stroke, dash, width, arrowTarget, arrowSource, keyword}` on an edge.
 
 `PATCH /api/diagrams/layout/{*qname}` is unchanged in shape and gains one semantic: an
-entry it writes is a pin. Writing `null` for a shape id removes the pin. A new
-`DELETE /api/diagrams/layout/{*qname}` removes every pin (the "Auto-layout" button).
+entry it writes is a pin (`x`/`y`, plus `w`/`h` when given; a later `x`/`y`-only patch
+keeps the size). Writing `null` for a shape id removes the pin. A new
+`DELETE /api/diagrams/layout/{*qname}` removes every pin — it drops the diagram's whole
+`layout:` key (the *Auto-layout* button). `PUT /api/diagrams/svg/{*qname}` takes
+`{ "svg": "<svg …>" }` and writes the companion file (§7). All three are guarded writes
+that return the `WriteResponse` delta; an unknown qname or a non-`Diagram` target is
+refused with a reason, and a `PUT` body that is not an SVG document writes nothing.
+The module doc of `vis/sprotty.rs` is the normative description of the JSON.
 
 ### 6.2 Layout in the client
 
@@ -290,17 +310,42 @@ The DI container binds sprotty's `IModelLayoutEngine` to `sprotty-elk`'s
 `ElkLayoutEngine`, with `elkjs`'s bundled build as the ELK factory. `needsClientLayout`
 turns on so label bounds are measured in the hidden render pass before ELK runs.
 
-Pins are honoured by passing each pinned node's position with ELK's interactive
-layering and ordering options enabled (`org.eclipse.elk.interactive`,
-`org.eclipse.elk.layered.layering.strategy: INTERACTIVE`,
-`crossingMinimization.strategy: INTERACTIVE` with `considerModelOrder`), so ELK places
-unpinned nodes around the pinned ones instead of ignoring them. When **every** node is
-pinned, the `fixed` algorithm is used and ELK only routes edges.
+As built (`frontend/src/layout.ts`), the client does three things before and after ELK:
+
+- **Micro-layout for measurement.** `prepareForLayout` turns every node and compartment
+  into a sprotty `vbox`, adds the `«stereotype»` and applied-stereotype `banners` as label
+  children above the name label, expands a compartment's `lines` into label children, and
+  gives ports a fixed 12×12 size, so the hidden measuring pass yields a real size for every
+  element. An edge's `«keyword»` and `label` become `label:edge` children, so **ELK lays
+  out edge labels too** and reserves room for them along the route.
+- **Configuration.** `SyscribeLayoutConfigurator` maps the root's `layoutOptions` onto the
+  ELK graph with the project's spacing defaults and `elk.edgeRouting: ORTHOGONAL`; node
+  sizes come from the measured bounds (`NODE_LABELS PORTS PORT_LABELS MINIMUM_SIZE`), port
+  sides from `side` (or a direction-based fallback once any sibling port has a side), and
+  compound nodes get an inner padding below their label stack.
+- **Pre/post-processing.** Edges of the kinds in `syscribe.reversedEdgeKinds` (inheritance)
+  are flipped before ELK so supertypes sit above subtypes and flipped back afterwards;
+  every edge section is translated from its ELK container's coordinates into the root's,
+  because sprotty keeps all edges at the root.
+
+Pins are honoured by passing each pinned node's position (`elk.position`) with ELK's
+interactive layering and ordering options enabled (`elk.interactive`,
+`elk.layered.layering.strategy: INTERACTIVE`,
+`elk.layered.crossingMinimization.strategy: INTERACTIVE`,
+`elk.layered.considerModelOrder.strategy: NODES_AND_EDGES`), so ELK places unpinned
+nodes around the pinned ones instead of ignoring them. The same options must be set on
+every compound node, not only the root — ELK refuses a hierarchy whose children use a
+different crossing-minimisation strategy. When **every** node is pinned, the `fixed`
+algorithm is used instead: ELK takes the positions as given (a pinned `w`/`h` wins over
+the smaller measured size), **routes each edge as a straight line** rather than
+orthogonally, and places no labels at all, so the client's postprocessor places node
+labels, port labels and edge labels itself in that mode (see §13).
 
 Auto-layout results are **never written back implicitly**. The model only changes when
 the user moves a node (that node becomes pinned, via the existing PATCH), presses
-*Pin all* (one PATCH carrying every node's current position) or *Auto-layout* (the
-DELETE above). This keeps `git diff` on diagram files meaningful.
+*Pin all* (one PATCH carrying every placed node's current position and size) or
+*Auto-layout* (the DELETE above, then a re-fetch and a fresh ELK run). This keeps
+`git diff` on diagram files meaningful.
 
 ### 6.3 Editing
 
@@ -310,14 +355,47 @@ DELETE above). This keeps `git diff` on diagram files meaningful.
 |---|---|---|
 | Create node | creates element + manifest shape + pin in one guarded write (as today) | creates the element under the subject (a `Part` usage for IBD, a definition for BDD); the view regenerates on reload, no manifest write |
 | Delete node | deletes element, prunes shapes/edges in every diagram (as today) | deletes the element; the view regenerates |
-| Connect | port-to-port drag adds a `connections:` entry on the owning part and an edge to the manifest | adds the `connections:` entry only |
+| Connect | port-to-port gesture adds a `connections:` entry on the owning part and an edge to the manifest | adds the `connections:` entry only |
 | Move | writes a pin | writes a pin |
 
-The connect gesture becomes **port-aware**: the drag must start and end on `port`
-children; connecting two blocks directly is offered only when each side has exactly one
-compatible port, and is refused otherwise with a toast. This replaces today's
-"connect any two nodes" behaviour, which produced `connections:` entries between parts
-that had no ports.
+The connect gesture is **click-source-then-click-target**, not a literal drag: sprotty's
+standalone package ships no edge-creation tool (that is the GLSP piece `ADR-SYS-DE-001`
+declines), so *Connect* mode swaps in a `MouseListener` that remembers the first
+connectable element clicked and fires on the second. A click on a label or compartment
+walks up to the nearest `node` or `port`.
+
+The gesture is **port-aware** (`frontend/src/connect-rules.ts`, pure functions over the
+schema, as built):
+
+- two ports are joined when their directions are compatible — `out`→`in` or `in`→`out`;
+  an `inout` or undirected port goes with anything; two ports of the same direction are
+  refused ("both ports have the same direction");
+- a block may stand in for its **single** compatible port: when one or both ends are
+  blocks, the candidate pairs are every (source port, target port) combination that is
+  compatible; exactly one pair is accepted, none is refused ("no compatible port pair …
+  an out port must meet an in port"), and more than one is refused as ambiguous, listing
+  the pairs and asking for the two ports to be connected directly;
+- a block with no ports at all is refused ("has no ports to connect from/to").
+
+Every refusal is a toast and nothing is written. An accepted pair becomes a `connection`
+edge between the two port ids (optimistically) and one `POST /api/connections` whose
+`from`/`to` are the **dotted feature chains** `add_connection` resolves relative to the
+owner — the diagram's `subject:` (falling back to the diagram's own qname): a port
+`A::B::battery::powerOut` owned by `A::B` is sent as `battery.powerOut`, the owner's own
+port `A::B::mainPowerOut` as `mainPowerOut`; when a manifest port's `ref` is not spelled
+under the owner, the chain is rebuilt from the enclosing blocks' names, skipping the
+boundary. The `diagram:` sync block (`ADR-SYS-DE-001`'s transactional edge-into-manifest
+write) is sent only for a manifest diagram; a derived diagram has no manifest to sync, so
+the `connections:` entry is the whole transaction and the view regenerates on reload.
+
+The client decides "derived or manifest" by a **heuristic on shape ids**
+(`isDerivedDiagram`): the diagram has a `subject:` and every root shape's id equals the
+deterministic slug of its `ref` (`s-` + the lower-cased ref with non-alphanumerics
+replaced by `-`, which is what `vis::derive` emits), whereas a manifest carries the
+author's own keys. The endpoint does not yet flag this explicitly — see §13.
+
+This replaces the earlier "connect any two nodes" behaviour, which produced
+`connections:` entries between parts that had no ports.
 
 Every write still goes through `syscribe_model::mutate`'s guarded-write engine and
 returns the `WriteResponse` delta; a refusal reverts the optimistic change exactly as
@@ -325,11 +403,31 @@ returns the `WriteResponse` delta; a refusal reverts the optimistic change exact
 
 ### 6.4 Vendoring
 
-`elkjs` and `sprotty-elk` enter `frontend/package.json` and are bundled by esbuild into
-the existing `static/js/diagram-editor.js`; no CDN, no runtime Node, in keeping with
-`ADR-SYS-DE-001`'s consequence. The bundled ELK adds roughly 1.4 MB to a bundle that is
-already 1.1 MB (Mermaid alone is 3.3 MB). ELK runs on the main thread; a Web Worker is
-an option if a real model proves slow, and sprotty-elk supports it without API change.
+`elkjs` (`^0.8.2`) and `sprotty-elk` (`^1.4.0`, matching the installed `sprotty`) are
+in `frontend/package.json` and bundled by esbuild into the existing
+`static/js/diagram-editor.js`; no CDN, no runtime Node, in keeping with
+`ADR-SYS-DE-001`'s consequence. The DI container (`container.ts`) loads `elkLayoutModule`,
+binds the bundled `elkjs` build as the `ElkFactory`, rebinds `ILayoutConfigurator` and
+binds the pre/post-processor pair from `layout.ts`, points `TYPES.IModelLayoutEngine` at
+`ElkLayoutEngine`, and sets `needsClientLayout: true` so `LocalModelSource.setModel`
+runs the hidden measuring pass before the engine sees the graph. The bundled ELK adds
+roughly 1.4 MB to a bundle that was 1.1 MB (Mermaid alone is 3.3 MB). ELK runs on the
+main thread; a Web Worker is an option if a real model proves slow, and sprotty-elk
+supports it without API change.
+
+### 6.5 Style
+
+The client's views hold no colour table. `vis::style` (Rust) resolves a `NodeStyle`,
+`PortStyle` or `EdgeStyle` for every IR element — element type first, then node kind,
+dashed when unresolved; the §8.16.8 arrowhead/dash/keyword row per edge kind; the port
+glyph per direction; one `«Name»` banner per applied `MetadataDef` stereotype — and
+`vis::sprotty` serialises it camelCase onto the element (§6.1). `views.tsx` reads
+`style`/`banners`/`side` and draws; the same values are what `vis::svg` will emit in
+Phase 3. The `npm test` script (`frontend/test/elk-layout.test.mjs`) is the one place the
+layout algorithm itself is exercised outside a browser: it runs the bundled `elkjs` over a
+fixture IBD with the configurator's option values and asserts that every port sits on its
+parent's border, no two siblings overlap, children and labels fit inside their parent, and
+every edge is routed.
 
 ---
 
@@ -390,7 +488,7 @@ in the same commit as the code that emits them):
 |---|---|---|
 | **0 — Clear the ground** | `vis::ir` + `vis::manifest` as the one parser; shorthand, `parent`, default kind honoured; `E405`/`W416`; sprotty endpoint emits nesting; `sub_mapping` no longer silently replaces a scalar. **Removed outright**: `renderer.rs`, `diagram.rs`'s helpers, `plantuml.rs`'s private parser (it reads the IR from here on), the CLI `diagram` toolkit (`render`/`measure`/`compose`/`layout`/`seq`/`req`, ~6 k lines, and its `/tmp` scratch files), their docs and qual cases. `export-html` embeds only companion SVG until Phase 3. | `REQ-TRS-VIS-001`, `-002`, `-013` |
 | **1 — Derived BDD/IBD** | `derive::bdd`, `derive::ibd`, source selection by frontmatter, `include:`/`exclude:`, `W417`/`W418`, spec §8.16 update, golden tests. | `-003`, `-004`, `-005` |
-| **2 — ELK in the browser** | `sprotty-elk` + `elkjs` vendored; measured labels; pins semantics; Pin all / Auto-layout; port-aware connect; nested rendering with the shared style. | `-006`, `-007`, `-008`, `-011`, `-012` |
+| **2 — ELK in the browser** (landed: `cacff379`, `d2e72234`) | `sprotty-elk` + `elkjs` vendored; measured labels; pins semantics; Pin all / Auto-layout / Save companion SVG; port-aware connect; nested rendering with the shared style. | `-006`, `-007`, `-008`, `-011`, `-012` |
 | **3 — Exports and static SVG** | `vis::mermaid`, `vis::svg`, `syscribe diagram export`, MCP `render_diagram format=mermaid`, the §7 fallback chain in `export-html`. | `-009`, `-010` |
 | **4 — Coverage** | Endpoint integration tests, Node-side ELK smoke test on a fixture IR, snapshot tests for every writer. Runs alongside every phase; listed separately so it is never "later". | `-014` |
 | **Follow-on** | State, Action, Requirement, Sequence, Allocation generators on the same IR. | `-015` |
@@ -457,9 +555,27 @@ untouched by every phase.
 
 ## 13. Open points
 
-1. Whether `Save companion SVG` should also embed the ELK positions back as pins, so
-   the static picture and the editable one never diverge. Leaning yes; decide in Phase 2.
+1. ~~Whether `Save companion SVG` should also embed the ELK positions back as pins, so
+   the static picture and the editable one never diverge.~~ **Decided in Phase 2: no.**
+   *Save companion SVG* writes only the `.svg` (and `svgMode`/`svgFile`/the `<img>` once);
+   pinning stays a separate, explicit *Pin all*, so saving a picture never silently
+   changes `layout:`. `REQ-TRS-VIS-011` accepts either answer.
 2. Whether `include:`/`exclude:` should accept glob patterns on qualified names.
    Start with exact names; extend if a real model needs it.
 3. Port sides for the BDD compartment view (ports as compartment lines vs. drawn on the
    block). Start with compartment lines; IBD is where ports are drawn.
+4. **An explicit `derived` flag on the graph root.** The client's `isDerivedDiagram`
+   (§6.3) infers "no manifest to sync" from shape ids matching `vis::derive`'s slugs. It is
+   correct for every diagram the generators emit, but a manifest author who happens to
+   key every shape by its ref slug would be mis-read as derived and the connect gesture
+   would skip the manifest sync. `vis::sprotty` should carry `derived: true|false` on the
+   root (it knows the source) and the client should read that instead; `REQ-TRS-VIS-006`'s
+   contract is extended, not changed, by the extra field.
+5. **Orthogonal routing for fully pinned diagrams.** With every node pinned the client
+   switches ELK to the `fixed` algorithm, which only draws straight lines between the
+   pinned ends and places no labels (the postprocessor places them, §6.2). A pinned IBD
+   therefore looks different from the same IBD one drag earlier. Options: keep `layered`
+   with every node carrying `elk.position` and interactive options (routes orthogonally,
+   but ELK may still nudge positions), or run `fixed` for nodes and a separate ELK
+   edge-routing pass. Decide when a real model with a hand-pinned IBD shows the
+   difference matters.
