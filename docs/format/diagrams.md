@@ -17,7 +17,7 @@ Diagrams are `type: Diagram` elements. The `diagramKind:` field selects the rend
 
 ## Structured diagrams (BDD, IBD, StateMachine, Requirement)
 
-These diagrams declare their content in YAML frontmatter. The web server builds the SVG from the `shapes`, `edges`, and `layout` fields.
+These diagrams carry their content in YAML frontmatter, from one of two sources. A `BDD` or `IBD` with a `subject:` and no `shapes:` is **derived** from the model (next section) — the preferred form for those kinds. A diagram with a `shapes:` block is **manifest**-sourced: the hand-listed alternative, where the author enumerates the `shapes`, `edges`, and optional `layout` pins, and the only form for kinds that have no generator yet. The presence of `shapes:` selects the source; there is no mode field.
 
 ### `shapes:` — mapping of shape-id to descriptor
 
@@ -64,6 +64,95 @@ layout:
 ```
 
 `layout:` is the trigger for the SVG renderer. A diagram without a `layout:` block renders as "no layout defined."
+
+## Derived diagrams (BDD, IBD)
+
+A `BDD` or `IBD` needs no manifest at all. Declare the kind and the subject, and the
+generator reads the content from the model every time the diagram is built:
+
+```yaml
+---
+type: Diagram
+name: PowerSystemDerivedIBD
+diagramKind: IBD
+subject: UAV::Power::PowerSystem
+---
+```
+
+Adding a part, a port or a `supertype:` to the model changes the picture; nothing in the
+diagram file needs editing. The demo model ships one of each: `Diagrams::UAVSystemDerivedBDD`
+(subject: the `UAV` package) and `Diagrams::PowerSystemDerivedIBD` (subject:
+`UAV::Power::PowerSystem`; compare the hand-listed `Diagrams::PowerSystemIBD`, the same view
+as a manifest).
+
+### What the generator draws
+
+**BDD** — subject: a `Package`, `PartDef` or `ItemDef`.
+
+- One block per `PartDef`, `ItemDef`, `PortDef`, `InterfaceDef` or `ConnectionDef` that is a
+  direct member of the subject package (for a definition subject: the definition itself plus
+  its direct sub-definitions). Actions, states and requirements never appear.
+- A compartment listing the block's attribute features (`mass : Real [kg]`) and ports
+  (`port powerOut : PowerPort (out)`).
+- `inheritance` edges from `supertype:`; `composition` edges from part usages (inline
+  `features:` typed by a definition, and child `Part`/`Item` elements), labelled with the usage
+  name and a non-1 multiplicity (`motor [2]`); an `association` edge for a `ConnectionDef`
+  whose two end types are blocks on the diagram.
+- An edge is drawn only when both of its ends are on the diagram.
+
+**IBD** — subject: a `PartDef` or `Part`.
+
+- A boundary for the subject with its own ports (a `Part` subject also shows its definition's
+  ports).
+- One block per owned part usage — inline `features:` typed by a `PartDef`, or child `Part`
+  elements — labelled `name : Type [mult]`, with ports from the usage's own features and from
+  its definition, each carrying its `direction`.
+- Edges from the subject's `connections:` (connection), `flowConnections:` (flow),
+  `bindingConnections:` (binding) and `successionConnections:` (succession). Endpoints are the
+  usual dotted chains: `engine.powerOut` is port `powerOut` of usage `engine`; a single segment
+  is a usage or a boundary port. A chain that reaches nothing draws no edge — the generator
+  never invents a port.
+
+Other kinds (`StateMachine`, `Requirement`, …) have no generator yet; a derived diagram of
+such a kind is drawn empty, so keep using a manifest for them.
+
+### Narrowing the view: `include:` / `exclude:`
+
+```yaml
+diagramKind: BDD
+subject: UAV
+include: [UAV::UAVSystem, Airframe]   # qualified name, or name relative to the subject
+exclude: [Airframe]                    # applied after include
+```
+
+`include:` keeps only the named members (BDD: definitions in the package; IBD: owned part
+usages) and the edges joining them; `exclude:` removes members, and every edge touching them,
+from an otherwise complete view. Either takes a string or a list. An entry that names no member
+of the subject is **W417**; `include:`/`exclude:` on a manifest diagram is one **W417** and is
+ignored.
+
+### Pins
+
+Derived shape ids are deterministic: `s-` plus the element's qualified name lower-cased with
+`::` and other non-alphanumerics replaced by `-` — `UAV::Power::PowerSystem::pdu` becomes
+`s-uav-power-powersystem-pdu`. A `layout:` block therefore works on a derived diagram exactly as
+on a manifest one: pins survive regeneration, and a renamed element simply loses its pin (W416)
+and is laid out automatically again.
+
+```yaml
+layout:
+  s-uav-power-powersystem-pdu: {x: 320, y: 80}
+```
+
+### Codes
+
+| Code | Condition |
+|---|---|
+| W417 | `include:`/`exclude:` on a manifest diagram (ignored), or an entry that names no member of the subject |
+| W418 | A derived diagram's `subject:` type is not valid for its `diagramKind:` (BDD: `Package`/`PartDef`/`ItemDef`; IBD: `PartDef`/`Part`); the diagram is drawn empty |
+
+An unresolved `subject:` is still W401, and a derived diagram never raises W402/W403 for the
+shapes it generates.
 
 ## Mermaid diagrams
 
@@ -176,6 +265,8 @@ theme = "spacelab"                    # any PlantUML built-in theme
 | W401 | Warning | `subject:` does not resolve to a known element |
 | W402 | Warning | A shape `ref:` does not resolve (and is not a sub-feature of a known element) |
 | W403 | Warning | An edge `source` or `target` is not a defined shape id in this diagram |
+| W417 | Warning | `include:`/`exclude:` on a manifest diagram (ignored), or an entry that names no member of the subject |
+| W418 | Warning | A derived diagram's `subject:` type is not valid for its `diagramKind:`; the diagram is drawn empty |
 | W413 | Warning | `pumlMode: companion` but body has no `<img` tag |
 | W414 | Warning | `pumlMode: companion` but the `.puml` companion file does not exist yet |
 | W415 | Warning | `[plantuml] style_file` in `.syscribe.toml` does not exist on disk |

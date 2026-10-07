@@ -221,6 +221,7 @@ Write `Allocation` elements. Validate: fix E502/E503 (unresolved `allocatedFrom`
 **Batch 8 — Diagrams**
 Write `Diagram` elements after all model elements are in place.
 
+- **Derived BDD / IBD** — **preferred for those two kinds.** Declare only `diagramKind: BDD` (subject: a Package, PartDef or ItemDef) or `diagramKind: IBD` (subject: a PartDef or Part) and `subject:`; no `shapes:`/`edges:` — the content is derived from the model and follows it. Optional `include:`/`exclude:` narrow the members shown. Validate: fix W401, W417 (filter entry names no member), W418 (subject type wrong for the kind).
 - **Mermaid** — write the `.md` directly with a fenced ` ```mermaid ` block. Validate: fix E400, W408, W409.
 - **svgMode: companion** (companion SVG) — the `.svg` is saved from the browser (Save companion SVG) or produced by `syscribe -m model/ plantuml render`; there is no CLI command that composes it. Commit both `.md` and the `.svg`.
 - **pumlMode: companion** (PlantUML) — preferred for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Set `pumlMode: companion` and `pumlFile: ./<Name>.puml`. Then run:
@@ -787,9 +788,10 @@ Operations on a PortDef:
 
 ## Part 9 — Diagrams
 
-Every diagram is a `type: Diagram` element in `Diagrams/`. Four authoring approaches:
+Every diagram is a `type: Diagram` element in `Diagrams/`. Five authoring approaches:
 
-- **PlantUML companion** (`pumlMode: companion`) — **preferred** for BDD, IBD, StateMachine, Sequence, and Requirement diagrams. Syscribe generates a `.puml` source file; PlantUML renders it to SVG. Each shape carries a clickable hyperlink back to its element in the web browser. Set `pumlMode: companion`, `pumlFile:`, and add an `<img>` tag in the body referencing the anticipated SVG. Run `syscribe -m model/ plantuml` then `syscribe -m model/ plantuml render`.
+- **Derived** (`BDD`, `IBD`) — **preferred for these two kinds.** Declare only `diagramKind:` and `subject:` (BDD: a `Package`, `PartDef` or `ItemDef`; IBD: a `PartDef` or `Part`) and no `shapes:`; the blocks, compartments, ports, inheritance, composition and connections are derived from the model and follow it. `include:`/`exclude:` (qualified names or names relative to the subject) narrow the view. A `shapes:` block switches the diagram to the hand-listed manifest form below.
+- **PlantUML companion** (`pumlMode: companion`) — **preferred** for StateMachine, Sequence, and Requirement diagrams (and the manifest form of BDD/IBD). Syscribe generates a `.puml` source file; PlantUML renders it to SVG. Each shape carries a clickable hyperlink back to its element in the web browser. Set `pumlMode: companion`, `pumlFile:`, and add an `<img>` tag in the body referencing the anticipated SVG. Run `syscribe -m model/ plantuml` then `syscribe -m model/ plantuml render`.
 - **Mermaid** — for traceability trees, flow diagrams, simple state machines. Set `diagramKind: Mermaid`. Include a fenced ` ```mermaid ` block (error E400 if absent).
 - **Companion SVG** (`svgMode: companion`) — an SVG file next to the `.md`, saved from the browser (Save companion SVG) or rendered by `syscribe -m model/ plantuml render`. Commit the SVG as a companion file.
 - **Embedded SVG** — hand-coded SVG using the symbol library, for precise SysML notation.
@@ -870,6 +872,8 @@ SVG conventions: root `<svg>` uses `xmlns:sysml="urn:syscribe:1.0"`. Each shape 
 | W409 | Mermaid diagram has no `%% ref:` annotations |
 | W413 | `pumlMode: companion` but body has no `<img` tag |
 | W414 | `pumlMode: companion` but the `.puml` file does not exist yet |
+| W417 | `include:`/`exclude:` on a manifest diagram (ignored), or an entry naming no member of the subject |
+| W418 | Derived diagram's `subject:` type is not valid for its `diagramKind:` — drawn empty |
 
 ---
 

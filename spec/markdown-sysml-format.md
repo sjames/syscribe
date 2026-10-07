@@ -3224,6 +3224,18 @@ A `Diagram` file (`type: Diagram`) depicts part of the model. Its `diagramKind:`
 | **Inline PlantUML** (`diagramKind: PlantUML`) | A fenced ` ```plantuml ` block in the body | Hand-written PlantUML source. |
 | **Hand-authored SVG** (any kind, including `Allocation`, `UseCase`, `Sequence`, `Custom`) | `shapes:` / `edges:` manifest plus an SVG, inline or companion (below) | The SVG geometry is authored (typically by an LLM); the manifest links every shape and edge to a model element. |
 
+**Source selection (`REQ-TRS-VIS-003`).** A diagram's content comes from one of two sources, chosen by what the frontmatter declares — there is no mode field:
+
+| Frontmatter | Source |
+|---|---|
+| has a `shapes:` block | **manifest** — the author listed the content in `shapes:`/`edges:` (§8.16.3–8.16.4) |
+| has a `subject:` and no `shapes:` | **derived** — the generator for `diagramKind:` walks the subject and produces the content |
+| has neither | nothing to draw; `W400`/`W401` already cover the missing pieces |
+
+A `shapes:` key with a null value does not select the manifest. Only kinds that build an IR (everything but `Mermaid` and `PlantUML`) have a source at all.
+
+**Derived diagrams.** A derived diagram is two lines of frontmatter — `diagramKind:` and `subject:` — and follows the model: adding a part, a port or a `supertype:` changes the picture without editing the diagram. Generators exist for `BDD` (§8.16.8.1) and `IBD` (§8.16.8.2); a derived diagram of any other kind yields an empty picture until its generator ships (`REQ-TRS-VIS-015`). Every generated shape has a **deterministic id** — `s-` followed by the depicted element's qualified name lower-cased with `::` and every other non-alphanumeric run replaced by `-` (`UAV::Power::PowerSystem::pdu` → `s-uav-power-powersystem-pdu`; a compartment is `<block id>-compartment`) — so `layout:` pins (§8.16.2) apply to a derived diagram unchanged, survive regeneration, and a renamed element merely loses its pin. `include:`/`exclude:` (§8.16.2) narrow the content; `W417`/`W418` (§8.16.7) report a filter that names nothing and a subject of the wrong type.
+
 The rest of this section specifies the manifest and the hand-authored SVG conventions. In the manifest the frontmatter is the canonical source of traceability and the SVG is the visual geometry, so a parser can validate the diagram from the frontmatter without touching the SVG. The SVG uses a `sysml:` XML namespace (`urn:syscribe:1.0`) on shapes for redundant inline traceability, so the SVG can be opened standalone in any viewer.
 
 **Two SVG storage modes are supported.** The frontmatter schema is identical in both; only the Markdown body differs:
@@ -3247,8 +3259,10 @@ Choose **inline** when GitHub rendering is not required and keeping everything i
 | `subject` | string | recommended | — | Qualified name of the model element this diagram depicts. An unresolved subject is warning `W401`. |
 | `svgMode` | string | optional | `inline` | Storage mode: `inline` (fenced block in body) or `companion` (separate `.svg` file) |
 | `svgFile` | string | optional | `<stem>.svg` | Companion file path relative to the `.md` file; only used when `svgMode: companion` |
-| `shapes` | map | optional | absent | Shape manifest; see §8.16.3 |
+| `shapes` | map | optional | absent | Shape manifest; see §8.16.3. Its presence selects the **manifest** source (§8.16.1); a `Diagram` with a `subject:` and no `shapes:` is **derived**. |
 | `edges` | map | optional | absent | Edge manifest; see §8.16.4 |
+| `include` | string or list | optional | absent | **Derived diagrams only.** Restrict the content to the named members of the subject (and the edges joining them). Each entry is a qualified name (`UAV::Power::PowerSystem::pdu`) or a name relative to the subject (`pdu`); a BDD member is a definition in the subject package, an IBD member is an owned part usage. An entry that names no member is warning `W417`; on a manifest diagram the field is `W417` and ignored. |
+| `exclude` | string or list | optional | absent | **Derived diagrams only.** Remove the named members (and every edge touching them) from an otherwise complete view; same naming and `W417` rules as `include`. Applied after `include`. |
 | `layout` | map | optional | absent | Shape id → `{x, y, w, h}` pixel coordinates (an edge id → `{points: [[x, y], …]}` pins its routing). Entries are **pins** (`REQ-TRS-VIS-007`): a pinned shape keeps its position while the browser lays the unpinned rest out around it; `w`/`h` are optional. A key naming no shape or edge is `W416`; an entry without numeric `x`/`y` is `E405`. |
 | `pumlMode` | string | optional | absent | `companion` (the only value; anything else is `E403`) opts into the PlantUML workflow. Requires `diagramKind` (`E404`); the body must reference the anticipated SVG (`![…](….svg)` or `<img`, else `W413`); a not-yet-generated `.puml` is `W414`. |
 | `pumlFile` | string | optional | `<stem>.puml` | Companion `.puml` path relative to the `.md` file; only used with `pumlMode: companion`. |
@@ -3587,6 +3601,7 @@ A conformant parser must:
 8. **Rendering-path bodies** — `diagramKind: Mermaid` requires a ` ```mermaid ` block (`E400`); `diagramKind: PlantUML` requires a ` ```plantuml ` block (`E401`). In Mermaid blocks, an unresolved `%% ref:` is `W408`, a diagram with no `%% ref:` annotation at all is `W409`, and an unresolved `%% link:` is `W410`. The `pumlMode` checks (`E403`, `E404`, `W413`, `W414`) are listed in §8.16.2; a missing `[plantuml] style_file` is `W415`.
 9. **Completeness warnings** (optional, non-blocking) — for `IBD` diagrams, the parser may warn if sub-parts or connections declared in the subject element's `.md` file do not appear in `shapes:` or `edges:`.
 10. **Manifest well-formedness** (`REQ-TRS-VIS-002`) — a `shapes:`, `edges:` or `layout:` value that is present but malformed is error `E405` naming the entry: the value is not a map, an entry is neither a map nor a qualified-name string, a shape has no `ref` or an edge no `source`/`target`, a `kind:` is outside the §8.16.8 vocabulary, a `parent:` names no shape of the diagram (or forms a cycle), or a `layout:` entry has no numeric `x`/`y`. The offending entry is skipped and the rest of the diagram still builds — a malformed manifest never renders the diagram empty. A `layout:` key that names no shape or edge of the diagram is warning `W416` (a stale pin). The check applies only to diagram kinds that build an IR; `Mermaid` and `PlantUML` bodies have no manifest to check.
+11. **Derived-diagram filters and subject** (`REQ-TRS-VIS-003`) — on a derived diagram (a `subject:` and no `shapes:`, §8.16.1), every `include:`/`exclude:` entry must name a member of the subject, by qualified name or by name relative to the subject; an entry that names nothing is warning `W417` (the entry is ignored, the rest of the filter still applies). `include:`/`exclude:` on a manifest diagram is one `W417` and the fields are ignored — the manifest is drawn as listed. A derived diagram's `subject:` must be of a type the kind's generator accepts (the *Valid `subject:` types* of §8.16.8); otherwise it is warning `W418` and the diagram is drawn empty. An unresolved subject stays `W401` (rule 5) and produces no `W418`.
 
 ---
 
@@ -3660,6 +3675,16 @@ edges:
 
 **Completeness rule:** the parser must warn if any `PartDef` or `ItemDef` that is a direct child element of the subject package (or a direct sub-definition of the subject definition) is absent from `shapes:`.
 
+**Derived content** (`REQ-TRS-VIS-004`): a BDD with a `subject:` and no `shapes:` is generated from the model. The subject is a `Package` (`LibraryPackage` and `Namespace` count as packages), a `PartDef` or an `ItemDef`; anything else is `W418`. The generator produces:
+
+- one `block` per `PartDef`, `ItemDef`, `PortDef`, `InterfaceDef` or `ConnectionDef` that is a direct member of the subject package — or, for a definition subject, the subject itself plus its direct sub-definitions — carrying the SysMLv2 stereotype (`part def`, `connection def`, …) and the abstract flag; other member kinds (actions, states, requirements) never appear;
+- one `compartment` child per block that has any, listing its attribute features as `name : Type [unit]` and its port features as `port name : Type (direction)` (a non-`1` multiplicity is appended as `[n]`);
+- an `inheritance` edge from each block to the block its `supertype:` resolves to;
+- a `composition` edge from a block to each block that types one of its part usages — an inline `features:` entry typed by a definition, or a child `Part`/`Item` element — labelled with the usage name and, when not `1`, its multiplicity (`motor [2]`);
+- an `association` edge for each `ConnectionDef` on the diagram whose first two `ends[].typedBy` resolve to blocks on the diagram, labelled with the connection definition's name.
+
+An edge is emitted only when both of its ends are nodes of the diagram after `include:`/`exclude:`. Layout hints are layered, top-to-bottom, with inheritance edges oriented so a supertype sits above its subtypes.
+
 ---
 
 ##### 8.16.8.2 IBD (Internal Block Diagram)
@@ -3725,6 +3750,14 @@ edges:
 ```
 
 **Completeness rule:** the parser must warn if any owned `Part`, `Port`, `Connection`, or `Flow` declared in the subject's `.md` file (in `features:` or `connections:`) is absent from `shapes:` or `edges:`.
+
+**Derived content** (`REQ-TRS-VIS-005`): an IBD with a `subject:` and no `shapes:` is generated from the model. The subject is a `PartDef` or `Part` (`ItemDef`/`Item` are accepted on the same terms); anything else is `W418`. The generator produces:
+
+- a `boundary` for the subject carrying the subject's own port features as `port` children; a `Part` subject also carries the ports its definition declares;
+- one `block` child of the boundary per owned part usage — an inline `features:` entry typed by a `PartDef`/`ItemDef`, or a child `Part`/`Item` element (a child element is skipped when an inline feature already has its name) — labelled `name : Type` with a non-`1` multiplicity appended as `[n]`, with that usage's ports as `port` children: the usage's own port features first, then the ports its definition declares (the usage's own wins a name clash); every port carries the `direction` (`in`/`out`/`inout`) of the port feature it came from, and no fixed side unless pinned;
+- an edge per entry of the subject's `connections:` (`connection`), `flowConnections:` (`flow`), `bindingConnections:` (`binding`) and `successionConnections:` (`succession`, from `after`/`before`), labelled with the entry's `name:` or the short name of its `typedBy:`. Each endpoint is a dotted feature chain resolved against the diagram's own nodes exactly as the graph builder resolves it: `engine.powerOut` is port `powerOut` of usage `engine`; a single segment is a usage or a boundary port.
+
+A chain whose endpoint is not a node of the diagram produces no edge and relies on the existing connection findings — the generator never invents a port. Layout hints are layered, left-to-right, with hierarchy handling including children and port constraints fixed to a side only for ports that have one.
 
 ---
 
@@ -5723,7 +5756,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
 | `W308`–`W311`, `E706`–`E723` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.9; §8.18.6 for `E718` |
-| `E400`–`E405`, `W400`–`W416` | Diagram elements | §8.16.2, §8.16.7 |
+| `E400`–`E405`, `W400`–`W418` | Diagram elements | §8.16.2, §8.16.7 |
 | `E516`–`E519`, `E523`, `W513` | Hierarchical product-line composition | §14.7 |
 | `E520`–`E522`, `W520` | Release baselines | §8.19 |
 | `E530`–`E532`, `W530`–`W534` | **Reserved** for the parked sandboxed-WASM plugin design (`ADR-SYS-PLUGIN-001`); never emitted | — |

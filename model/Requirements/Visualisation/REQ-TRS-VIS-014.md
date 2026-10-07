@@ -17,9 +17,9 @@ The visualisation stack shall carry tests at each layer, run by `cargo test --wo
 the frontend's `npm test`:
 
 - **Manifest parser** — every §8.16.3/8.16.4 form, and one test per `E405`/`W416` trigger.
-- **Generators** — fixture models under `crates/syscribe-model/tests/fixtures/vis/` with golden
-  JSON snapshots of the IR, one assertion per rule of `REQ-TRS-VIS-004`/`-005`, including
-  `include:`/`exclude:` and the deterministic shape ids.
+- **Generators** — temp-built fixture models in the tests, with golden JSON snapshots of the
+  IR under `crates/syscribe-model/tests/vis_snapshots/`, one assertion per rule of
+  `REQ-TRS-VIS-004`/`-005`, including `include:`/`exclude:` and the deterministic shape ids.
 - **Writers** — snapshot tests for PlantUML, Mermaid and SVG on the same fixture IRs; the
   PlantUML before/after snapshot for the demo model's companion diagrams.
 - **Server** — Axum integration tests on `GET /api/diagrams/model` (nesting, ports,

@@ -281,7 +281,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W929` | Incomplete transition — a top-level transition has no `source:`, or any transition has no `target:` (§8.8.3); it would otherwise contribute no edge. Draft-suppressed; `--deny W929` |
 | `W080` | A `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` not referenced by any `edges:` entry |
 
-## Diagram errors and warnings (E400–E405, W400–W416)
+## Diagram errors and warnings (E400–E405, W400–W418)
 
 | Code | Condition |
 |---|---|
@@ -308,6 +308,8 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W414` | `pumlMode: companion` `.puml` file not yet generated (REQ-TRS-PUML-031) |
 | `W415` | `[plantuml] style_file` path in `.syscribe.toml` does not exist (REQ-TRS-PUML-042) |
 | `W416` | A `layout:` key names no shape or edge of the diagram (stale pin) (REQ-TRS-VIS-002) |
+| `W417` | `include:`/`exclude:` on a manifest diagram (ignored), or an entry that names no member of the subject (REQ-TRS-VIS-003) |
+| `W418` | A derived diagram's `subject:` type is not valid for its `diagramKind:` (§8.16.8 valid subject types); the diagram is drawn empty (REQ-TRS-VIS-003) |
 
 ## Build-system integration (E050, W050, §9.9)
 

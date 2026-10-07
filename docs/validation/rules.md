@@ -264,7 +264,7 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | E404 | `pumlMode: companion` is set but the element has no `diagramKind:` to derive the PlantUML companion from |
 | E405 | `shapes:`, `edges:` or `layout:` is present but malformed — not a map, an entry missing `ref`/`source`/`target`, an unknown `kind:`, a `parent:` naming no shape, or a `layout:` entry without numeric `x`/`y`; the entry is skipped instead of the diagram rendering empty. Only diagram kinds with an IR are checked — a `Mermaid`/`PlantUML` body has none (REQ-TRS-VIS-002) |
 
-## Diagram warnings (W400–W416, W080)
+## Diagram warnings (W400–W418, W080)
 
 | Code | Condition |
 |---|---|
@@ -285,6 +285,8 @@ The optional common field `extRef:` (string or list) marks an element as the rep
 | W414 | `pumlMode: companion` element's `.puml` companion file has not been generated yet — run `plantuml` (REQ-TRS-PUML-031) |
 | W415 | The `[plantuml] style_file` path configured in `.syscribe.toml` does not exist on disk (REQ-TRS-PUML-042) |
 | W416 | A `layout:` key names no shape or edge of the diagram (stale pin) — the entry is ignored; delete it or rename it to the shape it was meant to pin (REQ-TRS-VIS-002) |
+| W417 | `include:`/`exclude:` on a manifest diagram (ignored), or an entry that names no member of the subject — entries name a member by qualified name or by name relative to the subject; a derived diagram is one with a `subject:` and no `shapes:` (REQ-TRS-VIS-003) |
+| W418 | A derived diagram's `subject:` type is not valid for its `diagramKind:` (§8.16.8 valid subject types — a BDD needs a `Package`/`PartDef`/`ItemDef`, an IBD a `PartDef`/`Part`); the diagram is drawn empty (REQ-TRS-VIS-003) |
 | W080 | `Sequence` diagram's subject `ActionDef` has a `SendAction`/`AcceptAction` in its sub-action tree not referenced by any `edges:` entry (draft-suppressed; `--deny W080`) |
 
 ## State machine warnings (W070–W079, W929, §22.1)
