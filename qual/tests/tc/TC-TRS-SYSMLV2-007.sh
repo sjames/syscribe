@@ -13,11 +13,11 @@ tc_TRS_SYSMLV2_007() {
     # 2. the unmapped construct contributes nothing
     _scn "the unmapped construct contributes nothing"
     out=$("$SYSCRIBE" -m "$FX" export 2>&1 || true)
-    printf '%s' "$out" | grep -q 'UnmappedCalc' \
-        && fail "UnmappedCalc unexpectedly appears in the exported graph" \
-        || pass "UnmappedCalc is absent from the exported graph"
+    printf '%s' "$out" | grep -q 'UnmappedActor' \
+        && fail "UnmappedActor unexpectedly appears in the exported graph" \
+        || pass "UnmappedActor is absent from the exported graph"
     out=$("$SYSCRIBE" -m "$FX" validate 2>&1 || true)
-    printf '%s' "$out" | grep -q 'UnmappedCalc' \
+    printf '%s' "$out" | grep -q 'UnmappedActor' \
         && fail "a finding names the unmapped construct: $out" \
         || pass "no finding anywhere names the unmapped construct"
 }
