@@ -179,8 +179,17 @@ pub(crate) fn features_of(e: &RawElement, elements: &[RawElement], resolver: &Re
     out
 }
 
-/// A `Block`-kind node for a resolved definition/usage element.
-pub(crate) fn block_node(id: String, e: &RawElement, kind: NodeKind, parent: Option<String>, label: String) -> Node {
+/// A `Block`-kind node for a resolved definition/usage element, with its
+/// applied-stereotype banners (`REQ-TRS-VIS-012`).
+pub(crate) fn block_node(
+    id: String,
+    e: &RawElement,
+    kind: NodeKind,
+    parent: Option<String>,
+    label: String,
+    elements: &[RawElement],
+    resolver: &Resolver,
+) -> Node {
     let et = e.frontmatter.element_type.as_ref();
     Node {
         id,
@@ -196,6 +205,7 @@ pub(crate) fn block_node(id: String, e: &RawElement, kind: NodeKind, parent: Opt
         lines: Vec::new(),
         is_abstract: e.frontmatter.is_abstract.unwrap_or(false),
         pin: None,
+        banners: super::banners_of(e, elements, resolver),
     }
 }
 
@@ -215,6 +225,7 @@ pub(crate) fn port_node(id: String, owner_qname: &str, f: &Feature, parent: &str
         lines: Vec::new(),
         is_abstract: false,
         pin: None,
+        banners: Vec::new(),
     }
 }
 
@@ -310,6 +321,11 @@ pub(crate) mod testkit {
             }),
             // Not a structural kind: never on a BDD.
             raw("Sys::Startup", ElementType::ActionDef, |_| {}),
+            // A stereotype and a definition applying it (REQ-TRS-VIS-012 banners).
+            raw("Sys::Safety", ElementType::MetadataDef, |_| {}),
+            raw("Sys::Sensor", ElementType::PartDef, |fm| {
+                fm.metadata = Some(yaml_list("- Sys::Safety\n- {type: ModelingMetadata::Rationale, text: why}\n"));
+            }),
         ]
     }
 
@@ -377,6 +393,14 @@ mod tests {
         let d = diagram("StateMachine", "Sys::Engine", |_| {});
         let (g, issues) = derive_it(&d);
         assert!(g.nodes.is_empty() && issues.is_empty());
+    }
+
+    #[test]
+    fn block_nodes_carry_applied_stereotype_banners() {
+        let d = diagram("BDD", "Sys", |_| {});
+        let (g, _) = derive_it(&d);
+        assert_eq!(g.node("s-sys-sensor").unwrap().banners, vec!["Safety", "Rationale"]);
+        assert!(g.node("s-sys-engine").unwrap().banners.is_empty());
     }
 
     #[test]

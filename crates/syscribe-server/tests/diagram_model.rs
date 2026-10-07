@@ -109,6 +109,15 @@ async fn ibd_is_served_nested_with_pins_layout_options_and_root_edges() {
     assert_eq!(port["stereotype"], "port");
     assert_eq!(port["name"], "powerOut");
     assert_eq!(child_ids(port), vec!["s-pout-label"]);
+    // REQ-TRS-VIS-012: resolved style per node/port/edge, and a port side.
+    assert_eq!(port["style"], json!({ "fill": "#333", "stroke": "#1f497d", "glyph": "out" }));
+    assert_eq!(port["side"], "east", "out → east when the IR has no side");
+    assert_eq!(
+        engine["style"],
+        json!({ "fill": "#f5f5fa", "stroke": "#3a3a4a", "headerFill": null, "text": "#222", "dashed": false })
+    );
+    assert!(engine.get("banners").is_none(), "no applied stereotypes → no banners key");
+    assert_eq!(boundary["style"]["fill"], "#f8f9fb", "a Package boundary falls back to the kind's colours");
 
     // The pinned motor carries position and size; it is the only pin.
     let motor = child(boundary, "s-motor");
@@ -122,6 +131,7 @@ async fn ibd_is_served_nested_with_pins_layout_options_and_root_edges() {
     assert_eq!(ghost["resolved"], false);
     assert_eq!(ghost["name"], "Missing");
     assert!(ghost.get("elementType").is_none());
+    assert_eq!(ghost["style"]["dashed"], true);
 
     // Edges are root children with their kind and pinned waypoints.
     let edge = child(&j, "e-flow");
@@ -130,6 +140,10 @@ async fn ibd_is_served_nested_with_pins_layout_options_and_root_edges() {
     assert_eq!(edge["targetId"], "s-motor");
     assert_eq!(edge["kind"], "flow");
     assert_eq!(edge["routingPoints"], json!([{ "x": 100.0, "y": 50.0 }]));
+    assert_eq!(
+        edge["style"],
+        json!({ "stroke": "#1f497d", "dash": null, "width": 1.4, "arrowTarget": "filled", "arrowSource": "none", "keyword": null })
+    );
     for node in [boundary, engine] {
         assert!(node["children"].as_array().unwrap().iter().all(|c| c["type"] != "edge"), "no nested edges");
     }
@@ -158,6 +172,8 @@ async fn bdd_layout_options_and_shorthand_shapes() {
     assert_eq!(child(&j, "s-engine")["kind"], "block");
     assert_eq!(child(&j, "s-engine")["stereotype"], "part def");
     assert_eq!(child(&j, "e-inh")["kind"], "inheritance");
+    assert_eq!(child(&j, "e-inh")["style"]["arrowTarget"], "hollowTriangle");
+    assert_eq!(child(&j, "e-inh")["style"]["dash"], json!(null));
     assert_eq!(j["layoutOptions"]["elk.direction"], "DOWN");
     assert!(j["layoutOptions"].get("elk.hierarchyHandling").is_none());
     assert_eq!(j["layoutOptions"]["syscribe.reversedEdgeKinds"], json!(["inheritance"]));

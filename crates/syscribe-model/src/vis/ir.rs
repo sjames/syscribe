@@ -367,6 +367,11 @@ pub struct Node {
     pub is_abstract: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pin: Option<Rect>,
+    /// Applied-stereotype banners (`REQ-TRS-VIS-012`): the name of every
+    /// `MetadataDef` the referenced element applies via its `metadata:` list,
+    /// drawn as `«Name»` beneath the kind stereotype.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub banners: Vec<String>,
 }
 
 /// One edge of the diagram.
@@ -677,6 +682,7 @@ mod tests {
             lines: vec![],
             is_abstract: false,
             pin,
+            banners: vec![],
         };
         g.nodes.push(mk("a", None, Some(Rect { x: 0.0, y: 0.0, w: None, h: None })));
         g.nodes.push(mk("b", Some("a"), None));

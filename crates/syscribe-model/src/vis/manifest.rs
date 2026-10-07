@@ -376,6 +376,7 @@ pub fn build(
             lines: Vec::new(),
             is_abstract: resolved.and_then(|e| e.frontmatter.is_abstract).unwrap_or(false),
             pin: None,
+            banners: resolved.map(|e| super::banners_of(e, elements, resolver)).unwrap_or_default(),
         });
     }
 
@@ -436,7 +437,29 @@ mod tests {
             }),
             elem("Sys::Motor", ElementType::PartDef, |fm| fm.name = Some("Electric Motor".into())),
             elem("Sys::Engine::powerOut", ElementType::Port, |fm| fm.direction = Some("out".into())),
+            elem("Sys::Safety", ElementType::MetadataDef, |fm| fm.name = Some("SafetyCritical".into())),
+            elem("Sys::Stereotyped", ElementType::PartDef, |fm| {
+                fm.name = Some("Stereotyped".into());
+                fm.metadata = Some(vec![
+                    yaml("Sys::Safety"),
+                    yaml("{type: ModelingMetadata::Rationale, text: because}"),
+                    yaml("Nope::Missing"),
+                ]);
+            }),
         ]
+    }
+
+    /// `REQ-TRS-VIS-012`: a resolved element's `metadata:` applications become
+    /// banners — the def's `name` when it resolves, else the reference's last
+    /// segment (standard-library metadata has no file). Unresolved shapes have none.
+    #[test]
+    fn applied_stereotypes_become_banners() {
+        let d = diagram("BDD", "s: Sys::Stereotyped\nplain: Sys::Engine\nghost: Nope::X\n", None, None);
+        let (g, issues) = build_it(&d);
+        assert!(issues.is_empty(), "{issues:?}");
+        assert_eq!(g.node("s").unwrap().banners, vec!["SafetyCritical", "Rationale", "Missing"]);
+        assert!(g.node("plain").unwrap().banners.is_empty());
+        assert!(g.node("ghost").unwrap().banners.is_empty());
     }
 
     fn diagram(kind: &str, shapes: &str, edges: Option<&str>, layout: Option<&str>) -> RawElement {

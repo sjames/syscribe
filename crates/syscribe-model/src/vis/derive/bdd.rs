@@ -73,7 +73,7 @@ pub fn generate(
     // ── nodes ───────────────────────────────────────────────────────────
     for e in &blocks {
         let id = derived_shape_id(&e.qualified_name);
-        let mut node = block_node(id.clone(), e, NodeKind::Block, None, display_name(e));
+        let mut node = block_node(id.clone(), e, NodeKind::Block, None, display_name(e), elements, resolver);
         node.lines = Vec::new();
         graph.nodes.push(node);
         let lines: Vec<String> = features_of(e, elements, resolver)
@@ -96,6 +96,7 @@ pub fn generate(
                 lines,
                 is_abstract: false,
                 pin: None,
+                banners: Vec::new(),
             });
         }
     }
@@ -198,7 +199,7 @@ mod tests {
         let (g, issues) = derive_it(&d);
         assert!(issues.is_empty(), "{issues:?}");
         let blocks: Vec<&str> = g.nodes.iter().filter(|n| n.kind == NodeKind::Block).map(|n| n.element_ref.as_str()).collect();
-        assert_eq!(blocks, vec!["Sys::Base", "Sys::Engine", "Sys::Motor", "Sys::PowerLink", "Sys::PowerPort", "Sys::PowerSystem"]);
+        assert_eq!(blocks, vec!["Sys::Base", "Sys::Engine", "Sys::Motor", "Sys::PowerLink", "Sys::PowerPort", "Sys::PowerSystem", "Sys::Sensor"]);
         assert!(!blocks.contains(&"Sys::Startup"), "an ActionDef is never on a BDD");
         let base = g.node("s-sys-base").unwrap();
         assert!(base.is_abstract);

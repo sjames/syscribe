@@ -14,12 +14,32 @@ pub mod derive;
 pub mod ir;
 pub mod manifest;
 pub mod sprotty;
+pub mod style;
 
 use crate::element::{ElementType, RawElement, RawFrontmatter};
 use crate::resolver::Resolver;
 
 pub use ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, LayoutHints, Node, NodeKind, Point, PortDirection, Rect, Side};
 pub use manifest::Issue;
+pub use style::{ArrowHead, EdgeStyle, NodeStyle, PortStyle};
+
+/// The applied-stereotype banners of an element (`REQ-TRS-VIS-012`): one
+/// entry per `metadata:` application, naming the applied `MetadataDef` — its
+/// `name` when the reference resolves, else the last segment of the reference
+/// as written (standard-library metadata such as `ModelingMetadata::Rationale`
+/// has no in-model file). Declaration order; never deduplicated.
+pub fn banners_of(elem: &RawElement, elements: &[RawElement], resolver: &Resolver) -> Vec<String> {
+    crate::element::metadata_applications(&elem.frontmatter.metadata)
+        .into_iter()
+        .map(|app| {
+            resolver
+                .resolve_ref(elements, &app.def)
+                .filter(|d| matches!(d.frontmatter.element_type, Some(ElementType::MetadataDef)))
+                .and_then(|d| d.frontmatter.name.clone())
+                .unwrap_or_else(|| app.def.rsplit("::").next().unwrap_or(&app.def).to_string())
+        })
+        .collect()
+}
 
 /// The fallback `diagramKind` used when a `Diagram` element doesn't declare
 /// one — the single source of truth for the literal `"SVG"` the server's UI

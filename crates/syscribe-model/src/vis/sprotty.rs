@@ -49,6 +49,17 @@
 //! `pinned` lists the ids of pinned nodes in declaration order, so the client
 //! can tell "fixed by a human" from "placed by the layout engine".
 //!
+//! ## Style (`REQ-TRS-VIS-012`)
+//!
+//! Every `node` element carries `style: { fill, stroke, headerFill|null, text,
+//! dashed }` and, when non-empty, `banners: ["Name", …]` (applied-stereotype
+//! banners); every `port` element carries `style: { fill, stroke, glyph }` and
+//! `side` (`north|east|south|west|null` — the IR's side, else derived from the
+//! direction: in → west, out → east, inout → south); every `edge` carries
+//! `style: { stroke, dash|null, width, arrowTarget, arrowSource, keyword|null }`
+//! with [`super::style::ArrowHead`] values spelled camelCase. The client's
+//! views read these and hold no colour table of their own.
+//!
 //! ## Ordering
 //!
 //! Output order is the IR's declaration order throughout (nodes, their
@@ -59,8 +70,9 @@ use serde::Serialize;
 
 use super::ir::{
     DiagramGraph, Edge, EdgeKind, LayoutAlgorithm, LayoutDirection, LayoutHints, Node, NodeKind, Point,
-    PortConstraints, Rect, Side,
+    PortConstraints, PortDirection, Rect, Side,
 };
+use super::style::{edge_style, node_style, port_style, EdgeStyle, NodeStyle, PortStyle};
 
 /// The root element id. One editor instance hosts one graph at a time, so a
 /// constant id lets the client address the root without reading the JSON.
@@ -159,6 +171,15 @@ pub enum SNodeChild {
     Node(SNode),
 }
 
+/// The resolved style of an element, by its sprotty type: a [`NodeStyle`] on
+/// a `node`, a [`PortStyle`] on a `port`; labels and compartments carry none.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(untagged)]
+pub enum SStyle {
+    Node(NodeStyle),
+    Port(PortStyle),
+}
+
 /// One IR node as a sprotty element (`node`, `port`, `label` or `compartment`).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -186,14 +207,22 @@ pub struct SNode {
     pub is_abstract: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub direction: Option<&'static str>,
+    /// Always present on a `port` element (`null` when no side is known);
+    /// omitted on everything else unless the IR carries one.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub side: Option<&'static str>,
+    pub side: Option<Option<&'static str>>,
     /// Present only for a pinned node; parent-relative when nested.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub position: Option<Position>,
     /// Present only when the pin carries both `w` and `h`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<Size>,
+    /// `node` and `port` elements only (`REQ-TRS-VIS-012`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style: Option<SStyle>,
+    /// `node` elements only, omitted when empty: applied-stereotype banners.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub banners: Vec<String>,
     pub children: Vec<SNodeChild>,
 }
 
@@ -215,6 +244,8 @@ pub struct SEdge {
     /// Pinned routing, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub routing_points: Option<Vec<Position>>,
+    /// The kind's notation (`REQ-TRS-VIS-012`).
+    pub style: EdgeStyle,
 }
 
 /// A root child: a top-level node or an edge.
@@ -250,6 +281,18 @@ fn side_str(side: Side) -> &'static str {
         Side::South => "south",
         Side::West => "west",
     }
+}
+
+/// A port's side: the IR's, else the conventional side for its direction
+/// (inputs enter from the west, outputs leave east, bidirectional ports sit
+/// south), else none.
+fn port_side(node: &Node) -> Option<&'static str> {
+    node.side.map(side_str).or(match node.direction {
+        Some(PortDirection::In) => Some("west"),
+        Some(PortDirection::Out) => Some("east"),
+        Some(PortDirection::Inout) => Some("south"),
+        None => None,
+    })
 }
 
 fn position_of(pin: &Rect) -> Position {
@@ -303,9 +346,15 @@ fn build_node(graph: &DiagramGraph, node: &Node, depth: usize) -> SNode {
         lines: (element_type_ == TYPE_COMPARTMENT).then(|| node.lines.clone()),
         is_abstract: node.is_abstract,
         direction: node.direction.map(|d| d.as_str()),
-        side: node.side.map(side_str),
+        side: if element_type_ == TYPE_PORT { Some(port_side(node)) } else { node.side.map(side_str).map(Some) },
         position: node.pin.as_ref().map(position_of),
         size: node.pin.as_ref().and_then(size_of),
+        style: match element_type_ {
+            TYPE_NODE => Some(SStyle::Node(node_style(node))),
+            TYPE_PORT => Some(SStyle::Port(port_style(node.direction))),
+            _ => None,
+        },
+        banners: if element_type_ == TYPE_NODE { node.banners.clone() } else { Vec::new() },
         children,
     }
 }
@@ -323,6 +372,7 @@ fn build_edge(edge: &Edge) -> SEdge {
             .waypoints
             .as_ref()
             .map(|pts| pts.iter().map(|Point { x, y }| Position { x: *x, y: *y }).collect()),
+        style: edge_style(edge.kind),
     }
 }
 
@@ -375,6 +425,7 @@ mod tests {
             lines: vec![],
             is_abstract: false,
             pin: None,
+            banners: vec![],
         }
     }
 
@@ -437,6 +488,64 @@ mod tests {
     }
 
     #[test]
+    fn nodes_ports_and_edges_carry_their_resolved_style() {
+        let mut g = ibd();
+        g.node_mut("motor").banners = vec!["Safety".into(), "Rationale".into()];
+        let j = to_sgraph_json(&g);
+        let sys = &j["children"][0];
+        // An untyped boundary falls back to the kind's colours; no banners key.
+        assert_eq!(
+            sys["style"],
+            json!({ "fill": "#f8f9fb", "stroke": "#3a3a4a", "headerFill": null, "text": "#222", "dashed": false })
+        );
+        assert!(sys.get("banners").is_none(), "empty banners are omitted");
+        let motor = &sys["children"][2];
+        assert_eq!(motor["style"]["fill"], "#f5f5fa");
+        assert_eq!(motor["style"]["stroke"], "#3a3a4a");
+        assert_eq!(motor["banners"], json!(["Safety", "Rationale"]));
+        // A port carries the port style, never the node one, and no banners.
+        let pout = &sys["children"][1]["children"][1];
+        assert_eq!(pout["style"], json!({ "fill": "#333", "stroke": "#1f497d", "glyph": "out" }));
+        assert!(pout.get("banners").is_none());
+        // The label child and a compartment carry no style.
+        assert!(sys["children"][0].get("style").is_none());
+        let mut g2 = DiagramGraph::empty(DiagramKind::Bdd, "D", "D", None);
+        g2.nodes.push(node("a", NodeKind::Block, None));
+        g2.nodes.push(node("a-c", NodeKind::Compartment, Some("a")));
+        let j2 = to_sgraph_json(&g2);
+        assert!(j2["children"][0]["children"][1].get("style").is_none());
+        // An unresolved node is dashed.
+        let mut g3 = ibd();
+        g3.node_mut("engine").resolved = false;
+        assert_eq!(to_sgraph_json(&g3)["children"][0]["children"][1]["style"]["dashed"], true);
+    }
+
+    #[test]
+    fn port_side_is_the_irs_else_derived_from_direction_else_null() {
+        let mut g = ibd();
+        let j = to_sgraph_json(&g);
+        assert_eq!(j["children"][0]["children"][1]["children"][1]["side"], "east", "explicit side wins");
+        g.node_mut("pout").side = None;
+        assert_eq!(to_sgraph_json(&g)["children"][0]["children"][1]["children"][1]["side"], "east", "out → east");
+        g.node_mut("pout").direction = Some(PortDirection::In);
+        assert_eq!(to_sgraph_json(&g)["children"][0]["children"][1]["children"][1]["side"], "west");
+        g.node_mut("pout").direction = Some(PortDirection::Inout);
+        let j = to_sgraph_json(&g);
+        let pout = &j["children"][0]["children"][1]["children"][1];
+        assert_eq!(pout["side"], "south");
+        assert_eq!(pout["style"]["glyph"], "inout");
+        assert_eq!(pout["style"]["fill"], "#fff");
+        g.node_mut("pout").direction = None;
+        let j = to_sgraph_json(&g);
+        let pout = &j["children"][0]["children"][1]["children"][1];
+        assert_eq!(pout["side"], Value::Null, "a port always carries `side`, null when unknown");
+        assert!(pout.as_object().unwrap().contains_key("side"));
+        assert_eq!(pout["style"]["glyph"], "none");
+        // A non-port without a side omits the key entirely.
+        assert!(j["children"][0].get("side").is_none());
+    }
+
+    #[test]
     fn position_only_for_pinned_nodes_and_size_only_with_w_and_h() {
         let j = to_sgraph_json(&ibd());
         let sys = &j["children"][0];
@@ -474,9 +583,29 @@ mod tests {
             json!({
                 "id": "e1", "type": "edge", "sourceId": "pout", "targetId": "motor",
                 "kind": "flow", "ref": "Sys", "label": "power",
-                "routingPoints": [{ "x": 1.0, "y": 2.0 }]
+                "routingPoints": [{ "x": 1.0, "y": 2.0 }],
+                "style": {
+                    "stroke": "#1f497d", "dash": null, "width": 1.4,
+                    "arrowTarget": "filled", "arrowSource": "none", "keyword": null
+                }
             })
         );
+        // Every edge carries its kind's notation; the diamond of a composition
+        // sits at the source (the owner).
+        let mut g = ibd();
+        g.edges[0].kind = EdgeKind::Composition;
+        let s = &to_sgraph_json(&g)["children"][1]["style"];
+        assert_eq!(s["arrowSource"], "filledDiamond");
+        assert_eq!(s["arrowTarget"], "none");
+        g.edges[0].kind = EdgeKind::Binding;
+        let s = &to_sgraph_json(&g)["children"][1]["style"];
+        assert_eq!(s["dash"], "4,4");
+        assert_eq!(s["keyword"], "=");
+        g.edges[0].kind = EdgeKind::Verify;
+        let s = &to_sgraph_json(&g)["children"][1]["style"];
+        assert_eq!(s["stroke"], "#3a6ea5");
+        assert_eq!(s["keyword"], "«verify»");
+        assert_eq!(s["arrowTarget"], "open");
         // The nested nodes carry no edges.
         let walk = |v: &Value| v["children"].as_array().unwrap().iter().all(|c| c["type"] != "edge");
         assert!(walk(&j["children"][0]));

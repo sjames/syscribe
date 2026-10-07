@@ -310,12 +310,24 @@ fn merge_extra_yaml(
     }
 }
 
-/// `PATCH /api/diagrams/layout/{*qname}` body: shape id -> new `{x, y}`. Wire
-/// shape unchanged from the retired `routes::write::patch_layout`.
+/// One value of the `PATCH /api/diagrams/layout/{*qname}` body: shape id ->
+/// `{x, y, w?, h?}` writes a pin (`w`/`h` only when given); the map value
+/// `null` removes that shape's pin (`REQ-TRS-VIS-006`).
 #[derive(Debug, Deserialize)]
 pub struct PositionUpdate {
     pub x: f64,
     pub y: f64,
+    #[serde(default)]
+    pub w: Option<f64>,
+    #[serde(default)]
+    pub h: Option<f64>,
+}
+
+/// `PUT /api/diagrams/svg/{*qname}` body (`REQ-TRS-VIS-011`, *Save companion
+/// SVG*): the serialised SVG document to write as the diagram's companion.
+#[derive(Debug, Deserialize)]
+pub struct PutSvgRequest {
+    pub svg: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -790,12 +802,12 @@ pub async fn update_element(
     Json(to_response(&outcome))
 }
 
-/// `PATCH /api/diagrams/layout/{*qname}` — persist drag-adjusted `x`/`y`
-/// coordinates for one or more shapes into the diagram element's `layout:`
-/// frontmatter map (replaces `routes::write::patch_layout`'s hand-rolled YAML
-/// walk with `patch_frontmatter` + the `sub_mapping` helper already used by
-/// this module's diagram-sync functions). `w`/`h`, if present, are left
-/// untouched, matching the retired handler's behaviour.
+/// `PATCH /api/diagrams/layout/{*qname}` — persist pins for one or more
+/// shapes into the diagram element's `layout:` frontmatter map
+/// (`REQ-TRS-VIS-006`): a `{x, y, w?, h?}` value writes `x`/`y` and, when
+/// given, `w`/`h` (an absent `w`/`h` leaves any existing one untouched); a
+/// `null` value removes that shape's pin. Built on `patch_frontmatter` + the
+/// `sub_mapping` helper already used by this module's diagram-sync functions.
 ///
 /// Unknown-qname handling: this used to be a genuine `404`. It moves onto the
 /// same always-`OK`/`written:false` convention as every other handler in this
@@ -812,7 +824,7 @@ pub async fn update_element(
 pub async fn patch_layout(
     State(state): State<SharedState>,
     AxumPath(qname): AxumPath<String>,
-    Json(positions): Json<HashMap<String, PositionUpdate>>,
+    Json(positions): Json<HashMap<String, Option<PositionUpdate>>>,
 ) -> Json<WriteResponse> {
     let mut store = state.write().await;
     let qname_norm = qname.replace('/', "::");
@@ -829,32 +841,175 @@ pub async fn patch_layout(
         let new_content = patch_frontmatter_checked(&content, |map| {
             let layout = sub_mapping(map, KEY_LAYOUT)?;
             for (shape_id, pos) in &positions {
+                let Some(pos) = pos else {
+                    // `null`: unpin. Removing a pin that isn't there is a no-op.
+                    layout.remove(shape_id.as_str());
+                    continue;
+                };
                 let shape = sub_mapping(layout, shape_id)?;
-                shape.insert(
-                    "x".into(),
-                    serde_yaml::Value::Number(serde_yaml::Number::from(pos.x.round() as i64)),
-                );
-                shape.insert(
-                    "y".into(),
-                    serde_yaml::Value::Number(serde_yaml::Number::from(pos.y.round() as i64)),
-                );
-                // w/h are intentionally left untouched, matching the retired
-                // hand-rolled implementation.
+                let num = |v: f64| serde_yaml::Value::Number(serde_yaml::Number::from(v.round() as i64));
+                shape.insert("x".into(), num(pos.x));
+                shape.insert("y".into(), num(pos.y));
+                if let Some(w) = pos.w {
+                    shape.insert("w".into(), num(w));
+                }
+                if let Some(h) = pos.h {
+                    shape.insert("h".into(), num(h));
+                }
             }
             Ok(())
         })?;
         std::fs::write(&file, new_content).map_err(|e| e.to_string())
     };
 
-    // gate=false: a layout patch only ever touches numeric x/y under `layout:`,
-    // never a cross-reference field, so it cannot introduce a new unresolved
-    // reference (same rationale as delete_element/remove_connection above).
+    // gate=false: a layout patch only ever touches numeric x/y/w/h under
+    // `layout:`, never a cross-reference field, so it cannot introduce a new
+    // unresolved reference (same rationale as delete_element/remove_connection).
     let outcome = store.commit(
         false, // no dryRun in this endpoint's wire shape — always commits
         false,
         false,
         apply,
     );
+    Json(to_response(&outcome))
+}
+
+/// Look up a `Diagram` element for the layout/svg routes: `Err` is the
+/// refusal reason for an unknown qname or a non-`Diagram` element.
+fn diagram_target(
+    store: &crate::state::ModelStore,
+    qname: &str,
+) -> Result<syscribe_model::element::RawElement, String> {
+    let qname_norm = qname.replace('/', "::");
+    let target = store
+        .elements
+        .iter()
+        .find(|e| e.qualified_name == qname_norm)
+        .cloned()
+        .ok_or_else(|| format!("unresolved reference: {qname_norm}"))?;
+    if target.frontmatter.element_type != Some(ElementType::Diagram) {
+        return Err(format!(
+            "'{qname_norm}' is a {}, not a Diagram",
+            target.frontmatter.element_type.as_ref().map(|t| t.name()).unwrap_or("untyped element")
+        ));
+    }
+    Ok(target)
+}
+
+/// `DELETE /api/diagrams/layout/{*qname}` — remove every pin: the whole
+/// `layout:` key is dropped from the diagram's frontmatter (the browser's
+/// *Auto-layout* button, `REQ-TRS-VIS-006`/`-011`). A diagram with no
+/// `layout:` is a successful no-op write. Same always-`OK`/`written:false`
+/// refusal convention as the rest of this module for an unknown qname or a
+/// non-`Diagram` element.
+pub async fn delete_layout(
+    State(state): State<SharedState>,
+    AxumPath(qname): AxumPath<String>,
+) -> Json<WriteResponse> {
+    let mut store = state.write().await;
+    let target = match diagram_target(&store, &qname) {
+        Ok(t) => t,
+        Err(reason) => return Json(refused(reason)),
+    };
+    let rel = rel_to_root(&target.file_path, &store.model_root);
+
+    let apply = move |root: &Path| -> Result<(), String> {
+        let file = root.join(&rel);
+        let content = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
+        let new_content = patch_frontmatter(&content, None, |map| {
+            map.remove(KEY_LAYOUT);
+        })
+        .map_err(|e| e.to_string())?;
+        std::fs::write(&file, new_content).map_err(|e| e.to_string())
+    };
+
+    // gate=false: dropping `layout:` touches no cross-reference field.
+    let outcome = store.commit(false, false, false, apply);
+    Json(to_response(&outcome))
+}
+
+/// The companion SVG file of a diagram, relative to the `.md` file's
+/// directory: `svgFile:` as written when set, else `<stem>.svg` beside it
+/// (the validator's `E402` default). The second value is the `src` the body's
+/// `<img>` uses (`./<stem>.svg` for the default).
+fn companion_svg_name(target: &syscribe_model::element::RawElement) -> (String, String) {
+    match target.frontmatter.svg_file.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        Some(sf) => (sf.to_string(), sf.to_string()),
+        None => {
+            let stem = Path::new(&target.file_path)
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "diagram".to_string());
+            (format!("{stem}.svg"), format!("./{stem}.svg"))
+        }
+    }
+}
+
+/// `PUT /api/diagrams/svg/{*qname}` — *Save companion SVG* (`REQ-TRS-VIS-011`):
+/// write the body's `svg` to the diagram's companion file (`svgFile:` if set,
+/// relative to the `.md`; else `<stem>.svg` beside it) and, in the same
+/// guarded write, set `svgMode: companion` and `svgFile:` in the frontmatter
+/// when absent and append an `<img>` to the body when it has none (so `W405`
+/// stays clean). Refused — nothing written — unless the body is an SVG
+/// document (trimmed, starts with `<svg` and contains `</svg>`), for an
+/// unknown qname, or for a non-`Diagram` element.
+pub async fn put_svg(
+    State(state): State<SharedState>,
+    AxumPath(qname): AxumPath<String>,
+    Json(req): Json<PutSvgRequest>,
+) -> Json<WriteResponse> {
+    let svg = req.svg.trim();
+    if !svg.starts_with("<svg") || !svg.contains("</svg>") {
+        return Json(refused("body `svg` is not an SVG document (must start with `<svg` and contain `</svg>`)"));
+    }
+    let svg = format!("{svg}\n");
+
+    let mut store = state.write().await;
+    let target = match diagram_target(&store, &qname) {
+        Ok(t) => t,
+        Err(reason) => return Json(refused(reason)),
+    };
+    let md_rel = rel_to_root(&target.file_path, &store.model_root);
+    let (svg_name, img_src) = companion_svg_name(&target);
+    let svg_rel = match Path::new(&md_rel).parent() {
+        Some(dir) if !dir.as_os_str().is_empty() => dir.join(&svg_name).to_string_lossy().into_owned(),
+        _ => svg_name.clone(),
+    };
+    let alt = target
+        .frontmatter
+        .name
+        .clone()
+        .unwrap_or_else(|| target.qualified_name.rsplit("::").next().unwrap_or(&target.qualified_name).to_string());
+    let set_mode = target.frontmatter.svg_mode.is_none();
+    let set_file = target.frontmatter.svg_file.as_deref().map(str::trim).filter(|s| !s.is_empty()).is_none();
+
+    let apply = move |root: &Path| -> Result<(), String> {
+        write_confined(root, &svg_rel, &svg).map_err(|e| e.to_string())?;
+        let file = root.join(&md_rel);
+        let content = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
+        let (_, body) = syscribe_model::frontmatter::split_frontmatter(&content);
+        let new_body = if body.contains("<img") {
+            None
+        } else {
+            let mut b = body.trim_end_matches('\n').to_string();
+            b.push_str(&format!("\n<img src=\"{img_src}\" alt=\"{}\" width=\"100%\"/>\n", alt.replace('"', "&quot;")));
+            Some(b)
+        };
+        let new_content = patch_frontmatter(&content, new_body.as_deref(), |map| {
+            if set_mode {
+                map.insert("svgMode".into(), "companion".into());
+            }
+            if set_file {
+                map.insert("svgFile".into(), img_src.clone().into());
+            }
+        })
+        .map_err(|e| e.to_string())?;
+        std::fs::write(&file, new_content).map_err(|e| e.to_string())
+    };
+
+    // gate=false: the write touches `svgMode`/`svgFile`/the body, never a
+    // cross-reference field.
+    let outcome = store.commit(false, false, false, apply);
     Json(to_response(&outcome))
 }
 

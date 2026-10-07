@@ -7,7 +7,7 @@
 //! `tower::ServiceExt::oneshot` (REQ-TRS-LINK-005).
 
 use axum::{
-    routing::{get, patch},
+    routing::{get, patch, put},
     Router,
 };
 
@@ -19,8 +19,8 @@ use routes::api_graph::{get_children, get_connections};
 use routes::diagram_model::get_diagram_model;
 use routes::elements::{get_element, list_elements};
 use routes::mutate::{
-    add_connection, create_element, delete_element, patch_layout, remove_connection,
-    update_element,
+    add_connection, create_element, delete_element, delete_layout, patch_layout, put_svg,
+    remove_connection, update_element,
 };
 use routes::ui::{diagram, element_detail, index, tree_items};
 use routes::validation::get_validation;
@@ -48,7 +48,8 @@ pub fn build_router(shared: SharedState, reload_tx: ReloadTx) -> Router {
             "/api/connections",
             get(get_connections).post(add_connection).delete(remove_connection),
         )
-        .route("/api/diagrams/layout/{*qname}", patch(patch_layout))
+        .route("/api/diagrams/layout/{*qname}", patch(patch_layout).delete(delete_layout))
+        .route("/api/diagrams/svg/{*qname}", put(put_svg))
         .route("/api/diagrams/model/{*qname}", get(get_diagram_model))
         .route("/api/validation", get(get_validation))
         .route("/ws", get(ws_handler))

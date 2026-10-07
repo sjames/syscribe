@@ -53,7 +53,9 @@ All JavaScript (HTMX, Mermaid, the bundled diagram editor) is vendored and serve
 | `POST` | `/api/connections` | Add a `connections:` entry to the element named by `qname` in the body (guarded write) |
 | `DELETE` | `/api/connections` | Remove a `connections:` entry (guarded write) |
 | `GET` | `/api/diagrams/model/<qname>` | A `Diagram` element as a sprotty graph model (nodes from `shapes:`/`layout:`, edges from `edges:`) |
-| `PATCH` | `/api/diagrams/layout/<qname>` | Persist drag-adjusted layout coordinates (guarded write) |
+| `PATCH` | `/api/diagrams/layout/<qname>` | Persist pins: `{ "<shapeId>": {x, y, w?, h?} }` writes the pin (`w`/`h` when given); a `null` value removes that shape's pin (guarded write) |
+| `DELETE` | `/api/diagrams/layout/<qname>` | Remove every pin — drops the diagram's whole `layout:` key (the *Auto-layout* button; guarded write) |
+| `PUT` | `/api/diagrams/svg/<qname>` | Save a companion SVG: body `{ "svg": "<svg …>…</svg>" }` is written to `svgFile:` (default `<stem>.svg` beside the `.md`), setting `svgMode: companion`/`svgFile:` and appending an `<img>` to the body when absent (guarded write; refused unless the body is an SVG document) |
 | `GET` | `/api/validation` | Validation findings JSON (includes `qname` per finding) |
 | `WS` | `/ws` | Live model-change events |
 

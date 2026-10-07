@@ -56,7 +56,7 @@ pub fn generate(
 
     // ── the boundary and its ports ──────────────────────────────────────
     let boundary_id = derived_shape_id(sq);
-    graph.nodes.push(block_node(boundary_id.clone(), subject, NodeKind::Boundary, None, display_name(subject)));
+    graph.nodes.push(block_node(boundary_id.clone(), subject, NodeKind::Boundary, None, display_name(subject), elements, resolver));
     let subject_features = features_of(subject, elements, resolver);
     // A `Part` subject also carries the ports of its definition.
     let subject_def_ports: Vec<Feature> = if matches!(st, ElementType::Part | ElementType::Item) {
@@ -122,11 +122,13 @@ pub fn generate(
             }
         }
         let mut node = match u.element {
-            Some(e) => block_node(id.clone(), e, NodeKind::Block, Some(boundary_id.clone()), label),
+            Some(e) => block_node(id.clone(), e, NodeKind::Block, Some(boundary_id.clone()), label, elements, resolver),
             None => {
-                let mut n = block_node(id.clone(), subject, NodeKind::Block, Some(boundary_id.clone()), label);
+                let mut n = block_node(id.clone(), subject, NodeKind::Block, Some(boundary_id.clone()), label, elements, resolver);
                 n.element_ref = qn.clone();
                 n.is_abstract = false;
+                // An inline `features:` usage has no `metadata:` of its own.
+                n.banners = Vec::new();
                 n
             }
         };
