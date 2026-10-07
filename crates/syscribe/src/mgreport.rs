@@ -19,8 +19,8 @@ use syscribe_model::{
     validator::{allocation_edges, Finding, Severity, ValidationResult},
 };
 
-use crate::diagram::layout::metrics::load_metrics;
-use crate::diagram::layout::theme::theme_for;
+use crate::svgkit::metrics::{load_metrics, TextMetrics};
+use crate::svgkit::theme::theme_for;
 use crate::export::SCHEMA_VERSION;
 use svg::node::element::{Group, Rectangle, Text, Title};
 use svg::Document;
@@ -229,7 +229,7 @@ pub fn cmd_magicgrid_svg(elems: &[RawElement], output_file: Option<&str>) {
 }
 
 /// Hard-break a single word that is wider than `max_w` into character chunks.
-fn hard_break(word: &str, max_w: f64, fs: f64, m: &dyn crate::diagram::layout::metrics::TextMetrics) -> Vec<String> {
+fn hard_break(word: &str, max_w: f64, fs: f64, m: &dyn TextMetrics) -> Vec<String> {
     if m.advance_width(word, fs, false) <= max_w {
         return vec![word.to_string()];
     }
@@ -253,7 +253,7 @@ fn hard_break(word: &str, max_w: f64, fs: f64, m: &dyn crate::diagram::layout::m
 /// Greedy word-wrap `s` to `max_w` pixels at font size `fs`, measured with the shared
 /// font metrics (REQ-TRS-MG-016). Breaks on word boundaries; a single over-wide word is
 /// hard-broken by character.
-fn wrap_text(s: &str, max_w: f64, fs: f64, m: &dyn crate::diagram::layout::metrics::TextMetrics) -> Vec<String> {
+fn wrap_text(s: &str, max_w: f64, fs: f64, m: &dyn TextMetrics) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let mut cur = String::new();
     for word in s.split_whitespace() {

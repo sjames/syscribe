@@ -142,7 +142,6 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
         "Diagrams",
         &[
             ("render", include_str!("../../../prompts/help/render.md")),
-            ("diagram", include_str!("../../../prompts/help/diagram.md")),
             ("plantuml", include_str!("../../../prompts/help/plantuml.md")),
         ],
     ),
@@ -507,7 +506,7 @@ mod prompt_syntax_tests {
                 }
                 Some(_) => {
                     if is_model_root(a) {
-                        return Some(a); // `syscribe diagram list model/`
+                        return Some(a); // `syscribe show model/ X`
                     }
                 }
             }
@@ -560,7 +559,7 @@ mod prompt_syntax_tests {
 
     /// The model root is only ever passed with `-m`/`--model`; the router rejects a
     /// positional path (`syscribe model/ show X` → "unrecognized subcommand 'model/'",
-    /// `syscribe diagram list model/` → "unexpected argument"), so an agent copying
+    /// `syscribe show model/ X` → "unexpected argument"), so an agent copying
     /// such an example fails on its first command. Covers every agent-facing prompt
     /// (`prompts/**/*.md`: the `--agent-instructions` prompts, `spec` topics and
     /// `help` pages) and `cargo run --package syscribe[-server] -- <path>/`.
@@ -611,11 +610,10 @@ mod prompt_syntax_tests {
         let bad = [
             "syscribe model/ show X",
             "./target/debug/syscribe model_auto/",
-            "syscribe diagram list model/",
-            "syscribe diagram list model/ --type PartDef",
-            "syscribe diagram measure model/ \\",
-            "syscribe diagram compose model/ my-arch.layout.json \\",
-            "syscribe -m model/ diagram list examples/foo/model/",
+            "syscribe show model/ X",
+            "syscribe list model/ --type PartDef",
+            "syscribe plantuml model/ \\",
+            "syscribe -m model/ show examples/foo/model/",
             "cargo run --package syscribe -- model/",
             "cargo run --package syscribe -- model/ > reports/validation.md",
             "cargo run -p syscribe-server -- model/",
@@ -629,8 +627,8 @@ mod prompt_syntax_tests {
         let good = [
             "syscribe -m model/ show X",
             "syscribe --model model_auto/ validate",
-            "syscribe -m model/ diagram list",
-            "syscribe -m model/ diagram compose my.layout.json --output model/Views/X.svg",
+            "syscribe -m model/ list PartDef",
+            "syscribe -m model/ plantuml render --jar plantuml.jar",
             "syscribe -m model/ lint-docs docs/",
             "syscribe -m model/ render model/Diagrams/SystemBDD.md",
             "cargo run --package syscribe -- -m model/",
@@ -642,7 +640,7 @@ mod prompt_syntax_tests {
             assert!(scan("t.md", l, true).is_empty(), "false positive: {l}");
         }
         // Direct-only mode (docs): a post-subcommand root is out of scope.
-        assert!(scan("t.md", "syscribe diagram list model/", false).is_empty());
+        assert!(scan("t.md", "syscribe show model/ X", false).is_empty());
         assert!(!scan("t.md", "cargo run --package syscribe -- model/", false).is_empty());
     }
 

@@ -14,9 +14,8 @@ attached as the **companion SVG of a `Diagram` element** (Tier 2).
 ### Output
 
 - `syscribe -m <root> magicgrid --svg` **shall** emit a complete, self-contained SVG
-  document to **stdout**; `-o <file>` **shall** write it to that file instead (mirroring
-  `diagram render`/`compose`). No external tools or network are required — the SVG is
-  produced deterministically in-process.
+  document to **stdout**; `-o <file>` **shall** write it to that file instead. No external
+  tools or network are required — the SVG is produced deterministically in-process.
 - The produced file is intended to be a **`Diagram` companion**: writing it to
   `<Name>.svg` beside a `Diagram` element with `svgMode: companion` (default same-stem
   `.svg`, §diagram rules) satisfies the companion-on-disk check (`E402`) so the MagicGrid
@@ -35,10 +34,10 @@ The SVG **shall** depict:
 ### Layout and word wrapping
 
 - The grid layout (row/column sizing, cell placement) **shall** be computed with the
-  shared diagram layout engine (`taffy`, as used by the element-diagram renderer) so the
-  MagicGrid is consistent with the other diagrams.
+  MagicGrid's own `taffy`-based grid layout, so row and column sizes are derived from the
+  measured cell content rather than hand-set.
 - A cell element label that is wider than its cell **shall** be **word-wrapped** across
-  multiple lines (broken on word boundaries, measured with the shared font metrics) and
+  multiple lines (broken on word boundaries, measured with system-font text metrics) and
   the cell/row **shall** grow to fit the wrapped lines — labels **shall not** be silently
   truncated. A single word longer than the cell width may be hard-broken.
 

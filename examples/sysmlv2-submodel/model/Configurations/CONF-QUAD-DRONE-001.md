@@ -11,6 +11,5 @@ features:
 ---
 
 Lightweight quad-rotor product variant. Projecting this configuration
-(`syscribe validate --config CONF-QUAD-DRONE-001` / `syscribe diagram --config
-CONF-QUAD-DRONE-001`) includes the SysML v2 `quadConfig` variant part and
+(`syscribe validate --config CONF-QUAD-DRONE-001`) includes the SysML v2 `quadConfig` variant part and
 excludes `hexConfig`.

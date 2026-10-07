@@ -1,6 +1,0 @@
-{
-  "elements": [
-    { "qname": "Arch::Pump", "x": 40, "y": 40 },
-    { "qname": "Nope::X", "x": 300, "y": 40 }
-  ]
-}

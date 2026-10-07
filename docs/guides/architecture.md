@@ -93,8 +93,7 @@ Context diagram showing data flow between the scheduler ready queue and the
 TCB pool on a context switch.
 ```
 
-See [Diagrams](../format/diagrams.md) for the full schema, the Mermaid/PlantUML kinds and
-`diagram compose`.
+See [Diagrams](../format/diagrams.md) for the full schema and the Mermaid/PlantUML kinds.
 
 #### 3.4 Allocations
 

@@ -54,8 +54,9 @@ field and the recognised `MetadataDef`/`Metadata` types, [[REQ-TRS-TYPE-013]].)
 - **`list <Type> --metadata <Def>`** **shall** keep only elements that apply that
   `MetadataDef` (resolved by qualified name or id).
 
-(Rendering applied stereotypes as **«Name» banners in diagrams** is the companion
-[[REQ-TRS-META-002]].)
+(Rendering applied stereotypes as **«Name» banners in diagrams** is tracked in the product
+model by `REQ-TRS-VIS-012`; the former companion `REQ-TRS-META-002` was retired with the CLI
+diagram toolkit, `ADR-SYS-VIS-001`.)
 
 **Source:** GH discussion — SysMLv2 has no UML stereotypes; model them with `metadata def`
 applications (option A). Reuses the `MetadataDef`/`Metadata` types and the `metadata:` field.

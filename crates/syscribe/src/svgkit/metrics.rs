@@ -5,9 +5,6 @@ pub trait TextMetrics: Send + Sync {
     fn line_height(&self, font_size: f64) -> f64 {
         font_size * 1.35
     }
-    fn cap_height(&self, font_size: f64) -> f64 {
-        font_size * 0.72
-    }
 }
 
 /// ab_glyph-backed metrics using system fonts discovered via fontdb.

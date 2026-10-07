@@ -23,6 +23,10 @@ shape group in an SVG hyperlink to that element's resolved URL.
   state, use-case diagrams, and the MagicGrid grid / allocation-matrix / trade-study SVGs.
 - Inert when `[links]` is not configured (the SVG is byte-for-byte as today).
 
+**Verification note:** the previous verification (`TC-TRS-LINK-002`, via `diagram req`) was retired
+with the CLI diagram toolkit (`ADR-SYS-VIS-001`); the SVG hyperlink behaviour will be re-verified
+against `syscribe diagram export --format svg` (`REQ-TRS-VIS-009`/`REQ-TRS-VIS-010`) when it lands.
+
 **Source:** clickable element links in exported SVG diagrams. Consumes [[REQ-TRS-LINK-001]].
 The live-server SVG affordance is [[REQ-TRS-LINK-005]].
 

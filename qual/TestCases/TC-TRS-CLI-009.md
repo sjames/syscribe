@@ -17,7 +17,7 @@ Feature: CLI argument hygiene
   Scenario: invalid enumerated values are rejected and the valid values listed
     Given a small model
     When impact --direction sideways, impact/n2/behavioral-coverage/sbom/build-config --format xml,
-      validate --results <file> --format bogus, or diagram render --view bogus is run
+      or validate --results <file> --format bogus is run
     Then each exits non-zero with nothing on stdout
     And stderr names the offending value and lists the valid values
 
