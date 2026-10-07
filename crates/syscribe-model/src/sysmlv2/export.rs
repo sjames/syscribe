@@ -145,6 +145,10 @@ fn kind_of(t: &ElementType) -> Option<(&'static str, bool)> {
         T::State => ("state", false),
         T::ConstraintDef => ("constraint", true),
         T::Constraint => ("constraint", false),
+        T::OccurrenceDef => ("occurrence", true),
+        T::Occurrence => ("occurrence", false),
+        T::IndividualDef => ("individual", true),
+        T::EventOccurrence => ("event occurrence", false),
         T::CalculationDef => ("calc", true),
         T::Calculation => ("calc", false),
         _ => return None,
@@ -258,6 +262,26 @@ impl Writer {
             return;
         };
         let tname = type_name(elem);
+        // `REQ-TRS-SYSMLV2-084`: `dependency <name> from a, b to c;`.
+        if matches!(elem.frontmatter.element_type, Some(ElementType::Dependency)) {
+            let fm = &elem.frontmatter;
+            let clients: Vec<String> = fm.clients.clone().unwrap_or_default();
+            let suppliers: Vec<String> = fm.suppliers.clone().unwrap_or_default();
+            if clients.is_empty() || suppliers.is_empty() {
+                self.skip_subtree(qname, node, &pad, out);
+                return;
+            }
+            *self.report.exported.entry(tname.clone()).or_insert(0) += 1;
+            let join = |v: &[String], w: &Self| v.iter().map(|s| w.reference(s)).collect::<Vec<_>>().join(", ");
+            let head = format!("{pad}dependency {} from {} to {}", sysml_ident(name), join(&clients, self), join(&suppliers, self));
+            let doc = elem.doc.trim();
+            if doc.is_empty() {
+                out.push_str(&format!("{head};\n"));
+            } else {
+                out.push_str(&format!("{head} {{\n{}{pad}}}\n", render_doc(doc, &format!("{pad}    "))));
+            }
+            return;
+        }
         let Some((kw, is_def)) = elem.frontmatter.element_type.as_ref().and_then(kind_of) else {
             self.skip_subtree(qname, node, &pad, out);
             return;
@@ -284,6 +308,9 @@ impl Writer {
         }
         if fm.is_variant == Some(true) && !is_def {
             head.push_str("variant ");
+        }
+        if fm.is_individual == Some(true) && matches!(fm.element_type, Some(ElementType::Occurrence) | Some(ElementType::EventOccurrence)) {
+            head.push_str("individual ");
         }
         head.push_str(kw);
         if is_def || native_req {

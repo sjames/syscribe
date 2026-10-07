@@ -92,15 +92,19 @@ below), — as of `REQ-TRS-SYSMLV2-029` — `AllocationDef` (§20, below), and �
 `REQ-TRS-SYSMLV2-033`..`-036` — `ConstraintDef`/`Constraint`, `CalculationDef`/`Calculation`,
 `UseCaseDef`/`UseCase` and package-level `doc` (§22, below).
 
-A construct outside that set — `occurrence`, `actor`, `dependency`, `metadata` usages, and similar — parses without
-error but contributes **nothing** to the graph: no element, no `Finding`, invisible, the same way a
-native Markdown model has no way to express content that isn't frontmatter or documentation body.
-Parse-broad, map-narrow.
+Also, as of `REQ-TRS-SYSMLV2-083`/`-084`: `OccurrenceDef`, `IndividualDef`, `Occurrence`,
+`EventOccurrence` and a named `Dependency` (§29).
+
+A construct outside that set — `actor`, package-level `filter`, `metadata` usages, KerML declarations
+and similar (the full list with the reason for each is in §6) — parses without error but
+contributes **nothing** to the graph: no element, and only the per-file advisory `W543`, the same
+way a native Markdown model has no way to express content that isn't frontmatter or documentation
+body. Parse-broad, map-narrow.
 
 ```sysml
 package Propulsion {
     part def MappedPart;          // becomes SysML2::Propulsion::MappedPart
-    occurrence def UnmappedOcc;   // parses fine, contributes nothing (W543)
+    actor UnmappedActor;          // parses fine, contributes nothing (W543)
 }
 ```
 
@@ -307,17 +311,28 @@ own SysMLv2 submodel looks unexpectedly noisy.
 
 ## 6. What's not built yet
 
-Explicitly out of scope, tracked as follow-on if a concrete need arises:
+What is **not** mapped, and why. Everything else the 0.57 grammar parses in a package, part, action or
+state body has a native target (§§14-29). An unmapped construct is counted per kind in the file's
+`W543` advisory; none of it is silently dropped without that count.
 
-- **A writer/serializer** back into `.sysml`/`.kerml` text, or any two-way round-trip authoring.
-  The SysMLv2 subtree stays authoritative; Syscribe only ever reads it.
-- **Full SysML v2 static semantic validation** — type-checking, multiplicity legality,
-  standard-library-aware inheritance. The AST-only parser used here resolves cross-boundary
-  references through Syscribe's own resolver, not SysML v2 semantic legality; that stays a
-  standards-compliant tool's (e.g. `spec42`) job, run separately.
-- **`extend` of use cases** — SysML v2 has no `extend`; an `include X;` whose simple name resolves
-  to an ingested use case is mapped to `includes:` (§25), including a qualified target
-  (`include Q::Land;`) and the declaring form (`include use case v : Q::Land;`, `REQ-TRS-SYSMLV2-075`).
+| Construct | Why there is no mapping |
+|---|---|
+| `actor` (package level) | No actor element type exists, and the 0.57 AST keeps only the identification (`ActorDecl`), so there is no typing or body to carry. Actors inside `use case`/`case` bodies are mapped (`actors:`). |
+| package-level `filter <expr>;` | No native target: `filter:` exists only on `View`/`expose`, and a package-level filter scopes imports, which the model does not carry. |
+| `metadata` usages (`metadata m : T about X`, `@T { ... }` on an element) | The format has a `metadata:` application list (spec 3.8), but lifting an application would need a resolved target element, the attribute values from the body, and an export, and the parser reads `metadata X about Y` as a *name* `X` rather than a type. Left as a follow-on; `@Syscribe*` annotations are the supported metadata channel. |
+| KerML declarations (`classifier`, `feature`, `type`, `struct`, ...) | KerML is the semantic layer below SysML structure; mapping a KerML `feature` to a SysML usage would assert semantics the source did not state. |
+| anonymous `dependency from a to b;` | No identity to synthesize an element against; name it (`dependency d from a to b;`) to map it. |
+| `snapshot`/`timeslice` `occurrence` usages | A portion kind has no native field on `Occurrence` (the schema's `isPortion` belongs to inline `timeSlices:`), so mapping would drop it. |
+| `while c { } until d;` | The native `loopKind: until` is a *bare* loop with an `until`; a `while` loop with an `until` keeps only its `while` condition. |
+| a succession's own type (`succession s : T first ...`) and `succession` between structural usages (in a part body) | `successionConnections:` is an action-body field; there is no field for a succession type or for a structural succession. |
+| `then fork f { in a; out b; }` bodies | The node is mapped (name and edge); the pin declarations inside the body have no field. |
+| a root-level `alias`, an unresolved package-level `satisfy`/`include` | No owning package or no resolvable target. |
+| **Full SysML v2 static semantic validation** | Type-checking, multiplicity legality and standard-library-aware inheritance are a standards-compliant tool's job (e.g. `spec42`), not this AST-only ingestion; cross-boundary references resolve through Syscribe's own resolver. |
+| `extend` of use cases | SysML v2 has no `extend`; an `include X;` whose name resolves to an ingested use case maps to `includes:` (§25). |
+
+Two-way authoring is intentionally absent: the SysML v2 subtree stays authoritative and Syscribe only
+reads it. `export-sysml` (§23) is the one-way writer for native elements, and it only writes
+what it can read back identically.
 
 ## 7. `doc /* ... */` comment lift
 
@@ -625,9 +640,9 @@ this lines up with `W500`/`W502`'s existing scope rather than fighting it). Ther
 matching the native schema's own framing of `View` as "usage of a ViewDef or ViewpointDef".
 `ViewpointDef`'s `methods:`/`satisfiedBy:` fields are never populated by this mapping — deliberately,
 per §12.1's OSLC upstream-link-direction rule, not because the information is unavailable. A
-`view`/`viewpoint`/`rendering` declared directly inside a `part` usage body doesn't just stay
-unmapped — it fails to parse outright, gracefully degrading to a `W541` finding (§4) rather than a
-crash, since `PartUsageBodyElement` carries no grammar production for the whole family at all.
+`view`/`viewpoint`/`rendering` declared directly inside a `part` usage body failed to parse on 0.54
+(a `W541`) and was invisible on 0.55; since the 0.57 grammar reaches it (`REQ-TRS-SYSMLV2-080`), it is
+its own native element, qualified under the part usage (§29).
 
 ## 16. Concerns — `REQ-TRS-SYSMLV2-023`
 
@@ -963,8 +978,9 @@ package P {
 ```
 
 **Deliberately not mapped** (still `W543`): `extend` of use cases (SysML v2 has none) and an
-`include` whose name does not resolve (see §25); `metadata` usages, `occurrence`, `individual def`, package-level `actor`, `dependency`,
-`filter`, textual representation and the KerML declaration forms have no native target. `item`
+`include` whose name does not resolve (see §25); see §6 for `metadata` usages, package-level `actor`,
+`filter`, textual representation and the KerML declaration forms, which have no native target
+(`occurrence`, `individual def` and named `dependency` were mapped later, §29). `item`
 usages are limited by the parser to `item name [m] : T` (a trailing `T[m]` is not read), and a
 package-level `item` usage is read without its typing. No new validation code was added: an
 advisory for a usage typed by a non-definition was evaluated and skipped, since the native format
@@ -1078,7 +1094,11 @@ instead of comparing raw YAML:
 
 The authored spelling is what is written to the `.sysml` text; only the comparison is canonical.
 
-**`@SyscribeStep`.** The pinned 0.54 parser has no syntax for `via` on an action `accept`/`send`, for
+**`@SyscribeStep` (deprecated since `REQ-TRS-SYSMLV2-077`..`-079`).** §29 supersedes most of this:
+`via`, `to`, a payload-less trigger, `referent` and `until` are native syntax now, and export writes
+them that way. The annotation below is still *ingested* for backward compatibility, and still
+*written* for the two fields with no SysML syntax: `valueKind` of an assign, and a `trigger` beside a
+`payload`. What follows is the original 0.54 description. The pinned 0.54 parser had no syntax for `via` on an action `accept`/`send`, for
 `referent`/`valueKind` on an `assign`, for an accept `trigger`, or for an `until` loop. Rather than loosen
 the check, those native fields travel in a Syscribe metadata annotation inside the step's own body (the
 same family as `@SyscribeDomain`/`@SyscribeImplementedBy`); the statement itself stays plain SysML:
@@ -1118,3 +1138,48 @@ exports every `.md`-native `ActionDef`/`Action`/`StateDef`/`State` in `model/`, 
 it grows or shrinks (lower the budget to lock in the gain). Over those roots the budget is 0 since
 `REQ-TRS-SYSMLV2-074`: the four guarded `successionConnections:` entries of `model_sil` were the last
 degradations, and the 0.57 parser reads `first a if g then b;`.
+
+## 29. Native syntax for step fields, nested kinds, occurrences and dependencies — `REQ-TRS-SYSMLV2-077`..`-085`
+
+The 0.57 grammar parses most of what §28's annotation carried, plus several constructs earlier
+sections listed as unmapped.
+
+**Step fields (`-077`..`-079`).** Ingestion reads and export writes:
+
+| SysML v2 | Native entry |
+|---|---|
+| `accept x : T via p;` / `accept T via p;` | `AcceptAction` `{payload: T, via: p}` |
+| `send x : T via p to t;` | `SendAction` `{payload: T, via: p, to: t}` (`to` is a new optional sub-field, spec 8.7.6) |
+| `accept after e;` / `accept when c;` / `accept at e;` (bare, or `action n accept ...;`) | `AcceptAction` without `payload`, `trigger: {kind: timeOut, when: e}` / `{kind: change, condition: c}` / `{kind: at, when: e}` (`at` is a new trigger kind, spec 8.7.7); an anonymous one is named `accept_N` |
+| `assign a.b := v;` | `AssignmentAction` `{target: a, referent: b}`; a one-segment target has no `referent`. `target: a.b` without `referent` exports as the same statement and is read back as the split form |
+| `loop { ... } until c;` | `LoopAction` `{loopKind: until, condition: c}` |
+
+`@SyscribeStep` (§28) is still read, so existing exports ingest unchanged, but it is **deprecated**:
+export writes it only for `valueKind` of an assign (no syntax: SysML's `assign` is always `:=`) and for
+an `AcceptAction` that has both a `payload` and a `trigger` (the SysML accept carries one or the
+other). A `message` trigger kind or any other trigger shape with no payload still degrades to a
+comment. The repository export ratchet stays at 0.
+
+**Nested kinds and successions (`-080`..`-082`).** A `view`, `viewpoint`, `rendering`, `constraint def`,
+`calc`, `metadata def`, `use case` or `verification` member of a `part` usage body is its own native
+element under the part usage, as in a package or `part def`. In an action body a succession's own
+name and multiplicities map: `succession s [1] first [0..1] a then [1..*] b;` is
+`{name: s, multiplicity: "1", afterMultiplicity: "0..1", beforeMultiplicity: "1..*", after: a,
+before: b}` (spec 8.4.4), and a guarded succession keeps its name (a guarded succession with
+multiplicities is not mapped, the grammar has no slot for them). `then fork f;`, `then decide d;`,
+`then join j;` create the control node and an edge from the preceding node; `then accept ...;`,
+`then send ...;` and `then if c { ... }` create the `AcceptAction`/`SendAction`/`IfAction` and the
+edge. An anonymous `then fork;` has no name to key an edge against and adds none.
+
+**Occurrences and dependencies (`-083`..`-085`).**
+
+| SysML v2 | Native |
+|---|---|
+| `occurrence def X :> S;` | `OccurrenceDef` (`supertype:`, `isAbstract:`, doc) |
+| `individual def X :> S;` | `IndividualDef` |
+| `occurrence o : T [m];`, `individual occurrence o : T;` | `Occurrence` (`typedBy:`, `multiplicity:`, `isIndividual: true`, doc) |
+| `event occurrence e : T;` | `EventOccurrence` |
+| `dependency d from a, b to c;` | `Dependency` `{clients: [a, b], suppliers: [c]}`, each end resolved innermost-scope-first, kept as written when nothing resolves |
+
+`export-sysml` writes the same five native types back (`individual occurrence`, `dependency d from ...
+to ...;`). `W543` now counts only the constructs listed in §6.

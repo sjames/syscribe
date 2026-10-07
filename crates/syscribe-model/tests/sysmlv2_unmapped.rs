@@ -38,7 +38,7 @@ fn one_w543_per_file_with_per_kind_counts() {
     let root = model(&[
         (
             "A.sysml",
-            "package P {\n  part def Keep;\n  individual def C1;\n  individual def C2;\n  occurrence def K;\n  alias Z for Keep;\n}\n",
+            "package P {\n  part def Keep;\n  actor C1;\n  actor C2;\n  filter @K;\n  alias Z for Keep;\n}\n",
         ),
         ("B.sysml", "package Q { part def Keep2; }\n"),
     ]);
@@ -47,7 +47,7 @@ fn one_w543_per_file_with_per_kind_counts() {
     let w: Vec<_> = result.findings.iter().filter(|f| f.code == "W543").collect();
     assert_eq!(w.len(), 1, "{:#?}", result.findings);
     assert!(w[0].file.ends_with("A.sysml"));
-    for k in ["individual def x2", "occurrence def x1"] {
+    for k in ["actor x2", "filter x1"] {
         assert!(w[0].message.contains(k), "missing {k} in {}", w[0].message);
     }
     // Advisory: the mapped part defs are still synthesized.
@@ -65,10 +65,10 @@ fn fully_mapped_file_is_silent() {
 
 #[test]
 fn nested_package_members_are_counted() {
-    let root = model(&[("A.sysml", "package P { package In { individual def M; } }\n")]);
+    let root = model(&[("A.sysml", "package P { package In { actor M; } }\n")]);
     let elements = walk_model(&root).unwrap();
     let result = validate(&elements);
     let w: Vec<_> = result.findings.iter().filter(|f| f.code == "W543").collect();
     assert_eq!(w.len(), 1);
-    assert!(w[0].message.contains("individual def x1"));
+    assert!(w[0].message.contains("actor x1"));
 }

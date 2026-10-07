@@ -148,8 +148,13 @@ fn step_extension_fields_export_and_read_back_identically() {
     let out = export_sysml(&els, None).unwrap();
     assert!(!out.text.contains("not exported"), "{}", out.text);
     assert_eq!(out.report.degraded_behaviour, 0);
-    for needle in ["@SyscribeStep {", "via = 'controlOut';", "feature = 'throttle';", "valueKind = 'initial';", "loopKind = 'until';", "triggerKind = 'change';"] {
+    // `REQ-TRS-SYSMLV2-077`/`-079`: `via`, `referent` and `until` are native syntax now; the
+    // deprecated annotation is written only for `valueKind` and a trigger beside a payload.
+    for needle in ["@SyscribeStep {", "valueKind = 'initial';", "triggerKind = 'change';", "via controlOut", "assign self.throttle := 0.6;", "until self.alt <= 0.1;"] {
         assert!(out.text.contains(needle), "missing `{needle}`\n{}", out.text);
+    }
+    for gone in ["via = ", "feature = ", "loopKind = "] {
+        assert!(!out.text.contains(gone), "`{gone}` must be native now\n{}", out.text);
     }
     let back = reimport(&out.text);
     let (a, b) = (find(&els, "B::Steps"), find(&back, "Imp::B::Steps"));

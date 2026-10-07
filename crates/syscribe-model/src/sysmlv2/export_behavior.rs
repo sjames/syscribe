@@ -85,7 +85,21 @@ fn canon(v: &Value) -> Value {
     match v {
         Value::Mapping(m) => {
             let mut out = Mapping::new();
+            // `a.b := v` and `target: a, referent: b` are one statement (`REQ-TRS-SYSMLV2-079`).
+            let split = (m.get(key("kind")).and_then(Value::as_str) == Some("AssignmentAction") && m.get(key("referent")).is_none())
+                .then(|| m.get(key("target")).and_then(Value::as_str).and_then(super::ingest::split_feature_chain))
+                .flatten();
             for (k, val) in m {
+                if let Some((t, r)) = &split {
+                    match k.as_str() {
+                        Some("target") => {
+                            out.insert(k.clone(), Value::String(t.clone()));
+                            out.insert(key("referent"), Value::String(r.clone()));
+                            continue;
+                        }
+                        _ => {}
+                    }
+                }
                 let name = k.as_str().unwrap_or("");
                 let nv = if EXPRESSION_KEYS.contains(&name) {
                     match val {
@@ -202,8 +216,9 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
     // positional one, otherwise the named-step wrapper `action <name> { <stmt> }`
     // (REQ-TRS-SYSMLV2-060/-061), which leaves the synthesized-name counters untouched.
     // An entry with `@SyscribeStep` extras is always written as the wrapper, which owns the annotation.
-    let has_extras = ["referent", "valueKind"].iter().any(|k| get(m, k).is_some())
-        || text(m, "loopKind") == Some("until");
+    // `REQ-TRS-SYSMLV2-079`: `referent` and `until` are native statements now; only `valueKind` of an
+    // assign still travels in the (deprecated) annotation.
+    let has_extras = get(m, "valueKind").is_some();
     let bare_for = |c: &Counters, k: &'static str| !has_extras && name == c.expected(k);
     let inner_pad = |bare: bool| if bare { pad.to_string() } else { format!("{pad}    ") };
     let wrap = |bare: bool, stmt: String, ann: String| -> String {
@@ -229,18 +244,57 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
         }
         "AcceptAction" | "SendAction" => {
             let accept = kind == "AcceptAction";
-            let allowed: &[&str] =
-                if accept { &["name", "kind", "payload", "via", "trigger"] } else { &["name", "kind", "payload", "via"] };
+            let allowed: &[&str] = if accept {
+                &["name", "kind", "payload", "via", "trigger"]
+            } else {
+                &["name", "kind", "payload", "via", "to"]
+            };
             if !only_keys(m, allowed) {
                 return Err("unsupported fields".into());
             }
+            // `REQ-TRS-SYSMLV2-078`: a payload-less accept with a time/change trigger is
+            // `accept after|when|at <e>;` (or `action <n> accept ...;` for a hand-chosen name).
+            if accept && get(m, "payload").is_none() {
+                let tm = get(m, "trigger").and_then(Value::as_mapping).ok_or("no payload")?;
+                let (kw, field) = match text(tm, "kind") {
+                    Some("timeOut") => ("after", "when"),
+                    Some("change") => ("when", "condition"),
+                    Some("at") => ("at", "when"),
+                    _ => return Err("trigger has no native syntax".into()),
+                };
+                if !only_keys(tm, &["kind", field]) || get(m, "via").is_some() {
+                    return Err("unsupported trigger".into());
+                }
+                let e = scalar(tm, field).ok_or("trigger has no expression")?;
+                let bare = name == c.expected("accept");
+                if bare {
+                    c.bump("accept");
+                }
+                let mut tv = Mapping::new();
+                tv.insert(key("kind"), key(text(tm, "kind").unwrap_or_default()));
+                tv.insert(key(field), key(&e));
+                base.insert(key("trigger"), Value::Mapping(tv));
+                let s = if bare {
+                    format!("{pad}accept {kw} {e};\n")
+                } else {
+                    format!("{pad}action {} accept {kw} {e};\n", sysml_ident(name))
+                };
+                return Ok((s, Value::Mapping(base)));
+            }
             let payload = text(m, "payload").ok_or("no payload")?;
             let mut extras: Vec<(&str, String)> = Vec::new();
+            let mut tail = String::new();
             if let Some(v) = get(m, "via") {
                 let via = v.as_str().ok_or("`via` is not text")?;
-                extras.push(("via", via.to_string()));
+                tail.push_str(&format!(" via {}", chain(via)));
                 base.insert(key("via"), key(via));
             }
+            if let Some(v) = get(m, "to") {
+                let to = v.as_str().ok_or("`to` is not text")?;
+                tail.push_str(&format!(" to {}", chain(to)));
+                base.insert(key("to"), key(to));
+            }
+            // A trigger beside a payload has no SysML syntax: the deprecated annotation carries it.
             if let Some(t) = get(m, "trigger") {
                 let tm = t.as_mapping().filter(|tm| only_keys(tm, &["kind", "condition"])).ok_or("unsupported trigger")?;
                 let (k, c) = (text(tm, "kind").ok_or("trigger has no kind")?, scalar(tm, "condition").ok_or("trigger has no condition")?);
@@ -256,6 +310,7 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
             if payload != name {
                 s.push_str(&format!(" : {}", r(payload)));
             }
+            s.push_str(&tail);
             if extras.is_empty() {
                 s.push_str(";\n");
             } else {
@@ -273,17 +328,21 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
             base.insert(key("target"), key(&t));
             base.insert(key("value"), key(&v));
             let mut extras: Vec<(&str, String)> = Vec::new();
-            for k in ["referent", "valueKind"] {
-                if let Some(x) = get(m, k) {
-                    let x = x.as_str().ok_or_else(|| format!("`{k}` is not text"))?;
-                    extras.push((if k == "referent" { "feature" } else { k }, x.to_string()));
-                    base.insert(key(k), key(x));
-                }
+            let mut lhs = t.clone();
+            if let Some(x) = get(m, "referent") {
+                let x = x.as_str().ok_or("`referent` is not text")?;
+                lhs = format!("{t}.{x}");
+                base.insert(key("referent"), key(x));
+            }
+            if let Some(x) = get(m, "valueKind") {
+                let x = x.as_str().ok_or("`valueKind` is not text")?;
+                extras.push(("valueKind", x.to_string()));
+                base.insert(key("valueKind"), key(x));
             }
             if bare {
                 c.bump("assign");
             }
-            let stmt = format!("{}assign {t} := {v};\n", inner_pad(bare));
+            let stmt = format!("{}assign {lhs} := {v};\n", inner_pad(bare));
             let ann = step_annotation(&extras, &inner_pad(bare));
             Ok((wrap(bare, stmt, ann), Value::Mapping(base)))
         }
@@ -313,13 +372,8 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
                     format!("while {}", scalar(m, "condition").ok_or("no condition")?),
                 ),
                 "loop" => (&["name", "kind", "loopKind", "body"], "loop", "loop".to_string()),
-                // `REQ-TRS-SYSMLV2-070`: no `until` in the 0.54 grammar -- an unconditioned `loop`
-                // plus the `@SyscribeStep` annotation carrying `loopKind`/`condition`.
-                "until" => (
-                    &["name", "kind", "loopKind", "condition", "body"],
-                    "loop",
-                    "loop".to_string(),
-                ),
+                // `REQ-TRS-SYSMLV2-079`: `loop { } until <c>;` (0.57); `condition` goes after the body.
+                "until" => (&["name", "kind", "loopKind", "condition", "body"], "loop", "loop".to_string()),
                 "for" => (
                     &["name", "kind", "loopKind", "variable", "sequence", "body"],
                     "for",
@@ -346,13 +400,12 @@ fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(Stri
             if bare {
                 c.bump(kind_key);
             }
-            let ann = if loop_kind == "until" {
-                let cond = scalar(m, "condition").ok_or("no condition")?;
-                step_annotation(&[("loopKind", "until".to_string()), ("condition", cond)], &ip)
+            let until = if loop_kind == "until" {
+                format!(" until {};", scalar(m, "condition").ok_or("no condition")?)
             } else {
                 String::new()
             };
-            Ok((wrap(bare, format!("{ip}{head} {{\n{body}{ip}}}\n"), ann), with_list(base, "body", kept)))
+            Ok((wrap(bare, format!("{ip}{head} {{\n{body}{ip}}}{until}\n"), String::new()), with_list(base, "body", kept)))
         }
         "IfAction" => {
             if !only_keys(m, &["name", "kind", "condition", "then", "else"]) {
@@ -436,7 +489,7 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
     for v in fm.succession_connections.as_deref().unwrap_or(&[]) {
         let verdict = (|| -> Result<String, String> {
             let m = v.as_mapping().ok_or("not a mapping")?;
-            if !only_keys(m, &["after", "before", "guard"]) {
+            if !only_keys(m, &["name", "after", "before", "guard", "multiplicity", "afterMultiplicity", "beforeMultiplicity"]) {
                 return Err("unsupported fields".into());
             }
             let (a, b) = (text(m, "after").ok_or("no after")?, text(m, "before").ok_or("no before")?);
@@ -445,9 +498,24 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
                 return Err(format!("endpoint '{gone}' was not exported"));
             }
             // `REQ-TRS-SYSMLV2-074`: a guarded succession is `first a if <guard> then b;`.
+            // `REQ-TRS-SYSMLV2-081`: an own name and multiplicities are `succession [n] [m] first [x] a then [y] b;`.
+            let name = text(m, "name").map(sysml_ident);
+            let mult = |k: &str| scalar(m, k).map(|x| format!("[{x}] "));
+            let (sm, am, bm) = (mult("multiplicity"), mult("afterMultiplicity"), mult("beforeMultiplicity"));
             let line = match scalar(m, "guard") {
-                Some(g) => format!("first {} if {g} then {};\n", chain(a), chain(b)),
-                None => format!("first {} then {};\n", chain(a), chain(b)),
+                Some(_) if sm.is_some() || am.is_some() || bm.is_some() => return Err("guarded succession with multiplicities".into()),
+                Some(g) => {
+                    let head = name.map(|n| format!("succession {n} ")).unwrap_or_default();
+                    format!("{head}first {} if {g} then {};\n", chain(a), chain(b))
+                }
+                None => {
+                    let head = if name.is_some() || sm.is_some() {
+                        format!("succession {}{}", name.map(|n| format!("{n} ")).unwrap_or_default(), sm.unwrap_or_default())
+                    } else {
+                        String::new()
+                    };
+                    format!("{head}first {}{} then {}{};\n", am.unwrap_or_default(), chain(a), bm.unwrap_or_default(), chain(b))
+                }
             };
             let p = probe_action_body(is_usage, &line).ok_or("does not parse")?;
             if canon_list(&p.successions) == canon_list(&[v.clone()]) && p.sub_actions.is_empty() && p.control_nodes.is_empty() {

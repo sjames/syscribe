@@ -199,13 +199,12 @@ fn a_view_nested_inside_a_part_def_becomes_a_real_element() {
 }
 
 #[test]
-fn a_view_nested_inside_a_part_usage_stays_invisible() {
+fn a_view_nested_inside_a_part_usage_is_its_own_element() {
     let root = tempdir();
     base_model(&root);
     // 0.54 rejected a `view` declared directly inside a `part` usage body outright (a `W541`
-    // for the whole file). Since 0.55 the file parses; the nested view is simply not a mapped
-    // construct there, so it stays invisible as its own element (`REQ-TRS-SYSMLV2-073`: a
-    // documented improvement -- the file's other elements are no longer lost).
+    // for the whole file); 0.55 parsed the file but left the view invisible. The 0.57 grammar
+    // reaches it, so it is a native `View` under the part usage (`REQ-TRS-SYSMLV2-080`).
     write(
         &root,
         "SysML2Legacy/Nested.sysml",
@@ -219,11 +218,11 @@ fn a_view_nested_inside_a_part_usage_stays_invisible() {
     );
 
     let elements = walk_model(&root).unwrap();
-    assert!(
-        !elements.iter().any(|e| e.qualified_name.ends_with("::innerView")),
-        "a view nested inside a part usage body should stay invisible: {:#?}",
-        elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()
-    );
+    let v = elements
+        .iter()
+        .find(|e| e.qualified_name == "SysML2Legacy::Behavior::housing::innerView")
+        .unwrap_or_else(|| panic!("nested view not ingested: {:#?}", elements.iter().map(|e| &e.qualified_name).collect::<Vec<_>>()));
+    assert_eq!(v.frontmatter.element_type, Some(syscribe_model::element::ElementType::View));
     let result = validate(&elements);
     assert!(!codes(&result.findings).contains(&"W541"), "{:#?}", result.findings);
     assert!(

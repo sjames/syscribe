@@ -1687,6 +1687,9 @@ The `successionConnections:` field specifies ordering between occurrences/action
 | `before` | string | **Required** | Feature chain of the succeeding action/occurrence |
 | `guard` | string | optional | Boolean guard expression (opaque string) |
 | `effect` | list of strings | optional | Qualified names of actions executed on the transition |
+| `multiplicity` | string | optional | Multiplicity of the succession feature itself (`succession s [1] first a then b;`) |
+| `afterMultiplicity` | string | optional | Multiplicity on the `first` end (`first [0..1] a`) |
+| `beforeMultiplicity` | string | optional | Multiplicity on the `then` end (`then [1..*] b`) |
 
 ```yaml
 successionConnections:
@@ -1984,7 +1987,8 @@ When `subActions` entries have `kind: SendAction` or `kind: AcceptAction`, the f
 |---|---|---|
 | `payload` | string | Qualified name of the item/message being sent or accepted |
 | `via` | string | Feature chain to the port through which the send/accept occurs |
-| `trigger` | map | For `AcceptAction` — trigger specification; see 8.7.7 |
+| `to` | string | For `SendAction` — feature chain naming the receiver (`send x via p to t`) |
+| `trigger` | map | For `AcceptAction` — trigger specification; see 8.7.7. A time or change trigger has no `payload` (`accept after 5;`, `accept when c;`, `accept at t;`) |
 
 When `subActions` entries have `kind: IfAction`, the following additional sub-fields apply:
 
@@ -2090,8 +2094,8 @@ A `trigger` map within an `AcceptAction` entry:
 
 | Sub-field | YAML type | Description |
 |---|---|---|
-| `kind` | string | `timeOut`, `message`, `change` |
-| `when` | string | For `timeOut`: expression giving the timeout duration (opaque) |
+| `kind` | string | `timeOut`, `message`, `change`, `at` |
+| `when` | string | For `timeOut`: expression giving the timeout duration (opaque); for `at`: the absolute instant (opaque) |
 | `payload` | string | For `message`: qualified name of the payload type |
 | `condition` | string | For `change`: boolean change condition expression (opaque) |
 
