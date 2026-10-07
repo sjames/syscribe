@@ -1,0 +1,586 @@
+//! Export of `ActionDef`/`Action` and `StateDef`/`State` bodies as SysML v2 text
+//! (`REQ-TRS-SYSMLV2-056`..`-058`, `ADR-SYS-SYSMLV2-002` addendum).
+//!
+//! The writer is held to one rule: it only emits a statement that the real ingestion
+//! converters (`REQ-TRS-SYSMLV2-018`/`-019`) read back as the *same* native value. Every
+//! top-level entry is generated in the grammar ingestion accepts, then re-parsed through
+//! [`super::ingest::probe_action_body`]/[`super::ingest::probe_state_body`]; an entry whose
+//! probe differs (unknown fields, a hand-chosen name where ingestion synthesizes one, text that
+//! is not valid SysML v2) becomes `//` comment lines instead of an approximation.
+
+use std::collections::HashMap;
+
+use serde_yaml::{Mapping, Value};
+
+use super::export::sysml_ident;
+use super::ingest::{probe_action_body, probe_state_body};
+use crate::element::RawFrontmatter;
+
+type Refs<'a> = &'a dyn Fn(&str) -> String;
+
+fn key(k: &str) -> Value {
+    Value::String(k.to_string())
+}
+
+fn get<'a>(m: &'a Mapping, k: &str) -> Option<&'a Value> {
+    m.get(key(k))
+}
+
+fn text<'a>(m: &'a Mapping, k: &str) -> Option<&'a str> {
+    get(m, k).and_then(Value::as_str)
+}
+
+/// A scalar field as text: hand-authored YAML may write `value: 10` (a number) where ingestion
+/// always stores the expression text as a string; both mean the same source text.
+fn scalar(m: &Mapping, k: &str) -> Option<String> {
+    match get(m, k)? {
+        Value::String(s) => Some(s.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        Value::Bool(b) => Some(b.to_string()),
+        _ => None,
+    }
+}
+
+/// Every key of `m` is one of `allowed` (anything else cannot be read back).
+fn only_keys(m: &Mapping, allowed: &[&str]) -> bool {
+    m.keys().all(|k| k.as_str().is_some_and(|k| allowed.contains(&k)))
+}
+
+/// A dotted feature-chain name (`a.b`) with each segment quoted when needed.
+fn chain(name: &str) -> String {
+    name.split('.').map(sysml_ident).collect::<Vec<_>>().join(".")
+}
+
+fn comment(pad: &str, what: &str, label: &str, reason: &str) -> String {
+    let label = label.replace('\n', " ");
+    format!("{pad}// {what} not exported ({reason}): {label}\n")
+}
+
+fn describe(v: &Value) -> String {
+    match v.as_mapping() {
+        Some(m) => {
+            let name = text(m, "name").unwrap_or("?");
+            let kind = text(m, "kind").map(|k| format!("{k} ")).unwrap_or_default();
+            format!("{kind}{name}")
+        }
+        None => "non-mapping entry".to_string(),
+    }
+}
+
+// ── Actions ────────────────────────────────────────────────────────────────
+
+/// Per-body counters for the names ingestion synthesizes (`if_1`, `while_2`, …).
+#[derive(Default)]
+struct Counters(HashMap<&'static str, u32>);
+
+impl Counters {
+    fn expected(&self, kind: &'static str) -> String {
+        format!("{kind}_{}", self.0.get(kind).copied().unwrap_or(0) + 1)
+    }
+    fn bump(&mut self, kind: &'static str) {
+        *self.0.entry(kind).or_insert(0) += 1;
+    }
+}
+
+/// Generate a nested body (loop/if branch): text plus the entries actually kept.
+fn action_list(list: &[Value], pad: &str, r: Refs) -> (String, Vec<Value>) {
+    let mut counters = Counters::default();
+    let mut out = String::new();
+    let mut kept = Vec::new();
+    for v in list {
+        match action_entry(v, &mut counters, pad, r) {
+            Ok((t, k)) => {
+                out.push_str(&t);
+                kept.push(k);
+            }
+            Err(reason) => out.push_str(&comment(pad, "subAction", &describe(v), &reason)),
+        }
+    }
+    (out, kept)
+}
+
+fn nested(m: &Mapping, k: &str, pad: &str, r: Refs) -> Result<(String, Vec<Value>), String> {
+    match get(m, k) {
+        None => Ok((String::new(), Vec::new())),
+        Some(Value::Sequence(seq)) => Ok(action_list(seq, &format!("{pad}    "), r)),
+        Some(_) => Err(format!("`{k}` is not a list")),
+    }
+}
+
+fn with_list(mut m: Mapping, k: &str, kept: Vec<Value>) -> Value {
+    if !kept.is_empty() {
+        m.insert(key(k), Value::Sequence(kept));
+    }
+    Value::Mapping(m)
+}
+
+/// One `subActions:` entry as statement text and the value ingestion must give back.
+fn action_entry(v: &Value, c: &mut Counters, pad: &str, r: Refs) -> Result<(String, Value), String> {
+    let m = v.as_mapping().ok_or("not a mapping")?;
+    let name = text(m, "name").filter(|n| !n.is_empty()).ok_or("no name")?;
+    let kind = text(m, "kind").ok_or("no kind")?;
+    let mut base = Mapping::new();
+    base.insert(key("name"), key(name));
+    base.insert(key("kind"), key(kind));
+
+    // Kinds whose name ingestion synthesizes must carry exactly that name.
+    let synth = |c: &Counters, k: &'static str| -> Result<(), String> {
+        (name == c.expected(k)).then_some(()).ok_or_else(|| format!("name '{name}' is not the synthesized '{}'", c.expected(k)))
+    };
+
+    match kind {
+        "PerformAction" => {
+            if !only_keys(m, &["name", "kind", "typedBy"]) {
+                return Err("unsupported fields".into());
+            }
+            let mut s = format!("{pad}action {}", sysml_ident(name));
+            if let Some(t) = text(m, "typedBy") {
+                s.push_str(&format!(" : {}", r(t)));
+                base.insert(key("typedBy"), key(t));
+            }
+            s.push_str(";\n");
+            Ok((s, Value::Mapping(base)))
+        }
+        "AcceptAction" | "SendAction" => {
+            if !only_keys(m, &["name", "kind", "payload"]) {
+                return Err("unsupported fields".into());
+            }
+            let payload = text(m, "payload").ok_or("no payload")?;
+            let kw = if kind == "AcceptAction" { "accept" } else { "send" };
+            let mut s = format!("{pad}{kw} {}", sysml_ident(name));
+            if payload != name {
+                s.push_str(&format!(" : {}", r(payload)));
+            }
+            s.push_str(";\n");
+            base.insert(key("payload"), key(payload));
+            Ok((s, Value::Mapping(base)))
+        }
+        "AssignmentAction" => {
+            if !only_keys(m, &["name", "kind", "target", "value"]) {
+                return Err("unsupported fields".into());
+            }
+            synth(c, "assign")?;
+            let (t, v) = (scalar(m, "target").ok_or("no target")?, scalar(m, "value").ok_or("no value")?);
+            base.insert(key("target"), key(&t));
+            base.insert(key("value"), key(&v));
+            c.bump("assign");
+            Ok((format!("{pad}assign {t} := {v};\n"), Value::Mapping(base)))
+        }
+        "TerminateAction" => {
+            if !only_keys(m, &["name", "kind", "target"]) {
+                return Err("unsupported fields".into());
+            }
+            synth(c, "terminate")?;
+            c.bump("terminate");
+            match text(m, "target") {
+                Some(t) => {
+                    base.insert(key("target"), key(t));
+                    Ok((format!("{pad}terminate {};\n", chain(t)), Value::Mapping(base)))
+                }
+                None => Ok((format!("{pad}terminate;\n"), Value::Mapping(base))),
+            }
+        }
+        "LoopAction" => {
+            let loop_kind = text(m, "loopKind").ok_or("no loopKind")?;
+            let (allowed, kind_key, head): (&[&str], &'static str, String) = match loop_kind {
+                "while" => (
+                    &["name", "kind", "loopKind", "condition", "body"],
+                    "while",
+                    format!("while {}", scalar(m, "condition").ok_or("no condition")?),
+                ),
+                "loop" => (&["name", "kind", "loopKind", "body"], "loop", "loop".to_string()),
+                "for" => (
+                    &["name", "kind", "loopKind", "variable", "sequence", "body"],
+                    "for",
+                    format!(
+                        "for {} in {}",
+                        sysml_ident(text(m, "variable").ok_or("no variable")?),
+                        scalar(m, "sequence").ok_or("no sequence")?
+                    ),
+                ),
+                other => return Err(format!("unknown loopKind '{other}'")),
+            };
+            if !only_keys(m, allowed) {
+                return Err("unsupported fields".into());
+            }
+            synth(c, kind_key)?;
+            base.insert(key("loopKind"), key(loop_kind));
+            for k in ["condition", "variable", "sequence"] {
+                if let Some(t) = scalar(m, k) {
+                    base.insert(key(k), key(&t));
+                }
+            }
+            let (body, kept) = nested(m, "body", pad, r)?;
+            c.bump(kind_key);
+            Ok((format!("{pad}{head} {{\n{body}{pad}}}\n"), with_list(base, "body", kept)))
+        }
+        "IfAction" => {
+            if !only_keys(m, &["name", "kind", "condition", "then", "else"]) {
+                return Err("unsupported fields".into());
+            }
+            synth(c, "if")?;
+            let cond = scalar(m, "condition").ok_or("no condition")?;
+            base.insert(key("condition"), key(&cond));
+            let (then_t, then_k) = nested(m, "then", pad, r)?;
+            let mut s = format!("{pad}if {cond} {{\n{then_t}{pad}}}");
+            let mut out = with_list(base, "then", then_k);
+            if get(m, "else").is_some() {
+                let (else_t, else_k) = nested(m, "else", pad, r)?;
+                s.push_str(&format!(" else {{\n{else_t}{pad}}}"));
+                if let Value::Mapping(om) = &mut out {
+                    if !else_k.is_empty() {
+                        om.insert(key("else"), Value::Sequence(else_k));
+                    }
+                }
+            }
+            s.push('\n');
+            c.bump("if");
+            Ok((s, out))
+        }
+        other => Err(format!("unsupported kind '{other}'")),
+    }
+}
+
+/// `subActions:`/`controlNodes:`/`successionConnections:` of an `ActionDef`/`Action`.
+pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Refs) -> String {
+    let mut out = String::new();
+    let mut counters = Counters::default();
+    for v in fm.sub_actions.as_deref().unwrap_or(&[]) {
+        let verdict = verify_action_entry(v, is_usage, r).and_then(|()| {
+            let (t, _) = action_entry(v, &mut counters, pad, r)?;
+            Ok(t)
+        });
+        match verdict {
+            Ok(t) => out.push_str(&t),
+            Err(reason) => out.push_str(&comment(pad, "subAction", &describe(v), &reason)),
+        }
+    }
+    for v in fm.control_nodes.as_deref().unwrap_or(&[]) {
+        let verdict = (|| -> Result<String, String> {
+            let m = v.as_mapping().ok_or("not a mapping")?;
+            if !only_keys(m, &["name", "kind"]) {
+                return Err("unsupported fields".into());
+            }
+            let kw = match text(m, "kind") {
+                Some("ForkNode") => "fork",
+                Some("JoinNode") => "join",
+                Some("DecisionNode") => "decide",
+                Some("MergeNode") => "merge",
+                _ => return Err("unknown control node kind".into()),
+            };
+            let name = text(m, "name").ok_or("no name")?;
+            let line = format!("{kw} {};\n", chain(name));
+            let p = probe_action_body(is_usage, &line).ok_or("does not parse")?;
+            if p.control_nodes == vec![v.clone()] && p.sub_actions.is_empty() && p.successions.is_empty() {
+                Ok(format!("{pad}{line}"))
+            } else {
+                Err("does not read back identically".into())
+            }
+        })();
+        match verdict {
+            Ok(t) => out.push_str(&t),
+            Err(reason) => out.push_str(&comment(pad, "controlNode", &describe(v), &reason)),
+        }
+    }
+    for v in fm.succession_connections.as_deref().unwrap_or(&[]) {
+        let verdict = (|| -> Result<String, String> {
+            let m = v.as_mapping().ok_or("not a mapping")?;
+            if !only_keys(m, &["after", "before"]) {
+                return Err("unsupported fields".into());
+            }
+            let (a, b) = (text(m, "after").ok_or("no after")?, text(m, "before").ok_or("no before")?);
+            let line = format!("first {} then {};\n", chain(a), chain(b));
+            let p = probe_action_body(is_usage, &line).ok_or("does not parse")?;
+            if p.successions == vec![v.clone()] && p.sub_actions.is_empty() && p.control_nodes.is_empty() {
+                Ok(format!("{pad}{line}"))
+            } else {
+                Err("does not read back identically".into())
+            }
+        })();
+        match verdict {
+            Ok(t) => out.push_str(&t),
+            Err(reason) => out.push_str(&comment(pad, "successionConnection", &describe_succession(v), &reason)),
+        }
+    }
+    out
+}
+
+/// Read-back check for one top-level entry, in isolation: it is first in its body, so a
+/// synthesized name is `<kind>_1` on both sides. Nested bodies compare verbatim.
+fn verify_action_entry(v: &Value, is_usage: bool, r: Refs) -> Result<(), String> {
+    let m = v.as_mapping().ok_or("not a mapping")?;
+    let mut iso = m.clone();
+    if let Some(k) = synth_kind(m) {
+        iso.insert(key("name"), key(&format!("{k}_1")));
+    }
+    let (txt, kept) = action_entry(&Value::Mapping(iso), &mut Counters::default(), "", r)?;
+    let probed = probe_action_body(is_usage, &txt).ok_or("does not parse")?;
+    if probed.sub_actions == vec![kept] && probed.control_nodes.is_empty() && probed.successions.is_empty() {
+        Ok(())
+    } else {
+        Err("does not read back identically".to_string())
+    }
+}
+
+/// The synthesized-name family an entry belongs to, if any.
+fn synth_kind(m: &Mapping) -> Option<&'static str> {
+    match text(m, "kind")? {
+        "AssignmentAction" => Some("assign"),
+        "TerminateAction" => Some("terminate"),
+        "IfAction" => Some("if"),
+        "LoopAction" => match text(m, "loopKind")? {
+            "while" => Some("while"),
+            "loop" => Some("loop"),
+            "for" => Some("for"),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+// ── States ─────────────────────────────────────────────────────────────────
+
+/// `entry`/`do`/`exit action n;` lines for a state-like mapping or the element itself.
+fn behaviour_lines(entry: Option<&Value>, doa: Option<&Value>, exit: Option<&Value>, pad: &str) -> Result<String, String> {
+    let mut s = String::new();
+    for (kw, v) in [("entry", entry), ("do", doa), ("exit", exit)] {
+        let Some(v) = v else { continue };
+        let n = v.as_str().filter(|n| !n.is_empty()).ok_or_else(|| format!("{kw}Action is not a plain action name"))?;
+        s.push_str(&format!("{pad}{kw} action {};\n", sysml_ident(n)));
+    }
+    Ok(s)
+}
+
+fn effect_text(v: &Value, r: Refs) -> Result<String, String> {
+    match v {
+        Value::String(s) => Ok(s.clone()),
+        Value::Mapping(m) => {
+            if !only_keys(m, &["name", "typedBy"]) {
+                return Err("unsupported effect fields".into());
+            }
+            let name = text(m, "name").ok_or("effect has no name")?;
+            Ok(match text(m, "typedBy") {
+                Some(t) => format!("action {} : {}", sysml_ident(name), r(t)),
+                None => format!("action {}", sysml_ident(name)),
+            })
+        }
+        _ => Err("unsupported effect".into()),
+    }
+}
+
+fn accept_text(v: &Value, r: Refs) -> Result<String, String> {
+    match v {
+        Value::String(s) => Ok(s.clone()),
+        Value::Mapping(m) => {
+            if !only_keys(m, &["payload", "via"]) {
+                return Err("unsupported accept fields".into());
+            }
+            let p = text(m, "payload").ok_or("accept has no payload")?;
+            Ok(match text(m, "via") {
+                Some(via) => format!("{p} via {}", r(via)),
+                None => p.to_string(),
+            })
+        }
+        _ => Err("unsupported accept".into()),
+    }
+}
+
+/// One `transitions:` entry as text. `explicit_source`: a top-level transition must name its
+/// source; inside a substate the source is implicit and the shorthand form is used.
+fn transition_text(v: &Value, nested: bool, pad: &str, r: Refs) -> Result<String, String> {
+    let m = v.as_mapping().ok_or("not a mapping")?;
+    if !only_keys(m, &["source", "target", "accept", "guard", "effect"]) {
+        return Err("unsupported fields".into());
+    }
+    let target = text(m, "target").ok_or("no target")?;
+    let mut s = String::new();
+    match (text(m, "source"), nested) {
+        (Some(src), _) => s.push_str(&format!("transition first {} ", chain(src))),
+        (None, true) => {}
+        (None, false) => return Err("top-level transition has no source".into()),
+    }
+    if let Some(a) = get(m, "accept") {
+        s.push_str(&format!("accept {} ", accept_text(a, r)?));
+    }
+    if let Some(g) = scalar(m, "guard") {
+        s.push_str(&format!("if {g} "));
+    }
+    if let Some(e) = get(m, "effect") {
+        s.push_str(&format!("do {} ", effect_text(e, r)?));
+    }
+    s.push_str(&format!("then {};", chain(target)));
+    Ok(format!("{pad}{s}\n"))
+}
+
+/// A substate entry: statement text (state + its sibling markers) and the value to expect.
+fn substate(v: &Value, pad: &str, r: Refs) -> Result<(String, String, Value), String> {
+    let m = v.as_mapping().ok_or("not a mapping")?;
+    if !only_keys(
+        m,
+        &["name", "typedBy", "entryAction", "doAction", "exitAction", "subStates", "transitions", "isInitial", "isFinal"],
+    ) {
+        return Err("unsupported fields".into());
+    }
+    let name = text(m, "name").filter(|n| !n.is_empty()).ok_or("no name")?;
+    let inner = format!("{pad}    ");
+    let mut head = format!("{pad}state {}", sysml_ident(name));
+    let mut kept = Mapping::new();
+    kept.insert(key("name"), key(name));
+    if let Some(t) = text(m, "typedBy") {
+        head.push_str(&format!(" : {}", r(t)));
+        kept.insert(key("typedBy"), key(t));
+    }
+    let mut body = behaviour_lines(get(m, "entryAction"), get(m, "doAction"), get(m, "exitAction"), &inner)?;
+    for (k, kk) in [("entryAction", "entryAction"), ("doAction", "doAction"), ("exitAction", "exitAction")] {
+        if let Some(a) = get(m, k) {
+            kept.insert(key(kk), a.clone());
+        }
+    }
+    let (subs, kept_subs) = match get(m, "subStates") {
+        Some(Value::Sequence(seq)) => state_list(seq, &inner, r),
+        None => (String::new(), Vec::new()),
+        Some(_) => return Err("`subStates` is not a list".into()),
+    };
+    body.push_str(&subs);
+    if !kept_subs.is_empty() {
+        kept.insert(key("subStates"), Value::Sequence(kept_subs));
+    }
+    let mut kept_tr = Vec::new();
+    match get(m, "transitions") {
+        Some(Value::Sequence(seq)) => {
+            for t in seq {
+                match transition_text(t, true, &inner, r) {
+                    Ok(txt) => {
+                        body.push_str(&txt);
+                        kept_tr.push(t.clone());
+                    }
+                    Err(reason) => body.push_str(&comment(&inner, "transition", &describe_transition(t), &reason)),
+                }
+            }
+        }
+        None => {}
+        Some(_) => return Err("`transitions` is not a list".into()),
+    }
+    if !kept_tr.is_empty() {
+        kept.insert(key("transitions"), Value::Sequence(kept_tr));
+    }
+    let mut markers = String::new();
+    if get(m, "isInitial").and_then(Value::as_bool) == Some(true) {
+        markers.push_str(&format!("{pad}then {};\n", chain(name)));
+        kept.insert(key("isInitial"), Value::Bool(true));
+    }
+    if get(m, "isFinal").and_then(Value::as_bool) == Some(true) {
+        markers.push_str(&format!("{pad}final {};\n", chain(name)));
+        kept.insert(key("isFinal"), Value::Bool(true));
+    }
+    let stmt = if body.is_empty() { format!("{head};\n") } else { format!("{head} {{\n{body}{pad}}}\n") };
+    Ok((stmt, markers, Value::Mapping(kept)))
+}
+
+fn describe_succession(v: &Value) -> String {
+    match v.as_mapping() {
+        Some(m) => format!("{} -> {}", text(m, "after").unwrap_or("?"), text(m, "before").unwrap_or("?")),
+        None => "non-mapping entry".to_string(),
+    }
+}
+
+fn describe_transition(v: &Value) -> String {
+    match v.as_mapping() {
+        Some(m) => format!("{} -> {}", text(m, "source").unwrap_or("(implicit)"), text(m, "target").unwrap_or("?")),
+        None => "non-mapping entry".to_string(),
+    }
+}
+
+/// A nested list of substates: statements, then all their sibling markers (kept entries only).
+fn state_list(list: &[Value], pad: &str, r: Refs) -> (String, Vec<Value>) {
+    let mut out = String::new();
+    let mut markers = String::new();
+    let mut kept = Vec::new();
+    for v in list {
+        match substate(v, pad, r) {
+            Ok((stmt, mk, k)) => {
+                out.push_str(&stmt);
+                markers.push_str(&mk);
+                kept.push(k);
+            }
+            Err(reason) => out.push_str(&comment(pad, "subState", &describe(v), &reason)),
+        }
+    }
+    out.push_str(&markers);
+    (out, kept)
+}
+
+/// `entryAction:`/`doAction:`/`exitAction:`/`subStates:`/`transitions:` of a `StateDef`/`State`.
+pub(super) fn state_body(fm: &RawFrontmatter, pad: &str, r: Refs) -> String {
+    let mut out = String::new();
+    for (kw, v) in [("entry", &fm.entry_action), ("do", &fm.do_action), ("exit", &fm.exit_action)] {
+        let Some(v) = v else { continue };
+        let line = behaviour_lines(
+            (kw == "entry").then_some(v),
+            (kw == "do").then_some(v),
+            (kw == "exit").then_some(v),
+            "",
+        );
+        match line {
+            Ok(l) => {
+                let p = probe_state_body(&l);
+                let got = p.as_ref().and_then(|p| match kw {
+                    "entry" => p.entry.clone(),
+                    "do" => p.do_action.clone(),
+                    _ => p.exit.clone(),
+                });
+                if got.as_ref() == Some(v) {
+                    out.push_str(&format!("{pad}{l}"));
+                } else {
+                    out.push_str(&comment(pad, &format!("{kw}Action"), &describe_scalar(v), "does not read back identically"));
+                }
+            }
+            Err(reason) => out.push_str(&comment(pad, &format!("{kw}Action"), &describe_scalar(v), &reason)),
+        }
+    }
+    // Substates: verify each top-level one (with its markers) in isolation.
+    let mut markers = String::new();
+    for v in fm.sub_states.as_deref().unwrap_or(&[]) {
+        let verdict = verify_substate(v, r).and_then(|()| substate(v, pad, r).map(|(stmt, mk, _)| (stmt, mk)));
+        match verdict {
+            Ok((stmt, mk)) => {
+                out.push_str(&stmt);
+                markers.push_str(&mk);
+            }
+            Err(reason) => out.push_str(&comment(pad, "subState", &describe(v), &reason)),
+        }
+    }
+    out.push_str(&markers);
+    for t in fm.transitions.as_deref().unwrap_or(&[]) {
+        let verdict = verify_transition(t, r).and_then(|()| transition_text(t, false, pad, r));
+        match verdict {
+            Ok(l) => out.push_str(&l),
+            Err(reason) => out.push_str(&comment(pad, "transition", &describe_transition(t), &reason)),
+        }
+    }
+    out
+}
+
+fn verify_substate(v: &Value, r: Refs) -> Result<(), String> {
+    let (stmt, mk, kept) = substate(v, "", r)?;
+    let p = probe_state_body(&format!("{stmt}{mk}")).ok_or("does not parse")?;
+    if p.sub_states == vec![kept] && p.transitions.is_empty() && p.entry.is_none() && p.do_action.is_none() && p.exit.is_none() {
+        Ok(())
+    } else {
+        Err("does not read back identically".to_string())
+    }
+}
+
+fn verify_transition(t: &Value, r: Refs) -> Result<(), String> {
+    let line = transition_text(t, false, "", r)?;
+    let p = probe_state_body(&line).ok_or("does not parse")?;
+    if p.transitions == vec![t.clone()] && p.sub_states.is_empty() {
+        Ok(())
+    } else {
+        Err("does not read back identically".to_string())
+    }
+}
+
+fn describe_scalar(v: &Value) -> String {
+    v.as_str().map(str::to_string).unwrap_or_else(|| format!("{v:?}"))
+}

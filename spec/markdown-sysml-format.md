@@ -1780,6 +1780,8 @@ multiplicity: "1"
 Current operational status of this vehicle instance.
 ```
 
+**Value and unit.** A standalone `Attribute` may carry `value:` (a literal default/binding — number, string or boolean) and `unit:` (name of the unit of a quantity-valued `value:`), the same shorthand §3.6.1 defines for inline `features:` entries. Ingested SysML v2 `attribute mass : Real = 12.5 [kg];` produces `value: 12.5`, `unit: kg`; `export-sysml` writes them back as `= 12.5 [kg]`.
+
 ### 8.6 Flow Elements
 
 #### 8.6.1 `FlowDef`

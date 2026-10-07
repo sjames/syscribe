@@ -68,6 +68,19 @@ pub(crate) fn find_sysml_files(dir: &Path) -> Vec<PathBuf> {
 /// (the package's own `_index.md` element) and contributes zero elements from
 /// that file — never aborts the rest of the subtree.
 pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Vec<RawElement> {
+    ingest_subtree_detailed(owner, pkg_qname, dir).elements
+}
+
+/// What one ingestion pass produced: the elements plus, per *parsed* file, the final unmapped
+/// counts that feed `W543` (`REQ-TRS-SYSMLV2-059` -- the report reads these instead of
+/// re-deriving them).
+pub(crate) struct IngestDetail {
+    pub elements: Vec<RawElement>,
+    pub file_counts: Vec<(String, BTreeMap<&'static str, usize>)>,
+}
+
+/// [`ingest_subtree`] plus the per-file unmapped counts it computed.
+pub(crate) fn ingest_subtree_detailed(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> IngestDetail {
     let mut merged = MergedPackage::default();
     // Per-file unmapped counts; W543 is emitted after conversion so unresolved
     // package-level `satisfy` statements (`REQ-TRS-SYSMLV2-046`) can be added.
@@ -106,10 +119,16 @@ pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Ve
     let mut out = Vec::new();
     convert_merged(&merged, pkg_qname, &mut out);
     let unresolved = lift_package_satisfies(&merged, pkg_qname, &mut out);
+    let unresolved_includes = resolve_includes(&mut out);
+    let mut detailed = Vec::new();
     for (file_path, mut counts) in file_counts {
         if let Some(n) = unresolved.get(&file_path) {
             *counts.entry("satisfy").or_insert(0) += n;
         }
+        if let Some(n) = unresolved_includes.get(&file_path) {
+            *counts.entry("include").or_insert(0) += n;
+        }
+        detailed.push((file_path.clone(), counts.clone()));
         if counts.is_empty() {
             continue;
         }
@@ -127,7 +146,35 @@ pub fn ingest_subtree(owner: &mut RawElement, pkg_qname: &str, dir: &Path) -> Ve
             ),
         ));
     }
-    out
+    IngestDetail { elements: out, file_counts: detailed }
+}
+
+/// `REQ-TRS-SYSMLV2-054`: replace each use case's raw `include X;` names by the qualified name
+/// of the `UseCaseDef`/`UseCase` they resolve to (innermost scope first, from the including
+/// element's own qname outward). Unresolved names are dropped; returns the per-file count.
+fn resolve_includes(out: &mut [RawElement]) -> BTreeMap<String, usize> {
+    let mut unresolved = BTreeMap::new();
+    let index: super::EndpointIndex = out
+        .iter()
+        .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::UseCaseDef) | Some(ElementType::UseCase)))
+        .map(|e| (e.qualified_name.clone(), (None, None)))
+        .collect();
+    for e in out.iter_mut() {
+        let Some(raw) = e.frontmatter.includes.take() else { continue };
+        let mut resolved: Vec<String> = Vec::new();
+        for name in raw {
+            match super::lookup_scoped(&index, &e.qualified_name, &name) {
+                Some(q) if q != e.qualified_name => {
+                    if !resolved.contains(&q) {
+                        resolved.push(q);
+                    }
+                }
+                _ => *unresolved.entry(e.file_path.clone()).or_insert(0) += 1,
+            }
+        }
+        e.frontmatter.includes = nonempty_vec(resolved);
+    }
+    unresolved
 }
 
 /// `REQ-TRS-SYSMLV2-046`: the subject of a package-level `satisfy <req> by
@@ -495,6 +542,12 @@ struct Spec {
     multiplicity: Option<String>,
     subsets: Option<Vec<String>>,
     redefines: Option<serde_yaml::Value>,
+    /// `REQ-TRS-SYSMLV2-054` -- raw `include X;` names of a use case; resolved to qnames (or dropped
+    /// and counted) once the whole subtree is merged, see `resolve_includes`.
+    includes: Option<Vec<String>>,
+    /// `REQ-TRS-SYSMLV2-055` -- an attribute usage's literal value and its unit.
+    value: Option<serde_yaml::Value>,
+    unit: Option<String>,
 }
 
 impl Spec {
@@ -646,6 +699,9 @@ fn push_synth(
             multiplicity: spec.multiplicity,
             subsets: spec.subsets,
             redefines: spec.redefines,
+            includes: spec.includes,
+            value: spec.value,
+            unit: spec.unit,
             ..Default::default()
         },
         doc: spec.doc,
@@ -3117,6 +3173,38 @@ fn nonempty(s: String) -> Option<String> {
     (!s.is_empty()).then_some(s)
 }
 
+/// `REQ-TRS-SYSMLV2-055`: a *literal* attribute value as a YAML scalar, with the unit of a
+/// literal-with-unit (`12.5 [kg]`). Anything that is not a plain literal (a reference,
+/// operator expression, ...) is not mapped, so `value:` always means a literal.
+fn literal_value(e: &sysml_v2_parser::Expression) -> Option<(serde_yaml::Value, Option<String>)> {
+    use sysml_v2_parser::Expression as E;
+    let scalar = |e: &E| -> Option<serde_yaml::Value> {
+        Some(match e {
+            E::LiteralInteger(i) => serde_yaml::Value::Number((*i).into()),
+            E::LiteralReal(s) => serde_yaml::Value::Number(s.parse::<f64>().ok().map(serde_yaml::Number::from)?),
+            E::LiteralString(s) => serde_yaml::Value::String(s.clone()),
+            E::LiteralBoolean(b) => serde_yaml::Value::Bool(*b),
+            _ => return None,
+        })
+    };
+    match e {
+        E::LiteralWithUnit { value, unit } => {
+            // The parser wraps the bracketed unit expression in `Bracket(..)`.
+            let inner = match &unit.value {
+                E::Bracket(b) => &b.value,
+                other => other,
+            };
+            let u = match inner {
+                E::FeatureRef(s) => s.clone(),
+                E::FeatureChainRef(c) => c.segments.join("::"),
+                _ => return None,
+            };
+            Some((scalar(&value.value)?, Some(u)))
+        }
+        other => Some((scalar(other)?, None)),
+    }
+}
+
 fn convert_attribute_def(
     a: &sysml_v2_parser::AttributeDef,
     qname: &str,
@@ -3156,8 +3244,15 @@ fn convert_attribute_usage(
         sysml_v2_parser::AttributeBody::Brace { elements } => elements.as_slice(),
         sysml_v2_parser::AttributeBody::Semicolon => &[],
     };
+    let (value, unit) = a
+        .value
+        .as_ref()
+        .and_then(|v| literal_value(&v.value.expression.value))
+        .unzip();
     let spec = Spec {
         typed_by: a.typing.as_ref().map(|t| t.value.target_display()),
+        value,
+        unit: unit.flatten(),
         ..Default::default()
     }
     .with_usage_relations(None, a.subsets.as_ref().map(|r| &r.value), a.redefines.as_ref().map(|r| &r.value))
@@ -3470,6 +3565,8 @@ struct CaseBodyFields {
     actors: Option<Vec<String>>,
     objectives: Option<Vec<serde_yaml::Value>>,
     result_type: Option<String>,
+    /// `REQ-TRS-SYSMLV2-054` -- raw names of `include X;` / `then include X;` members.
+    includes: Vec<String>,
     doc: String,
 }
 
@@ -3480,6 +3577,7 @@ fn case_body_fields(body: &sysml_v2_parser::ast::UseCaseDefBody) -> CaseBodyFiel
             actors: None,
             objectives: None,
             result_type: None,
+            includes: Vec::new(),
             doc: String::new(),
         };
     };
@@ -3487,8 +3585,13 @@ fn case_body_fields(body: &sysml_v2_parser::ast::UseCaseDefBody) -> CaseBodyFiel
     let mut actors = Vec::new();
     let mut objectives = Vec::new();
     let mut result_type = None;
+    let mut includes: Vec<String> = Vec::new();
     for n in elements {
         match &n.value {
+            sysml_v2_parser::ast::UseCaseDefBodyElement::IncludeUseCase(i) => includes.push(i.value.name.clone()),
+            sysml_v2_parser::ast::UseCaseDefBodyElement::ThenIncludeUseCase(t) => {
+                includes.push(t.value.include.value.name.clone())
+            }
             sysml_v2_parser::ast::UseCaseDefBodyElement::SubjectDecl(s) => {
                 subject = subject.or_else(|| nonempty(s.value.type_name.clone()));
             }
@@ -3526,6 +3629,7 @@ fn case_body_fields(body: &sysml_v2_parser::ast::UseCaseDefBody) -> CaseBodyFiel
         actors: nonempty_vec(actors),
         objectives: nonempty_vec(objectives),
         result_type,
+        includes,
         doc,
     }
 }
@@ -4240,6 +4344,7 @@ fn convert_use_case_def(c: &sysml_v2_parser::ast::UseCaseDef, qname: &str, file_
         actors: f.actors,
         objectives: f.objectives,
         result_type: f.result_type,
+        includes: nonempty_vec(f.includes),
         ..Default::default()
     }
     .with_doc(f.doc);
@@ -4258,8 +4363,86 @@ fn convert_use_case_usage(c: &sysml_v2_parser::ast::UseCaseUsage, qname: &str, f
         actors: f.actors,
         objectives: f.objectives,
         result_type: f.result_type,
+        includes: nonempty_vec(f.includes),
         ..Default::default()
     }
     .with_doc(f.doc);
     push_synth(out, &format!("{qname}::{}", c.name), file_path, ElementType::UseCase, &c.name, spec);
+}
+
+// ── Behaviour round-trip probes (REQ-TRS-SYSMLV2-056..058) ─────────────────
+
+/// What ingestion reads out of one action body (`REQ-TRS-SYSMLV2-019`).
+pub(crate) struct ProbedAction {
+    pub sub_actions: Vec<serde_yaml::Value>,
+    pub control_nodes: Vec<serde_yaml::Value>,
+    pub successions: Vec<serde_yaml::Value>,
+}
+
+/// What ingestion reads out of one state body (`REQ-TRS-SYSMLV2-018`).
+pub(crate) struct ProbedState {
+    pub sub_states: Vec<serde_yaml::Value>,
+    pub transitions: Vec<serde_yaml::Value>,
+    pub entry: Option<serde_yaml::Value>,
+    pub do_action: Option<serde_yaml::Value>,
+    pub exit: Option<serde_yaml::Value>,
+}
+
+/// The exporter's faithfulness check: parse `body` as the body of an `action def` (or `action`
+/// usage) and return exactly what the real ingestion converters make of it, or `None` when the
+/// text does not parse. The exporter only emits a behaviour statement when this equals the
+/// native value it came from.
+pub(crate) fn probe_action_body(is_usage: bool, body: &str) -> Option<ProbedAction> {
+    let kw = if is_usage { "action x" } else { "action def X" };
+    let probe = format!("package P {{ {kw} {{\n{body}\n}} }}");
+    let root = sysml_v2_parser::parse(&probe).ok()?;
+    for n in &root.elements {
+        let sysml_v2_parser::RootElement::Package(p) = &n.value else { continue };
+        let sysml_v2_parser::PackageBody::Brace { elements } = &p.value.body else { continue };
+        for e in elements {
+            let built = match &e.value {
+                sysml_v2_parser::PackageBodyElement::ActionDef(a) if !is_usage => {
+                    build_action_def_body(action_def_body_elements(&a.value.body))
+                }
+                sysml_v2_parser::PackageBodyElement::ActionUsage(a) if is_usage => match &a.value.body {
+                    sysml_v2_parser::ActionUsageBody::Brace { elements } => build_action_usage_body(elements),
+                    sysml_v2_parser::ActionUsageBody::Semicolon => build_action_usage_body(&[]),
+                },
+                _ => continue,
+            };
+            return Some(ProbedAction {
+                sub_actions: built.sub_actions,
+                control_nodes: built.control_nodes,
+                successions: built.succession_connections,
+            });
+        }
+    }
+    None
+}
+
+/// Same as [`probe_action_body`] for a `state def` body.
+pub(crate) fn probe_state_body(body: &str) -> Option<ProbedState> {
+    let probe = format!("package P {{ state def X {{\n{body}\n}} }}");
+    let root = sysml_v2_parser::parse(&probe).ok()?;
+    for n in &root.elements {
+        let sysml_v2_parser::RootElement::Package(p) = &n.value else { continue };
+        let sysml_v2_parser::PackageBody::Brace { elements } = &p.value.body else { continue };
+        for e in elements {
+            if let sysml_v2_parser::PackageBodyElement::StateDef(s) = &e.value {
+                let els = match &s.value.body {
+                    sysml_v2_parser::ast::StateDefBody::Brace { elements } => elements.as_slice(),
+                    sysml_v2_parser::ast::StateDefBody::Semicolon => &[],
+                };
+                let b = build_state_body(els, true);
+                return Some(ProbedState {
+                    sub_states: b.sub_states,
+                    transitions: b.transitions,
+                    entry: b.entry_action,
+                    do_action: b.do_action,
+                    exit: b.exit_action,
+                });
+            }
+        }
+    }
+    None
 }

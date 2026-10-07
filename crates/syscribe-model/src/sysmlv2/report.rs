@@ -9,6 +9,13 @@ use serde_json::{json, Value};
 
 use crate::element::RawElement;
 
+/// The `sysml-v2-parser` release this build links (`REQ-TRS-SYSMLV2-053`). A test compares it with
+/// the version pinned in `Cargo.toml`, so an upgrade cannot leave the report stale.
+pub const PARSER_VERSION: &str = "0.54.0";
+
+/// The parser's own AST schema version (`sysml_v2_parser::PARSE_AST_VERSION`).
+pub const PARSER_AST_VERSION: u32 = sysml_v2_parser::PARSE_AST_VERSION;
+
 /// Codes of the SysMLv2 ingestion range surfaced by the report.
 const SUBMODEL_CODES: &[&str] = &["W540", "W541", "W542", "W543"];
 
@@ -63,23 +70,23 @@ pub fn submodels(elements: &[RawElement]) -> Vec<Submodel> {
         let dir = Path::new(&anchor.file_path).parent().map(Path::to_path_buf).unwrap_or_default();
         let prefix = format!("{}::", anchor.qualified_name);
 
+        // `REQ-TRS-SYSMLV2-059`: the counts come from the ingestion pass itself (a scratch owner
+        // absorbs its W54x findings), so they always equal what `W543` reports.
+        let mut scratch = anchor.clone();
+        let detail = super::ingest::ingest_subtree_detailed(&mut scratch, &anchor.qualified_name, &dir);
         let mut files = Vec::new();
         let mut unmapped: BTreeMap<String, usize> = BTreeMap::new();
         for path in super::ingest::find_sysml_files(&dir) {
             let shown = path.display().to_string();
-            let parsed = std::fs::read_to_string(&path)
-                .ok()
-                .and_then(|c| sysml_v2_parser::parse(&c).ok());
-            let mut counts = BTreeMap::new();
-            if let Some(root) = &parsed {
-                super::ingest::count_unmapped_root(root, &mut counts);
-            }
-            let counts: BTreeMap<String, usize> =
-                counts.into_iter().map(|(k, n)| (k.to_string(), n)).collect();
+            let found = detail.file_counts.iter().find(|(f, _)| *f == shown).map(|(_, c)| c);
+            let parsed = found.is_some();
+            let counts: BTreeMap<String, usize> = found
+                .map(|c| c.iter().map(|(k, n)| (k.to_string(), *n)).collect())
+                .unwrap_or_default();
             for (k, n) in &counts {
                 *unmapped.entry(k.clone()).or_insert(0) += n;
             }
-            files.push(SubmodelFile { path: shown, parsed: parsed.is_some(), unmapped: counts });
+            files.push(SubmodelFile { path: shown, parsed, unmapped: counts });
         }
 
         let mut elements_by_kind: BTreeMap<String, usize> = BTreeMap::new();
@@ -128,6 +135,11 @@ pub fn submodels(elements: &[RawElement]) -> Vec<Submodel> {
 pub fn submodels_json(elements: &[RawElement]) -> Value {
     let subs = submodels(elements);
     json!({
+        "parser": {
+            "name": "sysml-v2-parser",
+            "version": PARSER_VERSION,
+            "astVersion": PARSER_AST_VERSION,
+        },
         "submodels": subs.iter().map(|s| json!({
             "package": s.package,
             "indexFile": s.index_file,

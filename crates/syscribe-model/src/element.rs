@@ -589,6 +589,10 @@ pub struct RawFrontmatter {
     pub direction: Option<String>,
     pub value: Option<serde_yaml::Value>,
     pub value_kind: Option<String>,
+    /// `unit:` on an `Attribute` — qualified/simple name of the unit of a quantity-valued `value:`
+    /// (the spec's inline-feature `unit` shorthand, §3.6.1, on a standalone element;
+    /// `REQ-TRS-SYSMLV2-055`).
+    pub unit: Option<String>,
     pub expression: Option<String>,
     #[serde(default, deserialize_with = "features_de::deserialize")]
     pub features: Option<Vec<serde_yaml::Value>>,

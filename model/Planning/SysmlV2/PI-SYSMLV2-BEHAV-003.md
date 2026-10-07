@@ -2,10 +2,12 @@
 type: PlanningItem
 id: PI-SYSMLV2-BEHAV-003
 name: "Ingest use-case includes and attribute values/units"
-status: todo
+status: done
 itemType: task
 parent: PI-SYSMLV2-BEHAV-001
 achieves: [REQ-TRS-SYSMLV2-054, REQ-TRS-SYSMLV2-055]
+evidence:
+  - path: "repo:crates/syscribe-model/tests/sysmlv2_include_values.rs"
 tags:
   - sysmlv2
 ---

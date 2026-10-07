@@ -317,6 +317,10 @@ impl Writer {
         if matches!(fm.element_type, Some(ElementType::Attribute)) {
             if let Some(v) = fm.value.as_ref().and_then(render_value) {
                 head.push_str(&format!(" = {v}"));
+                // `REQ-TRS-SYSMLV2-055`: a numeric value carries its unit as a literal-with-unit.
+                if let Some(u) = fm.unit.as_deref().map(str::trim).filter(|u| !u.is_empty() && v.parse::<f64>().is_ok()) {
+                    head.push_str(&format!(" [{}]", sysml_unit(u)));
+                }
             }
         }
 
@@ -363,6 +367,18 @@ impl Writer {
             }
         }
         self.push_behaviour_body(elem, &inner, &mut body);
+        {
+            // `REQ-TRS-SYSMLV2-056`..`-058`: action/state bodies, only as ingestion reads them back.
+            let r = |s: &str| self.reference(s);
+            match fm.element_type {
+                Some(ElementType::ActionDef) => body.push_str(&super::export_behavior::action_body(fm, false, &inner, &r)),
+                Some(ElementType::Action) => body.push_str(&super::export_behavior::action_body(fm, true, &inner, &r)),
+                Some(ElementType::StateDef) | Some(ElementType::State) => {
+                    body.push_str(&super::export_behavior::state_body(fm, &inner, &r))
+                }
+                _ => {}
+            }
+        }
         let mut child_buf = String::new();
         if is_package {
             let mut own = Vec::new();

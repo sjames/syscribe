@@ -25,6 +25,7 @@
 //! they would outside a `sysmlSubmodel` package.
 
 pub mod export;
+mod export_behavior;
 pub mod ingest;
 pub mod report;
 

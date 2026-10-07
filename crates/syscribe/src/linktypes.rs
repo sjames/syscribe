@@ -212,6 +212,13 @@ pub fn cmd_sysml(elements: &[RawElement], json: bool) {
         return;
     }
     let subs = syscribe_model::sysmlv2::report::submodels(elements);
+    // REQ-TRS-SYSMLV2-053: which parser release produced these counts.
+    println!(
+        "Parser: sysml-v2-parser {} (AST {})",
+        syscribe_model::sysmlv2::report::PARSER_VERSION,
+        syscribe_model::sysmlv2::report::PARSER_AST_VERSION
+    );
+    println!();
     if subs.is_empty() {
         println!("No SysMLv2 submodels (no package declares `sysmlSubmodel: true`).");
         return;

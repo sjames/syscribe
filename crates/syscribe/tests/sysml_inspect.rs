@@ -44,6 +44,26 @@ fn cli_sysml_text_report() {
     assert!(out.contains("PartDef: 1"), "{out}");
     assert!(out.contains("individual def x1"), "{out}");
     assert!(out.contains("W543"), "{out}");
+    // REQ-TRS-SYSMLV2-053: the parser release is reported.
+    assert!(out.contains("Parser: sysml-v2-parser 0.54.0 (AST "), "{out}");
+}
+
+#[test]
+fn cli_sysml_reports_unresolved_package_satisfy_and_include() {
+    // REQ-TRS-SYSMLV2-059 / -054: unresolved package-level `satisfy` and `include` are counted.
+    let root = fixture_copy();
+    write(&root, "Sub/_index.md", "---\ntype: Package\nname: Sub\nsysmlSubmodel: true\n---\n");
+    write(
+        &root,
+        "Sub/A.sysml",
+        "package P {\n  part def X;\n  satisfy 'REQ-1' by Missing;\n  satisfy 'REQ-2' by X;\n  use case def U { include Nowhere; }\n}\n",
+    );
+    let (out, ok) = run(&root, &["sysml", "--json"]);
+    assert!(ok);
+    let v: Value = serde_json::from_str(&out).unwrap();
+    assert_eq!(v["submodels"][0]["unmapped"]["satisfy"], 1, "{out}");
+    assert_eq!(v["submodels"][0]["unmapped"]["include"], 1, "{out}");
+    assert_eq!(v["submodels"][0]["unmappedTotal"], 2, "{out}");
 }
 
 #[test]
@@ -57,6 +77,9 @@ fn cli_sysml_json_report() {
     assert_eq!(s["elementsByKind"]["PortDef"], 1);
     assert_eq!(s["unmapped"]["individual def"], 1);
     assert_eq!(s["findings"][0]["code"], "W543");
+    assert_eq!(v["parser"]["name"], "sysml-v2-parser");
+    assert_eq!(v["parser"]["version"], "0.54.0");
+    assert!(v["parser"]["astVersion"].as_u64().is_some(), "{out}");
 }
 
 #[test]

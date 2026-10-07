@@ -314,8 +314,9 @@ Explicitly out of scope, tracked as follow-on if a concrete need arises:
   standard-library-aware inheritance. The AST-only parser used here resolves cross-boundary
   references through Syscribe's own resolver, not SysML v2 semantic legality; that stays a
   standards-compliant tool's (e.g. `spec42`) job, run separately.
-- **`include`/`extend` of use cases** — the pinned parser's `IncludeUseCase` carries only a name and
-  a body (no resolvable target) and SysML v2 has no `extend`; see §24.
+- **`extend` of use cases** — SysML v2 has no `extend`; an `include X;` whose simple name resolves
+  to an ingested use case is mapped to `includes:` (§25); the qualified/declaring forms need a newer
+  parser than the pinned one.
 
 ## 7. `doc /* ... */` comment lift
 
@@ -922,7 +923,7 @@ syscribe -m model/ export-sysml --out out/            # one .sysml per top-level
 | `PartDef` / `Part` | `part def` / `part` (`supertype` -> `:>`, `typedBy` -> `:`, `multiplicity` -> `[n]`, `isAbstract` -> `abstract`) |
 | `PortDef`/`Port`, `AttributeDef`/`Attribute`, `ConnectionDef`/`Connection`, `InterfaceDef`/`Interface`, `ItemDef`/`Item` | the matching `... def` / usage |
 | `RequirementDef`, native `Requirement` | `requirement def` (native ones named by their stable id, e.g. `'REQ-X-001'`; body as `doc /* */`; `verifies:` -> `verify <target>;`) |
-| `ActionDef`/`StateDef` and usages | header + doc only (no behaviour bodies) |
+| `ActionDef`/`Action`, `StateDef`/`State` bodies | the statements ingestion reads back (§26, REQ-TRS-SYSMLV2-056..058); anything it would not read back identically is a `//` comment |
 | `ConstraintDef`/`CalculationDef` and usages | header, doc, `in`/`out`/`return` parameters and the `expression:`/`body:` text (REQ-TRS-SYSMLV2-052) |
 | `satisfies:` on a part | `satisfy <target>;` in its body |
 | `satisfies:` on any other element | a package-level `satisfy <target> by <element>;` (REQ-TRS-SYSMLV2-051) |
@@ -960,13 +961,59 @@ package P {
 }
 ```
 
-**Deliberately not mapped** (still `W543`): `include`/`extend` of use cases — the pinned parser's
-`IncludeUseCase` carries a usage name and body but no resolvable target, and SysML v2 has no
-`extend`; `metadata` usages, `occurrence`, `individual def`, package-level `actor`, `dependency`,
+**Deliberately not mapped** (still `W543`): `extend` of use cases (SysML v2 has none) and an
+`include` whose name does not resolve (see §25); `metadata` usages, `occurrence`, `individual def`, package-level `actor`, `dependency`,
 `filter`, textual representation and the KerML declaration forms have no native target. `item`
 usages are limited by the parser to `item name [m] : T` (a trailing `T[m]` is not read), and a
 package-level `item` usage is read without its typing. No new validation code was added: an
 advisory for a usage typed by a non-definition was evaluated and skipped, since the native format
 does not enforce that rule for hand-authored elements either. `syscribe sysml`/`sysml_submodels`
-report counts only the statically unmapped kinds; an unresolved package-level `satisfy` appears in
-`W543` but not in that report.
+take their counts from the ingestion pass itself, so an unresolved package-level `satisfy` (or
+`include`) appears in the report exactly as in `W543` (REQ-TRS-SYSMLV2-059).
+
+## 25. `include`, attribute values/units, parser version — `REQ-TRS-SYSMLV2-053`..`-055`, `-059`
+
+| SysML v2 | Native | Notes |
+|---|---|---|
+| `include Pay;` / `then include Pay;` in a `use case def`/`use case` body | `includes: [<qname of Pay>]` | `Pay` is resolved innermost-scope-first against the ingested `UseCaseDef`/`UseCase` elements; an unresolved name (or one naming a non-use-case, or the use case itself) is dropped and counted as `include` in `W543` |
+| `attribute mass : Real = 12.5 [kg];` (in a `part def`/`part` body) | `Attribute` with `value: 12.5`, `unit: kg` | only *literal* values (number, string, boolean) map; any other expression leaves `value:` unset. `unit:` is a standard element field (the spec's inline-feature shorthand) |
+
+`export-sysml` writes `unit:` back as `= 12.5 [kg]`. A package-level `attribute x = v;` is read by the
+pinned parser as an attribute *definition*, so its value is not an attribute usage value.
+
+`syscribe sysml` prints `Parser: sysml-v2-parser <version> (AST <n>)` and `--json`/MCP `sysml_submodels`
+carry `parser: {name, version, astVersion}`. A test compares the reported version with the pin in
+`crates/syscribe-model/Cargo.toml`, so it cannot go stale.
+
+**Parser upgrade status.** `sysml-v2-parser` is pinned at 0.54.0. 0.57.0 was evaluated and **not**
+adopted: since 0.55 every name and reference is a span handle resolved through the parsed document, the
+`Doc` body variants and several `Expression` shapes changed — 363 compile errors, all in the 4,265-line
+`ingest.rs` (see the `ADR-SYS-SYSMLV2-001` addendum for the full inventory and the migration steps).
+
+## 26. Exported behaviour bodies — `REQ-TRS-SYSMLV2-056`..`-058`
+
+`export-sysml` writes `ActionDef`/`Action` and `StateDef`/`State` bodies in exactly the statement forms
+ingestion (§§ on states/actions) reads, and only when it can prove the round trip: each top-level
+entry is re-parsed through the real ingestion converters and emitted only if it comes back equal.
+
+| Native | SysML v2 text |
+|---|---|
+| `subActions:` `PerformAction` | `action n [: T];` |
+| `AcceptAction` / `SendAction` | `accept n [: payload];` / `send n [: payload];` |
+| `AssignmentAction` | `assign target := value;` |
+| `LoopAction` (`while`/`loop`/`for`) | `while c { … }` / `loop { … }` / `for v in seq { … }` |
+| `IfAction` (`then`/`else`) | `if c { … } else { … }` |
+| `TerminateAction` | `terminate [target];` |
+| `controlNodes:` | `fork n;` `join n;` `decide n;` `merge n;` |
+| `successionConnections:` | `first a then b;` |
+| `entryAction:`/`doAction:`/`exitAction:` | `entry action n;` `do action n;` `exit action n;` |
+| `subStates:` (+ `isInitial`/`isFinal`) | nested `state n [: T] { … }`, `then n;`, `final n;` |
+| `transitions:` | `transition first s accept a [via p] if g do effect then t;` (nested: the `first s` clause is the stored `source`, omitted when absent) |
+
+**What becomes a comment** (`// subAction not exported (<reason>): <what>`): an unknown `kind:`/`loopKind`;
+extra fields ingestion cannot hold; a hand-chosen name on an `if`/`while`/`loop`/`for`/`assign`/`terminate`
+(ingestion re-synthesizes `if_1`, `while_1`, … so the name would change); a guard/condition/effect that is
+not valid SysML text (e.g. a `<conditional expression>` placeholder); a top-level transition without
+`source:`; a non-string `entryAction:`. Nothing is approximated. Because a succession can then reference a
+node whose own entry was commented out, the `first a then b;` line is still written (it re-ingests
+identically) — treat such text as a projection, not a standalone model.

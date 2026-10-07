@@ -11,7 +11,7 @@ with `:>` (supertype or usage subsets), `:>>` (redefines), `:` (typedBy), `[n]`
 (multiplicity), `doc /* */` (body), `satisfy` (satisfies; a package-level
 `satisfy R by X;` for non-part elements), `verify` (verifies on requirements) and
 `= 5 [kg]` (inline attribute value with unit). Constraint/calc elements carry their
-parameters and expression text. Action/state elements are emitted as header plus doc. Element types with no mapping (TestCase, ADR, PlanningItem, ...) are written as
+parameters and expression text. ActionDef/Action and StateDef/State bodies (sub-actions, control nodes, successions, loops/if; entry/do/exit, substates, transitions) are written as the statements ingestion reads back; an entry it would not read back identically is a `// ... not exported (<reason>)` comment, never an approximation. Element types with no mapping (TestCase, ADR, PlanningItem, ...) are written as
 `// skipped: <qname> (<type>)` comments and counted. Names that are not basic SysML
 identifiers (e.g. REQ-X-001) are single-quoted. Read-only on the model; ingestion of
 `.sysml` files is unaffected.
