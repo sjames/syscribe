@@ -2,6 +2,14 @@
 
 `RELEASES`
 
+## 0.44.1 — 2026-10-08
+
+### Windows release asset restored; stdio-plugin SIGPIPE fix
+
+- **Windows:** the 0.44.0 release has no `x86_64-pc-windows-msvc` asset — the PlantUML writer's snapshot files were named after qualified names containing `::`, which Windows cannot check out. They now use `__` (`Diagrams__PowerSystemIBD.puml`); every other 0.44.0 asset was built and published normally, including the embedded QuickJS/ELK on every cross-compiled target.
+- **Stdio plugins:** a plugin that exits without reading its stdin (`echo '{}'` is a legitimate plugin) could kill `syscribe` outright with `SIGPIPE` while the request was being written, because the binary restores `SIGPIPE`'s default disposition so that piped output exits quietly. The runtime now masks the signal for the duration of that write. This was the intermittent `run_missing_alias_entry_fails_clearly` failure in CI; the test now reports the child's exit status and signal.
+- No format, schema or validation-code changes.
+
 ## 0.44.0 — 2026-10-08
 
 ### Traceability export (ADR-SYS-TREX-001)

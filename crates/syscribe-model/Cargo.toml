@@ -1,6 +1,6 @@
 [package]
 name = "syscribe-model"
-version = "0.44.0"
+version = "0.44.1"
 edition = "2021"
 
 [dependencies]
@@ -28,3 +28,10 @@ fontdb = "0.23.0"
 # (`vis::layout`, REQ-TRS-VIS-016; QuickJS, MIT; built by `cc` — a C compiler is
 # needed at build time).
 rquickjs = "0.14"
+
+# Unix-only: the stdio-plugin runtime masks SIGPIPE while writing a plugin's
+# request (`plugins/runtime.rs`); `syscribe` restores SIGPIPE's default so
+# piped output exits quietly, which would otherwise kill the process when a
+# plugin exits without reading its stdin.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
