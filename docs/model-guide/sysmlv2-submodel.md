@@ -316,8 +316,8 @@ Explicitly out of scope, tracked as follow-on if a concrete need arises:
   references through Syscribe's own resolver, not SysML v2 semantic legality; that stays a
   standards-compliant tool's (e.g. `spec42`) job, run separately.
 - **`extend` of use cases** — SysML v2 has no `extend`; an `include X;` whose simple name resolves
-  to an ingested use case is mapped to `includes:` (§25); the qualified/declaring forms need a newer
-  parser than the pinned one.
+  to an ingested use case is mapped to `includes:` (§25), including a qualified target
+  (`include Q::Land;`) and the declaring form (`include use case v : Q::Land;`, `REQ-TRS-SYSMLV2-075`).
 
 ## 7. `doc /* ... */` comment lift
 
@@ -990,8 +990,11 @@ same as on 0.54 apart from four documented, parser-driven differences, recorded 
 `ADR-SYS-SYSMLV2-001` migration addendum: a bare package-level `attribute`/`port`/`item` is read as
 the usage it is (not a definition), constructs 0.54 rejected for the whole file (a `view` in a `part`
 usage, `then fork`/`join`/`decide`) no longer raise `W541`, a placeholder guard that is not an
-expression is exported as a comment with the reason "does not parse", and the declaring form
-`include use case v : V;` maps to nothing.
+expression is exported as a comment with the reason "does not parse". The 0.57 parser also removes
+three earlier limits (`REQ-TRS-SYSMLV2-074`..`-076`): a guarded succession `first a if g then b;` is
+ingested into the native `guard:` of a `successionConnections:` entry and exported in that form; an
+`include` target may be qualified or use the declaring form; and a bare package-level `attribute`
+carries its `value:`/`unit:` (`attribute maxMass : Real = 12.5 [kg];`).
 
 ## 26. Exported behaviour bodies — `REQ-TRS-SYSMLV2-056`..`-058`
 
@@ -1112,5 +1115,6 @@ degrades to a comment.
 `// ---- export summary ----` block). A repository test (`crates/syscribe-model/tests/sysmlv2_export_ratchet.rs`)
 exports every `.md`-native `ActionDef`/`Action`/`StateDef`/`State` in `model/`, `model_auto/`, `model_mg/`,
 `model_sil/` and the `examples/*/model` roots and compares the total with a recorded budget, failing when
-it grows or shrinks (lower the budget to lock in the gain). Over those roots the budget is 4, all in
-`model_sil`: a `guard:` on a `successionConnections:` entry, for which the 0.54 parser exposes no slot.
+it grows or shrinks (lower the budget to lock in the gain). Over those roots the budget is 0 since
+`REQ-TRS-SYSMLV2-074`: the four guarded `successionConnections:` entries of `model_sil` were the last
+degradations, and the 0.57 parser reads `first a if g then b;`.

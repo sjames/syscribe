@@ -2549,9 +2549,18 @@ impl ActionBodyBuilder {
     }
 
     fn push_succession(&mut self, after: String, before: String) {
+        self.push_guarded_succession(after, before, None);
+    }
+
+    /// A succession edge, with the native `guard:` text when the statement carried one
+    /// (`REQ-TRS-SYSMLV2-074`).
+    fn push_guarded_succession(&mut self, after: String, before: String, guard: Option<String>) {
         let mut m = serde_yaml::Mapping::new();
         m.insert(ykey("after"), serde_yaml::Value::String(after));
         m.insert(ykey("before"), serde_yaml::Value::String(before));
+        if let Some(g) = guard.filter(|g| !g.is_empty()) {
+            m.insert(ykey("guard"), serde_yaml::Value::String(g));
+        }
         self.succession_connections.push(serde_yaml::Value::Mapping(m));
     }
 }
@@ -2918,6 +2927,14 @@ fn handle_first_stmt(b: &mut ActionBodyBuilder, f: &sysml_v2_parser::ast::FirstS
     b.push_succession(first_name, then_name);
 }
 
+/// `first a if <guard> then b;` (`REQ-TRS-SYSMLV2-074`): the succession edge `a` -> `b` with its
+/// guard as the native `guard:` text. 0.54 exposed no slot for the guard.
+fn handle_guarded_succession(b: &mut ActionBodyBuilder, g: &sysml_v2_parser::ast::GuardedSuccession) {
+    let first = qr_segments(g.first).join(".");
+    let then = qr_segments(g.target.value.target).join(".");
+    b.push_guarded_succession(first, then, Some(render_expression(&g.guard.value)));
+}
+
 /// `then <target>;` succession shorthand — connects from whatever node was
 /// most recently converted (`last_named`) to `target`. Silently dropped when
 /// there's no preceding node to connect from (e.g. the very first body
@@ -2992,6 +3009,7 @@ fn build_action_def_body(elements: &[sysml_v2_parser::Node<sysml_v2_parser::Acti
             E::DecisionStmt(d) => handle_control_node(&mut b, &d.value.declaration, "DecisionNode"),
             E::MergeStmt(m) => handle_control_node(&mut b, &m.value.declaration, "MergeNode"),
             E::FirstStmt(f) => handle_first_stmt(&mut b, &f.value),
+            E::GuardedSuccession(g) => handle_guarded_succession(&mut b, &g.value),
             E::ThenAction(t) => handle_then_action(&mut b, &t.value),
             // PartUsage/ItemUsage nested in an action body are structural,
             // not behavioral — handled separately by
@@ -3036,6 +3054,7 @@ fn build_action_usage_body(elements: &[sysml_v2_parser::Node<sysml_v2_parser::Ac
             E::DecisionStmt(d) => handle_control_node(&mut b, &d.value.declaration, "DecisionNode"),
             E::MergeStmt(m) => handle_control_node(&mut b, &m.value.declaration, "MergeNode"),
             E::FirstStmt(f) => handle_first_stmt(&mut b, &f.value),
+            E::GuardedSuccession(g) => handle_guarded_succession(&mut b, &g.value),
             E::ThenAction(t) => handle_then_action(&mut b, &t.value),
             _ => {}
         }
@@ -4141,10 +4160,11 @@ struct CaseBodyFields {
     doc: String,
 }
 
-/// The use case an `include` member references (`include X;`). The `include use case v : V;`
-/// declaring form names a new usage rather than referencing one and maps to nothing.
+/// The use case an `include` member references (`REQ-TRS-SYSMLV2-054`/`-075`): the target of
+/// `include X;`/`include a::X;`, or the typing of the declaring form `include use case v : V;`
+/// (the included use case is `V`).
 fn include_reference(i: &sysml_v2_parser::ast::IncludeUseCase) -> Option<String> {
-    i.target.map(qr)
+    i.target.map(qr).or_else(|| typing_first(i.typing.as_ref()))
 }
 
 fn case_body_fields(body: &sysml_v2_parser::ast::UseCaseDefBody) -> CaseBodyFields {

@@ -436,7 +436,7 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
     for v in fm.succession_connections.as_deref().unwrap_or(&[]) {
         let verdict = (|| -> Result<String, String> {
             let m = v.as_mapping().ok_or("not a mapping")?;
-            if !only_keys(m, &["after", "before"]) {
+            if !only_keys(m, &["after", "before", "guard"]) {
                 return Err("unsupported fields".into());
             }
             let (a, b) = (text(m, "after").ok_or("no after")?, text(m, "before").ok_or("no before")?);
@@ -444,9 +444,13 @@ pub(super) fn action_body(fm: &RawFrontmatter, is_usage: bool, pad: &str, r: Ref
             if let Some(gone) = [a, b].into_iter().find(|n| dropped.iter().any(|d| d == n)) {
                 return Err(format!("endpoint '{gone}' was not exported"));
             }
-            let line = format!("first {} then {};\n", chain(a), chain(b));
+            // `REQ-TRS-SYSMLV2-074`: a guarded succession is `first a if <guard> then b;`.
+            let line = match scalar(m, "guard") {
+                Some(g) => format!("first {} if {g} then {};\n", chain(a), chain(b)),
+                None => format!("first {} then {};\n", chain(a), chain(b)),
+            };
             let p = probe_action_body(is_usage, &line).ok_or("does not parse")?;
-            if p.successions == vec![v.clone()] && p.sub_actions.is_empty() && p.control_nodes.is_empty() {
+            if canon_list(&p.successions) == canon_list(&[v.clone()]) && p.sub_actions.is_empty() && p.control_nodes.is_empty() {
                 Ok(format!("{pad}{line}"))
             } else {
                 Err("does not read back identically".into())

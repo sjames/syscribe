@@ -10,10 +10,10 @@ use syscribe_model::element::ElementType;
 use syscribe_model::sysmlv2::export::export_sysml;
 use syscribe_model::walker::walk_model;
 
-/// Degraded behaviour entries over every repository model root, as of `REQ-TRS-SYSMLV2-067`..`-072`.
-/// All four belong to `model_sil`: a `guard:` on a `successionConnections:` entry, for which
-/// ingestion has no slot (the 0.54 parser exposes no succession guard).
-const BUDGET: usize = 4;
+/// Degraded behaviour entries over every repository model root. Four (`model_sil`'s guarded
+/// `successionConnections:` entries) until `REQ-TRS-SYSMLV2-074`: the 0.57 parser reads
+/// `first a if g then b;`, so they now export and read back identically.
+const BUDGET: usize = 0;
 
 fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..").canonicalize().unwrap()

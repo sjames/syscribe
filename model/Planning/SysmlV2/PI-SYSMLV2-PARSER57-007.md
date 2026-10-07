@@ -2,9 +2,11 @@
 type: PlanningItem
 id: PI-SYSMLV2-PARSER57-007
 name: "Guarded succession ingestion and export; lower the ratchet budget"
-status: todo
+status: done
 itemType: task
 parent: PI-SYSMLV2-PARSER57-006
+evidence:
+  - path: "repo:crates/syscribe-model/tests/sysmlv2_export_ratchet.rs"
 tags:
   - sysmlv2
 ---
