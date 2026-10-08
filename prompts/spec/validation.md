@@ -562,6 +562,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `E235` | (§9.8) a `Configuration`'s `derivedFrom:` base resolves to an element that is not a `Configuration`; the configuration inherits nothing |
 | `E236` | (§9.8) a `Configuration` is on a `derivedFrom:` inheritance cycle — reported on every member; none of them inherits (`E017` is not raised for Configuration cycles) |
 | `E237` | (§9.8) a `Configuration`'s `derivedFrom:` names more than one base — a Configuration inherits from at most one; it inherits nothing |
+| `E238` | (`validate`) a `Configuration` names an abstract feature (`isAbstract: true`) in `features:`, selected or not: an abstract feature is not a choice, it follows from the concrete features |
 
 ## Product Line Engineering warnings (W011–W027, W048)
 
@@ -578,7 +579,6 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W020` | (`feature-check --deep`) a traceability reference is provably violable across some valid configuration |
 | `W021` | (`feature-check --deep`) a dead element — its `appliesWhen` is unsatisfiable under the feature model |
 | `W022` | (`feature-check --deep`) a requirement active in some configuration but covered in none |
-| `E238` | (`validate`) a `Configuration` names an abstract feature (`isAbstract: true`) in `features:`, selected or not: an abstract feature is not a choice, it follows from the concrete features |
 | `W238` | (`feature-check`) an element's `appliesWhen:` names an abstract feature (`isAbstract: true`), which has no realisation of its own and does not distinguish products; condition it on a concrete feature |
 | `W239` | (`feature-check`) an abstract feature with no children: it groups nothing |
 | `W024` | (`feature-check`) an orphan `FeatureDef` — referenced by no `appliesWhen:` and selected by no `Configuration` (gates nothing, ships in nothing); gate with `--deny W024` |

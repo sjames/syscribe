@@ -5297,6 +5297,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `E235` | A `Configuration.derivedFrom:` base resolves to an element that is not a `Configuration` |
 | `E236` | A `Configuration` is on a `derivedFrom:` inheritance cycle (each member is reported; none inherits) |
 | `E237` | A `Configuration.derivedFrom:` names more than one base |
+| `E238` | (§9) a `Configuration` names an abstract feature in `features:`, selected or not: an abstract feature is not a choice, it follows from the concrete features |
 | `E216` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map omits a `mandatory` feature (or sets it to `false`) |
 | `E217` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map selects both sides of an `alternative` group |
 | `E218` | *Not yet implemented* (enforced by `feature-check --deep` as `E225`) — a `Configuration.features` map violates an `or` group's `cardinality:` constraint |
@@ -5336,7 +5337,6 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W025` | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Emitted by `feature-check`; gate with `--deny W025`. |
 | `W026` | A `Package` declares `appliesWhen:` but its subtree contains no projectable element (it gates nothing). Gate with `--deny W026`. |
 | `W027` | A `Configuration` binds a parameter whose `bindingTime: runtime` — resolved by the running system, not at configuration time (§9.7). Gate with `--deny W027`. |
-| `E238` | (§9) a `Configuration` names an abstract feature in `features:`, selected or not: an abstract feature is not a choice, it follows from the concrete features |
 | `W238` | (§9) an element's `appliesWhen:` names an abstract feature (`isAbstract: true`): an abstract feature has no realisation of its own and does not distinguish products, so the condition cannot tell products apart; condition on a concrete feature |
 | `W239` | (§9) an abstract feature has no children: it groups nothing |
 | `W028` | The same `extRef` external reference is declared by two or more elements (§3). One finding per duplicated value. Gate with `--deny W028`. |
