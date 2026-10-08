@@ -527,7 +527,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 |---|---|
 | `W809` | `TestCase.securityTestMethod` not in `fuzz · penetration_test · security_regression · vulnerability_scan · threat_modeling` |
 
-## Product Line Engineering errors (E200–E237)
+## Product Line Engineering errors (E200–E238)
 
 | Code | Condition |
 |---|---|

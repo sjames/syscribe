@@ -425,7 +425,7 @@ Key fields that apply to most element types:
 | `title` | **REMOVED — use `name`.** `title` is no longer a label field on any element; a stray `title:` is error `E025` ("rename it to `name`"). |
 | `supertype` | Specialisation link (`>` in SysML) |
 | `typedBy` | Type of a usage element (port, part, action, etc.) |
-| `isAbstract` | `true` for abstract definitions |
+| `isAbstract` | `true` for abstract definitions. On a **`FeatureDef`** it marks an *abstract feature*: a grouping feature that is not a choice. Never list one in a `Configuration`'s `features:` (`E238`, selected or not): its value is derived from the concrete features, and `appliesWhen:` may name it |
 | `multiplicity` | Cardinality; default `"1"` |
 | `domain` | `system` \| `hardware` \| `software` — required on Part/PartDef |
 | `features` | Inline attributes or ports |

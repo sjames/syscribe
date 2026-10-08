@@ -859,7 +859,10 @@ pub fn cmd_show(
             } else {
                 None
             };
-            if own.is_some() {
+            let any_inherited = own.as_ref().is_some_and(|o| {
+                sel.keys().any(|k| !o.contains_key(k) && !fm.inherited.as_ref().is_some_and(|i| i.derived.contains(k)))
+            });
+            if any_inherited {
                 println!("_Effective selection — entries marked (inherited) come from the derivedFrom base._");
                 println!();
             }

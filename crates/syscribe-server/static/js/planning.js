@@ -20,7 +20,7 @@
 
   function refresh() {
     var mine = ++inflight;
-    return fetch(url()).then(function (r) { return r.text(); }).then(function (html) {
+    return fetch(url()).then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.text(); }).then(function (html) {
       if (mine !== inflight) { return; }
       board.innerHTML = html;
       if (window.htmx) { window.htmx.process(board); }

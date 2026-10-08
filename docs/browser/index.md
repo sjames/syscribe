@@ -10,10 +10,10 @@ The web server is a single Rust binary (`syscribe-server`) that parses a model d
 cargo run --package syscribe-server -- -m model/
 # INFO  Loaded <N> elements
 #
-#   Model browser: http://0.0.0.0:3000/
+#   Model browser: http://127.0.0.1:3000/
 ```
 
-Pass the model root with `-m <path>` (or set `SYSCRIBE_MODEL`); change the listen address with `--bind <addr:port>` (default `0.0.0.0:3000`). The server watches the directory for changes and pushes a reload event to connected clients over WebSocket.
+Pass the model root with `-m <path>` (or set `SYSCRIBE_MODEL`); change the listen address with `--bind <addr:port>` (default `127.0.0.1:3000`, loopback only because the server has write routes and no authentication; pass `0.0.0.0:3000` to expose it deliberately). The server watches the directory for changes and pushes a reload event to connected clients over WebSocket.
 
 `syscribe-server` is built from source (`cargo build --workspace` or `cargo install --path crates/syscribe-server`); it is not shipped as a prebuilt release binary. For a static, server-free view of a model, use `syscribe -m model/ export-html <out-dir>` instead.
 

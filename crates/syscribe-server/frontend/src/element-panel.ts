@@ -18,6 +18,11 @@ function panel(): HTMLElement | null {
     return document.getElementById('element-panel');
 }
 
+/** Forget which element is shown, so the next selection of the same one fetches it again (after a live reload). */
+export function invalidateElementCard(): void {
+    current = null;
+}
+
 /** Show the card of `ref`. A response that arrives after a newer selection is dropped. */
 export async function showElementCard(ref: string): Promise<void> {
     const p = panel();
@@ -29,23 +34,31 @@ export async function showElementCard(ref: string): Promise<void> {
     const mine = ++sequence;
     p.hidden = false;
     document.getElementById('sprotty-viewport')?.classList.add('has-panel');
+    let html: string;
     try {
         const resp = await fetch(cardUrl(ref));
-        const html = await resp.text();
-        if (mine !== sequence) {
-            return;
+        if (!resp.ok) {
+            throw new Error(`HTTP ${resp.status}`);
         }
-        body.innerHTML = html;
-        window.htmx?.process(body);
-        const diagrams = Array.from(body.querySelectorAll('pre.mermaid'));
-        if (diagrams.length > 0 && window.mermaid) {
-            await window.mermaid.run({ nodes: diagrams });
-        }
-        body.scrollTop = 0;
+        html = await resp.text();
     } catch (err) {
         if (mine === sequence) {
             body.textContent = `Could not load ${ref}: ${(err as Error).message}`;
+            // Forget the selection so clicking the same shape again retries instead of doing nothing.
+            current = null;
         }
+        return;
+    }
+    if (mine !== sequence) {
+        return;
+    }
+    body.innerHTML = html;
+    window.htmx?.process(body);
+    body.scrollTop = 0;
+    const diagrams = Array.from(body.querySelectorAll('pre.mermaid'));
+    if (diagrams.length > 0 && window.mermaid) {
+        // A diagram that fails to draw must not replace the card that is already shown.
+        await window.mermaid.run({ nodes: diagrams }).catch(() => undefined);
     }
 }
 
@@ -62,5 +75,6 @@ export function hideElementPanel(): void {
 export function installElementPanel(): void {
     document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('ep-close')?.addEventListener('click', hideElementPanel);
+        document.addEventListener('syscribe:reload', invalidateElementCard);
     });
 }

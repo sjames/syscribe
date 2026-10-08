@@ -428,9 +428,30 @@ fn removing_a_feature_also_removes_the_bindings_of_its_parameters() {
     assert!(!read(&r, "Configurations/CONF-S-001.md").contains("kw"), "{}", read(&r, "Configurations/CONF-S-001.md"));
 }
 
+/// Drop the `Engine` entry from every configuration, as the editor's user must before marking it abstract.
+fn unname_engine(r: &Path) {
+    for entry in std::fs::read_dir(r.join("Configurations")).unwrap().flatten() {
+        let text = std::fs::read_to_string(entry.path()).unwrap();
+        let kept: Vec<&str> = text.lines().filter(|l| !l.trim_start().starts_with("Features::Car::Engine:")).collect();
+        std::fs::write(entry.path(), kept.join("\n") + "\n").unwrap();
+    }
+}
+
+#[test]
+fn a_feature_a_configuration_names_cannot_be_made_abstract_until_the_entry_is_removed() {
+    let r = model();
+    let before = snapshot(&r);
+    let e = apply(&r, &op(serde_json::json!({"op": "setAbstract", "feature": "Features::Car::Engine", "isAbstract": true}))).unwrap_err();
+    assert!(e.contains("CONF-ONE-001") && e.contains("E238"), "{e}");
+    assert_eq!(snapshot(&r), before, "a refusal writes nothing");
+    unname_engine(&r);
+    apply(&r, &op(serde_json::json!({"op": "setAbstract", "feature": "Features::Car::Engine", "isAbstract": true}))).unwrap();
+}
+
 #[test]
 fn a_feature_is_marked_abstract_and_unmarked_in_either_layout_and_stays_selectable() {
     let r = model();
+    unname_engine(&r);
     let before = snapshot(&r);
     let out = apply(&r, &op(serde_json::json!({"op": "setAbstract", "feature": "Features::Car::Engine", "isAbstract": true}))).unwrap();
     assert!(read(&r, "Features/Car/Engine.md").contains("isAbstract: true"));
@@ -446,6 +467,7 @@ fn a_feature_is_marked_abstract_and_unmarked_in_either_layout_and_stays_selectab
     assert!(!read(&r, "Features/Car/Engine.md").contains("isAbstract"), "false is the default and is not written");
     // A sheet entry.
     let r = sheet_model();
+    unname_engine(&r);
     let out = apply(&r, &op(serde_json::json!({"op": "setAbstract", "feature": "Features::Car::Engine", "isAbstract": true}))).unwrap();
     assert!(feature_tree(&walk_model(&r).unwrap()).iter().find(|f| f.name == "Engine").unwrap().is_abstract);
     apply(&r, &out.undo).unwrap();

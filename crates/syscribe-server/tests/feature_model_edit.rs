@@ -234,3 +234,24 @@ async fn a_bound_parameter_cannot_be_removed_until_its_binding_is() {
     assert_eq!(removed["written"], true, "{removed}");
     assert!(!std::fs::read_to_string(r.join("F/Car/Engine/Electric.md")).unwrap().contains("kw"));
 }
+
+#[tokio::test]
+async fn a_restore_op_cannot_reach_outside_the_model_root() {
+    let r = model();
+    let outside = r.parent().unwrap().join(format!("syscribe-escape-{}", std::process::id()));
+    let _ = std::fs::remove_file(&outside);
+    std::fs::write(&outside, "keep").unwrap();
+    let app = app(&r);
+    let name = outside.file_name().unwrap().to_str().unwrap().to_string();
+    for rel in [outside.to_str().unwrap().to_string(), format!("../{name}"), format!("F/../../{name}"), String::new()] {
+        for preview in [true, false] {
+            // Writing a new file, and deleting an existing one, both by a path that leaves the model.
+            let w = edit(&app, json!({"op": "restore", "files": [{"rel": rel, "content": "pwned"}]}), preview, true).await;
+            assert_eq!(w["written"], false, "{rel:?}: {w}");
+            let d = edit(&app, json!({"op": "restore", "files": [{"rel": rel, "content": null}]}), preview, true).await;
+            assert_eq!(d["written"], false, "{rel:?}: {d}");
+        }
+    }
+    assert_eq!(std::fs::read_to_string(&outside).unwrap(), "keep", "nothing outside the root may change");
+    let _ = std::fs::remove_file(&outside);
+}

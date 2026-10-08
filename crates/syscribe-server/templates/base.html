@@ -195,13 +195,29 @@
       bar.style.display = 'block';
       inner.innerHTML = [...tabState.entries()].map(([id, { name }]) => {
         const isActive = id === activeTabId;
-        return `<div class="canvas-tab${isActive ? ' active' : ''}" onclick="activateTab(${JSON.stringify(id)})">
+        return `<div class="canvas-tab${isActive ? ' active' : ''}" data-tab="${escHtml(id)}">
           <span class="tab-icon">&#x25C8;</span>
           <span class="tab-name">${escHtml(name)}</span>
-          <button class="tab-close" title="Close" onclick="closeTab(${JSON.stringify(id)}, event)">&#x2715;</button>
+          <button class="tab-close" title="Close" data-close="${escHtml(id)}">&#x2715;</button>
         </div>`;
       }).join('');
     }
+
+    // One delegated listener: tab ids are directory names, so they travel in data- attributes
+    // (escaped) and never inside an inline handler's source text.
+    document.addEventListener('DOMContentLoaded', () => {
+      const inner = document.getElementById('canvas-tabs-inner');
+      if (!inner) return;
+      inner.addEventListener('click', ev => {
+        const close = ev.target.closest('[data-close]');
+        if (close) {
+          closeTab(close.getAttribute('data-close'), ev);
+          return;
+        }
+        const tab = ev.target.closest('[data-tab]');
+        if (tab) activateTab(tab.getAttribute('data-tab'));
+      });
+    });
 
     function escHtml(s) {
       return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

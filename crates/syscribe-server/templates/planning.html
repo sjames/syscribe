@@ -9,10 +9,7 @@
     <label><input type="checkbox" id="pp-done"> show done</label>
     <span id="pp-live" class="pp-conn" title="Live connection to the model watcher">live</span>
   </div>
-  <div id="planning-board"
-       hx-get="/ui/planning/board"
-       hx-trigger="load"
-       hx-swap="innerHTML"></div>
+  <div id="planning-board" data-board="/ui/planning/board"></div>
 </div>
 <script src="/static/js/planning.js" defer></script>
 {% endblock %}

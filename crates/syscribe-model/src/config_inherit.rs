@@ -270,6 +270,13 @@ pub fn apply_configuration_inheritance(elements: &mut [RawElement]) {
     for e in elements.iter_mut() {
         e.frontmatter.inherited = None;
     }
+    inherit_selections(elements);
+    // An abstract feature's value is derived from each Configuration's effective selection, so
+    // it must follow inheritance here, for the walker and for every consumer that re-runs it.
+    crate::feature_model::derive_abstract_selections(elements);
+}
+
+fn inherit_selections(elements: &mut [RawElement]) {
     let (base_of, _) = analyse(elements);
     if base_of.is_empty() {
         return;

@@ -31,6 +31,27 @@ fn html_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+/// Model text is not trusted (peer repos, plugins and annotated source feed it), and the result is
+/// emitted unescaped into the page, so raw HTML in a body is shown as text and a link or image
+/// whose target uses a script-capable scheme is pointed at `#`.
+fn neutralize<'a>(event: pulldown_cmark::Event<'a>) -> pulldown_cmark::Event<'a> {
+    use pulldown_cmark::{CowStr, Event, Tag};
+    let unsafe_target = |d: &str| {
+        let t: String = d.chars().filter(|c| !c.is_whitespace() && !c.is_control()).collect::<String>().to_ascii_lowercase();
+        t.starts_with("javascript:") || t.starts_with("vbscript:") || t.starts_with("data:")
+    };
+    match event {
+        Event::Html(s) | Event::InlineHtml(s) => Event::Text(s),
+        Event::Start(Tag::Link { link_type, dest_url, title, id }) if unsafe_target(&dest_url) => {
+            Event::Start(Tag::Link { link_type, dest_url: CowStr::Borrowed("#"), title, id })
+        }
+        Event::Start(Tag::Image { link_type, dest_url, title, id }) if unsafe_target(&dest_url) => {
+            Event::Start(Tag::Image { link_type, dest_url: CowStr::Borrowed("#"), title, id })
+        }
+        other => other,
+    }
+}
+
 /// Render Markdown to HTML.  Fenced ` ```mermaid ` blocks are emitted as
 /// `<pre class="mermaid">…</pre>` so that Mermaid.js can render them
 /// client-side.  All other content goes through pulldown-cmark's standard
@@ -62,7 +83,7 @@ fn markdown_to_html(md: &str) -> String {
                 events.push(Event::Html(CowStr::Borrowed("</pre>")));
             }
             _ => {
-                events.push(event);
+                events.push(neutralize(event));
             }
         }
     }

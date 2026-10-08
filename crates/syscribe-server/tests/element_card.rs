@@ -135,3 +135,19 @@ async fn an_unknown_feature_of_a_known_element_is_not_a_model_element() {
     let (_, html) = get(&root, "/ui/element-card/Sys::Controller::nope").await;
     assert!(html.contains("is not a model element"), "{html}");
 }
+
+#[tokio::test]
+async fn raw_html_and_script_links_in_a_body_are_not_rendered_live() {
+    let r = model();
+    write(
+        &r,
+        "Sys/Hostile.md",
+        "---\ntype: PartDef\nname: Hostile\n---\n<img src=x onerror=alert(1)>\n\n<script>alert(2)</script>\n\n[click](javascript:alert(3)) ![i](data:text/html;base64,AAAA) <b hx-get=\"/x\">z</b>\n",
+    );
+    let (status, html) = get(&r, "/ui/element-card/Sys/Hostile").await;
+    assert_eq!(status, StatusCode::OK, "{html}");
+    for live in ["<img src=x", "<script>", "href=\"javascript:", "src=\"data:", "<b hx-get"] {
+        assert!(!html.contains(live), "{live} must not survive as live markup:\n{html}");
+    }
+    assert!(html.contains("&lt;script&gt;"), "raw HTML is shown as text:\n{html}");
+}

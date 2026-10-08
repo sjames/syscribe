@@ -52,7 +52,7 @@ cargo run --package syscribe -- -m model/ > reports/validation.md
 
 ```bash
 cargo run --package syscribe-server -- -m model/
-# Listening on http://0.0.0.0:3000
+# Listening on http://127.0.0.1:3000
 ```
 
 The server watches the model directory for changes and reloads automatically.

@@ -115762,6 +115762,9 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   function panel() {
     return document.getElementById("element-panel");
   }
+  function invalidateElementCard() {
+    current2 = null;
+  }
   async function showElementCard(ref) {
     const p3 = panel();
     const body = document.getElementById("element-panel-body");
@@ -115772,23 +115775,29 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     const mine = ++sequence;
     p3.hidden = false;
     document.getElementById("sprotty-viewport")?.classList.add("has-panel");
+    let html;
     try {
       const resp = await fetch(cardUrl(ref));
-      const html = await resp.text();
-      if (mine !== sequence) {
-        return;
+      if (!resp.ok) {
+        throw new Error(`HTTP ${resp.status}`);
       }
-      body.innerHTML = html;
-      window.htmx?.process(body);
-      const diagrams = Array.from(body.querySelectorAll("pre.mermaid"));
-      if (diagrams.length > 0 && window.mermaid) {
-        await window.mermaid.run({ nodes: diagrams });
-      }
-      body.scrollTop = 0;
+      html = await resp.text();
     } catch (err) {
       if (mine === sequence) {
         body.textContent = `Could not load ${ref}: ${err.message}`;
+        current2 = null;
       }
+      return;
+    }
+    if (mine !== sequence) {
+      return;
+    }
+    body.innerHTML = html;
+    window.htmx?.process(body);
+    body.scrollTop = 0;
+    const diagrams = Array.from(body.querySelectorAll("pre.mermaid"));
+    if (diagrams.length > 0 && window.mermaid) {
+      await window.mermaid.run({ nodes: diagrams }).catch(() => void 0);
     }
   }
   function hideElementPanel() {
@@ -115803,6 +115812,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   function installElementPanel() {
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("ep-close")?.addEventListener("click", hideElementPanel);
+      document.addEventListener("syscribe:reload", invalidateElementCard);
     });
   }
 

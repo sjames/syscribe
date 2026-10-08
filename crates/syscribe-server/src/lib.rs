@@ -27,7 +27,6 @@ use routes::ui::{diagram, element_card, element_detail, features_page, index, pl
 use routes::validation::get_validation;
 use routes::ws::ws_handler;
 use state::{ReloadTx, SharedState};
-use tower_http::cors::CorsLayer;
 
 /// Build the Axum router over an existing shared state and reload channel.
 ///
@@ -68,6 +67,5 @@ pub fn build_router(shared: SharedState, reload_tx: ReloadTx) -> Router {
         .route("/ws", get(ws_handler))
         .route("/static/{*path}", get(static_assets::static_handler))
         .layer(axum::Extension(reload_tx))
-        .layer(CorsLayer::permissive())
         .with_state(shared)
 }

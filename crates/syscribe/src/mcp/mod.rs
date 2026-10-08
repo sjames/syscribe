@@ -844,6 +844,16 @@ fn apply_update(path: &Path, fields: Option<&Value>, doc: Option<&str>) -> Resul
     Ok(())
 }
 
+/// The batch path must refuse what `update_element`/`delete_element` refuse: an entry synthesized
+/// from a shared sheet file has no file of its own, so writing "it" writes the whole sheet.
+fn refuse_synthesized(root: &Path, target: &syscribe_model::element::RawElement, r: &str, why: &str) -> Result<(), String> {
+    let rel = Path::new(&target.file_path).strip_prefix(root).unwrap_or(Path::new(&target.file_path)).to_path_buf();
+    if syscribe_model::walker::is_synthesized(target, &rel) {
+        return Err(format!("'{r}' is synthesized from a shared sheet file ({}) — {why}; edit the sheet directly instead", target.file_path));
+    }
+    Ok(())
+}
+
 /// Apply one batch operation against the working model root `root`, re-reading
 /// the current on-disk state so a later op can depend on an earlier one.
 fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
@@ -860,10 +870,9 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             let r = op.r#ref.as_deref().ok_or("update op missing `ref`")?;
             let elems = walk_model(root).map_err(|e| e.to_string())?;
             let resolver = Resolver::new(&elems);
-            let file = resolver
-                .resolve_ref(&elems, r)
-                .map(|e| e.file_path.clone())
-                .ok_or_else(|| format!("unresolved reference: {r}"))?;
+            let target = resolver.resolve_ref(&elems, r).ok_or_else(|| format!("unresolved reference: {r}"))?;
+            refuse_synthesized(root, target, r, "a field update here would patch the sheet's own top-level frontmatter, not this entry")?;
+            let file = target.file_path.clone();
             apply_update(Path::new(&file), op.fields.as_ref(), op.doc.as_deref())
         }
         "move" => {
@@ -881,10 +890,9 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             let r = op.r#ref.as_deref().ok_or("delete op missing `ref`")?;
             let elems = walk_model(root).map_err(|e| e.to_string())?;
             let resolver = Resolver::new(&elems);
-            let file = resolver
-                .resolve_ref(&elems, r)
-                .map(|e| e.file_path.clone())
-                .ok_or_else(|| format!("unresolved reference: {r}"))?;
+            let target = resolver.resolve_ref(&elems, r).ok_or_else(|| format!("unresolved reference: {r}"))?;
+            refuse_synthesized(root, target, r, "deleting it would delete every sibling entry in that file")?;
+            let file = target.file_path.clone();
             std::fs::remove_file(&file).map_err(|e| e.to_string())
         }
         other => Err(format!("unknown op: {other}")),

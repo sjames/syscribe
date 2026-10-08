@@ -13,7 +13,7 @@ testFunctions:
   - mermaid_goes_to_stdout_with_a_ref_per_node
   - plantuml_is_the_default_format
   - out_writes_the_file_and_creates_parents
-  - svg_is_refused_for_an_unpinned_diagram
+  - svg_lays_out_an_unpinned_diagram_with_the_embedded_elk
   - svg_draws_a_fully_pinned_diagram_with_sysml_attributes
   - bad_format_is_a_usage_error_naming_the_valid_values
   - an_unknown_option_is_rejected_before_the_model_loads

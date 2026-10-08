@@ -169,3 +169,21 @@ fn delete_element_still_works_on_an_ordinary_element() {
     assert_eq!(res.get("written").and_then(|w| w.as_bool()), Some(true), "committed: {res}");
     assert!(!model.join("Standalone.md").exists());
 }
+
+#[test]
+fn apply_changes_refuses_update_and_delete_on_a_synthesized_feature() {
+    for op in [
+        json!({"op": "delete", "ref": "Features::Platform::CortexM"}),
+        json!({"op": "update", "ref": "Features::Platform::CortexM", "fields": {"mandatory": true}}),
+    ] {
+        let model = temp_model();
+        let sheet = model.join("Features/_index.md");
+        let before = std::fs::read(&sheet).unwrap();
+        let mut mcp = Mcp::start(&model);
+        mcp.initialize();
+        let res = mcp.call_tool("apply_changes", json!({"operations": [op.clone()], "dry_run": false}));
+        assert_eq!(res.get("written").and_then(|w| w.as_bool()), Some(false), "{op}: {res}");
+        assert!(res.to_string().contains("synthesized"), "{op}: refusal names the reason: {res}");
+        assert_eq!(before, std::fs::read(&sheet).unwrap(), "{op}: the sheet must be untouched");
+    }
+}

@@ -300,6 +300,24 @@ pub fn spawn(armed: Result<Armed, Value>, store: Arc<RwLock<McpStore>>, peer: Pe
     });
 }
 
+/// How many consecutive reloads have been deferred for the same broken file.
+static DEFERRALS: std::sync::Mutex<(String, u32)> = std::sync::Mutex::new((String::new(), 0));
+const MAX_DEFERRALS: u32 = 4;
+
+/// Count one more deferral for `file`; false once it has been deferred `MAX_DEFERRALS` times in a row.
+fn defer_again(file: &str) -> bool {
+    let mut d = DEFERRALS.lock().unwrap_or_else(|e| e.into_inner());
+    if d.0 != file {
+        *d = (file.to_string(), 0);
+    }
+    d.1 += 1;
+    d.1 <= MAX_DEFERRALS
+}
+
+fn reset_deferrals() {
+    *DEFERRALS.lock().unwrap_or_else(|e| e.into_inner()) = (String::new(), 0);
+}
+
 /// Reload the store if its inputs changed since it was loaded. Returns the
 /// store's watch roots after a successful reload (to watch any new peer root).
 async fn check_and_reload(store: &Arc<RwLock<McpStore>>, peer: &Peer<RoleServer>) -> Option<Vec<PathBuf>> {
@@ -333,7 +351,14 @@ async fn check_and_reload(store: &Arc<RwLock<McpStore>>, peer: &Peer<RoleServer>
             // Someone else (a write tool, `reload`) reloaded meanwhile — re-evaluate.
             continue;
         }
-        if let Some(file) = transient_breakage(&fresh, &s) {
+        // A half-saved file is waited out, but a new file that stays broken must not hold every other
+        // change back for good: after a few deferrals for the same file the reload goes ahead, and
+        // the broken file is reported as the parse problem it is.
+        let breakage = transient_breakage(&fresh, &s).filter(|file| defer_again(file));
+        if breakage.is_none() {
+            reset_deferrals();
+        }
+        if let Some(file) = breakage {
             drop(s);
             warn(
                 peer,
@@ -362,6 +387,17 @@ async fn check_and_reload(store: &Arc<RwLock<McpStore>>, peer: &Peer<RoleServer>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_file_that_stays_broken_stops_being_deferred() {
+        reset_deferrals();
+        for _ in 0..MAX_DEFERRALS {
+            assert!(defer_again("F/Broken.md"));
+        }
+        assert!(!defer_again("F/Broken.md"), "the reload goes ahead after {MAX_DEFERRALS} deferrals");
+        assert!(defer_again("F/Other.md"), "a different broken file starts its own count");
+        reset_deferrals();
+    }
 
     #[test]
     fn ignores_vcs_cache_and_editor_files() {

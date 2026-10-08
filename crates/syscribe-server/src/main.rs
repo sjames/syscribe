@@ -13,8 +13,9 @@ struct Cli {
     #[arg(short = 'm', long, env = "SYSCRIBE_MODEL", default_value = "model")]
     model: PathBuf,
 
-    /// Address to listen on
-    #[arg(long, default_value = "0.0.0.0:3000")]
+    /// Address to listen on. The server has write routes and no authentication, so it listens
+    /// on the loopback interface only; pass e.g. `0.0.0.0:3000` to expose it deliberately.
+    #[arg(long, default_value = "127.0.0.1:3000")]
     bind: String,
 }
 

@@ -21,7 +21,15 @@ async fn handle_socket(socket: WebSocket, tx: ReloadTx) {
 
     // Forward broadcast messages to this WebSocket client
     let send_task = tokio::spawn(async move {
-        while let Ok(msg) = rx.recv().await {
+        loop {
+            let msg = match rx.recv().await {
+                Ok(msg) => msg,
+                // A slow client missed some events: it cannot know which, so tell it to reload
+                // everything and keep going. Ending the loop here would leave a socket that
+                // looks open but never receives anything again.
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => r#"{"event":"reload"}"#.to_string(),
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
+            };
             if sender.send(Message::Text(msg.into())).await.is_err() {
                 break;
             }

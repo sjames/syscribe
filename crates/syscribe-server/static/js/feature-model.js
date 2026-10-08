@@ -115927,6 +115927,8 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       this.matches = [];
       this.matchIndex = 0;
       this.busy = false;
+      /** One edit in flight at a time: key auto-repeat or a quick second click must not replay the same inverse op. */
+      this.inEdit = false;
       this.again = false;
       this.firstLoad = true;
       this.configMode = false;
@@ -116261,11 +116263,26 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ edit: op, preview: false, acceptWorse })
       });
-      return await resp.json();
+      try {
+        return await resp.json();
+      } catch {
+        return { written: false, reason: `The server refused the edit (HTTP ${resp.status}).` };
+      }
     }
     /** Run one edit. An edit that makes the model worse is held and shown first;
      * the user confirms, or nothing is written. Returns the result when it was written. */
     async runEdit(op, opts = {}) {
+      if (this.inEdit) {
+        return null;
+      }
+      this.inEdit = true;
+      try {
+        return await this.runEditNow(op, opts);
+      } finally {
+        this.inEdit = false;
+      }
+    }
+    async runEditNow(op, opts) {
       let res = await this.post(op, opts.acceptWorse ?? false);
       if (res.needsConfirmation && res.delta) {
         const go = await this.confirm("This edit makes the feature model worse", deltaLines(res.delta, (q2) => this.nameOf(q2), true), "Apply anyway");
@@ -116297,7 +116314,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       return res;
     }
     async undo() {
-      const op = this.history.nextUndo();
+      const op = this.inEdit ? null : this.history.nextUndo();
       if (!op) {
         return;
       }
@@ -116308,7 +116325,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       this.updateHistoryButtons();
     }
     async redo() {
-      const op = this.history.nextRedo();
+      const op = this.inEdit ? null : this.history.nextRedo();
       if (!op) {
         return;
       }

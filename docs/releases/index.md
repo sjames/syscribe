@@ -2,6 +2,22 @@
 
 `RELEASES`
 
+## Unreleased
+
+### Review fixes
+
+- **Security:** the feature editor's `restore` op (`POST /api/feature-model/edit`, MCP `edit_feature`) joined a caller-supplied path onto the model root unchecked, so an absolute path or `..` could create or delete files anywhere the process could, even on a preview or dry run. Every path the edit engine touches is now confined to the model.
+- **Security:** Markdown bodies are no longer rendered with live HTML. Raw HTML is shown as text and a link or image with a `javascript:`, `vbscript:` or `data:` target is pointed at `#` (the element card, detail panel and `export-html`).
+- **Security:** `syscribe-server` listens on `127.0.0.1:3000` by default (it has write routes and no authentication; pass `--bind 0.0.0.0:3000` to expose it) and no longer sends permissive CORS headers, so another website open in the same browser can no longer drive its write API.
+- **Fixed:** an abstract feature's derived value could contradict the model. Each value is now fixed in turn so together they form one real model of the feature model (an `alternative` group whose members are abstract no longer derives all of them off), and a configuration that breaks `requires:`/`excludes:` no longer gets a spurious `E219` on a mandatory abstract feature.
+- **Fixed:** derived abstract values are re-computed wherever configuration inheritance is rebuilt (the LSP rename gate no longer sees them vanish), `show` no longer claims a derive-less configuration inherits, the load list leaves them out, and `W011`/`W012` skip abstract features.
+- **Fixed:** `setAbstract` refuses a feature some configuration already names (it would become `E238`), listing the configurations.
+- **Fixed:** MCP `apply_changes` now refuses `update`/`delete` of an entry synthesized from a shared sheet, as `update_element`/`delete_element` do (a `delete` removed the whole sheet).
+- **Fixed:** `move` of an element that has a directory of children beside its file moves both (it used to strand the file and break every rewritten reference), and rewrites qualified names inside `appliesWhen:`/formula expressions.
+- **Fixed:** the MCP watcher stops deferring reloads for a new file that stays broken (after four deferrals it reloads and reports the file), a lagging WebSocket client is told to reload instead of going silent, the diagram tab bar works (its inline handlers were malformed and broke on a quote in a directory name), the planning board no longer fetches twice (a `?who=` deep link could be overwritten), undo/redo run one at a time, and the element panel retries after a failed load and refreshes after a live reload.
+- **Tests:** every `testFunctions:` name in a `TestCase` must now exist (`tc_test_functions`), which found and fixed three stale references; regression tests for each fix above.
+- Derived abstract values need at most 5000 features in the model (the deep-analysis limit); above that an abstract feature has no derived value.
+
 ## 0.50.0 — 2026-10-08
 
 ### An abstract feature's value is derived (REQ-TRS-FMED-004)

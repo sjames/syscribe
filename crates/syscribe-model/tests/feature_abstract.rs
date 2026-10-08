@@ -198,3 +198,73 @@ fn the_load_list_does_not_offer_derived_abstract_values_as_choices() {
     assert_eq!(sel["F::Root::Opt::X"], true);
     assert!(sel.get("F::Root::Opt").is_none(), "{sel}");
 }
+
+/// Root > Alt (mandatory, alternative) > G1 (abstract) > L1, L2 and G2 (abstract) > L3.
+fn grouped_model() -> PathBuf {
+    let r = model(false);
+    std::fs::remove_dir_all(r.join("F")).unwrap();
+    std::fs::remove_dir_all(r.join("C")).unwrap();
+    write(&r, "F/_index.md", "---\ntype: Package\nname: F\n---\n");
+    write(&r, "F/Root.md", "---\ntype: FeatureDef\nid: FEAT-ROOT\nname: Root\nmandatory: true\n---\n");
+    write(&r, "F/Root/Alt.md", "---\ntype: FeatureDef\nid: FEAT-ALT\nname: Alt\nmandatory: true\ngroupKind: alternative\n---\n");
+    write(&r, "F/Root/Alt/G1.md", "---\ntype: FeatureDef\nid: FEAT-GONE\nname: G1\nisAbstract: true\n---\n");
+    write(&r, "F/Root/Alt/G1/L1.md", "---\ntype: FeatureDef\nid: FEAT-LONE\nname: L1\n---\n");
+    write(&r, "F/Root/Alt/G1/L2.md", "---\ntype: FeatureDef\nid: FEAT-LTWO\nname: L2\n---\n");
+    write(&r, "F/Root/Alt/G2.md", "---\ntype: FeatureDef\nid: FEAT-GTWO\nname: G2\nisAbstract: true\n---\n");
+    write(&r, "F/Root/Alt/G2/L3.md", "---\ntype: FeatureDef\nid: FEAT-LTHR\nname: L3\n---\n");
+    r
+}
+
+fn conf(root: &Path, id: &str, features: &str) {
+    write(root, &format!("C/{id}.md"), &format!("---\ntype: Configuration\nid: {id}\nname: C\nstatus: draft\nfeatureModel: F\nfeatures:\n{features}---\n"));
+}
+
+#[test]
+fn derived_abstract_values_form_one_real_model_of_a_group() {
+    let r = grouped_model();
+    conf(&r, "CONF-ALT-001", "  F::Root: true\n  F::Root::Alt: true\n");
+    let els = walk_model(&r).unwrap();
+    let c = els.iter().find(|e| e.frontmatter.id.as_deref() == Some("CONF-ALT-001")).unwrap();
+    let sel = syscribe_model::projection::canonical_selection(&els, c);
+    let on = |q: &str| sel.get(q).copied().unwrap_or(false);
+    // Alt is an alternative group: exactly one of G1, G2 must hold, so the derived values may not both be off.
+    assert_eq!(on("F::Root::Alt::G1") as u8 + on("F::Root::Alt::G2") as u8, 1, "{sel:?}");
+}
+
+#[test]
+fn a_clash_over_requires_does_not_leave_a_mandatory_abstract_feature_off() {
+    let r = model(false);
+    write(&r, "F/Root/M.md", "---\ntype: FeatureDef\nid: FEAT-MMM\nname: M\nmandatory: true\nisAbstract: true\n---\n");
+    write(&r, "F/Root/M/P.md", "---\ntype: FeatureDef\nid: FEAT-PPP\nname: P\n---\n");
+    write(&r, "F/Root/D.md", "---\ntype: FeatureDef\nid: FEAT-DDD\nname: D\nrequires: [FEAT-MMM]\nexcludes: [FEAT-OPT]\n---\n");
+    write(&r, "F/Root/Opt.md", "---\ntype: FeatureDef\nid: FEAT-OPT\nname: Opt\nisAbstract: true\n---\n");
+    conf(&r, "CONF-CLASH-001", "  F::Root: true\n  F::Root::D: true\n  F::Root::Opt::X: true\n");
+    let findings = check_feature_model(&walk_model(&r).unwrap());
+    let codes: Vec<&str> = findings.iter().filter(|f| f.file.ends_with("CONF-CLASH-001.md")).map(|f| &*f.code).collect();
+    assert!(codes.contains(&"E220"), "{codes:?}");
+    assert!(!codes.contains(&"E219"), "a mandatory abstract feature is on whatever else is wrong: {codes:?}");
+}
+
+#[test]
+fn derivation_survives_an_inheritance_rebuild() {
+    // The LSP rename rebuilds inheritance over a candidate model; derived values must come back.
+    let r = model(true);
+    let mut els = walk_model(&r).unwrap();
+    syscribe_model::config_inherit::apply_configuration_inheritance(&mut els);
+    assert!(opt_in(&els, "CONF-X-001"));
+}
+
+#[test]
+fn an_abstract_group_selected_in_every_configuration_is_not_called_mandatory() {
+    let r = model(true);
+    write(&r, "F/Root/Opt.md", "---\ntype: FeatureDef\nid: FEAT-OPT\nname: Opt\ngroupKind: optional\nisAbstract: true\n---\n");
+    let codes = |els: &[syscribe_model::element::RawElement]| -> Vec<String> {
+        check_feature_model(els).into_iter().filter(|f| f.code == "W012" && f.message.contains("'F::Root::Opt'")).map(|f| f.message).collect()
+    };
+    assert!(codes(&walk_model(&r).unwrap()).is_empty(), "Opt is derived on in every configuration but is not a choice");
+    // The same model with a concrete Opt does get the advice, so the test cannot pass vacuously.
+    let c = model(false);
+    write(&c, "F/Root/Opt.md", "---\ntype: FeatureDef\nid: FEAT-OPT\nname: Opt\ngroupKind: optional\n---\n");
+    write(&c, "C/CONF-X-001.md", "---\ntype: Configuration\nid: CONF-X-001\nname: X\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Root: true\n  F::Root::Opt: true\n  F::Root::Opt::X: true\n---\n");
+    assert_eq!(codes(&walk_model(&c).unwrap()).len(), 1);
+}

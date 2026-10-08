@@ -438,6 +438,10 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
             if fd.frontmatter.group_kind.as_deref() != Some("optional") {
                 continue;
             }
+            // An abstract feature is not a choice: its value is derived, so "never/always selected" says nothing.
+            if fd.frontmatter.is_abstract == Some(true) {
+                continue;
+            }
             let q = fd.qualified_name.as_str();
             match sel_count.get(q).copied().unwrap_or(0) {
                 0 => f.push(warn("W011", &fd.file_path,
@@ -1150,8 +1154,9 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
 /// is **entailed** by the concrete features the configuration selects: on exactly when the
 /// feature model forces it on given those choices (a selected child, a mandatory abstract
 /// parent, a `requires:`), else off. For a configuration whose concrete choices already
-/// contradict the model nothing is entailed; the value then falls back to "some feature below it
-/// is selected", and the contradiction is reported on its own (`E225`). The values land in the
+/// contradict `requires:`/`excludes:` only the group structure is used (the clash is reported on
+/// its own); if they break the structure too, the value falls back to "some feature below it is
+/// selected" (`E225`). Values are fixed one at a time so together they form one real model. The values land in the
 /// configuration's effective selection, so `appliesWhen:`, projection, the matrix and every other
 /// reader see an abstract feature like any other.
 pub fn derive_abstract_selections(elements: &mut [RawElement]) {
@@ -1162,7 +1167,9 @@ pub fn derive_abstract_selections(elements: &mut [RawElement]) {
     let enc = build_encoding(&fdefs);
     let alias = crate::variability::feature_id_to_qname(elements);
     let tree = crate::feature_tree::feature_tree(elements);
-    let mut sat = crate::solver::Solver::from_cnf(&enc.cnf());
+    let structural: Vec<usize> = (0..enc.cons.len()).filter(|&i| !matches!(enc.cons[i].kind, CKind::Requires | CKind::Excludes)).collect();
+    let mut full = crate::solver::Solver::from_cnf(&enc.cnf());
+    let mut relaxed = crate::solver::Solver::from_cnf(&enc.cnf_subset(&structural));
     let mut updates: Vec<(usize, std::collections::BTreeMap<String, bool>, Vec<String>)> = Vec::new();
     for (idx, e) in elements.iter().enumerate() {
         if !is(e, ElementType::Configuration) {
@@ -1170,23 +1177,38 @@ pub fn derive_abstract_selections(elements: &mut [RawElement]) {
         }
         let mut sel = crate::variability::canon_selection(&e.frontmatter.feature_selections(), &alias);
         // A configuration's own entries for abstract features are discarded: they are errors, not input.
-        let assumptions: Vec<Lit> = enc
+        let mut assumptions: Vec<Lit> = enc
             .names
             .iter()
             .enumerate()
             .filter(|(_, n)| !enc.is_abstract.contains(*n))
             .map(|(i, n)| if sel.get(n).copied().unwrap_or(false) { Lit::pos(i) } else { Lit::neg(i) })
             .collect();
-        let consistent = sat.is_sat(&assumptions);
-        // Children before parents, so a nested abstract feature is known when its parent asks.
+        // The whole model if the concrete choices fit it; else just its structure (the
+        // `requires:`/`excludes:` clash is reported on its own); else nothing is entailed.
+        let solver = if full.is_sat(&assumptions) {
+            Some(&mut full)
+        } else if relaxed.is_sat(&assumptions) {
+            Some(&mut relaxed)
+        } else {
+            None
+        };
+        // Children before parents. Each value is fixed in turn (off unless the model forces it
+        // on, given what is already fixed), so the result is one real model of the feature
+        // model and never a set of values that are each right alone but wrong together.
         let mut derived: Vec<String> = Vec::new();
+        let mut solver = solver;
         for n in tree.iter().rev().filter(|n| enc.is_abstract.contains(&n.qname)) {
-            let on = if consistent {
-                let mut a = assumptions.clone();
-                a.push(Lit::neg(enc.var_of[&n.qname]));
-                !sat.is_sat(&a)
-            } else {
-                n.children.iter().any(|c| sel.get(c).copied().unwrap_or(false))
+            let var = enc.var_of[&n.qname];
+            let on = match solver.as_deref_mut() {
+                Some(sat) => {
+                    let mut a = assumptions.clone();
+                    a.push(Lit::neg(var));
+                    let on = !sat.is_sat(&a);
+                    assumptions.push(if on { Lit::pos(var) } else { Lit::neg(var) });
+                    on
+                }
+                None => n.children.iter().any(|c| sel.get(c).copied().unwrap_or(false)),
             };
             sel.insert(n.qname.clone(), on);
             derived.push(n.qname.clone());

@@ -94,4 +94,19 @@ check('the New diagram control and dialog ids the script reads are all present',
     assert.equal((index.match(/name="nd-start"/g) ?? []).length, 2, 'derive and blank radios');
 });
 
+check('tab ids never sit inside an inline handler (a quote in a directory name would break out)', () => {
+    const bar = base.slice(base.indexOf('function renderTabBar'), base.indexOf('function escHtml'));
+    assert.ok(!/onclick=/.test(bar), 'the tab bar must not build inline onclick handlers');
+    assert.ok(/data-tab="\$\{escHtml\(id\)\}"/.test(bar), 'the tab id goes in an escaped data attribute');
+    assert.ok(/data-close="\$\{escHtml\(id\)\}"/.test(bar), 'so does the close button\'s');
+    assert.ok(/addEventListener\('click'/.test(bar) && /closest\('\[data-close\]'\)/.test(bar), 'one delegated listener handles both');
+});
+
+check('the planning board does not also fetch itself on load (a deep link must not be overwritten)', () => {
+    const planning = readFileSync(path.join(root, 'templates', 'planning.html'), 'utf8');
+    const board = planning.match(/<div[^>]*id="planning-board"[^>]*>/);
+    assert.ok(board, 'the board container exists');
+    assert.ok(!/hx-trigger|hx-get/.test(board[0]), `planning.js owns the first fetch: ${board[0]}`);
+});
+
 console.log(`page-wiring: ok (${checks} checks)`);

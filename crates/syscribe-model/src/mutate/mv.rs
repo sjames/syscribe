@@ -109,7 +109,9 @@ fn collect_refs(
                     return;
                 }
             }
-            if let Some(rewritten) = rewrite_qname(s, old, new) {
+            // A whole-scalar reference, or an expression that mentions one (`appliesWhen:
+            // "F::A and not F::B"`, a `parameterConstraints:` formula): token-scanned like prose.
+            if let Some(rewritten) = rewrite_qname(s, old, new).or_else(|| rewrite_qname_text(s, old, new)) {
                 out.insert(s.clone(), rewritten);
             }
         }
@@ -327,6 +329,20 @@ pub fn move_element(
         return Err(MoveError::DestinationExists(new_fs.display().to_string()));
     }
 
+    // An element that is a plain `Name.md` with a `Name/` directory of children beside it owns
+    // both: moving only the directory would strand the file under the old name while every
+    // reference was rewritten to the new one.
+    let sibling_file: Option<(PathBuf, PathBuf)> = match (&src_file, is_pkg) {
+        (Some(f), true) if f.file_name().is_some_and(|n| n != "_index.md") && f.is_file() => {
+            let to = model_root.join(format!("{}.md", new.replace("::", "/")));
+            if to.exists() {
+                return Err(MoveError::DestinationExists(to.display().to_string()));
+            }
+            Some((f.clone(), to))
+        }
+        _ => None,
+    };
+
     let edits = reference_edits(model_root, elements, &old, &new);
 
     let rewritten_files: Vec<PathBuf> = edits.iter().map(|(p, _, _)| p.clone()).collect();
@@ -368,6 +384,13 @@ pub fn move_element(
     if let Err(e) = std::fs::rename(&old_fs, &new_fs) {
         rollback(&backups);
         return Err(MoveError::RelocationFailed { io: e });
+    }
+    if let Some((from, to)) = &sibling_file {
+        if let Err(e) = std::fs::rename(from, to) {
+            let _ = std::fs::rename(&new_fs, &old_fs);
+            rollback(&backups);
+            return Err(MoveError::RelocationFailed { io: e });
+        }
     }
 
     Ok(MoveReport {

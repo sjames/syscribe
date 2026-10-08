@@ -133,17 +133,33 @@ impl Ctx {
         Ok(rel.to_string_lossy().replace('\\', "/"))
     }
 
+    /// A model-relative path, or an error: absolute paths, `..` and empty segments would let a
+    /// request (an edit op arrives from HTTP and MCP) touch files outside the model.
+    fn confine(&self, rel: &str) -> Result<PathBuf, String> {
+        confine_rel(&self.root, rel)
+    }
+
     fn read(&self, rel: &str) -> Result<String, String> {
-        std::fs::read_to_string(self.root.join(rel)).map_err(|e| format!("cannot read {rel}: {e}"))
+        std::fs::read_to_string(self.confine(rel)?).map_err(|e| format!("cannot read {rel}: {e}"))
     }
 
     fn write(&self, rel: &str, content: &str) -> Result<(), String> {
-        let path = self.root.join(rel);
+        let path = self.confine(rel)?;
         if let Some(p) = path.parent() {
             std::fs::create_dir_all(p).map_err(|e| format!("cannot create {}: {e}", p.display()))?;
         }
         std::fs::write(&path, content).map_err(|e| format!("cannot write {rel}: {e}"))
     }
+}
+
+/// `root.join(rel)` when `rel` stays inside `root` by construction (only normal components).
+pub fn confine_rel(root: &Path, rel: &str) -> Result<PathBuf, String> {
+    let p = Path::new(rel);
+    let ok = !rel.is_empty() && p.components().all(|c| matches!(c, std::path::Component::Normal(_)));
+    if !ok {
+        return Err(format!("'{rel}' is not a path inside the model: absolute paths and '..' are refused"));
+    }
+    Ok(root.join(p))
 }
 
 fn sheet_message(qname: &str, file: &str, root: &Path) -> String {
@@ -215,13 +231,15 @@ pub fn apply(root: &Path, op: &EditOp) -> Result<EditOutcome, String> {
 
 fn restore(cx: &Ctx, files: &[RestoreFile]) -> Result<EditOutcome, String> {
     let mut undo = Vec::new();
-    for f in files {
-        let before = std::fs::read_to_string(cx.root.join(&f.rel)).ok();
+    // Refuse the whole request before touching anything, so a bad path half-way cannot leave a partial restore.
+    let paths: Vec<PathBuf> = files.iter().map(|f| cx.confine(&f.rel)).collect::<Result<_, _>>()?;
+    for (f, path) in files.iter().zip(&paths) {
+        let before = std::fs::read_to_string(path).ok();
         undo.push(RestoreFile { rel: f.rel.clone(), content: before });
         match &f.content {
             Some(c) => cx.write(&f.rel, c)?,
             None => {
-                let _ = std::fs::remove_file(cx.root.join(&f.rel));
+                let _ = std::fs::remove_file(path);
             }
         }
     }
@@ -594,6 +612,22 @@ fn set_mandatory(cx: &Ctx, feature: &str, mandatory: bool) -> Result<EditOutcome
 
 fn set_abstract(cx: &Ctx, feature: &str, is_abstract: bool) -> Result<EditOutcome, String> {
     let f = cx.feature(feature)?.clone();
+    if is_abstract {
+        // A configuration that names an abstract feature is `E238`, so making the feature abstract
+        // under one would turn it into an error: the entries go first, as with a bound parameter.
+        let naming: Vec<String> = cx
+            .elements
+            .iter()
+            .filter(|e| e.frontmatter.element_type == Some(ElementType::Configuration))
+            .filter(|e| {
+                e.frontmatter.declared_feature_selections().keys().any(|k| cx.alias.get(k.as_str()).map(String::as_str).unwrap_or(k) == f.qname)
+            })
+            .map(|e| e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone()))
+            .collect();
+        if !naming.is_empty() {
+            return Err(format!("'{}' is named by {}: remove it from their `features:` first (an abstract feature is not a choice, E238)", f.qname, naming.join(", ")));
+        }
+    }
     let mut tx = Tx::new(cx);
     with_feature_map(cx, &mut tx, &f, |map, _, _| {
         if is_abstract {
@@ -858,18 +892,7 @@ fn relocate(cx: &Ctx, f: &FeatureNode, new_q: &str) -> Result<Option<EditOp>, St
     }
     cx.own_file(f)?;
     let resolver = Resolver::new(&cx.elements);
-    let dir = cx.root.join(f.qname.replace("::", "/"));
-    let file_is_index = cx.element(&f.qname).is_some_and(|e| Path::new(&e.file_path).file_name().is_some_and(|n| n == "_index.md"));
-    // A feature that is a plain file with a directory of children beside it
-    // needs two moves: `move_element` relocates a qualified name's directory
-    // when there is one, and its file only when there is none.
-    let two_moves = dir.is_dir() && !file_is_index;
     move_element(&cx.root, &cx.elements, &resolver, &f.qname, new_q, false).map_err(|e| e.to_string())?;
-    if two_moves {
-        let elements = walk_model(&cx.root).map_err(|e| e.to_string())?;
-        let resolver = Resolver::new(&elements);
-        move_element(&cx.root, &elements, &resolver, &f.qname, new_q, false).map_err(|e| e.to_string())?;
-    }
     Ok(None)
 }
 

@@ -86,6 +86,8 @@ class FeaturePage {
     private matches: SysmlNodeSchema[] = [];
     private matchIndex = 0;
     private busy = false;
+    /** One edit in flight at a time: key auto-repeat or a quick second click must not replay the same inverse op. */
+    private inEdit = false;
     private again = false;
     private firstLoad = true;
     private configMode = false;
@@ -451,12 +453,29 @@ class FeaturePage {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ edit: op, preview: false, acceptWorse }),
         });
-        return (await resp.json()) as EditResult;
+        try {
+            return (await resp.json()) as EditResult;
+        } catch {
+            // A rejected body (axum's 4xx/5xx are not our JSON envelope) is a refusal, not an unhandled rejection.
+            return { written: false, reason: `The server refused the edit (HTTP ${resp.status}).` } as EditResult;
+        }
     }
 
     /** Run one edit. An edit that makes the model worse is held and shown first;
      * the user confirms, or nothing is written. Returns the result when it was written. */
     private async runEdit(op: EditOp, opts: { record?: boolean; acceptWorse?: boolean } = {}): Promise<EditResult | null> {
+        if (this.inEdit) {
+            return null;
+        }
+        this.inEdit = true;
+        try {
+            return await this.runEditNow(op, opts);
+        } finally {
+            this.inEdit = false;
+        }
+    }
+
+    private async runEditNow(op: EditOp, opts: { record?: boolean; acceptWorse?: boolean }): Promise<EditResult | null> {
         let res = await this.post(op, opts.acceptWorse ?? false);
         if (res.needsConfirmation && res.delta) {
             const go = await this.confirm('This edit makes the feature model worse', deltaLines(res.delta, q => this.nameOf(q), true), 'Apply anyway');
@@ -489,7 +508,7 @@ class FeaturePage {
     }
 
     private async undo(): Promise<void> {
-        const op = this.history.nextUndo();
+        const op = this.inEdit ? null : this.history.nextUndo();
         if (!op) {
             return;
         }
@@ -501,7 +520,7 @@ class FeaturePage {
     }
 
     private async redo(): Promise<void> {
-        const op = this.history.nextRedo();
+        const op = this.inEdit ? null : this.history.nextRedo();
         if (!op) {
             return;
         }

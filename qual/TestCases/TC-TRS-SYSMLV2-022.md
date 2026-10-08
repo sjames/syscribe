@@ -10,7 +10,7 @@ sourceFile: repo:crates/syscribe-model/tests/sysmlv2_views.rs
 testFunctions:
   - a_view_def_and_view_usage_become_real_elements_with_expose_viewpoint_rendering
   - a_view_nested_inside_a_part_def_becomes_a_real_element
-  - a_view_nested_inside_a_part_usage_stays_invisible
+  - a_view_nested_inside_a_part_usage_is_its_own_element
   - w500_and_w502_fire_on_synthesized_output_exactly_as_on_hand_authored
   - a_clean_view_raises_no_w500_or_w502
 tags:

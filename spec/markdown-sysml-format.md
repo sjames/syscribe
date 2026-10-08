@@ -5912,7 +5912,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | Codes | Family | Specified in |
 |---|---|---|
 | `E050`, `W050` | Build-system integration (`buildExports:`) | §9.6–§9.9 fields; catalogue |
-| `E200`–`E238`, `W011`–`W027`, `W048`, `W238`–`W239` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
+| `E200`–`E238`, `W011`–`W027`, `W048`, `W239` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
 | `W308`–`W311`, `E706`–`E723` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.9; §8.18.6 for `E718` |
