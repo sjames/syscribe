@@ -767,3 +767,14 @@ export function parameterSummary(decl: Record<string, unknown>): string {
     }
     return s;
 }
+
+/** Runs async jobs strictly one after another, whatever each job's outcome. */
+export class SerialQueue {
+    private tail: Promise<unknown> = Promise.resolve();
+
+    run<T>(job: () => Promise<T>): Promise<T> {
+        const result = this.tail.then(job);
+        this.tail = result.catch(() => undefined);
+        return result;
+    }
+}

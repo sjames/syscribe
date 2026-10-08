@@ -80,6 +80,12 @@ fn spawn_watcher(model_root: PathBuf, state: SharedState, reload_tx: ReloadTx) {
                 // (`ModelStore::reload`) — the same method the guarded-write
                 // mutation routes call after a successful commit.
                 let rt = tokio::runtime::Handle::current();
+                // A change the store already knows (its own guarded write reloaded after committing) is not
+                // reloaded or broadcast again.
+                let now = syscribe_server::state::fingerprint(&model_root);
+                if rt.block_on(async { state.read().await.fingerprint == now }) {
+                    continue;
+                }
                 let result = rt.block_on(async {
                     let mut store = state.write().await;
                     store.reload()

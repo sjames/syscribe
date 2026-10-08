@@ -43,6 +43,11 @@ pub enum WriteConfinedError {
 /// Write `content` to `<root>/<rel>`, confirming the resolved parent stays within
 /// the canonicalized model root (defeats `..`/symlink traversal).
 pub fn write_confined(root: &Path, rel: &str, content: &str) -> Result<(), WriteConfinedError> {
+    // Refuse an absolute path or `..` before anything is created, so a refused write leaves no
+    // directories behind outside the root.
+    if rel.is_empty() || !Path::new(rel).components().all(|c| matches!(c, std::path::Component::Normal(_))) {
+        return Err(WriteConfinedError::Escapes);
+    }
     let target = root.join(rel);
     let canon_root = std::fs::canonicalize(root)?;
     if let Some(parent) = target.parent() {
@@ -58,13 +63,23 @@ pub fn write_confined(root: &Path, rel: &str, content: &str) -> Result<(), Write
 
 /// Recursively copy `src` into `dst` (creating `dst`).
 fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
+    copy_dir_depth(src, dst, 0)
+}
+
+/// Symlinks are followed (a linked directory is part of the model); a dangling one is skipped, and the
+/// depth cap stops a link cycle from recursing forever.
+fn copy_dir_depth(src: &Path, dst: &Path, depth: usize) -> std::io::Result<()> {
+    if depth > 64 {
+        return Err(std::io::Error::other(format!("{} is nested more than 64 levels deep (a symlink cycle?)", src.display())));
+    }
     std::fs::create_dir_all(dst)?;
     for entry in std::fs::read_dir(src)? {
         let entry = entry?;
         let from = entry.path();
         let to = dst.join(entry.file_name());
-        if entry.file_type()?.is_dir() {
-            copy_dir_all(&from, &to)?;
+        let Ok(meta) = std::fs::metadata(&from) else { continue };
+        if meta.is_dir() {
+            copy_dir_depth(&from, &to, depth + 1)?;
         } else {
             std::fs::copy(&from, &to)?;
         }
@@ -512,6 +527,41 @@ where
 mod tests {
     use super::*;
     use crate::element::RawFrontmatter;
+
+    #[cfg(unix)]
+    #[test]
+    fn the_candidate_copy_follows_directory_symlinks_and_skips_dangling_ones() {
+        let base = std::env::temp_dir().join(format!("syscribe-cp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let (src, shared) = (base.join("model"), base.join("shared"));
+        std::fs::create_dir_all(&src).unwrap();
+        std::fs::create_dir_all(&shared).unwrap();
+        std::fs::write(shared.join("A.md"), "a").unwrap();
+        std::os::unix::fs::symlink(&shared, src.join("Linked")).unwrap();
+        std::os::unix::fs::symlink(base.join("missing"), src.join("Dangling")).unwrap();
+        std::os::unix::fs::symlink(&src, src.join("Loop")).unwrap();
+        // The self-referencing link must not hang or fail the copy (the OS stops following it).
+        let dst = base.join("copy");
+        copy_dir_all(&src, &dst).unwrap();
+        assert!(dst.join("Linked/A.md").is_file());
+        assert!(!dst.join("Dangling").exists());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn a_refused_write_creates_nothing_outside_the_root() {
+        let base = std::env::temp_dir().join(format!("syscribe-wc-{}", std::process::id()));
+        let root = base.join("model");
+        std::fs::create_dir_all(&root).unwrap();
+        for rel in ["../escaped/dir/x.md", "/tmp/syscribe-wc-abs/x.md", "", "a/../../escaped/x.md"] {
+            assert!(matches!(write_confined(&root, rel, "x"), Err(WriteConfinedError::Escapes)), "{rel:?}");
+        }
+        assert!(!base.join("escaped").exists(), "no directory was created beside the model");
+        assert!(!Path::new("/tmp/syscribe-wc-abs").exists());
+        write_confined(&root, "ok/deep/x.md", "x").unwrap();
+        assert!(root.join("ok/deep/x.md").is_file());
+        let _ = std::fs::remove_dir_all(&base);
+    }
 
     fn elem(qname: &str, fm: RawFrontmatter) -> RawElement {
         RawElement {

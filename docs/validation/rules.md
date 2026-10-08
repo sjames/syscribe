@@ -155,6 +155,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | W014 | A `parameterConstraints` `appliesWhen:` references a feature selected in no `Configuration` |
 | W238 | **Retired** (0.50.0) — no longer emitted: an abstract feature's value in a configuration is derived from the concrete selection, so an `appliesWhen:` that names one is meaningful |
 | W239 | (`feature-check`) an **abstract** feature with no children: it groups nothing. Drop `isAbstract:` or add the features it groups |
+| W240 | (`feature-check`) the model has more features than the deep-analysis limit (5000), so the **abstract** features' derived values are not computed and an `appliesWhen:` on one reads false |
 | W024 | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration` (it gates nothing and ships in nothing). Gate with `feature-check --deny W024` |
 | W025 | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Gate with `feature-check --deny W025` |
 

@@ -40,6 +40,7 @@ import {
     revealing,
     rootIds,
     search,
+    SerialQueue,
     shapeId,
     StoredConfiguration,
     summaryLines,
@@ -307,6 +308,13 @@ class FeaturePage {
     /** Apply a choice if some product still satisfies it; otherwise keep the old
      * choices and say which choices clash and why. */
     private async choose(feature: string, value: boolean | undefined): Promise<void> {
+        // One at a time, each computed from the choices as the previous one left them: two quick clicks
+        // must both count rather than the later response overwriting the earlier choice.
+        return this.chooseQueue.run(() => this.chooseNow(feature, value));
+    }
+    private chooseQueue = new SerialQueue();
+
+    private async chooseNow(feature: string, value: boolean | undefined): Promise<void> {
         const next = withChoice(this.choices, feature, value);
         const result = await this.configure(next);
         if (!result.satisfiable) {
@@ -385,10 +393,21 @@ class FeaturePage {
         if (!r || !r.satisfiable) {
             return;
         }
+        // The panel is rebuilt to show a message; the typed name is put back so a refusal does not erase it.
+        const typed = input.value;
+        const rerender = (): void => {
+            this.renderConfigPanel();
+            byId<HTMLInputElement>('fm-conf-name').value = typed;
+        };
+        if (!this.analysis?.hasFeatureModel || this.analysis.skipped) {
+            this.message = 'There is no analysable feature model to save a configuration of.';
+            rerender();
+            return;
+        }
         const problem = validateName(input.value);
         if (problem) {
             this.message = problem;
-            this.renderConfigPanel();
+            rerender();
             return;
         }
         const name = input.value.trim();
@@ -397,7 +416,11 @@ class FeaturePage {
         this.message = resp.written
             ? `Saved ${qname}.`
             : (resp.reason ?? resp.newErrors.map(f => `${f.code}: ${f.message}`).join('; ')) || 'The model refused the configuration.';
-        this.renderConfigPanel();
+        if (resp.written) {
+            this.renderConfigPanel();
+        } else {
+            rerender();
+        }
     }
 
     // -----------------------------------------------------------------
@@ -944,26 +967,32 @@ class FeaturePage {
         }
         // The element card below carries the name, type, path and documentation; this is what the analysis adds.
         pane.innerHTML = `${rows.join('')}<div id="fm-card"></div>`;
-        const wanted = node.id;
+        // Each call replaces the pane, so a response that belongs to an earlier call is dropped:
+        // two overlapping renders must not insert the Impact block twice.
+        const mine = ++this.selectedSeq;
+        const current = (): boolean => mine === this.selectedSeq;
         void fetch('/api/feature-model/impact?feature=' + encodeURIComponent(node.ref))
             .then(r => r.json() as Promise<ImpactResult>)
             .then(impact => {
                 const card = document.getElementById('fm-card');
-                if (card && this.selected === wanted && impact.found) {
+                if (card && current() && impact.found) {
                     card.insertAdjacentHTML('beforebegin', this.renderImpact(impact, node));
                     (window as unknown as { htmx?: { process(el: Element): void } }).htmx?.process(byId('fm-selected'));
                 }
-            });
+            })
+            .catch(() => undefined);
         const url = '/ui/element-card/' + node.ref.split('::').map(encodeURIComponent).join('/');
         void fetch(url)
-            .then(r => r.text())
+            .then(r => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
             .then(html => {
                 const card = document.getElementById('fm-card');
-                if (card && this.selected === wanted) {
+                if (card && current()) {
                     card.innerHTML = html;
                 }
-            });
+            })
+            .catch(() => undefined);
     }
+    private selectedSeq = 0;
 }
 
 window.addEventListener('DOMContentLoaded', () => {

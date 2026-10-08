@@ -32,6 +32,23 @@ use crate::walker::{is_synthesized, walk_model};
 pub struct RestoreFile {
     pub rel: String,
     pub content: Option<String>,
+    /// What the file must look like right now for this restore to apply: `"absent"`, or the blake3 of
+    /// its content. An undo carries it so an edit made elsewhere in between is not silently lost;
+    /// absent (as in a hand-written request) means unchecked.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expect: Option<String>,
+}
+
+/// `"absent"` for a missing file, else the blake3 of its content: the state a conditional restore expects.
+fn state_of(path: &Path) -> String {
+    match std::fs::read(path) {
+        Ok(bytes) => blake3::hash(&bytes).to_hex().to_string(),
+        Err(_) => "absent".to_string(),
+    }
+}
+
+fn state_of_content(content: &Option<String>) -> String {
+    content.as_ref().map_or_else(|| "absent".to_string(), |c| blake3::hash(c.as_bytes()).to_hex().to_string())
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -234,8 +251,15 @@ fn restore(cx: &Ctx, files: &[RestoreFile]) -> Result<EditOutcome, String> {
     // Refuse the whole request before touching anything, so a bad path half-way cannot leave a partial restore.
     let paths: Vec<PathBuf> = files.iter().map(|f| cx.confine(&f.rel)).collect::<Result<_, _>>()?;
     for (f, path) in files.iter().zip(&paths) {
+        if let Some(expect) = &f.expect {
+            if &state_of(path) != expect {
+                return Err(format!("{} has changed since the edit (it was edited elsewhere): the undo is refused so that change is not lost", f.rel));
+            }
+        }
+    }
+    for (f, path) in files.iter().zip(&paths) {
         let before = std::fs::read_to_string(path).ok();
-        undo.push(RestoreFile { rel: f.rel.clone(), content: before });
+        undo.push(RestoreFile { rel: f.rel.clone(), content: before, expect: Some(state_of_content(&f.content)) });
         match &f.content {
             Some(c) => cx.write(&f.rel, c)?,
             None => {
@@ -296,8 +320,10 @@ fn add(cx: &Ctx, parent: Option<&str>, name: &str, group_kind: Option<&str>, man
     }
     let yaml = serde_yaml::to_string(&serde_yaml::Value::Mapping(map)).map_err(|e| e.to_string())?;
     let rel = format!("{}.md", qname.replace("::", "/"));
-    cx.write(&rel, &format!("---\n{yaml}---\n"))?;
-    Ok(EditOutcome { undo: EditOp::Restore { files: vec![RestoreFile { rel, content: None }] }, feature: Some(qname) })
+    let text = format!("---\n{yaml}---\n");
+    cx.write(&rel, &text)?;
+    let expect = Some(state_of_content(&Some(text)));
+    Ok(EditOutcome { undo: EditOp::Restore { files: vec![RestoreFile { rel, content: None, expect }] }, feature: Some(qname) })
 }
 
 fn descendants<'a>(cx: &'a Ctx, q: &str, out: &mut Vec<&'a FeatureNode>) {
@@ -355,7 +381,16 @@ impl<'a> Tx<'a> {
         Ok(true)
     }
     fn undo(self) -> EditOp {
-        let files = self.originals.into_iter().rev().map(|(rel, content)| RestoreFile { rel, content }).collect();
+        let root = self.cx.root.clone();
+        let files = self
+            .originals
+            .into_iter()
+            .rev()
+            .map(|(rel, content)| {
+                let expect = Some(state_of(&root.join(&rel)));
+                RestoreFile { rel, content, expect }
+            })
+            .collect();
         EditOp::Restore { files }
     }
 }

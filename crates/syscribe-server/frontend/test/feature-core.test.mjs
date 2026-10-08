@@ -357,4 +357,19 @@ scenario('a saved configuration leaves abstract features out, since naming one i
     assert.deepEqual(Object.keys(f.features), ['F::Car', 'F::Petrol']);
 });
 
+{
+    // Jobs run one at a time in order, even when an earlier one is slow or fails.
+    const q = new core.SerialQueue();
+    const log = [];
+    const slow = q.run(async () => { await new Promise(r => setTimeout(r, 20)); log.push('first'); return 1; });
+    const failing = q.run(async () => { log.push('second'); throw new Error('boom'); });
+    const last = q.run(async () => { log.push('third'); return 3; });
+    assert.equal(await slow, 1);
+    await assert.rejects(failing, /boom/);
+    assert.equal(await last, 3);
+    assert.deepEqual(log, ['first', 'second', 'third']);
+    n += 1;
+    console.log('  ok - a serial queue runs jobs in order and survives a failing one');
+}
+
 console.log(`feature-core: ok (${n} scenarios)`);

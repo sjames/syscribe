@@ -169,6 +169,25 @@ fn replace_whole_token(text: &str, old: &str, new: &str) -> String {
     out
 }
 
+/// As [`replace_whole_token`], but a line that is a `name:`-like entry (`NON_REF_KEYS`, with or
+/// without a list dash) is left alone: the YAML walk skipped that value as a label, and the textual
+/// pass must not rewrite it just because the same token is a real reference somewhere else.
+fn replace_line_tokens(text: &str, old: &str, new: &str) -> String {
+    let is_label_line = |line: &str| {
+        let t = line.trim_start().trim_start_matches("- ").trim_start();
+        NON_REF_KEYS.iter().any(|k| t.strip_prefix(k).is_some_and(|r| r.trim_start().starts_with(':')))
+    };
+    let mut out = String::with_capacity(text.len());
+    for line in text.split_inclusive('\n') {
+        if is_label_line(line) {
+            out.push_str(line);
+        } else {
+            out.push_str(&replace_whole_token(line, old, new));
+        }
+    }
+    out
+}
+
 /// Rewrite the YAML frontmatter text, returning the new text if anything changed.
 /// Uses a YAML walk (denylist-aware) to find exactly which scalar values are
 /// references, then replaces those qualified-name tokens textually.
@@ -184,7 +203,7 @@ fn rewrite_frontmatter(fm: &str, old: &str, new: &str) -> Option<String> {
     keys.sort_by_key(|k| std::cmp::Reverse(k.len()));
     let mut out = fm.to_string();
     for k in keys {
-        out = replace_whole_token(&out, k, &refs[k]);
+        out = replace_line_tokens(&out, k, &refs[k]);
     }
     (out != fm).then_some(out)
 }

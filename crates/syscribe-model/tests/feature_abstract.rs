@@ -268,3 +268,16 @@ fn an_abstract_group_selected_in_every_configuration_is_not_called_mandatory() {
     write(&c, "C/CONF-X-001.md", "---\ntype: Configuration\nid: CONF-X-001\nname: X\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Root: true\n  F::Root::Opt: true\n  F::Root::Opt::X: true\n---\n");
     assert_eq!(codes(&walk_model(&c).unwrap()).len(), 1);
 }
+
+#[test]
+fn above_the_feature_limit_the_missing_derivation_is_reported() {
+    let r = model(true);
+    for i in 0..5001 {
+        write(&r, &format!("F/Root/Bulk/B{i}.md"), &format!("---\ntype: FeatureDef\nid: FEAT-B{i:05}\nname: B{i}\n---\n").replace("FEAT-B", "FEAT-BULK-").replace("BULK-0", "BULK-A"));
+    }
+    let findings = check_feature_model(&walk_model(&r).unwrap());
+    let w = findings.iter().find(|f| f.code == "W240").expect("W240 expected");
+    assert!(w.message.contains("F::Root::Opt") && w.message.contains("5000"), "{}", w.message);
+    // A model within the limit does not get it.
+    assert!(!check_feature_model(&walk_model(&model(true)).unwrap()).iter().any(|f| f.code == "W240"));
+}

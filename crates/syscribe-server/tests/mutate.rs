@@ -505,3 +505,42 @@ async fn retired_canvas_routes_are_404() {
 
     let _ = std::fs::remove_dir_all(&model_root);
 }
+
+/// A layout is a Diagram's. Pinning a shape on any other element would add a stray `layout:` key.
+#[tokio::test]
+async fn patch_layout_refuses_an_element_that_is_not_a_diagram() {
+    let model_root = temp_model();
+    let app = build_app(&model_root).await;
+    let (status, resp) = call(&app, "PATCH", "/api/diagrams/layout/Basics/Widget", Some(json!({ "s-x": {"x": 1.0, "y": 1.0} }))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(resp["written"], json!(false), "{resp:#?}");
+    let _ = std::fs::remove_dir_all(&model_root);
+}
+
+/// The detail panel's "Other Fields" text: a line the user deleted is removed from the file, an
+/// untouched `name` is not rewritten, and `type`/`id` cannot be deleted this way.
+#[tokio::test]
+async fn deleting_a_line_in_other_fields_removes_the_key() {
+    let model_root = temp_model();
+    std::fs::write(
+        model_root.join("Basics/Widget.md"),
+        "---\ntype: PartDef\nname: Widget\ntags: [a]\nextRef: DNG:1\n---\n\nA widget.\n",
+    )
+    .unwrap();
+    let app = build_app(&model_root).await;
+    let original = "type: PartDef\ntags:\n- a\nextRef: DNG:1\n";
+    let (_, resp) = call(&app, "PUT", "/api/elements/Basics/Widget", Some(json!({
+        "fields": {}, "extraYaml": "type: PartDef\nextRef: DNG:1\n", "extraYamlOriginal": original, "dryRun": false
+    }))).await;
+    assert_eq!(resp["written"], json!(true), "{resp:#?}");
+    let content = std::fs::read_to_string(model_root.join("Basics/Widget.md")).unwrap();
+    assert!(!content.contains("tags"), "the deleted key is gone:\n{content}");
+    assert!(content.contains("extRef") && content.contains("name: Widget"), "{content}");
+
+    let (_, resp) = call(&app, "PUT", "/api/elements/Basics/Widget", Some(json!({
+        "fields": {}, "extraYaml": "extRef: DNG:1\n", "extraYamlOriginal": "type: PartDef\nextRef: DNG:1\n", "dryRun": false
+    }))).await;
+    assert_eq!(resp["written"], json!(false), "removing type must be refused: {resp:#?}");
+    assert!(resp["reason"].as_str().unwrap().contains("cannot be removed"));
+    let _ = std::fs::remove_dir_all(&model_root);
+}

@@ -39,6 +39,10 @@ pub struct ModelStore {
     /// between writes (a commit already has the new model's) and dropped by any
     /// reload from disk. See `syscribe mcp`'s store, which does the same.
     pub baseline: Option<Baseline>,
+    /// [`fingerprint`] of the model directory as last loaded. The file watcher skips a change event
+    /// whose fingerprint equals it, so the server's own guarded write (which already reloaded) does
+    /// not trigger a second reload, a third page refresh and a dropped baseline.
+    pub fingerprint: u64,
     /// Elements at or above which a guarded write drops the live model while it builds the
     /// candidate; [`RELEASE_ABOVE`] unless a test lowers it.
     pub release_above: usize,
@@ -72,6 +76,36 @@ pub fn load_symbol_defs(model_root: &Path) -> String {
     }
 }
 
+/// A cheap hash of every file under `root` (relative path, size, modification time), skipping VCS and
+/// build directories. Two equal fingerprints mean nothing the model reads has changed.
+pub fn fingerprint(root: &Path) -> u64 {
+    use std::hash::{Hash, Hasher};
+    fn visit(dir: &Path, root: &Path, h: &mut std::collections::hash_map::DefaultHasher) {
+        let Ok(rd) = std::fs::read_dir(dir) else { return };
+        let mut entries: Vec<_> = rd.flatten().collect();
+        entries.sort_by_key(|e| e.file_name());
+        for e in entries {
+            let p = e.path();
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            if matches!(name.as_ref(), ".git" | "target" | "node_modules") {
+                continue;
+            }
+            let Ok(meta) = std::fs::metadata(&p) else { continue };
+            if meta.is_dir() {
+                visit(&p, root, h);
+            } else {
+                p.strip_prefix(root).unwrap_or(&p).hash(h);
+                meta.len().hash(h);
+                meta.modified().ok().and_then(|m| m.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_nanos()).hash(h);
+            }
+        }
+    }
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    visit(root, root, &mut h);
+    h.finish()
+}
+
 pub fn new_state(
     elements: Vec<RawElement>,
     symbol_defs: String,
@@ -80,6 +114,7 @@ pub fn new_state(
 ) -> (SharedState, ReloadTx) {
     let (graph, node_idx) = build_graph(&elements);
     let resolver = Resolver::new(&elements);
+    let model_root_for_fp = model_root.clone();
     let (tx, _) = broadcast::channel(64);
     let store = Arc::new(RwLock::new(ModelStore {
         elements,
@@ -91,6 +126,7 @@ pub fn new_state(
         model_root,
         reload_tx: tx.clone(),
         baseline: None,
+        fingerprint: fingerprint(&model_root_for_fp),
         release_above: RELEASE_ABOVE,
     }));
     (store, tx)
@@ -120,6 +156,7 @@ impl ModelStore {
         self.symbol_defs = symbol_defs;
         self.config = config;
         self.baseline = None;
+        self.fingerprint = fingerprint(&self.model_root);
         Ok(())
     }
 
@@ -211,5 +248,29 @@ impl ModelStore {
         F: Fn(&Path) -> Result<(), String>,
     {
         self.run_guarded(dry_run, gate, false, apply, Some(inspect), proceed)
+    }
+}
+
+#[cfg(test)]
+mod fingerprint_tests {
+    use super::*;
+
+    #[test]
+    fn the_fingerprint_follows_the_files_and_ignores_vcs_directories() {
+        let root = std::env::temp_dir().join(format!("syscribe-fp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join(".git")).unwrap();
+        std::fs::write(root.join("A.md"), "---\ntype: Package\nname: A\n---\n").unwrap();
+        let a = fingerprint(&root);
+        assert_eq!(a, fingerprint(&root), "stable while nothing changes");
+        std::fs::write(root.join(".git/HEAD"), "x").unwrap();
+        assert_eq!(a, fingerprint(&root), "version-control files do not count");
+        std::fs::write(root.join("A.md"), "---\ntype: Package\nname: Changed\n---\n").unwrap();
+        assert_ne!(a, fingerprint(&root), "an edit changes it");
+        std::fs::write(root.join("B.md"), "x").unwrap();
+        let b = fingerprint(&root);
+        std::fs::remove_file(root.join("B.md")).unwrap();
+        assert_ne!(b, fingerprint(&root), "a deletion changes it");
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

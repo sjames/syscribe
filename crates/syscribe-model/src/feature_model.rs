@@ -395,6 +395,15 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
 
     let abstract_names: HashSet<&str> = fdefs.iter().filter(|e| e.frontmatter.is_abstract == Some(true)).map(|e| e.qualified_name.as_str()).collect();
 
+    // ── W240: too many features to derive abstract values (REQ-TRS-FMED-004) ──
+    if !abstract_names.is_empty() && fdefs.len() > MAX_DEEP_FEATURES {
+        if let Some(fd) = fdefs.iter().find(|e| abstract_names.contains(e.qualified_name.as_str())) {
+            f.push(warn("W240", &fd.file_path, format!(
+                "the model has {} features, over the limit of {} for deriving abstract features' values: an `appliesWhen:` on an abstract feature (here '{}') reads false in every configuration",
+                fdefs.len(), MAX_DEEP_FEATURES, fd.qualified_name)));
+        }
+    }
+
     // ── W239: an abstract feature that groups nothing (REQ-TRS-FMED-004) ─────
     if !abstract_names.is_empty() {
         let tree = crate::feature_tree::feature_tree(elements);

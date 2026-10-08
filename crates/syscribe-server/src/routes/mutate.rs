@@ -265,6 +265,10 @@ pub struct DeleteElementQuery {
 pub struct UpdateElementRequest {
     pub fields: Option<serde_json::Value>,
     pub extra_yaml: Option<String>,
+    /// The text `extraYaml` was pre-filled with. A top-level key present here and absent from
+    /// `extraYaml` was deleted by the user and is removed from the file (`type` and `id` cannot be).
+    #[serde(default)]
+    pub extra_yaml_original: Option<String>,
     pub doc: Option<String>,
     #[serde(default)]
     pub dry_run: bool,
@@ -308,6 +312,34 @@ fn merge_extra_yaml(
         // rather than silently dropping it.
         (Some(_), fields @ Some(_)) => Ok(fields),
     }
+}
+
+/// Keys the user deleted from the "Other Fields" text become `null` (a removal) in `fields`.
+fn with_removed_keys(
+    fields: Option<serde_json::Value>,
+    now: Option<&str>,
+    original: Option<&str>,
+) -> Result<Option<serde_json::Value>, String> {
+    let (Some(now), Some(original)) = (now, original) else { return Ok(fields) };
+    let keys = |text: &str| -> Result<Vec<String>, String> {
+        match serde_yaml::from_str::<serde_yaml::Value>(text).map_err(|e| format!("invalid YAML in extra fields: {e}"))? {
+            serde_yaml::Value::Mapping(m) => Ok(m.keys().filter_map(|k| k.as_str().map(str::to_string)).collect()),
+            _ => Ok(Vec::new()),
+        }
+    };
+    let (before, after) = (keys(original)?, keys(now)?);
+    let mut map = match fields {
+        Some(serde_json::Value::Object(m)) => m,
+        None => serde_json::Map::new(),
+        other => return Ok(other),
+    };
+    for k in before.into_iter().filter(|k| !after.contains(k)) {
+        if k == "type" || k == "id" {
+            return Err(format!("'{k}' cannot be removed here: it identifies the element"));
+        }
+        map.entry(k).or_insert(serde_json::Value::Null);
+    }
+    Ok(Some(serde_json::Value::Object(map)))
 }
 
 /// One value of the `PATCH /api/diagrams/layout/{*qname}` body: shape id ->
@@ -786,7 +818,9 @@ pub async fn update_element(
     }
     let rel = rel_to_root(&target.file_path, &store.model_root);
 
-    let fields = match merge_extra_yaml(req.fields.clone(), req.extra_yaml.as_deref()) {
+    let fields = match merge_extra_yaml(req.fields.clone(), req.extra_yaml.as_deref())
+        .and_then(|f| with_removed_keys(f, req.extra_yaml.as_deref(), req.extra_yaml_original.as_deref()))
+    {
         Ok(f) => f,
         Err(e) => return Json(refused(e)),
     };
@@ -829,11 +863,10 @@ pub async fn patch_layout(
     Json(positions): Json<HashMap<String, Option<PositionUpdate>>>,
 ) -> Json<WriteResponse> {
     let mut store = state.write().await;
-    let qname_norm = qname.replace('/', "::");
-
-    let file_path = match store.elements.iter().find(|e| e.qualified_name == qname_norm) {
-        Some(e) => e.file_path.clone(),
-        None => return Json(refused(format!("unresolved reference: {qname_norm}"))),
+    // Only a Diagram has a layout to pin; any other element would get a stray `layout:` key.
+    let file_path = match diagram_target(&store, &qname) {
+        Ok(t) => t.file_path,
+        Err(reason) => return Json(refused(reason)),
     };
     let rel = rel_to_root(&file_path, &store.model_root);
 

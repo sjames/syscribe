@@ -283,7 +283,12 @@
       const qname  = editEl.dataset.qname;
       const name   = document.getElementById('edit-name').value.trim();
       const doc    = document.getElementById('edit-doc').value;
-      const extraYaml = document.getElementById('edit-extra').value;
+      const extraEl = document.getElementById('edit-extra');
+      const extraYaml = extraEl.value;
+      // Only send `name` when it was edited: an element with no `name:` is pre-filled with its qualified
+      // name for display, and saving that back would write `name: A::B`.
+      const nameEl = document.getElementById('edit-name');
+      const fields = name !== nameEl.defaultValue.trim() ? { name } : {};
       const btn    = editEl.querySelector('.btn-primary');
       showEditError('');
       btn.textContent = 'Saving…'; btn.disabled = true;
@@ -291,7 +296,7 @@
         const resp = await fetch('/api/elements/' + qname.replace(/::/g, '/'), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fields: { name }, extraYaml, doc, dryRun: false }),
+          body: JSON.stringify({ fields, extraYaml, extraYamlOriginal: extraEl.defaultValue, doc, dryRun: false }),
         });
         const result = await resp.json().catch(() => null);
         if (resp.ok && result && result.written) {

@@ -63,3 +63,15 @@ fn a_move_rewrites_a_qualified_name_inside_an_applieswhen_expression() {
     assert!(gated.contains("F::Beta and not F::B"), "{gated}");
     assert!(!validate(&walk_model(&r).unwrap()).findings.iter().any(|f| f.code == "E209"));
 }
+
+#[test]
+fn a_label_that_equals_the_moved_name_is_not_rewritten() {
+    let r = model();
+    write(&r, "Car.md", "---\ntype: PartDef\nname: Car\nsupertype: Engine\nfeatures:\n  - name: Engine\n    typedBy: Engine\n---\n");
+    let els = walk_model(&r).unwrap();
+    let resolver = Resolver::new(&els);
+    move_element(&r, &els, &resolver, "Engine", "Motor", false).unwrap();
+    let car = std::fs::read_to_string(r.join("Car.md")).unwrap();
+    assert!(car.contains("supertype: Motor") && car.contains("typedBy: Motor"), "{car}");
+    assert!(car.contains("- name: Engine"), "the usage's own name stays: {car}");
+}

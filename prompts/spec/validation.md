@@ -581,6 +581,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W022` | (`feature-check --deep`) a requirement active in some configuration but covered in none |
 | `W238` | **Retired** (0.50.0) — no longer emitted: an abstract feature's value in a configuration is derived from the concrete selection, so an `appliesWhen:` that names one is meaningful |
 | `W239` | (`feature-check`) an abstract feature with no children: it groups nothing |
+| `W240` | (`feature-check`) the model has more features than the deep-analysis limit (5000), so abstract features' derived values are not computed and an `appliesWhen:` on one reads false |
 | `W024` | (`feature-check`) an orphan `FeatureDef` — referenced by no `appliesWhen:` and selected by no `Configuration` (gates nothing, ships in nothing); gate with `--deny W024` |
 | `W025` | (`feature-check`) a `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`; gate with `--deny W025` |
 | `W026` | (`validate`) a `Package` declares `appliesWhen:` but gates no projectable element (empty subtree); gate with `--deny W026` |

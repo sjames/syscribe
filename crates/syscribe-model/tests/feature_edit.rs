@@ -277,10 +277,13 @@ fn a_sheet_entry_takes_group_and_membership_edits() {
     let r = sheet_model();
     let before = snapshot(&r);
     let out = apply(&r, &op(serde_json::json!({"op": "setGroup", "feature": "Features::Car::Engine", "groupKind": "or"}))).unwrap();
-    apply(&r, &op(serde_json::json!({"op": "setMandatory", "feature": "Features::Car::Charger", "mandatory": true}))).unwrap();
+    let second = apply(&r, &op(serde_json::json!({"op": "setMandatory", "feature": "Features::Car::Charger", "mandatory": true}))).unwrap();
     let tree = feature_tree(&walk_model(&r).unwrap());
     assert_eq!(tree.iter().find(|f| f.name == "Engine").unwrap().group_kind.as_str(), "or");
     assert!(tree.iter().find(|f| f.name == "Charger").unwrap().mandatory);
+    // The undo stack is last-in-first-out: undoing the first edit under the second would be refused.
+    assert!(apply(&r, &out.undo).unwrap_err().contains("changed since the edit"));
+    apply(&r, &second.undo).unwrap();
     apply(&r, &out.undo).unwrap();
     assert_eq!(tree_of(&r, "Engine"), "alternative");
     let _ = before;
@@ -391,8 +394,9 @@ fn parameters_are_added_replaced_and_removed_with_their_bindings_in_either_layou
     let out = apply(&r, &op(serde_json::json!({"op": "setParameter", "feature": "Features::Car::Engine::Electric", "parameter": {"name": "kw", "type": "ScalarValues::Real", "range": "50..=400", "isRequired": true}}))).unwrap();
     let sheet = read(&r, "Features.md");
     assert!(sheet.contains("50..=400") && !sheet.contains("50..=300") && sheet.matches("name: kw").count() == 1, "replaced, not duplicated: {sheet}");
-    apply(&r, &op(serde_json::json!({"op": "setParameter", "feature": "Features::Car::Engine::Electric", "parameter": {"name": "volts", "type": "ScalarValues::Integer", "default": 400}}))).unwrap();
+    let second = apply(&r, &op(serde_json::json!({"op": "setParameter", "feature": "Features::Car::Engine::Electric", "parameter": {"name": "volts", "type": "ScalarValues::Integer", "default": 400}}))).unwrap();
     assert_eq!(walk_model(&r).unwrap().iter().find(|e| e.qualified_name == "Features::Car::Engine::Electric").unwrap().frontmatter.parameters.as_ref().unwrap().len(), 2);
+    apply(&r, &second.undo).unwrap();
     apply(&r, &out.undo).unwrap();
     // A parameter some configuration binds cannot be removed: the binding goes first.
     let snap = snapshot(&r);
@@ -523,4 +527,21 @@ fn an_edit_that_changes_nothing_for_validity_does_not_worsen_it() {
     let d = analysis_delta(&before, &analysis_json(&walk_model(&r).unwrap()));
     assert_eq!(d["worsens"], false, "{d}");
     assert_eq!(d["countsAfter"]["features"], d["countsBefore"]["features"].as_u64().unwrap() + 1);
+}
+
+#[test]
+fn an_undo_is_refused_when_the_file_was_edited_elsewhere_in_between() {
+    let r = model();
+    let out = apply(&r, &op(serde_json::json!({"op": "setMandatory", "feature": "Features::Car::Radio", "mandatory": true}))).unwrap();
+    let file = r.join("Features/Car/Radio/_index.md");
+    let edited = format!("{}\n# a note somebody typed meanwhile\n", std::fs::read_to_string(&file).unwrap());
+    std::fs::write(&file, &edited).unwrap();
+    let e = apply(&r, &out.undo).unwrap_err();
+    assert!(e.contains("changed since the edit"), "{e}");
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), edited, "the other change survives a refused undo");
+    // Untouched, the same undo applies, and its own undo (a redo) is conditional in turn.
+    std::fs::write(&file, std::fs::read_to_string(&file).unwrap().replace("\n# a note somebody typed meanwhile\n", "")).unwrap();
+    let redo = apply(&r, &out.undo).unwrap().undo;
+    std::fs::write(&file, "---\ntype: FeatureDef\nid: FEAT-RADIO\nname: Radio\n---\nchanged\n").unwrap();
+    assert!(apply(&r, &redo).unwrap_err().contains("changed since the edit"));
 }

@@ -115878,6 +115878,16 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     }
     return s3;
   }
+  var SerialQueue = class {
+    constructor() {
+      this.tail = Promise.resolve();
+    }
+    run(job) {
+      const result = this.tail.then(job);
+      this.tail = result.catch(() => void 0);
+      return result;
+    }
+  };
 
   // src/new-diagram.ts
   var BASIC_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -115945,6 +115955,8 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       this.boxes = /* @__PURE__ */ new Map();
       this.toastTimer = 0;
       this.firstRender = true;
+      this.chooseQueue = new SerialQueue();
+      this.selectedSeq = 0;
       const container = createDiagramContainer(HOST, {
         // The diagram is a view of the model; a dragged feature snaps back.
         onMoveFinished: (moves) => void this.onMoved(moves.map((m3) => ({ id: m3.elementId, x: m3.toPosition.x, y: m3.toPosition.y }))),
@@ -116132,6 +116144,9 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     /** Apply a choice if some product still satisfies it; otherwise keep the old
      * choices and say which choices clash and why. */
     async choose(feature, value) {
+      return this.chooseQueue.run(() => this.chooseNow(feature, value));
+    }
+    async chooseNow(feature, value) {
       const next = withChoice(this.choices, feature, value);
       const result = await this.configure(next);
       if (!result.satisfiable) {
@@ -116203,17 +116218,31 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       if (!r3 || !r3.satisfiable) {
         return;
       }
+      const typed = input.value;
+      const rerender = () => {
+        this.renderConfigPanel();
+        byId("fm-conf-name").value = typed;
+      };
+      if (!this.analysis?.hasFeatureModel || this.analysis.skipped) {
+        this.message = "There is no analysable feature model to save a configuration of.";
+        rerender();
+        return;
+      }
       const problem = validateName(input.value);
       if (problem) {
         this.message = problem;
-        this.renderConfigPanel();
+        rerender();
         return;
       }
       const name = input.value.trim();
       const qname = joinQname(configurationPackage(this.stored), name);
       const resp = await createElement({ qname, type: "Configuration", fields: configurationFields(r3, name, new Set(this.full ? featureNodes(this.full).filter((n) => n.isAbstract).map((n) => n.ref) : [])) });
       this.message = resp.written ? `Saved ${qname}.` : (resp.reason ?? resp.newErrors.map((f3) => `${f3.code}: ${f3.message}`).join("; ")) || "The model refused the configuration.";
-      this.renderConfigPanel();
+      if (resp.written) {
+        this.renderConfigPanel();
+      } else {
+        rerender();
+      }
     }
     // -----------------------------------------------------------------
     // Editing (REQ-TRS-FMED-004)
@@ -116711,21 +116740,22 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         rows.push(`<div class="fm-meta">excludes ${ex.map(esc).join(", ")}</div>`);
       }
       pane.innerHTML = `${rows.join("")}<div id="fm-card"></div>`;
-      const wanted = node.id;
+      const mine = ++this.selectedSeq;
+      const current = () => mine === this.selectedSeq;
       void fetch("/api/feature-model/impact?feature=" + encodeURIComponent(node.ref)).then((r3) => r3.json()).then((impact) => {
         const card = document.getElementById("fm-card");
-        if (card && this.selected === wanted && impact.found) {
+        if (card && current() && impact.found) {
           card.insertAdjacentHTML("beforebegin", this.renderImpact(impact, node));
           window.htmx?.process(byId("fm-selected"));
         }
-      });
+      }).catch(() => void 0);
       const url = "/ui/element-card/" + node.ref.split("::").map(encodeURIComponent).join("/");
-      void fetch(url).then((r3) => r3.text()).then((html) => {
+      void fetch(url).then((r3) => r3.ok ? r3.text() : Promise.reject(new Error(`HTTP ${r3.status}`))).then((html) => {
         const card = document.getElementById("fm-card");
-        if (card && this.selected === wanted) {
+        if (card && current()) {
           card.innerHTML = html;
         }
-      });
+      }).catch(() => void 0);
     }
   };
   window.addEventListener("DOMContentLoaded", () => {

@@ -27,6 +27,7 @@
   var RECONNECT_MAX_MS = 10000;
   var reconnectDelay = RECONNECT_MIN_MS;
   var socket = null;
+  var wasConnected = false;
 
   function wsUrl() {
     var proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -53,6 +54,12 @@
 
     socket.addEventListener('open', function () {
       reconnectDelay = RECONNECT_MIN_MS;
+      // Changes made while the socket was down (a server restart, a dropped connection) sent no event:
+      // catch up once on reconnecting.
+      if (wasConnected) {
+        handleReload();
+      }
+      wasConnected = true;
       window.dispatchEvent(new CustomEvent('syscribe:socket', { detail: { open: true } }));
     });
 
