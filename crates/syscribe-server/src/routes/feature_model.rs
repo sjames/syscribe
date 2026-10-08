@@ -54,6 +54,29 @@ pub async fn analysis(State(state): State<SharedState>) -> Json<Value> {
     Json(syscribe_model::feature_model::analysis_json(&store.elements))
 }
 
+#[derive(Deserialize, Default)]
+pub struct ConfigureRequest {
+    /// Feature (qualified name or `FEAT-*` id) → the user's choice.
+    #[serde(default)]
+    pub selection: std::collections::BTreeMap<String, bool>,
+}
+
+/// `POST /api/feature-model/configure` — propagate a partial selection
+/// (`REQ-TRS-FMED-003`): each feature's state, whether the selection can still be
+/// completed and, if not, which choices clash and why, the number of products left
+/// and one complete product consistent with the choices. Read-only.
+pub async fn configure(State(state): State<SharedState>, Json(req): Json<ConfigureRequest>) -> Json<Value> {
+    let store = state.read().await;
+    Json(syscribe_model::feature_model::configure_selection(&store.elements, &req.selection))
+}
+
+/// `GET /api/feature-model/configurations` — the stored `Configuration`s with
+/// their selections, for the configurator's load list.
+pub async fn configurations(State(state): State<SharedState>) -> Json<Value> {
+    let store = state.read().await;
+    Json(syscribe_model::feature_model::configurations_json(&store.elements))
+}
+
 /// `GET /api/feature-model/export?format=svg|plantuml|mermaid[&root=<qname>]`.
 pub async fn export(State(state): State<SharedState>, Query(q): Query<ExportQuery>) -> Response {
     let store = state.read().await;

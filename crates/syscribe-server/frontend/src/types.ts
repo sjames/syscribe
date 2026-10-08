@@ -93,6 +93,10 @@ export interface FeatureMark {
     id?: string;
 }
 
+/** A feature's state in the configurator: the user's choice (`selected`, `deselected`),
+ * what the model implies (`forcedOn`, `forcedOff`) or `free`. */
+export type ConfigState = 'selected' | 'deselected' | 'forcedOn' | 'forcedOff' | 'free';
+
 /** The SAT analysis state of a feature (`feature_model::analysis_json`). */
 export type FeatureState = 'normal' | 'core' | 'dead' | 'falseOptional';
 
@@ -110,6 +114,8 @@ export interface SysmlNodeSchema extends SNode, SysmlShapeFields {
     collapsedCount?: number;
     /** Whether this feature is the current search match, client-side. */
     matched?: boolean;
+    /** The configurator's state for this feature, client-side (`REQ-TRS-FMED-003`). */
+    config?: ConfigState;
     /** The `size` the server sent (text-metrics size, or a pin's `w`/`h`),
      * copied by `prepareForLayout` before sprotty's hidden render runs. It is
      * authoritative: the measuring pass leaves the element at this size and

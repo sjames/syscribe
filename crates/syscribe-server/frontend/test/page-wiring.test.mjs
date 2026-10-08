@@ -72,7 +72,7 @@ check('the element side panel ids the script reads are present and the panel use
 
 check('the feature page ids the script reads are present in its template and the bundle is built', () => {
     const tpl = readFileSync(path.join(root, 'templates', 'features.html'), 'utf8');
-    for (const id of ['fm-host', 'fm-canvas', 'fm-search', 'fm-collapse', 'fm-expand', 'fm-fit', 'fm-banner', 'fm-summary', 'fm-selected', 'fm-live', 'fm-empty']) {
+    for (const id of ['fm-host', 'fm-canvas', 'fm-search', 'fm-collapse', 'fm-expand', 'fm-fit', 'fm-banner', 'fm-summary', 'fm-selected', 'fm-live', 'fm-empty', 'fm-configure', 'fm-config']) {
         assert.ok(tpl.includes(`id="${id}"`), `#${id} is in features.html`);
     }
     assert.ok(existsSync(path.join(root, 'static', 'js', 'feature-model.js')), 'static/js/feature-model.js is built');

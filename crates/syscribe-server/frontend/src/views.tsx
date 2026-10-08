@@ -32,7 +32,7 @@ import {
 
 import { Point } from 'sprotty-protocol';
 import { isContainerKind, PORT_SIZE } from './layout';
-import { ArrowHead, EdgeStyle, FeatureMark, FeatureState, LabelRole, NodeStyle, PortStyle } from './types';
+import { ArrowHead, ConfigState, EdgeStyle, FeatureMark, FeatureState, LabelRole, NodeStyle, PortStyle } from './types';
 
 /** Extra fields sprotty's `SModelFactory` copies onto the instance verbatim
  * from the schemas in `types.ts` — not part of the `S*Impl` classes
@@ -55,6 +55,7 @@ type SysmlNode = SNodeImpl &
         analysis?: FeatureState;
         collapsedCount?: number;
         matched?: boolean;
+        config?: ConfigState;
     };
 type SysmlPort = SPortImpl & WithShapeFields & { style?: PortStyle };
 type SysmlLabel = SLabelImpl & { role?: LabelRole };
@@ -359,6 +360,16 @@ const FEATURE_STATE: Record<FeatureState, { fill: string; stroke: string }> = {
     falseOptional: { fill: '#fff4d6', stroke: '#b7791f' },
 };
 
+/** The configurator's fill and badge per state: a chosen feature is solid, an
+ * implied one a ring, so what the user decided and what the model decided for
+ * them never look alike. */
+const CONFIG_STATE: Record<Exclude<ConfigState, 'free'>, { fill: string; badge: string; glyph: string; solid: boolean }> = {
+    selected: { fill: '#e3f5e8', badge: '#1e8a3c', glyph: 'M -3.5,0 L -1,3 L 4,-3.5', solid: true },
+    forcedOn: { fill: '#f0f9f2', badge: '#1e8a3c', glyph: 'M -3.5,0 L -1,3 L 4,-3.5', solid: false },
+    deselected: { fill: '#eeeeee', badge: '#b3261e', glyph: 'M -3.5,-3.5 L 3.5,3.5 M 3.5,-3.5 L -3.5,3.5', solid: true },
+    forcedOff: { fill: '#f6f6f6', badge: '#8a8f98', glyph: 'M -3.5,-3.5 L 3.5,3.5 M 3.5,-3.5 L -3.5,3.5', solid: false },
+};
+
 /** Radius of the group arc under a feature with an alternative or or group. */
 const GROUP_ARC_RADIUS = 24;
 
@@ -399,6 +410,7 @@ function groupArc(node: Readonly<SysmlNode>, width: number, height: number): VNo
 function featureNodeView(node: Readonly<SysmlNode>, context: RenderingContext, width: number, height: number): VNode {
     const n = node;
     const state = FEATURE_STATE[n.analysis ?? 'normal'];
+    const cfg = n.config && n.config !== 'free' ? CONFIG_STATE[n.config] : undefined;
     const selected = !!n.selected;
     const mark = n.feature;
     const incoming = ((n as unknown as { incomingEdges?: Iterable<Connected> }).incomingEdges ?? []) as Iterable<Connected>;
@@ -422,11 +434,17 @@ function featureNodeView(node: Readonly<SysmlNode>, context: RenderingContext, w
             data-sysml-ref={n.ref}
             data-feature-state={n.analysis ?? 'normal'}
         >
-            <rect x={0} y={0} width={width} height={height} rx={5} fill={state.fill} stroke={outline} stroke-width={strokeW} stroke-dasharray={dashed ? '6,3' : undefined} />
+            <rect x={0} y={0} width={width} height={height} rx={5} fill={cfg ? cfg.fill : state.fill} stroke={outline} stroke-width={strokeW} stroke-dasharray={dashed ? '6,3' : undefined} />
             {n.analysis === 'falseOptional' && (
                 <rect x={3} y={3} width={width - 6} height={height - 6} rx={3} fill="none" stroke={outline} stroke-width={1} />
             )}
             {n.analysis === 'dead' && <line x1={4} y1={height - 4} x2={width - 4} y2={4} stroke={outline} stroke-width={1.2} opacity={0.6} />}
+            {cfg && (
+                <g class-config-badge={true} data-config-state={n.config} transform="translate(12,12)">
+                    <circle r={8} fill={cfg.solid ? cfg.badge : '#ffffff'} stroke={cfg.badge} stroke-width={1.6} />
+                    <path d={cfg.glyph} fill="none" stroke={cfg.solid ? '#ffffff' : cfg.badge} stroke-width={1.8} stroke-linecap="round" stroke-linejoin="round" />
+                </g>
+            )}
             {hasParent && mark && (
                 <circle cx={width / 2} cy={-7} r={5} fill={mark.mandatory ? '#2b3440' : '#ffffff'} stroke="#2b3440" stroke-width={1.5} class-feature-mark={true} />
             )}

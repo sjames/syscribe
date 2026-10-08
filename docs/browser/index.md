@@ -40,6 +40,8 @@ All JavaScript (HTMX, Mermaid, the bundled diagram editor including `sprotty-elk
 | `GET /features` | The feature model viewer |
 | `GET /api/feature-model/diagram?root=` | The feature diagram as a sprotty graph (optionally one feature's subtree) |
 | `GET /api/feature-model/analysis` | Void, dead, core and false-optional features with the constraints responsible |
+| `POST /api/feature-model/configure` | Propagate a partial selection: state of every feature, conflict with its cause, product count, one completed product |
+| `GET /api/feature-model/configurations` | The stored `Configuration`s with their selections |
 | `GET /api/feature-model/export?format=svg\\|plantuml\\|mermaid` | The feature diagram as a download |
 | `GET /planning` | The live planning dashboard page |
 | `GET /ui/planning/board?who=&done=` | HTMX — the board fragment the dashboard re-fetches |
@@ -114,7 +116,19 @@ The **package** defaults to a package named `Diagrams` when the model has one, e
 - **Live.** The page refreshes on every model reload, so an edit by you, the CLI or an agent shows at once; the **live** badge turns red when the connection drops.
 - **Export.** SVG, PlantUML and Mermaid downloads of the diagram, from the same writers as `syscribe diagram export`. A `Diagram` with `diagramKind: FeatureModel` and a `subject:` (a feature, a package of features or a feature-model sheet) puts the same diagram in the model; **+ Diagram** offers it.
 
-Editing, the configurator and impact analysis are the next phases (`docs/design/feature-model-editor.md`).
+### Configurator
+
+**Configure** (`REQ-TRS-FMED-003`) turns the diagram into a configurator. Click a feature to **select** it, again to **deselect** it, again to leave it **open**. After every click the server propagates the choices through the whole model, and each feature is drawn as one of:
+
+- a **solid green tick** or **solid red cross** badge: your choice;
+- a **ring** with a tick or cross: **implied**, forced on or off by your choices and the model (a mandatory child, a `requires:`, an `excludes:`, a full alternative group);
+- no badge: still **open**.
+
+The panel shows how many valid products remain (`18 valid products`, or `at least 10,000` when counting stops at its budget) and how many features are chosen, implied and open. A click that no valid product can satisfy is **refused** and explained: which of your choices clash and the constraints they clash with, for example *No valid product has selecting Hex and selecting Quad (group 'Features::Propulsion' allows at most 1 selected child(ren))*. Your earlier choices stay as they were.
+
+**Start from** loads a stored `Configuration` as the choices (a partial or invalid one is shown as such), **Clear** starts again. **Save** writes a new `Configuration` through a guarded write: the choices completed to one whole product the solver found, as `features:` with every feature true or false, `featureModel:` set to the package the features live in and a generated `CONF-GEN-nnn` id. A feature with a required `parameters:` entry then raises `W017` until you bind it. `POST /api/feature-model/configure` is the same computation for scripts.
+
+Editing and impact analysis are the next phases (`docs/design/feature-model-editor.md`).
 
 ## Planning dashboard
 

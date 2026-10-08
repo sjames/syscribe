@@ -9477,7 +9477,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
     "node_modules/snabbdom/build/snabbdom.cjs.js"(exports) {
       "use strict";
       Object.defineProperty(exports, "__esModule", { value: true });
-      function createElement(tagName2, options) {
+      function createElement2(tagName2, options) {
         return document.createElement(tagName2, options);
       }
       function createElementNS(namespaceURI, qualifiedName, options) {
@@ -9572,7 +9572,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         return fragment2;
       }
       var htmlDomApi = {
-        createElement,
+        createElement: createElement2,
         createElementNS,
         createTextNode,
         createDocumentFragment,
@@ -114911,6 +114911,12 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     dead: { fill: "#fdecea", stroke: "#b3261e" },
     falseOptional: { fill: "#fff4d6", stroke: "#b7791f" }
   };
+  var CONFIG_STATE = {
+    selected: { fill: "#e3f5e8", badge: "#1e8a3c", glyph: "M -3.5,0 L -1,3 L 4,-3.5", solid: true },
+    forcedOn: { fill: "#f0f9f2", badge: "#1e8a3c", glyph: "M -3.5,0 L -1,3 L 4,-3.5", solid: false },
+    deselected: { fill: "#eeeeee", badge: "#b3261e", glyph: "M -3.5,-3.5 L 3.5,3.5 M 3.5,-3.5 L -3.5,3.5", solid: true },
+    forcedOff: { fill: "#f6f6f6", badge: "#8a8f98", glyph: "M -3.5,-3.5 L 3.5,3.5 M 3.5,-3.5 L -3.5,3.5", solid: false }
+  };
   var GROUP_ARC_RADIUS = 24;
   function groupArc(node, width, height) {
     const group = node.feature?.group;
@@ -114943,6 +114949,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   function featureNodeView(node, context, width, height) {
     const n = node;
     const state = FEATURE_STATE[n.analysis ?? "normal"];
+    const cfg = n.config && n.config !== "free" ? CONFIG_STATE[n.config] : void 0;
     const selected = !!n.selected;
     const mark = n.feature;
     const incoming = n.incomingEdges ?? [];
@@ -114967,9 +114974,10 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         "data-sysml-ref": n.ref,
         "data-feature-state": n.analysis ?? "normal"
       },
-      /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 0, y: 0, width, height, rx: 5, fill: state.fill, stroke: outline, "stroke-width": strokeW, "stroke-dasharray": dashed ? "6,3" : void 0 }),
+      /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 0, y: 0, width, height, rx: 5, fill: cfg ? cfg.fill : state.fill, stroke: outline, "stroke-width": strokeW, "stroke-dasharray": dashed ? "6,3" : void 0 }),
       n.analysis === "falseOptional" && /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 3, y: 3, width: width - 6, height: height - 6, rx: 3, fill: "none", stroke: outline, "stroke-width": 1 }),
       n.analysis === "dead" && /* @__PURE__ */ (0, import_sprotty.svg)("line", { x1: 4, y1: height - 4, x2: width - 4, y2: 4, stroke: outline, "stroke-width": 1.2, opacity: 0.6 }),
+      cfg && /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-config-badge": true, "data-config-state": n.config, transform: "translate(12,12)" }, /* @__PURE__ */ (0, import_sprotty.svg)("circle", { r: 8, fill: cfg.solid ? cfg.badge : "#ffffff", stroke: cfg.badge, "stroke-width": 1.6 }), /* @__PURE__ */ (0, import_sprotty.svg)("path", { d: cfg.glyph, fill: "none", stroke: cfg.solid ? "#ffffff" : cfg.badge, "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round" })),
       hasParent && mark && /* @__PURE__ */ (0, import_sprotty.svg)("circle", { cx: width / 2, cy: -7, r: 5, fill: mark.mandatory ? "#2b3440" : "#ffffff", stroke: "#2b3440", "stroke-width": 1.5, "class-feature-mark": true }),
       groupArc(n, width, height),
       canToggle && /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-fm-toggle": true, "data-fm-toggle": n.id, transform: `translate(${width - 9},${height})` }, /* @__PURE__ */ (0, import_sprotty.svg)("circle", { r: 8, fill: "#ffffff", stroke: "#44546a", "stroke-width": 1.2 }), /* @__PURE__ */ (0, import_sprotty.svg)("path", { d: collapsed ? "M -4,0 H 4 M 0,-4 V 4" : "M -4,0 H 4", stroke: "#44546a", "stroke-width": 1.6, fill: "none" })),
@@ -115348,6 +115356,19 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     return container;
   }
 
+  // src/api.ts
+  async function asJson(resp) {
+    return await resp.json();
+  }
+  async function createElement(req) {
+    const resp = await fetch("/api/elements", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req)
+    });
+    return asJson(resp);
+  }
+
   // src/feature-core.ts
   function featureNodes(model) {
     return model.children.filter(isNodeSchema).filter((n) => n.kind === "feature");
@@ -115484,6 +115505,95 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     }
     return out;
   }
+  function nextChoice(current) {
+    if (current === void 0) {
+      return true;
+    }
+    return current ? false : void 0;
+  }
+  function withChoice(choices, feature, value) {
+    const out = { ...choices };
+    if (value === void 0) {
+      delete out[feature];
+    } else {
+      out[feature] = value;
+    }
+    return out;
+  }
+  function applyConfiguration(model, result) {
+    for (const n of featureNodes(model)) {
+      n.config = result?.features[n.ref]?.state;
+    }
+  }
+  function productsText(r3) {
+    if (!r3 || !r3.products) {
+      return "";
+    }
+    const { count, capped } = r3.products;
+    const n = count.toLocaleString("en-US");
+    if (capped) {
+      return `at least ${n} valid products`;
+    }
+    return count === 0 ? "no valid product" : `${n} valid product${count === 1 ? "" : "s"}`;
+  }
+  function describeConflict(r3, nameOf) {
+    const c3 = r3.conflict;
+    if (!c3) {
+      return "";
+    }
+    const choices = c3.choices.map((x3) => `${x3.selected ? "selecting" : "deselecting"} ${nameOf(x3.feature)}`);
+    const joined = choices.length <= 1 ? choices.join("") : choices.slice(0, -1).join(", ") + " and " + choices[choices.length - 1];
+    const why = c3.constraints.length > 0 ? ` (${c3.constraints.join("; ")})` : "";
+    return `No valid product has ${joined}${why}.`;
+  }
+  function configCounts(r3) {
+    const out = { chosen: 0, implied: 0, open: 0 };
+    for (const f3 of Object.values(r3?.features ?? {})) {
+      if (f3.state === "selected" || f3.state === "deselected") {
+        out.chosen += 1;
+      } else if (f3.state === "forcedOn" || f3.state === "forcedOff") {
+        out.implied += 1;
+      } else {
+        out.open += 1;
+      }
+    }
+    return out;
+  }
+  function configurationFields(r3, name) {
+    const features = {};
+    for (const q2 of Object.keys(r3.completion).sort()) {
+      features[q2] = r3.completion[q2];
+    }
+    const fields = { name, status: "draft", features };
+    if (r3.featureModel) {
+      fields.featureModel = r3.featureModel;
+    }
+    return fields;
+  }
+  function configurationPackage(stored) {
+    const first = stored[0]?.qname;
+    if (!first) {
+      return "";
+    }
+    const i2 = first.lastIndexOf("::");
+    return i2 < 0 ? "" : first.slice(0, i2);
+  }
+
+  // src/new-diagram.ts
+  var BASIC_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  function validateName(name) {
+    const n = name.trim();
+    if (n === "") {
+      return "Give the diagram a name.";
+    }
+    if (!BASIC_NAME.test(n)) {
+      return "A name uses letters, digits and underscores only, and does not start with a digit (no spaces or hyphens).";
+    }
+    return null;
+  }
+  function joinQname(pkg, name) {
+    return pkg === "" ? name : `${pkg}::${name}`;
+  }
 
   // src/feature-main.ts
   var HOST = "fm-host";
@@ -115508,6 +115618,13 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       this.busy = false;
       this.again = false;
       this.firstLoad = true;
+      this.configMode = false;
+      this.choices = {};
+      this.config = null;
+      this.stored = [];
+      this.message = "";
+      this.loaded = "";
+      this.downAt = null;
       this.firstRender = true;
       const container = createDiagramContainer(HOST, {
         // The diagram is a view of the model; a dragged feature snaps back.
@@ -115527,6 +115644,12 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         void this.render(true);
       });
       byId("fm-fit").addEventListener("click", () => void this.fit());
+      byId("fm-configure").addEventListener("click", () => void this.setConfigMode(!this.configMode));
+      const canvas = byId("fm-canvas");
+      canvas.addEventListener("mousedown", (ev) => this.downAt = { x: ev.clientX, y: ev.clientY });
+      canvas.addEventListener("click", (ev) => this.onCanvasClick(ev));
+      byId("fm-config").addEventListener("click", (ev) => this.onConfigPanel(ev));
+      byId("fm-config").addEventListener("change", (ev) => this.onConfigChange(ev));
       const box = byId("fm-search");
       box.addEventListener("input", () => this.onSearch(box.value));
       box.addEventListener("keydown", (ev) => {
@@ -115566,6 +115689,10 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
           ]);
           this.full = diagram;
           this.analysis = analysis;
+          this.stored = await fetch("/api/feature-model/configurations").then((r3) => r3.json());
+          if (this.configMode) {
+            this.config = await this.configure(this.choices);
+          }
           if (this.firstLoad) {
             this.firstLoad = false;
             if (featureNodes(diagram).length > 60) {
@@ -115596,6 +115723,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       }
       const copy = JSON.parse(JSON.stringify(this.full));
       applyAnalysis(copy, this.analysis);
+      applyConfiguration(copy, this.configMode ? this.config : null);
       const matched = new Set(this.matches.map((m3) => m3.id));
       for (const n of featureNodes(copy)) {
         n.matched = matched.has(n.id);
@@ -115608,6 +115736,134 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         await this.fit();
       }
       this.showSelected();
+    }
+    // -----------------------------------------------------------------
+    // The configurator (REQ-TRS-FMED-003)
+    // -----------------------------------------------------------------
+    async configure(selection) {
+      const resp = await fetch("/api/feature-model/configure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ selection })
+      });
+      return await resp.json();
+    }
+    nameOf(qname) {
+      return this.full && featureNodes(this.full).find((n) => n.ref === qname)?.name || qname.split("::").pop() || qname;
+    }
+    async setConfigMode(on) {
+      this.configMode = on;
+      const btn = byId("fm-configure");
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", String(on));
+      byId("fm-config").hidden = !on;
+      this.message = "";
+      this.config = on ? await this.configure(this.choices) : null;
+      this.renderConfigPanel();
+      await this.render();
+    }
+    /** A click on a feature in configure mode cycles its choice; a drag is not a click. */
+    onCanvasClick(ev) {
+      const down = this.downAt;
+      this.downAt = null;
+      if (!this.configMode || ev.target.closest("[data-fm-toggle]")) {
+        return;
+      }
+      if (down && Math.hypot(ev.clientX - down.x, ev.clientY - down.y) > 4) {
+        return;
+      }
+      const g3 = ev.target.closest("g.sysml-node.feature");
+      const ref = g3?.getAttribute("data-sysml-ref");
+      if (!ref) {
+        return;
+      }
+      void this.choose(ref, nextChoice(this.choices[ref]));
+    }
+    /** Apply a choice if some product still satisfies it; otherwise keep the old
+     * choices and say which choices clash and why. */
+    async choose(feature, value) {
+      const next = withChoice(this.choices, feature, value);
+      const result = await this.configure(next);
+      if (!result.satisfiable) {
+        this.message = describeConflict(result, (q2) => this.nameOf(q2));
+        this.renderConfigPanel();
+        return;
+      }
+      this.choices = next;
+      this.config = result;
+      this.message = "";
+      this.renderConfigPanel();
+      await this.render();
+    }
+    async replaceChoices(next) {
+      const result = await this.configure(next);
+      this.choices = next;
+      this.config = result;
+      this.message = result.satisfiable ? "" : describeConflict(result, (q2) => this.nameOf(q2)) + " The loaded configuration is not a valid product.";
+      this.renderConfigPanel();
+      await this.render();
+    }
+    renderConfigPanel() {
+      const pane = byId("fm-config");
+      if (!this.configMode) {
+        pane.innerHTML = "";
+        return;
+      }
+      const r3 = this.config;
+      const c3 = configCounts(r3);
+      const options = ['<option value="">(start from nothing)</option>'].concat(this.stored.map((s3) => `<option value="${esc(s3.qname)}"${s3.qname === this.loaded ? " selected" : ""}>${esc(s3.name)}${s3.id ? ` (${esc(s3.id)})` : ""}</option>`)).join("");
+      const status = r3 && !r3.satisfiable ? "invalid" : productsText(r3);
+      pane.innerHTML = `
+          <div class="fm-config-head">Configuration</div>
+          <label class="fm-config-row">Start from <select id="fm-conf-load">${options}</select></label>
+          <div class="fm-config-count" id="fm-conf-count">${esc(status)}</div>
+          <div class="fm-config-sub">${c3.chosen} chosen, ${c3.implied} implied, ${c3.open} open</div>
+          <div class="fm-config-msg" id="fm-conf-msg"${this.message ? "" : " hidden"}>${esc(this.message)}</div>
+          <div class="fm-config-row">
+            <button class="canvas-btn" id="fm-conf-clear">Clear</button>
+          </div>
+          <div class="fm-config-row">
+            <input id="fm-conf-name" type="text" placeholder="Name for a new Configuration" autocomplete="off">
+            <button class="canvas-btn" id="fm-conf-save"${r3 && r3.satisfiable ? "" : " disabled"}>Save</button>
+          </div>
+          <div class="fm-config-hint">Click a feature to select it, again to deselect it, again to leave it open. Features the model forces are shown as rings.</div>`;
+    }
+    onConfigChange(ev) {
+      const t3 = ev.target;
+      if (t3.id !== "fm-conf-load") {
+        return;
+      }
+      this.loaded = t3.value;
+      const conf = this.stored.find((s3) => s3.qname === t3.value);
+      void this.replaceChoices(conf ? { ...conf.selection } : {});
+    }
+    onConfigPanel(ev) {
+      const id = ev.target.closest("button")?.id;
+      if (id === "fm-conf-clear") {
+        this.loaded = "";
+        void this.replaceChoices({});
+      } else if (id === "fm-conf-save") {
+        void this.saveConfiguration();
+      }
+    }
+    /** Write the product the server completed from the choices as a new `Configuration`. */
+    async saveConfiguration() {
+      const r3 = this.config;
+      const input = byId("fm-conf-name");
+      if (!r3 || !r3.satisfiable) {
+        return;
+      }
+      const problem = validateName(input.value);
+      if (problem) {
+        this.message = problem;
+        this.renderConfigPanel();
+        return;
+      }
+      const name = input.value.trim();
+      const qname = joinQname(configurationPackage(this.stored), name);
+      const resp = await createElement({ qname, type: "Configuration", fields: configurationFields(r3, name) });
+      this.message = resp.written ? `Saved ${qname}.` : (resp.reason ?? resp.newErrors.map((f3) => `${f3.code}: ${f3.message}`).join("; ")) || "The model refused the configuration.";
+      this.renderConfigPanel();
     }
     async fit() {
       await this.dispatcher.dispatch(import_sprotty_protocol2.FitToScreenAction.create([], { padding: 30, maxZoom: 1.2 }));

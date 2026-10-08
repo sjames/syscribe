@@ -58,6 +58,20 @@ async fn get(root: &Path, uri: &str) -> (StatusCode, String, String) {
     (status, mime, String::from_utf8_lossy(&bytes).into_owned())
 }
 
+async fn post_json(root: &Path, uri: &str, body: Value) -> Value {
+    let elements = walk_model(root).unwrap();
+    let config = ValidateConfig::with_model_root(root);
+    let (shared, reload_tx) = new_state(elements, String::new(), config, root.to_path_buf());
+    let app = build_router(shared, reload_tx);
+    let resp = app
+        .oneshot(Request::builder().method("POST").uri(uri).header("content-type", "application/json").body(Body::from(body.to_string())).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    serde_json::from_slice(&bytes).unwrap()
+}
+
 async fn json(root: &Path, uri: &str) -> Value {
     let (status, _, body) = get(root, uri).await;
     assert_eq!(status, StatusCode::OK, "{uri}: {body}");
@@ -68,7 +82,7 @@ async fn json(root: &Path, uri: &str) -> Value {
 async fn the_page_is_served_with_its_script_toolbar_and_live_badge() {
     let (status, _, html) = get(&healthy(), "/features").await;
     assert_eq!(status, StatusCode::OK);
-    for id in ["fm-host", "fm-canvas", "fm-search", "fm-collapse", "fm-expand", "fm-fit", "fm-banner", "fm-summary", "fm-selected", "fm-live", "fm-empty"] {
+    for id in ["fm-host", "fm-canvas", "fm-search", "fm-collapse", "fm-expand", "fm-fit", "fm-banner", "fm-summary", "fm-selected", "fm-live", "fm-empty", "fm-configure", "fm-config"] {
         assert!(html.contains(&format!("id=\"{id}\"")), "#{id} is in the page: {html}");
     }
     assert!(html.contains("/static/js/feature-model.js"), "{html}");
@@ -139,4 +153,92 @@ async fn the_export_endpoint_serves_svg_plantuml_and_mermaid_and_refuses_other_f
     assert!(mmd.starts_with("flowchart TD"), "{mmd}");
     let (s, _, _) = get(&root, "/api/feature-model/export?format=pdf").await;
     assert_eq!(s, StatusCode::BAD_REQUEST);
+}
+
+/// Car > Engine (XOR: Petrol, Electric), Electric requires Charger.
+fn configurable() -> PathBuf {
+    let root = healthy();
+    // Replace the default model's Spoiler/Roof with an engine group.
+    std::fs::remove_file(root.join("F/Car/Spoiler.md")).unwrap();
+    write(&root, "F/Car/Engine.md", "---\ntype: FeatureDef\nid: FEAT-ENGINE\nname: Engine\nmandatory: true\ngroupKind: alternative\n---\n");
+    write(&root, "F/Car/Engine/Petrol.md", "---\ntype: FeatureDef\nid: FEAT-PETROL\nname: Petrol\n---\n");
+    write(&root, "F/Car/Engine/Electric.md", "---\ntype: FeatureDef\nid: FEAT-ELECTRIC\nname: Electric\nrequires: [FEAT-CHARGER]\n---\n");
+    write(&root, "F/Car/Charger.md", "---\ntype: FeatureDef\nid: FEAT-CHARGER\nname: Charger\n---\n");
+    write(&root, "C/_index.md", "---\ntype: Package\nname: C\n---\n");
+    write(&root, "C/CONF-FAST-001.md", "---\ntype: Configuration\nid: CONF-FAST-001\nname: Fast\nstatus: approved\nfeatureModel: F\nfeatures:\n  FEAT-ELECTRIC: true\n---\n");
+    root
+}
+
+#[tokio::test]
+async fn configure_propagates_a_choice_and_counts_the_products_left() {
+    let root = configurable();
+    let all = post_json(&root, "/api/feature-model/configure", serde_json::json!({ "selection": {} })).await;
+    assert_eq!(all["satisfiable"], true, "{all}");
+    assert_eq!(all["features"]["F::Car::Wheels"]["state"], "forcedOn");
+    assert_eq!(all["features"]["F::Car::Roof"]["state"], "free");
+    let electric = post_json(&root, "/api/feature-model/configure", serde_json::json!({ "selection": { "FEAT-ELECTRIC": true } })).await;
+    assert_eq!(electric["features"]["F::Car::Engine::Electric"]["state"], "selected");
+    assert_eq!(electric["features"]["F::Car::Charger"]["state"], "forcedOn");
+    assert_eq!(electric["features"]["F::Car::Engine::Petrol"]["state"], "forcedOff");
+    assert!(electric["products"]["count"].as_u64().unwrap() < all["products"]["count"].as_u64().unwrap());
+    assert_eq!(electric["completion"]["F::Car::Charger"], true);
+}
+
+#[tokio::test]
+async fn configure_explains_a_conflict_with_the_choices_and_constraints_at_fault() {
+    let root = configurable();
+    let j = post_json(&root, "/api/feature-model/configure", serde_json::json!({ "selection": { "F::Car::Roof": true, "FEAT-ELECTRIC": true, "F::Car::Charger": false } })).await;
+    assert_eq!(j["satisfiable"], false, "{j}");
+    let choices: Vec<&str> = j["conflict"]["choices"].as_array().unwrap().iter().map(|c| c["feature"].as_str().unwrap()).collect();
+    assert!(choices.contains(&"F::Car::Charger") && choices.contains(&"F::Car::Engine::Electric") && !choices.contains(&"F::Car::Roof"), "{choices:?}");
+    assert!(j["conflict"]["constraints"].to_string().contains("requires"), "{j}");
+}
+
+#[tokio::test]
+async fn stored_configurations_are_listed_for_loading() {
+    let list = json(&configurable(), "/api/feature-model/configurations").await;
+    let c = &list.as_array().unwrap()[0];
+    assert_eq!(c["id"], "CONF-FAST-001");
+    assert_eq!(c["selection"]["F::Car::Engine::Electric"], true);
+}
+
+#[tokio::test]
+async fn a_saved_completion_is_a_valid_configuration_the_analysis_accepts() {
+    // The configurator's save: the server's completed product, written through the
+    // guarded `POST /api/elements`, must be a Configuration the model calls valid.
+    let root = configurable();
+    let elements = walk_model(&root).unwrap();
+    let config = ValidateConfig::with_model_root(&root);
+    let (shared, reload_tx) = new_state(elements, String::new(), config, root.to_path_buf());
+    let app = build_router(shared, reload_tx);
+
+    let send = |method: &str, uri: &str, body: Value| {
+        Request::builder().method(method).uri(uri).header("content-type", "application/json").body(Body::from(body.to_string())).unwrap()
+    };
+    let resp = app.clone().oneshot(send("POST", "/api/feature-model/configure", serde_json::json!({ "selection": { "FEAT-ELECTRIC": true } }))).await.unwrap();
+    let configured: Value = serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let mut features = serde_json::Map::new();
+    for (q, v) in configured["completion"].as_object().unwrap() {
+        features.insert(q.clone(), v.clone());
+    }
+    let body = serde_json::json!({
+        "qname": "C::Saved",
+        "type": "Configuration",
+        "fields": { "name": "Saved", "status": "draft", "featureModel": configured["featureModel"], "features": features },
+    });
+    let resp = app.clone().oneshot(send("POST", "/api/elements", body)).await.unwrap();
+    let written: Value = serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    assert_eq!(written["written"], true, "{written}");
+
+    let resp = app.clone().oneshot(Request::builder().uri("/api/feature-model/analysis").body(Body::empty()).unwrap()).await.unwrap();
+    let analysis: Value = serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let invalid = analysis["invalidConfigurations"].to_string();
+    assert!(!invalid.contains("CONF-GEN-001"), "the saved product is valid: {analysis}");
+    assert!(invalid.contains("CONF-FAST-001"), "the hand-written partial configuration, which leaves a mandatory feature out, is not: {analysis}");
+
+    let resp = app.oneshot(Request::builder().uri("/api/feature-model/configurations").body(Body::empty()).unwrap()).await.unwrap();
+    let list: Value = serde_json::from_slice(&resp.into_body().collect().await.unwrap().to_bytes()).unwrap();
+    let saved = list.as_array().unwrap().iter().find(|c| c["qname"] == "C::Saved").expect("the new configuration is listed");
+    assert_eq!(saved["selection"]["F::Car::Engine::Electric"], true);
+    assert_eq!(saved["selection"]["F::Car::Charger"], true, "the product includes what Electric requires");
 }

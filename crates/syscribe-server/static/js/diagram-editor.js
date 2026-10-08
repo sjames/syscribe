@@ -115157,6 +115157,12 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     dead: { fill: "#fdecea", stroke: "#b3261e" },
     falseOptional: { fill: "#fff4d6", stroke: "#b7791f" }
   };
+  var CONFIG_STATE = {
+    selected: { fill: "#e3f5e8", badge: "#1e8a3c", glyph: "M -3.5,0 L -1,3 L 4,-3.5", solid: true },
+    forcedOn: { fill: "#f0f9f2", badge: "#1e8a3c", glyph: "M -3.5,0 L -1,3 L 4,-3.5", solid: false },
+    deselected: { fill: "#eeeeee", badge: "#b3261e", glyph: "M -3.5,-3.5 L 3.5,3.5 M 3.5,-3.5 L -3.5,3.5", solid: true },
+    forcedOff: { fill: "#f6f6f6", badge: "#8a8f98", glyph: "M -3.5,-3.5 L 3.5,3.5 M 3.5,-3.5 L -3.5,3.5", solid: false }
+  };
   var GROUP_ARC_RADIUS = 24;
   function groupArc(node, width, height) {
     const group = node.feature?.group;
@@ -115189,6 +115195,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   function featureNodeView(node, context, width, height) {
     const n = node;
     const state = FEATURE_STATE[n.analysis ?? "normal"];
+    const cfg = n.config && n.config !== "free" ? CONFIG_STATE[n.config] : void 0;
     const selected = !!n.selected;
     const mark = n.feature;
     const incoming = n.incomingEdges ?? [];
@@ -115213,9 +115220,10 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         "data-sysml-ref": n.ref,
         "data-feature-state": n.analysis ?? "normal"
       },
-      /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 0, y: 0, width, height, rx: 5, fill: state.fill, stroke: outline, "stroke-width": strokeW, "stroke-dasharray": dashed ? "6,3" : void 0 }),
+      /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 0, y: 0, width, height, rx: 5, fill: cfg ? cfg.fill : state.fill, stroke: outline, "stroke-width": strokeW, "stroke-dasharray": dashed ? "6,3" : void 0 }),
       n.analysis === "falseOptional" && /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 3, y: 3, width: width - 6, height: height - 6, rx: 3, fill: "none", stroke: outline, "stroke-width": 1 }),
       n.analysis === "dead" && /* @__PURE__ */ (0, import_sprotty.svg)("line", { x1: 4, y1: height - 4, x2: width - 4, y2: 4, stroke: outline, "stroke-width": 1.2, opacity: 0.6 }),
+      cfg && /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-config-badge": true, "data-config-state": n.config, transform: "translate(12,12)" }, /* @__PURE__ */ (0, import_sprotty.svg)("circle", { r: 8, fill: cfg.solid ? cfg.badge : "#ffffff", stroke: cfg.badge, "stroke-width": 1.6 }), /* @__PURE__ */ (0, import_sprotty.svg)("path", { d: cfg.glyph, fill: "none", stroke: cfg.solid ? "#ffffff" : cfg.badge, "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round" })),
       hasParent && mark && /* @__PURE__ */ (0, import_sprotty.svg)("circle", { cx: width / 2, cy: -7, r: 5, fill: mark.mandatory ? "#2b3440" : "#ffffff", stroke: "#2b3440", "stroke-width": 1.5, "class-feature-mark": true }),
       groupArc(n, width, height),
       canToggle && /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-fm-toggle": true, "data-fm-toggle": n.id, transform: `translate(${width - 9},${height})` }, /* @__PURE__ */ (0, import_sprotty.svg)("circle", { r: 8, fill: "#ffffff", stroke: "#44546a", "stroke-width": 1.2 }), /* @__PURE__ */ (0, import_sprotty.svg)("path", { d: collapsed ? "M -4,0 H 4 M 0,-4 V 4" : "M -4,0 H 4", stroke: "#44546a", "stroke-width": 1.6, fill: "none" })),

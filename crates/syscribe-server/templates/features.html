@@ -7,6 +7,7 @@
     <button class="canvas-btn" id="fm-collapse" title="Show only the root features">Collapse all</button>
     <button class="canvas-btn" id="fm-expand" title="Expand every subtree">Expand all</button>
     <button class="canvas-btn" id="fm-fit" title="Fit the whole model in the window">Fit</button>
+    <button class="canvas-btn" id="fm-configure" title="Choose features and see what follows" aria-pressed="false">Configure</button>
     <span class="fm-export">Export
       <a href="/api/feature-model/export?format=svg" id="fm-export-svg" download="feature-model.svg">SVG</a>
       <a href="/api/feature-model/export?format=plantuml" download="feature-model.puml">PlantUML</a>
@@ -21,6 +22,7 @@
       <div id="fm-empty" hidden>This model has no feature definitions.</div>
     </div>
     <aside id="fm-side">
+      <section id="fm-config" hidden></section>
       <section id="fm-summary"></section>
       <section id="fm-selected"><p class="detail-empty">Select a feature to see what it is and why.</p></section>
     </aside>

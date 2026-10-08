@@ -115,4 +115,72 @@ scenario('the summary lists the counts and the invalid configurations', () => {
     assert.deepEqual(core.summaryLines(null), []);
 });
 
+const conf = (features, extra = {}) => ({
+    hasFeatureModel: true, satisfiable: true, features: Object.fromEntries(Object.entries(features).map(([k, v]) => [k, { state: v }])), conflict: null,
+    products: { count: 6, capped: false }, completion: { 'F::Car': true, 'F::Engine': true, 'F::Petrol': false }, unknown: [], skipped: null, featureModel: 'F', ...extra,
+});
+
+scenario('a click cycles undecided, selected, deselected, undecided', () => {
+    assert.equal(core.nextChoice(undefined), true);
+    assert.equal(core.nextChoice(true), false);
+    assert.equal(core.nextChoice(false), undefined);
+});
+
+scenario('withChoice sets and removes a choice without modifying the original', () => {
+    const a = { x: true };
+    const b = core.withChoice(a, 'y', false);
+    assert.deepEqual(b, { x: true, y: false });
+    assert.deepEqual(core.withChoice(b, 'x', undefined), { y: false });
+    assert.deepEqual(a, { x: true });
+});
+
+scenario('the configurator state is applied to the diagram by qualified name and cleared without a result', () => {
+    const copy = JSON.parse(JSON.stringify(model));
+    core.applyConfiguration(copy, conf({ 'F::Car': 'forcedOn', 'F::Petrol': 'selected', 'F::Electric': 'forcedOff' }));
+    const state = id => copy.children.find(c => c.id === id).config;
+    assert.equal(state('car'), 'forcedOn');
+    assert.equal(state('petrol'), 'selected');
+    assert.equal(state('electric'), 'forcedOff');
+    assert.equal(state('engine'), undefined);
+    core.applyConfiguration(copy, null);
+    assert.equal(state('car'), undefined);
+});
+
+scenario('the product count reads naturally', () => {
+    assert.equal(core.productsText(conf({})), '6 valid products');
+    assert.equal(core.productsText(conf({}, { products: { count: 1, capped: false } })), '1 valid product');
+    assert.equal(core.productsText(conf({}, { products: { count: 0, capped: false } })), 'no valid product');
+    assert.equal(core.productsText(conf({}, { products: { count: 10000, capped: true } })), 'at least 10,000 valid products');
+    assert.equal(core.productsText(null), '');
+});
+
+scenario('a conflict names the clashing choices and the constraints, in plain words', () => {
+    const r = conf({}, { satisfiable: false, conflict: { choices: [{ feature: 'F::Charger', selected: false }, { feature: 'F::Electric', selected: true }], constraints: ["'F::Electric' requires 'F::Charger'"] } });
+    const text = core.describeConflict(r, q => q.split('::').pop());
+    assert.equal(text, "No valid product has deselecting Charger and selecting Electric ('F::Electric' requires 'F::Charger').");
+    const one = conf({}, { satisfiable: false, conflict: { choices: [{ feature: 'F::Petrol', selected: true }], constraints: [] } });
+    assert.equal(core.describeConflict(one, q => q.split('::').pop()), 'No valid product has selecting Petrol.');
+});
+
+scenario('the counts split chosen, implied and open features', () => {
+    const r = conf({ a: 'selected', b: 'deselected', c: 'forcedOn', d: 'forcedOff', e: 'free', f: 'free' });
+    assert.deepEqual(core.configCounts(r), { chosen: 2, implied: 2, open: 2 });
+    assert.deepEqual(core.configCounts(null), { chosen: 0, implied: 0, open: 0 });
+});
+
+scenario('a saved configuration is the complete product the server found, with sorted features and the model package', () => {
+    const f = core.configurationFields(conf({}), 'Fast');
+    assert.equal(f.name, 'Fast');
+    assert.equal(f.status, 'draft');
+    assert.equal(f.featureModel, 'F');
+    assert.deepEqual(Object.keys(f.features), ['F::Car', 'F::Engine', 'F::Petrol']);
+    assert.equal(f.features['F::Petrol'], false);
+});
+
+scenario('a new configuration goes beside the stored ones, else at the model root', () => {
+    assert.equal(core.configurationPackage([{ qname: 'Configurations::Fast', id: null, name: 'Fast', status: null, selection: {} }]), 'Configurations');
+    assert.equal(core.configurationPackage([{ qname: 'Fast', id: null, name: 'Fast', status: null, selection: {} }]), '');
+    assert.equal(core.configurationPackage([]), '');
+});
+
 console.log(`feature-core: ok (${n} scenarios)`);

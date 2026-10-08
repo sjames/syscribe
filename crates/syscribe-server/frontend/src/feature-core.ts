@@ -3,6 +3,7 @@
 // No DOM, no sprotty: `feature-main.ts` wires it to the page and
 // `test/feature-core.test.mjs` drives it directly.
 import {
+    ConfigState,
     DiagramModelSchema,
     FeatureState,
     isEdgeSchema,
@@ -188,4 +189,121 @@ export function summaryLines(a: FeatureAnalysis | null): string[] {
         out.push(`${a.invalidConfigurations.length} invalid configuration${a.invalidConfigurations.length === 1 ? '' : 's'}: ${a.invalidConfigurations.join(', ')}`);
     }
     return out;
+}
+
+// ---------------------------------------------------------------------------
+// The configurator (`REQ-TRS-FMED-003`)
+// ---------------------------------------------------------------------------
+
+/** What `POST /api/feature-model/configure` returns. */
+export interface ConfigureResult {
+    hasFeatureModel: boolean;
+    satisfiable: boolean;
+    features: Record<string, { state: ConfigState }>;
+    conflict: { choices: { feature: string; selected: boolean }[]; constraints: string[] } | null;
+    products: { count: number; capped: boolean } | null;
+    completion: Record<string, boolean>;
+    unknown: string[];
+    skipped: string | null;
+    featureModel: string;
+}
+
+/** A stored `Configuration` as `GET /api/feature-model/configurations` lists it. */
+export interface StoredConfiguration {
+    id: string | null;
+    qname: string;
+    name: string;
+    status: string | null;
+    selection: Record<string, boolean>;
+}
+
+/** The choice a click on a feature leads to: undecided, then selected, then
+ * deselected, then undecided again. */
+export function nextChoice(current: boolean | undefined): boolean | undefined {
+    if (current === undefined) {
+        return true;
+    }
+    return current ? false : undefined;
+}
+
+/** `choices` with `feature` set to `value` (removed when `undefined`); the input is not modified. */
+export function withChoice(choices: Readonly<Record<string, boolean>>, feature: string, value: boolean | undefined): Record<string, boolean> {
+    const out = { ...choices };
+    if (value === undefined) {
+        delete out[feature];
+    } else {
+        out[feature] = value;
+    }
+    return out;
+}
+
+/** Mark every feature with its configurator state, or clear it without a result. */
+export function applyConfiguration(model: DiagramModelSchema, result: ConfigureResult | null): void {
+    for (const n of featureNodes(model)) {
+        n.config = result?.features[n.ref]?.state;
+    }
+}
+
+/** The count line: `6 valid products`, `at least 10,000 valid products`, `1 valid product`, `no valid product`. */
+export function productsText(r: ConfigureResult | null): string {
+    if (!r || !r.products) {
+        return '';
+    }
+    const { count, capped } = r.products;
+    const n = count.toLocaleString('en-US');
+    if (capped) {
+        return `at least ${n} valid products`;
+    }
+    return count === 0 ? 'no valid product' : `${n} valid product${count === 1 ? '' : 's'}`;
+}
+
+/** The sentence that explains a refused choice: which choices clash and the constraints they clash with. */
+export function describeConflict(r: ConfigureResult, nameOf: (qname: string) => string): string {
+    const c = r.conflict;
+    if (!c) {
+        return '';
+    }
+    const choices = c.choices.map(x => `${x.selected ? 'selecting' : 'deselecting'} ${nameOf(x.feature)}`);
+    const joined = choices.length <= 1 ? choices.join('') : choices.slice(0, -1).join(', ') + ' and ' + choices[choices.length - 1];
+    const why = c.constraints.length > 0 ? ` (${c.constraints.join('; ')})` : '';
+    return `No valid product has ${joined}${why}.`;
+}
+
+/** Counts for the status line: how many features are chosen, implied and open. */
+export function configCounts(r: ConfigureResult | null): { chosen: number; implied: number; open: number } {
+    const out = { chosen: 0, implied: 0, open: 0 };
+    for (const f of Object.values(r?.features ?? {})) {
+        if (f.state === 'selected' || f.state === 'deselected') {
+            out.chosen += 1;
+        } else if (f.state === 'forcedOn' || f.state === 'forcedOff') {
+            out.implied += 1;
+        } else {
+            out.open += 1;
+        }
+    }
+    return out;
+}
+
+/** The `fields` of the `Configuration` to create from a satisfiable result: the
+ * complete product the server found for the choices, written as `features:`. */
+export function configurationFields(r: ConfigureResult, name: string): Record<string, unknown> {
+    const features: Record<string, boolean> = {};
+    for (const q of Object.keys(r.completion).sort()) {
+        features[q] = r.completion[q];
+    }
+    const fields: Record<string, unknown> = { name, status: 'draft', features };
+    if (r.featureModel) {
+        fields.featureModel = r.featureModel;
+    }
+    return fields;
+}
+
+/** Where a new configuration goes: the package of the stored ones, else the model root. */
+export function configurationPackage(stored: readonly StoredConfiguration[]): string {
+    const first = stored[0]?.qname;
+    if (!first) {
+        return '';
+    }
+    const i = first.lastIndexOf('::');
+    return i < 0 ? '' : first.slice(0, i);
 }

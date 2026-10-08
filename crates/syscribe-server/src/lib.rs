@@ -43,6 +43,8 @@ pub fn build_router(shared: SharedState, reload_tx: ReloadTx) -> Router {
         .route("/features", get(features_page))
         .route("/api/feature-model/diagram", get(routes::feature_model::diagram))
         .route("/api/feature-model/analysis", get(routes::feature_model::analysis))
+        .route("/api/feature-model/configure", post(routes::feature_model::configure))
+        .route("/api/feature-model/configurations", get(routes::feature_model::configurations))
         .route("/api/feature-model/export", get(routes::feature_model::export))
         .route("/ui/planning/board", get(planning_board))
         .route("/ui/diagram/{*qname}", get(diagram))

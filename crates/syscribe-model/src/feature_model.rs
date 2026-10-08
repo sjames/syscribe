@@ -1532,6 +1532,172 @@ pub fn configure(elements: &[RawElement], conf: &str) -> ConfigureOutcome {
     }
 }
 
+// ── Interactive configuration (REQ-TRS-FMED-003) ─────────────────────────────
+
+/// The package the feature definitions live in, for a new `Configuration`'s
+/// `featureModel:`: the longest qualified-name prefix shared by every root feature.
+fn feature_model_package(enc: &Encoding) -> String {
+    let roots: Vec<&String> = enc.names.iter().filter(|n| enc.parent.get(*n).cloned().flatten().is_none()).collect();
+    let Some(first) = roots.first() else { return String::new() };
+    let mut prefix: Vec<&str> = first.split("::").collect();
+    prefix.pop();
+    for r in &roots[1..] {
+        let segs: Vec<&str> = r.split("::").collect();
+        let common = prefix.iter().zip(segs.iter()).take_while(|(a, b)| a == b).count();
+        prefix.truncate(common);
+    }
+    prefix.join("::")
+}
+
+/// Count the valid products consistent with `assumptions`, enumerating up to
+/// `cap` or until `budget` runs out. Returns the count and whether it is only a
+/// lower bound.
+fn count_products(enc: &Encoding, assumptions: &[Lit], cap: usize, budget: std::time::Duration) -> (usize, bool) {
+    let mut cnf = enc.cnf();
+    for a in assumptions {
+        cnf.add(vec![*a]);
+    }
+    let mut sat = crate::solver::Solver::from_cnf(&cnf);
+    let start = std::time::Instant::now();
+    let mut n = 0usize;
+    while sat.next_model().is_some() {
+        n += 1;
+        if n >= cap || start.elapsed() > budget {
+            return (n, true);
+        }
+    }
+    (n, false)
+}
+
+/// Propagate a partial selection through the feature model (`REQ-TRS-FMED-003`).
+///
+/// `selection` maps a feature (qualified name or `FEAT-*` id) to the user's
+/// choice. The result gives every feature one of `selected`/`deselected` (the
+/// user's choices), `forcedOn`/`forcedOff` (implied by them and the model) or
+/// `free`; whether the selection can still be completed; for one that cannot,
+/// the smallest set of the user's choices that clash and the constraints they
+/// clash with; the number of valid products that remain; and, when satisfiable,
+/// one complete product (`completion`) consistent with the choices, which is what
+/// "save as a Configuration" writes.
+pub fn configure_selection(elements: &[RawElement], selection: &std::collections::BTreeMap<String, bool>) -> serde_json::Value {
+    use serde_json::json;
+    let fdefs: Vec<&RawElement> = elements.iter().filter(|e| is(e, ElementType::FeatureDef)).collect();
+    if fdefs.is_empty() {
+        return json!({ "hasFeatureModel": false, "satisfiable": true, "features": {}, "conflict": null, "products": null, "completion": {}, "unknown": [], "skipped": null, "featureModel": "" });
+    }
+    if fdefs.len() > MAX_DEEP_FEATURES {
+        return json!({ "hasFeatureModel": true, "satisfiable": true, "features": {}, "conflict": null, "products": null, "completion": {}, "unknown": [], "featureModel": "",
+            "skipped": format!("configuration skipped: {} features exceeds the limit of {}", fdefs.len(), MAX_DEEP_FEATURES) });
+    }
+    let enc = build_encoding(&fdefs);
+    let alias = crate::variability::feature_id_to_qname(elements);
+    let mut chosen: Vec<(usize, bool)> = Vec::new();
+    let mut unknown: Vec<String> = Vec::new();
+    for (k, v) in selection {
+        let q = crate::variability::canon_feature_ref(k, &alias);
+        match enc.var_of.get(&q) {
+            Some(&i) => chosen.push((i, *v)),
+            None => unknown.push(k.clone()),
+        }
+    }
+    chosen.sort();
+    chosen.dedup();
+    let lit = |(i, v): (usize, bool)| if v { Lit::pos(i) } else { Lit::neg(i) };
+    let assumptions: Vec<Lit> = chosen.iter().map(|c| lit(*c)).collect();
+    let mut sat = crate::solver::Solver::from_cnf(&enc.cnf());
+    let package = feature_model_package(&enc);
+
+    if !sat.is_sat(&assumptions) {
+        // The smallest clashing subset of the user's choices, then the constraints they clash with.
+        let mut keep = chosen.clone();
+        let mut i = 0;
+        while i < keep.len() {
+            let trial: Vec<Lit> = keep.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, c)| lit(*c)).collect();
+            if !sat.is_sat(&trial) {
+                keep.remove(i);
+            } else {
+                i += 1;
+            }
+        }
+        let keep_lits: Vec<Lit> = keep.iter().map(|c| lit(*c)).collect();
+        let core = enc.unsat_core(&keep_lits);
+        let mut labels: Vec<String> = core.iter().map(|&c| enc.cons[c].label.clone()).collect();
+        labels.sort();
+        labels.dedup();
+        let choices: Vec<serde_json::Value> = keep.iter().map(|(i, v)| json!({ "feature": enc.names[*i], "selected": v })).collect();
+        let mut features = serde_json::Map::new();
+        for (i, v) in &chosen {
+            features.insert(enc.names[*i].clone(), json!({ "state": if *v { "selected" } else { "deselected" } }));
+        }
+        return json!({
+            "hasFeatureModel": true, "satisfiable": false, "features": features,
+            "conflict": { "choices": choices, "constraints": labels }, "products": { "count": 0, "capped": false },
+            "completion": {}, "unknown": unknown, "skipped": null, "featureModel": package,
+        });
+    }
+
+    let fixed: HashMap<usize, bool> = chosen.iter().cloned().collect();
+    let mut features = serde_json::Map::new();
+    for (i, name) in enc.names.iter().enumerate() {
+        let state = match fixed.get(&i) {
+            Some(true) => "selected",
+            Some(false) => "deselected",
+            None => {
+                let mut a = assumptions.clone();
+                a.push(Lit::neg(i));
+                if !sat.is_sat(&a) {
+                    "forcedOn"
+                } else {
+                    let mut a = assumptions.clone();
+                    a.push(Lit::pos(i));
+                    if !sat.is_sat(&a) { "forcedOff" } else { "free" }
+                }
+            }
+        };
+        features.insert(name.clone(), json!({ "state": state }));
+    }
+    let completion = {
+        let mut cnf = enc.cnf();
+        for a in &assumptions {
+            cnf.add(vec![*a]);
+        }
+        let bits = crate::solver::solve_model(&cnf).unwrap_or_default();
+        let mut m = serde_json::Map::new();
+        for (i, n) in enc.names.iter().enumerate() {
+            m.insert(n.clone(), json!(bits.get(i).copied().unwrap_or(false)));
+        }
+        m
+    };
+    let (count, capped) = count_products(&enc, &assumptions, 10_000, std::time::Duration::from_millis(400));
+    json!({
+        "hasFeatureModel": true, "satisfiable": true, "features": features, "conflict": null,
+        "products": { "count": count, "capped": capped }, "completion": completion,
+        "unknown": unknown, "skipped": null, "featureModel": package,
+    })
+}
+
+/// Every stored `Configuration` with its selection in canonical (qualified-name)
+/// form, for the configurator's "load" list.
+pub fn configurations_json(elements: &[RawElement]) -> serde_json::Value {
+    let alias = crate::variability::feature_id_to_qname(elements);
+    let mut out: Vec<serde_json::Value> = elements
+        .iter()
+        .filter(|e| is(e, ElementType::Configuration))
+        .map(|c| {
+            let sel = crate::variability::canon_selection(&c.frontmatter.feature_selections(), &alias);
+            serde_json::json!({
+                "id": c.frontmatter.id,
+                "qname": c.qualified_name,
+                "name": c.frontmatter.name.clone().unwrap_or_else(|| c.qualified_name.clone()),
+                "status": c.frontmatter.status,
+                "selection": sel,
+            })
+        })
+        .collect();
+    out.sort_by(|a, b| a["qname"].as_str().cmp(&b["qname"].as_str()));
+    serde_json::Value::Array(out)
+}
+
 // ── Variant-space count / enumeration (REQ-TRS-FMA-009) ──────────────────────
 
 pub enum EnumOutcome {
@@ -1793,6 +1959,83 @@ mod analysis_json_tests {
         assert!(deep.findings.iter().all(|f| f.code != "W018"), "{:?}", deep.findings.iter().map(|f| &f.message).collect::<Vec<_>>());
         let j = analysis_json(&e);
         assert_eq!(j["features"]["F::Root::Sub"]["state"], "core");
+    }
+
+    fn small() -> Vec<RawElement> {
+        els(&[
+            ("_index.md", "---\ntype: Package\nname: R\n---\n"),
+            ("F/_index.md", "---\ntype: Package\nname: F\n---\n"),
+            ("F/Car.md", "---\ntype: FeatureDef\nid: FEAT-CAR\nname: Car\nmandatory: true\n---\n"),
+            ("F/Car/Engine.md", "---\ntype: FeatureDef\nid: FEAT-ENGINE\nname: Engine\nmandatory: true\ngroupKind: alternative\n---\n"),
+            ("F/Car/Engine/Petrol.md", "---\ntype: FeatureDef\nid: FEAT-PETROL\nname: Petrol\n---\n"),
+            ("F/Car/Engine/Electric.md", "---\ntype: FeatureDef\nid: FEAT-ELECTRIC\nname: Electric\nrequires: [FEAT-CHARGER]\n---\n"),
+            ("F/Car/Charger.md", "---\ntype: FeatureDef\nid: FEAT-CHARGER\nname: Charger\n---\n"),
+            ("F/Car/Roof.md", "---\ntype: FeatureDef\nid: FEAT-ROOF\nname: Roof\n---\n"),
+        ])
+    }
+
+    fn sel(pairs: &[(&str, bool)]) -> std::collections::BTreeMap<String, bool> {
+        pairs.iter().map(|(k, v)| (k.to_string(), *v)).collect()
+    }
+
+    #[test]
+    fn an_empty_selection_leaves_the_forced_features_forced_and_counts_every_product() {
+        let j = configure_selection(&small(), &sel(&[]));
+        assert_eq!(j["satisfiable"], true);
+        assert_eq!(j["features"]["F::Car"]["state"], "forcedOn");
+        assert_eq!(j["features"]["F::Car::Engine"]["state"], "forcedOn");
+        assert_eq!(j["features"]["F::Car::Roof"]["state"], "free");
+        // Engine is XOR(Petrol, Electric); Electric requires Charger; Roof free:
+        // (Petrol, Charger?, Roof?) = 4 and (Electric, Charger, Roof?) = 2 -> 6.
+        assert_eq!(j["products"]["count"], 6, "{j}");
+        assert_eq!(j["products"]["capped"], false);
+        assert_eq!(j["featureModel"], "F");
+    }
+
+    #[test]
+    fn a_choice_propagates_to_what_it_forces_and_forbids() {
+        let j = configure_selection(&small(), &sel(&[("FEAT-ELECTRIC", true)]));
+        assert_eq!(j["satisfiable"], true);
+        assert_eq!(j["features"]["F::Car::Engine::Electric"]["state"], "selected");
+        assert_eq!(j["features"]["F::Car::Charger"]["state"], "forcedOn", "Electric requires Charger");
+        assert_eq!(j["features"]["F::Car::Engine::Petrol"]["state"], "forcedOff", "the alternative group allows one");
+        assert_eq!(j["features"]["F::Car::Roof"]["state"], "free");
+        assert_eq!(j["products"]["count"], 2);
+        let c = &j["completion"];
+        assert_eq!(c["F::Car::Charger"], true);
+        assert_eq!(c["F::Car::Engine::Petrol"], false);
+        assert_eq!(c["F::Car::Engine::Electric"], true);
+    }
+
+    #[test]
+    fn a_conflicting_choice_names_the_clashing_choices_and_constraints_and_nothing_else() {
+        let j = configure_selection(&small(), &sel(&[("F::Car::Roof", true), ("FEAT-ELECTRIC", true), ("F::Car::Charger", false)]));
+        assert_eq!(j["satisfiable"], false);
+        let choices: Vec<String> = j["conflict"]["choices"].as_array().unwrap().iter().map(|c| c["feature"].as_str().unwrap().to_string()).collect();
+        assert_eq!(choices, vec!["F::Car::Charger", "F::Car::Engine::Electric"], "the roof choice is innocent: {j}");
+        let why = j["conflict"]["constraints"].to_string();
+        assert!(why.contains("requires"), "{why}");
+        assert_eq!(j["products"]["count"], 0);
+    }
+
+    #[test]
+    fn unknown_features_are_reported_and_ignored() {
+        let j = configure_selection(&small(), &sel(&[("Nope", true)]));
+        assert_eq!(j["unknown"], serde_json::json!(["Nope"]));
+        assert_eq!(j["satisfiable"], true);
+    }
+
+    #[test]
+    fn stored_configurations_are_listed_in_canonical_form() {
+        let mut e = small();
+        let conf = "---\ntype: Configuration\nid: CONF-ONE\nname: One\nstatus: draft\nfeatureModel: F\nfeatures:\n  FEAT-ROOF: true\n  F::Car::Charger: false\n---\n";
+        let mut more = els(&[("_index.md", "---\ntype: Package\nname: R\n---\n"), ("C/CONF-ONE.md", conf)]);
+        e.append(&mut more);
+        let j = configurations_json(&e);
+        let c = &j.as_array().unwrap()[0];
+        assert_eq!(c["id"], "CONF-ONE");
+        assert_eq!(c["selection"]["F::Car::Roof"], true, "a FEAT id key is canonicalised to the qualified name");
+        assert_eq!(c["selection"]["F::Car::Charger"], false);
     }
 
     #[test]

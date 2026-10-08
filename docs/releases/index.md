@@ -4,11 +4,12 @@
 
 ## Unreleased
 
-### Feature model viewer (REQ-TRS-FMED-001, -002)
+### Feature model viewer and configurator (REQ-TRS-FMED-001, -002, -003)
 
 - **New:** `/features` (header link **Features**) shows the product line's feature model as a feature diagram in FODA notation: mandatory and optional marks, XOR and OR group wedges, `requires` and `excludes` constraints as curves, parameters inside the box. Parents are centred over their children and several trees sit side by side. Collapse and expand subtrees, search by name or id, fit to the window, and click a feature for its state, why, its constraints and its documentation.
 - **New:** the SAT analysis is overlaid on the diagram, live: core, dead and false-optional features are marked with the constraints responsible, and a void model shows its conflict and the corrections that would fix it. `GET /api/feature-model/analysis` returns the same data.
 - **New:** `diagramKind: FeatureModel` draws the same diagram from a `Diagram` element (subject: a feature, a feature-model sheet or a package of features), exportable as SVG, PlantUML and Mermaid with `diagram export` and from the page; **+ Diagram** offers it.
+- **New:** a **Configure** mode turns the diagram into a configurator: click to select, deselect or leave open; the model propagates the consequences at once (implied features shown as rings), counts the valid products that remain, and refuses a choice nothing can satisfy with the choices and constraints at fault. Load a stored `Configuration`, or save the completed product as a new one (REQ-TRS-FMED-003).
 - **Fixed:** `feature-check --deep` reported a mandatory feature with the default group kind as false-optional (`W018`). Only an optional member can be false-optional.
 
 ## 0.46.0 — 2026-10-08
