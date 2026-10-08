@@ -866,7 +866,9 @@ pub fn cmd_show(
             println!("| Feature | Selected |");
             println!("|---|---|");
             for (feat, on) in &sel {
+                let derived = fm.inherited.as_ref().is_some_and(|i| i.derived.contains(feat));
                 let mark = match &own {
+                    _ if derived => " (derived: an abstract feature follows from the concrete ones)",
                     Some(o) if !o.contains_key(feat) => " (inherited)",
                     _ => "",
                 };

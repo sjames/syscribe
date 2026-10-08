@@ -2137,6 +2137,9 @@ pub struct InheritedConfiguration {
     pub features: std::collections::BTreeMap<String, bool>,
     /// Effective `parameterBindings:` mapping (own entries + inherited ones).
     pub parameter_bindings: Option<serde_yaml::Value>,
+    /// Abstract features whose value in `features` was derived from the concrete selection
+    /// (an abstract feature is not a choice, `E238`) rather than authored or inherited.
+    pub derived: Vec<String>,
 }
 
 impl RawFrontmatter {

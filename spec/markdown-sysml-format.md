@@ -5337,7 +5337,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W025` | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Emitted by `feature-check`; gate with `--deny W025`. |
 | `W026` | A `Package` declares `appliesWhen:` but its subtree contains no projectable element (it gates nothing). Gate with `--deny W026`. |
 | `W027` | A `Configuration` binds a parameter whose `bindingTime: runtime` — resolved by the running system, not at configuration time (§9.7). Gate with `--deny W027`. |
-| `W238` | (§9) an element's `appliesWhen:` names an abstract feature (`isAbstract: true`): an abstract feature has no realisation of its own and does not distinguish products, so the condition cannot tell products apart; condition on a concrete feature |
+| `W238` | **Retired** (0.50.0) — no longer emitted: an abstract feature's value in a configuration is derived from the concrete selection, so an `appliesWhen:` that names one is meaningful |
 | `W239` | (§9) an abstract feature has no children: it groups nothing |
 | `W028` | The same `extRef` external reference is declared by two or more elements (§3). One finding per duplicated value. Gate with `--deny W028`. |
 | `W048` | (§9.6a) `featureTree:`/`crossTreeConstraints:` is declared on an element whose `type:` is not `FeatureModel`, or `parameterConstraints:` on anything other than `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — inert, ignored. |

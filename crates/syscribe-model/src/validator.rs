@@ -5413,7 +5413,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if !abstract_features.is_empty() {
             let alias = crate::variability::feature_id_to_qname(elements);
             for cfg in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration))) {
-                let sel = crate::variability::canon_selection(&cfg.frontmatter.feature_selections(), &alias);
+                let sel = crate::variability::canon_selection(&cfg.frontmatter.declared_feature_selections(), &alias);
                 for (feat, val) in &sel {
                     if abstract_features.contains(feat.as_str()) {
                         findings.push(error("E238", &cfg.file_path, &format!(

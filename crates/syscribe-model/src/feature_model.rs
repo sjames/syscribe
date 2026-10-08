@@ -395,25 +395,8 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
 
     let abstract_names: HashSet<&str> = fdefs.iter().filter(|e| e.frontmatter.is_abstract == Some(true)).map(|e| e.qualified_name.as_str()).collect();
 
-    // ── W238 / W239: abstract features (REQ-TRS-FMED-004) ────────────────────
-    // An abstract feature is a grouping feature with no realisation of its own: an element
-    // gated by it has nothing that distinguishes it, and one that groups nothing is not abstract.
+    // ── W239: an abstract feature that groups nothing (REQ-TRS-FMED-004) ─────
     if !abstract_names.is_empty() {
-        for e in elements {
-            if is(e, ElementType::FeatureDef) || is(e, ElementType::Configuration) {
-                continue;
-            }
-            let Some(aw) = &e.frontmatter.applies_when else { continue };
-            let Ok(Some(expr)) = crate::variability::applies_when_expr(aw) else { continue };
-            for op in expr.operands() {
-                let q = crate::variability::canon_feature_ref(&op, &feat_alias);
-                if abstract_names.contains(q.as_str()) {
-                    f.push(warn("W238", &e.file_path, format!(
-                        "'{}' is conditioned on the abstract feature '{}': an abstract feature has no realisation of its own, so it cannot tell products apart — condition it on a concrete feature",
-                        e.qualified_name, q)));
-                }
-            }
-        }
         let tree = crate::feature_tree::feature_tree(elements);
         for n in tree.iter().filter(|n| abstract_names.contains(n.qname.as_str()) && n.children.is_empty()) {
             if let Some(fd) = fdefs.iter().find(|e| e.qualified_name == n.qname) {
@@ -435,9 +418,7 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
             }
             *sel_count.entry(q).or_insert(0) += 1;
             for r in req.get(q).into_iter().flatten() {
-                // An abstract feature a configuration does not name is completed, not missing.
-                let implied = abstract_names.contains(r.as_str()) && !sel.contains_key(r.as_str());
-                if !is_sel(r) && !implied {
+                if !is_sel(r) {
                     f.push(err("E219", &cfg.file_path,
                         format!("feature '{}' is selected but its required feature '{}' is not", q, r)));
                 }
@@ -1161,6 +1142,63 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
 
     let is_abstract: HashSet<String> = fdefs.iter().filter(|e| e.frontmatter.is_abstract == Some(true)).map(|e| e.qualified_name.clone()).collect();
     Encoding { var_of, names, files, parent, optional, cons, is_abstract }
+}
+
+/// Give every `Configuration` a value for each abstract feature (`REQ-TRS-FMED-004`).
+///
+/// An abstract feature is not a choice (a configuration that names one is `E238`), so its value
+/// is **entailed** by the concrete features the configuration selects: on exactly when the
+/// feature model forces it on given those choices (a selected child, a mandatory abstract
+/// parent, a `requires:`), else off. For a configuration whose concrete choices already
+/// contradict the model nothing is entailed; the value then falls back to "some feature below it
+/// is selected", and the contradiction is reported on its own (`E225`). The values land in the
+/// configuration's effective selection, so `appliesWhen:`, projection, the matrix and every other
+/// reader see an abstract feature like any other.
+pub fn derive_abstract_selections(elements: &mut [RawElement]) {
+    let fdefs: Vec<&RawElement> = elements.iter().filter(|e| is(e, ElementType::FeatureDef)).collect();
+    if !fdefs.iter().any(|e| e.frontmatter.is_abstract == Some(true)) || fdefs.len() > MAX_DEEP_FEATURES {
+        return;
+    }
+    let enc = build_encoding(&fdefs);
+    let alias = crate::variability::feature_id_to_qname(elements);
+    let tree = crate::feature_tree::feature_tree(elements);
+    let mut sat = crate::solver::Solver::from_cnf(&enc.cnf());
+    let mut updates: Vec<(usize, std::collections::BTreeMap<String, bool>, Vec<String>)> = Vec::new();
+    for (idx, e) in elements.iter().enumerate() {
+        if !is(e, ElementType::Configuration) {
+            continue;
+        }
+        let mut sel = crate::variability::canon_selection(&e.frontmatter.feature_selections(), &alias);
+        // A configuration's own entries for abstract features are discarded: they are errors, not input.
+        let assumptions: Vec<Lit> = enc
+            .names
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| !enc.is_abstract.contains(*n))
+            .map(|(i, n)| if sel.get(n).copied().unwrap_or(false) { Lit::pos(i) } else { Lit::neg(i) })
+            .collect();
+        let consistent = sat.is_sat(&assumptions);
+        // Children before parents, so a nested abstract feature is known when its parent asks.
+        let mut derived: Vec<String> = Vec::new();
+        for n in tree.iter().rev().filter(|n| enc.is_abstract.contains(&n.qname)) {
+            let on = if consistent {
+                let mut a = assumptions.clone();
+                a.push(Lit::neg(enc.var_of[&n.qname]));
+                !sat.is_sat(&a)
+            } else {
+                n.children.iter().any(|c| sel.get(c).copied().unwrap_or(false))
+            };
+            sel.insert(n.qname.clone(), on);
+            derived.push(n.qname.clone());
+        }
+        derived.sort();
+        updates.push((idx, sel, derived));
+    }
+    for (idx, features, derived) in updates {
+        let fm = &mut elements[idx].frontmatter;
+        let parameter_bindings = fm.effective_parameter_bindings().cloned();
+        fm.inherited = Some(Box::new(crate::element::InheritedConfiguration { features, parameter_bindings, derived }));
+    }
 }
 
 /// The structural constraints a configuration's selection breaks. With abstract features the
@@ -1917,7 +1955,13 @@ pub fn configurations_json(elements: &[RawElement]) -> serde_json::Value {
         .iter()
         .filter(|e| is(e, ElementType::Configuration))
         .map(|c| {
-            let sel = crate::variability::canon_selection(&c.frontmatter.feature_selections(), &alias);
+            let mut sel = crate::variability::canon_selection(&c.frontmatter.feature_selections(), &alias);
+            // Abstract features' values are derived, not choices: leave them out of what is loaded as choices.
+            if let Some(inh) = &c.frontmatter.inherited {
+                for d in &inh.derived {
+                    sel.remove(d);
+                }
+            }
             serde_json::json!({
                 "id": c.frontmatter.id,
                 "qname": c.qualified_name,

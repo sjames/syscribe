@@ -579,7 +579,7 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W020` | (`feature-check --deep`) a traceability reference is provably violable across some valid configuration |
 | `W021` | (`feature-check --deep`) a dead element — its `appliesWhen` is unsatisfiable under the feature model |
 | `W022` | (`feature-check --deep`) a requirement active in some configuration but covered in none |
-| `W238` | (`feature-check`) an element's `appliesWhen:` names an abstract feature (`isAbstract: true`), which has no realisation of its own and does not distinguish products; condition it on a concrete feature |
+| `W238` | **Retired** (0.50.0) — no longer emitted: an abstract feature's value in a configuration is derived from the concrete selection, so an `appliesWhen:` that names one is meaningful |
 | `W239` | (`feature-check`) an abstract feature with no children: it groups nothing |
 | `W024` | (`feature-check`) an orphan `FeatureDef` — referenced by no `appliesWhen:` and selected by no `Configuration` (gates nothing, ships in nothing); gate with `--deny W024` |
 | `W025` | (`feature-check`) a `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`; gate with `--deny W025` |

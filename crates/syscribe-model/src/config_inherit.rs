@@ -206,7 +206,7 @@ fn effective(
     let own_sel = variability::canon_selection(&fm.declared_feature_selections(), alias);
     let own_bind = fm.parameter_bindings.clone();
     let result = match base_of.get(&i) {
-        None => InheritedConfiguration { features: own_sel, parameter_bindings: own_bind },
+        None => InheritedConfiguration { features: own_sel, parameter_bindings: own_bind, derived: Vec::new() },
         Some(&b) => {
             let base = effective(b, elements, base_of, alias, memo);
             // features: base overlaid by own.
@@ -246,7 +246,7 @@ fn effective(
             } else {
                 Some(serde_yaml::Value::Mapping(merged))
             };
-            InheritedConfiguration { features, parameter_bindings }
+            InheritedConfiguration { features, parameter_bindings, derived: Vec::new() }
         }
     };
     memo.insert(i, result.clone());

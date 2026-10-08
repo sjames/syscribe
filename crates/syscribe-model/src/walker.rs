@@ -192,6 +192,9 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
     // Configuration inheritance through `derivedFrom:` (§9.8, GH #137): after
     // every other pass so a plugin-/sheet-synthesized Configuration takes part.
     crate::config_inherit::apply_configuration_inheritance(&mut elements);
+    // An abstract feature is not a choice: give each Configuration its value, entailed by the
+    // concrete selection, so every consumer of the effective selection sees it.
+    crate::feature_model::derive_abstract_selections(&mut elements);
     // A pass that took a mutable view of a rarely-set field may have left its block
     // allocated but empty; drop it so the element stays one pointer wide.
     for e in &mut elements {

@@ -102,7 +102,7 @@ fn a_configuration_can_still_be_wrong_about_its_concrete_features() {
 }
 
 #[test]
-fn requiring_an_abstract_feature_a_configuration_does_not_name_is_not_a_violation() {
+fn requiring_an_abstract_feature_is_met_by_what_entails_it_and_not_otherwise() {
     let findings = |abs: bool| {
         let r = model(abs);
         write(&r, "C/CONF-Z-001.md", "---\ntype: Configuration\nid: CONF-Z-001\nname: Z\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Root: true\n  F::Root::Z: true\n---\n");
@@ -112,17 +112,64 @@ fn requiring_an_abstract_feature_a_configuration_does_not_name_is_not_a_violatio
     assert!(!findings(true).iter().any(|f| f.code == "E219"), "an abstract Opt is completed: {:?}", findings(true).iter().map(|f| &f.message).collect::<Vec<_>>());
 }
 
+/// The effective value of the abstract feature `F::Root::Opt` in the configuration with this id.
+fn opt_in(elements: &[syscribe_model::element::RawElement], conf: &str) -> bool {
+    let c = elements.iter().find(|e| e.frontmatter.id.as_deref() == Some(conf)).unwrap();
+    syscribe_model::projection::canonical_selection(elements, c).get("F::Root::Opt").copied().unwrap_or(false)
+}
+
 #[test]
-fn conditioning_an_element_on_an_abstract_feature_warns_and_a_concrete_one_does_not() {
+fn an_abstract_feature_is_on_exactly_when_the_concrete_selection_entails_it() {
+    let r = model(true);
+    write(&r, "C/CONF-NONE-001.md", "---\ntype: Configuration\nid: CONF-NONE-001\nname: N\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Root: true\n---\n");
+    write(&r, "C/CONF-Z-001.md", "---\ntype: Configuration\nid: CONF-Z-001\nname: Z\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Root: true\n  F::Root::Z: true\n---\n");
+    write(&r, "C/CONF-LIE-001.md", "---\ntype: Configuration\nid: CONF-LIE-001\nname: L\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Root: true\n  F::Root::Opt: true\n---\n");
+    let els = walk_model(&r).unwrap();
+    assert!(opt_in(&els, "CONF-X-001"), "a selected child forces its abstract parent on");
+    assert!(opt_in(&els, "CONF-Z-001"), "so does a `requires:` that targets it");
+    assert!(!opt_in(&els, "CONF-NONE-001"), "nothing forces it: it is off");
+    assert!(!opt_in(&els, "CONF-LIE-001"), "an explicit entry is an error (E238), not input: the derived value stands");
+    // Concrete features are untouched.
+    let x = els.iter().find(|e| e.frontmatter.id.as_deref() == Some("CONF-X-001")).unwrap();
+    let sel = syscribe_model::projection::canonical_selection(&els, x);
+    assert_eq!(sel.get("F::Root::Opt::X"), Some(&true));
+    assert_eq!(sel.get("F::Root::Opt::Y").copied().unwrap_or(false), false);
+}
+
+#[test]
+fn a_mandatory_abstract_group_is_on_even_with_nothing_chosen_below_it() {
+    let r = tempdir_model();
+    let els = walk_model(&r).unwrap();
+    let c = els.iter().find(|e| e.frontmatter.id.as_deref() == Some("CONF-M-001")).unwrap();
+    let sel = syscribe_model::projection::canonical_selection(&els, c);
+    assert_eq!(sel.get("F::Root::Platform"), Some(&true), "the model forces it on: {sel:?}");
+}
+
+fn tempdir_model() -> PathBuf {
+    let r = model(true);
+    write(&r, "F/Root/Platform.md", "---\ntype: FeatureDef\nid: FEAT-PLATFORM\nname: Platform\nmandatory: true\nisAbstract: true\n---\n");
+    write(&r, "F/Root/Platform/Soc.md", "---\ntype: FeatureDef\nid: FEAT-SOC\nname: Soc\n---\n");
+    write(&r, "C/CONF-M-001.md", "---\ntype: Configuration\nid: CONF-M-001\nname: M\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Root: true\n---\n");
+    r
+}
+
+#[test]
+fn an_element_conditioned_on_an_abstract_feature_is_active_where_it_is_entailed() {
+    use syscribe_model::projection::{is_active_canon, canonical_selection};
     let r = model(true);
     write(&r, "Parts/Gated.md", "---\ntype: PartDef\nname: Gated\nappliesWhen: F::Root::Opt\n---\n");
-    write(&r, "Parts/Fine.md", "---\ntype: PartDef\nname: Fine\nappliesWhen: FEAT-XX\n---\n");
-    let w: Vec<String> = check_feature_model(&walk_model(&r).unwrap()).into_iter().filter(|f| f.code == "W238").map(|f| f.message).collect();
-    assert_eq!(w.len(), 1, "{w:?}");
-    assert!(w[0].contains("Gated") && w[0].contains("abstract feature 'F::Root::Opt'"), "{w:?}");
-    let none = model(false);
-    write(&none, "Parts/Gated.md", "---\ntype: PartDef\nname: Gated\nappliesWhen: F::Root::Opt\n---\n");
-    assert!(!check_feature_model(&walk_model(&none).unwrap()).iter().any(|f| f.code == "W238"));
+    write(&r, "C/CONF-NONE-001.md", "---\ntype: Configuration\nid: CONF-NONE-001\nname: N\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Root: true\n---\n");
+    let els = walk_model(&r).unwrap();
+    let gated = els.iter().find(|e| e.qualified_name == "Parts::Gated").unwrap();
+    let active = |conf: &str| {
+        let c = els.iter().find(|e| e.frontmatter.id.as_deref() == Some(conf)).unwrap();
+        let sel = canonical_selection(&els, c);
+        is_active_canon(gated, &sel, &syscribe_model::variability::package_conditions(&els), &syscribe_model::variability::feature_id_to_qname(&els))
+    };
+    assert!(active("CONF-X-001"), "Opt follows from X, so the element is in the product");
+    assert!(!active("CONF-NONE-001"), "nothing under Opt is chosen, so it is not");
+    // No warning for gating on one: it is meaningful now.
+    assert!(!check_feature_model(&els).iter().any(|f| f.code == "W238"));
 }
 
 #[test]
@@ -141,4 +188,13 @@ fn abstract_features_stay_in_the_analysis_and_remain_selectable() {
     let c = configure_selection(&walk_model(&model(true)).unwrap(), &BTreeMap::from([("F::Root::Opt".to_string(), true)]));
     assert_eq!(c["satisfiable"], true);
     assert_eq!(c["features"]["F::Root::Opt"]["state"], "selected", "an abstract feature can still be chosen: {c}");
+}
+
+#[test]
+fn the_load_list_does_not_offer_derived_abstract_values_as_choices() {
+    let els = walk_model(&model(true)).unwrap();
+    let list = syscribe_model::feature_model::configurations_json(&els);
+    let sel = &list[0]["selection"];
+    assert_eq!(sel["F::Root::Opt::X"], true);
+    assert!(sel.get("F::Root::Opt").is_none(), "{sel}");
 }

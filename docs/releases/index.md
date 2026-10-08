@@ -2,6 +2,13 @@
 
 `RELEASES`
 
+## Unreleased
+
+### An abstract feature's value is derived (REQ-TRS-FMED-004)
+
+- **Changed:** an abstract feature now has a value in every configuration, **derived from the concrete selection**: on exactly when the feature model forces it on (a selected child, a mandatory abstract parent, a `requires:` that targets it), otherwise off. Every reader of a configuration's selection sees it, so an `appliesWhen:` on an abstract feature is active exactly where the concrete selection entails it, projection and the matrix show it, and a `requires:` of an abstract feature is met by what entails it. `show` marks such entries `(derived)`, and the configurator's load list does not offer them as choices.
+- **Removed:** warning `W238` (an `appliesWhen:` naming an abstract feature), which flagged the gap this closes. It was emitted only in 0.49.0.
+
 ## 0.49.0 — 2026-10-08
 
 ### Abstract features (REQ-TRS-FMED-004)
