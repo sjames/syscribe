@@ -2,9 +2,9 @@
 
 `RELEASES`
 
-## Unreleased
+## 0.45.0 — 2026-10-08
 
-### New diagram and add-existing-element from the browser; two blank-canvas bugs fixed (REQ-TRS-VIS-023, -024)
+### Create diagrams in the browser; sequence diagrams, tabs and folders fixed (REQ-TRS-VIS-023, -024, -025)
 
 - **New:** a **+ Diagram** button in the model browser opens a dialog to create a diagram — a name, a kind, *derive from a subject* or *blank*, an optional/required subject with suggestions limited to the element types that kind accepts, and a package (default `Diagrams`). It posts through the guarded-write engine, then opens the diagram in a tab.
 - **New:** a **⊕ Add existing element** toolbar button opens a picker over the model and adds the chosen element to a hand-listed (manifest) diagram through `POST /api/diagrams/shapes/{qname}`: one guarded write that lists it under `shapes:` unpinned, so ELK places it, and never touches the element's file. Refused for a derived diagram, an unresolved or already-present element, and a diagram as the element (REQ-TRS-VIS-024).
