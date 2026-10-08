@@ -267,10 +267,13 @@ mod tests {
         RawElement {
             qualified_name: qname.to_string(),
             file_path: file_path.to_string(),
-            frontmatter: RawFrontmatter {
+            frontmatter: {
+                let mut fm = RawFrontmatter {
                 element_type: Some(ElementType::Package),
-                foreign_format: foreign_format.map(|s| s.to_string()),
                 ..Default::default()
+                };
+                fm.foreign_format = foreign_format.map(|s| s.to_string());
+                fm
             },
             doc: String::new(),
             parse_issue: None,

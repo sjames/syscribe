@@ -3,6 +3,7 @@
 //! Exposes a curated set of read tools and guarded-write tools over an in-memory
 //! [`McpStore`], plus the format spec as resources and the authoring prompt.
 
+mod memory;
 mod store;
 mod util;
 mod variability;
@@ -181,6 +182,9 @@ struct LinkTypesArgs {}
 
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct SysmlSubmodelsArgs {}
+
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+struct ServerStatsArgs {}
 
 #[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
 struct ExportSysmlArgs {
@@ -2542,6 +2546,28 @@ impl SyscribeMcp {
     }
 
     #[tool(
+        description = "Memory and size of the loaded model: element count, total Markdown \
+        body bytes, the in-memory size of one element record, and this server's resident and \
+        peak resident memory in KiB (Linux only; null elsewhere). Use it to watch growth on \
+        large models.",
+        annotations(read_only_hint = true)
+    )]
+    async fn server_stats(
+        &self,
+        Parameters(_args): Parameters<ServerStatsArgs>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let store = self.store.read().await;
+        let usage = memory::usage_kb();
+        ok(json!({
+            "elements": store.elements.len(),
+            "bodyBytes": store.elements.iter().map(|e| e.doc.len()).sum::<usize>(),
+            "elementRecordBytes": std::mem::size_of::<syscribe_model::element::RawElement>(),
+            "residentKb": usage.map(|u| u.0),
+            "peakResidentKb": usage.map(|u| u.1),
+        }))
+    }
+
+    #[tool(
         description = "Inspect the SysMLv2 submodels (packages declaring `sysmlSubmodel: true`): \
         per package the .sysml/.kerml files parsed, ingested element counts per kind, \
         unmapped-construct counts (the data behind W543) and the W540-W543 findings. \
@@ -3132,6 +3158,7 @@ impl ServerHandler for SyscribeMcp {
 /// `read_only` hides and rejects the write tools (`--read-only`); `watch`
 /// enables the file-watch auto-reload (off with `--no-watch`, REQ-TRS-MCP-048).
 pub fn cmd_mcp(model_root: &Path, read_only: bool, watch: bool) -> anyhow::Result<()> {
+    memory::tune_allocator();
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()?;

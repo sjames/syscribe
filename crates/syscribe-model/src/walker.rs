@@ -192,6 +192,11 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
     // Configuration inheritance through `derivedFrom:` (§9.8, GH #137): after
     // every other pass so a plugin-/sheet-synthesized Configuration takes part.
     crate::config_inherit::apply_configuration_inheritance(&mut elements);
+    // A pass that took a mutable view of a rarely-set field may have left its block
+    // allocated but empty; drop it so the element stays one pointer wide.
+    for e in &mut elements {
+        e.frontmatter.shrink();
+    }
     Ok(elements)
 }
 
@@ -647,24 +652,27 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 .map(String::from)
                 .collect();
 
-            let fm = RawFrontmatter {
+            let fm = {
+                let mut fm = RawFrontmatter {
                 element_type: Some(ElementType::FMEAEntry),
                 id: Some(entry_id.clone()),
                 name: Some(label),
                 status: str_val("status").or_else(|| sheet.frontmatter.status.clone()),
                 subject: str_val("ref"),
-                failure_mode,
-                effect: str_val("effect"),
-                cause: str_val("cause"),
-                fmea_severity: s,
-                occurrence: o,
-                detection: d,
-                rpn,
-                recommended_action: str_val("recommendedAction"),
-                fta_ref: str_val("ftaRef"),
                 satisfies: strings_val("satisfies"),
-                unknown_fmea_keys,
                 ..Default::default()
+                };
+                fm.failure_mode = failure_mode;
+                fm.effect = str_val("effect");
+                fm.cause = str_val("cause");
+                fm.fmea_severity = s;
+                fm.occurrence = o;
+                fm.detection = d;
+                fm.rpn = rpn;
+                fm.recommended_action = str_val("recommendedAction");
+                fm.fta_ref = str_val("ftaRef");
+                fm.unknown_fmea_keys = unknown_fmea_keys;
+                fm
             };
 
             synthetic.push(RawElement {

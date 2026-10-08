@@ -2,7 +2,16 @@
 
 `RELEASES`
 
-## Unreleased
+## 0.46.0 — 2026-10-08
+
+### MCP server memory (REQ-TRS-MCP-MEM-000)
+
+A model of 12,000 elements used 121 MB at rest and grew by 27 to 40 MB with every guarded write, reaching 342 MB after a few operations. It now uses 62 MB at rest, does not grow with writes, and peaks at 126 MB.
+
+- **Changed:** an in-memory element record is 1,792 bytes instead of 7,008. Rarely-set frontmatter fields are boxed in three tiers and allocated only when an element sets one; every field is still read and written as before.
+- **Fixed:** resident memory kept climbing after each write or reload on Linux. The server now caps glibc's per-thread malloc arenas at startup and returns free memory after every rebuild.
+- **New:** the `server_stats` MCP tool reports element count, body bytes, bytes per element record, and resident and peak resident memory (Linux). The watcher's reload log line includes the resident size.
+- **New:** a regression test loads 12,000 elements and fails if memory exceeds its budget or grows across guarded writes. Measurements and the ideas still open are in `docs/design/mcp-memory.md`.
 
 ### Planning dashboard (REQ-TRS-VIS-027)
 

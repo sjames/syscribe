@@ -157,11 +157,14 @@ mod tests {
         RawElement {
             qualified_name: qn.to_string(),
             file_path: format!("{}.md", qn),
-            frontmatter: RawFrontmatter {
+            frontmatter: {
+                let mut fm = RawFrontmatter {
                 element_type: Some(ElementType::AttackStep),
                 id: Some(id.to_string()),
-                attack_feasibility: Some(feas.to_string()),
                 ..Default::default()
+                };
+                fm.attack_feasibility = Some(feas.to_string());
+                fm
             },
             doc: String::new(),
             parse_issue: None,
@@ -176,12 +179,15 @@ mod tests {
         RawElement {
             qualified_name: qn.to_string(),
             file_path: format!("{}.md", qn),
-            frontmatter: RawFrontmatter {
+            frontmatter: {
+                let mut fm = RawFrontmatter {
                 element_type: Some(ElementType::AttackTreeGate),
                 id: Some(id.to_string()),
-                gate_type: Some(gt.to_string()),
-                inputs: Some(inputs.iter().map(|s| s.to_string()).collect()),
                 ..Default::default()
+                };
+                fm.gate_type = Some(gt.to_string());
+                fm.inputs = Some(inputs.iter().map(|s| s.to_string()).collect());
+                fm
             },
             doc: String::new(),
             parse_issue: None,
@@ -196,11 +202,14 @@ mod tests {
         RawElement {
             qualified_name: qn.to_string(),
             file_path: format!("{}.md", qn),
-            frontmatter: RawFrontmatter {
+            frontmatter: {
+                let mut fm = RawFrontmatter {
                 element_type: Some(ElementType::AttackTree),
                 id: Some(id.to_string()),
-                threat_ref: Some("TS-DEMO-001".to_string()),
                 ..Default::default()
+                };
+                fm.threat_ref = Some("TS-DEMO-001".to_string());
+                fm
             },
             doc: String::new(),
             parse_issue: None,

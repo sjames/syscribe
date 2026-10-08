@@ -70,6 +70,9 @@ stable id, a qualified name, or a display name. List/grid tools accept
 - `follow {element, link, reverse?, transitive?, depth?}` — walk one named link
   (a declared type, its inverse, or a built-in link/reverse-index name); same data
   as `follow --format json`.
+- `server_stats {}` — size and memory of the loaded model: element count, total body
+  bytes, bytes per in-memory element record, and this server's resident and peak resident
+  memory in KiB (Linux only, else null). Watch it on large models. Read-only.
 - `sysml_submodels {}` — the SysMLv2 submodels (`sysmlSubmodel: true` packages): files
   parsed, ingested element counts per kind, unmapped-construct counts and W540-W544
   findings; same data as `sysml --json`. Read-only.

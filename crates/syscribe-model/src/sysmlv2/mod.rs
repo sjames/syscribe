@@ -211,7 +211,9 @@ fn resolve_allocation_endpoints(elements: &mut [RawElement], first_synth: usize)
         }
         let scope = parent_scope(&elem.qualified_name).to_string();
         let mut truncations = Vec::new();
-        for field in [&mut elem.frontmatter.allocated_from, &mut elem.frontmatter.allocated_to] {
+        for which in 0..2 {
+            // `allocated_from` lives in the boxed cold block, so the two cannot be borrowed together.
+            let field = if which == 0 { &mut elem.frontmatter.allocated_from } else { &mut elem.frontmatter.allocated_to };
             for entry in field.iter_mut().flatten() {
                 let (resolved, trunc) = resolve_endpoint(&index, &scope, entry);
                 truncations.extend(trunc);

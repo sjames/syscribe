@@ -500,7 +500,7 @@ pub fn metadata_applications(metadata: &Option<Vec<serde_yaml::Value>>) -> Vec<M
 /// A TestPlan's additive `selection:` membership query (REQ-TRS-PLAN-003).
 /// An absent sub-field is *no constraint*; a block with no sub-fields at all
 /// matches *nothing* (not everything). Draft TestCases are never swept here.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct TestPlanSelection {
     /// Subset of L1–L5 (else E602).
@@ -575,105 +575,37 @@ pub struct RawFrontmatter {
     pub typed_by: Option<serde_yaml::Value>,
     pub subsets: Option<Vec<String>>,
     pub redefines: Option<serde_yaml::Value>,
-    pub conjugates: Option<String>,
     pub multiplicity: Option<String>,
     pub is_abstract: Option<bool>,
-    pub is_variation: Option<bool>,
-    pub is_reference: Option<bool>,
-    pub is_derived: Option<bool>,
-    pub is_constant: Option<bool>,
-    pub is_readonly: Option<bool>,
-    pub is_portion: Option<bool>,
-    pub is_ordered: Option<bool>,
-    pub is_nonunique: Option<bool>,
-    pub is_end: Option<bool>,
-    pub is_individual: Option<bool>,
     pub direction: Option<String>,
-    pub value: Option<serde_yaml::Value>,
-    pub value_kind: Option<String>,
     /// `unit:` on an `Attribute` — qualified/simple name of the unit of a quantity-valued `value:`
     /// (the spec's inline-feature `unit` shorthand, §3.6.1, on a standalone element;
     /// `REQ-TRS-SYSMLV2-055`).
     pub unit: Option<String>,
-    pub expression: Option<String>,
     #[serde(default, deserialize_with = "features_de::deserialize")]
     pub features: Option<Vec<serde_yaml::Value>>,
-    pub metadata: Option<Vec<serde_yaml::Value>>,
     pub connections: Option<Vec<serde_yaml::Value>>,
-    pub flow_connections: Option<Vec<serde_yaml::Value>>,
-    pub binding_connections: Option<Vec<serde_yaml::Value>>,
-    pub succession_connections: Option<Vec<serde_yaml::Value>>,
-    pub sub_states: Option<Vec<serde_yaml::Value>>,
-    pub transitions: Option<Vec<serde_yaml::Value>>,
-    pub exhibits_states: Option<Vec<String>>,
-    pub performs: Option<Vec<serde_yaml::Value>>,
-    pub operations: Option<Vec<serde_yaml::Value>>,
-    pub actors: Option<Vec<String>>,
-    pub steps: Option<Vec<String>>,
-    pub text: Option<String>,
     pub verifies: Option<Vec<String>>,
-    pub objective: Option<String>,
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
-    pub allocated_from: Option<Vec<String>>,
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub allocated_to: Option<Vec<String>>,
-    pub expose: Option<Vec<serde_yaml::Value>>,
-    pub viewpoint: Option<String>,
-    pub stakeholders: Option<Vec<String>>,
-    pub concerns: Option<Vec<String>>,
-    pub methods: Option<Vec<String>>,
     pub diagram_kind: Option<String>,
-    pub svg_mode: Option<String>,
-    pub svg_file: Option<String>,
-    pub puml_mode: Option<String>,
-    pub puml_file: Option<String>,
     pub subject: Option<String>,
-    pub shapes: Option<serde_yaml::Value>,
-    pub edges: Option<serde_yaml::Value>,
-    pub layout: Option<serde_yaml::Value>,
-    pub imports: Option<Vec<serde_yaml::Value>>,
-    pub depends_on: Option<Vec<String>>,
     // derivedFrom is a list for both native Requirements and SysML RequirementDef
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub derived_from: Option<Vec<String>>,
-    /// REQ-TRS-MG-001 — MagicGrid `«refine»`: a `UseCaseDef`/`UseCase` gives concrete
-    /// behavioural meaning to a requirement. Optional list of cross-references
-    /// (qname or stable `REQ-*` id), resolved like `verifies:`/`derivedFrom:`.
-    pub refines: Option<Vec<String>>,
-    pub assume: Option<Vec<serde_yaml::Value>>,
     pub requires: Option<Vec<serde_yaml::Value>>,
-    pub about: Option<serde_yaml::Value>,
-    pub locale: Option<String>,
-    pub verdict_type: Option<String>,
-    pub extends: Option<Vec<serde_yaml::Value>>,
-    pub extension_points: Option<Vec<serde_yaml::Value>>,
-    pub clients: Option<Vec<String>>,
-    pub suppliers: Option<Vec<String>>,
     // Native Requirement fields (§8.11.6)
     pub id: Option<String>,
-    /// **Deprecated / removed as a label** (REQ-TRS-NAME-002). Every element now labels
-    /// via `name`; `title` is no longer a recognized label field. It is still parsed
-    /// here only so the validator can detect a stray `title:` and reject it via `E025`.
-    pub title: Option<String>,
     pub status: Option<String>,
     /// §8.11.6 — Requirement classification in the stakeholder/system decomposition:
     /// `stakeholder` | `system` | `derived`. Recognised, first-class field (a plain
     /// unrecognised `reqClass:` would otherwise be silently dropped and warned via
     /// W047). (REQ-TRS-SCHEMA-002)
     pub req_class: Option<String>,
-    pub sil_level: Option<u8>,
-    pub asil_level: Option<String>,
-    /// ASIL/SIL decomposition argument type (§22.3): `independent` | `redundant` | `diverse`.
-    /// Informational; surfaced in the safety-case report.
-    pub decomposition_kind: Option<String>,
-    pub dal_level: Option<String>,
-    pub wcet: Option<String>,
     pub tags: Option<Vec<String>>,
     pub verification_method: Option<String>,
-    pub requirement_kind: Option<String>,
     // Native TestCase fields (§8.12.5)
     pub test_level: Option<String>,
-    pub coverage_target: Option<String>,
     pub source_file: Option<String>,
     pub test_functions: Option<Vec<serde_yaml::Value>>,
 
@@ -681,33 +613,12 @@ pub struct RawFrontmatter {
     /// `scope:` — free-form, recommended vocab unit|smoke|integration|hil|
     /// certification|security|regression (else W610).
     pub scope: Option<String>,
-    /// `configurations:` — scalar or list of `Configuration` references. Absent
-    /// → config-agnostic (applies to every Configuration). Each must resolve to a
-    /// `Configuration` (else E606).
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
-    pub configurations: Option<Vec<String>>,
-    /// `demonstrates:` — scalar or list of Requirement/SafetyGoal/
-    /// CybersecurityGoal/Argument the plan is offered as evidence for (else E603).
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
-    pub demonstrates: Option<Vec<String>>,
     /// `testCases:` — scalar or list of explicit `TestCase` members (else E601).
     #[serde(rename = "testCases", default, deserialize_with = "string_or_vec::deserialize")]
     pub test_cases: Option<Vec<String>>,
-    /// `selection:` — additive membership query (REQ-TRS-PLAN-003).
-    pub selection: Option<TestPlanSelection>,
     /// §12.8 — implementation trace: architecture element → source artifact(s).
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub implemented_by: Option<Vec<String>>,
-
-    /// REQ-TRS-SUS-LINKS-001 — suspect-link baselines. A map from a trace-link
-    /// **target identifier** (exactly as authored on the link — a stable id or a
-    /// qualified name) to the algorithm-prefixed content hash (`blake3:<hex>`) of
-    /// that target's normative projection (REQ-TRS-SUS-LINKS-002), captured at the
-    /// moment the link was last reviewed. One map on the source (which holds the
-    /// link, per §12.1) covers every link kind. `BTreeMap` → deterministic, sorted
-    /// serialization so re-baselining produces minimal diffs.
-    #[serde(rename = "traceBaselines", default, skip_serializing_if = "Option::is_none")]
-    pub trace_baselines: Option<std::collections::BTreeMap<String, String>>,
 
     /// REQ-TRS-LINKTYPE-002 — user-defined links (ADR-SYS-LINKTYPE-001): a map from
     /// a link-type name declared in `[linkTypes.<name>]` of `.syscribe.toml` to a
@@ -719,24 +630,6 @@ pub struct RawFrontmatter {
     /// `crate::link_types::parse_links`/`declared_links`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub links: Option<serde_yaml::Value>,
-
-    // §Baseline (ADR-SYS-BASELINE-001) — release-baseline fields on a `type: Baseline`.
-    /// The baseline date (REQ-TRS-BL-001).
-    pub date: Option<String>,
-    /// The accountable identity that approved the baseline (REQ-TRS-BL-001).
-    pub approver: Option<String>,
-    /// The intended source-control tag name (distinct from the `id`; REQ-TRS-BL-001).
-    pub git_tag: Option<String>,
-    /// The commit the baseline was sealed at, captured by `create` (REQ-TRS-BL-004).
-    pub git_commit: Option<String>,
-    /// The scope selector (REQ-TRS-BL-003). Named `frozenScope` to avoid colliding with
-    /// the free-form TestPlan `scope` field.
-    pub frozen_scope: Option<FrozenScope>,
-    /// The generated content seal (REQ-TRS-BL-002).
-    pub seal: Option<BaselineSeal>,
-    /// The `Baseline` this one replaces (REQ-TRS-BL-005). Resolver-checked, not a
-    /// suspect-tracked trace link.
-    pub supersedes: Option<String>,
 
     // §PlanningItem (ADR-SYS-PLANITEM-001) — native planning/tracking hierarchy.
     /// `parent:` — at most one other `PlanningItem` (REQ-TRS-PLANITEM-002). A
@@ -794,25 +687,166 @@ pub struct RawFrontmatter {
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub ext_ref: Option<Vec<String>>,
 
+    // §8.6.1 — FlowDef
+    pub item_type: Option<String>,
+
+    // §8.11.4 — satisfaction/verification
+    pub satisfies: Option<Vec<String>>,
+
+    // §9.6 — FeatureDef
+    pub group_kind: Option<String>,
+    pub excludes: Option<Vec<String>>,
+
+    // §9.7 — FeatureDef parameters (also used by ActionDef/CalculationDef as a
+    // generic typed-parameter list; only FeatureDef parameters are validated).
+    pub parameters: Option<Vec<serde_yaml::Value>>,
+
+    /// `derive:` — a mapping of fieldName → formula evaluated by
+    /// `derive::derive_pass` (REQ-TRS-DERIVE-001). A typed, recognised field on
+    /// every element type (GH #141: it used to be read out of the `extra`
+    /// catch-all, so declaring it falsely raised `W047`). Kept as a raw YAML
+    /// value so a malformed block (not a mapping, non-string formula) is
+    /// reported by the derive pass as `E505` instead of failing the whole
+    /// file's deserialization.
+    pub derive: Option<serde_yaml::Value>,
+
+    // §9.8 — Configuration
+    pub feature_model: Option<String>,
+
+    // §9.10 — PLE conditioning (any element)
+    pub applies_when: Option<serde_yaml::Value>,
+
+    // §8.11.6 — native Requirement traceability (§12)
+    pub req_domain: Option<String>,
+    pub breakdown_adr: Option<String>,
+
+    // §3.14 — domain classification
+    pub domain: Option<String>,
+    /// `evidence` — a shared YAML key with two independent shapes, kept as one
+    /// `Vec<serde_yaml::Value>` field (via [`value_or_vec`]) since a flat struct
+    /// can only bind one Rust field per YAML key:
+    ///   - `Argument.evidence` (§8.18) — refs to supporting Requirement /
+    ///     TestCase / sub-Argument / AssumptionOfUse (the GSN children); each
+    ///     entry a scalar string, resolved via the Resolver (else E855).
+    ///   - `PlanningItem.evidence` (REQ-TRS-PLANITEM-005) — a list of duck-typed
+    ///     `ref:`/`path:`/`rationale:` mappings (see the `PlanningItem` section
+    ///     below for the full shape). Recognised by which key an entry carries,
+    ///     not a `type:` tag — the same idiom the `Allocation` `features:`-list
+    ///     convention already establishes (an entry with both
+    ///     `allocatedFrom`+`allocatedTo` is an edge regardless of any per-entry
+    ///     `type:`).
+    /// Scalar or list accepted for either shape (`value_or_vec`), matching
+    /// `Argument.evidence`'s pre-existing acceptance.
+    #[serde(default, deserialize_with = "value_or_vec::deserialize")]
+    pub evidence: Option<Vec<serde_yaml::Value>>,
+
+    /// §custom-fields (GH #39) — user-defined, freeform metadata attachable to any
+    /// element. A flat map of `string -> scalar | list-of-scalars`. Distinct from the
+    /// `extra` catch-all below: `custom_fields` is the *intentional, addressable* home
+    /// for custom data, whereas `extra` swallows genuinely unknown top-level keys.
+    /// `BTreeMap` gives a stable (sorted) serialization order so writes do not produce
+    /// noisy round-trip diffs. Shape-checked by the validator (`W041`): each value must
+    /// be a scalar or a list of scalars. (YAML: custom_fields — explicit snake_case,
+    /// overriding the struct-level camelCase rename.)
+    #[serde(
+        rename = "custom_fields",
+        default,
+        skip_serializing_if = "std::collections::BTreeMap::is_empty"
+    )]
+    pub custom_fields: std::collections::BTreeMap<String, serde_yaml::Value>,
+
+    /// Effective selection/bindings of a `Configuration` that inherits from a
+    /// base through `derivedFrom:` (§9.8, GH #137) — materialized by the walker
+    /// (`crate::config_inherit`). Never (de)serialized: the authored file is the
+    /// source of truth; this is a computed view read through
+    /// [`RawFrontmatter::feature_selections`] and
+    /// [`RawFrontmatter::effective_parameter_bindings`].
+    #[serde(skip)]
+    pub inherited: Option<Box<InheritedConfiguration>>,
+    /// Rarely-set fields, boxed so an element that uses none of them pays one
+    /// pointer instead of ~6 KB of empty `Option`s (`REQ-TRS-MCP-MEM-000`). Read and
+    /// written as if they were fields of this struct, through `Deref`/`DerefMut`.
+    #[serde(flatten)]
+    pub cold: Boxed<ColdFrontmatter>,
+
+
+    // Catch-all for unknown fields
+    #[serde(flatten)]
+    pub extra: std::collections::HashMap<String, serde_yaml::Value>,
+}
+
+/// The rarely-set frontmatter fields of [`RawFrontmatter`], in three tiers so an
+/// element pays only for the tier it uses: tier 1 (`ColdFrontmatter`) holds the
+/// fields some models use, and reaches tier 2 (`ColdFrontmatter2`) and tier 3
+/// (`ColdFrontmatter3`, the rarest: safety, security, and the like) through
+/// `Deref` chains, so every field stays readable and writable as `fm.field`.
+/// Each tier is allocated only when one of its fields is set (`REQ-TRS-MCP-MEM-000`).
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ColdFrontmatter {
+    pub is_variation: Option<bool>,
+    pub expression: Option<String>,
+    pub metadata: Option<Vec<serde_yaml::Value>>,
+    pub binding_connections: Option<Vec<serde_yaml::Value>>,
+    pub succession_connections: Option<Vec<serde_yaml::Value>>,
+    pub sub_states: Option<Vec<serde_yaml::Value>>,
+    pub transitions: Option<Vec<serde_yaml::Value>>,
+    pub exhibits_states: Option<Vec<String>>,
+    pub operations: Option<Vec<serde_yaml::Value>>,
+    pub actors: Option<Vec<String>>,
+    pub steps: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub allocated_from: Option<Vec<String>>,
+    pub expose: Option<Vec<serde_yaml::Value>>,
+    pub viewpoint: Option<String>,
+    pub svg_mode: Option<String>,
+    pub svg_file: Option<String>,
+    pub puml_mode: Option<String>,
+    pub puml_file: Option<String>,
+    pub shapes: Option<serde_yaml::Value>,
+    pub edges: Option<serde_yaml::Value>,
+    pub layout: Option<serde_yaml::Value>,
+    pub imports: Option<Vec<serde_yaml::Value>>,
+    /// REQ-TRS-MG-001 — MagicGrid `«refine»`: a `UseCaseDef`/`UseCase` gives concrete
+    /// behavioural meaning to a requirement. Optional list of cross-references
+    /// (qname or stable `REQ-*` id), resolved like `verifies:`/`derivedFrom:`.
+    pub refines: Option<Vec<String>>,
+    pub about: Option<serde_yaml::Value>,
+    pub locale: Option<String>,
+    pub sil_level: Option<u8>,
+    pub asil_level: Option<String>,
+    /// ASIL/SIL decomposition argument type (§22.3): `independent` | `redundant` | `diverse`.
+    /// Informational; surfaced in the safety-case report.
+    pub decomposition_kind: Option<String>,
+    pub wcet: Option<String>,
+    /// `configurations:` — scalar or list of `Configuration` references. Absent
+    /// → config-agnostic (applies to every Configuration). Each must resolve to a
+    /// `Configuration` (else E606).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub configurations: Option<Vec<String>>,
+    /// `demonstrates:` — scalar or list of Requirement/SafetyGoal/
+    /// CybersecurityGoal/Argument the plan is offered as evidence for (else E603).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub demonstrates: Option<Vec<String>>,
+
+    /// REQ-TRS-SUS-LINKS-001 — suspect-link baselines. A map from a trace-link
+    /// **target identifier** (exactly as authored on the link — a stable id or a
+    /// qualified name) to the algorithm-prefixed content hash (`blake3:<hex>`) of
+    /// that target's normative projection (REQ-TRS-SUS-LINKS-002), captured at the
+    /// moment the link was last reviewed. One map on the source (which holds the
+    /// link, per §12.1) covers every link kind. `BTreeMap` → deterministic, sorted
+    /// serialization so re-baselining produces minimal diffs.
+    #[serde(rename = "traceBaselines", default, skip_serializing_if = "Option::is_none")]
+    pub trace_baselines: Option<std::collections::BTreeMap<String, String>>,
+
     // §3.1 — identity override
     pub qualified_name: Option<String>,
 
     // §3.2 — classification flags
     pub is_variant: Option<bool>,
-    pub is_composite: Option<bool>,
-    pub portion_kind: Option<String>,
-
-    // §8.3.2 — Port usage
-    pub is_conjugated: Option<bool>,
 
     // §8.4.x — connection/binding elements
     pub ends: Option<Vec<serde_yaml::Value>>,
-
-    // §8.5.2 — EnumerationDef
-    pub values: Option<Vec<serde_yaml::Value>>,
-
-    // §8.6.1 — FlowDef
-    pub item_type: Option<String>,
 
     // §8.7.1 + §8.9.1 — Action/Calculation body
     pub body: Option<String>,
@@ -822,18 +856,13 @@ pub struct RawFrontmatter {
     // Native ReviewRecord fields (§19, GH #71). `recordedAt` is the thin pointer to the
     // external review (e.g. a GitHub PR/review URL); the model keeps the baselined anchor.
     pub review_type: Option<String>,
-    pub review_date: Option<String>,
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
-    pub reviewed_by: Option<Vec<String>>,
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub reviews: Option<Vec<String>>,
     pub items: Option<Vec<serde_yaml::Value>>,
-    pub recorded_at: Option<String>,
     // Native TradeStudy fields (§15, GH #63). `objective` (Requirement) is shared above.
     pub criteria: Option<Vec<serde_yaml::Value>>,
     pub alternatives: Option<Vec<serde_yaml::Value>>,
     pub scores: Option<Vec<serde_yaml::Value>>,
-    pub decision: Option<String>,
     // Native IEC 62443 Zone/Conduit fields (§13, GH #61).
     #[serde(rename = "targetSL")]
     pub target_sl: Option<u8>,
@@ -841,12 +870,8 @@ pub struct RawFrontmatter {
     pub achieved_sl: Option<u8>,
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub members: Option<Vec<String>>,
-    pub rationale: Option<String>,
     pub from_zone: Option<String>,
     pub to_zone: Option<String>,
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
-    pub protocols: Option<Vec<String>>,
-    pub in_zone: Option<String>,
     /// §14.3 — `repoImports:` on a Package `_index.md`: a list of mappings
     /// `{repo, qname, as}` mounting a sub-tree from a peer repo declared in
     /// `[repos]`. Untyped here; the validator reads the `repo`/`qname`/`as` keys.
@@ -856,106 +881,18 @@ pub struct RawFrontmatter {
     /// directory's subtree is parsed as native SysML v2/KerML textual notation
     /// instead of Markdown+YAML frontmatter. Handled by `crate::sysmlv2`.
     pub sysml_submodel: Option<bool>,
-    /// `foreignFormat: <alias>` on a Package `_index.md` (`ADR-SYS-PLUGIN-002`):
-    /// hands the package's entire directory subtree to the stdio-subprocess
-    /// plugin named by `[plugins.<alias>]` in `.syscribe.toml`. Handled by
-    /// `crate::plugins`.
-    pub foreign_format: Option<String>,
-    /// `annotationFormat: <label>` on a Package `_index.md` (`ADR-SYS-ANNOTATE-001`):
-    /// hands the package's entire directory subtree to the in-process
-    /// comment-marker scanner. `label` is a human-readable tag only (no
-    /// `.syscribe.toml` indirection, unlike `foreignFormat:`) — the scan
-    /// parameters (`marker`/`include`/`exclude`) live inline on this same
-    /// `_index.md`. Handled by `crate::annotations`.
-    pub annotation_format: Option<String>,
-    /// `marker:` — a regex matched against each line of every scanned file;
-    /// the first match on a line starts a marker block. Required when
-    /// `annotationFormat:` is set (`E560` otherwise).
-    pub marker: Option<String>,
-    /// `include:` — glob patterns (relative to this package's directory,
-    /// `**`/`*`/`?` supported) selecting which files are scanned for markers.
-    /// Required, non-empty, when `annotationFormat:` is set (`E560` otherwise).
-    /// On a derived `Diagram` (`REQ-TRS-VIS-003`) the same key lists the
-    /// members of the subject to show.
-    pub include: Option<Vec<String>>,
-    /// `exclude:` — glob patterns excluded from `include:`'s matches; on a
-    /// derived `Diagram`, members of the subject to drop.
-    pub exclude: Option<Vec<String>>,
     pub sub_actions: Option<Vec<serde_yaml::Value>>,
-    pub control_nodes: Option<Vec<serde_yaml::Value>>,
-    pub return_type: Option<String>,
-
-    // §8.8.1 — StateDef entry/do/exit
-    pub entry_action: Option<serde_yaml::Value>,
-    pub do_action: Option<serde_yaml::Value>,
-    pub exit_action: Option<serde_yaml::Value>,
     pub is_parallel: Option<bool>,
-
-    // §8.10.2 — Constraint usage
-    pub is_asserted: Option<bool>,
-    pub is_negated: Option<bool>,
-
-    // §8.11.1 — RequirementDef
-    pub framed_concerns: Option<Vec<String>>,
-
-    // §8.11.4 — satisfaction/verification
-    pub satisfies: Option<Vec<String>>,
 
     // §8.12.1 — Case elements
     pub objectives: Option<Vec<serde_yaml::Value>>,
-    #[serde(rename = "result")]
-    pub result_type: Option<String>,
-
-    // §8.12.3 — VerificationCaseDef
-    pub verdict_expression: Option<String>,
-
-    // §8.12.4 — UseCaseDef
-    pub includes: Option<Vec<String>>,
-
-    // §8.13 — Allocation convenience
-    pub allocations: Option<Vec<serde_yaml::Value>>,
-
-    // §8.14.1 — ViewpointDef
-    pub satisfied_by: Option<Vec<String>>,
-
-    // §8.14.2 — ViewDef
-    pub rendering: Option<String>,
 
     // §8.15.1 — MetadataDef
     pub annotates: Option<Vec<String>>,
-    pub is_semantic: Option<bool>,
-
-    // §3.7 — package
-    pub filter_condition: Option<String>,
-    pub aliases: Option<Vec<serde_yaml::Value>>,
-
-    // §3.12 — representation
-    pub rep: Option<String>,
-
-    // §3.3 — InterfaceDef constraints
-    pub constraints: Option<Vec<serde_yaml::Value>>,
-
-    // §8.2.4 — OccurrenceDef
-    pub time_slices: Option<Vec<serde_yaml::Value>>,
-    pub snapshots: Option<Vec<serde_yaml::Value>>,
-
-    // §9.4 — variant reference
-    pub variant_of: Option<String>,
-
-    // §9.6 — FeatureDef
-    pub group_kind: Option<String>,
-    pub cardinality: Option<String>,
-    pub parent_feature: Option<String>,
-    pub excludes: Option<Vec<String>>,
-    pub contributes_to: Option<String>,
     /// Membership flag (REQ-TRS-FM-004): when `true`, the feature is mandatory
     /// (forced on with its parent, or root-selected when top-level) independently
     /// of `groupKind`. Legacy `groupKind: mandatory` remains a shorthand.
     pub mandatory: Option<bool>,
-
-    // §9.7 — FeatureDef parameters (also used by ActionDef/CalculationDef as a
-    // generic typed-parameter list; only FeatureDef parameters are validated).
-    pub parameters: Option<Vec<serde_yaml::Value>>,
 
     /// `featureTree:` (REQ-TRS-FM-005) — on a `type: FeatureModel` sheet: the
     /// whole feature model as one **flat** list. Each entry is shaped like a
@@ -1008,35 +945,7 @@ pub struct RawFrontmatter {
     /// longer falsely raises `W047` on the very element type that hosts it.
     #[serde(rename = "parameterConstraints")]
     pub parameter_constraints: Option<Vec<serde_yaml::Value>>,
-
-    /// `derive:` — a mapping of fieldName → formula evaluated by
-    /// `derive::derive_pass` (REQ-TRS-DERIVE-001). A typed, recognised field on
-    /// every element type (GH #141: it used to be read out of the `extra`
-    /// catch-all, so declaring it falsely raised `W047`). Kept as a raw YAML
-    /// value so a malformed block (not a mapping, non-string formula) is
-    /// reported by the derive pass as `E505` instead of failing the whole
-    /// file's deserialization.
-    pub derive: Option<serde_yaml::Value>,
-
-    // §9.9 — Build-system integration (build-config command)
-    /// `buildExports:` — on a `FeatureDef`: a list of `{var, whenSelected, whenDeselected}`
-    /// entries. Each entry declares a build variable emitted based on whether the feature
-    /// is selected or deselected in a `Configuration`. `whenSelected` defaults to 1;
-    /// `whenDeselected` absent means the variable is omitted when deselected.
-    #[serde(rename = "buildExports", default, skip_serializing_if = "Option::is_none")]
-    pub build_exports: Option<Vec<serde_yaml::Value>>,
-
-    // §9.8 — Configuration
-    pub feature_model: Option<String>,
     pub parameter_bindings: Option<serde_yaml::Value>,
-    pub baseline_ref: Option<String>,
-
-    /// `buildOverrides:` — on a `Configuration`: a flat mapping of `varName -> scalar`
-    /// that wins over any `buildExports` or parameter `buildVar` contribution.
-    /// Last-writer-wins semantics; resolves E050 conflicts. Consistent pattern with
-    /// `parameter_bindings` (also `Option<serde_yaml::Value>`).
-    #[serde(rename = "buildOverrides", default, skip_serializing_if = "Option::is_none")]
-    pub build_overrides: Option<serde_yaml::Value>,
 
     /// `subConfigurations:` (REQ-TRS-HPLE-001, ADR-SYS-HPLE-001) — on a
     /// `Configuration`: one or more other `Configuration` elements (qname or
@@ -1049,30 +958,6 @@ pub struct RawFrontmatter {
     /// the peer-validity gate are a validator pass, not a parse-time concern.
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub sub_configurations: Option<Vec<String>>,
-
-    // §9.10 — PLE conditioning (any element)
-    pub applies_when: Option<serde_yaml::Value>,
-
-    // §8.11.6 — native Requirement traceability (§12)
-    pub req_domain: Option<String>,
-    pub breakdown_adr: Option<String>,
-
-    /// REQ-TRS-ADR-001 (GH #159) — §8.17.1 `ADR` `deciders:`: the decision-makers,
-    /// each a stakeholder `PartDef` qualified name or a free-text name. Opaque
-    /// display metadata, never a cross-reference (a free-text name is legitimate),
-    /// so it is not resolved. A scalar is accepted as a one-entry list. Only a
-    /// schema field on an `ADR`; on any other type it is still reported as an
-    /// unrecognized field (W047).
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
-    pub deciders: Option<Vec<String>>,
-
-    /// REQ-TRS-SAFE-006 (ISO 26262-9 §7) — freedom-from-interference / partitioning
-    /// rationale (YAML: `ffiRationale`). A non-empty string on a shared allocation
-    /// target or on a source excuses a mixed-criticality sharing (clears W034).
-    pub ffi_rationale: Option<String>,
-
-    // §3.14 — domain classification
-    pub domain: Option<String>,
     pub is_deployment_package: Option<bool>,
 
     /// REQ-TRS-SAFE-007 (ISO 26262-8 §5 DIA / ISO/SAE 21434 §7 CIA) — the
@@ -1092,22 +977,12 @@ pub struct RawFrontmatter {
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub confirms: Option<Vec<String>>,
 
-    // §T4-TARA — TARASheet section tables (ISO/SAE 21434)
-    // Each is a list of row-mappings exploded by the walker into Tier-2 elements.
-    pub damage_table: Option<Vec<serde_yaml::Value>>,   // → DamageScenario rows  (YAML: damageTable)
-    pub threat_table: Option<Vec<serde_yaml::Value>>,   // → ThreatScenario rows   (YAML: threatTable)
-    pub goal_table: Option<Vec<serde_yaml::Value>>,     // → CybersecurityGoal rows (YAML: goalTable)
-    pub control_table: Option<Vec<serde_yaml::Value>>,  // → SecurityControl rows  (YAML: controlTable)
-
     // §T4 — FaultTree (IEC 61025 / ISO 26262-9)
     pub top_event: Option<String>,              // SafetyGoal ref (YAML: topEvent)
-    pub mission_time: Option<String>,           // e.g. "1e9 h" (YAML: missionTime)
     pub gate_type: Option<String>,              // FaultTreeGate: AND|OR|XOR|NOT|inhibit (YAML: gateType)
     pub inputs: Option<Vec<String>>,            // FaultTreeGate input refs (YAML: inputs)
     pub event_kind: Option<String>,             // FaultTreeEvent: basic|undeveloped|house (YAML: eventKind)
     pub failure_rate: Option<f64>,              // FaultTreeEvent failure rate /h (YAML: failureRate)
-    pub probability: Option<f64>,               // cut-set or top-event probability (YAML: probability)
-    pub fmea_ref: Option<String>,               // FaultTreeEvent → reconciling FMEAEntry (YAML: fmeaRef)
     /// REQ-TRS-FTA-002 (issue #148) — FaultTreeEvent → the model element whose
     /// failure the event represents (qualified name or stable id; typically a
     /// `Part`/`PartDef`). Dangling → E927. Only meaningful on `FaultTreeEvent`;
@@ -1120,7 +995,6 @@ pub struct RawFrontmatter {
     pub threat_ref: Option<String>,             // AttackTree → ThreatScenario ref (YAML: threatRef)
     // §T4 — FMEDA diagnostic coverage (ISO 26262-5 §8-9), documented for FaultTreeEvent.
     pub diagnostic_coverage: Option<f64>,         // DC, 0.0–1.0 (YAML: diagnosticCoverage)
-    pub latent_diagnostic_coverage: Option<f64>,  // DCl, 0.0–1.0 (YAML: latentDiagnosticCoverage)
 
     // §T4 — FMEASheet / FMEAEntry (IEC 60812 / SAE J1739)
     pub entries: Option<Vec<serde_yaml::Value>>, // FMEASheet sub-entries (YAML: entries)
@@ -1131,34 +1005,20 @@ pub struct RawFrontmatter {
     pub occurrence: Option<u8>,                  // FMEAEntry occurrence 1–10 (YAML: occurrence)
     pub detection: Option<u8>,                   // FMEAEntry detection 1–10 (YAML: detection)
     pub rpn: Option<u32>,                        // FMEAEntry Risk Priority Number (YAML: rpn)
-    pub recommended_action: Option<String>,      // FMEAEntry mitigation (YAML: recommendedAction)
-    pub fta_ref: Option<String>,                 // FMEAEntry → reconciling FaultTreeEvent (YAML: ftaRef)
-    #[serde(skip)]
-    pub unknown_fmea_keys: Vec<String>,          // keys not in recognised set; validator emits E922
 
     // §T2 — HazardousEvent (ISO 26262 §7 HARA)
     pub severity: Option<String>,               // S0-S3
     pub exposure: Option<String>,               // E0-E4
     pub controllability: Option<String>,        // C0-C3
     pub operational_situation: Option<String>,  // free-text operating scenario
-    // IEC 61508 §3 risk graph parameters (alternative to ISO 26262 S/E/C)
-    pub consequence: Option<String>,            // Ca | Cb | Cc | Cd
-    pub freq_exposure: Option<String>,          // Fa | Fb  (YAML: freqExposure)
-    pub avoidance: Option<String>,              // Pa | Pb
-    pub demand_rate: Option<String>,            // W1 | W2 | W3  (YAML: demandRate)
 
     // §T2 — SafetyGoal (ISO 26262 §7 / IEC 61508 / ISO 13849)
     pub safe_state: Option<String>,             // description of the safe state
-    pub ftti: Option<String>,                   // Fault Tolerant Time Interval (e.g. "20ms")
     pub hazardous_events: Option<Vec<String>>,  // HazardousEvent id/qname refs
-    pub pl_level: Option<String>,               // ISO 13849-1 Performance Level: a|b|c|d|e (YAML: plLevel)
 
     // §T2 — DamageScenario (ISO/SAE 21434 §15)
     pub damage_severity: Option<String>,        // severe|major|moderate|negligible
     pub impact_categories: Option<Vec<String>>, // safety|financial|operational|privacy
-    // DamageScenario.assets: references to Asset elements (REQ-TRS-TYPE-017, YAML: assets)
-    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
-    pub assets: Option<Vec<String>>,
 
     /// §T4 safety↔security co-engineering (ISO 26262 ⇄ ISO/SAE 21434) — cross-link
     /// from a `DamageScenario`/`ThreatScenario` to the `HazardousEvent`/`SafetyGoal`
@@ -1171,31 +1031,10 @@ pub struct RawFrontmatter {
     pub attack_feasibility: Option<String>,     // high|medium|low|very_low
     pub attack_vector: Option<String>,          // network|adjacent|local|physical
     pub damage_scenarios: Option<Vec<String>>,  // DamageScenario id/qname refs
-    /// §T2 risk treatment decision (ISO/SAE 21434 §9 / §15.9): avoid|reduce|share|retain.
-    /// Invalid value → E845. (YAML: riskTreatment)
-    pub risk_treatment: Option<String>,
-    /// §T2 free-text residual-risk note after treatment (no validation). (YAML: residualRisk)
-    pub residual_risk: Option<String>,
 
     // §T2 — CybersecurityGoal (ISO/SAE 21434 §15)
     pub cal_level: Option<String>,              // CAL1-CAL4
     pub security_property: Option<String>,      // confidentiality|integrity|availability|authenticity
-    pub threat_scenarios: Option<Vec<String>>,  // ThreatScenario id/qname refs
-
-    // §T2 — SecurityControl (ISO/SAE 21434)
-    pub control_type: Option<String>,           // prevention|detection|response|recovery
-    pub implements_goals: Option<Vec<String>>,  // CybersecurityGoal id/qname refs
-
-    // §T2 — VulnerabilityReport
-    pub cvss_score: Option<f64>,                // 0.0-10.0
-    pub cve_id: Option<String>,                 // CVE-YYYY-NNNNN
-    pub affected_elements: Option<Vec<String>>, // qualified names of affected model elements
-    pub mitigated_by: Option<Vec<String>>,      // SecurityControl id/qname refs
-
-    // §T2 — upstream goal links for native Requirement
-    // YAML: derivedFromCybersecurityGoal; alias: derivedFromSecurityGoal (legacy)
-    #[serde(alias = "derivedFromSecurityGoal")]
-    pub derived_from_cybersecurity_goal: Option<String>,
     pub derived_from_safety_goal: Option<String>,   // SG-* that generated this requirement (YAML: derivedFromSafetyGoal)
 
     // §8.18 — GSN safety-argument layer (issue #20)
@@ -1207,23 +1046,6 @@ pub struct RawFrontmatter {
     /// via the Resolver (else E855).
     #[serde(default, deserialize_with = "string_or_vec::deserialize")]
     pub supports: Option<Vec<String>>,
-    /// `evidence` — a shared YAML key with two independent shapes, kept as one
-    /// `Vec<serde_yaml::Value>` field (via [`value_or_vec`]) since a flat struct
-    /// can only bind one Rust field per YAML key:
-    ///   - `Argument.evidence` (§8.18) — refs to supporting Requirement /
-    ///     TestCase / sub-Argument / AssumptionOfUse (the GSN children); each
-    ///     entry a scalar string, resolved via the Resolver (else E855).
-    ///   - `PlanningItem.evidence` (REQ-TRS-PLANITEM-005) — a list of duck-typed
-    ///     `ref:`/`path:`/`rationale:` mappings (see the `PlanningItem` section
-    ///     below for the full shape). Recognised by which key an entry carries,
-    ///     not a `type:` tag — the same idiom the `Allocation` `features:`-list
-    ///     convention already establishes (an entry with both
-    ///     `allocatedFrom`+`allocatedTo` is an edge regardless of any per-entry
-    ///     `type:`).
-    /// Scalar or list accepted for either shape (`value_or_vec`), matching
-    /// `Argument.evidence`'s pre-existing acceptance.
-    #[serde(default, deserialize_with = "value_or_vec::deserialize")]
-    pub evidence: Option<Vec<serde_yaml::Value>>,
     /// `AssumptionOfUse.appliesTo` (YAML: appliesTo) — the SafetyGoal / Argument /
     /// Requirement this SRAC constrains. String or list; each ref resolves via the
     /// Resolver (else E858).
@@ -1234,41 +1056,1078 @@ pub struct RawFrontmatter {
     // Valid: fuzz|penetration_test|security_regression|vulnerability_scan|threat_modeling
     // Invalid → W809. (YAML: securityTestMethod)
     pub security_test_method: Option<String>,
+    #[serde(flatten)]
+    pub tier2: Boxed<ColdFrontmatter2>,
+}
+
+/// Second tier of the rarely-set fields; see [`ColdFrontmatter`].
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ColdFrontmatter2 {
+    pub conjugates: Option<String>,
+    pub flow_connections: Option<Vec<serde_yaml::Value>>,
+    pub performs: Option<Vec<serde_yaml::Value>>,
+    pub objective: Option<String>,
+    pub stakeholders: Option<Vec<String>>,
+    pub concerns: Option<Vec<String>>,
+    pub methods: Option<Vec<String>>,
+    pub depends_on: Option<Vec<String>>,
+    pub extends: Option<Vec<serde_yaml::Value>>,
+    pub extension_points: Option<Vec<serde_yaml::Value>>,
+    pub clients: Option<Vec<String>>,
+    pub suppliers: Option<Vec<String>>,
+    /// **Deprecated / removed as a label** (REQ-TRS-NAME-002). Every element now labels
+    /// via `name`; `title` is no longer a recognized label field. It is still parsed
+    /// here only so the validator can detect a stray `title:` and reject it via `E025`.
+    pub title: Option<String>,
+    pub dal_level: Option<String>,
+    pub requirement_kind: Option<String>,
+    pub coverage_target: Option<String>,
+    /// `selection:` — additive membership query (REQ-TRS-PLAN-003).
+    pub selection: Option<TestPlanSelection>,
+
+    // §Baseline (ADR-SYS-BASELINE-001) — release-baseline fields on a `type: Baseline`.
+    /// The baseline date (REQ-TRS-BL-001).
+    pub date: Option<String>,
+
+    // §8.5.2 — EnumerationDef
+    pub values: Option<Vec<serde_yaml::Value>>,
+    pub review_date: Option<String>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub reviewed_by: Option<Vec<String>>,
+    pub recorded_at: Option<String>,
+    pub decision: Option<String>,
+    pub rationale: Option<String>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub protocols: Option<Vec<String>>,
+    pub in_zone: Option<String>,
+    /// `foreignFormat: <alias>` on a Package `_index.md` (`ADR-SYS-PLUGIN-002`):
+    /// hands the package's entire directory subtree to the stdio-subprocess
+    /// plugin named by `[plugins.<alias>]` in `.syscribe.toml`. Handled by
+    /// `crate::plugins`.
+    pub foreign_format: Option<String>,
+    /// `annotationFormat: <label>` on a Package `_index.md` (`ADR-SYS-ANNOTATE-001`):
+    /// hands the package's entire directory subtree to the in-process
+    /// comment-marker scanner. `label` is a human-readable tag only (no
+    /// `.syscribe.toml` indirection, unlike `foreignFormat:`) — the scan
+    /// parameters (`marker`/`include`/`exclude`) live inline on this same
+    /// `_index.md`. Handled by `crate::annotations`.
+    pub annotation_format: Option<String>,
+    /// `marker:` — a regex matched against each line of every scanned file;
+    /// the first match on a line starts a marker block. Required when
+    /// `annotationFormat:` is set (`E560` otherwise).
+    pub marker: Option<String>,
+    /// `include:` — glob patterns (relative to this package's directory,
+    /// `**`/`*`/`?` supported) selecting which files are scanned for markers.
+    /// Required, non-empty, when `annotationFormat:` is set (`E560` otherwise).
+    /// On a derived `Diagram` (`REQ-TRS-VIS-003`) the same key lists the
+    /// members of the subject to show.
+    pub include: Option<Vec<String>>,
+    /// `exclude:` — glob patterns excluded from `include:`'s matches; on a
+    /// derived `Diagram`, members of the subject to drop.
+    pub exclude: Option<Vec<String>>,
+    pub control_nodes: Option<Vec<serde_yaml::Value>>,
+
+    // §8.10.2 — Constraint usage
+    pub is_asserted: Option<bool>,
+    pub is_semantic: Option<bool>,
+    pub aliases: Option<Vec<serde_yaml::Value>>,
+
+    // §3.12 — representation
+    pub rep: Option<String>,
+
+    // §3.3 — InterfaceDef constraints
+    pub constraints: Option<Vec<serde_yaml::Value>>,
+    pub parent_feature: Option<String>,
+
+    /// `buildOverrides:` — on a `Configuration`: a flat mapping of `varName -> scalar`
+    /// that wins over any `buildExports` or parameter `buildVar` contribution.
+    /// Last-writer-wins semantics; resolves E050 conflicts. Consistent pattern with
+    /// `parameter_bindings` (also `Option<serde_yaml::Value>`).
+    #[serde(rename = "buildOverrides", default, skip_serializing_if = "Option::is_none")]
+    pub build_overrides: Option<serde_yaml::Value>,
+
+    /// REQ-TRS-ADR-001 (GH #159) — §8.17.1 `ADR` `deciders:`: the decision-makers,
+    /// each a stakeholder `PartDef` qualified name or a free-text name. Opaque
+    /// display metadata, never a cross-reference (a free-text name is legitimate),
+    /// so it is not resolved. A scalar is accepted as a one-entry list. Only a
+    /// schema field on an `ADR`; on any other type it is still reported as an
+    /// unrecognized field (W047).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub deciders: Option<Vec<String>>,
+
+    /// REQ-TRS-SAFE-006 (ISO 26262-9 §7) — freedom-from-interference / partitioning
+    /// rationale (YAML: `ffiRationale`). A non-empty string on a shared allocation
+    /// target or on a source excuses a mixed-criticality sharing (clears W034).
+    pub ffi_rationale: Option<String>,
+    pub fmea_ref: Option<String>,               // FaultTreeEvent → reconciling FMEAEntry (YAML: fmeaRef)
+    // IEC 61508 §3 risk graph parameters (alternative to ISO 26262 S/E/C)
+    pub consequence: Option<String>,            // Ca | Cb | Cc | Cd
+    pub freq_exposure: Option<String>,          // Fa | Fb  (YAML: freqExposure)
+    pub avoidance: Option<String>,              // Pa | Pb
+    pub demand_rate: Option<String>,            // W1 | W2 | W3  (YAML: demandRate)
+    pub ftti: Option<String>,                   // Fault Tolerant Time Interval (e.g. "20ms")
+    pub pl_level: Option<String>,               // ISO 13849-1 Performance Level: a|b|c|d|e (YAML: plLevel)
+    // DamageScenario.assets: references to Asset elements (REQ-TRS-TYPE-017, YAML: assets)
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub assets: Option<Vec<String>>,
+    /// §T2 risk treatment decision (ISO/SAE 21434 §9 / §15.9): avoid|reduce|share|retain.
+    /// Invalid value → E845. (YAML: riskTreatment)
+    pub risk_treatment: Option<String>,
+    /// §T2 free-text residual-risk note after treatment (no validation). (YAML: residualRisk)
+    pub residual_risk: Option<String>,
+    pub threat_scenarios: Option<Vec<String>>,  // ThreatScenario id/qname refs
+
+    // §T2 — SecurityControl (ISO/SAE 21434)
+    pub control_type: Option<String>,           // prevention|detection|response|recovery
+    pub implements_goals: Option<Vec<String>>,  // CybersecurityGoal id/qname refs
+
+    // §T2 — VulnerabilityReport
+    pub cvss_score: Option<f64>,                // 0.0-10.0
+    pub affected_elements: Option<Vec<String>>, // qualified names of affected model elements
+    pub mitigated_by: Option<Vec<String>>,      // SecurityControl id/qname refs
+
+    // §T2 — upstream goal links for native Requirement
+    // YAML: derivedFromCybersecurityGoal; alias: derivedFromSecurityGoal (legacy)
+    #[serde(alias = "derivedFromSecurityGoal")]
+    pub derived_from_cybersecurity_goal: Option<String>,
 
     // §T2 — Asset (REQ-TRS-TYPE-017; ISO/SAE 21434 §15.3 asset identification)
     // cybersecurityProperties: list of confidentiality|integrity|availability|authenticity (YAML: cybersecurityProperties)
     pub cybersecurity_properties: Option<Vec<String>>,
+    #[serde(flatten)]
+    pub tier3: Boxed<ColdFrontmatter3>,
+}
+
+/// Third tier of the rarely-set fields; see [`ColdFrontmatter`].
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ColdFrontmatter3 {
+    pub is_reference: Option<bool>,
+    pub is_derived: Option<bool>,
+    pub is_constant: Option<bool>,
+    pub is_readonly: Option<bool>,
+    pub is_portion: Option<bool>,
+    pub is_ordered: Option<bool>,
+    pub is_nonunique: Option<bool>,
+    pub is_end: Option<bool>,
+    pub is_individual: Option<bool>,
+    pub value: Option<serde_yaml::Value>,
+    pub value_kind: Option<String>,
+    pub text: Option<String>,
+    pub assume: Option<Vec<serde_yaml::Value>>,
+    pub verdict_type: Option<String>,
+    /// The accountable identity that approved the baseline (REQ-TRS-BL-001).
+    pub approver: Option<String>,
+    /// The intended source-control tag name (distinct from the `id`; REQ-TRS-BL-001).
+    pub git_tag: Option<String>,
+    /// The commit the baseline was sealed at, captured by `create` (REQ-TRS-BL-004).
+    pub git_commit: Option<String>,
+    /// The scope selector (REQ-TRS-BL-003). Named `frozenScope` to avoid colliding with
+    /// the free-form TestPlan `scope` field.
+    pub frozen_scope: Option<FrozenScope>,
+    /// The generated content seal (REQ-TRS-BL-002).
+    pub seal: Option<BaselineSeal>,
+    /// The `Baseline` this one replaces (REQ-TRS-BL-005). Resolver-checked, not a
+    /// suspect-tracked trace link.
+    pub supersedes: Option<String>,
+    pub is_composite: Option<bool>,
+    pub portion_kind: Option<String>,
+
+    // §8.3.2 — Port usage
+    pub is_conjugated: Option<bool>,
+    pub return_type: Option<String>,
+
+    // §8.8.1 — StateDef entry/do/exit
+    pub entry_action: Option<serde_yaml::Value>,
+    pub do_action: Option<serde_yaml::Value>,
+    pub exit_action: Option<serde_yaml::Value>,
+    pub is_negated: Option<bool>,
+
+    // §8.11.1 — RequirementDef
+    pub framed_concerns: Option<Vec<String>>,
+    #[serde(rename = "result")]
+    pub result_type: Option<String>,
+
+    // §8.12.3 — VerificationCaseDef
+    pub verdict_expression: Option<String>,
+
+    // §8.12.4 — UseCaseDef
+    pub includes: Option<Vec<String>>,
+
+    // §8.13 — Allocation convenience
+    pub allocations: Option<Vec<serde_yaml::Value>>,
+
+    // §8.14.1 — ViewpointDef
+    pub satisfied_by: Option<Vec<String>>,
+
+    // §8.14.2 — ViewDef
+    pub rendering: Option<String>,
+
+    // §3.7 — package
+    pub filter_condition: Option<String>,
+
+    // §8.2.4 — OccurrenceDef
+    pub time_slices: Option<Vec<serde_yaml::Value>>,
+    pub snapshots: Option<Vec<serde_yaml::Value>>,
+
+    // §9.4 — variant reference
+    pub variant_of: Option<String>,
+    pub cardinality: Option<String>,
+    pub contributes_to: Option<String>,
+
+    // §9.9 — Build-system integration (build-config command)
+    /// `buildExports:` — on a `FeatureDef`: a list of `{var, whenSelected, whenDeselected}`
+    /// entries. Each entry declares a build variable emitted based on whether the feature
+    /// is selected or deselected in a `Configuration`. `whenSelected` defaults to 1;
+    /// `whenDeselected` absent means the variable is omitted when deselected.
+    #[serde(rename = "buildExports", default, skip_serializing_if = "Option::is_none")]
+    pub build_exports: Option<Vec<serde_yaml::Value>>,
+    pub baseline_ref: Option<String>,
+
+    // §T4-TARA — TARASheet section tables (ISO/SAE 21434)
+    // Each is a list of row-mappings exploded by the walker into Tier-2 elements.
+    pub damage_table: Option<Vec<serde_yaml::Value>>,   // → DamageScenario rows  (YAML: damageTable)
+    pub threat_table: Option<Vec<serde_yaml::Value>>,   // → ThreatScenario rows   (YAML: threatTable)
+    pub goal_table: Option<Vec<serde_yaml::Value>>,     // → CybersecurityGoal rows (YAML: goalTable)
+    pub control_table: Option<Vec<serde_yaml::Value>>,  // → SecurityControl rows  (YAML: controlTable)
+    pub mission_time: Option<String>,           // e.g. "1e9 h" (YAML: missionTime)
+    pub probability: Option<f64>,               // cut-set or top-event probability (YAML: probability)
+    pub latent_diagnostic_coverage: Option<f64>,  // DCl, 0.0–1.0 (YAML: latentDiagnosticCoverage)
+    pub recommended_action: Option<String>,      // FMEAEntry mitigation (YAML: recommendedAction)
+    pub fta_ref: Option<String>,                 // FMEAEntry → reconciling FaultTreeEvent (YAML: ftaRef)
+    #[serde(skip)]
+    pub unknown_fmea_keys: Vec<String>,          // keys not in recognised set; validator emits E922
+    pub cve_id: Option<String>,                 // CVE-YYYY-NNNNN
     pub asset_owner: Option<String>,          // qname/id of owning architecture element (YAML: assetOwner)
     pub related_safety_goal: Option<String>,  // SG-* ref for co-engineering (YAML: relatedSafetyGoal)
-
-    /// §custom-fields (GH #39) — user-defined, freeform metadata attachable to any
-    /// element. A flat map of `string -> scalar | list-of-scalars`. Distinct from the
-    /// `extra` catch-all below: `custom_fields` is the *intentional, addressable* home
-    /// for custom data, whereas `extra` swallows genuinely unknown top-level keys.
-    /// `BTreeMap` gives a stable (sorted) serialization order so writes do not produce
-    /// noisy round-trip diffs. Shape-checked by the validator (`W041`): each value must
-    /// be a scalar or a list of scalars. (YAML: custom_fields — explicit snake_case,
-    /// overriding the struct-level camelCase rename.)
-    #[serde(
-        rename = "custom_fields",
-        default,
-        skip_serializing_if = "std::collections::BTreeMap::is_empty"
-    )]
-    pub custom_fields: std::collections::BTreeMap<String, serde_yaml::Value>,
-
-    /// Effective selection/bindings of a `Configuration` that inherits from a
-    /// base through `derivedFrom:` (§9.8, GH #137) — materialized by the walker
-    /// (`crate::config_inherit`). Never (de)serialized: the authored file is the
-    /// source of truth; this is a computed view read through
-    /// [`RawFrontmatter::feature_selections`] and
-    /// [`RawFrontmatter::effective_parameter_bindings`].
-    #[serde(skip)]
-    pub inherited: Option<Box<InheritedConfiguration>>,
-
-    // Catch-all for unknown fields
-    #[serde(flatten)]
-    pub extra: std::collections::HashMap<String, serde_yaml::Value>,
 }
+
+/// Flat deserialisation target for the rarely-set fields: serde's nested `flatten`
+/// would leave their keys visible to the `extra` catch-all (spurious `W047`), so
+/// the file is read into this one flat struct and split into tiers.
+#[derive(Default, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ColdWire {
+    pub is_variation: Option<bool>,
+    pub expression: Option<String>,
+    pub metadata: Option<Vec<serde_yaml::Value>>,
+    pub binding_connections: Option<Vec<serde_yaml::Value>>,
+    pub succession_connections: Option<Vec<serde_yaml::Value>>,
+    pub sub_states: Option<Vec<serde_yaml::Value>>,
+    pub transitions: Option<Vec<serde_yaml::Value>>,
+    pub exhibits_states: Option<Vec<String>>,
+    pub operations: Option<Vec<serde_yaml::Value>>,
+    pub actors: Option<Vec<String>>,
+    pub steps: Option<Vec<String>>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub allocated_from: Option<Vec<String>>,
+    pub expose: Option<Vec<serde_yaml::Value>>,
+    pub viewpoint: Option<String>,
+    pub svg_mode: Option<String>,
+    pub svg_file: Option<String>,
+    pub puml_mode: Option<String>,
+    pub puml_file: Option<String>,
+    pub shapes: Option<serde_yaml::Value>,
+    pub edges: Option<serde_yaml::Value>,
+    pub layout: Option<serde_yaml::Value>,
+    pub imports: Option<Vec<serde_yaml::Value>>,
+    /// REQ-TRS-MG-001 — MagicGrid `«refine»`: a `UseCaseDef`/`UseCase` gives concrete
+    /// behavioural meaning to a requirement. Optional list of cross-references
+    /// (qname or stable `REQ-*` id), resolved like `verifies:`/`derivedFrom:`.
+    pub refines: Option<Vec<String>>,
+    pub about: Option<serde_yaml::Value>,
+    pub locale: Option<String>,
+    pub sil_level: Option<u8>,
+    pub asil_level: Option<String>,
+    /// ASIL/SIL decomposition argument type (§22.3): `independent` | `redundant` | `diverse`.
+    /// Informational; surfaced in the safety-case report.
+    pub decomposition_kind: Option<String>,
+    pub wcet: Option<String>,
+    /// `configurations:` — scalar or list of `Configuration` references. Absent
+    /// → config-agnostic (applies to every Configuration). Each must resolve to a
+    /// `Configuration` (else E606).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub configurations: Option<Vec<String>>,
+    /// `demonstrates:` — scalar or list of Requirement/SafetyGoal/
+    /// CybersecurityGoal/Argument the plan is offered as evidence for (else E603).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub demonstrates: Option<Vec<String>>,
+
+    /// REQ-TRS-SUS-LINKS-001 — suspect-link baselines. A map from a trace-link
+    /// **target identifier** (exactly as authored on the link — a stable id or a
+    /// qualified name) to the algorithm-prefixed content hash (`blake3:<hex>`) of
+    /// that target's normative projection (REQ-TRS-SUS-LINKS-002), captured at the
+    /// moment the link was last reviewed. One map on the source (which holds the
+    /// link, per §12.1) covers every link kind. `BTreeMap` → deterministic, sorted
+    /// serialization so re-baselining produces minimal diffs.
+    #[serde(rename = "traceBaselines", default, skip_serializing_if = "Option::is_none")]
+    pub trace_baselines: Option<std::collections::BTreeMap<String, String>>,
+
+    // §3.1 — identity override
+    pub qualified_name: Option<String>,
+
+    // §3.2 — classification flags
+    pub is_variant: Option<bool>,
+
+    // §8.4.x — connection/binding elements
+    pub ends: Option<Vec<serde_yaml::Value>>,
+
+    // §8.7.1 + §8.9.1 — Action/Calculation body
+    pub body: Option<String>,
+    pub body_language: Option<String>,
+    /// `CalculationDef` (§22.2): qualified name of a `ConstraintDef` bounding the budget result.
+    pub evaluate: Option<String>,
+    // Native ReviewRecord fields (§19, GH #71). `recordedAt` is the thin pointer to the
+    // external review (e.g. a GitHub PR/review URL); the model keeps the baselined anchor.
+    pub review_type: Option<String>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub reviews: Option<Vec<String>>,
+    pub items: Option<Vec<serde_yaml::Value>>,
+    // Native TradeStudy fields (§15, GH #63). `objective` (Requirement) is shared above.
+    pub criteria: Option<Vec<serde_yaml::Value>>,
+    pub alternatives: Option<Vec<serde_yaml::Value>>,
+    pub scores: Option<Vec<serde_yaml::Value>>,
+    // Native IEC 62443 Zone/Conduit fields (§13, GH #61).
+    #[serde(rename = "targetSL")]
+    pub target_sl: Option<u8>,
+    #[serde(rename = "achievedSL")]
+    pub achieved_sl: Option<u8>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub members: Option<Vec<String>>,
+    pub from_zone: Option<String>,
+    pub to_zone: Option<String>,
+    /// §14.3 — `repoImports:` on a Package `_index.md`: a list of mappings
+    /// `{repo, qname, as}` mounting a sub-tree from a peer repo declared in
+    /// `[repos]`. Untyped here; the validator reads the `repo`/`qname`/`as` keys.
+    pub repo_imports: Option<Vec<serde_yaml::Value>>,
+    /// `sysmlSubmodel: true` on a Package `_index.md` (`ADR-SYS-SYSMLV2-001`,
+    /// `REQ-TRS-SYSMLV2-001`): every `.sysml`/`.kerml` file anywhere in that
+    /// directory's subtree is parsed as native SysML v2/KerML textual notation
+    /// instead of Markdown+YAML frontmatter. Handled by `crate::sysmlv2`.
+    pub sysml_submodel: Option<bool>,
+    pub sub_actions: Option<Vec<serde_yaml::Value>>,
+    pub is_parallel: Option<bool>,
+
+    // §8.12.1 — Case elements
+    pub objectives: Option<Vec<serde_yaml::Value>>,
+
+    // §8.15.1 — MetadataDef
+    pub annotates: Option<Vec<String>>,
+    /// Membership flag (REQ-TRS-FM-004): when `true`, the feature is mandatory
+    /// (forced on with its parent, or root-selected when top-level) independently
+    /// of `groupKind`. Legacy `groupKind: mandatory` remains a shorthand.
+    pub mandatory: Option<bool>,
+
+    /// `featureTree:` (REQ-TRS-FM-005) — on a `type: FeatureModel` sheet: the
+    /// whole feature model as one **flat** list. Each entry is shaped like a
+    /// `FeatureDef`'s own frontmatter (`id`, `mandatory`, `groupKind`,
+    /// `cardinality`, `requires`, `excludes`, `parameters`, `buildExports`, an
+    /// optional `doc:` body), but its `name:` is a **dot-separated relative
+    /// path** from the sheet — e.g. `Platform.CortexM` — rather than a single
+    /// basic name. This is a mini-DSL scoped to `featureTree:` entries only; it
+    /// does not change `name:`'s meaning anywhere else in the format.
+    ///
+    /// The walker's explode pass (`walker::explode_feature_model_trees`) turns
+    /// each entry into a synthetic `FeatureDef` `RawElement`: the dotted path is
+    /// split on `.`, each segment becomes one `::`-joined qname component under
+    /// the sheet's own qname (so `Platform.CortexM` under sheet `Features`
+    /// yields `Features::Platform::CortexM` — exactly the qname a
+    /// directory-per-feature layout would produce for the same tree shape), and
+    /// the synthesized element's own `name:` is rewritten to just the last path
+    /// segment (`CortexM`) — the same leaf label a per-file `FeatureDef` would
+    /// carry. An ancestor segment need not have its own entry (mirrors today's
+    /// multi-file behavior: a qname prefix that is not itself a `FeatureDef`
+    /// simply implies no parent). Every downstream consumer (validator,
+    /// `feature-check`, `matrix`, the web UI) sees the same kind of `FeatureDef`
+    /// element either way. Purely additive/opt-in: unrelated to the existing
+    /// per-attribute `features:` field.
+    #[serde(rename = "featureTree")]
+    pub feature_tree: Option<Vec<serde_yaml::Value>>,
+
+    /// `crossTreeConstraints:` (REQ-TRS-FM-005) — on a `type: FeatureModel`
+    /// sheet: a flat list of `{ feature, requires, excludes }` entries, kept
+    /// separate from the `featureTree:` structural list so the model's
+    /// requires/excludes edges can be reviewed as one section instead of
+    /// scattered across entries (inline `requires:`/`excludes:` on a
+    /// `featureTree:` entry still works too — this section is additive).
+    /// `feature`/`requires`/`excludes` values resolve the same way: containing
+    /// `::` → already an absolute qname; starting with `FEAT` → a stable id;
+    /// otherwise → a dot-separated path relative to this sheet, resolved
+    /// exactly like a `featureTree:` entry's `name:`. The walker's explode pass
+    /// merges each resolved `requires`/`excludes` into the matching synthesized
+    /// `FeatureDef`'s own field. A `feature:` that doesn't resolve to a
+    /// `FeatureDef` synthesized from this same sheet is `E233` — there is
+    /// nothing local to attach the constraint to.
+    #[serde(rename = "crossTreeConstraints")]
+    pub cross_tree_constraints: Option<Vec<serde_yaml::Value>>,
+
+    /// `parameterConstraints:` (§9.7) — cross-feature numeric constraints,
+    /// declared on a `Package`/`LibraryPackage`/`Namespace` `_index.md` or
+    /// (REQ-TRS-FM-005) directly on a `type: FeatureModel` sheet. Evaluated by
+    /// `feature-check` (`E213`/`E221`/`W014`/`W025`). Promoted to a typed field
+    /// (previously read out of the `extra` catch-all) so declaring it no
+    /// longer falsely raises `W047` on the very element type that hosts it.
+    #[serde(rename = "parameterConstraints")]
+    pub parameter_constraints: Option<Vec<serde_yaml::Value>>,
+    pub parameter_bindings: Option<serde_yaml::Value>,
+
+    /// `subConfigurations:` (REQ-TRS-HPLE-001, ADR-SYS-HPLE-001) — on a
+    /// `Configuration`: one or more other `Configuration` elements (qname or
+    /// stable `CONF-*` id) this `Configuration` consolidates — a hierarchical
+    /// product-line composition. Each entry resolves like any other
+    /// cross-reference: the local model first, then each loaded peer repo in
+    /// declaration order (§14.4). Scalar or list, following the
+    /// `derivedFrom`/`achieves` convention. Naturally empty/absent at a leaf
+    /// tier with no lower-tier product lines to consolidate. Resolution and
+    /// the peer-validity gate are a validator pass, not a parse-time concern.
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub sub_configurations: Option<Vec<String>>,
+    pub is_deployment_package: Option<bool>,
+
+    /// REQ-TRS-SAFE-007 (ISO 26262-8 §5 DIA / ISO/SAE 21434 §7 CIA) — the
+    /// accountable party/organisation for a work product (the DIA/CIA split,
+    /// e.g. "OEM" / "Supplier-X"). Drives the opt-in W038 check. (YAML: responsibility)
+    pub responsibility: Option<String>,
+
+    /// REQ-TRS-SAFE-007 (ISO 26262-2 §6) — ConfirmationMeasure kind:
+    /// confirmation_review | functional_safety_audit | functional_safety_assessment |
+    /// cybersecurity_assessment. Invalid → E849. (YAML: measureType)
+    pub measure_type: Option<String>,
+    /// REQ-TRS-SAFE-007 — ConfirmationMeasure independence level: I1 | I2 | I3.
+    /// Invalid → E850. (YAML: independenceLevel)
+    pub independence_level: Option<String>,
+    /// REQ-TRS-SAFE-007 — the work product(s) a ConfirmationMeasure confirms.
+    /// String or list; each resolves via the Resolver (else E851). (YAML: confirms)
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub confirms: Option<Vec<String>>,
+
+    // §T4 — FaultTree (IEC 61025 / ISO 26262-9)
+    pub top_event: Option<String>,              // SafetyGoal ref (YAML: topEvent)
+    pub gate_type: Option<String>,              // FaultTreeGate: AND|OR|XOR|NOT|inhibit (YAML: gateType)
+    pub inputs: Option<Vec<String>>,            // FaultTreeGate input refs (YAML: inputs)
+    pub event_kind: Option<String>,             // FaultTreeEvent: basic|undeveloped|house (YAML: eventKind)
+    pub failure_rate: Option<f64>,              // FaultTreeEvent failure rate /h (YAML: failureRate)
+    /// REQ-TRS-FTA-002 (issue #148) — FaultTreeEvent → the model element whose
+    /// failure the event represents (qualified name or stable id; typically a
+    /// `Part`/`PartDef`). Dangling → E927. Only meaningful on `FaultTreeEvent`;
+    /// on any other type it is still reported as an unrecognized field (W047).
+    /// (YAML: ref)
+    #[serde(rename = "ref")]
+    pub event_ref: Option<String>,
+
+    // §T4 — AttackTree (ISO/SAE 21434 §15.7 attack path analysis)
+    pub threat_ref: Option<String>,             // AttackTree → ThreatScenario ref (YAML: threatRef)
+    // §T4 — FMEDA diagnostic coverage (ISO 26262-5 §8-9), documented for FaultTreeEvent.
+    pub diagnostic_coverage: Option<f64>,         // DC, 0.0–1.0 (YAML: diagnosticCoverage)
+
+    // §T4 — FMEASheet / FMEAEntry (IEC 60812 / SAE J1739)
+    pub entries: Option<Vec<serde_yaml::Value>>, // FMEASheet sub-entries (YAML: entries)
+    pub failure_mode: Option<String>,            // FMEAEntry: what fails (YAML: failureMode)
+    pub effect: Option<String>,                  // FMEAEntry: consequence (YAML: effect)
+    pub cause: Option<String>,                   // FMEAEntry: root cause (YAML: cause)
+    pub fmea_severity: Option<u8>,               // FMEAEntry severity 1–10 (YAML: fmeaSeverity)
+    pub occurrence: Option<u8>,                  // FMEAEntry occurrence 1–10 (YAML: occurrence)
+    pub detection: Option<u8>,                   // FMEAEntry detection 1–10 (YAML: detection)
+    pub rpn: Option<u32>,                        // FMEAEntry Risk Priority Number (YAML: rpn)
+
+    // §T2 — HazardousEvent (ISO 26262 §7 HARA)
+    pub severity: Option<String>,               // S0-S3
+    pub exposure: Option<String>,               // E0-E4
+    pub controllability: Option<String>,        // C0-C3
+    pub operational_situation: Option<String>,  // free-text operating scenario
+
+    // §T2 — SafetyGoal (ISO 26262 §7 / IEC 61508 / ISO 13849)
+    pub safe_state: Option<String>,             // description of the safe state
+    pub hazardous_events: Option<Vec<String>>,  // HazardousEvent id/qname refs
+
+    // §T2 — DamageScenario (ISO/SAE 21434 §15)
+    pub damage_severity: Option<String>,        // severe|major|moderate|negligible
+    pub impact_categories: Option<Vec<String>>, // safety|financial|operational|privacy
+
+    /// §T4 safety↔security co-engineering (ISO 26262 ⇄ ISO/SAE 21434) — cross-link
+    /// from a `DamageScenario`/`ThreatScenario` to the `HazardousEvent`/`SafetyGoal`
+    /// it endangers. String or list. Resolved via `Resolver::resolve_ref`; target
+    /// must be a `HazardousEvent` or `SafetyGoal` (else E844). (YAML: hazardRef)
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub hazard_ref: Option<Vec<String>>,
+
+    // §T2 — ThreatScenario (ISO/SAE 21434 §15)
+    pub attack_feasibility: Option<String>,     // high|medium|low|very_low
+    pub attack_vector: Option<String>,          // network|adjacent|local|physical
+    pub damage_scenarios: Option<Vec<String>>,  // DamageScenario id/qname refs
+
+    // §T2 — CybersecurityGoal (ISO/SAE 21434 §15)
+    pub cal_level: Option<String>,              // CAL1-CAL4
+    pub security_property: Option<String>,      // confidentiality|integrity|availability|authenticity
+    pub derived_from_safety_goal: Option<String>,   // SG-* that generated this requirement (YAML: derivedFromSafetyGoal)
+
+    // §8.18 — GSN safety-argument layer (issue #20)
+    /// `Argument.argumentType` (YAML: argumentType) ∈ {claim, strategy, solution};
+    /// absent is treated as `claim`. Invalid → E854.
+    pub argument_type: Option<String>,
+    /// `Argument.supports` (YAML: supports) — the SafetyGoal or parent Argument this
+    /// node argues for (the GSN supported goal). String or list; each ref resolves
+    /// via the Resolver (else E855).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub supports: Option<Vec<String>>,
+    /// `AssumptionOfUse.appliesTo` (YAML: appliesTo) — the SafetyGoal / Argument /
+    /// Requirement this SRAC constrains. String or list; each ref resolves via the
+    /// Resolver (else E858).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub applies_to: Option<Vec<String>>,
+
+    // §T2 — TestCase security test method (REQ-TRS-SEC-008; ISO/SAE 21434 §13.3)
+    // Valid: fuzz|penetration_test|security_regression|vulnerability_scan|threat_modeling
+    // Invalid → W809. (YAML: securityTestMethod)
+    pub security_test_method: Option<String>,
+    pub conjugates: Option<String>,
+    pub flow_connections: Option<Vec<serde_yaml::Value>>,
+    pub performs: Option<Vec<serde_yaml::Value>>,
+    pub objective: Option<String>,
+    pub stakeholders: Option<Vec<String>>,
+    pub concerns: Option<Vec<String>>,
+    pub methods: Option<Vec<String>>,
+    pub depends_on: Option<Vec<String>>,
+    pub extends: Option<Vec<serde_yaml::Value>>,
+    pub extension_points: Option<Vec<serde_yaml::Value>>,
+    pub clients: Option<Vec<String>>,
+    pub suppliers: Option<Vec<String>>,
+    /// **Deprecated / removed as a label** (REQ-TRS-NAME-002). Every element now labels
+    /// via `name`; `title` is no longer a recognized label field. It is still parsed
+    /// here only so the validator can detect a stray `title:` and reject it via `E025`.
+    pub title: Option<String>,
+    pub dal_level: Option<String>,
+    pub requirement_kind: Option<String>,
+    pub coverage_target: Option<String>,
+    /// `selection:` — additive membership query (REQ-TRS-PLAN-003).
+    pub selection: Option<TestPlanSelection>,
+
+    // §Baseline (ADR-SYS-BASELINE-001) — release-baseline fields on a `type: Baseline`.
+    /// The baseline date (REQ-TRS-BL-001).
+    pub date: Option<String>,
+
+    // §8.5.2 — EnumerationDef
+    pub values: Option<Vec<serde_yaml::Value>>,
+    pub review_date: Option<String>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub reviewed_by: Option<Vec<String>>,
+    pub recorded_at: Option<String>,
+    pub decision: Option<String>,
+    pub rationale: Option<String>,
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub protocols: Option<Vec<String>>,
+    pub in_zone: Option<String>,
+    /// `foreignFormat: <alias>` on a Package `_index.md` (`ADR-SYS-PLUGIN-002`):
+    /// hands the package's entire directory subtree to the stdio-subprocess
+    /// plugin named by `[plugins.<alias>]` in `.syscribe.toml`. Handled by
+    /// `crate::plugins`.
+    pub foreign_format: Option<String>,
+    /// `annotationFormat: <label>` on a Package `_index.md` (`ADR-SYS-ANNOTATE-001`):
+    /// hands the package's entire directory subtree to the in-process
+    /// comment-marker scanner. `label` is a human-readable tag only (no
+    /// `.syscribe.toml` indirection, unlike `foreignFormat:`) — the scan
+    /// parameters (`marker`/`include`/`exclude`) live inline on this same
+    /// `_index.md`. Handled by `crate::annotations`.
+    pub annotation_format: Option<String>,
+    /// `marker:` — a regex matched against each line of every scanned file;
+    /// the first match on a line starts a marker block. Required when
+    /// `annotationFormat:` is set (`E560` otherwise).
+    pub marker: Option<String>,
+    /// `include:` — glob patterns (relative to this package's directory,
+    /// `**`/`*`/`?` supported) selecting which files are scanned for markers.
+    /// Required, non-empty, when `annotationFormat:` is set (`E560` otherwise).
+    /// On a derived `Diagram` (`REQ-TRS-VIS-003`) the same key lists the
+    /// members of the subject to show.
+    pub include: Option<Vec<String>>,
+    /// `exclude:` — glob patterns excluded from `include:`'s matches; on a
+    /// derived `Diagram`, members of the subject to drop.
+    pub exclude: Option<Vec<String>>,
+    pub control_nodes: Option<Vec<serde_yaml::Value>>,
+
+    // §8.10.2 — Constraint usage
+    pub is_asserted: Option<bool>,
+    pub is_semantic: Option<bool>,
+    pub aliases: Option<Vec<serde_yaml::Value>>,
+
+    // §3.12 — representation
+    pub rep: Option<String>,
+
+    // §3.3 — InterfaceDef constraints
+    pub constraints: Option<Vec<serde_yaml::Value>>,
+    pub parent_feature: Option<String>,
+
+    /// `buildOverrides:` — on a `Configuration`: a flat mapping of `varName -> scalar`
+    /// that wins over any `buildExports` or parameter `buildVar` contribution.
+    /// Last-writer-wins semantics; resolves E050 conflicts. Consistent pattern with
+    /// `parameter_bindings` (also `Option<serde_yaml::Value>`).
+    #[serde(rename = "buildOverrides", default, skip_serializing_if = "Option::is_none")]
+    pub build_overrides: Option<serde_yaml::Value>,
+
+    /// REQ-TRS-ADR-001 (GH #159) — §8.17.1 `ADR` `deciders:`: the decision-makers,
+    /// each a stakeholder `PartDef` qualified name or a free-text name. Opaque
+    /// display metadata, never a cross-reference (a free-text name is legitimate),
+    /// so it is not resolved. A scalar is accepted as a one-entry list. Only a
+    /// schema field on an `ADR`; on any other type it is still reported as an
+    /// unrecognized field (W047).
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub deciders: Option<Vec<String>>,
+
+    /// REQ-TRS-SAFE-006 (ISO 26262-9 §7) — freedom-from-interference / partitioning
+    /// rationale (YAML: `ffiRationale`). A non-empty string on a shared allocation
+    /// target or on a source excuses a mixed-criticality sharing (clears W034).
+    pub ffi_rationale: Option<String>,
+    pub fmea_ref: Option<String>,               // FaultTreeEvent → reconciling FMEAEntry (YAML: fmeaRef)
+    // IEC 61508 §3 risk graph parameters (alternative to ISO 26262 S/E/C)
+    pub consequence: Option<String>,            // Ca | Cb | Cc | Cd
+    pub freq_exposure: Option<String>,          // Fa | Fb  (YAML: freqExposure)
+    pub avoidance: Option<String>,              // Pa | Pb
+    pub demand_rate: Option<String>,            // W1 | W2 | W3  (YAML: demandRate)
+    pub ftti: Option<String>,                   // Fault Tolerant Time Interval (e.g. "20ms")
+    pub pl_level: Option<String>,               // ISO 13849-1 Performance Level: a|b|c|d|e (YAML: plLevel)
+    // DamageScenario.assets: references to Asset elements (REQ-TRS-TYPE-017, YAML: assets)
+    #[serde(default, deserialize_with = "string_or_vec::deserialize")]
+    pub assets: Option<Vec<String>>,
+    /// §T2 risk treatment decision (ISO/SAE 21434 §9 / §15.9): avoid|reduce|share|retain.
+    /// Invalid value → E845. (YAML: riskTreatment)
+    pub risk_treatment: Option<String>,
+    /// §T2 free-text residual-risk note after treatment (no validation). (YAML: residualRisk)
+    pub residual_risk: Option<String>,
+    pub threat_scenarios: Option<Vec<String>>,  // ThreatScenario id/qname refs
+
+    // §T2 — SecurityControl (ISO/SAE 21434)
+    pub control_type: Option<String>,           // prevention|detection|response|recovery
+    pub implements_goals: Option<Vec<String>>,  // CybersecurityGoal id/qname refs
+
+    // §T2 — VulnerabilityReport
+    pub cvss_score: Option<f64>,                // 0.0-10.0
+    pub affected_elements: Option<Vec<String>>, // qualified names of affected model elements
+    pub mitigated_by: Option<Vec<String>>,      // SecurityControl id/qname refs
+
+    // §T2 — upstream goal links for native Requirement
+    // YAML: derivedFromCybersecurityGoal; alias: derivedFromSecurityGoal (legacy)
+    #[serde(alias = "derivedFromSecurityGoal")]
+    pub derived_from_cybersecurity_goal: Option<String>,
+
+    // §T2 — Asset (REQ-TRS-TYPE-017; ISO/SAE 21434 §15.3 asset identification)
+    // cybersecurityProperties: list of confidentiality|integrity|availability|authenticity (YAML: cybersecurityProperties)
+    pub cybersecurity_properties: Option<Vec<String>>,
+    pub is_reference: Option<bool>,
+    pub is_derived: Option<bool>,
+    pub is_constant: Option<bool>,
+    pub is_readonly: Option<bool>,
+    pub is_portion: Option<bool>,
+    pub is_ordered: Option<bool>,
+    pub is_nonunique: Option<bool>,
+    pub is_end: Option<bool>,
+    pub is_individual: Option<bool>,
+    pub value: Option<serde_yaml::Value>,
+    pub value_kind: Option<String>,
+    pub text: Option<String>,
+    pub assume: Option<Vec<serde_yaml::Value>>,
+    pub verdict_type: Option<String>,
+    /// The accountable identity that approved the baseline (REQ-TRS-BL-001).
+    pub approver: Option<String>,
+    /// The intended source-control tag name (distinct from the `id`; REQ-TRS-BL-001).
+    pub git_tag: Option<String>,
+    /// The commit the baseline was sealed at, captured by `create` (REQ-TRS-BL-004).
+    pub git_commit: Option<String>,
+    /// The scope selector (REQ-TRS-BL-003). Named `frozenScope` to avoid colliding with
+    /// the free-form TestPlan `scope` field.
+    pub frozen_scope: Option<FrozenScope>,
+    /// The generated content seal (REQ-TRS-BL-002).
+    pub seal: Option<BaselineSeal>,
+    /// The `Baseline` this one replaces (REQ-TRS-BL-005). Resolver-checked, not a
+    /// suspect-tracked trace link.
+    pub supersedes: Option<String>,
+    pub is_composite: Option<bool>,
+    pub portion_kind: Option<String>,
+
+    // §8.3.2 — Port usage
+    pub is_conjugated: Option<bool>,
+    pub return_type: Option<String>,
+
+    // §8.8.1 — StateDef entry/do/exit
+    pub entry_action: Option<serde_yaml::Value>,
+    pub do_action: Option<serde_yaml::Value>,
+    pub exit_action: Option<serde_yaml::Value>,
+    pub is_negated: Option<bool>,
+
+    // §8.11.1 — RequirementDef
+    pub framed_concerns: Option<Vec<String>>,
+    #[serde(rename = "result")]
+    pub result_type: Option<String>,
+
+    // §8.12.3 — VerificationCaseDef
+    pub verdict_expression: Option<String>,
+
+    // §8.12.4 — UseCaseDef
+    pub includes: Option<Vec<String>>,
+
+    // §8.13 — Allocation convenience
+    pub allocations: Option<Vec<serde_yaml::Value>>,
+
+    // §8.14.1 — ViewpointDef
+    pub satisfied_by: Option<Vec<String>>,
+
+    // §8.14.2 — ViewDef
+    pub rendering: Option<String>,
+
+    // §3.7 — package
+    pub filter_condition: Option<String>,
+
+    // §8.2.4 — OccurrenceDef
+    pub time_slices: Option<Vec<serde_yaml::Value>>,
+    pub snapshots: Option<Vec<serde_yaml::Value>>,
+
+    // §9.4 — variant reference
+    pub variant_of: Option<String>,
+    pub cardinality: Option<String>,
+    pub contributes_to: Option<String>,
+
+    // §9.9 — Build-system integration (build-config command)
+    /// `buildExports:` — on a `FeatureDef`: a list of `{var, whenSelected, whenDeselected}`
+    /// entries. Each entry declares a build variable emitted based on whether the feature
+    /// is selected or deselected in a `Configuration`. `whenSelected` defaults to 1;
+    /// `whenDeselected` absent means the variable is omitted when deselected.
+    #[serde(rename = "buildExports", default, skip_serializing_if = "Option::is_none")]
+    pub build_exports: Option<Vec<serde_yaml::Value>>,
+    pub baseline_ref: Option<String>,
+
+    // §T4-TARA — TARASheet section tables (ISO/SAE 21434)
+    // Each is a list of row-mappings exploded by the walker into Tier-2 elements.
+    pub damage_table: Option<Vec<serde_yaml::Value>>,   // → DamageScenario rows  (YAML: damageTable)
+    pub threat_table: Option<Vec<serde_yaml::Value>>,   // → ThreatScenario rows   (YAML: threatTable)
+    pub goal_table: Option<Vec<serde_yaml::Value>>,     // → CybersecurityGoal rows (YAML: goalTable)
+    pub control_table: Option<Vec<serde_yaml::Value>>,  // → SecurityControl rows  (YAML: controlTable)
+    pub mission_time: Option<String>,           // e.g. "1e9 h" (YAML: missionTime)
+    pub probability: Option<f64>,               // cut-set or top-event probability (YAML: probability)
+    pub latent_diagnostic_coverage: Option<f64>,  // DCl, 0.0–1.0 (YAML: latentDiagnosticCoverage)
+    pub recommended_action: Option<String>,      // FMEAEntry mitigation (YAML: recommendedAction)
+    pub fta_ref: Option<String>,                 // FMEAEntry → reconciling FaultTreeEvent (YAML: ftaRef)
+    #[serde(skip)]
+    pub unknown_fmea_keys: Vec<String>,          // keys not in recognised set; validator emits E922
+    pub cve_id: Option<String>,                 // CVE-YYYY-NNNNN
+    pub asset_owner: Option<String>,          // qname/id of owning architecture element (YAML: assetOwner)
+    pub related_safety_goal: Option<String>,  // SG-* ref for co-engineering (YAML: relatedSafetyGoal)
+}
+
+impl ColdWire {
+    fn into_tiers(self) -> ColdFrontmatter {
+        let w = self;
+        ColdFrontmatter {
+            is_variation: w.is_variation,
+            expression: w.expression,
+            metadata: w.metadata,
+            binding_connections: w.binding_connections,
+            succession_connections: w.succession_connections,
+            sub_states: w.sub_states,
+            transitions: w.transitions,
+            exhibits_states: w.exhibits_states,
+            operations: w.operations,
+            actors: w.actors,
+            steps: w.steps,
+            allocated_from: w.allocated_from,
+            expose: w.expose,
+            viewpoint: w.viewpoint,
+            svg_mode: w.svg_mode,
+            svg_file: w.svg_file,
+            puml_mode: w.puml_mode,
+            puml_file: w.puml_file,
+            shapes: w.shapes,
+            edges: w.edges,
+            layout: w.layout,
+            imports: w.imports,
+            refines: w.refines,
+            about: w.about,
+            locale: w.locale,
+            sil_level: w.sil_level,
+            asil_level: w.asil_level,
+            decomposition_kind: w.decomposition_kind,
+            wcet: w.wcet,
+            configurations: w.configurations,
+            demonstrates: w.demonstrates,
+            trace_baselines: w.trace_baselines,
+            qualified_name: w.qualified_name,
+            is_variant: w.is_variant,
+            ends: w.ends,
+            body: w.body,
+            body_language: w.body_language,
+            evaluate: w.evaluate,
+            review_type: w.review_type,
+            reviews: w.reviews,
+            items: w.items,
+            criteria: w.criteria,
+            alternatives: w.alternatives,
+            scores: w.scores,
+            target_sl: w.target_sl,
+            achieved_sl: w.achieved_sl,
+            members: w.members,
+            from_zone: w.from_zone,
+            to_zone: w.to_zone,
+            repo_imports: w.repo_imports,
+            sysml_submodel: w.sysml_submodel,
+            sub_actions: w.sub_actions,
+            is_parallel: w.is_parallel,
+            objectives: w.objectives,
+            annotates: w.annotates,
+            mandatory: w.mandatory,
+            feature_tree: w.feature_tree,
+            cross_tree_constraints: w.cross_tree_constraints,
+            parameter_constraints: w.parameter_constraints,
+            parameter_bindings: w.parameter_bindings,
+            sub_configurations: w.sub_configurations,
+            is_deployment_package: w.is_deployment_package,
+            responsibility: w.responsibility,
+            measure_type: w.measure_type,
+            independence_level: w.independence_level,
+            confirms: w.confirms,
+            top_event: w.top_event,
+            gate_type: w.gate_type,
+            inputs: w.inputs,
+            event_kind: w.event_kind,
+            failure_rate: w.failure_rate,
+            event_ref: w.event_ref,
+            threat_ref: w.threat_ref,
+            diagnostic_coverage: w.diagnostic_coverage,
+            entries: w.entries,
+            failure_mode: w.failure_mode,
+            effect: w.effect,
+            cause: w.cause,
+            fmea_severity: w.fmea_severity,
+            occurrence: w.occurrence,
+            detection: w.detection,
+            rpn: w.rpn,
+            severity: w.severity,
+            exposure: w.exposure,
+            controllability: w.controllability,
+            operational_situation: w.operational_situation,
+            safe_state: w.safe_state,
+            hazardous_events: w.hazardous_events,
+            damage_severity: w.damage_severity,
+            impact_categories: w.impact_categories,
+            hazard_ref: w.hazard_ref,
+            attack_feasibility: w.attack_feasibility,
+            attack_vector: w.attack_vector,
+            damage_scenarios: w.damage_scenarios,
+            cal_level: w.cal_level,
+            security_property: w.security_property,
+            derived_from_safety_goal: w.derived_from_safety_goal,
+            argument_type: w.argument_type,
+            supports: w.supports,
+            applies_to: w.applies_to,
+            security_test_method: w.security_test_method,
+            tier2: Boxed::of(ColdFrontmatter2 {
+                conjugates: w.conjugates,
+                flow_connections: w.flow_connections,
+                performs: w.performs,
+                objective: w.objective,
+                stakeholders: w.stakeholders,
+                concerns: w.concerns,
+                methods: w.methods,
+                depends_on: w.depends_on,
+                extends: w.extends,
+                extension_points: w.extension_points,
+                clients: w.clients,
+                suppliers: w.suppliers,
+                title: w.title,
+                dal_level: w.dal_level,
+                requirement_kind: w.requirement_kind,
+                coverage_target: w.coverage_target,
+                selection: w.selection,
+                date: w.date,
+                values: w.values,
+                review_date: w.review_date,
+                reviewed_by: w.reviewed_by,
+                recorded_at: w.recorded_at,
+                decision: w.decision,
+                rationale: w.rationale,
+                protocols: w.protocols,
+                in_zone: w.in_zone,
+                foreign_format: w.foreign_format,
+                annotation_format: w.annotation_format,
+                marker: w.marker,
+                include: w.include,
+                exclude: w.exclude,
+                control_nodes: w.control_nodes,
+                is_asserted: w.is_asserted,
+                is_semantic: w.is_semantic,
+                aliases: w.aliases,
+                rep: w.rep,
+                constraints: w.constraints,
+                parent_feature: w.parent_feature,
+                build_overrides: w.build_overrides,
+                deciders: w.deciders,
+                ffi_rationale: w.ffi_rationale,
+                fmea_ref: w.fmea_ref,
+                consequence: w.consequence,
+                freq_exposure: w.freq_exposure,
+                avoidance: w.avoidance,
+                demand_rate: w.demand_rate,
+                ftti: w.ftti,
+                pl_level: w.pl_level,
+                assets: w.assets,
+                risk_treatment: w.risk_treatment,
+                residual_risk: w.residual_risk,
+                threat_scenarios: w.threat_scenarios,
+                control_type: w.control_type,
+                implements_goals: w.implements_goals,
+                cvss_score: w.cvss_score,
+                affected_elements: w.affected_elements,
+                mitigated_by: w.mitigated_by,
+                derived_from_cybersecurity_goal: w.derived_from_cybersecurity_goal,
+                cybersecurity_properties: w.cybersecurity_properties,
+                tier3: Boxed::of(ColdFrontmatter3 {
+                    is_reference: w.is_reference,
+                    is_derived: w.is_derived,
+                    is_constant: w.is_constant,
+                    is_readonly: w.is_readonly,
+                    is_portion: w.is_portion,
+                    is_ordered: w.is_ordered,
+                    is_nonunique: w.is_nonunique,
+                    is_end: w.is_end,
+                    is_individual: w.is_individual,
+                    value: w.value,
+                    value_kind: w.value_kind,
+                    text: w.text,
+                    assume: w.assume,
+                    verdict_type: w.verdict_type,
+                    approver: w.approver,
+                    git_tag: w.git_tag,
+                    git_commit: w.git_commit,
+                    frozen_scope: w.frozen_scope,
+                    seal: w.seal,
+                    supersedes: w.supersedes,
+                    is_composite: w.is_composite,
+                    portion_kind: w.portion_kind,
+                    is_conjugated: w.is_conjugated,
+                    return_type: w.return_type,
+                    entry_action: w.entry_action,
+                    do_action: w.do_action,
+                    exit_action: w.exit_action,
+                    is_negated: w.is_negated,
+                    framed_concerns: w.framed_concerns,
+                    result_type: w.result_type,
+                    verdict_expression: w.verdict_expression,
+                    includes: w.includes,
+                    allocations: w.allocations,
+                    satisfied_by: w.satisfied_by,
+                    rendering: w.rendering,
+                    filter_condition: w.filter_condition,
+                    time_slices: w.time_slices,
+                    snapshots: w.snapshots,
+                    variant_of: w.variant_of,
+                    cardinality: w.cardinality,
+                    contributes_to: w.contributes_to,
+                    build_exports: w.build_exports,
+                    baseline_ref: w.baseline_ref,
+                    damage_table: w.damage_table,
+                    threat_table: w.threat_table,
+                    goal_table: w.goal_table,
+                    control_table: w.control_table,
+                    mission_time: w.mission_time,
+                    probability: w.probability,
+                    latent_diagnostic_coverage: w.latent_diagnostic_coverage,
+                    recommended_action: w.recommended_action,
+                    fta_ref: w.fta_ref,
+                    unknown_fmea_keys: w.unknown_fmea_keys,
+                    cve_id: w.cve_id,
+                    asset_owner: w.asset_owner,
+                    related_safety_goal: w.related_safety_goal,
+                }),
+            }),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ColdFrontmatter {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(ColdWire::deserialize(d)?.into_tiers())
+    }
+}
+
+impl<T: Default + PartialEq> Boxed<T> {
+    fn of(v: T) -> Self {
+        Boxed(if v == T::default() { None } else { Some(Box::new(v)) })
+    }
+}
+
+/// `Option<Box<T>>` that is `None` whenever every field of `T` is unset, so a
+/// flattened tier costs one pointer when unused.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Boxed<T>(Option<Box<T>>);
+
+impl<T> Default for Boxed<T> {
+    fn default() -> Self {
+        Boxed(None)
+    }
+}
+
+impl<'de, T: Deserialize<'de> + Default + PartialEq> Deserialize<'de> for Boxed<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let c = T::deserialize(d)?;
+        Ok(Boxed(if c == T::default() { None } else { Some(Box::new(c)) }))
+    }
+}
+
+impl<T: Serialize> Serialize for Boxed<T> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match &self.0 {
+            Some(c) => c.serialize(s),
+            None => {
+                use serde::ser::SerializeMap;
+                s.serialize_map(Some(0))?.end()
+            }
+        }
+    }
+}
+
+/// `Deref`/`DerefMut` from a holder to the next tier it boxes: reads of an unset
+/// tier see a shared empty one, a write allocates it.
+macro_rules! tier_deref {
+    ($holder:ty, $field:ident, $target:ty) => {
+        impl std::ops::Deref for $holder {
+            type Target = $target;
+            fn deref(&self) -> &$target {
+                static EMPTY: std::sync::OnceLock<$target> = std::sync::OnceLock::new();
+                self.$field.0.as_deref().unwrap_or_else(|| EMPTY.get_or_init(Default::default))
+            }
+        }
+        impl std::ops::DerefMut for $holder {
+            fn deref_mut(&mut self) -> &mut $target {
+                self.$field.0.get_or_insert_with(Default::default)
+            }
+        }
+    };
+}
+tier_deref!(RawFrontmatter, cold, ColdFrontmatter);
+tier_deref!(ColdFrontmatter, tier2, ColdFrontmatter2);
+tier_deref!(ColdFrontmatter2, tier3, ColdFrontmatter3);
+
+impl RawFrontmatter {
+    /// Whether any rarely-set tier is allocated (memory diagnostics and tests).
+    pub fn has_cold_block(&self) -> bool {
+        self.cold.0.is_some()
+    }
+
+    /// Drop every tier a mutable access left allocated but empty, so an element
+    /// that uses none of those fields stays one pointer wide.
+    pub fn shrink(&mut self) {
+        fn trim<T: Default + PartialEq>(b: &mut Boxed<T>) {
+            if b.0.as_deref().is_some_and(|c| *c == T::default()) {
+                b.0 = None;
+            }
+        }
+        if let Some(c1) = self.cold.0.as_deref_mut() {
+            if let Some(c2) = c1.tier2.0.as_deref_mut() {
+                trim(&mut c2.tier3);
+            }
+            trim(&mut c1.tier2);
+        }
+        trim(&mut self.cold);
+    }
+}
+
 
 /// The effective (inherited + own) selection of a `Configuration` with a
 /// `derivedFrom:` base (§9.8). See `crate::config_inherit`.

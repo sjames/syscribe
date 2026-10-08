@@ -73,6 +73,7 @@ impl McpStore {
     pub fn reload(&mut self) -> anyhow::Result<()> {
         let fresh = Self::load_with(&self.model_root, Some(&self.inputs))?;
         *self = fresh;
+        super::memory::release_free_memory();
         Ok(())
     }
 }

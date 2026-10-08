@@ -813,67 +813,70 @@ fn push_synth(
     out.push(RawElement {
         qualified_name: qname.to_string(),
         file_path: file_path.to_string(),
-        frontmatter: RawFrontmatter {
+        frontmatter: {
+            let mut fm = RawFrontmatter {
             element_type: Some(ty),
             name: Some(name.to_string()),
             supertype: spec.supertype.map(serde_yaml::Value::String),
             typed_by: spec.typed_by.map(serde_yaml::Value::String),
-            is_variation: spec.is_variation,
-            is_variant: spec.is_variant,
-            variant_of: spec.variant_of,
             satisfies: spec.satisfies,
             verifies: spec.verifies,
             applies_when: spec.applies_when.map(serde_yaml::Value::String),
             domain: spec.domain,
-            asil_level: spec.asil_level,
-            sil_level: spec.sil_level,
-            pl_level: spec.pl_level,
             short_name: spec.short_name,
             implemented_by: spec.implemented_by,
             connections: spec.connections,
-            sub_states: spec.sub_states,
-            transitions: spec.transitions,
-            entry_action: spec.entry_action,
-            do_action: spec.do_action,
-            exit_action: spec.exit_action,
-            sub_actions: spec.sub_actions,
-            control_nodes: spec.control_nodes,
-            succession_connections: spec.succession_connections,
-            expose: spec.expose,
-            viewpoint: spec.viewpoint,
-            stakeholders: spec.stakeholders,
-            concerns: spec.concerns,
-            rendering: spec.rendering,
             subject: spec.subject,
             item_type: spec.item_type,
-            flow_connections: spec.flow_connections,
-            values: spec.values,
-            actors: spec.actors,
-            objectives: spec.objectives,
-            result_type: spec.result_type,
             is_abstract: spec.is_abstract,
-            allocated_from: spec.allocated_from,
             allocated_to: spec.allocated_to,
             parameters: spec.parameters,
-            expression: spec.expression,
-            body: spec.body,
-            body_language: spec.body_language,
-            return_type: spec.return_type,
-            aliases: spec.aliases,
             multiplicity: spec.multiplicity,
             subsets: spec.subsets,
             redefines: spec.redefines,
-            includes: spec.includes,
-            value: spec.value,
             unit: spec.unit,
-            is_individual: spec.is_individual,
-            clients: spec.clients,
-            suppliers: spec.suppliers,
-            metadata: spec.metadata,
-            is_portion: spec.is_portion,
-            portion_kind: spec.portion_kind,
             features: spec.features,
             ..Default::default()
+            };
+            fm.is_variation = spec.is_variation;
+            fm.is_variant = spec.is_variant;
+            fm.variant_of = spec.variant_of;
+            fm.asil_level = spec.asil_level;
+            fm.sil_level = spec.sil_level;
+            fm.pl_level = spec.pl_level;
+            fm.sub_states = spec.sub_states;
+            fm.transitions = spec.transitions;
+            fm.entry_action = spec.entry_action;
+            fm.do_action = spec.do_action;
+            fm.exit_action = spec.exit_action;
+            fm.sub_actions = spec.sub_actions;
+            fm.control_nodes = spec.control_nodes;
+            fm.succession_connections = spec.succession_connections;
+            fm.expose = spec.expose;
+            fm.viewpoint = spec.viewpoint;
+            fm.stakeholders = spec.stakeholders;
+            fm.concerns = spec.concerns;
+            fm.rendering = spec.rendering;
+            fm.flow_connections = spec.flow_connections;
+            fm.values = spec.values;
+            fm.actors = spec.actors;
+            fm.objectives = spec.objectives;
+            fm.result_type = spec.result_type;
+            fm.allocated_from = spec.allocated_from;
+            fm.expression = spec.expression;
+            fm.body = spec.body;
+            fm.body_language = spec.body_language;
+            fm.return_type = spec.return_type;
+            fm.aliases = spec.aliases;
+            fm.includes = spec.includes;
+            fm.value = spec.value;
+            fm.is_individual = spec.is_individual;
+            fm.clients = spec.clients;
+            fm.suppliers = spec.suppliers;
+            fm.metadata = spec.metadata;
+            fm.is_portion = spec.is_portion;
+            fm.portion_kind = spec.portion_kind;
+            fm
         },
         doc: spec.doc,
         parse_issue: None,
@@ -5381,7 +5384,9 @@ fn resolve_dependency_ends(out: &mut [RawElement]) {
     let index: super::EndpointIndex = out.iter().map(|e| (e.qualified_name.clone(), (None, None))).collect();
     for e in out.iter_mut().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Dependency))) {
         let scope = e.qualified_name.clone();
-        for list in [&mut e.frontmatter.clients, &mut e.frontmatter.suppliers] {
+        for which in 0..2 {
+            // The two fields may sit in different tiers, so borrow one at a time.
+            let list = if which == 0 { &mut e.frontmatter.clients } else { &mut e.frontmatter.suppliers };
             if let Some(v) = list {
                 for name in v.iter_mut() {
                     if let Some(q) = super::lookup_scoped(&index, &scope, name) {

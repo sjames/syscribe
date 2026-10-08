@@ -351,7 +351,8 @@ async fn check_and_reload(store: &Arc<RwLock<McpStore>>, peer: &Peer<RoleServer>
         let roots = fresh.inputs.roots.clone();
         *s = fresh;
         drop(s);
-        log(peer, LoggingLevel::Info, json!({"event": "reload", "source": "watch", "count": count})).await;
+        super::memory::release_free_memory();
+        log(peer, LoggingLevel::Info, json!({"event": "reload", "source": "watch", "count": count, "residentKb": super::memory::usage_kb().map(|u| u.0)})).await;
         let _ = peer.notify_resource_list_changed().await;
         return Some(roots);
     }
