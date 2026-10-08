@@ -2,22 +2,13 @@
 {% if item.is_package %}
 <div class="tree-package">
   <div class="tree-pkg-row">
+    {% if item.qualified_name.is_empty() %}
+    <span class="tree-toggle" style="visibility:hidden" aria-hidden="true">&#x25B6;</span>
+    {% else %}
     <span class="tree-toggle"
-          hx-get="/ui/tree?parent={{ item.qualified_name }}"
-          hx-target="next .tree-children"
-          hx-swap="innerHTML"
-          hx-trigger="click[this.dataset.open!=='true']"
-          onclick="
-            var ch = this.parentElement.nextElementSibling;
-            if (this.dataset.open !== 'true') {
-              this.dataset.open = 'true';
-              this.textContent = '▼';
-            } else {
-              this.dataset.open = 'false';
-              this.textContent = '▶';
-              ch.innerHTML = '';
-            }
-          ">&#x25B6;</span>
+          data-url="/ui/tree?parent={{ item.qualified_name }}"
+          onclick="toggleTreeNode(this)">&#x25B6;</span>
+    {% endif %}
     <a class="tree-item tree-pkg-name"
        href="#"
        hx-get="/ui/detail/{{ item.qualified_name }}"
