@@ -2,6 +2,13 @@
 
 `RELEASES`
 
+## 0.48.1 — 2026-10-08
+
+### A bound parameter is not removed (REQ-TRS-FMED-004)
+
+- **Changed:** removing a parameter that a `Configuration` binds is refused. The reply names the configurations, and the bindings must be removed first: the new `removeBinding` operation (a **✕** beside each binding in the Impact section in Edit mode, and in the MCP `edit_feature` tool) removes one. In 0.48.0 removing the parameter silently removed its bindings. Removing a whole feature still removes the choices and bindings that named it.
+- **New:** the Impact section lists the configurations' bindings of a feature's parameters, with their values.
+
 ## 0.48.0 — 2026-10-08
 
 ### Feature editing everywhere, and a leaner write path (REQ-TRS-FMED-004, REQ-TRS-MCP-MEM-000)

@@ -394,10 +394,20 @@ fn parameters_are_added_replaced_and_removed_with_their_bindings_in_either_layou
     apply(&r, &op(serde_json::json!({"op": "setParameter", "feature": "Features::Car::Engine::Electric", "parameter": {"name": "volts", "type": "ScalarValues::Integer", "default": 400}}))).unwrap();
     assert_eq!(walk_model(&r).unwrap().iter().find(|e| e.qualified_name == "Features::Car::Engine::Electric").unwrap().frontmatter.parameters.as_ref().unwrap().len(), 2);
     apply(&r, &out.undo).unwrap();
+    // A parameter some configuration binds cannot be removed: the binding goes first.
+    let snap = snapshot(&r);
+    let err = apply(&r, &op(serde_json::json!({"op": "removeParameter", "feature": "Features::Car::Engine::Electric", "name": "kw"}))).unwrap_err();
+    assert!(err.contains("bound by CONF-S-001") && err.contains("removeBinding"), "{err}");
+    assert_eq!(snapshot(&r), snap, "a refusal changes nothing");
+    let unbind = apply(&r, &op(serde_json::json!({"op": "removeBinding", "configuration": "CONF-S-001", "feature": "FEAT-CAR-ENGINE-ELECTRIC", "name": "kw"}))).unwrap();
+    assert!(!read(&r, "Configurations/CONF-S-001.md").contains("parameterBindings"), "{}", read(&r, "Configurations/CONF-S-001.md"));
+    assert!(apply(&r, &op(serde_json::json!({"op": "removeBinding", "configuration": "CONF-S-001", "feature": "Features::Car::Engine::Electric", "name": "kw"}))).unwrap_err().contains("binds no parameters"));
     let rm = apply(&r, &op(serde_json::json!({"op": "removeParameter", "feature": "Features::Car::Engine::Electric", "name": "kw"}))).unwrap();
-    assert!(!read(&r, "Configurations/CONF-S-001.md").contains("parameterBindings"), "the binding of a removed parameter goes: {}", read(&r, "Configurations/CONF-S-001.md"));
+    assert!(!read(&r, "Features.md").contains("name: kw"));
     apply(&r, &rm.undo).unwrap();
+    apply(&r, &unbind.undo).unwrap();
     assert!(read(&r, "Configurations/CONF-S-001.md").contains("Electric.kw: 120"));
+    assert!(apply(&r, &op(serde_json::json!({"op": "removeBinding", "configuration": "Nope", "feature": "Features::Car", "name": "kw"}))).unwrap_err().contains("not a Configuration"));
     let _ = before;
     // Per-file layout.
     let r = model();

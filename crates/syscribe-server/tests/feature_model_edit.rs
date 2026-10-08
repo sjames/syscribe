@@ -210,3 +210,27 @@ async fn sheet_entries_and_parameters_are_edited_through_the_endpoint() {
     let motor = g["children"].as_array().unwrap().iter().find(|c| c["ref"] == "Features::Car::Motor").unwrap();
     assert!(motor["feature"].get("parameters").is_none());
 }
+
+#[tokio::test]
+async fn a_bound_parameter_cannot_be_removed_until_its_binding_is() {
+    let r = model();
+    write(&r, "F/Car/Engine/Electric.md", "---\ntype: FeatureDef\nid: FEAT-ELECTRIC\nname: Electric\nrequires: [FEAT-CHARGER]\nparameters:\n  - { name: kw, type: ScalarValues::Real }\n---\n");
+    write(&r, "C/CONF-B-001.md", "---\ntype: Configuration\nid: CONF-B-001\nname: B\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Car::Engine::Electric: true\nparameterBindings:\n  F::Car::Engine::Electric.kw: 120\n---\n");
+    let app = app(&r);
+    // The impact view lists the binding.
+    let impact = call(&app, "GET", "/api/feature-model/impact?feature=F::Car::Engine::Electric", None).await;
+    assert_eq!(impact["bindings"][0]["configuration"]["id"], "CONF-B-001", "{impact}");
+    assert_eq!(impact["bindings"][0]["parameter"], "kw");
+    assert_eq!(impact["bindings"][0]["value"], 120);
+    // Removing the parameter is refused, naming the configuration.
+    let refused = edit(&app, json!({"op": "removeParameter", "feature": "F::Car::Engine::Electric", "name": "kw"}), false, false).await;
+    assert_eq!(refused["written"], false, "{refused}");
+    assert!(refused["reason"].as_str().unwrap().contains("bound by CONF-B-001"), "{refused}");
+    assert!(std::fs::read_to_string(r.join("F/Car/Engine/Electric.md")).unwrap().contains("kw"));
+    // Remove the binding, then the parameter.
+    let unbound = edit(&app, json!({"op": "removeBinding", "configuration": "CONF-B-001", "feature": "F::Car::Engine::Electric", "name": "kw"}), false, false).await;
+    assert_eq!(unbound["written"], true, "{unbound}");
+    let removed = edit(&app, json!({"op": "removeParameter", "feature": "F::Car::Engine::Electric", "name": "kw"}), false, false).await;
+    assert_eq!(removed["written"], true, "{removed}");
+    assert!(!std::fs::read_to_string(r.join("F/Car/Engine/Electric.md")).unwrap().contains("kw"));
+}

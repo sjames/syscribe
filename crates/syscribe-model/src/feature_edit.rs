@@ -74,8 +74,10 @@ pub enum EditOp {
     RemoveConstraint { feature: String, kind: String, target: String },
     /// Add or replace one parameter of a feature, by its `name` (the whole declaration: `type`, `range`, `default`, ...).
     SetParameter { feature: String, parameter: Value },
-    /// Remove a parameter, and the bindings of it in every configuration.
+    /// Remove a parameter. Refused while any configuration still binds it: remove those bindings first.
     RemoveParameter { feature: String, name: String },
+    /// Remove one configuration's binding of a feature's parameter (`parameterBindings:`).
+    RemoveBinding { configuration: String, feature: String, name: String },
     /// Put files back as they were (the inverse of `add`, `remove` and the field edits).
     Restore { files: Vec<RestoreFile> },
 }
@@ -201,6 +203,7 @@ pub fn apply(root: &Path, op: &EditOp) -> Result<EditOutcome, String> {
         EditOp::RemoveConstraint { feature, kind, target } => constraint(&cx, feature, kind, target, false),
         EditOp::SetParameter { feature, parameter } => set_parameter(&cx, feature, parameter),
         EditOp::RemoveParameter { feature, name } => remove_parameter(&cx, feature, name),
+        EditOp::RemoveBinding { configuration, feature, name } => remove_binding(&cx, configuration, feature, name),
         EditOp::Restore { files } => restore(&cx, files),
     }
 }
@@ -679,9 +682,32 @@ fn set_parameter(cx: &Ctx, feature: &str, parameter: &Value) -> Result<EditOutco
     Ok(EditOutcome { undo: tx.undo(), feature: Some(f.qname) })
 }
 
-/// Remove a parameter and the configuration bindings of it.
+/// The configurations (by id, else qualified name) that bind `name` of the feature `q`.
+fn binders(cx: &Ctx, q: &str, name: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for e in cx.elements.iter().filter(|e| e.frontmatter.element_type == Some(ElementType::Configuration)) {
+        let Some(b) = e.frontmatter.parameter_bindings.as_ref().and_then(|v| v.as_mapping()) else { continue };
+        let bound = b.keys().filter_map(|k| k.as_str()).any(|k| k.split_once('.').is_some_and(|(f, p)| p == name && cx.alias.get(f).map(String::as_str).unwrap_or(f) == q));
+        if bound {
+            out.push((e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone()), rel_of(&cx.root, &e.file_path)));
+        }
+    }
+    out
+}
+
+/// Remove a parameter of a feature. A parameter some configuration binds is not removed:
+/// the bindings go first (`removeBinding`), so nothing is left naming a parameter that is gone.
 fn remove_parameter(cx: &Ctx, feature: &str, name: &str) -> Result<EditOutcome, String> {
     let f = cx.feature(feature)?.clone();
+    let bound = binders(cx, &f.qname, name);
+    if !bound.is_empty() {
+        let who: Vec<String> = bound.iter().map(|(id, _)| id.clone()).collect();
+        return Err(format!(
+            "parameter '{name}' of '{}' is bound by {}: remove those bindings first (removeBinding)",
+            f.qname,
+            who.join(", ")
+        ));
+    }
     let mut tx = Tx::new(cx);
     with_feature_map(cx, &mut tx, &f, |map, _, _| {
         let mut list: Vec<serde_yaml::Value> = match map.get(key("parameters")) {
@@ -700,28 +726,39 @@ fn remove_parameter(cx: &Ctx, feature: &str, name: &str) -> Result<EditOutcome, 
         }
         Ok(())
     })?;
-    let binding = format!("{}.{name}", f.qname);
-    let id_binding = f.id.as_ref().map(|i| format!("{i}.{name}"));
-    let mut seen: HashSet<String> = HashSet::new();
-    for e in cx.elements.iter().filter(|e| e.frontmatter.element_type == Some(ElementType::Configuration)) {
-        let rel = rel_of(&cx.root, &e.file_path);
-        if !seen.insert(rel.clone()) || is_synthesized(e, Path::new(&rel)) {
-            continue;
+    Ok(EditOutcome { undo: tx.undo(), feature: Some(f.qname) })
+}
+
+/// Remove one configuration's binding of a parameter.
+fn remove_binding(cx: &Ctx, configuration: &str, feature: &str, name: &str) -> Result<EditOutcome, String> {
+    let f = cx.feature(feature)?.clone();
+    let conf = cx
+        .elements
+        .iter()
+        .find(|e| e.frontmatter.element_type == Some(ElementType::Configuration) && (e.frontmatter.id.as_deref() == Some(configuration) || e.qualified_name == configuration.replace('/', "::")))
+        .ok_or_else(|| format!("'{configuration}' is not a Configuration of this model"))?;
+    let rel = rel_of(&cx.root, &conf.file_path);
+    let mut tx = Tx::new(cx);
+    tx.patch(&rel, |m| {
+        let Some(serde_yaml::Value::Mapping(b)) = m.get_mut(key("parameterBindings")) else {
+            return Err(format!("'{configuration}' binds no parameters"));
+        };
+        let dead: Vec<serde_yaml::Value> = b
+            .keys()
+            .filter(|k| k.as_str().and_then(|s| s.split_once('.')).is_some_and(|(q, p)| p == name && cx.alias.get(q).map(String::as_str).unwrap_or(q) == f.qname))
+            .cloned()
+            .collect();
+        if dead.is_empty() {
+            return Err(format!("'{configuration}' does not bind parameter '{name}' of '{}'", f.qname));
         }
-        tx.patch(&rel, |m| {
-            if let Some(serde_yaml::Value::Mapping(b)) = m.get_mut(key("parameterBindings")) {
-                let dead: Vec<serde_yaml::Value> = b.keys().filter(|k| k.as_str().is_some_and(|s| s == binding || Some(s.to_string()) == id_binding)).cloned().collect();
-                let had = !dead.is_empty();
-                for k in dead {
-                    b.remove(&k);
-                }
-                if had && b.is_empty() {
-                    m.remove(key("parameterBindings"));
-                }
-            }
-            Ok(())
-        })?;
-    }
+        for k in dead {
+            b.remove(&k);
+        }
+        if b.is_empty() {
+            m.remove(key("parameterBindings"));
+        }
+        Ok(())
+    })?;
     Ok(EditOutcome { undo: tx.undo(), feature: Some(f.qname) })
 }
 

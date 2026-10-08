@@ -41,7 +41,7 @@ tags:
 
 Run with `cargo test -p syscribe-model --test feature_edit`. The endpoint, preview, confirmation and
 undo round trip are checked by `cargo test -p syscribe-server --test feature_model_edit`; the
-map-key rewriting by `cargo test -p syscribe-model --lib key_rewrite`; the MCP tool by `cargo test -p syscribe --test mcp_feature_edit`; the undo history, delta
+map-key rewriting by `cargo test -p syscribe-model --lib key_rewrite`; the bound-parameter rule through the endpoint by `a_bound_parameter_cannot_be_removed_until_its_binding_is`; the MCP tool by `cargo test -p syscribe --test mcp_feature_edit`; the undo history, delta
 wording and drop target by `frontend/test/feature-core.test.mjs` (`npm test` in
 `crates/syscribe-server/frontend/`).
 

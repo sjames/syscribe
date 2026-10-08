@@ -115970,6 +115970,11 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       byId("fm-undo").addEventListener("click", () => void this.undo());
       byId("fm-redo").addEventListener("click", () => void this.redo());
       byId("fm-selected").addEventListener("click", (ev) => {
+        const rb = ev.target.closest('button[data-action="removeBinding"]');
+        if (rb && this.selectedNode()) {
+          void this.runEdit({ op: "removeBinding", configuration: rb.dataset.config ?? "", feature: this.selectedNode().ref, name: rb.dataset.name ?? "" });
+          return;
+        }
         const b3 = ev.target.closest('button[data-impact="removal"]');
         if (b3) {
           void this.previewRemoval(b3.dataset.feature ?? "", b3.dataset.subtree === "true");
@@ -116555,8 +116560,11 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       const link = (e2) => `<li><a href="#" hx-get="/ui/detail/${e2.qname.split("::").map(encodeURIComponent).join("/")}" hx-target="#modal-content" hx-swap="innerHTML">${esc(e2.name)}</a></li>`;
       const lines = impactSummary(i2).map((l3) => `<div class="fm-impact-line">${esc(l3)}</div>`).join("");
       const gated = (i2.gates?.byType ?? []).map((t3) => `<details><summary>${t3.count} ${esc(t3.type)}</summary><ul>${t3.elements.map(link).join("")}${t3.count > t3.elements.length ? `<li>and ${t3.count - t3.elements.length} more</li>` : ""}</ul></details>`).join("");
+      const bound = (i2.bindings ?? []).map(
+        (b3) => `<li>${esc(b3.configuration.id ?? b3.configuration.name)}: <b>${esc(b3.parameter)}</b> = ${esc(String(b3.value))}${this.editMode ? `<button data-action="removeBinding" data-config="${esc(b3.configuration.id ?? b3.configuration.qname)}" data-name="${esc(b3.parameter)}" title="Remove this binding (a bound parameter cannot be removed)">&#x2715;</button>` : ""}</li>`
+      ).join("");
       const configs = (title, list) => list && list.length ? `<details><summary>${title} (${list.length})</summary><ul>${list.map(link).join("")}</ul></details>` : "";
-      return `<div class="fm-impact"><div class="detail-section-label">Impact</div>${lines}${gated}${configs("Selected by", i2.selectedBy)}${configs("Deselected by", i2.deselectedBy)}
+      return `<div class="fm-impact"><div class="detail-section-label">Impact</div>${lines}${gated}${bound ? `<details open><summary>Bindings (${(i2.bindings ?? []).length})</summary><ul class="fm-edit-constraints">${bound}</ul></details>` : ""}${configs("Selected by", i2.selectedBy)}${configs("Deselected by", i2.deselectedBy)}
           <button data-impact="removal" data-feature="${esc(node.ref)}" data-subtree="${(i2.descendants ?? 0) > 0}">What would removing it change?</button><div class="fm-removal" id="fm-removal"></div></div>`;
     }
     async previewRemoval(feature, subtree) {

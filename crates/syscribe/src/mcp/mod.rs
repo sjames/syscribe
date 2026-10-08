@@ -281,7 +281,7 @@ struct EditFeatureArgs {
     /// `{"op": "remove", "feature", "subtree"?}`, `{"op": "rename", "feature", "name"}`,
     /// `{"op": "setGroup", "feature", "groupKind"}`, `{"op": "setMandatory", "feature", "mandatory"}`,
     /// `{"op": "move", "feature", "newParent"?}`, `{"op": "addConstraint"|"removeConstraint", "feature", "kind", "target"}`,
-    /// `{"op": "setParameter", "feature", "parameter"}`, `{"op": "removeParameter", "feature", "name"}` or a returned `undo` (`{"op": "restore", "files"}`).
+    /// `{"op": "setParameter", "feature", "parameter"}`, `{"op": "removeParameter", "feature", "name"}` (refused while a configuration binds it), `{"op": "removeBinding", "configuration", "feature", "name"}` or a returned `undo` (`{"op": "restore", "files"}`).
     #[schemars(schema_with = "edit_schema")]
     edit: Value,
     #[serde(default = "default_true")]

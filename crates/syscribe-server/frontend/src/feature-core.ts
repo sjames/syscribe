@@ -550,6 +550,8 @@ export interface ImpactResult {
         byType: { type: string; count: number; elements: { qname: string; id?: string | null; name: string }[] }[];
         inheritedThroughPackages: { package: string; elements: number }[];
     };
+    /** Configurations' bindings of this feature's parameters. */
+    bindings?: { configuration: { qname: string; id?: string | null; name: string }; parameter: string; value: unknown }[];
     selectedBy?: { qname: string; id?: string | null; name: string }[];
     deselectedBy?: { qname: string; id?: string | null; name: string }[];
     requires?: { qname: string; name: string }[];

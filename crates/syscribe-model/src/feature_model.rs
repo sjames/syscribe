@@ -1809,6 +1809,17 @@ pub fn impact_json(elements: &[RawElement], feature: &str) -> serde_json::Value 
             None => {}
         }
     }
+    // Every configuration binding of one of this feature's parameters.
+    let mut bindings: Vec<serde_json::Value> = Vec::new();
+    for c in elements.iter().filter(|e| is(e, ElementType::Configuration)) {
+        let Some(b) = c.frontmatter.parameter_bindings.as_ref().and_then(|v| v.as_mapping()) else { continue };
+        for (k, v) in b {
+            let Some((fq, param)) = k.as_str().and_then(|s| s.split_once('.')) else { continue };
+            if crate::variability::canon_feature_ref(fq, &alias) == q {
+                bindings.push(json!({ "configuration": who(c), "parameter": param, "value": v }));
+            }
+        }
+    }
     let name_of = |qn: &String| tree.iter().find(|x| &x.qname == qn).map(|x| json!({ "qname": x.qname, "id": x.id, "name": x.name })).unwrap_or_else(|| json!({ "qname": qn }));
     let required_by: Vec<serde_json::Value> = tree.iter().filter(|x| x.requires.contains(&q)).map(|x| name_of(&x.qname)).collect();
     let excluded_by: Vec<serde_json::Value> = tree.iter().filter(|x| x.excludes.contains(&q)).map(|x| name_of(&x.qname)).collect();
@@ -1819,6 +1830,7 @@ pub fn impact_json(elements: &[RawElement], feature: &str) -> serde_json::Value 
         "found": true,
         "feature": { "qname": f.qname, "id": f.id, "name": f.name },
         "gates": { "direct": direct_total, "byType": by_type, "inheritedThroughPackages": inherited },
+        "bindings": bindings,
         "selectedBy": selected_by,
         "deselectedBy": deselected_by,
         "requires": f.requires.iter().map(name_of).collect::<Vec<_>>(),

@@ -202,11 +202,11 @@ they do in the real tree.
 - `update_element {ref, fields?, doc?, dry_run?}`
 - `edit_feature {edit, dry_run?, accept_worse?}` — one semantic feature-model edit
   (`add`, `remove`, `rename`, `setGroup`, `setMandatory`, `move`, `addConstraint`,
-  `removeConstraint`, `setParameter`, `removeParameter`; the same operations as the browser's Edit mode).
+  `removeConstraint`, `setParameter`, `removeParameter`, `removeBinding`; the same operations as the browser's Edit mode).
   `featureDelta` says what the edit does to the model's validity (newly dead or
   false-optional features, a model made void, configurations made invalid); an edit that
   makes it worse is not written without `accept_worse:true` (`needsConfirmation`). A
-  commit returns `undo`, the edit that reverses it. A rename or move rewrites every
+  commit returns `undo`, the edit that reverses it. A parameter that a configuration binds is not removed until `removeBinding` has removed its bindings. A rename or move rewrites every
   reference including the keys of a `Configuration`'s `features:`.
 - `move_element {ref, dest, dry_run?}`
 - `delete_element {ref, force?, dry_run?}` — refuses if other elements reference

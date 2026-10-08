@@ -138,6 +138,11 @@ class FeaturePage {
         byId('fm-undo').addEventListener('click', () => void this.undo());
         byId('fm-redo').addEventListener('click', () => void this.redo());
         byId('fm-selected').addEventListener('click', ev => {
+            const rb = (ev.target as Element).closest('button[data-action="removeBinding"]') as HTMLButtonElement | null;
+            if (rb && this.selectedNode()) {
+                void this.runEdit({ op: 'removeBinding', configuration: rb.dataset.config ?? '', feature: this.selectedNode()!.ref, name: rb.dataset.name ?? '' });
+                return;
+            }
             const b = (ev.target as Element).closest('button[data-impact="removal"]') as HTMLButtonElement | null;
             if (b) {
                 void this.previewRemoval(b.dataset.feature ?? '', b.dataset.subtree === 'true');
@@ -775,9 +780,15 @@ class FeaturePage {
         const gated = (i.gates?.byType ?? [])
             .map(t => `<details><summary>${t.count} ${esc(t.type)}</summary><ul>${t.elements.map(link).join('')}${t.count > t.elements.length ? `<li>and ${t.count - t.elements.length} more</li>` : ''}</ul></details>`)
             .join('');
+        const bound = (i.bindings ?? [])
+            .map(
+                b =>
+                    `<li>${esc(b.configuration.id ?? b.configuration.name)}: <b>${esc(b.parameter)}</b> = ${esc(String(b.value))}${this.editMode ? `<button data-action="removeBinding" data-config="${esc(b.configuration.id ?? b.configuration.qname)}" data-name="${esc(b.parameter)}" title="Remove this binding (a bound parameter cannot be removed)">&#x2715;</button>` : ''}</li>`,
+            )
+            .join('');
         const configs = (title: string, list: { qname: string; name: string }[] | undefined): string =>
             list && list.length ? `<details><summary>${title} (${list.length})</summary><ul>${list.map(link).join('')}</ul></details>` : '';
-        return `<div class="fm-impact"><div class="detail-section-label">Impact</div>${lines}${gated}${configs('Selected by', i.selectedBy)}${configs('Deselected by', i.deselectedBy)}
+        return `<div class="fm-impact"><div class="detail-section-label">Impact</div>${lines}${gated}${bound ? `<details open><summary>Bindings (${(i.bindings ?? []).length})</summary><ul class="fm-edit-constraints">${bound}</ul></details>` : ''}${configs('Selected by', i.selectedBy)}${configs('Deselected by', i.deselectedBy)}
           <button data-impact="removal" data-feature="${esc(node.ref)}" data-subtree="${(i.descendants ?? 0) > 0}">What would removing it change?</button><div class="fm-removal" id="fm-removal"></div></div>`;
     }
 
