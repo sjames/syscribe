@@ -2,7 +2,7 @@
 
 `RELEASES`
 
-## Unreleased
+## 0.47.0 — 2026-10-08
 
 ### Feature model viewer, configurator, editor and analysis (REQ-TRS-FMED-001 to -007)
 
