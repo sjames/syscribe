@@ -1,7 +1,7 @@
 ---
 type: Requirement
 id: REQ-TRS-VIS-024
-name: "The browser adds an existing model element to a manifest diagram as a pinned shape, without creating or changing the element"
+name: "The browser adds an existing model element to a manifest diagram, unpinned so ELK places it, without creating or changing the element"
 status: draft
 reqDomain: software
 reqClass: system
@@ -21,16 +21,16 @@ add a shape for it to the open diagram through a new guarded-write route,
 
 - resolves `ref` to a model element, refusing an unresolved one with the reason;
 - derives the shape's `kind` from the element's type, a shape id from its qualified name made
-  unique within the diagram, and writes `shapes.<id> = {ref, kind}` and a `layout.<id>` pin at
-  `x`/`y` (default a cascade position) in one guarded write — the element file itself is never
-  touched;
+  unique within the diagram, and writes `shapes.<id> = {ref, kind}` in one guarded write — plus a
+  `layout.<id>` pin when `x`/`y` are given, and none otherwise, so the browser's ELK layout places
+  the shape around the pinned ones; the element file itself is never touched;
 - refuses an element already on the diagram, and refuses a **derived** diagram (one with a
   `subject:` and no `shapes:`, whose content follows the model) with a reason that points at
   `include:`/`exclude:`, since a hand-added shape would turn it into a manifest diagram;
 - refuses a target that is not a `Diagram`.
 
 On success the client shall re-open the diagram so the new shape appears laid out with the server's
-sizes, pinned where it was placed. `Diagram` elements themselves are not offered by the picker.
+sizes. The picker sends no position. `Diagram` elements themselves are not offered by the picker.
 
 ## Rationale
 

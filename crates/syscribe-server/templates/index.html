@@ -39,6 +39,22 @@
   </form>
 </dialog>
 
+<!-- Add existing element picker (REQ-TRS-VIS-024). Logic: frontend/src/add-existing.ts,
+     wiring: frontend/src/add-existing-dialog.ts. -->
+<dialog id="add-existing-dialog">
+  <form id="ae-form" method="dialog">
+    <h3>Add existing element</h3>
+    <label>Element <input id="ae-ref" type="text" list="ae-results" autocomplete="off" placeholder="Search by name or qualified name"></label>
+    <datalist id="ae-results"></datalist>
+    <div id="ae-count" class="nd-hint"></div>
+    <div id="ae-error" class="nd-error" role="alert" style="display:none"></div>
+    <div class="nd-actions">
+      <button type="button" id="ae-cancel">Cancel</button>
+      <button type="submit" id="ae-add">Add</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Canvas area: tab bar + viewport -->
 <div id="canvas-area">
 
@@ -60,6 +76,7 @@
 
     <div class="sprotty-toolbar">
       <button class="canvas-btn" onclick="window.DiagramEditor && window.DiagramEditor.addNode()" title="Add node">+</button>
+      <button class="canvas-btn" onclick="window.DiagramEditor && window.DiagramEditor.addExisting()" title="Add an existing element to this diagram">&#x2295;</button>
       <button class="canvas-btn" onclick="window.DiagramEditor && window.DiagramEditor.deleteSelected()" title="Delete selected node (Del)">&#x2715;</button>
       <button class="canvas-btn" id="connect-mode-btn"
               onclick="window.DiagramEditor && (this.classList.toggle('active', window.DiagramEditor.toggleConnectMode()))"

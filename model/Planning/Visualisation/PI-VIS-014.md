@@ -2,9 +2,13 @@
 type: PlanningItem
 id: PI-VIS-014
 name: "Add an existing element to a manifest diagram from the browser — picker, POST /api/diagrams/shapes route, tests"
-status: todo
+status: done
 itemType: feature
 achieves: [REQ-TRS-VIS-024]
+evidence:
+  - path: repo:crates/syscribe-server/tests/new_diagram.rs
+  - path: repo:crates/syscribe-server/frontend/src/add-existing.ts
+  - path: repo:crates/syscribe-server/frontend/test/add-existing.test.mjs
 tags:
   - visualisation
 ---

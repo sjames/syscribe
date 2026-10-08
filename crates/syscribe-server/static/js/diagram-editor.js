@@ -6794,14 +6794,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       var iterable_1 = require_iterable();
       var SModelElementImpl3 = class {
         get root() {
-          let current = this;
-          while (current) {
-            if (current instanceof SModelRootImpl)
-              return current;
-            else if (current instanceof SChildElementImpl2)
-              current = current.parent;
+          let current2 = this;
+          while (current2) {
+            if (current2 instanceof SModelRootImpl)
+              return current2;
+            else if (current2 instanceof SChildElementImpl2)
+              current2 = current2.parent;
             else
-              current = void 0;
+              current2 = void 0;
           }
           throw new Error("Element has no root");
         }
@@ -7527,14 +7527,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                 dtime = time - start;
               }
               const t3 = Math.min(1, dtime / this.context.duration);
-              const current = this.tween(this.ease(t3), this.context);
-              this.context.modelChanged.update(current);
+              const current2 = this.tween(this.ease(t3), this.context);
+              this.context.modelChanged.update(current2);
               if (t3 === 1) {
                 this.context.logger.log(this, frames * 1e3 / this.context.duration + " fps");
-                resolve(current);
+                resolve(current2);
               } else if (this.stopped) {
                 this.context.logger.log(this, "Animation stopped at " + t3 * 100 + "%");
-                resolve(current);
+                resolve(current2);
               } else {
                 this.context.syncer.onNextFrame(lambda);
               }
@@ -7729,13 +7729,13 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return this.id2parent.get(id);
         }
         getRoot(element) {
-          let current = element;
-          while (current) {
-            const parent = this.id2parent.get(current.id);
+          let current2 = element;
+          while (current2) {
+            const parent = this.id2parent.get(current2.id);
             if (parent === void 0) {
-              return current;
+              return current2;
             }
-            current = parent;
+            current2 = parent;
           }
           throw new Error("Element has no root");
         }
@@ -8781,29 +8781,29 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       }
       exports.registerModelElement = registerModelElement;
       function findParent(element, predicate) {
-        let current = element;
-        while (current !== void 0) {
-          if (predicate(current))
-            return current;
-          else if (current instanceof smodel_1.SChildElementImpl)
-            current = current.parent;
+        let current2 = element;
+        while (current2 !== void 0) {
+          if (predicate(current2))
+            return current2;
+          else if (current2 instanceof smodel_1.SChildElementImpl)
+            current2 = current2.parent;
           else
-            current = void 0;
+            current2 = void 0;
         }
-        return current;
+        return current2;
       }
       exports.findParent = findParent;
       function findParentByFeature(element, predicate) {
-        let current = element;
-        while (current !== void 0) {
-          if (predicate(current))
-            return current;
-          else if (current instanceof smodel_1.SChildElementImpl)
-            current = current.parent;
+        let current2 = element;
+        while (current2 !== void 0) {
+          if (predicate(current2))
+            return current2;
+          else if (current2 instanceof smodel_1.SChildElementImpl)
+            current2 = current2.parent;
           else
-            current = void 0;
+            current2 = void 0;
         }
-        return current;
+        return current2;
       }
       exports.findParentByFeature = findParentByFeature;
       function translatePoint(point, source, target) {
@@ -8840,8 +8840,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       }
       exports.translateBounds = translateBounds;
       function containsSome(root, element) {
-        const test = (el2) => root.index.getById(el2.id) !== void 0;
-        const find = (elements) => elements.some((el2) => test(el2) || find(el2.children));
+        const test = (el3) => root.index.getById(el3.id) !== void 0;
+        const find = (elements) => elements.some((el3) => test(el3) || find(el3.children));
         return find([element]);
       }
       exports.containsSome = containsSome;
@@ -11527,11 +11527,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         const boundsAware = (0, smodel_utils_1.findParentByFeature)(element, isBoundsAware);
         if (boundsAware !== void 0) {
           let bounds = boundsAware.bounds;
-          let current = boundsAware;
-          while (current instanceof smodel_1.SChildElementImpl) {
-            const parent = current.parent;
+          let current2 = boundsAware;
+          while (current2 instanceof smodel_1.SChildElementImpl) {
+            const parent = current2.parent;
             bounds = parent.localToParent(bounds);
-            current = parent;
+            current2 = parent;
           }
           return bounds;
         } else if (element instanceof smodel_1.SModelRootImpl) {
@@ -12121,14 +12121,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
             return this.spread(containerOptions, layoutOptions);
         }
         getLayoutOptions(element) {
-          let current = element;
+          let current2 = element;
           const allOptions = [];
-          while (current !== void 0) {
-            const layoutOptions = current.layoutOptions;
+          while (current2 !== void 0) {
+            const layoutOptions = current2.layoutOptions;
             if (layoutOptions !== void 0)
               allOptions.push(layoutOptions);
-            if (current instanceof smodel_1.SChildElementImpl)
-              current = current.parent;
+            if (current2 instanceof smodel_1.SChildElementImpl)
+              current2 = current2.parent;
             else
               break;
           }
@@ -13802,11 +13802,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       exports.isConnectable = isConnectable;
       function getAbsoluteRouteBounds(model, route = model.routingPoints) {
         let bounds = getRouteBounds(route);
-        let current = model;
-        while (current instanceof smodel_1.SChildElementImpl) {
-          const parent = current.parent;
+        let current2 = model;
+        while (current2 instanceof smodel_1.SChildElementImpl) {
+          const parent = current2.parent;
           bounds = parent.localToParent(bounds);
-          current = parent;
+          current2 = parent;
         }
         return bounds;
       }
@@ -15368,14 +15368,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return { x: x3, y: y3 };
         }
         getEdgePlacement(element) {
-          let current = element;
+          let current2 = element;
           const allPlacements = [];
-          while (current !== void 0) {
-            const placement = current.edgePlacement;
+          while (current2 !== void 0) {
+            const placement = current2.edgePlacement;
             if (placement !== void 0)
               allPlacements.push(placement);
-            if (current instanceof smodel_1.SChildElementImpl)
-              current = current.parent;
+            if (current2 instanceof smodel_1.SChildElementImpl)
+              current2 = current2.parent;
             else
               break;
           }
@@ -17471,11 +17471,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           var item = data[pos];
           while (pos > 0) {
             var parent = pos - 1 >> 1;
-            var current = data[parent];
-            if (compare(item, current) >= 0) {
+            var current2 = data[parent];
+            if (compare(item, current2) >= 0) {
               break;
             }
-            data[pos] = current;
+            data[pos] = current2;
             pos = parent;
           }
           data[pos] = item;
@@ -18060,8 +18060,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
               if (resolvedMove) {
                 this.resolvedMoves.set(resolvedMove.element.id, resolvedMove);
                 if (this.edgeRouterRegistry) {
-                  const handleEdges = (el2) => {
-                    index.getAttachedElements(el2).forEach((edge) => {
+                  const handleEdges = (el3) => {
+                    index.getAttachedElements(el3).forEach((edge) => {
                       if (edge instanceof model_2.SRoutableElementImpl && !this.isChildOfMovedElements(edge)) {
                         const existingDelta = attachedEdgeShifts.get(edge);
                         const newDelta = geometry_1.Point.subtract(resolvedMove.toPosition, resolvedMove.fromPosition);
@@ -18070,9 +18070,9 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                       }
                     });
                   };
-                  const handleEdgesForChildren = (el2) => {
-                    if ((0, smodel_1.isParent)(el2)) {
-                      el2.children.forEach((childEl) => {
+                  const handleEdgesForChildren = (el3) => {
+                    if ((0, smodel_1.isParent)(el3)) {
+                      el3.children.forEach((childEl) => {
                         if (childEl instanceof smodel_1.SModelElementImpl) {
                           if (childEl instanceof model_2.SConnectableElementImpl) {
                             handleEdges(childEl);
@@ -18146,8 +18146,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
             }
           });
         }
-        isChildOfMovedElements(el2) {
-          const parent = el2.parent;
+        isChildOfMovedElements(el3) {
+          const parent = el3.parent;
           if (Array.from(this.resolvedMoves.values()).map((rm) => rm.element.id).includes(parent.id)) {
             return true;
           }
@@ -22555,16 +22555,16 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         return `${firstChar}${name.substring(1)}`;
       }
       var entityRegex = new RegExp("&[a-z0-9#]+;", "gi");
-      var el2 = null;
+      var el3 = null;
       function unescapeEntities(text) {
-        if (!el2) {
-          el2 = document.createElement("div");
+        if (!el3) {
+          el3 = document.createElement("div");
         }
         return text.replace(entityRegex, (entity) => {
-          if (el2 === null)
+          if (el3 === null)
             return "";
-          el2.innerHTML = entity;
-          return el2.textContent === null ? "" : el2.textContent;
+          el3.innerHTML = entity;
+          return el3.textContent === null ? "" : el3.textContent;
         });
       }
       function recurse(doc, func) {
@@ -22604,17 +22604,17 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       var vnodeMap = /* @__PURE__ */ new Map();
       var delimited = false;
       function toVNode(node, parent) {
-        let current;
+        let current2;
         if (parent !== null) {
-          current = vnodeMap.get(parent);
+          current2 = vnodeMap.get(parent);
         }
         switch (node === null || node === void 0 ? void 0 : node.nodeType) {
           // element
           case 1: {
-            if (current === void 0)
+            if (current2 === void 0)
               return;
-            current.children = current.children ? current.children : [];
-            const children = current.children;
+            current2.children = current2.children ? current2.children : [];
+            const children = current2.children;
             const attributes = node.attributes;
             const attrs = {};
             for (let i2 = 0; i2 < attributes.length; i2++) {
@@ -22631,9 +22631,9 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           // text
           case 3: {
             const text = node.textContent;
-            if (text !== null && current !== void 0) {
-              current.children = current.children ? current.children : [];
-              const children = current.children;
+            if (text !== null && current2 !== void 0) {
+              current2.children = current2.children ? current2.children : [];
+              const children = current2.children;
               const lastData = children.length > 0 ? children[children.length - 1] : null;
               if (!delimited && typeof lastData !== "string" && lastData !== null && lastData.sel === void 0) {
                 lastData.text = lastData.text + text;
@@ -86453,7 +86453,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
               _3.yd = function dl(a10) {
                 throw vbb(new xcb());
               };
-              _3.zd = function el2() {
+              _3.zd = function el3() {
                 throw vbb(new Zdb(uie));
               };
               _3.Hb = function fl() {
@@ -112630,6 +112630,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
     });
     return asJson(resp);
   }
+  async function addShape(diagramQname, req) {
+    const resp = await fetch("/api/diagrams/shapes/" + qnameToPath(diagramQname), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req)
+    });
+    return asJson(resp);
+  }
 
   // src/types.ts
   function isNodeSchema(child) {
@@ -112713,13 +112721,13 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
 
   // src/layout.ts
   var PORT_SIZE = 12;
-  function adoptServerSize(el2) {
-    if (!el2.serverSize && el2.size && el2.size.width > 0 && el2.size.height > 0) {
-      el2.serverSize = { width: el2.size.width, height: el2.size.height };
+  function adoptServerSize(el3) {
+    if (!el3.serverSize && el3.size && el3.size.width > 0 && el3.size.height > 0) {
+      el3.serverSize = { width: el3.size.width, height: el3.size.height };
     }
   }
-  function serverSizeOf(el2) {
-    const s3 = el2?.serverSize;
+  function serverSizeOf(el3) {
+    const s3 = el3?.serverSize;
     return s3 && s3.width > 0 && s3.height > 0 ? s3 : void 0;
   }
   var NODE_NODE_SPACING = 40;
@@ -115440,16 +115448,152 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     return container;
   }
 
+  // src/add-existing.ts
+  var NOT_OFFERED = /* @__PURE__ */ new Set(["Diagram"]);
+  var MAX_RESULTS = 100;
+  function searchElements(all2, query, limit = MAX_RESULTS) {
+    const q2 = query.trim().toLowerCase();
+    const scored = [];
+    for (const e2 of all2) {
+      if (e2.qualifiedName === "" || e2.elementType != null && NOT_OFFERED.has(e2.elementType)) {
+        continue;
+      }
+      const qn = e2.qualifiedName.toLowerCase();
+      const nm = (e2.name ?? "").toLowerCase();
+      let rank;
+      if (q2 === "") {
+        rank = 3;
+      } else if (qn === q2) {
+        rank = 0;
+      } else if (qn.startsWith(q2) || nm.startsWith(q2)) {
+        rank = 1;
+      } else if (qn.includes(q2) || nm.includes(q2)) {
+        rank = 2;
+      } else {
+        continue;
+      }
+      scored.push({ e: e2, rank });
+    }
+    scored.sort((a3, b3) => a3.rank - b3.rank || a3.e.qualifiedName.localeCompare(b3.e.qualifiedName));
+    return scored.slice(0, limit).map((s3) => s3.e);
+  }
+  function describe2(e2) {
+    return e2.elementType ?? "element";
+  }
+  function buildAddRequest(form) {
+    const ref = form.ref.trim();
+    if (ref === "") {
+      return { ok: false, error: "Choose an element to add." };
+    }
+    const hit = form.all.find((e2) => e2.qualifiedName === ref);
+    if (!hit) {
+      const near = searchElements(form.all, ref, 3).map((e2) => e2.qualifiedName);
+      return {
+        ok: false,
+        error: `'${ref}' is not an element of the model.` + (near.length > 0 ? ` Did you mean ${near.join(", ")}?` : "")
+      };
+    }
+    if (hit.elementType != null && NOT_OFFERED.has(hit.elementType)) {
+      return { ok: false, error: `'${ref}' is a diagram; a diagram cannot be a shape of a diagram.` };
+    }
+    return {
+      ok: true,
+      request: { ref: hit.qualifiedName },
+      label: hit.name && hit.name !== "" ? hit.name : hit.qualifiedName.split("::").pop() ?? hit.qualifiedName
+    };
+  }
+  var DERIVED_MESSAGE = "This diagram is derived from its subject, so its shapes follow the model. Narrow or widen it with include:/exclude: in the file, or start a blank diagram with + Diagram.";
+
+  // src/add-existing-dialog.ts
+  function el(id) {
+    const e2 = document.getElementById(id);
+    if (!e2) {
+      throw new Error(`add-existing dialog: #${id} missing from the page`);
+    }
+    return e2;
+  }
+  function showError(msg) {
+    const e2 = el("ae-error");
+    e2.textContent = msg;
+    e2.style.display = msg ? "block" : "none";
+  }
+  function summarize(findings) {
+    return findings.map((f3) => `${f3.code}: ${f3.message}`).join("; ");
+  }
+  var all = [];
+  var current = null;
+  function refreshResults() {
+    const query = el("ae-ref").value;
+    const hits = searchElements(all, query);
+    el("ae-results").replaceChildren(
+      ...hits.map((e2) => {
+        const o3 = document.createElement("option");
+        o3.value = e2.qualifiedName;
+        o3.label = `${describe2(e2)} \u2014 ${e2.qualifiedName}`;
+        return o3;
+      })
+    );
+    el("ae-count").textContent = hits.length === 0 ? "No matches." : `${hits.length}${hits.length >= 100 ? "+" : ""} match${hits.length === 1 ? "" : "es"}`;
+  }
+  async function openAddExisting(opts) {
+    current = opts;
+    showError("");
+    const resp = await fetch("/api/elements");
+    all = resp.ok ? await resp.json() : [];
+    el("ae-ref").value = "";
+    refreshResults();
+    const dialog = el("add-existing-dialog");
+    dialog.showModal();
+    el("ae-ref").focus();
+  }
+  async function submit(ev) {
+    ev.preventDefault();
+    if (!current) {
+      return;
+    }
+    const built = buildAddRequest({ ref: el("ae-ref").value, all });
+    if (!built.ok) {
+      showError(built.error);
+      return;
+    }
+    const btn = el("ae-add");
+    btn.disabled = true;
+    try {
+      const resp = await addShape(current.diagramQname, built.request);
+      if (!resp.written) {
+        showError(resp.reason ?? (summarize(resp.newErrors) || "The model refused the shape."));
+        return;
+      }
+      el("add-existing-dialog").close();
+      await current.onAdded();
+    } catch (err) {
+      showError(`Could not add the element: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  function installAddExistingDialog() {
+    document.addEventListener("DOMContentLoaded", () => {
+      const form = document.getElementById("ae-form");
+      if (!form) {
+        return;
+      }
+      form.addEventListener("submit", (ev) => void submit(ev));
+      el("ae-ref").addEventListener("input", refreshResults);
+      el("ae-cancel").addEventListener("click", () => el("add-existing-dialog").close());
+    });
+  }
+
   // src/connect-listener.ts
   var import_sprotty3 = __toESM(require_lib2());
   var import_sprotty_protocol2 = __toESM(require_lib());
   function connectableAncestor(target) {
-    let el2 = target;
-    while (el2) {
-      if (el2.type === "node" || el2.type === "port") {
-        return el2;
+    let el3 = target;
+    while (el3) {
+      if (el3.type === "node" || el3.type === "port") {
+        return el3;
       }
-      el2 = el2 instanceof import_sprotty3.SChildElementImpl ? el2.parent : void 0;
+      el3 = el3 instanceof import_sprotty3.SChildElementImpl ? el3.parent : void 0;
     }
     return void 0;
   }
@@ -115516,30 +115660,30 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       clone.removeAttribute("class");
     }
     const prefix = `${hostId}_`;
-    for (const el2 of Array.from(clone.querySelectorAll("*"))) {
-      const id = el2.getAttribute("id");
+    for (const el3 of Array.from(clone.querySelectorAll("*"))) {
+      const id = el3.getAttribute("id");
       if (id && id.startsWith(prefix)) {
-        el2.setAttribute("id", id.slice(prefix.length));
+        el3.setAttribute("id", id.slice(prefix.length));
       }
       for (const cls of INTERACTIVE_CLASSES) {
-        el2.classList.remove(cls);
+        el3.classList.remove(cls);
       }
-      if (el2.getAttribute("class") === "") {
-        el2.removeAttribute("class");
+      if (el3.getAttribute("class") === "") {
+        el3.removeAttribute("class");
       }
-      el2.removeAttribute("tabindex");
-      const ref = el2.getAttribute("data-sysml-ref");
+      el3.removeAttribute("tabindex");
+      const ref = el3.getAttribute("data-sysml-ref");
       if (ref !== null) {
         if (ref !== "") {
-          el2.setAttributeNS(SYSML_NS, "sysml:ref", ref);
+          el3.setAttributeNS(SYSML_NS, "sysml:ref", ref);
         }
-        el2.removeAttribute("data-sysml-ref");
+        el3.removeAttribute("data-sysml-ref");
       }
       for (const end of ["source", "target"]) {
-        const v3 = el2.getAttribute(`data-sysml-${end}`);
+        const v3 = el3.getAttribute(`data-sysml-${end}`);
         if (v3 !== null) {
-          el2.setAttributeNS(SYSML_NS, `sysml:${end}`, v3);
-          el2.removeAttribute(`data-sysml-${end}`);
+          el3.setAttributeNS(SYSML_NS, `sysml:${end}`, v3);
+          el3.removeAttribute(`data-sysml-${end}`);
         }
       }
     }
@@ -115651,6 +115795,31 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         await this.dispatcher.dispatch(import_sprotty_protocol3.DeleteElementAction.create([shapeId]));
         this.toast(`Create failed: ${refusalText(resp)}`);
       }
+    }
+    // -----------------------------------------------------------------
+    // Add an existing element (REQ-TRS-VIS-024)
+    // -----------------------------------------------------------------
+    /** Pick a model element and add it to the open manifest diagram (unpinned:
+     * ELK places it). A derived diagram follows its subject, so it gets an explanation
+     * instead of the picker. The diagram is re-fetched afterwards so the new
+     * shape arrives laid out with the server's sizes. */
+    async addExisting() {
+      const qname = this.currentQname;
+      const model = this.activeModel();
+      if (!qname || !model) {
+        return;
+      }
+      if (model.derived === true) {
+        this.toast(DERIVED_MESSAGE);
+        return;
+      }
+      await openAddExisting({
+        diagramQname: qname,
+        onAdded: async () => {
+          this.forget(qname);
+          await this.activate(qname);
+        }
+      });
     }
     // -----------------------------------------------------------------
     // Delete node (REQ-TRS-DE-004/005)
@@ -115962,8 +116131,8 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       return { x: 60 + step, y: 60 + step };
     }
     toast(message, level = "error") {
-      const el2 = document.getElementById("sprotty-toast");
-      if (!el2) {
+      const el3 = document.getElementById("sprotty-toast");
+      if (!el3) {
         if (level === "error") {
           console.error("[diagram-editor]", message);
         } else {
@@ -115971,12 +116140,12 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         }
         return;
       }
-      el2.textContent = message;
-      el2.classList.toggle("info", level === "info");
-      el2.style.display = "block";
-      window.clearTimeout(el2._hideTimer);
-      el2._hideTimer = window.setTimeout(() => {
-        el2.style.display = "none";
+      el3.textContent = message;
+      el3.classList.toggle("info", level === "info");
+      el3.style.display = "block";
+      window.clearTimeout(el3._hideTimer);
+      el3._hideTimer = window.setTimeout(() => {
+        el3.style.display = "none";
       }, level === "info" ? 3e3 : 6e3);
     }
   };
@@ -116050,7 +116219,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   }
 
   // src/new-diagram-dialog.ts
-  function el(id) {
+  function el2(id) {
     const e2 = document.getElementById(id);
     if (!e2) {
       throw new Error(`new-diagram dialog: #${id} missing from the page`);
@@ -116064,12 +116233,12 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   var candidates = [];
   var packageCache = [];
   async function refreshSubjects() {
-    const kind = el("nd-kind").value;
+    const kind = el2("nd-kind").value;
     const info = kindInfo(kind);
-    el("nd-subject-hint").textContent = info ? `Subject: ${info.hint}.` : "";
+    el2("nd-subject-hint").textContent = info ? `Subject: ${info.hint}.` : "";
     const lists = await Promise.all((info?.subjectTypes ?? []).map(fetchByType));
     candidates = [...new Set(lists.flat().map((s3) => s3.qualifiedName))].sort();
-    const dl = el("nd-subjects");
+    const dl = el2("nd-subjects");
     dl.replaceChildren(
       ...candidates.map((q2) => {
         const o3 = document.createElement("option");
@@ -116080,20 +116249,20 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   }
   function updateMode() {
     const derive = document.querySelector('input[name="nd-start"]:checked').value === "derive";
-    el("nd-subject-label").firstChild.textContent = derive ? "Subject " : "Subject (optional) ";
+    el2("nd-subject-label").firstChild.textContent = derive ? "Subject " : "Subject (optional) ";
   }
-  function showError(msg) {
-    const e2 = el("nd-error");
+  function showError2(msg) {
+    const e2 = el2("nd-error");
     e2.textContent = msg;
     e2.style.display = msg ? "block" : "none";
   }
-  function summarize(findings) {
+  function summarize2(findings) {
     return findings.map((f3) => `${f3.code}: ${f3.message}`).join("; ");
   }
   async function open2() {
-    const dialog = el("new-diagram-dialog");
-    showError("");
-    const kindSel = el("nd-kind");
+    const dialog = el2("new-diagram-dialog");
+    showError2("");
+    const kindSel = el2("nd-kind");
     if (kindSel.options.length === 0) {
       for (const k3 of DIAGRAM_KINDS) {
         const o3 = document.createElement("option");
@@ -116102,7 +116271,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         kindSel.appendChild(o3);
       }
     }
-    const pkgSel = el("nd-package");
+    const pkgSel = el2("nd-package");
     const packages = (await fetchByType("Package")).map((p3) => p3.qualifiedName).filter((q2) => q2 !== "").sort();
     packageCache.splice(0, packageCache.length, ...packages);
     pkgSel.replaceChildren(
@@ -116114,50 +116283,50 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       })
     );
     pkgSel.value = defaultPackage(packages);
-    el("nd-name").value = "";
-    el("nd-subject").value = "";
+    el2("nd-name").value = "";
+    el2("nd-subject").value = "";
     updateMode();
     await refreshSubjects();
     dialog.showModal();
-    el("nd-name").focus();
+    el2("nd-name").focus();
   }
-  async function submit(ev) {
+  async function submit2(ev) {
     ev.preventDefault();
     const startFrom = document.querySelector('input[name="nd-start"]:checked').value;
     const built = buildCreateRequest({
-      name: el("nd-name").value,
-      kind: el("nd-kind").value,
+      name: el2("nd-name").value,
+      kind: el2("nd-kind").value,
       startFrom,
-      subject: el("nd-subject").value,
-      pkg: el("nd-package").value,
+      subject: el2("nd-subject").value,
+      pkg: el2("nd-package").value,
       candidates
     });
     if (!built.ok) {
-      showError(built.error);
+      showError2(built.error);
       return;
     }
-    const btn = el("nd-create");
+    const btn = el2("nd-create");
     btn.disabled = true;
     try {
       const resp = await createElement(built.request);
       if (!resp.written) {
-        showError(resp.reason ?? (summarize(resp.newErrors) || "The model refused the new diagram."));
+        showError2(resp.reason ?? (summarize2(resp.newErrors) || "The model refused the new diagram."));
         return;
       }
-      el("new-diagram-dialog").close();
+      el2("new-diagram-dialog").close();
       if (window.openDiagram) {
         await window.openDiagram(built.tabId, built.displayName, built.kind);
       }
       if (resp.newWarnings.length > 0) {
         const toast = document.getElementById("sprotty-toast");
         if (toast) {
-          toast.textContent = `Created ${built.request.qname}. ${summarize(resp.newWarnings)}`;
+          toast.textContent = `Created ${built.request.qname}. ${summarize2(resp.newWarnings)}`;
           toast.style.display = "block";
           window.setTimeout(() => toast.style.display = "none", 6e3);
         }
       }
     } catch (err) {
-      showError(`Could not create the diagram: ${err.message}`);
+      showError2(`Could not create the diagram: ${err.message}`);
     } finally {
       btn.disabled = false;
     }
@@ -116169,16 +116338,17 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       if (!form) {
         return;
       }
-      form.addEventListener("submit", (ev) => void submit(ev));
-      el("nd-kind").addEventListener("change", () => void refreshSubjects());
+      form.addEventListener("submit", (ev) => void submit2(ev));
+      el2("nd-kind").addEventListener("change", () => void refreshSubjects());
       document.querySelectorAll('input[name="nd-start"]').forEach((r3) => r3.addEventListener("change", updateMode));
-      el("nd-cancel").addEventListener("click", () => el("new-diagram-dialog").close());
+      el2("nd-cancel").addEventListener("click", () => el2("new-diagram-dialog").close());
     });
   }
 
   // src/main.ts
   window.DiagramEditor = new DiagramEditor();
   installNewDiagramDialog();
+  installAddExistingDialog();
 })();
 /*! Bundled license information:
 

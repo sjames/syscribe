@@ -56,6 +56,7 @@ All JavaScript (HTMX, Mermaid, the bundled diagram editor including `sprotty-elk
 | `PATCH` | `/api/diagrams/layout/<qname>` | Persist pins: `{ "<shapeId>": {x, y, w?, h?} }` writes the pin (`w`/`h` when given); a `null` value removes that shape's pin (guarded write) |
 | `DELETE` | `/api/diagrams/layout/<qname>` | Remove every pin — drops the diagram's whole `layout:` key (the *Auto-layout* button; guarded write) |
 | `PUT` | `/api/diagrams/svg/<qname>` | Save a companion SVG: body `{ "svg": "<svg …>…</svg>" }` is written to `svgFile:` (default `<stem>.svg` beside the `.md`), setting `svgMode: companion`/`svgFile:` and appending an `<img>` to the body when absent (guarded write; refused unless the body is an SVG document) |
+| `POST` | `/api/diagrams/shapes/<qname>` | Add an existing element to a manifest diagram as a shape (unpinned unless `x`/`y` are given; refused for a derived diagram; guarded write) |
 | `GET` | `/api/validation` | Validation findings JSON (includes `qname` per finding) |
 | `WS` | `/ws` | Live model-change events |
 
@@ -103,6 +104,7 @@ Entries in `layout:` are **pins**. A pinned shape keeps the position (and size, 
 
 Three gestures and three buttons change the model, each one guarded write that returns the usual `WriteResponse` delta and shows a toast on refusal:
 
+- **⊕ Add existing element** opens a picker over the whole model (type to filter by name or qualified name, prefix matches first; diagrams are not offered). Choosing one `POST`s it to `/api/diagrams/shapes/<qname>`, which lists it under `shapes:` with the kind of the element's type and **no pin**, so ELK places it around the pinned ones; the element's own file is never touched. An element already on the diagram, an unresolved name and a **derived** diagram are refused in the picker with the reason (a derived diagram follows its subject; narrow or widen it with `include:`/`exclude:`, or start a blank one with **+ Diagram**). Relationships to shapes already on the diagram are not added for you; use **↔** Connect.
 - **Drag** a shape to pin it — one `PATCH /api/diagrams/layout/<qname>` carrying that shape's new position (relative to its parent). A refused move snaps back.
 - **Pin all** writes every placed shape's current position and ELK-sized width/height as pins in a single `PATCH`, so the picture ELK produced becomes explicit, reviewable `layout:` entries and reopens exactly as it looks now.
 - **Auto-layout** clears every pin with `DELETE /api/diagrams/layout/<qname>` (the whole `layout:` key goes), re-fetches the diagram and lets ELK lay it out from scratch. The cached picture is only dropped once the delete was accepted.

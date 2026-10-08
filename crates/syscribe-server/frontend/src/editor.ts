@@ -33,6 +33,8 @@ import {
 import * as api from './api';
 import { isDerivedDiagram, portChain, resolveConnectEnds } from './connect-rules';
 import { createDiagramContainer } from './container';
+import { openAddExisting } from './add-existing-dialog';
+import { DERIVED_MESSAGE } from './add-existing';
 import { ConnectMouseListener } from './connect-listener';
 import { defaultSize, prepareForLayout, prepareNode } from './layout';
 import { serialiseDiagramSvg } from './svg-export';
@@ -187,6 +189,33 @@ export class DiagramEditor {
             await this.dispatcher.dispatch(DeleteElementAction.create([shapeId]));
             this.toast(`Create failed: ${refusalText(resp)}`);
         }
+    }
+
+    // -----------------------------------------------------------------
+    // Add an existing element (REQ-TRS-VIS-024)
+    // -----------------------------------------------------------------
+
+    /** Pick a model element and add it to the open manifest diagram (unpinned:
+     * ELK places it). A derived diagram follows its subject, so it gets an explanation
+     * instead of the picker. The diagram is re-fetched afterwards so the new
+     * shape arrives laid out with the server's sizes. */
+    async addExisting(): Promise<void> {
+        const qname = this.currentQname;
+        const model = this.activeModel();
+        if (!qname || !model) {
+            return;
+        }
+        if (model.derived === true) {
+            this.toast(DERIVED_MESSAGE);
+            return;
+        }
+        await openAddExisting({
+            diagramQname: qname,
+            onAdded: async () => {
+                this.forget(qname);
+                await this.activate(qname);
+            },
+        });
     }
 
     // -----------------------------------------------------------------

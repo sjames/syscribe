@@ -261,3 +261,127 @@ async fn a_diagram_in_a_nested_package_lands_under_that_package() {
     assert_eq!(status, StatusCode::OK, "{graph}");
     assert_eq!(graph["derived"], json!(true));
 }
+
+// ── Add an existing element (REQ-TRS-VIS-024) ──────────────────────────────
+
+async fn create_blank(app: &axum::Router, qname: &str) {
+    let (_, resp) = call(
+        app,
+        "POST",
+        "/api/elements",
+        Some(json!({ "qname": qname, "type": "Diagram", "fields": { "diagramKind": "BDD", "shapes": {} } })),
+    )
+    .await;
+    assert_eq!(resp["written"], json!(true), "{resp}");
+}
+
+#[tokio::test]
+async fn an_existing_element_is_added_as_a_pinned_shape_and_the_element_is_untouched() {
+    let root = temp_model();
+    let widget_before = std::fs::read_to_string(root.join("Basics/Widget.md")).unwrap();
+    let app = build_app(&root).await;
+    create_blank(&app, "Diagrams::Scratch").await;
+
+    let (_, resp) = call(
+        &app,
+        "POST",
+        "/api/diagrams/shapes/Diagrams/Scratch",
+        Some(json!({ "ref": "Basics::Widget", "x": 120, "y": 80 })),
+    )
+    .await;
+    assert_eq!(resp["written"], json!(true), "{resp}");
+
+    let text = std::fs::read_to_string(root.join("Diagrams/Scratch.md")).unwrap();
+    assert!(text.contains("s-basics-widget"), "{text}");
+    assert!(text.contains("ref: Basics::Widget"), "{text}");
+    assert!(text.contains("kind: PartDef"), "kind comes from the element's type:\n{text}");
+    assert_eq!(std::fs::read_to_string(root.join("Basics/Widget.md")).unwrap(), widget_before, "the element file is never touched");
+
+    let (_, graph) = call(&app, "GET", "/api/diagrams/model/Diagrams/Scratch", None).await;
+    let children = graph["children"].as_array().unwrap();
+    assert_eq!(children.len(), 1, "{graph}");
+    assert_eq!(children[0]["id"], "s-basics-widget");
+    assert_eq!(children[0]["ref"], "Basics::Widget");
+    assert_eq!(graph["pinned"], json!(["s-basics-widget"]));
+    assert_eq!(children[0]["position"], json!({ "x": 120.0, "y": 80.0 }));
+}
+
+#[tokio::test]
+async fn adding_an_element_already_on_the_diagram_is_refused() {
+    let root = temp_model();
+    let app = build_app(&root).await;
+    create_blank(&app, "Diagrams::Scratch").await;
+    let body = json!({ "ref": "Basics::Widget", "x": 10, "y": 10 });
+    let (_, first) = call(&app, "POST", "/api/diagrams/shapes/Diagrams/Scratch", Some(body.clone())).await;
+    assert_eq!(first["written"], json!(true), "{first}");
+    let after_first = std::fs::read_to_string(root.join("Diagrams/Scratch.md")).unwrap();
+    let (_, second) = call(&app, "POST", "/api/diagrams/shapes/Diagrams/Scratch", Some(body)).await;
+    assert_eq!(second["written"], json!(false), "{second}");
+    assert!(second["reason"].as_str().unwrap().contains("already on this diagram"), "{second}");
+    assert_eq!(std::fs::read_to_string(root.join("Diagrams/Scratch.md")).unwrap(), after_first);
+}
+
+#[tokio::test]
+async fn a_derived_diagram_unresolved_ref_diagram_ref_and_non_diagram_target_are_refused() {
+    let root = temp_model();
+    let app = build_app(&root).await;
+    create_blank(&app, "Diagrams::Scratch").await;
+    let (_, derived) = call(
+        &app,
+        "POST",
+        "/api/elements",
+        Some(json!({ "qname": "Diagrams::Derived", "type": "Diagram", "fields": { "diagramKind": "IBD", "subject": "Basics::Widget" } })),
+    )
+    .await;
+    assert_eq!(derived["written"], json!(true), "{derived}");
+    let derived_before = std::fs::read_to_string(root.join("Diagrams/Derived.md")).unwrap();
+
+    let (_, on_derived) = call(
+        &app,
+        "POST",
+        "/api/diagrams/shapes/Diagrams/Derived",
+        Some(json!({ "ref": "Basics::Widget" })),
+    )
+    .await;
+    assert_eq!(on_derived["written"], json!(false), "{on_derived}");
+    assert!(on_derived["reason"].as_str().unwrap().contains("derived diagram"), "{on_derived}");
+    assert!(on_derived["reason"].as_str().unwrap().contains("include:"), "points at the way forward: {on_derived}");
+    assert_eq!(std::fs::read_to_string(root.join("Diagrams/Derived.md")).unwrap(), derived_before);
+
+    let (_, unresolved) = call(&app, "POST", "/api/diagrams/shapes/Diagrams/Scratch", Some(json!({ "ref": "Basics::Nope" }))).await;
+    assert_eq!(unresolved["written"], json!(false), "{unresolved}");
+    assert!(unresolved["reason"].as_str().unwrap().contains("unresolved reference"), "{unresolved}");
+
+    let (_, a_diagram) = call(&app, "POST", "/api/diagrams/shapes/Diagrams/Scratch", Some(json!({ "ref": "Diagrams::Derived" }))).await;
+    assert_eq!(a_diagram["written"], json!(false), "{a_diagram}");
+    assert!(a_diagram["reason"].as_str().unwrap().contains("is a Diagram"), "{a_diagram}");
+
+    let (_, not_a_diagram) = call(&app, "POST", "/api/diagrams/shapes/Basics/Widget", Some(json!({ "ref": "Basics::Widget" }))).await;
+    assert_eq!(not_a_diagram["written"], json!(false), "{not_a_diagram}");
+    assert!(not_a_diagram["reason"].as_str().unwrap().contains("not a Diagram"), "{not_a_diagram}");
+}
+
+#[tokio::test]
+async fn a_shape_added_without_a_position_is_left_unpinned_for_elk() {
+    let root = temp_model();
+    let app = build_app(&root).await;
+    create_blank(&app, "Diagrams::Other").await;
+    let (_, first) = call(&app, "POST", "/api/diagrams/shapes/Diagrams/Other", Some(json!({ "ref": "Basics::Widget", "x": 10, "y": 10 }))).await;
+    assert_eq!(first["written"], json!(true), "{first}");
+    let (_, extra) = call(&app, "POST", "/api/elements", Some(json!({ "qname": "Basics::Extra", "type": "PartDef" }))).await;
+    assert_eq!(extra["written"], json!(true), "{extra}");
+
+    let (_, resp) = call(&app, "POST", "/api/diagrams/shapes/Diagrams/Other", Some(json!({ "ref": "Basics::Extra" }))).await;
+    assert_eq!(resp["written"], json!(true), "{resp}");
+    let text = std::fs::read_to_string(root.join("Diagrams/Other.md")).unwrap();
+    assert!(text.contains("s-basics-extra:\n    ref: Basics::Extra"), "the shape is listed:\n{text}");
+    let layout_part = text.split("layout:").nth(1).unwrap_or("");
+    assert!(!layout_part.contains("s-basics-extra"), "no pin was written for it:\n{text}");
+
+    let (_, graph) = call(&app, "GET", "/api/diagrams/model/Diagrams/Other", None).await;
+    let children = graph["children"].as_array().unwrap();
+    assert_eq!(children.len(), 2, "{graph}");
+    let added = children.iter().find(|c| c["ref"] == "Basics::Extra").expect("the added shape");
+    assert!(added.get("position").is_none(), "unpinned, so no position is sent: {added}");
+    assert_eq!(graph["pinned"], json!(["s-basics-widget"]));
+}

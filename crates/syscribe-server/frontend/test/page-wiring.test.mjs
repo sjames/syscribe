@@ -62,6 +62,13 @@ check('the viewport, host and toast exist in the page the script drives', () => 
     }
 });
 
+check('the Add existing element button and picker ids the script reads are all present', () => {
+    for (const id of ['add-existing-dialog', 'ae-form', 'ae-ref', 'ae-results', 'ae-count', 'ae-error', 'ae-add', 'ae-cancel']) {
+        assert.ok(index.includes(`id="${id}"`), `#${id} is in index.html`);
+    }
+    assert.ok(index.includes('window.DiagramEditor.addExisting()'), 'the toolbar button calls addExisting');
+});
+
 check('the New diagram control and dialog ids the script reads are all present', () => {
     for (const id of ['new-diagram-dialog', 'nd-form', 'nd-name', 'nd-kind', 'nd-subject', 'nd-subjects', 'nd-subject-label', 'nd-subject-hint', 'nd-package', 'nd-error', 'nd-create', 'nd-cancel']) {
         assert.ok(index.includes(`id="${id}"`), `#${id} is in index.html`);

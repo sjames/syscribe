@@ -4,9 +4,10 @@
 
 ## Unreleased
 
-### New diagram from the browser; two blank-canvas bugs fixed (REQ-TRS-VIS-023)
+### New diagram and add-existing-element from the browser; two blank-canvas bugs fixed (REQ-TRS-VIS-023, -024)
 
 - **New:** a **+ Diagram** button in the model browser opens a dialog to create a diagram — a name, a kind, *derive from a subject* or *blank*, an optional/required subject with suggestions limited to the element types that kind accepts, and a package (default `Diagrams`). It posts through the guarded-write engine, then opens the diagram in a tab.
+- **New:** a **⊕ Add existing element** toolbar button opens a picker over the model and adds the chosen element to a hand-listed (manifest) diagram through `POST /api/diagrams/shapes/{qname}`: one guarded write that lists it under `shapes:` unpinned, so ELK places it, and never touches the element's file. Refused for a derived diagram, an unresolved or already-present element, and a diagram as the element (REQ-TRS-VIS-024).
 - **Fixed:** in the web UI a diagram tab opened to a blank canvas with no tab strip. The stylesheet hides `#sprotty-viewport` and `#canvas-tabs` by default and the page script "showed" them by assigning an empty `display`, which only removes the inline style and leaves the stylesheet's `none` in force. Present since the editor first landed (2026-07-30); the editor itself, the REST routes and every exported picture were unaffected, which is why API-level tests and the exports never saw it. A new test (`frontend/test/page-wiring.test.mjs`) fails for any element the stylesheet hides that the page tries to show with an empty display.
 
 ## 0.44.1 — 2026-10-08

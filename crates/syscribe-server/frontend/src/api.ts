@@ -120,3 +120,19 @@ export async function addConnection(req: AddConnectionRequest): Promise<WriteRes
     });
     return asJson<WriteResponse>(resp);
 }
+
+/** `POST /api/diagrams/shapes/{qname}` — add an existing element to a manifest
+ * diagram, unpinned unless `x`/`y` are given (`REQ-TRS-VIS-024`); a `WriteResponse` like every
+ * other guarded write (a derived diagram, an unresolved ref or a duplicate is
+ * `written: false` with a `reason`). */
+export async function addShape(
+    diagramQname: string,
+    req: { ref: string; x?: number; y?: number },
+): Promise<WriteResponse> {
+    const resp = await fetch('/api/diagrams/shapes/' + qnameToPath(diagramQname), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req),
+    });
+    return asJson<WriteResponse>(resp);
+}

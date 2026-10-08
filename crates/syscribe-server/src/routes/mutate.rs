@@ -414,7 +414,7 @@ fn patch_frontmatter_checked(
 
 /// Add `shapeId`'s shape + layout entry to `diagram`'s frontmatter, pointing
 /// at `new_qname` — creating an element from within a diagram.
-fn sync_shape_add(root: &Path, d: &ShapeDiagramContext, new_qname: &str) -> Result<(), String> {
+fn sync_shape_add(root: &Path, d: &ShapeDiagramContext, new_qname: &str, pinned: bool) -> Result<(), String> {
     let file = resolve_file(root, &d.qname)?;
     let content = std::fs::read_to_string(&file).map_err(|e| e.to_string())?;
     let new_content = patch_frontmatter_checked(&content, |map| {
@@ -424,11 +424,13 @@ fn sync_shape_add(root: &Path, d: &ShapeDiagramContext, new_qname: &str) -> Resu
         shape.insert(KEY_KIND.into(), d.kind.clone().into());
         shapes.insert(d.shape_id.clone().into(), serde_yaml::Value::Mapping(shape));
 
-        let layout = sub_mapping(map, KEY_LAYOUT)?;
-        let mut pos = serde_yaml::Mapping::new();
-        pos.insert("x".into(), d.x.into());
-        pos.insert("y".into(), d.y.into());
-        layout.insert(d.shape_id.clone().into(), serde_yaml::Value::Mapping(pos));
+        if pinned {
+            let layout = sub_mapping(map, KEY_LAYOUT)?;
+            let mut pos = serde_yaml::Mapping::new();
+            pos.insert("x".into(), d.x.into());
+            pos.insert("y".into(), d.y.into());
+            layout.insert(d.shape_id.clone().into(), serde_yaml::Value::Mapping(pos));
+        }
         Ok(())
     })?;
     std::fs::write(&file, new_content).map_err(|e| e.to_string())
@@ -622,7 +624,7 @@ pub async fn create_element(
     let apply = move |root: &Path| -> Result<(), String> {
         write_confined(root, &rel, &content).map_err(|e| e.to_string())?;
         if let Some(d) = &diagram {
-            sync_shape_add(root, d, &new_qname)?;
+            sync_shape_add(root, d, &new_qname, true)?;
         }
         Ok(())
     };
@@ -924,6 +926,104 @@ pub async fn delete_layout(
     };
 
     // gate=false: dropping `layout:` touches no cross-reference field.
+    let outcome = store.commit(false, false, false, apply);
+    Json(to_response(&outcome))
+}
+
+/// `POST /api/diagrams/shapes/{*qname}` body (`REQ-TRS-VIS-024`).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AddShapeRequest {
+    /// The element to add: a qualified name or a stable id.
+    #[serde(rename = "ref")]
+    pub element_ref: String,
+    /// Optional pin position; absent, the shape is left unpinned for ELK to place.
+    #[serde(default)]
+    pub x: Option<f64>,
+    #[serde(default)]
+    pub y: Option<f64>,
+}
+
+/// `POST /api/diagrams/shapes/{*qname}` — add an **existing** element to a
+/// manifest diagram as a pinned shape (`REQ-TRS-VIS-024`, the browser's *Add
+/// existing element*). Writes `shapes.<id> = {ref, kind}` and, when `x`/`y` are
+/// given, a `layout.<id>` pin in one guarded write; the element's own file is never touched. Refused
+/// (always-`OK`/`written:false`, like the rest of this module) for an unknown
+/// diagram, a target that is not a `Diagram`, a **derived** diagram (it follows
+/// its subject — a hand-added shape would silently turn it into a manifest),
+/// an unresolved `ref`, a `Diagram` as the element to add, and an element the
+/// diagram already shows.
+pub async fn add_shape(
+    State(state): State<SharedState>,
+    AxumPath(qname): AxumPath<String>,
+    Json(req): Json<AddShapeRequest>,
+) -> Json<WriteResponse> {
+    let mut store = state.write().await;
+    let target = match diagram_target(&store, &qname) {
+        Ok(t) => t,
+        Err(reason) => return Json(refused(reason)),
+    };
+    if syscribe_model::vis::source_of(&target.frontmatter) != syscribe_model::vis::Source::Manifest {
+        return Json(refused(format!(
+            "'{}' is a derived diagram: it follows its subject, so shapes cannot be added by hand — \
+             narrow or widen it with `include:`/`exclude:`, or start a blank diagram",
+            target.qualified_name
+        )));
+    }
+    let element = match store.resolver.resolve_ref(&store.elements, req.element_ref.trim()) {
+        Some(e) => e.clone(),
+        None => return Json(refused(format!("unresolved reference: {}", req.element_ref))),
+    };
+    let Some(element_type) = element.frontmatter.element_type.clone() else {
+        return Json(refused(format!("'{}' has no element type", element.qualified_name)));
+    };
+    if element_type == ElementType::Diagram {
+        return Json(refused(format!("'{}' is a Diagram; diagrams cannot be shapes of a diagram", element.qualified_name)));
+    }
+
+    // Already on the diagram, and the shape ids in use (to keep the new one unique).
+    let existing: Vec<(String, String)> = match target.frontmatter.shapes.as_ref() {
+        Some(serde_yaml::Value::Mapping(m)) => m
+            .iter()
+            .filter_map(|(k, v)| {
+                let id = k.as_str()?.to_string();
+                let r = match v {
+                    serde_yaml::Value::String(s) => s.clone(),
+                    serde_yaml::Value::Mapping(vm) => vm.get(KEY_REF).and_then(|x| x.as_str())?.to_string(),
+                    _ => return None,
+                };
+                Some((id, r))
+            })
+            .collect(),
+        _ => Vec::new(),
+    };
+    if let Some((id, _)) = existing.iter().find(|(_, r)| {
+        r == &element.qualified_name
+            || store.resolver.resolve_ref(&store.elements, r).is_some_and(|e| e.qualified_name == element.qualified_name)
+    }) {
+        return Json(refused(format!("'{}' is already on this diagram (shape '{id}')", element.qualified_name)));
+    }
+    let base = syscribe_model::vis::ir::derived_shape_id(&element.qualified_name);
+    let mut shape_id = base.clone();
+    let mut n = 2;
+    while existing.iter().any(|(id, _)| id == &shape_id) {
+        shape_id = format!("{base}-{n}");
+        n += 1;
+    }
+    // A shape added without a position is left unpinned: ELK places it around
+    // the pinned ones, which beats any fixed default. Given `x`/`y`, it is pinned there.
+    let pinned = req.x.is_some() || req.y.is_some();
+    let ctx = ShapeDiagramContext {
+        qname: target.qualified_name.clone(),
+        shape_id,
+        x: req.x.unwrap_or(0.0).round(),
+        y: req.y.unwrap_or(0.0).round(),
+        kind: element_type.name().to_string(),
+    };
+    let new_qname = element.qualified_name.clone();
+    let apply = move |root: &Path| -> Result<(), String> { sync_shape_add(root, &ctx, &new_qname, pinned) };
+
+    // gate=false: the added `ref` was just resolved; nothing new can dangle.
     let outcome = store.commit(false, false, false, apply);
     Json(to_response(&outcome))
 }

@@ -275,6 +275,7 @@ Seven enforced traceability rules govern how model elements relate to each other
 | `PATCH` | `/api/diagrams/layout/<qname>` | Persist pins (`{x, y, w?, h?}` per shape id; `null` removes a pin) (guarded write) |
 | `DELETE` | `/api/diagrams/layout/<qname>` | Remove every pin (drops the `layout:` key) (guarded write) |
 | `PUT` | `/api/diagrams/svg/<qname>` | Save a companion SVG (`{ "svg": "…" }`) to `svgFile:`, setting `svgMode: companion` and the body `<img>` when absent (guarded write) |
+| `POST` | `/api/diagrams/shapes/<qname>` | Add an existing element to a manifest diagram as a shape (unpinned unless `x`/`y` are given; refused for a derived diagram; guarded write) |
 | `GET` | `/api/validation` | Validation findings JSON |
 | `WS` | `/ws` | Live model-change events |
 
