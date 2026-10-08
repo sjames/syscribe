@@ -2,7 +2,7 @@
 
 `RELEASES`
 
-## Unreleased
+## 0.50.0 — 2026-10-08
 
 ### An abstract feature's value is derived (REQ-TRS-FMED-004)
 
