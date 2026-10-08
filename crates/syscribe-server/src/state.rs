@@ -6,7 +6,7 @@ use petgraph::graph::NodeIndex;
 use syscribe_model::config::ValidateConfig;
 use syscribe_model::element::RawElement;
 use syscribe_model::graph::{build_graph, ModelGraph};
-use syscribe_model::mutate::{guarded_write, GuardedWriteOutcome};
+use syscribe_model::mutate::{guarded_write, guarded_write_inspect, GuardedWriteOutcome};
 use syscribe_model::resolver::Resolver;
 use syscribe_model::walker::walk_model;
 
@@ -147,5 +147,33 @@ impl ModelStore {
             }
         }
         outcome
+    }
+
+    /// [`Self::commit`] that also inspects the candidate model and lets the caller
+    /// veto the commit after seeing it (`REQ-TRS-FMED-004`: the feature editor
+    /// previews an edit's effect on the model's validity). `proceed` returning
+    /// `false` leaves the model untouched, as a dry run does.
+    #[allow(clippy::too_many_arguments)]
+    pub fn commit_inspect<F, I>(
+        &mut self,
+        dry_run: bool,
+        gate: bool,
+        apply: F,
+        inspect: &dyn Fn(&[RawElement]) -> I,
+        proceed: impl Fn(&Option<I>) -> bool,
+    ) -> (GuardedWriteOutcome, Option<I>)
+    where
+        F: Fn(&Path) -> Result<(), String>,
+    {
+        let (outcome, inspected) =
+            guarded_write_inspect(&self.model_root, &self.elements, &self.config, dry_run, gate, false, apply, Some(inspect), proceed);
+        if outcome.written {
+            if let Err(e) = self.reload() {
+                tracing::warn!("model reload after commit failed: {e}");
+            } else {
+                let _ = self.reload_tx.send(r#"{"event":"reload"}"#.to_string());
+            }
+        }
+        (outcome, inspected)
     }
 }

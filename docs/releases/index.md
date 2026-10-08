@@ -4,12 +4,14 @@
 
 ## Unreleased
 
-### Feature model viewer and configurator (REQ-TRS-FMED-001, -002, -003)
+### Feature model viewer, configurator and editor (REQ-TRS-FMED-001 to -004)
 
 - **New:** `/features` (header link **Features**) shows the product line's feature model as a feature diagram in FODA notation: mandatory and optional marks, XOR and OR group wedges, `requires` and `excludes` constraints as curves, parameters inside the box. Parents are centred over their children and several trees sit side by side. Collapse and expand subtrees, search by name or id, fit to the window, and click a feature for its state, why, its constraints and its documentation.
 - **New:** the SAT analysis is overlaid on the diagram, live: core, dead and false-optional features are marked with the constraints responsible, and a void model shows its conflict and the corrections that would fix it. `GET /api/feature-model/analysis` returns the same data.
 - **New:** `diagramKind: FeatureModel` draws the same diagram from a `Diagram` element (subject: a feature, a feature-model sheet or a package of features), exportable as SVG, PlantUML and Mermaid with `diagram export` and from the page; **+ Diagram** offers it.
 - **New:** a **Configure** mode turns the diagram into a configurator: click to select, deselect or leave open; the model propagates the consequences at once (implied features shown as rings), counts the valid products that remain, and refuses a choice nothing can satisfy with the choices and constraints at fault. Load a stored `Configuration`, or save the completed product as a new one (REQ-TRS-FMED-003).
+- **New:** an **Edit** mode changes the feature model from the diagram: rename, mandatory or optional, XOR/OR/free groups, add and remove features and `requires`/`excludes` constraints, move a feature under another or drag it there. Every edit goes through the guarded-write engine and is checked first: one that makes a feature dead, forced on, the model void or a configuration invalid is held with the exact consequences until you confirm. Undo and redo for the session (REQ-TRS-FMED-004).
+- **Fixed:** moving or renaming an element (`syscribe mv`, MCP `move_element`) did not rewrite qualified names used as **map keys**, so a `Configuration`'s `features:` and `parameterBindings:` still named the old feature.
 - **Fixed:** `feature-check --deep` reported a mandatory feature with the default group kind as false-optional (`W018`). Only an optional member can be false-optional.
 
 ## 0.46.0 — 2026-10-08

@@ -115578,6 +115578,120 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     const i2 = first.lastIndexOf("::");
     return i2 < 0 ? "" : first.slice(0, i2);
   }
+  function shapeId(qname) {
+    let out = "s-";
+    let pending = false;
+    for (const c3 of qname) {
+      if (/[A-Za-z0-9]/.test(c3)) {
+        if (pending && out.length > 2) {
+          out += "-";
+        }
+        pending = false;
+        out += c3.toLowerCase();
+      } else {
+        pending = true;
+      }
+    }
+    return out;
+  }
+  var EditHistory = class {
+    constructor() {
+      this.undoable = [];
+      this.redoable = [];
+    }
+    get canUndo() {
+      return this.undoable.length > 0;
+    }
+    get canRedo() {
+      return this.redoable.length > 0;
+    }
+    /** A fresh edit was committed; `undo` reverses it. */
+    record(undo) {
+      this.undoable.push(undo);
+      this.redoable = [];
+    }
+    /** The operation to run to undo the last edit (it stays on the stack until `undone`). */
+    nextUndo() {
+      return this.undoable[this.undoable.length - 1];
+    }
+    /** The undo ran; `redo` reverses it. */
+    undone(redo) {
+      this.undoable.pop();
+      this.redoable.push(redo);
+    }
+    nextRedo() {
+      return this.redoable[this.redoable.length - 1];
+    }
+    /** The redo ran; `undo` reverses it again. */
+    redone(undo) {
+      this.redoable.pop();
+      this.undoable.push(undo);
+    }
+    clear() {
+      this.undoable = [];
+      this.redoable = [];
+    }
+  };
+  function deltaLines(d3, nameOf, worseOnly = false) {
+    const names = (qs) => qs.map(nameOf).join(", ");
+    const out = [];
+    if (d3.becameVoid) {
+      out.push("The feature model becomes void: no valid product exists." + (d3.conflicts.length ? " " + d3.conflicts.join("; ") + "." : ""));
+    }
+    if (d3.newDead.length) {
+      out.push(`${names(d3.newDead)} ${d3.newDead.length === 1 ? "becomes" : "become"} dead (in no product).`);
+    }
+    if (d3.newFalseOptional.length) {
+      out.push(`${names(d3.newFalseOptional)} ${d3.newFalseOptional.length === 1 ? "becomes" : "become"} false-optional (forced on although optional).`);
+    }
+    if (d3.newInvalidConfigurations.length) {
+      out.push(`${d3.newInvalidConfigurations.join(", ")} ${d3.newInvalidConfigurations.length === 1 ? "is" : "are"} no longer a valid product.`);
+    }
+    if (!worseOnly) {
+      if (d3.healedVoid) {
+        out.push("The feature model is no longer void.");
+      }
+      if (d3.resolvedDead.length) {
+        out.push(`${names(d3.resolvedDead)} ${d3.resolvedDead.length === 1 ? "is" : "are"} no longer dead.`);
+      }
+      if (d3.resolvedFalseOptional.length) {
+        out.push(`${names(d3.resolvedFalseOptional)} ${d3.resolvedFalseOptional.length === 1 ? "is" : "are"} no longer false-optional.`);
+      }
+      if (d3.resolvedInvalidConfigurations.length) {
+        out.push(`${d3.resolvedInvalidConfigurations.join(", ")} ${d3.resolvedInvalidConfigurations.length === 1 ? "is" : "are"} valid again.`);
+      }
+    }
+    return out;
+  }
+  function dropTarget(boxes, dragged, point, descendantsOf) {
+    let best = null;
+    for (const [id, b3] of boxes) {
+      if (id === dragged || descendantsOf.has(id)) {
+        continue;
+      }
+      if (point.x >= b3.x && point.x <= b3.x + b3.w && point.y >= b3.y && point.y <= b3.y + b3.h) {
+        const area = b3.w * b3.h;
+        if (!best || area < best.area) {
+          best = { id, area };
+        }
+      }
+    }
+    return best?.id ?? null;
+  }
+  function descendantIds(model, id) {
+    const kids = childMap(model);
+    const out = /* @__PURE__ */ new Set();
+    const walk = (x3) => {
+      for (const c3 of kids.get(x3) ?? []) {
+        if (!out.has(c3)) {
+          out.add(c3);
+          walk(c3);
+        }
+      }
+    };
+    walk(id);
+    return out;
+  }
 
   // src/new-diagram.ts
   var BASIC_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -115607,6 +115721,17 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   function esc(s3) {
     return s3.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
+  function layoutBoxes(view) {
+    const out = /* @__PURE__ */ new Map();
+    for (const n of featureNodes(view)) {
+      const at2 = n.position;
+      const size = n.size;
+      if (at2 && size) {
+        out.set(n.id, { x: at2.x, y: at2.y, w: size.width, h: size.height });
+      }
+    }
+    return out;
+  }
   var FeaturePage = class {
     constructor() {
       this.full = null;
@@ -115625,10 +115750,14 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       this.message = "";
       this.loaded = "";
       this.downAt = null;
+      this.editMode = false;
+      this.history = new EditHistory();
+      this.boxes = /* @__PURE__ */ new Map();
+      this.toastTimer = 0;
       this.firstRender = true;
       const container = createDiagramContainer(HOST, {
         // The diagram is a view of the model; a dragged feature snaps back.
-        onMoveFinished: () => void this.render(),
+        onMoveFinished: (moves) => void this.onMoved(moves.map((m3) => ({ id: m3.elementId, x: m3.toPosition.x, y: m3.toPosition.y }))),
         onSelectionChanged: (sel, desel) => this.onSelection(sel, desel)
       });
       this.dispatcher = container.get(import_sprotty3.TYPES.IActionDispatcher);
@@ -115645,6 +115774,12 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       });
       byId("fm-fit").addEventListener("click", () => void this.fit());
       byId("fm-configure").addEventListener("click", () => void this.setConfigMode(!this.configMode));
+      byId("fm-edit").addEventListener("click", () => void this.setEditMode(!this.editMode));
+      byId("fm-undo").addEventListener("click", () => void this.undo());
+      byId("fm-redo").addEventListener("click", () => void this.redo());
+      byId("fm-edit-panel").addEventListener("click", (ev) => this.onEditPanel(ev));
+      byId("fm-edit-panel").addEventListener("change", (ev) => this.onEditChange(ev));
+      document.addEventListener("keydown", (ev) => this.onKey(ev));
       const canvas = byId("fm-canvas");
       canvas.addEventListener("mousedown", (ev) => this.downAt = { x: ev.clientX, y: ev.clientY });
       canvas.addEventListener("click", (ev) => this.onCanvasClick(ev));
@@ -115731,11 +115866,13 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       const view = visibleModel(copy, this.collapsed);
       prepareForLayout(view);
       await this.source.setModel(view);
+      this.boxes = layoutBoxes(view);
       if (fit || this.firstRender) {
         this.firstRender = false;
         await this.fit();
       }
       this.showSelected();
+      this.renderEditPanel();
     }
     // -----------------------------------------------------------------
     // The configurator (REQ-TRS-FMED-003)
@@ -115865,6 +116002,242 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       this.message = resp.written ? `Saved ${qname}.` : (resp.reason ?? resp.newErrors.map((f3) => `${f3.code}: ${f3.message}`).join("; ")) || "The model refused the configuration.";
       this.renderConfigPanel();
     }
+    // -----------------------------------------------------------------
+    // Editing (REQ-TRS-FMED-004)
+    // -----------------------------------------------------------------
+    async setEditMode(on) {
+      if (on && this.configMode) {
+        await this.setConfigMode(false);
+      }
+      this.editMode = on;
+      const btn = byId("fm-edit");
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", String(on));
+      byId("fm-edit-panel").hidden = !on;
+      this.updateHistoryButtons();
+      this.renderEditPanel();
+    }
+    updateHistoryButtons() {
+      const undo = byId("fm-undo");
+      const redo = byId("fm-redo");
+      undo.hidden = redo.hidden = !this.editMode;
+      undo.disabled = !this.history.canUndo;
+      redo.disabled = !this.history.canRedo;
+    }
+    toast(text, error = false) {
+      const el = byId("fm-toast");
+      el.textContent = text;
+      el.classList.toggle("error", error);
+      el.hidden = false;
+      window.clearTimeout(this.toastTimer);
+      this.toastTimer = window.setTimeout(() => el.hidden = true, error ? 7e3 : 4500);
+    }
+    /** Ask before an edit that makes things worse, or removes a subtree. */
+    confirm(title, lines, ok) {
+      const dlg = byId("fm-confirm");
+      byId("fm-confirm-title").textContent = title;
+      byId("fm-confirm-lines").innerHTML = lines.map((l3) => `<li>${esc(l3)}</li>`).join("");
+      byId("fm-confirm-ok").textContent = ok;
+      return new Promise((resolve) => {
+        dlg.addEventListener("close", () => resolve(dlg.returnValue === "ok"), { once: true });
+        dlg.returnValue = "cancel";
+        dlg.showModal();
+      });
+    }
+    async post(op, acceptWorse) {
+      const resp = await fetch("/api/feature-model/edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ edit: op, preview: false, acceptWorse })
+      });
+      return await resp.json();
+    }
+    /** Run one edit. An edit that makes the model worse is held and shown first;
+     * the user confirms, or nothing is written. Returns the result when it was written. */
+    async runEdit(op, opts = {}) {
+      let res = await this.post(op, opts.acceptWorse ?? false);
+      if (res.needsConfirmation && res.delta) {
+        const go = await this.confirm("This edit makes the feature model worse", deltaLines(res.delta, (q2) => this.nameOf(q2), true), "Apply anyway");
+        if (!go) {
+          await this.render();
+          return null;
+        }
+        res = await this.post(op, true);
+      }
+      if (!res.written) {
+        this.toast(res.reason ?? "The edit was refused.", true);
+        await this.render();
+        return null;
+      }
+      if (opts.record !== false && res.undo) {
+        this.history.record(res.undo);
+      }
+      if (res.delta) {
+        const notes = deltaLines(res.delta, (q2) => this.nameOf(q2));
+        if (notes.length) {
+          this.toast(notes.join(" "));
+        }
+      }
+      if (res.feature) {
+        this.selected = shapeId(res.feature);
+      }
+      this.updateHistoryButtons();
+      await this.load();
+      return res;
+    }
+    async undo() {
+      const op = this.history.nextUndo();
+      if (!op) {
+        return;
+      }
+      const res = await this.runEdit(op, { record: false, acceptWorse: true });
+      if (res?.undo) {
+        this.history.undone(res.undo);
+      }
+      this.updateHistoryButtons();
+    }
+    async redo() {
+      const op = this.history.nextRedo();
+      if (!op) {
+        return;
+      }
+      const res = await this.runEdit(op, { record: false, acceptWorse: true });
+      if (res?.undo) {
+        this.history.redone(res.undo);
+      }
+      this.updateHistoryButtons();
+    }
+    onKey(ev) {
+      if (!this.editMode || !(ev.ctrlKey || ev.metaKey) || ev.target.closest("input, textarea, select")) {
+        return;
+      }
+      if (ev.key.toLowerCase() === "z") {
+        ev.preventDefault();
+        void (ev.shiftKey ? this.redo() : this.undo());
+      } else if (ev.key.toLowerCase() === "y") {
+        ev.preventDefault();
+        void this.redo();
+      }
+    }
+    /** A feature dragged in edit mode and dropped on another becomes its child; anywhere else it snaps back. */
+    async onMoved(moves) {
+      const m3 = moves[0];
+      const node = this.full ? featureNodes(this.full).find((n) => n.id === m3?.id) : void 0;
+      const box = m3 ? this.boxes.get(m3.id) : void 0;
+      if (!this.editMode || !m3 || !node || !box || !this.full) {
+        await this.render();
+        return;
+      }
+      const target = dropTarget(this.boxes, m3.id, { x: m3.x + box.w / 2, y: m3.y + box.h / 2 }, descendantIds(this.full, m3.id));
+      const parent = target ? featureNodes(this.full).find((n) => n.id === target) : void 0;
+      const current = [...this.full.children].filter(isEdgeSchema).find((e2) => e2.kind === "child" && e2.targetId === m3.id)?.sourceId;
+      if (!parent || parent.id === current) {
+        await this.render();
+        return;
+      }
+      await this.runEdit({ op: "move", feature: node.ref, newParent: parent.ref });
+    }
+    selectedNode() {
+      return this.full && this.selected ? featureNodes(this.full).find((n) => n.id === this.selected) : void 0;
+    }
+    renderEditPanel() {
+      const pane = byId("fm-edit-panel");
+      if (!this.editMode || !this.full) {
+        pane.innerHTML = "";
+        return;
+      }
+      const all = featureNodes(this.full);
+      const node = this.selectedNode();
+      const opt = (n) => `<option value="${esc(n.ref)}">${esc(n.name)} (${esc(n.ref)})</option>`;
+      if (!node) {
+        pane.innerHTML = `
+              <div class="fm-edit-head">Edit</div>
+              <div class="fm-edit-row"><label>Add a root feature</label></div>
+              <div class="fm-edit-row"><input id="fm-e-root-name" type="text" placeholder="Name" autocomplete="off"><button data-action="addRoot">Add</button></div>
+              <div class="fm-edit-hint">Select a feature to change it. Drag a feature onto another to make it that feature's child.</div>`;
+        return;
+      }
+      const m3 = node.feature;
+      const below = descendantIds(this.full, node.id);
+      const others = all.filter((n) => n.id !== node.id && !below.has(n.id));
+      const constraint = (kind, target) => `<li>${kind} <b>${esc(this.nameOf(target))}</b><button data-action="removeConstraint" data-kind="${kind}" data-target="${esc(target)}" title="Remove this constraint">&#x2715;</button></li>`;
+      const declared = [...(m3?.requires ?? []).map((t3) => constraint("requires", t3)), ...(m3?.excludes ?? []).map((t3) => constraint("excludes", t3))].join("");
+      pane.innerHTML = `
+          <div class="fm-edit-head">Edit ${esc(node.name)}</div>
+          <div class="fm-edit-row"><input id="fm-e-name" type="text" value="${esc(node.name)}" autocomplete="off"><button data-action="rename">Rename</button></div>
+          <div class="fm-edit-row">
+            <label>Membership</label>
+            <select id="fm-e-mandatory"><option value="false"${m3?.mandatory ? "" : " selected"}>optional</option><option value="true"${m3?.mandatory ? " selected" : ""}>mandatory</option></select>
+            <label>Children are</label>
+            <select id="fm-e-group">${["optional", "alternative", "or"].map((g3) => `<option value="${g3}"${m3?.group === g3 ? " selected" : ""}>${g3 === "optional" ? "free" : g3 === "alternative" ? "XOR" : "OR"}</option>`).join("")}</select>
+          </div>
+          <div class="fm-edit-row"><input id="fm-e-child" type="text" placeholder="New child feature" autocomplete="off"><button data-action="addChild">Add child</button></div>
+          <div class="fm-edit-row"><label>Constraints</label></div>
+          <ul class="fm-edit-constraints">${declared || '<li class="detail-empty">none declared</li>'}</ul>
+          <div class="fm-edit-row">
+            <select id="fm-e-ckind"><option value="requires">requires</option><option value="excludes">excludes</option></select>
+            <select id="fm-e-ctarget">${others.map(opt).join("")}</select>
+            <button data-action="addConstraint">Add</button>
+          </div>
+          <div class="fm-edit-row">
+            <label>Move under</label>
+            <select id="fm-e-parent"><option value="">(a root)</option>${others.map(opt).join("")}</select>
+            <button data-action="move">Move</button>
+          </div>
+          <div class="fm-edit-row"><button class="fm-danger" data-action="remove">${below.size ? `Remove with ${below.size} below` : "Remove"}</button></div>
+          <div class="fm-edit-hint">Every change is checked first; one that makes a feature dead or the model void asks before it is written. Ctrl+Z undoes.</div>`;
+    }
+    onEditPanel(ev) {
+      const btn = ev.target.closest("button[data-action]");
+      if (!btn) {
+        return;
+      }
+      const val = (id) => document.getElementById(id)?.value ?? "";
+      const node = this.selectedNode();
+      const feature = node?.ref ?? "";
+      switch (btn.dataset.action) {
+        case "addRoot":
+          void this.runEdit({ op: "add", name: val("fm-e-root-name") });
+          break;
+        case "rename":
+          void this.runEdit({ op: "rename", feature, name: val("fm-e-name") });
+          break;
+        case "addChild":
+          void this.runEdit({ op: "add", parent: feature, name: val("fm-e-child") });
+          break;
+        case "addConstraint":
+          void this.runEdit({ op: "addConstraint", feature, kind: val("fm-e-ckind"), target: val("fm-e-ctarget") });
+          break;
+        case "removeConstraint":
+          void this.runEdit({ op: "removeConstraint", feature, kind: btn.dataset.kind ?? "", target: btn.dataset.target ?? "" });
+          break;
+        case "move":
+          void this.runEdit({ op: "move", feature, ...val("fm-e-parent") ? { newParent: val("fm-e-parent") } : {} });
+          break;
+        case "remove": {
+          const below = node && this.full ? descendantIds(this.full, node.id).size : 0;
+          void this.confirm(`Remove ${node?.name ?? "the feature"}?`, [below ? `This also removes the ${below} feature${below === 1 ? "" : "s"} below it.` : "The feature is deleted.", "Constraints and configuration choices that name it are removed with it."], "Remove").then((ok) => {
+            if (ok) {
+              void this.runEdit({ op: "remove", feature, subtree: below > 0 });
+            }
+          });
+          break;
+        }
+      }
+    }
+    /** The rename and field inputs change on their own, without a button. */
+    onEditChange(ev) {
+      const t3 = ev.target;
+      const node = this.selectedNode();
+      if (!node) {
+        return;
+      }
+      if (t3.id === "fm-e-mandatory") {
+        void this.runEdit({ op: "setMandatory", feature: node.ref, mandatory: t3.value === "true" });
+      } else if (t3.id === "fm-e-group") {
+        void this.runEdit({ op: "setGroup", feature: node.ref, groupKind: t3.value });
+      }
+    }
     async fit() {
       await this.dispatcher.dispatch(import_sprotty_protocol2.FitToScreenAction.create([], { padding: 30, maxZoom: 1.2 }));
     }
@@ -115887,6 +116260,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         this.selected = feature;
       }
       this.showSelected();
+      this.renderEditPanel();
     }
     onSearch(query) {
       if (!this.full) {

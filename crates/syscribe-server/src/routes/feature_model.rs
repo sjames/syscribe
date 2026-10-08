@@ -77,6 +77,75 @@ pub async fn configurations(State(state): State<SharedState>) -> Json<Value> {
     Json(syscribe_model::feature_model::configurations_json(&store.elements))
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditRequest {
+    pub edit: syscribe_model::feature_edit::EditOp,
+    /// Compute and return the effect without writing.
+    #[serde(default)]
+    pub preview: bool,
+    /// Commit even though the edit makes the model's validity worse.
+    #[serde(default)]
+    pub accept_worse: bool,
+}
+
+/// `POST /api/feature-model/edit` — one semantic edit of the feature model
+/// (`REQ-TRS-FMED-004`) through the guarded-write engine.
+///
+/// The response always carries `written`, the guarded write's validation delta
+/// (`write`), and, when the edit could be staged, `delta`: what it does to the
+/// model's validity (features that become dead or false-optional, a model that
+/// becomes void, configurations that become invalid). An edit that makes things
+/// worse is **not** written unless `acceptWorse` is set: the response then has
+/// `needsConfirmation: true` and the delta to show. `undo` is the operation that
+/// reverses a written edit (and, applied, returns the redo).
+pub async fn edit(State(state): State<SharedState>, Json(req): Json<EditRequest>) -> Json<Value> {
+    use std::sync::{Arc, Mutex};
+    use syscribe_model::feature_edit::{analysis_delta, apply};
+    use syscribe_model::feature_model::analysis_json;
+
+    let mut store = state.write().await;
+    let before = analysis_json(&store.elements);
+    let undo: Arc<Mutex<Option<(syscribe_model::feature_edit::EditOp, Option<String>)>>> = Arc::new(Mutex::new(None));
+    let sink = undo.clone();
+    let op = req.edit.clone();
+    let apply_op = move |root: &std::path::Path| -> Result<(), String> {
+        let out = apply(root, &op)?;
+        *sink.lock().unwrap() = Some((out.undo, out.feature));
+        Ok(())
+    };
+    let accept = req.accept_worse;
+    let before_c = before.clone();
+    let (outcome, after) = store.commit_inspect(
+        req.preview,
+        true,
+        apply_op,
+        &|elems| analysis_json(elems),
+        |after| accept || after.as_ref().map(|a| analysis_delta(&before_c, a)["worsens"] != true).unwrap_or(true),
+    );
+    let delta = after.as_ref().map(|a| analysis_delta(&before, a));
+    let worsens = delta.as_ref().is_some_and(|d| d["worsens"] == true);
+    let needs_confirmation = !req.preview && !req.accept_worse && !outcome.written && worsens && outcome.reason.is_none();
+    let mut reason = outcome.reason.clone();
+    if needs_confirmation {
+        reason = Some("this edit makes the feature model worse; confirm to apply it".to_string());
+    }
+    let (undo_op, feature) = match undo.lock().unwrap().clone() {
+        Some((u, f)) => (serde_json::to_value(u).ok(), f),
+        None => (None, None),
+    };
+    Json(json!({
+        "written": outcome.written,
+        "preview": req.preview,
+        "needsConfirmation": needs_confirmation,
+        "reason": reason,
+        "delta": delta,
+        "write": super::mutate::to_response(&outcome),
+        "undo": if outcome.written { undo_op } else { None },
+        "feature": feature,
+    }))
+}
+
 /// `GET /api/feature-model/export?format=svg|plantuml|mermaid[&root=<qname>]`.
 pub async fn export(State(state): State<SharedState>, Query(q): Query<ExportQuery>) -> Response {
     let store = state.read().await;

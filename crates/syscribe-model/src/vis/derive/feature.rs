@@ -121,6 +121,8 @@ fn emit(graph: &mut DiagramGraph, mut selected: Vec<&FeatureNode>, filters: &Fil
                 group: f.group_kind.as_str().to_string(),
                 child_count,
                 id: f.id.clone(),
+                requires: f.requires.clone(),
+                excludes: f.excludes.clone(),
             }),
         });
     }

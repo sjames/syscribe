@@ -91,6 +91,9 @@ export interface FeatureMark {
     group: 'optional' | 'alternative' | 'or';
     childCount: number;
     id?: string;
+    /** The `requires:`/`excludes:` entries this feature declares, as qualified names. */
+    requires?: string[];
+    excludes?: string[];
 }
 
 /** A feature's state in the configurator: the user's choice (`selected`, `deselected`),

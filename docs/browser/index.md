@@ -42,6 +42,7 @@ All JavaScript (HTMX, Mermaid, the bundled diagram editor including `sprotty-elk
 | `GET /api/feature-model/analysis` | Void, dead, core and false-optional features with the constraints responsible |
 | `POST /api/feature-model/configure` | Propagate a partial selection: state of every feature, conflict with its cause, product count, one completed product |
 | `GET /api/feature-model/configurations` | The stored `Configuration`s with their selections |
+| `POST /api/feature-model/edit` | One semantic edit (`add`, `remove`, `rename`, `setGroup`, `setMandatory`, `move`, `addConstraint`, `removeConstraint`), with the validity delta; `preview` and `acceptWorse` options; returns the undo operation |
 | `GET /api/feature-model/export?format=svg\\|plantuml\\|mermaid` | The feature diagram as a download |
 | `GET /planning` | The live planning dashboard page |
 | `GET /ui/planning/board?who=&done=` | HTMX — the board fragment the dashboard re-fetches |
@@ -128,7 +129,22 @@ The panel shows how many valid products remain (`18 valid products`, or `at leas
 
 **Start from** loads a stored `Configuration` as the choices (a partial or invalid one is shown as such), **Clear** starts again. **Save** writes a new `Configuration` through a guarded write: the choices completed to one whole product the solver found, as `features:` with every feature true or false, `featureModel:` set to the package the features live in and a generated `CONF-GEN-nnn` id. A feature with a required `parameters:` entry then raises `W017` until you bind it. `POST /api/feature-model/configure` is the same computation for scripts.
 
-Editing and impact analysis are the next phases (`docs/design/feature-model-editor.md`).
+### Editing
+
+**Edit** (`REQ-TRS-FMED-004`) lets you change the feature model without leaving the diagram. Select a feature and the panel offers:
+
+- **Rename**, and **Membership** (mandatory or optional) and **Children are** (*free*, *XOR* for one of, *OR* for any of);
+- **Add child**, or **Add a root feature** when nothing is selected;
+- its declared **constraints** with a **✕** to remove each, and a form to add a `requires` or `excludes` towards another feature;
+- **Move under** another feature, or make it a root, and **Remove** (with everything below it, after a confirmation). You can also **drag** a feature onto another to make it that feature's child; dropped anywhere else it snaps back.
+
+Each change is one semantic operation (`POST /api/feature-model/edit`) applied to the files the feature lives in, through the guarded-write engine: a feature is a file under its parent (a group is a directory with an `_index.md`), a new one gets a generated `FEAT-` id, a rename or move rewrites every reference to it including the keys of every `Configuration`, and removing a feature takes the `requires:`/`excludes:` entries and configuration choices that named it. **Undo** and **Redo** (Ctrl+Z, Ctrl+Shift+Z) reverse any change, as a stack for the session.
+
+Before anything is written the server compares the SAT analysis of the model with and without the change. An edit that leaves things as they were, or better, is applied at once, and a toast says what improved. One that **makes the model worse** is held, and a dialog lists exactly how: *Electric becomes dead*, *the feature model becomes void* with the conflict, *Radio becomes false-optional*, *CONF-ONE-001 is no longer a valid product*. **Apply anyway** writes it; **Cancel** leaves the model untouched. Send `"preview": true` to the endpoint to ask without writing.
+
+Features defined as entries of a single-file `featureTree:` sheet take **Membership** and **Children are** edits; everything else on such a feature is refused with the sheet's file name, since the sheet is the place to edit it. Editing parameters is not yet offered.
+
+Impact analysis, configuration comparison and the feature-by-configuration matrix are the next phase (`docs/design/feature-model-editor.md`).
 
 ## Planning dashboard
 

@@ -7,6 +7,9 @@
     <button class="canvas-btn" id="fm-collapse" title="Show only the root features">Collapse all</button>
     <button class="canvas-btn" id="fm-expand" title="Expand every subtree">Expand all</button>
     <button class="canvas-btn" id="fm-fit" title="Fit the whole model in the window">Fit</button>
+    <button class="canvas-btn" id="fm-edit" title="Change the feature model" aria-pressed="false">Edit</button>
+    <button class="canvas-btn" id="fm-undo" title="Undo (Ctrl+Z)" disabled hidden>&#x21B6; Undo</button>
+    <button class="canvas-btn" id="fm-redo" title="Redo (Ctrl+Shift+Z)" disabled hidden>&#x21B7; Redo</button>
     <button class="canvas-btn" id="fm-configure" title="Choose features and see what follows" aria-pressed="false">Configure</button>
     <span class="fm-export">Export
       <a href="/api/feature-model/export?format=svg" id="fm-export-svg" download="feature-model.svg">SVG</a>
@@ -22,11 +25,23 @@
       <div id="fm-empty" hidden>This model has no feature definitions.</div>
     </div>
     <aside id="fm-side">
+      <section id="fm-edit-panel" hidden></section>
       <section id="fm-config" hidden></section>
       <section id="fm-summary"></section>
       <section id="fm-selected"><p class="detail-empty">Select a feature to see what it is and why.</p></section>
     </aside>
   </div>
 </div>
+<dialog id="fm-confirm">
+  <form method="dialog">
+    <h2 id="fm-confirm-title"></h2>
+    <ul id="fm-confirm-lines"></ul>
+    <div class="fm-confirm-buttons">
+      <button value="cancel" class="canvas-btn" id="fm-confirm-cancel">Cancel</button>
+      <button value="ok" class="canvas-btn fm-danger" id="fm-confirm-ok">Apply anyway</button>
+    </div>
+  </form>
+</dialog>
+<div id="fm-toast" hidden role="status"></div>
 <script src="/static/js/feature-model.js" defer></script>
 {% endblock %}

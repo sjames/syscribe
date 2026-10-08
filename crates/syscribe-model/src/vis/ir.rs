@@ -437,6 +437,12 @@ pub struct FeatureMark {
     /// Stable `FEAT-*` id, when the feature has one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    /// The `requires:` entries this feature declares, as qualified names (the editor lists them to remove one).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub requires: Vec<String>,
+    /// The `excludes:` entries this feature declares, as qualified names.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub excludes: Vec<String>,
 }
 
 /// One edge of the diagram.

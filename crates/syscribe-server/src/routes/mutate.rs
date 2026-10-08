@@ -119,7 +119,7 @@ fn findings(entries: &[Entry], severity: &str) -> Vec<FindingJson> {
         .collect()
 }
 
-fn to_response(outcome: &GuardedWriteOutcome) -> WriteResponse {
+pub(crate) fn to_response(outcome: &GuardedWriteOutcome) -> WriteResponse {
     WriteResponse {
         written: outcome.written,
         new_errors: findings(&outcome.new_errors, "error"),

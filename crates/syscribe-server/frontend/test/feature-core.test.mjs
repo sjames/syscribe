@@ -183,4 +183,63 @@ scenario('a new configuration goes beside the stored ones, else at the model roo
     assert.equal(core.configurationPackage([]), '');
 });
 
+scenario('shape ids follow the rule the server uses for derived shapes', () => {
+    assert.equal(core.shapeId('Features::Car::Engine'), 's-features-car-engine');
+    assert.equal(core.shapeId('UAV::Power::PowerSystem::pdu'), 's-uav-power-powersystem-pdu');
+    assert.equal(core.shapeId('A::b_c'), 's-a-b-c');
+    assert.equal(core.shapeId('F::Car'), 's-f-car');
+});
+
+scenario('the history undoes and redoes in order and a fresh edit forgets the redo', () => {
+    const h = new core.EditHistory();
+    assert.equal(h.canUndo, false);
+    h.record({ op: 'undo-1' });
+    h.record({ op: 'undo-2' });
+    assert.equal(h.nextUndo().op, 'undo-2');
+    h.undone({ op: 'redo-2' });
+    assert.equal(h.canRedo, true);
+    assert.equal(h.nextUndo().op, 'undo-1');
+    assert.equal(h.nextRedo().op, 'redo-2');
+    h.redone({ op: 'undo-2b' });
+    assert.equal(h.nextUndo().op, 'undo-2b');
+    assert.equal(h.canRedo, false);
+    h.undone({ op: 'redo-x' });
+    h.record({ op: 'undo-3' });
+    assert.equal(h.canRedo, false, 'a new edit clears the redo stack');
+    h.clear();
+    assert.equal(h.canUndo, false);
+});
+
+const delta = (o = {}) => ({ worsens: false, becameVoid: false, healedVoid: false, newDead: [], resolvedDead: [], newFalseOptional: [], resolvedFalseOptional: [], newInvalidConfigurations: [], resolvedInvalidConfigurations: [], conflicts: [], countsBefore: {}, countsAfter: {}, ...o });
+const short = q => q.split('::').pop();
+
+scenario('a delta is described in plain sentences, worse things only on request', () => {
+    const d = delta({ worsens: true, newDead: ['F::Electric'], newFalseOptional: ['F::A', 'F::B'], newInvalidConfigurations: ['CONF-1'], resolvedDead: ['F::Old'] });
+    const all = core.deltaLines(d, short);
+    assert.deepEqual(all, [
+        'Electric becomes dead (in no product).',
+        'A, B become false-optional (forced on although optional).',
+        'CONF-1 is no longer a valid product.',
+        'Old is no longer dead.',
+    ]);
+    assert.equal(core.deltaLines(d, short, true).length, 3, 'worse only leaves out what improved');
+    assert.match(core.deltaLines(delta({ becameVoid: true, worsens: true, conflicts: ["'A' excludes 'B'"] }), short)[0], /becomes void.*'A' excludes 'B'/);
+    assert.deepEqual(core.deltaLines(delta({ healedVoid: true }), short), ['The feature model is no longer void.']);
+    assert.deepEqual(core.deltaLines(delta(), short), []);
+});
+
+scenario('a drop lands on the smallest feature box under the point, never the dragged feature or its descendants', () => {
+    const boxes = new Map([['a', { x: 0, y: 0, w: 100, h: 100 }], ['b', { x: 10, y: 10, w: 20, h: 20 }], ['c', { x: 200, y: 0, w: 50, h: 50 }]]);
+    assert.equal(core.dropTarget(boxes, 'z', { x: 15, y: 15 }, new Set()), 'b', 'smallest wins');
+    assert.equal(core.dropTarget(boxes, 'b', { x: 15, y: 15 }, new Set()), 'a', 'not itself');
+    assert.equal(core.dropTarget(boxes, 'z', { x: 15, y: 15 }, new Set(['b'])), 'a', 'not a descendant');
+    assert.equal(core.dropTarget(boxes, 'z', { x: 500, y: 500 }, new Set()), null);
+});
+
+scenario('descendants are found through the tree edges at any depth', () => {
+    assert.deepEqual([...core.descendantIds(model, 'car')].sort(), ['charger', 'electric', 'engine', 'petrol']);
+    assert.deepEqual([...core.descendantIds(model, 'engine')].sort(), ['electric', 'petrol']);
+    assert.deepEqual([...core.descendantIds(model, 'petrol')], []);
+});
+
 console.log(`feature-core: ok (${n} scenarios)`);

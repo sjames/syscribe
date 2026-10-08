@@ -9,6 +9,7 @@ pub mod config_inherit;
 pub mod connections;
 pub mod derive;
 pub mod element;
+pub mod feature_edit;
 pub mod feature_model;
 pub mod feature_tree;
 pub mod frontmatter;

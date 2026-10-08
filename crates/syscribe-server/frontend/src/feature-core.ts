@@ -307,3 +307,170 @@ export function configurationPackage(stored: readonly StoredConfiguration[]): st
     const i = first.lastIndexOf('::');
     return i < 0 ? '' : first.slice(0, i);
 }
+
+// ---------------------------------------------------------------------------
+// Editing (`REQ-TRS-FMED-004`)
+// ---------------------------------------------------------------------------
+
+/** One semantic edit, as `POST /api/feature-model/edit` takes it (`feature_edit::EditOp`). */
+export type EditOp = { op: string } & Record<string, unknown>;
+
+/** What the server returns for an edit. */
+export interface EditResult {
+    written: boolean;
+    preview: boolean;
+    needsConfirmation: boolean;
+    reason: string | null;
+    delta: EditDelta | null;
+    undo: EditOp | null;
+    feature: string | null;
+}
+
+export interface EditDelta {
+    worsens: boolean;
+    becameVoid: boolean;
+    healedVoid: boolean;
+    newDead: string[];
+    resolvedDead: string[];
+    newFalseOptional: string[];
+    resolvedFalseOptional: string[];
+    newInvalidConfigurations: string[];
+    resolvedInvalidConfigurations: string[];
+    conflicts: string[];
+    countsBefore: { features: number; dead: number; core: number; falseOptional: number };
+    countsAfter: { features: number; dead: number; core: number; falseOptional: number };
+}
+
+/** The diagram id of a feature: `s-` and its qualified name lower-cased with every
+ * run of other characters as one `-` (`vis::ir::derived_shape_id`). */
+export function shapeId(qname: string): string {
+    let out = 's-';
+    let pending = false;
+    for (const c of qname) {
+        if (/[A-Za-z0-9]/.test(c)) {
+            if (pending && out.length > 2) {
+                out += '-';
+            }
+            pending = false;
+            out += c.toLowerCase();
+        } else {
+            pending = true;
+        }
+    }
+    return out;
+}
+
+/** The undo and redo stacks of a session's edits. Each committed edit hands back
+ * the operation that reverses it; undoing runs that operation, which hands back
+ * its own reversal, the redo. A new edit clears what could have been redone. */
+export class EditHistory {
+    private undoable: EditOp[] = [];
+    private redoable: EditOp[] = [];
+
+    get canUndo(): boolean {
+        return this.undoable.length > 0;
+    }
+    get canRedo(): boolean {
+        return this.redoable.length > 0;
+    }
+
+    /** A fresh edit was committed; `undo` reverses it. */
+    record(undo: EditOp): void {
+        this.undoable.push(undo);
+        this.redoable = [];
+    }
+    /** The operation to run to undo the last edit (it stays on the stack until `undone`). */
+    nextUndo(): EditOp | undefined {
+        return this.undoable[this.undoable.length - 1];
+    }
+    /** The undo ran; `redo` reverses it. */
+    undone(redo: EditOp): void {
+        this.undoable.pop();
+        this.redoable.push(redo);
+    }
+    nextRedo(): EditOp | undefined {
+        return this.redoable[this.redoable.length - 1];
+    }
+    /** The redo ran; `undo` reverses it again. */
+    redone(undo: EditOp): void {
+        this.redoable.pop();
+        this.undoable.push(undo);
+    }
+    clear(): void {
+        this.undoable = [];
+        this.redoable = [];
+    }
+}
+
+/** What an edit does to the model's validity, one sentence per fact, for the
+ * confirmation and the toast. `worse` lists only what got worse. */
+export function deltaLines(d: EditDelta, nameOf: (q: string) => string, worseOnly = false): string[] {
+    const names = (qs: string[]): string => qs.map(nameOf).join(', ');
+    const out: string[] = [];
+    if (d.becameVoid) {
+        out.push('The feature model becomes void: no valid product exists.' + (d.conflicts.length ? ' ' + d.conflicts.join('; ') + '.' : ''));
+    }
+    if (d.newDead.length) {
+        out.push(`${names(d.newDead)} ${d.newDead.length === 1 ? 'becomes' : 'become'} dead (in no product).`);
+    }
+    if (d.newFalseOptional.length) {
+        out.push(`${names(d.newFalseOptional)} ${d.newFalseOptional.length === 1 ? 'becomes' : 'become'} false-optional (forced on although optional).`);
+    }
+    if (d.newInvalidConfigurations.length) {
+        out.push(`${d.newInvalidConfigurations.join(', ')} ${d.newInvalidConfigurations.length === 1 ? 'is' : 'are'} no longer a valid product.`);
+    }
+    if (!worseOnly) {
+        if (d.healedVoid) {
+            out.push('The feature model is no longer void.');
+        }
+        if (d.resolvedDead.length) {
+            out.push(`${names(d.resolvedDead)} ${d.resolvedDead.length === 1 ? 'is' : 'are'} no longer dead.`);
+        }
+        if (d.resolvedFalseOptional.length) {
+            out.push(`${names(d.resolvedFalseOptional)} ${d.resolvedFalseOptional.length === 1 ? 'is' : 'are'} no longer false-optional.`);
+        }
+        if (d.resolvedInvalidConfigurations.length) {
+            out.push(`${d.resolvedInvalidConfigurations.join(', ')} ${d.resolvedInvalidConfigurations.length === 1 ? 'is' : 'are'} valid again.`);
+        }
+    }
+    return out;
+}
+
+/** The feature a drop lands on: the node whose box holds the drop point, other
+ * than the dragged feature and anything below it, preferring the smallest box. */
+export function dropTarget(
+    boxes: ReadonlyMap<string, { x: number; y: number; w: number; h: number }>,
+    dragged: string,
+    point: { x: number; y: number },
+    descendantsOf: ReadonlySet<string>,
+): string | null {
+    let best: { id: string; area: number } | null = null;
+    for (const [id, b] of boxes) {
+        if (id === dragged || descendantsOf.has(id)) {
+            continue;
+        }
+        if (point.x >= b.x && point.x <= b.x + b.w && point.y >= b.y && point.y <= b.y + b.h) {
+            const area = b.w * b.h;
+            if (!best || area < best.area) {
+                best = { id, area };
+            }
+        }
+    }
+    return best?.id ?? null;
+}
+
+/** Ids of a feature's descendants, from the tree edges. */
+export function descendantIds(model: DiagramModelSchema, id: string): Set<string> {
+    const kids = childMap(model);
+    const out = new Set<string>();
+    const walk = (x: string): void => {
+        for (const c of kids.get(x) ?? []) {
+            if (!out.has(c)) {
+                out.add(c);
+                walk(c);
+            }
+        }
+    };
+    walk(id);
+    return out;
+}

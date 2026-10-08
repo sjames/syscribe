@@ -82,7 +82,7 @@ async fn json(root: &Path, uri: &str) -> Value {
 async fn the_page_is_served_with_its_script_toolbar_and_live_badge() {
     let (status, _, html) = get(&healthy(), "/features").await;
     assert_eq!(status, StatusCode::OK);
-    for id in ["fm-host", "fm-canvas", "fm-search", "fm-collapse", "fm-expand", "fm-fit", "fm-banner", "fm-summary", "fm-selected", "fm-live", "fm-empty", "fm-configure", "fm-config"] {
+    for id in ["fm-host", "fm-canvas", "fm-search", "fm-collapse", "fm-expand", "fm-fit", "fm-banner", "fm-summary", "fm-selected", "fm-live", "fm-empty", "fm-configure", "fm-config", "fm-edit", "fm-undo", "fm-redo", "fm-edit-panel", "fm-confirm", "fm-toast"] {
         assert!(html.contains(&format!("id=\"{id}\"")), "#{id} is in the page: {html}");
     }
     assert!(html.contains("/static/js/feature-model.js"), "{html}");

@@ -347,24 +347,53 @@ pub fn guarded_write<F>(
 where
     F: Fn(&Path) -> Result<(), String>,
 {
+    guarded_write_inspect(model_root, elements, config, dry_run, gate, allow_new_errors, apply, None::<&dyn Fn(&[RawElement]) -> serde_json::Value>, |_| true).0
+}
+
+/// [`guarded_write`] that also lets the caller look at the **candidate** model
+/// (the one the edit would produce) and decide whether the commit may go ahead.
+///
+/// `inspect` runs once on the candidate's elements and its result is returned
+/// beside the outcome (`None` when the candidate failed to load). `proceed` is
+/// then asked, with that result, whether to commit: returning `false` stops after
+/// the preview exactly as a dry run does, leaving the model untouched. This is how
+/// the feature editor previews an edit's effect on the model's validity
+/// (`REQ-TRS-FMED-004`) without a second candidate copy.
+#[allow(clippy::too_many_arguments)]
+pub fn guarded_write_inspect<F, I>(
+    model_root: &Path,
+    elements: &[RawElement],
+    config: &ValidateConfig,
+    dry_run: bool,
+    gate: bool,
+    allow_new_errors: bool,
+    apply: F,
+    inspect: Option<&dyn Fn(&[RawElement]) -> I>,
+    proceed: impl Fn(&Option<I>) -> bool,
+) -> (GuardedWriteOutcome, Option<I>)
+where
+    F: Fn(&Path) -> Result<(), String>,
+{
     let (base_link_errs, base_warns) = validator_findings(elements, config, model_root);
     let mut base_errs = ref_errors(elements, model_root);
     base_errs.extend(base_link_errs);
 
     let cand_root = match make_temp_copy(model_root) {
         Ok(p) => p,
-        Err(e) => return GuardedWriteOutcome::refused(format!("could not stage candidate: {e}")),
+        Err(e) => return (GuardedWriteOutcome::refused(format!("could not stage candidate: {e}")), None),
     };
 
     // Apply the edit to the candidate copy. A failure here (invalid dest, planning
     // error, …) is a refusal — the real model is never touched.
     if let Err(e) = apply(&cand_root) {
         let _ = std::fs::remove_dir_all(&cand_root);
-        return GuardedWriteOutcome::refused(e);
+        return (GuardedWriteOutcome::refused(e), None);
     }
 
+    let inspected: Option<I>;
     let (cand_errs, cand_warns) = match crate::walker::walk_model(&cand_root) {
         Ok(elems) => {
+            inspected = inspect.map(|f| f(&elems));
             let cfg = ValidateConfig::with_model_root(&cand_root);
             let (link_errs, warns) = validator_findings(&elems, &cfg, &cand_root);
             let (link_errs, warns) = (
@@ -382,7 +411,7 @@ where
         }
         Err(e) => {
             let _ = std::fs::remove_dir_all(&cand_root);
-            return GuardedWriteOutcome::refused(format!("candidate model failed to load: {e}"));
+            return (GuardedWriteOutcome::refused(format!("candidate model failed to load: {e}")), None);
         }
     };
 
@@ -411,8 +440,8 @@ where
         reason: None,
     };
 
-    if dry_run {
-        return outcome;
+    if dry_run || !proceed(&inspected) {
+        return (outcome, inspected);
     }
 
     if gate && new_error_count > 0 && !allow_new_errors {
@@ -424,16 +453,16 @@ where
             _ => "an unresolved reference",
         };
         outcome.reason = Some(format!("refused: commit would introduce {why}"));
-        return outcome;
+        return (outcome, inspected);
     }
 
     // Commit: apply to the real model.
     if let Err(e) = apply(model_root) {
         outcome.reason = Some(format!("commit failed: {e}"));
-        return outcome;
+        return (outcome, inspected);
     }
     outcome.written = true;
-    outcome
+    (outcome, inspected)
 }
 
 #[cfg(test)]

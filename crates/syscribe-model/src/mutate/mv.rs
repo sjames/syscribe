@@ -120,6 +120,17 @@ fn collect_refs(
         }
         serde_yaml::Value::Mapping(map) => {
             for (k, v) in map {
+                // A key can be a reference too: a `Configuration`'s `features:` and
+                // `parameterBindings:` maps are keyed by feature qualified name
+                // (`Pkg::Feature`, or `Pkg::Feature.parameter` for a binding).
+                if let Some(ks) = k.as_str() {
+                    let rewritten = rewrite_qname(ks, old, new).or_else(|| {
+                        ks.strip_prefix(old).filter(|rest| rest.starts_with('.')).map(|rest| format!("{new}{rest}"))
+                    });
+                    if let Some(rw) = rewritten {
+                        out.insert(ks.to_string(), rw);
+                    }
+                }
                 collect_refs(v, k.as_str(), old, new, out);
             }
         }
@@ -141,7 +152,13 @@ fn replace_whole_token(text: &str, old: &str, new: &str) -> String {
         let before = &rest[..pos];
         let after = &rest[pos + old.len()..];
         let prev_ok = before.chars().next_back().is_none_or(|c| !is_q(c));
-        let next_ok = after.chars().next().is_none_or(|c| !is_q(c));
+        // A single `:` after the token is a YAML key's terminator (`Pkg::Feature: true`),
+        // not part of a qualified name, whose separator is `::`.
+        let next_ok = match after.chars().next() {
+            None => true,
+            Some(':') => !after.starts_with("::"),
+            Some(c) => !is_q(c),
+        };
         out.push_str(before);
         out.push_str(if prev_ok && next_ok { new } else { old });
         rest = after;
@@ -399,5 +416,28 @@ pub fn move_element(
 fn rollback(backups: &[(PathBuf, String)]) {
     for (p, orig) in backups {
         let _ = std::fs::write(p, orig);
+    }
+}
+
+#[cfg(test)]
+mod key_rewrite_tests {
+    use super::*;
+
+    #[test]
+    fn map_keys_that_name_the_moved_element_or_its_descendants_are_rewritten() {
+        // A Configuration is keyed by feature qualified name; a binding by `feature.parameter`.
+        let fm = "type: Configuration\nfeatures:\n  Features::Car: true\n  Features::Car::Engine: false\n  Features::Carpet: true\nparameterBindings:\n  Features::Car.speed: 3\n  Features::Car::Engine.power: 9\n";
+        let out = rewrite_frontmatter(fm, "Features::Car", "Features::Vehicle").unwrap();
+        assert!(out.contains("Features::Vehicle: true"), "{out}");
+        assert!(out.contains("Features::Vehicle::Engine: false"), "{out}");
+        assert!(out.contains("Features::Vehicle.speed: 3"), "{out}");
+        assert!(out.contains("Features::Vehicle::Engine.power: 9"), "{out}");
+        assert!(out.contains("Features::Carpet: true"), "a sibling that merely shares the prefix is left alone: {out}");
+    }
+
+    #[test]
+    fn a_key_that_is_not_a_qualified_name_is_untouched() {
+        let fm = "type: Diagram\nlayout:\n  s-features-car: {x: 1, y: 2}\n";
+        assert!(rewrite_frontmatter(fm, "Features::Car", "Features::Vehicle").is_none());
     }
 }

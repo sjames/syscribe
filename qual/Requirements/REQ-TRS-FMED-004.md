@@ -1,0 +1,30 @@
+---
+id: REQ-TRS-FMED-004
+type: Requirement
+name: The feature model is edited in the browser through semantic operations whose effect on validity is previewed before they are written
+status: verified
+reqDomain: software
+verificationMethod: test
+---
+
+`POST /api/feature-model/edit` **shall** accept an operation (`add`, `remove`, `rename`, `setGroup`,
+`setMandatory`, `move`, `addConstraint`, `removeConstraint`) on a feature, apply it to the files the
+feature lives in through the guarded-write engine, and return the operation that undoes it. It
+**shall** return the effect of the edit on the model's validity (features that become dead or
+false-optional, a model that becomes void, configurations that become invalid) and **shall not**
+write an edit that makes validity worse unless it is confirmed. A rename or move **shall** rewrite
+every reference to the feature including the keys of a `Configuration`'s `features:` map. The page
+**shall** offer each operation, hold a worsening edit behind a confirmation that lists its
+consequences, let a feature be dragged onto another to reparent it, and support undo and redo.
+
+**Source:** `REQ-TRS-FMED-004` (product model).
+
+**Acceptance criteria:** (a) each operation writes the right files and its undo restores the model
+byte for byte; (b) an edit the engine refuses (a duplicate, a bad name, a cycle, a subtree without
+the flag, a sheet entry) says why and changes nothing; (c) a preview reports the delta and writes
+nothing; (d) an edit that makes a feature dead, forced, the model void or a configuration invalid is
+held until `acceptWorse` and its delta is returned; (e) removing a feature removes the constraints
+and configuration choices that named it; (f) moving or renaming rewrites map keys (`features:`,
+`parameterBindings:`) and leaves a prefix-sharing sibling alone; (g) the history undoes and redoes in
+order and a fresh edit clears the redo stack; (h) a drop lands on the smallest feature box under the
+point, never on the dragged feature or its descendants.
