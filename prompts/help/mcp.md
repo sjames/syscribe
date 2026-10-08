@@ -201,7 +201,7 @@ they do in the real tree.
 - `create_element {qname, type, fields?, doc?, dry_run?}`
 - `update_element {ref, fields?, doc?, dry_run?}`
 - `edit_feature {edit, dry_run?, accept_worse?}` — one semantic feature-model edit
-  (`add`, `remove`, `rename`, `setGroup`, `setMandatory`, `move`, `addConstraint`,
+  (`add`, `remove`, `rename`, `setGroup`, `setMandatory`, `setAbstract`, `move`, `addConstraint`,
   `removeConstraint`, `setParameter`, `removeParameter`, `removeBinding`; the same operations as the browser's Edit mode).
   `featureDelta` says what the edit does to the model's validity (newly dead or
   false-optional features, a model made void, configurations made invalid); an edit that

@@ -429,6 +429,30 @@ fn removing_a_feature_also_removes_the_bindings_of_its_parameters() {
 }
 
 #[test]
+fn a_feature_is_marked_abstract_and_unmarked_in_either_layout_and_stays_selectable() {
+    let r = model();
+    let before = snapshot(&r);
+    let out = apply(&r, &op(serde_json::json!({"op": "setAbstract", "feature": "Features::Car::Engine", "isAbstract": true}))).unwrap();
+    assert!(read(&r, "Features/Car/Engine.md").contains("isAbstract: true"));
+    let tree = feature_tree(&walk_model(&r).unwrap());
+    assert!(tree.iter().find(|f| f.name == "Engine").unwrap().is_abstract);
+    // Abstract changes the picture, not the product space: the analysis is the same.
+    let a = analysis_json(&walk_model(&r).unwrap());
+    assert_eq!(a["void"], false);
+    assert_eq!(a["features"]["Features::Car::Engine"]["state"], "core", "an abstract mandatory feature is still core: {a}");
+    apply(&r, &out.undo).unwrap();
+    assert_eq!(snapshot(&r), before);
+    apply(&r, &op(serde_json::json!({"op": "setAbstract", "feature": "FEAT-ENGINE", "isAbstract": false}))).unwrap();
+    assert!(!read(&r, "Features/Car/Engine.md").contains("isAbstract"), "false is the default and is not written");
+    // A sheet entry.
+    let r = sheet_model();
+    let out = apply(&r, &op(serde_json::json!({"op": "setAbstract", "feature": "Features::Car::Engine", "isAbstract": true}))).unwrap();
+    assert!(feature_tree(&walk_model(&r).unwrap()).iter().find(|f| f.name == "Engine").unwrap().is_abstract);
+    apply(&r, &out.undo).unwrap();
+    assert!(!feature_tree(&walk_model(&r).unwrap()).iter().find(|f| f.name == "Engine").unwrap().is_abstract);
+}
+
+#[test]
 fn the_validity_delta_names_what_an_edit_made_dead_and_what_undoing_it_fixed() {
     let r = model();
     let before = analysis_json(&walk_model(&r).unwrap());

@@ -2,6 +2,12 @@
 
 `RELEASES`
 
+## Unreleased
+
+### Abstract features (REQ-TRS-FMED-004)
+
+- **New:** a feature can be marked **abstract** (`isAbstract: true`) from the browser's Edit mode and the MCP tool (`setAbstract`). The variability guide now says what it means: a grouping feature with no implementation of its own, still selectable, constrainable and counted in products like any other. The diagram already drew it dashed and italic; the Inspector now says "abstract".
+
 ## 0.48.1 — 2026-10-08
 
 ### A bound parameter is not removed (REQ-TRS-FMED-004)

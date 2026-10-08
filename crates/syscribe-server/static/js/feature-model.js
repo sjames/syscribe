@@ -116380,6 +116380,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
             <label>Children are</label>
             <select id="fm-e-group">${["optional", "alternative", "or"].map((g3) => `<option value="${g3}"${m3?.group === g3 ? " selected" : ""}>${g3 === "optional" ? "free" : g3 === "alternative" ? "XOR" : "OR"}</option>`).join("")}</select>
           </div>
+          <div class="fm-edit-row"><label title="A grouping feature with no implementation of its own; it is still selectable"><input id="fm-e-abstract" type="checkbox"${node.isAbstract ? " checked" : ""}> abstract</label></div>
           <div class="fm-edit-row"><input id="fm-e-child" type="text" placeholder="New child feature" autocomplete="off"><button data-action="addChild">Add child</button></div>
           <div class="fm-edit-row"><label>Constraints</label></div>
           <ul class="fm-edit-constraints">${declared || '<li class="detail-empty">none declared</li>'}</ul>
@@ -116481,7 +116482,9 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       if (!node) {
         return;
       }
-      if (t3.id === "fm-e-mandatory") {
+      if (t3.id === "fm-e-abstract") {
+        void this.runEdit({ op: "setAbstract", feature: node.ref, isAbstract: t3.checked });
+      } else if (t3.id === "fm-e-mandatory") {
         void this.runEdit({ op: "setMandatory", feature: node.ref, mandatory: t3.value === "true" });
       } else if (t3.id === "fm-e-group") {
         void this.runEdit({ op: "setGroup", feature: node.ref, groupKind: t3.value });
@@ -116671,7 +116674,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       }
       const m3 = node.feature;
       if (m3) {
-        rows.push(`<div class="fm-meta">${m3.mandatory ? "mandatory" : "optional"} member${m3.childCount ? `, children grouped as ${m3.group}` : ""}</div>`);
+        rows.push(`<div class="fm-meta">${node.isAbstract ? "abstract, " : ""}${m3.mandatory ? "mandatory" : "optional"} member${m3.childCount ? `, children grouped as ${m3.group}` : ""}</div>`);
       }
       const req = list("requires", "source");
       const reqBy = list("requires", "target");

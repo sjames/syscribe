@@ -279,7 +279,7 @@ struct UpdateElementArgs {
 struct EditFeatureArgs {
     /// One edit: `{"op": "add", "parent"?, "name", "groupKind"?, "mandatory"?}`,
     /// `{"op": "remove", "feature", "subtree"?}`, `{"op": "rename", "feature", "name"}`,
-    /// `{"op": "setGroup", "feature", "groupKind"}`, `{"op": "setMandatory", "feature", "mandatory"}`,
+    /// `{"op": "setGroup", "feature", "groupKind"}`, `{"op": "setMandatory", "feature", "mandatory"}`, `{"op": "setAbstract", "feature", "isAbstract"}`,
     /// `{"op": "move", "feature", "newParent"?}`, `{"op": "addConstraint"|"removeConstraint", "feature", "kind", "target"}`,
     /// `{"op": "setParameter", "feature", "parameter"}`, `{"op": "removeParameter", "feature", "name"}` (refused while a configuration binds it), `{"op": "removeBinding", "configuration", "feature", "name"}` or a returned `undo` (`{"op": "restore", "files"}`).
     #[schemars(schema_with = "edit_schema")]
@@ -2446,7 +2446,7 @@ impl SyscribeMcp {
 
     #[tool(
         description = "Edit the feature model with one semantic operation (add, remove, rename, \
-        setGroup, setMandatory, move, addConstraint, removeConstraint, setParameter, removeParameter) through the \
+        setGroup, setMandatory, setAbstract, move, addConstraint, removeConstraint, setParameter, removeParameter) through the \
         guarded write, with its effect on the model's validity: `featureDelta` names the features \
         that become dead or false-optional, whether the model becomes void and which configurations \
         become invalid. An edit that makes things worse is not written unless accept_worse is true \

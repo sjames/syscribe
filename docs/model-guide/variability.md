@@ -41,6 +41,8 @@ Two orthogonal axes (`ADR-FM-003`):
 - **`groupKind`** describes how a feature's **children** are grouped: `optional` · `alternative` (XOR) · `or`.
 - **`mandatory: true`** describes the feature's **membership** relative to its parent — selected whenever the parent is (or always, at top level). It is independent of `groupKind`, so a node can be a *mandatory XOR group* as above. (The legacy `groupKind: mandatory` is a shorthand for `mandatory: true` on a leaf.)
 
+**Abstract features.** `isAbstract: true` marks a feature that only groups: it has no implementation of its own and exists to give its children a place in the tree (a `Platform` whose children are the real choices). It is a statement about the feature's role, not about the product space: an abstract feature is still a `FeatureDef` that a `Configuration` can select, that constraints can name and that the analysis and the product count treat like any other. The feature diagram draws it with a dashed outline and an italic name; the browser's Edit mode has an **abstract** checkbox and the MCP tool `edit_feature` has `setAbstract`. (A rule that an abstract feature may not be selected in a `Configuration` is not part of the format.)
+
 Cross-tree constraints use `requires:` / `excludes:` (qualified names of other features). Quantitative variability uses typed `parameters:` (see below).
 
 A **`Configuration`** (id `CONF-*`) is a complete named product: a `features:` **map** of `<FeatureDef qname>: true/false`.

@@ -586,6 +586,7 @@ class FeaturePage {
             <label>Children are</label>
             <select id="fm-e-group">${['optional', 'alternative', 'or'].map(g => `<option value="${g}"${m?.group === g ? ' selected' : ''}>${g === 'optional' ? 'free' : g === 'alternative' ? 'XOR' : 'OR'}</option>`).join('')}</select>
           </div>
+          <div class="fm-edit-row"><label title="A grouping feature with no implementation of its own; it is still selectable"><input id="fm-e-abstract" type="checkbox"${node.isAbstract ? ' checked' : ''}> abstract</label></div>
           <div class="fm-edit-row"><input id="fm-e-child" type="text" placeholder="New child feature" autocomplete="off"><button data-action="addChild">Add child</button></div>
           <div class="fm-edit-row"><label>Constraints</label></div>
           <ul class="fm-edit-constraints">${declared || '<li class="detail-empty">none declared</li>'}</ul>
@@ -689,7 +690,9 @@ class FeaturePage {
         if (!node) {
             return;
         }
-        if (t.id === 'fm-e-mandatory') {
+        if (t.id === 'fm-e-abstract') {
+            void this.runEdit({ op: 'setAbstract', feature: node.ref, isAbstract: (t as unknown as HTMLInputElement).checked });
+        } else if (t.id === 'fm-e-mandatory') {
             void this.runEdit({ op: 'setMandatory', feature: node.ref, mandatory: t.value === 'true' });
         } else if (t.id === 'fm-e-group') {
             void this.runEdit({ op: 'setGroup', feature: node.ref, groupKind: t.value });
@@ -906,7 +909,7 @@ class FeaturePage {
         }
         const m = node.feature;
         if (m) {
-            rows.push(`<div class="fm-meta">${m.mandatory ? 'mandatory' : 'optional'} member${m.childCount ? `, children grouped as ${m.group}` : ''}</div>`);
+            rows.push(`<div class="fm-meta">${node.isAbstract ? 'abstract, ' : ''}${m.mandatory ? 'mandatory' : 'optional'} member${m.childCount ? `, children grouped as ${m.group}` : ''}</div>`);
         }
         const req = list('requires', 'source');
         const reqBy = list('requires', 'target');

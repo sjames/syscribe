@@ -62,6 +62,10 @@ pub enum EditOp {
     SetGroup { feature: String, group_kind: String },
     /// Make a feature a mandatory or optional member of its parent.
     SetMandatory { feature: String, mandatory: bool },
+    /// Mark a feature abstract: a grouping feature with no implementation of its own. It is still
+    /// a feature of the model: it can be selected, constrained and counted like any other.
+    #[serde(rename_all = "camelCase")]
+    SetAbstract { feature: String, is_abstract: bool },
     /// Reparent a feature (with its subtree) under `new_parent`, or make it a root when absent.
     #[serde(rename_all = "camelCase")]
     Move {
@@ -198,6 +202,7 @@ pub fn apply(root: &Path, op: &EditOp) -> Result<EditOutcome, String> {
         EditOp::Rename { feature, name } => rename(&cx, feature, name),
         EditOp::SetGroup { feature, group_kind } => set_group(&cx, feature, group_kind),
         EditOp::SetMandatory { feature, mandatory } => set_mandatory(&cx, feature, *mandatory),
+        EditOp::SetAbstract { feature, is_abstract } => set_abstract(&cx, feature, *is_abstract),
         EditOp::Move { feature, new_parent } => move_feature(&cx, feature, new_parent.as_deref()),
         EditOp::AddConstraint { feature, kind, target } => constraint(&cx, feature, kind, target, true),
         EditOp::RemoveConstraint { feature, kind, target } => constraint(&cx, feature, kind, target, false),
@@ -581,6 +586,20 @@ fn set_mandatory(cx: &Ctx, feature: &str, mandatory: bool) -> Result<EditOutcome
             map.insert(key("mandatory"), serde_yaml::Value::Bool(true));
         } else {
             map.remove(key("mandatory"));
+        }
+        Ok(())
+    })?;
+    Ok(EditOutcome { undo: tx.undo(), feature: Some(f.qname) })
+}
+
+fn set_abstract(cx: &Ctx, feature: &str, is_abstract: bool) -> Result<EditOutcome, String> {
+    let f = cx.feature(feature)?.clone();
+    let mut tx = Tx::new(cx);
+    with_feature_map(cx, &mut tx, &f, |map, _, _| {
+        if is_abstract {
+            map.insert(key("isAbstract"), serde_yaml::Value::Bool(true));
+        } else {
+            map.remove(key("isAbstract"));
         }
         Ok(())
     })?;
