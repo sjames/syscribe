@@ -2,7 +2,7 @@
 
 `RELEASES`
 
-## Unreleased
+## 0.49.0 — 2026-10-08
 
 ### Abstract features (REQ-TRS-FMED-004)
 
