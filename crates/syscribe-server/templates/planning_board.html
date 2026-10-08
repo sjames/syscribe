@@ -1,0 +1,59 @@
+<div class="pb-summary">
+  <span class="pb-total">{{ board.total }} item{% if board.total != 1 %}s{% endif %}</span>
+  {% for s in board.summary %}
+  <span class="pb-chip pb-{{ s.0 }}">{{ s.0 }} <b>{{ s.1 }}</b></span>
+  {% endfor %}
+</div>
+
+{% if board.total == 0 %}
+<p class="detail-empty">No planning items{% if board.who != "" %} for {{ board.who }}{% endif %}.</p>
+{% else %}
+
+<h2 class="pb-h">Working now</h2>
+{% if board.working.is_empty() %}
+<p class="detail-empty">Nobody is working on anything right now.</p>
+{% else %}
+<div class="pb-working">
+  {% for g in board.working %}
+  <div class="pb-group">
+    <div class="pb-who">
+      {% if g.is_agent %}<span class="pb-live" title="Claimed by an agent"></span>{% endif %}
+      <a href="#" class="pb-filter" data-who="{{ g.who }}">{{ g.who }}</a>
+      <span class="pb-kind">{% if g.is_agent %}agent{% else %}person{% endif %}</span>
+    </div>
+    {% for c in g.cards %}
+    <div class="pb-mini" hx-get="/ui/detail/{{ c.qname }}" hx-target="#modal-content" hx-swap="innerHTML"
+>
+      <span class="pb-id">{{ c.id }}</span> {{ c.name }}
+      {% if c.claimed_at != "" %}<time class="pb-age" data-since="{{ c.claimed_at }}">{{ c.claimed_at }}</time>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h2 class="pb-h">Board</h2>
+<div class="pb-columns">
+  {% for col in board.columns %}
+  <div class="pb-col">
+    <div class="pb-col-head pb-{{ col.status }}">{{ col.status }} <b>{{ col.count }}</b></div>
+    {% if col.status == "done" && !board.show_done %}
+    <div class="pb-hidden">{{ col.count }} hidden &middot; <a href="#" class="pb-showdone">show</a></div>
+    {% endif %}
+    {% for c in col.cards %}
+    <div class="pb-card" hx-get="/ui/detail/{{ c.qname }}" hx-target="#modal-content" hx-swap="innerHTML"
+>
+      <div><span class="pb-id">{{ c.id }}</span>{% if c.item_type != "" %} <span class="pb-type">{{ c.item_type }}</span>{% endif %}</div>
+      <div class="pb-name">{{ c.name }}</div>
+      {% if c.parent != "" %}<div class="pb-meta">parent {{ c.parent }}</div>{% endif %}
+      {% if c.assignee != "" %}<div class="pb-meta">assigned {{ c.assignee }}</div>{% endif %}
+      {% if c.claimed_by != "" %}<div class="pb-meta"><span class="pb-live"></span>{{ c.claimed_by }}
+        {% if c.claimed_at != "" %}<time class="pb-age" data-since="{{ c.claimed_at }}">{{ c.claimed_at }}</time>{% endif %}</div>{% endif %}
+      {% if !c.blocked_by.is_empty() %}<div class="pb-meta pb-blocked">blocked by {{ c.blocked_by.join(", ") }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}

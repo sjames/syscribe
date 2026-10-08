@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="planning-page">
+  <div class="pp-bar">
+    <h1>Planning</h1>
+    <label>Who
+      <select id="pp-who"><option value="">everyone</option></select>
+    </label>
+    <label><input type="checkbox" id="pp-done"> show done</label>
+    <span id="pp-live" class="pp-conn" title="Live connection to the model watcher">live</span>
+  </div>
+  <div id="planning-board"
+       hx-get="/ui/planning/board"
+       hx-trigger="load"
+       hx-swap="innerHTML"></div>
+</div>
+<script src="/static/js/planning.js" defer></script>
+{% endblock %}

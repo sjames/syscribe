@@ -4,6 +4,10 @@
 
 ## Unreleased
 
+### Planning dashboard (REQ-TRS-VIS-027)
+
+- **New:** `/planning` (header link **Planning**) is a live board of PlanningItems: counts per status, who and which agents are working now with claim ages, a column per status, and who/done filters. It refreshes on the model-reload WebSocket and a timer, so `claim`, `release` and agent edits show as they happen.
+
 ### Element panel in the diagram editor (REQ-TRS-VIS-026)
 
 - **New:** clicking a shape, port or edge in a diagram opens an **Element** side panel with the depicted element's rendered Markdown (headings, tables, code, Mermaid), its identity and an **Open full detail** button; a port or part usage that is only an inline feature shows its declared properties and its type's documentation (REQ-TRS-VIS-026).

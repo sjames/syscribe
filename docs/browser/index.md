@@ -37,6 +37,8 @@ All JavaScript (HTMX, Mermaid, the bundled diagram editor including `sprotty-elk
 | `GET /ui/tree?parent=<qname>` | HTMX — returns tree items for a namespace (top level when `parent` is omitted) |
 | `GET /ui/detail/<qname>` | HTMX — element detail panel (rendered Markdown, custom fields, generated member list, edit form) |
 | `GET /ui/diagram/<qname>` | HTMX — diagram panel (Mermaid, or the host for the sprotty editor) |
+| `GET /planning` | The live planning dashboard page |
+| `GET /ui/planning/board?who=&done=` | HTMX — the board fragment the dashboard re-fetches |
 | `GET /ui/element-card/<qname>` | HTMX — the read-only card in the diagram editor's side panel: identity and the rendered Markdown body; an inline feature resolves to its owner or type |
 | `GET /static/<path>` | Vendored JS/CSS assets |
 
@@ -96,6 +98,17 @@ The **+ Diagram** button in the model browser's header opens the New diagram dia
 - **Blank** writes an empty manifest (`shapes: {}`) for you to fill with **+**, **↔** and the pin buttons; a subject is optional and, when given, owns the connections you draw.
 
 The **package** defaults to a package named `Diagrams` when the model has one, else the model root; the list offers every package element. Creating goes through the same guarded write as every other edit, then closes the dialog and opens the diagram in a tab. A refusal (a name already in use, a rule the model engine enforces) appears in red inside the dialog and writes nothing; a warning the new diagram raises, such as `W401` for a subject that resolves to nothing, is shown after it is created.
+
+## Planning dashboard
+
+**Planning** in the header opens `/planning` (`REQ-TRS-VIS-027`), a live board of the model's `PlanningItem`s:
+
+- **Summary** counts per status.
+- **Working now** groups every `in_progress` or claimed item by who is on it. An agent that holds a claim (`syscribe claim <PI> --by <agent>`) shows a pulsing dot and how long ago it claimed (`claimedAt:`); an `assignedTo:` person shows by the display name from `[users]`.
+- **Board** has a column per status, each card showing id, type, parent, assignee, claimant and what it is `blockedBy:`. A card opens its detail dialog.
+- **Who** and **show done** filter the board (done items are hidden but counted); a name in *Working now* is a filter link.
+
+It refreshes with no reload: on every model-reload event of the same WebSocket that updates the tree (so `claim`, `release`, status edits and an agent's writes appear within moments), on a 15 s timer, and claim ages tick every second. The **live** badge turns red when the socket is down. Read-only; change items with the CLI, MCP or the detail dialog.
 
 ## Reading an element from a diagram
 

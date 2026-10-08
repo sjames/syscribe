@@ -34,6 +34,7 @@
   }
 
   function handleReload() {
+    document.dispatchEvent(new CustomEvent('syscribe:reload'));
     if (window.htmx) {
       htmx.ajax('GET', '/ui/tree', { target: '#tree-root', swap: 'innerHTML' });
     } else {
@@ -52,6 +53,7 @@
 
     socket.addEventListener('open', function () {
       reconnectDelay = RECONNECT_MIN_MS;
+      window.dispatchEvent(new CustomEvent('syscribe:socket', { detail: { open: true } }));
     });
 
     socket.addEventListener('message', function (event) {
@@ -69,6 +71,7 @@
 
     socket.addEventListener('close', function () {
       socket = null;
+      window.dispatchEvent(new CustomEvent('syscribe:socket', { detail: { open: false } }));
       window.setTimeout(connect, reconnectDelay);
       reconnectDelay = Math.min(reconnectDelay * 2, RECONNECT_MAX_MS);
     });

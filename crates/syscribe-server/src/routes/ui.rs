@@ -487,6 +487,36 @@ pub async fn element_card(
     Html(tmpl.render().unwrap_or_default())
 }
 
+#[derive(Template)]
+#[template(path = "planning.html")]
+pub struct PlanningTemplate {}
+
+#[derive(Template)]
+#[template(path = "planning_board.html")]
+pub struct PlanningBoardTemplate {
+    pub board: crate::planning::Board,
+}
+
+#[derive(Deserialize)]
+pub struct PlanningQuery {
+    #[serde(default)]
+    pub who: String,
+    #[serde(default)]
+    pub done: String,
+}
+
+/// `GET /planning` — the live planning dashboard page (`REQ-TRS-VIS-027`).
+pub async fn planning() -> Html<String> {
+    Html(PlanningTemplate {}.render().unwrap_or_default())
+}
+
+/// `GET /ui/planning/board` — the refreshable board fragment.
+pub async fn planning_board(State(state): State<SharedState>, Query(q): Query<PlanningQuery>) -> Html<String> {
+    let store = state.read().await;
+    let board = crate::planning::build_board(&store.elements, &store.config.users, &q.who, q.done == "1");
+    Html(PlanningBoardTemplate { board }.render().unwrap_or_default())
+}
+
 pub async fn diagram(
     State(state): State<SharedState>,
     Path(qname): Path<String>,

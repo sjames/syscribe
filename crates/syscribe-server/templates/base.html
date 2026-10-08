@@ -24,6 +24,7 @@
        not deferred and therefore runs during parsing, before any deferred
        script executes. -->
   <script src="/static/js/live-reload.js" defer></script>
+  <script src="/static/js/planning-core.js" defer></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       if (window.mermaid) {
@@ -37,6 +38,7 @@
   <header>
     <span>SysML Model Browser</span>
     <span class="subtitle">Syscribe · Axum + HTMX</span>
+    <nav class="top-nav"><a href="/">Model</a><a href="/planning">Planning</a></nav>
   </header>
   <div class="workspace">
     {% block content %}{% endblock %}
