@@ -41,7 +41,14 @@ Two orthogonal axes (`ADR-FM-003`):
 - **`groupKind`** describes how a feature's **children** are grouped: `optional` · `alternative` (XOR) · `or`.
 - **`mandatory: true`** describes the feature's **membership** relative to its parent — selected whenever the parent is (or always, at top level). It is independent of `groupKind`, so a node can be a *mandatory XOR group* as above. (The legacy `groupKind: mandatory` is a shorthand for `mandatory: true` on a leaf.)
 
-**Abstract features.** `isAbstract: true` marks a feature that only groups: it has no implementation of its own and exists to give its children a place in the tree (a `Platform` whose children are the real choices). It is a statement about the feature's role, not about the product space: an abstract feature is still a `FeatureDef` that a `Configuration` can select, that constraints can name and that the analysis and the product count treat like any other. The feature diagram draws it with a dashed outline and an italic name; the browser's Edit mode has an **abstract** checkbox and the MCP tool `edit_feature` has `setAbstract`. (A rule that an abstract feature may not be selected in a `Configuration` is not part of the format.)
+**Abstract features.** `isAbstract: true` marks a feature that only groups: it has no realisation of its own and exists to give its children a place in the tree (a `Platform` whose children are the real choices). It behaves as an abstract feature does in a proper feature model:
+
+- it is a feature of the model like any other in the formula (it can be selected, and constraints can name it), but it **does not distinguish products**: a product is its set of *concrete* features, so the product count, `feature-check --enumerate` and the configurator count and list variants over concrete features only, and two models that differ only in abstract features are one product;
+- a `Configuration` **need not name it**: its concrete selection is valid if the abstract features can be completed to satisfy the model (so omitting an abstract parent of a selected feature is not an `E225`), and a `requires:` that targets an abstract feature the configuration does not name is not an `E219`;
+- nothing can usefully be **conditioned** on it: an element whose `appliesWhen:` names an abstract feature gets `W238`;
+- one that **groups nothing** is not abstract: `W239`.
+
+The feature diagram draws it with a dashed outline and an italic name; the browser's Edit mode has an **abstract** checkbox and the MCP tool `edit_feature` has `setAbstract`.
 
 Cross-tree constraints use `requires:` / `excludes:` (qualified names of other features). Quantitative variability uses typed `parameters:` (see below).
 

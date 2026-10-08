@@ -116,6 +116,19 @@ impl Solver {
             .collect()
     }
 
+    /// Like [`Self::next_model`], but two models that agree on `vars` count as one: the
+    /// blocking clause covers only those variables. Counting products over the concrete
+    /// features of a feature model (abstract features do not distinguish products).
+    pub fn next_model_projected(&mut self, vars: &[usize]) -> Option<Vec<bool>> {
+        if !self.ok || self.inner.solve_limited(&[]) != lbool::TRUE {
+            return None;
+        }
+        let bits = self.model_bits();
+        let mut blocking: Vec<BLit> = vars.iter().map(|&i| BLit::new(self.vars[i], !bits[i])).collect();
+        self.ok &= self.inner.add_clause_reuse(&mut blocking);
+        Some(bits)
+    }
+
     /// Enumerate the next model (no assumptions), then add a blocking clause so a
     /// subsequent call yields a different model. Returns `None` when exhausted.
     pub fn next_model(&mut self) -> Option<Vec<bool>> {

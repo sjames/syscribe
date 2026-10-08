@@ -270,9 +270,13 @@ export function describeConflict(r: ConfigureResult, nameOf: (qname: string) => 
 }
 
 /** Counts for the status line: how many features are chosen, implied and open. */
-export function configCounts(r: ConfigureResult | null): { chosen: number; implied: number; open: number } {
+export function configCounts(r: ConfigureResult | null, abstractRefs: ReadonlySet<string> = new Set()): { chosen: number; implied: number; open: number } {
     const out = { chosen: 0, implied: 0, open: 0 };
-    for (const f of Object.values(r?.features ?? {})) {
+    for (const [ref, f] of Object.entries(r?.features ?? {})) {
+        // An abstract feature distinguishes no product, so it is never a decision left to make.
+        if (abstractRefs.has(ref) && f.state === 'free') {
+            continue;
+        }
         if (f.state === 'selected' || f.state === 'deselected') {
             out.chosen += 1;
         } else if (f.state === 'forcedOn' || f.state === 'forcedOff') {

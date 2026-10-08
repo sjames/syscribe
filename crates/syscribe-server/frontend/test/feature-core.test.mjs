@@ -346,4 +346,10 @@ scenario('a parameter reads as one line', () => {
     assert.equal(core.parameterSummary({ name: 'flag' }), 'flag');
 });
 
+scenario('an open abstract feature is not a decision left to make', () => {
+    const r = conf({ 'F::A': 'free', 'F::Abs': 'free', 'F::B': 'selected', 'F::Abs2': 'forcedOn' });
+    assert.deepEqual(core.configCounts(r), { chosen: 1, implied: 1, open: 2 });
+    assert.deepEqual(core.configCounts(r, new Set(['F::Abs'])), { chosen: 1, implied: 1, open: 1 });
+});
+
 console.log(`feature-core: ok (${n} scenarios)`);

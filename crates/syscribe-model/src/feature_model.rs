@@ -393,6 +393,36 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
         exc.insert(fd.qualified_name.as_str(), excludes);
     }
 
+    let abstract_names: HashSet<&str> = fdefs.iter().filter(|e| e.frontmatter.is_abstract == Some(true)).map(|e| e.qualified_name.as_str()).collect();
+
+    // ── W238 / W239: abstract features (REQ-TRS-FMED-004) ────────────────────
+    // An abstract feature is a grouping feature with no realisation of its own: an element
+    // gated by it has nothing that distinguishes it, and one that groups nothing is not abstract.
+    if !abstract_names.is_empty() {
+        for e in elements {
+            if is(e, ElementType::FeatureDef) || is(e, ElementType::Configuration) {
+                continue;
+            }
+            let Some(aw) = &e.frontmatter.applies_when else { continue };
+            let Ok(Some(expr)) = crate::variability::applies_when_expr(aw) else { continue };
+            for op in expr.operands() {
+                let q = crate::variability::canon_feature_ref(&op, &feat_alias);
+                if abstract_names.contains(q.as_str()) {
+                    f.push(warn("W238", &e.file_path, format!(
+                        "'{}' is conditioned on the abstract feature '{}': an abstract feature has no realisation of its own, so it cannot tell products apart — condition it on a concrete feature",
+                        e.qualified_name, q)));
+                }
+            }
+        }
+        let tree = crate::feature_tree::feature_tree(elements);
+        for n in tree.iter().filter(|n| abstract_names.contains(n.qname.as_str()) && n.children.is_empty()) {
+            if let Some(fd) = fdefs.iter().find(|e| e.qualified_name == n.qname) {
+                f.push(warn("W239", &fd.file_path, format!(
+                    "abstract feature '{}' has no children: it groups nothing — drop `isAbstract:` or add the features it groups", n.qname)));
+            }
+        }
+    }
+
     // ── E219/E220 (per Configuration) + selection counts for W011/W012 ───────
     let mut sel_count: HashMap<&str, usize> = HashMap::new();
     for cfg in &configs {
@@ -405,7 +435,9 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
             }
             *sel_count.entry(q).or_insert(0) += 1;
             for r in req.get(q).into_iter().flatten() {
-                if !is_sel(r) {
+                // An abstract feature a configuration does not name is completed, not missing.
+                let implied = abstract_names.contains(r.as_str()) && !sel.contains_key(r.as_str());
+                if !is_sel(r) && !implied {
                     f.push(err("E219", &cfg.file_path,
                         format!("feature '{}' is selected but its required feature '{}' is not", q, r)));
                 }
@@ -772,9 +804,40 @@ struct Encoding {
     parent: HashMap<String, Option<String>>,
     optional: Vec<String>,
     cons: Vec<Constraint>,
+    /// Features marked `isAbstract: true`: grouping features with no realisation of their own.
+    /// They stay in the formula, but they do not distinguish products and a configuration need
+    /// not spell them out (`REQ-TRS-FMED-004`).
+    is_abstract: HashSet<String>,
 }
 
 impl Encoding {
+    /// The variables of the concrete (non-abstract) features, which are what distinguish products.
+    fn concrete_vars(&self) -> Vec<usize> {
+        self.names.iter().enumerate().filter(|(_, n)| !self.is_abstract.contains(*n)).map(|(i, _)| i).collect()
+    }
+
+    /// Whether `selection` (concrete features chosen on or off, absent meaning off) can be
+    /// completed by some choice of the abstract features. Returns `None` when it can, else the
+    /// constraints that clash. Requires/excludes obligations are left to `E219`/`E220`.
+    fn abstract_completion_clash(&self, selection: &std::collections::BTreeMap<String, bool>) -> Option<Vec<String>> {
+        let keep: Vec<usize> = (0..self.cons.len()).filter(|&i| !matches!(self.cons[i].kind, CKind::Requires | CKind::Excludes)).collect();
+        let assumptions: Vec<Lit> = self
+            .names
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| !self.is_abstract.contains(*n))
+            .map(|(i, n)| if selection.get(n).copied().unwrap_or(false) { Lit::pos(i) } else { Lit::neg(i) })
+            .collect();
+        if crate::solver::is_sat(&self.cnf_subset(&keep), &assumptions) {
+            return None;
+        }
+        // Which constraints: the core over the structural ones.
+        let mut core: Vec<String> = self.unsat_core(&assumptions).into_iter().filter(|&c| keep.contains(&c)).map(|c| self.cons[c].label.clone()).collect();
+        core.sort();
+        core.dedup();
+        Some(core)
+    }
+
     fn cnf(&self) -> Cnf {
         self.cnf_subset(&(0..self.cons.len()).collect::<Vec<_>>())
     }
@@ -1096,7 +1159,28 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
         }
     }
 
-    Encoding { var_of, names, files, parent, optional, cons }
+    let is_abstract: HashSet<String> = fdefs.iter().filter(|e| e.frontmatter.is_abstract == Some(true)).map(|e| e.qualified_name.clone()).collect();
+    Encoding { var_of, names, files, parent, optional, cons, is_abstract }
+}
+
+/// The structural constraints a configuration's selection breaks. With abstract features the
+/// selection is judged on its concrete features and the abstract ones are completed (a
+/// configuration need not name them); without any it is checked as written.
+fn config_violations(enc: &Encoding, sel: &std::collections::BTreeMap<String, bool>) -> Vec<String> {
+    if !enc.is_abstract.is_empty() {
+        return enc.abstract_completion_clash(sel).unwrap_or_default();
+    }
+    let assign: Vec<bool> = enc.names.iter().map(|n| sel.get(n).copied().unwrap_or(false)).collect();
+    let mut violated: Vec<String> = Vec::new();
+    for c in &enc.cons {
+        if matches!(c.kind, CKind::Requires | CKind::Excludes) {
+            continue;
+        }
+        if c.clauses.iter().any(|cl| !cl.iter().any(|l| assign[l.var] != l.neg)) {
+            violated.push(c.label.clone());
+        }
+    }
+    violated
 }
 
 /// The deep analysis as structured data for the browser (`REQ-TRS-FMED-002`):
@@ -1178,13 +1262,7 @@ pub fn analysis_json(elements: &[RawElement]) -> serde_json::Value {
     let mut invalid: Vec<String> = Vec::new();
     for cfg in elements.iter().filter(|e| is(e, ElementType::Configuration)) {
         let sel = crate::variability::canon_selection(&cfg.frontmatter.feature_selections(), &feat_alias);
-        let assign: Vec<bool> = enc.names.iter().map(|n| sel.get(n).copied().unwrap_or(false)).collect();
-        let broken = enc
-            .cons
-            .iter()
-            .filter(|c| !matches!(c.kind, CKind::Requires | CKind::Excludes))
-            .any(|c| c.clauses.iter().any(|cl| !cl.iter().any(|l| assign[l.var] != l.neg)));
-        if broken {
+        if !config_violations(&enc, &sel).is_empty() {
             invalid.push(cfg.frontmatter.id.clone().unwrap_or_else(|| cfg.qualified_name.clone()));
         }
     }
@@ -1287,20 +1365,7 @@ pub fn check_feature_model_deep(elements: &[RawElement]) -> DeepReport {
     // requires/excludes obligations already reported as E219/E220.
     for cfg in elements.iter().filter(|e| is(e, ElementType::Configuration)) {
         let sel = sel_of(cfg);
-        let assign: Vec<bool> = enc.names.iter().map(|n| sel.get(n).copied().unwrap_or(false)).collect();
-        let mut violated: Vec<String> = Vec::new();
-        for c in &enc.cons {
-            if matches!(c.kind, CKind::Requires | CKind::Excludes) {
-                continue;
-            }
-            for cl in &c.clauses {
-                let ok = cl.iter().any(|l| assign[l.var] != l.neg);
-                if !ok {
-                    violated.push(c.label.clone());
-                    break;
-                }
-            }
-        }
+        let mut violated = config_violations(&enc, &sel);
         if !violated.is_empty() {
             violated.sort();
             violated.dedup();
@@ -1628,9 +1693,11 @@ fn count_products(enc: &Encoding, assumptions: &[Lit], cap: usize, budget: std::
         cnf.add(vec![*a]);
     }
     let mut sat = crate::solver::Solver::from_cnf(&cnf);
+    let concrete = enc.concrete_vars();
     let start = std::time::Instant::now();
     let mut n = 0usize;
-    while sat.next_model().is_some() {
+    // Products differ in their concrete features: abstract ones do not multiply them.
+    while sat.next_model_projected(&concrete).is_some() {
         n += 1;
         if n >= cap || start.elapsed() > budget {
             return (n, true);
@@ -1894,16 +1961,18 @@ pub fn enumerate_variants(elements: &[RawElement], cap: usize) -> EnumOutcome {
     let mut sat = crate::solver::Solver::from_cnf(&enc.cnf());
     let mut configs: Vec<Vec<String>> = Vec::new();
     let mut truncated = false;
-    while let Some(bits) = sat.next_model() {
+    let concrete = enc.concrete_vars();
+    while let Some(bits) = sat.next_model_projected(&concrete) {
         if configs.len() >= cap {
             truncated = true;
             break;
         }
+        // A product is its concrete features; abstract ones are not part of what is built.
         let selected: Vec<String> = enc
             .names
             .iter()
             .enumerate()
-            .filter(|(i, _)| bits[*i])
+            .filter(|(i, n)| bits[*i] && !enc.is_abstract.contains(*n))
             .map(|(_, n)| n.clone())
             .collect();
         configs.push(selected);

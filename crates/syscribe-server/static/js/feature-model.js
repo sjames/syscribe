@@ -115546,9 +115546,12 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     const why = c3.constraints.length > 0 ? ` (${c3.constraints.join("; ")})` : "";
     return `No valid product has ${joined}${why}.`;
   }
-  function configCounts(r3) {
+  function configCounts(r3, abstractRefs = /* @__PURE__ */ new Set()) {
     const out = { chosen: 0, implied: 0, open: 0 };
-    for (const f3 of Object.values(r3?.features ?? {})) {
+    for (const [ref, f3] of Object.entries(r3?.features ?? {})) {
+      if (abstractRefs.has(ref) && f3.state === "free") {
+        continue;
+      }
       if (f3.state === "selected" || f3.state === "deselected") {
         out.chosen += 1;
       } else if (f3.state === "forcedOn" || f3.state === "forcedOff") {
@@ -116153,7 +116156,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         return;
       }
       const r3 = this.config;
-      const c3 = configCounts(r3);
+      const c3 = configCounts(r3, new Set(this.full ? featureNodes(this.full).filter((n) => n.isAbstract).map((n) => n.ref) : []));
       const options = ['<option value="">(start from nothing)</option>'].concat(this.stored.map((s3) => `<option value="${esc(s3.qname)}"${s3.qname === this.loaded ? " selected" : ""}>${esc(s3.name)}${s3.id ? ` (${esc(s3.id)})` : ""}</option>`)).join("");
       const status = r3 && !r3.satisfiable ? "invalid" : productsText(r3);
       pane.innerHTML = `

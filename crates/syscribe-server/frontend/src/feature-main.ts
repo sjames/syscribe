@@ -335,7 +335,7 @@ class FeaturePage {
             return;
         }
         const r = this.config;
-        const c = configCounts(r);
+        const c = configCounts(r, new Set(this.full ? featureNodes(this.full).filter(n => n.isAbstract).map(n => n.ref) : []));
         const options = ['<option value="">(start from nothing)</option>']
             .concat(this.stored.map(s => `<option value="${esc(s.qname)}"${s.qname === this.loaded ? ' selected' : ''}>${esc(s.name)}${s.id ? ` (${esc(s.id)})` : ''}</option>`))
             .join('');

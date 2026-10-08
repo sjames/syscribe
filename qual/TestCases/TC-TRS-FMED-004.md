@@ -42,7 +42,7 @@ tags:
 
 Run with `cargo test -p syscribe-model --test feature_edit`. The endpoint, preview, confirmation and
 undo round trip are checked by `cargo test -p syscribe-server --test feature_model_edit`; the
-map-key rewriting by `cargo test -p syscribe-model --lib key_rewrite`; the bound-parameter rule through the endpoint by `a_bound_parameter_cannot_be_removed_until_its_binding_is`; the MCP tool by `cargo test -p syscribe --test mcp_feature_edit`; the undo history, delta
+map-key rewriting by `cargo test -p syscribe-model --lib key_rewrite`; the bound-parameter rule through the endpoint by `a_bound_parameter_cannot_be_removed_until_its_binding_is`; the abstract-feature semantics by `cargo test -p syscribe-model --test feature_abstract` (`products_are_counted_over_concrete_features_only`, `enumerated_variants_list_concrete_features_and_do_not_repeat`, `a_configuration_need_not_name_an_abstract_feature`, `requiring_an_abstract_feature_a_configuration_does_not_name_is_not_a_violation`, `conditioning_an_element_on_an_abstract_feature_warns_and_a_concrete_one_does_not`, `an_abstract_feature_that_groups_nothing_is_flagged`); the MCP tool by `cargo test -p syscribe --test mcp_feature_edit`; the undo history, delta
 wording and drop target by `frontend/test/feature-core.test.mjs` (`npm test` in
 `crates/syscribe-server/frontend/`).
 
