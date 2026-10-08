@@ -155,6 +155,12 @@ impl LayoutOptions {
     /// cycle-breaking strategy.
     pub fn for_graph(graph: &DiagramGraph) -> LayoutOptions {
         let mut o = LayoutOptions::from_hints(&graph.layout_hints);
+        // ELK's `fixed` algorithm keeps every node where it is told to be, which
+        // for an unpinned node is the origin, and rejects edges it has no
+        // sections for (`REQ-TRS-VIS-025`): it is only for a fully pinned graph.
+        if o.algorithm == "fixed" && !graph.is_fully_pinned() {
+            o.algorithm = "layered";
+        }
         if matches!(graph.kind, super::ir::DiagramKind::StateMachine | super::ir::DiagramKind::Action) {
             o.cycle_breaking = Some("DEPTH_FIRST");
         }
@@ -733,7 +739,26 @@ mod tests {
         let mut derived = DiagramGraph::empty(DiagramKind::Bdd, "D", "D", Some("Sys"));
         derived.derived = true;
         assert_eq!(to_sgraph_json(&derived)["derived"], json!(true));
-        let seq = DiagramGraph::empty(DiagramKind::Sequence, "D", "D", None);
+        // `fixed` only for a fully pinned graph (REQ-TRS-VIS-025): an unpinned
+        // sequence graph would be piled at the origin by ELK's fixed algorithm.
+        let mut seq = DiagramGraph::empty(DiagramKind::Sequence, "D", "D", None);
+        assert_eq!(to_sgraph_json(&seq)["layoutOptions"]["elk.algorithm"], "layered");
+        seq.nodes.push(Node {
+            id: "a".into(),
+            element_ref: "A".into(),
+            resolved: true,
+            element_type: None,
+            kind: NodeKind::Lifeline,
+            label: "A".into(),
+            stereotype: None,
+            parent: None,
+            direction: None,
+            side: None,
+            lines: vec![],
+            is_abstract: false,
+            pin: Some(Rect { x: 0.0, y: 0.0, w: Some(120.0), h: Some(40.0) }),
+            banners: vec![],
+        });
         assert_eq!(to_sgraph_json(&seq)["layoutOptions"]["elk.algorithm"], "fixed");
     }
 

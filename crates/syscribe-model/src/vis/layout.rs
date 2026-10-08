@@ -41,7 +41,7 @@ use std::collections::BTreeMap;
 use rquickjs::{Context, Function, Runtime, Value};
 use serde_json::{json, Map, Value as Json};
 
-use super::ir::{DiagramGraph, LayoutAlgorithm, Node, NodeKind, Point};
+use super::ir::{DiagramGraph, Node, NodeKind, Point};
 use super::size::{carried_size, LabelRole, Sizes, MIN_NODE_HEIGHT, MIN_NODE_WIDTH};
 use super::sprotty::{port_side, sprotty_type, LayoutOptions, ROOT_ID, TYPE_NODE, TYPE_PORT};
 
@@ -748,9 +748,9 @@ pub fn apply(graph: &DiagramGraph, sizes: &Sizes, input: &ElkInput, result: &Jso
             algorithm: if input.all_pinned {
                 "fixed".to_string()
             } else {
-                match graph.layout_hints.algorithm {
-                    LayoutAlgorithm::Layered => "layered".to_string(),
-                    LayoutAlgorithm::Fixed => "fixed".to_string(),
+                match LayoutOptions::for_graph(graph).algorithm {
+                    "fixed" => "fixed".to_string(),
+                    _ => "layered".to_string(),
                 }
             },
             nodes: BTreeMap::new(),

@@ -5,7 +5,7 @@ name: "A hand-listed Sequence diagram without pins is placed by the generator's 
 status: draft
 reqDomain: software
 reqClass: system
-derivedFrom: [REQ-TRS-VIS-021]
+derivedFrom: [REQ-TRS-VIS-000]
 breakdownAdr: Decisions::VisualisationADR
 tags:
   - diagram
@@ -14,7 +14,7 @@ tags:
 ---
 
 A manifest-sourced `Sequence` diagram in which no shape carries a `layout:` pin shall be placed
-by the same rules as a derived one (`REQ-TRS-VIS-021`) when its IR is built, so every renderer
+by the same rules as a derived one (see `REQ-TRS-VIS-021`) when its IR is built, so every renderer
 draws it identically and none runs ELK on it:
 
 - lifelines and actors (root shapes of those kinds) in declaration order, left to right at the

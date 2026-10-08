@@ -315,3 +315,164 @@ fn every_writer_accepts_the_derived_sequence() {
     let puml = render_plantuml(d, &elements, None).expect("plantuml");
     assert!(puml.contains("@startuml") && puml.contains("participant ") && puml.contains("actor ") && puml.contains(" -> "), "{puml}");
 }
+
+// ── hand-listed sequence diagrams (REQ-TRS-VIS-025) ─────────────────────────
+
+mod manifest_sequence {
+    use std::path::Path;
+
+    use syscribe_model::resolver::Resolver;
+    use syscribe_model::vis::derive::sequence::{ACTIVATION_W, HEADER_H, HEADER_W, LIFELINE_PITCH, ROW_PITCH};
+    use syscribe_model::vis::{build_graph, render_svg, DiagramGraph, EdgeKind, NodeKind};
+    use syscribe_model::walker::walk_model;
+
+    use super::{tempdir, write};
+
+    const HAND_LISTED: &str = "---
+type: Diagram
+name: Hand
+diagramKind: Sequence
+shapes:
+  ll-a: {ref: Sys::A, kind: actor}
+  ll-b: {ref: Sys::B, kind: lifeline}
+  ll-c: {ref: Sys::C, kind: lifeline}
+  act-b1: {ref: Sys::B, kind: activation, parent: ll-b}
+  act-b2: {ref: Sys::B, kind: activation, parent: ll-b}
+  frag-outer: {ref: Sys::Flow, kind: fragment}
+  frag-inner: {ref: Sys::Flow::inner, kind: fragment}
+  note-1: {ref: Sys::A, kind: note}
+edges:
+  e1: {ref: Sys::Flow::start, source: ll-a, target: ll-b, kind: message}
+  e2: {ref: Sys::Flow::inner::one, source: ll-b, target: ll-c, kind: message}
+  e3: {ref: Sys::Flow::inner::two, source: ll-c, target: ll-b, kind: return, label: ack}
+  e4: {ref: Sys::Flow::again, source: ll-b, target: ll-b, kind: message}
+  e5: {ref: Sys::Flow::done, source: ll-b, target: act-b2, kind: message}
+---
+
+A hand-listed sequence diagram with no layout.
+";
+
+    fn model_with(diagram: &str) -> std::path::PathBuf {
+        let root = tempdir();
+        write(&root, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+        write(&root, "Sys/_index.md", "---\ntype: Package\nname: Sys\n---\n");
+        for n in ["A", "B", "C"] {
+            write(&root, &format!("Sys/{n}.md"), &format!("---\ntype: PartDef\nname: {n}\n---\n\n{n}.\n"));
+        }
+        write(&root, "Diagrams/Hand.md", diagram);
+        root
+    }
+
+    fn graph(root: &Path) -> DiagramGraph {
+        let elements = walk_model(root).unwrap();
+        let resolver = Resolver::new(&elements);
+        let d = elements.iter().find(|e| e.qualified_name == "Diagrams::Hand").unwrap();
+        build_graph(d, &elements, &resolver).unwrap().0
+    }
+
+    fn pin(g: &DiagramGraph, id: &str) -> syscribe_model::vis::Rect {
+        g.node(id).unwrap_or_else(|| panic!("node {id}")).pin.unwrap_or_else(|| panic!("{id} is pinned"))
+    }
+
+    #[test]
+    fn a_hand_listed_sequence_diagram_is_fully_pinned_with_waypoints_on_every_message() {
+        let g = graph(&model_with(HAND_LISTED));
+        assert!(g.is_fully_pinned(), "every node is pinned: {:?}", g.nodes.iter().filter(|n| n.pin.is_none()).map(|n| &n.id).collect::<Vec<_>>());
+        for e in &g.edges {
+            assert!(e.waypoints.as_ref().is_some_and(|w| w.len() >= 2), "{} has waypoints", e.id);
+        }
+        // Columns: declaration order, fixed pitch, headers at the top.
+        for (i, id) in ["ll-a", "ll-b", "ll-c"].iter().enumerate() {
+            let p = pin(&g, id);
+            assert_eq!((p.x, p.y, p.w), (i as f64 * LIFELINE_PITCH, 0.0, Some(HEADER_W)));
+        }
+        assert_eq!(pin(&g, "ll-b").h, Some(HEADER_H));
+        // The stray note is pinned in a row below the diagram, not at the origin.
+        let note = pin(&g, "note-1");
+        assert!(note.y > pin(&g, "frag-outer").y + pin(&g, "frag-outer").h.unwrap(), "{note:?}");
+    }
+
+    #[test]
+    fn messages_are_rows_in_declaration_order_stem_to_stem_and_self_messages_loop() {
+        let g = graph(&model_with(HAND_LISTED));
+        let stem = |c: usize| c as f64 * LIFELINE_PITCH + HEADER_W / 2.0;
+        let wp = |id: &str| g.edges.iter().find(|e| e.id == id).unwrap().waypoints.clone().unwrap();
+        let ys: Vec<f64> = ["e1", "e2", "e3", "e4", "e5"].iter().map(|id| wp(id)[0].y).collect();
+        assert!(ys.windows(2).all(|w| w[1] - w[0] >= ROW_PITCH), "rows go down by at least a row pitch: {ys:?}");
+        let e1 = wp("e1");
+        assert_eq!((e1[0].x, e1[1].x, e1[0].y == e1[1].y), (stem(0), stem(1), true));
+        let e3 = wp("e3");
+        assert_eq!((e3[0].x, e3[1].x), (stem(2), stem(1)), "a return runs from its source stem to its target stem");
+        assert_eq!(wp("e4").len(), 4, "a self message is the small loop");
+        // An edge from a lifeline into its own activation resolves to the same
+        // column, so it is a self message too: it leaves and returns to the stem.
+        let e5 = wp("e5");
+        assert_eq!((e5.len(), e5[0].x, e5[3].x), (4, stem(1), stem(1)));
+    }
+
+    #[test]
+    fn unlabelled_messages_are_labelled_by_their_ref_and_labels_are_kept() {
+        let g = graph(&model_with(HAND_LISTED));
+        let label = |id: &str| g.edges.iter().find(|e| e.id == id).unwrap().label.clone();
+        assert_eq!(label("e1").as_deref(), Some("start"));
+        assert_eq!(label("e3").as_deref(), Some("ack"), "an author's label wins");
+        assert!(g.edges.iter().all(|e| e.kind != EdgeKind::Message || e.label.is_some()));
+    }
+
+    #[test]
+    fn fragments_box_their_messages_and_the_outer_one_is_wider() {
+        let g = graph(&model_with(HAND_LISTED));
+        let outer = pin(&g, "frag-outer");
+        let inner = pin(&g, "frag-inner");
+        let row = |id: &str| g.edges.iter().find(|e| e.id == id).unwrap().waypoints.as_ref().unwrap()[0].y;
+        // `Sys::Flow` covers every message; `Sys::Flow::inner` covers e2 and e3 only.
+        assert!(outer.y < row("e1") && row("e5") < outer.y + outer.h.unwrap(), "{outer:?}");
+        assert!(inner.y < row("e2") && row("e3") < inner.y + inner.h.unwrap(), "{inner:?}");
+        assert!(row("e1") < inner.y || row("e1") > inner.y + inner.h.unwrap(), "e1 is outside the inner fragment");
+        assert!(inner.y > outer.y && inner.y + inner.h.unwrap() < outer.y + outer.h.unwrap(), "inner sits inside outer");
+        assert!(outer.x < inner.x && outer.x + outer.w.unwrap() > inner.x + inner.w.unwrap(), "outer is wider than inner");
+        let node = g.node("frag-outer").unwrap();
+        assert_eq!(node.kind, NodeKind::Fragment);
+    }
+
+    #[test]
+    fn several_activations_on_one_lifeline_share_its_rows_in_order() {
+        let g = graph(&model_with(HAND_LISTED));
+        let (a1, a2) = (pin(&g, "act-b1"), pin(&g, "act-b2"));
+        assert_eq!((a1.x, a1.w), ((HEADER_W - ACTIVATION_W) / 2.0, Some(ACTIVATION_W)));
+        assert!(a1.y + a1.h.unwrap() <= a2.y + 1.0, "the second activation starts after the first ends: {a1:?} {a2:?}");
+        assert!(a2.y > a1.y);
+    }
+
+    #[test]
+    fn a_diagram_with_any_pin_keeps_its_authors_geometry() {
+        let with_pin = HAND_LISTED.replace("edges:", "layout:\n  ll-a: {x: 5, y: 6}\nedges:");
+        let g = graph(&model_with(&with_pin));
+        assert_eq!(pin(&g, "ll-a").x, 5.0);
+        assert!(g.node("ll-b").unwrap().pin.is_none(), "nothing else was placed");
+        assert!(g.edges.iter().all(|e| e.waypoints.is_none()));
+    }
+
+    #[test]
+    fn it_renders_without_elk_and_never_fails_for_a_manifest_sequence_diagram() {
+        let g = graph(&model_with(HAND_LISTED));
+        let svg = render_svg(&g, &|_| None).expect("a placed sequence diagram draws");
+        assert!(svg.contains("sysml:ref=\"Sys::Flow\""), "fragment drawn");
+        assert!(svg.matches("class=\"edge ").count() >= 5, "messages drawn");
+    }
+
+    #[test]
+    fn the_demo_models_hand_listed_sequence_diagram_exports() {
+        let model = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../model");
+        let elements = walk_model(&model).unwrap();
+        let resolver = Resolver::new(&elements);
+        let d = elements.iter().find(|e| e.qualified_name == "Diagrams::MissionExecutionSeq").expect("the demo diagram");
+        let (g, issues) = build_graph(d, &elements, &resolver).unwrap();
+        assert!(issues.is_empty(), "{issues:?}");
+        assert!(g.is_fully_pinned());
+        let svg = render_svg(&g, &|_| None).expect("the demo diagram exports (it failed with an ELK error before REQ-TRS-VIS-025)");
+        assert!(svg.contains("FlightController"));
+        // Lifeline headers carry no banners (they would overflow the fixed header).
+        assert!(g.nodes.iter().filter(|n| n.kind == NodeKind::Lifeline).all(|n| n.banners.is_empty()));
+    }
+}

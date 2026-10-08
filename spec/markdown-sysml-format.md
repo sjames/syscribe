@@ -3827,6 +3827,8 @@ edges:
     kind: return
 ```
 
+**Hand-listed placement.** A manifest `Sequence` diagram with no `layout:` pin is placed with the same geometry a derived one uses (`REQ-TRS-VIS-025`): lifelines and actors (root shapes of those kinds) left to right in declaration order; every edge whose two ends reach a lifeline column, directly or through `parent:`, a row in `edges:` order with horizontal waypoints stem to stem (a self message loops); each `activation` a bar on its parent lifeline over the rows that touch it, several on one lifeline sharing those rows in order; each `fragment` a box around the messages whose edge `ref` equals the fragment's `ref` or lies under it (`ref::…`), an enclosing fragment drawn wider. An unlabelled message is labelled by the last segment of its `ref`. These spans are inferred, not recorded; to control geometry, pin shapes in `layout:` — a diagram with any pin keeps the author's pins and is not placed.
+
 **Completeness rule:** the parser must warn if any `SendAction` or `AcceptAction` in the subject `ActionDef`'s sub-actions (reachable via `subActions:` or `steps:`) is absent from `edges:`. The rule applies to a manifest diagram only: a derived Sequence diagram (below) generates one edge per message itself, so `W080` is never raised on it.
 
 **Derived content** (a `subject:` and no `shapes:`, §8.16.2; `REQ-TRS-VIS-021`): for a subject that is an `ActionDef` or `Action` (or a `UseCaseDef`/`UseCase` with `actors:`), the generator produces:

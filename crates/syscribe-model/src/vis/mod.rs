@@ -102,7 +102,12 @@ pub fn build_graph(elem: &RawElement, elements: &[RawElement], resolver: &Resolv
     let kind = DiagramKind::parse(elem.frontmatter.diagram_kind.as_deref())?;
     match source_of(&elem.frontmatter) {
         Source::Manifest => {
-            let (graph, mut issues) = manifest::build(elem, kind, elements, resolver);
+            let (mut graph, mut issues) = manifest::build(elem, kind, elements, resolver);
+            // A hand-listed sequence diagram carries no geometry; place it as a
+            // derived one is, so it is never piled at the origin (REQ-TRS-VIS-025).
+            if kind == DiagramKind::Sequence {
+                derive::sequence::place_manifest(&mut graph);
+            }
             let filters = derive::Filters::of(elem);
             if !filters.is_empty() {
                 issues.push(derive::w417(

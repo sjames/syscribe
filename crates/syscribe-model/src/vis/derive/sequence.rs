@@ -414,6 +414,212 @@ pub fn generate(
     graph.edges.extend(edges);
 }
 
+/// Place a hand-listed `Sequence` diagram (`REQ-TRS-VIS-025`): pin every shape
+/// and give every message waypoints, with the geometry the generator uses, so
+/// a manifest diagram without a `layout:` is drawn like a derived one instead
+/// of being piled at the origin. A graph that already carries any pin is the
+/// author's and is left alone.
+///
+/// Order is the order the author listed: columns are the root lifeline/actor
+/// shapes in declaration order, rows are the edges whose two ends resolve to a
+/// column (directly or through `parent:`) in declaration order. Fragment spans
+/// and activation spans are inferred (see below) because a manifest does not
+/// record them.
+pub fn place_manifest(graph: &mut DiagramGraph) {
+    if graph.nodes.iter().any(|n| n.pin.is_some()) {
+        return;
+    }
+    let is_column = |n: &Node| n.parent.is_none() && matches!(n.kind, NodeKind::Lifeline | NodeKind::Actor);
+    let columns: Vec<usize> = graph.nodes.iter().enumerate().filter(|(_, n)| is_column(n)).map(|(i, _)| i).collect();
+    if columns.is_empty() {
+        return;
+    }
+    let col_of = |graph: &DiagramGraph, id: &str| -> Option<usize> {
+        let mut cur = graph.node(id)?;
+        for _ in 0..graph.nodes.len() {
+            if let Some(c) = columns.iter().position(|&i| graph.nodes[i].id == cur.id) {
+                return Some(c);
+            }
+            cur = graph.node(cur.parent.as_deref()?)?;
+        }
+        None
+    };
+    let header_h = |graph: &DiagramGraph, c: usize| if graph.nodes[columns[c]].kind == NodeKind::Actor { ACTOR_H } else { HEADER_H };
+    let tallest = (0..columns.len()).map(|c| header_h(graph, c)).fold(0.0, f64::max);
+    let stem_x = |c: usize| c as f64 * LIFELINE_PITCH + HEADER_W / 2.0;
+
+    // Messages: edges with both ends on a column, in declaration order.
+    struct Msg {
+        edge: usize,
+        src: usize,
+        tgt: usize,
+    }
+    let msgs: Vec<Msg> = graph
+        .edges
+        .iter()
+        .enumerate()
+        .filter_map(|(i, e)| Some(Msg { edge: i, src: col_of(graph, &e.source)?, tgt: col_of(graph, &e.target)? }))
+        .collect();
+
+    // Fragment spans over the message indices, from `ref`: a message belongs to a
+    // fragment when its edge `ref` equals the fragment's or lies under it.
+    let under = |r: &str, base: &str| r == base || r.strip_prefix(base).is_some_and(|rest| rest.starts_with("::"));
+    struct Frag {
+        node: usize,
+        span: Option<(usize, usize)>,
+        level: usize,
+    }
+    let mut frags: Vec<Frag> = graph
+        .nodes
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| n.kind == NodeKind::Fragment && n.parent.is_none())
+        .map(|(i, n)| {
+            let hits: Vec<usize> = msgs
+                .iter()
+                .enumerate()
+                .filter(|(_, m)| graph.edges[m.edge].element_ref.as_deref().is_some_and(|r| under(r, &n.element_ref)))
+                .map(|(k, _)| k)
+                .collect();
+            Frag { node: i, span: hits.first().zip(hits.last()).map(|(a, b)| (*a, *b)), level: 0 }
+        })
+        .collect();
+    // Nesting level: 0 for an innermost fragment, 1 + the deepest inside it otherwise.
+    let strictly_inside = |inner: (usize, usize), outer: (usize, usize)| outer.0 <= inner.0 && inner.1 <= outer.1 && inner != outer;
+    for _ in 0..frags.len() {
+        for i in 0..frags.len() {
+            let Some(si) = frags[i].span else { continue };
+            let deepest = frags
+                .iter()
+                .filter_map(|g| g.span.filter(|&sg| strictly_inside(sg, si)).map(|_| g.level + 1))
+                .max()
+                .unwrap_or(0);
+            frags[i].level = deepest;
+        }
+    }
+
+    // Rows. A fragment starting at a message reserves room above it for its
+    // tab (outer fragments first, so inner ones sit lower); one ending at a
+    // message reserves room below it (inner first).
+    let n = msgs.len();
+    let mut starts: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut ends: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for (fi, f) in frags.iter().enumerate() {
+        if let Some((a, b)) = f.span {
+            starts[a].push(fi);
+            ends[b].push(fi);
+        }
+    }
+    for list in starts.iter_mut() {
+        list.sort_by_key(|&fi| std::cmp::Reverse(frags[fi].level));
+    }
+    for list in ends.iter_mut() {
+        list.sort_by_key(|&fi| frags[fi].level);
+    }
+    let mut cursor = tallest + FIRST_GAP;
+    let mut row_y = vec![0.0; n];
+    let mut row_bottom = vec![0.0; n];
+    let mut frag_top: Vec<f64> = vec![0.0; frags.len()];
+    let mut frag_bottom: Vec<f64> = vec![0.0; frags.len()];
+    for k in 0..n {
+        for &fi in &starts[k] {
+            frag_top[fi] = cursor + 4.0;
+            cursor += FRAGMENT_HEAD + 4.0;
+        }
+        row_y[k] = cursor + ROW_PITCH / 2.0;
+        cursor += ROW_PITCH;
+        row_bottom[k] = row_y[k] + if msgs[k].src == msgs[k].tgt { SELF_MESSAGE_H } else { 0.0 };
+        for (j, &fi) in ends[k].iter().enumerate() {
+            frag_bottom[fi] = row_bottom[k].max(cursor) + 4.0 + j as f64 * FRAGMENT_FOOT;
+        }
+        cursor += FRAGMENT_FOOT * ends[k].len() as f64;
+    }
+    let content_bottom = cursor.max(tallest + FIRST_GAP);
+
+    // Pins: columns. A lifeline header names its participant and nothing more
+    // (as in the derived generator): the applied-stereotype banners belong to the
+    // block views and would overflow the fixed header.
+    for (c, &i) in columns.iter().enumerate() {
+        let h = header_h(graph, c);
+        graph.nodes[i].pin = Some(Rect { x: c as f64 * LIFELINE_PITCH, y: 0.0, w: Some(HEADER_W), h: Some(h) });
+        graph.nodes[i].banners.clear();
+    }
+    // A message the author did not label is labelled by the last segment of its
+    // `ref` (the action it stands for), as the PlantUML writer already does.
+    for m in &msgs {
+        let e = &mut graph.edges[m.edge];
+        if e.label.is_none() {
+            e.label = e.element_ref.as_deref().map(|r| short_name(r).to_string()).filter(|l| !l.is_empty());
+        }
+    }
+    // Waypoints: one horizontal run per message (a self message loops).
+    for (k, m) in msgs.iter().enumerate() {
+        let (sx, tx, y) = (stem_x(m.src), stem_x(m.tgt), row_y[k]);
+        graph.edges[m.edge].waypoints = Some(if m.src == m.tgt {
+            vec![
+                Point { x: sx, y },
+                Point { x: sx + SELF_MESSAGE_W, y },
+                Point { x: sx + SELF_MESSAGE_W, y: y + SELF_MESSAGE_H },
+                Point { x: sx, y: y + SELF_MESSAGE_H },
+            ]
+        } else {
+            vec![Point { x: sx, y }, Point { x: tx, y }]
+        });
+    }
+    // Activations: the rows touching the lifeline, shared out between its
+    // activations in declaration order.
+    for (c, &ci) in columns.iter().enumerate() {
+        let acts: Vec<usize> = graph
+            .nodes
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| a.kind == NodeKind::Activation && a.parent.as_deref() == Some(graph.nodes[ci].id.as_str()))
+            .map(|(i, _)| i)
+            .collect();
+        let rows: Vec<usize> = msgs.iter().enumerate().filter(|(_, m)| m.src == c || m.tgt == c).map(|(k, _)| k).collect();
+        for (j, &ai) in acts.iter().enumerate() {
+            let (lo, hi) = (j * rows.len() / acts.len(), (j + 1) * rows.len() / acts.len());
+            let chunk = if lo < hi { &rows[lo..hi] } else { &rows[..] };
+            let rect = match (chunk.first(), chunk.last()) {
+                (Some(&a), Some(&b)) => {
+                    let y = row_y[a] - ACTIVATION_PAD;
+                    Rect { x: (HEADER_W - ACTIVATION_W) / 2.0, y, w: Some(ACTIVATION_W), h: Some(row_bottom[b] + ACTIVATION_PAD - y) }
+                }
+                _ => Rect { x: (HEADER_W - ACTIVATION_W) / 2.0, y: tallest + FIRST_GAP, w: Some(ACTIVATION_W), h: Some(ROW_PITCH) },
+            };
+            graph.nodes[ai].pin = Some(rect);
+        }
+    }
+    // Fragments: absolute boxes around their messages, wider the more they contain.
+    for (fi, f) in frags.iter().enumerate() {
+        let rect = match f.span {
+            Some((a, b)) => {
+                let lo = (a..=b).map(|k| stem_x(msgs[k].src).min(stem_x(msgs[k].tgt))).fold(f64::INFINITY, f64::min);
+                let hi = (a..=b).map(|k| stem_x(msgs[k].src).max(stem_x(msgs[k].tgt))).fold(f64::NEG_INFINITY, f64::max);
+                let pad = FRAGMENT_PAD_X + FRAGMENT_NEST * f.level as f64;
+                Rect { x: lo - pad, y: frag_top[fi], w: Some(hi - lo + 2.0 * pad), h: Some(frag_bottom[fi] - frag_top[fi]) }
+            }
+            None => {
+                let cx = stem_x(0);
+                Rect { x: cx - FRAGMENT_EMPTY_HALF_W, y: tallest + FIRST_GAP, w: Some(2.0 * FRAGMENT_EMPTY_HALF_W), h: Some(FRAGMENT_HEAD) }
+            }
+        };
+        graph.nodes[f.node].pin = Some(rect);
+    }
+    // Everything else (a note or label, a stray child) is pinned too, so the
+    // whole IR is: roots in a row below the diagram, children at their parent's origin.
+    let mut x = 0.0;
+    for node in graph.nodes.iter_mut().filter(|n| n.pin.is_none()) {
+        node.pin = Some(if node.parent.is_none() {
+            let r = Rect { x, y: content_bottom + 24.0, w: None, h: None };
+            x += LIFELINE_PITCH;
+            r
+        } else {
+            Rect { x: 0.0, y: 0.0, w: None, h: None }
+        });
+    }
+}
+
 /// The sub-actions of `list` as steps in execution order: the
 /// `successionConnections:` topological order (ties and unmentioned steps in
 /// declaration order, a cycle broken in declaration order) at the top level,
