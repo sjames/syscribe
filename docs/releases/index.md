@@ -2,7 +2,7 @@
 
 `RELEASES`
 
-## Unreleased
+## 0.48.0 — 2026-10-08
 
 ### Feature editing everywhere, and a leaner write path (REQ-TRS-FMED-004, REQ-TRS-MCP-MEM-000)
 
