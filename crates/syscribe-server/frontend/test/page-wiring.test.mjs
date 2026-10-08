@@ -62,6 +62,14 @@ check('the viewport, host and toast exist in the page the script drives', () => 
     }
 });
 
+check('the element side panel ids the script reads are present and the panel uses the hidden attribute', () => {
+    for (const id of ['element-panel', 'element-panel-body', 'ep-close']) {
+        assert.ok(index.includes(`id="${id}"`), `#${id} is in index.html`);
+    }
+    assert.match(index, /<aside id="element-panel" hidden>/, 'hidden by attribute, which no inline display can fight');
+    assert.ok(/#element-panel\[hidden\]\s*\{\s*display:\s*none/.test(css), 'the stylesheet keeps [hidden] hidden');
+});
+
 check('the Add existing element button and picker ids the script reads are all present', () => {
     for (const id of ['add-existing-dialog', 'ae-form', 'ae-ref', 'ae-results', 'ae-count', 'ae-error', 'ae-add', 'ae-cancel']) {
         assert.ok(index.includes(`id="${id}"`), `#${id} is in index.html`);

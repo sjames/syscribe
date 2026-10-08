@@ -35,6 +35,8 @@ import { isDerivedDiagram, portChain, resolveConnectEnds } from './connect-rules
 import { createDiagramContainer } from './container';
 import { openAddExisting } from './add-existing-dialog';
 import { DERIVED_MESSAGE } from './add-existing';
+import { showElementCard } from './element-panel';
+import { refForSelection } from './selection-ref';
 import { ConnectMouseListener } from './connect-listener';
 import { defaultSize, prepareForLayout, prepareNode } from './layout';
 import { serialiseDiagramSvg } from './svg-export';
@@ -565,6 +567,16 @@ export class DiagramEditor {
         }
         for (const id of deselected) {
             this.selectedIds.delete(id);
+        }
+        // REQ-TRS-VIS-026: one selected shape or edge shows its element's rendered
+        // Markdown in the side panel. Several selected, a deselect to nothing and
+        // the connect gesture's own clicks leave the panel as it is.
+        const model = this.activeModel();
+        if (model && !this.connectMode) {
+            const ref = refForSelection(model, this.selectedIds);
+            if (ref) {
+                void showElementCard(ref);
+            }
         }
     }
 

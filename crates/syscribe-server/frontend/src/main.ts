@@ -8,6 +8,7 @@
 import 'reflect-metadata';
 import { DiagramEditor } from './editor';
 import { installAddExistingDialog } from './add-existing-dialog';
+import { installElementPanel } from './element-panel';
 import { installNewDiagramDialog } from './new-diagram-dialog';
 
 declare global {
@@ -19,3 +20,4 @@ declare global {
 window.DiagramEditor = new DiagramEditor();
 installNewDiagramDialog();
 installAddExistingDialog();
+installElementPanel();

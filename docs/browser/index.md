@@ -37,6 +37,7 @@ All JavaScript (HTMX, Mermaid, the bundled diagram editor including `sprotty-elk
 | `GET /ui/tree?parent=<qname>` | HTMX — returns tree items for a namespace (top level when `parent` is omitted) |
 | `GET /ui/detail/<qname>` | HTMX — element detail panel (rendered Markdown, custom fields, generated member list, edit form) |
 | `GET /ui/diagram/<qname>` | HTMX — diagram panel (Mermaid, or the host for the sprotty editor) |
+| `GET /ui/element-card/<qname>` | HTMX — the read-only card in the diagram editor's side panel: identity and the rendered Markdown body; an inline feature resolves to its owner or type |
 | `GET /static/<path>` | Vendored JS/CSS assets |
 
 ## API routes
@@ -95,6 +96,12 @@ The **+ Diagram** button in the model browser's header opens the New diagram dia
 - **Blank** writes an empty manifest (`shapes: {}`) for you to fill with **+**, **↔** and the pin buttons; a subject is optional and, when given, owns the connections you draw.
 
 The **package** defaults to a package named `Diagrams` when the model has one, else the model root; the list offers every package element. Creating goes through the same guarded write as every other edit, then closes the dialog and opens the diagram in a tab. A refusal (a name already in use, a rule the model engine enforces) appears in red inside the dialog and writes nothing; a warning the new diagram raises, such as `W401` for a subject that resolves to nothing, is shown after it is created.
+
+## Reading an element from a diagram
+
+Click a shape, port or edge and an **Element** panel opens over the diagram's right-hand edge (`REQ-TRS-VIS-026`) with the depicted element's identity — name, type, qualified name, id, status — and the **body of its Markdown file rendered** (headings, lists, tables, code, Mermaid blocks), from `GET /ui/element-card/<qname>`. It follows the selection; selecting several shapes or using the connect tool leaves it as it is, and **✕** closes it until the next click. **Open full detail** opens the element's dialog for editing.
+
+A port, part usage or attribute drawn on a diagram is usually an inline feature of its owner, not a file of its own. The panel then names it ("Feature `pdu` of `UAV::Power::PowerSystem`"), lists what it declares (`typedBy`, `direction`, `multiplicity`, `unit`) and shows the documentation of its type when it has one, else its owner's. A reference that names nothing says so.
 
 ## The diagram editor
 

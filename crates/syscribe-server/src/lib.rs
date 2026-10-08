@@ -22,7 +22,7 @@ use routes::mutate::{
     add_connection, add_shape, create_element, delete_element, delete_layout, patch_layout, put_svg,
     remove_connection, update_element,
 };
-use routes::ui::{diagram, element_detail, index, tree_items};
+use routes::ui::{diagram, element_card, element_detail, index, tree_items};
 use routes::validation::get_validation;
 use routes::ws::ws_handler;
 use state::{ReloadTx, SharedState};
@@ -37,6 +37,7 @@ pub fn build_router(shared: SharedState, reload_tx: ReloadTx) -> Router {
         .route("/", get(index))
         .route("/ui/tree", get(tree_items))
         .route("/ui/detail/{*qname}", get(element_detail))
+        .route("/ui/element-card/{*qname}", get(element_card))
         .route("/ui/diagram/{*qname}", get(diagram))
         .route("/api/elements", get(list_elements).post(create_element))
         .route(

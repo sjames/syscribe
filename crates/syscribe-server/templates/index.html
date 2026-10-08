@@ -93,6 +93,14 @@
               title="Save companion SVG: write this render as the diagram's companion .svg">&#x1F5BC;</button>
     </div>
 
+    <!-- Element side panel (REQ-TRS-VIS-026): the rendered card of the selected shape or edge.
+         Logic: frontend/src/selection-ref.ts, wiring: frontend/src/element-panel.ts. `hidden` is
+         the attribute, not an inline display, so the stylesheet can never hold it shut. -->
+    <aside id="element-panel" hidden>
+      <div class="ep-bar"><span>Element</span><button id="ep-close" title="Close">&#x2715;</button></div>
+      <div id="element-panel-body"></div>
+    </aside>
+
     <div id="sprotty-toast"></div>
   </div>
 

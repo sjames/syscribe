@@ -1,0 +1,41 @@
+<div class="ec-head">
+  <div class="detail-name">{{ name }}</div>
+  <div class="detail-type">
+    {% if found %}<span class="badge {{ badge_class }}">{{ element_type }}</span>{% endif %}
+    {% if status != "" %}<span class="ec-status">{{ status }}</span>{% endif %}
+  </div>
+  {% if found %}<div class="detail-qname">{{ qualified_name }}</div>{% endif %}
+  {% if elem_id != "" %}
+  <div class="detail-id"><span class="detail-id-label">ID</span><code class="detail-id-value">{{ elem_id }}</code></div>
+  {% endif %}
+</div>
+{% if let Some(f) = feature %}
+<div class="ec-feature">
+  <div class="ec-title">Feature <code>{{ f.name }}</code> of <code>{{ f.owner }}</code></div>
+  {% if !f.props.is_empty() %}
+  <table class="custom-fields-table">
+    {% for kv in f.props %}
+    <tr><th>{{ kv.0 }}</th><td>{{ kv.1 }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% if let Some(t) = f.doc_from %}
+  <div class="ec-note">Documentation below is that of its type <code>{{ t }}</code>.</div>
+  {% endif %}
+</div>
+{% endif %}
+{% if !found %}
+<p class="detail-empty"><code>{{ reference }}</code> is not a model element.</p>
+{% else %}
+  {% if doc_html != "" %}
+  <div class="detail-doc ec-doc">{{ doc_html|safe }}</div>
+  {% else %}
+  <p class="detail-empty">No documentation.</p>
+  {% endif %}
+  <div class="detail-actions">
+    <button class="btn-edit"
+            hx-get="/ui/detail/{{ qualified_name }}"
+            hx-target="#modal-content"
+            hx-swap="innerHTML">Open full detail</button>
+  </div>
+{% endif %}

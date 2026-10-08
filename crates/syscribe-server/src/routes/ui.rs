@@ -354,6 +354,139 @@ pub async fn element_detail(
     }
 }
 
+/// One inline feature, as shown on an element card (`REQ-TRS-VIS-026`).
+pub struct FeatureCard {
+    pub name: String,
+    pub owner: String,
+    /// Declared properties (`type`, `typedBy`, `direction`, `multiplicity`, `unit`), as written.
+    pub props: Vec<(String, String)>,
+    /// When the documentation shown is the feature's type's rather than its owner's.
+    pub doc_from: Option<String>,
+}
+
+#[derive(Template)]
+#[template(path = "element_card.html")]
+pub struct ElementCardTemplate {
+    pub found: bool,
+    /// What was asked for, shown when it names nothing.
+    pub reference: String,
+    pub name: String,
+    pub element_type: String,
+    pub badge_class: String,
+    pub qualified_name: String,
+    pub elem_id: String,
+    pub status: String,
+    pub doc_html: String,
+    pub feature: Option<FeatureCard>,
+}
+
+/// The inline feature `name` declared in `owner`'s `features:`, as `(properties, typedBy)`.
+fn declared_feature(owner: &syscribe_model::element::RawElement, name: &str) -> Option<(Vec<(String, String)>, Option<String>)> {
+    let list = owner.frontmatter.features.as_ref()?;
+    for v in list {
+        let serde_yaml::Value::Mapping(m) = v else { continue };
+        let get = |k: &str| m.get(serde_yaml::Value::String(k.into())).and_then(|x| match x {
+            serde_yaml::Value::String(s) => Some(s.clone()),
+            serde_yaml::Value::Number(n) => Some(n.to_string()),
+            serde_yaml::Value::Bool(b) => Some(b.to_string()),
+            _ => None,
+        });
+        if get("name").as_deref() != Some(name) {
+            continue;
+        }
+        let props: Vec<(String, String)> = ["type", "typedBy", "direction", "multiplicity", "unit"]
+            .iter()
+            .filter_map(|k| get(k).map(|v| (k.to_string(), v)))
+            .collect();
+        let typed_by = get("typedBy");
+        return Some((props, typed_by));
+    }
+    None
+}
+
+/// `GET /ui/element-card/{*qname}` — the read-only card the diagram editor's side
+/// panel shows for a clicked shape or edge (`REQ-TRS-VIS-026`): identity and the
+/// element's Markdown body rendered. A reference that names an inline feature
+/// (a port, part usage or attribute) resolves to its owner and shows the
+/// feature's declared properties; one that names nothing says so.
+pub async fn element_card(
+    State(state): State<SharedState>,
+    Path(qname): Path<String>,
+) -> Html<String> {
+    let store = state.read().await;
+    let reference = qname.replace('/', "::");
+    let find = |q: &str| store.elements.iter().find(|e| e.qualified_name == q);
+
+    let card = |e: &syscribe_model::element::RawElement, feature: Option<FeatureCard>, doc_of: &syscribe_model::element::RawElement| {
+        let element_type = e.frontmatter.element_type.as_ref().map(|t| format!("{:?}", t)).unwrap_or_else(|| "Unknown".to_string());
+        ElementCardTemplate {
+            found: true,
+            reference: reference.clone(),
+            name: e.frontmatter.name.clone().unwrap_or_else(|| e.qualified_name.rsplit("::").next().unwrap_or(&e.qualified_name).to_string()),
+            badge_class: badge_class_for(&element_type),
+            element_type,
+            qualified_name: e.qualified_name.clone(),
+            elem_id: e.frontmatter.id.clone().unwrap_or_default(),
+            status: e.frontmatter.status.clone().unwrap_or_default(),
+            doc_html: markdown_to_html(doc_of.doc.trim()),
+            feature,
+        }
+    };
+
+    if let Some(e) = find(&reference) {
+        return Html(card(e, None, e).render().unwrap_or_default());
+    }
+
+    // An inline feature: walk up to the nearest owning element, then down its
+    // `features:` (following `typedBy:` for a nested path such as `battery::powerOut`).
+    let segs: Vec<&str> = reference.split("::").collect();
+    for split in (1..segs.len()).rev() {
+        let owner_q = segs[..split].join("::");
+        let Some(owner) = find(&owner_q) else { continue };
+        let mut declaring = owner;
+        let mut found: Option<(String, Vec<(String, String)>, Option<String>, String)> = None;
+        for (i, seg) in segs[split..].iter().enumerate() {
+            let Some((props, typed_by)) = declared_feature(declaring, seg) else {
+                found = None;
+                break;
+            };
+            found = Some((seg.to_string(), props, typed_by.clone(), declaring.qualified_name.clone()));
+            if i + 1 < segs[split..].len() {
+                match typed_by.as_deref().and_then(|t| store.resolver.resolve_ref(&store.elements, t)) {
+                    Some(next) => declaring = next,
+                    None => {
+                        found = None;
+                        break;
+                    }
+                }
+            }
+        }
+        if let Some((fname, props, typed_by, declared_in)) = found {
+            let typed = typed_by.as_deref().and_then(|t| store.resolver.resolve_ref(&store.elements, t));
+            let (doc_of, doc_from) = match typed {
+                Some(t) => (t, Some(t.qualified_name.clone())),
+                None => (store.elements.iter().find(|e| e.qualified_name == declared_in).unwrap_or(owner), None),
+            };
+            let feature = FeatureCard { name: fname, owner: declared_in, props, doc_from };
+            return Html(card(doc_of, Some(feature), doc_of).render().unwrap_or_default());
+        }
+    }
+
+    let tmpl = ElementCardTemplate {
+        found: false,
+        reference: reference.clone(),
+        name: reference.rsplit("::").next().unwrap_or(&reference).to_string(),
+        element_type: String::new(),
+        badge_class: String::new(),
+        qualified_name: String::new(),
+        elem_id: String::new(),
+        status: String::new(),
+        doc_html: String::new(),
+        feature: None,
+    };
+    Html(tmpl.render().unwrap_or_default())
+}
+
 pub async fn diagram(
     State(state): State<SharedState>,
     Path(qname): Path<String>,

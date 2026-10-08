@@ -2,9 +2,13 @@
 type: PlanningItem
 id: PI-VIS-016
 name: "Element panel: clicking a diagram shape or edge shows the element's rendered Markdown"
-status: todo
+status: done
 itemType: feature
 achieves: [REQ-TRS-VIS-026]
+evidence:
+  - path: repo:crates/syscribe-server/tests/element_card.rs
+  - path: repo:crates/syscribe-server/frontend/src/selection-ref.ts
+  - path: repo:crates/syscribe-server/frontend/test/selection-ref.test.mjs
 tags:
   - visualisation
 ---

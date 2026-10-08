@@ -6794,14 +6794,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       var iterable_1 = require_iterable();
       var SModelElementImpl3 = class {
         get root() {
-          let current2 = this;
-          while (current2) {
-            if (current2 instanceof SModelRootImpl)
-              return current2;
-            else if (current2 instanceof SChildElementImpl2)
-              current2 = current2.parent;
+          let current3 = this;
+          while (current3) {
+            if (current3 instanceof SModelRootImpl)
+              return current3;
+            else if (current3 instanceof SChildElementImpl2)
+              current3 = current3.parent;
             else
-              current2 = void 0;
+              current3 = void 0;
           }
           throw new Error("Element has no root");
         }
@@ -7527,14 +7527,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                 dtime = time - start;
               }
               const t3 = Math.min(1, dtime / this.context.duration);
-              const current2 = this.tween(this.ease(t3), this.context);
-              this.context.modelChanged.update(current2);
+              const current3 = this.tween(this.ease(t3), this.context);
+              this.context.modelChanged.update(current3);
               if (t3 === 1) {
                 this.context.logger.log(this, frames * 1e3 / this.context.duration + " fps");
-                resolve(current2);
+                resolve(current3);
               } else if (this.stopped) {
                 this.context.logger.log(this, "Animation stopped at " + t3 * 100 + "%");
-                resolve(current2);
+                resolve(current3);
               } else {
                 this.context.syncer.onNextFrame(lambda);
               }
@@ -7729,13 +7729,13 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return this.id2parent.get(id);
         }
         getRoot(element) {
-          let current2 = element;
-          while (current2) {
-            const parent = this.id2parent.get(current2.id);
+          let current3 = element;
+          while (current3) {
+            const parent = this.id2parent.get(current3.id);
             if (parent === void 0) {
-              return current2;
+              return current3;
             }
-            current2 = parent;
+            current3 = parent;
           }
           throw new Error("Element has no root");
         }
@@ -8781,29 +8781,29 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       }
       exports.registerModelElement = registerModelElement;
       function findParent(element, predicate) {
-        let current2 = element;
-        while (current2 !== void 0) {
-          if (predicate(current2))
-            return current2;
-          else if (current2 instanceof smodel_1.SChildElementImpl)
-            current2 = current2.parent;
+        let current3 = element;
+        while (current3 !== void 0) {
+          if (predicate(current3))
+            return current3;
+          else if (current3 instanceof smodel_1.SChildElementImpl)
+            current3 = current3.parent;
           else
-            current2 = void 0;
+            current3 = void 0;
         }
-        return current2;
+        return current3;
       }
       exports.findParent = findParent;
       function findParentByFeature(element, predicate) {
-        let current2 = element;
-        while (current2 !== void 0) {
-          if (predicate(current2))
-            return current2;
-          else if (current2 instanceof smodel_1.SChildElementImpl)
-            current2 = current2.parent;
+        let current3 = element;
+        while (current3 !== void 0) {
+          if (predicate(current3))
+            return current3;
+          else if (current3 instanceof smodel_1.SChildElementImpl)
+            current3 = current3.parent;
           else
-            current2 = void 0;
+            current3 = void 0;
         }
-        return current2;
+        return current3;
       }
       exports.findParentByFeature = findParentByFeature;
       function translatePoint(point, source, target) {
@@ -11527,11 +11527,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         const boundsAware = (0, smodel_utils_1.findParentByFeature)(element, isBoundsAware);
         if (boundsAware !== void 0) {
           let bounds = boundsAware.bounds;
-          let current2 = boundsAware;
-          while (current2 instanceof smodel_1.SChildElementImpl) {
-            const parent = current2.parent;
+          let current3 = boundsAware;
+          while (current3 instanceof smodel_1.SChildElementImpl) {
+            const parent = current3.parent;
             bounds = parent.localToParent(bounds);
-            current2 = parent;
+            current3 = parent;
           }
           return bounds;
         } else if (element instanceof smodel_1.SModelRootImpl) {
@@ -12121,14 +12121,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
             return this.spread(containerOptions, layoutOptions);
         }
         getLayoutOptions(element) {
-          let current2 = element;
+          let current3 = element;
           const allOptions = [];
-          while (current2 !== void 0) {
-            const layoutOptions = current2.layoutOptions;
+          while (current3 !== void 0) {
+            const layoutOptions = current3.layoutOptions;
             if (layoutOptions !== void 0)
               allOptions.push(layoutOptions);
-            if (current2 instanceof smodel_1.SChildElementImpl)
-              current2 = current2.parent;
+            if (current3 instanceof smodel_1.SChildElementImpl)
+              current3 = current3.parent;
             else
               break;
           }
@@ -13802,11 +13802,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       exports.isConnectable = isConnectable;
       function getAbsoluteRouteBounds(model, route = model.routingPoints) {
         let bounds = getRouteBounds(route);
-        let current2 = model;
-        while (current2 instanceof smodel_1.SChildElementImpl) {
-          const parent = current2.parent;
+        let current3 = model;
+        while (current3 instanceof smodel_1.SChildElementImpl) {
+          const parent = current3.parent;
           bounds = parent.localToParent(bounds);
-          current2 = parent;
+          current3 = parent;
         }
         return bounds;
       }
@@ -15368,14 +15368,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return { x: x3, y: y3 };
         }
         getEdgePlacement(element) {
-          let current2 = element;
+          let current3 = element;
           const allPlacements = [];
-          while (current2 !== void 0) {
-            const placement = current2.edgePlacement;
+          while (current3 !== void 0) {
+            const placement = current3.edgePlacement;
             if (placement !== void 0)
               allPlacements.push(placement);
-            if (current2 instanceof smodel_1.SChildElementImpl)
-              current2 = current2.parent;
+            if (current3 instanceof smodel_1.SChildElementImpl)
+              current3 = current3.parent;
             else
               break;
           }
@@ -17471,11 +17471,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           var item = data[pos];
           while (pos > 0) {
             var parent = pos - 1 >> 1;
-            var current2 = data[parent];
-            if (compare(item, current2) >= 0) {
+            var current3 = data[parent];
+            if (compare(item, current3) >= 0) {
               break;
             }
-            data[pos] = current2;
+            data[pos] = current3;
             pos = parent;
           }
           data[pos] = item;
@@ -22604,17 +22604,17 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       var vnodeMap = /* @__PURE__ */ new Map();
       var delimited = false;
       function toVNode(node, parent) {
-        let current2;
+        let current3;
         if (parent !== null) {
-          current2 = vnodeMap.get(parent);
+          current3 = vnodeMap.get(parent);
         }
         switch (node === null || node === void 0 ? void 0 : node.nodeType) {
           // element
           case 1: {
-            if (current2 === void 0)
+            if (current3 === void 0)
               return;
-            current2.children = current2.children ? current2.children : [];
-            const children = current2.children;
+            current3.children = current3.children ? current3.children : [];
+            const children = current3.children;
             const attributes = node.attributes;
             const attrs = {};
             for (let i2 = 0; i2 < attributes.length; i2++) {
@@ -22631,9 +22631,9 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           // text
           case 3: {
             const text = node.textContent;
-            if (text !== null && current2 !== void 0) {
-              current2.children = current2.children ? current2.children : [];
-              const children = current2.children;
+            if (text !== null && current3 !== void 0) {
+              current3.children = current3.children ? current3.children : [];
+              const children = current3.children;
               const lastData = children.length > 0 ? children[children.length - 1] : null;
               if (!delimited && typeof lastData !== "string" && lastData !== null && lastData.sel === void 0) {
                 lastData.text = lastData.text + text;
@@ -115584,6 +115584,74 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     });
   }
 
+  // src/selection-ref.ts
+  function refForSelection(model, selectedIds) {
+    const ids = [...selectedIds];
+    if (ids.length !== 1) {
+      return null;
+    }
+    const id = ids[0];
+    const shape = findShape(model, id);
+    if (shape) {
+      return shape.ref && shape.ref !== "" ? shape.ref : null;
+    }
+    const edge = model.children.filter(isEdgeSchema).find((e2) => e2.id === id);
+    return edge?.ref && edge.ref !== "" ? edge.ref : null;
+  }
+  function cardUrl(ref) {
+    return "/ui/element-card/" + ref.split("::").map(encodeURIComponent).join("/");
+  }
+
+  // src/element-panel.ts
+  var current2 = null;
+  var sequence = 0;
+  function panel() {
+    return document.getElementById("element-panel");
+  }
+  async function showElementCard(ref) {
+    const p3 = panel();
+    const body = document.getElementById("element-panel-body");
+    if (!p3 || !body || ref === current2) {
+      return;
+    }
+    current2 = ref;
+    const mine = ++sequence;
+    p3.hidden = false;
+    document.getElementById("sprotty-viewport")?.classList.add("has-panel");
+    try {
+      const resp = await fetch(cardUrl(ref));
+      const html = await resp.text();
+      if (mine !== sequence) {
+        return;
+      }
+      body.innerHTML = html;
+      window.htmx?.process(body);
+      const diagrams = Array.from(body.querySelectorAll("pre.mermaid"));
+      if (diagrams.length > 0 && window.mermaid) {
+        await window.mermaid.run({ nodes: diagrams });
+      }
+      body.scrollTop = 0;
+    } catch (err) {
+      if (mine === sequence) {
+        body.textContent = `Could not load ${ref}: ${err.message}`;
+      }
+    }
+  }
+  function hideElementPanel() {
+    sequence += 1;
+    current2 = null;
+    const p3 = panel();
+    if (p3) {
+      p3.hidden = true;
+    }
+    document.getElementById("sprotty-viewport")?.classList.remove("has-panel");
+  }
+  function installElementPanel() {
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("ep-close")?.addEventListener("click", hideElementPanel);
+    });
+  }
+
   // src/connect-listener.ts
   var import_sprotty3 = __toESM(require_lib2());
   var import_sprotty_protocol2 = __toESM(require_lib());
@@ -116116,6 +116184,13 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       for (const id of deselected) {
         this.selectedIds.delete(id);
       }
+      const model = this.activeModel();
+      if (model && !this.connectMode) {
+        const ref = refForSelection(model, this.selectedIds);
+        if (ref) {
+          void showElementCard(ref);
+        }
+      }
     }
     /** The viewer patches the DOM on the next animation frame after a model
      * or viewport change. */
@@ -116349,6 +116424,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   window.DiagramEditor = new DiagramEditor();
   installNewDiagramDialog();
   installAddExistingDialog();
+  installElementPanel();
 })();
 /*! Bundled license information:
 
