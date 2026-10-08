@@ -252,30 +252,170 @@ fn a_root_can_be_made_a_child_and_a_child_a_root() {
     assert!(r.join("Features/Bike.md").exists(), "a move without a parent makes it a root beside the others");
 }
 
-#[test]
-fn a_sheet_entry_takes_group_and_membership_edits_and_refuses_the_rest() {
+/// A sheet: Car > Engine (alternative: Petrol, Electric), Charger, one entry with an explicit id and the
+/// rest with derived ids; Electric requires Charger through `crossTreeConstraints:` (relative paths);
+/// a configuration, a binding and an `appliesWhen:` that name sheet features.
+fn sheet_model() -> PathBuf {
     let r = tempdir();
     write(&r, "_index.md", "---\ntype: Package\nname: Root\n---\n");
     write(
         &r,
         "Features.md",
-        "---\ntype: FeatureModel\nname: Features\nfeatureTree:\n  - name: Car\n    id: FEAT-CAR\n    mandatory: true\n  - name: Car.Engine\n    id: FEAT-ENGINE\n  - name: Car.Engine.Petrol\n    id: FEAT-PETROL\n  - name: Car.Engine.Electric\n    id: FEAT-ELECTRIC\n---\n",
+        "---\ntype: FeatureModel\nname: Features\nfeatureTree:\n  - name: Car\n    id: FEAT-CAR\n    mandatory: true\n  - name: Car.Engine\n    mandatory: true\n    groupKind: alternative\n  - name: Car.Engine.Petrol\n  - name: Car.Engine.Electric\n    parameters:\n      - { name: kw, type: ScalarValues::Real, range: \"50..=300\" }\n  - name: Car.Charger\ncrossTreeConstraints:\n  - feature: Car.Engine.Electric\n    requires: [Car.Charger]\n---\n",
     );
-    apply(&r, &op(serde_json::json!({"op": "setGroup", "feature": "Features::Car::Engine", "groupKind": "alternative"}))).unwrap();
-    apply(&r, &op(serde_json::json!({"op": "setMandatory", "feature": "Features::Car::Engine", "mandatory": true}))).unwrap();
+    write(
+        &r,
+        "Configurations/CONF-S-001.md",
+        "---\ntype: Configuration\nid: CONF-S-001\nname: S\nstatus: draft\nfeatureModel: Features\nfeatures:\n  Features::Car: true\n  Features::Car::Engine: true\n  Features::Car::Engine::Petrol: true\n  Features::Car::Engine::Electric: false\n  Features::Car::Charger: false\nparameterBindings:\n  Features::Car::Engine::Electric.kw: 120\n---\n",
+    );
+    write(&r, "Parts/Plug.md", "---\ntype: PartDef\nname: Plug\nappliesWhen: Features::Car::Charger\n---\n");
+    r
+}
+
+#[test]
+fn a_sheet_entry_takes_group_and_membership_edits() {
+    let r = sheet_model();
+    let before = snapshot(&r);
+    let out = apply(&r, &op(serde_json::json!({"op": "setGroup", "feature": "Features::Car::Engine", "groupKind": "or"}))).unwrap();
+    apply(&r, &op(serde_json::json!({"op": "setMandatory", "feature": "Features::Car::Charger", "mandatory": true}))).unwrap();
     let tree = feature_tree(&walk_model(&r).unwrap());
-    let engine = tree.iter().find(|f| f.name == "Engine").unwrap();
-    assert_eq!(engine.group_kind.as_str(), "alternative");
-    assert!(engine.mandatory);
-    for v in [
-        serde_json::json!({"op": "rename", "feature": "Features::Car::Engine", "name": "Motor"}),
-        serde_json::json!({"op": "remove", "feature": "Features::Car::Engine::Petrol"}),
-        serde_json::json!({"op": "move", "feature": "Features::Car::Engine::Petrol", "newParent": "Features::Car"}),
-        serde_json::json!({"op": "addConstraint", "feature": "Features::Car::Engine::Petrol", "kind": "excludes", "target": "Features::Car::Engine::Electric"}),
-    ] {
-        let err = apply(&r, &op(v)).unwrap_err();
-        assert!(err.contains("entry of the feature-model sheet") && err.contains("Features.md"), "{err}");
-    }
+    assert_eq!(tree.iter().find(|f| f.name == "Engine").unwrap().group_kind.as_str(), "or");
+    assert!(tree.iter().find(|f| f.name == "Charger").unwrap().mandatory);
+    apply(&r, &out.undo).unwrap();
+    assert_eq!(tree_of(&r, "Engine"), "alternative");
+    let _ = before;
+}
+
+fn tree_of(r: &Path, name: &str) -> String {
+    feature_tree(&walk_model(r).unwrap()).iter().find(|f| f.name == name).unwrap().group_kind.as_str().to_string()
+}
+
+#[test]
+fn renaming_a_sheet_entry_renames_its_subtree_keeps_ids_and_rewrites_every_reference() {
+    let r = sheet_model();
+    let before = snapshot(&r);
+    let out = apply(&r, &op(serde_json::json!({"op": "rename", "feature": "Features::Car::Engine", "name": "Motor"}))).unwrap();
+    assert_eq!(out.feature.as_deref(), Some("Features::Car::Motor"));
+    let sheet = read(&r, "Features.md");
+    assert!(sheet.contains("Car.Motor") && sheet.contains("Car.Motor.Petrol") && sheet.contains("Car.Motor.Electric"), "{sheet}");
+    assert!(!sheet.contains("Car.Engine"), "{sheet}");
+    assert!(sheet.contains("FEAT-CAR-ENGINE"), "the derived id is written down so it survives the rename: {sheet}");
+    let tree = feature_tree(&walk_model(&r).unwrap());
+    let motor = tree.iter().find(|f| f.name == "Motor").unwrap();
+    assert_eq!(motor.qname, "Features::Car::Motor");
+    assert_eq!(motor.id.as_deref(), Some("FEAT-CAR-ENGINE"));
+    assert_eq!(tree.iter().find(|f| f.name == "Electric").unwrap().parent.as_deref(), Some("Features::Car::Motor"));
+    assert!(read(&r, "Configurations/CONF-S-001.md").contains("Features::Car::Motor::Petrol"));
+    assert!(read(&r, "Configurations/CONF-S-001.md").contains("Features::Car::Motor::Electric.kw"), "bindings follow too");
+    assert!(tree.iter().find(|f| f.name == "Electric").unwrap().requires.contains(&"Features::Car::Charger".to_string()), "the constraint survives");
+    apply(&r, &out.undo).unwrap();
+    assert_eq!(snapshot(&r), before, "undo is byte for byte");
+}
+
+#[test]
+fn a_sheet_entry_moves_within_its_sheet_with_its_subtree_and_constraints_that_name_it_by_path() {
+    let r = sheet_model();
+    let out = apply(&r, &op(serde_json::json!({"op": "move", "feature": "Features::Car::Charger", "newParent": "Features::Car::Engine"}))).unwrap();
+    assert_eq!(out.feature.as_deref(), Some("Features::Car::Engine::Charger"));
+    let sheet = read(&r, "Features.md");
+    assert!(sheet.contains("Car.Engine.Charger"), "{sheet}");
+    assert!(sheet.contains("Car.Engine.Charger") && !sheet.contains("- Car.Charger"), "the relative path in crossTreeConstraints followed: {sheet}");
+    let tree = feature_tree(&walk_model(&r).unwrap());
+    assert_eq!(tree.iter().find(|f| f.name == "Charger").unwrap().parent.as_deref(), Some("Features::Car::Engine"));
+    assert!(tree.iter().find(|f| f.name == "Electric").unwrap().requires.contains(&"Features::Car::Engine::Charger".to_string()));
+    assert!(read(&r, "Parts/Plug.md").contains("Features::Car::Engine::Charger"));
+    // And back out to a root of the sheet.
+    apply(&r, &op(serde_json::json!({"op": "move", "feature": "Features::Car::Engine::Charger"}))).unwrap();
+    assert!(read(&r, "Features.md").contains("name: Charger"));
+    assert!(walk_model(&r).unwrap().iter().any(|e| e.qualified_name == "Features::Charger"));
+}
+
+#[test]
+fn a_sheet_entry_cannot_leave_its_sheet_or_collide_and_says_why() {
+    let r = sheet_model();
+    write(&r, "Other/Wheels.md", "---\ntype: FeatureDef\nid: FEAT-WHEELS\nname: Wheels\n---\n");
+    let err = apply(&r, &op(serde_json::json!({"op": "move", "feature": "Features::Car::Charger", "newParent": "Other::Wheels"}))).unwrap_err();
+    assert!(err.contains("within that sheet"), "{err}");
+    let err = apply(&r, &op(serde_json::json!({"op": "rename", "feature": "Features::Car::Charger", "name": "Engine"}))).unwrap_err();
+    assert!(err.contains("already exists"), "{err}");
+    // A file-based child of a sheet entry blocks renaming that entry: the files would be left behind.
+    write(&r, "Features/Car/Engine/Hybrid.md", "---\ntype: FeatureDef\nid: FEAT-HYBRID\nname: Hybrid\n---\n");
+    let err = apply(&r, &op(serde_json::json!({"op": "rename", "feature": "Features::Car::Engine", "name": "Motor"}))).unwrap_err();
+    assert!(err.contains("not an entry") && err.contains("Hybrid"), "{err}");
+}
+
+#[test]
+fn sheet_constraints_are_added_inline_and_removed_from_the_cross_tree_list() {
+    let r = sheet_model();
+    let before = snapshot(&r);
+    let added = apply(&r, &op(serde_json::json!({"op": "addConstraint", "feature": "Features::Car::Engine::Petrol", "kind": "excludes", "target": "Features::Car::Engine::Electric"}))).unwrap();
+    let tree = feature_tree(&walk_model(&r).unwrap());
+    assert!(tree.iter().find(|f| f.name == "Petrol").unwrap().excludes.contains(&"Features::Car::Engine::Electric".to_string()));
+    let dup = apply(&r, &op(serde_json::json!({"op": "addConstraint", "feature": "Features::Car::Engine::Electric", "kind": "requires", "target": "Features::Car::Charger"}))).unwrap_err();
+    assert!(dup.contains("already"), "the cross-tree list's constraint counts: {dup}");
+    apply(&r, &added.undo).unwrap();
+    assert_eq!(snapshot(&r), before);
+    let removed = apply(&r, &op(serde_json::json!({"op": "removeConstraint", "feature": "Features::Car::Engine::Electric", "kind": "requires", "target": "Features::Car::Charger"}))).unwrap();
+    assert!(!read(&r, "Features.md").contains("crossTreeConstraints"), "the emptied list is dropped: {}", read(&r, "Features.md"));
+    let tree = feature_tree(&walk_model(&r).unwrap());
+    assert!(tree.iter().find(|f| f.name == "Electric").unwrap().requires.is_empty());
+    apply(&r, &removed.undo).unwrap();
+    assert_eq!(snapshot(&r), before);
+}
+
+#[test]
+fn removing_sheet_entries_takes_the_subtree_the_cross_tree_constraint_and_the_choices() {
+    let r = sheet_model();
+    let before = snapshot(&r);
+    let err = apply(&r, &op(serde_json::json!({"op": "remove", "feature": "Features::Car::Engine"}))).unwrap_err();
+    assert!(err.contains("2 feature(s) below it"), "{err}");
+    let out = apply(&r, &op(serde_json::json!({"op": "remove", "feature": "Features::Car::Engine", "subtree": true}))).unwrap();
+    let names: Vec<String> = feature_tree(&walk_model(&r).unwrap()).into_iter().map(|f| f.qname).collect();
+    assert_eq!(names, vec!["Features::Car", "Features::Car::Charger"]);
+    let sheet = read(&r, "Features.md");
+    assert!(!sheet.contains("Engine") && !sheet.contains("crossTreeConstraints"), "{sheet}");
+    let conf = read(&r, "Configurations/CONF-S-001.md");
+    assert!(!conf.contains("Engine") && !conf.contains("parameterBindings") || !conf.contains("Electric"), "{conf}");
+    apply(&r, &out.undo).unwrap();
+    assert_eq!(snapshot(&r), before, "undo restores the sheet and the configuration");
+    // A single entry, and a constraint owned by it goes with it.
+    apply(&r, &op(serde_json::json!({"op": "remove", "feature": "Features::Car::Charger"}))).unwrap();
+    assert!(!read(&r, "Features.md").contains("crossTreeConstraints"), "{}", read(&r, "Features.md"));
+}
+
+#[test]
+fn parameters_are_added_replaced_and_removed_with_their_bindings_in_either_layout() {
+    // Sheet entry: Electric already has `kw`, bound to 120 by the configuration.
+    let r = sheet_model();
+    let before = snapshot(&r);
+    let out = apply(&r, &op(serde_json::json!({"op": "setParameter", "feature": "Features::Car::Engine::Electric", "parameter": {"name": "kw", "type": "ScalarValues::Real", "range": "50..=400", "isRequired": true}}))).unwrap();
+    let sheet = read(&r, "Features.md");
+    assert!(sheet.contains("50..=400") && !sheet.contains("50..=300") && sheet.matches("name: kw").count() == 1, "replaced, not duplicated: {sheet}");
+    apply(&r, &op(serde_json::json!({"op": "setParameter", "feature": "Features::Car::Engine::Electric", "parameter": {"name": "volts", "type": "ScalarValues::Integer", "default": 400}}))).unwrap();
+    assert_eq!(walk_model(&r).unwrap().iter().find(|e| e.qualified_name == "Features::Car::Engine::Electric").unwrap().frontmatter.parameters.as_ref().unwrap().len(), 2);
+    apply(&r, &out.undo).unwrap();
+    let rm = apply(&r, &op(serde_json::json!({"op": "removeParameter", "feature": "Features::Car::Engine::Electric", "name": "kw"}))).unwrap();
+    assert!(!read(&r, "Configurations/CONF-S-001.md").contains("parameterBindings"), "the binding of a removed parameter goes: {}", read(&r, "Configurations/CONF-S-001.md"));
+    apply(&r, &rm.undo).unwrap();
+    assert!(read(&r, "Configurations/CONF-S-001.md").contains("Electric.kw: 120"));
+    let _ = before;
+    // Per-file layout.
+    let r = model();
+    apply(&r, &op(serde_json::json!({"op": "setParameter", "feature": "FEAT-CHARGER", "parameter": {"name": "amps", "type": "ScalarValues::Real", "unit": "A"}}))).unwrap();
+    assert!(read(&r, "Features/Car/Charger.md").contains("name: amps"));
+    let err = apply(&r, &op(serde_json::json!({"op": "removeParameter", "feature": "FEAT-CHARGER", "name": "nope"}))).unwrap_err();
+    assert!(err.contains("no parameter 'nope'"), "{err}");
+    let err = apply(&r, &op(serde_json::json!({"op": "setParameter", "feature": "FEAT-CHARGER", "parameter": {"name": "bad name"}}))).unwrap_err();
+    assert!(err.contains("not a valid parameter name"), "{err}");
+    let err = apply(&r, &op(serde_json::json!({"op": "setParameter", "feature": "FEAT-CHARGER", "parameter": "amps"}))).unwrap_err();
+    assert!(err.contains("object"), "{err}");
+}
+
+#[test]
+fn removing_a_feature_also_removes_the_bindings_of_its_parameters() {
+    let r = sheet_model();
+    apply(&r, &op(serde_json::json!({"op": "remove", "feature": "Features::Car::Engine::Electric"}))).unwrap();
+    assert!(!read(&r, "Configurations/CONF-S-001.md").contains("kw"), "{}", read(&r, "Configurations/CONF-S-001.md"));
 }
 
 #[test]

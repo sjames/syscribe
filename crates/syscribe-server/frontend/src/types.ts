@@ -94,6 +94,8 @@ export interface FeatureMark {
     /** The `requires:`/`excludes:` entries this feature declares, as qualified names. */
     requires?: string[];
     excludes?: string[];
+    /** The parameter declarations as written (`name`, `type`, `range`, `default`, ...). */
+    parameters?: Record<string, unknown>[];
 }
 
 /** A feature's state in the configurator: the user's choice (`selected`, `deselected`),

@@ -1,6 +1,6 @@
 # Feature model editor and viewer
 
-Status: built through all four phases (0.47.0), 2026-10-08. Not done: an MCP tool for feature edits, editing `parameters:`, structural edits of `featureTree:` sheet entries. Requirements `REQ-TRS-FMED-*`, decision `ADR-SYS-FMED-001`.
+Status: built through all four phases (0.47.0), 2026-10-08; the MCP tool `edit_feature`, parameter editing and structural edits of `featureTree:` sheet entries followed in 0.48.0. Requirements `REQ-TRS-FMED-*`, decision `ADR-SYS-FMED-001`.
 
 ## 1. Where things stand
 

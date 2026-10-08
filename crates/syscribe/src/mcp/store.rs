@@ -27,7 +27,18 @@ pub struct McpStore {
     /// Fingerprint of `inputs` taken no later than the walk that built this
     /// store: a watcher reloads only when the on-disk fingerprint differs.
     pub fingerprint: u64,
+    /// The live model's validation findings as a guarded write compares them, kept
+    /// between writes: computing them means validating the whole model, and a write
+    /// that commits already has the new model's (its candidate's). `None` until the
+    /// first write, and after any reload from disk.
+    pub baseline: Option<syscribe_model::mutate::Baseline>,
 }
+
+/// A model of at least this many elements is dropped from memory while a guarded
+/// write builds its candidate and while it reloads, so one model is held, not two
+/// (`REQ-TRS-MCP-MEM-000`). Smaller models keep the live copy: it is cheap, and it
+/// avoids a rebuild after a dry run.
+pub const RELEASE_ABOVE: usize = 3000;
 
 impl McpStore {
     /// Walk `model_root`, build the graph + resolver, and load the validation config.
@@ -66,14 +77,32 @@ impl McpStore {
             model_root: model_root.to_path_buf(),
             inputs,
             fingerprint,
+            baseline: None,
         })
     }
 
     /// Re-read the model from disk, replacing all derived state in place.
     pub fn reload(&mut self) -> anyhow::Result<()> {
+        // A large model is let go first so the replacement is the only one in memory.
+        // If the load then fails the store is left empty; the watcher's fingerprint
+        // still differs from disk, so it tries again.
+        if self.elements.len() >= RELEASE_ABOVE {
+            self.release_model();
+        }
         let fresh = Self::load_with(&self.model_root, Some(&self.inputs))?;
         *self = fresh;
         super::memory::release_free_memory();
         Ok(())
+    }
+
+    /// Drop the in-memory model (elements, graph, resolver), keeping the configuration
+    /// and the watch state, and hand the memory back to the operating system.
+    pub fn release_model(&mut self) {
+        self.elements = Vec::new();
+        let (graph, node_idx) = build_graph(&self.elements);
+        self.graph = graph;
+        self.node_idx = node_idx;
+        self.resolver = Resolver::new(&self.elements);
+        super::memory::release_free_memory();
     }
 }

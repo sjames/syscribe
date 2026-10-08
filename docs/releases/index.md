@@ -2,6 +2,15 @@
 
 `RELEASES`
 
+## Unreleased
+
+### Feature editing everywhere, and a leaner write path (REQ-TRS-FMED-004, REQ-TRS-MCP-MEM-000)
+
+- **New:** the MCP tool **`edit_feature`** applies the same semantic feature-model edits as the browser's Edit mode through the guarded write: `featureDelta` says which features become dead or false-optional, whether the model becomes void and which configurations become invalid; an edit that makes things worse is held (`needsConfirmation`) until `accept_worse`; a commit returns its `undo`.
+- **New:** **parameters** can be added, replaced and removed (`setParameter`, `removeParameter`, and a form in the Edit panel); removing one removes its bindings from every `Configuration`, and removing or renaming a feature does the same for its parameters' bindings.
+- **New:** **sheet entries** take every edit. Rename, move, remove, constraints and parameters now work on features defined in a `featureTree:` sheet, including its `crossTreeConstraints:` list and the derived ids that a rename would change. Undo restores the touched files exactly.
+- **Changed:** a guarded write on a large model (3,000 elements or more) holds one model in memory instead of two, and keeps the live model's validation findings between writes instead of revalidating it before each. On a 12,000-element model the peak across writes falls from 126 to 85 MB and a write from 2.4 to 1.7 s.
+
 ## 0.47.0 — 2026-10-08
 
 ### Feature model viewer, configurator, editor and analysis (REQ-TRS-FMED-001 to -007)

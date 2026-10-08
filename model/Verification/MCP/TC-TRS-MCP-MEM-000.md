@@ -31,5 +31,5 @@ Feature: MCP memory (TC-TRS-MCP-MEM-000)
 
   Scenario: a 12,000-element model
     When it is loaded and three guarded writes are made
-    Then resident memory after load is under 160 MB, the peak under 300 MB, and later writes do not add more than 25 MB
+    Then resident memory after load is under 160 MB, the peak under 190 MB, and later writes do not add more than 25 MB
 ```

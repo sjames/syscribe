@@ -443,6 +443,9 @@ pub struct FeatureMark {
     /// The `excludes:` entries this feature declares, as qualified names.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub excludes: Vec<String>,
+    /// The parameter declarations as written, for the editor.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub parameters: Vec<serde_json::Value>,
 }
 
 /// One edge of the diagram.

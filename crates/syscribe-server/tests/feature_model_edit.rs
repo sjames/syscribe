@@ -179,3 +179,34 @@ async fn a_malformed_edit_is_a_client_error_not_a_panic() {
         .unwrap();
     assert!(resp.status().is_client_error(), "{}", resp.status());
 }
+
+#[tokio::test]
+async fn sheet_entries_and_parameters_are_edited_through_the_endpoint() {
+    let r = std::env::temp_dir().join(format!("syscribe-fmedit-sheet-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&r);
+    write(&r, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(
+        &r,
+        "Features.md",
+        "---\ntype: FeatureModel\nname: Features\nfeatureTree:\n  - name: Car\n    id: FEAT-CAR\n    mandatory: true\n  - name: Car.Engine\n  - name: Car.Charger\n---\n",
+    );
+    let app = app(&r);
+    // Rename a sheet entry: the diagram and analysis follow, the id is kept.
+    let renamed = edit(&app, json!({"op": "rename", "feature": "Features::Car::Engine", "name": "Motor"}), false, false).await;
+    assert_eq!(renamed["written"], true, "{renamed}");
+    assert_eq!(renamed["feature"], "Features::Car::Motor");
+    let a = call(&app, "GET", "/api/feature-model/analysis", None).await;
+    assert!(a["features"].get("Features::Car::Motor").is_some(), "{a}");
+    // A parameter, then its declaration shows on the diagram node.
+    let p = edit(&app, json!({"op": "setParameter", "feature": "Features::Car::Motor", "parameter": {"name": "kw", "type": "ScalarValues::Real", "range": "1..=9"}}), false, false).await;
+    assert_eq!(p["written"], true, "{p}");
+    let g = call(&app, "GET", "/api/feature-model/diagram", None).await;
+    let motor = g["children"].as_array().unwrap().iter().find(|c| c["ref"] == "Features::Car::Motor").unwrap();
+    assert_eq!(motor["feature"]["parameters"][0]["name"], "kw", "{motor}");
+    // Undo restores the sheet exactly.
+    let undone = edit(&app, p["undo"].clone(), false, false).await;
+    assert_eq!(undone["written"], true, "{undone}");
+    let g = call(&app, "GET", "/api/feature-model/diagram", None).await;
+    let motor = g["children"].as_array().unwrap().iter().find(|c| c["ref"] == "Features::Car::Motor").unwrap();
+    assert!(motor["feature"].get("parameters").is_none());
+}

@@ -1,6 +1,6 @@
 # MCP memory use on large models
 
-Status: first round built (0.46.0), 2026-10-08. Items 1, 5-partly and a part of 6 below are done; 2, 3, 4 and 7 remain.
+Status: rounds one (0.46.0) and two (0.48.0) built, 2026-10-08. Bodies on disk and the watcher's overlap remain, with the reasons given at the end.
 
 ## Report
 
@@ -75,11 +75,21 @@ What changed:
 - **Observable.** The `server_stats` tool reports element count, body bytes, bytes per element record, and resident and peak resident memory. The watcher's reload log line carries the resident size.
 - **Guarded by a test.** `crates/syscribe/tests/mcp_memory.rs` loads 12,000 elements and fails if resident memory exceeds 160 MB, if three guarded writes push the peak past 300 MB, if memory keeps growing across writes, or if an element record grows back toward its old size.
 
-The budget the project commits to: a 12,000-element model of this shape needs about 130 MB at peak and 70 MB at rest. Models with long bodies or many inline features need more, in proportion to their size.
+The budget the project commits to: a 12,000-element model of this shape needs about 85 MB at peak and 65 MB at rest. Models with long bodies or many inline features need more, in proportion to their size.
+
+## Round two (0.48.0)
+
+| | After round one | After round two |
+|---|---|---|
+| Peak across three guarded writes and a reload | 126 MB | 85 MB |
+| One guarded write | 2.4 s | 1.7 s |
+
+- **One model at a time during a write.** A guarded write holds the store's write lock, so nothing reads the live model while the candidate is built. For a model of 3,000 elements or more the live copy is therefore dropped first, the candidate is built and validated, and the live model is reloaded from disk after the write (a commit) or rebuilt (a dry run or a refusal). The peak is one model plus the validator's working memory, not two models.
+- **The live model's findings are kept.** A write compares the candidate's findings with the live model's. The live model's are no longer recomputed by validating it in memory before every write: they are kept in the store, and a commit stores the candidate's findings as the new model's, so only the first write after a load or an external reload pays for them. This is also what let the live model be dropped.
+- **Both stores.** The MCP server (`McpStore`) and the web server (`ModelStore`) share the model-layer functions `compute_baseline` and `guarded_write_cached`.
 
 ## Still open
 
-- **Guarded writes still copy the whole model.** Each write walks and validates a second full copy, which is the remaining peak (about 60 MB here). An overlay that re-checks only what a change can affect would remove it.
-- **A reload still briefly holds two stores.** Smaller records halve that cost; serialising the swap would remove it.
-- **Bodies stay in memory.** A body is read by validation and search, so loading it lazily would only help until the first write; it needs a bounded cache with eviction behind a different access API.
-- **Platforms.** The arena cap, trimming and memory figures apply to Linux with glibc. Other platforms get the smaller records only.
+- **The file watcher still builds the replacement model beside the live one.** It must: the live model keeps answering readers while the new one loads, and a half-saved file is detected by comparing the two. A model of 12,000 elements peaks near twice its size for the fraction of a second a reload takes. Avoiding it would need a cheap pre-scan for torn files before the live model is dropped, at the cost of serving nothing during the reload.
+- **Bodies stay in memory.** A body is read by validation, search and the web panel, so loading one lazily only helps until the first write. Keeping bodies on disk behind a bounded cache needs every reader of `RawElement::doc` (hundreds of sites) to take a handle instead of a string, in exchange for the body share of memory (about a fifth at 1 KB per element, more for long documents).
+- **Platforms.** The arena cap, trimming and memory figures apply to Linux with glibc. Other platforms get the smaller records and the one-model write path.

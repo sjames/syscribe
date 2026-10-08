@@ -327,39 +327,7 @@ pub fn move_element(
         return Err(MoveError::DestinationExists(new_fs.display().to_string()));
     }
 
-    // ── Compute every planned reference-rewrite (across all model files) ───────
-    let mut edits: Vec<(PathBuf, String, String)> = Vec::new();
-    let mut seen: HashSet<PathBuf> = HashSet::new();
-    // Element (.md) files: frontmatter (structural) + body (incl. inline SVG).
-    for e in elements {
-        let p = PathBuf::from(&e.file_path);
-        if !seen.insert(p.clone()) {
-            continue;
-        }
-        if let Some((orig, updated)) = rewrite_file(&p, &old, &new) {
-            edits.push((p, orig, updated));
-        }
-    }
-    // Companion SVG files: rewrite qname references in `sysml:ref` / `data-qname`
-    // / `href` attributes and the like.
-    for entry in walkdir::WalkDir::new(model_root)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-    {
-        let p = entry.path();
-        if p.extension().is_some_and(|x| x.eq_ignore_ascii_case("svg")) {
-            let pb = p.to_path_buf();
-            if !seen.insert(pb.clone()) {
-                continue;
-            }
-            if let Ok(content) = std::fs::read_to_string(p) {
-                if let Some(updated) = rewrite_qname_text(&content, &old, &new) {
-                    edits.push((pb, content, updated));
-                }
-            }
-        }
-    }
+    let edits = reference_edits(model_root, elements, &old, &new);
 
     let rewritten_files: Vec<PathBuf> = edits.iter().map(|(p, _, _)| p.clone()).collect();
 
@@ -410,6 +378,60 @@ pub fn move_element(
         to_path: new_fs,
         rewritten_files,
     })
+}
+
+/// Every file edit that rewrites references to `old` (a qualified name, or the prefix
+/// of qualified names) so they name `new`: structural frontmatter references, map
+/// keys, qualified names in Markdown bodies and companion SVG files. Returns
+/// `(path, original content, rewritten content)` for each file that changes; nothing
+/// is written (see [`apply_edits`]).
+pub fn reference_edits(model_root: &Path, elements: &[RawElement], old: &str, new: &str) -> Vec<(PathBuf, String, String)> {
+    let mut edits: Vec<(PathBuf, String, String)> = Vec::new();
+    let mut seen: HashSet<PathBuf> = HashSet::new();
+    // Element (.md) files: frontmatter (structural) + body (incl. inline SVG).
+    for e in elements {
+        let p = PathBuf::from(&e.file_path);
+        if !seen.insert(p.clone()) {
+            continue;
+        }
+        if let Some((orig, updated)) = rewrite_file(&p, old, new) {
+            edits.push((p, orig, updated));
+        }
+    }
+    // Companion SVG files: rewrite qname references in `sysml:ref` / `data-qname`
+    // / `href` attributes and the like.
+    for entry in walkdir::WalkDir::new(model_root)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+    {
+        let p = entry.path();
+        if p.extension().is_some_and(|x| x.eq_ignore_ascii_case("svg")) {
+            let pb = p.to_path_buf();
+            if !seen.insert(pb.clone()) {
+                continue;
+            }
+            if let Ok(content) = std::fs::read_to_string(p) {
+                if let Some(updated) = rewrite_qname_text(&content, old, new) {
+                    edits.push((pb, content, updated));
+                }
+            }
+        }
+    }
+    edits
+}
+
+/// Write the edits of [`reference_edits`], restoring every file if one write fails.
+pub fn apply_edits(edits: &[(PathBuf, String, String)]) -> Result<(), MoveError> {
+    let mut backups: Vec<(PathBuf, String)> = Vec::new();
+    for (p, orig, updated) in edits {
+        backups.push((p.clone(), orig.clone()));
+        if let Err(e) = std::fs::write(p, updated) {
+            rollback(&backups);
+            return Err(MoveError::WriteFailed { path: p.display().to_string(), io: e });
+        }
+    }
+    Ok(())
 }
 
 /// Restore original file contents recorded before any write.

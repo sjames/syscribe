@@ -22,7 +22,7 @@ use serde_json::{json, Value};
 use crate::element::{ElementType, RawElement};
 use crate::feature_tree::{feature_tree, FeatureNode};
 use crate::frontmatter::patch_frontmatter;
-use crate::mutate::mv::{move_element, valid_qname};
+use crate::mutate::mv::{move_element, reference_edits, valid_qname};
 use crate::resolver::Resolver;
 use crate::walker::{is_synthesized, walk_model};
 
@@ -72,6 +72,10 @@ pub enum EditOp {
     /// `kind` is `requires` or `excludes`.
     AddConstraint { feature: String, kind: String, target: String },
     RemoveConstraint { feature: String, kind: String, target: String },
+    /// Add or replace one parameter of a feature, by its `name` (the whole declaration: `type`, `range`, `default`, ...).
+    SetParameter { feature: String, parameter: Value },
+    /// Remove a parameter, and the bindings of it in every configuration.
+    RemoveParameter { feature: String, name: String },
     /// Put files back as they were (the inverse of `add`, `remove` and the field edits).
     Restore { files: Vec<RestoreFile> },
 }
@@ -195,6 +199,8 @@ pub fn apply(root: &Path, op: &EditOp) -> Result<EditOutcome, String> {
         EditOp::Move { feature, new_parent } => move_feature(&cx, feature, new_parent.as_deref()),
         EditOp::AddConstraint { feature, kind, target } => constraint(&cx, feature, kind, target, true),
         EditOp::RemoveConstraint { feature, kind, target } => constraint(&cx, feature, kind, target, false),
+        EditOp::SetParameter { feature, parameter } => set_parameter(&cx, feature, parameter),
+        EditOp::RemoveParameter { feature, name } => remove_parameter(&cx, feature, name),
         EditOp::Restore { files } => restore(&cx, files),
     }
 }
@@ -275,6 +281,141 @@ fn descendants<'a>(cx: &'a Ctx, q: &str, out: &mut Vec<&'a FeatureNode>) {
     }
 }
 
+// ── A transaction: every file an edit touches, so the edit can be undone ─────
+
+/// Records each file's content the first time an edit reads or changes it, so
+/// [`Tx::undo`] can put the whole set back (a file that did not exist is deleted).
+struct Tx<'a> {
+    cx: &'a Ctx,
+    originals: std::collections::BTreeMap<String, Option<String>>,
+}
+
+impl<'a> Tx<'a> {
+    fn new(cx: &'a Ctx) -> Tx<'a> {
+        Tx { cx, originals: Default::default() }
+    }
+    fn note(&mut self, rel: &str) {
+        self.originals.entry(rel.to_string()).or_insert_with(|| std::fs::read_to_string(self.cx.root.join(rel)).ok());
+    }
+    fn read(&mut self, rel: &str) -> Result<String, String> {
+        self.note(rel);
+        self.cx.read(rel)
+    }
+    fn write(&mut self, rel: &str, content: &str) -> Result<(), String> {
+        self.note(rel);
+        self.cx.write(rel, content)
+    }
+    fn delete(&mut self, rel: &str) -> Result<(), String> {
+        self.note(rel);
+        std::fs::remove_file(self.cx.root.join(rel)).map_err(|e| format!("cannot delete {rel}: {e}"))
+    }
+    /// Patch the YAML frontmatter of `rel`; `mutate` may refuse, and then nothing is written.
+    fn patch(&mut self, rel: &str, mutate: impl FnOnce(&mut serde_yaml::Mapping) -> Result<(), String>) -> Result<bool, String> {
+        let before = self.read(rel)?;
+        let mut refusal: Option<String> = None;
+        let after = patch_frontmatter(&before, None, |m| {
+            if let Err(e) = mutate(m) {
+                refusal = Some(e);
+            }
+        })
+        .map_err(|e| e.to_string())?;
+        if let Some(e) = refusal {
+            return Err(e);
+        }
+        if after == before {
+            return Ok(false);
+        }
+        self.write(rel, &after)?;
+        Ok(true)
+    }
+    fn undo(self) -> EditOp {
+        let files = self.originals.into_iter().rev().map(|(rel, content)| RestoreFile { rel, content }).collect();
+        EditOp::Restore { files }
+    }
+}
+
+fn rel_of(root: &Path, file_path: &str) -> String {
+    Path::new(file_path).strip_prefix(root).unwrap_or(Path::new(file_path)).to_string_lossy().replace('\\', "/")
+}
+
+// ── Sheet helpers ────────────────────────────────────────────────────────────
+
+/// The `FeatureModel` sheet a feature is an entry of.
+struct Sheet {
+    rel: String,
+    qname: String,
+}
+
+fn sheet_of(cx: &Ctx, f: &FeatureNode) -> Option<Sheet> {
+    let e = cx.element(&f.qname)?;
+    let rel = rel_of(&cx.root, &e.file_path);
+    if !is_synthesized(e, Path::new(&rel)) {
+        return None;
+    }
+    Some(Sheet { qname: crate::walker::derive_qname(Path::new(&rel)), rel })
+}
+
+/// A feature's dotted path relative to its sheet (`Platform.CortexM`).
+fn rel_name(sheet_qname: &str, qname: &str) -> String {
+    qname.strip_prefix(&format!("{sheet_qname}::")).unwrap_or(qname).replace("::", ".")
+}
+
+/// The qualified name a sheet value names: an absolute qname as written, a `FEAT-*`
+/// id through the alias map, anything else a dotted path relative to the sheet.
+fn resolve_in_sheet(sheet_qname: &str, alias: &std::collections::HashMap<String, String>, s: &str) -> String {
+    if s.contains("::") {
+        s.to_string()
+    } else if s.starts_with("FEAT") {
+        alias.get(s).cloned().unwrap_or_else(|| s.to_string())
+    } else if sheet_qname.is_empty() {
+        s.replace('.', "::")
+    } else {
+        format!("{sheet_qname}::{}", s.replace('.', "::"))
+    }
+}
+
+fn entries_mut(top: &mut serde_yaml::Mapping) -> Option<&mut Vec<serde_yaml::Value>> {
+    match top.get_mut(key("featureTree")) {
+        Some(serde_yaml::Value::Sequence(v)) => Some(v),
+        _ => None,
+    }
+}
+
+fn entry_name(v: &serde_yaml::Value) -> Option<&str> {
+    v.as_mapping().and_then(|m| m.get(key("name"))).and_then(|n| n.as_str())
+}
+
+/// The feature's own frontmatter map: its file's, or its entry in its sheet's `featureTree:`.
+fn with_feature_map(cx: &Ctx, tx: &mut Tx, f: &FeatureNode, mutate: impl FnOnce(&mut serde_yaml::Mapping, Option<&mut serde_yaml::Mapping>, &str) -> Result<(), String>) -> Result<(), String> {
+    match sheet_of(cx, f) {
+        Some(sh) => {
+            let name = rel_name(&sh.qname, &f.qname);
+            tx.patch(&sh.rel, |top| {
+                // The entry and the sheet's other lists are different parts of one map: take the entry out, edit, put it back.
+                let idx = entries_mut(top)
+                    .and_then(|v| v.iter().position(|e| entry_name(e) == Some(name.as_str())))
+                    .ok_or_else(|| format!("could not find '{name}' in the featureTree of {}", sh.rel))?;
+                let mut entry = match entries_mut(top).map(|v| v[idx].clone()) {
+                    Some(serde_yaml::Value::Mapping(m)) => m,
+                    _ => return Err(format!("'{name}' is not a mapping in the featureTree of {}", sh.rel)),
+                };
+                mutate(&mut entry, Some(top), &name)?;
+                if let Some(v) = entries_mut(top) {
+                    v[idx] = serde_yaml::Value::Mapping(entry);
+                }
+                Ok(())
+            })?;
+        }
+        None => {
+            let rel = cx.own_file(f)?;
+            tx.patch(&rel, |m| mutate(m, None, ""))?;
+        }
+    }
+    Ok(())
+}
+
+// ── Remove ───────────────────────────────────────────────────────────────────
+
 fn remove(cx: &Ctx, feature: &str, subtree: bool) -> Result<EditOutcome, String> {
     let f = cx.feature(feature)?;
     let mut doomed: Vec<&FeatureNode> = vec![f];
@@ -282,129 +423,153 @@ fn remove(cx: &Ctx, feature: &str, subtree: bool) -> Result<EditOutcome, String>
     if doomed.len() > 1 && !subtree {
         return Err(format!("'{}' has {} feature(s) below it: remove its subtree, or move them first", f.qname, doomed.len() - 1));
     }
-    let gone: HashSet<String> = doomed.iter().flat_map(|d| [Some(d.qname.clone()), d.id.clone()]).flatten().collect();
-    let mut undo: Vec<RestoreFile> = Vec::new();
-    let mut deleted: HashSet<String> = HashSet::new();
+    let gone_q: HashSet<String> = doomed.iter().map(|d| d.qname.clone()).collect();
+    let mut tx = Tx::new(cx);
+    // Delete each feature's file, or its entries from the sheet that holds them.
+    let mut sheet_entries: std::collections::BTreeMap<String, (String, HashSet<String>)> = Default::default();
     for d in &doomed {
-        let rel = cx.own_file(d)?;
-        if deleted.insert(rel.clone()) {
-            undo.push(RestoreFile { rel: rel.clone(), content: Some(cx.read(&rel)?) });
-            std::fs::remove_file(cx.root.join(&rel)).map_err(|e| format!("cannot delete {rel}: {e}"))?;
-        }
-    }
-    // Constraints and configuration choices that named a removed feature go with it.
-    let canon = |s: &str| cx.alias.get(s).cloned().unwrap_or_else(|| s.to_string());
-    for e in &cx.elements {
-        let rel = Path::new(&e.file_path).strip_prefix(&cx.root).unwrap_or(Path::new(&e.file_path)).to_string_lossy().replace('\\', "/");
-        if deleted.contains(&rel) || is_synthesized(e, Path::new(&rel)) {
-            continue;
-        }
-        let is_feature = e.frontmatter.element_type == Some(ElementType::FeatureDef);
-        let is_config = e.frontmatter.element_type == Some(ElementType::Configuration);
-        if !is_feature && !is_config {
-            continue;
-        }
-        let content = cx.read(&rel)?;
-        let mut touched = false;
-        let patched = patch_frontmatter(&content, None, |map| {
-            if is_feature {
-                for k in ["requires", "excludes"] {
-                    let items = strings_of(map.get(key(k)));
-                    let kept: Vec<String> = items.iter().filter(|s| !gone.contains(&canon(s))).cloned().collect();
-                    if kept.len() != items.len() {
-                        touched = true;
-                        set_strings(map, k, kept);
-                    }
-                }
-            } else if let Some(serde_yaml::Value::Mapping(feats)) = map.get_mut(key("features")) {
-                let doomed_keys: Vec<serde_yaml::Value> = feats.keys().filter(|k| k.as_str().is_some_and(|s| gone.contains(&canon(s)))).cloned().collect();
-                for k in doomed_keys {
-                    feats.remove(&k);
-                    touched = true;
+        match sheet_of(cx, d) {
+            Some(sh) => {
+                let name = rel_name(&sh.qname, &d.qname);
+                sheet_entries.entry(sh.rel.clone()).or_insert_with(|| (sh.qname.clone(), HashSet::new())).1.insert(name);
+            }
+            None => {
+                let rel = cx.own_file(d)?;
+                if cx.root.join(&rel).exists() {
+                    tx.delete(&rel)?;
                 }
             }
-        })
-        .map_err(|e| e.to_string())?;
-        if touched {
-            undo.push(RestoreFile { rel: rel.clone(), content: Some(content) });
-            cx.write(&rel, &patched)?;
         }
     }
-    undo.reverse();
-    Ok(EditOutcome { undo: EditOp::Restore { files: undo }, feature: None })
-}
-
-/// Patch the frontmatter of the feature's own file, returning the undo that puts it back.
-fn patch_own(cx: &Ctx, f: &FeatureNode, mutate: impl FnOnce(&mut serde_yaml::Mapping)) -> Result<EditOutcome, String> {
-    let rel = cx.own_file(f)?;
-    let before = cx.read(&rel)?;
-    let after = patch_frontmatter(&before, None, mutate).map_err(|e| e.to_string())?;
-    cx.write(&rel, &after)?;
-    Ok(EditOutcome { undo: EditOp::Restore { files: vec![RestoreFile { rel, content: Some(before) }] }, feature: Some(f.qname.clone()) })
-}
-
-/// Patch a feature's `featureTree:` entry in its sheet.
-fn patch_sheet_entry(cx: &Ctx, f: &FeatureNode, mutate: impl FnOnce(&mut serde_yaml::Mapping)) -> Result<EditOutcome, String> {
-    let e = cx.element(&f.qname).ok_or_else(|| format!("'{}' has no element", f.qname))?;
-    let rel = Path::new(&e.file_path).strip_prefix(&cx.root).unwrap_or(Path::new(&e.file_path)).to_string_lossy().replace('\\', "/");
-    let sheet_qname = crate::walker::derive_qname(Path::new(&rel));
-    let rel_name = f.qname.strip_prefix(&format!("{sheet_qname}::")).unwrap_or(&f.qname).replace("::", ".");
-    let before = cx.read(&rel)?;
-    let mut found = false;
-    let mut mutate = Some(mutate);
-    let after = patch_frontmatter(&before, None, |map| {
-        if let Some(serde_yaml::Value::Sequence(entries)) = map.get_mut(key("featureTree")) {
-            for entry in entries.iter_mut() {
-                if let serde_yaml::Value::Mapping(m) = entry {
-                    if m.get(key("name")).and_then(|v| v.as_str()) == Some(rel_name.as_str()) {
-                        if let Some(f) = mutate.take() {
-                            f(m);
-                            found = true;
+    for (rel, (_, names)) in &sheet_entries {
+        tx.patch(rel, |top| {
+            if let Some(v) = entries_mut(top) {
+                v.retain(|e| entry_name(e).is_none_or(|n| !names.contains(n)));
+            }
+            Ok(())
+        })?;
+    }
+    // Constraints, configuration choices and bindings that named a removed feature go with it.
+    let ids: HashSet<String> = doomed.iter().filter_map(|d| d.id.clone()).collect();
+    let canon = |s: &str| cx.alias.get(s).cloned().unwrap_or_else(|| s.to_string());
+    let names_gone = |s: &str| ids.contains(s) || gone_q.contains(&canon(s));
+    let binding_gone = |k: &str| k.split_once('.').is_some_and(|(q, _)| gone_q.contains(&canon(q)));
+    let mut seen: HashSet<String> = HashSet::new();
+    for e in &cx.elements {
+        let rel = rel_of(&cx.root, &e.file_path);
+        if !seen.insert(rel.clone()) || !cx.root.join(&rel).exists() {
+            continue;
+        }
+        let ty = e.frontmatter.element_type.clone();
+        let sheet_q = crate::walker::derive_qname(Path::new(&rel));
+        if is_synthesized(e, Path::new(&rel)) {
+            continue; // reached through its sheet, below
+        }
+        match ty {
+            Some(ElementType::FeatureDef) => {
+                tx.patch(&rel, |map| {
+                    for k in ["requires", "excludes"] {
+                        let items = strings_of(map.get(key(k)));
+                        let kept: Vec<String> = items.iter().filter(|s| !names_gone(s)).cloned().collect();
+                        if kept.len() != items.len() {
+                            set_strings(map, k, kept);
                         }
                     }
-                }
+                    Ok(())
+                })?;
             }
+            Some(ElementType::Configuration) => {
+                tx.patch(&rel, |map| {
+                    if let Some(serde_yaml::Value::Mapping(feats)) = map.get_mut(key("features")) {
+                        let dead: Vec<serde_yaml::Value> = feats.keys().filter(|k| k.as_str().is_some_and(|s| names_gone(s))).cloned().collect();
+                        for k in dead {
+                            feats.remove(&k);
+                        }
+                    }
+                    if let Some(serde_yaml::Value::Mapping(b)) = map.get_mut(key("parameterBindings")) {
+                        let dead: Vec<serde_yaml::Value> = b.keys().filter(|k| k.as_str().is_some_and(|s| binding_gone(s))).cloned().collect();
+                        let had = !dead.is_empty();
+                        for k in dead {
+                            b.remove(&k);
+                        }
+                        if had && b.is_empty() {
+                            map.remove(key("parameterBindings"));
+                        }
+                    }
+                    Ok(())
+                })?;
+            }
+            Some(ElementType::FeatureModel) => {
+                let alias = &cx.alias;
+                tx.patch(&rel, |top| {
+                    let gone_here = |s: &str| ids.contains(s) || gone_q.contains(&resolve_in_sheet(&sheet_q, alias, s));
+                    if let Some(entries) = entries_mut(top) {
+                        for entry in entries.iter_mut() {
+                            if let serde_yaml::Value::Mapping(m) = entry {
+                                for k in ["requires", "excludes"] {
+                                    let items = strings_of(m.get(key(k)));
+                                    let kept: Vec<String> = items.iter().filter(|s| !gone_here(s)).cloned().collect();
+                                    if kept.len() != items.len() {
+                                        set_strings(m, k, kept);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if let Some(serde_yaml::Value::Sequence(list)) = top.get_mut(key("crossTreeConstraints")) {
+                        for item in list.iter_mut() {
+                            if let serde_yaml::Value::Mapping(m) = item {
+                                for k in ["requires", "excludes"] {
+                                    let items = strings_of(m.get(key(k)));
+                                    let kept: Vec<String> = items.iter().filter(|s| !gone_here(s)).cloned().collect();
+                                    if kept.len() != items.len() {
+                                        set_strings(m, k, kept);
+                                    }
+                                }
+                            }
+                        }
+                        list.retain(|item| {
+                            let Some(m) = item.as_mapping() else { return true };
+                            let owner_gone = m.get(key("feature")).and_then(|v| v.as_str()).is_some_and(gone_here);
+                            let empty = m.get(key("requires")).is_none() && m.get(key("excludes")).is_none();
+                            !owner_gone && !empty
+                        });
+                        if list.is_empty() {
+                            top.remove(key("crossTreeConstraints"));
+                        }
+                    }
+                    Ok(())
+                })?;
+            }
+            _ => {}
         }
-    })
-    .map_err(|e| e.to_string())?;
-    if !found {
-        return Err(format!("could not find '{rel_name}' in the featureTree of {rel}"));
     }
-    cx.write(&rel, &after)?;
-    Ok(EditOutcome { undo: EditOp::Restore { files: vec![RestoreFile { rel, content: Some(before) }] }, feature: Some(f.qname.clone()) })
+    Ok(EditOutcome { undo: tx.undo(), feature: None })
 }
 
-fn is_sheet_entry(cx: &Ctx, f: &FeatureNode) -> bool {
-    cx.element(&f.qname)
-        .map(|e| {
-            let rel = Path::new(&e.file_path).strip_prefix(&cx.root).unwrap_or(Path::new(&e.file_path)).to_path_buf();
-            is_synthesized(e, &rel)
-        })
-        .unwrap_or(false)
-}
+// ── Field edits (a feature's file, or its sheet entry) ───────────────────────
 
 fn set_group(cx: &Ctx, feature: &str, group_kind: &str) -> Result<EditOutcome, String> {
     if !matches!(group_kind, "optional" | "alternative" | "or") {
         return Err(format!("group kind '{group_kind}' is not optional, alternative or or"));
     }
     let f = cx.feature(feature)?.clone();
-    let apply = |map: &mut serde_yaml::Mapping| {
+    let mut tx = Tx::new(cx);
+    with_feature_map(cx, &mut tx, &f, |map, _, _| {
         if group_kind == "optional" {
             map.remove(key("groupKind"));
         } else {
             map.insert(key("groupKind"), key(group_kind));
         }
-    };
-    if is_sheet_entry(cx, &f) {
-        patch_sheet_entry(cx, &f, apply)
-    } else {
-        patch_own(cx, &f, apply)
-    }
+        Ok(())
+    })?;
+    Ok(EditOutcome { undo: tx.undo(), feature: Some(f.qname) })
 }
 
 fn set_mandatory(cx: &Ctx, feature: &str, mandatory: bool) -> Result<EditOutcome, String> {
     let f = cx.feature(feature)?.clone();
-    let apply = |map: &mut serde_yaml::Mapping| {
+    let mut tx = Tx::new(cx);
+    with_feature_map(cx, &mut tx, &f, |map, _, _| {
         // The legacy `groupKind: mandatory` shorthand would override the flag: drop it.
         if map.get(key("groupKind")).and_then(|v| v.as_str()) == Some("mandatory") {
             map.remove(key("groupKind"));
@@ -414,12 +579,9 @@ fn set_mandatory(cx: &Ctx, feature: &str, mandatory: bool) -> Result<EditOutcome
         } else {
             map.remove(key("mandatory"));
         }
-    };
-    if is_sheet_entry(cx, &f) {
-        patch_sheet_entry(cx, &f, apply)
-    } else {
-        patch_own(cx, &f, apply)
-    }
+        Ok(())
+    })?;
+    Ok(EditOutcome { undo: tx.undo(), feature: Some(f.qname) })
 }
 
 fn constraint(cx: &Ctx, feature: &str, kind: &str, target: &str, add: bool) -> Result<EditOutcome, String> {
@@ -433,43 +595,137 @@ fn constraint(cx: &Ctx, feature: &str, kind: &str, target: &str, add: bool) -> R
     }
     // Reference the target by its stable id when it has one, so a rename leaves the constraint intact.
     let spelled = t.id.clone().filter(|i| crate::resolver::is_feat_id(i)).unwrap_or_else(|| t.qname.clone());
-    let canon = |s: &str| cx.alias.get(s).cloned().unwrap_or_else(|| s.to_string());
+    let sheet_q = sheet_of(cx, &f).map(|s| s.qname).unwrap_or_default();
+    let canon = |s: &str| resolve_in_sheet(&sheet_q, &cx.alias, s);
     let same = |s: &str| canon(s) == t.qname;
-    let rel = cx.own_file(&f)?;
-    let mut already = false;
-    let mut absent = false;
-    let out = patch_own(cx, &f, |map| {
+    let mut tx = Tx::new(cx);
+    let (fq, tq) = (f.qname.clone(), t.qname.clone());
+    with_feature_map(cx, &mut tx, &f, |map, top, _| {
         let mut items = strings_of(map.get(key(kind)));
-        if add {
-            if items.iter().any(|s| same(s)) {
-                already = true;
-            } else {
-                items.push(spelled.clone());
+        // A sheet may also hold the constraint in its `crossTreeConstraints:` list.
+        let mut in_list = false;
+        if let Some(top) = top.as_deref() {
+            if let Some(serde_yaml::Value::Sequence(list)) = top.get(key("crossTreeConstraints")) {
+                in_list = list.iter().filter_map(|i| i.as_mapping()).any(|m| {
+                    m.get(key("feature")).and_then(|v| v.as_str()).is_some_and(|s| canon(s) == fq) && strings_of(m.get(key(kind))).iter().any(|s| same(s))
+                });
             }
-        } else if items.iter().any(|s| same(s)) {
-            items.retain(|s| !same(s));
-        } else {
-            absent = true;
         }
-        set_strings(map, kind, items);
+        if add {
+            if in_list || items.iter().any(|s| same(s)) {
+                return Err(format!("'{fq}' already {kind} '{tq}'"));
+            }
+            items.push(spelled.clone());
+            set_strings(map, kind, items);
+        } else {
+            let had = items.iter().any(|s| same(s));
+            if !had && !in_list {
+                return Err(format!("'{fq}' does not {} '{tq}'", kind.trim_end_matches('s')));
+            }
+            items.retain(|s| !same(s));
+            set_strings(map, kind, items);
+            if let Some(top) = top {
+                if let Some(serde_yaml::Value::Sequence(list)) = top.get_mut(key("crossTreeConstraints")) {
+                    for item in list.iter_mut() {
+                        if let serde_yaml::Value::Mapping(m) = item {
+                            if m.get(key("feature")).and_then(|v| v.as_str()).is_some_and(|s| canon(s) == fq) {
+                                let kept: Vec<String> = strings_of(m.get(key(kind))).into_iter().filter(|s| !same(s)).collect();
+                                set_strings(m, kind, kept);
+                            }
+                        }
+                    }
+                    list.retain(|i| i.as_mapping().is_none_or(|m| m.get(key("requires")).is_some() || m.get(key("excludes")).is_some()));
+                    if list.is_empty() {
+                        top.remove(key("crossTreeConstraints"));
+                    }
+                }
+            }
+        }
+        Ok(())
     })?;
-    if already {
-        cx.write(&rel, &restore_content(&out))?;
-        return Err(format!("'{}' already {kind} '{}'", f.qname, t.qname));
-    }
-    if absent {
-        cx.write(&rel, &restore_content(&out))?;
-        return Err(format!("'{}' does not {} '{}'", f.qname, kind.trim_end_matches('s'), t.qname));
-    }
-    Ok(out)
+    Ok(EditOutcome { undo: tx.undo(), feature: Some(f.qname) })
 }
 
-fn restore_content(out: &EditOutcome) -> String {
-    match &out.undo {
-        EditOp::Restore { files } => files.first().and_then(|f| f.content.clone()).unwrap_or_default(),
-        _ => String::new(),
-    }
+// ── Parameters ───────────────────────────────────────────────────────────────
+
+fn param_name(v: &serde_yaml::Value) -> Option<&str> {
+    v.as_mapping().and_then(|m| m.get(key("name"))).and_then(|n| n.as_str())
 }
+
+/// Add or replace one parameter of a feature, by name. `parameter` is the whole
+/// declaration (`name`, `type`, `range`, `enumValues`, `default`, `isRequired`, `isFixed`,
+/// `value`, `unit`, `bindingTime`, …); the validator judges its contents.
+fn set_parameter(cx: &Ctx, feature: &str, parameter: &Value) -> Result<EditOutcome, String> {
+    let f = cx.feature(feature)?.clone();
+    let obj = parameter.as_object().ok_or("a parameter is an object with a name")?;
+    let name = obj.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
+    if name.is_empty() || !valid_qname(&name) || name.contains("::") {
+        return Err(format!("'{name}' is not a valid parameter name: use letters, digits and underscores, not starting with a digit"));
+    }
+    let decl = serde_yaml::to_value(parameter).map_err(|e| e.to_string())?;
+    let mut tx = Tx::new(cx);
+    with_feature_map(cx, &mut tx, &f, |map, _, _| {
+        let mut list: Vec<serde_yaml::Value> = match map.get(key("parameters")) {
+            Some(serde_yaml::Value::Sequence(s)) => s.clone(),
+            _ => Vec::new(),
+        };
+        match list.iter().position(|p| param_name(p) == Some(name.as_str())) {
+            Some(i) => list[i] = decl.clone(),
+            None => list.push(decl.clone()),
+        }
+        map.insert(key("parameters"), serde_yaml::Value::Sequence(list));
+        Ok(())
+    })?;
+    Ok(EditOutcome { undo: tx.undo(), feature: Some(f.qname) })
+}
+
+/// Remove a parameter and the configuration bindings of it.
+fn remove_parameter(cx: &Ctx, feature: &str, name: &str) -> Result<EditOutcome, String> {
+    let f = cx.feature(feature)?.clone();
+    let mut tx = Tx::new(cx);
+    with_feature_map(cx, &mut tx, &f, |map, _, _| {
+        let mut list: Vec<serde_yaml::Value> = match map.get(key("parameters")) {
+            Some(serde_yaml::Value::Sequence(s)) => s.clone(),
+            _ => Vec::new(),
+        };
+        let before = list.len();
+        list.retain(|p| param_name(p) != Some(name));
+        if list.len() == before {
+            return Err(format!("'{}' has no parameter '{name}'", f.qname));
+        }
+        if list.is_empty() {
+            map.remove(key("parameters"));
+        } else {
+            map.insert(key("parameters"), serde_yaml::Value::Sequence(list));
+        }
+        Ok(())
+    })?;
+    let binding = format!("{}.{name}", f.qname);
+    let id_binding = f.id.as_ref().map(|i| format!("{i}.{name}"));
+    let mut seen: HashSet<String> = HashSet::new();
+    for e in cx.elements.iter().filter(|e| e.frontmatter.element_type == Some(ElementType::Configuration)) {
+        let rel = rel_of(&cx.root, &e.file_path);
+        if !seen.insert(rel.clone()) || is_synthesized(e, Path::new(&rel)) {
+            continue;
+        }
+        tx.patch(&rel, |m| {
+            if let Some(serde_yaml::Value::Mapping(b)) = m.get_mut(key("parameterBindings")) {
+                let dead: Vec<serde_yaml::Value> = b.keys().filter(|k| k.as_str().is_some_and(|s| s == binding || Some(s.to_string()) == id_binding)).cloned().collect();
+                let had = !dead.is_empty();
+                for k in dead {
+                    b.remove(&k);
+                }
+                if had && b.is_empty() {
+                    m.remove(key("parameterBindings"));
+                }
+            }
+            Ok(())
+        })?;
+    }
+    Ok(EditOutcome { undo: tx.undo(), feature: Some(f.qname) })
+}
+
+// ── Rename and move ──────────────────────────────────────────────────────────
 
 fn rename(cx: &Ctx, feature: &str, name: &str) -> Result<EditOutcome, String> {
     let f = cx.feature(feature)?.clone();
@@ -482,18 +738,21 @@ fn rename(cx: &Ctx, feature: &str, name: &str) -> Result<EditOutcome, String> {
         Some((p, _)) => format!("{p}::{name}"),
         None => name.to_string(),
     };
-    relocate(cx, &f, &new_q)?;
-    // The label follows the file name when it was the file name.
+    let exact = relocate(cx, &f, &new_q)?;
+    // The label follows the file name when it was the file name (a sheet entry's
+    // `name:` is its path, already changed).
     let cx2 = Ctx::load(&cx.root)?;
     if let Ok(nf) = cx2.feature(&new_q) {
         let nf = nf.clone();
-        if cx2.element(&nf.qname).and_then(|e| e.frontmatter.name.clone()).as_deref() == Some(old_short.as_str()) {
-            patch_own(&cx2, &nf, |map| {
+        if sheet_of(&cx2, &nf).is_none() && cx2.element(&nf.qname).and_then(|e| e.frontmatter.name.clone()).as_deref() == Some(old_short.as_str()) {
+            let mut tx = Tx::new(&cx2);
+            with_feature_map(&cx2, &mut tx, &nf, |map, _, _| {
                 map.insert(key("name"), key(name));
+                Ok(())
             })?;
         }
     }
-    Ok(EditOutcome { undo: EditOp::Rename { feature: new_q.clone(), name: old_short }, feature: Some(new_q) })
+    Ok(EditOutcome { undo: exact.unwrap_or(EditOp::Rename { feature: new_q.clone(), name: old_short }), feature: Some(new_q) })
 }
 
 fn move_feature(cx: &Ctx, feature: &str, new_parent: Option<&str>) -> Result<EditOutcome, String> {
@@ -513,25 +772,35 @@ fn move_feature(cx: &Ctx, feature: &str, new_parent: Option<&str>) -> Result<Edi
     };
     let base = match &parent_q {
         Some(p) => p.clone(),
-        None => {
-            let roots: Vec<&FeatureNode> = cx.tree.iter().filter(|r| r.parent.is_none() && r.qname != f.qname).collect();
-            let Some(first) = roots.first() else { return Err("there is no other root to place it beside".to_string()) };
-            first.qname.rsplit_once("::").map(|(p, _)| p.to_string()).unwrap_or_default()
-        }
+        None => match sheet_of(cx, &f) {
+            // A root of a sheet entry stays in its sheet: its qualified name is the sheet's, then its own.
+            Some(sh) => sh.qname,
+            None => {
+                let roots: Vec<&FeatureNode> = cx.tree.iter().filter(|r| r.parent.is_none() && r.qname != f.qname).collect();
+                let Some(first) = roots.first() else { return Err("there is no other root to place it beside".to_string()) };
+                first.qname.rsplit_once("::").map(|(p, _)| p.to_string()).unwrap_or_default()
+            }
+        },
     };
     let new_q = if base.is_empty() { short.clone() } else { format!("{base}::{short}") };
     if new_q == f.qname {
         return Err(format!("'{}' is already there", f.qname));
     }
     let old_parent = f.parent.clone();
-    relocate(cx, &f, &new_q)?;
-    Ok(EditOutcome { undo: EditOp::Move { feature: new_q.clone(), new_parent: old_parent }, feature: Some(new_q) })
+    let exact = relocate(cx, &f, &new_q)?;
+    Ok(EditOutcome { undo: exact.unwrap_or(EditOp::Move { feature: new_q.clone(), new_parent: old_parent }), feature: Some(new_q) })
 }
 
-/// Move a feature (and the directory of its children, when it has one beside its
-/// file) to `new_q`, rewriting every reference to it.
-fn relocate(cx: &Ctx, f: &FeatureNode, new_q: &str) -> Result<(), String> {
-    cx.own_file(f)?; // refuse a sheet entry
+/// Move a feature to `new_q`, rewriting every reference to it: a feature file (and the
+/// directory of its children, when it has one beside it) is relocated; a sheet entry is
+/// renamed in its sheet together with the entries below it.
+/// Returns the exact undo when the move touched a sheet (its files are put back as they were), else `None`:
+/// the inverse move is then the undo.
+fn relocate(cx: &Ctx, f: &FeatureNode, new_q: &str) -> Result<Option<EditOp>, String> {
+    if let Some(sh) = sheet_of(cx, f) {
+        return relocate_in_sheet(cx, f, &sh, new_q).map(Some);
+    }
+    cx.own_file(f)?;
     let resolver = Resolver::new(&cx.elements);
     let dir = cx.root.join(f.qname.replace("::", "/"));
     let file_is_index = cx.element(&f.qname).is_some_and(|e| Path::new(&e.file_path).file_name().is_some_and(|n| n == "_index.md"));
@@ -545,7 +814,91 @@ fn relocate(cx: &Ctx, f: &FeatureNode, new_q: &str) -> Result<(), String> {
         let resolver = Resolver::new(&elements);
         move_element(&cx.root, &elements, &resolver, &f.qname, new_q, false).map_err(|e| e.to_string())?;
     }
-    Ok(())
+    Ok(None)
+}
+
+fn relocate_in_sheet(cx: &Ctx, f: &FeatureNode, sh: &Sheet, new_q: &str) -> Result<EditOp, String> {
+    // The new place must be in the same sheet, and so must everything below the feature.
+    let in_sheet = |q: &str| q == sh.qname || q.starts_with(&format!("{}::", sh.qname)) || sh.qname.is_empty();
+    if !in_sheet(new_q) {
+        return Err(format!("'{}' is an entry of the sheet {}: it can only be renamed or moved within that sheet", f.qname, sh.rel));
+    }
+    let mut below = Vec::new();
+    descendants(cx, &f.qname, &mut below);
+    for d in &below {
+        if sheet_of(cx, d).map(|s| s.rel) != Some(sh.rel.clone()) {
+            return Err(format!("'{}' has the feature '{}' below it that is not an entry of {}: move that first", f.qname, d.qname, sh.rel));
+        }
+    }
+    if cx.elements.iter().any(|e| e.qualified_name == new_q) {
+        return Err(format!("'{new_q}' already exists"));
+    }
+    let (old_rel, new_rel) = (rel_name(&sh.qname, &f.qname), rel_name(&sh.qname, new_q));
+    let mut tx = Tx::new(cx);
+    // 1. Every absolute qualified-name reference, wherever it is written (configurations, `appliesWhen:`, other sheets, prose).
+    for (path, orig, updated) in reference_edits(&cx.root, &cx.elements, &f.qname, new_q) {
+        let rel = rel_of(&cx.root, &path.to_string_lossy());
+        tx.note(&rel);
+        std::fs::write(&path, updated).map_err(|e| format!("cannot write {rel}: {e}"))?;
+        let _ = orig;
+    }
+    // 2. The sheet: rename the entries, keep each id stable, and follow the dotted paths that name them.
+    let ids: std::collections::HashMap<String, String> = std::iter::once(f).chain(below.iter().copied()).filter_map(|d| d.id.clone().map(|i| (rel_name(&sh.qname, &d.qname), i))).collect();
+    let moved = |s: &str| s == old_rel || s.starts_with(&format!("{old_rel}."));
+    let renamed = |s: &str| format!("{new_rel}{}", &s[old_rel.len()..]);
+    tx.patch(&sh.rel, |top| {
+        let taken: HashSet<String> = entries_mut(top).map(|v| v.iter().filter_map(|e| entry_name(e).map(str::to_string)).collect()).unwrap_or_default();
+        if taken.contains(&new_rel) {
+            return Err(format!("the sheet {} already has an entry '{new_rel}'", sh.rel));
+        }
+        if let Some(entries) = entries_mut(top) {
+            for entry in entries.iter_mut() {
+                let serde_yaml::Value::Mapping(m) = entry else { continue };
+                let Some(n) = m.get(key("name")).and_then(|v| v.as_str()).map(str::to_string) else { continue };
+                if moved(&n) {
+                    // A derived id would change with the name: write it down first.
+                    let has_id = m.get(key("id")).and_then(|v| v.as_str()).is_some_and(|s| !s.is_empty());
+                    if !has_id {
+                        if let Some(id) = ids.get(&n) {
+                            m.insert(key("id"), key(id));
+                        }
+                    }
+                    m.insert(key("name"), key(&renamed(&n)));
+                }
+            }
+        }
+        // Dotted paths that name a moved feature, in constraints written relative to the sheet.
+        let relative = |s: &str| !s.contains("::") && !s.starts_with("FEAT") && moved(s);
+        let fix = |m: &mut serde_yaml::Mapping, k: &str| {
+            let items = strings_of(m.get(key(k)));
+            if items.iter().any(|s| relative(s)) {
+                set_strings(m, k, items.into_iter().map(|s| if relative(&s) { renamed(&s) } else { s }).collect());
+            }
+        };
+        if let Some(entries) = entries_mut(top) {
+            for entry in entries.iter_mut() {
+                if let serde_yaml::Value::Mapping(m) = entry {
+                    fix(m, "requires");
+                    fix(m, "excludes");
+                }
+            }
+        }
+        if let Some(serde_yaml::Value::Sequence(list)) = top.get_mut(key("crossTreeConstraints")) {
+            for item in list.iter_mut() {
+                if let serde_yaml::Value::Mapping(m) = item {
+                    if let Some(owner) = m.get(key("feature")).and_then(|v| v.as_str()).map(str::to_string) {
+                        if relative(&owner) {
+                            m.insert(key("feature"), key(&renamed(&owner)));
+                        }
+                    }
+                    fix(m, "requires");
+                    fix(m, "excludes");
+                }
+            }
+        }
+        Ok(())
+    })?;
+    Ok(tx.undo())
 }
 
 // ── Validity preview ─────────────────────────────────────────────────────────

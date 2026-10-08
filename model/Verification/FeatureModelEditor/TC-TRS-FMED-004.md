@@ -26,6 +26,14 @@ testFunctions:
   - the_validity_delta_names_what_an_edit_made_dead_and_what_undoing_it_fixed
   - the_validity_delta_reports_a_model_made_void_and_an_invalidated_configuration
   - an_edit_that_changes_nothing_for_validity_does_not_worsen_it
+  - a_sheet_entry_takes_group_and_membership_edits
+  - renaming_a_sheet_entry_renames_its_subtree_keeps_ids_and_rewrites_every_reference
+  - a_sheet_entry_moves_within_its_sheet_with_its_subtree_and_constraints_that_name_it_by_path
+  - a_sheet_entry_cannot_leave_its_sheet_or_collide_and_says_why
+  - sheet_constraints_are_added_inline_and_removed_from_the_cross_tree_list
+  - removing_sheet_entries_takes_the_subtree_the_cross_tree_constraint_and_the_choices
+  - parameters_are_added_replaced_and_removed_with_their_bindings_in_either_layout
+  - removing_a_feature_also_removes_the_bindings_of_its_parameters
 tags:
   - feature-model
   - variability
@@ -33,7 +41,7 @@ tags:
 
 Run with `cargo test -p syscribe-model --test feature_edit`. The endpoint, preview, confirmation and
 undo round trip are checked by `cargo test -p syscribe-server --test feature_model_edit`; the
-map-key rewriting by `cargo test -p syscribe-model --lib key_rewrite`; the undo history, delta
+map-key rewriting by `cargo test -p syscribe-model --lib key_rewrite`; the MCP tool by `cargo test -p syscribe --test mcp_feature_edit`; the undo history, delta
 wording and drop target by `frontend/test/feature-core.test.mjs` (`npm test` in
 `crates/syscribe-server/frontend/`).
 

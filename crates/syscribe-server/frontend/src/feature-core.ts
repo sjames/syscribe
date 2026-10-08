@@ -675,3 +675,86 @@ export function compareConfigs(full: DiagramModelSchema, a: Record<string, boole
 export function cellGlyph(c: Cell): string {
     return c === true ? '✓' : c === false ? '✗' : '·';
 }
+
+// ---------------------------------------------------------------------------
+// Parameters (`REQ-TRS-FMED-004`)
+// ---------------------------------------------------------------------------
+
+/** What the parameter form holds. Every field shows the current value, so an empty one means "none". */
+export interface ParameterForm {
+    name: string;
+    type: string;
+    range: string;
+    defaultValue: string;
+    required: boolean;
+}
+
+/** The form's view of a declaration, to prefill it when a parameter is chosen for editing. */
+export function formOf(decl: Record<string, unknown> | undefined): ParameterForm {
+    const text = (v: unknown): string => (v === undefined || v === null ? '' : String(v));
+    return {
+        name: text(decl?.name),
+        type: text(decl?.type),
+        range: text(decl?.range),
+        defaultValue: text(decl?.default),
+        required: decl?.isRequired === true,
+    };
+}
+
+/** A default as typed: a number or a boolean when it reads as one, else the text. */
+export function parseDefault(text: string): number | boolean | string {
+    const t = text.trim();
+    if (/^-?\d+(\.\d+)?$/.test(t)) {
+        return Number(t);
+    }
+    if (t === 'true' || t === 'false') {
+        return t === 'true';
+    }
+    return t;
+}
+
+/** The declaration to write: the existing one with the form's fields applied (so
+ * keys the form does not show, `enumValues:` or `bindingTime:`, are kept), an
+ * emptied field removing its key. */
+export function buildParameter(existing: Record<string, unknown> | undefined, form: ParameterForm): Record<string, unknown> {
+    const out: Record<string, unknown> = { ...(existing ?? {}), name: form.name.trim() };
+    const set = (k: string, v: string): void => {
+        if (v.trim() === '') {
+            delete out[k];
+        } else {
+            out[k] = v.trim();
+        }
+    };
+    set('type', form.type);
+    set('range', form.range);
+    if (form.defaultValue.trim() === '') {
+        delete out.default;
+    } else {
+        out.default = parseDefault(form.defaultValue);
+    }
+    if (form.required) {
+        out.isRequired = true;
+    } else {
+        delete out.isRequired;
+    }
+    return out;
+}
+
+/** One line for a parameter in the list: `kw: Real [50..=300] = 120, required`. */
+export function parameterSummary(decl: Record<string, unknown>): string {
+    const short = (t: unknown): string => String(t).split('::').pop() ?? '';
+    let s = String(decl.name ?? '?');
+    if (decl.type !== undefined) {
+        s += `: ${short(decl.type)}`;
+    }
+    if (decl.range !== undefined) {
+        s += ` [${decl.range}]`;
+    }
+    if (decl.default !== undefined) {
+        s += ` = ${decl.default}`;
+    }
+    if (decl.isRequired === true) {
+        s += ', required';
+    }
+    return s;
+}

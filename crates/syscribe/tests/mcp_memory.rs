@@ -4,7 +4,7 @@
 //! tool, which reads `/proc` and so reports on Linux only.
 //!
 //! The ceilings are the measured release-build figures (62 MB steady, 126 MB peak)
-//! with generous headroom for debug builds and other allocators; the point is to
+//! with headroom for debug builds and other allocators; the point is to
 //! catch a regression that doubles memory or lets it grow with every write.
 
 mod common;
@@ -89,14 +89,25 @@ fn twelve_thousand_elements_stay_within_budget_and_do_not_grow_with_writes() {
             json!({"qname": format!("Arch::Added{i}"), "type": "PartDef", "dry_run": false}),
         );
         assert_eq!(res["written"], json!(true), "{res}");
+        // The live model's findings are kept between writes: a later write's delta names
+        // only its own file, never what an earlier write already introduced.
+        let delta = serde_json::to_string(&res["validationDelta"]).unwrap();
+        for earlier in 0..i {
+            assert!(!delta.contains(&format!("Added{earlier}.md")), "write {i} repeats a finding of write {earlier}: {delta}");
+        }
         if i == 0 {
             after_first = mcp.call_tool("server_stats", json!({}))["residentKb"].as_u64().unwrap() / 1024;
         }
     }
+    // A dry run of a large model rebuilds it afterwards: it must still answer.
+    let dry = mcp.call_tool("create_element", json!({"qname": "Arch::DryOnly", "type": "PartDef"}));
+    assert_eq!(dry["written"], json!(false));
+    let got = mcp.call_tool("get_element", json!({"ref": "Arch::Added0"}));
+    assert_eq!(got["qname"], "Arch::Added0", "the model is back after a dry run: {got}");
     let end = mcp.call_tool("server_stats", json!({}));
     let end_mb = end["residentKb"].as_u64().unwrap() / 1024;
     let peak_mb = end["peakResidentKb"].as_u64().unwrap() / 1024;
-    assert!(peak_mb < 300, "peak resident {peak_mb} MB through three guarded writes (budget 300)");
+    assert!(peak_mb < 190, "peak resident {peak_mb} MB through three guarded writes (budget 190): the live model must not sit beside the candidate");
     assert!(
         end_mb <= after_first + 25,
         "resident memory grew from {after_first} MB to {end_mb} MB over two more writes"

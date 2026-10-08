@@ -143,7 +143,11 @@ Each change is one semantic operation (`POST /api/feature-model/edit`) applied t
 
 Before anything is written the server compares the SAT analysis of the model with and without the change. An edit that leaves things as they were, or better, is applied at once, and a toast says what improved. One that **makes the model worse** is held, and a dialog lists exactly how: *Electric becomes dead*, *the feature model becomes void* with the conflict, *Radio becomes false-optional*, *CONF-ONE-001 is no longer a valid product*. **Apply anyway** writes it; **Cancel** leaves the model untouched. Send `"preview": true` to the endpoint to ask without writing.
 
-Features defined as entries of a single-file `featureTree:` sheet take **Membership** and **Children are** edits; everything else on such a feature is refused with the sheet's file name, since the sheet is the place to edit it. Editing parameters is not yet offered.
+**Parameters** are listed with ✎ to edit and ✕ to remove each, and a form to add or replace one (name, type, range, default, required). Editing one keeps the keys the form does not show (`enumValues:`, `bindingTime:`); removing one also removes its bindings from every `Configuration`.
+
+Features defined as entries of a single-file `featureTree:` sheet take every edit. A rename or move changes the entry's dotted path and those of the entries below it, writes down a derived id before it would change, and follows the dotted paths that name it in the sheet's `requires:`/`excludes:` and `crossTreeConstraints:`; a constraint is added inline on its entry and removed from the cross-tree list too; a removed feature takes its entries, its cross-tree constraints and the configuration choices and bindings that named it. A new child of a sheet entry is a file beside the sheet (the layouts may be mixed). A sheet entry can only be moved within its sheet, and not while a feature below it lives in a file; both are refused with the reason. The first edit rewrites the sheet's YAML in block style.
+
+The same operations are the MCP tool `edit_feature` (`edit`, `dry_run`, `accept_worse`), with the same validity delta, the same hold for an edit that makes the model worse and an `undo` in the reply.
 
 ### Impact
 

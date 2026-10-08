@@ -276,6 +276,29 @@ struct UpdateElementArgs {
 }
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
+struct EditFeatureArgs {
+    /// One edit: `{"op": "add", "parent"?, "name", "groupKind"?, "mandatory"?}`,
+    /// `{"op": "remove", "feature", "subtree"?}`, `{"op": "rename", "feature", "name"}`,
+    /// `{"op": "setGroup", "feature", "groupKind"}`, `{"op": "setMandatory", "feature", "mandatory"}`,
+    /// `{"op": "move", "feature", "newParent"?}`, `{"op": "addConstraint"|"removeConstraint", "feature", "kind", "target"}`,
+    /// `{"op": "setParameter", "feature", "parameter"}`, `{"op": "removeParameter", "feature", "name"}` or a returned `undo` (`{"op": "restore", "files"}`).
+    #[schemars(schema_with = "edit_schema")]
+    edit: Value,
+    #[serde(default = "default_true")]
+    dry_run: bool,
+    /// Apply even though the edit makes the feature model worse (a feature dead or forced, the model void, a configuration invalid).
+    #[serde(default)]
+    accept_worse: bool,
+}
+
+fn edit_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+    schemars::json_schema!({
+        "type": "object",
+        "description": "A feature-model edit: an object with an `op` and that operation's fields."
+    })
+}
+
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct MoveElementArgs {
     r#ref: String,
     dest: String,
@@ -877,6 +900,7 @@ const WRITE_TOOLS: &[&str] = &[
     "apply_changes",
     "ingest_results",
     "suspect_accept",
+    "edit_feature",
 ];
 
 fn is_write_tool(name: &str) -> bool {
@@ -2415,6 +2439,33 @@ impl SyscribeMcp {
             apply_update(&root.join(&rel), fields.as_ref(), doc.as_deref())
         };
         let res = guarded_write(&mut store, args.dry_run, true, extra, apply);
+        drop(store);
+        notify_committed(&peer, &res).await;
+        ok(res)
+    }
+
+    #[tool(
+        description = "Edit the feature model with one semantic operation (add, remove, rename, \
+        setGroup, setMandatory, move, addConstraint, removeConstraint, setParameter, removeParameter) through the \
+        guarded write, with its effect on the model's validity: `featureDelta` names the features \
+        that become dead or false-optional, whether the model becomes void and which configurations \
+        become invalid. An edit that makes things worse is not written unless accept_worse is true \
+        (`needsConfirmation`). A commit returns `undo`, the edit that reverses it. dry_run defaults \
+        to true.",
+        annotations(read_only_hint = false, destructive_hint = false)
+    )]
+    async fn edit_feature(
+        &self,
+        Parameters(args): Parameters<EditFeatureArgs>,
+        peer: Peer<RoleServer>,
+    ) -> Result<CallToolResult, ErrorData> {
+        let op: syscribe_model::feature_edit::EditOp = match serde_json::from_value(args.edit.clone()) {
+            Ok(op) => op,
+            Err(e) => return tool_error(format!("not a feature edit: {e}")),
+        };
+        let mut store = self.store.write().await;
+        let extra = extra_map(json!({ "edit": args.edit }));
+        let res = write::feature_edit(&mut store, op, args.dry_run, args.accept_worse, extra);
         drop(store);
         notify_committed(&peer, &res).await;
         ok(res)

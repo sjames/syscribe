@@ -56,6 +56,8 @@ pub struct FeatureNode {
     pub cardinality: Option<String>,
     /// Typed parameters, as `name: type` (`unit` appended when declared).
     pub parameters: Vec<String>,
+    /// The parameter declarations as written (`name`, `type`, `range`, `default`, ...), for the editor.
+    pub parameter_decls: Vec<serde_json::Value>,
     pub file: String,
     /// Depth below its root, 0 for a root.
     pub depth: usize,
@@ -149,6 +151,7 @@ pub fn feature_tree(elements: &[RawElement]) -> Vec<FeatureNode> {
             excludes: fm.excludes.clone().unwrap_or_default().iter().filter_map(|r| canon(r)).collect(),
             cardinality: fm.cardinality.clone(),
             parameters,
+            parameter_decls: fm.parameters.as_deref().unwrap_or(&[]).iter().filter_map(|p| serde_json::to_value(p).ok()).collect(),
             file: e.file_path.clone(),
             depth: 0,
         };

@@ -115813,6 +115813,66 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   function cellGlyph(c3) {
     return c3 === true ? "\u2713" : c3 === false ? "\u2717" : "\xB7";
   }
+  function formOf(decl) {
+    const text = (v3) => v3 === void 0 || v3 === null ? "" : String(v3);
+    return {
+      name: text(decl?.name),
+      type: text(decl?.type),
+      range: text(decl?.range),
+      defaultValue: text(decl?.default),
+      required: decl?.isRequired === true
+    };
+  }
+  function parseDefault(text) {
+    const t3 = text.trim();
+    if (/^-?\d+(\.\d+)?$/.test(t3)) {
+      return Number(t3);
+    }
+    if (t3 === "true" || t3 === "false") {
+      return t3 === "true";
+    }
+    return t3;
+  }
+  function buildParameter(existing, form) {
+    const out = { ...existing ?? {}, name: form.name.trim() };
+    const set = (k3, v3) => {
+      if (v3.trim() === "") {
+        delete out[k3];
+      } else {
+        out[k3] = v3.trim();
+      }
+    };
+    set("type", form.type);
+    set("range", form.range);
+    if (form.defaultValue.trim() === "") {
+      delete out.default;
+    } else {
+      out.default = parseDefault(form.defaultValue);
+    }
+    if (form.required) {
+      out.isRequired = true;
+    } else {
+      delete out.isRequired;
+    }
+    return out;
+  }
+  function parameterSummary(decl) {
+    const short = (t3) => String(t3).split("::").pop() ?? "";
+    let s3 = String(decl.name ?? "?");
+    if (decl.type !== void 0) {
+      s3 += `: ${short(decl.type)}`;
+    }
+    if (decl.range !== void 0) {
+      s3 += ` [${decl.range}]`;
+    }
+    if (decl.default !== void 0) {
+      s3 += ` = ${decl.default}`;
+    }
+    if (decl.isRequired === true) {
+      s3 += ", required";
+    }
+    return s3;
+  }
 
   // src/new-diagram.ts
   var BASIC_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -116302,6 +116362,9 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       const below = descendantIds(this.full, node.id);
       const others = all.filter((n) => n.id !== node.id && !below.has(n.id));
       const constraint = (kind, target) => `<li>${kind} <b>${esc(this.nameOf(target))}</b><button data-action="removeConstraint" data-kind="${kind}" data-target="${esc(target)}" title="Remove this constraint">&#x2715;</button></li>`;
+      const params = (m3?.parameters ?? []).map(
+        (d3) => `<li><span>${esc(parameterSummary(d3))}</span><button data-action="editParameter" data-name="${esc(String(d3.name))}" title="Edit this parameter">&#x270E;</button><button data-action="removeParameter" data-name="${esc(String(d3.name))}" title="Remove this parameter and its bindings">&#x2715;</button></li>`
+      ).join("");
       const declared = [...(m3?.requires ?? []).map((t3) => constraint("requires", t3)), ...(m3?.excludes ?? []).map((t3) => constraint("excludes", t3))].join("");
       pane.innerHTML = `
           <div class="fm-edit-head">Edit ${esc(node.name)}</div>
@@ -116319,6 +116382,18 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
             <select id="fm-e-ckind"><option value="requires">requires</option><option value="excludes">excludes</option></select>
             <select id="fm-e-ctarget">${others.map(opt).join("")}</select>
             <button data-action="addConstraint">Add</button>
+          </div>
+          <div class="fm-edit-row"><label>Parameters</label></div>
+          <ul class="fm-edit-constraints">${params || '<li class="detail-empty">none declared</li>'}</ul>
+          <div class="fm-edit-row">
+            <input id="fm-p-name" type="text" placeholder="name" size="8" autocomplete="off">
+            <input id="fm-p-type" type="text" placeholder="type (ScalarValues::Real)" autocomplete="off">
+          </div>
+          <div class="fm-edit-row">
+            <input id="fm-p-range" type="text" placeholder="range 0..=10" size="8" autocomplete="off">
+            <input id="fm-p-default" type="text" placeholder="default" size="6" autocomplete="off">
+            <label><input id="fm-p-required" type="checkbox"> required</label>
+            <button data-action="setParameter">Set</button>
           </div>
           <div class="fm-edit-row">
             <label>Move under</label>
@@ -116348,6 +116423,34 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
           break;
         case "addConstraint":
           void this.runEdit({ op: "addConstraint", feature, kind: val("fm-e-ckind"), target: val("fm-e-ctarget") });
+          break;
+        case "editParameter": {
+          const f3 = formOf((node?.feature?.parameters ?? []).find((d3) => d3.name === btn.dataset.name));
+          const put = (id, v3) => {
+            document.getElementById(id).value = v3;
+          };
+          put("fm-p-name", f3.name);
+          put("fm-p-type", f3.type);
+          put("fm-p-range", f3.range);
+          put("fm-p-default", f3.defaultValue);
+          document.getElementById("fm-p-required").checked = f3.required;
+          break;
+        }
+        case "setParameter": {
+          const name = val("fm-p-name").trim();
+          const existing = (node?.feature?.parameters ?? []).find((d3) => d3.name === name);
+          const parameter = buildParameter(existing, {
+            name,
+            type: val("fm-p-type"),
+            range: val("fm-p-range"),
+            defaultValue: val("fm-p-default"),
+            required: document.getElementById("fm-p-required").checked
+          });
+          void this.runEdit({ op: "setParameter", feature, parameter });
+          break;
+        }
+        case "removeParameter":
+          void this.runEdit({ op: "removeParameter", feature, name: btn.dataset.name ?? "" });
           break;
         case "removeConstraint":
           void this.runEdit({ op: "removeConstraint", feature, kind: btn.dataset.kind ?? "", target: btn.dataset.target ?? "" });

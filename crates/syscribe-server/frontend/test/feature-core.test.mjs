@@ -319,4 +319,31 @@ scenario('the impact summary says what a feature gates, who selects it and what 
     assert.deepEqual(core.impactSummary({ found: false }), []);
 });
 
+scenario('a parameter form round-trips a declaration and keeps the keys it does not show', () => {
+    const decl = { name: 'kw', type: 'ScalarValues::Real', range: '50..=300', default: 120, isRequired: true, enumValues: [1, 2], bindingTime: 'load' };
+    const form = core.formOf(decl);
+    assert.deepEqual(form, { name: 'kw', type: 'ScalarValues::Real', range: '50..=300', defaultValue: '120', required: true });
+    assert.deepEqual(core.buildParameter(decl, form), decl, 'unchanged form, unchanged declaration');
+    const changed = core.buildParameter(decl, { ...form, range: '50..=400', defaultValue: '', required: false });
+    assert.equal(changed.range, '50..=400');
+    assert.equal('default' in changed, false, 'an emptied field removes its key');
+    assert.equal('isRequired' in changed, false);
+    assert.deepEqual(changed.enumValues, [1, 2], 'unshown keys survive');
+    assert.equal(changed.bindingTime, 'load');
+});
+
+scenario('a new parameter is built from the form alone, defaults typed as numbers or booleans', () => {
+    assert.deepEqual(core.buildParameter(undefined, { name: ' amps ', type: '', range: '', defaultValue: '2.5', required: false }), { name: 'amps', default: 2.5 });
+    assert.equal(core.parseDefault('12'), 12);
+    assert.equal(core.parseDefault('-3.5'), -3.5);
+    assert.equal(core.parseDefault('true'), true);
+    assert.equal(core.parseDefault('auto'), 'auto');
+    assert.equal(core.formOf(undefined).name, '');
+});
+
+scenario('a parameter reads as one line', () => {
+    assert.equal(core.parameterSummary({ name: 'kw', type: 'ScalarValues::Real', range: '50..=300', default: 120, isRequired: true }), 'kw: Real [50..=300] = 120, required');
+    assert.equal(core.parameterSummary({ name: 'flag' }), 'flag');
+});
+
 console.log(`feature-core: ok (${n} scenarios)`);

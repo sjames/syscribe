@@ -321,6 +321,25 @@ impl GuardedWriteOutcome {
     }
 }
 
+/// The validation findings of a model, as the guarded write compares them: every
+/// error (unresolved references and link-type errors) and every warning, with file
+/// paths relative to the model root. A write's delta is the candidate's findings
+/// minus the live model's, so the live model's can be kept between writes instead of
+/// recomputed from a model held in memory (`REQ-TRS-MCP-MEM-000`).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct Baseline {
+    pub errors: Vec<Entry>,
+    pub warnings: Vec<Entry>,
+}
+
+/// The findings of the live model `elements`, to hand to [`guarded_write_cached`].
+pub fn compute_baseline(model_root: &Path, elements: &[RawElement], config: &ValidateConfig) -> Baseline {
+    let (base_link_errs, warnings) = validator_findings(elements, config, model_root);
+    let mut errors = ref_errors(elements, model_root);
+    errors.extend(base_link_errs);
+    Baseline { errors, warnings }
+}
+
 /// Run a guarded write. `apply` performs the edit against an arbitrary model root
 /// (invoked once on a temp copy to compute the candidate, and a second time on the
 /// real model only when committing a clean change).
@@ -374,20 +393,44 @@ pub fn guarded_write_inspect<F, I>(
 where
     F: Fn(&Path) -> Result<(), String>,
 {
-    let (base_link_errs, base_warns) = validator_findings(elements, config, model_root);
-    let mut base_errs = ref_errors(elements, model_root);
-    base_errs.extend(base_link_errs);
+    let baseline = compute_baseline(model_root, elements, config);
+    let (outcome, inspected, _) = guarded_write_cached(model_root, &baseline, config, dry_run, gate, allow_new_errors, apply, inspect, proceed);
+    (outcome, inspected)
+}
+
+/// [`guarded_write_inspect`] against a precomputed [`Baseline`] instead of the live
+/// elements, so the caller may drop the live model while the candidate is built and
+/// validated: only one full model is in memory at a time. On a successful commit the
+/// third result is the candidate's findings, which are the live model's from then on
+/// (the caller reloads and keeps them as the next baseline).
+#[allow(clippy::too_many_arguments)]
+pub fn guarded_write_cached<F, I>(
+    model_root: &Path,
+    baseline: &Baseline,
+    config: &ValidateConfig,
+    dry_run: bool,
+    gate: bool,
+    allow_new_errors: bool,
+    apply: F,
+    inspect: Option<&dyn Fn(&[RawElement]) -> I>,
+    proceed: impl Fn(&Option<I>) -> bool,
+) -> (GuardedWriteOutcome, Option<I>, Option<Baseline>)
+where
+    F: Fn(&Path) -> Result<(), String>,
+{
+    let base_errs = baseline.errors.clone();
+    let base_warns = baseline.warnings.clone();
 
     let cand_root = match make_temp_copy(model_root) {
         Ok(p) => p,
-        Err(e) => return (GuardedWriteOutcome::refused(format!("could not stage candidate: {e}")), None),
+        Err(e) => return (GuardedWriteOutcome::refused(format!("could not stage candidate: {e}")), None, None),
     };
 
     // Apply the edit to the candidate copy. A failure here (invalid dest, planning
     // error, …) is a refusal — the real model is never touched.
     if let Err(e) = apply(&cand_root) {
         let _ = std::fs::remove_dir_all(&cand_root);
-        return (GuardedWriteOutcome::refused(e), None);
+        return (GuardedWriteOutcome::refused(e), None, None);
     }
 
     let inspected: Option<I>;
@@ -411,7 +454,7 @@ where
         }
         Err(e) => {
             let _ = std::fs::remove_dir_all(&cand_root);
-            return (GuardedWriteOutcome::refused(format!("candidate model failed to load: {e}")), None);
+            return (GuardedWriteOutcome::refused(format!("candidate model failed to load: {e}")), None, None);
         }
     };
 
@@ -441,7 +484,7 @@ where
     };
 
     if dry_run || !proceed(&inspected) {
-        return (outcome, inspected);
+        return (outcome, inspected, None);
     }
 
     if gate && new_error_count > 0 && !allow_new_errors {
@@ -453,16 +496,16 @@ where
             _ => "an unresolved reference",
         };
         outcome.reason = Some(format!("refused: commit would introduce {why}"));
-        return (outcome, inspected);
+        return (outcome, inspected, None);
     }
 
     // Commit: apply to the real model.
     if let Err(e) = apply(model_root) {
         outcome.reason = Some(format!("commit failed: {e}"));
-        return (outcome, inspected);
+        return (outcome, inspected, None);
     }
     outcome.written = true;
-    (outcome, inspected)
+    (outcome, inspected, Some(Baseline { errors: cand_errs, warnings: cand_warns }))
 }
 
 #[cfg(test)]

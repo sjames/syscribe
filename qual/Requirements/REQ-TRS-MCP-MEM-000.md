@@ -17,5 +17,5 @@ size through a `server_stats` tool.
 **Acceptance criteria:** (a) `server_stats` reports element count, body bytes, element record size
 and, on Linux, resident and peak resident memory; (b) an element record is under 3,000 bytes;
 (c) a 12,000-element model stays under 160 MB resident after load; (d) three guarded writes keep
-the peak under 300 MB; (e) resident memory after the later writes is within 25 MB of that after
+the peak under 190 MB; (e) resident memory after the later writes is within 25 MB of that after
 the first.

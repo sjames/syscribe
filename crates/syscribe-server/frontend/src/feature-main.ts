@@ -20,6 +20,7 @@ import {
     ConfigureResult,
     configurationFields,
     configurationPackage,
+    buildParameter,
     deltaLines,
     describeConflict,
     descendantIds,
@@ -30,9 +31,11 @@ import {
     expandOneLevel,
     FeatureAnalysis,
     featureNodes,
+    formOf,
     ImpactResult,
     impactSummary,
     nextChoice,
+    parameterSummary,
     productsText,
     revealing,
     rootIds,
@@ -562,6 +565,12 @@ class FeaturePage {
         const others = all.filter(n => n.id !== node.id && !below.has(n.id));
         const constraint = (kind: 'requires' | 'excludes', target: string): string =>
             `<li>${kind} <b>${esc(this.nameOf(target))}</b><button data-action="removeConstraint" data-kind="${kind}" data-target="${esc(target)}" title="Remove this constraint">&#x2715;</button></li>`;
+        const params = (m?.parameters ?? [])
+            .map(
+                d =>
+                    `<li><span>${esc(parameterSummary(d))}</span><button data-action="editParameter" data-name="${esc(String(d.name))}" title="Edit this parameter">&#x270E;</button><button data-action="removeParameter" data-name="${esc(String(d.name))}" title="Remove this parameter and its bindings">&#x2715;</button></li>`,
+            )
+            .join('');
         const declared = [...(m?.requires ?? []).map(t => constraint('requires', t)), ...(m?.excludes ?? []).map(t => constraint('excludes', t))].join('');
         pane.innerHTML = `
           <div class="fm-edit-head">Edit ${esc(node.name)}</div>
@@ -579,6 +588,18 @@ class FeaturePage {
             <select id="fm-e-ckind"><option value="requires">requires</option><option value="excludes">excludes</option></select>
             <select id="fm-e-ctarget">${others.map(opt).join('')}</select>
             <button data-action="addConstraint">Add</button>
+          </div>
+          <div class="fm-edit-row"><label>Parameters</label></div>
+          <ul class="fm-edit-constraints">${params || '<li class="detail-empty">none declared</li>'}</ul>
+          <div class="fm-edit-row">
+            <input id="fm-p-name" type="text" placeholder="name" size="8" autocomplete="off">
+            <input id="fm-p-type" type="text" placeholder="type (ScalarValues::Real)" autocomplete="off">
+          </div>
+          <div class="fm-edit-row">
+            <input id="fm-p-range" type="text" placeholder="range 0..=10" size="8" autocomplete="off">
+            <input id="fm-p-default" type="text" placeholder="default" size="6" autocomplete="off">
+            <label><input id="fm-p-required" type="checkbox"> required</label>
+            <button data-action="setParameter">Set</button>
           </div>
           <div class="fm-edit-row">
             <label>Move under</label>
@@ -609,6 +630,34 @@ class FeaturePage {
                 break;
             case 'addConstraint':
                 void this.runEdit({ op: 'addConstraint', feature, kind: val('fm-e-ckind'), target: val('fm-e-ctarget') });
+                break;
+            case 'editParameter': {
+                const f = formOf((node?.feature?.parameters ?? []).find(d => d.name === btn.dataset.name));
+                const put = (id: string, v: string): void => {
+                    (document.getElementById(id) as HTMLInputElement).value = v;
+                };
+                put('fm-p-name', f.name);
+                put('fm-p-type', f.type);
+                put('fm-p-range', f.range);
+                put('fm-p-default', f.defaultValue);
+                (document.getElementById('fm-p-required') as HTMLInputElement).checked = f.required;
+                break;
+            }
+            case 'setParameter': {
+                const name = val('fm-p-name').trim();
+                const existing = (node?.feature?.parameters ?? []).find(d => d.name === name);
+                const parameter = buildParameter(existing, {
+                    name,
+                    type: val('fm-p-type'),
+                    range: val('fm-p-range'),
+                    defaultValue: val('fm-p-default'),
+                    required: (document.getElementById('fm-p-required') as HTMLInputElement).checked,
+                });
+                void this.runEdit({ op: 'setParameter', feature, parameter });
+                break;
+            }
+            case 'removeParameter':
+                void this.runEdit({ op: 'removeParameter', feature, name: btn.dataset.name ?? '' });
                 break;
             case 'removeConstraint':
                 void this.runEdit({ op: 'removeConstraint', feature, kind: btn.dataset.kind ?? '', target: btn.dataset.target ?? '' });
