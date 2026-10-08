@@ -2,9 +2,14 @@
 type: PlanningItem
 id: PI-VIS-013
 name: "New diagram dialog in the browser — derived or blank, with subject suggestions per kind"
-status: todo
+status: done
 itemType: feature
 achieves: [REQ-TRS-VIS-023]
+evidence:
+  - path: repo:crates/syscribe-server/tests/new_diagram.rs
+  - path: repo:crates/syscribe-server/frontend/src/new-diagram.ts
+  - path: repo:crates/syscribe-server/frontend/test/new-diagram.test.mjs
+  - path: repo:crates/syscribe-server/frontend/test/page-wiring.test.mjs
 tags:
   - visualisation
 ---

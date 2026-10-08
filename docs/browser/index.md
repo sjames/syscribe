@@ -86,6 +86,15 @@ Validation findings are available as JSON from `/api/validation`; run `syscribe 
 
 A `diagramKind: Mermaid` diagram is still rendered client-side by Mermaid.js from the ` ```mermaid ` block in its body. Every other kind is served as a Diagram IR (`syscribe_model::vis`): the server builds one graph per `Diagram` element — from its `shapes:`/`edges:`/`layout:` manifest (the single parser that also reports a malformed manifest as `E405`), or derived from its `subject:` when it declares no `shapes:` — and `GET /api/diagrams/model/<qname>` hands it to the sprotty editor as a nested graph model: ports inside their block, blocks inside the boundary, a label and compartments per node, edges at the root, the ELK `layoutOptions` for the diagram's kind, the `pinned` set, and the resolved style (colours, arrowheads, stereotype banners, port glyphs) per element, owned once in Rust (`vis::style`) so the views hold no colour table. The browser lays the graph out; the server never computes positions and there is no server-side SVG renderer.
 
+## Creating a diagram
+
+The **+ Diagram** button in the model browser's header opens the New diagram dialog (`REQ-TRS-VIS-023`). Give it a **name** (letters, digits and underscores; no spaces or hyphens), a **kind** (BDD, IBD, state machine, action flow, sequence, requirement tree or allocation map), and choose how to **start**:
+
+- **Derive from a subject** writes a two-line diagram — `diagramKind:` and `subject:` — that follows the model from then on. The subject box suggests only the element types that kind accepts (a part or item for an IBD, an action or use case for a sequence diagram, a package or requirement for a requirement tree), and anything else is refused before a request is sent.
+- **Blank** writes an empty manifest (`shapes: {}`) for you to fill with **+**, **↔** and the pin buttons; a subject is optional and, when given, owns the connections you draw.
+
+The **package** defaults to a package named `Diagrams` when the model has one, else the model root; the list offers every package element. Creating goes through the same guarded write as every other edit, then closes the dialog and opens the diagram in a tab. A refusal (a name already in use, a rule the model engine enforces) appears in red inside the dialog and writes nothing; a warning the new diagram raises, such as `W401` for a subject that resolves to nothing, is shown after it is created.
+
 ## The diagram editor
 
 Opening a non-Mermaid diagram runs **ELK automatic layout in the browser**: every node, port, compartment and label arrives with its size already computed by the server from shared text metrics (`REQ-TRS-VIS-017`; the client measures in the DOM only what came without one), then `sprotty-elk` lays the sized graph out with the bundled `elkjs` (layered, top-down for a BDD with supertypes above subtypes, left-to-right with nesting for an IBD, orthogonal edge routing, ports on the block border, edge keywords and labels placed along the route). Nothing is written back: an automatic layout lives only in the browser until you act, so `git diff` on a diagram file always shows a human's intent.

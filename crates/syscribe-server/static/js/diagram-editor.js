@@ -8840,8 +8840,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       }
       exports.translateBounds = translateBounds;
       function containsSome(root, element) {
-        const test = (el) => root.index.getById(el.id) !== void 0;
-        const find = (elements) => elements.some((el) => test(el) || find(el.children));
+        const test = (el2) => root.index.getById(el2.id) !== void 0;
+        const find = (elements) => elements.some((el2) => test(el2) || find(el2.children));
         return find([element]);
       }
       exports.containsSome = containsSome;
@@ -18060,8 +18060,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
               if (resolvedMove) {
                 this.resolvedMoves.set(resolvedMove.element.id, resolvedMove);
                 if (this.edgeRouterRegistry) {
-                  const handleEdges = (el) => {
-                    index.getAttachedElements(el).forEach((edge) => {
+                  const handleEdges = (el2) => {
+                    index.getAttachedElements(el2).forEach((edge) => {
                       if (edge instanceof model_2.SRoutableElementImpl && !this.isChildOfMovedElements(edge)) {
                         const existingDelta = attachedEdgeShifts.get(edge);
                         const newDelta = geometry_1.Point.subtract(resolvedMove.toPosition, resolvedMove.fromPosition);
@@ -18070,9 +18070,9 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                       }
                     });
                   };
-                  const handleEdgesForChildren = (el) => {
-                    if ((0, smodel_1.isParent)(el)) {
-                      el.children.forEach((childEl) => {
+                  const handleEdgesForChildren = (el2) => {
+                    if ((0, smodel_1.isParent)(el2)) {
+                      el2.children.forEach((childEl) => {
                         if (childEl instanceof smodel_1.SModelElementImpl) {
                           if (childEl instanceof model_2.SConnectableElementImpl) {
                             handleEdges(childEl);
@@ -18146,8 +18146,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
             }
           });
         }
-        isChildOfMovedElements(el) {
-          const parent = el.parent;
+        isChildOfMovedElements(el2) {
+          const parent = el2.parent;
           if (Array.from(this.resolvedMoves.values()).map((rm) => rm.element.id).includes(parent.id)) {
             return true;
           }
@@ -22555,16 +22555,16 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         return `${firstChar}${name.substring(1)}`;
       }
       var entityRegex = new RegExp("&[a-z0-9#]+;", "gi");
-      var el = null;
+      var el2 = null;
       function unescapeEntities(text) {
-        if (!el) {
-          el = document.createElement("div");
+        if (!el2) {
+          el2 = document.createElement("div");
         }
         return text.replace(entityRegex, (entity) => {
-          if (el === null)
+          if (el2 === null)
             return "";
-          el.innerHTML = entity;
-          return el.textContent === null ? "" : el.textContent;
+          el2.innerHTML = entity;
+          return el2.textContent === null ? "" : el2.textContent;
         });
       }
       function recurse(doc, func) {
@@ -86453,7 +86453,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
               _3.yd = function dl(a10) {
                 throw vbb(new xcb());
               };
-              _3.zd = function el() {
+              _3.zd = function el2() {
                 throw vbb(new Zdb(uie));
               };
               _3.Hb = function fl() {
@@ -112713,13 +112713,13 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
 
   // src/layout.ts
   var PORT_SIZE = 12;
-  function adoptServerSize(el) {
-    if (!el.serverSize && el.size && el.size.width > 0 && el.size.height > 0) {
-      el.serverSize = { width: el.size.width, height: el.size.height };
+  function adoptServerSize(el2) {
+    if (!el2.serverSize && el2.size && el2.size.width > 0 && el2.size.height > 0) {
+      el2.serverSize = { width: el2.size.width, height: el2.size.height };
     }
   }
-  function serverSizeOf(el) {
-    const s3 = el?.serverSize;
+  function serverSizeOf(el2) {
+    const s3 = el2?.serverSize;
     return s3 && s3.width > 0 && s3.height > 0 ? s3 : void 0;
   }
   var NODE_NODE_SPACING = 40;
@@ -115444,12 +115444,12 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   var import_sprotty3 = __toESM(require_lib2());
   var import_sprotty_protocol2 = __toESM(require_lib());
   function connectableAncestor(target) {
-    let el = target;
-    while (el) {
-      if (el.type === "node" || el.type === "port") {
-        return el;
+    let el2 = target;
+    while (el2) {
+      if (el2.type === "node" || el2.type === "port") {
+        return el2;
       }
-      el = el instanceof import_sprotty3.SChildElementImpl ? el.parent : void 0;
+      el2 = el2 instanceof import_sprotty3.SChildElementImpl ? el2.parent : void 0;
     }
     return void 0;
   }
@@ -115516,30 +115516,30 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       clone.removeAttribute("class");
     }
     const prefix = `${hostId}_`;
-    for (const el of Array.from(clone.querySelectorAll("*"))) {
-      const id = el.getAttribute("id");
+    for (const el2 of Array.from(clone.querySelectorAll("*"))) {
+      const id = el2.getAttribute("id");
       if (id && id.startsWith(prefix)) {
-        el.setAttribute("id", id.slice(prefix.length));
+        el2.setAttribute("id", id.slice(prefix.length));
       }
       for (const cls of INTERACTIVE_CLASSES) {
-        el.classList.remove(cls);
+        el2.classList.remove(cls);
       }
-      if (el.getAttribute("class") === "") {
-        el.removeAttribute("class");
+      if (el2.getAttribute("class") === "") {
+        el2.removeAttribute("class");
       }
-      el.removeAttribute("tabindex");
-      const ref = el.getAttribute("data-sysml-ref");
+      el2.removeAttribute("tabindex");
+      const ref = el2.getAttribute("data-sysml-ref");
       if (ref !== null) {
         if (ref !== "") {
-          el.setAttributeNS(SYSML_NS, "sysml:ref", ref);
+          el2.setAttributeNS(SYSML_NS, "sysml:ref", ref);
         }
-        el.removeAttribute("data-sysml-ref");
+        el2.removeAttribute("data-sysml-ref");
       }
       for (const end of ["source", "target"]) {
-        const v3 = el.getAttribute(`data-sysml-${end}`);
+        const v3 = el2.getAttribute(`data-sysml-${end}`);
         if (v3 !== null) {
-          el.setAttributeNS(SYSML_NS, `sysml:${end}`, v3);
-          el.removeAttribute(`data-sysml-${end}`);
+          el2.setAttributeNS(SYSML_NS, `sysml:${end}`, v3);
+          el2.removeAttribute(`data-sysml-${end}`);
         }
       }
     }
@@ -115962,8 +115962,8 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       return { x: 60 + step, y: 60 + step };
     }
     toast(message, level = "error") {
-      const el = document.getElementById("sprotty-toast");
-      if (!el) {
+      const el2 = document.getElementById("sprotty-toast");
+      if (!el2) {
         if (level === "error") {
           console.error("[diagram-editor]", message);
         } else {
@@ -115971,18 +115971,214 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         }
         return;
       }
-      el.textContent = message;
-      el.classList.toggle("info", level === "info");
-      el.style.display = "block";
-      window.clearTimeout(el._hideTimer);
-      el._hideTimer = window.setTimeout(() => {
-        el.style.display = "none";
+      el2.textContent = message;
+      el2.classList.toggle("info", level === "info");
+      el2.style.display = "block";
+      window.clearTimeout(el2._hideTimer);
+      el2._hideTimer = window.setTimeout(() => {
+        el2.style.display = "none";
       }, level === "info" ? 3e3 : 6e3);
     }
   };
 
+  // src/new-diagram.ts
+  var DIAGRAM_KINDS = [
+    { kind: "BDD", label: "Block definition (BDD)", subjectTypes: ["Package", "PartDef", "ItemDef"], hint: "a package or a part/item definition" },
+    { kind: "IBD", label: "Internal block (IBD)", subjectTypes: ["PartDef", "Part", "ItemDef", "Item"], hint: "a part or item, definition or usage" },
+    { kind: "StateMachine", label: "State machine", subjectTypes: ["StateDef", "State", "ExhibitState"], hint: "a state definition or state" },
+    { kind: "Action", label: "Action flow", subjectTypes: ["ActionDef", "Action"], hint: "an action definition or action" },
+    { kind: "Sequence", label: "Sequence", subjectTypes: ["ActionDef", "Action", "UseCaseDef", "UseCase"], hint: "an action or use case with send/accept steps" },
+    { kind: "Requirement", label: "Requirement tree", subjectTypes: ["Package", "RequirementDef", "Requirement"], hint: "a package of requirements, or one requirement" },
+    { kind: "Allocation", label: "Allocation map", subjectTypes: ["Package", "AllocationDef", "Allocation"], hint: "a package of allocations, or one allocation" }
+  ];
+  function kindInfo(kind) {
+    return DIAGRAM_KINDS.find((k3) => k3.kind === kind);
+  }
+  var BASIC_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
+  function validateName(name) {
+    const n = name.trim();
+    if (n === "") {
+      return "Give the diagram a name.";
+    }
+    if (!BASIC_NAME.test(n)) {
+      return "A name uses letters, digits and underscores only, and does not start with a digit (no spaces or hyphens).";
+    }
+    return null;
+  }
+  function defaultPackage(packages) {
+    return packages.includes("Diagrams") ? "Diagrams" : "";
+  }
+  function joinQname(pkg, name) {
+    return pkg === "" ? name : `${pkg}::${name}`;
+  }
+  function tabId(qname) {
+    return qname.replace(/::/g, "/");
+  }
+  function buildCreateRequest(form) {
+    const nameError = validateName(form.name);
+    if (nameError) {
+      return { ok: false, error: nameError };
+    }
+    const info = kindInfo(form.kind);
+    if (!info) {
+      return { ok: false, error: `Choose one of the diagram kinds (${DIAGRAM_KINDS.map((k3) => k3.kind).join(", ")}).` };
+    }
+    const subject = form.subject.trim();
+    if (form.startFrom === "derive") {
+      if (subject === "") {
+        return { ok: false, error: `A derived ${info.kind} diagram needs a subject: ${info.hint}.` };
+      }
+      if (!form.candidates.includes(subject)) {
+        return {
+          ok: false,
+          error: `'${subject}' is not ${info.hint}. Pick one of the suggestions (${info.subjectTypes.join(", ")}).`
+        };
+      }
+    } else if (subject !== "" && !form.candidates.includes(subject)) {
+      return { ok: false, error: `'${subject}' is not ${info.hint}. Leave the subject empty or pick a suggestion.` };
+    }
+    const fields = { diagramKind: info.kind };
+    if (subject !== "") {
+      fields.subject = subject;
+    }
+    if (form.startFrom === "blank") {
+      fields.shapes = {};
+    }
+    const name = form.name.trim();
+    const qname = joinQname(form.pkg, name);
+    return { ok: true, request: { qname, type: "Diagram", fields }, tabId: tabId(qname), displayName: name, kind: info.kind };
+  }
+
+  // src/new-diagram-dialog.ts
+  function el(id) {
+    const e2 = document.getElementById(id);
+    if (!e2) {
+      throw new Error(`new-diagram dialog: #${id} missing from the page`);
+    }
+    return e2;
+  }
+  async function fetchByType(type) {
+    const resp = await fetch("/api/elements?type=" + encodeURIComponent(type));
+    return resp.ok ? await resp.json() : [];
+  }
+  var candidates = [];
+  var packageCache = [];
+  async function refreshSubjects() {
+    const kind = el("nd-kind").value;
+    const info = kindInfo(kind);
+    el("nd-subject-hint").textContent = info ? `Subject: ${info.hint}.` : "";
+    const lists = await Promise.all((info?.subjectTypes ?? []).map(fetchByType));
+    candidates = [...new Set(lists.flat().map((s3) => s3.qualifiedName))].sort();
+    const dl = el("nd-subjects");
+    dl.replaceChildren(
+      ...candidates.map((q2) => {
+        const o3 = document.createElement("option");
+        o3.value = q2;
+        return o3;
+      })
+    );
+  }
+  function updateMode() {
+    const derive = document.querySelector('input[name="nd-start"]:checked').value === "derive";
+    el("nd-subject-label").firstChild.textContent = derive ? "Subject " : "Subject (optional) ";
+  }
+  function showError(msg) {
+    const e2 = el("nd-error");
+    e2.textContent = msg;
+    e2.style.display = msg ? "block" : "none";
+  }
+  function summarize(findings) {
+    return findings.map((f3) => `${f3.code}: ${f3.message}`).join("; ");
+  }
+  async function open2() {
+    const dialog = el("new-diagram-dialog");
+    showError("");
+    const kindSel = el("nd-kind");
+    if (kindSel.options.length === 0) {
+      for (const k3 of DIAGRAM_KINDS) {
+        const o3 = document.createElement("option");
+        o3.value = k3.kind;
+        o3.textContent = k3.label;
+        kindSel.appendChild(o3);
+      }
+    }
+    const pkgSel = el("nd-package");
+    const packages = (await fetchByType("Package")).map((p3) => p3.qualifiedName).filter((q2) => q2 !== "").sort();
+    packageCache.splice(0, packageCache.length, ...packages);
+    pkgSel.replaceChildren(
+      ...["", ...packages].map((q2) => {
+        const o3 = document.createElement("option");
+        o3.value = q2;
+        o3.textContent = q2 === "" ? "(model root)" : q2;
+        return o3;
+      })
+    );
+    pkgSel.value = defaultPackage(packages);
+    el("nd-name").value = "";
+    el("nd-subject").value = "";
+    updateMode();
+    await refreshSubjects();
+    dialog.showModal();
+    el("nd-name").focus();
+  }
+  async function submit(ev) {
+    ev.preventDefault();
+    const startFrom = document.querySelector('input[name="nd-start"]:checked').value;
+    const built = buildCreateRequest({
+      name: el("nd-name").value,
+      kind: el("nd-kind").value,
+      startFrom,
+      subject: el("nd-subject").value,
+      pkg: el("nd-package").value,
+      candidates
+    });
+    if (!built.ok) {
+      showError(built.error);
+      return;
+    }
+    const btn = el("nd-create");
+    btn.disabled = true;
+    try {
+      const resp = await createElement(built.request);
+      if (!resp.written) {
+        showError(resp.reason ?? (summarize(resp.newErrors) || "The model refused the new diagram."));
+        return;
+      }
+      el("new-diagram-dialog").close();
+      if (window.openDiagram) {
+        await window.openDiagram(built.tabId, built.displayName, built.kind);
+      }
+      if (resp.newWarnings.length > 0) {
+        const toast = document.getElementById("sprotty-toast");
+        if (toast) {
+          toast.textContent = `Created ${built.request.qname}. ${summarize(resp.newWarnings)}`;
+          toast.style.display = "block";
+          window.setTimeout(() => toast.style.display = "none", 6e3);
+        }
+      }
+    } catch (err) {
+      showError(`Could not create the diagram: ${err.message}`);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  function installNewDiagramDialog() {
+    window.NewDiagram = { open: open2 };
+    document.addEventListener("DOMContentLoaded", () => {
+      const form = document.getElementById("nd-form");
+      if (!form) {
+        return;
+      }
+      form.addEventListener("submit", (ev) => void submit(ev));
+      el("nd-kind").addEventListener("change", () => void refreshSubjects());
+      document.querySelectorAll('input[name="nd-start"]').forEach((r3) => r3.addEventListener("change", updateMode));
+      el("nd-cancel").addEventListener("click", () => el("new-diagram-dialog").close());
+    });
+  }
+
   // src/main.ts
   window.DiagramEditor = new DiagramEditor();
+  installNewDiagramDialog();
 })();
 /*! Bundled license information:
 

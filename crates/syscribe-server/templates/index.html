@@ -3,7 +3,10 @@
 
 <!-- Model browser sidebar -->
 <div class="sidebar">
-  <div class="sidebar-header">Model Browser</div>
+  <div class="sidebar-header">Model Browser
+    <button class="sidebar-add" onclick="window.NewDiagram && window.NewDiagram.open()"
+            title="New diagram: derive one from a subject or start blank">+ Diagram</button>
+  </div>
   <div id="tree-root"
        hx-get="/ui/tree"
        hx-trigger="load"
@@ -11,6 +14,30 @@
     <span style="color:#ccc;font-style:italic;padding:10px;display:block">Loading&#x2026;</span>
   </div>
 </div>
+
+<!-- New diagram dialog (REQ-TRS-VIS-023). Logic: frontend/src/new-diagram.ts,
+     wiring: frontend/src/new-diagram-dialog.ts. -->
+<dialog id="new-diagram-dialog">
+  <form id="nd-form" method="dialog">
+    <h3>New diagram</h3>
+    <label>Name <input id="nd-name" type="text" autocomplete="off" placeholder="PowerSystemIBD"></label>
+    <label>Kind <select id="nd-kind"></select></label>
+    <fieldset>
+      <legend>Start from</legend>
+      <label class="nd-radio"><input type="radio" name="nd-start" value="derive" checked> Derive from a subject (follows the model)</label>
+      <label class="nd-radio"><input type="radio" name="nd-start" value="blank"> Blank (add elements by hand)</label>
+    </fieldset>
+    <label id="nd-subject-label">Subject <input id="nd-subject" type="text" list="nd-subjects" autocomplete="off" placeholder="UAV::Power::PowerSystem"></label>
+    <datalist id="nd-subjects"></datalist>
+    <div id="nd-subject-hint" class="nd-hint"></div>
+    <label>Package <select id="nd-package"></select></label>
+    <div id="nd-error" class="nd-error" role="alert" style="display:none"></div>
+    <div class="nd-actions">
+      <button type="button" id="nd-cancel">Cancel</button>
+      <button type="submit" id="nd-create">Create</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- Canvas area: tab bar + viewport -->
 <div id="canvas-area">

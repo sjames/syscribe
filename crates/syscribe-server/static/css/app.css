@@ -470,3 +470,22 @@ header .subtitle {
   max-width: 500px;
   margin: auto;
 }
+
+/* New diagram dialog (REQ-TRS-VIS-023) */
+.sidebar-header { display: flex; align-items: center; justify-content: space-between; }
+.sidebar-add {
+  font-size: 11px; text-transform: none; letter-spacing: 0; padding: 2px 8px;
+  border: 1px solid #c3c9d6; border-radius: 4px; background: #fff; color: #333; cursor: pointer;
+}
+.sidebar-add:hover { background: #e4e8f5; }
+#new-diagram-dialog { border: 1px solid #c3c9d6; border-radius: 8px; padding: 16px 20px; width: 420px; max-width: calc(100vw - 32px); margin: auto; font-size: 13px; }
+#new-diagram-dialog::backdrop { background: rgba(20, 24, 40, 0.35); }
+#new-diagram-dialog h3 { margin: 0 0 12px; font-size: 15px; }
+#new-diagram-dialog label { display: block; margin: 8px 0 2px; font-weight: 600; }
+#new-diagram-dialog input[type="text"], #new-diagram-dialog select { display: block; width: 100%; box-sizing: border-box; margin-top: 3px; padding: 5px 7px; font-size: 13px; }
+#new-diagram-dialog fieldset { margin: 10px 0 4px; border: 1px solid #e4e7ed; border-radius: 4px; }
+#new-diagram-dialog .nd-radio { font-weight: 400; margin: 3px 0; }
+.nd-hint { color: #666; font-size: 11px; margin-top: 2px; }
+.nd-error { margin-top: 10px; padding: 6px 8px; border-radius: 4px; background: #fdecea; color: #8a1c1c; font-size: 12px; }
+.nd-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+.nd-actions button { padding: 5px 14px; font-size: 13px; cursor: pointer; }

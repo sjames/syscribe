@@ -95,7 +95,9 @@
 
       if (isSprottyKind(tab.kind)) {
         document.getElementById('mermaid-view').style.display = 'none';
-        document.getElementById('sprotty-viewport').style.display = '';
+        // 'block', not '': `#sprotty-viewport` is `display: none` in app.css, so clearing the
+        // inline style would leave it hidden (the diagram tab would open to a blank canvas).
+        document.getElementById('sprotty-viewport').style.display = 'block';
         if (window.DiagramEditor) {
           try {
             await window.DiagramEditor.activate(id);
@@ -185,7 +187,9 @@
         bar.style.display = 'none';
         return;
       }
-      bar.style.display = '';
+      // 'block', not '': `#canvas-tabs` is `display: none` in app.css ("shown when tabs
+      // exist"), so clearing the inline style would keep the tab bar hidden.
+      bar.style.display = 'block';
       inner.innerHTML = [...tabState.entries()].map(([id, { name }]) => {
         const isActive = id === activeTabId;
         return `<div class="canvas-tab${isActive ? ' active' : ''}" onclick="activateTab(${JSON.stringify(id)})">
