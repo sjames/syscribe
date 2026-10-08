@@ -19,7 +19,7 @@ Feature: Decision procedure obligations
     When feature-check --deep runs
     Then it completes within interactive time, is not skipped, and is correct
   Scenario: size guard above the limit
-    Given a feature model exceeding the documented feature-count limit (1000)
+    Given a feature model exceeding the documented feature-count limit (5000)
     When feature-check --deep runs
     Then it prints a skip diagnostic and exits 0
   Scenario: scope statement

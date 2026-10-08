@@ -112,6 +112,10 @@ parameterConstraints:
 
 New findings specific to this form: `E231` (an entry has no `name:`, isn't a mapping, or its dotted path has an empty segment — the entry is dropped), `E232` (two entries resolve to the same qname), `E233` (a `crossTreeConstraints:` entry is malformed or its `feature:` doesn't resolve within the sheet), `W048` (`featureTree:`/`crossTreeConstraints:` declared on anything other than `type: FeatureModel`, or `parameterConstraints:` on anything other than a `Package`/`LibraryPackage`/`Namespace`/`FeatureModel` — inert, ignored). `Configuration` needs no equivalent — it's already exactly one file, and addresses features purely by qname/id with no dependency on how the `FeatureDef` was authored.
 
+### Seeing and changing the feature model in the browser
+
+`syscribe-server` serves the feature model at **Features** (`/features`): a feature diagram in FODA notation with the `feature-check --deep` analysis laid over it (core, dead, false-optional and void, each with its reason), a **configurator** that propagates choices, counts the products left and saves a `Configuration`, an **editor** that previews what a change does to the model's validity before it is written, an **impact** view of what a feature gates, and a **matrix** and **comparison** of the stored configurations. See the browser guide, [Feature model viewer](../browser/index.md#feature-model-viewer). A `Diagram` with `diagramKind: FeatureModel` puts the same diagram in the model (spec §8.16.8.9).
+
 ---
 
 ## 2. Conditioning elements — `appliesWhen:`

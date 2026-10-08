@@ -48,9 +48,9 @@ tc_TRS_FMA_006() {
         && pass "mandatory Root detected core at scale" || fail "core detection wrong at scale"
     rm -rf "$scale"
 
-    # Scenario: above the limit (1000), the guard skips gracefully.
+    # Scenario: above the limit (5000), the guard skips gracefully.
     SCENARIO_NAME="size guard skips above the documented limit"; printf "  ▶ %s\n" "$SCENARIO_NAME"
-    local big; big=$(_gen_features 1001)   # 1001 plain + 7 structured = 1008 > 1000
+    local big; big=$(_gen_features 5001)   # 5001 plain + 7 structured = 5008 > 5000
     local out; out=$("$SYSCRIBE" -m "$big" feature-check --deep 2>/dev/null || true)
     printf '%s' "$out" | grep -qiF "skip" && pass "prints skip diagnostic above limit" || fail "no skip diagnostic above limit"
     "$SYSCRIBE" -m "$big" feature-check --deep >/dev/null 2>&1 && ec=0 || ec=$?

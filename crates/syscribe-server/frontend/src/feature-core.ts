@@ -474,3 +474,204 @@ export function descendantIds(model: DiagramModelSchema, id: string): Set<string
     walk(id);
     return out;
 }
+
+// ---------------------------------------------------------------------------
+// Scale (`REQ-TRS-FMED-007`)
+// ---------------------------------------------------------------------------
+
+/** Ids of the features that have no parent: the roots of the forest. */
+export function rootIds(model: DiagramModelSchema): string[] {
+    const parents = parentMap(model);
+    return featureNodes(model).filter(n => !parents.has(n.id)).map(n => n.id);
+}
+
+/** The collapsed set with one more level opened: the collapsed features nearest
+ * the roots are expanded, so a huge model is read a level at a time. */
+export function expandOneLevel(model: DiagramModelSchema, collapsed: ReadonlySet<string>): Set<string> {
+    const parents = parentMap(model);
+    const depth = (id: string): number => {
+        let d = 0;
+        for (let p = parents.get(id); p !== undefined; p = parents.get(p)) {
+            d += 1;
+        }
+        return d;
+    };
+    const out = new Set(collapsed);
+    if (collapsed.size === 0) {
+        return out;
+    }
+    const shallowest = Math.min(...[...collapsed].map(depth));
+    for (const id of collapsed) {
+        if (depth(id) === shallowest) {
+            out.delete(id);
+        }
+    }
+    return out;
+}
+
+/** The smallest scale at which a feature name can still be read. */
+export const MIN_READABLE_SCALE = 0.3;
+
+/** How to show a laid-out diagram: `fit` it whole when that is still readable,
+ * else `roots`, zoomed in on the first root, because a model of thousands of
+ * features is read by zooming and searching, not seen at once at 1%. */
+export function viewMode(
+    boxes: ReadonlyMap<string, { x: number; y: number; w: number; h: number }>,
+    viewport: { width: number; height: number },
+    padding = 30,
+): 'fit' | 'roots' {
+    if (boxes.size === 0 || viewport.width <= 0 || viewport.height <= 0) {
+        return 'fit';
+    }
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const b of boxes.values()) {
+        minX = Math.min(minX, b.x);
+        minY = Math.min(minY, b.y);
+        maxX = Math.max(maxX, b.x + b.w);
+        maxY = Math.max(maxY, b.y + b.h);
+    }
+    const scale = Math.min(viewport.width / (maxX - minX + 2 * padding), viewport.height / (maxY - minY + 2 * padding));
+    return scale < MIN_READABLE_SCALE ? 'roots' : 'fit';
+}
+
+// ---------------------------------------------------------------------------
+// Impact, comparison and the matrix (`REQ-TRS-FMED-005`, `-006`)
+// ---------------------------------------------------------------------------
+
+/** `GET /api/feature-model/impact`. */
+export interface ImpactResult {
+    found: boolean;
+    feature?: { qname: string; id?: string | null; name: string };
+    gates?: {
+        direct: number;
+        byType: { type: string; count: number; elements: { qname: string; id?: string | null; name: string }[] }[];
+        inheritedThroughPackages: { package: string; elements: number }[];
+    };
+    selectedBy?: { qname: string; id?: string | null; name: string }[];
+    deselectedBy?: { qname: string; id?: string | null; name: string }[];
+    requires?: { qname: string; name: string }[];
+    requiredBy?: { qname: string; name: string }[];
+    excludes?: { qname: string; name: string }[];
+    excludedBy?: { qname: string; name: string }[];
+    children?: number;
+    descendants?: number;
+}
+
+/** One-line facts for the Impact section, in the order a reader weighs them. */
+export function impactSummary(i: ImpactResult): string[] {
+    if (!i.found) {
+        return [];
+    }
+    const out: string[] = [];
+    const inherited = (i.gates?.inheritedThroughPackages ?? []).reduce((n, p) => n + p.elements, 0);
+    const direct = i.gates?.direct ?? 0;
+    if (direct + inherited === 0) {
+        out.push('Gates no element: nothing has an appliesWhen that names it.');
+    } else {
+        const parts = (i.gates?.byType ?? []).map(t => `${t.count} ${t.type}`);
+        out.push(`Gates ${direct} element${direct === 1 ? '' : 's'} directly (${parts.join(', ')})` + (inherited ? ` and ${inherited} more through ${i.gates?.inheritedThroughPackages.length} package${i.gates?.inheritedThroughPackages.length === 1 ? '' : 's'}.` : '.'));
+    }
+    const sel = i.selectedBy?.length ?? 0;
+    const desel = i.deselectedBy?.length ?? 0;
+    out.push(`Selected by ${sel} configuration${sel === 1 ? '' : 's'}, deselected by ${desel}.`);
+    if (i.requiredBy?.length) {
+        out.push(`Required by ${i.requiredBy.map(f => f.name).join(', ')}.`);
+    }
+    if (i.excludedBy?.length) {
+        out.push(`Excluded by ${i.excludedBy.map(f => f.name).join(', ')}.`);
+    }
+    if (i.descendants) {
+        out.push(`${i.descendants} feature${i.descendants === 1 ? '' : 's'} below it.`);
+    }
+    return out;
+}
+
+/** One configuration's choice for a feature: chosen on, chosen off, or not mentioned. */
+export type Cell = boolean | undefined;
+
+export interface MatrixRow {
+    id: string;
+    qname: string;
+    name: string;
+    depth: number;
+    cells: Cell[];
+    /** Two compared configurations disagree on this feature (unmentioned counts as off). */
+    differs: boolean;
+}
+
+/** The feature-by-configuration matrix: one row per feature the diagram currently
+ * shows (in tree order, so collapsed subtrees stay collapsed), one cell per stored
+ * configuration. A non-empty `query` keeps the features that match it and their
+ * ancestors. `compare` names two configurations (by index) whose differences are marked. */
+export function configMatrix(
+    full: DiagramModelSchema,
+    collapsed: ReadonlySet<string>,
+    configs: readonly { selection: Record<string, boolean> }[],
+    query = '',
+    compare?: [number, number],
+): MatrixRow[] {
+    const shown = visibleModel(full, collapsed);
+    const parents = parentMap(full);
+    const depth = (id: string): number => {
+        let d = 0;
+        for (let p = parents.get(id); p !== undefined; p = parents.get(p)) {
+            d += 1;
+        }
+        return d;
+    };
+    let keep: Set<string> | null = null;
+    if (query.trim() !== '') {
+        keep = new Set();
+        for (const m of search(full, query)) {
+            keep.add(m.id);
+            for (let p = parents.get(m.id); p !== undefined; p = parents.get(p)) {
+                keep.add(p);
+            }
+        }
+    }
+    const rows: MatrixRow[] = [];
+    for (const n of featureNodes(shown)) {
+        if (keep && !keep.has(n.id)) {
+            continue;
+        }
+        const cells = configs.map(c => c.selection[n.ref]);
+        const differs = compare ? (cells[compare[0]] === true) !== (cells[compare[1]] === true) : false;
+        rows.push({ id: n.id, qname: n.ref, name: n.name, depth: depth(n.id), cells, differs });
+    }
+    return rows;
+}
+
+export interface Comparison {
+    onlyA: string[];
+    onlyB: string[];
+    both: number;
+    neither: number;
+}
+
+/** The features selected in `a` only, in `b` only, in both and in neither, over
+ * every feature of the model (a feature a configuration does not mention is off). */
+export function compareConfigs(full: DiagramModelSchema, a: Record<string, boolean>, b: Record<string, boolean>): Comparison {
+    const out: Comparison = { onlyA: [], onlyB: [], both: 0, neither: 0 };
+    for (const n of featureNodes(full)) {
+        const x = a[n.ref] === true;
+        const y = b[n.ref] === true;
+        if (x && y) {
+            out.both += 1;
+        } else if (x) {
+            out.onlyA.push(n.ref);
+        } else if (y) {
+            out.onlyB.push(n.ref);
+        } else {
+            out.neither += 1;
+        }
+    }
+    return out;
+}
+
+/** The glyph of a matrix cell. */
+export function cellGlyph(c: Cell): string {
+    return c === true ? '✓' : c === false ? '✗' : '·';
+}

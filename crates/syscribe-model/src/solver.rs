@@ -78,6 +78,35 @@ impl Solver {
         self.inner.solve_limited(&asm) == lbool::TRUE
     }
 
+    /// Solve under `assumptions` and return a model (a value for every variable) if satisfiable.
+    pub fn solve(&mut self, assumptions: &[Lit]) -> Option<Vec<bool>> {
+        if self.is_sat(assumptions) {
+            Some(self.model_bits())
+        } else {
+            None
+        }
+    }
+
+    /// The assumption variables the last UNSAT answer depended on (batsat's failed
+    /// assumptions). Precondition: the last solve under assumptions was UNSAT.
+    fn failed_vars(&self) -> Vec<usize> {
+        let core = self.inner.unsat_core();
+        self.vars.iter().enumerate().filter(|(_, v)| core.iter().any(|l| l.var() == **v)).map(|(i, _)| i).collect()
+    }
+
+    /// Solve under `assumptions`; when UNSAT, the variables of the assumptions that
+    /// were enough to refute it (not necessarily minimal).
+    pub fn solve_failed(&mut self, assumptions: &[Lit]) -> Result<(), Vec<usize>> {
+        if !self.ok {
+            return Err(Vec::new());
+        }
+        if self.is_sat(assumptions) {
+            Ok(())
+        } else {
+            Err(self.failed_vars())
+        }
+    }
+
     /// Model bit-vector over our variables. Precondition: the last solve was SAT.
     fn model_bits(&self) -> Vec<bool> {
         let gm = self.inner.get_model();

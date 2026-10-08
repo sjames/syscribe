@@ -20,7 +20,7 @@ Because the tool is qualification-targeted (ISO 26262-8 §11 / IEC 61508-3), the
 ### Scale target and bounded execution
 
 - The deep analysis **shall** comfortably analyze feature models of at least **~500 features** within interactive time (seconds) and modest memory — this is the supported working scale.
-- It **shall** guard against pathological blow-up: when a model exceeds a documented feature-count limit (default **1000**, comfortably above the ~500 target), the tool **shall** emit a clear diagnostic and **skip** the deep analysis gracefully (without hanging or exhausting memory) rather than attempt an unbounded computation. The limit **shall** be documented and **should** be overridable by an explicit flag.
+- It **shall** guard against pathological blow-up: when a model exceeds a documented feature-count limit (default **5000**, comfortably above the ~2,000 target; raised from 1000 once the analysis reused each satisfying model as a witness for every feature, `REQ-TRS-FMED-007`), the tool **shall** emit a clear diagnostic and **skip** the deep analysis gracefully (without hanging or exhausting memory) rather than attempt an unbounded computation. The limit **shall** be documented and **should** be overridable by an explicit flag.
 - A skipped deep analysis **shall not** be reported as a sound "model OK"; the diagnostic **shall** make the skip explicit.
 
 ### Scope boundary
@@ -33,4 +33,4 @@ Because the tool is qualification-targeted (ISO 26262-8 §11 / IEC 61508-3), the
 
 **Source:** ADR-FM-001; tool-qualification determinism/reproducibility obligations.
 
-**Acceptance criteria:** A synthetic model of ~500 features is **analyzed** (not skipped) and completes within interactive time, with correct results. Running the deep analysis twice on the same model yields byte-identical findings and explanations. A build of the tool requires no external solver binary or network access. A model exceeding the documented limit (1000) produces an explicit "deep analysis skipped" diagnostic and a non-hanging exit, not a false "OK". Documentation and `--json` clearly scope the result to the Boolean layer.
+**Acceptance criteria:** A synthetic model of ~500 features is **analyzed** (not skipped) and completes within interactive time, with correct results. Running the deep analysis twice on the same model yields byte-identical findings and explanations. A build of the tool requires no external solver binary or network access. A model exceeding the documented limit (5000) produces an explicit "deep analysis skipped" diagnostic and a non-hanging exit, not a false "OK". Documentation and `--json` clearly scope the result to the Boolean layer.

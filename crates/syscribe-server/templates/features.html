@@ -5,8 +5,10 @@
     <h1>Features</h1>
     <input id="fm-search" type="search" placeholder="Find a feature (name or id)" autocomplete="off">
     <button class="canvas-btn" id="fm-collapse" title="Show only the root features">Collapse all</button>
+    <button class="canvas-btn" id="fm-expand-level" title="Open one more level of the tree">Expand level</button>
     <button class="canvas-btn" id="fm-expand" title="Expand every subtree">Expand all</button>
     <button class="canvas-btn" id="fm-fit" title="Fit the whole model in the window">Fit</button>
+    <button class="canvas-btn" id="fm-matrix" title="Features against configurations" aria-pressed="false">Matrix</button>
     <button class="canvas-btn" id="fm-edit" title="Change the feature model" aria-pressed="false">Edit</button>
     <button class="canvas-btn" id="fm-undo" title="Undo (Ctrl+Z)" disabled hidden>&#x21B6; Undo</button>
     <button class="canvas-btn" id="fm-redo" title="Redo (Ctrl+Shift+Z)" disabled hidden>&#x21B7; Redo</button>
@@ -23,6 +25,7 @@
     <div id="fm-canvas">
       <div id="fm-host"></div>
       <div id="fm-empty" hidden>This model has no feature definitions.</div>
+      <div id="fm-matrix-view" hidden></div>
     </div>
     <aside id="fm-side">
       <section id="fm-edit-panel" hidden></section>

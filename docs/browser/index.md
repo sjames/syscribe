@@ -43,6 +43,7 @@ All JavaScript (HTMX, Mermaid, the bundled diagram editor including `sprotty-elk
 | `POST /api/feature-model/configure` | Propagate a partial selection: state of every feature, conflict with its cause, product count, one completed product |
 | `GET /api/feature-model/configurations` | The stored `Configuration`s with their selections |
 | `POST /api/feature-model/edit` | One semantic edit (`add`, `remove`, `rename`, `setGroup`, `setMandatory`, `move`, `addConstraint`, `removeConstraint`), with the validity delta; `preview` and `acceptWorse` options; returns the undo operation |
+| `GET /api/feature-model/impact?feature=` | What a feature gates, who selects it, what depends on it |
 | `GET /api/feature-model/export?format=svg\\|plantuml\\|mermaid` | The feature diagram as a download |
 | `GET /planning` | The live planning dashboard page |
 | `GET /ui/planning/board?who=&done=` | HTMX — the board fragment the dashboard re-fetches |
@@ -144,7 +145,17 @@ Before anything is written the server compares the SAT analysis of the model wit
 
 Features defined as entries of a single-file `featureTree:` sheet take **Membership** and **Children are** edits; everything else on such a feature is refused with the sheet's file name, since the sheet is the place to edit it. Editing parameters is not yet offered.
 
-Impact analysis, configuration comparison and the feature-by-configuration matrix are the next phase (`docs/design/feature-model-editor.md`).
+### Impact
+
+Select a feature and the **Impact** section (`REQ-TRS-FMED-005`, `GET /api/feature-model/impact`) says what it affects: how many elements have an `appliesWhen:` that names it, grouped by type and listed with links into the model; how many more are conditioned only through a package that names it; which `Configuration`s select it and which deselect it; which features require or exclude it, and how many features hang below it. **What would removing it change?** previews the removal exactly as Edit would, without writing: the features that would become dead or false-optional, a model that would become void, the configurations that would stop being valid products.
+
+### Matrix and comparison
+
+**Matrix** (`REQ-TRS-FMED-006`) lists the features the diagram currently shows against every stored `Configuration`: ✓ chosen on, ✗ chosen off, · not mentioned. Collapsing a subtree in the diagram collapses its rows, and the search box keeps the rows that match and their ancestors. Pick two configurations at the top to **compare** them: rows where they differ are highlighted and the panel lists what only the first selects, what only the second selects, and how many features both or neither select. Click a row to inspect that feature.
+
+### Large models
+
+A model of 2,000 features and 300 constraints is analysed in about 0.2 s, a configurator click is answered in about 0.3 s, and the page paints in about a second (release server, `REQ-TRS-FMED-007`). The analysis limit is 5,000 features. A model of more than 60 features opens collapsed to two levels so only what is visible is laid out; **Expand level** opens one more level at a time and **Expand all** the lot. A diagram too wide to read at once (below 30% zoom) is shown from its first root at a readable zoom instead of fitted into an unreadable speck; search, collapse and the matrix are how a model that size is navigated.
 
 ## Planning dashboard
 

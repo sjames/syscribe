@@ -4,13 +4,16 @@
 
 ## Unreleased
 
-### Feature model viewer, configurator and editor (REQ-TRS-FMED-001 to -004)
+### Feature model viewer, configurator, editor and analysis (REQ-TRS-FMED-001 to -007)
 
 - **New:** `/features` (header link **Features**) shows the product line's feature model as a feature diagram in FODA notation: mandatory and optional marks, XOR and OR group wedges, `requires` and `excludes` constraints as curves, parameters inside the box. Parents are centred over their children and several trees sit side by side. Collapse and expand subtrees, search by name or id, fit to the window, and click a feature for its state, why, its constraints and its documentation.
 - **New:** the SAT analysis is overlaid on the diagram, live: core, dead and false-optional features are marked with the constraints responsible, and a void model shows its conflict and the corrections that would fix it. `GET /api/feature-model/analysis` returns the same data.
 - **New:** `diagramKind: FeatureModel` draws the same diagram from a `Diagram` element (subject: a feature, a feature-model sheet or a package of features), exportable as SVG, PlantUML and Mermaid with `diagram export` and from the page; **+ Diagram** offers it.
 - **New:** a **Configure** mode turns the diagram into a configurator: click to select, deselect or leave open; the model propagates the consequences at once (implied features shown as rings), counts the valid products that remain, and refuses a choice nothing can satisfy with the choices and constraints at fault. Load a stored `Configuration`, or save the completed product as a new one (REQ-TRS-FMED-003).
 - **New:** an **Edit** mode changes the feature model from the diagram: rename, mandatory or optional, XOR/OR/free groups, add and remove features and `requires`/`excludes` constraints, move a feature under another or drag it there. Every edit goes through the guarded-write engine and is checked first: one that makes a feature dead, forced on, the model void or a configuration invalid is held with the exact consequences until you confirm. Undo and redo for the session (REQ-TRS-FMED-004).
+- **New:** selecting a feature shows its **Impact**: the elements whose `appliesWhen:` names it by type (and through which packages), the configurations that select or deselect it, what requires or excludes it, and a preview of what removing it would break (REQ-TRS-FMED-005).
+- **New:** a **Matrix** of features against every stored configuration, with a two-way **comparison** that highlights where two configurations differ (REQ-TRS-FMED-006).
+- **Changed:** the feature analysis handles 5,000 features, up from 1,000, and is several times faster: each satisfying model witnesses every feature at once instead of one solver call per feature and direction, and an unsatisfiable core is found on one incremental solver instead of rebuilding it per constraint. A 2,000-feature model is analysed in about 0.2 s and a configurator click answered in about 0.3 s. **Expand level** opens a large model one level at a time, and a diagram too wide to read is shown from its first root instead of as a speck (REQ-TRS-FMED-007).
 - **Fixed:** moving or renaming an element (`syscribe mv`, MCP `move_element`) did not rewrite qualified names used as **map keys**, so a `Configuration`'s `features:` and `parameterBindings:` still named the old feature.
 - **Fixed:** `feature-check --deep` reported a mandatory feature with the default group kind as false-optional (`W018`). Only an optional member can be false-optional.
 

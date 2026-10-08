@@ -242,4 +242,81 @@ scenario('descendants are found through the tree edges at any depth', () => {
     assert.deepEqual([...core.descendantIds(model, 'petrol')], []);
 });
 
+scenario('the roots are the features no tree edge points at', () => {
+    assert.deepEqual(core.rootIds(model), ['car']);
+    const forest = { ...model, children: [...model.children, feat('bike', 'Bike')] };
+    assert.deepEqual(core.rootIds(forest), ['car', 'bike']);
+});
+
+scenario('expanding a level opens the collapsed features nearest the roots only', () => {
+    assert.deepEqual([...core.expandOneLevel(model, new Set(['car', 'engine']))], ['engine']);
+    assert.deepEqual([...core.expandOneLevel(model, new Set(['engine']))], []);
+    assert.deepEqual([...core.expandOneLevel(model, new Set())], []);
+});
+
+scenario('a diagram too wide to read is shown from its first root, a normal one fitted whole', () => {
+    const row = n => new Map(Array.from({ length: n }, (_, i) => [`n${i}`, { x: i * 200, y: 0, w: 160, h: 40 }]));
+    assert.equal(core.viewMode(row(5), { width: 1100, height: 600 }), 'fit');
+    assert.equal(core.viewMode(row(10), { width: 1100, height: 600 }), 'fit', 'ten across fits at about half size');
+    assert.equal(core.viewMode(row(30), { width: 1100, height: 600 }), 'roots', 'thirty across would be an unreadable 18%');
+    assert.equal(core.viewMode(row(2000), { width: 1100, height: 600 }), 'roots');
+    assert.equal(core.viewMode(new Map(), { width: 1100, height: 600 }), 'fit');
+    assert.equal(core.viewMode(row(5), { width: 0, height: 0 }), 'fit', 'an unmeasured viewport is not a reason to refuse');
+});
+
+const stored = (sel) => ({ selection: sel });
+
+scenario('the matrix has a row per shown feature in tree order, with each configuration\'s choice and the depth', () => {
+    const rows = core.configMatrix(model, new Set(), [stored({ 'F::Car': true, 'F::Petrol': true }), stored({ 'F::Car': true, 'F::Petrol': false })]);
+    assert.deepEqual(rows.map(r => r.id), ['car', 'engine', 'petrol', 'electric', 'charger']);
+    assert.deepEqual(rows.map(r => r.depth), [0, 1, 2, 2, 1]);
+    const petrol = rows.find(r => r.id === 'petrol');
+    assert.deepEqual(petrol.cells, [true, false]);
+    assert.deepEqual(rows.find(r => r.id === 'engine').cells, [undefined, undefined], 'not mentioned');
+});
+
+scenario('a collapsed subtree is not in the matrix and a query keeps matches with their ancestors', () => {
+    const rows = core.configMatrix(model, new Set(['engine']), [stored({})]);
+    assert.deepEqual(rows.map(r => r.id), ['car', 'engine', 'charger']);
+    const found = core.configMatrix(model, new Set(), [stored({})], 'petrol');
+    assert.deepEqual(found.map(r => r.id), ['car', 'engine', 'petrol']);
+    assert.deepEqual(core.configMatrix(model, new Set(), [stored({})], 'nothing here').map(r => r.id), []);
+});
+
+scenario('the matrix marks the features two compared configurations disagree on, unmentioned meaning off', () => {
+    const rows = core.configMatrix(model, new Set(), [stored({ 'F::Car': true, 'F::Petrol': true }), stored({ 'F::Car': true, 'F::Electric': true })], '', [0, 1]);
+    const differing = rows.filter(r => r.differs).map(r => r.id);
+    assert.deepEqual(differing, ['petrol', 'electric']);
+});
+
+scenario('comparing two configurations lists what only one selects and counts the rest', () => {
+    const c = core.compareConfigs(model, { 'F::Car': true, 'F::Petrol': true, 'F::Charger': false }, { 'F::Car': true, 'F::Electric': true, 'F::Charger': true });
+    assert.deepEqual(c.onlyA, ['F::Petrol']);
+    assert.deepEqual(c.onlyB, ['F::Electric', 'F::Charger']);
+    assert.equal(c.both, 1);
+    assert.equal(c.neither, 1, 'Engine is in neither');
+});
+
+scenario('a cell reads as tick, cross or dot', () => {
+    assert.equal(core.cellGlyph(true), '✓');
+    assert.equal(core.cellGlyph(false), '✗');
+    assert.equal(core.cellGlyph(undefined), '·');
+});
+
+scenario('the impact summary says what a feature gates, who selects it and what depends on it', () => {
+    const i = {
+        found: true,
+        gates: { direct: 3, byType: [{ type: 'PartDef', count: 2, elements: [] }, { type: 'Requirement', count: 1, elements: [] }], inheritedThroughPackages: [{ package: 'P', elements: 4 }] },
+        selectedBy: [{ qname: 'C::A', name: 'A' }], deselectedBy: [], requiredBy: [{ qname: 'F::E', name: 'Electric' }], excludedBy: [], descendants: 2,
+    };
+    assert.deepEqual(core.impactSummary(i), [
+        'Gates 3 elements directly (2 PartDef, 1 Requirement) and 4 more through 1 package.',
+        'Selected by 1 configuration, deselected by 0.',
+        'Required by Electric.',
+        '2 features below it.',
+    ]);
+    assert.equal(core.impactSummary({ found: true, gates: { direct: 0, byType: [], inheritedThroughPackages: [] }, selectedBy: [], deselectedBy: [] })[0], 'Gates no element: nothing has an appliesWhen that names it.');
+    assert.deepEqual(core.impactSummary({ found: false }), []);
+});
+
 console.log(`feature-core: ok (${n} scenarios)`);

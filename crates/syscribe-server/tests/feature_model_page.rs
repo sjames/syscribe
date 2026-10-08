@@ -82,7 +82,7 @@ async fn json(root: &Path, uri: &str) -> Value {
 async fn the_page_is_served_with_its_script_toolbar_and_live_badge() {
     let (status, _, html) = get(&healthy(), "/features").await;
     assert_eq!(status, StatusCode::OK);
-    for id in ["fm-host", "fm-canvas", "fm-search", "fm-collapse", "fm-expand", "fm-fit", "fm-banner", "fm-summary", "fm-selected", "fm-live", "fm-empty", "fm-configure", "fm-config", "fm-edit", "fm-undo", "fm-redo", "fm-edit-panel", "fm-confirm", "fm-toast"] {
+    for id in ["fm-host", "fm-canvas", "fm-search", "fm-collapse", "fm-expand", "fm-fit", "fm-banner", "fm-summary", "fm-selected", "fm-live", "fm-empty", "fm-configure", "fm-config", "fm-expand-level", "fm-matrix", "fm-matrix-view", "fm-edit", "fm-undo", "fm-redo", "fm-edit-panel", "fm-confirm", "fm-toast"] {
         assert!(html.contains(&format!("id=\"{id}\"")), "#{id} is in the page: {html}");
     }
     assert!(html.contains("/static/js/feature-model.js"), "{html}");
@@ -241,4 +241,22 @@ async fn a_saved_completion_is_a_valid_configuration_the_analysis_accepts() {
     let saved = list.as_array().unwrap().iter().find(|c| c["qname"] == "C::Saved").expect("the new configuration is listed");
     assert_eq!(saved["selection"]["F::Car::Engine::Electric"], true);
     assert_eq!(saved["selection"]["F::Car::Charger"], true, "the product includes what Electric requires");
+}
+
+#[tokio::test]
+async fn impact_lists_what_a_feature_gates_and_who_selects_it() {
+    let root = configurable();
+    write(&root, "P/_index.md", "---\ntype: Package\nname: P\n---\n");
+    write(&root, "P/Plug.md", "---\ntype: PartDef\nname: Plug\nappliesWhen: FEAT-CHARGER\n---\n");
+    let j = json(&root, "/api/feature-model/impact?feature=F::Car::Charger").await;
+    assert_eq!(j["found"], true, "{j}");
+    assert_eq!(j["gates"]["direct"], 1, "{j}");
+    assert_eq!(j["gates"]["byType"][0]["type"], "PartDef");
+    assert_eq!(j["gates"]["byType"][0]["elements"][0]["qname"], "P::Plug");
+    assert_eq!(j["requiredBy"][0]["name"], "Electric");
+    // By id, and a feature that exists nowhere.
+    let by_id = json(&root, "/api/feature-model/impact?feature=FEAT-ELECTRIC").await;
+    assert_eq!(by_id["selectedBy"][0]["id"], "CONF-FAST-001", "{by_id}");
+    assert_eq!(by_id["requires"][0]["name"], "Charger");
+    assert_eq!(json(&root, "/api/feature-model/impact?feature=Nope").await["found"], false);
 }

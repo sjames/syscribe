@@ -146,6 +146,19 @@ pub async fn edit(State(state): State<SharedState>, Json(req): Json<EditRequest>
     }))
 }
 
+#[derive(Deserialize)]
+pub struct ImpactQuery {
+    pub feature: String,
+}
+
+/// `GET /api/feature-model/impact?feature=<qname|id>` — what a feature gates (by
+/// `appliesWhen:`), which configurations select it and what depends on it
+/// (`REQ-TRS-FMED-005`). Read-only.
+pub async fn impact(State(state): State<SharedState>, Query(q): Query<ImpactQuery>) -> Json<Value> {
+    let store = state.read().await;
+    Json(syscribe_model::feature_model::impact_json(&store.elements, &q.feature))
+}
+
 /// `GET /api/feature-model/export?format=svg|plantuml|mermaid[&root=<qname>]`.
 pub async fn export(State(state): State<SharedState>, Query(q): Query<ExportQuery>) -> Response {
     let store = state.read().await;

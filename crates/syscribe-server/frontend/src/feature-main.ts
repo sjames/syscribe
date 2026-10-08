@@ -12,6 +12,9 @@ import {
     applyAnalysis,
     applyConfiguration,
     bannerText,
+    cellGlyph,
+    compareConfigs,
+    configMatrix,
     collapseBelow,
     configCounts,
     ConfigureResult,
@@ -24,15 +27,20 @@ import {
     EditHistory,
     EditOp,
     EditResult,
+    expandOneLevel,
     FeatureAnalysis,
     featureNodes,
+    ImpactResult,
+    impactSummary,
     nextChoice,
     productsText,
     revealing,
+    rootIds,
     search,
     shapeId,
     StoredConfiguration,
     summaryLines,
+    viewMode,
     visibleModel,
     withChoice,
 } from './feature-core';
@@ -85,6 +93,8 @@ class FeaturePage {
     private loaded = '';
     private downAt: { x: number; y: number } | null = null;
     private editMode = false;
+    private matrixMode = false;
+    private compare: [number, number] = [0, 1];
     private readonly history = new EditHistory();
     private boxes = new Map<string, { x: number; y: number; w: number; h: number }>();
     private toastTimer = 0;
@@ -111,10 +121,25 @@ class FeaturePage {
             void this.render(true);
         });
         byId('fm-fit').addEventListener('click', () => void this.fit());
+        byId('fm-expand-level').addEventListener('click', () => {
+            if (this.full) {
+                this.collapsed = expandOneLevel(this.full, this.collapsed);
+                void this.render(true);
+            }
+        });
         byId('fm-configure').addEventListener('click', () => void this.setConfigMode(!this.configMode));
         byId('fm-edit').addEventListener('click', () => void this.setEditMode(!this.editMode));
+        byId('fm-matrix').addEventListener('click', () => this.setMatrixMode(!this.matrixMode));
+        byId('fm-matrix-view').addEventListener('click', ev => this.onMatrixClick(ev));
+        byId('fm-matrix-view').addEventListener('change', ev => this.onMatrixChange(ev));
         byId('fm-undo').addEventListener('click', () => void this.undo());
         byId('fm-redo').addEventListener('click', () => void this.redo());
+        byId('fm-selected').addEventListener('click', ev => {
+            const b = (ev.target as Element).closest('button[data-impact="removal"]') as HTMLButtonElement | null;
+            if (b) {
+                void this.previewRemoval(b.dataset.feature ?? '', b.dataset.subtree === 'true');
+            }
+        });
         byId('fm-edit-panel').addEventListener('click', ev => this.onEditPanel(ev));
         byId('fm-edit-panel').addEventListener('change', ev => this.onEditChange(ev));
         document.addEventListener('keydown', ev => this.onKey(ev));
@@ -216,6 +241,9 @@ class FeaturePage {
         }
         this.showSelected();
         this.renderEditPanel();
+        if (this.matrixMode) {
+            this.renderMatrix();
+        }
     }
     private firstRender = true;
 
@@ -614,7 +642,126 @@ class FeaturePage {
         }
     }
 
+    // -----------------------------------------------------------------
+    // Matrix and comparison (REQ-TRS-FMED-006)
+    // -----------------------------------------------------------------
+
+    private setMatrixMode(on: boolean): void {
+        this.matrixMode = on;
+        const btn = byId('fm-matrix');
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-pressed', String(on));
+        byId('fm-matrix-view').hidden = !on;
+        if (on) {
+            this.renderMatrix();
+        }
+    }
+
+    private renderMatrix(): void {
+        const pane = byId('fm-matrix-view');
+        if (!this.full) {
+            return;
+        }
+        if (this.stored.length === 0) {
+            pane.innerHTML = '<p class="detail-empty">This model has no Configurations to compare. Use Configure to make one.</p>';
+            return;
+        }
+        const query = byId<HTMLInputElement>('fm-search').value;
+        const [ia, ib] = [Math.min(this.compare[0], this.stored.length - 1), Math.min(this.compare[1], this.stored.length - 1)];
+        const rows = configMatrix(this.full, this.collapsed, this.stored, query, [ia, ib]);
+        const opts = (sel: number): string => this.stored.map((s, i) => `<option value="${i}"${i === sel ? ' selected' : ''}>${esc(s.id ?? s.name)}</option>`).join('');
+        const diff = compareConfigs(this.full, this.stored[ia].selection, this.stored[ib].selection);
+        const list = (qs: string[]): string => (qs.length ? qs.map(q => esc(this.nameOf(q))).join(', ') : 'nothing');
+        const head = this.stored.map(s => `<th title="${esc(s.name)}">${esc(s.id ?? s.name)}</th>`).join('');
+        const body = rows
+            .map(r => {
+                const cells = r.cells.map(c => `<td class="fm-mx-cell ${c === true ? 'fm-mx-on' : c === false ? 'fm-mx-off' : ''}">${cellGlyph(c)}</td>`).join('');
+                return `<tr class="${r.differs ? 'fm-mx-differs' : ''}${r.id === this.selected ? ' fm-mx-sel' : ''}" data-id="${esc(r.id)}"><td class="fm-mx-name" style="padding-left:${8 + r.depth * 14}px">${esc(r.name)}</td>${cells}</tr>`;
+            })
+            .join('');
+        pane.innerHTML = `
+          <div class="fm-mx-controls">
+            <b>Compare</b>
+            <select id="fm-mx-a">${opts(ia)}</select> with <select id="fm-mx-b">${opts(ib)}</select>
+            <span>${rows.length} of ${featureNodes(this.full).length} features shown; a row is highlighted where the two differ</span>
+          </div>
+          <div class="fm-mx-diff">
+            <div><b>Only in ${esc(this.stored[ia].id ?? this.stored[ia].name)}:</b> ${list(diff.onlyA)}</div>
+            <div><b>Only in ${esc(this.stored[ib].id ?? this.stored[ib].name)}:</b> ${list(diff.onlyB)}</div>
+            <div>${diff.both} features in both, ${diff.neither} in neither.</div>
+          </div>
+          <table class="fm-mx"><thead><tr><th class="fm-mx-name">Feature</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
+    }
+
+    private onMatrixClick(ev: MouseEvent): void {
+        const row = (ev.target as Element).closest('tr[data-id]');
+        if (row) {
+            this.selected = row.getAttribute('data-id');
+            this.showSelected();
+            this.renderEditPanel();
+            this.renderMatrix();
+        }
+    }
+
+    private onMatrixChange(ev: Event): void {
+        const t = ev.target as HTMLSelectElement;
+        if (t.id === 'fm-mx-a') {
+            this.compare = [Number(t.value), this.compare[1]];
+        } else if (t.id === 'fm-mx-b') {
+            this.compare = [this.compare[0], Number(t.value)];
+        } else {
+            return;
+        }
+        this.renderMatrix();
+    }
+
+    // -----------------------------------------------------------------
+    // Impact (REQ-TRS-FMED-005)
+    // -----------------------------------------------------------------
+
+    private renderImpact(i: ImpactResult, node: SysmlNodeSchema): string {
+        const link = (e: { qname: string; name: string }): string =>
+            `<li><a href="#" hx-get="/ui/detail/${e.qname.split('::').map(encodeURIComponent).join('/')}" hx-target="#modal-content" hx-swap="innerHTML">${esc(e.name)}</a></li>`;
+        const lines = impactSummary(i).map(l => `<div class="fm-impact-line">${esc(l)}</div>`).join('');
+        const gated = (i.gates?.byType ?? [])
+            .map(t => `<details><summary>${t.count} ${esc(t.type)}</summary><ul>${t.elements.map(link).join('')}${t.count > t.elements.length ? `<li>and ${t.count - t.elements.length} more</li>` : ''}</ul></details>`)
+            .join('');
+        const configs = (title: string, list: { qname: string; name: string }[] | undefined): string =>
+            list && list.length ? `<details><summary>${title} (${list.length})</summary><ul>${list.map(link).join('')}</ul></details>` : '';
+        return `<div class="fm-impact"><div class="detail-section-label">Impact</div>${lines}${gated}${configs('Selected by', i.selectedBy)}${configs('Deselected by', i.deselectedBy)}
+          <button data-impact="removal" data-feature="${esc(node.ref)}" data-subtree="${(i.descendants ?? 0) > 0}">What would removing it change?</button><div class="fm-removal" id="fm-removal"></div></div>`;
+    }
+
+    private async previewRemoval(feature: string, subtree: boolean): Promise<void> {
+        const out = document.getElementById('fm-removal');
+        if (!out) {
+            return;
+        }
+        out.textContent = 'Checking…';
+        const resp = await fetch('/api/feature-model/edit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ edit: { op: 'remove', feature, subtree }, preview: true }),
+        });
+        const r = (await resp.json()) as EditResult;
+        if (!r.delta) {
+            out.textContent = r.reason ?? 'It cannot be removed.';
+            return;
+        }
+        const lines = deltaLines(r.delta, q => this.nameOf(q));
+        const after = r.delta.countsAfter;
+        out.innerHTML = (lines.length ? lines.map(l => `<div>${esc(l)}</div>`).join('') : '<div>The model stays valid: nothing becomes dead, forced or void.</div>') + `<div>${after.features} features would remain.</div>`;
+    }
+
     private async fit(): Promise<void> {
+        const canvas = byId('fm-canvas');
+        const roots = this.full ? rootIds(this.full) : [];
+        if (viewMode(this.boxes, { width: canvas.clientWidth, height: canvas.clientHeight }) === 'roots' && roots.length > 0) {
+            // Too wide to read at once: start at the first root and let the user zoom, pan and search.
+            await this.dispatcher.dispatch(CenterAction.create([roots[0]], { animate: false, zoomScale: 0.6 }));
+            this.toast('This model is too wide to read at once. Zoom and pan, search for a feature, or collapse subtrees.');
+            return;
+        }
         await this.dispatcher.dispatch(FitToScreenAction.create([], { padding: 30, maxZoom: 1.2 }));
     }
 
@@ -643,6 +790,10 @@ class FeaturePage {
 
     private onSearch(query: string): void {
         if (!this.full) {
+            return;
+        }
+        if (this.matrixMode) {
+            this.renderMatrix();
             return;
         }
         this.matches = search(this.full, query);
@@ -709,9 +860,19 @@ class FeaturePage {
         if (ex.length) {
             rows.push(`<div class="fm-meta">excludes ${ex.map(esc).join(', ')}</div>`);
         }
-        pane.innerHTML = `<div class="detail-name">${esc(node.name)}</div><div class="detail-qname">${esc(node.ref)}</div>${rows.join('')}<div id="fm-card"></div>`;
-        const url = '/ui/element-card/' + node.ref.split('::').map(encodeURIComponent).join('/');
+        // The element card below carries the name, type, path and documentation; this is what the analysis adds.
+        pane.innerHTML = `${rows.join('')}<div id="fm-card"></div>`;
         const wanted = node.id;
+        void fetch('/api/feature-model/impact?feature=' + encodeURIComponent(node.ref))
+            .then(r => r.json() as Promise<ImpactResult>)
+            .then(impact => {
+                const card = document.getElementById('fm-card');
+                if (card && this.selected === wanted && impact.found) {
+                    card.insertAdjacentHTML('beforebegin', this.renderImpact(impact, node));
+                    (window as unknown as { htmx?: { process(el: Element): void } }).htmx?.process(byId('fm-selected'));
+                }
+            });
+        const url = '/ui/element-card/' + node.ref.split('::').map(encodeURIComponent).join('/');
         void fetch(url)
             .then(r => r.text())
             .then(html => {

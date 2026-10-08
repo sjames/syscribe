@@ -716,7 +716,7 @@ pub fn check_feature_model(elements: &[RawElement]) -> Vec<Finding> {
 
 /// Conservative size guard (REQ-TRS-FMA-006): above this feature count the deep
 /// analysis is skipped with a diagnostic rather than risking blow-up.
-pub const MAX_DEEP_FEATURES: usize = 1000;
+pub const MAX_DEEP_FEATURES: usize = 5000;
 
 /// Structured result of the deep analysis.
 pub struct DeepReport {
@@ -791,13 +791,44 @@ impl Encoding {
     /// remains unsatisfiable (under `assumptions`) but where dropping any member
     /// becomes satisfiable. Assumes the full set is already unsatisfiable.
     fn unsat_core(&self, assumptions: &[Lit]) -> Vec<usize> {
-        let mut keep: Vec<usize> = (0..self.cons.len()).collect();
-        for i in 0..self.cons.len() {
-            let trial: Vec<usize> = keep.iter().copied().filter(|&x| x != i).collect();
-            if !crate::solver::is_sat(&self.cnf_subset(&trial), assumptions) {
-                keep = trial;
+        // One persistent solver with a selector variable per constraint (a clause
+        // is only binding while its selector is assumed true). The solver's own
+        // failed-assumption set is a small starting core; deletion then drops
+        // every constraint that is not needed, each drop one incremental solve.
+        let n = self.names.len();
+        let mut cnf = Cnf::new(n + self.cons.len());
+        for (c, con) in self.cons.iter().enumerate() {
+            for cl in &con.clauses {
+                let mut cl = cl.clone();
+                cl.push(Lit::neg(n + c));
+                cnf.add(cl);
             }
         }
+        let mut solver = crate::solver::Solver::from_cnf(&cnf);
+        let with = |sel: &[usize]| -> Vec<Lit> {
+            let mut a: Vec<Lit> = sel.iter().map(|&c| Lit::pos(n + c)).collect();
+            a.extend_from_slice(assumptions);
+            a
+        };
+        let all: Vec<usize> = (0..self.cons.len()).collect();
+        let mut keep: Vec<usize> = match solver.solve_failed(&with(&all)) {
+            Ok(()) => return all, // not unsatisfiable: the contract was broken; every constraint is the honest answer
+            Err(failed) => failed.into_iter().filter(|v| *v >= n).map(|v| v - n).collect(),
+        };
+        if keep.is_empty() {
+            // Unsatisfiable on the user's assumptions alone (or the solver gave no core).
+            return if solver.is_sat(&with(&[])) { all } else { Vec::new() };
+        }
+        let mut i = 0;
+        while i < keep.len() {
+            let trial: Vec<usize> = keep.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, c)| *c).collect();
+            if !solver.is_sat(&with(&trial)) {
+                keep = trial;
+            } else {
+                i += 1;
+            }
+        }
+        keep.sort_unstable();
         keep
     }
     fn core_labels(&self, core: &[usize]) -> String {
@@ -1093,11 +1124,11 @@ pub fn analysis_json(elements: &[RawElement]) -> serde_json::Value {
         l.dedup();
         l
     };
-    let mut sat = crate::solver::Solver::from_cnf(&enc.cnf());
+    let mut sat = Probe::new(&enc.cnf());
     let mut features = serde_json::Map::new();
     let (mut dead, mut core_n, mut false_opt) = (0usize, 0usize, 0usize);
 
-    if !sat.is_sat(&[]) {
+    if !sat.sat(&[]) {
         let conflicts = labels(&enc.unsat_core(&[]));
         for n in &enc.names {
             features.insert(n.clone(), json!({ "state": "dead", "reasons": ["the feature model is void"] }));
@@ -1111,12 +1142,12 @@ pub fn analysis_json(elements: &[RawElement]) -> serde_json::Value {
 
     let mut dead_set: HashSet<&str> = HashSet::new();
     for (i, name) in enc.names.iter().enumerate() {
-        if !sat.is_sat(&[Lit::pos(i)]) {
+        if !sat.sat(&[Lit::pos(i)]) {
             dead_set.insert(name.as_str());
             dead += 1;
             let reasons = labels(&enc.unsat_core(&[Lit::pos(i)]));
             features.insert(name.clone(), json!({ "state": "dead", "reasons": reasons }));
-        } else if !sat.is_sat(&[Lit::neg(i)]) {
+        } else if !sat.sat(&[Lit::neg(i)]) {
             core_n += 1;
             features.insert(name.clone(), json!({ "state": "core", "core": true, "reasons": [] }));
         }
@@ -1130,7 +1161,7 @@ pub fn analysis_json(elements: &[RawElement]) -> serde_json::Value {
             Some(p) => vec![Lit::pos(enc.var_of[&p]), Lit::neg(i)],
             None => vec![Lit::neg(i)],
         };
-        if !sat.is_sat(&cond) {
+        if !sat.sat(&cond) {
             false_opt += 1;
             let reasons = labels(&enc.unsat_core(&cond));
             // A false-optional feature is also core (selected in every product): state
@@ -1532,6 +1563,45 @@ pub fn configure(elements: &[RawElement], conf: &str) -> ConfigureOutcome {
     }
 }
 
+/// A solver that remembers the models it has found, so a question some earlier
+/// model already answers ("can this feature be on while its parent is?") costs a
+/// scan instead of a solve. Each satisfying answer witnesses every feature at
+/// once, so a model of thousands of features needs a handful of solves rather
+/// than two per feature (`REQ-TRS-FMED-007`).
+struct Probe {
+    sat: crate::solver::Solver,
+    models: Vec<Vec<bool>>,
+}
+
+impl Probe {
+    const KEEP: usize = 256;
+
+    fn new(cnf: &Cnf) -> Probe {
+        Probe { sat: crate::solver::Solver::from_cnf(cnf), models: Vec::new() }
+    }
+
+    fn witnessed(&self, assumptions: &[Lit]) -> bool {
+        self.models.iter().any(|m| assumptions.iter().all(|l| m[l.var] != l.neg))
+    }
+
+    /// Satisfiable under `assumptions`?
+    fn sat(&mut self, assumptions: &[Lit]) -> bool {
+        if self.witnessed(assumptions) {
+            return true;
+        }
+        match self.sat.solve(assumptions) {
+            Some(m) => {
+                if self.models.len() >= Probe::KEEP {
+                    self.models.remove(0);
+                }
+                self.models.push(m);
+                true
+            }
+            None => false,
+        }
+    }
+}
+
 // ── Interactive configuration (REQ-TRS-FMED-003) ─────────────────────────────
 
 /// The package the feature definitions live in, for a new `Configuration`'s
@@ -1604,16 +1674,16 @@ pub fn configure_selection(elements: &[RawElement], selection: &std::collections
     chosen.dedup();
     let lit = |(i, v): (usize, bool)| if v { Lit::pos(i) } else { Lit::neg(i) };
     let assumptions: Vec<Lit> = chosen.iter().map(|c| lit(*c)).collect();
-    let mut sat = crate::solver::Solver::from_cnf(&enc.cnf());
+    let mut sat = Probe::new(&enc.cnf());
     let package = feature_model_package(&enc);
 
-    if !sat.is_sat(&assumptions) {
+    if !sat.sat(&assumptions) {
         // The smallest clashing subset of the user's choices, then the constraints they clash with.
         let mut keep = chosen.clone();
         let mut i = 0;
         while i < keep.len() {
             let trial: Vec<Lit> = keep.iter().enumerate().filter(|(j, _)| *j != i).map(|(_, c)| lit(*c)).collect();
-            if !sat.is_sat(&trial) {
+            if !sat.sat(&trial) {
                 keep.remove(i);
             } else {
                 i += 1;
@@ -1645,12 +1715,12 @@ pub fn configure_selection(elements: &[RawElement], selection: &std::collections
             None => {
                 let mut a = assumptions.clone();
                 a.push(Lit::neg(i));
-                if !sat.is_sat(&a) {
+                if !sat.sat(&a) {
                     "forcedOn"
                 } else {
                     let mut a = assumptions.clone();
                     a.push(Lit::pos(i));
-                    if !sat.is_sat(&a) { "forcedOff" } else { "free" }
+                    if !sat.sat(&a) { "forcedOff" } else { "free" }
                 }
             }
         };
@@ -1668,11 +1738,95 @@ pub fn configure_selection(elements: &[RawElement], selection: &std::collections
         }
         m
     };
-    let (count, capped) = count_products(&enc, &assumptions, 10_000, std::time::Duration::from_millis(400));
+    // A large model gets a short budget: the count is a nicety, the propagation above is the answer.
+    let budget = std::time::Duration::from_millis(if enc.names.len() > 300 { 120 } else { 400 });
+    let (count, capped) = count_products(&enc, &assumptions, 10_000, budget);
     json!({
         "hasFeatureModel": true, "satisfiable": true, "features": features, "conflict": null,
         "products": { "count": count, "capped": capped }, "completion": completion,
         "unknown": unknown, "skipped": null, "featureModel": package,
+    })
+}
+
+/// What a feature affects (`REQ-TRS-FMED-005`): the elements whose `appliesWhen:`
+/// names it (their own, grouped by type; and those conditioned only through a
+/// package that names it, counted per package), the configurations that select
+/// or deselect it, the features that require or exclude it and that it requires
+/// or excludes, and how much of the tree hangs below it. `found` is false when
+/// `feature` names no feature.
+pub fn impact_json(elements: &[RawElement], feature: &str) -> serde_json::Value {
+    use serde_json::json;
+    let tree = crate::feature_tree::feature_tree(elements);
+    let alias = crate::variability::feature_id_to_qname(elements);
+    let q = crate::variability::canon_feature_ref(feature, &alias).replace('/', "::");
+    let Some(f) = tree.iter().find(|f| f.qname == q) else {
+        return json!({ "found": false, "feature": feature });
+    };
+    let who = |e: &RawElement| json!({
+        "qname": e.qualified_name,
+        "id": e.frontmatter.id,
+        "name": e.frontmatter.name.clone().unwrap_or_else(|| e.qualified_name.rsplit("::").next().unwrap_or("").to_string()),
+    });
+
+    let pkg = crate::variability::package_conditions(elements);
+    let mut direct: std::collections::BTreeMap<String, Vec<serde_json::Value>> = std::collections::BTreeMap::new();
+    let mut via: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for e in elements {
+        if matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef) | Some(ElementType::Configuration)) {
+            continue;
+        }
+        let Some((value, source)) = crate::variability::effective_applies_when(e, &pkg) else { continue };
+        let Ok(Some(expr)) = crate::variability::applies_when_expr(&value) else { continue };
+        let names_it = expr.operands().iter().any(|o| crate::variability::canon_feature_ref(o, &alias) == q);
+        if !names_it {
+            continue;
+        }
+        match source {
+            None => direct.entry(e.frontmatter.element_type.as_ref().map(|t| t.name().to_string()).unwrap_or_else(|| "Unknown".to_string())).or_default().push(who(e)),
+            Some(p) => *via.entry(p).or_default() += 1,
+        }
+    }
+    const SHOWN: usize = 50;
+    let by_type: Vec<serde_json::Value> = direct
+        .into_iter()
+        .map(|(t, mut els)| {
+            els.sort_by(|a, b| a["qname"].as_str().cmp(&b["qname"].as_str()));
+            let count = els.len();
+            els.truncate(SHOWN);
+            json!({ "type": t, "count": count, "elements": els })
+        })
+        .collect();
+    let direct_total: usize = by_type.iter().map(|t| t["count"].as_u64().unwrap_or(0) as usize).sum();
+    let inherited: Vec<serde_json::Value> = via.iter().map(|(p, n)| json!({ "package": p, "elements": n })).collect();
+
+    let sel = |c: &RawElement| crate::variability::canon_selection(&c.frontmatter.feature_selections(), &alias);
+    let mut selected_by = Vec::new();
+    let mut deselected_by = Vec::new();
+    for c in elements.iter().filter(|e| is(e, ElementType::Configuration)) {
+        match sel(c).get(&q) {
+            Some(true) => selected_by.push(who(c)),
+            Some(false) => deselected_by.push(who(c)),
+            None => {}
+        }
+    }
+    let name_of = |qn: &String| tree.iter().find(|x| &x.qname == qn).map(|x| json!({ "qname": x.qname, "id": x.id, "name": x.name })).unwrap_or_else(|| json!({ "qname": qn }));
+    let required_by: Vec<serde_json::Value> = tree.iter().filter(|x| x.requires.contains(&q)).map(|x| name_of(&x.qname)).collect();
+    let excluded_by: Vec<serde_json::Value> = tree.iter().filter(|x| x.excludes.contains(&q)).map(|x| name_of(&x.qname)).collect();
+    fn below(tree: &[crate::feature_tree::FeatureNode], q: &str) -> usize {
+        tree.iter().filter(|x| x.parent.as_deref() == Some(q)).map(|x| 1 + below(tree, &x.qname)).sum()
+    }
+    json!({
+        "found": true,
+        "feature": { "qname": f.qname, "id": f.id, "name": f.name },
+        "gates": { "direct": direct_total, "byType": by_type, "inheritedThroughPackages": inherited },
+        "selectedBy": selected_by,
+        "deselectedBy": deselected_by,
+        "requires": f.requires.iter().map(name_of).collect::<Vec<_>>(),
+        "requiredBy": required_by,
+        "excludes": f.excludes.iter().map(name_of).collect::<Vec<_>>(),
+        "excludedBy": excluded_by,
+        "children": f.children.len(),
+        "descendants": below(&tree, &f.qname),
     })
 }
 
@@ -2036,6 +2190,37 @@ mod analysis_json_tests {
         assert_eq!(c["id"], "CONF-ONE");
         assert_eq!(c["selection"]["F::Car::Roof"], true, "a FEAT id key is canonicalised to the qualified name");
         assert_eq!(c["selection"]["F::Car::Charger"], false);
+    }
+
+    #[test]
+    fn impact_lists_what_a_feature_gates_who_selects_it_and_what_depends_on_it() {
+        let mut e = small();
+        let mut more = els(&[
+            ("_index.md", "---\ntype: Package\nname: R\n---\n"),
+            ("P/_index.md", "---\ntype: Package\nname: P\nappliesWhen: FEAT-CHARGER\n---\n"),
+            ("P/InPkg.md", "---\ntype: PartDef\nname: InPkg\n---\n"),
+            ("P/Other.md", "---\ntype: PartDef\nname: Other\n---\n"),
+            ("Q/Plug.md", "---\ntype: PartDef\nname: Plug\nappliesWhen: F::Car::Charger and not F::Car::Roof\n---\n"),
+            ("Q/Req.md", "---\ntype: Requirement\nid: REQ-IMP-001\nname: R\nstatus: draft\nreqDomain: software\nappliesWhen: FEAT-CHARGER\n---\nText.\n"),
+            ("Q/Unrelated.md", "---\ntype: PartDef\nname: Unrelated\nappliesWhen: F::Car::Roof\n---\n"),
+            ("C/CONF-A-001.md", "---\ntype: Configuration\nid: CONF-A-001\nname: A\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Car::Charger: true\n---\n"),
+            ("C/CONF-B-001.md", "---\ntype: Configuration\nid: CONF-B-001\nname: B\nstatus: draft\nfeatureModel: F\nfeatures:\n  FEAT-CHARGER: false\n---\n"),
+        ]);
+        e.append(&mut more);
+        let j = impact_json(&e, "FEAT-CHARGER");
+        assert_eq!(j["found"], true);
+        assert_eq!(j["feature"]["qname"], "F::Car::Charger");
+        assert_eq!(j["gates"]["direct"], 3, "the package that declares the condition, a part and a requirement: {j}");
+        let types: Vec<String> = j["gates"]["byType"].as_array().unwrap().iter().map(|t| format!("{}:{}", t["type"].as_str().unwrap(), t["count"])).collect();
+        assert_eq!(types, vec!["Package:1", "PartDef:1", "Requirement:1"], "{types:?}");
+        assert_eq!(j["gates"]["inheritedThroughPackages"], serde_json::json!([{ "package": "P", "elements": 2 }]), "the package's two members, not the package itself: {j}");
+        assert_eq!(j["selectedBy"][0]["id"], "CONF-A-001");
+        assert_eq!(j["deselectedBy"][0]["id"], "CONF-B-001");
+        assert_eq!(j["requiredBy"][0]["name"], "Electric", "{j}");
+        assert_eq!(j["children"], 0);
+        let car = impact_json(&e, "F::Car");
+        assert_eq!(car["descendants"], 5);
+        assert_eq!(impact_json(&e, "Nope")["found"], false);
     }
 
     #[test]

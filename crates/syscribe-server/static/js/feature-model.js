@@ -115692,6 +115692,127 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     walk(id);
     return out;
   }
+  function rootIds(model) {
+    const parents = parentMap(model);
+    return featureNodes(model).filter((n) => !parents.has(n.id)).map((n) => n.id);
+  }
+  function expandOneLevel(model, collapsed) {
+    const parents = parentMap(model);
+    const depth = (id) => {
+      let d3 = 0;
+      for (let p3 = parents.get(id); p3 !== void 0; p3 = parents.get(p3)) {
+        d3 += 1;
+      }
+      return d3;
+    };
+    const out = new Set(collapsed);
+    if (collapsed.size === 0) {
+      return out;
+    }
+    const shallowest = Math.min(...[...collapsed].map(depth));
+    for (const id of collapsed) {
+      if (depth(id) === shallowest) {
+        out.delete(id);
+      }
+    }
+    return out;
+  }
+  var MIN_READABLE_SCALE = 0.3;
+  function viewMode(boxes, viewport, padding = 30) {
+    if (boxes.size === 0 || viewport.width <= 0 || viewport.height <= 0) {
+      return "fit";
+    }
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const b3 of boxes.values()) {
+      minX = Math.min(minX, b3.x);
+      minY = Math.min(minY, b3.y);
+      maxX = Math.max(maxX, b3.x + b3.w);
+      maxY = Math.max(maxY, b3.y + b3.h);
+    }
+    const scale = Math.min(viewport.width / (maxX - minX + 2 * padding), viewport.height / (maxY - minY + 2 * padding));
+    return scale < MIN_READABLE_SCALE ? "roots" : "fit";
+  }
+  function impactSummary(i2) {
+    if (!i2.found) {
+      return [];
+    }
+    const out = [];
+    const inherited = (i2.gates?.inheritedThroughPackages ?? []).reduce((n, p3) => n + p3.elements, 0);
+    const direct = i2.gates?.direct ?? 0;
+    if (direct + inherited === 0) {
+      out.push("Gates no element: nothing has an appliesWhen that names it.");
+    } else {
+      const parts = (i2.gates?.byType ?? []).map((t3) => `${t3.count} ${t3.type}`);
+      out.push(`Gates ${direct} element${direct === 1 ? "" : "s"} directly (${parts.join(", ")})` + (inherited ? ` and ${inherited} more through ${i2.gates?.inheritedThroughPackages.length} package${i2.gates?.inheritedThroughPackages.length === 1 ? "" : "s"}.` : "."));
+    }
+    const sel = i2.selectedBy?.length ?? 0;
+    const desel = i2.deselectedBy?.length ?? 0;
+    out.push(`Selected by ${sel} configuration${sel === 1 ? "" : "s"}, deselected by ${desel}.`);
+    if (i2.requiredBy?.length) {
+      out.push(`Required by ${i2.requiredBy.map((f3) => f3.name).join(", ")}.`);
+    }
+    if (i2.excludedBy?.length) {
+      out.push(`Excluded by ${i2.excludedBy.map((f3) => f3.name).join(", ")}.`);
+    }
+    if (i2.descendants) {
+      out.push(`${i2.descendants} feature${i2.descendants === 1 ? "" : "s"} below it.`);
+    }
+    return out;
+  }
+  function configMatrix(full, collapsed, configs, query = "", compare) {
+    const shown = visibleModel(full, collapsed);
+    const parents = parentMap(full);
+    const depth = (id) => {
+      let d3 = 0;
+      for (let p3 = parents.get(id); p3 !== void 0; p3 = parents.get(p3)) {
+        d3 += 1;
+      }
+      return d3;
+    };
+    let keep = null;
+    if (query.trim() !== "") {
+      keep = /* @__PURE__ */ new Set();
+      for (const m3 of search(full, query)) {
+        keep.add(m3.id);
+        for (let p3 = parents.get(m3.id); p3 !== void 0; p3 = parents.get(p3)) {
+          keep.add(p3);
+        }
+      }
+    }
+    const rows = [];
+    for (const n of featureNodes(shown)) {
+      if (keep && !keep.has(n.id)) {
+        continue;
+      }
+      const cells = configs.map((c3) => c3.selection[n.ref]);
+      const differs = compare ? cells[compare[0]] === true !== (cells[compare[1]] === true) : false;
+      rows.push({ id: n.id, qname: n.ref, name: n.name, depth: depth(n.id), cells, differs });
+    }
+    return rows;
+  }
+  function compareConfigs(full, a3, b3) {
+    const out = { onlyA: [], onlyB: [], both: 0, neither: 0 };
+    for (const n of featureNodes(full)) {
+      const x3 = a3[n.ref] === true;
+      const y3 = b3[n.ref] === true;
+      if (x3 && y3) {
+        out.both += 1;
+      } else if (x3) {
+        out.onlyA.push(n.ref);
+      } else if (y3) {
+        out.onlyB.push(n.ref);
+      } else {
+        out.neither += 1;
+      }
+    }
+    return out;
+  }
+  function cellGlyph(c3) {
+    return c3 === true ? "\u2713" : c3 === false ? "\u2717" : "\xB7";
+  }
 
   // src/new-diagram.ts
   var BASIC_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -115751,6 +115872,8 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       this.loaded = "";
       this.downAt = null;
       this.editMode = false;
+      this.matrixMode = false;
+      this.compare = [0, 1];
       this.history = new EditHistory();
       this.boxes = /* @__PURE__ */ new Map();
       this.toastTimer = 0;
@@ -115773,10 +115896,25 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         void this.render(true);
       });
       byId("fm-fit").addEventListener("click", () => void this.fit());
+      byId("fm-expand-level").addEventListener("click", () => {
+        if (this.full) {
+          this.collapsed = expandOneLevel(this.full, this.collapsed);
+          void this.render(true);
+        }
+      });
       byId("fm-configure").addEventListener("click", () => void this.setConfigMode(!this.configMode));
       byId("fm-edit").addEventListener("click", () => void this.setEditMode(!this.editMode));
+      byId("fm-matrix").addEventListener("click", () => this.setMatrixMode(!this.matrixMode));
+      byId("fm-matrix-view").addEventListener("click", (ev) => this.onMatrixClick(ev));
+      byId("fm-matrix-view").addEventListener("change", (ev) => this.onMatrixChange(ev));
       byId("fm-undo").addEventListener("click", () => void this.undo());
       byId("fm-redo").addEventListener("click", () => void this.redo());
+      byId("fm-selected").addEventListener("click", (ev) => {
+        const b3 = ev.target.closest('button[data-impact="removal"]');
+        if (b3) {
+          void this.previewRemoval(b3.dataset.feature ?? "", b3.dataset.subtree === "true");
+        }
+      });
       byId("fm-edit-panel").addEventListener("click", (ev) => this.onEditPanel(ev));
       byId("fm-edit-panel").addEventListener("change", (ev) => this.onEditChange(ev));
       document.addEventListener("keydown", (ev) => this.onKey(ev));
@@ -115873,6 +116011,9 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       }
       this.showSelected();
       this.renderEditPanel();
+      if (this.matrixMode) {
+        this.renderMatrix();
+      }
     }
     // -----------------------------------------------------------------
     // The configurator (REQ-TRS-FMED-003)
@@ -116238,7 +116379,111 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         void this.runEdit({ op: "setGroup", feature: node.ref, groupKind: t3.value });
       }
     }
+    // -----------------------------------------------------------------
+    // Matrix and comparison (REQ-TRS-FMED-006)
+    // -----------------------------------------------------------------
+    setMatrixMode(on) {
+      this.matrixMode = on;
+      const btn = byId("fm-matrix");
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", String(on));
+      byId("fm-matrix-view").hidden = !on;
+      if (on) {
+        this.renderMatrix();
+      }
+    }
+    renderMatrix() {
+      const pane = byId("fm-matrix-view");
+      if (!this.full) {
+        return;
+      }
+      if (this.stored.length === 0) {
+        pane.innerHTML = '<p class="detail-empty">This model has no Configurations to compare. Use Configure to make one.</p>';
+        return;
+      }
+      const query = byId("fm-search").value;
+      const [ia, ib] = [Math.min(this.compare[0], this.stored.length - 1), Math.min(this.compare[1], this.stored.length - 1)];
+      const rows = configMatrix(this.full, this.collapsed, this.stored, query, [ia, ib]);
+      const opts = (sel) => this.stored.map((s3, i2) => `<option value="${i2}"${i2 === sel ? " selected" : ""}>${esc(s3.id ?? s3.name)}</option>`).join("");
+      const diff = compareConfigs(this.full, this.stored[ia].selection, this.stored[ib].selection);
+      const list = (qs) => qs.length ? qs.map((q2) => esc(this.nameOf(q2))).join(", ") : "nothing";
+      const head = this.stored.map((s3) => `<th title="${esc(s3.name)}">${esc(s3.id ?? s3.name)}</th>`).join("");
+      const body = rows.map((r3) => {
+        const cells = r3.cells.map((c3) => `<td class="fm-mx-cell ${c3 === true ? "fm-mx-on" : c3 === false ? "fm-mx-off" : ""}">${cellGlyph(c3)}</td>`).join("");
+        return `<tr class="${r3.differs ? "fm-mx-differs" : ""}${r3.id === this.selected ? " fm-mx-sel" : ""}" data-id="${esc(r3.id)}"><td class="fm-mx-name" style="padding-left:${8 + r3.depth * 14}px">${esc(r3.name)}</td>${cells}</tr>`;
+      }).join("");
+      pane.innerHTML = `
+          <div class="fm-mx-controls">
+            <b>Compare</b>
+            <select id="fm-mx-a">${opts(ia)}</select> with <select id="fm-mx-b">${opts(ib)}</select>
+            <span>${rows.length} of ${featureNodes(this.full).length} features shown; a row is highlighted where the two differ</span>
+          </div>
+          <div class="fm-mx-diff">
+            <div><b>Only in ${esc(this.stored[ia].id ?? this.stored[ia].name)}:</b> ${list(diff.onlyA)}</div>
+            <div><b>Only in ${esc(this.stored[ib].id ?? this.stored[ib].name)}:</b> ${list(diff.onlyB)}</div>
+            <div>${diff.both} features in both, ${diff.neither} in neither.</div>
+          </div>
+          <table class="fm-mx"><thead><tr><th class="fm-mx-name">Feature</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
+    }
+    onMatrixClick(ev) {
+      const row = ev.target.closest("tr[data-id]");
+      if (row) {
+        this.selected = row.getAttribute("data-id");
+        this.showSelected();
+        this.renderEditPanel();
+        this.renderMatrix();
+      }
+    }
+    onMatrixChange(ev) {
+      const t3 = ev.target;
+      if (t3.id === "fm-mx-a") {
+        this.compare = [Number(t3.value), this.compare[1]];
+      } else if (t3.id === "fm-mx-b") {
+        this.compare = [this.compare[0], Number(t3.value)];
+      } else {
+        return;
+      }
+      this.renderMatrix();
+    }
+    // -----------------------------------------------------------------
+    // Impact (REQ-TRS-FMED-005)
+    // -----------------------------------------------------------------
+    renderImpact(i2, node) {
+      const link = (e2) => `<li><a href="#" hx-get="/ui/detail/${e2.qname.split("::").map(encodeURIComponent).join("/")}" hx-target="#modal-content" hx-swap="innerHTML">${esc(e2.name)}</a></li>`;
+      const lines = impactSummary(i2).map((l3) => `<div class="fm-impact-line">${esc(l3)}</div>`).join("");
+      const gated = (i2.gates?.byType ?? []).map((t3) => `<details><summary>${t3.count} ${esc(t3.type)}</summary><ul>${t3.elements.map(link).join("")}${t3.count > t3.elements.length ? `<li>and ${t3.count - t3.elements.length} more</li>` : ""}</ul></details>`).join("");
+      const configs = (title, list) => list && list.length ? `<details><summary>${title} (${list.length})</summary><ul>${list.map(link).join("")}</ul></details>` : "";
+      return `<div class="fm-impact"><div class="detail-section-label">Impact</div>${lines}${gated}${configs("Selected by", i2.selectedBy)}${configs("Deselected by", i2.deselectedBy)}
+          <button data-impact="removal" data-feature="${esc(node.ref)}" data-subtree="${(i2.descendants ?? 0) > 0}">What would removing it change?</button><div class="fm-removal" id="fm-removal"></div></div>`;
+    }
+    async previewRemoval(feature, subtree) {
+      const out = document.getElementById("fm-removal");
+      if (!out) {
+        return;
+      }
+      out.textContent = "Checking\u2026";
+      const resp = await fetch("/api/feature-model/edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ edit: { op: "remove", feature, subtree }, preview: true })
+      });
+      const r3 = await resp.json();
+      if (!r3.delta) {
+        out.textContent = r3.reason ?? "It cannot be removed.";
+        return;
+      }
+      const lines = deltaLines(r3.delta, (q2) => this.nameOf(q2));
+      const after = r3.delta.countsAfter;
+      out.innerHTML = (lines.length ? lines.map((l3) => `<div>${esc(l3)}</div>`).join("") : "<div>The model stays valid: nothing becomes dead, forced or void.</div>") + `<div>${after.features} features would remain.</div>`;
+    }
     async fit() {
+      const canvas = byId("fm-canvas");
+      const roots = this.full ? rootIds(this.full) : [];
+      if (viewMode(this.boxes, { width: canvas.clientWidth, height: canvas.clientHeight }) === "roots" && roots.length > 0) {
+        await this.dispatcher.dispatch(import_sprotty_protocol2.CenterAction.create([roots[0]], { animate: false, zoomScale: 0.6 }));
+        this.toast("This model is too wide to read at once. Zoom and pan, search for a feature, or collapse subtrees.");
+        return;
+      }
       await this.dispatcher.dispatch(import_sprotty_protocol2.FitToScreenAction.create([], { padding: 30, maxZoom: 1.2 }));
     }
     toggle(id) {
@@ -116264,6 +116509,10 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     }
     onSearch(query) {
       if (!this.full) {
+        return;
+      }
+      if (this.matrixMode) {
+        this.renderMatrix();
         return;
       }
       this.matches = search(this.full, query);
@@ -116325,9 +116574,16 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       if (ex.length) {
         rows.push(`<div class="fm-meta">excludes ${ex.map(esc).join(", ")}</div>`);
       }
-      pane.innerHTML = `<div class="detail-name">${esc(node.name)}</div><div class="detail-qname">${esc(node.ref)}</div>${rows.join("")}<div id="fm-card"></div>`;
-      const url = "/ui/element-card/" + node.ref.split("::").map(encodeURIComponent).join("/");
+      pane.innerHTML = `${rows.join("")}<div id="fm-card"></div>`;
       const wanted = node.id;
+      void fetch("/api/feature-model/impact?feature=" + encodeURIComponent(node.ref)).then((r3) => r3.json()).then((impact) => {
+        const card = document.getElementById("fm-card");
+        if (card && this.selected === wanted && impact.found) {
+          card.insertAdjacentHTML("beforebegin", this.renderImpact(impact, node));
+          window.htmx?.process(byId("fm-selected"));
+        }
+      });
+      const url = "/ui/element-card/" + node.ref.split("::").map(encodeURIComponent).join("/");
       void fetch(url).then((r3) => r3.text()).then((html) => {
         const card = document.getElementById("fm-card");
         if (card && this.selected === wanted) {
