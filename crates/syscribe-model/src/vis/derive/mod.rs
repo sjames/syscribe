@@ -15,6 +15,7 @@
 pub mod action;
 pub mod allocation;
 pub mod bdd;
+pub mod feature;
 pub mod ibd;
 pub mod requirement;
 pub mod sequence;
@@ -99,6 +100,7 @@ pub fn derive(elem: &RawElement, kind: DiagramKind, elements: &[RawElement], res
             DiagramKind::Requirement => requirement::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
             DiagramKind::Sequence => sequence::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
             DiagramKind::Allocation => allocation::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
+            DiagramKind::FeatureModel => feature::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
             // UseCase and Custom have no generator.
             _ => {}
         }
@@ -218,6 +220,7 @@ pub(crate) fn block_node(
         is_abstract: e.frontmatter.is_abstract.unwrap_or(false),
         pin: None,
         banners: super::banners_of(e, elements, resolver),
+        feature: None,
     }
 }
 
@@ -238,6 +241,7 @@ pub(crate) fn port_node(id: String, owner_qname: &str, f: &Feature, parent: &str
         is_abstract: false,
         pin: None,
         banners: Vec::new(),
+        feature: None,
     }
 }
 

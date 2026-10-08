@@ -78,6 +78,7 @@ pub fn render_plantuml(
         DiagramKind::StateMachine => Some(render_state_machine(&graph, &file_stem, cfg)),
         DiagramKind::Sequence => Some(render_sequence(&graph, &file_stem, cfg)),
         DiagramKind::Requirement => Some(render_requirement(&graph, &file_stem, cfg)),
+        DiagramKind::FeatureModel => Some(render_feature_model(&graph, &file_stem, cfg)),
         DiagramKind::Allocation | DiagramKind::UseCase | DiagramKind::Action | DiagramKind::Custom => None,
     }
 }
@@ -505,6 +506,55 @@ fn requirement_connector(e: &Edge) -> (&'static str, &'static str) {
         EdgeKind::Containment => ("--", "contains"),
         other => ("-->", other.as_str()),
     }
+}
+
+/// The PlantUML text of a feature diagram built without a `Diagram` element
+/// (`/api/feature-model/export`).
+pub fn render_feature_model_plantuml(graph: &DiagramGraph, id: &str) -> String {
+    render_feature_model(graph, id, None)
+}
+
+/// A feature diagram (`REQ-TRS-FMED-001`): one rectangle per feature marked
+/// `<<mandatory>>`, `<<optional>>` and, for a group, `<<xor>>` or `<<or>>`;
+/// tree edges solid, `requires` a dashed arrow, `excludes` a dashed line.
+fn render_feature_model(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> String {
+    let mut out = String::new();
+    out.push_str(&format!("@startuml {}\n", id));
+    out.push_str(&style_preamble(cfg));
+    out.push_str("skinparam linetype ortho\n\n");
+    for n in &graph.nodes {
+        let mark = n.feature.as_ref();
+        let mut stereo = String::new();
+        if let Some(m) = mark {
+            stereo.push_str(if m.mandatory { " <<mandatory>>" } else { " <<optional>>" });
+            match m.group.as_str() {
+                "alternative" => stereo.push_str(" <<xor>>"),
+                "or" => stereo.push_str(" <<or>>"),
+                _ => {}
+            }
+        }
+        if n.is_abstract {
+            stereo.push_str(" <<abstract>>");
+        }
+        out.push_str(&format!(
+            "rectangle \"{}\" as {}{} {}\n",
+            n.label.replace('"', "'"),
+            sanitize_id(&n.id),
+            stereo,
+            element_url(&n.element_ref, cfg)
+        ));
+    }
+    out.push('\n');
+    for e in &graph.edges {
+        let (connector, label) = match e.kind {
+            EdgeKind::Requires => ("..>", " : requires"),
+            EdgeKind::Excludes => ("..", " : excludes"),
+            _ => ("--", ""),
+        };
+        out.push_str(&format!("{} {} {}{}\n", sanitize_id(&e.source), connector, sanitize_id(&e.target), label));
+    }
+    out.push_str("@enduml\n");
+    out
 }
 
 fn render_requirement(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> String {

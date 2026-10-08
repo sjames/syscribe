@@ -378,6 +378,7 @@ pub fn build(
             is_abstract: resolved.and_then(|e| e.frontmatter.is_abstract).unwrap_or(false),
             pin: None,
             banners: resolved.map(|e| super::banners_of(e, elements, resolver)).unwrap_or_default(),
+            feature: None,
         });
     }
 

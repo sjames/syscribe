@@ -42,10 +42,11 @@ const form = (over) => ({
 scenario('every offered kind has a generator-valid subject type list', () => {
     assert.deepEqual(
         DIAGRAM_KINDS.map(k => k.kind),
-        ['BDD', 'IBD', 'StateMachine', 'Action', 'Sequence', 'Requirement', 'Allocation'],
+        ['BDD', 'IBD', 'StateMachine', 'Action', 'Sequence', 'Requirement', 'FeatureModel', 'Allocation'],
     );
     assert.deepEqual(kindInfo('IBD').subjectTypes, ['PartDef', 'Part', 'ItemDef', 'Item']);
     assert.ok(kindInfo('Requirement').subjectTypes.includes('Package'));
+    assert.deepEqual(kindInfo('FeatureModel').subjectTypes, ['Package', 'FeatureDef', 'FeatureModel']);
     assert.equal(kindInfo('Mermaid'), undefined, 'hand-authored kinds are not offered');
     for (const k of DIAGRAM_KINDS) {
         assert.ok(k.subjectTypes.length > 0 && k.hint.length > 0, `${k.kind} has subject types and a hint`);

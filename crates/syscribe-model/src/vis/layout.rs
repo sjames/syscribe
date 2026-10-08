@@ -351,6 +351,10 @@ pub fn elk_input(graph: &DiagramGraph, sizes: &Sizes) -> ElkInput {
     let mut graph_opts = Map::new();
     graph_opts.insert("elk.algorithm".into(), json!(if all_pinned { "fixed" } else { opts.algorithm }));
     graph_opts.insert("elk.direction".into(), json!(opts.direction));
+    // A feature model with several roots is one picture, its trees side by side.
+    if graph.kind == crate::vis::ir::DiagramKind::FeatureModel {
+        graph_opts.insert("elk.separateConnectedComponents".into(), json!("false"));
+    }
     graph_opts.insert("elk.edgeRouting".into(), json!("ORTHOGONAL"));
     graph_opts.insert("elk.spacing.nodeNode".into(), json!(NODE_NODE_SPACING));
     graph_opts.insert("elk.layered.spacing.nodeNodeBetweenLayers".into(), json!(LAYER_SPACING));
@@ -388,6 +392,11 @@ pub fn elk_input(graph: &DiagramGraph, sizes: &Sizes) -> ElkInput {
     let mut edges = Vec::new();
     for e in &graph.edges {
         if !in_elk(&e.source) || !in_elk(&e.target) {
+            continue;
+        }
+        // Overlay edges (a feature diagram's cross-tree constraints) are drawn
+        // after placement and take no part in layout.
+        if graph.layout_hints.overlay_kinds.contains(&e.kind) {
             continue;
         }
         let reversed = graph.layout_hints.reversed_kinds.contains(&e.kind);
@@ -735,6 +744,38 @@ pub fn layout(graph: &DiagramGraph, sizes: &Sizes) -> Result<Layout, LayoutError
     Ok(apply(graph, sizes, &input, &result))
 }
 
+/// The polyline of a cross-tree constraint between two feature boxes: an S from
+/// the lower edge of the upper box to the upper edge of the lower one, or, for
+/// two boxes on one level, an arc below them whose depth grows with their
+/// distance. The same curve the browser draws (`views.tsx`'s `constraintCurve`),
+/// sampled.
+pub fn constraint_polyline(a: &Bounds, b: &Bounds) -> Vec<Point> {
+    let (ax, bx) = (a.cx(), b.cx());
+    let same_level = (a.y - b.y).abs() < a.h.max(b.h);
+    let (p0, p1, p2, p3) = if same_level {
+        let depth = (34.0 + (bx - ax).abs() * 0.12).min(130.0);
+        let (y0, y3) = (a.bottom(), b.bottom());
+        (Point { x: ax, y: y0 }, Point { x: ax, y: y0 + depth }, Point { x: bx, y: y3 + depth }, Point { x: bx, y: y3 })
+    } else {
+        let (hi, lo, flip) = if a.y < b.y { (a, b, false) } else { (b, a, true) };
+        let k = ((lo.y - hi.bottom()) / 2.0).max(30.0);
+        let start = Point { x: hi.cx(), y: hi.bottom() };
+        let end = Point { x: lo.cx(), y: lo.y };
+        let q1 = Point { x: start.x, y: start.y + k };
+        let q2 = Point { x: end.x, y: end.y - k };
+        if flip { (end, q2, q1, start) } else { (start, q1, q2, end) }
+    };
+    const STEPS: usize = 24;
+    (0..=STEPS)
+        .map(|i| {
+            let t = i as f64 / STEPS as f64;
+            let u = 1.0 - t;
+            let f = |v0: f64, v1: f64, v2: f64, v3: f64| u * u * u * v0 + 3.0 * u * u * t * v1 + 3.0 * u * t * t * v2 + t * t * t * v3;
+            Point { x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) }
+        })
+        .collect()
+}
+
 /// Turn ELK's output for `input` into a [`Layout`] (the client's
 /// postprocessor: flip reversed edges back, translate sections and labels
 /// into root coordinates, place labels in `fixed` mode).
@@ -750,6 +791,7 @@ pub fn apply(graph: &DiagramGraph, sizes: &Sizes, input: &ElkInput, result: &Jso
             } else {
                 match LayoutOptions::for_graph(graph).algorithm {
                     "fixed" => "fixed".to_string(),
+                    "mrtree" => "mrtree".to_string(),
                     _ => "layered".to_string(),
                 }
             },
@@ -767,6 +809,19 @@ pub fn apply(graph: &DiagramGraph, sizes: &Sizes, input: &ElkInput, result: &Jso
         post.place_labels_fixed(result, true);
     }
     post.walk_edges(result);
+    // A feature diagram's edges are drawn by rule, not routed by ELK: a tree edge
+    // is a straight line from the parent's bottom centre to the child's top
+    // centre; a cross-tree constraint (an overlay edge, not laid out) is a curve
+    // that avoids the features between its ends (`REQ-TRS-FMED-001`).
+    for e in post.graph.edges.iter() {
+        let (Some(s), Some(t)) = (post.out.nodes.get(&e.source), post.out.nodes.get(&e.target)) else { continue };
+        if e.kind == crate::vis::ir::EdgeKind::FeatureChild {
+            let points = vec![Point { x: s.cx(), y: s.bottom() }, Point { x: t.cx(), y: t.y }];
+            post.out.edges.insert(e.id.clone(), EdgeRoute { points, routed: true });
+        } else if post.graph.layout_hints.overlay_kinds.contains(&e.kind) {
+            post.out.edges.insert(e.id.clone(), EdgeRoute { points: constraint_polyline(s, t), routed: true });
+        }
+    }
     // Free labels at the root are not ELK elements: stack them beneath the
     // drawing so nothing overlaps.
     let mut y = post.out.height;
@@ -805,6 +860,7 @@ mod tests {
             is_abstract: false,
             pin: None,
             banners: vec![],
+            feature: None,
         }
     }
 

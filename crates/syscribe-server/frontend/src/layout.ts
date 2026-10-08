@@ -233,6 +233,12 @@ export function prepareNode(n: SysmlNodeSchema): void {
 /** An edge's `«keyword»` and `label` become label children so ELK reserves
  * room for them along the route (and sprotty measures them). Idempotent. */
 export function prepareEdge(e: SysmlEdgeSchema): void {
+    // An overlay edge is not laid out, so nothing would place its labels; the
+    // edge view draws its keyword at the midpoint instead.
+    if (e.overlay) {
+        e.children = undefined;
+        return;
+    }
     const kids: SysmlLabelSchema[] = [...((e.children ?? []) as SysmlLabelSchema[])];
     kids.forEach(adoptServerSize);
     const existing = new Set(kids.map(k => k.id));
@@ -375,6 +381,11 @@ export class SyscribeLayoutConfigurator implements ILayoutConfigurator {
             'elk.spacing.labelPortVertical': '2',
             'elk.padding': '[top=20,left=20,bottom=20,right=20]',
         };
+        // A feature model with several roots is one picture, its trees side by
+        // side in the top layer, not a stack of separately packed components.
+        if (graph.diagramKind === 'FeatureModel') {
+            opts['elk.separateConnectedComponents'] = 'false';
+        }
         const hierarchy = str('elk.hierarchyHandling');
         if (hierarchy) {
             opts['elk.hierarchyHandling'] = hierarchy;
@@ -640,6 +651,13 @@ export class SyscribeLayoutProcessor implements ILayoutPreprocessor, ILayoutPost
 
     preprocess(elkGraph: ElkNode, _sgraph: SGraph, index: SModelIndex): void {
         this.state.flippedEdges.clear();
+        // Overlay edges (a feature diagram's cross-tree constraints) take no part
+        // in layout; sprotty draws them straight between the placed nodes.
+        for (const { node } of walkElkNodes(elkGraph)) {
+            if (node.edges) {
+                node.edges = node.edges.filter(e => !(index.getById(e.id) as { overlay?: boolean } | undefined)?.overlay);
+            }
+        }
         for (const { edge } of walkElkEdges(elkGraph)) {
             const sedge = index.getById(edge.id) as (SEdge & { kind?: string }) | undefined;
             if (sedge && sedge.kind && this.state.reversedKinds.has(sedge.kind)) {

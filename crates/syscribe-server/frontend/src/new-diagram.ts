@@ -23,6 +23,7 @@ export const DIAGRAM_KINDS: DiagramKindInfo[] = [
     { kind: 'Action', label: 'Action flow', subjectTypes: ['ActionDef', 'Action'], hint: 'an action definition or action' },
     { kind: 'Sequence', label: 'Sequence', subjectTypes: ['ActionDef', 'Action', 'UseCaseDef', 'UseCase'], hint: 'an action or use case with send/accept steps' },
     { kind: 'Requirement', label: 'Requirement tree', subjectTypes: ['Package', 'RequirementDef', 'Requirement'], hint: 'a package of requirements, or one requirement' },
+    { kind: 'FeatureModel', label: 'Feature model', subjectTypes: ['Package', 'FeatureDef', 'FeatureModel'], hint: 'a package of features, a feature, or a feature-model sheet' },
     { kind: 'Allocation', label: 'Allocation map', subjectTypes: ['Package', 'AllocationDef', 'Allocation'], hint: 'a package of allocations, or one allocation' },
 ];
 

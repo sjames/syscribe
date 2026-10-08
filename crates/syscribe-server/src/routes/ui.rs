@@ -505,6 +505,15 @@ pub struct PlanningQuery {
     pub done: String,
 }
 
+#[derive(Template)]
+#[template(path = "features.html")]
+pub struct FeaturesTemplate {}
+
+/// `GET /features` — the feature model viewer (`REQ-TRS-FMED-001`).
+pub async fn features_page() -> Html<String> {
+    Html(FeaturesTemplate {}.render().unwrap_or_default())
+}
+
 /// `GET /planning` — the live planning dashboard page (`REQ-TRS-VIS-027`).
 pub async fn planning() -> Html<String> {
     Html(PlanningTemplate {}.render().unwrap_or_default())

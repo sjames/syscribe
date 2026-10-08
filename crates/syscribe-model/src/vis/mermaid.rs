@@ -102,7 +102,7 @@ pub fn render_mermaid(graph: &DiagramGraph, links: &dyn Fn(&str) -> Option<Strin
         DiagramKind::StateMachine => render_state(graph),
         DiagramKind::Sequence => render_sequence(graph),
         DiagramKind::Allocation | DiagramKind::UseCase => render_flowchart(graph, "LR", links),
-        DiagramKind::Action | DiagramKind::Custom => render_flowchart(graph, "TD", links),
+        DiagramKind::Action | DiagramKind::Custom | DiagramKind::FeatureModel => render_flowchart(graph, "TD", links),
     })
 }
 
@@ -229,7 +229,9 @@ fn render_flowchart(graph: &DiagramGraph, direction: &str, links: &dyn Fn(&str) 
         let s = mermaid_id(&e.source);
         let t = mermaid_id(&e.target);
         let connector = match e.kind {
-            EdgeKind::Connection | EdgeKind::Association | EdgeKind::Containment => "---",
+            EdgeKind::Connection | EdgeKind::Association | EdgeKind::Containment | EdgeKind::FeatureChild => "---",
+            EdgeKind::Excludes => "-.-",
+            EdgeKind::Requires => "-.->",
             EdgeKind::Binding => "-.-",
             EdgeKind::Dependency | EdgeKind::Allocation | EdgeKind::Derive | EdgeKind::Satisfy | EdgeKind::Verify
             | EdgeKind::Refine | EdgeKind::Trace | EdgeKind::Copy | EdgeKind::Include | EdgeKind::Extend => "-.->",
@@ -355,6 +357,7 @@ mod tests {
             is_abstract: false,
             pin: None,
             banners: vec![],
+            feature: None,
         }
     }
 

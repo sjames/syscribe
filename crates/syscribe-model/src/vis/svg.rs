@@ -621,6 +621,51 @@ impl Drawer<'_> {
         out.push_str("  </g>\n");
     }
 
+    /// A feature diagram's notation (`REQ-TRS-FMED-001`): a filled circle above a
+    /// mandatory feature and a hollow one above an optional one, and under a feature
+    /// with an alternative or or group a wedge across its children (hollow for
+    /// alternative, filled for or).
+    fn draw_feature_marks(&self, graph: &DiagramGraph, out: &mut String) {
+        for n in graph.nodes.iter().filter(|n| n.kind == NodeKind::Feature) {
+            let (Some(mark), Some(r)) = (n.feature.as_ref(), self.rect(&n.id)) else { continue };
+            let has_parent = graph.edges.iter().any(|e| e.kind == EdgeKind::FeatureChild && e.target == n.id);
+            if has_parent {
+                out.push_str(&format!(
+                    "  <circle class=\"feature-mark\" cx=\"{}\" cy=\"{}\" r=\"5\" fill=\"{}\" stroke=\"#2b3440\" stroke-width=\"1.5\"/>\n",
+                    num(r.cx()),
+                    num(r.y - 7.0),
+                    if mark.mandatory { "#2b3440" } else { "#fff" }
+                ));
+            }
+            if mark.group != "alternative" && mark.group != "or" {
+                continue;
+            }
+            let angles: Vec<f64> = graph
+                .edges
+                .iter()
+                .filter(|e| e.kind == EdgeKind::FeatureChild && e.source == n.id)
+                .filter_map(|e| self.rect(&e.target))
+                .map(|c| (c.y - r.bottom()).max(1.0).atan2(c.cx() - r.cx()))
+                .collect();
+            if angles.len() < 2 {
+                continue;
+            }
+            let lo = angles.iter().cloned().fold(f64::INFINITY, f64::min);
+            let hi = angles.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+            let rad = 24.0;
+            let at = |a: f64| format!("{},{}", num(r.cx() + rad * a.cos()), num(r.bottom() + rad * a.sin()));
+            out.push_str(&format!(
+                "  <path class=\"group-arc\" d=\"M {},{} L {} A {rad} {rad} 0 {} 1 {} Z\" fill=\"{}\" stroke=\"#44546a\" stroke-width=\"1.2\"/>\n",
+                num(r.cx()),
+                num(r.bottom()),
+                at(lo),
+                if hi - lo > std::f64::consts::PI { 1 } else { 0 },
+                at(hi),
+                if mark.group == "or" { "#44546a" } else { "none" }
+            ));
+        }
+    }
+
     fn draw_edge(&self, edge: &Edge, used: &mut Vec<&'static str>, out: &mut String) {
         let Some(route) = self.layout.edges.get(&edge.id) else { return };
         let (Some(s), Some(t)) = (self.rect(&edge.source), self.rect(&edge.target)) else { return };
@@ -737,6 +782,7 @@ pub fn draw(graph: &DiagramGraph, sizes: &Sizes, laid: &Layout, links: &dyn Fn(&
     for e in &graph.edges {
         d.draw_edge(e, &mut used, &mut body);
     }
+    d.draw_feature_marks(graph, &mut body);
 
     let mut out = format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:sysml=\"urn:syscribe:1.0\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" viewBox=\"0 0 {} {}\" width=\"{}\" height=\"{}\" class=\"syscribe-diagram {}\" sysml:ref=\"{}\">\n",
@@ -783,6 +829,7 @@ mod tests {
             is_abstract: false,
             pin: pin.map(|(x, y, w, h)| Rect { x, y, w: Some(w), h: Some(h) }),
             banners: vec![],
+            feature: None,
         }
     }
 

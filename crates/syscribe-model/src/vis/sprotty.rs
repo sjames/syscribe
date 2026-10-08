@@ -173,6 +173,7 @@ impl LayoutOptions {
             algorithm: match hints.algorithm {
                 LayoutAlgorithm::Layered => "layered",
                 LayoutAlgorithm::Fixed => "fixed",
+                LayoutAlgorithm::Tree => "mrtree",
             },
             direction: match hints.direction {
                 LayoutDirection::Down => "DOWN",
@@ -273,6 +274,9 @@ pub struct SNode {
     /// `node` elements only, omitted when empty: applied-stereotype banners.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub banners: Vec<String>,
+    /// `node` elements of a feature diagram only: mandatory mark and child grouping.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub feature: Option<super::ir::FeatureMark>,
     pub children: Vec<SNodeChild>,
 }
 
@@ -294,6 +298,10 @@ pub struct SEdge {
     /// Pinned routing, if any.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub routing_points: Option<Vec<Position>>,
+    /// An edge the client leaves out of layout and draws after placement
+    /// (`layoutHints.overlayKinds`): a feature diagram's cross-tree constraints.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub overlay: bool,
     /// The kind's notation (`REQ-TRS-VIS-012`).
     pub style: EdgeStyle,
     /// The `«keyword»` and label as sized `label:edge` children; omitted
@@ -408,13 +416,19 @@ fn build_node(graph: &DiagramGraph, sizes: &Sizes, node: &Node, depth: usize) ->
             _ => None,
         },
         banners: if element_type_ == TYPE_NODE { node.banners.clone() } else { Vec::new() },
+        feature: if element_type_ == TYPE_NODE { node.feature.clone() } else { None },
         children,
     }
 }
 
-fn build_edge(edge: &Edge, sizes: &Sizes) -> SEdge {
+fn build_edge(edge: &Edge, sizes: &Sizes, overlay_kinds: &[EdgeKind]) -> SEdge {
     SEdge {
-        children: sizes.edges.get(&edge.id).map(|ls| ls.iter().map(|l| SLabel::of(l, TYPE_EDGE_LABEL)).collect()).unwrap_or_default(),
+        // An overlay edge is not laid out, so nothing would place its labels.
+        children: if overlay_kinds.contains(&edge.kind) {
+            Vec::new()
+        } else {
+            sizes.edges.get(&edge.id).map(|ls| ls.iter().map(|l| SLabel::of(l, TYPE_EDGE_LABEL)).collect()).unwrap_or_default()
+        },
         id: edge.id.clone(),
         element_type_: TYPE_EDGE,
         source_id: edge.source.clone(),
@@ -426,6 +440,7 @@ fn build_edge(edge: &Edge, sizes: &Sizes) -> SEdge {
             .waypoints
             .as_ref()
             .map(|pts| pts.iter().map(|Point { x, y }| Position { x: *x, y: *y }).collect()),
+        overlay: overlay_kinds.contains(&edge.kind),
         style: edge_style(edge.kind),
     }
 }
@@ -446,7 +461,7 @@ pub fn to_sgraph_with(graph: &DiagramGraph, sizes: &Sizes) -> SGraph {
         .filter(|n| is_root(graph, n))
         .map(|n| SChild::Node(build_node(graph, sizes, n, 0)))
         .collect();
-    children.extend(graph.edges.iter().map(|e| SChild::Edge(build_edge(e, sizes))));
+    children.extend(graph.edges.iter().map(|e| SChild::Edge(build_edge(e, sizes, &graph.layout_hints.overlay_kinds))));
     SGraph {
         id: ROOT_ID,
         element_type_: "graph",
@@ -487,6 +502,7 @@ mod tests {
             is_abstract: false,
             pin: None,
             banners: vec![],
+            feature: None,
         }
     }
 
@@ -758,6 +774,7 @@ mod tests {
             is_abstract: false,
             pin: Some(Rect { x: 0.0, y: 0.0, w: Some(120.0), h: Some(40.0) }),
             banners: vec![],
+            feature: None,
         });
         assert_eq!(to_sgraph_json(&seq)["layoutOptions"]["elk.algorithm"], "fixed");
     }

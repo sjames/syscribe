@@ -972,9 +972,6 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
     for n in &names {
         let e = by_name[n.as_str()];
         let gk = e.frontmatter.group_kind.as_deref().unwrap_or("optional");
-        if gk == "optional" {
-            optional.push(n.clone());
-        }
         // Membership is orthogonal to grouping (REQ-TRS-FM-004): the explicit
         // `mandatory: true` flag, or the legacy `groupKind: mandatory` shorthand,
         // both make a feature a mandatory member.
@@ -982,6 +979,11 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
             Some(m) => m,
             None => gk == "mandatory",
         };
+        // Only a feature that is an optional member can be false-optional; a
+        // mandatory one with the default group kind is simply mandatory.
+        if gk == "optional" && !is_mandatory {
+            optional.push(n.clone());
+        }
         let p = parent.get(n).cloned().flatten();
         if let Some(p) = &p {
             cons.push(Constraint {
@@ -1064,6 +1066,102 @@ fn build_encoding(fdefs: &[&RawElement]) -> Encoding {
     }
 
     Encoding { var_of, names, files, parent, optional, cons }
+}
+
+/// The deep analysis as structured data for the browser (`REQ-TRS-FMED-002`):
+/// whether the model is void, and for every feature its state (`dead`, `core`,
+/// `falseOptional` or `normal`) with the constraints responsible as human
+/// labels. `features` is keyed by qualified name. Reasons are computed only
+/// for the features that need one (dead, false-optional) and for a void model.
+pub fn analysis_json(elements: &[RawElement]) -> serde_json::Value {
+    use serde_json::json;
+    let fdefs: Vec<&RawElement> = elements.iter().filter(|e| is(e, ElementType::FeatureDef)).collect();
+    if fdefs.is_empty() {
+        return json!({ "hasFeatureModel": false, "void": false, "skipped": null, "features": {}, "conflicts": [], "diagnoses": [], "invalidConfigurations": [], "counts": {"features": 0, "dead": 0, "core": 0, "falseOptional": 0} });
+    }
+    if fdefs.len() > MAX_DEEP_FEATURES {
+        return json!({
+            "hasFeatureModel": true, "void": false, "features": {}, "conflicts": [], "diagnoses": [], "invalidConfigurations": [],
+            "skipped": format!("deep analysis skipped: {} features exceeds the limit of {}", fdefs.len(), MAX_DEEP_FEATURES),
+            "counts": {"features": fdefs.len(), "dead": 0, "core": 0, "falseOptional": 0},
+        });
+    }
+    let enc = build_encoding(&fdefs);
+    let labels = |core: &[usize]| -> Vec<String> {
+        let mut l: Vec<String> = core.iter().map(|&i| enc.cons[i].label.clone()).collect();
+        l.sort();
+        l.dedup();
+        l
+    };
+    let mut sat = crate::solver::Solver::from_cnf(&enc.cnf());
+    let mut features = serde_json::Map::new();
+    let (mut dead, mut core_n, mut false_opt) = (0usize, 0usize, 0usize);
+
+    if !sat.is_sat(&[]) {
+        let conflicts = labels(&enc.unsat_core(&[]));
+        for n in &enc.names {
+            features.insert(n.clone(), json!({ "state": "dead", "reasons": ["the feature model is void"] }));
+        }
+        return json!({
+            "hasFeatureModel": true, "void": true, "skipped": null, "features": features,
+            "conflicts": conflicts, "diagnoses": enc.correction_sets(), "invalidConfigurations": [],
+            "counts": {"features": enc.names.len(), "dead": enc.names.len(), "core": 0, "falseOptional": 0},
+        });
+    }
+
+    let mut dead_set: HashSet<&str> = HashSet::new();
+    for (i, name) in enc.names.iter().enumerate() {
+        if !sat.is_sat(&[Lit::pos(i)]) {
+            dead_set.insert(name.as_str());
+            dead += 1;
+            let reasons = labels(&enc.unsat_core(&[Lit::pos(i)]));
+            features.insert(name.clone(), json!({ "state": "dead", "reasons": reasons }));
+        } else if !sat.is_sat(&[Lit::neg(i)]) {
+            core_n += 1;
+            features.insert(name.clone(), json!({ "state": "core", "core": true, "reasons": [] }));
+        }
+    }
+    for name in &enc.optional {
+        if dead_set.contains(name.as_str()) {
+            continue;
+        }
+        let i = enc.var_of[name];
+        let cond = match enc.parent.get(name).cloned().flatten() {
+            Some(p) => vec![Lit::pos(enc.var_of[&p]), Lit::neg(i)],
+            None => vec![Lit::neg(i)],
+        };
+        if !sat.is_sat(&cond) {
+            false_opt += 1;
+            let reasons = labels(&enc.unsat_core(&cond));
+            // A false-optional feature is also core (selected in every product): state
+            // names the defect, `core` keeps the fact.
+            let core = features.get(name).is_some_and(|f| f["state"] == "core");
+            features.insert(name.clone(), json!({ "state": "falseOptional", "core": core, "reasons": reasons }));
+        }
+    }
+    for n in &enc.names {
+        features.entry(n.clone()).or_insert_with(|| json!({ "state": "normal", "reasons": [] }));
+    }
+
+    let feat_alias = crate::variability::feature_id_to_qname(elements);
+    let mut invalid: Vec<String> = Vec::new();
+    for cfg in elements.iter().filter(|e| is(e, ElementType::Configuration)) {
+        let sel = crate::variability::canon_selection(&cfg.frontmatter.feature_selections(), &feat_alias);
+        let assign: Vec<bool> = enc.names.iter().map(|n| sel.get(n).copied().unwrap_or(false)).collect();
+        let broken = enc
+            .cons
+            .iter()
+            .filter(|c| !matches!(c.kind, CKind::Requires | CKind::Excludes))
+            .any(|c| c.clauses.iter().any(|cl| !cl.iter().any(|l| assign[l.var] != l.neg)));
+        if broken {
+            invalid.push(cfg.frontmatter.id.clone().unwrap_or_else(|| cfg.qualified_name.clone()));
+        }
+    }
+    json!({
+        "hasFeatureModel": true, "void": false, "skipped": null, "features": features,
+        "conflicts": [], "diagnoses": [], "invalidConfigurations": invalid,
+        "counts": {"features": enc.names.len(), "dead": dead, "core": core_n, "falseOptional": false_opt},
+    })
 }
 
 /// Run the solver-backed deep analysis. Empty report when no feature model;
@@ -1621,5 +1719,93 @@ mod tests {
         assert_eq!(ec("F::T.A >= 2"), Some(true));
         // two-char operator preferred over one-char prefix
         assert_eq!(ec("F::T.A <= 4"), Some(true));
+    }
+}
+
+#[cfg(test)]
+mod analysis_json_tests {
+    use super::*;
+
+    fn els(files: &[(&str, &str)]) -> Vec<RawElement> {
+        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let dir = std::env::temp_dir().join(format!("syscribe-fa-{}-{}", std::process::id(), N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for (p, c) in files {
+            let path = dir.join(p);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, c).unwrap();
+        }
+        crate::walker::walk_model(&dir).unwrap()
+    }
+
+    const ROOT: &str = "---\ntype: FeatureDef\nid: FEAT-ROOT\nname: Root\nmandatory: true\n---\n";
+
+    #[test]
+    fn no_features_reports_no_model() {
+        let e = els(&[("_index.md", "---\ntype: Package\nname: R\n---\n")]);
+        let j = analysis_json(&e);
+        assert_eq!(j["hasFeatureModel"], false);
+    }
+
+    #[test]
+    fn dead_core_false_optional_and_normal_with_reasons() {
+        // Root (mandatory) has A (mandatory, so core), B (optional), C (optional; Root requires C via B? no).
+        // D excludes A, and A is core, so D is dead. E is optional but required by core A: false-optional.
+        let e = els(&[
+            ("_index.md", "---\ntype: Package\nname: R\n---\n"),
+            ("F/_index.md", "---\ntype: Package\nname: F\n---\n"),
+            ("F/Root.md", ROOT),
+            ("F/Root/A.md", "---\ntype: FeatureDef\nid: FEAT-AAA\nname: A\nmandatory: true\nrequires: [FEAT-EEE]\n---\n"),
+            ("F/Root/B.md", "---\ntype: FeatureDef\nid: FEAT-BBB\nname: B\n---\n"),
+            ("F/Root/D.md", "---\ntype: FeatureDef\nid: FEAT-DDD\nname: D\nexcludes: [FEAT-AAA]\n---\n"),
+            ("F/Root/E.md", "---\ntype: FeatureDef\nid: FEAT-EEE\nname: E\n---\n"),
+        ]);
+        let j = analysis_json(&e);
+        assert_eq!(j["void"], false);
+        let f = &j["features"];
+        assert_eq!(f["F::Root"]["state"], "core");
+        assert_eq!(f["F::Root::A"]["state"], "core");
+        assert_eq!(f["F::Root::B"]["state"], "normal");
+        assert_eq!(f["F::Root::D"]["state"], "dead");
+        let why = f["F::Root::D"]["reasons"].to_string();
+        assert!(why.contains("excludes"), "{why}");
+        assert_eq!(f["F::Root::E"]["state"], "falseOptional");
+        assert_eq!(j["counts"]["dead"], 1);
+        assert_eq!(j["counts"]["core"], 3, "Root, A and E (forced by A)");
+        assert_eq!(f["F::Root::E"]["core"], true, "false-optional is also core");
+        assert_eq!(j["counts"]["falseOptional"], 1);
+        assert_eq!(j["counts"]["features"], 5);
+    }
+
+    #[test]
+    fn a_mandatory_feature_with_the_default_group_kind_is_not_false_optional() {
+        // Regression: `mandatory: true` with `groupKind` left at its default was
+        // reported as W018 because the check looked only at the group kind.
+        let e = els(&[
+            ("_index.md", "---\ntype: Package\nname: R\n---\n"),
+            ("F/_index.md", "---\ntype: Package\nname: F\n---\n"),
+            ("F/Root.md", ROOT),
+            ("F/Root/Sub.md", "---\ntype: FeatureDef\nid: FEAT-SUB\nname: Sub\nmandatory: true\n---\n"),
+        ]);
+        let deep = check_feature_model_deep(&e);
+        assert!(deep.false_optional.is_empty(), "{:?}", deep.false_optional);
+        assert!(deep.findings.iter().all(|f| f.code != "W018"), "{:?}", deep.findings.iter().map(|f| &f.message).collect::<Vec<_>>());
+        let j = analysis_json(&e);
+        assert_eq!(j["features"]["F::Root::Sub"]["state"], "core");
+    }
+
+    #[test]
+    fn a_void_model_names_the_conflict_and_offers_corrections() {
+        let e = els(&[
+            ("_index.md", "---\ntype: Package\nname: R\n---\n"),
+            ("F/_index.md", "---\ntype: Package\nname: F\n---\n"),
+            ("F/Root.md", "---\ntype: FeatureDef\nid: FEAT-ROOT\nname: Root\nmandatory: true\nexcludes: [FEAT-XXX]\n---\n"),
+            ("F/Root/X.md", "---\ntype: FeatureDef\nid: FEAT-XXX\nname: X\nmandatory: true\n---\n"),
+        ]);
+        let j = analysis_json(&e);
+        assert_eq!(j["void"], true, "{j}");
+        assert!(!j["conflicts"].as_array().unwrap().is_empty(), "{j}");
+        assert!(!j["diagnoses"].as_array().unwrap().is_empty(), "{j}");
     }
 }

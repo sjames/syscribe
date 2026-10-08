@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="features-page">
+  <div class="fm-bar">
+    <h1>Features</h1>
+    <input id="fm-search" type="search" placeholder="Find a feature (name or id)" autocomplete="off">
+    <button class="canvas-btn" id="fm-collapse" title="Show only the root features">Collapse all</button>
+    <button class="canvas-btn" id="fm-expand" title="Expand every subtree">Expand all</button>
+    <button class="canvas-btn" id="fm-fit" title="Fit the whole model in the window">Fit</button>
+    <span class="fm-export">Export
+      <a href="/api/feature-model/export?format=svg" id="fm-export-svg" download="feature-model.svg">SVG</a>
+      <a href="/api/feature-model/export?format=plantuml" download="feature-model.puml">PlantUML</a>
+      <a href="/api/feature-model/export?format=mermaid" download="feature-model.mmd">Mermaid</a>
+    </span>
+    <span id="fm-live" class="pp-conn" title="Live connection to the model watcher">live</span>
+  </div>
+  <div id="fm-banner" hidden></div>
+  <div class="fm-body">
+    <div id="fm-canvas">
+      <div id="fm-host"></div>
+      <div id="fm-empty" hidden>This model has no feature definitions.</div>
+    </div>
+    <aside id="fm-side">
+      <section id="fm-summary"></section>
+      <section id="fm-selected"><p class="detail-empty">Select a feature to see what it is and why.</p></section>
+    </aside>
+  </div>
+</div>
+<script src="/static/js/feature-model.js" defer></script>
+{% endblock %}

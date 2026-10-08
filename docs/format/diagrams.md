@@ -12,6 +12,7 @@ Diagrams are `type: Diagram` elements. The `diagramKind:` field selects the rend
 | `IBD` | SVG (server / PlantUML) | Internal Block Diagram — part usages, ports, and connections within a block |
 | `StateMachine` | SVG (server / PlantUML) | State machine — states, transitions, and guards |
 | `Action` | SVG (server / Mermaid) | Action diagram — action steps, fork/join/decision/merge control nodes, successions and flows |
+| `FeatureModel` | SVG (server / Mermaid / PlantUML) | Feature diagram in FODA notation — the feature tree with mandatory/optional marks, XOR and OR groups and `requires`/`excludes` constraints; derived from `FeatureDef`s |
 | `Requirement` | SVG (server / PlantUML) | Requirement diagram — requirements, derivation, and verification links |
 | `Sequence` | SVG (PlantUML) | Sequence diagram — lifelines, messages, returns |
 | `Mermaid` | Mermaid.js (client) | Any diagram expressible in Mermaid graph syntax |
@@ -66,9 +67,9 @@ layout:
 
 `layout:` is the trigger for the SVG renderer. A diagram without a `layout:` block renders as "no layout defined."
 
-## Derived diagrams (BDD, IBD, StateMachine, Action, Sequence, Requirement, Allocation)
+## Derived diagrams (BDD, IBD, StateMachine, Action, Sequence, Requirement, Allocation, FeatureModel)
 
-A `BDD`, `IBD`, `StateMachine`, `Action` or `Sequence` diagram needs no manifest at all. Declare the kind
+A `FeatureModel` diagram takes a `FeatureDef`, a `FeatureModel` sheet or a package of features as its `subject:` and draws the feature tree in FODA notation (spec §8.16.8.9); the same graph is the browser's `/features` page. A `BDD`, `IBD`, `StateMachine`, `Action` or `Sequence` diagram needs no manifest at all. Declare the kind
 and the subject, and the generator reads the content from the model every time the diagram is
 built:
 

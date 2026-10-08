@@ -32,7 +32,7 @@ import {
 
 import { Point } from 'sprotty-protocol';
 import { isContainerKind, PORT_SIZE } from './layout';
-import { ArrowHead, EdgeStyle, LabelRole, NodeStyle, PortStyle } from './types';
+import { ArrowHead, EdgeStyle, FeatureMark, FeatureState, LabelRole, NodeStyle, PortStyle } from './types';
 
 /** Extra fields sprotty's `SModelFactory` copies onto the instance verbatim
  * from the schemas in `types.ts` — not part of the `S*Impl` classes
@@ -47,10 +47,18 @@ type WithShapeFields = {
     isAbstract?: boolean;
     direction?: string;
 };
-type SysmlNode = SNodeImpl & WithShapeFields & { style?: NodeStyle; banners?: string[] };
+type SysmlNode = SNodeImpl &
+    WithShapeFields & {
+        style?: NodeStyle;
+        banners?: string[];
+        feature?: FeatureMark;
+        analysis?: FeatureState;
+        collapsedCount?: number;
+        matched?: boolean;
+    };
 type SysmlPort = SPortImpl & WithShapeFields & { style?: PortStyle };
 type SysmlLabel = SLabelImpl & { role?: LabelRole };
-type SysmlEdge = SEdgeImpl & { kind: string; style?: EdgeStyle; ref?: string; label?: string };
+type SysmlEdge = SEdgeImpl & { kind: string; style?: EdgeStyle; ref?: string; label?: string; overlay?: boolean };
 
 // ---------------------------------------------------------------------------
 // Fallback tables (used only when the server sent no `style`)
@@ -337,6 +345,109 @@ function stickFigure(cx: number, top: number, style: NodeStyle, dashed: boolean)
     );
 }
 
+// ---------------------------------------------------------------------------
+// Feature diagram nodes (`REQ-TRS-FMED-001`, `-002`)
+// ---------------------------------------------------------------------------
+
+/** Fill and outline per analysis state: the colour is a second channel, the
+ * outline pattern (dead dashed with a strike, false-optional double) the first,
+ * so the state survives greyscale printing and colour blindness. */
+const FEATURE_STATE: Record<FeatureState, { fill: string; stroke: string }> = {
+    normal: { fill: '#ffffff', stroke: '#44546a' },
+    core: { fill: '#e6f0fb', stroke: '#1d6fb8' },
+    dead: { fill: '#fdecea', stroke: '#b3261e' },
+    falseOptional: { fill: '#fff4d6', stroke: '#b7791f' },
+};
+
+/** Radius of the group arc under a feature with an alternative or or group. */
+const GROUP_ARC_RADIUS = 24;
+
+type Connected = { kind?: string; target?: { bounds: { x: number; y: number; width: number; height: number } } };
+
+/** The wedge that joins a feature's children into one group: an empty wedge
+ * for an alternative (XOR) group, a filled one for an or group. `null` when
+ * the feature has fewer than two drawn children. */
+function groupArc(node: Readonly<SysmlNode>, width: number, height: number): VNode | undefined {
+    const group = node.feature?.group;
+    if (group !== 'alternative' && group !== 'or') {
+        return undefined;
+    }
+    const edges = ((node as unknown as { outgoingEdges?: Iterable<Connected> }).outgoingEdges ?? []) as Iterable<Connected>;
+    const cx = width / 2;
+    const angles: number[] = [];
+    for (const e of edges) {
+        if (e.kind !== 'child' || !e.target) {
+            continue;
+        }
+        const b = e.target.bounds;
+        const dx = b.x + b.width / 2 - (node.bounds.x + cx);
+        const dy = b.y - (node.bounds.y + height);
+        angles.push(Math.atan2(Math.max(dy, 1), dx));
+    }
+    if (angles.length < 2) {
+        return undefined;
+    }
+    const lo = Math.min(...angles);
+    const hi = Math.max(...angles);
+    const r = GROUP_ARC_RADIUS;
+    const at = (a: number): string => `${(cx + r * Math.cos(a)).toFixed(1)},${(height + r * Math.sin(a)).toFixed(1)}`;
+    const large = hi - lo > Math.PI ? 1 : 0;
+    const d = `M ${cx},${height} L ${at(lo)} A ${r} ${r} 0 ${large} 1 ${at(hi)} Z`;
+    return <path d={d} fill={group === 'or' ? '#44546a' : 'none'} stroke="#44546a" stroke-width={1.2} class-group-arc={true} />;
+}
+
+function featureNodeView(node: Readonly<SysmlNode>, context: RenderingContext, width: number, height: number): VNode {
+    const n = node;
+    const state = FEATURE_STATE[n.analysis ?? 'normal'];
+    const selected = !!n.selected;
+    const mark = n.feature;
+    const incoming = ((n as unknown as { incomingEdges?: Iterable<Connected> }).incomingEdges ?? []) as Iterable<Connected>;
+    let hasParent = false;
+    for (const e of incoming) {
+        if (e.kind === 'child') {
+            hasParent = true;
+        }
+    }
+    const outline = selected ? '#1d4ed8' : n.matched ? '#e8590c' : state.stroke;
+    const strokeW = selected || n.matched ? 3 : n.analysis && n.analysis !== 'normal' ? 2.2 : 1.5;
+    const dashed = n.analysis === 'dead' || !!n.isAbstract;
+    const collapsed = (n.collapsedCount ?? 0) > 0;
+    const canToggle = (mark?.childCount ?? 0) > 0;
+    const vnode = (
+        <g
+            class-sysml-node={true}
+            class-selected={selected}
+            class-feature={true}
+            class-abstract={!!n.isAbstract}
+            data-sysml-ref={n.ref}
+            data-feature-state={n.analysis ?? 'normal'}
+        >
+            <rect x={0} y={0} width={width} height={height} rx={5} fill={state.fill} stroke={outline} stroke-width={strokeW} stroke-dasharray={dashed ? '6,3' : undefined} />
+            {n.analysis === 'falseOptional' && (
+                <rect x={3} y={3} width={width - 6} height={height - 6} rx={3} fill="none" stroke={outline} stroke-width={1} />
+            )}
+            {n.analysis === 'dead' && <line x1={4} y1={height - 4} x2={width - 4} y2={4} stroke={outline} stroke-width={1.2} opacity={0.6} />}
+            {hasParent && mark && (
+                <circle cx={width / 2} cy={-7} r={5} fill={mark.mandatory ? '#2b3440' : '#ffffff'} stroke="#2b3440" stroke-width={1.5} class-feature-mark={true} />
+            )}
+            {groupArc(n, width, height)}
+            {canToggle && (
+                <g class-fm-toggle={true} data-fm-toggle={n.id} transform={`translate(${width - 9},${height})`}>
+                    <circle r={8} fill="#ffffff" stroke="#44546a" stroke-width={1.2} />
+                    <path d={collapsed ? 'M -4,0 H 4 M 0,-4 V 4' : 'M -4,0 H 4'} stroke="#44546a" stroke-width={1.6} fill="none" />
+                </g>
+            )}
+            {collapsed && (
+                <text x={width - 22} y={height + 4} text-anchor="end" font-size={11} fill="#44546a" class-fm-hidden-count={true}>
+                    {`+${n.collapsedCount}`}
+                </text>
+            )}
+            {context.renderChildren(n)}
+        </g>
+    );
+    return addClasses(vnode, ['kind-feature', n.elementType ?? '']);
+}
+
 @injectable()
 export class SysmlNodeView extends ShapeView implements IView {
     render(node: Readonly<SNodeImpl>, context: RenderingContext, _args?: IViewArgs): VNode | undefined {
@@ -346,6 +457,9 @@ export class SysmlNodeView extends ShapeView implements IView {
         const n = node as Readonly<SysmlNode>;
         const width = Math.max(n.size?.width ?? 0, 0) || 160;
         const height = Math.max(n.size?.height ?? 0, 0) || 50;
+        if (n.kind === 'feature') {
+            return featureNodeView(n, context, width, height);
+        }
         const container = isContainerKind(n.kind);
         const style = n.style ?? fallbackNodeStyle(n.elementType, n.kind);
         // `selected` also doubles as the connect-mode "pending source" highlight
@@ -590,6 +704,41 @@ export class SysmlEdgeLabelImpl extends SLabelImpl {
     }
 }
 
+/** A cross-tree constraint's curve between two feature boxes: an S from the
+ * lower edge of the upper box to the upper edge of the lower one, or, for two
+ * boxes on one level, an arc below them whose depth grows with their distance. */
+function constraintCurve(
+    a: { x: number; y: number; width: number; height: number },
+    b: { x: number; y: number; width: number; height: number },
+): { d: string; mid: { x: number; y: number } } {
+    const ax = a.x + a.width / 2;
+    const bx = b.x + b.width / 2;
+    const sameLevel = Math.abs(a.y - b.y) < Math.max(a.height, b.height);
+    let p0: { x: number; y: number };
+    let p3: { x: number; y: number };
+    let p1: { x: number; y: number };
+    let p2: { x: number; y: number };
+    if (sameLevel) {
+        const depth = Math.min(34 + Math.abs(bx - ax) * 0.12, 130);
+        p0 = { x: ax, y: a.y + a.height };
+        p3 = { x: bx, y: b.y + b.height };
+        p1 = { x: ax, y: p0.y + depth };
+        p2 = { x: bx, y: p3.y + depth };
+    } else {
+        const [hi, lo, flip] = a.y < b.y ? [a, b, false] : [b, a, true];
+        const hx = hi.x + hi.width / 2;
+        const lx = lo.x + lo.width / 2;
+        const k = Math.max(30, (lo.y - (hi.y + hi.height)) / 2);
+        const start = { x: hx, y: hi.y + hi.height };
+        const end = { x: lx, y: lo.y };
+        const q1 = { x: hx, y: start.y + k };
+        const q2 = { x: lx, y: end.y - k };
+        [p0, p1, p2, p3] = flip ? [end, q2, q1, start] : [start, q1, q2, end];
+    }
+    const mid = { x: (p0.x + 3 * p1.x + 3 * p2.x + p3.x) / 8, y: (p0.y + 3 * p1.y + 3 * p2.y + p3.y) / 8 };
+    return { d: `M ${p0.x},${p0.y} C ${p1.x},${p1.y} ${p2.x},${p2.y} ${p3.x},${p3.y}`, mid };
+}
+
 @injectable()
 export class SysmlEdgeView extends PolylineEdgeView {
     override render(edge: Readonly<SEdgeImpl>, context: RenderingContext, args?: IViewArgs): VNode | undefined {
@@ -612,6 +761,8 @@ export class SysmlEdgeView extends PolylineEdgeView {
                     {context.renderChildren(edge, { route })}
                 </g>
             );
+        } else if (e.kind === 'child' || e.overlay) {
+            vnode = this.renderFeatureEdge(e, context, args);
         } else {
             vnode = super.render(edge, context, args);
         }
@@ -626,6 +777,48 @@ export class SysmlEdgeView extends PolylineEdgeView {
             'data-sysml-target': e.targetId,
         };
         return addClasses(vnode, ['sysml-edge', `kind-${e.kind ?? 'edge'}`]);
+    }
+
+    /** A feature diagram's edges (`REQ-TRS-FMED-001`): a tree edge is a straight
+     * line from the parent's bottom centre to the child's top centre, so the group
+     * wedge at the parent meets every child alike; a cross-tree constraint is a
+     * curve that leaves and enters the features on their free sides (below a row
+     * for two features on one level), so it never runs through a third feature,
+     * labelled at its midpoint. */
+    private renderFeatureEdge(e: Readonly<SysmlEdge>, context: RenderingContext, args?: IViewArgs): VNode | undefined {
+        const src = e.source;
+        const tgt = e.target;
+        if (!src || !tgt) {
+            return undefined;
+        }
+        const sb = src.bounds;
+        const tb = tgt.bounds;
+        if (e.kind === 'child') {
+            const route: RoutedPoint[] = [
+                { kind: 'source', x: sb.x + sb.width / 2, y: sb.y + sb.height },
+                { kind: 'target', x: tb.x + tb.width / 2, y: tb.y },
+            ];
+            return (
+                <g class-sprotty-edge={true} class-mouseover={e.hoverFeedback}>
+                    {this.renderLine(e, route, context, args)}
+                </g>
+            );
+        }
+        const c = constraintCurve(sb, tb);
+        const style = edgeStyleOf(e);
+        const arrowEnd = style.arrowTarget && style.arrowTarget !== 'none' ? `url(#${markerId(style.arrowTarget, style.stroke)})` : undefined;
+        const arrowStart = style.arrowSource && style.arrowSource !== 'none' ? `url(#${markerId(style.arrowSource, style.stroke)})` : undefined;
+        const keyword = e.style?.keyword;
+        return (
+            <g class-sprotty-edge={true} class-mouseover={e.hoverFeedback}>
+                <path d={c.d} fill="none" stroke={style.stroke} stroke-width={style.width ?? 1.4} stroke-dasharray={style.dash ?? undefined} marker-end={arrowEnd} marker-start={arrowStart} />
+                {keyword && (
+                    <text x={c.mid.x} y={c.mid.y - 4} text-anchor="middle" font-size={10} font-style="italic" fill={style.stroke} class-fm-edge-keyword={true}>
+                        {keyword}
+                    </text>
+                )}
+            </g>
+        );
     }
 
     protected override renderLine(

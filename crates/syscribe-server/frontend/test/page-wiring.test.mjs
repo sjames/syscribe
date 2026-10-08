@@ -7,7 +7,7 @@
 // commit until the New diagram work found it).
 
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -68,6 +68,15 @@ check('the element side panel ids the script reads are present and the panel use
     }
     assert.match(index, /<aside id="element-panel" hidden>/, 'hidden by attribute, which no inline display can fight');
     assert.ok(/#element-panel\[hidden\]\s*\{\s*display:\s*none/.test(css), 'the stylesheet keeps [hidden] hidden');
+});
+
+check('the feature page ids the script reads are present in its template and the bundle is built', () => {
+    const tpl = readFileSync(path.join(root, 'templates', 'features.html'), 'utf8');
+    for (const id of ['fm-host', 'fm-canvas', 'fm-search', 'fm-collapse', 'fm-expand', 'fm-fit', 'fm-banner', 'fm-summary', 'fm-selected', 'fm-live', 'fm-empty']) {
+        assert.ok(tpl.includes(`id="${id}"`), `#${id} is in features.html`);
+    }
+    assert.ok(existsSync(path.join(root, 'static', 'js', 'feature-model.js')), 'static/js/feature-model.js is built');
+    assert.ok(tpl.includes('/static/js/feature-model.js'), 'the page loads the bundle');
 });
 
 check('the Add existing element button and picker ids the script reads are all present', () => {

@@ -3234,7 +3234,7 @@ A `Diagram` file (`type: Diagram`) depicts part of the model. Its `diagramKind:`
 
 A `shapes:` key with a null value does not select the manifest. Only kinds that build an IR (everything but `Mermaid` and `PlantUML`) have a source at all.
 
-**Derived diagrams.** A derived diagram is two lines of frontmatter — `diagramKind:` and `subject:` — and follows the model: adding a part, a port or a `supertype:` changes the picture without editing the diagram. Generators exist for `BDD` (§8.16.8.1), `IBD` (§8.16.8.2), `Sequence` (§8.16.8.3), `StateMachine` (§8.16.8.4), `Requirement` (§8.16.8.5), `Allocation` (§8.16.8.6) and `Action` (§8.16.8.8); a derived `UseCase` or `Custom` diagram yields an empty picture (`REQ-TRS-VIS-015`). Every generated shape has a **deterministic id** — `s-` followed by the depicted element's qualified name lower-cased with `::` and every other non-alphanumeric run replaced by `-` (`UAV::Power::PowerSystem::pdu` → `s-uav-power-powersystem-pdu`; a compartment is `<block id>-compartment`) — so `layout:` pins (§8.16.2) apply to a derived diagram unchanged, survive regeneration, and a renamed element merely loses its pin. `include:`/`exclude:` (§8.16.2) narrow the content; `W417`/`W418` (§8.16.7) report a filter that names nothing and a subject of the wrong type.
+**Derived diagrams.** A derived diagram is two lines of frontmatter — `diagramKind:` and `subject:` — and follows the model: adding a part, a port or a `supertype:` changes the picture without editing the diagram. Generators exist for `BDD` (§8.16.8.1), `IBD` (§8.16.8.2), `Sequence` (§8.16.8.3), `StateMachine` (§8.16.8.4), `Requirement` (§8.16.8.5), `Allocation` (§8.16.8.6), `Action` (§8.16.8.8) and `FeatureModel` (§8.16.8.9); a derived `UseCase` or `Custom` diagram yields an empty picture (`REQ-TRS-VIS-015`). Every generated shape has a **deterministic id** — `s-` followed by the depicted element's qualified name lower-cased with `::` and every other non-alphanumeric run replaced by `-` (`UAV::Power::PowerSystem::pdu` → `s-uav-power-powersystem-pdu`; a compartment is `<block id>-compartment`) — so `layout:` pins (§8.16.2) apply to a derived diagram unchanged, survive regeneration, and a renamed element merely loses its pin. `include:`/`exclude:` (§8.16.2) narrow the content; `W417`/`W418` (§8.16.7) report a filter that names nothing and a subject of the wrong type.
 
 The rest of this section specifies the manifest and the hand-authored SVG conventions. In the manifest the frontmatter is the canonical source of traceability and the SVG is the visual geometry, so a parser can validate the diagram from the frontmatter without touching the SVG. The SVG uses a `sysml:` XML namespace (`urn:syscribe:1.0`) on shapes for redundant inline traceability, so the SVG can be opened standalone in any viewer.
 
@@ -3255,7 +3255,7 @@ Choose **inline** when GitHub rendering is not required and keeping everything i
 |---|---|---|---|---|
 | `type` | string | **Required** | — | `Diagram` |
 | `name` | string | optional | filename stem | Display name for the diagram |
-| `diagramKind` | string | recommended | — | Diagram kind: `BDD`, `IBD`, `StateMachine`, `Action`, `Sequence`, `Requirement`, `Mermaid`, `PlantUML`; `Allocation`, `UseCase` and `Custom` are accepted for hand-authored SVG (no generator). Absent → warning `W400` (suppressed when `svgMode: companion`). The field is `diagramKind`, not `kind` (an unknown `kind:` key is `W047`). |
+| `diagramKind` | string | recommended | — | Diagram kind: `BDD`, `IBD`, `StateMachine`, `Action`, `Sequence`, `Requirement`, `FeatureModel`, `Mermaid`, `PlantUML`; `Allocation`, `UseCase` and `Custom` are accepted for hand-authored SVG (no generator). Absent → warning `W400` (suppressed when `svgMode: companion`). The field is `diagramKind`, not `kind` (an unknown `kind:` key is `W047`). |
 | `subject` | string | recommended | — | Qualified name of the model element this diagram depicts. An unresolved subject is warning `W401`. |
 | `svgMode` | string | optional | `inline` | Storage mode: `inline` (fenced block in body) or `companion` (separate `.svg` file) |
 | `svgFile` | string | optional | `<stem>.svg` | Companion file path relative to the `.md` file; only used when `svgMode: companion` |
@@ -4221,6 +4221,39 @@ edges:
 Shape ids are `s-` plus `<subject>::<stepName>` in the deterministic form of §8.16.1, nested branch and body names included in the path (`<subject>::checkWeather::abortMission`); the merge an `IfAction` closes with is `<subject>::<ifName>::merge`, a compartment is `<step id>-compartment`, and the initial and final nodes are `<subject id>-initial`/`-final`. `include:`/`exclude:` name top-level steps and control nodes by `name` or `<subject>::<name>`. Parameter pins and object-flow items are rendered as compartment text, not as separate nodes. Layout hints are layered, top-to-bottom, hierarchical.
 
 ---
+
+##### 8.16.8.9 FeatureModel
+
+A FeatureModel diagram (`REQ-TRS-FMED-001`) is a feature diagram in FODA notation: the feature tree of a product line with the way each feature's children are grouped, whether each is a mandatory or optional member of its parent, and the cross-tree `requires` and `excludes` constraints. The browser's `/features` page shows the same graph with live analysis overlaid.
+
+**Valid `subject:` types:** `FeatureDef` (that feature and its descendants), `FeatureModel` (a single-file feature sheet, §9.6a) or a `Package`/`LibraryPackage`/`Namespace` (every `FeatureDef` under it). Anything else is `W418`.
+
+**Shape kinds:**
+
+| `kind` value | Description | Notation |
+|---|---|---|
+| `feature` | One `FeatureDef`: a rectangle with the feature's name (italic when `isAbstract`), `parameters:` and `cardinality:` as compartment lines | a filled circle above the box when it is a mandatory member of its parent, a hollow one when optional; the root has none |
+
+**Edge kinds:**
+
+| `kind` value | Description | Notation |
+|---|---|---|
+| `child` | Parent feature to child feature | a straight line from the parent's bottom centre to the child's top centre; where the parent's `groupKind:` is `alternative` a hollow wedge joins its children (XOR), where it is `or` a filled wedge (OR) |
+| `requires` | A cross-tree `requires:` constraint | a dashed curve with a filled arrowhead at the required feature, labelled `requires` |
+| `excludes` | A cross-tree `excludes:` constraint; a mutual pair is drawn once | a dashed curve with open arrowheads at both ends, labelled `excludes` |
+
+`requires` and `excludes` edges are **overlay edges**: they take no part in layout (they would pull the tree out of shape) and are drawn after the features are placed, as curves that leave and enter the features on their free sides. The layout is a tree layout (ELK `mrtree`) that places every parent centred over its children and several roots side by side.
+
+**Derived content:** the generator reads the feature tree exactly as the SAT encoding does (`parentFeature:` else the nearest enclosing feature in the qualified name; `FEAT-*` ids accepted in `requires:`/`excludes:`), so the picture and the analysis cannot disagree. One `feature` node per `FeatureDef` under the subject, one `child` edge to each child, and a constraint edge only when both ends are on the diagram. `include:`/`exclude:` match by qualified name, `FEAT-*` id or short name; an entry matching no feature is `W417`. A feature kept whose parent was excluded becomes a root. Node ids are the usual deterministic `s-…` ids, so `layout:` pins apply.
+
+**Minimal example:**
+
+```yaml
+type: Diagram
+diagramKind: FeatureModel
+name: CarFeatures
+subject: Features
+```
 
 ### 8.17 Architecture Decision Records (ADR)
 

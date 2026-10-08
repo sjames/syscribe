@@ -9,6 +9,7 @@ import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const outfile = path.resolve(here, '../static/js/diagram-editor.js');
+const featureOut = path.resolve(here, '../static/js/feature-model.js');
 
 await build({
   entryPoints: [path.join(here, 'src/main.ts')],
@@ -25,4 +26,18 @@ await build({
   logLevel: 'info',
 });
 
-console.log(`Built ${outfile}`);
+// The feature model page (`/features`) has its own entry: the shared container
+// and views, plus `feature-main.ts`.
+await build({
+  entryPoints: [path.join(here, 'src/feature-main.ts')],
+  bundle: true,
+  outfile: featureOut,
+  format: 'iife',
+  target: 'es2020',
+  sourcemap: true,
+  jsxFactory: 'svg',
+  jsxFragment: 'Fragment',
+  logLevel: 'info',
+});
+
+console.log(`Built ${outfile} and ${featureOut}`);

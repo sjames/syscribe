@@ -27,6 +27,8 @@ pub enum DiagramKind {
     UseCase,
     /// `diagramKind: Action` — an action-flow view (`REQ-TRS-VIS-019`).
     Action,
+    /// `diagramKind: FeatureModel` — a feature diagram (`REQ-TRS-FMED-001`).
+    FeatureModel,
     /// `diagramKind: Custom`, the legacy `SVG` default, or no `diagramKind` at
     /// all: a manifest with no kind-specific conventions.
     Custom,
@@ -46,6 +48,7 @@ impl DiagramKind {
             Some("Allocation") => Some(DiagramKind::Allocation),
             Some("UseCase") => Some(DiagramKind::UseCase),
             Some("Action") => Some(DiagramKind::Action),
+            Some("FeatureModel") => Some(DiagramKind::FeatureModel),
             _ => None,
         }
     }
@@ -61,6 +64,7 @@ impl DiagramKind {
             DiagramKind::Allocation => "Allocation",
             DiagramKind::UseCase => "UseCase",
             DiagramKind::Action => "Action",
+            DiagramKind::FeatureModel => "FeatureModel",
             DiagramKind::Custom => "Custom",
         }
     }
@@ -105,6 +109,8 @@ pub enum NodeKind {
     Join,
     Decision,
     Merge,
+    // FeatureModel (REQ-TRS-FMED-001)
+    Feature,
 }
 
 impl NodeKind {
@@ -136,6 +142,7 @@ impl NodeKind {
             NodeKind::Join => "join",
             NodeKind::Decision => "decision",
             NodeKind::Merge => "merge",
+            NodeKind::Feature => "feature",
         }
     }
 
@@ -169,6 +176,7 @@ impl NodeKind {
             "join" | "joinnode" => NodeKind::Join,
             "decision" | "decisionnode" => NodeKind::Decision,
             "merge" | "mergenode" => NodeKind::Merge,
+            "feature" => NodeKind::Feature,
             _ => return None,
         })
     }
@@ -225,6 +233,13 @@ pub enum EdgeKind {
     // UseCase
     Include,
     Extend,
+    // FeatureModel (REQ-TRS-FMED-001)
+    /// Parent to child in the feature tree.
+    FeatureChild,
+    /// A cross-tree `requires:` constraint.
+    Requires,
+    /// A cross-tree `excludes:` constraint.
+    Excludes,
 }
 
 impl EdgeKind {
@@ -255,6 +270,9 @@ impl EdgeKind {
             EdgeKind::Allocation => "allocation",
             EdgeKind::Include => "include",
             EdgeKind::Extend => "extend",
+            EdgeKind::FeatureChild => "child",
+            EdgeKind::Requires => "requires",
+            EdgeKind::Excludes => "excludes",
         }
     }
 
@@ -289,13 +307,16 @@ impl EdgeKind {
             "allocation" | "allocate" | "allocatedto" | "allocatedfrom" => EdgeKind::Allocation,
             "include" | "includes" => EdgeKind::Include,
             "extend" | "extends" => EdgeKind::Extend,
+            "child" | "featurechild" => EdgeKind::FeatureChild,
+            "requires" => EdgeKind::Requires,
+            "excludes" => EdgeKind::Excludes,
             _ => return None,
         })
     }
 
     /// Whether the edge is drawn directed (has an arrowhead at the target).
     pub fn is_directed(&self) -> bool {
-        !matches!(self, EdgeKind::Connection | EdgeKind::Binding | EdgeKind::Association | EdgeKind::Containment)
+        !matches!(self, EdgeKind::Connection | EdgeKind::Binding | EdgeKind::Association | EdgeKind::Containment | EdgeKind::FeatureChild | EdgeKind::Excludes)
     }
 }
 
@@ -398,6 +419,24 @@ pub struct Node {
     /// drawn as `«Name»` beneath the kind stereotype.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub banners: Vec<String>,
+    /// Feature notation state of a `FeatureModel` node (`REQ-TRS-FMED-001`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub feature: Option<FeatureMark>,
+}
+
+/// What a feature diagram draws on a feature beyond its name: whether it is a
+/// mandatory member of its parent, and how its own children are grouped.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FeatureMark {
+    pub mandatory: bool,
+    /// `optional`, `alternative` or `or`: the group kind of the feature's children.
+    pub group: String,
+    /// Number of direct children, so a collapsed node can show how many it hides.
+    pub child_count: usize,
+    /// Stable `FEAT-*` id, when the feature has one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
 }
 
 /// One edge of the diagram.
@@ -426,6 +465,9 @@ pub enum LayoutAlgorithm {
     Layered,
     /// Positions are given; only edges are routed (ELK `fixed`).
     Fixed,
+    /// A forest laid out as trees, parents centred over their children (ELK
+    /// `mrtree`): a feature diagram.
+    Tree,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -456,6 +498,11 @@ pub struct LayoutHints {
     /// Edges of these kinds point "up" the layering (a supertype above its
     /// subtypes): the layout engine reverses them for layering purposes.
     pub reversed_kinds: Vec<EdgeKind>,
+    /// Edges of these kinds take no part in layout: they are drawn after the
+    /// nodes are placed (a feature diagram's cross-tree constraints, which
+    /// would otherwise pull the tree out of shape).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub overlay_kinds: Vec<EdgeKind>,
 }
 
 impl LayoutHints {
@@ -467,6 +514,7 @@ impl LayoutHints {
                 hierarchical: false,
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![EdgeKind::Inheritance],
+                overlay_kinds: vec![],
             },
             DiagramKind::Ibd => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -474,6 +522,7 @@ impl LayoutHints {
                 hierarchical: true,
                 port_constraints: PortConstraints::FixedSide,
                 reversed_kinds: vec![],
+                overlay_kinds: vec![],
             },
             DiagramKind::StateMachine => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -481,6 +530,7 @@ impl LayoutHints {
                 hierarchical: true,
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
+                overlay_kinds: vec![],
             },
             DiagramKind::Sequence => LayoutHints {
                 algorithm: LayoutAlgorithm::Fixed,
@@ -488,6 +538,7 @@ impl LayoutHints {
                 hierarchical: false,
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
+                overlay_kinds: vec![],
             },
             DiagramKind::Requirement => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -495,6 +546,7 @@ impl LayoutHints {
                 hierarchical: false,
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![EdgeKind::Derive, EdgeKind::Satisfy, EdgeKind::Verify, EdgeKind::Refine],
+                overlay_kinds: vec![],
             },
             DiagramKind::Allocation => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -502,6 +554,7 @@ impl LayoutHints {
                 hierarchical: true,
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
+                overlay_kinds: vec![],
             },
             DiagramKind::UseCase => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -509,6 +562,7 @@ impl LayoutHints {
                 hierarchical: true,
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![EdgeKind::Inheritance],
+                overlay_kinds: vec![],
             },
             DiagramKind::Action => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -516,6 +570,15 @@ impl LayoutHints {
                 hierarchical: true,
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
+                overlay_kinds: vec![],
+            },
+            DiagramKind::FeatureModel => LayoutHints {
+                algorithm: LayoutAlgorithm::Tree,
+                direction: LayoutDirection::Down,
+                hierarchical: false,
+                port_constraints: PortConstraints::Free,
+                reversed_kinds: vec![],
+                overlay_kinds: vec![EdgeKind::Requires, EdgeKind::Excludes],
             },
             DiagramKind::Custom => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -523,6 +586,7 @@ impl LayoutHints {
                 hierarchical: true,
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
+                overlay_kinds: vec![],
             },
         }
     }
@@ -723,6 +787,7 @@ mod tests {
             is_abstract: false,
             pin,
             banners: vec![],
+            feature: None,
         };
         g.nodes.push(mk("a", None, Some(Rect { x: 0.0, y: 0.0, w: None, h: None })));
         g.nodes.push(mk("b", Some("a"), None));

@@ -23,6 +23,9 @@ pub const EDGE_STROKE: &str = "#555";
 pub const EDGE_STROKE_CONNECTOR: &str = "#1f497d";
 /// Edge stroke for `«verify»`.
 pub const EDGE_STROKE_VERIFY: &str = "#3a6ea5";
+/// Cross-tree constraints of a feature diagram (`REQ-TRS-FMED-001`).
+pub const EDGE_STROKE_FEATURE_REQUIRES: &str = "#1d6fb8";
+pub const EDGE_STROKE_FEATURE_EXCLUDES: &str = "#b3261e";
 /// Edge stroke for `«allocate»`.
 pub const EDGE_STROKE_ALLOCATION: &str = "#7a3ea5";
 /// Edge stroke width shared by every kind.
@@ -164,6 +167,9 @@ pub fn edge_style(kind: EdgeKind) -> EdgeStyle {
         K::Allocation => (EDGE_STROKE_ALLOCATION, Some("8,4"), A::Open, A::None, Some("«allocate»")),
         K::Include => (EDGE_STROKE, Some("6,3"), A::Open, A::None, Some("«include»")),
         K::Extend => (EDGE_STROKE, Some("6,3"), A::Open, A::None, Some("«extend»")),
+        K::FeatureChild => (EDGE_STROKE, None, A::None, A::None, None),
+        K::Requires => (EDGE_STROKE_FEATURE_REQUIRES, Some("6,3"), A::Filled, A::None, Some("requires")),
+        K::Excludes => (EDGE_STROKE_FEATURE_EXCLUDES, Some("6,3"), A::Open, A::Open, Some("excludes")),
     };
     EdgeStyle {
         stroke: stroke.to_string(),
@@ -209,6 +215,7 @@ mod tests {
             is_abstract: false,
             pin: None,
             banners: vec![],
+            feature: None,
         }
     }
 

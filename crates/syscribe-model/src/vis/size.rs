@@ -474,6 +474,7 @@ mod tests {
             is_abstract: false,
             pin: None,
             banners: vec![],
+            feature: None,
         }
     }
 

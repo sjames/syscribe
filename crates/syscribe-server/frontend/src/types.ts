@@ -84,12 +84,32 @@ interface SysmlShapeFields {
     side?: string;
 }
 
+/** What a feature diagram draws on a feature (`vis::ir::FeatureMark`). */
+export interface FeatureMark {
+    mandatory: boolean;
+    /** The group kind of the feature's children: `optional`, `alternative` (XOR) or `or`. */
+    group: 'optional' | 'alternative' | 'or';
+    childCount: number;
+    id?: string;
+}
+
+/** The SAT analysis state of a feature (`feature_model::analysis_json`). */
+export type FeatureState = 'normal' | 'core' | 'dead' | 'falseOptional';
+
 /** A container/block-like IR node (boundary, block, state, requirement, …). */
 export interface SysmlNodeSchema extends SNode, SysmlShapeFields {
     type: 'node';
     style?: NodeStyle;
     /** Extra `«Name»` lines under the stereotype (applied `MetadataDef`s). */
     banners?: string[];
+    /** A feature-diagram node's notation (`REQ-TRS-FMED-001`). */
+    feature?: FeatureMark;
+    /** Analysis state drawn on a feature (`REQ-TRS-FMED-002`), set client-side. */
+    analysis?: FeatureState;
+    /** Number of descendants hidden by collapsing this feature, client-side. */
+    collapsedCount?: number;
+    /** Whether this feature is the current search match, client-side. */
+    matched?: boolean;
     /** The `size` the server sent (text-metrics size, or a pin's `w`/`h`),
      * copied by `prepareForLayout` before sprotty's hidden render runs. It is
      * authoritative: the measuring pass leaves the element at this size and
@@ -150,6 +170,8 @@ export interface SysmlEdgeSchema extends SEdge {
     ref?: string;
     label?: string;
     style?: EdgeStyle;
+    /** Left out of layout and drawn after placement (`layoutHints.overlayKinds`). */
+    overlay?: boolean;
     /** `keyword`/`label` as label children (`prepareEdge`) so ELK places them. */
     children?: SysmlLabelSchema[];
 }

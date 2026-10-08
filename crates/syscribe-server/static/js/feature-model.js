@@ -5926,19 +5926,19 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         }
         LoggingAction2.create = create;
       })(LoggingAction || (exports.LoggingAction = LoggingAction = {}));
-      var SelectAction3;
-      (function(SelectAction4) {
-        SelectAction4.KIND = "elementSelected";
+      var SelectAction2;
+      (function(SelectAction3) {
+        SelectAction3.KIND = "elementSelected";
         function create(options) {
           var _a4, _b2;
           return {
-            kind: SelectAction4.KIND,
+            kind: SelectAction3.KIND,
             selectedElementsIDs: (_a4 = options.selectedElementsIDs) !== null && _a4 !== void 0 ? _a4 : [],
             deselectedElementsIDs: (_b2 = options.deselectedElementsIDs) !== null && _b2 !== void 0 ? _b2 : []
           };
         }
-        SelectAction4.create = create;
-      })(SelectAction3 || (exports.SelectAction = SelectAction3 = {}));
+        SelectAction3.create = create;
+      })(SelectAction2 || (exports.SelectAction = SelectAction2 = {}));
       var SelectAllAction;
       (function(SelectAllAction2) {
         SelectAllAction2.KIND = "allSelected";
@@ -6022,21 +6022,21 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         }
         LayoutAction2.create = create;
       })(LayoutAction || (exports.LayoutAction = LayoutAction = {}));
-      var CenterAction;
-      (function(CenterAction2) {
-        CenterAction2.KIND = "center";
+      var CenterAction2;
+      (function(CenterAction3) {
+        CenterAction3.KIND = "center";
         function create(elementIds, options = {}) {
           var _a4, _b2;
           return {
-            kind: CenterAction2.KIND,
+            kind: CenterAction3.KIND,
             elementIds,
             animate: (_a4 = options.animate) !== null && _a4 !== void 0 ? _a4 : true,
             retainZoom: (_b2 = options.retainZoom) !== null && _b2 !== void 0 ? _b2 : false,
             zoomScale: options.zoomScale
           };
         }
-        CenterAction2.create = create;
-      })(CenterAction || (exports.CenterAction = CenterAction = {}));
+        CenterAction3.create = create;
+      })(CenterAction2 || (exports.CenterAction = CenterAction2 = {}));
       var FitToScreenAction2;
       (function(FitToScreenAction3) {
         FitToScreenAction3.KIND = "fit";
@@ -6052,20 +6052,20 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         }
         FitToScreenAction3.create = create;
       })(FitToScreenAction2 || (exports.FitToScreenAction = FitToScreenAction2 = {}));
-      var SetViewportAction2;
-      (function(SetViewportAction3) {
-        SetViewportAction3.KIND = "viewport";
+      var SetViewportAction;
+      (function(SetViewportAction2) {
+        SetViewportAction2.KIND = "viewport";
         function create(elementId, newViewport, options = {}) {
           var _a4;
           return {
-            kind: SetViewportAction3.KIND,
+            kind: SetViewportAction2.KIND,
             elementId,
             newViewport,
             animate: (_a4 = options.animate) !== null && _a4 !== void 0 ? _a4 : true
           };
         }
-        SetViewportAction3.create = create;
-      })(SetViewportAction2 || (exports.SetViewportAction = SetViewportAction2 = {}));
+        SetViewportAction2.create = create;
+      })(SetViewportAction || (exports.SetViewportAction = SetViewportAction = {}));
       var GetViewportAction;
       (function(GetViewportAction2) {
         GetViewportAction2.KIND = "getViewport";
@@ -6121,21 +6121,21 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         }
         RedoAction2.create = create;
       })(RedoAction || (exports.RedoAction = RedoAction = {}));
-      var MoveAction3;
-      (function(MoveAction4) {
-        MoveAction4.KIND = "move";
+      var MoveAction2;
+      (function(MoveAction3) {
+        MoveAction3.KIND = "move";
         function create(moves, options = {}) {
           var _a4, _b2, _c;
           return {
-            kind: MoveAction4.KIND,
+            kind: MoveAction3.KIND,
             moves,
             animate: (_a4 = options.animate) !== null && _a4 !== void 0 ? _a4 : true,
             finished: (_b2 = options.finished) !== null && _b2 !== void 0 ? _b2 : false,
             stoppable: (_c = options.stoppable) !== null && _c !== void 0 ? _c : false
           };
         }
-        MoveAction4.create = create;
-      })(MoveAction3 || (exports.MoveAction = MoveAction3 = {}));
+        MoveAction3.create = create;
+      })(MoveAction2 || (exports.MoveAction = MoveAction2 = {}));
       var HoverFeedbackAction;
       (function(HoverFeedbackAction2) {
         HoverFeedbackAction2.KIND = "hoverFeedback";
@@ -6173,29 +6173,29 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         }
         ExportSvgAction2.create = create;
       })(ExportSvgAction || (exports.ExportSvgAction = ExportSvgAction = {}));
-      var CreateElementAction2;
-      (function(CreateElementAction3) {
-        CreateElementAction3.KIND = "createElement";
+      var CreateElementAction;
+      (function(CreateElementAction2) {
+        CreateElementAction2.KIND = "createElement";
         function create(elementSchema, options) {
           return {
-            kind: CreateElementAction3.KIND,
+            kind: CreateElementAction2.KIND,
             elementSchema,
             containerId: options.containerId
           };
         }
-        CreateElementAction3.create = create;
-      })(CreateElementAction2 || (exports.CreateElementAction = CreateElementAction2 = {}));
-      var DeleteElementAction2;
-      (function(DeleteElementAction3) {
-        DeleteElementAction3.KIND = "delete";
+        CreateElementAction2.create = create;
+      })(CreateElementAction || (exports.CreateElementAction = CreateElementAction = {}));
+      var DeleteElementAction;
+      (function(DeleteElementAction2) {
+        DeleteElementAction2.KIND = "delete";
         function create(elementIds) {
           return {
-            kind: DeleteElementAction3.KIND,
+            kind: DeleteElementAction2.KIND,
             elementIds
           };
         }
-        DeleteElementAction3.create = create;
-      })(DeleteElementAction2 || (exports.DeleteElementAction = DeleteElementAction2 = {}));
+        DeleteElementAction2.create = create;
+      })(DeleteElementAction || (exports.DeleteElementAction = DeleteElementAction = {}));
       var ApplyLabelEditAction;
       (function(ApplyLabelEditAction2) {
         ApplyLabelEditAction2.KIND = "applyLabelEdit";
@@ -6792,16 +6792,16 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       exports.ModelIndexImpl = exports.createRandomId = exports.SModelRootImpl = exports.SChildElementImpl = exports.SParentElementImpl = exports.isParent = exports.SModelElementImpl = void 0;
       var geometry_1 = require_geometry();
       var iterable_1 = require_iterable();
-      var SModelElementImpl3 = class {
+      var SModelElementImpl2 = class {
         get root() {
-          let current3 = this;
-          while (current3) {
-            if (current3 instanceof SModelRootImpl)
-              return current3;
-            else if (current3 instanceof SChildElementImpl2)
-              current3 = current3.parent;
+          let current = this;
+          while (current) {
+            if (current instanceof SModelRootImpl)
+              return current;
+            else if (current instanceof SChildElementImpl)
+              current = current.parent;
             else
-              current3 = void 0;
+              current = void 0;
           }
           throw new Error("Element has no root");
         }
@@ -6816,13 +6816,13 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return this.features !== void 0 && this.features.has(feature);
         }
       };
-      exports.SModelElementImpl = SModelElementImpl3;
+      exports.SModelElementImpl = SModelElementImpl2;
       function isParent(element) {
         const children = element.children;
         return children !== void 0 && children.constructor === Array;
       }
       exports.isParent = isParent;
-      var SParentElementImpl = class extends SModelElementImpl3 {
+      var SParentElementImpl = class extends SModelElementImpl2 {
         constructor() {
           super(...arguments);
           this.children = [];
@@ -6900,9 +6900,9 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         }
       };
       exports.SParentElementImpl = SParentElementImpl;
-      var SChildElementImpl2 = class extends SParentElementImpl {
+      var SChildElementImpl = class extends SParentElementImpl {
       };
-      exports.SChildElementImpl = SChildElementImpl2;
+      exports.SChildElementImpl = SChildElementImpl;
       var SModelRootImpl = class extends SParentElementImpl {
         constructor(index = new ModelIndexImpl()) {
           super();
@@ -7527,14 +7527,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                 dtime = time - start;
               }
               const t3 = Math.min(1, dtime / this.context.duration);
-              const current3 = this.tween(this.ease(t3), this.context);
-              this.context.modelChanged.update(current3);
+              const current = this.tween(this.ease(t3), this.context);
+              this.context.modelChanged.update(current);
               if (t3 === 1) {
                 this.context.logger.log(this, frames * 1e3 / this.context.duration + " fps");
-                resolve(current3);
+                resolve(current);
               } else if (this.stopped) {
                 this.context.logger.log(this, "Animation stopped at " + t3 * 100 + "%");
-                resolve(current3);
+                resolve(current);
               } else {
                 this.context.syncer.onNextFrame(lambda);
               }
@@ -7729,13 +7729,13 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return this.id2parent.get(id);
         }
         getRoot(element) {
-          let current3 = element;
-          while (current3) {
-            const parent = this.id2parent.get(current3.id);
+          let current = element;
+          while (current) {
+            const parent = this.id2parent.get(current.id);
             if (parent === void 0) {
-              return current3;
+              return current;
             }
-            current3 = parent;
+            current = parent;
           }
           throw new Error("Element has no root");
         }
@@ -8781,29 +8781,29 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       }
       exports.registerModelElement = registerModelElement;
       function findParent(element, predicate) {
-        let current3 = element;
-        while (current3 !== void 0) {
-          if (predicate(current3))
-            return current3;
-          else if (current3 instanceof smodel_1.SChildElementImpl)
-            current3 = current3.parent;
+        let current = element;
+        while (current !== void 0) {
+          if (predicate(current))
+            return current;
+          else if (current instanceof smodel_1.SChildElementImpl)
+            current = current.parent;
           else
-            current3 = void 0;
+            current = void 0;
         }
-        return current3;
+        return current;
       }
       exports.findParent = findParent;
       function findParentByFeature(element, predicate) {
-        let current3 = element;
-        while (current3 !== void 0) {
-          if (predicate(current3))
-            return current3;
-          else if (current3 instanceof smodel_1.SChildElementImpl)
-            current3 = current3.parent;
+        let current = element;
+        while (current !== void 0) {
+          if (predicate(current))
+            return current;
+          else if (current instanceof smodel_1.SChildElementImpl)
+            current = current.parent;
           else
-            current3 = void 0;
+            current = void 0;
         }
-        return current3;
+        return current;
       }
       exports.findParentByFeature = findParentByFeature;
       function translatePoint(point, source, target) {
@@ -8840,8 +8840,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       }
       exports.translateBounds = translateBounds;
       function containsSome(root, element) {
-        const test = (el3) => root.index.getById(el3.id) !== void 0;
-        const find = (elements) => elements.some((el3) => test(el3) || find(el3.children));
+        const test = (el) => root.index.getById(el.id) !== void 0;
+        const find = (elements) => elements.some((el) => test(el) || find(el.children));
         return find([element]);
       }
       exports.containsSome = containsSome;
@@ -9276,7 +9276,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       var types_1 = require_types();
       var dom_helper_1 = require_dom_helper();
       var vnode_utils_1 = require_vnode_utils();
-      var MouseTool2 = class MouseTool {
+      var MouseTool = class MouseTool {
         constructor(mouseListeners = []) {
           this.mouseListeners = mouseListeners;
         }
@@ -9379,22 +9379,22 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         postUpdate() {
         }
       };
-      exports.MouseTool = MouseTool2;
+      exports.MouseTool = MouseTool;
       __decorate([
         (0, inversify_1.inject)(types_1.TYPES.IActionDispatcher),
         __metadata("design:type", Object)
-      ], MouseTool2.prototype, "actionDispatcher", void 0);
+      ], MouseTool.prototype, "actionDispatcher", void 0);
       __decorate([
         (0, inversify_1.inject)(types_1.TYPES.DOMHelper),
         __metadata("design:type", dom_helper_1.DOMHelper)
-      ], MouseTool2.prototype, "domHelper", void 0);
-      exports.MouseTool = MouseTool2 = __decorate([
+      ], MouseTool.prototype, "domHelper", void 0);
+      exports.MouseTool = MouseTool = __decorate([
         (0, inversify_1.injectable)(),
         __param(0, (0, inversify_1.multiInject)(types_1.TYPES.MouseListener)),
         __param(0, (0, inversify_1.optional)()),
         __metadata("design:paramtypes", [Array])
-      ], MouseTool2);
-      var PopupMouseTool = class PopupMouseTool extends MouseTool2 {
+      ], MouseTool);
+      var PopupMouseTool = class PopupMouseTool extends MouseTool {
         constructor(mouseListeners = []) {
           super(mouseListeners);
           this.mouseListeners = mouseListeners;
@@ -9407,7 +9407,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         __param(0, (0, inversify_1.optional)()),
         __metadata("design:paramtypes", [Array])
       ], PopupMouseTool);
-      var MouseListener2 = class MouseListener {
+      var MouseListener = class MouseListener {
         mouseOver(target, event) {
           return [];
         }
@@ -9448,11 +9448,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return vnode;
         }
       };
-      exports.MouseListener = MouseListener2;
-      exports.MouseListener = MouseListener2 = __decorate([
+      exports.MouseListener = MouseListener;
+      exports.MouseListener = MouseListener = __decorate([
         (0, inversify_1.injectable)()
-      ], MouseListener2);
-      var MousePositionTracker = class MousePositionTracker extends MouseListener2 {
+      ], MouseListener);
+      var MousePositionTracker = class MousePositionTracker extends MouseListener {
         mouseMove(target, event) {
           this.lastPosition = target.root.parentToLocal({ x: event.offsetX, y: event.offsetY });
           return [];
@@ -9477,7 +9477,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
     "node_modules/snabbdom/build/snabbdom.cjs.js"(exports) {
       "use strict";
       Object.defineProperty(exports, "__esModule", { value: true });
-      function createElement2(tagName2, options) {
+      function createElement(tagName2, options) {
         return document.createElement(tagName2, options);
       }
       function createElementNS(namespaceURI, qualifiedName, options) {
@@ -9572,7 +9572,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         return fragment2;
       }
       var htmlDomApi = {
-        createElement: createElement2,
+        createElement,
         createElementNS,
         createTextNode,
         createDocumentFragment,
@@ -11527,11 +11527,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         const boundsAware = (0, smodel_utils_1.findParentByFeature)(element, isBoundsAware);
         if (boundsAware !== void 0) {
           let bounds = boundsAware.bounds;
-          let current3 = boundsAware;
-          while (current3 instanceof smodel_1.SChildElementImpl) {
-            const parent = current3.parent;
+          let current = boundsAware;
+          while (current instanceof smodel_1.SChildElementImpl) {
+            const parent = current.parent;
             bounds = parent.localToParent(bounds);
-            current3 = parent;
+            current = parent;
           }
           return bounds;
         } else if (element instanceof smodel_1.SModelRootImpl) {
@@ -12121,14 +12121,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
             return this.spread(containerOptions, layoutOptions);
         }
         getLayoutOptions(element) {
-          let current3 = element;
+          let current = element;
           const allOptions = [];
-          while (current3 !== void 0) {
-            const layoutOptions = current3.layoutOptions;
+          while (current !== void 0) {
+            const layoutOptions = current.layoutOptions;
             if (layoutOptions !== void 0)
               allOptions.push(layoutOptions);
-            if (current3 instanceof smodel_1.SChildElementImpl)
-              current3 = current3.parent;
+            if (current instanceof smodel_1.SChildElementImpl)
+              current = current.parent;
             else
               break;
           }
@@ -13802,11 +13802,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       exports.isConnectable = isConnectable;
       function getAbsoluteRouteBounds(model, route = model.routingPoints) {
         let bounds = getRouteBounds(route);
-        let current3 = model;
-        while (current3 instanceof smodel_1.SChildElementImpl) {
-          const parent = current3.parent;
+        let current = model;
+        while (current instanceof smodel_1.SChildElementImpl) {
+          const parent = current.parent;
           bounds = parent.localToParent(bounds);
-          current3 = parent;
+          current = parent;
         }
         return bounds;
       }
@@ -15368,14 +15368,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return { x: x3, y: y3 };
         }
         getEdgePlacement(element) {
-          let current3 = element;
+          let current = element;
           const allPlacements = [];
-          while (current3 !== void 0) {
-            const placement = current3.edgePlacement;
+          while (current !== void 0) {
+            const placement = current.edgePlacement;
             if (placement !== void 0)
               allPlacements.push(placement);
-            if (current3 instanceof smodel_1.SChildElementImpl)
-              current3 = current3.parent;
+            if (current instanceof smodel_1.SChildElementImpl)
+              current = current.parent;
             else
               break;
           }
@@ -17471,11 +17471,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           var item = data[pos];
           while (pos > 0) {
             var parent = pos - 1 >> 1;
-            var current3 = data[parent];
-            if (compare(item, current3) >= 0) {
+            var current = data[parent];
+            if (compare(item, current) >= 0) {
               break;
             }
-            data[pos] = current3;
+            data[pos] = current;
             pos = parent;
           }
           data[pos] = item;
@@ -18060,8 +18060,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
               if (resolvedMove) {
                 this.resolvedMoves.set(resolvedMove.element.id, resolvedMove);
                 if (this.edgeRouterRegistry) {
-                  const handleEdges = (el3) => {
-                    index.getAttachedElements(el3).forEach((edge) => {
+                  const handleEdges = (el) => {
+                    index.getAttachedElements(el).forEach((edge) => {
                       if (edge instanceof model_2.SRoutableElementImpl && !this.isChildOfMovedElements(edge)) {
                         const existingDelta = attachedEdgeShifts.get(edge);
                         const newDelta = geometry_1.Point.subtract(resolvedMove.toPosition, resolvedMove.fromPosition);
@@ -18070,9 +18070,9 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                       }
                     });
                   };
-                  const handleEdgesForChildren = (el3) => {
-                    if ((0, smodel_1.isParent)(el3)) {
-                      el3.children.forEach((childEl) => {
+                  const handleEdgesForChildren = (el) => {
+                    if ((0, smodel_1.isParent)(el)) {
+                      el.children.forEach((childEl) => {
                         if (childEl instanceof smodel_1.SModelElementImpl) {
                           if (childEl instanceof model_2.SConnectableElementImpl) {
                             handleEdges(childEl);
@@ -18146,8 +18146,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
             }
           });
         }
-        isChildOfMovedElements(el3) {
-          const parent = el3.parent;
+        isChildOfMovedElements(el) {
+          const parent = el.parent;
           if (Array.from(this.resolvedMoves.values()).map((rm) => rm.element.id).includes(parent.id)) {
             return true;
           }
@@ -18334,7 +18334,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         }
       };
       exports.MorphEdgesAnimation = MorphEdgesAnimation;
-      var MoveMouseListener2 = class extends mouse_tool_1.MouseListener {
+      var MoveMouseListener = class extends mouse_tool_1.MouseListener {
         constructor() {
           super(...arguments);
           this.hasDragged = false;
@@ -18545,17 +18545,17 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return vnode;
         }
       };
-      exports.MoveMouseListener = MoveMouseListener2;
+      exports.MoveMouseListener = MoveMouseListener;
       __decorate([
         (0, inversify_1.inject)(routing_1.EdgeRouterRegistry),
         (0, inversify_1.optional)(),
         __metadata("design:type", routing_1.EdgeRouterRegistry)
-      ], MoveMouseListener2.prototype, "edgeRouterRegistry", void 0);
+      ], MoveMouseListener.prototype, "edgeRouterRegistry", void 0);
       __decorate([
         (0, inversify_1.inject)(types_1.TYPES.ISnapper),
         (0, inversify_1.optional)(),
         __metadata("design:type", Object)
-      ], MoveMouseListener2.prototype, "snapper", void 0);
+      ], MoveMouseListener.prototype, "snapper", void 0);
       var LocationPostprocessor = class LocationPostprocessor {
         decorate(vnode, element) {
           if ((0, model_3.isEdgeLayoutable)(element) && element.parent instanceof sgraph_1.SEdgeImpl) {
@@ -20457,7 +20457,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         __param(0, (0, inversify_1.inject)(types_1.TYPES.Action)),
         __metadata("design:paramtypes", [Object])
       ], SelectAllCommand);
-      var SelectMouseListener2 = class extends mouse_tool_1.MouseListener {
+      var SelectMouseListener = class extends mouse_tool_1.MouseListener {
         constructor() {
           super(...arguments);
           this.wasSelected = false;
@@ -20564,12 +20564,12 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           return vnode;
         }
       };
-      exports.SelectMouseListener = SelectMouseListener2;
+      exports.SelectMouseListener = SelectMouseListener;
       __decorate([
         (0, inversify_1.inject)(button_handler_1.ButtonHandlerRegistry),
         (0, inversify_1.optional)(),
         __metadata("design:type", button_handler_1.ButtonHandlerRegistry)
-      ], SelectMouseListener2.prototype, "buttonHandlerRegistry", void 0);
+      ], SelectMouseListener.prototype, "buttonHandlerRegistry", void 0);
       var GetSelectionCommand = class GetSelectionCommand extends request_command_1.ModelRequestCommand {
         constructor(action) {
           super();
@@ -22555,16 +22555,16 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
         return `${firstChar}${name.substring(1)}`;
       }
       var entityRegex = new RegExp("&[a-z0-9#]+;", "gi");
-      var el3 = null;
+      var el = null;
       function unescapeEntities(text) {
-        if (!el3) {
-          el3 = document.createElement("div");
+        if (!el) {
+          el = document.createElement("div");
         }
         return text.replace(entityRegex, (entity) => {
-          if (el3 === null)
+          if (el === null)
             return "";
-          el3.innerHTML = entity;
-          return el3.textContent === null ? "" : el3.textContent;
+          el.innerHTML = entity;
+          return el.textContent === null ? "" : el.textContent;
         });
       }
       function recurse(doc, func) {
@@ -22604,17 +22604,17 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       var vnodeMap = /* @__PURE__ */ new Map();
       var delimited = false;
       function toVNode(node, parent) {
-        let current3;
+        let current;
         if (parent !== null) {
-          current3 = vnodeMap.get(parent);
+          current = vnodeMap.get(parent);
         }
         switch (node === null || node === void 0 ? void 0 : node.nodeType) {
           // element
           case 1: {
-            if (current3 === void 0)
+            if (current === void 0)
               return;
-            current3.children = current3.children ? current3.children : [];
-            const children = current3.children;
+            current.children = current.children ? current.children : [];
+            const children = current.children;
             const attributes = node.attributes;
             const attrs = {};
             for (let i2 = 0; i2 < attributes.length; i2++) {
@@ -22631,9 +22631,9 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           // text
           case 3: {
             const text = node.textContent;
-            if (text !== null && current3 !== void 0) {
-              current3.children = current3.children ? current3.children : [];
-              const children = current3.children;
+            if (text !== null && current !== void 0) {
+              current.children = current.children ? current.children : [];
+              const children = current.children;
               const lastData = children.length > 0 ? children[children.length - 1] : null;
               if (!delimited && typeof lastData !== "string" && lastData !== null && lastData.sel === void 0) {
                 lastData.text = lastData.text + text;
@@ -30604,7 +30604,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                 return es((asc(), _rc), a10);
               }
               function gsc(a10) {
-                esc();
+                esc2();
                 return es((jsc(), isc), a10);
               }
               function osc(a10) {
@@ -34050,7 +34050,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                 return OC(GC(vV, 1), Kie, 361, 0, [Ekc, Dkc, Ckc]);
               }
               function hsc() {
-                esc();
+                esc2();
                 return OC(GC(RW, 1), Kie, 303, 0, [csc, dsc, bsc]);
               }
               function $rc() {
@@ -35982,7 +35982,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
               }
               function jsc() {
                 jsc = ccb;
-                isc = as((esc(), OC(GC(RW, 1), Kie, 303, 0, [csc, dsc, bsc])));
+                isc = as((esc2(), OC(GC(RW, 1), Kie, 303, 0, [csc, dsc, bsc])));
               }
               function asc() {
                 asc = ccb;
@@ -36784,8 +36784,8 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                 CIb = new FIb(gle, 1);
                 BIb = new FIb(mle, 2);
               }
-              function esc() {
-                esc = ccb;
+              function esc2() {
+                esc2 = ccb;
                 csc = new fsc(ane, 0);
                 dsc = new fsc("TOP", 1);
                 bsc = new fsc(mle, 2);
@@ -41889,10 +41889,10 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
               function b5b(a10) {
                 switch (BD(vNb(a10, (wtc(), Osc)), 303).g) {
                   case 1:
-                    yNb(a10, Osc, (esc(), bsc));
+                    yNb(a10, Osc, (esc2(), bsc));
                     break;
                   case 2:
-                    yNb(a10, Osc, (esc(), dsc));
+                    yNb(a10, Osc, (esc2(), dsc));
                 }
               }
               function _Fc(a10) {
@@ -58159,11 +58159,11 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                 b10 = BD(vNb(a10, (wtc(), Osc)), 303);
                 if (c10 == (Ctc(), ytc)) {
                   yNb(a10, mxc, Btc);
-                  yNb(a10, Osc, (esc(), dsc));
+                  yNb(a10, Osc, (esc2(), dsc));
                 } else if (c10 == Atc) {
                   yNb(a10, mxc, Btc);
-                  yNb(a10, Osc, (esc(), bsc));
-                } else if (b10 == (esc(), dsc)) {
+                  yNb(a10, Osc, (esc2(), bsc));
+                } else if (b10 == (esc2(), dsc)) {
                   yNb(a10, mxc, ytc);
                   yNb(a10, Osc, csc);
                 } else if (b10 == bsc) {
@@ -64225,14 +64225,14 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                   for (e10 = 0; e10 < j10.length; e10++) {
                     d10 = BD(vNb(j10[e10], (wtc(), Osc)), 303);
                     if (k10 == -1) {
-                      d10 != (esc(), dsc) && (k10 = e10);
+                      d10 != (esc2(), dsc) && (k10 = e10);
                     } else {
-                      if (d10 == (esc(), dsc)) {
+                      if (d10 == (esc2(), dsc)) {
                         $_b(j10[e10], null);
                         Z_b(j10[e10], k10++, f10);
                       }
                     }
-                    d10 == (esc(), bsc) && Ekb(c10, j10[e10]);
+                    d10 == (esc2(), bsc) && Ekb(c10, j10[e10]);
                   }
                   for (i10 = new olb(c10); i10.a < i10.c.c.length; ) {
                     h10 = BD(mlb(i10), 10);
@@ -75014,7 +75014,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                           break;
                         }
                         c10 = BD(vNb(f10, Osc), 303);
-                        if (c10 == (esc(), dsc)) {
+                        if (c10 == (esc2(), dsc)) {
                           o7b(f10).Jb(new J7b(f10));
                           f10.n.b = a10.d - 10;
                           break;
@@ -79013,7 +79013,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                     m10 || (j10.a = 0);
                     break;
                   case 1:
-                    yNb(k10, Osc, (esc(), dsc));
+                    yNb(k10, Osc, (esc2(), dsc));
                     k10.o.a = g10.a;
                     p10 < 0 && (k10.o.b = -p10);
                     G0b(l10, (Ucd(), Rcd));
@@ -79021,7 +79021,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                     j10.b -= g10.b;
                     break;
                   case 3:
-                    yNb(k10, Osc, (esc(), bsc));
+                    yNb(k10, Osc, (esc2(), bsc));
                     k10.o.a = g10.a;
                     p10 < 0 && (k10.o.b = -p10);
                     G0b(l10, (Ucd(), Acd));
@@ -82911,7 +82911,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
                 Tsc = new Msd("longEdgeBeforeLabelDummy", false);
                 Bsc = new Msd("edgeConstraint", (Gqc(), Eqc));
                 Psc = new Lsd("inLayerLayoutUnit");
-                Osc = new Msd("inLayerConstraint", (esc(), csc));
+                Osc = new Msd("inLayerConstraint", (esc2(), csc));
                 Qsc = new Msd("inLayerSuccessorConstraint", new Rkb());
                 Rsc = new Msd("inLayerSuccessorConstraintBetweenNonDummies", false);
                 gtc = new Lsd("portDummy");
@@ -86453,7 +86453,7 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
               _3.yd = function dl(a10) {
                 throw vbb(new xcb());
               };
-              _3.zd = function el3() {
+              _3.zd = function el() {
                 throw vbb(new Zdb(uie));
               };
               _3.Hb = function fl() {
@@ -112559,794 +112559,10 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
     }
   });
 
-  // src/main.ts
-  var import_reflect_metadata3 = __toESM(require_Reflect());
-
-  // src/editor.ts
+  // src/feature-main.ts
   var import_reflect_metadata2 = __toESM(require_Reflect());
-  var import_sprotty4 = __toESM(require_lib2());
-  var import_sprotty_protocol3 = __toESM(require_lib());
-
-  // src/api.ts
-  function qnameToPath(qname) {
-    return qname.replace(/::/g, "/");
-  }
-  async function asJson(resp) {
-    return await resp.json();
-  }
-  async function fetchDiagramModel(qname) {
-    const resp = await fetch("/api/diagrams/model/" + qnameToPath(qname));
-    if (!resp.ok) {
-      throw new Error(`GET diagram model failed (${resp.status})`);
-    }
-    return asJson(resp);
-  }
-  async function patchLayout(diagramQname, pins) {
-    const resp = await fetch("/api/diagrams/layout/" + qnameToPath(diagramQname), {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(pins)
-    });
-    if (!resp.ok) {
-      throw new Error(`PATCH layout failed (${resp.status})`);
-    }
-    return asJson(resp);
-  }
-  async function deleteLayout(diagramQname) {
-    const resp = await fetch("/api/diagrams/layout/" + qnameToPath(diagramQname), { method: "DELETE" });
-    if (!resp.ok) {
-      throw new Error(`DELETE layout failed (${resp.status})`);
-    }
-    return asJson(resp);
-  }
-  async function putSvg(diagramQname, svg2) {
-    const resp = await fetch("/api/diagrams/svg/" + qnameToPath(diagramQname), {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ svg: svg2 })
-    });
-    if (!resp.ok) {
-      throw new Error(`PUT svg failed (${resp.status})`);
-    }
-    return asJson(resp);
-  }
-  async function createElement(req) {
-    const resp = await fetch("/api/elements", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req)
-    });
-    return asJson(resp);
-  }
-  async function deleteElement(qname) {
-    const resp = await fetch("/api/elements/" + qnameToPath(qname), { method: "DELETE" });
-    return asJson(resp);
-  }
-  async function addConnection(req) {
-    const resp = await fetch("/api/connections", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req)
-    });
-    return asJson(resp);
-  }
-  async function addShape(diagramQname, req) {
-    const resp = await fetch("/api/diagrams/shapes/" + qnameToPath(diagramQname), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(req)
-    });
-    return asJson(resp);
-  }
-
-  // src/types.ts
-  function isNodeSchema(child) {
-    return child.type === "node";
-  }
-  function isPortSchema(child) {
-    return child.type === "port";
-  }
-  function isShapeSchema(child) {
-    return child.type === "node" || child.type === "port";
-  }
-  function isEdgeSchema(child) {
-    return child.type === "edge";
-  }
-  function isLabelSchema(child) {
-    return child.type === "label" || child.type === "label:edge";
-  }
-  function isCompartmentSchema(child) {
-    return child.type === "compartment";
-  }
-  function childrenOf(parent) {
-    return parent.children ?? [];
-  }
-  function* walkTree(parent) {
-    for (const element of childrenOf(parent)) {
-      yield { element, container: parent };
-      if (!isEdgeSchema(element)) {
-        yield* walkTree(element);
-      }
-    }
-  }
-  function findShape(model, id) {
-    for (const { element } of walkTree(model)) {
-      if (element.id === id && isShapeSchema(element)) {
-        return element;
-      }
-    }
-    return void 0;
-  }
-  function containerOf(model, id) {
-    for (const { element, container } of walkTree(model)) {
-      if (element.id === id) {
-        return container;
-      }
-    }
-    return void 0;
-  }
-  function allShapes(model) {
-    const out = [];
-    for (const { element } of walkTree(model)) {
-      if (isShapeSchema(element)) {
-        out.push(element);
-      }
-    }
-    return out;
-  }
-  function subtreeIds(element) {
-    const ids = [element.id];
-    if (!isEdgeSchema(element)) {
-      for (const { element: e2 } of walkTree(element)) {
-        ids.push(e2.id);
-      }
-    }
-    return ids;
-  }
-  function removeFromTree(model, ids) {
-    const prune = (parent) => {
-      const kids = parent.children;
-      if (!kids) {
-        return;
-      }
-      parent.children = kids.filter((c3) => !ids.includes(c3.id));
-      for (const c3 of parent.children) {
-        if (!isEdgeSchema(c3)) {
-          prune(c3);
-        }
-      }
-    };
-    prune(model);
-  }
-
-  // src/layout.ts
-  var PORT_SIZE = 12;
-  function adoptServerSize(el3) {
-    if (!el3.serverSize && el3.size && el3.size.width > 0 && el3.size.height > 0) {
-      el3.serverSize = { width: el3.size.width, height: el3.size.height };
-    }
-  }
-  function serverSizeOf(el3) {
-    const s3 = el3?.serverSize;
-    return s3 && s3.width > 0 && s3.height > 0 ? s3 : void 0;
-  }
-  var NODE_NODE_SPACING = 40;
-  var LAYER_SPACING = 60;
-  var COMPOUND_PADDING = 20;
-  var MIN_NODE_WIDTH = 120;
-  var MIN_NODE_HEIGHT = 40;
-  function isContainerKind(kind) {
-    return kind === "boundary" || kind === "system-boundary" || kind === "swimlane" || kind === "fragment";
-  }
-  function isGlyphKind(kind) {
-    return kind === "initial" || kind === "final" || kind === "fork" || kind === "join" || kind === "decision" || kind === "merge";
-  }
-  function defaultSize(kind) {
-    switch (kind) {
-      case "port":
-        return { width: PORT_SIZE, height: PORT_SIZE };
-      case "boundary":
-      case "system-boundary":
-      case "swimlane":
-      case "fragment":
-        return { width: 400, height: 260 };
-      default:
-        return { width: 160, height: 50 };
-    }
-  }
-  var NODE_VBOX = { paddingTop: 4, paddingBottom: 4, paddingLeft: 0, paddingRight: 0, vGap: 1, hAlign: "left" };
-  var COMPARTMENT_VBOX = { paddingTop: 4, paddingBottom: 4, paddingLeft: 8, paddingRight: 8, vGap: 2, hAlign: "left" };
-  function makeLabel(id, text, role, type = "label") {
-    return { id, type, text, role };
-  }
-  function prepareCompartment(c3) {
-    adoptServerSize(c3);
-    c3.layout = "vbox";
-    c3.layoutOptions = { ...COMPARTMENT_VBOX, resizeContainer: !c3.serverSize };
-    const existing = new Set((c3.children ?? []).map((k3) => k3.id));
-    const lines = c3.lines ?? [];
-    const kids = [...c3.children ?? []];
-    lines.forEach((line, i2) => {
-      const id = `${c3.id}-line-${i2}`;
-      if (!existing.has(id)) {
-        kids.push(makeLabel(id, line, "line"));
-      }
-    });
-    c3.children = kids;
-    for (const k3 of kids) {
-      if (isLabelSchema(k3)) {
-        adoptServerSize(k3);
-        if (k3.role === void 0) {
-          k3.role = "line";
-        }
-      }
-    }
-  }
-  function preparePort(p3) {
-    adoptServerSize(p3);
-    if (!p3.serverSize) {
-      p3.size = { width: PORT_SIZE, height: PORT_SIZE };
-    }
-    for (const k3 of childrenOf(p3)) {
-      if (isLabelSchema(k3)) {
-        adoptServerSize(k3);
-        if (k3.role === void 0) {
-          k3.role = "name";
-        }
-      }
-    }
-  }
-  function prepareNode(n) {
-    adoptServerSize(n);
-    n.layout = "vbox";
-    n.layoutOptions = { ...NODE_VBOX, resizeContainer: !n.serverSize };
-    const kids = [...n.children ?? []];
-    const existing = new Set(kids.map((k3) => k3.id));
-    const extra = [];
-    if (n.stereotype && !existing.has(`${n.id}-stereotype`)) {
-      extra.push(makeLabel(`${n.id}-stereotype`, `\xAB${n.stereotype}\xBB`, "stereotype"));
-    }
-    (n.banners ?? []).forEach((b3, i2) => {
-      const id = `${n.id}-banner-${i2}`;
-      if (!existing.has(id)) {
-        extra.push(makeLabel(id, `\xAB${b3}\xBB`, "banner"));
-      }
-    });
-    n.children = [...extra, ...kids];
-    for (const k3 of n.children) {
-      if (isLabelSchema(k3)) {
-        adoptServerSize(k3);
-        if (k3.role === void 0) {
-          k3.role = k3.id === `${n.id}-label` ? "name" : "free";
-        }
-      } else if (isCompartmentSchema(k3)) {
-        prepareCompartment(k3);
-      } else if (isPortSchema(k3)) {
-        preparePort(k3);
-      } else if (isNodeSchema(k3)) {
-        prepareNode(k3);
-      }
-    }
-  }
-  function prepareEdge(e2) {
-    if (e2.overlay) {
-      e2.children = void 0;
-      return;
-    }
-    const kids = [...e2.children ?? []];
-    kids.forEach(adoptServerSize);
-    const existing = new Set(kids.map((k3) => k3.id));
-    const keyword = e2.style?.keyword;
-    if (keyword && !existing.has(`${e2.id}-keyword`)) {
-      kids.push(makeLabel(`${e2.id}-keyword`, keyword === "=" ? "=" : `\xAB${keyword}\xBB`, "keyword", "label:edge"));
-    }
-    if (e2.label && !existing.has(`${e2.id}-label`)) {
-      kids.push(makeLabel(`${e2.id}-label`, e2.label, "edge", "label:edge"));
-    }
-    if (kids.length > 0) {
-      e2.children = kids;
-    }
-  }
-  function prepareForLayout(model) {
-    for (const child of model.children) {
-      if (isEdgeSchema(child)) {
-        prepareEdge(child);
-      } else if (isNodeSchema(child)) {
-        prepareNode(child);
-      } else if (isPortSchema(child)) {
-        preparePort(child);
-      } else if (isCompartmentSchema(child)) {
-        prepareCompartment(child);
-      } else if (isLabelSchema(child)) {
-        adoptServerSize(child);
-        if (child.role === void 0) {
-          child.role = "free";
-        }
-      }
-    }
-  }
-  var LayoutState = class {
-    constructor() {
-      this.reversedKinds = /* @__PURE__ */ new Set();
-      this.pinned = /* @__PURE__ */ new Set();
-      this.anyPinned = false;
-      this.allPinned = false;
-      this.direction = "DOWN";
-      /** Ids of the ELK edges the preprocessor flipped, for the postprocessor. */
-      this.flippedEdges = /* @__PURE__ */ new Set();
-    }
-    reset(model) {
-      const opts = model.layoutOptions ?? {};
-      const reversed = opts["syscribe.reversedEdgeKinds"];
-      this.reversedKinds = new Set(Array.isArray(reversed) ? reversed : []);
-      this.pinned = new Set(model.pinned ?? []);
-      this.direction = String(opts["elk.direction"] ?? "DOWN");
-      const nodeIds = collectNodeIds(model);
-      this.anyPinned = nodeIds.some((id) => this.pinned.has(id));
-      this.allPinned = nodeIds.length > 0 && nodeIds.every((id) => this.pinned.has(id));
-      this.flippedEdges.clear();
-    }
-  };
-  function collectNodeIds(model) {
-    const ids = [];
-    const walk = (parent) => {
-      for (const c3 of parent.children ?? []) {
-        if (isNodeSchema(c3)) {
-          ids.push(c3.id);
-          walk(c3);
-        }
-      }
-    };
-    walk(model);
-    return ids;
-  }
-  function basicType(e2) {
-    const idx = e2.type.indexOf(":");
-    return idx >= 0 ? e2.type.slice(0, idx) : e2.type;
-  }
-  var INTERACTIVE_OPTIONS = {
-    "elk.interactive": "true",
-    "elk.layered.layering.strategy": "INTERACTIVE",
-    "elk.layered.crossingMinimization.strategy": "INTERACTIVE",
-    "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES"
-  };
-  function fallbackSide(port, direction) {
-    const right = direction === "RIGHT";
-    switch (port.direction) {
-      case "in":
-        return right ? "WEST" : "NORTH";
-      case "out":
-        return right ? "EAST" : "SOUTH";
-      default:
-        return right ? "EAST" : "SOUTH";
-    }
-  }
-  var SyscribeLayoutConfigurator = class {
-    constructor(state) {
-      this.state = state;
-    }
-    apply(element, index) {
-      switch (basicType(element)) {
-        case "graph":
-          return this.graphOptions(element);
-        case "node":
-          return this.nodeOptions(element);
-        case "port":
-          return this.portOptions(element, index);
-        default:
-          return void 0;
-      }
-    }
-    graphOptions(graph) {
-      this.state.reset(graph);
-      const src = graph.layoutOptions ?? {};
-      const str = (k3) => {
-        const v3 = src[k3];
-        return typeof v3 === "string" ? v3 : void 0;
-      };
-      const opts = {
-        "elk.algorithm": this.state.allPinned ? "fixed" : str("elk.algorithm") ?? "layered",
-        "elk.direction": str("elk.direction") ?? "DOWN",
-        "elk.edgeRouting": "ORTHOGONAL",
-        "elk.spacing.nodeNode": String(NODE_NODE_SPACING),
-        "elk.layered.spacing.nodeNodeBetweenLayers": String(LAYER_SPACING),
-        "elk.spacing.edgeNode": "30",
-        "elk.layered.spacing.edgeNodeBetweenLayers": "30",
-        "elk.spacing.portPort": "16",
-        "elk.spacing.labelLabel": "1",
-        "elk.spacing.labelPortHorizontal": "4",
-        "elk.spacing.labelPortVertical": "2",
-        "elk.padding": "[top=20,left=20,bottom=20,right=20]"
-      };
-      if (graph.diagramKind === "FeatureModel") {
-        opts["elk.separateConnectedComponents"] = "false";
-      }
-      const hierarchy = str("elk.hierarchyHandling");
-      if (hierarchy) {
-        opts["elk.hierarchyHandling"] = hierarchy;
-      }
-      const cycleBreaking = str("elk.layered.cycleBreaking.strategy");
-      if (cycleBreaking) {
-        opts["elk.layered.cycleBreaking.strategy"] = cycleBreaking;
-      }
-      if (this.state.anyPinned && !this.state.allPinned) {
-        Object.assign(opts, INTERACTIVE_OPTIONS);
-      }
-      return opts;
-    }
-    nodeOptions(node) {
-      const kids = childrenOf(node);
-      const compound = kids.some(isNodeSchema);
-      const ports = kids.filter(isPortSchema);
-      const server = serverSizeOf(node);
-      const measured = node.size ?? { width: 0, height: 0 };
-      const own = server ?? (compound ? { width: 0, height: 0 } : measured);
-      const minW = server && !compound ? server.width : Math.ceil(Math.max(MIN_NODE_WIDTH, own.width));
-      const minH = server && !compound ? server.height : Math.ceil(Math.max(MIN_NODE_HEIGHT, own.height));
-      const anySide = ports.some((p3) => !!p3.side);
-      const container = isContainerKind(node.kind);
-      const opts = {
-        "elk.nodeSize.constraints": server && !compound ? "PORTS MINIMUM_SIZE" : "NODE_LABELS PORTS PORT_LABELS MINIMUM_SIZE",
-        "elk.nodeSize.minimum": `(${minW}, ${minH})`,
-        "elk.nodeLabels.placement": isGlyphKind(node.kind) ? "[H_RIGHT, V_CENTER, OUTSIDE]" : container ? "[H_LEFT, V_TOP, INSIDE]" : "[H_CENTER, V_TOP, INSIDE]",
-        "elk.nodeLabels.padding": "[top=4,left=8,bottom=4,right=8]",
-        "elk.portLabels.placement": "OUTSIDE",
-        "elk.portConstraints": anySide ? "FIXED_SIDE" : "FREE"
-      };
-      if (node.kind === "initial") {
-        opts["elk.layered.layering.layerConstraint"] = "FIRST";
-      } else if (node.kind === "final") {
-        opts["elk.layered.layering.layerConstraint"] = "LAST";
-      }
-      if (compound) {
-        const p3 = COMPOUND_PADDING;
-        opts["elk.padding"] = `[top=${p3},left=${p3},bottom=${p3},right=${p3}]`;
-        if (this.state.allPinned) {
-          opts["elk.algorithm"] = "fixed";
-        } else if (this.state.anyPinned) {
-          Object.assign(opts, INTERACTIVE_OPTIONS);
-        }
-      }
-      if (this.state.pinned.has(node.id) && node.position) {
-        opts["elk.position"] = `(${node.position.x}, ${node.position.y})`;
-      }
-      return opts;
-    }
-    portOptions(port, index) {
-      const extent = serverSizeOf(port)?.width ?? port.size?.width ?? PORT_SIZE;
-      const opts = { "elk.port.borderOffset": String(-extent / 2) };
-      const parent = index.getParent(port.id);
-      const siblings = parent ? childrenOf(parent).filter(isPortSchema) : [];
-      const parentFixed = siblings.some((p3) => !!p3.side);
-      if (port.side) {
-        opts["elk.port.side"] = port.side.toUpperCase();
-      } else if (parentFixed) {
-        opts["elk.port.side"] = fallbackSide(port, this.state.direction);
-      }
-      return opts;
-    }
-  };
-  function reverseSection(s3) {
-    return {
-      ...s3,
-      startPoint: s3.endPoint,
-      endPoint: s3.startPoint,
-      bendPoints: s3.bendPoints ? [...s3.bendPoints].reverse() : void 0,
-      incomingShape: s3.outgoingShape,
-      outgoingShape: s3.incomingShape
-    };
-  }
-  function* walkElkNodes(node, ax = 0, ay = 0) {
-    yield { node, ax, ay };
-    for (const c3 of node.children ?? []) {
-      yield* walkElkNodes(c3, ax + (c3.x ?? 0), ay + (c3.y ?? 0));
-    }
-  }
-  function sideOf(port, parent) {
-    const w3 = parent.width ?? 0;
-    const h3 = parent.height ?? 0;
-    const cx = (port.x ?? 0) + (port.width ?? 0) / 2;
-    const cy = (port.y ?? 0) + (port.height ?? 0) / 2;
-    const dist = [
-      { side: "west", d: Math.abs(cx) },
-      { side: "east", d: Math.abs(cx - w3) },
-      { side: "north", d: Math.abs(cy) },
-      { side: "south", d: Math.abs(cy - h3) }
-    ];
-    dist.sort((a3, b3) => a3.d - b3.d);
-    return dist[0].side;
-  }
-  function placeLabelsFixed(root, seq) {
-    const messages = seq.messages;
-    const centres = /* @__PURE__ */ new Map();
-    for (const { node, ax, ay } of walkElkNodes(root)) {
-      centres.set(node.id, { x: ax + (node.width ?? 0) / 2, y: ay + (node.height ?? 0) / 2 });
-      for (const p3 of node.ports ?? []) {
-        centres.set(p3.id, { x: ax + (p3.x ?? 0) + (p3.width ?? 0) / 2, y: ay + (p3.y ?? 0) + (p3.height ?? 0) / 2 });
-      }
-    }
-    for (const { edge } of walkElkEdges(root)) {
-      const labels = edge.labels ?? [];
-      const stack = labels.reduce((h3, l3) => h3 + (l3.height ?? 0) + 1, 0);
-      const stackAbove = (m3) => {
-        let y3 = m3.y - stack - 3;
-        for (const l3 of labels) {
-          l3.x = m3.x - (l3.width ?? 0) / 2;
-          l3.y = y3;
-          y3 += (l3.height ?? 0) + 1;
-        }
-      };
-      if (edge.sections && edge.sections.length > 0) {
-        if (messages.has(edge.id)) {
-          const s3 = edge.sections[0];
-          stackAbove(polylineMidpoint([s3.startPoint, ...s3.bendPoints ?? [], s3.endPoint]));
-        }
-        continue;
-      }
-      const a3 = centres.get(edge.sources[0]);
-      const b3 = centres.get(edge.targets[0]);
-      if (!a3 || !b3) {
-        continue;
-      }
-      stackAbove({ x: (a3.x + b3.x) / 2, y: (a3.y + b3.y) / 2 });
-    }
-    for (const { node } of walkElkNodes(root)) {
-      if (node === root) {
-        continue;
-      }
-      const compound = (node.children ?? []).length > 0;
-      const topLeft = compound || seq.fragments.has(node.id);
-      let y3 = 4;
-      for (const l3 of node.labels ?? []) {
-        const lw = l3.width ?? 0;
-        l3.x = topLeft ? 8 : Math.max(0, ((node.width ?? 0) - lw) / 2);
-        l3.y = y3;
-        y3 += (l3.height ?? 0) + 1;
-      }
-      for (const p3 of node.ports ?? []) {
-        const pw = p3.width ?? 0;
-        const ph = p3.height ?? 0;
-        for (const l3 of p3.labels ?? []) {
-          const lw = l3.width ?? 0;
-          const lh = l3.height ?? 0;
-          switch (sideOf(p3, node)) {
-            case "west":
-              l3.x = -lw - 1;
-              l3.y = ph + 1;
-              break;
-            case "east":
-              l3.x = pw + 1;
-              l3.y = ph + 1;
-              break;
-            case "north":
-              l3.x = (pw - lw) / 2;
-              l3.y = -lh - 2;
-              break;
-            default:
-              l3.x = (pw - lw) / 2;
-              l3.y = ph + 2;
-          }
-        }
-      }
-    }
-  }
-  function polylineMidpoint(pts) {
-    const len = (a3, b3) => Math.hypot(b3.x - a3.x, b3.y - a3.y);
-    let total = 0;
-    for (let i2 = 1; i2 < pts.length; i2++) {
-      total += len(pts[i2 - 1], pts[i2]);
-    }
-    let remaining = total / 2;
-    for (let i2 = 1; i2 < pts.length; i2++) {
-      const l3 = len(pts[i2 - 1], pts[i2]);
-      if (l3 >= remaining || l3 === 0) {
-        const f3 = l3 === 0 ? 0 : remaining / l3;
-        return { x: pts[i2 - 1].x + (pts[i2].x - pts[i2 - 1].x) * f3, y: pts[i2 - 1].y + (pts[i2].y - pts[i2 - 1].y) * f3 };
-      }
-      remaining -= l3;
-    }
-    return pts[pts.length - 1] ?? { x: 0, y: 0 };
-  }
-  function sequenceIds(graph) {
-    const messages = /* @__PURE__ */ new Set();
-    const fragments = /* @__PURE__ */ new Set();
-    const walk = (parent) => {
-      for (const c3 of parent.children ?? []) {
-        if (c3.type === "edge" && (c3.kind === "message" || c3.kind === "return")) {
-          messages.add(c3.id);
-        } else if (c3.type === "node") {
-          if (c3.kind === "fragment") {
-            fragments.add(c3.id);
-          }
-          walk(c3);
-        }
-      }
-    };
-    walk(graph);
-    return { messages, fragments };
-  }
-  function* walkElkEdges(node) {
-    for (const e2 of node.edges ?? []) {
-      yield { edge: e2, owner: node };
-    }
-    for (const c3 of node.children ?? []) {
-      yield* walkElkEdges(c3);
-    }
-  }
-  var SyscribeLayoutProcessor = class {
-    constructor(state) {
-      this.state = state;
-    }
-    preprocess(elkGraph, _sgraph, index) {
-      this.state.flippedEdges.clear();
-      for (const { node } of walkElkNodes(elkGraph)) {
-        if (node.edges) {
-          node.edges = node.edges.filter((e2) => !index.getById(e2.id)?.overlay);
-        }
-      }
-      for (const { edge } of walkElkEdges(elkGraph)) {
-        const sedge = index.getById(edge.id);
-        if (sedge && sedge.kind && this.state.reversedKinds.has(sedge.kind)) {
-          const sources = edge.sources;
-          edge.sources = edge.targets;
-          edge.targets = sources;
-          this.state.flippedEdges.add(edge.id);
-        }
-      }
-      const stamp = (shape) => {
-        const s3 = shape.id ? serverSizeOf(index.getById(shape.id)) : void 0;
-        if (s3) {
-          shape.width = s3.width;
-          shape.height = s3.height;
-        }
-      };
-      for (const { node } of walkElkNodes(elkGraph)) {
-        if (node !== elkGraph) {
-          stamp(node);
-        }
-        node.labels?.forEach(stamp);
-        for (const p3 of node.ports ?? []) {
-          stamp(p3);
-          p3.labels?.forEach(stamp);
-        }
-      }
-      for (const { edge } of walkElkEdges(elkGraph)) {
-        edge.labels?.forEach(stamp);
-      }
-    }
-    postprocess(elkGraph, sgraph, _index) {
-      const offsets = /* @__PURE__ */ new Map();
-      for (const { node, ax, ay } of walkElkNodes(elkGraph)) {
-        offsets.set(node.id, { x: ax, y: ay });
-      }
-      for (const { edge, owner } of walkElkEdges(elkGraph)) {
-        const e2 = edge;
-        if (this.state.flippedEdges.has(e2.id)) {
-          const sources = e2.sources;
-          e2.sources = e2.targets;
-          e2.targets = sources;
-          if (e2.sections) {
-            e2.sections = [...e2.sections].reverse().map(reverseSection);
-          }
-        }
-        const off = offsets.get(e2.container ?? owner.id) ?? { x: 0, y: 0 };
-        if (off.x !== 0 || off.y !== 0) {
-          for (const s3 of e2.sections ?? []) {
-            s3.startPoint = { x: s3.startPoint.x + off.x, y: s3.startPoint.y + off.y };
-            s3.endPoint = { x: s3.endPoint.x + off.x, y: s3.endPoint.y + off.y };
-            s3.bendPoints = s3.bendPoints?.map((p3) => ({ x: p3.x + off.x, y: p3.y + off.y }));
-          }
-          for (const l3 of e2.labels ?? []) {
-            if (l3.x !== void 0 && l3.y !== void 0) {
-              l3.x += off.x;
-              l3.y += off.y;
-            }
-          }
-        }
-      }
-      if (this.state.allPinned) {
-        placeLabelsFixed(elkGraph, sequenceIds(sgraph));
-      }
-    }
-  };
-
-  // src/connect-rules.ts
-  function directionOf(port) {
-    const d3 = port.direction ?? port.style?.glyph;
-    return d3 === "in" || d3 === "out" || d3 === "inout" ? d3 : "none";
-  }
-  function compatible(a3, b3) {
-    const da = directionOf(a3);
-    const db = directionOf(b3);
-    if (da === "none" || db === "none" || da === "inout" || db === "inout") {
-      return true;
-    }
-    return da !== db;
-  }
-  function directPorts(shape) {
-    return childrenOf(shape).filter(isPortSchema);
-  }
-  function describe(shape) {
-    return `'${shape.name || shape.ref}'`;
-  }
-  function resolveConnectEnds(source, target) {
-    const sourceIsPort = isPortSchema(source);
-    const targetIsPort = isPortSchema(target);
-    if (sourceIsPort && targetIsPort) {
-      if (!compatible(source, target)) {
-        return {
-          ok: false,
-          reason: `Cannot connect ${describe(source)} (${directionOf(source)}) to ${describe(target)} (${directionOf(target)}): both ports have the same direction`
-        };
-      }
-      return { ok: true, source, target };
-    }
-    const sourcePorts = sourceIsPort ? [source] : directPorts(source);
-    const targetPorts = targetIsPort ? [target] : directPorts(target);
-    if (sourcePorts.length === 0) {
-      return { ok: false, reason: `${describe(source)} has no ports to connect from \u2014 connect from a port` };
-    }
-    if (targetPorts.length === 0) {
-      return { ok: false, reason: `${describe(target)} has no ports to connect to \u2014 connect to a port` };
-    }
-    const pairs = [];
-    for (const s3 of sourcePorts) {
-      for (const t3 of targetPorts) {
-        if (s3 !== t3 && compatible(s3, t3)) {
-          pairs.push([s3, t3]);
-        }
-      }
-    }
-    if (pairs.length === 0) {
-      return {
-        ok: false,
-        reason: `No compatible port pair between ${describe(source)} and ${describe(target)} (an out port must meet an in port)`
-      };
-    }
-    if (pairs.length > 1) {
-      const list = pairs.map(([s3, t3]) => `${s3.name}\u2192${t3.name}`).join(", ");
-      return {
-        ok: false,
-        reason: `Ambiguous: ${pairs.length} compatible port pairs between ${describe(source)} and ${describe(target)} (${list}) \u2014 connect the two ports directly`
-      };
-    }
-    return { ok: true, source: pairs[0][0], target: pairs[0][1] };
-  }
-  function lastSegment(qname) {
-    const parts = qname.split("::");
-    return parts[parts.length - 1] || qname;
-  }
-  function portChain(model, port, ownerQname) {
-    const prefix = ownerQname + "::";
-    if (port.ref.startsWith(prefix)) {
-      return port.ref.slice(prefix.length).replace(/::/g, ".");
-    }
-    const parts = [lastSegment(port.ref)];
-    let cur = containerOf(model, port.id);
-    while (cur && cur !== model) {
-      const shape = cur;
-      if (shape.ref !== ownerQname && !isContainerKind(shape.kind)) {
-        parts.unshift(lastSegment(shape.ref));
-      }
-      cur = containerOf(model, shape.id);
-    }
-    return parts.join(".");
-  }
-  function isDerivedDiagram(model) {
-    if (typeof model.derived === "boolean") {
-      return model.derived;
-    }
-    if (!model.subject) {
-      return false;
-    }
-    const roots = model.children.filter(
-      (c3) => c3.type === "node" || c3.type === "port"
-    );
-    return roots.length > 0 && roots.every((r3) => r3.id === refSlug(r3.ref));
-  }
-  function refSlug(ref) {
-    return "s-" + ref.replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase();
-  }
+  var import_sprotty3 = __toESM(require_lib2());
+  var import_sprotty_protocol2 = __toESM(require_lib());
 
   // node_modules/inversify/lib/esm/index.js
   var import_reflect_metadata = __toESM(require_Reflect(), 1);
@@ -114939,6 +114155,544 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   var import_inversify3 = __toESM(require_inversify2());
   var import_sprotty_protocol = __toESM(require_lib());
 
+  // src/types.ts
+  function isNodeSchema(child) {
+    return child.type === "node";
+  }
+  function isPortSchema(child) {
+    return child.type === "port";
+  }
+  function isEdgeSchema(child) {
+    return child.type === "edge";
+  }
+  function isLabelSchema(child) {
+    return child.type === "label" || child.type === "label:edge";
+  }
+  function isCompartmentSchema(child) {
+    return child.type === "compartment";
+  }
+  function childrenOf(parent) {
+    return parent.children ?? [];
+  }
+
+  // src/layout.ts
+  var PORT_SIZE = 12;
+  function adoptServerSize(el) {
+    if (!el.serverSize && el.size && el.size.width > 0 && el.size.height > 0) {
+      el.serverSize = { width: el.size.width, height: el.size.height };
+    }
+  }
+  function serverSizeOf(el) {
+    const s3 = el?.serverSize;
+    return s3 && s3.width > 0 && s3.height > 0 ? s3 : void 0;
+  }
+  var NODE_NODE_SPACING = 40;
+  var LAYER_SPACING = 60;
+  var COMPOUND_PADDING = 20;
+  var MIN_NODE_WIDTH = 120;
+  var MIN_NODE_HEIGHT = 40;
+  function isContainerKind(kind) {
+    return kind === "boundary" || kind === "system-boundary" || kind === "swimlane" || kind === "fragment";
+  }
+  function isGlyphKind(kind) {
+    return kind === "initial" || kind === "final" || kind === "fork" || kind === "join" || kind === "decision" || kind === "merge";
+  }
+  var NODE_VBOX = { paddingTop: 4, paddingBottom: 4, paddingLeft: 0, paddingRight: 0, vGap: 1, hAlign: "left" };
+  var COMPARTMENT_VBOX = { paddingTop: 4, paddingBottom: 4, paddingLeft: 8, paddingRight: 8, vGap: 2, hAlign: "left" };
+  function makeLabel(id, text, role, type = "label") {
+    return { id, type, text, role };
+  }
+  function prepareCompartment(c3) {
+    adoptServerSize(c3);
+    c3.layout = "vbox";
+    c3.layoutOptions = { ...COMPARTMENT_VBOX, resizeContainer: !c3.serverSize };
+    const existing = new Set((c3.children ?? []).map((k3) => k3.id));
+    const lines = c3.lines ?? [];
+    const kids = [...c3.children ?? []];
+    lines.forEach((line, i2) => {
+      const id = `${c3.id}-line-${i2}`;
+      if (!existing.has(id)) {
+        kids.push(makeLabel(id, line, "line"));
+      }
+    });
+    c3.children = kids;
+    for (const k3 of kids) {
+      if (isLabelSchema(k3)) {
+        adoptServerSize(k3);
+        if (k3.role === void 0) {
+          k3.role = "line";
+        }
+      }
+    }
+  }
+  function preparePort(p3) {
+    adoptServerSize(p3);
+    if (!p3.serverSize) {
+      p3.size = { width: PORT_SIZE, height: PORT_SIZE };
+    }
+    for (const k3 of childrenOf(p3)) {
+      if (isLabelSchema(k3)) {
+        adoptServerSize(k3);
+        if (k3.role === void 0) {
+          k3.role = "name";
+        }
+      }
+    }
+  }
+  function prepareNode(n) {
+    adoptServerSize(n);
+    n.layout = "vbox";
+    n.layoutOptions = { ...NODE_VBOX, resizeContainer: !n.serverSize };
+    const kids = [...n.children ?? []];
+    const existing = new Set(kids.map((k3) => k3.id));
+    const extra = [];
+    if (n.stereotype && !existing.has(`${n.id}-stereotype`)) {
+      extra.push(makeLabel(`${n.id}-stereotype`, `\xAB${n.stereotype}\xBB`, "stereotype"));
+    }
+    (n.banners ?? []).forEach((b3, i2) => {
+      const id = `${n.id}-banner-${i2}`;
+      if (!existing.has(id)) {
+        extra.push(makeLabel(id, `\xAB${b3}\xBB`, "banner"));
+      }
+    });
+    n.children = [...extra, ...kids];
+    for (const k3 of n.children) {
+      if (isLabelSchema(k3)) {
+        adoptServerSize(k3);
+        if (k3.role === void 0) {
+          k3.role = k3.id === `${n.id}-label` ? "name" : "free";
+        }
+      } else if (isCompartmentSchema(k3)) {
+        prepareCompartment(k3);
+      } else if (isPortSchema(k3)) {
+        preparePort(k3);
+      } else if (isNodeSchema(k3)) {
+        prepareNode(k3);
+      }
+    }
+  }
+  function prepareEdge(e2) {
+    if (e2.overlay) {
+      e2.children = void 0;
+      return;
+    }
+    const kids = [...e2.children ?? []];
+    kids.forEach(adoptServerSize);
+    const existing = new Set(kids.map((k3) => k3.id));
+    const keyword = e2.style?.keyword;
+    if (keyword && !existing.has(`${e2.id}-keyword`)) {
+      kids.push(makeLabel(`${e2.id}-keyword`, keyword === "=" ? "=" : `\xAB${keyword}\xBB`, "keyword", "label:edge"));
+    }
+    if (e2.label && !existing.has(`${e2.id}-label`)) {
+      kids.push(makeLabel(`${e2.id}-label`, e2.label, "edge", "label:edge"));
+    }
+    if (kids.length > 0) {
+      e2.children = kids;
+    }
+  }
+  function prepareForLayout(model) {
+    for (const child of model.children) {
+      if (isEdgeSchema(child)) {
+        prepareEdge(child);
+      } else if (isNodeSchema(child)) {
+        prepareNode(child);
+      } else if (isPortSchema(child)) {
+        preparePort(child);
+      } else if (isCompartmentSchema(child)) {
+        prepareCompartment(child);
+      } else if (isLabelSchema(child)) {
+        adoptServerSize(child);
+        if (child.role === void 0) {
+          child.role = "free";
+        }
+      }
+    }
+  }
+  var LayoutState = class {
+    constructor() {
+      this.reversedKinds = /* @__PURE__ */ new Set();
+      this.pinned = /* @__PURE__ */ new Set();
+      this.anyPinned = false;
+      this.allPinned = false;
+      this.direction = "DOWN";
+      /** Ids of the ELK edges the preprocessor flipped, for the postprocessor. */
+      this.flippedEdges = /* @__PURE__ */ new Set();
+    }
+    reset(model) {
+      const opts = model.layoutOptions ?? {};
+      const reversed = opts["syscribe.reversedEdgeKinds"];
+      this.reversedKinds = new Set(Array.isArray(reversed) ? reversed : []);
+      this.pinned = new Set(model.pinned ?? []);
+      this.direction = String(opts["elk.direction"] ?? "DOWN");
+      const nodeIds = collectNodeIds(model);
+      this.anyPinned = nodeIds.some((id) => this.pinned.has(id));
+      this.allPinned = nodeIds.length > 0 && nodeIds.every((id) => this.pinned.has(id));
+      this.flippedEdges.clear();
+    }
+  };
+  function collectNodeIds(model) {
+    const ids = [];
+    const walk = (parent) => {
+      for (const c3 of parent.children ?? []) {
+        if (isNodeSchema(c3)) {
+          ids.push(c3.id);
+          walk(c3);
+        }
+      }
+    };
+    walk(model);
+    return ids;
+  }
+  function basicType(e2) {
+    const idx = e2.type.indexOf(":");
+    return idx >= 0 ? e2.type.slice(0, idx) : e2.type;
+  }
+  var INTERACTIVE_OPTIONS = {
+    "elk.interactive": "true",
+    "elk.layered.layering.strategy": "INTERACTIVE",
+    "elk.layered.crossingMinimization.strategy": "INTERACTIVE",
+    "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES"
+  };
+  function fallbackSide(port, direction) {
+    const right = direction === "RIGHT";
+    switch (port.direction) {
+      case "in":
+        return right ? "WEST" : "NORTH";
+      case "out":
+        return right ? "EAST" : "SOUTH";
+      default:
+        return right ? "EAST" : "SOUTH";
+    }
+  }
+  var SyscribeLayoutConfigurator = class {
+    constructor(state) {
+      this.state = state;
+    }
+    apply(element, index) {
+      switch (basicType(element)) {
+        case "graph":
+          return this.graphOptions(element);
+        case "node":
+          return this.nodeOptions(element);
+        case "port":
+          return this.portOptions(element, index);
+        default:
+          return void 0;
+      }
+    }
+    graphOptions(graph) {
+      this.state.reset(graph);
+      const src = graph.layoutOptions ?? {};
+      const str = (k3) => {
+        const v3 = src[k3];
+        return typeof v3 === "string" ? v3 : void 0;
+      };
+      const opts = {
+        "elk.algorithm": this.state.allPinned ? "fixed" : str("elk.algorithm") ?? "layered",
+        "elk.direction": str("elk.direction") ?? "DOWN",
+        "elk.edgeRouting": "ORTHOGONAL",
+        "elk.spacing.nodeNode": String(NODE_NODE_SPACING),
+        "elk.layered.spacing.nodeNodeBetweenLayers": String(LAYER_SPACING),
+        "elk.spacing.edgeNode": "30",
+        "elk.layered.spacing.edgeNodeBetweenLayers": "30",
+        "elk.spacing.portPort": "16",
+        "elk.spacing.labelLabel": "1",
+        "elk.spacing.labelPortHorizontal": "4",
+        "elk.spacing.labelPortVertical": "2",
+        "elk.padding": "[top=20,left=20,bottom=20,right=20]"
+      };
+      if (graph.diagramKind === "FeatureModel") {
+        opts["elk.separateConnectedComponents"] = "false";
+      }
+      const hierarchy = str("elk.hierarchyHandling");
+      if (hierarchy) {
+        opts["elk.hierarchyHandling"] = hierarchy;
+      }
+      const cycleBreaking = str("elk.layered.cycleBreaking.strategy");
+      if (cycleBreaking) {
+        opts["elk.layered.cycleBreaking.strategy"] = cycleBreaking;
+      }
+      if (this.state.anyPinned && !this.state.allPinned) {
+        Object.assign(opts, INTERACTIVE_OPTIONS);
+      }
+      return opts;
+    }
+    nodeOptions(node) {
+      const kids = childrenOf(node);
+      const compound = kids.some(isNodeSchema);
+      const ports = kids.filter(isPortSchema);
+      const server = serverSizeOf(node);
+      const measured = node.size ?? { width: 0, height: 0 };
+      const own = server ?? (compound ? { width: 0, height: 0 } : measured);
+      const minW = server && !compound ? server.width : Math.ceil(Math.max(MIN_NODE_WIDTH, own.width));
+      const minH = server && !compound ? server.height : Math.ceil(Math.max(MIN_NODE_HEIGHT, own.height));
+      const anySide = ports.some((p3) => !!p3.side);
+      const container = isContainerKind(node.kind);
+      const opts = {
+        "elk.nodeSize.constraints": server && !compound ? "PORTS MINIMUM_SIZE" : "NODE_LABELS PORTS PORT_LABELS MINIMUM_SIZE",
+        "elk.nodeSize.minimum": `(${minW}, ${minH})`,
+        "elk.nodeLabels.placement": isGlyphKind(node.kind) ? "[H_RIGHT, V_CENTER, OUTSIDE]" : container ? "[H_LEFT, V_TOP, INSIDE]" : "[H_CENTER, V_TOP, INSIDE]",
+        "elk.nodeLabels.padding": "[top=4,left=8,bottom=4,right=8]",
+        "elk.portLabels.placement": "OUTSIDE",
+        "elk.portConstraints": anySide ? "FIXED_SIDE" : "FREE"
+      };
+      if (node.kind === "initial") {
+        opts["elk.layered.layering.layerConstraint"] = "FIRST";
+      } else if (node.kind === "final") {
+        opts["elk.layered.layering.layerConstraint"] = "LAST";
+      }
+      if (compound) {
+        const p3 = COMPOUND_PADDING;
+        opts["elk.padding"] = `[top=${p3},left=${p3},bottom=${p3},right=${p3}]`;
+        if (this.state.allPinned) {
+          opts["elk.algorithm"] = "fixed";
+        } else if (this.state.anyPinned) {
+          Object.assign(opts, INTERACTIVE_OPTIONS);
+        }
+      }
+      if (this.state.pinned.has(node.id) && node.position) {
+        opts["elk.position"] = `(${node.position.x}, ${node.position.y})`;
+      }
+      return opts;
+    }
+    portOptions(port, index) {
+      const extent = serverSizeOf(port)?.width ?? port.size?.width ?? PORT_SIZE;
+      const opts = { "elk.port.borderOffset": String(-extent / 2) };
+      const parent = index.getParent(port.id);
+      const siblings = parent ? childrenOf(parent).filter(isPortSchema) : [];
+      const parentFixed = siblings.some((p3) => !!p3.side);
+      if (port.side) {
+        opts["elk.port.side"] = port.side.toUpperCase();
+      } else if (parentFixed) {
+        opts["elk.port.side"] = fallbackSide(port, this.state.direction);
+      }
+      return opts;
+    }
+  };
+  function reverseSection(s3) {
+    return {
+      ...s3,
+      startPoint: s3.endPoint,
+      endPoint: s3.startPoint,
+      bendPoints: s3.bendPoints ? [...s3.bendPoints].reverse() : void 0,
+      incomingShape: s3.outgoingShape,
+      outgoingShape: s3.incomingShape
+    };
+  }
+  function* walkElkNodes(node, ax = 0, ay = 0) {
+    yield { node, ax, ay };
+    for (const c3 of node.children ?? []) {
+      yield* walkElkNodes(c3, ax + (c3.x ?? 0), ay + (c3.y ?? 0));
+    }
+  }
+  function sideOf(port, parent) {
+    const w3 = parent.width ?? 0;
+    const h3 = parent.height ?? 0;
+    const cx = (port.x ?? 0) + (port.width ?? 0) / 2;
+    const cy = (port.y ?? 0) + (port.height ?? 0) / 2;
+    const dist = [
+      { side: "west", d: Math.abs(cx) },
+      { side: "east", d: Math.abs(cx - w3) },
+      { side: "north", d: Math.abs(cy) },
+      { side: "south", d: Math.abs(cy - h3) }
+    ];
+    dist.sort((a3, b3) => a3.d - b3.d);
+    return dist[0].side;
+  }
+  function placeLabelsFixed(root, seq) {
+    const messages = seq.messages;
+    const centres = /* @__PURE__ */ new Map();
+    for (const { node, ax, ay } of walkElkNodes(root)) {
+      centres.set(node.id, { x: ax + (node.width ?? 0) / 2, y: ay + (node.height ?? 0) / 2 });
+      for (const p3 of node.ports ?? []) {
+        centres.set(p3.id, { x: ax + (p3.x ?? 0) + (p3.width ?? 0) / 2, y: ay + (p3.y ?? 0) + (p3.height ?? 0) / 2 });
+      }
+    }
+    for (const { edge } of walkElkEdges(root)) {
+      const labels = edge.labels ?? [];
+      const stack = labels.reduce((h3, l3) => h3 + (l3.height ?? 0) + 1, 0);
+      const stackAbove = (m3) => {
+        let y3 = m3.y - stack - 3;
+        for (const l3 of labels) {
+          l3.x = m3.x - (l3.width ?? 0) / 2;
+          l3.y = y3;
+          y3 += (l3.height ?? 0) + 1;
+        }
+      };
+      if (edge.sections && edge.sections.length > 0) {
+        if (messages.has(edge.id)) {
+          const s3 = edge.sections[0];
+          stackAbove(polylineMidpoint([s3.startPoint, ...s3.bendPoints ?? [], s3.endPoint]));
+        }
+        continue;
+      }
+      const a3 = centres.get(edge.sources[0]);
+      const b3 = centres.get(edge.targets[0]);
+      if (!a3 || !b3) {
+        continue;
+      }
+      stackAbove({ x: (a3.x + b3.x) / 2, y: (a3.y + b3.y) / 2 });
+    }
+    for (const { node } of walkElkNodes(root)) {
+      if (node === root) {
+        continue;
+      }
+      const compound = (node.children ?? []).length > 0;
+      const topLeft = compound || seq.fragments.has(node.id);
+      let y3 = 4;
+      for (const l3 of node.labels ?? []) {
+        const lw = l3.width ?? 0;
+        l3.x = topLeft ? 8 : Math.max(0, ((node.width ?? 0) - lw) / 2);
+        l3.y = y3;
+        y3 += (l3.height ?? 0) + 1;
+      }
+      for (const p3 of node.ports ?? []) {
+        const pw = p3.width ?? 0;
+        const ph = p3.height ?? 0;
+        for (const l3 of p3.labels ?? []) {
+          const lw = l3.width ?? 0;
+          const lh = l3.height ?? 0;
+          switch (sideOf(p3, node)) {
+            case "west":
+              l3.x = -lw - 1;
+              l3.y = ph + 1;
+              break;
+            case "east":
+              l3.x = pw + 1;
+              l3.y = ph + 1;
+              break;
+            case "north":
+              l3.x = (pw - lw) / 2;
+              l3.y = -lh - 2;
+              break;
+            default:
+              l3.x = (pw - lw) / 2;
+              l3.y = ph + 2;
+          }
+        }
+      }
+    }
+  }
+  function polylineMidpoint(pts) {
+    const len = (a3, b3) => Math.hypot(b3.x - a3.x, b3.y - a3.y);
+    let total = 0;
+    for (let i2 = 1; i2 < pts.length; i2++) {
+      total += len(pts[i2 - 1], pts[i2]);
+    }
+    let remaining = total / 2;
+    for (let i2 = 1; i2 < pts.length; i2++) {
+      const l3 = len(pts[i2 - 1], pts[i2]);
+      if (l3 >= remaining || l3 === 0) {
+        const f3 = l3 === 0 ? 0 : remaining / l3;
+        return { x: pts[i2 - 1].x + (pts[i2].x - pts[i2 - 1].x) * f3, y: pts[i2 - 1].y + (pts[i2].y - pts[i2 - 1].y) * f3 };
+      }
+      remaining -= l3;
+    }
+    return pts[pts.length - 1] ?? { x: 0, y: 0 };
+  }
+  function sequenceIds(graph) {
+    const messages = /* @__PURE__ */ new Set();
+    const fragments = /* @__PURE__ */ new Set();
+    const walk = (parent) => {
+      for (const c3 of parent.children ?? []) {
+        if (c3.type === "edge" && (c3.kind === "message" || c3.kind === "return")) {
+          messages.add(c3.id);
+        } else if (c3.type === "node") {
+          if (c3.kind === "fragment") {
+            fragments.add(c3.id);
+          }
+          walk(c3);
+        }
+      }
+    };
+    walk(graph);
+    return { messages, fragments };
+  }
+  function* walkElkEdges(node) {
+    for (const e2 of node.edges ?? []) {
+      yield { edge: e2, owner: node };
+    }
+    for (const c3 of node.children ?? []) {
+      yield* walkElkEdges(c3);
+    }
+  }
+  var SyscribeLayoutProcessor = class {
+    constructor(state) {
+      this.state = state;
+    }
+    preprocess(elkGraph, _sgraph, index) {
+      this.state.flippedEdges.clear();
+      for (const { node } of walkElkNodes(elkGraph)) {
+        if (node.edges) {
+          node.edges = node.edges.filter((e2) => !index.getById(e2.id)?.overlay);
+        }
+      }
+      for (const { edge } of walkElkEdges(elkGraph)) {
+        const sedge = index.getById(edge.id);
+        if (sedge && sedge.kind && this.state.reversedKinds.has(sedge.kind)) {
+          const sources = edge.sources;
+          edge.sources = edge.targets;
+          edge.targets = sources;
+          this.state.flippedEdges.add(edge.id);
+        }
+      }
+      const stamp = (shape) => {
+        const s3 = shape.id ? serverSizeOf(index.getById(shape.id)) : void 0;
+        if (s3) {
+          shape.width = s3.width;
+          shape.height = s3.height;
+        }
+      };
+      for (const { node } of walkElkNodes(elkGraph)) {
+        if (node !== elkGraph) {
+          stamp(node);
+        }
+        node.labels?.forEach(stamp);
+        for (const p3 of node.ports ?? []) {
+          stamp(p3);
+          p3.labels?.forEach(stamp);
+        }
+      }
+      for (const { edge } of walkElkEdges(elkGraph)) {
+        edge.labels?.forEach(stamp);
+      }
+    }
+    postprocess(elkGraph, sgraph, _index) {
+      const offsets = /* @__PURE__ */ new Map();
+      for (const { node, ax, ay } of walkElkNodes(elkGraph)) {
+        offsets.set(node.id, { x: ax, y: ay });
+      }
+      for (const { edge, owner } of walkElkEdges(elkGraph)) {
+        const e2 = edge;
+        if (this.state.flippedEdges.has(e2.id)) {
+          const sources = e2.sources;
+          e2.sources = e2.targets;
+          e2.targets = sources;
+          if (e2.sections) {
+            e2.sections = [...e2.sections].reverse().map(reverseSection);
+          }
+        }
+        const off = offsets.get(e2.container ?? owner.id) ?? { x: 0, y: 0 };
+        if (off.x !== 0 || off.y !== 0) {
+          for (const s3 of e2.sections ?? []) {
+            s3.startPoint = { x: s3.startPoint.x + off.x, y: s3.startPoint.y + off.y };
+            s3.endPoint = { x: s3.endPoint.x + off.x, y: s3.endPoint.y + off.y };
+            s3.bendPoints = s3.bendPoints?.map((p3) => ({ x: p3.x + off.x, y: p3.y + off.y }));
+          }
+          for (const l3 of e2.labels ?? []) {
+            if (l3.x !== void 0 && l3.y !== void 0) {
+              l3.x += off.x;
+              l3.y += off.y;
+            }
+          }
+        }
+      }
+      if (this.state.allPinned) {
+        placeLabelsFixed(elkGraph, sequenceIds(sgraph));
+      }
+    }
+  };
+
   // src/views.tsx
   var import_sprotty = __toESM(require_lib2());
   function fallbackNodeStyle(elementType, kind) {
@@ -115594,984 +115348,369 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     return container;
   }
 
-  // src/add-existing.ts
-  var NOT_OFFERED = /* @__PURE__ */ new Set(["Diagram"]);
-  var MAX_RESULTS = 100;
-  function searchElements(all2, query, limit = MAX_RESULTS) {
-    const q2 = query.trim().toLowerCase();
-    const scored = [];
-    for (const e2 of all2) {
-      if (e2.qualifiedName === "" || e2.elementType != null && NOT_OFFERED.has(e2.elementType)) {
-        continue;
-      }
-      const qn = e2.qualifiedName.toLowerCase();
-      const nm = (e2.name ?? "").toLowerCase();
-      let rank;
-      if (q2 === "") {
-        rank = 3;
-      } else if (qn === q2) {
-        rank = 0;
-      } else if (qn.startsWith(q2) || nm.startsWith(q2)) {
-        rank = 1;
-      } else if (qn.includes(q2) || nm.includes(q2)) {
-        rank = 2;
-      } else {
-        continue;
-      }
-      scored.push({ e: e2, rank });
-    }
-    scored.sort((a3, b3) => a3.rank - b3.rank || a3.e.qualifiedName.localeCompare(b3.e.qualifiedName));
-    return scored.slice(0, limit).map((s3) => s3.e);
+  // src/feature-core.ts
+  function featureNodes(model) {
+    return model.children.filter(isNodeSchema).filter((n) => n.kind === "feature");
   }
-  function describe2(e2) {
-    return e2.elementType ?? "element";
+  function childMap(model) {
+    const m3 = /* @__PURE__ */ new Map();
+    for (const e2 of model.children.filter(isEdgeSchema)) {
+      if (e2.kind === "child") {
+        const list = m3.get(e2.sourceId) ?? [];
+        list.push(e2.targetId);
+        m3.set(e2.sourceId, list);
+      }
+    }
+    return m3;
   }
-  function buildAddRequest(form) {
-    const ref = form.ref.trim();
-    if (ref === "") {
-      return { ok: false, error: "Choose an element to add." };
+  function parentMap(model) {
+    const m3 = /* @__PURE__ */ new Map();
+    for (const e2 of model.children.filter(isEdgeSchema)) {
+      if (e2.kind === "child") {
+        m3.set(e2.targetId, e2.sourceId);
+      }
     }
-    const hit = form.all.find((e2) => e2.qualifiedName === ref);
-    if (!hit) {
-      const near = searchElements(form.all, ref, 3).map((e2) => e2.qualifiedName);
-      return {
-        ok: false,
-        error: `'${ref}' is not an element of the model.` + (near.length > 0 ? ` Did you mean ${near.join(", ")}?` : "")
-      };
-    }
-    if (hit.elementType != null && NOT_OFFERED.has(hit.elementType)) {
-      return { ok: false, error: `'${ref}' is a diagram; a diagram cannot be a shape of a diagram.` };
-    }
-    return {
-      ok: true,
-      request: { ref: hit.qualifiedName },
-      label: hit.name && hit.name !== "" ? hit.name : hit.qualifiedName.split("::").pop() ?? hit.qualifiedName
+    return m3;
+  }
+  function collapseBelow(model, keepDepth) {
+    const kids = childMap(model);
+    const parents = parentMap(model);
+    const depth = (id) => {
+      let d3 = 0;
+      for (let p3 = parents.get(id); p3 !== void 0; p3 = parents.get(p3)) {
+        d3 += 1;
+      }
+      return d3;
     };
-  }
-  var DERIVED_MESSAGE = "This diagram is derived from its subject, so its shapes follow the model. Narrow or widen it with include:/exclude: in the file, or start a blank diagram with + Diagram.";
-
-  // src/add-existing-dialog.ts
-  function el(id) {
-    const e2 = document.getElementById(id);
-    if (!e2) {
-      throw new Error(`add-existing dialog: #${id} missing from the page`);
+    const out = /* @__PURE__ */ new Set();
+    for (const id of kids.keys()) {
+      if (depth(id) >= keepDepth - 1) {
+        out.add(id);
+      }
     }
-    return e2;
+    return out;
   }
-  function showError(msg) {
-    const e2 = el("ae-error");
-    e2.textContent = msg;
-    e2.style.display = msg ? "block" : "none";
+  function descendants(id, kids, into) {
+    for (const c3 of kids.get(id) ?? []) {
+      if (!into.has(c3)) {
+        into.add(c3);
+        descendants(c3, kids, into);
+      }
+    }
   }
-  function summarize(findings) {
-    return findings.map((f3) => `${f3.code}: ${f3.message}`).join("; ");
+  function visibleModel(full, collapsed) {
+    const kids = childMap(full);
+    const hidden = /* @__PURE__ */ new Set();
+    const counts = /* @__PURE__ */ new Map();
+    for (const id of collapsed) {
+      if (hidden.has(id)) {
+        continue;
+      }
+      const d3 = /* @__PURE__ */ new Set();
+      descendants(id, kids, d3);
+      counts.set(id, d3.size);
+      for (const x3 of d3) {
+        hidden.add(x3);
+      }
+    }
+    const children = [];
+    for (const c3 of full.children) {
+      if (isNodeSchema(c3)) {
+        if (hidden.has(c3.id)) {
+          continue;
+        }
+        const n = c3;
+        children.push({ ...n, collapsedCount: collapsed.has(n.id) ? counts.get(n.id) ?? 0 : void 0 });
+      } else if (isEdgeSchema(c3)) {
+        const e2 = c3;
+        if (hidden.has(e2.sourceId) || hidden.has(e2.targetId)) {
+          continue;
+        }
+        children.push(e2);
+      } else {
+        children.push(c3);
+      }
+    }
+    return { ...full, children };
   }
-  var all = [];
-  var current = null;
-  function refreshResults() {
-    const query = el("ae-ref").value;
-    const hits = searchElements(all, query);
-    el("ae-results").replaceChildren(
-      ...hits.map((e2) => {
-        const o3 = document.createElement("option");
-        o3.value = e2.qualifiedName;
-        o3.label = `${describe2(e2)} \u2014 ${e2.qualifiedName}`;
-        return o3;
-      })
+  function applyAnalysis(model, analysis) {
+    for (const n of featureNodes(model)) {
+      const a3 = analysis?.features[n.ref];
+      n.analysis = a3 ? a3.state : void 0;
+    }
+  }
+  function search(model, query) {
+    const q2 = query.trim().toLowerCase();
+    if (q2 === "") {
+      return [];
+    }
+    return featureNodes(model).filter(
+      (n) => n.name.toLowerCase().includes(q2) || n.ref.toLowerCase().includes(q2) || (n.feature?.id ?? "").toLowerCase().includes(q2)
     );
-    el("ae-count").textContent = hits.length === 0 ? "No matches." : `${hits.length}${hits.length >= 100 ? "+" : ""} match${hits.length === 1 ? "" : "es"}`;
   }
-  async function openAddExisting(opts) {
-    current = opts;
-    showError("");
-    const resp = await fetch("/api/elements");
-    all = resp.ok ? await resp.json() : [];
-    el("ae-ref").value = "";
-    refreshResults();
-    const dialog = el("add-existing-dialog");
-    dialog.showModal();
-    el("ae-ref").focus();
-  }
-  async function submit(ev) {
-    ev.preventDefault();
-    if (!current) {
-      return;
-    }
-    const built = buildAddRequest({ ref: el("ae-ref").value, all });
-    if (!built.ok) {
-      showError(built.error);
-      return;
-    }
-    const btn = el("ae-add");
-    btn.disabled = true;
-    try {
-      const resp = await addShape(current.diagramQname, built.request);
-      if (!resp.written) {
-        showError(resp.reason ?? (summarize(resp.newErrors) || "The model refused the shape."));
-        return;
+  function revealing(full, collapsed, matches) {
+    const parents = parentMap(full);
+    const out = new Set(collapsed);
+    for (const m3 of matches) {
+      for (let p3 = parents.get(m3.id); p3 !== void 0; p3 = parents.get(p3)) {
+        out.delete(p3);
       }
-      el("add-existing-dialog").close();
-      await current.onAdded();
-    } catch (err) {
-      showError(`Could not add the element: ${err.message}`);
-    } finally {
-      btn.disabled = false;
     }
+    return out;
   }
-  function installAddExistingDialog() {
-    document.addEventListener("DOMContentLoaded", () => {
-      const form = document.getElementById("ae-form");
-      if (!form) {
-        return;
-      }
-      form.addEventListener("submit", (ev) => void submit(ev));
-      el("ae-ref").addEventListener("input", refreshResults);
-      el("ae-cancel").addEventListener("click", () => el("add-existing-dialog").close());
-    });
-  }
-
-  // src/selection-ref.ts
-  function refForSelection(model, selectedIds) {
-    const ids = [...selectedIds];
-    if (ids.length !== 1) {
+  function bannerText(a3) {
+    if (!a3 || !a3.hasFeatureModel) {
       return null;
     }
-    const id = ids[0];
-    const shape = findShape(model, id);
-    if (shape) {
-      return shape.ref && shape.ref !== "" ? shape.ref : null;
+    if (a3.void) {
+      return "This feature model is void: no valid product exists. " + (a3.conflicts.length ? "Conflicting constraints: " + a3.conflicts.join("; ") + "." : "");
     }
-    const edge = model.children.filter(isEdgeSchema).find((e2) => e2.id === id);
-    return edge?.ref && edge.ref !== "" ? edge.ref : null;
-  }
-  function cardUrl(ref) {
-    return "/ui/element-card/" + ref.split("::").map(encodeURIComponent).join("/");
-  }
-
-  // src/element-panel.ts
-  var current2 = null;
-  var sequence = 0;
-  function panel() {
-    return document.getElementById("element-panel");
-  }
-  async function showElementCard(ref) {
-    const p3 = panel();
-    const body = document.getElementById("element-panel-body");
-    if (!p3 || !body || ref === current2) {
-      return;
-    }
-    current2 = ref;
-    const mine = ++sequence;
-    p3.hidden = false;
-    document.getElementById("sprotty-viewport")?.classList.add("has-panel");
-    try {
-      const resp = await fetch(cardUrl(ref));
-      const html = await resp.text();
-      if (mine !== sequence) {
-        return;
-      }
-      body.innerHTML = html;
-      window.htmx?.process(body);
-      const diagrams = Array.from(body.querySelectorAll("pre.mermaid"));
-      if (diagrams.length > 0 && window.mermaid) {
-        await window.mermaid.run({ nodes: diagrams });
-      }
-      body.scrollTop = 0;
-    } catch (err) {
-      if (mine === sequence) {
-        body.textContent = `Could not load ${ref}: ${err.message}`;
-      }
-    }
-  }
-  function hideElementPanel() {
-    sequence += 1;
-    current2 = null;
-    const p3 = panel();
-    if (p3) {
-      p3.hidden = true;
-    }
-    document.getElementById("sprotty-viewport")?.classList.remove("has-panel");
-  }
-  function installElementPanel() {
-    document.addEventListener("DOMContentLoaded", () => {
-      document.getElementById("ep-close")?.addEventListener("click", hideElementPanel);
-    });
-  }
-
-  // src/connect-listener.ts
-  var import_sprotty3 = __toESM(require_lib2());
-  var import_sprotty_protocol2 = __toESM(require_lib());
-  function connectableAncestor(target) {
-    let el3 = target;
-    while (el3) {
-      if (el3.type === "node" || el3.type === "port") {
-        return el3;
-      }
-      el3 = el3 instanceof import_sprotty3.SChildElementImpl ? el3.parent : void 0;
-    }
-    return void 0;
-  }
-  var ConnectMouseListener = class extends import_sprotty3.MouseListener {
-    constructor() {
-      super(...arguments);
-      this.pendingSourceId = null;
-    }
-    mouseDown(target, _event) {
-      const shape = connectableAncestor(target);
-      if (!shape) {
-        return [];
-      }
-      if (this.pendingSourceId === null) {
-        this.pendingSourceId = shape.id;
-        return [import_sprotty_protocol2.SelectAction.create({ selectedElementsIDs: [shape.id] })];
-      }
-      if (shape.id === this.pendingSourceId) {
-        return [];
-      }
-      const sourceId = this.pendingSourceId;
-      this.pendingSourceId = null;
-      this.onConnected?.(sourceId, shape.id);
-      return [import_sprotty_protocol2.SelectAction.create({ deselectedElementsIDs: [sourceId] })];
-    }
-    reset() {
-      this.pendingSourceId = null;
-    }
-  };
-
-  // src/svg-export.ts
-  var SVG_NS = "http://www.w3.org/2000/svg";
-  var XMLNS_NS = "http://www.w3.org/2000/xmlns/";
-  var SYSML_NS = "urn:syscribe:1.0";
-  var INTERACTIVE_CLASSES = ["selected", "mouseover", "mousedown", "mouseleave", "hover", "sprotty-graph"];
-  var PADDING = 12;
-  function serialiseDiagramSvg(hostId, diagramQname) {
-    const live = document.querySelector(`#${hostId} svg`);
-    if (!live) {
-      return void 0;
-    }
-    const liveContent = live.querySelector(":scope > g");
-    if (!liveContent) {
-      return void 0;
-    }
-    const bbox = liveContent.getBBox();
-    const clone = live.cloneNode(true);
-    const content = clone.querySelector(":scope > g");
-    content?.removeAttribute("transform");
-    clone.setAttributeNS(XMLNS_NS, "xmlns", SVG_NS);
-    clone.setAttributeNS(XMLNS_NS, "xmlns:sysml", SYSML_NS);
-    clone.setAttribute("version", "1.1");
-    const width = Math.ceil(bbox.width + 2 * PADDING);
-    const height = Math.ceil(bbox.height + 2 * PADDING);
-    clone.setAttribute("viewBox", `${Math.floor(bbox.x - PADDING)} ${Math.floor(bbox.y - PADDING)} ${width} ${height}`);
-    clone.setAttribute("width", String(width));
-    clone.setAttribute("height", String(height));
-    clone.setAttribute("data-sysml-diagram", diagramQname);
-    clone.removeAttribute("id");
-    clone.removeAttribute("tabindex");
-    clone.removeAttribute("style");
-    clone.classList.remove("sprotty-graph");
-    if (clone.getAttribute("class") === "") {
-      clone.removeAttribute("class");
-    }
-    const prefix = `${hostId}_`;
-    for (const el3 of Array.from(clone.querySelectorAll("*"))) {
-      const id = el3.getAttribute("id");
-      if (id && id.startsWith(prefix)) {
-        el3.setAttribute("id", id.slice(prefix.length));
-      }
-      for (const cls of INTERACTIVE_CLASSES) {
-        el3.classList.remove(cls);
-      }
-      if (el3.getAttribute("class") === "") {
-        el3.removeAttribute("class");
-      }
-      el3.removeAttribute("tabindex");
-      const ref = el3.getAttribute("data-sysml-ref");
-      if (ref !== null) {
-        if (ref !== "") {
-          el3.setAttributeNS(SYSML_NS, "sysml:ref", ref);
-        }
-        el3.removeAttribute("data-sysml-ref");
-      }
-      for (const end of ["source", "target"]) {
-        const v3 = el3.getAttribute(`data-sysml-${end}`);
-        if (v3 !== null) {
-          el3.setAttributeNS(SYSML_NS, `sysml:${end}`, v3);
-          el3.removeAttribute(`data-sysml-${end}`);
-        }
-      }
-    }
-    return new XMLSerializer().serializeToString(clone) + "\n";
-  }
-
-  // src/editor.ts
-  var HOST_ID = "sprotty-host";
-  function summarizeFindings(findings) {
-    return findings.map((f3) => `${f3.code}: ${f3.message}`).join("; ");
-  }
-  function refusalText(resp) {
-    return resp.reason ?? summarizeFindings(resp.newErrors);
-  }
-  function nodeName(qname) {
-    const parts = qname.split("::");
-    return parts[parts.length - 1] || qname;
-  }
-  var DiagramEditor = class {
-    constructor() {
-      this.connectListener = new ConnectMouseListener();
-      this.cache = /* @__PURE__ */ new Map();
-      this.currentQname = null;
-      this.selectedIds = /* @__PURE__ */ new Set();
-      this.connectMode = false;
-      this.container = createDiagramContainer(HOST_ID, {
-        onMoveFinished: (moves) => this.handleMoveFinished(moves),
-        onSelectionChanged: (sel, desel) => this.handleSelectionChanged(sel, desel)
-      });
-      this.dispatcher = this.container.get(import_sprotty4.TYPES.IActionDispatcher);
-      this.modelSource = this.container.get(import_sprotty4.LocalModelSource);
-      this.mouseTool = this.container.get(import_sprotty4.MouseTool);
-      this.moveListener = this.container.get(import_sprotty4.MoveMouseListener);
-      this.selectListener = this.container.get(import_sprotty4.SelectMouseListener);
-      this.connectListener.onConnected = (source, target) => {
-        void this.handleConnect(source, target);
-      };
-    }
-    /** Whether `qname` has a cached (possibly locally-edited) model already —
-     * lets `base.html` decide whether opening a tab needs a network fetch. */
-    isCached(qname) {
-      return this.cache.has(qname);
-    }
-    /** Load (if not cached) and mount `qname` as the active diagram. */
-    async activate(qname) {
-      this.currentQname = qname;
-      this.selectedIds.clear();
-      this.exitConnectModeIfActive();
-      let model = this.cache.get(qname);
-      if (!model) {
-        model = await fetchDiagramModel(qname);
-        prepareForLayout(model);
-        this.cache.set(qname, model);
-      }
-      await this.modelSource.setModel(model);
-    }
-    /** Drop a diagram's cached (in-memory, possibly edited) model — called
-     * when its tab is closed, so reopening it re-fetches a clean copy. */
-    forget(qname) {
-      this.cache.delete(qname);
-      if (this.currentQname === qname) {
-        this.currentQname = null;
-      }
-    }
-    // -----------------------------------------------------------------
-    // Create node (REQ-TRS-DE-004)
-    // -----------------------------------------------------------------
-    async addNode() {
-      const qname = this.currentQname;
-      const model = this.activeModel();
-      if (!qname || !model) {
-        return;
-      }
-      const ref = window.prompt("New element qualified name (e.g. UAV::NewPart):");
-      if (!ref) {
-        return;
-      }
-      const kind = window.prompt("Element type (e.g. PartDef, Requirement, TestCase):", "PartDef");
-      if (!kind) {
-        return;
-      }
-      const shapeId = `s-${ref.replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}-${Date.now().toString(36)}`;
-      const position = this.nextCascadePosition(model);
-      const name = nodeName(ref);
-      const schema = {
-        id: shapeId,
-        type: "node",
-        ref,
-        resolved: true,
-        kind: "block",
-        elementType: kind,
-        name,
-        position,
-        size: defaultSize("block"),
-        children: [{ id: `${shapeId}-label`, type: "label", text: name, position: { x: 8, y: 8 } }]
-      };
-      prepareNode(schema);
-      delete schema.serverSize;
-      schema.layoutOptions = { ...schema.layoutOptions, resizeContainer: true };
-      model.children.push(schema);
-      await this.dispatcher.dispatch(import_sprotty_protocol3.CreateElementAction.create(schema, { containerId: model.id }));
-      const resp = await createElement({
-        qname: ref,
-        type: kind,
-        diagram: { qname, shapeId, x: position.x, y: position.y, kind }
-      });
-      if (!resp.written) {
-        removeFromTree(model, [shapeId]);
-        await this.dispatcher.dispatch(import_sprotty_protocol3.DeleteElementAction.create([shapeId]));
-        this.toast(`Create failed: ${refusalText(resp)}`);
-      }
-    }
-    // -----------------------------------------------------------------
-    // Add an existing element (REQ-TRS-VIS-024)
-    // -----------------------------------------------------------------
-    /** Pick a model element and add it to the open manifest diagram (unpinned:
-     * ELK places it). A derived diagram follows its subject, so it gets an explanation
-     * instead of the picker. The diagram is re-fetched afterwards so the new
-     * shape arrives laid out with the server's sizes. */
-    async addExisting() {
-      const qname = this.currentQname;
-      const model = this.activeModel();
-      if (!qname || !model) {
-        return;
-      }
-      if (model.derived === true) {
-        this.toast(DERIVED_MESSAGE);
-        return;
-      }
-      await openAddExisting({
-        diagramQname: qname,
-        onAdded: async () => {
-          this.forget(qname);
-          await this.activate(qname);
-        }
-      });
-    }
-    // -----------------------------------------------------------------
-    // Delete node (REQ-TRS-DE-004/005)
-    // -----------------------------------------------------------------
-    async deleteSelected() {
-      const model = this.activeModel();
-      if (!model || this.selectedIds.size === 0) {
-        return;
-      }
-      const ids = [...this.selectedIds];
-      this.selectedIds.clear();
-      for (const id of ids) {
-        await this.deleteNode(model, id);
-      }
-    }
-    async deleteNode(model, shapeId) {
-      const node = findShape(model, shapeId);
-      if (!node) {
-        return;
-      }
-      const removedNodeIds = subtreeIds(node);
-      const connectedEdges = model.children.filter(isEdgeSchema).filter((e2) => removedNodeIds.includes(e2.sourceId) || removedNodeIds.includes(e2.targetId));
-      const parent = containerOf(model, shapeId);
-      const parentId = parent ? parent.id : model.id;
-      const removedIds = [shapeId, ...connectedEdges.map((e2) => e2.id)];
-      removeFromTree(model, removedIds);
-      await this.dispatcher.dispatch(import_sprotty_protocol3.DeleteElementAction.create(removedIds));
-      const resp = await deleteElement(node.ref);
-      if (resp.written) {
-        return;
-      }
-      const parentChildren = parent?.children;
-      if (parentChildren && parent !== model) {
-        parentChildren.push(node);
-      } else {
-        model.children.push(node);
-      }
-      model.children.push(...connectedEdges);
-      await this.dispatcher.dispatch(import_sprotty_protocol3.CreateElementAction.create(node, { containerId: parentId }));
-      for (const edge of connectedEdges) {
-        await this.dispatcher.dispatch(import_sprotty_protocol3.CreateElementAction.create(edge, { containerId: model.id }));
-      }
-      if (resp.blockedBy && resp.blockedBy.length > 0) {
-        const refs = resp.blockedBy.map((b3) => b3.qname).join(", ");
-        this.toast(`Delete blocked \u2014 still referenced by: ${refs}`);
-      } else {
-        this.toast(`Delete failed: ${refusalText(resp)}`);
-      }
-    }
-    // -----------------------------------------------------------------
-    // Connect edge (REQ-TRS-DE-004, port-aware per REQ-TRS-VIS-008)
-    // -----------------------------------------------------------------
-    toggleConnectMode() {
-      this.connectMode = !this.connectMode;
-      if (this.connectMode) {
-        this.mouseTool.deregister(this.moveListener);
-        this.mouseTool.deregister(this.selectListener);
-        this.mouseTool.register(this.connectListener);
-      } else {
-        this.exitConnectModeIfActive();
-      }
-      return this.connectMode;
-    }
-    exitConnectModeIfActive() {
-      if (!this.connectMode) {
-        return;
-      }
-      this.connectMode = false;
-      this.connectListener.reset();
-      this.mouseTool.deregister(this.connectListener);
-      this.mouseTool.register(this.moveListener);
-      this.mouseTool.register(this.selectListener);
-    }
-    /** The gesture starts and ends on ports. A block stands in for its one
-     * compatible port; otherwise the gesture is refused with a toast
-     * (`connect-rules.ts`). The edge joins the two port ids at the root. */
-    async handleConnect(sourceShapeId, targetShapeId) {
-      const qname = this.currentQname;
-      const model = this.activeModel();
-      if (!qname || !model) {
-        return;
-      }
-      const sourceShape = findShape(model, sourceShapeId);
-      const targetShape = findShape(model, targetShapeId);
-      if (!sourceShape || !targetShape) {
-        return;
-      }
-      const ends = resolveConnectEnds(sourceShape, targetShape);
-      if (!ends.ok) {
-        this.toast(`Connect refused: ${ends.reason}`);
-        return;
-      }
-      const { source, target } = ends;
-      const edgeId = `e-${source.id}-${target.id}-${Date.now().toString(36)}`;
-      const schema = {
-        id: edgeId,
-        type: "edge",
-        sourceId: source.id,
-        targetId: target.id,
-        kind: "connection"
-      };
-      model.children.push(schema);
-      await this.dispatcher.dispatch(import_sprotty_protocol3.CreateElementAction.create(schema, { containerId: model.id }));
-      const ownerQname = model.subject ?? qname;
-      const derived = isDerivedDiagram(model);
-      const resp = await addConnection({
-        qname: ownerQname,
-        from: portChain(model, source, ownerQname),
-        to: portChain(model, target, ownerQname),
-        diagram: derived ? void 0 : { qname, edgeId, sourceShapeId: source.id, targetShapeId: target.id }
-      });
-      if (!resp.written) {
-        removeFromTree(model, [edgeId]);
-        await this.dispatcher.dispatch(import_sprotty_protocol3.DeleteElementAction.create([edgeId]));
-        this.toast(`Connect failed: ${refusalText(resp)}`);
-      }
-    }
-    // -----------------------------------------------------------------
-    // Move (REQ-TRS-DE-004 — reuses PATCH /api/diagrams/layout unchanged)
-    // -----------------------------------------------------------------
-    /** `MoveAction`'s `toPosition` is the element's new `position`, which in
-     * sprotty is always relative to its parent (`MoveMouseListener.
-     * createElementMove` adds the drag delta to `element.position`, and
-     * `LocationPostprocessor` translates each child by that same local
-     * value). So for a nested node the patch is parent-relative — exactly
-     * the pin semantics `vis::sprotty` documents, no conversion needed. */
-    handleMoveFinished(moves) {
-      const qname = this.currentQname;
-      const model = this.activeModel();
-      if (!qname || !model || moves.length === 0) {
-        return;
-      }
-      const patch = {};
-      for (const move of moves) {
-        const node = findShape(model, move.elementId);
-        if (!node) {
-          continue;
-        }
-        patch[move.elementId] = { x: Math.round(move.toPosition.x), y: Math.round(move.toPosition.y) };
-        node.position = move.toPosition;
-      }
-      if (Object.keys(patch).length === 0) {
-        return;
-      }
-      patchLayout(qname, patch).then(async (resp) => {
-        if (!resp.written) {
-          await this.revertMoves(model, moves);
-          this.toast(`Move failed: ${refusalText(resp)}`);
-        } else {
-          for (const id of Object.keys(patch)) {
-            if (!model.pinned.includes(id)) {
-              model.pinned.push(id);
-            }
-          }
-        }
-      }).catch(async (err) => {
-        await this.revertMoves(model, moves);
-        this.toast(`Move failed: ${err.message}`);
-      });
-    }
-    /** Dispatch a compensating move back to each element's prior position
-     * (REQ-TRS-DE-005's "disk and diagram must never end up inconsistent"
-     * applies to layout too, even though this endpoint's only refusal path
-     * today is a network-level failure). */
-    async revertMoves(model, moves) {
-      const reverts = moves.filter((m3) => m3.fromPosition).map((m3) => ({
-        elementId: m3.elementId,
-        toPosition: m3.fromPosition,
-        fromPosition: m3.toPosition
-      }));
-      if (reverts.length === 0) {
-        return;
-      }
-      await this.dispatcher.dispatch(import_sprotty_protocol3.MoveAction.create(reverts, { animate: true, finished: true }));
-      for (const r3 of reverts) {
-        const node = findShape(model, r3.elementId);
-        if (node) {
-          node.position = r3.toPosition;
-        }
-      }
-    }
-    // -----------------------------------------------------------------
-    // Pin all / Auto-layout / Save companion SVG (REQ-TRS-VIS-007/011)
-    // -----------------------------------------------------------------
-    /** Write every placed shape's current position and size as pins in one
-     * PATCH. Nothing is optimistic here (the picture does not change), so a
-     * refusal only needs reporting; on success the whole diagram counts as
-     * pinned, which switches the next layout run to ELK's `fixed` mode. */
-    async pinAll() {
-      const qname = this.currentQname;
-      const model = this.activeModel();
-      if (!qname || !model) {
-        return;
-      }
-      const patch = {};
-      for (const shape of allShapes(model)) {
-        if (!shape.position) {
-          continue;
-        }
-        const pin = { x: Math.round(shape.position.x), y: Math.round(shape.position.y) };
-        if (shape.size && shape.size.width > 0 && shape.size.height > 0) {
-          pin.w = Math.round(shape.size.width);
-          pin.h = Math.round(shape.size.height);
-        }
-        patch[shape.id] = pin;
-      }
-      const count = Object.keys(patch).length;
-      if (count === 0) {
-        this.toast("Nothing to pin yet \u2014 the diagram has not been laid out");
-        return;
-      }
-      try {
-        const resp = await patchLayout(qname, patch);
-        if (!resp.written) {
-          this.toast(`Pin all failed: ${refusalText(resp)}`);
-          return;
-        }
-        for (const id of Object.keys(patch)) {
-          if (!model.pinned.includes(id)) {
-            model.pinned.push(id);
-          }
-        }
-        for (const shape of allShapes(model)) {
-          if (shape.size && shape.size.width > 0 && shape.size.height > 0) {
-            shape.serverSize = { ...shape.size };
-            if (shape.type === "node") {
-              shape.layoutOptions = { ...shape.layoutOptions, resizeContainer: false };
-            }
-          }
-        }
-        this.toast(`Pinned ${count} shapes`, "info");
-      } catch (err) {
-        this.toast(`Pin all failed: ${err.message}`);
-      }
-    }
-    /** Clear every pin on the server, then re-fetch and let ELK lay the
-     * diagram out from scratch. The cached model is only dropped once the
-     * DELETE was accepted, so a refusal leaves the picture as it was. */
-    async autoLayout() {
-      const qname = this.currentQname;
-      if (!qname) {
-        return;
-      }
-      try {
-        const resp = await deleteLayout(qname);
-        if (!resp.written) {
-          this.toast(`Auto-layout failed: ${refusalText(resp)}`);
-          return;
-        }
-      } catch (err) {
-        this.toast(`Auto-layout failed: ${err.message}`);
-        return;
-      }
-      this.forget(qname);
-      await this.activate(qname);
-    }
-    /** Serialise the live render (`svg-export.ts`) and write it as the
-     * diagram's companion SVG through the guarded-write engine. */
-    async saveSvg() {
-      const qname = this.currentQname;
-      if (!qname) {
-        return;
-      }
-      const model = this.activeModel();
-      const viewport = await this.modelSource.getViewport();
-      await this.dispatcher.dispatch(import_sprotty_protocol3.FitToScreenAction.create([], { padding: 0, animate: false }));
-      await this.nextFrame();
-      const svg2 = serialiseDiagramSvg(HOST_ID, qname);
-      await this.dispatcher.dispatch(
-        import_sprotty_protocol3.SetViewportAction.create(model?.id ?? "sysml-diagram", { scroll: viewport.scroll, zoom: viewport.zoom }, { animate: false })
-      );
-      if (!svg2) {
-        this.toast("No diagram is mounted");
-        return;
-      }
-      try {
-        const resp = await putSvg(qname, svg2);
-        if (!resp.written) {
-          this.toast(`Save companion SVG failed: ${refusalText(resp)}`);
-          return;
-        }
-        this.toast("Companion SVG saved", "info");
-      } catch (err) {
-        this.toast(`Save companion SVG failed: ${err.message}`);
-      }
-    }
-    // -----------------------------------------------------------------
-    // Helpers
-    // -----------------------------------------------------------------
-    handleSelectionChanged(selected, deselected) {
-      for (const id of selected) {
-        this.selectedIds.add(id);
-      }
-      for (const id of deselected) {
-        this.selectedIds.delete(id);
-      }
-      const model = this.activeModel();
-      if (model && !this.connectMode) {
-        const ref = refForSelection(model, this.selectedIds);
-        if (ref) {
-          void showElementCard(ref);
-        }
-      }
-    }
-    /** The viewer patches the DOM on the next animation frame after a model
-     * or viewport change. */
-    nextFrame() {
-      return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
-    }
-    activeModel() {
-      return this.currentQname ? this.cache.get(this.currentQname) : void 0;
-    }
-    nextCascadePosition(model) {
-      const count = allShapes(model).length;
-      const step = 24 * (count % 10);
-      return { x: 60 + step, y: 60 + step };
-    }
-    toast(message, level = "error") {
-      const el3 = document.getElementById("sprotty-toast");
-      if (!el3) {
-        if (level === "error") {
-          console.error("[diagram-editor]", message);
-        } else {
-          console.info("[diagram-editor]", message);
-        }
-        return;
-      }
-      el3.textContent = message;
-      el3.classList.toggle("info", level === "info");
-      el3.style.display = "block";
-      window.clearTimeout(el3._hideTimer);
-      el3._hideTimer = window.setTimeout(() => {
-        el3.style.display = "none";
-      }, level === "info" ? 3e3 : 6e3);
-    }
-  };
-
-  // src/new-diagram.ts
-  var DIAGRAM_KINDS = [
-    { kind: "BDD", label: "Block definition (BDD)", subjectTypes: ["Package", "PartDef", "ItemDef"], hint: "a package or a part/item definition" },
-    { kind: "IBD", label: "Internal block (IBD)", subjectTypes: ["PartDef", "Part", "ItemDef", "Item"], hint: "a part or item, definition or usage" },
-    { kind: "StateMachine", label: "State machine", subjectTypes: ["StateDef", "State", "ExhibitState"], hint: "a state definition or state" },
-    { kind: "Action", label: "Action flow", subjectTypes: ["ActionDef", "Action"], hint: "an action definition or action" },
-    { kind: "Sequence", label: "Sequence", subjectTypes: ["ActionDef", "Action", "UseCaseDef", "UseCase"], hint: "an action or use case with send/accept steps" },
-    { kind: "Requirement", label: "Requirement tree", subjectTypes: ["Package", "RequirementDef", "Requirement"], hint: "a package of requirements, or one requirement" },
-    { kind: "FeatureModel", label: "Feature model", subjectTypes: ["Package", "FeatureDef", "FeatureModel"], hint: "a package of features, a feature, or a feature-model sheet" },
-    { kind: "Allocation", label: "Allocation map", subjectTypes: ["Package", "AllocationDef", "Allocation"], hint: "a package of allocations, or one allocation" }
-  ];
-  function kindInfo(kind) {
-    return DIAGRAM_KINDS.find((k3) => k3.kind === kind);
-  }
-  var BASIC_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
-  function validateName(name) {
-    const n = name.trim();
-    if (n === "") {
-      return "Give the diagram a name.";
-    }
-    if (!BASIC_NAME.test(n)) {
-      return "A name uses letters, digits and underscores only, and does not start with a digit (no spaces or hyphens).";
+    if (a3.skipped) {
+      return a3.skipped;
     }
     return null;
   }
-  function defaultPackage(packages) {
-    return packages.includes("Diagrams") ? "Diagrams" : "";
-  }
-  function joinQname(pkg, name) {
-    return pkg === "" ? name : `${pkg}::${name}`;
-  }
-  function tabId(qname) {
-    return qname.replace(/::/g, "/");
-  }
-  function buildCreateRequest(form) {
-    const nameError = validateName(form.name);
-    if (nameError) {
-      return { ok: false, error: nameError };
+  function summaryLines(a3) {
+    if (!a3 || !a3.hasFeatureModel) {
+      return [];
     }
-    const info = kindInfo(form.kind);
-    if (!info) {
-      return { ok: false, error: `Choose one of the diagram kinds (${DIAGRAM_KINDS.map((k3) => k3.kind).join(", ")}).` };
+    const c3 = a3.counts;
+    const out = [`${c3.features} features`];
+    out.push(`${c3.core} core (in every product)`);
+    out.push(`${c3.dead} dead (in no product)`);
+    out.push(`${c3.falseOptional} false-optional`);
+    if (a3.invalidConfigurations.length > 0) {
+      out.push(`${a3.invalidConfigurations.length} invalid configuration${a3.invalidConfigurations.length === 1 ? "" : "s"}: ${a3.invalidConfigurations.join(", ")}`);
     }
-    const subject = form.subject.trim();
-    if (form.startFrom === "derive") {
-      if (subject === "") {
-        return { ok: false, error: `A derived ${info.kind} diagram needs a subject: ${info.hint}.` };
-      }
-      if (!form.candidates.includes(subject)) {
-        return {
-          ok: false,
-          error: `'${subject}' is not ${info.hint}. Pick one of the suggestions (${info.subjectTypes.join(", ")}).`
-        };
-      }
-    } else if (subject !== "" && !form.candidates.includes(subject)) {
-      return { ok: false, error: `'${subject}' is not ${info.hint}. Leave the subject empty or pick a suggestion.` };
-    }
-    const fields = { diagramKind: info.kind };
-    if (subject !== "") {
-      fields.subject = subject;
-    }
-    if (form.startFrom === "blank") {
-      fields.shapes = {};
-    }
-    const name = form.name.trim();
-    const qname = joinQname(form.pkg, name);
-    return { ok: true, request: { qname, type: "Diagram", fields }, tabId: tabId(qname), displayName: name, kind: info.kind };
+    return out;
   }
 
-  // src/new-diagram-dialog.ts
-  function el2(id) {
+  // src/feature-main.ts
+  var HOST = "fm-host";
+  function byId(id) {
     const e2 = document.getElementById(id);
     if (!e2) {
-      throw new Error(`new-diagram dialog: #${id} missing from the page`);
+      throw new Error(`feature page: #${id} missing`);
     }
     return e2;
   }
-  async function fetchByType(type) {
-    const resp = await fetch("/api/elements?type=" + encodeURIComponent(type));
-    return resp.ok ? await resp.json() : [];
+  function esc(s3) {
+    return s3.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
-  var candidates = [];
-  var packageCache = [];
-  async function refreshSubjects() {
-    const kind = el2("nd-kind").value;
-    const info = kindInfo(kind);
-    el2("nd-subject-hint").textContent = info ? `Subject: ${info.hint}.` : "";
-    const lists = await Promise.all((info?.subjectTypes ?? []).map(fetchByType));
-    candidates = [...new Set(lists.flat().map((s3) => s3.qualifiedName))].sort();
-    const dl = el2("nd-subjects");
-    dl.replaceChildren(
-      ...candidates.map((q2) => {
-        const o3 = document.createElement("option");
-        o3.value = q2;
-        return o3;
-      })
-    );
-  }
-  function updateMode() {
-    const derive = document.querySelector('input[name="nd-start"]:checked').value === "derive";
-    el2("nd-subject-label").firstChild.textContent = derive ? "Subject " : "Subject (optional) ";
-  }
-  function showError2(msg) {
-    const e2 = el2("nd-error");
-    e2.textContent = msg;
-    e2.style.display = msg ? "block" : "none";
-  }
-  function summarize2(findings) {
-    return findings.map((f3) => `${f3.code}: ${f3.message}`).join("; ");
-  }
-  async function open2() {
-    const dialog = el2("new-diagram-dialog");
-    showError2("");
-    const kindSel = el2("nd-kind");
-    if (kindSel.options.length === 0) {
-      for (const k3 of DIAGRAM_KINDS) {
-        const o3 = document.createElement("option");
-        o3.value = k3.kind;
-        o3.textContent = k3.label;
-        kindSel.appendChild(o3);
-      }
+  var FeaturePage = class {
+    constructor() {
+      this.full = null;
+      this.analysis = null;
+      this.collapsed = /* @__PURE__ */ new Set();
+      this.selected = null;
+      this.matches = [];
+      this.matchIndex = 0;
+      this.busy = false;
+      this.again = false;
+      this.firstLoad = true;
+      this.firstRender = true;
+      const container = createDiagramContainer(HOST, {
+        // The diagram is a view of the model; a dragged feature snaps back.
+        onMoveFinished: () => void this.render(),
+        onSelectionChanged: (sel, desel) => this.onSelection(sel, desel)
+      });
+      this.dispatcher = container.get(import_sprotty3.TYPES.IActionDispatcher);
+      this.source = container.get(import_sprotty3.LocalModelSource);
+      byId("fm-collapse").addEventListener("click", () => {
+        if (this.full) {
+          this.collapsed = collapseBelow(this.full, 1);
+          void this.render(true);
+        }
+      });
+      byId("fm-expand").addEventListener("click", () => {
+        this.collapsed.clear();
+        void this.render(true);
+      });
+      byId("fm-fit").addEventListener("click", () => void this.fit());
+      const box = byId("fm-search");
+      box.addEventListener("input", () => this.onSearch(box.value));
+      box.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") {
+          this.nextMatch(ev.shiftKey ? -1 : 1);
+        }
+      });
+      byId("fm-canvas").addEventListener("click", (ev) => {
+        const t3 = ev.target.closest("[data-fm-toggle]");
+        if (t3) {
+          ev.stopPropagation();
+          this.toggle(t3.getAttribute("data-fm-toggle") ?? "");
+        }
+      });
+      document.addEventListener("syscribe:reload", () => void this.load());
+      window.addEventListener("syscribe:socket", (e2) => {
+        const badge = byId("fm-live");
+        const open2 = e2.detail.open;
+        badge.classList.toggle("off", !open2);
+        badge.textContent = open2 ? "live" : "offline";
+      });
+      void this.load();
     }
-    const pkgSel = el2("nd-package");
-    const packages = (await fetchByType("Package")).map((p3) => p3.qualifiedName).filter((q2) => q2 !== "").sort();
-    packageCache.splice(0, packageCache.length, ...packages);
-    pkgSel.replaceChildren(
-      ...["", ...packages].map((q2) => {
-        const o3 = document.createElement("option");
-        o3.value = q2;
-        o3.textContent = q2 === "" ? "(model root)" : q2;
-        return o3;
-      })
-    );
-    pkgSel.value = defaultPackage(packages);
-    el2("nd-name").value = "";
-    el2("nd-subject").value = "";
-    updateMode();
-    await refreshSubjects();
-    dialog.showModal();
-    el2("nd-name").focus();
-  }
-  async function submit2(ev) {
-    ev.preventDefault();
-    const startFrom = document.querySelector('input[name="nd-start"]:checked').value;
-    const built = buildCreateRequest({
-      name: el2("nd-name").value,
-      kind: el2("nd-kind").value,
-      startFrom,
-      subject: el2("nd-subject").value,
-      pkg: el2("nd-package").value,
-      candidates
-    });
-    if (!built.ok) {
-      showError2(built.error);
-      return;
-    }
-    const btn = el2("nd-create");
-    btn.disabled = true;
-    try {
-      const resp = await createElement(built.request);
-      if (!resp.written) {
-        showError2(resp.reason ?? (summarize2(resp.newErrors) || "The model refused the new diagram."));
+    /** Fetch the diagram and the analysis, then draw. Overlapping calls coalesce. */
+    async load() {
+      if (this.busy) {
+        this.again = true;
         return;
       }
-      el2("new-diagram-dialog").close();
-      if (window.openDiagram) {
-        await window.openDiagram(built.tabId, built.displayName, built.kind);
+      this.busy = true;
+      try {
+        do {
+          this.again = false;
+          const [diagram, analysis] = await Promise.all([
+            fetch("/api/feature-model/diagram").then((r3) => r3.json()),
+            fetch("/api/feature-model/analysis").then((r3) => r3.json())
+          ]);
+          this.full = diagram;
+          this.analysis = analysis;
+          if (this.firstLoad) {
+            this.firstLoad = false;
+            if (featureNodes(diagram).length > 60) {
+              this.collapsed = collapseBelow(diagram, 3);
+            }
+          }
+          await this.render();
+        } while (this.again);
+      } catch (err) {
+        byId("fm-banner").hidden = false;
+        byId("fm-banner").textContent = `Could not load the feature model: ${err.message}`;
+      } finally {
+        this.busy = false;
       }
-      if (resp.newWarnings.length > 0) {
-        const toast = document.getElementById("sprotty-toast");
-        if (toast) {
-          toast.textContent = `Created ${built.request.qname}. ${summarize2(resp.newWarnings)}`;
-          toast.style.display = "block";
-          window.setTimeout(() => toast.style.display = "none", 6e3);
+    }
+    async render(fit = false) {
+      if (!this.full) {
+        return;
+      }
+      const empty = featureNodes(this.full).length === 0;
+      byId("fm-empty").hidden = !empty;
+      const banner = bannerText(this.analysis);
+      byId("fm-banner").hidden = banner === null;
+      byId("fm-banner").textContent = banner ?? "";
+      byId("fm-summary").innerHTML = summaryLines(this.analysis).map((l3) => `<div>${esc(l3)}</div>`).join("");
+      if (empty) {
+        return;
+      }
+      const copy = JSON.parse(JSON.stringify(this.full));
+      applyAnalysis(copy, this.analysis);
+      const matched = new Set(this.matches.map((m3) => m3.id));
+      for (const n of featureNodes(copy)) {
+        n.matched = matched.has(n.id);
+      }
+      const view = visibleModel(copy, this.collapsed);
+      prepareForLayout(view);
+      await this.source.setModel(view);
+      if (fit || this.firstRender) {
+        this.firstRender = false;
+        await this.fit();
+      }
+      this.showSelected();
+    }
+    async fit() {
+      await this.dispatcher.dispatch(import_sprotty_protocol2.FitToScreenAction.create([], { padding: 30, maxZoom: 1.2 }));
+    }
+    toggle(id) {
+      if (this.collapsed.has(id)) {
+        this.collapsed.delete(id);
+      } else {
+        this.collapsed.add(id);
+      }
+      void this.render();
+    }
+    onSelection(sel, desel) {
+      for (const id of desel) {
+        if (this.selected === id) {
+          this.selected = null;
         }
       }
-    } catch (err) {
-      showError2(`Could not create the diagram: ${err.message}`);
-    } finally {
-      btn.disabled = false;
+      const feature = sel.find((id) => this.full && featureNodes(this.full).some((n) => n.id === id));
+      if (feature) {
+        this.selected = feature;
+      }
+      this.showSelected();
     }
-  }
-  function installNewDiagramDialog() {
-    window.NewDiagram = { open: open2 };
-    document.addEventListener("DOMContentLoaded", () => {
-      const form = document.getElementById("nd-form");
-      if (!form) {
+    onSearch(query) {
+      if (!this.full) {
         return;
       }
-      form.addEventListener("submit", (ev) => void submit2(ev));
-      el2("nd-kind").addEventListener("change", () => void refreshSubjects());
-      document.querySelectorAll('input[name="nd-start"]').forEach((r3) => r3.addEventListener("change", updateMode));
-      el2("nd-cancel").addEventListener("click", () => el2("new-diagram-dialog").close());
-    });
-  }
-
-  // src/main.ts
-  window.DiagramEditor = new DiagramEditor();
-  installNewDiagramDialog();
-  installAddExistingDialog();
-  installElementPanel();
+      this.matches = search(this.full, query);
+      this.matchIndex = 0;
+      if (this.matches.length > 0) {
+        this.collapsed = revealing(this.full, this.collapsed, this.matches);
+      }
+      void this.render().then(() => {
+        if (this.matches.length > 0) {
+          void this.dispatcher.dispatch(import_sprotty_protocol2.CenterAction.create([this.matches[0].id], { animate: true }));
+        }
+      });
+    }
+    nextMatch(step) {
+      if (this.matches.length === 0) {
+        return;
+      }
+      this.matchIndex = (this.matchIndex + step + this.matches.length) % this.matches.length;
+      void this.dispatcher.dispatch(import_sprotty_protocol2.CenterAction.create([this.matches[this.matchIndex].id], { animate: true }));
+    }
+    /** The Inspector: what the feature is, what the analysis says about it and why,
+     * its constraints, then its documentation from the server's element card. */
+    showSelected() {
+      const pane = byId("fm-selected");
+      const node = this.full && this.selected ? featureNodes(this.full).find((n) => n.id === this.selected) : void 0;
+      if (!node || !this.full) {
+        pane.innerHTML = '<p class="detail-empty">Select a feature to see what it is and why.</p>';
+        return;
+      }
+      const a3 = this.analysis?.features[node.ref];
+      const name = (id) => featureNodes(this.full).find((n) => n.id === id)?.name ?? id;
+      const edges = this.full.children.filter(isEdgeSchema);
+      const list = (kind, from) => edges.filter((e2) => e2.kind === kind && (from === "source" ? e2.sourceId : e2.targetId) === node.id).map((e2) => name(from === "source" ? e2.targetId : e2.sourceId));
+      const rows = [];
+      const state = a3?.state ?? "normal";
+      const stateText = {
+        normal: "selectable, and optional",
+        core: "core: in every product",
+        dead: "dead: in no product",
+        falseOptional: "false-optional: declared optional but forced"
+      };
+      rows.push(`<div class="fm-state fm-state-${state}">${esc(stateText[state])}</div>`);
+      if (a3 && a3.reasons.length > 0) {
+        rows.push('<div class="ec-title">Why</div><ul class="fm-reasons">' + a3.reasons.map((r3) => `<li>${esc(r3)}</li>`).join("") + "</ul>");
+      }
+      const m3 = node.feature;
+      if (m3) {
+        rows.push(`<div class="fm-meta">${m3.mandatory ? "mandatory" : "optional"} member${m3.childCount ? `, children grouped as ${m3.group}` : ""}</div>`);
+      }
+      const req = list("requires", "source");
+      const reqBy = list("requires", "target");
+      const ex = [...list("excludes", "source"), ...list("excludes", "target")];
+      if (req.length) {
+        rows.push(`<div class="fm-meta">requires ${req.map(esc).join(", ")}</div>`);
+      }
+      if (reqBy.length) {
+        rows.push(`<div class="fm-meta">required by ${reqBy.map(esc).join(", ")}</div>`);
+      }
+      if (ex.length) {
+        rows.push(`<div class="fm-meta">excludes ${ex.map(esc).join(", ")}</div>`);
+      }
+      pane.innerHTML = `<div class="detail-name">${esc(node.name)}</div><div class="detail-qname">${esc(node.ref)}</div>${rows.join("")}<div id="fm-card"></div>`;
+      const url = "/ui/element-card/" + node.ref.split("::").map(encodeURIComponent).join("/");
+      const wanted = node.id;
+      void fetch(url).then((r3) => r3.text()).then((html) => {
+        const card = document.getElementById("fm-card");
+        if (card && this.selected === wanted) {
+          card.innerHTML = html;
+        }
+      });
+    }
+  };
+  window.addEventListener("DOMContentLoaded", () => {
+    if (document.getElementById(HOST)) {
+      window.FeaturePage = new FeaturePage();
+    }
+  });
 })();
 /*! Bundled license information:
 
@@ -116591,4 +115730,4 @@ reflect-metadata/Reflect.js:
   and limitations under the License.
   ***************************************************************************** *)
 */
-//# sourceMappingURL=diagram-editor.js.map
+//# sourceMappingURL=feature-model.js.map

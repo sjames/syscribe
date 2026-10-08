@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc --noEmit -p . && node esbuild.config.mjs",
     "typecheck": "tsc --noEmit -p .",
-    "test": "node test/elk-layout.test.mjs && node test/connect-rules.test.mjs && node test/server-sizes.test.mjs && node test/new-diagram.test.mjs && node test/page-wiring.test.mjs && node test/add-existing.test.mjs && node test/tree-toggle.test.mjs && node test/selection-ref.test.mjs && node test/planning-core.test.mjs"
+    "test": "node test/elk-layout.test.mjs && node test/connect-rules.test.mjs && node test/server-sizes.test.mjs && node test/new-diagram.test.mjs && node test/page-wiring.test.mjs && node test/add-existing.test.mjs && node test/tree-toggle.test.mjs && node test/selection-ref.test.mjs && node test/planning-core.test.mjs && node test/feature-core.test.mjs"
   },
   "dependencies": {
     "elkjs": "^0.8.2",

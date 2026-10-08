@@ -111,6 +111,7 @@ fn requirement_nodes(e: &RawElement, elements: &[RawElement], resolver: &Resolve
             is_abstract: false,
             pin: None,
             banners: Vec::new(),
+            feature: None,
         });
     }
     out

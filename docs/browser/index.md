@@ -37,6 +37,10 @@ All JavaScript (HTMX, Mermaid, the bundled diagram editor including `sprotty-elk
 | `GET /ui/tree?parent=<qname>` | HTMX — returns tree items for a namespace (top level when `parent` is omitted) |
 | `GET /ui/detail/<qname>` | HTMX — element detail panel (rendered Markdown, custom fields, generated member list, edit form) |
 | `GET /ui/diagram/<qname>` | HTMX — diagram panel (Mermaid, or the host for the sprotty editor) |
+| `GET /features` | The feature model viewer |
+| `GET /api/feature-model/diagram?root=` | The feature diagram as a sprotty graph (optionally one feature's subtree) |
+| `GET /api/feature-model/analysis` | Void, dead, core and false-optional features with the constraints responsible |
+| `GET /api/feature-model/export?format=svg\\|plantuml\\|mermaid` | The feature diagram as a download |
 | `GET /planning` | The live planning dashboard page |
 | `GET /ui/planning/board?who=&done=` | HTMX — the board fragment the dashboard re-fetches |
 | `GET /ui/element-card/<qname>` | HTMX — the read-only card in the diagram editor's side panel: identity and the rendered Markdown body; an inline feature resolves to its owner or type |
@@ -98,6 +102,19 @@ The **+ Diagram** button in the model browser's header opens the New diagram dia
 - **Blank** writes an empty manifest (`shapes: {}`) for you to fill with **+**, **↔** and the pin buttons; a subject is optional and, when given, owns the connections you draw.
 
 The **package** defaults to a package named `Diagrams` when the model has one, else the model root; the list offers every package element. Creating goes through the same guarded write as every other edit, then closes the dialog and opens the diagram in a tab. A refusal (a name already in use, a rule the model engine enforces) appears in red inside the dialog and writes nothing; a warning the new diagram raises, such as `W401` for a subject that resolves to nothing, is shown after it is created.
+
+## Feature model viewer
+
+**Features** in the header opens `/features` (`REQ-TRS-FMED-001`, `-002`), the product line's feature model as a **feature diagram** with the SAT analysis laid over it. It reads the model through the same engine as `feature-check --deep`, so the picture, the CLI and the MCP server cannot disagree.
+
+- **Notation.** Each `FeatureDef` is a box. A filled circle above it means it is a *mandatory* member of its parent, a hollow one *optional*. Where a feature's `groupKind:` is `alternative` a hollow wedge joins its children (exactly one), where it is `or` a filled wedge (at least one). A dashed blue curve with an arrow is a `requires:` constraint, a dashed red one with arrows at both ends `excludes:`. A dashed outline is an abstract feature. Parameters and cardinality show inside the box.
+- **Analysis.** Core features (in every product) are blue; **dead** features (in no product) are red, dashed and struck through; **false-optional** ones (declared optional but forced) amber with a double outline. The colour is a second channel: the outline differs too. A banner names the conflicting constraints when the model is **void**, and the side panel counts features, core, dead, false-optional and invalid configurations.
+- **Inspector.** Click a feature to see its state and, for a dead or false-optional one, **why**, as the constraints responsible; what it requires, what requires it and what it excludes; and its Markdown documentation.
+- **Collapse, search, fit.** The **−/+** at a feature's bottom-right collapses its subtree and counts what it hid. **Collapse all** shows the roots, **Expand all** everything, **Fit** the whole model. Typing in the search box finds features by name, id or qualified name, expands the path to each, highlights them and centres the first; Enter steps to the next. A model of more than 60 features opens collapsed to two levels.
+- **Live.** The page refreshes on every model reload, so an edit by you, the CLI or an agent shows at once; the **live** badge turns red when the connection drops.
+- **Export.** SVG, PlantUML and Mermaid downloads of the diagram, from the same writers as `syscribe diagram export`. A `Diagram` with `diagramKind: FeatureModel` and a `subject:` (a feature, a package of features or a feature-model sheet) puts the same diagram in the model; **+ Diagram** offers it.
+
+Editing, the configurator and impact analysis are the next phases (`docs/design/feature-model-editor.md`).
 
 ## Planning dashboard
 
