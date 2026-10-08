@@ -134,7 +134,7 @@ The panel shows how many valid products remain (`18 valid products`, or `at leas
 
 **Edit** (`REQ-TRS-FMED-004`) lets you change the feature model without leaving the diagram. Select a feature and the panel offers:
 
-- An **abstract** checkbox (`setAbstract`): a grouping feature with no implementation of its own, drawn dashed and italic. It does not distinguish products (the configurator's product count is over concrete features, and an abstract feature is not counted among the choices still open), and a configuration need not name it; see the variability guide;
+- An **abstract** checkbox (`setAbstract`): a grouping feature with no implementation of its own, drawn dashed and italic. It does not distinguish products (the configurator's product count is over concrete features, and an abstract feature is not counted among the choices still open), and a configuration must not name it (`E238`; Save leaves abstract features out); see the variability guide;
 - **Rename**, and **Membership** (mandatory or optional) and **Children are** (*free*, *XOR* for one of, *OR* for any of);
 - **Add child**, or **Add a root feature** when nothing is selected;
 - its declared **constraints** with a **✕** to remove each, and a form to add a `requires` or `excludes` towards another feature;

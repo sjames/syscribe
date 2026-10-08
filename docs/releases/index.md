@@ -6,7 +6,7 @@
 
 ### Abstract features (REQ-TRS-FMED-004)
 
-- **New:** a feature can be marked **abstract** (`isAbstract: true`) from the browser's Edit mode and the MCP tool (`setAbstract`), and it now behaves as an abstract feature does in a proper feature model: it does not distinguish products (the product count, `feature-check --enumerate` and the configurator count variants over concrete features only), a `Configuration` need not name it and is judged on its concrete features with the abstract ones completed, a `requires:` that targets one a configuration does not name is not an `E219`, an `appliesWhen:` that names one is `W238`, and one with no children is `W239`. The diagram draws it dashed and italic and the Inspector says "abstract".
+- **New:** a feature can be marked **abstract** (`isAbstract: true`) from the browser's Edit mode and the MCP tool (`setAbstract`), and it now behaves as an abstract feature does in a proper feature model: it does not distinguish products (the product count, `feature-check --enumerate` and the configurator count variants over concrete features only), a `Configuration` must not name it (`E238`, selected or not; the configurator can still select one to explore, and its Save leaves abstract features out) and is judged on its concrete features with the abstract ones completed, a `requires:` that targets one a configuration does not name is not an `E219`, an `appliesWhen:` that names one is `W238`, and one with no children is `W239`. The diagram draws it dashed and italic and the Inspector says "abstract".
 
 ## 0.48.1 — 2026-10-08
 

@@ -290,10 +290,13 @@ export function configCounts(r: ConfigureResult | null, abstractRefs: ReadonlySe
 
 /** The `fields` of the `Configuration` to create from a satisfiable result: the
  * complete product the server found for the choices, written as `features:`. */
-export function configurationFields(r: ConfigureResult, name: string): Record<string, unknown> {
+export function configurationFields(r: ConfigureResult, name: string, abstractRefs: ReadonlySet<string> = new Set()): Record<string, unknown> {
     const features: Record<string, boolean> = {};
     for (const q of Object.keys(r.completion).sort()) {
-        features[q] = r.completion[q];
+        // An abstract feature is not a choice: a Configuration that names one is an error (`E238`).
+        if (!abstractRefs.has(q)) {
+            features[q] = r.completion[q];
+        }
     }
     const fields: Record<string, unknown> = { name, status: 'draft', features };
     if (r.featureModel) {

@@ -44,7 +44,7 @@ Two orthogonal axes (`ADR-FM-003`):
 **Abstract features.** `isAbstract: true` marks a feature that only groups: it has no realisation of its own and exists to give its children a place in the tree (a `Platform` whose children are the real choices). It behaves as an abstract feature does in a proper feature model:
 
 - it is a feature of the model like any other in the formula (it can be selected, and constraints can name it), but it **does not distinguish products**: a product is its set of *concrete* features, so the product count, `feature-check --enumerate` and the configurator count and list variants over concrete features only, and two models that differ only in abstract features are one product;
-- a `Configuration` **need not name it**: its concrete selection is valid if the abstract features can be completed to satisfy the model (so omitting an abstract parent of a selected feature is not an `E225`), and a `requires:` that targets an abstract feature the configuration does not name is not an `E219`;
+- a `Configuration` **must not name it**: an abstract feature is not a choice, it follows from the concrete features, so a `features:` entry for one, selected or not, is `E238`. The configurator can still select one to explore, but its **Save** leaves abstract features out. A configuration's concrete selection is valid if the abstract features can be completed to satisfy the model (so omitting an abstract parent of a selected feature is not an `E225`), and a `requires:` that targets an abstract feature the configuration leaves out is not an `E219`;
 - nothing can usefully be **conditioned** on it: an element whose `appliesWhen:` names an abstract feature gets `W238`;
 - one that **groups nothing** is not abstract: `W239`.
 

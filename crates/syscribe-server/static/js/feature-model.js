@@ -115562,10 +115562,12 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     }
     return out;
   }
-  function configurationFields(r3, name) {
+  function configurationFields(r3, name, abstractRefs = /* @__PURE__ */ new Set()) {
     const features = {};
     for (const q2 of Object.keys(r3.completion).sort()) {
-      features[q2] = r3.completion[q2];
+      if (!abstractRefs.has(q2)) {
+        features[q2] = r3.completion[q2];
+      }
     }
     const fields = { name, status: "draft", features };
     if (r3.featureModel) {
@@ -116207,7 +116209,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       }
       const name = input.value.trim();
       const qname = joinQname(configurationPackage(this.stored), name);
-      const resp = await createElement({ qname, type: "Configuration", fields: configurationFields(r3, name) });
+      const resp = await createElement({ qname, type: "Configuration", fields: configurationFields(r3, name, new Set(this.full ? featureNodes(this.full).filter((n) => n.isAbstract).map((n) => n.ref) : [])) });
       this.message = resp.written ? `Saved ${qname}.` : (resp.reason ?? resp.newErrors.map((f3) => `${f3.code}: ${f3.message}`).join("; ")) || "The model refused the configuration.";
       this.renderConfigPanel();
     }

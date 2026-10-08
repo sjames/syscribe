@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use syscribe_model::feature_model::{analysis_json, check_feature_model, check_feature_model_deep, configure_selection, enumerate_variants, EnumOutcome};
+use syscribe_model::validator::validate;
 use syscribe_model::walker::walk_model;
 
 fn write(root: &Path, rel: &str, content: &str) {
@@ -73,6 +74,22 @@ fn a_configuration_need_not_name_an_abstract_feature() {
     assert!(deep.invalid_configs.is_empty() && deep.findings.iter().all(|f| f.code != "E225"), "{:?}", deep.findings.iter().map(|f| &f.message).collect::<Vec<_>>());
     let deep = check_feature_model_deep(&walk_model(&model(false)).unwrap());
     assert_eq!(deep.invalid_configs, vec!["CONF-X-001".to_string()]);
+}
+
+#[test]
+fn a_configuration_that_names_an_abstract_feature_is_an_error_whichever_way() {
+    let r = model(true);
+    write(&r, "C/CONF-ABS-001.md", "---\ntype: Configuration\nid: CONF-ABS-001\nname: A\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Root: true\n  F::Root::Opt: true\n  F::Root::Opt::X: true\n---\n");
+    write(&r, "C/CONF-OFF-001.md", "---\ntype: Configuration\nid: CONF-OFF-001\nname: O\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Root: true\n  FEAT-OPT: false\n---\n");
+    let errs: Vec<(String, String)> = validate(&walk_model(&r).unwrap()).findings.into_iter().filter(|f| f.code == "E238").map(|f| (f.file.clone(), f.message.clone())).collect();
+    assert_eq!(errs.len(), 2, "{errs:?}");
+    assert!(errs.iter().any(|(f, m)| f.ends_with("CONF-ABS-001.md") && m.contains("selects the abstract feature 'F::Root::Opt'")), "{errs:?}");
+    assert!(errs.iter().any(|(f, m)| f.ends_with("CONF-OFF-001.md") && m.contains("deselects")), "an id key counts too: {errs:?}");
+    // The configuration that leaves the abstract feature out is fine, and so is the same name on a concrete feature.
+    assert!(!errs.iter().any(|(f, _)| f.ends_with("CONF-X-001.md")));
+    let concrete = model(false);
+    write(&concrete, "C/CONF-ABS-001.md", "---\ntype: Configuration\nid: CONF-ABS-001\nname: A\nstatus: draft\nfeatureModel: F\nfeatures:\n  F::Root: true\n  F::Root::Opt: true\n---\n");
+    assert!(!validate(&walk_model(&concrete).unwrap()).findings.iter().any(|f| f.code == "E238"));
 }
 
 #[test]

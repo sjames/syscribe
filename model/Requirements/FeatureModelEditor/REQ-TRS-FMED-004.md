@@ -18,4 +18,4 @@ The MCP server **shall** offer the same operations as one tool, `edit_feature`, 
 
 A parameter that a `Configuration` binds **shall not** be removed: the edit is refused, naming the configurations, until their bindings have been removed (`removeBinding`).
 
-An abstract feature (`isAbstract: true`) **shall** behave as in a proper feature model: it does not distinguish products (variants are counted and enumerated over concrete features), a `Configuration` need not name it and is judged on its concrete features with the abstract ones completed, an element conditioned on it by `appliesWhen:` is warned (`W238`) and an abstract feature that groups nothing is warned (`W239`).
+An abstract feature (`isAbstract: true`) **shall** behave as in a proper feature model: it does not distinguish products (variants are counted and enumerated over concrete features), a `Configuration` must not name it (`E238`) and is judged on its concrete features with the abstract ones completed, an element conditioned on it by `appliesWhen:` is warned (`W238`) and an abstract feature that groups nothing is warned (`W239`).

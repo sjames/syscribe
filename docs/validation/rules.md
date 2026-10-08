@@ -152,6 +152,7 @@ These holistic feature-model rules are **not** run by `validate` — they are em
 | W011 | An `optional` `FeatureDef` is selected in zero `Configuration` files (possible dead feature) |
 | W012 | An `optional` `FeatureDef` is selected in every `Configuration` (consider `mandatory`) |
 | W014 | A `parameterConstraints` `appliesWhen:` references a feature selected in no `Configuration` |
+| E238 | (`validate`) a `Configuration` names an **abstract** feature in `features:`, selected or not. An abstract feature is not a choice: it follows from the concrete features, so remove the entry (the configurator's Save omits abstract features) |
 | W238 | (`feature-check`) an element's `appliesWhen:` names an **abstract** feature (`isAbstract: true`). An abstract feature has no realisation of its own and does not distinguish products, so the condition cannot tell products apart; condition on a concrete feature |
 | W239 | (`feature-check`) an **abstract** feature with no children: it groups nothing. Drop `isAbstract:` or add the features it groups |
 | W024 | An **orphan** `FeatureDef` — referenced by no element's `appliesWhen:` and selected `true` by no `Configuration` (it gates nothing and ships in nothing). Gate with `feature-check --deny W024` |

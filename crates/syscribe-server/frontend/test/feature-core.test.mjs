@@ -352,4 +352,9 @@ scenario('an open abstract feature is not a decision left to make', () => {
     assert.deepEqual(core.configCounts(r, new Set(['F::Abs'])), { chosen: 1, implied: 1, open: 1 });
 });
 
+scenario('a saved configuration leaves abstract features out, since naming one is an error', () => {
+    const f = core.configurationFields(conf({}), 'Fast', new Set(['F::Engine']));
+    assert.deepEqual(Object.keys(f.features), ['F::Car', 'F::Petrol']);
+});
+
 console.log(`feature-core: ok (${n} scenarios)`);

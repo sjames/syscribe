@@ -5336,6 +5336,7 @@ sourceFile: "src/flight/mixing_hex.rs"
 | `W025` | A `parameterConstraints` violation (as `E221`) where the constraint declares `severity: warning`. Emitted by `feature-check`; gate with `--deny W025`. |
 | `W026` | A `Package` declares `appliesWhen:` but its subtree contains no projectable element (it gates nothing). Gate with `--deny W026`. |
 | `W027` | A `Configuration` binds a parameter whose `bindingTime: runtime` — resolved by the running system, not at configuration time (§9.7). Gate with `--deny W027`. |
+| `E238` | (§9) a `Configuration` names an abstract feature in `features:`, selected or not: an abstract feature is not a choice, it follows from the concrete features |
 | `W238` | (§9) an element's `appliesWhen:` names an abstract feature (`isAbstract: true`): an abstract feature has no realisation of its own and does not distinguish products, so the condition cannot tell products apart; condition on a concrete feature |
 | `W239` | (§9) an abstract feature has no children: it groups nothing |
 | `W028` | The same `extRef` external reference is declared by two or more elements (§3). One finding per duplicated value. Gate with `--deny W028`. |
@@ -5911,7 +5912,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | Codes | Family | Specified in |
 |---|---|---|
 | `E050`, `W050` | Build-system integration (`buildExports:`) | §9.6–§9.9 fields; catalogue |
-| `E200`–`E237`, `W011`–`W027`, `W048`, `W238`–`W239` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
+| `E200`–`E238`, `W011`–`W027`, `W048`, `W238`–`W239` | Product-line engineering, `feature-check`, the `--config` lens, single-file feature models, Configuration inheritance | §9.6a.3, §9.8, §9.10, §9.11 |
 | `W090` | Suspect links | §3.19, §12.10.6; `ADR-SYS-SUSLINK-001` |
 | `W099`–`W103` | Documentation linting (`lint-docs`) | §4.3 (`W103`); catalogue |
 | `W308`–`W311`, `E706`–`E723` | Native `PlanningItem` (`E718` is a non-scalar `Argument.evidence` entry) | §23.4, §23.7–§23.9; §8.18.6 for `E718` |

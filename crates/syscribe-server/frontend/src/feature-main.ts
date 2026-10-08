@@ -391,7 +391,7 @@ class FeaturePage {
         }
         const name = input.value.trim();
         const qname = joinQname(configurationPackage(this.stored), name);
-        const resp = await api.createElement({ qname, type: 'Configuration', fields: configurationFields(r, name) });
+        const resp = await api.createElement({ qname, type: 'Configuration', fields: configurationFields(r, name, new Set(this.full ? featureNodes(this.full).filter(n => n.isAbstract).map(n => n.ref) : [])) });
         this.message = resp.written
             ? `Saved ${qname}.`
             : (resp.reason ?? resp.newErrors.map(f => `${f.code}: ${f.message}`).join('; ')) || 'The model refused the configuration.';

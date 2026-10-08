@@ -5401,6 +5401,30 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // E238: an abstract feature is not a choice (`isAbstract: true`). It has no realisation of
+    // its own and follows from the concrete features, so a Configuration that names one,
+    // selected or not, is wrong (REQ-TRS-FMED-004).
+    {
+        let abstract_features: HashSet<&str> = elements
+            .iter()
+            .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::FeatureDef)) && e.frontmatter.is_abstract == Some(true))
+            .map(|e| e.qualified_name.as_str())
+            .collect();
+        if !abstract_features.is_empty() {
+            let alias = crate::variability::feature_id_to_qname(elements);
+            for cfg in elements.iter().filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::Configuration))) {
+                let sel = crate::variability::canon_selection(&cfg.frontmatter.feature_selections(), &alias);
+                for (feat, val) in &sel {
+                    if abstract_features.contains(feat.as_str()) {
+                        findings.push(error("E238", &cfg.file_path, &format!(
+                            "configuration '{}' {} the abstract feature '{}': an abstract feature is not a choice, it follows from the concrete features — remove it from `features:`",
+                            cfg.frontmatter.id.as_deref().unwrap_or(&cfg.qualified_name), if *val { "selects" } else { "deselects" }, feat)));
+                    }
+                }
+            }
+        }
+    }
+
     // E203–E206 / E222 / W017: FeatureDef parameter binding validation (§9.7).
     // Shared with `feature-check` so a product line validated holistically gets
     // the same binding/range enforcement (GH #14).
