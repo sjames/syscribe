@@ -222,6 +222,10 @@ pub(crate) fn ingest_subtree_detailed(owner: &mut RawElement, pkg_qname: &str, d
     if !root_aliases.is_empty() {
         owner.frontmatter.aliases.get_or_insert_with(Vec::new).extend(root_aliases);
     }
+    let root_imports = package_imports(&merged);
+    if !root_imports.is_empty() {
+        owner.frontmatter.imports.get_or_insert_with(Vec::new).extend(root_imports);
+    }
     let root_doc = package_doc(&merged);
     if !root_doc.is_empty() {
         if !owner.doc.trim().is_empty() {
@@ -477,7 +481,11 @@ fn merge_root(target: &mut MergedPackage, root: sysml_v2_parser::RootNamespace, 
             R::LibraryPackage(p) => merge_named(target, &p.value.identification, p.value.body, file_path, doc),
             R::Namespace(p) => merge_named(target, &p.value.identification, p.value.body, file_path, doc),
             R::Member(m) => merge_package_body(target, vec![*m], file_path, doc),
-            R::Import(_) => {}
+            // An `import` is a namespace relationship of the anchor: keep it as `imports:`.
+            R::Import(i) => {
+                let n = *i;
+                target.body.push((sysml_v2_parser::PackageBodyElement::Import(n), file_path.to_string(), doc.clone()))
+            }
         }
     }
 }
@@ -677,6 +685,8 @@ struct Spec {
     return_type: Option<String>,
     /// `REQ-TRS-SYSMLV2-043` -- a package's `alias` members as `{name, for}` maps.
     aliases: Option<Vec<serde_yaml::Value>>,
+    /// A package's `import` members as `imports:` strings (`::*`/`::**` suffixes kept).
+    imports: Option<Vec<serde_yaml::Value>>,
     /// `REQ-TRS-SYSMLV2-048` -- a usage's multiplicity text, `subsets`, `redefines`.
     multiplicity: Option<String>,
     subsets: Option<Vec<String>>,
@@ -868,6 +878,7 @@ fn push_synth(
             fm.body_language = spec.body_language;
             fm.return_type = spec.return_type;
             fm.aliases = spec.aliases;
+            fm.imports = spec.imports;
             fm.includes = spec.includes;
             fm.value = spec.value;
             fm.is_individual = spec.is_individual;
@@ -4084,6 +4095,21 @@ fn package_aliases(merged: &MergedPackage) -> Vec<serde_yaml::Value> {
         .collect()
 }
 
+/// A package's `import` members as `imports:` entries, so a bare reference to an
+/// imported library name resolves exactly as it does for a native model.
+fn package_imports(merged: &MergedPackage) -> Vec<serde_yaml::Value> {
+    merged
+        .body
+        .iter()
+        .filter_map(|(e, _, doc)| match e {
+            sysml_v2_parser::PackageBodyElement::Import(i) => {
+                with_doc(doc, || Some(ykey(&import_target_text(&i.value.target))))
+            }
+            _ => None,
+        })
+        .collect()
+}
+
 fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>) {
     // `REQ-TRS-SYSMLV2-086`: a package-level `#T` with no body of its own prefixes the member
     // that follows it in the same file (`#T part def B;`), which receives `{type: T}`.
@@ -4107,7 +4133,11 @@ fn convert_merged(merged: &MergedPackage, qname: &str, out: &mut Vec<RawElement>
     for (name, child) in &merged.children {
         let child_qname = format!("{qname}::{name}");
         let file_path = child.declared_in.as_deref().unwrap_or(qname);
-        let spec = Spec { aliases: nonempty_vec(package_aliases(child)), ..Default::default() }
+        let spec = Spec {
+            aliases: nonempty_vec(package_aliases(child)),
+            imports: nonempty_vec(package_imports(child)),
+            ..Default::default()
+        }
             .with_metadata(package_metadata(child));
         push_synth(out, &child_qname, file_path, ElementType::Package, name, spec.with_doc(package_doc(child)));
         convert_merged(child, &child_qname, out);
