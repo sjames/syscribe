@@ -2,6 +2,14 @@
 
 `RELEASES`
 
+## Unreleased
+
+- **Changed:** SysML v2 ingest keeps the full dotted path of `connect`/`bind`/`flow` endpoints (`Owner::a::b::c`) instead of collapsing to the head part; `W542` no longer applies to `connect` (#206). Endpoints of ingested `.sysml` elements are now checked by `E127`/`W056`.
+- **New:** `E128` — unresolved `via`/`to` on send/accept actions and transition accepts; flow/succession endpoints on structural elements are checked like `connections:` endpoints (#207).
+- **New:** `W068` — a redefining feature's `multiplicity:` is not contained in the redefined feature's (#208).
+- **Changed:** `W057`/`W044` understand SI prefixes (`kN`, `mm`, `MHz`) and judge prefixed units by dimension (#209).
+- **Changed:** complete ISQ/SI/SIPrefixes/USCustomaryUnits/ScalarValues/Base name tables; an unknown bare name or membership import under a library wildcard (`import ISQ::*`) is now reported (#210).
+
 ## 0.53.0 — 2026-10-09
 
 - **New:** MCP/REST `create_element` takes `parent` and writes `<parent>/<id>.md` for id-identified types and `<dir>/_index.md` for packages; `move_element` accepts an id as the last destination segment (#185).
