@@ -1530,6 +1530,29 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // W065 (GH #185): an id-identified element's file stem differs from its `id`.
+        // The convention (spec §8) is `<id>.md` so a requirement is findable by id in
+        // the file tree. Gateable (`--deny W065`) and draft-suppressed. Skipped for
+        // synthesized/plugin/annotation elements, whose `file_path` is not their own
+        // file (the file stem then differs from the qualified-name leaf).
+        if let (Some(et), Some(id)) = (fm.element_type.as_ref(), fm.id.as_deref()) {
+            if et.is_id_identified() && is_stable_id(id) && fm.status.as_deref() != Some("draft") {
+                let fp = std::path::Path::new(&elem.file_path);
+                let stem = fp.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                let leaf = elem.qualified_name.rsplit("::").next().unwrap_or("");
+                let own_file = fp.extension().is_some_and(|x| x == "md") && stem == leaf;
+                if own_file && stem != "_index" && stem != id {
+                    findings.push(warning(
+                        "W065",
+                        &file,
+                        &format!(
+                            "file name '{stem}.md' differs from the element's id '{id}'; id-identified elements are conventionally stored as '{id}.md'"
+                        ),
+                    ));
+                }
+            }
+        }
+
         // W042 (namespace/directory segments): an ANCESTOR segment of this element's
         // qualified name that no element owns — a directory without an `_index.md` —
         // is still a referenceable namespace segment, so it must be a basic name too.

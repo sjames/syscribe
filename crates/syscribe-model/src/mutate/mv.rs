@@ -83,6 +83,21 @@ pub fn valid_qname(q: &str) -> bool {
         })
 }
 
+/// True when `q` is a valid *move destination*: every segment a basic name, except
+/// that the **last** may instead be a stable id (`Pkg::REQ-X-001`), which is how an
+/// id-identified element's `<id>.md` file is addressed (GH #185). Hyphens are
+/// otherwise rejected, and `..`/`.` traversal is still impossible (a stable id is a
+/// closed `[A-Z0-9-]` pattern).
+pub fn valid_move_dest(q: &str) -> bool {
+    if valid_qname(q) {
+        return true;
+    }
+    match q.rsplit_once("::") {
+        Some((head, leaf)) => valid_qname(head) && crate::resolver::is_stable_id(leaf),
+        None => crate::resolver::is_stable_id(q),
+    }
+}
+
 /// If `tok` is the moved qname or one of its descendants, return its rewritten form.
 fn rewrite_qname(tok: &str, old: &str, new: &str) -> Option<String> {
     if tok == old {
@@ -317,7 +332,7 @@ pub fn move_element(
     let new = dest.replace('/', "::");
 
     // ── Validate destination ────────────────────────────────────────────────
-    if !valid_qname(&new) {
+    if !valid_move_dest(&new) {
         return Err(MoveError::InvalidDestination(new));
     }
     if new == old {
@@ -330,6 +345,10 @@ pub fn move_element(
     // ── Determine filesystem source/target (file vs package directory) ────────
     let dir_path = model_root.join(old.replace("::", "/"));
     let is_pkg = dir_path.is_dir();
+    if is_pkg && !valid_qname(&new) {
+        // A directory (package) is always a basic name; only a file may be `<id>.md`.
+        return Err(MoveError::InvalidDestination(new));
+    }
     let old_fs = if is_pkg {
         dir_path
     } else {

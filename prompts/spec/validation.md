@@ -656,6 +656,7 @@ gives no coverage credit. The built-in fields themselves are never relaxed.
 | Code | Severity | Condition |
 |---|---|---|
 | `W042` | warning | A qualified-name segment — an element's own name **or** a package/directory (namespace) name — is not a SysMLv2 **basic name** (`[A-Za-z_][A-Za-z0-9_]*`) and is not a stable id. Hyphens/spaces/punctuation are not allowed — rename using `_` or CamelCase. Such a name cannot be referenced in `appliesWhen`/`parameterConstraints` (where `-` is the subtraction operator). |
+| `W065` | warning | An id-identified element (`Requirement`, `TestCase`, `ADR`, `PlanningItem`, …) is stored in a file whose stem differs from its `id` (convention: `<id>.md`). Draft-suppressed; skipped for synthesized/plugin/annotation elements. Gate with `--deny W065`. |
 
 ## Built-in types (W043, W044)
 

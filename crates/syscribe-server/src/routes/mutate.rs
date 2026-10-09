@@ -61,7 +61,7 @@ use syscribe_model::vis::manifest::{KEY_EDGES, KEY_KIND, KEY_LAYOUT, KEY_REF, KE
 use syscribe_model::element::ElementType;
 use syscribe_model::frontmatter::patch_frontmatter;
 use syscribe_model::mutate::{
-    apply_update_fields, plan_create, referrers, write_confined, Entry, GuardedWriteOutcome,
+    apply_update_fields, plan_create_in, referrers, write_confined, Entry, GuardedWriteOutcome,
 };
 use syscribe_model::resolver::Resolver;
 use syscribe_model::walker::walk_model;
@@ -224,7 +224,12 @@ pub struct EdgeDiagramContext {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateElementRequest {
-    pub qname: String,
+    /// Qualified name; optional for an id-identified type when `parent` is given.
+    #[serde(default)]
+    pub qname: Option<String>,
+    /// Parent package of an id-identified element (`""` = model root).
+    #[serde(default)]
+    pub parent: Option<String>,
     #[serde(rename = "type")]
     pub type_name: String,
     pub fields: Option<serde_json::Value>,
@@ -637,9 +642,10 @@ pub async fn create_element(
 ) -> Json<WriteResponse> {
     let mut store = state.write().await;
 
-    let plan = match plan_create(
+    let plan = match plan_create_in(
         &store.elements,
-        &req.qname,
+        req.parent.as_deref(),
+        req.qname.as_deref(),
         &req.type_name,
         req.fields.as_ref(),
         req.doc.as_deref(),
@@ -648,7 +654,7 @@ pub async fn create_element(
         Err(e) => return Json(refused(e.to_string())),
     };
 
-    let new_qname = req.qname.replace('/', "::");
+    let new_qname = plan.qname.clone();
     let rel = plan.rel.clone();
     let content = plan.content.clone();
     let diagram = req.diagram.clone();
