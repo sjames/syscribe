@@ -25,6 +25,7 @@ pub mod remote;
 pub mod plantuml;
 pub mod resolver;
 pub mod results;
+pub mod safety_case;
 pub mod risk;
 pub mod solver;
 pub mod structural_refs;

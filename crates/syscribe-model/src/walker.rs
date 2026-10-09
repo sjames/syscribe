@@ -621,6 +621,9 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                     .and_then(|v| v.as_u64())
                     .map(|n| n.min(255) as u8)
             };
+            let f64_val = |key: &str| -> Option<f64> {
+                map.get(serde_yaml::Value::String(key.into())).and_then(|v| v.as_f64())
+            };
             let strings_val = |key: &str| -> Option<Vec<String>> {
                 match map.get(serde_yaml::Value::String(key.into())) {
                     Some(serde_yaml::Value::String(s)) => Some(vec![s.clone()]),
@@ -658,6 +661,7 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 "id", "ref", "name", "failureMode", "status", "effect", "cause",
                 "fmeaSeverity", "severity", "occurrence", "detection", "rpn",
                 "recommendedAction", "satisfies", "ftaRef",
+                "failureRate", "diagnosticCoverage", "latentDiagnosticCoverage",
             ];
             let unknown_fmea_keys: Vec<String> = map
                 .keys()
@@ -685,6 +689,10 @@ fn explode_fmea_entries(elements: &mut Vec<RawElement>) {
                 fm.rpn = rpn;
                 fm.recommended_action = str_val("recommendedAction");
                 fm.fta_ref = str_val("ftaRef");
+                // FMEDA data on a row (GH #218): feeds `metrics` via `ftaRef`.
+                fm.failure_rate = f64_val("failureRate");
+                fm.diagnostic_coverage = f64_val("diagnosticCoverage");
+                fm.latent_diagnostic_coverage = f64_val("latentDiagnosticCoverage");
                 fm.unknown_fmea_keys = unknown_fmea_keys;
                 fm
             };

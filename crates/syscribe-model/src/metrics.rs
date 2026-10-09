@@ -269,6 +269,27 @@ pub fn contributions_for_goal(
                 has_dcl: ev.frontmatter.latent_diagnostic_coverage.is_some(),
             });
         }
+        // FMEDA rows (GH #218): an FMEAEntry carrying `failureRate` whose `ftaRef`
+        // names an event of this tree contributes its λ/DC/DCl — unless the event
+        // declares its own `failureRate` (the event's data wins; never double-counted).
+        for row in elements.iter().filter(|e| {
+            matches!(e.frontmatter.element_type, Some(crate::element::ElementType::FMEAEntry))
+                && e.frontmatter.failure_rate.is_some()
+        }) {
+            let Some(ref r) = row.frontmatter.fta_ref else { continue };
+            let Some(ev) = resolver.resolve_ref(elements, r) else { continue };
+            if !is_event_under(ev, &prefix) || ev.frontmatter.failure_rate.is_some() {
+                continue;
+            }
+            let fm = &row.frontmatter;
+            out.push(Contribution {
+                lambda: fm.failure_rate.unwrap_or(0.0),
+                dc: fm.diagnostic_coverage.unwrap_or(0.0),
+                dcl: fm.latent_diagnostic_coverage.unwrap_or(0.0),
+                has_dc: fm.diagnostic_coverage.is_some(),
+                has_dcl: fm.latent_diagnostic_coverage.is_some(),
+            });
+        }
     }
     out
 }

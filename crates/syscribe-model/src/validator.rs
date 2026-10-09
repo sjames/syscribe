@@ -1041,6 +1041,16 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // W934: malformed `[audit]` config (GH #216) — entries ignored, defaults kept.
+    for problem in &config.audit.problems {
+        let cfg_file = config
+            .model_root
+            .as_ref()
+            .map(|r| r.join(".syscribe.toml").display().to_string())
+            .unwrap_or_else(|| ".syscribe.toml".to_string());
+        findings.push(warning("W934", &cfg_file, problem));
+    }
+
     // W630: malformed `[linkTypes]` config (REQ-TRS-LINKTYPE-001) — reported once
     // against `.syscribe.toml`, same posture as W046/W309 above. The registry has
     // already dropped structurally invalid entries (so their uses surface as E630).
@@ -2093,8 +2103,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
             // E854: argumentType enum (absent → treated as claim).
             if let Some(ref at) = fm.argument_type {
-                if !["claim","strategy","solution"].contains(&at.as_str()) {
-                    findings.push(error("E854", &file, &format!("Argument.argumentType '{}' must be claim, strategy, or solution", at)));
+                if !["claim","strategy","solution","context","justification","assumption","undeveloped"].contains(&at.as_str()) {
+                    findings.push(error("E854", &file, &format!("Argument.argumentType '{}' must be claim, strategy, solution, context, justification, assumption, or undeveloped", at)));
                 }
             }
             // E855: supports / evidence refs must resolve.
@@ -2140,6 +2150,11 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             let no_evidence = fm.evidence.as_ref().map(|v| v.is_empty()).unwrap_or(true);
             if matches!(kind, "claim" | "strategy") && no_supports && no_evidence {
                 findings.push(warning("W040", &file, "Argument has neither `supports` nor `evidence` — an orphan GSN node arguing nothing"));
+            }
+            // W861 (GH #217): a GSN solution is the evidence leaf — one that cites no
+            // evidence proves nothing (W040 deliberately excludes solutions).
+            if kind == "solution" && no_evidence && fm.status.as_deref() != Some("draft") {
+                findings.push(warning("W861", &file, "Argument of type `solution` has no `evidence` — a GSN solution must cite the Requirement/TestCase that discharges it"));
             }
         }
 
@@ -4014,10 +4029,44 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(warning("W903", &file, &format!("FMEAEntry RPN {} > 100 but has no `recommendedAction`", rpn)));
                 }
             }
+            // W931 (GH #218): a row missing severity / occurrence / detection has no
+            // computable RPN and silently escapes every RPN-based rule. Draft-suppressed.
+            if fm.status.as_deref() != Some("draft") {
+                let missing: Vec<&str> = [
+                    ("fmeaSeverity", fm.fmea_severity.is_none()),
+                    ("occurrence", fm.occurrence.is_none()),
+                    ("detection", fm.detection.is_none()),
+                ]
+                .iter()
+                .filter(|(_, m)| *m)
+                .map(|(n, _)| *n)
+                .collect();
+                if !missing.is_empty() {
+                    findings.push(warning("W931", &file, &format!(
+                        "FMEAEntry has no {} — its RPN cannot be computed and the row escapes the RPN/severity rules", missing.join(", "))));
+                }
+            }
+            // W932 (GH #218): severity-priority rule (Action-Priority style). A high
+            // severity (S >= 9) with a credible occurrence (O >= 2) needs a
+            // `recommendedAction` regardless of how low the RPN is (RPN under-weights
+            // severity). Skipped when W903 already fires for the row.
+            if let Some(sev) = fm.fmea_severity {
+                let rpn_flagged = fm.rpn.is_some_and(|r| r > 100) && fm.recommended_action.is_none();
+                if sev >= 9
+                    && fm.occurrence.is_none_or(|o| o >= 2)
+                    && fm.recommended_action.is_none()
+                    && !rpn_flagged
+                    && fm.status.as_deref() != Some("draft")
+                {
+                    findings.push(warning("W932", &file, &format!(
+                        "FMEAEntry severity {} (>= 9) has no `recommendedAction` — high severity needs an action even when the RPN{} is low",
+                        sev, fm.rpn.map(|r| format!(" {r}")).unwrap_or_default())));
+                }
+            }
             // E922: unknown key in FMEA entry — silent drops in a safety analysis are errors
             for key in &fm.unknown_fmea_keys {
                 findings.push(error("E922", &file, &format!(
-                    "FMEAEntry has unknown key '{}' — this field is silently ignored (recognised: failureMode, effect, cause, fmeaSeverity, occurrence, detection, rpn, recommendedAction, satisfies)", key)));
+                    "FMEAEntry has unknown key '{}' — this field is silently ignored (recognised: failureMode, effect, cause, fmeaSeverity, occurrence, detection, rpn, recommendedAction, satisfies, ftaRef, failureRate, diagnosticCoverage, latentDiagnosticCoverage)", key)));
             }
         }
 
@@ -6220,6 +6269,49 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                         risk::cal_label(expected)
                     ),
                 ));
+            }
+        }
+    }
+
+    // E878 (GH #217): an Argument that (transitively) supports itself through
+    // `supports:` / `evidence:` links is circular reasoning.
+    {
+        use std::collections::HashMap;
+        let args: Vec<&RawElement> = elements.iter().filter(|e| Resolver::is_argument(e)).collect();
+        if !args.is_empty() {
+            let idx: HashMap<&str, usize> =
+                args.iter().enumerate().map(|(i, a)| (a.qualified_name.as_str(), i)).collect();
+            // Edge parent -> child, the direction the safety-case tree is walked.
+            let mut edges: Vec<Vec<usize>> = vec![Vec::new(); args.len()];
+            for (i, a) in args.iter().enumerate() {
+                for r in a.frontmatter.supports.as_deref().unwrap_or(&[]) {
+                    if let Some(t) = resolver.resolve_ref(elements, r) {
+                        if let Some(&p) = idx.get(t.qualified_name.as_str()) {
+                            edges[p].push(i);
+                        }
+                    }
+                }
+                for r in a.frontmatter.evidence.as_deref().unwrap_or(&[]).iter().filter_map(|v| v.as_str()) {
+                    if let Some(t) = resolver.resolve_ref(elements, r) {
+                        if let Some(&c) = idx.get(t.qualified_name.as_str()) {
+                            edges[i].push(c);
+                        }
+                    }
+                }
+            }
+            for (i, a) in args.iter().enumerate() {
+                let mut seen = vec![false; args.len()];
+                let mut stack: Vec<usize> = edges[i].clone();
+                let mut cyclic = false;
+                while let Some(n) = stack.pop() {
+                    if n == i { cyclic = true; break; }
+                    if !seen[n] { seen[n] = true; stack.extend(edges[n].iter().copied()); }
+                }
+                if cyclic {
+                    let id = a.frontmatter.id.as_deref().unwrap_or(&a.qualified_name);
+                    findings.push(error("E878", &a.file_path,
+                        &format!("Argument '{}' is part of a cycle — it (transitively) supports itself via `supports:`/`evidence:`", id)));
+                }
             }
         }
     }

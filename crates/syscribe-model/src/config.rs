@@ -135,6 +135,105 @@ pub struct ValidateConfig {
     /// installs it as the process-wide active vocabulary
     /// (`crate::link_types::install`) for graph building and suspect scanning.
     pub link_types: crate::link_types::LinkTypeRegistry,
+
+    /// GH #216 — the `[audit]` table of `<model_root>/.syscribe.toml`: which
+    /// finding codes fail the `audit` readiness verdict. Defaults to
+    /// [`AuditConfig::default`] (W306 always; W033/W805 at ASIL C/D).
+    pub audit: AuditConfig,
+}
+
+/// GH #216 — `[audit]` policy: which non-error finding codes fail the
+/// `syscribe audit` readiness verdict (error-severity findings always fail).
+///
+/// ```toml
+/// [audit]
+/// fail_on = ["W306"]                       # codes that fail at any integrity level
+/// [audit.fail_on_asil]                     # codes that fail only on a goal at these ASILs
+/// W033 = ["C", "D"]
+/// W805 = ["C", "D"]
+/// ```
+///
+/// A present key replaces the corresponding default wholesale, so
+/// `fail_on_asil = {}` (or an empty table) opts out of the ASIL-gated defaults and
+/// `fail_on = ["W306", "W800"]` extends the unconditional set. Malformed entries
+/// are ignored and reported as `W934` by the validator.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuditConfig {
+    /// Codes that fail the verdict wherever they occur.
+    pub fail_on: Vec<String>,
+    /// Code → ASIL levels (`A`..`D`) at which the finding fails the verdict. The
+    /// finding's element must carry a matching `asilLevel`.
+    pub fail_on_asil: std::collections::BTreeMap<String, Vec<String>>,
+    /// Human-readable defects found while loading (`W934`).
+    pub problems: Vec<String>,
+}
+
+impl Default for AuditConfig {
+    fn default() -> Self {
+        let mut fail_on_asil = std::collections::BTreeMap::new();
+        for c in ["W033", "W805"] {
+            fail_on_asil.insert(c.to_string(), vec!["C".to_string(), "D".to_string()]);
+        }
+        Self { fail_on: vec!["W306".to_string()], fail_on_asil, problems: Vec::new() }
+    }
+}
+
+impl AuditConfig {
+    /// Load `[audit]` from `<model_root>/.syscribe.toml`; defaults when absent.
+    pub fn load(model_root: &Path) -> Self {
+        let mut cfg = Self::default();
+        let Some(text) = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok() else {
+            return cfg;
+        };
+        let Ok(root) = toml::from_str::<toml::Value>(&text) else { return cfg };
+        let Some(tbl) = root.get("audit").and_then(|v| v.as_table()) else { return cfg };
+        let code_ok = |c: &str| {
+            c.len() == 4
+                && c.starts_with(['E', 'W', 'I'])
+                && c[1..].chars().all(|ch| ch.is_ascii_digit())
+        };
+        for (k, v) in tbl {
+            match k.as_str() {
+                "fail_on" | "failOn" => match v.as_array() {
+                    Some(arr) => {
+                        let mut out = Vec::new();
+                        for item in arr {
+                            match item.as_str() {
+                                Some(c) if code_ok(c) => out.push(c.to_string()),
+                                _ => cfg.problems.push(format!(
+                                    "[audit] fail_on entry {item} is not a finding code (e.g. \"W306\") — ignored"
+                                )),
+                            }
+                        }
+                        cfg.fail_on = out;
+                    }
+                    None => cfg.problems.push("[audit] fail_on must be an array of finding codes — ignored".into()),
+                },
+                "fail_on_asil" | "failOnAsil" => match v.as_table() {
+                    Some(t) => {
+                        let mut out = std::collections::BTreeMap::new();
+                        for (code, levels) in t {
+                            let lv: Option<Vec<String>> = levels.as_array().map(|a| {
+                                a.iter().filter_map(|x| x.as_str()).map(|x| x.trim().to_ascii_uppercase()).collect()
+                            });
+                            match lv {
+                                Some(lv) if code_ok(code) && lv.iter().all(|l| ["A", "B", "C", "D"].contains(&l.as_str())) => {
+                                    out.insert(code.clone(), lv);
+                                }
+                                _ => cfg.problems.push(format!(
+                                    "[audit.fail_on_asil] entry '{code}' must map a finding code to a list of ASIL levels A-D — ignored"
+                                )),
+                            }
+                        }
+                        cfg.fail_on_asil = out;
+                    }
+                    None => cfg.problems.push("[audit] fail_on_asil must be a table of code = [levels] — ignored".into()),
+                },
+                other => cfg.problems.push(format!("[audit] unknown key '{other}' — ignored")),
+            }
+        }
+        cfg
+    }
 }
 
 /// One entry in the `[repos]` table of `.syscribe.toml` (§14.2, REQ-TRS-TYPE-021).
@@ -592,6 +691,7 @@ impl ValidateConfig {
         // vocabulary (an absent table installs the empty one, clearing any prior).
         let link_types = crate::link_types::LinkTypeRegistry::load(&root);
         crate::link_types::install(&link_types);
+        let audit = AuditConfig::load(&root);
         Self {
             model_root: Some(root),
             repo_root,
@@ -611,6 +711,7 @@ impl ValidateConfig {
             id_extra_prefixes,
             users,
             link_types,
+            audit,
         }
     }
 

@@ -750,6 +750,11 @@ pub fn behavior_ref_findings(
         if matches!(fm.element_type, Some(crate::element::ElementType::Diagram)) {
             continue;
         }
+        // An FMEAEntry's `ref:` (stored as `subject`) is reported once, as `W904`
+        // (GH #218) — not also as a behavior-field `E115`.
+        if matches!(fm.element_type, Some(crate::element::ElementType::FMEAEntry)) {
+            continue;
+        }
         // GH #207 — `via:`/`to:` chains of send/accept steps and of state-transition
         // `accept:` triggers must name something that exists.
         {
