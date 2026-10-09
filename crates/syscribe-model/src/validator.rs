@@ -5320,6 +5320,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 fm.binding_connections.as_deref(),
                 fm.succession_connections.as_deref(),
                 fm.performs.as_deref(),
+                fm.sub_actions.as_deref(),
+                fm.parameters.as_deref(),
             ]
             .into_iter()
             .flatten()
@@ -8135,9 +8137,16 @@ fn collect_typed_by_refs(
                     }
                 }
             }
-            // Recurse into nested ports: sub-key
-            if let Some(serde_yaml::Value::Sequence(ports)) = map.get(&key_ports) {
-                collect_typed_by_refs(ports, elements, resolver, from_qname, out);
+            // Recurse into nested ports: sub-key, and a sub-action's nested bodies.
+            for key in [&key_ports] {
+                if let Some(serde_yaml::Value::Sequence(inner)) = map.get(key) {
+                    collect_typed_by_refs(inner, elements, resolver, from_qname, out);
+                }
+            }
+            for key in ["then", "else", "body", "subActions"] {
+                if let Some(serde_yaml::Value::Sequence(inner)) = map.get(serde_yaml::Value::String(key.into())) {
+                    collect_typed_by_refs(inner, elements, resolver, from_qname, out);
+                }
             }
         }
     }
