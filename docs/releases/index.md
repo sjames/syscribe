@@ -2,7 +2,7 @@
 
 `RELEASES`
 
-## Unreleased
+## 0.53.0 — 2026-10-09
 
 - **New:** MCP/REST `create_element` takes `parent` and writes `<parent>/<id>.md` for id-identified types and `<dir>/_index.md` for packages; `move_element` accepts an id as the last destination segment (#185).
 - **New (opt-in):** `W065` — an id-identified element whose file stem differs from its `id`. Off by default; enable with `[ids] check_file_names = true` in `.syscribe.toml`, gate with `--deny W065`.
