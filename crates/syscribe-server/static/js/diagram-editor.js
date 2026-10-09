@@ -112743,14 +112743,6 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
   }
   function isSymbolKind(kind) {
     switch (kind) {
-      case "gate-and":
-      case "gate-or":
-      case "gate-xor":
-      case "gate-not":
-      case "gate-inhibit":
-      case "event-basic":
-      case "event-undeveloped":
-      case "event-house":
       case "strategy":
       case "solution":
       case "context":
@@ -113150,6 +113142,28 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
       }
     }
   }
+  var BUS_DROP = 20;
+  var CONTEXT_BUS_DROP = 34;
+  function isTreeEdgeKind(kind) {
+    return kind === "input" || kind === "criticalPath" || kind === "supportedBy" || kind === "inContextOf";
+  }
+  function segmentHits(a3, b3, r3) {
+    return Math.max(a3.x, b3.x) > r3.x + 1 && Math.min(a3.x, b3.x) < r3.x + r3.w - 1 && Math.max(a3.y, b3.y) > r3.y + 1 && Math.min(a3.y, b3.y) < r3.y + r3.h - 1;
+  }
+  function treeRoute(s3, t3, drop, obstacles) {
+    if (t3.y < s3.y + s3.h + drop + BUS_DROP) {
+      return void 0;
+    }
+    const start = { x: s3.x + s3.w / 2, y: s3.y + s3.h };
+    const end = { x: t3.x + t3.w / 2, y: t3.y };
+    const pts = Math.abs(start.x - end.x) < 0.5 ? [start, end] : [start, { x: start.x, y: s3.y + s3.h + drop }, { x: end.x, y: s3.y + s3.h + drop }, end];
+    for (let i2 = 1; i2 < pts.length; i2++) {
+      if (obstacles.some((r3) => segmentHits(pts[i2 - 1], pts[i2], r3))) {
+        return void 0;
+      }
+    }
+    return pts;
+  }
   function polylineMidpoint(pts) {
     const len = (a3, b3) => Math.hypot(b3.x - a3.x, b3.y - a3.y);
     let total = 0;
@@ -113264,8 +113278,46 @@ ${ERROR_MSGS.TRYING_TO_RESOLVE_BINDINGS((0, serialization_1.getServiceIdentifier
           }
         }
       }
+      this.routeTreeEdges(elkGraph, _index);
       if (this.state.allPinned) {
         placeLabelsFixed(elkGraph, sequenceIds(sgraph));
+      }
+    }
+    /** Fault-tree, attack-tree and GSN edges are drawn by rule as a bus
+     * (`vis::layout::tree_route`), replacing ELK's route unless it would cross a node. */
+    routeTreeEdges(elkGraph, index) {
+      const boxes = /* @__PURE__ */ new Map();
+      for (const { node, ax, ay } of walkElkNodes(elkGraph)) {
+        if (node !== elkGraph) {
+          boxes.set(node.id, { x: ax, y: ay, w: node.width ?? 0, h: node.height ?? 0 });
+        }
+      }
+      for (const { edge } of walkElkEdges(elkGraph)) {
+        const sedge = index.getById(edge.id);
+        if (!sedge || !isTreeEdgeKind(sedge.kind)) {
+          continue;
+        }
+        const sid = edge.sources[0];
+        const tid = edge.targets[0];
+        const s3 = boxes.get(sid);
+        const t3 = boxes.get(tid);
+        if (!s3 || !t3) {
+          continue;
+        }
+        const obstacles = [...boxes.entries()].filter(([id]) => id !== sid && id !== tid).map(([, b3]) => b3);
+        const pts = treeRoute(s3, t3, sedge.kind === "inContextOf" ? CONTEXT_BUS_DROP : BUS_DROP, obstacles);
+        if (!pts) {
+          continue;
+        }
+        const e2 = edge;
+        e2.sections = [
+          {
+            id: `${edge.id}-s`,
+            startPoint: pts[0],
+            endPoint: pts[pts.length - 1],
+            bendPoints: pts.slice(1, -1)
+          }
+        ];
       }
     }
   };
@@ -114967,85 +115019,132 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     const r3 = Math.round(v3 * 100) / 100;
     return String(r3);
   }
+  var GATE_W = 56;
+  var GATE_H = 48;
+  var STUB = 10;
+  var UNDEVELOPED_STRIP = 18;
+  var GLYPH_GATE = STUB + GATE_H;
   function polygon(pts) {
     return pts.map(([x3, y3], i2) => `${i2 === 0 ? "M" : "L"} ${n(x3)},${n(y3)} `).join("") + "Z";
   }
-  function orPath(w3, h3) {
-    return `M ${n(0)},${n(h3)} Q ${n(w3 / 2)},${n(0.72 * h3)} ${n(w3)},${n(h3)} C ${n(w3)},${n(0.5 * h3)} ${n(0.7 * w3)},${n(0.12 * h3)} ${n(w3 / 2)},${n(0)} C ${n(0.3 * w3)},${n(0.12 * h3)} ${n(0)},${n(0.5 * h3)} ${n(0)},${n(h3)} Z`;
+  function orPath(x3, y3, w3, h3) {
+    return `M ${n(x3)},${n(y3 + h3)} Q ${n(x3 + w3 / 2)},${n(y3 + 0.72 * h3)} ${n(x3 + w3)},${n(y3 + h3)} C ${n(x3 + w3)},${n(y3 + 0.5 * h3)} ${n(x3 + 0.7 * w3)},${n(y3 + 0.12 * h3)} ${n(x3 + w3 / 2)},${n(y3)} C ${n(x3 + 0.3 * w3)},${n(y3 + 0.12 * h3)} ${n(x3)},${n(y3 + 0.5 * h3)} ${n(x3)},${n(y3 + h3)} Z`;
   }
-  function safetySymbol(kind, w3, h3) {
+  function rectPath(x3, y3, w3, h3) {
+    return polygon([
+      [x3, y3],
+      [x3 + w3, y3],
+      [x3 + w3, y3 + h3],
+      [x3, y3 + h3]
+    ]);
+  }
+  function circlePath(cx, cy, r3) {
+    return `M ${n(cx - r3)},${n(cy)} A ${n(r3)},${n(r3)} 0 1 0 ${n(cx + r3)},${n(cy)} A ${n(r3)},${n(r3)} 0 1 0 ${n(cx - r3)},${n(cy)} Z`;
+  }
+  function eventSymbol(kind) {
+    switch (kind) {
+      case "event-basic":
+        return [28, 28];
+      case "event-undeveloped":
+        return [40, 26];
+      case "event-house":
+        return [34, 30];
+      default:
+        return void 0;
+    }
+  }
+  function isGate(kind) {
+    return kind === "gate-and" || kind === "gate-or" || kind === "gate-xor" || kind === "gate-not" || kind === "gate-inhibit";
+  }
+  function gateGlyph(kind, gx, gy) {
+    const w3 = GATE_W;
+    const h3 = GATE_H;
+    const cx = gx + w3 / 2;
+    const word = (text, f3) => ({ type: "word", x: cx, y: gy + f3 * h3, text });
     switch (kind) {
       case "gate-and":
         return {
-          outline: { type: "path", d: `M ${n(0)},${n(h3)} L ${n(0)},${n(0.5 * h3)} A ${n(w3 / 2)},${n(0.5 * h3)} 0 0 1 ${n(w3)},${n(0.5 * h3)} L ${n(w3)},${n(h3)} Z` },
-          extras: []
+          d: `M ${n(gx)},${n(gy + h3)} L ${n(gx)},${n(gy + 0.5 * h3)} A ${n(w3 / 2)},${n(0.5 * h3)} 0 0 1 ${n(gx + w3)},${n(gy + 0.5 * h3)} L ${n(gx + w3)},${n(gy + h3)} Z`,
+          extras: [word("AND", 0.78)]
         };
       case "gate-or":
-        return { outline: { type: "path", d: orPath(w3, h3) }, extras: [] };
-      case "gate-xor":
+        return { d: orPath(gx, gy, w3, h3), extras: [word("OR", 0.72)] };
+      case "gate-xor": {
+        const hh = h3 - 6;
         return {
-          outline: { type: "path", d: orPath(w3, h3) },
-          extras: [{ type: "stroke", d: `M ${n(0)},${n(0.86 * h3)} Q ${n(w3 / 2)},${n(0.58 * h3)} ${n(w3)},${n(0.86 * h3)}` }]
+          d: orPath(gx, gy, w3, hh),
+          extras: [{ type: "stroke", d: `M ${n(gx)},${n(gy + h3)} Q ${n(cx)},${n(gy + 0.72 * hh + 6)} ${n(gx + w3)},${n(gy + h3)}` }, word("XOR", 0.62)]
         };
+      }
       case "gate-not":
-        return { outline: { type: "rect", rx: 8 }, extras: [{ type: "circle", cx: w3 / 2, cy: h3, r: 5 }] };
-      case "gate-inhibit":
         return {
-          outline: {
-            type: "path",
-            d: polygon([
-              [0.12 * w3, 0],
-              [0.88 * w3, 0],
-              [w3, h3 / 2],
-              [0.88 * w3, h3],
-              [0.12 * w3, h3],
-              [0, h3 / 2]
-            ])
-          },
-          extras: []
+          d: polygon([
+            [cx, gy + 10],
+            [gx + w3, gy + h3],
+            [gx, gy + h3]
+          ]),
+          extras: [{ type: "circle", cx, cy: gy + 5, r: 5 }, word("NOT", 0.93)]
         };
-      case "event-basic":
+      default:
+        return {
+          d: polygon([
+            [gx + 0.2 * w3, gy],
+            [gx + 0.8 * w3, gy],
+            [gx + w3, gy + h3 / 2],
+            [gx + 0.8 * w3, gy + h3],
+            [gx + 0.2 * w3, gy + h3],
+            [gx, gy + h3 / 2]
+          ]),
+          extras: [word("INH", 0.58)]
+        };
+    }
+  }
+  function safetySymbol(kind, w3, h3) {
+    const cx = w3 / 2;
+    if (kind && isGate(kind)) {
+      const rh = h3 - GLYPH_GATE;
+      const g3 = gateGlyph(kind, cx - GATE_W / 2, rh + STUB);
+      return {
+        outline: { type: "path", d: `${rectPath(0, 0, w3, rh)} ${g3.d}` },
+        extras: [{ type: "stroke", d: `M ${n(cx)},${n(rh)} L ${n(cx)},${n(rh + STUB)}` }, ...g3.extras]
+      };
+    }
+    const ev = eventSymbol(kind);
+    if (ev) {
+      const [sw, sh] = ev;
+      const rh = h3 - STUB - sh;
+      const sx = cx - sw / 2;
+      const sy = rh + STUB;
+      const sym = kind === "event-basic" ? circlePath(cx, sy + sh / 2, sh / 2) : kind === "event-undeveloped" ? polygon([
+        [cx, sy],
+        [sx + sw, sy + sh / 2],
+        [cx, sy + sh],
+        [sx, sy + sh / 2]
+      ]) : polygon([
+        [sx, sy + 0.4 * sh],
+        [cx, sy],
+        [sx + sw, sy + 0.4 * sh],
+        [sx + sw, sy + sh],
+        [sx, sy + sh]
+      ]);
+      return {
+        outline: { type: "path", d: `${rectPath(0, 0, w3, rh)} ${sym}` },
+        extras: [{ type: "stroke", d: `M ${n(cx)},${n(rh)} L ${n(cx)},${n(rh + STUB)}` }]
+      };
+    }
+    switch (kind) {
       case "solution":
         return { outline: { type: "ellipse" }, extras: [] };
-      case "event-undeveloped":
-        return {
-          outline: {
-            type: "path",
-            d: polygon([
-              [h3 / 2, 0],
-              [w3 - h3 / 2, 0],
-              [w3, h3 / 2],
-              [w3 - h3 / 2, h3],
-              [h3 / 2, h3],
-              [0, h3 / 2]
-            ])
-          },
-          extras: []
-        };
-      case "event-house":
-        return {
-          outline: {
-            type: "path",
-            d: polygon([
-              [0, 0.28 * h3],
-              [w3 / 2, 0],
-              [w3, 0.28 * h3],
-              [w3, h3],
-              [0, h3]
-            ])
-          },
-          extras: []
-        };
       case "step":
         return { outline: { type: "rect", rx: 3 }, extras: [] };
       case "goal":
         return { outline: { type: "rect", rx: 0 }, extras: [] };
       case "undeveloped-goal": {
-        const cx = w3 / 2;
-        const cy = h3 + 8;
+        const rh = h3 - UNDEVELOPED_STRIP;
+        const cy = rh + UNDEVELOPED_STRIP / 2;
         const r3 = 8;
         return {
-          outline: { type: "rect", rx: 0 },
+          outline: { type: "path", d: rectPath(0, 0, w3, rh) },
           extras: [
             {
               type: "diamond",
@@ -115075,9 +115174,9 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       case "context":
         return { outline: { type: "rect", rx: h3 / 2 }, extras: [] };
       case "justification":
-        return { outline: { type: "ellipse" }, extras: [{ type: "letter", x: w3 - 4, y: h3 + 11, text: "J" }] };
+        return { outline: { type: "ellipse" }, extras: [{ type: "letter", x: w3 - 9, y: h3 - 2, text: "J" }] };
       case "assumption":
-        return { outline: { type: "ellipse" }, extras: [{ type: "letter", x: w3 - 4, y: h3 + 11, text: "A" }] };
+        return { outline: { type: "ellipse" }, extras: [{ type: "letter", x: w3 - 9, y: h3 - 2, text: "A" }] };
       default:
         return void 0;
     }
@@ -115396,7 +115495,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         const o3 = symbol.outline;
         const shape = o3.type === "rect" ? /* @__PURE__ */ (0, import_sprotty.svg)("rect", { x: 0, y: 0, width, height, rx: o3.rx, fill: style.fill, stroke: outline, "stroke-width": sw, "stroke-dasharray": dash }) : o3.type === "ellipse" ? /* @__PURE__ */ (0, import_sprotty.svg)("ellipse", { cx: width / 2, cy: height / 2, rx: width / 2, ry: height / 2, fill: style.fill, stroke: outline, "stroke-width": sw, "stroke-dasharray": dash }) : /* @__PURE__ */ (0, import_sprotty.svg)("path", { d: o3.d, fill: style.fill, stroke: outline, "stroke-width": sw, "stroke-dasharray": dash });
         const extras = symbol.extras.map(
-          (x3) => x3.type === "stroke" ? /* @__PURE__ */ (0, import_sprotty.svg)("path", { d: x3.d, fill: "none", stroke: outline, "stroke-width": sw }) : x3.type === "circle" ? /* @__PURE__ */ (0, import_sprotty.svg)("circle", { cx: x3.cx, cy: x3.cy, r: x3.r, fill: "#fff", stroke: outline, "stroke-width": sw }) : x3.type === "diamond" ? /* @__PURE__ */ (0, import_sprotty.svg)("path", { d: x3.d, fill: "#fff", stroke: outline, "stroke-width": sw }) : /* @__PURE__ */ (0, import_sprotty.svg)("text", { x: x3.x, y: x3.y, "font-size": 10, "font-weight": "bold", fill: outline, "font-family": "Helvetica, Arial, sans-serif" }, x3.text)
+          (x3) => x3.type === "stroke" ? /* @__PURE__ */ (0, import_sprotty.svg)("path", { d: x3.d, fill: "none", stroke: outline, "stroke-width": sw }) : x3.type === "circle" ? /* @__PURE__ */ (0, import_sprotty.svg)("circle", { cx: x3.cx, cy: x3.cy, r: x3.r, fill: "#fff", stroke: outline, "stroke-width": sw }) : x3.type === "diamond" ? /* @__PURE__ */ (0, import_sprotty.svg)("path", { d: x3.d, fill: "#fff", stroke: outline, "stroke-width": sw }) : x3.type === "word" ? /* @__PURE__ */ (0, import_sprotty.svg)("text", { x: x3.x, y: x3.y, "text-anchor": "middle", "font-size": 9, "font-weight": "bold", fill: outline, "font-family": "Helvetica, Arial, sans-serif" }, x3.text) : /* @__PURE__ */ (0, import_sprotty.svg)("text", { x: x3.x, y: x3.y, "font-size": 10, "font-weight": "bold", fill: outline, "font-family": "Helvetica, Arial, sans-serif" }, x3.text)
         );
         const snode = /* @__PURE__ */ (0, import_sprotty.svg)("g", { "class-sysml-node": true, "class-selected": !!n2.selected, "class-unresolved": n2.resolved === false, "data-sysml-ref": n2.ref, "data-mark-tone": n2.mark?.tone }, shape, extras, context.renderChildren(node));
         return addClasses(snode, [`kind-${n2.kind}`, n2.elementType ?? ""]);

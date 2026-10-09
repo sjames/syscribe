@@ -108,6 +108,7 @@ fn event_mark(a: &FaultTreeAnalysis, id: &str, src: &RawElement) -> Option<NodeM
         badges.push(format!("CCF {g}"));
     }
     Some(NodeMark {
+        detail: None,
         status: Some(status.to_string()),
         value: (!value.is_empty()).then(|| value.join(" \u{00b7} ")),
         tone,
@@ -133,6 +134,7 @@ fn root_mark(result: &Result<FaultTreeAnalysis, crate::fta::FtaError>) -> NodeMa
                 badges.push("truncated".to_string());
             }
             NodeMark {
+                detail: None,
                 status: Some("top event".to_string()),
                 value: a.top_probability.map(|p| format!("P {}", sci(p))),
                 tone: if singles > 0 { Tone::Warn } else { Tone::Neutral },
@@ -141,6 +143,7 @@ fn root_mark(result: &Result<FaultTreeAnalysis, crate::fta::FtaError>) -> NodeMa
             }
         }
         Err(e) => NodeMark {
+            detail: None,
             status: Some("analysis unavailable".to_string()),
             value: Some(e.to_string().chars().take(48).collect()),
             tone: Tone::Warn,
@@ -213,14 +216,17 @@ pub fn generate(
             } else if let FtKind::Gate(None) = &n.kind {
                 mark = Some(NodeMark { tone: Tone::Warn, badges: vec!["no gateType".to_string()], ..Default::default() });
             }
+            // The node's label is its concise id; the full name hangs under it,
+            // wrapped (`NodeMark::detail`).
+            mark.get_or_insert_with(NodeMark::default).detail = Some(n.name.clone()).filter(|d| !d.is_empty() && *d != n.id);
             nodes.push(Node {
                 id: ids[i].clone(),
                 element_ref: n.qname.clone(),
                 resolved: true,
                 element_type: Some(element_type.to_string()),
                 kind,
-                label: n.name.clone(),
-                stereotype: Some(n.id.clone()),
+                label: n.id.clone(),
+                stereotype: None,
                 parent: None,
                 direction: None,
                 side: None,
@@ -251,7 +257,7 @@ pub fn generate(
         let kept: Vec<Node> = nodes
             .into_iter()
             .filter(|n| {
-                let id = n.stereotype.clone().unwrap_or_default();
+                let id = n.label.clone();
                 keeps_keys(filters, &keys(&n.element_ref, &id))
             })
             .collect();
@@ -324,7 +330,7 @@ mod tests {
         assert_eq!(g.node("s-safety-ft-both").unwrap().kind, NodeKind::GateAnd);
         assert_eq!(g.node("s-safety-ft-a").unwrap().kind, NodeKind::EventBasic);
         assert_eq!(g.node("s-safety-ft-b").unwrap().kind, NodeKind::EventUndeveloped);
-        assert_eq!(g.node("s-safety-ft-top").unwrap().stereotype.as_deref(), Some("FTG-TX-001"));
+        assert_eq!(g.node("s-safety-ft-top").unwrap().label.as_str(), "FTG-TX-001");
         assert_eq!(g.edges.len(), 4);
         assert!(g.edges.iter().all(|e| e.kind == EdgeKind::GateInput));
         assert!(g.edges.iter().any(|e| e.source == "s-safety-ft-top" && e.target == "s-safety-ft-c"));
@@ -365,7 +371,7 @@ mod tests {
         let root = g.node("s-safety-ft-top").unwrap().mark.clone().unwrap();
         assert_eq!(root.status.as_deref(), Some("analysis unavailable"));
         assert!(root.value.as_deref().unwrap().contains("cycle"));
-        assert!(g.node("s-safety-ft-c").unwrap().mark.is_none(), "no per-event numbers without an analysis");
+        assert!(g.node("s-safety-ft-c").unwrap().mark.as_ref().is_none_or(|m| m.is_detail_only()), "no per-event numbers without an analysis");
     }
 
     #[test]

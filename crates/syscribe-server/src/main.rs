@@ -34,6 +34,7 @@ async fn main() -> Result<()> {
     let model_root = cli.model;
 
     info!("Loading model from {:?}", model_root);
+    syscribe_model::vis::derive::context::set_model_root(&model_root);
     let elements = walk_model(&model_root)?;
     info!("Loaded {} elements", elements.len());
 

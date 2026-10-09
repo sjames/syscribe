@@ -544,6 +544,10 @@ impl Tone {
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeMark {
+    /// The element's full name, drawn wrapped under the node's short label (its
+    /// id) by `size.rs`; the safety diagrams keep the label concise this way.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
     /// A short status word (`single point`, `UNDEVELOPED`, `supported`, …).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
@@ -558,6 +562,14 @@ pub struct NodeMark {
     /// Draw the outline heavier: the node is on the path or set the picture is about.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub emphasis: bool,
+}
+
+impl NodeMark {
+    /// A mark that carries only the node's full name: it paints nothing, so the
+    /// node keeps the colours of its kind.
+    pub fn is_detail_only(&self) -> bool {
+        self.status.is_none() && self.value.is_none() && self.badges.is_empty() && !self.emphasis && self.tone == Tone::Neutral
+    }
 }
 
 /// What a feature diagram draws on a feature beyond its name: whether it is a

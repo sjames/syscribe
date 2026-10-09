@@ -135,11 +135,11 @@ skinparam sequence {
 }
 skinparam linetype ortho
 
-hexagon "<b>AND</b>\nLocal path\nfeasibility medium" as s_security_at_chain #fff4d6 
-hexagon "<b>OR</b>\nEither way in\nfeasibility medium\nthreat TS-DS-001 declares high\n[W035]" as s_security_at_root #fff4d6 
-rectangle "Reach the port\nfeasibility high" as s_security_at_s1 #fdecea 
-rectangle "Replay a frame\nfeasibility medium" as s_security_at_s2 #fff4d6 
-rectangle "Remote injection\nfeasibility low" as s_security_at_s3 #e3f5e8 
+hexagon "<b>AND</b>\nATG-DS-002\nLocal path\nfeasibility medium" as s_security_at_chain #fff4d6 
+hexagon "<b>OR</b>\nATG-DS-001\nEither way in\nfeasibility medium\nthreat TS-DS-001 declares high\n[W035]" as s_security_at_root #fff4d6 
+rectangle "ATS-DS-001\nReach the port\nfeasibility high" as s_security_at_s1 #fdecea 
+rectangle "ATS-DS-002\nReplay a frame\nfeasibility medium" as s_security_at_s2 #fff4d6 
+rectangle "ATS-DS-003\nRemote injection\nfeasibility low" as s_security_at_s3 #e3f5e8 
 
 s_security_at_chain -[bold,#B3261E]- s_security_at_s1
 s_security_at_chain -[bold,#B3261E]- s_security_at_s2

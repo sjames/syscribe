@@ -177,7 +177,7 @@ fn flow_label(node: &Node) -> String {
     let mut label = text(&node.label);
     if let Some(m) = &node.mark {
         let badges = (!m.badges.is_empty()).then(|| m.badges.iter().map(|b| format!("[{b}]")).collect::<Vec<_>>().join(" "));
-        for line in [m.status.clone(), m.value.clone(), badges].into_iter().flatten() {
+        for line in [m.detail.clone(), m.status.clone(), m.value.clone(), badges].into_iter().flatten() {
             label.push_str("<br/>");
             label.push_str(&text(&line));
         }

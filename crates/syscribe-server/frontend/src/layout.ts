@@ -119,19 +119,12 @@ export function isGlyphKind(kind: string | undefined): boolean {
     return kind === 'initial' || kind === 'final' || kind === 'fork' || kind === 'join' || kind === 'decision' || kind === 'merge';
 }
 
-/** The safety symbols (`vis::shape::is_symbol`): gates by function, events by
- * kind, and the GSN strategy / solution / context / justification / assumption.
- * Their label stack is centred inside the outline, not hung from the top. */
+/** The safety symbols (`vis::shape::is_symbol`): the GSN strategy / solution /
+ * context / justification / assumption. Their label stack is centred inside
+ * the outline, not hung from the top (a fault-tree gate or event hangs its
+ * symbol under its text box instead). */
 export function isSymbolKind(kind: string | undefined): boolean {
     switch (kind) {
-        case 'gate-and':
-        case 'gate-or':
-        case 'gate-xor':
-        case 'gate-not':
-        case 'gate-inhibit':
-        case 'event-basic':
-        case 'event-undeveloped':
-        case 'event-house':
         case 'strategy':
         case 'solution':
         case 'context':
@@ -623,6 +616,49 @@ function placeLabelsFixed(root: ElkNode, seq: SequenceIds): void {
     }
 }
 
+/** How far under the parent's bottom edge the shared channel of a tree edge
+ * runs (`vis::layout::BUS_DROP`), and the lower one of an `inContextOf` edge. */
+const BUS_DROP = 20;
+const CONTEXT_BUS_DROP = 34;
+
+interface Box {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+}
+
+/** The edge kinds drawn by `treeRoute` (`vis::layout::is_tree_edge`). */
+export function isTreeEdgeKind(kind: string | undefined): boolean {
+    return kind === 'input' || kind === 'criticalPath' || kind === 'supportedBy' || kind === 'inContextOf';
+}
+
+function segmentHits(a: { x: number; y: number }, b: { x: number; y: number }, r: Box): boolean {
+    return Math.max(a.x, b.x) > r.x + 1 && Math.min(a.x, b.x) < r.x + r.w - 1 && Math.max(a.y, b.y) > r.y + 1 && Math.min(a.y, b.y) < r.y + r.h - 1;
+}
+
+/** The bus route of a tree edge from parent `s` to child `t`
+ * (`vis::layout::tree_route`): out of the parent's bottom centre, along a
+ * channel `drop` below it, into the child's top centre. `undefined` when the
+ * child is not clearly below or the route would cross an obstacle. */
+export function treeRoute(s: Box, t: Box, drop: number, obstacles: Box[]): { x: number; y: number }[] | undefined {
+    if (t.y < s.y + s.h + drop + BUS_DROP) {
+        return undefined;
+    }
+    const start = { x: s.x + s.w / 2, y: s.y + s.h };
+    const end = { x: t.x + t.w / 2, y: t.y };
+    const pts =
+        Math.abs(start.x - end.x) < 0.5
+            ? [start, end]
+            : [start, { x: start.x, y: s.y + s.h + drop }, { x: end.x, y: s.y + s.h + drop }, end];
+    for (let i = 1; i < pts.length; i++) {
+        if (obstacles.some(r => segmentHits(pts[i - 1], pts[i], r))) {
+            return undefined;
+        }
+    }
+    return pts;
+}
+
 /** The point halfway along a polyline (`vis::svg::midpoint`). */
 function polylineMidpoint(pts: { x: number; y: number }[]): { x: number; y: number } {
     const len = (a: { x: number; y: number }, b: { x: number; y: number }): number => Math.hypot(b.x - a.x, b.y - a.y);
@@ -751,8 +787,47 @@ export class SyscribeLayoutProcessor implements ILayoutPreprocessor, ILayoutPost
                 }
             }
         }
+        this.routeTreeEdges(elkGraph, _index);
         if (this.state.allPinned) {
             placeLabelsFixed(elkGraph, sequenceIds(sgraph));
+        }
+    }
+
+    /** Fault-tree, attack-tree and GSN edges are drawn by rule as a bus
+     * (`vis::layout::tree_route`), replacing ELK's route unless it would cross a node. */
+    private routeTreeEdges(elkGraph: ElkNode, index: SModelIndex): void {
+        const boxes = new Map<string, Box>();
+        for (const { node, ax, ay } of walkElkNodes(elkGraph)) {
+            if (node !== elkGraph) {
+                boxes.set(node.id, { x: ax, y: ay, w: node.width ?? 0, h: node.height ?? 0 });
+            }
+        }
+        for (const { edge } of walkElkEdges(elkGraph)) {
+            const sedge = index.getById(edge.id) as (SEdge & { kind?: string }) | undefined;
+            if (!sedge || !isTreeEdgeKind(sedge.kind)) {
+                continue;
+            }
+            const sid = edge.sources[0];
+            const tid = edge.targets[0];
+            const s = boxes.get(sid);
+            const t = boxes.get(tid);
+            if (!s || !t) {
+                continue;
+            }
+            const obstacles = [...boxes.entries()].filter(([id]) => id !== sid && id !== tid).map(([, b]) => b);
+            const pts = treeRoute(s, t, sedge.kind === 'inContextOf' ? CONTEXT_BUS_DROP : BUS_DROP, obstacles);
+            if (!pts) {
+                continue;
+            }
+            const e = edge as ElkExtendedEdge;
+            e.sections = [
+                {
+                    id: `${edge.id}-s`,
+                    startPoint: pts[0],
+                    endPoint: pts[pts.length - 1],
+                    bendPoints: pts.slice(1, -1),
+                } as ElkEdgeSection,
+            ];
         }
     }
 }

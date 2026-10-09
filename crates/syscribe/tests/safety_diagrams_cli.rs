@@ -26,7 +26,7 @@ fn safety_case_default_text_is_unchanged_and_format_selects_diagrams() {
 
     let dot = out(&["safety-case", "--format", "dot", "SG-ENG-001"]);
     assert!(dot.starts_with("digraph \"SG-ENG-001\" {"), "{dot}");
-    assert!(dot.contains("shape=parallelogram") && dot.contains("(undeveloped)") && dot.contains("UNDEVELOPED"), "{dot}");
+    assert!(dot.contains("shape=parallelogram") && dot.contains("__undeveloped") && dot.contains("UNDEVELOPED"), "{dot}");
 
     let mm = out(&["safety-case", "SG-ENG-001", "--format", "mermaid"]);
     assert!(mm.starts_with("flowchart TD\n") && mm.contains("classDef tone_warn"), "{mm}");

@@ -10,10 +10,10 @@
       "resolved": true,
       "elementType": "SafetyGoal",
       "kind": "goal",
-      "label": "Avoid harm",
-      "stereotype": "SG-DS-001",
+      "label": "SG-DS-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Avoid harm",
         "status": "undeveloped",
         "value": "verdict incomplete",
         "tone": "warn",
@@ -26,10 +26,10 @@
       "resolved": true,
       "elementType": "Argument",
       "kind": "strategy",
-      "label": "Argue over independent channels",
-      "stereotype": "ARG-DS-001",
+      "label": "ARG-DS-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Argue over independent channels",
         "status": "undeveloped",
         "tone": "warn"
       }
@@ -40,10 +40,10 @@
       "resolved": true,
       "elementType": "Requirement",
       "kind": "goal",
-      "label": "Comparator shall trip",
-      "stereotype": "REQ-DS-001",
+      "label": "REQ-DS-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Comparator shall trip",
         "status": "unverified",
         "tone": "warn"
       }
@@ -54,10 +54,10 @@
       "resolved": true,
       "elementType": "TestCase",
       "kind": "solution",
-      "label": "Trip test",
-      "stereotype": "TC-DS-001",
+      "label": "TC-DS-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Trip test",
         "status": "unverified",
         "value": "unknown",
         "tone": "warn"
@@ -69,10 +69,10 @@
       "resolved": true,
       "elementType": "Argument",
       "kind": "undevelopedGoal",
-      "label": "Channels fail independently",
-      "stereotype": "ARG-DS-003",
+      "label": "ARG-DS-003",
       "isAbstract": false,
       "mark": {
+        "detail": "Channels fail independently",
         "status": "UNDEVELOPED",
         "tone": "warn"
       }
@@ -83,9 +83,12 @@
       "resolved": true,
       "elementType": "Argument",
       "kind": "context",
-      "label": "Single vehicle",
-      "stereotype": "ARG-DS-002",
-      "isAbstract": false
+      "label": "ARG-DS-002",
+      "isAbstract": false,
+      "mark": {
+        "detail": "Single vehicle",
+        "tone": "neutral"
+      }
     }
   ],
   "edges": [

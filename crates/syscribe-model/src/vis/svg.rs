@@ -23,12 +23,12 @@
 
 use std::collections::BTreeMap;
 
-use super::ir::{DiagramGraph, Edge, EdgeKind, Node, NodeKind, Point};
+use super::ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, Node, NodeKind, Point, Tone};
 use super::layout::{self, Bounds, EdgeRoute, Layout, LayoutError};
 use super::metrics::DIAGRAM_FAMILIES;
 use super::shape;
 use super::size::{carried_size, size_graph_default, LabelRole, Sizes};
-use super::style::{edge_style, node_style, port_style, ArrowHead, NodeStyle, EDGE_STROKE};
+use super::style::{edge_style, node_style, port_style, tone_colors, ArrowHead, NodeStyle, EDGE_STROKE};
 
 /// Margin around the drawing, in user units.
 const MARGIN: f64 = 20.0;
@@ -621,6 +621,7 @@ impl Drawer<'_> {
                         )),
                         shape::Extra::Diamond(d) => out.push_str(&format!("    <path d=\"{d}\" fill=\"#fff\" stroke=\"{}\" stroke-width=\"{}\"/>\n", style.stroke, num(sw))),
                         shape::Extra::Letter { x, y, text } => out.push_str(&text_el(*x, *y, "start", 10.0, &format!(" fill=\"{}\" font-weight=\"bold\"", style.stroke), text)),
+                        shape::Extra::Word { x, y, text } => out.push_str(&text_el(*x, *y, "middle", 9.0, &format!(" fill=\"{}\" font-weight=\"bold\"", style.stroke), text)),
                     }
                 }
                 self.labels_of(node, &style, out);
@@ -772,6 +773,63 @@ fn ordered(graph: &DiagramGraph) -> Vec<&Node> {
     out
 }
 
+/// What the tone colours of a safety diagram mean, in the order the legend
+/// lists them (`None` for every other diagram kind). The words are the ones
+/// the derivers choose their tones by.
+fn legend_rows(kind: DiagramKind) -> Option<(&'static [(Tone, &'static str)], &'static str)> {
+    const FAULT_TREE: &[(Tone, &str)] = &[
+        (Tone::Bad, "single point of failure"),
+        (Tone::Warn, "dual-point event, or a top event with a single point"),
+        (Tone::Ok, "member of larger cut sets"),
+        (Tone::Neutral, "in no cut set, unreachable or a house event"),
+    ];
+    const ATTACK_TREE: &[(Tone, &str)] = &[
+        (Tone::Bad, "high attack feasibility"),
+        (Tone::Warn, "medium attack feasibility"),
+        (Tone::Ok, "low or very low attack feasibility"),
+        (Tone::Neutral, "unscored"),
+    ];
+    const SAFETY_CASE: &[(Tone, &str)] = &[
+        (Tone::Ok, "supported by passing evidence"),
+        (Tone::Warn, "unverified or undeveloped"),
+        (Tone::Bad, "failing or unresolved"),
+        (Tone::Neutral, "context, justification or assumption"),
+    ];
+    match kind {
+        DiagramKind::FaultTree => Some((FAULT_TREE, "Arrows point in the direction a fault propagates, toward the top event.")),
+        DiagramKind::AttackTree => Some((ATTACK_TREE, "Heavy red edges follow the easiest attack path. Arrows point toward the goal.")),
+        DiagramKind::SafetyCase => Some((SAFETY_CASE, "Solid arrowheads are SupportedBy, hollow ones InContextOf. A diamond under a goal marks it undeveloped.")),
+        _ => None,
+    }
+}
+
+/// The legend of a safety diagram, drawn from `(x, y)` down: one swatch per
+/// tone the graph actually uses, then the notation note. Returns the markup
+/// and its `(width, height)`.
+fn legend(graph: &DiagramGraph, x: f64, y: f64) -> Option<(String, f64, f64)> {
+    let (rows, note) = legend_rows(graph.kind)?;
+    let used: Vec<(Tone, &str)> = rows
+        .iter()
+        .filter(|(t, _)| graph.nodes.iter().any(|n| n.mark.as_ref().is_some_and(|m| !m.is_detail_only() && m.tone == *t)))
+        .copied()
+        .collect();
+    let metrics = super::metrics::diagram_metrics();
+    let mut out = String::from("  <g class=\"legend\">\n");
+    let mut width: f64 = 0.0;
+    let mut cy = y;
+    for (tone, text) in &used {
+        let (fill, stroke) = tone_colors(*tone);
+        out.push_str(&format!("    <rect x=\"{}\" y=\"{}\" width=\"16\" height=\"10\" rx=\"2\" fill=\"{fill}\" stroke=\"{stroke}\" stroke-width=\"1.4\"/>\n", num(x), num(cy)));
+        out.push_str(&text_el(x + 24.0, cy + 9.0, "start", 10.0, " fill=\"#333\"", text));
+        width = width.max(24.0 + metrics.advance_width(text, 10.0, false));
+        cy += 16.0;
+    }
+    out.push_str(&text_el(x, cy + 9.0, "start", 10.0, " fill=\"#555\" font-style=\"italic\"", note));
+    width = width.max(metrics.advance_width(note, 10.0, false));
+    out.push_str("  </g>\n");
+    Some((out, width, cy + 14.0 - y))
+}
+
 /// Draw `graph` as standalone SVG with the process-wide diagram metrics.
 pub fn render_svg(graph: &DiagramGraph, links: &dyn Fn(&str) -> Option<String>) -> Result<String, SvgError> {
     render_svg_with(graph, &size_graph_default(graph), links)
@@ -795,8 +853,8 @@ pub fn draw(graph: &DiagramGraph, sizes: &Sizes, laid: &Layout, links: &dyn Fn(&
     let min_x = boxes.clone().map(|b| b.x).fold(f64::INFINITY, f64::min);
     let min_y = boxes.clone().map(|b| b.y).fold(f64::INFINITY, f64::min);
     let shift = (MARGIN - min_x, MARGIN - min_y);
-    let width = boxes.clone().map(Bounds::right).fold(0.0, f64::max) + shift.0 + MARGIN;
-    let height = boxes.map(Bounds::bottom).fold(0.0, f64::max) + shift.1 + MARGIN;
+    let mut width = boxes.clone().map(Bounds::right).fold(0.0, f64::max) + shift.0 + MARGIN;
+    let mut height = boxes.map(Bounds::bottom).fold(0.0, f64::max) + shift.1 + MARGIN;
     let d = Drawer { sizes, layout: laid, shift };
 
     let mut body = String::new();
@@ -820,6 +878,12 @@ pub fn draw(graph: &DiagramGraph, sizes: &Sizes, laid: &Layout, links: &dyn Fn(&
         d.draw_edge(e, &mut used, &mut body);
     }
     d.draw_feature_marks(graph, &mut body);
+    // A safety diagram explains its colours under the drawing.
+    if let Some((markup, lw, lh)) = legend(graph, MARGIN, height) {
+        body.push_str(&markup);
+        width = width.max(lw + 2.0 * MARGIN);
+        height += lh + MARGIN / 2.0;
+    }
 
     let mut out = format!(
         "<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:sysml=\"urn:syscribe:1.0\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" viewBox=\"0 0 {} {}\" width=\"{}\" height=\"{}\" class=\"syscribe-diagram {}\" sysml:ref=\"{}\">\n",

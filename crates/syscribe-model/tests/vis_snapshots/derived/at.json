@@ -10,10 +10,10 @@
       "resolved": true,
       "elementType": "AttackTreeGate",
       "kind": "gateAnd",
-      "label": "Local path",
-      "stereotype": "ATG-DS-002",
+      "label": "ATG-DS-002",
       "isAbstract": false,
       "mark": {
+        "detail": "Local path",
         "status": "feasibility medium",
         "tone": "warn",
         "emphasis": true
@@ -25,10 +25,10 @@
       "resolved": true,
       "elementType": "AttackTreeGate",
       "kind": "gateOr",
-      "label": "Either way in",
-      "stereotype": "ATG-DS-001",
+      "label": "ATG-DS-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Either way in",
         "status": "feasibility medium",
         "value": "threat TS-DS-001 declares high",
         "tone": "warn",
@@ -44,10 +44,10 @@
       "resolved": true,
       "elementType": "AttackStep",
       "kind": "step",
-      "label": "Reach the port",
-      "stereotype": "ATS-DS-001",
+      "label": "ATS-DS-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Reach the port",
         "status": "feasibility high",
         "tone": "bad",
         "emphasis": true
@@ -59,10 +59,10 @@
       "resolved": true,
       "elementType": "AttackStep",
       "kind": "step",
-      "label": "Replay a frame",
-      "stereotype": "ATS-DS-002",
+      "label": "ATS-DS-002",
       "isAbstract": false,
       "mark": {
+        "detail": "Replay a frame",
         "status": "feasibility medium",
         "tone": "warn",
         "emphasis": true
@@ -74,10 +74,10 @@
       "resolved": true,
       "elementType": "AttackStep",
       "kind": "step",
-      "label": "Remote injection",
-      "stereotype": "ATS-DS-003",
+      "label": "ATS-DS-003",
       "isAbstract": false,
       "mark": {
+        "detail": "Remote injection",
         "status": "feasibility low",
         "tone": "ok"
       }

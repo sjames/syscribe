@@ -12,15 +12,16 @@
 //!
 //! The overlay is the node's rolled-up `NodeStatus` (tone), `UNDEVELOPED` on
 //! the node that originates the gap, the test verdict on a test case and the
-//! goal verdict on the root. The derivation has no results sidecar, so test
-//! verdicts read `unknown`; [`graph_of_case`] renders a case built with real
-//! verdicts (the `safety-case --format` CLI).
+//! goal verdict on the root. Test verdicts come from the `.syscribe/results.json`
+//! sidecar of the registered model root ([`super::context`]) and read `unknown`
+//! only for a test case the sidecar does not cover; [`graph_of_case`] renders a
+//! case built by the caller (the `safety-case --format` CLI).
 
 use std::collections::HashSet;
 
 use crate::element::{ElementType, RawElement};
 use crate::resolver::Resolver;
-use crate::safety_case::{build, BuildOptions, GoalTree, GoalVerdict, NodeKind as SkKind, NodeStatus, SafetyCase, SafetyCaseNode, Verdict};
+use crate::safety_case::{build, BuildOptions, GoalTree, GoalVerdict, NodeKind as SkKind, NodeStatus, SafetyCase, SafetyCaseNode};
 
 use super::super::ir::{derived_shape_id, DiagramGraph, DiagramKind, Edge, EdgeKind, Node, NodeKind, NodeMark, Tone};
 use super::super::manifest::Issue;
@@ -98,7 +99,7 @@ fn mark_of(n: &SafetyCaseNode, goal_verdict: Option<GoalVerdict>) -> Option<Node
         (None, Some(g)) => Some(format!("verdict {}", g.as_str())),
         _ => None,
     };
-    Some(NodeMark { status: Some(status), value, tone: tone_of(n.status), badges, emphasis: goal_verdict.is_some() })
+    Some(NodeMark { detail: None, status: Some(status), value, tone: tone_of(n.status), badges, emphasis: goal_verdict.is_some() })
 }
 
 fn node_ref(n: &SafetyCaseNode) -> String {
@@ -131,14 +132,19 @@ impl Emitter<'_> {
         if !self.seen.insert(id.clone()) {
             return Some(id);
         }
+        // The label is the concise id; the statement hangs under it, wrapped.
+        let mut mark = mark_of(n, goal_verdict);
+        if !n.title.is_empty() && n.title != n.id {
+            mark.get_or_insert_with(NodeMark::default).detail = Some(n.title.clone());
+        }
         self.graph.nodes.push(Node {
             id: id.clone(),
             element_ref: node_ref(n),
             resolved: n.kind != SkKind::Unresolved,
             element_type: element_type(n),
             kind: node_kind(n),
-            label: if n.title.is_empty() { n.id.clone() } else { n.title.clone() },
-            stereotype: (n.kind != SkKind::Unresolved).then(|| n.id.clone()),
+            label: n.id.clone(),
+            stereotype: None,
             parent: None,
             direction: None,
             side: None,
@@ -147,7 +153,7 @@ impl Emitter<'_> {
             pin: None,
             banners: Vec::new(),
             feature: None,
-            mark: mark_of(n, goal_verdict),
+            mark,
         });
         // A node that is its own ancestor was not expanded (the cycle is
         // flagged on it): its edge back to the ancestor is drawn by the parent.
@@ -199,10 +205,11 @@ pub fn generate(
         )));
         return;
     }
-    // Test verdicts live in the results sidecar of the CLI crate; a derived
-    // diagram shows them as `unknown`.
-    let unknown = |_: &RawElement| Verdict::Unknown;
-    let case = build(elements, resolver, "", BuildOptions::default(), &unknown);
+    // Test verdicts come from the results sidecar of the registered model
+    // root (`unknown` for a test case it does not cover, or with no sidecar).
+    let results = super::context::results();
+    let verdict_of = |tc: &RawElement| crate::results::testcase_verdict(tc, results.as_ref());
+    let case = build(elements, resolver, "", BuildOptions::default(), &verdict_of);
     let goals: Vec<GoalTree> = case
         .goals
         .into_iter()
@@ -313,7 +320,7 @@ mod tests {
         assert_eq!((und.status.as_deref(), und.tone), (Some("UNDEVELOPED"), Tone::Warn));
         let tc = g.node("s-safe-tc").unwrap().mark.clone().unwrap();
         assert_eq!((tc.value.as_deref(), tc.tone), (Some("unknown"), Tone::Warn));
-        assert!(g.node("s-safe-arg3").unwrap().mark.is_none(), "context nodes carry no status");
+        assert!(g.node("s-safe-arg3").unwrap().mark.as_ref().is_none_or(|m| m.is_detail_only()), "context nodes carry no status");
     }
 
     #[test]
@@ -330,7 +337,7 @@ mod tests {
     fn graph_of_case_renders_a_built_case_with_real_verdicts() {
         let elements = model();
         let resolver = Resolver::new(&elements);
-        let pass = |_: &RawElement| Verdict::Pass;
+        let pass = |_: &RawElement| crate::safety_case::Verdict::Pass;
         let case = build(&elements, &resolver, "SG-TX-001", BuildOptions::default(), &pass);
         let g = graph_of_case(&case, "SG");
         let tc = g.node("s-safe-tc").unwrap().mark.clone().unwrap();

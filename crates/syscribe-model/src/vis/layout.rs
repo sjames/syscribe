@@ -739,6 +739,48 @@ impl Post<'_> {
     }
 }
 
+/// How far under the parent's bottom edge the shared channel of a tree edge
+/// runs. `frontend/src/layout.ts` `treeRoute` mirrors [`tree_route`].
+pub const BUS_DROP: f64 = 20.0;
+/// An `inContextOf` edge runs its channel this much lower, so it never shares
+/// a line with the `supportedBy` channel of the same parent.
+pub const CONTEXT_BUS_DROP: f64 = 34.0;
+
+/// The edge kinds drawn by [`tree_route`].
+pub fn is_tree_edge(kind: crate::vis::ir::EdgeKind) -> bool {
+    use crate::vis::ir::EdgeKind as K;
+    matches!(kind, K::GateInput | K::CriticalPath | K::SupportedBy | K::InContextOf)
+}
+
+/// Whether the axis-aligned segment `a`-`b` passes through `r` (shrunk by one
+/// pixel, so touching a border is not crossing it).
+fn segment_hits(a: Point, b: Point, r: &Bounds) -> bool {
+    let (x0, x1) = (a.x.min(b.x), a.x.max(b.x));
+    let (y0, y1) = (a.y.min(b.y), a.y.max(b.y));
+    x1 > r.x + 1.0 && x0 < r.right() - 1.0 && y1 > r.y + 1.0 && y0 < r.bottom() - 1.0
+}
+
+/// The route of a tree edge from `s` (the parent) to `t` (the child):
+/// `(s.cx, s.bottom)` down to a channel `drop` ([`BUS_DROP`]) below the parent, across
+/// to `t.cx`, down to `(t.cx, t.y)`; straight when the two share a centre.
+/// `None` when the child is not clearly below the parent or the route would
+/// cross one of `obstacles`: the caller keeps ELK's route.
+pub fn tree_route(s: &Bounds, t: &Bounds, drop: f64, obstacles: &[&Bounds]) -> Option<Vec<Point>> {
+    if t.y < s.bottom() + drop + BUS_DROP {
+        return None;
+    }
+    let start = Point { x: s.cx(), y: s.bottom() };
+    let end = Point { x: t.cx(), y: t.y };
+    let pts = if (start.x - end.x).abs() < 0.5 {
+        vec![start, end]
+    } else {
+        let bus = s.bottom() + drop;
+        vec![start, Point { x: start.x, y: bus }, Point { x: end.x, y: bus }, end]
+    };
+    let clear = pts.windows(2).all(|w| obstacles.iter().all(|r| !segment_hits(w[0], w[1], r)));
+    clear.then_some(pts)
+}
+
 /// Lay `graph` out with the embedded ELK, using `sizes` (from
 /// [`super::size::size_graph`]) for every node, port and label.
 pub fn layout(graph: &DiagramGraph, sizes: &Sizes) -> Result<Layout, LayoutError> {
@@ -818,7 +860,23 @@ pub fn apply(graph: &DiagramGraph, sizes: &Sizes, input: &ElkInput, result: &Jso
     // that avoids the features between its ends (`REQ-TRS-FMED-001`).
     for e in post.graph.edges.iter() {
         let (Some(s), Some(t)) = (post.out.nodes.get(&e.source), post.out.nodes.get(&e.target)) else { continue };
-        if e.kind == crate::vis::ir::EdgeKind::FeatureChild {
+        if is_tree_edge(e.kind) {
+            // A tree edge of a fault tree, attack tree or GSN argument is drawn
+            // by rule, as a bus: out of the parent's bottom centre, along a
+            // shared channel, into the child's top centre. The rule yields to
+            // ELK's own route when it would cross a node (`tree_route`).
+            let obstacles: Vec<&Bounds> = post
+                .graph
+                .nodes
+                .iter()
+                .filter(|n| n.id != e.source && n.id != e.target && !matches!(n.kind, NodeKind::Label | NodeKind::Port | NodeKind::Compartment))
+                .filter_map(|n| post.out.nodes.get(&n.id))
+                .collect();
+            let drop = if e.kind == crate::vis::ir::EdgeKind::InContextOf { CONTEXT_BUS_DROP } else { BUS_DROP };
+            if let Some(points) = tree_route(s, t, drop, &obstacles) {
+                post.out.edges.insert(e.id.clone(), EdgeRoute { points, routed: true });
+            }
+        } else if e.kind == crate::vis::ir::EdgeKind::FeatureChild {
             let points = vec![Point { x: s.cx(), y: s.bottom() }, Point { x: t.cx(), y: t.y }];
             post.out.edges.insert(e.id.clone(), EdgeRoute { points, routed: true });
         } else if post.graph.layout_hints.overlay_kinds.contains(&e.kind) {
@@ -1018,5 +1076,18 @@ mod tests {
         }
         // The engine survives the error.
         assert!(layout(&g, &sizes).is_ok());
+    }
+
+    #[test]
+    fn tree_edges_are_a_bus_unless_a_node_is_in_the_way() {
+        // The same numbers `frontend/test/safety-shape.test.mjs` pins for `treeRoute`.
+        let b = |x, y, w, h| Bounds { x, y, w, h };
+        let (s, t) = (b(100.0, 0.0, 100.0, 50.0), b(0.0, 150.0, 100.0, 50.0));
+        let p = |x, y| Point { x, y };
+        assert_eq!(tree_route(&s, &t, BUS_DROP, &[]), Some(vec![p(150.0, 50.0), p(150.0, 70.0), p(50.0, 70.0), p(50.0, 150.0)]));
+        assert_eq!(tree_route(&s, &b(100.0, 150.0, 100.0, 50.0), BUS_DROP, &[]), Some(vec![p(150.0, 50.0), p(150.0, 150.0)]));
+        assert_eq!(tree_route(&s, &t, BUS_DROP, &[&b(0.0, 60.0, 300.0, 20.0)]), None);
+        assert_eq!(tree_route(&s, &b(0.0, 60.0, 100.0, 50.0), BUS_DROP, &[]), None);
+        assert!(is_tree_edge(crate::vis::ir::EdgeKind::GateInput) && !is_tree_edge(crate::vis::ir::EdgeKind::Flow));
     }
 }

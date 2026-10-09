@@ -16,6 +16,7 @@ pub mod action;
 pub mod allocation;
 pub mod attack_tree;
 pub mod bdd;
+pub mod context;
 pub mod fault_tree;
 pub mod feature;
 pub mod ibd;

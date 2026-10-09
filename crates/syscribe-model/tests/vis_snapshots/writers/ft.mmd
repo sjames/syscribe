@@ -1,14 +1,14 @@
 flowchart TD
   %% ref: Safety::FT::A
-  s_safety_ft_a(("Channel A fails<br/>dual-point<br/>λ 1.0e-4/h · P 9.5e-2<br/>[1 MCS]"))
+  s_safety_ft_a(("FTE-DS-001<br/>Channel A fails<br/>dual-point<br/>λ 1.0e-4/h · P 9.5e-2<br/>[1 MCS]"))
   %% ref: Safety::FT::B
-  s_safety_ft_b{"Channel B fails<br/>dual-point<br/>P 1.0e-2<br/>[1 MCS]"}
+  s_safety_ft_b{"FTE-DS-002<br/>Channel B fails<br/>dual-point<br/>P 1.0e-2<br/>[1 MCS]"}
   %% ref: Safety::FT::Both
-  s_safety_ft_both(["AND<br/>Both channels fail"])
+  s_safety_ft_both(["AND<br/>FTG-DS-002<br/>Both channels fail"])
   %% ref: Safety::FT::C
-  s_safety_ft_c(("Comparator fails<br/>single point of failure<br/>P 1.0e-6<br/>[1 MCS]"))
+  s_safety_ft_c(("FTE-DS-003<br/>Comparator fails<br/>single point of failure<br/>P 1.0e-6<br/>[1 MCS]"))
   %% ref: Safety::FT::Top
-  s_safety_ft_top(["OR<br/>Harm occurs<br/>top event<br/>P 9.5e-4<br/>[2 MCS] [1 single point]"])
+  s_safety_ft_top(["OR<br/>FTG-DS-001<br/>Harm occurs<br/>top event<br/>P 9.5e-4<br/>[2 MCS] [1 single point]"])
 
   s_safety_ft_both --- s_safety_ft_a
   s_safety_ft_both --- s_safety_ft_b
@@ -19,3 +19,5 @@ flowchart TD
   class s_safety_ft_a,s_safety_ft_b,s_safety_ft_top tone_warn
   classDef tone_bad fill:#fdecea,stroke:#b3261e,color:#222
   class s_safety_ft_c tone_bad
+  classDef tone_neutral fill:#f1f2f4,stroke:#8a8f98,color:#222
+  class s_safety_ft_both tone_neutral

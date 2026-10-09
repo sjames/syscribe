@@ -10,10 +10,10 @@
       "resolved": true,
       "elementType": "FaultTreeEvent",
       "kind": "eventBasic",
-      "label": "Channel A fails",
-      "stereotype": "FTE-DS-001",
+      "label": "FTE-DS-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Channel A fails",
         "status": "dual-point",
         "value": "λ 1.0e-4/h · P 9.5e-2",
         "tone": "warn",
@@ -29,10 +29,10 @@
       "resolved": true,
       "elementType": "FaultTreeEvent",
       "kind": "eventUndeveloped",
-      "label": "Channel B fails",
-      "stereotype": "FTE-DS-002",
+      "label": "FTE-DS-002",
       "isAbstract": false,
       "mark": {
+        "detail": "Channel B fails",
         "status": "dual-point",
         "value": "P 1.0e-2",
         "tone": "warn",
@@ -48,9 +48,12 @@
       "resolved": true,
       "elementType": "FaultTreeGate",
       "kind": "gateAnd",
-      "label": "Both channels fail",
-      "stereotype": "FTG-DS-002",
-      "isAbstract": false
+      "label": "FTG-DS-002",
+      "isAbstract": false,
+      "mark": {
+        "detail": "Both channels fail",
+        "tone": "neutral"
+      }
     },
     {
       "id": "s-safety-ft-c",
@@ -58,10 +61,10 @@
       "resolved": true,
       "elementType": "FaultTreeEvent",
       "kind": "eventBasic",
-      "label": "Comparator fails",
-      "stereotype": "FTE-DS-003",
+      "label": "FTE-DS-003",
       "isAbstract": false,
       "mark": {
+        "detail": "Comparator fails",
         "status": "single point of failure",
         "value": "P 1.0e-6",
         "tone": "bad",
@@ -77,10 +80,10 @@
       "resolved": true,
       "elementType": "FaultTreeGate",
       "kind": "gateOr",
-      "label": "Harm occurs",
-      "stereotype": "FTG-DS-001",
+      "label": "FTG-DS-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Harm occurs",
         "status": "top event",
         "value": "P 9.5e-4",
         "tone": "warn",

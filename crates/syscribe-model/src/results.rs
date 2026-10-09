@@ -108,6 +108,77 @@ struct SessionLogRecord {
     timestamp: Option<String>,
 }
 
+/// The `function` strings declared under a TestCase's `testFunctions:`.
+fn tc_function_refs(tc: &crate::element::RawElement) -> Vec<String> {
+    let func_key = serde_yaml::Value::String("function".into());
+    tc.frontmatter
+        .test_functions
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(|tf| match tf {
+            serde_yaml::Value::Mapping(map) => match map.get(&func_key) {
+                Some(serde_yaml::Value::String(f)) => Some(f.clone()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+/// The exact `Scenario:`/`Scenario Outline:` titles declared in a TestCase's
+/// body, in document order: the identity a `session-log` record names.
+fn gherkin_scenario_titles(doc: &str) -> Vec<String> {
+    doc.lines()
+        .filter_map(|l| {
+            let t = l.trim();
+            t.strip_prefix("Scenario Outline:")
+                .or_else(|| t.strip_prefix("Scenario:"))
+                .map(|title| title.trim().to_string())
+        })
+        .collect()
+}
+
+/// Aggregate a TestCase's ingested verdict (issue #21): scored against its
+/// `testFunctions:` when it has any, else against its Gherkin scenario titles
+/// (`session-log`, issue #113). `Unknown` without results, without anything to
+/// score, or when some function / scenario is missing or ignored and none failed.
+/// The one definition: the CLI's `tc_verdict` and the derived GSN diagram read it.
+pub fn testcase_verdict(tc: &crate::element::RawElement, results: Option<&ResultsData>) -> crate::safety_case::Verdict {
+    use crate::safety_case::Verdict as V;
+    let Some(results) = results else { return V::Unknown };
+    let funcs = tc_function_refs(tc);
+    if !funcs.is_empty() {
+        let mut all_pass = true;
+        for f in &funcs {
+            match results.verdict_for(f) {
+                FnVerdict::Fail => return V::Fail,
+                FnVerdict::Pass => {}
+                FnVerdict::Ignored | FnVerdict::Missing => all_pass = false,
+            }
+        }
+        return if all_pass { V::Pass } else { V::Unknown };
+    }
+    let Some(tc_id) = tc.frontmatter.id.as_deref() else { return V::Unknown };
+    let scenarios = gherkin_scenario_titles(&tc.doc);
+    if scenarios.is_empty() {
+        return V::Unknown;
+    }
+    let mut all_pass = true;
+    for s in &scenarios {
+        match results.scenario_verdict(tc_id, s) {
+            FnVerdict::Fail => return V::Fail,
+            FnVerdict::Pass => {}
+            FnVerdict::Ignored | FnVerdict::Missing => all_pass = false,
+        }
+    }
+    if all_pass {
+        V::Pass
+    } else {
+        V::Unknown
+    }
+}
+
 /// Lookup outcome for one `testFunctions[].function`.
 #[derive(Debug, PartialEq, Eq)]
 pub enum FnVerdict {

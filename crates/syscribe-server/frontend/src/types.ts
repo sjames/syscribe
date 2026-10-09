@@ -114,6 +114,8 @@ export type MarkTone = 'ok' | 'warn' | 'bad' | 'neutral';
  * Its status, value and badges arrive as `status`/`value`/`badge` label
  * children; the tone is in `style`. */
 export interface NodeMark {
+    /** The full name, wrapped by the server into `line` label children. */
+    detail?: string;
     status?: string;
     value?: string;
     tone: MarkTone;
