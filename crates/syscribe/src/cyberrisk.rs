@@ -12,8 +12,10 @@
 use serde_json::json;
 use syscribe_model::element::RawElement;
 use syscribe_model::resolver::Resolver;
+use syscribe_model::attack_tree::feasibility_label;
 use syscribe_model::risk::{
-    feasibility_rank, threat_risk_level, threat_severity_rank, RiskLevel,
+    expected_cal_for_threat, threat_feasibility_rank, threat_risk, threat_severity_rank, CyberConfig,
+    RiskLevel,
 };
 use std::collections::HashSet;
 
@@ -32,9 +34,13 @@ struct Row {
     treatment: String,
     addressed: bool,
     flag: &'static str,
+    // Only shown when a `[cyber]` configuration is in effect (GH #222).
+    vector: String,
+    risk_value: Option<u8>,
+    cal: Option<u8>,
 }
 
-pub fn cmd_cyber_risk(elements: &[RawElement], json_out: bool) {
+pub fn cmd_cyber_risk(elements: &[RawElement], cfg: &CyberConfig, json_out: bool) {
     let resolver = Resolver::new(elements);
 
     // Threat keys (qname + id) addressed by some CybersecurityGoal.
@@ -64,12 +70,14 @@ pub fn cmd_cyber_risk(elements: &[RawElement], json_out: bool) {
             .to_string();
 
         let feas_str = ts.frontmatter.attack_feasibility.as_deref();
-        let feasibility = match feas_str.and_then(feasibility_rank) {
-            Some(_) => feas_str.unwrap().to_string(),
-            None => "unknown".to_string(),
+        let feasibility = match (feas_str, threat_feasibility_rank(&ts.frontmatter, cfg)) {
+            (Some(f), Some(_)) => f.to_string(),
+            (None, Some(r)) => feasibility_label(r).to_string(),
+            _ => "unknown".to_string(),
         };
 
-        let level = threat_risk_level(ts, elements, &resolver);
+        let computed = threat_risk(ts, elements, &resolver, cfg);
+        let level = computed.map(|r| r.level);
         let risk = level.map(|l| l.as_str()).unwrap_or("unknown").to_string();
 
         let treatment = ts
@@ -105,15 +113,22 @@ pub fn cmd_cyber_risk(elements: &[RawElement], json_out: bool) {
             treatment,
             addressed: is_addressed,
             flag,
+            vector: ts
+                .frontmatter
+                .attack_vector
+                .clone()
+                .unwrap_or_else(|| "—".to_string()),
+            risk_value: computed.and_then(|r| r.value),
+            cal: expected_cal_for_threat(ts, elements, &resolver, cfg),
         });
     }
 
     rows.sort_by(|a, b| a.id.cmp(&b.id));
 
     if json_out {
-        emit_json(&rows);
+        emit_json(&rows, cfg);
     } else {
-        emit_text(&rows);
+        emit_text(&rows, cfg);
     }
 }
 
@@ -126,11 +141,11 @@ fn severity_label(rank: u8) -> &'static str {
     }
 }
 
-fn emit_json(rows: &[Row]) {
+fn emit_json(rows: &[Row], cfg: &CyberConfig) {
     let arr: Vec<_> = rows
         .iter()
         .map(|r| {
-            json!({
+            let mut o = json!({
                 "id": r.id,
                 "severity": r.severity,
                 "feasibility": r.feasibility,
@@ -138,19 +153,49 @@ fn emit_json(rows: &[Row]) {
                 "treatment": r.treatment,
                 "addressed": r.addressed,
                 "flag": r.flag,
-            })
+            });
+            if !cfg.is_default() {
+                o["method"] = json!(cfg.method().as_str());
+                o["attackVector"] = json!(r.vector);
+                o["riskValue"] = json!(r.risk_value);
+                o["expectedCal"] = json!(r.cal.map(|c| format!("CAL{}", c)));
+            }
+            o
         })
         .collect();
     println!("{}", serde_json::to_string_pretty(&json!(arr)).unwrap());
 }
 
-fn emit_text(rows: &[Row]) {
+fn emit_text(rows: &[Row], cfg: &CyberConfig) {
     if rows.is_empty() {
         println!("# Cybersecurity Risk Determination (ISO/SAE 21434 §15.8)\n");
         println!("No ThreatScenario elements found.");
         return;
     }
     println!("# Cybersecurity Risk Determination (ISO/SAE 21434 §15.8)\n");
+    if !cfg.is_default() {
+        println!("Risk configuration: {}\n", cfg.describe());
+        println!(
+            "| Threat | Severity | Feasibility | Vector | Risk | Risk value | Expected CAL | Treatment | Addressed | Flag |"
+        );
+        println!("|---|---|---|---|---|---|---|---|---|---|");
+        for r in rows {
+            println!(
+                "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+                r.id,
+                r.severity,
+                r.feasibility,
+                r.vector,
+                r.risk,
+                r.risk_value.map(|v| v.to_string()).unwrap_or_else(|| "—".to_string()),
+                r.cal.map(|c| format!("CAL{}", c)).unwrap_or_else(|| "—".to_string()),
+                r.treatment,
+                if r.addressed { "yes" } else { "no" },
+                r.flag,
+            );
+        }
+        return;
+    }
     println!(
         "| Threat | Severity | Feasibility | Risk | Treatment | Addressed | Flag |"
     );

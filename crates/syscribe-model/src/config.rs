@@ -140,6 +140,12 @@ pub struct ValidateConfig {
     /// finding codes fail the `audit` readiness verdict. Defaults to
     /// [`AuditConfig::default`] (W306 always; W033/W805 at ASIL C/D).
     pub audit: AuditConfig,
+
+    /// GH #222 — ISO/SAE 21434 risk/CAL configuration from the `[cyber]` table of
+    /// `<model_root>/.syscribe.toml`. The default (no table) is the historical
+    /// `simple` rank-sum method, so existing models validate byte-identically.
+    /// Malformed entries are dropped and reported as `W640`.
+    pub cyber: crate::cyber_config::CyberConfig,
 }
 
 /// GH #216 — `[audit]` policy: which non-error finding codes fail the
@@ -692,6 +698,7 @@ impl ValidateConfig {
         let link_types = crate::link_types::LinkTypeRegistry::load(&root);
         crate::link_types::install(&link_types);
         let audit = AuditConfig::load(&root);
+        let root_for_cyber = root.clone();
         Self {
             model_root: Some(root),
             repo_root,
@@ -712,6 +719,7 @@ impl ValidateConfig {
             users,
             link_types,
             audit,
+            cyber: crate::cyber_config::CyberConfig::load(&root_for_cyber),
         }
     }
 

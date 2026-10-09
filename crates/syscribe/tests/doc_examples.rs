@@ -78,6 +78,8 @@ const TOLERATED: &[(&str, &str)] = &[
     ("E111", "unresolved typedBy target"),
     ("E114", "unresolved satisfies target"),
     ("E115", "unresolved behavior-field target"),
+    ("W812", "snippet shows a high-integrity SafetyGoal without the safeState/ftti fields it is not illustrating"),
+    ("W814", "snippet shows the ISO 26262 and IEC 61508 parameter alternatives side by side"),
     ("W502", "unresolved expose target (a package declared outside the snippet)"),
     ("W057", "illustrative ISQ/SI names in a snippet that are not in the tool's library table"),
     ("E127", "unresolved connection endpoint (a sub-part declared outside the snippet)"),
@@ -120,6 +122,9 @@ const TOLERATED: &[(&str, &str)] = &[
     ("E927", "unresolved FaultTreeEvent ref"),
     ("E954", "unresolved Conduit zone"),
     ("E955", "unresolved Zone member"),
+    ("E963", "unresolved Asset assetOwner"),
+    ("E964", "unresolved Asset relatedSafetyGoal"),
+    ("E967", "unresolved VulnerabilityReport threatScenarios"),
     ("W062", "unresolved TradeStudy objective"),
     ("W064", "unresolved TradeStudy alternative element"),
     ("W079", "unresolved state-machine behavior reference"),
@@ -154,6 +159,14 @@ const TOLERATED: &[(&str, &str)] = &[
     ("W810", "Asset not referenced by a DamageScenario"),
     ("W900", "FaultTree has no child gates/events"),
     ("W953", "Zone referenced by no Conduit"),
+    ("W960", "ThreatScenario risk inputs (damage scenarios, feasibility) live outside the snippet"),
+    ("W961", "DamageScenario referenced by no ThreatScenario"),
+    ("W962", "DamageScenario names no asset"),
+    ("W963", "riskTreatment: reduce but no CybersecurityGoal in the snippet"),
+    ("W969", "SecurityControl implements no goal in the snippet"),
+    ("W970", "CybersecurityGoal has no threat in the snippet"),
+    ("W973", "approved Zone/Conduit achievedSL assessed outside the snippet"),
+    ("W979", "high-CVSS VulnerabilityReport not linked to a threat in the snippet"),
 ];
 
 /// Codes tolerated only when the snippet shows frontmatter alone (no body):

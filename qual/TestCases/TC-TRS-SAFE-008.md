@@ -46,10 +46,10 @@ Feature: GSN argument layer and safety-case view
     When the user runs safety-case with an id that names no SafetyGoal
     Then the tool exits with a non-zero exit code
 
-  Scenario: a circular argument yields E878
+  Scenario: a circular argument yields E881
     Given two claim Arguments that cite each other as evidence
     When the tool validates the model
-    Then an E878 finding is emitted
+    Then an E881 finding is emitted
     And safety-case marks the cycle and does not report the goal supported
 
   Scenario: a solution with no evidence yields W861

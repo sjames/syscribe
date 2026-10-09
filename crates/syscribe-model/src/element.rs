@@ -32,6 +32,41 @@ mod string_or_vec {
     }
 }
 
+/// Serde helpers for the two cybersecurity single-ref fields that historically
+/// took one string only: accept a string or a list, and on a type mismatch name
+/// the offending field instead of the generic serde message (which surfaced as
+/// a misleading `E002` "not valid YAML").
+mod named_string_or_vec {
+    use serde::{Deserialize, Deserializer};
+    fn de<'de, D: Deserializer<'de>>(d: D, field: &str) -> Result<Option<Vec<String>>, D::Error> {
+        let v: Option<serde_yaml::Value> = Option::deserialize(d)?;
+        let bad = |what: &str| serde::de::Error::custom(format!(
+            "`{field}` must be a string or a list of strings, got {what}"));
+        match v {
+            None | Some(serde_yaml::Value::Null) => Ok(None),
+            Some(serde_yaml::Value::String(s)) => Ok(Some(vec![s])),
+            Some(serde_yaml::Value::Sequence(seq)) => {
+                let mut out = Vec::with_capacity(seq.len());
+                for item in seq {
+                    match item {
+                        serde_yaml::Value::String(s) => out.push(s),
+                        _ => return Err(bad("a non-string list entry")),
+                    }
+                }
+                Ok(Some(out))
+            }
+            Some(serde_yaml::Value::Mapping(_)) => Err(bad("a mapping")),
+            Some(_) => Err(bad("a non-string scalar")),
+        }
+    }
+    pub fn security_property<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "securityProperty")
+    }
+    pub fn derived_from_cybersecurity_goal<'de, D: Deserializer<'de>>(d: D) -> Result<Option<Vec<String>>, D::Error> {
+        de(d, "derivedFromCybersecurityGoal")
+    }
+}
+
 /// Serde helper: accept either a single YAML value or a sequence of values,
 /// normalizing to `Vec<serde_yaml::Value>`. Used by fields whose entries may be
 /// heterogeneous by design — e.g. `evidence:`, shared between GSN `Argument`
@@ -818,6 +853,9 @@ pub struct ColdFrontmatter {
     /// ASIL/SIL decomposition argument type (§22.3): `independent` | `redundant` | `diverse`.
     /// Informational; surfaced in the safety-case report.
     pub decomposition_kind: Option<String>,
+    /// Original (pre-decomposition) ASIL of a decomposed requirement (ISO 26262-9 §5):
+    /// `decomposedFrom: D`, or implied by the `B(D)` notation in `asilLevel:`. Letter A–D.
+    pub decomposed_from: Option<String>,
     pub wcet: Option<String>,
     /// `configurations:` — scalar or list of `Configuration` references. Absent
     /// → config-agnostic (applies to every Configuration). Each must resolve to a
@@ -1030,11 +1068,23 @@ pub struct ColdFrontmatter {
     // §T2 — ThreatScenario (ISO/SAE 21434 §15)
     pub attack_feasibility: Option<String>,     // high|medium|low|very_low
     pub attack_vector: Option<String>,          // network|adjacent|local|physical
+    // GH #222 — ISO/SAE 21434 attack-potential factors (ThreatScenario / AttackStep)
+    // and per-category impact ratings (DamageScenario). All optional; see `risk.rs`.
+    pub elapsed_time: Option<serde_yaml::Value>,
+    pub expertise: Option<serde_yaml::Value>,
+    pub knowledge: Option<serde_yaml::Value>,
+    pub window_of_opportunity: Option<serde_yaml::Value>,
+    pub equipment: Option<serde_yaml::Value>,
+    pub safety_impact: Option<String>,
+    pub financial_impact: Option<String>,
+    pub operational_impact: Option<String>,
+    pub privacy_impact: Option<String>,
     pub damage_scenarios: Option<Vec<String>>,  // DamageScenario id/qname refs
 
     // §T2 — CybersecurityGoal (ISO/SAE 21434 §15)
     pub cal_level: Option<String>,              // CAL1-CAL4
-    pub security_property: Option<String>,      // confidentiality|integrity|availability|authenticity
+    #[serde(default, deserialize_with = "named_string_or_vec::security_property")]
+    pub security_property: Option<Vec<String>>, // confidentiality|integrity|availability|authenticity (string or list)
     pub derived_from_safety_goal: Option<String>,   // SG-* that generated this requirement (YAML: derivedFromSafetyGoal)
 
     // §8.18 — GSN safety-argument layer (issue #20)
@@ -1189,8 +1239,8 @@ pub struct ColdFrontmatter2 {
 
     // §T2 — upstream goal links for native Requirement
     // YAML: derivedFromCybersecurityGoal; alias: derivedFromSecurityGoal (legacy)
-    #[serde(alias = "derivedFromSecurityGoal")]
-    pub derived_from_cybersecurity_goal: Option<String>,
+    #[serde(alias = "derivedFromSecurityGoal", default, deserialize_with = "named_string_or_vec::derived_from_cybersecurity_goal")]
+    pub derived_from_cybersecurity_goal: Option<Vec<String>>,
 
     // §T2 — Asset (REQ-TRS-TYPE-017; ISO/SAE 21434 §15.3 asset identification)
     // cybersecurityProperties: list of confidentiality|integrity|availability|authenticity (YAML: cybersecurityProperties)
@@ -1301,6 +1351,14 @@ pub struct ColdFrontmatter3 {
     pub cve_id: Option<String>,                 // CVE-YYYY-NNNNN
     pub asset_owner: Option<String>,          // qname/id of owning architecture element (YAML: assetOwner)
     pub related_safety_goal: Option<String>,  // SG-* ref for co-engineering (YAML: relatedSafetyGoal)
+    /// TARASheet `assetTable:` rows → Asset elements (YAML: assetTable)
+    pub asset_table: Option<Vec<serde_yaml::Value>>,
+    /// VulnerabilityReport CVSS vector string (YAML: cvssVector)
+    pub cvss_vector: Option<String>,
+    /// VulnerabilityReport declared severity bucket none|low|medium|high|critical (YAML: cvssSeverity)
+    pub cvss_severity: Option<String>,
+    /// VulnerabilityReport fixed-in version (YAML: fixedIn)
+    pub fixed_in: Option<String>,
 }
 
 /// Flat deserialisation target for the rarely-set fields: serde's nested `flatten`
@@ -1343,6 +1401,9 @@ struct ColdWire {
     /// ASIL/SIL decomposition argument type (§22.3): `independent` | `redundant` | `diverse`.
     /// Informational; surfaced in the safety-case report.
     pub decomposition_kind: Option<String>,
+    /// Original (pre-decomposition) ASIL of a decomposed requirement (ISO 26262-9 §5):
+    /// `decomposedFrom: D`, or implied by the `B(D)` notation in `asilLevel:`. Letter A–D.
+    pub decomposed_from: Option<String>,
     pub wcet: Option<String>,
     /// `configurations:` — scalar or list of `Configuration` references. Absent
     /// → config-agnostic (applies to every Configuration). Each must resolve to a
@@ -1555,11 +1616,23 @@ struct ColdWire {
     // §T2 — ThreatScenario (ISO/SAE 21434 §15)
     pub attack_feasibility: Option<String>,     // high|medium|low|very_low
     pub attack_vector: Option<String>,          // network|adjacent|local|physical
+    // GH #222 — ISO/SAE 21434 attack-potential factors (ThreatScenario / AttackStep)
+    // and per-category impact ratings (DamageScenario). All optional; see `risk.rs`.
+    pub elapsed_time: Option<serde_yaml::Value>,
+    pub expertise: Option<serde_yaml::Value>,
+    pub knowledge: Option<serde_yaml::Value>,
+    pub window_of_opportunity: Option<serde_yaml::Value>,
+    pub equipment: Option<serde_yaml::Value>,
+    pub safety_impact: Option<String>,
+    pub financial_impact: Option<String>,
+    pub operational_impact: Option<String>,
+    pub privacy_impact: Option<String>,
     pub damage_scenarios: Option<Vec<String>>,  // DamageScenario id/qname refs
 
     // §T2 — CybersecurityGoal (ISO/SAE 21434 §15)
     pub cal_level: Option<String>,              // CAL1-CAL4
-    pub security_property: Option<String>,      // confidentiality|integrity|availability|authenticity
+    #[serde(default, deserialize_with = "named_string_or_vec::security_property")]
+    pub security_property: Option<Vec<String>>, // confidentiality|integrity|availability|authenticity (string or list)
     pub derived_from_safety_goal: Option<String>,   // SG-* that generated this requirement (YAML: derivedFromSafetyGoal)
 
     // §8.18 — GSN safety-argument layer (issue #20)
@@ -1706,8 +1779,8 @@ struct ColdWire {
 
     // §T2 — upstream goal links for native Requirement
     // YAML: derivedFromCybersecurityGoal; alias: derivedFromSecurityGoal (legacy)
-    #[serde(alias = "derivedFromSecurityGoal")]
-    pub derived_from_cybersecurity_goal: Option<String>,
+    #[serde(alias = "derivedFromSecurityGoal", default, deserialize_with = "named_string_or_vec::derived_from_cybersecurity_goal")]
+    pub derived_from_cybersecurity_goal: Option<Vec<String>>,
 
     // §T2 — Asset (REQ-TRS-TYPE-017; ISO/SAE 21434 §15.3 asset identification)
     // cybersecurityProperties: list of confidentiality|integrity|availability|authenticity (YAML: cybersecurityProperties)
@@ -1810,11 +1883,20 @@ struct ColdWire {
     pub cve_id: Option<String>,                 // CVE-YYYY-NNNNN
     pub asset_owner: Option<String>,          // qname/id of owning architecture element (YAML: assetOwner)
     pub related_safety_goal: Option<String>,  // SG-* ref for co-engineering (YAML: relatedSafetyGoal)
+    /// TARASheet `assetTable:` rows → Asset elements (YAML: assetTable)
+    pub asset_table: Option<Vec<serde_yaml::Value>>,
+    /// VulnerabilityReport CVSS vector string (YAML: cvssVector)
+    pub cvss_vector: Option<String>,
+    /// VulnerabilityReport declared severity bucket none|low|medium|high|critical (YAML: cvssSeverity)
+    pub cvss_severity: Option<String>,
+    /// VulnerabilityReport fixed-in version (YAML: fixedIn)
+    pub fixed_in: Option<String>,
 }
 
 impl ColdWire {
     fn into_tiers(self) -> ColdFrontmatter {
         let w = self;
+        let (asil_eff, asil_orig) = crate::asil::split_notation(w.asil_level);
         ColdFrontmatter {
             is_variation: w.is_variation,
             expression: w.expression,
@@ -1842,8 +1924,9 @@ impl ColdWire {
             about: w.about,
             locale: w.locale,
             sil_level: w.sil_level,
-            asil_level: w.asil_level,
+            asil_level: asil_eff,
             decomposition_kind: w.decomposition_kind,
+            decomposed_from: w.decomposed_from.or(asil_orig),
             wcet: w.wcet,
             configurations: w.configurations,
             demonstrates: w.demonstrates,
@@ -1909,6 +1992,15 @@ impl ColdWire {
             hazard_ref: w.hazard_ref,
             attack_feasibility: w.attack_feasibility,
             attack_vector: w.attack_vector,
+            elapsed_time: w.elapsed_time,
+            expertise: w.expertise,
+            knowledge: w.knowledge,
+            window_of_opportunity: w.window_of_opportunity,
+            equipment: w.equipment,
+            safety_impact: w.safety_impact,
+            financial_impact: w.financial_impact,
+            operational_impact: w.operational_impact,
+            privacy_impact: w.privacy_impact,
             damage_scenarios: w.damage_scenarios,
             cal_level: w.cal_level,
             security_property: w.security_property,
@@ -2034,6 +2126,10 @@ impl ColdWire {
                     cve_id: w.cve_id,
                     asset_owner: w.asset_owner,
                     related_safety_goal: w.related_safety_goal,
+                    asset_table: w.asset_table,
+                    cvss_vector: w.cvss_vector,
+                    cvss_severity: w.cvss_severity,
+                    fixed_in: w.fixed_in,
                 }),
             }),
         }

@@ -55,6 +55,7 @@ struct Component {
     purl: Option<String>,
     location: Option<String>, // local file path
     requirements: Vec<String>, // requirement ids this component traces to
+    owners: Vec<String>,       // qualified names of the Part/PartDef elements that declare it
 }
 
 /// Parse `<registry>:<package>@<version>[#path]` into a remote component, or `None` for a
@@ -69,6 +70,7 @@ fn parse_remote(v: &str) -> Option<Component> {
         purl: Some(r.purl()),
         location: None,
         requirements: Vec::new(),
+        owners: Vec::new(),
     })
 }
 
@@ -120,9 +122,17 @@ fn collect_components(elements: &[RawElement], resolver: &Resolver, opts: &SbomO
     for e in elements.iter().filter(|e| is_part(e) && in_scope(e)) {
         for v in e.frontmatter.implemented_by.as_deref().unwrap_or(&[]) {
             if let Some(mut c) = parse_remote(v) {
-                if seen.insert(c.purl.clone().unwrap_or_else(|| c.name.clone())) {
+                let key = c.purl.clone().unwrap_or_else(|| c.name.clone());
+                if seen.insert(key.clone()) {
                     c.requirements = req_ids(e);
+                    c.owners.push(e.qualified_name.clone());
                     comps.push(c);
+                } else if let Some(existing) =
+                    comps.iter_mut().find(|x| x.purl.clone().unwrap_or_else(|| x.name.clone()) == key)
+                {
+                    if !existing.owners.contains(&e.qualified_name) {
+                        existing.owners.push(e.qualified_name.clone());
+                    }
                 }
             } else {
                 let loc = v.strip_prefix("repo:").unwrap_or(v).to_string();
@@ -133,6 +143,7 @@ fn collect_components(elements: &[RawElement], resolver: &Resolver, opts: &SbomO
                         purl: None,
                         location: Some(loc),
                         requirements: req_ids(e),
+                        owners: vec![e.qualified_name.clone()],
                     });
                 }
             }
@@ -150,6 +161,7 @@ fn collect_components(elements: &[RawElement], resolver: &Resolver, opts: &SbomO
                         purl: None,
                         location: Some(loc),
                         requirements: e.frontmatter.id.iter().cloned().collect(),
+                        owners: Vec::new(),
                     });
                 }
             }
@@ -158,11 +170,112 @@ fn collect_components(elements: &[RawElement], resolver: &Resolver, opts: &SbomO
     comps
 }
 
-fn cyclonedx(comps: &[Component], opts: &SbomOptions) -> serde_json::Value {
+/// Stable CycloneDX `bom-ref` for a component: its purl, else a file/name key.
+fn bom_ref(c: &Component) -> String {
+    c.purl
+        .clone()
+        .or_else(|| c.location.as_ref().map(|l| format!("file:{}", l)))
+        .unwrap_or_else(|| c.name.clone())
+}
+
+/// CycloneDX `analysis.state` for a `VulnerabilityReport.status`.
+fn vex_state(status: &str) -> &'static str {
+    match status {
+        "mitigated" | "resolved" | "fixed" | "closed" => "resolved",
+        "not_affected" => "not_affected",
+        "false_positive" => "false_positive",
+        "accepted" | "wont_fix" => "exploitable",
+        _ => "in_triage",
+    }
+}
+
+/// CycloneDX `vulnerabilities` (VEX) from the model's `VulnerabilityReport`s. A
+/// report affects a component when one of its `affectedElements:` is the
+/// component's purl (`pkg:...`) or the qualified name / id of a Part/PartDef
+/// that declares the component via `implementedBy:`.
+fn vulnerabilities(elements: &[RawElement], resolver: &Resolver, comps: &[Component]) -> Vec<serde_json::Value> {
+    let mut out = Vec::new();
+    for vr in elements
+        .iter()
+        .filter(|e| e.frontmatter.element_type == Some(ElementType::VulnerabilityReport))
+    {
+        let fm = &vr.frontmatter;
+        let mut refs: Vec<String> = Vec::new();
+        for a in fm.affected_elements.iter().flatten() {
+            if a.starts_with("pkg:") {
+                for c in comps.iter().filter(|c| c.purl.as_deref() == Some(a.as_str())) {
+                    refs.push(bom_ref(c));
+                }
+            } else if let Some(t) = resolver.resolve_ref(elements, a) {
+                for c in comps.iter().filter(|c| c.owners.contains(&t.qualified_name)) {
+                    refs.push(bom_ref(c));
+                }
+            }
+        }
+        refs.sort();
+        refs.dedup();
+        let id = fm
+            .cve_id
+            .clone()
+            .or_else(|| fm.id.clone())
+            .unwrap_or_else(|| vr.qualified_name.clone());
+        let mut v = serde_json::json!({
+            "bom-ref": format!("vuln:{}", fm.id.as_deref().unwrap_or(&vr.qualified_name)),
+            "id": id,
+            "source": { "name": if fm.cve_id.is_some() { "NVD" } else { "syscribe-model" } },
+            "description": fm.name.clone().unwrap_or_default(),
+        });
+        if fm.cvss_score.is_some() || fm.cvss_vector.is_some() {
+            let mut rating = serde_json::Map::new();
+            if let Some(s) = fm.cvss_score {
+                rating.insert("score".into(), serde_json::json!(s));
+                let sev = fm
+                    .cvss_severity
+                    .clone()
+                    .unwrap_or_else(|| syscribe_model::security_checks::cvss_bucket(s).to_string());
+                rating.insert("severity".into(), serde_json::json!(sev));
+            }
+            if let Some(vec) = &fm.cvss_vector {
+                rating.insert("vector".into(), serde_json::json!(vec));
+                let method = if vec.starts_with("CVSS:4") {
+                    "CVSSv4"
+                } else if vec.starts_with("CVSS:3.0") {
+                    "CVSSv3"
+                } else if vec.starts_with("CVSS:3") {
+                    "CVSSv31"
+                } else {
+                    "CVSSv2"
+                };
+                rating.insert("method".into(), serde_json::json!(method));
+            }
+            v["ratings"] = serde_json::json!([rating]);
+        }
+        if let Some(status) = fm.status.as_deref() {
+            let mut analysis = serde_json::json!({ "state": vex_state(status) });
+            if matches!(status, "accepted" | "wont_fix") {
+                analysis["response"] = serde_json::json!(["will_not_fix"]);
+            }
+            if let Some(r) = fm.rationale.as_deref().filter(|r| !r.trim().is_empty()) {
+                analysis["detail"] = serde_json::json!(r);
+            }
+            v["analysis"] = analysis;
+        }
+        if let Some(fixed) = fm.fixed_in.as_deref().filter(|f| !f.trim().is_empty()) {
+            v["recommendation"] = serde_json::json!(format!("Fixed in {}", fixed));
+        }
+        if !refs.is_empty() {
+            v["affects"] = serde_json::json!(refs.iter().map(|r| serde_json::json!({ "ref": r })).collect::<Vec<_>>());
+        }
+        out.push(v);
+    }
+    out
+}
+
+fn cyclonedx(comps: &[Component], vulns: Vec<serde_json::Value>, opts: &SbomOptions) -> serde_json::Value {
     let components: Vec<serde_json::Value> = comps
         .iter()
         .map(|c| {
-            let mut o = serde_json::json!({ "type": "library", "name": c.name });
+            let mut o = serde_json::json!({ "type": "library", "name": c.name, "bom-ref": bom_ref(c) });
             if let Some(v) = &c.version {
                 o["version"] = serde_json::json!(v);
             }
@@ -182,7 +295,7 @@ fn cyclonedx(comps: &[Component], opts: &SbomOptions) -> serde_json::Value {
             o
         })
         .collect();
-    serde_json::json!({
+    let mut doc = serde_json::json!({
         "bomFormat": "CycloneDX",
         "specVersion": "1.6",
         "serialNumber": format!("urn:uuid:{}", serial_uuid()),
@@ -193,7 +306,11 @@ fn cyclonedx(comps: &[Component], opts: &SbomOptions) -> serde_json::Value {
             "component": { "type": "firmware", "name": opts.root_name }
         },
         "components": components
-    })
+    });
+    if !vulns.is_empty() {
+        doc["vulnerabilities"] = serde_json::Value::Array(vulns);
+    }
+    doc
 }
 
 fn spdx(comps: &[Component], opts: &SbomOptions) -> serde_json::Value {
@@ -248,7 +365,7 @@ pub fn cmd_sbom(elements: &[RawElement], opts: &SbomOptions) {
     let elements: &[RawElement] = &cov;
     let resolver = Resolver::new(elements);
     let comps = collect_components(elements, &resolver, opts);
-    let doc = if opts.format == "spdx" { spdx(&comps, opts) } else { cyclonedx(&comps, opts) };
+    let doc = if opts.format == "spdx" { spdx(&comps, opts) } else { cyclonedx(&comps, vulnerabilities(elements, &resolver, &comps), opts) };
     let out = serde_json::to_string_pretty(&doc).unwrap();
     match opts.output {
         Some(path) => {

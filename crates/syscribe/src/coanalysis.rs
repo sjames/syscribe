@@ -67,6 +67,33 @@ struct GoalNode {
     threats: Vec<(String, String)>, // (id, title)
 }
 
+/// A `hazardRef` target plus, when it is a `HazardousEvent`, every
+/// `SafetyGoal` whose `hazardousEvents:` lists it — a hazard-level link must
+/// reach the goal that mitigates it (GH #220).
+fn expand_goal<'a>(
+    goal: &'a RawElement,
+    elements: &'a [RawElement],
+    resolver: &Resolver,
+) -> Vec<&'a RawElement> {
+    let mut out = vec![goal];
+    if goal.frontmatter.element_type == Some(ElementType::HazardousEvent) {
+        for sg in elements
+            .iter()
+            .filter(|e| e.frontmatter.element_type == Some(ElementType::SafetyGoal))
+        {
+            let lists_it = sg.frontmatter.hazardous_events.iter().flatten().any(|r| {
+                resolver
+                    .resolve_ref(elements, r)
+                    .is_some_and(|h| h.qualified_name == goal.qualified_name)
+            });
+            if lists_it {
+                out.push(sg);
+            }
+        }
+    }
+    out
+}
+
 pub fn cmd_coanalysis(elements: &[RawElement], json_out: bool) {
     let resolver = Resolver::new(elements);
 
@@ -103,10 +130,12 @@ pub fn cmd_coanalysis(elements: &[RawElement], json_out: bool) {
                         goal.frontmatter.element_type,
                         Some(ElementType::SafetyGoal) | Some(ElementType::HazardousEvent)
                     ) {
-                        direct_threats_by_goal
-                            .entry(disp_id(goal))
-                            .or_default()
-                            .push(ts_pair.clone());
+                        for target in expand_goal(goal, elements, &resolver) {
+                            direct_threats_by_goal
+                                .entry(disp_id(target))
+                                .or_default()
+                                .push(ts_pair.clone());
+                        }
                     }
                 }
             }
@@ -146,19 +175,23 @@ pub fn cmd_coanalysis(elements: &[RawElement], json_out: bool) {
                 ) {
                     continue; // E844 reports the bad ref; co-analysis just skips it.
                 }
-                let gkey = disp_id(goal);
-                let node = goals.entry(gkey.clone()).or_insert_with(|| GoalNode {
-                    id: gkey.clone(),
-                    type_label: type_label(goal),
-                    title: title_of(goal),
-                    damage_scenarios: Vec::new(),
-                    threats: Vec::new(),
-                });
-                node.damage_scenarios.push(DamageNode {
-                    id: ds_id.clone(),
-                    title: title_of(ds),
-                    threats: ds_threats.clone(),
-                });
+                for target in expand_goal(goal, elements, &resolver) {
+                    let gkey = disp_id(target);
+                    let node = goals.entry(gkey.clone()).or_insert_with(|| GoalNode {
+                        id: gkey.clone(),
+                        type_label: type_label(target),
+                        title: title_of(target),
+                        damage_scenarios: Vec::new(),
+                        threats: Vec::new(),
+                    });
+                    if !node.damage_scenarios.iter().any(|d| d.id == ds_id) {
+                        node.damage_scenarios.push(DamageNode {
+                            id: ds_id.clone(),
+                            title: title_of(ds),
+                            threats: ds_threats.clone(),
+                        });
+                    }
+                }
             }
         }
     }

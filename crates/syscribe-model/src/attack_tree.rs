@@ -23,7 +23,8 @@
 
 use crate::element::{ElementType, RawElement};
 use crate::resolver::Resolver;
-use crate::risk::feasibility_rank;
+use crate::cyber_config::CyberConfig;
+use crate::risk::threat_feasibility_rank;
 
 /// Map a feasibility rank (0..=3) back to its label.
 /// 0→very_low, 1→low, 2→medium, 3→high.
@@ -46,24 +47,21 @@ fn node_rank(
     node: &RawElement,
     elements: &[RawElement],
     resolver: &Resolver,
+    cfg: &CyberConfig,
     depth: u32,
 ) -> Option<u8> {
     if depth > 256 {
         return None;
     }
     match node.frontmatter.element_type {
-        Some(ElementType::AttackStep) => node
-            .frontmatter
-            .attack_feasibility
-            .as_deref()
-            .and_then(feasibility_rank),
+        Some(ElementType::AttackStep) => threat_feasibility_rank(&node.frontmatter, cfg),
         Some(ElementType::AttackTreeGate) => {
             let gate_type = node.frontmatter.gate_type.as_deref()?;
             let inputs = node.frontmatter.inputs.as_ref()?;
             let mut acc: Option<u8> = None;
             for r in inputs {
                 let child = resolver.resolve_ref(elements, r)?;
-                let v = node_rank(child, elements, resolver, depth + 1)?;
+                let v = node_rank(child, elements, resolver, cfg, depth + 1)?;
                 acc = Some(match (acc, gate_type) {
                     (None, _) => v,
                     // AND = a path; weakest link = MIN.
@@ -132,11 +130,22 @@ pub fn tree_feasibility_rank(
     elements: &[RawElement],
     resolver: &Resolver,
 ) -> Option<u8> {
+    tree_feasibility_rank_with(tree, elements, resolver, &CyberConfig::default())
+}
+
+/// [`tree_feasibility_rank`] under an explicit [`CyberConfig`] (attack-potential
+/// scoring of steps that supply factor fields instead of `attackFeasibility`).
+pub fn tree_feasibility_rank_with(
+    tree: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cfg: &CyberConfig,
+) -> Option<u8> {
     if tree.frontmatter.element_type != Some(ElementType::AttackTree) {
         return None;
     }
     let root = tree_root(tree, elements, resolver)?;
-    node_rank(root, elements, resolver, 0)
+    node_rank(root, elements, resolver, cfg, 0)
 }
 
 /// Computed feasibility **label** of an `AttackTree`, or `None` if not computable.
@@ -146,6 +155,16 @@ pub fn tree_feasibility(
     resolver: &Resolver,
 ) -> Option<&'static str> {
     tree_feasibility_rank(tree, elements, resolver).map(feasibility_label)
+}
+
+/// [`tree_feasibility`] under an explicit [`CyberConfig`].
+pub fn tree_feasibility_with(
+    tree: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cfg: &CyberConfig,
+) -> Option<&'static str> {
+    tree_feasibility_rank_with(tree, elements, resolver, cfg).map(feasibility_label)
 }
 
 #[cfg(test)]

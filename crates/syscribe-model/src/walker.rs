@@ -164,7 +164,7 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
                 Ok(fm) => (fm, None),
                 Err(e) => {
                     warn!("Frontmatter parse error in {}: {}", file_path, e);
-                    (Default::default(), Some(ParseIssue::YamlError(e.to_string())))
+                    (Default::default(), Some(ParseIssue::YamlError(format!("{:#}", e))))
                 }
             }
         };
@@ -530,6 +530,10 @@ fn explode_tara_entries(elements: &mut Vec<RawElement>) {
         }
 
         let sections: &[(&[serde_yaml::Value], ElementType)] = &[
+            (
+                sheet.frontmatter.asset_table.as_deref().unwrap_or(&[]),
+                ElementType::Asset,
+            ),
             (
                 sheet.frontmatter.damage_table.as_deref().unwrap_or(&[]),
                 ElementType::DamageScenario,

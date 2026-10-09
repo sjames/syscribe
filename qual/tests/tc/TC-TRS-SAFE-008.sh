@@ -51,9 +51,9 @@ tc_TRS_SAFE_008() {
     "$SYSCRIBE" -m "$D/main" safety-case SG-NOPE-999 >/dev/null 2>&1 && rc=0 || rc=$?
     [ "$rc" -ne 0 ] && pass "safety-case <unknown id> exits $rc" || fail "unknown goal id exited 0"
 
-    # ── GH #217: a circular argument yields E878 and is cut in the tree ────────
-    run_scenario "cycle: Argument cycle yields E878" "$D/cycle"
-    assert_has_code "E878"
+    # ── GH #217: a circular argument yields E881 and is cut in the tree ────────
+    run_scenario "cycle: Argument cycle yields E881" "$D/cycle"
+    assert_has_code "E881"
     assert_exit_nonzero
     out=$("$SYSCRIBE" -m "$D/cycle" safety-case 2>/dev/null) && rc=0 || rc=$?
     echo "$out" | grep -qF "[CYCLE]" && pass "safety-case marks the cycle" || fail "cycle not marked"

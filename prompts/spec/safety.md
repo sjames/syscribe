@@ -116,6 +116,8 @@ residualRisk: "Low after MAC on torque frames"   # optional free text
 
 **Risk (ISO/SAE 21434 §15.8):** severity = max `damageSeverity` over `damageScenarios` (negligible=0…severe=3); feasibility from `attackFeasibility` (very_low=0…high=3); `score = severity + feasibility` → low (0–1), medium (2–3), high (4), critical (5–6); unknown if either is missing. A high/critical-risk threat with no `riskTreatment` and not listed by any `CybersecurityGoal.threatScenarios` warns **W031** (gateable `--deny W031`). View per-threat risk with `syscribe -m <root> cyber-risk`.
 
+**Configurable (GH #222):** a `[cyber]` table in `.syscribe.toml` selects `method = "simple"` (default, the rank-sum above) or `"annex"` (built-in EXAMPLE tables modelled on the ISO/SAE 21434 informative annexes — not normative; verify against your copy of the standard), overrides `[cyber.risk_matrix]`/`[cyber.cal_table]`/`[cyber.cal_by_risk]` cells, and scores attack potential (`elapsedTime`, `expertise`, `knowledge`, `windowOfOpportunity`, `equipment` → `attackFeasibility`, `[cyber.attack_potential]`). `DamageScenario` may add `safetyImpact`/`financialImpact`/`operationalImpact`/`privacyImpact` (overall = max with `damageSeverity`). Codes `W640` `W641` `W642` `E640` `E641`.
+
 ### CybersecurityGoal — `CSG-*`
 
 ```yaml

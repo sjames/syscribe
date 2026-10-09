@@ -23,7 +23,7 @@ This page groups every finding code by feature area, with context. The same code
 | E007 | TestCase | `status` is not one of `draft · review · approved · active · retired` |
 | E008 | TestCase | `testLevel` is not one of `L1 · L2 · L3 · L4 · L5` |
 | E009 | Any | `silLevel` is not in range 1–4 |
-| E010 | Any | `asilLevel` is not one of `A · B · C · D` |
+| E010 | Any | `asilLevel` is not one of `QM · A · B · C · D` (or notation `B(D)`); the message lists the valid values |
 | E011 | TestCase | Body has no ` ```gherkin ` fenced block |
 | E012 | Requirement | Normative text (before first `##`) is empty |
 | E013 | TestCase | `verifies:` is absent or empty |
@@ -918,7 +918,7 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 | E855 | Error | an `Argument.supports` or `Argument.evidence` ref does not resolve to any model element |
 | E718 | Error | an `Argument.evidence` entry is not a scalar reference (a string id/qname is expected — e.g. a `PlanningItem`-style `{ref:, path:}` mapping was used on an `Argument`) |
 | W040 | Warning | a `claim`/`strategy` `Argument` has **both** an empty `supports` and an empty `evidence` (an orphan GSN node arguing nothing) |
-| E878 | Error | an `Argument` is part of a cycle: it (transitively) supports itself through `supports:` / `evidence:` links (circular reasoning) |
+| E881 | Error | an `Argument` is part of a cycle: it (transitively) supports itself through `supports:` / `evidence:` links (circular reasoning) |
 | W861 | Warning | an `Argument` of `argumentType: solution` has no `evidence:` — a GSN solution must cite the Requirement/TestCase that discharges it (draft-suppressed) |
 
 ### AssumptionOfUse (E856–E859)
@@ -942,8 +942,15 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 | E842 | Error | Element with `derivedFrom` is missing `asilLevel`/`silLevel` when the parent element carries one |
 | E843 | Error | Element with `satisfies` is missing `asilLevel`/`silLevel` when the satisfied requirement carries one |
 | W808 | Warning | Element's integrity level is strictly lower than its source (`derivedFromSafetyGoal`, `derivedFrom`, or `satisfies`) but no `breakdownAdr` is set |
-| E865 | Error | ASIL D / SIL 4 decomposition siblings (uniformly-lower children) share a `satisfies:` target — channels must be architecturally independent (§22.3) |
-| W860 | Warning | An ASIL D / SIL 4 requirement has a single uniformly-lower child — a decomposition needs ≥2 independent channels (§22.3) |
+| E865 | Error | ASIL/SIL decomposition siblings (uniformly-lower children, or a QM channel / `decomposedFrom:`) at any integrity level share a `satisfies:` target — channels must be architecturally independent (§22.3) |
+| W860 | Warning | An ASIL/SIL requirement (any level) has a single uniformly-lower child — a decomposition needs ≥2 independent channels (§22.3) |
+| E878 | Error | ASIL decomposition children of a parent at ASIL A–D do not form an allowed ISO 26262-9 pair (D = C+A | B+B | D+QM, C = B+A | C+QM, B = A+A | B+QM, A = A+QM); fires when the children claim a decomposition (all lower, a QM channel, or `decomposedFrom:`) (#214) |
+| E879 | Error | `decomposedFrom:` is not an original ASIL A–D, or is lower than the element's own `asilLevel` (#214) |
+| E880 | Error | `ftti:` is not `<number><unit>` with unit `ns`, `us`, `ms`, `s`, `min` or `h` (#215) |
+| W811 | Warning | `SafetyGoal` `asilLevel` is lower than the ASIL derived from the S/E/C of its linked `HazardousEvent`s (ISO 26262-3 Table 4) (#215) |
+| W812 | Warning | `SafetyGoal` at ASIL C/D or SIL 3/4 has no `safeState:` or `ftti:` (draft-suppressed) (#215) |
+| W813 | Warning | `HazardousEvent` has a partial ISO 26262 S/E/C set (some but not all of `severity`/`exposure`/`controllability`; draft-suppressed) (#215) |
+| W814 | Warning | `HazardousEvent` mixes ISO 26262 S/E/C parameters with IEC 61508 risk-graph parameters (#215) |
 
 ## Tier 4 — Fault Tree Analysis (E900–E909, E927, W900–W901)
 
@@ -1202,3 +1209,48 @@ SysMLv2 has no UML stereotypes; a stereotype is a `MetadataDef` applied to an el
 | Code | Severity | Condition |
 |---|---|---|
 | W934 | Warning | a malformed `[audit]` entry in `.syscribe.toml` (unknown key, a `fail_on` entry that is not a finding code, a `fail_on_asil` level outside A–D); the entry is ignored and the default policy kept |
+## Cyber risk configuration (E640, E641, W640–W642)
+
+GH #222. The `[cyber]` table of `.syscribe.toml` selects and tunes the ISO/SAE 21434 risk/CAL method (see the [ISO/SAE 21434 guide](../guides/iso-21434.md)). The built-in `annex` tables are *example* tables, not normative.
+
+| Code | Severity | Condition |
+|---|---|---|
+| W640 | Warning | A `[cyber]` entry in `.syscribe.toml` is malformed (unknown key, bad `method`, unknown impact/feasibility/vector key, non-integer points, non-increasing attack-potential thresholds, bad `CALn`/level/value); that entry is ignored and the default applies |
+| W641 | Warning | A `ThreatScenario`/`AttackStep` supplies some but not all five attack-potential factors (`elapsedTime`, `expertise`, `knowledge`, `windowOfOpportunity`, `equipment`); the partial set is ignored |
+| W642 | Warning | A `ThreatScenario`/`AttackStep` declares an `attackFeasibility` that differs from the one its attack-potential factors compute to; the declared value is used |
+| E640 | Error | A per-category impact rating (`safetyImpact`, `financialImpact`, `operationalImpact`, `privacyImpact`) on a `DamageScenario` is not one of `severe · major · moderate · negligible` |
+| E641 | Error | An attack-potential factor value is neither a known label of its (configurable) table nor a non-negative integer |
+
+## Security-analysis completeness (E960-E967, W960-W979)
+
+Completeness and consistency checks for the ISO/SAE 21434 / IEC 62443 analysis elements (GH #219, #220, #221). Weakest-link note: an `AND` attack-tree gate rolls up as the MIN of its inputs' feasibility and an `OR` gate as the MAX; there is no attack-potential sum mode.
+
+| Code | Condition |
+|---|---|
+| E960 | A typed security field has the wrong YAML shape — `securityProperty` / `derivedFromCybersecurityGoal` is neither a string nor a list of strings (a mapping, number, ...); the message names the field (previously a misleading E002 "not valid YAML"). Both fields now accept a string or a list. |
+| E961 | A `TARASheet` section-table row (`assetTable`/`damageTable`/`threatTable`/`goalTable`/`controlTable`) is not a mapping or has no `id:` — it is silently dropped from validation and the risk views (mirrors FMEA `E923`). |
+| E962 | A `TARASheet` row has an unknown key or does not deserialize as an element — the field would be silently ignored (mirrors FMEA `E922`). |
+| E963 | `Asset.assetOwner` does not resolve to a model element. |
+| E964 | `Asset.relatedSafetyGoal` does not resolve, or resolves to something other than a `SafetyGoal`. |
+| E965 | Cycle (including a gate listing itself) in an attack tree's `AttackTreeGate.inputs` — the feasibility roll-up is undefined. |
+| E967 | `VulnerabilityReport.threatScenarios` does not resolve to a `ThreatScenario`. |
+| W960 | Non-draft `ThreatScenario` whose risk cannot be determined (no resolvable `damageScenarios`, no linked `damageSeverity`, or no `attackFeasibility`) — `cyber-risk` reports risk=unknown. |
+| W961 | Non-draft `DamageScenario` listed in no `ThreatScenario.damageScenarios` (orphan; contributes to no risk). |
+| W962 | Non-draft `DamageScenario` with no `assets` (ISO/SAE 21434 §15.3). |
+| W963 | `ThreatScenario` with `riskTreatment: reduce` that no `CybersecurityGoal.threatScenarios` lists — the reduction is realised by no goal/control. |
+| W964 | `ThreatScenario` with `riskTreatment: retain` on a computed high/critical risk and no `residualRisk` rationale. |
+| W965 | `ThreatScenario` declares `residualRisk` but no `riskTreatment`. |
+| W966 | An attack tree has more than one root node (no single top gate/step) — its feasibility is not computed. |
+| W967 | An `AttackStep` has no `attackFeasibility` — the tree cannot be rolled up and `W035` is silently skipped. |
+| W968 | An `AttackTreeGate` lists the same input more than once. |
+| W969 | Non-draft `SecurityControl` with no `implementsGoals`. |
+| W970 | Non-draft `CybersecurityGoal` with no `threatScenarios`. |
+| W971 | A `PartDef`/`Part` belongs to more than one `Zone` (`Zone.members` / `inZone`). |
+| W972 | A `Conduit` has `fromZone` and `toZone` naming the same zone. |
+| W973 | An `approved` `Zone` or `Conduit` declares no `achievedSL`. |
+| W974 | `VulnerabilityReport.cveId` is not of the form `CVE-YYYY-NNNN...`. |
+| W975 | `VulnerabilityReport.status` is not in the documented vocabulary (`draft`, `open`, `triaged`, `investigating`, `in_progress`, `mitigated`, `resolved`, `fixed`, `accepted`, `wont_fix`, `closed`, `not_affected`, `false_positive`, `deprecated`). |
+| W976 | `VulnerabilityReport` is `mitigated`/`resolved`/`fixed`/`closed` but names neither `mitigatedBy` nor `fixedIn`. |
+| W977 | `VulnerabilityReport` is `accepted`/`wont_fix` with no `rationale:` (frontmatter or a Rationale section). |
+| W978 | `VulnerabilityReport.cvssVector` is not a CVSS vector string, `cvssSeverity` is not `none`/`low`/`medium`/`high`/`critical`, or it disagrees with the bucket of `cvssScore` (0 none, <4 low, <7 medium, <9 high, else critical). |
+| W979 | Unresolved `VulnerabilityReport` (open/triaged/investigating/in_progress) with `cvssScore >= 7.0` and no `threatScenarios` link. |

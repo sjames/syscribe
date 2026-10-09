@@ -130,7 +130,7 @@ computed by the tool and never authored.
 |---|---|---|
 | `reqDomain` | string | `system` · `hardware` · `software` |
 | `silLevel` | integer | 1–4 (IEC 61508); mutually exclusive with `asilLevel` (W006) |
-| `asilLevel` | string | `A`–`D` (ISO 26262); mutually exclusive with `silLevel` (W006) |
+| `asilLevel` | string | `QM`, `A`–`D` (ISO 26262; `E010` lists them; notation `B(D)` accepted); mutually exclusive with `silLevel` (W006) |
 | `plLevel` | string | `a`–`e` (ISO 13849-1) |
 | `verificationMethod` | string | `test` · `inspection` · `analysis` · `demonstration` |
 | `wcet` | string | Worst-case execution time budget |
@@ -141,6 +141,7 @@ computed by the tool and never authored.
 | `requirementKind` | string | `stakeholder` · `system` · `software` · `hardware` (`E022` if other) |
 | `dalLevel` | string | `A`–`E` (DO-178C, `E019`); with `asilLevel` warns `W703` |
 | `decompositionKind` | string | ASIL/SIL decomposition argument: `independent` · `redundant` · `diverse` (informational) |
+| `decomposedFrom` | string | Original ASIL (A–D) before decomposition; the notation `asilLevel: B(D)` sets it implicitly. `asilLevel` also accepts `QM` (E878, E879) |
 | `tags` | list | Free-form tags |
 
 ## Native TestCase extra fields
@@ -341,7 +342,7 @@ Full narrative + rules: `syscribe spec safety`. Integrity levels (`asilLevel` A�
 | `avoidance` | HazardousEvent | string | IEC 61508 risk graph `Pa`/`Pb` |
 | `demandRate` | HazardousEvent | string | IEC 61508 risk graph `W1`–`W3` |
 | `safeState` | SafetyGoal | string | Description of the safe state |
-| `ftti` | SafetyGoal | string | Fault-tolerant time interval, e.g. `"20ms"` |
+| `ftti` | SafetyGoal | string | Fault-tolerant time interval, number + unit (`ns` `us` `ms` `s` `min` `h`), e.g. `"20ms"` (`E880` otherwise) |
 | `hazardousEvents` | SafetyGoal | list | `HazardousEvent` id/QName refs |
 | `topEvent` | FaultTree | string | `SafetyGoal` ref (the top event) |
 | `missionTime` | FaultTree | string | e.g. `"1e9 h"` |
@@ -396,6 +397,8 @@ Full narrative + rules: `syscribe spec safety`.
 | `threatRef` | AttackTree | string | **required** — the ThreatScenario the tree substantiates |
 | `gateType` / `inputs` | AttackTreeGate | string / list | `AND`·`OR`; child gate/step refs |
 | `attackFeasibility` | AttackStep | string | `high`·`medium`·`low`·`very_low` |
+| `safetyImpact` / `financialImpact` / `operationalImpact` / `privacyImpact` | DamageScenario | string | Optional per-category ratings, `severe`·`major`·`moderate`·`negligible` (`E640`); overall impact = max of these and `damageSeverity` |
+| `elapsedTime` / `expertise` / `knowledge` / `windowOfOpportunity` / `equipment` | ThreatScenario, AttackStep | string or int | Optional attack-potential factors (GH #222): a label from the factor's table (see `[cyber.attack_potential]`) or a non-negative integer of points. All five together derive `attackFeasibility` when it is not declared; a declared value wins (`W642` on mismatch); a partial set is ignored (`W641`); an unknown label is `E641` |
 | `securityTestMethod` | TestCase | string | See Native TestCase fields |
 
 ## `.syscribe.toml` — project configuration reference
@@ -440,6 +443,13 @@ file at all) is always legal.
 | `[linkTypes.<name>]` | `extends` | No | string | unset | `satisfies`·`verifies`·`derivedFrom`·`refines` — instances also count as the base link for its rules and reverse index. |
 | `[linkTypes.<name>]` | `relax` | No (needs `extends`) | list of strings | `[]` | Base codes not raised for this type's instances: satisfies→`E312`,`E313`; verifies→`E104`; derivedFrom→`E105`,`E310`,`W303`; refines→`E316`. |
 | `[linkTypes.<name>]` | `coverage` | No (needs `extends`) | bool | `true` | `false` keeps the base checks but withholds instances from the reverse index (no coverage credit, target not a parent). |
+| `[cyber]` | `method` | No | string | `"simple"` | ISO/SAE 21434 risk/CAL method: `simple` (today's rank-sum, `score = impact + feasibility`, risk→CAL 1:1) or `annex` (built-in EXAMPLE tables modelled on the standard's informative annexes — not normative, verify against your copy). GH #222. |
+| `[cyber.risk_matrix.<impact>]` | `<feasibility> = <level or int>` | No | map | base method's cell | Override a risk-matrix cell. `<impact>` ∈ `negligible·moderate·major·severe`; `<feasibility>` ∈ `very_low·low·medium·high`; value is `low·medium·high·critical` or an integer risk value resolved through `[cyber.risk_levels]`. Merges over the base method; bad entry `W640`. |
+| `[cyber.risk_levels]` | `"<n>" = <level>` | No | map | `1,2→low 3→medium 4→high 5→critical` | Map an integer risk value to a level (drives W031). |
+| `[cyber.cal_table.<impact>]` | `<vector> = "CALn"` | No | map | `annex`: example table; `simple`: none | Override impact × `attackVector` (`network·adjacent·local·physical`) → CAL cell. A threat with no vector, or a cell absent, falls back to `cal_by_risk`. |
+| `[cyber.cal_by_risk]` | `<level> = "CALn"` | No | map | `low=CAL1 … critical=CAL4` | Risk-level → expected CAL (W032). |
+| `[cyber.attack_potential.<factor>]` | `<label> = <points>` | No | map | example tables | Replace a factor table: `elapsed_time`·`expertise`·`knowledge`·`window_of_opportunity`·`equipment` (camelCase also accepted). |
+| `[cyber.attack_potential.thresholds]` | `high_max` / `medium_max` / `low_max` | No | int | `13` / `19` / `24` | Points sum ≤ `high_max` → `high`; ≤ `medium_max` → `medium`; ≤ `low_max` → `low`; above → `very_low`. Must be strictly increasing (else `W640`). |
 | `[profiles.<name>]` | `promote` | No | list of strings | `[]` | Warning codes this profile promotes to a gate failure. |
 | `[profiles.<name>]` | `sil` / `status` / `tag` | No | string | unset (unscoped — promotes everywhere) | Optional scope filters; an entry with none of these applies to every element. |
 | `[profiles.<name>]` | `magicgrid` | No | bool | `false` | Runs the gated MagicGrid validation pass under `--profile <name>`. |

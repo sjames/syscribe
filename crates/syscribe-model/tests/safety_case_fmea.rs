@@ -1,5 +1,5 @@
 //! GH #216/#217/#218: safety-case traversal (`syscribe_model::safety_case`),
-//! GSN validation (E878, W861), FMEA row quality (W931, W932, W904 without
+//! GSN validation (E881, W861), FMEA row quality (W931, W932, W904 without
 //! E115), FMEDA rows feeding `metrics`, and the `[audit]` config table.
 
 use std::path::{Path, PathBuf};
@@ -124,7 +124,7 @@ fn argument_cycle_is_e878_and_solution_without_evidence_is_w861() {
         "---\ntype: Argument\nid: ARG-T-003\nname: S\nstatus: approved\nargumentType: solution\nsupports: SG-T-001\n---\n",
     );
     let r = validate(&root);
-    assert_eq!(count(&r, "E878"), 2);
+    assert_eq!(count(&r, "E881"), 2);
     assert_eq!(count(&r, "W861"), 1);
     assert_eq!(count(&r, "E854"), 0);
 }
