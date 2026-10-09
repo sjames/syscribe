@@ -108,6 +108,120 @@ fn parent_of(q: &str) -> Option<&str> {
     q.rsplit_once("::").map(|(p, _)| p)
 }
 
+/// A parsed multiplicity: `(lower, upper)`, `upper == None` meaning unbounded.
+/// `None` for malformed text or a non-numeric (named / expression) bound, which
+/// cannot be compared statically.
+fn parse_multiplicity(text: &str) -> Option<(u64, Option<u64>)> {
+    let t = text.trim();
+    let t = t.strip_prefix('[').and_then(|x| x.strip_suffix(']')).unwrap_or(t).trim();
+    let num = |b: &str| b.trim().parse::<u64>().ok();
+    let parts: Vec<&str> = t.split("..").collect();
+    match parts.as_slice() {
+        ["*"] => Some((0, None)),
+        [n] => num(n).map(|n| (n, Some(n))),
+        [lo, hi] => {
+            let lo = num(lo)?;
+            if hi.trim() == "*" {
+                Some((lo, None))
+            } else {
+                Some((lo, Some(num(hi)?)))
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Whether `inner` is contained in `outer` (a redefinition may only narrow).
+fn mult_contained(inner: (u64, Option<u64>), outer: (u64, Option<u64>)) -> bool {
+    inner.0 >= outer.0
+        && match (inner.1, outer.1) {
+            (_, None) => true,
+            (None, Some(_)) => false,
+            (Some(i), Some(o)) => i <= o,
+        }
+}
+
+/// The declared `multiplicity:` of the member `name` of `owner`, found as a
+/// child element, an inline `features:` entry (both only when `include_self`),
+/// or through the owner's `supertype:`/`typedBy:` chain. `Some(None)` = member
+/// found but declares no multiplicity. Cycle-safe.
+fn member_multiplicity(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    owner: &RawElement,
+    name: &str,
+    include_self: bool,
+    seen: &mut Vec<String>,
+) -> Option<Option<String>> {
+    if include_self {
+        if seen.contains(&owner.qualified_name) {
+            return None;
+        }
+        seen.push(owner.qualified_name.clone());
+        let child = if owner.qualified_name.is_empty() {
+            name.to_string()
+        } else {
+            format!("{}::{}", owner.qualified_name, name)
+        };
+        if let Some(c) = resolver.get(elements, &child) {
+            return Some(c.frontmatter.multiplicity.clone());
+        }
+        for f in owner.frontmatter.features.iter().flatten() {
+            if let serde_yaml::Value::Mapping(m) = f {
+                if yaml_str(m, "name") == Some(name) {
+                    return Some(yaml_str(m, "multiplicity").map(str::to_string));
+                }
+            }
+        }
+    }
+    let fm = &owner.frontmatter;
+    for r in fm.supertype.iter().chain(fm.typed_by.iter()).flat_map(yaml_strings) {
+        if let Some(base) = resolver.resolve_scoped_ref(elements, &owner.qualified_name, r) {
+            if let Some(found) = member_multiplicity(elements, resolver, base, name, true, seen) {
+                return Some(found);
+            }
+        }
+    }
+    None
+}
+
+/// The multiplicity of the feature a `redefines:` reference names, if it can be
+/// determined: `Owner::feat`, or a bare name inherited by `scope` (the owner
+/// whose supertype chain is searched).
+fn redefined_multiplicity(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    scope: &RawElement,
+    include_scope_self: bool,
+    r: &str,
+) -> Option<String> {
+    let r = r.trim();
+    if let Some((owner, feat)) = r.rsplit_once("::") {
+        let o = resolver.resolve_scoped_ref(elements, &scope.qualified_name, owner)?;
+        return member_multiplicity(elements, resolver, o, feat, true, &mut Vec::new())?;
+    }
+    member_multiplicity(elements, resolver, scope, r, include_scope_self, &mut Vec::new())?
+}
+
+/// W068 — see the validation catalogue.
+fn redefinition_multiplicity_finding(
+    file: &str,
+    what: &str,
+    r: &str,
+    own: &str,
+    base: &str,
+) -> Option<Finding> {
+    let (o, b) = (parse_multiplicity(own)?, parse_multiplicity(base)?);
+    if mult_contained(o, b) {
+        return None;
+    }
+    Some(warning(
+        "W068",
+        file,
+        format!("{what} has multiplicity '{own}' which is not contained in the multiplicity '{base}' of the feature it redefines ('{r}'); a redefinition may only narrow the redefined multiplicity"),
+    ))
+}
+
 pub fn structure_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<Finding> {
     let mut out = Vec::new();
     for elem in elements {
@@ -144,6 +258,42 @@ pub fn structure_findings(elements: &[RawElement], resolver: &Resolver) -> Vec<F
                 if let Some(why) = multiplicity_problem(m) {
                     let n = yaml_str(fm_, "name").unwrap_or("?");
                     out.push(error("E118", file, format!("multiplicity '{m}' on inline feature '{n}' {why}")));
+                }
+            }
+        }
+        // W068 — a redefining feature's multiplicity must lie within the redefined one's.
+        if let Some(own) = fm.multiplicity.as_deref() {
+            if let Some(owner) = parent_of(q).and_then(|p| resolver.get(elements, p)) {
+                for r in fm.redefines.iter().flat_map(yaml_strings) {
+                    // Search the owner's supertype chain first; the owner's own declaration of
+                    // the name is only a fallback (the element may be that very declaration).
+                    let base = redefined_multiplicity(elements, resolver, owner, false, r)
+                        .or_else(|| redefined_multiplicity(elements, resolver, owner, true, r));
+                    if let Some(base) = base {
+                        out.extend(redefinition_multiplicity_finding(file, "element", r, own, &base));
+                    }
+                }
+            }
+        }
+        for f in fm.features.iter().flatten() {
+            let serde_yaml::Value::Mapping(m) = f else { continue };
+            let (Some(own), Some(rv)) = (
+                yaml_str(m, "multiplicity"),
+                m.get(serde_yaml::Value::String("redefines".into())),
+            ) else {
+                continue;
+            };
+            let n = yaml_str(m, "name").unwrap_or("?");
+            for r in yaml_strings(rv) {
+                // Inline feature: the redefined feature is inherited, never the entry itself.
+                if let Some(base) = redefined_multiplicity(elements, resolver, elem, false, r) {
+                    out.extend(redefinition_multiplicity_finding(
+                        file,
+                        &format!("inline feature '{n}'"),
+                        r,
+                        own,
+                        &base,
+                    ));
                 }
             }
         }
@@ -354,5 +504,118 @@ mod tests {
         let w: Vec<_> = structure_findings(&els, &resolver).into_iter().filter(|f| f.code == "W058").collect();
         assert_eq!(w.len(), 1, "{w:?}");
         assert!(w[0].file.contains("ServeUC"));
+    }
+
+    fn w068(elements: &[RawElement]) -> usize {
+        let resolver = Resolver::new(elements);
+        structure_findings(elements, &resolver).iter().filter(|f| f.code == "W068").count()
+    }
+
+    #[test]
+    fn multiplicity_parsing_forms() {
+        assert_eq!(parse_multiplicity("1"), Some((1, Some(1))));
+        assert_eq!(parse_multiplicity("[3]"), Some((3, Some(3))));
+        assert_eq!(parse_multiplicity("0..1"), Some((0, Some(1))));
+        assert_eq!(parse_multiplicity("[1..*]"), Some((1, None)));
+        assert_eq!(parse_multiplicity("*"), Some((0, None)));
+        assert_eq!(parse_multiplicity(" 2 .. 4 "), Some((2, Some(4))));
+        assert_eq!(parse_multiplicity("0..maxN"), None);
+        assert_eq!(parse_multiplicity("abc def"), None);
+    }
+
+    #[test]
+    fn multiplicity_containment_table() {
+        let c = |a: &str, b: &str| mult_contained(parse_multiplicity(a).unwrap(), parse_multiplicity(b).unwrap());
+        assert!(c("1", "1"));
+        assert!(c("1", "0..1"));
+        assert!(c("1", "*"));
+        assert!(c("1..*", "*"));
+        assert!(c("2..4", "1..*"));
+        assert!(c("[2]", "1..3"));
+        assert!(!c("0..1", "1"));
+        assert!(!c("*", "1..*"));
+        assert!(!c("1..*", "1"));
+        assert!(!c("0..2", "1..3"));
+        assert!(!c("2", "1"));
+        assert!(!c("0", "1..*"));
+    }
+
+    #[test]
+    fn inline_feature_redefinition_widening_is_w068() {
+        let els = vec![
+            elem("A", "type: PartDef\nfeatures:\n  - {name: wheel, multiplicity: \"1..2\"}\n  - {name: free}\n"),
+            elem("B", "type: PartDef\nsupertype: A\nfeatures:\n  - {name: w, redefines: wheel, multiplicity: \"0..2\"}\n"),
+            elem("C", "type: PartDef\nsupertype: B\nfeatures:\n  - {name: w2, redefines: wheel, multiplicity: \"*\"}\n"),
+        ];
+        // B widens the lower bound; C inherits `wheel` through B's chain and widens the upper.
+        assert_eq!(w068(&els), 2);
+    }
+
+    #[test]
+    fn inline_feature_redefinition_narrowing_is_clean() {
+        let els = vec![
+            elem("A", "type: PartDef\nfeatures:\n  - {name: wheel, multiplicity: \"*\"}\n  - {name: seat, multiplicity: \"[1..4]\"}\n"),
+            elem(
+                "B",
+                "type: PartDef\nsupertype: A\nfeatures:\n  - {name: w, redefines: wheel, multiplicity: \"4\"}\n  - {name: s, redefines: seat, multiplicity: \"2..3\"}\n  - {name: same, redefines: seat, multiplicity: \"[1..4]\"}\n",
+            ),
+        ];
+        assert_eq!(w068(&els), 0);
+    }
+
+    #[test]
+    fn redefinition_without_a_declared_multiplicity_on_either_side_is_silent() {
+        let els = vec![
+            elem("A", "type: PartDef\nfeatures:\n  - {name: wheel}\n  - {name: seat, multiplicity: \"1\"}\n"),
+            elem(
+                "B",
+                "type: PartDef\nsupertype: A\nfeatures:\n  - {name: w, redefines: wheel, multiplicity: \"5\"}\n  - {name: s, redefines: seat}\n  - {name: u, redefines: unknownthing, multiplicity: \"9\"}\n",
+            ),
+        ];
+        assert_eq!(w068(&els), 0);
+    }
+
+    #[test]
+    fn named_bounds_are_not_compared() {
+        let els = vec![
+            elem("A", "type: PartDef\nfeatures:\n  - {name: wheel, multiplicity: \"0..maxN\"}\n"),
+            elem("B", "type: PartDef\nsupertype: A\nfeatures:\n  - {name: w, redefines: wheel, multiplicity: \"7\"}\n"),
+        ];
+        assert_eq!(w068(&els), 0);
+    }
+
+    #[test]
+    fn element_level_redefinition_is_checked() {
+        let els = vec![
+            elem("A", "type: PartDef\nfeatures:\n  - {name: speed, multiplicity: \"1\"}\n"),
+            elem("B", "type: PartDef\nsupertype: A\n"),
+            elem("B::s", "type: Part\nredefines: speed\nmultiplicity: \"0..1\"\n"),
+            elem("B::ok", "type: Part\nredefines: speed\nmultiplicity: \"1\"\n"),
+            elem("B::none", "type: Part\nredefines: speed\n"),
+        ];
+        assert_eq!(w068(&els), 1);
+    }
+
+    #[test]
+    fn element_level_redefinition_of_a_qualified_feature() {
+        let els = vec![
+            elem("A", "type: PartDef\nfeatures:\n  - {name: speed, multiplicity: \"1..2\"}\n"),
+            elem("A::file", "type: Part\nmultiplicity: \"0..1\"\n"),
+            elem("P", "type: Package"),
+            elem("P::x", "type: Part\nredefines: A::speed\nmultiplicity: \"3\"\n"),
+            elem("P::y", "type: Part\nredefines: A::file\nmultiplicity: \"1..*\"\n"),
+            elem("P::z", "type: Part\nredefines: A::file\nmultiplicity: \"[0]\"\n"),
+        ];
+        // x widens 1..2 to 3; y widens 0..1 to 1..*; z (0) is inside 0..1.
+        assert_eq!(w068(&els), 2);
+    }
+
+    #[test]
+    fn redefinition_cycles_terminate() {
+        let els = vec![
+            elem("D", "type: PartDef\nsupertype: E\n"),
+            elem("E", "type: PartDef\nsupertype: D\nfeatures:\n  - {name: x, redefines: nothing, multiplicity: \"2\"}\n"),
+        ];
+        assert_eq!(w068(&els), 0);
     }
 }

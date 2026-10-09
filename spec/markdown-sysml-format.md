@@ -6037,6 +6037,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W065` | An id-identified element is stored in a file whose stem differs from its `id` (convention `<id>.md`); opt-in via `[ids] check_file_names = true`, draft-suppressed, gate with `--deny W065` |
 | `W058` | A name-identified element's `name:` differs from the file (or directory) name that forms its qualified name |
 | `W059` | A `visibility: private` element is referenced from outside the namespace that owns it |
+| `W068` | A redefining feature's `multiplicity:` is not contained in the redefined feature's multiplicity (a redefinition may only narrow) |
 | `W051` | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 | `W052` | A §3.10 `about:` comment is partly ignored: it declares fields other than `type`/`name`/`about`/`locale` (a comment defines no element), an `about:` entry is not a non-empty string, or `about:` lists nothing; or `about:` is set on a package `_index.md`, which defines its package and is never a comment (§3.10) |
 | `W307` | A non-`draft` `UseCaseDef` carries no `refines:` link to a requirement (absent or empty). Advisory and draft-suppressed; gateable with `--deny W307` and promoted to a gate failure by the `[profiles.magicgrid]` profile (REQ-TRS-MG-001) |
