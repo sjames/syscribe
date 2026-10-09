@@ -932,6 +932,29 @@ pub fn analyze_fault_tree(
         .filter(|e| is_ft_node(e))
         .map(|e| (e.qualified_name.as_str(), e))
         .collect();
+    // FMEDA rows (GH #218): an FMEAEntry carrying `failureRate` whose `ftaRef`
+    // resolves to an event supplies that event's λ/DC/DCl — unless the event
+    // declares its own `failureRate` (the event wins; never double-counted).
+    let mut fmeda: HashMap<String, &RawElement> = HashMap::new();
+    for row in elements.iter().filter(|e| {
+        matches!(e.frontmatter.element_type, Some(ElementType::FMEAEntry)) && e.frontmatter.failure_rate.is_some()
+    }) {
+        if let Some(ev) = row.frontmatter.fta_ref.as_deref().and_then(|r| resolver.resolve_ref(elements, r)) {
+            fmeda.entry(ev.qualified_name.clone()).or_insert(row);
+        }
+    }
+    // (λ, DC, DCl) of an event after the FMEDA-row fallback.
+    let data = |ev: &RawElement| -> (Option<f64>, Option<f64>, Option<f64>) {
+        let f = &ev.frontmatter;
+        match (f.failure_rate, fmeda.get(&ev.qualified_name)) {
+            (None, Some(r)) => (
+                r.frontmatter.failure_rate,
+                f.diagnostic_coverage.or(r.frontmatter.diagnostic_coverage),
+                f.latent_diagnostic_coverage.or(r.frontmatter.latent_diagnostic_coverage),
+            ),
+            _ => (f.failure_rate, f.diagnostic_coverage, f.latent_diagnostic_coverage),
+        }
+    };
     let mission = tree.frontmatter.mission_time.as_deref().and_then(parse_mission_time);
     let mut notes = Vec::new();
     if let Some(m) = tree.frontmatter.mission_time.as_deref() {
@@ -976,7 +999,7 @@ pub fn analyze_fault_tree(
             house.insert(n, fm.probability == Some(1.0));
             continue;
         }
-        let lam = fm.failure_rate.filter(|l| l.is_finite() && *l >= 0.0);
+        let lam = data(src[node.qname.as_str()]).0.filter(|l| l.is_finite() && *l >= 0.0);
         let p = event_probability(fm.probability, lam, mission);
         var_of.insert(n, vars.len());
         vars.push(Var { node: Some(n), id: node.id.clone(), origin: EventOrigin::Model, lambda: lam, eff_lambda: lam, p });
@@ -1128,7 +1151,7 @@ pub fn analyze_fault_tree(
             role_of(vi.and_then(|v| min_order[v]))
         };
         let imp = vi.map(|v| a.importance[v]).unwrap_or_default();
-        let lam = fm.failure_rate;
+        let (lam, dc, dcl) = data(src[node.qname.as_str()]);
         events.push(EventResult {
             id: node.id.clone(),
             qname: node.qname.clone(),
@@ -1139,8 +1162,8 @@ pub fn analyze_fault_tree(
             failure_rate: lam,
             effective_failure_rate: vi.map(|v| vars[v].eff_lambda).unwrap_or(lam),
             probability: vi.map(|v| vars[v].p).unwrap_or_else(|| event_probability(fm.probability, lam, mission)),
-            diagnostic_coverage: fm.diagnostic_coverage,
-            latent_diagnostic_coverage: fm.latent_diagnostic_coverage,
+            diagnostic_coverage: dc,
+            latent_diagnostic_coverage: dcl,
             role,
             min_cut_order: vi.and_then(|v| min_order[v]),
             cut_set_count: vi.map_or(0, |v| count[v]),
@@ -1740,6 +1763,23 @@ mod tests {
         let t = find_fault_tree(&els, "FT-X").unwrap();
         let off = analyze_fault_tree(&els, &r, t, &AnalysisOptions { ccf: false, ..Default::default() }).unwrap();
         assert_eq!(off.cut_sets.len(), 1);
+    }
+
+    #[test]
+    fn fmeda_row_supplies_event_data_but_event_wins() {
+        let row = el(
+            "S::FMEA-XX-001::FM-XX-001",
+            "type: FMEAEntry\nid: FM-XX-001\nname: r\nftaRef: FTE-XX-001\nfailureRate: 1.0e-4\ndiagnosticCoverage: 0.5\n",
+        );
+        let els = vec![tree("missionTime: \"1000 h\"\n"), ev("001", ""), row.clone()];
+        let a = run(els).unwrap();
+        let e = a.event("FTE-XX-001").unwrap();
+        assert_eq!(e.failure_rate, Some(1.0e-4));
+        assert_eq!(e.diagnostic_coverage, Some(0.5));
+        assert!(e.probability.is_some() && a.top_probability.is_some());
+        // an event declaring its own failureRate is never overridden
+        let a = run(vec![tree("missionTime: \"1000 h\"\n"), ev("001", "failureRate: 2.0e-4\n"), row]).unwrap();
+        assert_eq!(a.event("FTE-XX-001").unwrap().failure_rate, Some(2.0e-4));
     }
 
     #[test]
