@@ -17,6 +17,7 @@ mod discover;
 mod export;
 mod export_html;
 mod fmea_report;
+mod heat_cmd;
 mod ftsearch;
 mod help;
 mod ingest;
@@ -1190,7 +1191,7 @@ fn main() {
             }
             "export-html" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
-                export_html::cmd_export_html(&elems, &resolver, &vcfg, rest);
+                export_html::cmd_export_html(&elems, &resolver, &vcfg, &syscribe_model::cyber_config::CyberConfig::load(model_root), rest);
             }
             "trace-export" => {
                 // ADR-SYS-TREX-001 / REQ-TRS-TREX-004 — the single-document
@@ -1397,7 +1398,12 @@ fn main() {
                 let json = rest.iter().any(|a| a == "--json");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 let view = projected_elements(&elems, config);
-                cyberrisk::cmd_cyber_risk(&view, &syscribe_model::cyber_config::CyberConfig::load(model_root), json);
+                let cfg = syscribe_model::cyber_config::CyberConfig::load(model_root);
+                if let Some(fmt) = heat_cmd::parse_format("cyber-risk", rest) {
+                    heat_cmd::cyber_heat(&view, &cfg, fmt);
+                } else {
+                    cyberrisk::cmd_cyber_risk(&view, &cfg, json);
+                }
             }
             "safety-case" => {
                 // GSN safety-argument tree (issue #20). Read-only; reuses Resolver
@@ -1906,15 +1912,24 @@ fn main() {
                 let sheet_filter = rest.windows(2).find(|w| w[0] == "--fmea-sheet").map(|w| w[1].as_str());
                 match sub {
                     "report" => {
-                        let code = fmea_report::cmd_fmea_report(&elems, sheet_filter, json);
+                        let heat = heat_cmd::parse_format("fmea", rest);
+                        let code = fmea_report::cmd_fmea_report(&elems, sheet_filter, json, heat);
                         if code != 0 {
                             std::process::exit(code);
                         }
                     }
                     _ => {
-                        eprintln!("Usage: syscribe -m <model> fmea report [--fmea-sheet <id>] [--json]");
+                        eprintln!("Usage: syscribe -m <model> fmea report [--fmea-sheet <id>] [--json | --format md|html|json]");
                         std::process::exit(1);
                     }
+                }
+            }
+            "hara" => {
+                let sub = subcommand_args.get(1).map(String::as_str).unwrap_or("");
+                let rest = subcommand_args.get(2..).unwrap_or(&[]);
+                let code = heat_cmd::cmd_hara(&elems, sub, rest);
+                if code != 0 {
+                    std::process::exit(code);
                 }
             }
             "fault-tree" => {

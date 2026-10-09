@@ -947,6 +947,7 @@ const REPORT_ALLOWLIST: &[&str] = &[
     "conduits",
     "n2",
     "fmea",
+    "hara",
     "fault-tree",
     "impact",
     "lint-docs",

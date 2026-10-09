@@ -595,3 +595,27 @@ pub async fn diagram(
     }
 }
 
+
+#[derive(Template)]
+#[template(path = "heat.html")]
+pub struct HeatTemplate {
+    pub css: &'static str,
+    pub body: String,
+}
+
+/// `GET /heat` - FMEA, HARA and TARA heat tables (GH #223), server-rendered from
+/// `syscribe_model::heat`.
+pub async fn heat_page(State(state): State<SharedState>) -> Html<String> {
+    use syscribe_model::heat;
+    let store = state.read().await;
+    let cfg = syscribe_model::cyber_config::CyberConfig::load(&store.model_root);
+    let body: String = [
+        heat::hara_grid(&store.elements),
+        heat::fmea_grid(&store.elements, None),
+        heat::tara_grid(&store.elements, &cfg),
+    ]
+    .iter()
+    .map(|g| g.to_html_fragment())
+    .collect();
+    Html(HeatTemplate { css: heat::HEAT_CSS, body }.render().unwrap_or_default())
+}

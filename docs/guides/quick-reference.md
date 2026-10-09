@@ -55,6 +55,7 @@ syscribe -m model metrics                # SPFM / LFM / PMHF per goal
 syscribe -m model safety-case            # GSN trees for all goals
 syscribe -m model safety-case SG-X-001  # GSN tree for one goal
 syscribe -m model fmea report FMEA-X-001 # RPN-ranked FMEA table
+syscribe -m model hara matrix            # HARA S/E/C -> ASIL heat table (--format md|html|json)
 syscribe -m model fault-tree render FT-X-001  # Mermaid FTA
 syscribe -m model audit                  # readiness dashboard
 

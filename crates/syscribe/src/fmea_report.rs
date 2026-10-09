@@ -7,7 +7,7 @@ use syscribe_model::element::{ElementType, RawElement};
 
 /// Returns the process exit code: 0 on success, 1 when `sheet_filter` names no
 /// `FMEASheet` (GH #218 — a typo must not look like an empty, clean report).
-pub fn cmd_fmea_report(elements: &[RawElement], sheet_filter: Option<&str>, json: bool) -> i32 {
+pub fn cmd_fmea_report(elements: &[RawElement], sheet_filter: Option<&str>, json: bool, heat: Option<crate::heat_cmd::HeatFormat>) -> i32 {
     // Resolve the sheet (by id or qualified name) and scope rows to its subtree.
     let prefix: Option<String> = match sheet_filter {
         None => None,
@@ -25,6 +25,10 @@ pub fn cmd_fmea_report(elements: &[RawElement], sheet_filter: Option<&str>, json
             }
         }
     };
+    if let Some(fmt) = heat {
+        crate::heat_cmd::emit(&syscribe_model::heat::fmea_grid(elements, prefix.as_deref()), fmt);
+        return 0;
+    }
     // A duplicate row id inside a sheet synthesises two elements with one qualified
     // name (E108 reports it); list the first only so the table is not inflated.
     let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();

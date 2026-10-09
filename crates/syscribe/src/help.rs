@@ -87,6 +87,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("co-analysis", include_str!("../../../prompts/help/co-analysis.md")),
             ("safety-case", include_str!("../../../prompts/help/safety-case.md")),
             ("fmea", include_str!("../../../prompts/help/fmea.md")),
+            ("hara", include_str!("../../../prompts/help/hara.md")),
             ("fault-tree", include_str!("../../../prompts/help/fault-tree.md")),
             ("behavioral-coverage", include_str!("../../../prompts/help/behavioral-coverage.md")),
             ("zones", include_str!("../../../prompts/help/zones.md")),

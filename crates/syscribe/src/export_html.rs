@@ -209,6 +209,7 @@ fn build_nav(elements: &[RawElement], rel_root: &str, current: &str) -> String {
         ("validation", "Validation"),
         ("coverage", "Coverage"),
         ("traceability", "Traceability"),
+        ("heat", "Heat tables"),
     ] {
         out.push_str(&format!(
             "<li><a href=\"{rel_root}reports/{name}.html\">{label}</a></li>\n"
@@ -634,6 +635,19 @@ fn coverage_report(elements: &[RawElement], result: &ValidationResult) -> String
     page_shell("Coverage", rel_root, &nav, &body, "", "")
 }
 
+/// FMEA / HARA / TARA heat tables (GH #223) as one report page.
+fn heat_report(elements: &[RawElement], cfg: &syscribe_model::cyber_config::CyberConfig) -> String {
+    use syscribe_model::heat;
+    let rel_root = "../";
+    let mut body = String::from("<h1>Heat tables</h1>\n");
+    for g in [heat::hara_grid(elements), heat::fmea_grid(elements, None), heat::tara_grid(elements, cfg)] {
+        body.push_str(&g.to_html_fragment());
+    }
+    let head = format!("<style>{}</style>\n", heat::HEAT_CSS);
+    let nav = build_nav(elements, rel_root, "");
+    page_shell("Heat tables", rel_root, &nav, &body, &head, "")
+}
+
 fn traceability_report(
     elements: &[RawElement],
     resolver: &Resolver,
@@ -752,18 +766,19 @@ pub fn cmd_export_html(
     elements: &[RawElement],
     resolver: &Resolver,
     config: &ValidateConfig,
+    cyber: &syscribe_model::cyber_config::CyberConfig,
     args: &[String],
 ) {
     let (out_dir, css) = parse_args(args);
     let result = validator::validate_with_config(elements, config);
 
-    if let Err(e) = write_site(elements, resolver, config, &result, &out_dir, css.as_deref()) {
+    if let Err(e) = write_site(elements, resolver, config, cyber, &result, &out_dir, css.as_deref()) {
         eprintln!("Error: export-html failed: {e}");
         std::process::exit(1);
     }
 
-    // index + one per element + three reports.
-    let pages = 1 + elements.len() + 3;
+    // index + one per element + four reports.
+    let pages = 1 + elements.len() + 4;
     println!("Wrote {} pages to {}", pages, out_dir.display());
 }
 
@@ -772,6 +787,7 @@ fn write_site(
     elements: &[RawElement],
     resolver: &Resolver,
     config: &ValidateConfig,
+    cyber: &syscribe_model::cyber_config::CyberConfig,
     result: &ValidationResult,
     out_dir: &Path,
     css: Option<&Path>,
@@ -820,6 +836,7 @@ fn write_site(
         reports_dir.join("traceability.html"),
         traceability_report(elements, resolver, result),
     )?;
+    std::fs::write(reports_dir.join("heat.html"), heat_report(elements, cyber))?;
 
     Ok(())
 }

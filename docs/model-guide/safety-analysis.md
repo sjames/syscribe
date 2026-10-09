@@ -234,9 +234,28 @@ Validation:
 ```bash
 syscribe -m model/ cyber-risk            # Markdown table
 syscribe -m model/ cyber-risk --json     # JSON array
+syscribe -m model/ cyber-risk --format html   # TARA heat table (md|html|json)
 ```
 
 Lists each `ThreatScenario` with its `severity`, `feasibility`, computed `risk` level, `riskTreatment` (or `—`), addressed-by-goal (yes/no), and a `flag` (`untreated` when it trips W031, `unknown` when risk is not computable, else `ok`). The `--json` form is an array of `{id, severity, feasibility, risk, treatment, addressed, flag}`. With no `ThreatScenario`s the command prints a notice and exits 0.
+
+### Heat tables (FMEA, HARA, TARA)
+
+A heat table is a grid of an analysis' two axes with the elements placed in their cells, so concentrations of risk are visible at a glance. Colour is never the only signal: every cell also prints its text label (product and band, ASIL letter, or risk level).
+
+```bash
+syscribe -m model/ fmea report --format md       # severity x occurrence, RPN-banded failure modes
+syscribe -m model/ hara matrix --format html     # S/E rows x C columns -> ASIL, events and goals placed
+syscribe -m model/ cyber-risk --format json      # impact x feasibility under the configured [cyber] method
+```
+
+| View | Rows x columns | Cell | Placed elements |
+|---|---|---|---|
+| FMEA | severity 10..1 x occurrence 1..10 | severity x occurrence product, toned (>=50 critical, >=20 high, >=8 medium) | each `FMEAEntry` with its RPN, coloured by RPN band (>=200 critical, >=100 high, >=50 medium) |
+| HARA | S1-S3 x E1-E4 by C1-C3 | ASIL from ISO 26262-3 Table 4 (QM, A, B, C, D) | `HazardousEvent`s in their S/E/C cell; a `SafetyGoal` (marked `goal`) in the cell of its highest-ASIL event |
+| TARA | impact severe..negligible x feasibility very_low..high | risk level of the configured method (with the matrix value for `annex`) | each `ThreatScenario` |
+
+Elements that cannot be placed (missing or invalid axis values, `S0`/`E0`/`C0` events, threats with unknown impact or feasibility) are listed under "Not placed" instead of being dropped. `--format html` writes a standalone page (inline CSS, no scripts, no network); `--format json` emits `{title, rows, cols, legend, cells[{row, col, label, tone, elements}], unplaced}` with tones `ok|low|medium|high|critical`. `export-html` adds the three grids as `reports/heat.html`, and `syscribe-server` serves them at `/heat`. The default text output and `--json` of `fmea report` and `cyber-risk` are unchanged.
 
 ---
 

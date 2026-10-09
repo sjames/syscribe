@@ -14,6 +14,7 @@ pub mod feature_model;
 pub mod feature_tree;
 pub mod frontmatter;
 pub mod graph;
+pub mod heat;
 pub mod link_types;
 pub mod matchers;
 pub mod members;

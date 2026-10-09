@@ -172,7 +172,7 @@ These mirror the CLI corpus commands of the same name (`--json` output).
   command (`audit`, `stats`, `digest`, `summarize`, `matrix`, `magicgrid`,
   `trade-study`, `verification-depth`, `testplan`, `metrics`, `cyber-risk`,
   `co-analysis`, `safety-case`, `behavioral-coverage`, `sbom`, `zones`,
-  `conduits`, `n2`, `fmea`, `fault-tree`, `impact`, `lint-docs`) confined to the
+  `conduits`, `n2`, `fmea`, `hara`, `fault-tree`, `impact`, `lint-docs`) confined to the
   served model root.
 
 ## Guarded-write tools

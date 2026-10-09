@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="heat-page" style="padding:1rem;overflow:auto;width:100%">
+  <style>{{ css|safe }}</style>
+  <h1>Heat tables</h1>
+  <p>FMEA severity x occurrence, HARA ASIL matrix and TARA risk matrix, derived from the current model.
+     The same views are available as <code>fmea report --format</code>, <code>hara matrix</code> and
+     <code>cyber-risk --format</code>.</p>
+  {{ body|safe }}
+</div>
+{% endblock %}

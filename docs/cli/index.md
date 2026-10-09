@@ -382,7 +382,7 @@ syscribe -m model/ export-html --out site/            # write the site to site/
 syscribe -m model/ export-html --out site/ --css my.css   # supply your own stylesheet
 ```
 
-It writes `index.html`, per-element pages under `elements/` (frontmatter, rendered doc, resolved cross-reference links, embedded SVG/Mermaid diagrams), report pages (`validation`, `coverage`, `traceability`), and a client-side search index. `--css <file>` replaces the bundled default `style.css`; the output bundles all assets (no CDN) so it renders with no network. (For an interactive, live-reloading browser, see `syscribe-server`.)
+It writes `index.html`, per-element pages under `elements/` (frontmatter, rendered doc, resolved cross-reference links, embedded SVG/Mermaid diagrams), report pages (`validation`, `coverage`, `traceability`, and `heat` - the FMEA / HARA / TARA heat tables), and a client-side search index. `--css <file>` replaces the bundled default `style.css`; the output bundles all assets (no CDN) so it renders with no network. (For an interactive, live-reloading browser, see `syscribe-server`.)
 
 ---
 
@@ -408,7 +408,10 @@ Add `hazardRef:` (string or list) to a `DamageScenario`/`ThreatScenario` to decl
 ```bash
 $ syscribe -m model/ cyber-risk            # Markdown table
 $ syscribe -m model/ cyber-risk --json     # JSON array
+$ syscribe -m model/ cyber-risk --format html   # impact x feasibility heat table (md|html|json)
 ```
+
+`--format md|html|json` switches to the **TARA heat table**: impact (rows) x attack feasibility (columns) coloured by the risk level of the configured `[cyber]` method, with each threat placed in its cell (threats with an unknown impact or feasibility are listed as not placed). `html` is a standalone self-contained page (inline CSS, no scripts, no network). The default and `--json` outputs are unchanged.
 
 Severity = the max `damageSeverity` over the threat's `damageScenarios` (`negligible`=0 … `severe`=3); feasibility from `attackFeasibility` (`very_low`=0 … `high`=3); `score = severity + feasibility` → **low** (0–1), **medium** (2–3), **high** (4), **critical** (5–6), or **unknown** if either input is missing. Each row shows `severity`, `feasibility`, computed `risk`, `riskTreatment` (or `—`), whether a `CybersecurityGoal` addresses it, and a `flag` (`untreated` when it trips W031, `unknown`, or `ok`). `--json` emits an array of `{id, severity, feasibility, risk, treatment, addressed, flag}`. With no `ThreatScenario`s it prints a notice and exits 0.
 
@@ -626,12 +629,13 @@ syscribe -m model_mg/ magicgrid --audit
 ## FMEA & fault trees (`fmea`, `fault-tree`)
 
 ```bash
-syscribe -m model/ fmea report [--fmea-sheet <id>] [--json]
+syscribe -m model/ fmea report [--fmea-sheet <id>] [--json | --format md|html|json]
+syscribe -m model/ hara matrix [--format md|html|json]
 syscribe -m model/ fault-tree render <FaultTree-id>
 syscribe -m model/ fault-tree analyze <FaultTree-id> [--json] [--max-order N] [--no-ccf]
 ```
 
-`fmea report` rolls up the `FMEAEntry` rows (grouped by `FMEASheet`) — each entry's failure mode, severity/occurrence/detection ratings, computed **RPN**, and recommended actions. `--fmea-sheet <id>` restricts the report to a single sheet (an unknown sheet exits 1); `--json` emits the structured document. `fault-tree render <FaultTree-id>` prints one `FaultTree` as a Mermaid `flowchart TD` (gates with their AND/OR type, basic events with their ids and referenced elements, edges from each gate's `inputs`); the same λ/DC data feeds the quantitative `metrics` rollup. `fault-tree analyze <FT>` evaluates the gate logic: **minimal cut sets** (with order and probability), the exact **top-event probability** over the tree's `missionTime` (event probability = `probability:` or `1 − e^(−λt)`), rare-event and min-cut-upper-bound approximations, per-event **Fussell-Vesely / Birnbaum / RAW** importance and a role (`single_point`, `dual_point`, `multi_point`, `irrelevant`, `unreachable`, `house`), and **beta-factor common-cause** expansion for events sharing a `ccfGroup:` + `ccfBeta:`. `--json` emits the structured document, `--max-order N` discards larger cut sets (probabilities stay exact), `--no-ccf` ignores CCF groups; a gate cycle exits 1. All are read-only. See the [safety-analysis guide](../model-guide/safety-analysis.md).
+`fmea report` rolls up the `FMEAEntry` rows (grouped by `FMEASheet`) — each entry's failure mode, severity/occurrence/detection ratings, computed **RPN**, and recommended actions. `--fmea-sheet <id>` restricts the report to a single sheet (an unknown sheet exits 1); `--json` emits the structured document. `--format md|html|json` instead renders the **FMEA heat table**: severity (rows, 10 at the top) x occurrence (columns 1-10), each cell toned by the severity x occurrence product and each placed failure mode marked with its RPN band (>=200 critical, >=100 high, >=50 medium, else low); rows missing severity or occurrence are listed as not placed. `hara matrix [--format md|html|json]` renders the **HARA heat table**: S1-S3 x E1-E4 rows by C1-C3 columns, each cell the ISO 26262-3 Table 4 ASIL (QM, A-D), with every `HazardousEvent` and each `SafetyGoal` (in the cell of its highest-ASIL linked event) placed in it. The model-crate module is `syscribe_model::heat`; `syscribe-server` serves the same three grids at `/heat`. `fault-tree render <FaultTree-id>` prints one `FaultTree` as a Mermaid `flowchart TD` (gates with their AND/OR type, basic events with their ids and referenced elements, edges from each gate's `inputs`); the same λ/DC data feeds the quantitative `metrics` rollup. `fault-tree analyze <FT>` evaluates the gate logic: **minimal cut sets** (with order and probability), the exact **top-event probability** over the tree's `missionTime` (event probability = `probability:` or `1 − e^(−λt)`), rare-event and min-cut-upper-bound approximations, per-event **Fussell-Vesely / Birnbaum / RAW** importance and a role (`single_point`, `dual_point`, `multi_point`, `irrelevant`, `unreachable`, `house`), and **beta-factor common-cause** expansion for events sharing a `ccfGroup:` + `ccfBeta:`. `--json` emits the structured document, `--max-order N` discards larger cut sets (probabilities stay exact), `--no-ccf` ignores CCF groups; a gate cycle exits 1. All are read-only. See the [safety-analysis guide](../model-guide/safety-analysis.md).
 
 ## Diagrams (`diagram export`, `render`, `plantuml`)
 
