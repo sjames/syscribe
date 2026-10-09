@@ -169,3 +169,61 @@ pub fn is_recognised_type_ref(s: &str) -> bool {
         || quantity_dimension(s).is_some()
         || unit_dimension(s).is_some()
 }
+
+/// ISQ quantity names with no dimension recorded here (so no `W044` check) but
+/// that exist in the SysML v2 quantities library; used only to keep `W057` from
+/// flagging real names.
+const ISQ_EXTRA: &[&str] = &[
+    "ActivityValue", "AbsorbedDoseValue", "AngularMomentumValue", "AngularFrequencyValue",
+    "AngularMeasureValue", "AreaDensityValue", "BreadthValue", "CartesianPosition3dVector",
+    "CartesianSpatial3dCoordinateSystem", "ConductanceValue", "CurrentDensityValue",
+    "DiameterValue", "DynamicViscosityValue", "ElectricChargeDensityValue",
+    "ElectricConductanceValue", "ElectricFieldStrengthValue", "ElectricPowerValue",
+    "EnergyDensityValue", "EntropyValue", "HeatCapacityValue", "HeightValue",
+    "IlluminanceValue", "InductanceValue", "KinematicViscosityValue", "LengthPerTimeValue",
+    "LuminanceValue", "LuminousFluxValue", "MagneticFieldStrengthValue",
+    "MagneticFluxDensityValue", "MagneticFluxValue", "MassPerLengthValue",
+    "MolarMassValue", "MomentOfInertiaValue", "PeriodValue", "PermeabilityValue",
+    "PermittivityValue", "Position3dVector", "PositionVector", "PowerDensityValue",
+    "RadiusValue", "RotationalFrequencyValue", "SpecificEnergyValue",
+    "SpecificHeatCapacityValue", "SpecificVolumeValue", "SurfaceTensionValue",
+    "TensorMeasurementReference", "ThermalConductivityValue", "ThicknessValue",
+    "VelocityVector", "VolumetricFlowRateValue", "WavelengthValue", "WidthValue",
+    "WorkValue", "PathLengthValue", "DistanceValue", "TemperatureDifferenceValue",
+    "CelsiusTemperatureValue", "DisplacementVector", "AccelerationVector", "ForceVector",
+    "ElectricCurrentDensityValue", "MassFractionValue", "RelativeValue",
+];
+
+/// SI unit names/symbols that exist in the SI library but carry no dimension here.
+const SI_EXTRA: &[&str] = &[
+    "becquerel", "Bq", "gray", "Gy", "sievert", "Sv", "lumen", "lm", "lux", "lx", "katal",
+    "kat", "microampere", "uA", "nanosecond", "ns", "picosecond", "ps", "micrometre", "um",
+    "nanometre", "nm", "gigahertz", "GHz", "kilopascal", "megapascal", "hectopascal", "hPa",
+    "milliwatt", "mW", "gigawatt", "GW", "kilovoltAmpere", "VA", "millijoule", "mJ",
+    "megajoule", "MJ", "milliohm", "kiloohm", "kOhm", "megaohm", "MOhm", "microfarad", "uF",
+    "nanofarad", "nF", "picofarad", "pF", "millihenry", "mH", "microhenry", "uH", "day",
+    "d", "week", "year", "arcminute", "arcsecond", "hectare", "ha", "degreeFahrenheit",
+    "Mbps", "kbps", "Gbps", "bps", "byte", "B", "bit", "kilobyte", "kB", "megabyte", "MB",
+    "gigabyte", "GB", "knot", "kn", "metrePerSecondSquared", "g_n", "Ohm", "ohmMetre",
+    "siemensPerMetre", "S", "T", "mT", "uT", "Ah", "mAh", "ampereHour", "milliampereHour",
+    "kilometrePerHour", "m2", "m3", "cm2", "cm3", "mm2", "mm3", "lbf", "ft", "in",
+];
+
+/// `Some(true)` when `ISQ::<member>` is a name this build knows, `Some(false)`
+/// when it is not; `None` when `s` is not an `ISQ::` reference.
+pub fn isq_name_known(s: &str) -> Option<bool> {
+    let m = s.strip_prefix("ISQ::")?;
+    if m.contains("::") {
+        return None;
+    }
+    Some(quantity_table(m).is_some() || ISQ_EXTRA.contains(&m))
+}
+
+/// As [`isq_name_known`], for `SI::<unit>` (a bare unit symbol is not judged).
+pub fn si_unit_known(s: &str) -> Option<bool> {
+    let m = s.trim().strip_prefix("SI::")?;
+    if m.contains(['*', '/', '^', ' ']) || m.contains("::") {
+        return None;
+    }
+    Some(unit_table(m).is_some() || SI_EXTRA.contains(&m))
+}

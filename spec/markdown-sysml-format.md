@@ -6046,6 +6046,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W042` | A qualified-name segment (an element's own name or a package/directory name) is not a SysMLv2 basic name and not a stable id |
 | `W043` | A type reference names a member of a closed auto-imported package (`ScalarValues`, `Base`) that it does not declare — a likely typo |
 | `W044` | A recognised `ISQ` quantity type and a recognised `SI` unit on the same element/feature have different physical dimensions |
+| `W057` | An `ISQ::` quantity type or `SI::` unit is not known to this tool's tables (a subset of the SysML v2 library) — usually a typo |
 | `W045` | A tagged-value key in a `metadata:` application is not a declared feature of the `MetadataDef` (§8.15.2) |
 | `W046` | An `[ids.prefixes]` entry in `.syscribe.toml` is malformed (unknown id-identified type, or a prefix not matching `^[A-Z][A-Z0-9]{1,11}$`); the entry/prefix is ignored |
 | `W047` | A top-level frontmatter key is not a recognised schema field and is not `custom_fields:` (one finding per key; §3.17) |

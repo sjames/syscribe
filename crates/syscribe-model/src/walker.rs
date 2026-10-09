@@ -102,10 +102,24 @@ pub fn walk_model(model_root: &Path) -> Result<Vec<RawElement>> {
     let ignore_patterns = load_sysmlignore(model_root);
 
     // Two-pass: collect all paths first, sort so _index.md comes before siblings
-    let mut paths: Vec<PathBuf> = WalkDir::new(model_root)
-        .follow_links(false)
+    // An unreadable directory is an error, not a silent gap: skipping it would
+    // present a model with whole subtrees missing (and make a failed LSP reload
+    // replace a good store with a truncated one).
+    let mut entries = Vec::new();
+    for e in WalkDir::new(model_root).follow_links(false) {
+        match e {
+            Ok(e) => entries.push(e),
+            Err(err) => {
+                return Err(anyhow::anyhow!(
+                    "cannot read {}: {}",
+                    err.path().map(|p| p.display().to_string()).unwrap_or_default(),
+                    err
+                ))
+            }
+        }
+    }
+    let mut paths: Vec<PathBuf> = entries
         .into_iter()
-        .filter_map(|e| e.ok())
         .filter(|e| e.file_type().is_file())
         .filter(|e| e.path().extension().is_some_and(|ext| ext == "md"))
         .filter(|e| {

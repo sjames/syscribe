@@ -1341,6 +1341,47 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
+        // W057: an `ISQ::`/`SI::` reference this build's quantity/unit tables do not
+        // know. Advisory — the tables are a subset of the SysML v2 library, so the
+        // message says so (GH #202).
+        {
+            let kk = |s: &str| serde_yaml::Value::String(s.to_string());
+            let mut refs: Vec<(&str, bool)> = Vec::new();
+            for r in fm.typed_by.iter().flat_map(yaml_strings) {
+                refs.push((r, false));
+            }
+            for v in fm.features.iter().flatten().chain(fm.parameters.iter().flatten()) {
+                if let serde_yaml::Value::Mapping(m) = v {
+                    for key in ["typedBy", "type"] {
+                        if let Some(x) = m.get(kk(key)).and_then(|x| x.as_str()) {
+                            refs.push((x, false));
+                        }
+                    }
+                    if let Some(x) = m.get(kk("unit")).and_then(|x| x.as_str()) {
+                        refs.push((x, true));
+                    }
+                }
+            }
+            for (r, is_unit) in refs {
+                let unknown = if is_unit {
+                    crate::units::si_unit_known(r) == Some(false)
+                } else {
+                    crate::units::isq_name_known(r) == Some(false)
+                };
+                if unknown {
+                    findings.push(warning(
+                        "W057",
+                        &file,
+                        &format!(
+                            "'{}' is not {} known to this tool (its table is a subset of the SysML v2 library) — check for a typo",
+                            r,
+                            if is_unit { "an SI unit" } else { "an ISQ quantity" }
+                        ),
+                    ));
+                }
+            }
+        }
+
         // W044: dimensional consistency between an element/feature's quantity type and
         // its unit (REQ-TRS-LIB-003). Fires only when BOTH the `typedBy:` (or a
         // parameter `type:`) resolves to a recognised ISQ quantity and the `unit:`
@@ -12446,6 +12487,18 @@ mod link_type_tests {
         let e104: Vec<_> = result.findings.iter().filter(|f| f.code == "E104").collect();
         assert_eq!(e104.len(), 1, "{e104:?}");
         assert!(e104[0].message.contains("Arch::Ctl"));
+    }
+
+    #[test]
+    fn unknown_isq_and_si_names_are_w057_and_known_ones_are_not() {
+        let elements = vec![make_elem(
+            "Parts::Bat",
+            "type: PartDef\nname: Bat\nfeatures:\n  - {name: a, typedBy: ISQ::MassValue, unit: SI::kg}\n  - {name: b, typedBy: ISQ::Bogus, unit: SI::zorp}\n  - {name: c, typedBy: ISQ::Position3dVector, unit: SI::kilogram}\n  - {name: d, typedBy: ISQ::MassValue, unit: \"SI::m/s\"}",
+        )];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let w: Vec<_> = result.findings.iter().filter(|f| f.code == "W057").map(|f| f.message.as_str()).collect();
+        assert_eq!(w.len(), 2, "{w:?}");
+        assert!(w.iter().any(|m| m.contains("ISQ::Bogus")) && w.iter().any(|m| m.contains("SI::zorp")));
     }
 
     #[test]
