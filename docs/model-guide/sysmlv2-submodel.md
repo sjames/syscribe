@@ -951,7 +951,36 @@ syscribe -m model/ export-sysml --out out/            # one .sysml per top-level
 | `satisfies:` on any other element | a package-level `satisfy <target> by <element>;` (REQ-TRS-SYSMLV2-051) |
 | usage `subsets:` / `redefines:` | `:> a, b` / `:>> a` after the typing and multiplicity (REQ-TRS-SYSMLV2-049) |
 | inline `features:` / `connections:` on a part | `attribute`/`port` members (a numeric `value:` with `unit:` becomes `= 5 [kg]`), `connection ... connect a.x to b.y;` |
-| anything else (`TestCase`, `ADR`, `PlanningItem`, `FeatureDef`, ...) | `// skipped: <qname> (<type>)` and a count in the summary |
+| `EnumerationDef`/`Enumeration`, `LibraryPackage`/`Namespace`, `AllocationDef`/`Allocation`, `FlowDef`/`Flow`, `RenderingDef`/`Rendering`, `Case`/`CaseDef`, `ExhibitState`, `Individual` | `enum def` (`values:` as `enum a = v;` literals) / `enum`, `library package` / `package`, `allocation def` / `allocation n : T allocate a to b;` (an `Allocation`'s `features:` edge entries, `allocatedFrom` + `allocatedTo`, become `allocate a to b;` members), `flow def` / `flow`, `rendering def` / `rendering`, `case def` / `case`, `exhibit state`, `individual occurrence` |
+| `UseCaseDef`/`UseCase`, `AnalysisCaseDef`/`AnalysisCase`, `VerificationCaseDef`/`VerificationCase`, `ViewDef`/`View`, `ViewpointDef`, `ConcernDef`/`Concern` | `use case def` / `analysis def` / `verification def` / `view def` / `viewpoint def` / `concern def` and their usages; `subject` -> `subject : T;`, `actors` -> `actor a : T;`, `objectives` -> `objective o;`, `includes` -> `include use case u;`, `verifies` (cases and requirements) -> `verify r;`, `stakeholders`/`concerns`/`framedConcerns` -> `stakeholder`/`frame concern`, a view's `viewpoint`/`rendering`/`expose` -> `satisfy`/`render`/`expose`, a requirement's `requires`/`assume` -> `require constraint`/`assume constraint`, its `parameters` -> `attribute` members |
+| anything else (`TestCase`, `ADR`, `PlanningItem`, `FeatureDef`, `EventOccurrenceDef`, ...) | `// skipped: <qname> (<type>)` and a count in the summary |
+
+**Fields written as valid SysML v2 (GitHub #204).** Beyond the kinds above, the writer emits these
+frontmatter fields instead of dropping them: package `imports:` (`import A::*;`, `public import`) and
+`aliases:`; `ends:` of `InterfaceDef`/`ConnectionDef`/`FlowDef` (`end a : ~T [m];`) and of a connection
+usage (`connect (e1 ::> a, e2 ::> b, e3 ::> c)` for three or more); a port's `isConjugated` and a port def's
+`conjugates` (usages typed by the conjugating def are written `: ~Original`); inline `redefines`/`subsets`;
+`bindingConnections` (`bind a = b;`); `flowConnections` (`flow of T from a to b;`, `message`); `performs`
+and `exhibitsStates`; `timeSlices`/`snapshots`; `dependsOn` (a package-level `dependency from X to Y;`);
+`isOrdered`/`isNonunique`/`isReference`/`isDerived`/`isConstant`, `valueKind` (`=`, `:=`, `default =`,
+`default :=`) and `isVariation` (`variation part`, never `abstract variation`, which the grammar rejects);
+`isParallel` on states (`state def S parallel { }`); `parameters:` of an `ActionDef`/`Action`
+(`in`/`out`/`inout`; `return` is written `out`, since an action def has no `return`); `isAsserted`/
+`isNegated` on a constraint usage (`assert [not] constraint`); an interface's or connection's `constraints:`.
+Connection and flow endpoints are feature chains relative to the owning element (`a.p`, never a quoted
+`'a.p'`), and a `connections:` entry that ingestion also produced as a `Connection` child element is written
+once, merged into the child's header. A string `value:` that parses as an expression
+(`capacityWh * 0.5`, `Color::red`) is written as that expression; plain text, including a hyphenated token
+such as `VIN-1234`, stays a string literal. An inline feature with no `type:` takes its usage keyword
+(`part`, `port`, `item`, ...) from the definition its `typedBy` names, and is an `attribute` only when that
+is unknown.
+
+**Nothing is dropped silently.** A SysML-semantic field the writer cannot express (`readonly`, an
+import `filter`, a `succession` flow, the `conjugates` of the def itself, a unit with no value, the
+`expose` of a part, ...) becomes a `// dropped: <field> on <qname>` comment at the place it was found and is
+counted: the summary reads `dropped N field(s) (<field> xK, ...)` and `ExportReport::dropped` /
+`dropped_fields` carry the same data. Native process metadata with no SysML v2 counterpart (`status`,
+`tags`, `derivedFrom`, safety and security attributes, ...) is out of scope and is not reported.
 
 The export is lossy and deterministic; re-importing it into a `sysmlSubmodel: true` package
 reproduces the supported kinds and qnames (a native `Requirement` returns as a `RequirementDef`),
