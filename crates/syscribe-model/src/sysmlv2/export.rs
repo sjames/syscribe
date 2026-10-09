@@ -11,10 +11,19 @@
 //! usage whose qname parent is itself a definition/usage nests in that
 //! parent's body. Elements of an unsupported type are replaced by a
 //! `// skipped: <qname> (<type>)` comment and counted in [`ExportReport`].
+//!
+//! Fidelity rule (GitHub #204): a SysML-semantic frontmatter field is either written as valid
+//! SysML v2 text or reported. Every field the writer cannot express becomes a
+//! `// dropped: <field> on <qname>` comment in the output and is counted in
+//! [`ExportReport::dropped`]; nothing is silently lost. Native process metadata with no SysML v2
+//! counterpart (`status`, `tags`, `derivedFrom`, safety/security attributes, ...) is out of scope
+//! and is not reported.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use crate::element::{ElementType, RawElement};
+use serde_yaml::Value as Y;
+
+use crate::element::{ElementType, RawElement, RawFrontmatter};
 
 /// Failure modes of [`export_sysml`].
 #[derive(Debug, thiserror::Error)]
@@ -24,7 +33,7 @@ pub enum ExportError {
     UnknownScope(String),
 }
 
-/// Exported/skipped accounting (`REQ-TRS-SYSMLV2-040`).
+/// Exported/skipped/dropped accounting (`REQ-TRS-SYSMLV2-040`, GitHub #204).
 #[derive(Debug, Clone, Default)]
 pub struct ExportReport {
     /// Rendered elements per Syscribe element type name.
@@ -37,6 +46,11 @@ pub struct ExportReport {
     /// exported (…)` comments because ingestion would not read them back identically
     /// (`REQ-TRS-SYSMLV2-072`).
     pub degraded_behaviour: usize,
+    /// Frontmatter fields (or entries of one) of an exported element that have no SysML v2 text
+    /// form, per field label; each is also a `// dropped: <field> on <qname>` comment.
+    pub dropped: BTreeMap<String, usize>,
+    /// `(qname, field)` of every drop, in output order.
+    pub dropped_fields: Vec<(String, String)>,
 }
 
 impl ExportReport {
@@ -45,6 +59,10 @@ impl ExportReport {
     }
     pub fn skipped_total(&self) -> usize {
         self.skipped.values().sum()
+    }
+    /// Number of dropped fields/entries (not counting degraded behaviour entries).
+    pub fn dropped_total(&self) -> usize {
+        self.dropped.values().sum()
     }
     /// One-line summary used by the CLI's stderr note.
     pub fn summary_line(&self) -> String {
@@ -56,11 +74,13 @@ impl ExportReport {
             }
         };
         format!(
-            "exported {} element(s) ({}); skipped {} ({}); behaviour entries degraded to comments: {}",
+            "exported {} element(s) ({}); skipped {} ({}); dropped {} field(s) ({}); behaviour entries degraded to comments: {}",
             self.exported_total(),
             fmt(&self.exported),
             self.skipped_total(),
             fmt(&self.skipped),
+            self.dropped_total(),
+            fmt(&self.dropped),
             self.degraded_behaviour
         )
     }
@@ -115,22 +135,58 @@ pub fn sysml_ident(name: &str) -> String {
     out
 }
 
-/// A `::`-qualified reference with every segment rendered by [`sysml_ident`].
-fn qualified(path: &str) -> String {
-    path.split("::").map(sysml_ident).collect::<Vec<_>>().join("::")
+/// A reference path with every name segment rendered by [`sysml_ident`] and the separators (`::`
+/// namespace, `.` feature chain) kept as written. Quoting each segment, not the whole path, is what
+/// keeps `Behavior::OpenDoor` from becoming the one quoted name `'Behavior::OpenDoor'` (GitHub #204).
+pub(super) fn qualified(path: &str) -> String {
+    let mut out = String::new();
+    let mut seg = String::new();
+    let flush = |seg: &mut String, out: &mut String| {
+        let t = seg.trim();
+        if !t.is_empty() {
+            out.push_str(&sysml_ident(t));
+        }
+        seg.clear();
+    };
+    let chars: Vec<char> = path.chars().collect();
+    let mut i = 0;
+    while i < chars.len() {
+        if chars[i] == ':' && chars.get(i + 1) == Some(&':') {
+            flush(&mut seg, &mut out);
+            out.push_str("::");
+            i += 2;
+        } else if chars[i] == '.' {
+            flush(&mut seg, &mut out);
+            out.push('.');
+            i += 1;
+        } else {
+            seg.push(chars[i]);
+            i += 1;
+        }
+    }
+    flush(&mut seg, &mut out);
+    out
+}
+
+/// A feature chain (`a.b.c`): every `::` or `.` separator becomes `.`.
+fn feature_chain(path: &str) -> String {
+    qualified(path).replace("::", ".")
 }
 
 /// How an element type renders: keyword, whether it is a definition.
 fn kind_of(t: &ElementType) -> Option<(&'static str, bool)> {
     use ElementType as T;
     Some(match t {
-        T::Package => ("package", false),
+        T::Package | T::Namespace => ("package", false),
+        T::LibraryPackage => ("library package", false),
         T::PartDef => ("part", true),
         T::Part => ("part", false),
         T::PortDef => ("port", true),
         T::Port => ("port", false),
         T::AttributeDef => ("attribute", true),
         T::Attribute => ("attribute", false),
+        T::EnumerationDef => ("enum", true),
+        T::Enumeration => ("enum", false),
         T::ConnectionDef => ("connection", true),
         T::Connection => ("connection", false),
         T::InterfaceDef => ("interface", true),
@@ -143,18 +199,142 @@ fn kind_of(t: &ElementType) -> Option<(&'static str, bool)> {
         T::Action => ("action", false),
         T::StateDef => ("state", true),
         T::State => ("state", false),
+        T::ExhibitState => ("exhibit state", false),
         T::ConstraintDef => ("constraint", true),
         T::Constraint => ("constraint", false),
         T::OccurrenceDef => ("occurrence", true),
         T::Occurrence => ("occurrence", false),
         T::IndividualDef => ("individual", true),
+        T::Individual => ("occurrence", false),
         T::EventOccurrence => ("event occurrence", false),
         T::CalculationDef => ("calc", true),
         T::Calculation => ("calc", false),
+        T::UseCaseDef => ("use case", true),
+        T::UseCase => ("use case", false),
+        T::AnalysisCaseDef => ("analysis", true),
+        T::AnalysisCase => ("analysis", false),
+        T::VerificationCaseDef => ("verification", true),
+        T::VerificationCase => ("verification", false),
+        T::CaseDef => ("case", true),
+        T::Case => ("case", false),
+        T::ViewDef => ("view", true),
+        T::View => ("view", false),
+        T::ViewpointDef => ("viewpoint", true),
+        T::ConcernDef => ("concern", true),
+        T::Concern => ("concern", false),
+        T::RenderingDef => ("rendering", true),
+        T::Rendering => ("rendering", false),
+        T::FlowDef => ("flow", true),
+        T::Flow => ("flow", false),
+        T::AllocationDef => ("allocation", true),
+        T::Allocation => ("allocation", false),
         // `REQ-TRS-SYSMLV2-088`: the def a `metadata:` application resolves to.
         T::MetadataDef => ("metadata", true),
         _ => return None,
     })
+}
+
+/// The usage keyword a usage typed by definition type `t` takes (used when an inline feature
+/// carries no explicit `type:`).
+fn usage_kw_for_def(t: &ElementType) -> Option<&'static str> {
+    use ElementType as T;
+    Some(match t {
+        T::PartDef | T::IndividualDef => "part",
+        T::ItemDef => "item",
+        T::PortDef => "port",
+        T::AttributeDef | T::EnumerationDef => "attribute",
+        T::ConnectionDef => "connection",
+        T::InterfaceDef => "interface",
+        T::ActionDef => "action",
+        T::StateDef => "state",
+        T::ConstraintDef => "constraint",
+        T::RequirementDef => "requirement",
+        T::CalculationDef => "calc",
+        T::OccurrenceDef => "occurrence",
+        T::AllocationDef => "allocation",
+        T::UseCaseDef => "use case",
+        T::AnalysisCaseDef => "analysis",
+        T::VerificationCaseDef => "verification",
+        T::ViewDef => "view",
+        T::ConcernDef => "concern",
+        T::FlowDef => "flow",
+        T::RenderingDef => "rendering",
+        _ => return None,
+    })
+}
+
+/// An explicit inline-feature `type:` value as a usage keyword.
+fn usage_kw_for_name(n: &str) -> Option<&'static str> {
+    Some(match n {
+        "Port" => "port",
+        "Item" => "item",
+        "Part" => "part",
+        "Attribute" => "attribute",
+        "Action" => "action",
+        "State" => "state",
+        "ExhibitState" => "exhibit state",
+        "Occurrence" => "occurrence",
+        "Connection" => "connection",
+        "Interface" => "interface",
+        "Constraint" => "constraint",
+        "Calculation" => "calc",
+        "Requirement" => "requirement",
+        "Enumeration" => "enum",
+        "Flow" => "flow",
+        "Allocation" => "allocation",
+        "UseCase" => "use case",
+        "Concern" => "concern",
+        "View" => "view",
+        "Rendering" => "rendering",
+        _ => return None,
+    })
+}
+
+/// SysML-semantic frontmatter fields: each is either written or reported as dropped. Native
+/// process metadata (status, tags, derivedFrom, safety/security attributes, ...) is deliberately not
+/// listed: it has no SysML v2 counterpart (see the module docs).
+const SEMANTIC: &[&str] = &[
+    "supertype", "typedBy", "subsets", "redefines", "multiplicity", "isAbstract", "isVariation", "isVariant",
+    "isIndividual", "isPortion", "portionKind", "isReference", "isConstant", "isDerived", "isReadonly",
+    "isOrdered", "isNonunique", "isEnd", "isComposite", "direction", "unit", "value", "valueKind", "features",
+    "connections", "ends", "bindingConnections", "flowConnections", "successionConnections", "performs",
+    "exhibitsStates", "timeSlices", "snapshots", "imports", "aliases", "filterCondition", "metadata",
+    "dependsOn", "conjugates", "isConjugated", "isAsserted", "isNegated", "subject", "actors", "stakeholders",
+    "concerns", "framedConcerns", "requires", "assume", "objectives", "includes", "parameters", "returnType",
+    "expression", "body", "bodyLanguage", "satisfies", "verifies", "subActions", "controlNodes", "subStates",
+    "transitions", "entryAction", "doAction", "exitAction", "isParallel", "values", "expose", "viewpoint",
+    "rendering", "allocatedTo", "allocatedFrom", "visibility", "shortName", "constraints", "itemType",
+    "annotates", "extends", "extensionPoints", "clients", "suppliers", "verdictType", "verdictExpression",
+    "evaluate", "satisfiedBy",
+];
+
+/// The SysML-semantic fields present (set, non-empty) on one element; each writer that consumes one
+/// removes it, and what is left at the end is reported as dropped.
+struct Fields(BTreeSet<String>);
+
+impl Fields {
+    fn of(fm: &RawFrontmatter) -> Self {
+        let mut set = BTreeSet::new();
+        if let Ok(serde_json::Value::Object(m)) = serde_json::to_value(fm) {
+            for (k, v) in m {
+                let present = match &v {
+                    serde_json::Value::Null => false,
+                    serde_json::Value::Bool(b) => *b,
+                    serde_json::Value::String(s) => !s.trim().is_empty(),
+                    serde_json::Value::Array(a) => !a.is_empty(),
+                    serde_json::Value::Object(o) => !o.is_empty(),
+                    serde_json::Value::Number(_) => true,
+                };
+                if present && SEMANTIC.contains(&k.as_str()) {
+                    set.insert(k);
+                }
+            }
+        }
+        Fields(set)
+    }
+    fn take(&mut self, k: &str) -> bool {
+        self.0.remove(k)
+    }
 }
 
 #[derive(Default)]
@@ -170,6 +350,16 @@ fn type_name(e: &RawElement) -> String {
 struct Writer {
     /// stable id -> qname, for turning `REQ-*` references into qualified names.
     ids: HashMap<String, String>,
+    /// qname -> element type, for inferring the usage keyword of an untyped inline feature.
+    types: HashMap<String, ElementType>,
+    qnames: Vec<String>,
+    /// qname of a `PortDef` that `conjugates:` another -> the conjugated def as written: a usage typed
+    /// by it is written `: ~<that def>` (the grammar has no way to declare a conjugating def).
+    conj_of: HashMap<String, String>,
+    /// `connect ...` clause to splice into the header of a `Connection`/`Interface` child element
+    /// (keyed by its qname): the owner's matching `connections:` entry, so one connection is not
+    /// written twice.
+    connect_override: HashMap<String, String>,
     report: ExportReport,
 }
 
@@ -177,12 +367,24 @@ struct Writer {
 pub fn export_sysml(elements: &[RawElement], scope: Option<&str>) -> Result<SysmlExport, ExportError> {
     let mut root: Node = Node::default();
     let mut ids = HashMap::new();
+    let mut types = HashMap::new();
+    let mut qnames = Vec::new();
+    let mut conj_of = HashMap::new();
     for e in elements {
         if e.qualified_name.is_empty() {
             continue;
         }
         if let Some(id) = &e.frontmatter.id {
             ids.insert(id.clone(), e.qualified_name.clone());
+        }
+        if let Some(t) = &e.frontmatter.element_type {
+            types.insert(e.qualified_name.clone(), t.clone());
+        }
+        qnames.push(e.qualified_name.clone());
+        if matches!(e.frontmatter.element_type, Some(ElementType::PortDef)) {
+            if let Some(c) = e.frontmatter.conjugates.as_deref().map(str::trim).filter(|c| !c.is_empty()) {
+                conj_of.insert(e.qualified_name.clone(), c.to_string());
+            }
         }
         let mut cur = &mut root;
         for seg in e.qualified_name.split("::") {
@@ -191,7 +393,7 @@ pub fn export_sysml(elements: &[RawElement], scope: Option<&str>) -> Result<Sysm
         cur.elem = Some(e);
     }
 
-    let mut w = Writer { ids, report: ExportReport::default() };
+    let mut w = Writer { ids, types, qnames, conj_of, connect_override: HashMap::new(), report: ExportReport::default() };
 
     let tops: Vec<(String, String, &Node)> = match scope.map(str::trim).filter(|s| !s.is_empty()) {
         Some(sc) => {
@@ -231,12 +433,115 @@ pub fn export_sysml(elements: &[RawElement], scope: Option<&str>) -> Result<Sysm
     Ok(SysmlExport { text, parts, report: w.report })
 }
 
+fn ykey(k: &str) -> Y {
+    Y::String(k.to_string())
+}
+
+/// A string value of mapping `m` at key `k`.
+fn mstr<'a>(m: &'a serde_yaml::Mapping, k: &str) -> Option<&'a str> {
+    m.get(ykey(k)).and_then(Y::as_str).map(str::trim).filter(|s| !s.is_empty())
+}
+
+fn mbool(m: &serde_yaml::Mapping, k: &str) -> bool {
+    m.get(ykey(k)).and_then(Y::as_bool).unwrap_or(false)
+}
+
+/// A scalar of mapping `m` as text (strings, numbers, booleans).
+fn mscalar(m: &serde_yaml::Mapping, k: &str) -> Option<String> {
+    match m.get(ykey(k))? {
+        Y::String(s) if !s.trim().is_empty() => Some(s.trim().to_string()),
+        Y::Number(n) => Some(n.to_string()),
+        Y::Bool(b) => Some(b.to_string()),
+        _ => None,
+    }
+}
+
+/// A list-or-string value of mapping `m` as strings.
+fn mlist(m: &serde_yaml::Mapping, k: &str) -> Vec<String> {
+    ref_list(m.get(ykey(k)))
+}
+
+/// The leaf name of a reference with its first letter lower-cased, as an identifier: the usage name
+/// synthesized for a `performs: [Drive]`-style entry that has none.
+fn lower_leaf(raw: &str) -> String {
+    let leaf = raw.trim().trim_start_matches('~').rsplit(['.', ':']).next().unwrap_or(raw).trim();
+    let mut c = leaf.chars();
+    let s = match c.next() {
+        Some(f) => f.to_lowercase().collect::<String>() + c.as_str(),
+        None => "x".to_string(),
+    };
+    sysml_ident(&s)
+}
+
 impl Writer {
     fn reference(&self, raw: &str) -> String {
-        match self.ids.get(raw) {
+        match self.ids.get(raw.trim()) {
             Some(q) => qualified(q),
             None => qualified(raw),
         }
+    }
+
+    /// `// dropped: <field> on <qname>` in `body`, counted in the report.
+    fn drop_field(&mut self, qname: &str, field: &str, pad: &str, body: &mut String) {
+        body.push_str(&format!("{pad}// dropped: {field} on {qname}\n"));
+        *self.report.dropped.entry(field.to_string()).or_insert(0) += 1;
+        self.report.dropped_fields.push((qname.to_string(), field.to_string()));
+    }
+
+    /// The qname a reference written in the scope of `scope` names, searching enclosing scopes
+    /// outward, then any unique element whose qname ends with the reference.
+    fn lookup_qname(&self, scope: &str, raw: &str) -> Option<String> {
+        let raw = raw.trim().trim_start_matches('~');
+        let raw = self.ids.get(raw).map(String::as_str).unwrap_or(raw);
+        let mut s = scope.to_string();
+        loop {
+            let cand = if s.is_empty() { raw.to_string() } else { format!("{s}::{raw}") };
+            if self.types.contains_key(&cand) {
+                return Some(cand);
+            }
+            match s.rfind("::") {
+                Some(i) => s.truncate(i),
+                None if s.is_empty() => break,
+                None => s.clear(),
+            }
+        }
+        let suffix = format!("::{raw}");
+        let mut hit: Option<&String> = None;
+        for q in &self.qnames {
+            if q.ends_with(&suffix) {
+                if hit.is_some() {
+                    return None;
+                }
+                hit = Some(q);
+            }
+        }
+        hit.cloned()
+    }
+
+    fn lookup_type(&self, scope: &str, raw: &str) -> Option<&ElementType> {
+        self.lookup_qname(scope, raw).and_then(|q| self.types.get(&q))
+    }
+
+    /// A typing reference as written after `:`. A port def that `conjugates:` another becomes
+    /// `~<that def>`; `conj` (the usage's own `isConjugated`) flips it back.
+    fn typed_ref(&self, scope: &str, raw: &str, conj: bool) -> String {
+        if let Some(q) = self.lookup_qname(scope, raw) {
+            if let Some(target) = self.conj_of.get(&q) {
+                let parent = q.rsplit_once("::").map_or("", |(p, _)| p);
+                let tq = self.lookup_qname(parent, target).unwrap_or_else(|| target.clone());
+                return format!("{}{}", if conj { "" } else { "~" }, self.reference(&tq));
+            }
+        }
+        format!("{}{}", if conj { "~" } else { "" }, self.reference(raw))
+    }
+
+    /// An endpoint of a `connect`/`bind`/`flow`: a feature chain relative to the owner, so the
+    /// owner's own qname prefix is stripped and every separator becomes `.`.
+    fn chain_in(&self, owner: &str, raw: &str) -> String {
+        let raw = raw.trim();
+        let prefix = format!("{owner}::");
+        let rel = raw.strip_prefix(&prefix).unwrap_or(raw);
+        feature_chain(rel)
     }
 
     /// `sats` collects the real `satisfy <req> by <subject>;` statements
@@ -274,7 +579,8 @@ impl Writer {
                 return;
             }
             *self.report.exported.entry(tname.clone()).or_insert(0) += 1;
-            let join = |v: &[String], w: &Self| v.iter().map(|s| w.reference(s)).collect::<Vec<_>>().join(", ");
+            // A dependency endpoint is a namespace-qualified element: the grammar has no `.` there.
+            let join = |v: &[String], w: &Self| v.iter().map(|s| w.reference(s).replace('.', "::")).collect::<Vec<_>>().join(", ");
             let head = format!("{pad}dependency {} from {} to {}", sysml_ident(name), join(&clients, self), join(&suppliers, self));
             let doc = elem.doc.trim();
             if doc.is_empty() {
@@ -290,8 +596,13 @@ impl Writer {
         };
         *self.report.exported.entry(tname.clone()).or_insert(0) += 1;
         let fm = &elem.frontmatter;
+        let ety = fm.element_type.clone().unwrap_or(ElementType::Unknown);
+        let mut f = Fields::of(fm);
         let native_req = matches!(fm.element_type, Some(ElementType::Requirement)) && fm.id.is_some();
-        let is_package = kw == "package";
+        let is_package = kw.ends_with("package");
+        let def_like = is_def || native_req;
+        let inner = "    ".repeat(depth + 1);
+        let mut body = String::new();
 
         // Label comment for id-identified elements whose free-prose name differs.
         if let Some(label) = fm.name.as_deref() {
@@ -300,92 +611,202 @@ impl Writer {
             }
         }
 
-        // Header.
+        // ---- header ----
         let mut head = String::new();
-        if fm.is_abstract == Some(true) && is_def {
-            head.push_str("abstract ");
+        let is_part = matches!(ety, ElementType::Part | ElementType::PartDef);
+        let usage_like = !def_like && !is_package;
+        if matches!(fm.visibility.as_deref(), Some("private") | Some("protected")) && f.take("visibility") {
+            head.push_str(fm.visibility.as_deref().unwrap_or(""));
+            head.push(' ');
+        } else if matches!(fm.visibility.as_deref(), Some("public")) {
+            f.take("visibility");
         }
-        if fm.is_variation == Some(true) && is_def {
+        // `in`/`out`/`inout` leads a directed usage.
+        if usage_like {
+            if let Some(d) = fm.direction.as_deref().map(str::trim).filter(|d| matches!(*d, "in" | "out" | "inout")) {
+                if matches!(ety, ElementType::Port | ElementType::Attribute | ElementType::Item | ElementType::Part) && f.take("direction") {
+                    head.push_str(d);
+                    head.push(' ');
+                }
+            }
+        }
+        // A variation is abstract by definition (the grammar takes no `abstract variation`), and a
+        // variant takes `abstract` after its own keyword.
+        let is_variation = fm.is_variation == Some(true) && !is_package;
+        let is_variant = fm.is_variant == Some(true) && !def_like;
+        if is_variation && f.take("isVariation") {
             head.push_str("variation ");
         }
-        if fm.is_variant == Some(true) && !is_def {
+        if is_variant && f.take("isVariant") {
             head.push_str("variant ");
         }
-        let is_occurrence = matches!(fm.element_type, Some(ElementType::Occurrence) | Some(ElementType::EventOccurrence));
-        if fm.is_individual == Some(true) && is_occurrence {
+        if fm.is_abstract == Some(true) && !is_package && f.take("isAbstract") && !is_variation {
+            head.push_str("abstract ");
+        }
+        let is_occurrence = matches!(
+            ety,
+            ElementType::Occurrence | ElementType::EventOccurrence | ElementType::Individual
+        );
+        if (fm.is_individual == Some(true) && is_occurrence) || matches!(ety, ElementType::Individual) {
             head.push_str("individual ");
+            f.take("isIndividual");
         }
         // `REQ-TRS-SYSMLV2-094`: `snapshot`/`timeslice` (the spec's default portion kind) occurrence.
         if fm.is_portion == Some(true) && is_occurrence {
             head.push_str(if fm.portion_kind.as_deref() == Some("snapshot") { "snapshot " } else { "timeslice " });
+            f.take("isPortion");
+            f.take("portionKind");
+        }
+        if usage_like && fm.is_derived == Some(true) && f.take("isDerived") {
+            head.push_str("derived ");
+        }
+        if usage_like && fm.is_constant == Some(true) && f.take("isConstant") {
+            head.push_str("constant ");
+        }
+        if usage_like && fm.is_reference == Some(true) && !matches!(ety, ElementType::EventOccurrence | ElementType::ExhibitState) && f.take("isReference") {
+            head.push_str("ref ");
+        } else if matches!(ety, ElementType::ExhibitState) {
+            f.take("isReference");
+        }
+        // `assert [not] constraint` (`isAsserted`/`isNegated`).
+        if matches!(ety, ElementType::Constraint) && fm.is_asserted == Some(true) && f.take("isAsserted") {
+            head.push_str("assert ");
+            if fm.is_negated == Some(true) && f.take("isNegated") {
+                head.push_str("not ");
+            }
         }
         head.push_str(kw);
-        if is_def || native_req {
-            if !is_package {
-                head.push_str(" def");
+        if def_like && !is_package {
+            head.push_str(" def");
+        }
+        // `<shortName>`; parts keep the `@SyscribeShortName` annotation.
+        if !is_part {
+            if let Some(s) = fm.short_name.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                if f.take("shortName") {
+                    head.push_str(&format!(" <{}>", sysml_ident(s)));
+                }
             }
         }
         head.push(' ');
         head.push_str(&sysml_ident(name));
+
         let supers = ref_list(fm.supertype.as_ref());
-        if !supers.is_empty() && (is_def || native_req) {
+        if !supers.is_empty() && def_like && f.take("supertype") {
             let r: Vec<String> = supers.iter().map(|s| self.reference(s)).collect();
             head.push_str(&format!(" :> {}", r.join(", ")));
         }
         let typed = ref_list(fm.typed_by.as_ref());
-        if !typed.is_empty() && !(is_def || native_req) && !is_package {
-            let r: Vec<String> = typed.iter().map(|s| self.reference(s)).collect();
+        if !typed.is_empty() && usage_like && f.take("typedBy") {
+            let conj = fm.is_conjugated == Some(true) && matches!(ety, ElementType::Port) && f.take("isConjugated");
+            let scope = qname.rsplit_once("::").map_or("", |(p, _)| p);
+            let r: Vec<String> = typed.iter().enumerate().map(|(i, s)| self.typed_ref(scope, s, conj && i == 0)).collect();
             head.push_str(&format!(" : {}", r.join(", ")));
         }
-        if let Some(m) = fm.multiplicity.as_deref().map(str::trim).filter(|m| !m.is_empty() && *m != "1") {
-            if !is_def && !is_package {
+        if usage_like {
+            if let Some(m) = fm.multiplicity.as_deref().map(str::trim).filter(|m| !m.is_empty() && *m != "1") {
                 head.push_str(&format!(" [{m}]"));
             }
-        }
-        if !is_def && !is_package && !native_req {
+            f.take("multiplicity");
+            if fm.is_ordered == Some(true) && f.take("isOrdered") {
+                head.push_str(" ordered");
+            }
+            if fm.is_nonunique == Some(true) && f.take("isNonunique") {
+                head.push_str(" nonunique");
+            }
             // `REQ-TRS-SYSMLV2-049`: `:>` subsetting, `:>>` redefinition.
             let subs: Vec<String> = fm.subsets.iter().flatten().map(|s| self.reference(s)).collect();
-            if !subs.is_empty() {
+            if !subs.is_empty() && f.take("subsets") {
                 head.push_str(&format!(" :> {}", subs.join(", ")));
             }
             let reds: Vec<String> = ref_list(fm.redefines.as_ref()).iter().map(|s| self.reference(s)).collect();
-            if !reds.is_empty() {
+            if !reds.is_empty() && f.take("redefines") {
                 head.push_str(&format!(" :>> {}", reds.join(", ")));
             }
+        } else {
+            // A definition's multiplicity has no text form and is the implicit default anyway.
+            if fm.multiplicity.as_deref().map(str::trim).is_none_or(|m| m == "1" || m.is_empty()) {
+                f.take("multiplicity");
+            }
         }
-        if matches!(fm.element_type, Some(ElementType::Attribute)) {
-            if let Some(v) = fm.value.as_ref().and_then(render_value) {
-                head.push_str(&format!(" = {v}"));
-                // `REQ-TRS-SYSMLV2-055`: a numeric value carries its unit as a literal-with-unit.
-                if let Some(u) = fm.unit.as_deref().map(str::trim).filter(|u| !u.is_empty() && v.parse::<f64>().is_ok()) {
-                    head.push_str(&format!(" [{}]", sysml_unit(u)));
+        // `allocation n : T allocate a to b`.
+        if matches!(ety, ElementType::Allocation) {
+            let from = fm.allocated_from.clone().unwrap_or_default();
+            let to = fm.allocated_to.clone().unwrap_or_default();
+            if let (Some(a), Some(b)) = (from.first(), to.first()) {
+                head.push_str(&format!(" allocate {} to {}", self.reference(a), self.reference(b)));
+                f.take("allocatedFrom");
+                f.take("allocatedTo");
+                if from.len() > 1 || to.len() > 1 {
+                    let extra = from.len().max(to.len()) - 1;
+                    self.drop_field(qname, &format!("allocatedFrom/allocatedTo ({extra} further pair(s); an allocation relates one source to one target)"), &inner, &mut body);
                 }
             }
         }
+        // The owner's matching `connections:` entry, or this element's own bound `ends:`.
+        let mut own_ends_consumed = false;
+        if matches!(ety, ElementType::Connection | ElementType::Interface) {
+            if let Some(c) = self.connect_override.remove(qname) {
+                head.push_str(&format!(" {c}"));
+            } else if let Some(c) = self.connect_clause_from_ends(qname, fm.ends.as_deref().unwrap_or(&[])) {
+                head.push_str(&format!(" {c}"));
+                own_ends_consumed = true;
+            }
+        }
+        if matches!(ety, ElementType::Attribute | ElementType::Enumeration) || usage_like {
+            if let Some(v) = fm.value.as_ref().and_then(render_value) {
+                if f.take("value") {
+                    head.push_str(&format!("{}{v}", value_operator(fm.value_kind.as_deref())));
+                    f.take("valueKind");
+                    // `REQ-TRS-SYSMLV2-055`: a numeric value carries its unit as a literal-with-unit.
+                    if let Some(u) = fm.unit.as_deref().map(str::trim).filter(|u| !u.is_empty() && v.parse::<f64>().is_ok()) {
+                        head.push_str(&format!(" [{}]", sysml_unit(u)));
+                        f.take("unit");
+                    }
+                }
+            }
+        }
+        // `parallel` state (a body is required after it).
+        let parallel = matches!(ety, ElementType::StateDef | ElementType::State) && fm.is_parallel == Some(true) && f.take("isParallel");
+        if parallel {
+            head.push_str(" parallel");
+        }
 
-        // Body members.
-        let inner = "    ".repeat(depth + 1);
-        let mut body = String::new();
+        // ---- body ----
         let doc = elem.doc.trim();
         if !doc.is_empty() {
             body.push_str(&render_doc(doc, &inner));
         }
-        if matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) {
+        if is_part {
             self.push_syscribe_meta(elem, &inner, &mut body);
+            f.take("shortName");
         }
         self.push_metadata(elem, &inner, &mut body);
-        for f in fm.features.as_deref().unwrap_or(&[]) {
-            if let Some(line) = self.render_feature(f) {
-                body.push_str(&format!("{inner}{line}\n"));
-            }
+        f.take("metadata");
+        self.push_imports_aliases(qname, fm, &mut f, &inner, &mut body);
+        self.push_enum_values(qname, fm, &mut f, &inner, &mut body);
+        self.push_parameters(qname, fm, &ety, &mut f, &inner, &mut body);
+        let no_derived = matches!(
+            ety,
+            ElementType::CalculationDef | ElementType::Calculation | ElementType::ConstraintDef | ElementType::Constraint
+        );
+        for feat in fm.features.as_deref().unwrap_or(&[]) {
+            self.render_feature(qname, qname, feat, None, no_derived, &inner, &mut body);
         }
-        if matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef)) {
-            for c in fm.connections.as_deref().unwrap_or(&[]) {
-                if let Some(line) = self.render_connection(c) {
-                    body.push_str(&format!("{inner}{line}\n"));
-                }
+        f.take("features");
+        self.push_ends(qname, fm, &ety, own_ends_consumed, &mut f, &inner, &mut body);
+        for (key, kind) in [("timeSlices", "timeslice"), ("snapshots", "snapshot")] {
+            let list = if key == "timeSlices" { fm.time_slices.as_deref() } else { fm.snapshots.as_deref() };
+            for feat in list.unwrap_or(&[]) {
+                self.render_feature(qname, qname, feat, Some(kind), no_derived, &inner, &mut body);
             }
+            f.take(key);
         }
+        self.push_structural_links(qname, node, fm, &ety, &mut f, &inner, &mut body);
+        self.push_constraints(qname, fm, &ety, &mut f, &inner, &mut body);
+        self.push_case_members(qname, fm, &ety, &mut f, &inner, &mut body);
+        self.push_view_members(qname, fm, &ety, &mut f, &inner, &mut body);
+
+        // `satisfies:`.
         let sat = fm.satisfies.as_deref().unwrap_or(&[]);
         let in_part = matches!(fm.element_type, Some(ElementType::Part) | Some(ElementType::PartDef));
         for s in sat {
@@ -393,20 +814,28 @@ impl Writer {
                 body.push_str(&format!("{inner}satisfy {};\n", self.reference(s)));
             } else if !is_package {
                 // `REQ-TRS-SYSMLV2-051`: a real package-level statement.
-                let pkg_pad = if is_package { String::new() } else { "    ".repeat(depth) };
+                let pkg_pad = "    ".repeat(depth);
                 sats.push(format!("{pkg_pad}satisfy {} by {};\n", self.reference(s), qualified(qname)));
             }
         }
-        // `REQ-TRS-SYSMLV2-051`: `verify` is accepted (and ingested) inside requirement bodies only.
-        let is_req = matches!(fm.element_type, Some(ElementType::RequirementDef) | Some(ElementType::Requirement));
-        for v in fm.verifies.as_deref().unwrap_or(&[]) {
-            if is_req {
+        if !sat.is_empty() && !is_package {
+            f.take("satisfies");
+        }
+        // `REQ-TRS-SYSMLV2-051`: `verify` is accepted (and ingested) inside requirement and verification bodies.
+        let accepts_verify = matches!(
+            fm.element_type,
+            Some(ElementType::RequirementDef)
+                | Some(ElementType::Requirement)
+                | Some(ElementType::VerificationCaseDef)
+                | Some(ElementType::VerificationCase)
+        );
+        if accepts_verify && !fm.verifies.as_deref().unwrap_or(&[]).is_empty() {
+            f.take("verifies");
+            for v in fm.verifies.as_deref().unwrap_or(&[]) {
                 body.push_str(&format!("{inner}verify {};\n", self.reference(v)));
-            } else {
-                body.push_str(&format!("{inner}// verifies: {v}\n"));
             }
         }
-        self.push_behaviour_body(elem, &inner, &mut body);
+        self.push_behaviour_body(qname, elem, &mut f, &inner, &mut body);
         {
             // `REQ-TRS-SYSMLV2-056`..`-058`: action/state bodies, only as ingestion reads them back.
             let r = |s: &str| self.reference(s);
@@ -421,8 +850,58 @@ impl Writer {
             };
             self.report.degraded_behaviour += super::export_behavior::count_degraded(&text);
             body.push_str(&text);
+            // The behaviour writer owns these fields for the kinds above; a field of the same name on
+            // another kind is reported below.
+            match fm.element_type {
+                Some(ElementType::ActionDef) | Some(ElementType::Action) => {
+                    for k in ["subActions", "controlNodes", "successionConnections"] {
+                        f.take(k);
+                    }
+                }
+                Some(ElementType::StateDef) | Some(ElementType::State) => {
+                    for k in ["entryAction", "doAction", "exitAction", "subStates", "transitions"] {
+                        f.take(k);
+                    }
+                }
+                Some(ElementType::PartDef) | Some(ElementType::Part) => {
+                    f.take("successionConnections");
+                }
+                _ => {}
+            }
         }
+        // `dependsOn:` -> an anonymous package-level `dependency from <self> to <suppliers>;`.
+        let deps = fm.depends_on.clone().unwrap_or_default();
+        if !deps.is_empty() && !is_package && f.take("dependsOn") {
+            let to: Vec<String> = deps.iter().map(|d| self.reference(d).replace('.', "::")).collect();
+            let pkg_pad = "    ".repeat(depth);
+            sats.push(format!("{pkg_pad}dependency from {} to {};\n", qualified(qname).replace('.', "::"), to.join(", ")));
+        }
+        // `allocatedTo:`/`allocatedFrom:` on a non-Allocation element -> `allocate a to b;`.
+        if !matches!(ety, ElementType::Allocation) && !is_package {
+            let pkg_pad = "    ".repeat(depth);
+            for t in fm.allocated_to.iter().flatten() {
+                sats.push(format!("{pkg_pad}allocate {} to {};\n", qualified(qname), self.reference(t)));
+            }
+            for s in fm.allocated_from.iter().flatten() {
+                sats.push(format!("{pkg_pad}allocate {} to {};\n", self.reference(s), qualified(qname)));
+            }
+            if fm.allocated_to.is_some() {
+                f.take("allocatedTo");
+            }
+            if fm.allocated_from.is_some() {
+                f.take("allocatedFrom");
+            }
+        }
+
+        // Anything SysML-semantic that no writer above consumed is reported, never lost silently.
+        let leftover: Vec<String> = SEMANTIC.iter().filter(|k| f.0.contains(**k)).map(|k| k.to_string()).collect();
+        for k in leftover {
+            self.drop_field(qname, &k, &inner, &mut body);
+        }
+
         let mut child_buf = String::new();
+        // A `connections:` entry that duplicates a child `Connection`/`Interface` element is merged
+        // into that element's header (set by `push_structural_links`), so it is rendered once.
         if is_package {
             let mut own = Vec::new();
             self.render_children(qname, node, depth + 1, &mut child_buf, &mut own);
@@ -434,7 +913,7 @@ impl Writer {
         }
         body.push_str(&child_buf);
 
-        if body.is_empty() {
+        if body.is_empty() && !parallel {
             out.push_str(&format!("{pad}{head};\n"));
         } else {
             out.push_str(&format!("{pad}{head} {{\n{body}{pad}}}\n"));
@@ -455,9 +934,554 @@ impl Writer {
         }
     }
 
+    /// `import`/`alias` members (`imports:`, `aliases:`) of any element.
+    fn push_imports_aliases(&mut self, qname: &str, fm: &RawFrontmatter, f: &mut Fields, pad: &str, body: &mut String) {
+        for (i, imp) in fm.imports.iter().flatten().enumerate() {
+            let (target, public, filter) = match imp {
+                Y::String(s) => (s.trim().to_string(), false, None),
+                Y::Mapping(m) => (
+                    mstr(m, "target").unwrap_or_default().to_string(),
+                    mbool(m, "isPublic"),
+                    mstr(m, "filter").map(str::to_string),
+                ),
+                _ => (String::new(), false, None),
+            };
+            if target.is_empty() {
+                self.drop_field(qname, &format!("imports[{i}] (no target)"), pad, body);
+                continue;
+            }
+            let (base, suffix) = if let Some(b) = target.strip_suffix("::**") {
+                (b, "::**")
+            } else if let Some(b) = target.strip_suffix("::*") {
+                (b, "::*")
+            } else {
+                (target.as_str(), "")
+            };
+            body.push_str(&format!("{pad}{}import {}{suffix};\n", if public { "public " } else { "" }, self.reference(base)));
+            if filter.is_some() {
+                self.drop_field(qname, &format!("imports[{i}].filter"), pad, body);
+            }
+        }
+        f.take("imports");
+        for (i, al) in fm.aliases.iter().flatten().enumerate() {
+            let Some(m) = al.as_mapping() else {
+                self.drop_field(qname, &format!("aliases[{i}] (not a mapping)"), pad, body);
+                continue;
+            };
+            let (Some(n), Some(target)) = (mstr(m, "name"), mstr(m, "for")) else {
+                self.drop_field(qname, &format!("aliases[{i}] (needs name and for)"), pad, body);
+                continue;
+            };
+            let vis = if mstr(m, "visibility") == Some("private") { "private " } else { "" };
+            let short = mstr(m, "shortName").map(|s| format!("<{}> ", sysml_ident(s))).unwrap_or_default();
+            body.push_str(&format!("{pad}{vis}alias {short}{} for {};\n", sysml_ident(n), self.reference(target)));
+        }
+        f.take("aliases");
+        f.take("filterCondition");
+        if fm.filter_condition.as_deref().is_some_and(|s| !s.trim().is_empty()) {
+            self.drop_field(qname, "filterCondition", pad, body);
+        }
+    }
+
+    /// An `EnumerationDef`'s `values:` as `enum` literals.
+    fn push_enum_values(&mut self, qname: &str, fm: &RawFrontmatter, f: &mut Fields, pad: &str, body: &mut String) {
+        if !matches!(fm.element_type, Some(ElementType::EnumerationDef)) {
+            return;
+        }
+        for (i, v) in fm.values.iter().flatten().enumerate() {
+            let (name, m) = match v {
+                Y::String(s) if !s.trim().is_empty() => (s.trim().to_string(), None),
+                Y::Mapping(m) => match mstr(m, "name") {
+                    Some(n) => (n.to_string(), Some(m)),
+                    None => {
+                        self.drop_field(qname, &format!("values[{i}] (no name)"), pad, body);
+                        continue;
+                    }
+                },
+                _ => {
+                    self.drop_field(qname, &format!("values[{i}]"), pad, body);
+                    continue;
+                }
+            };
+            let mut line = format!("enum {}", sysml_ident(&name));
+            if let Some(m) = m {
+                if let Some(val) = m.get(ykey("value")).and_then(render_value) {
+                    line.push_str(&format!(" = {val}"));
+                    if let Some(u) = mstr(m, "unit").filter(|_| val.parse::<f64>().is_ok()) {
+                        line.push_str(&format!(" [{}]", sysml_unit(u)));
+                    } else if mstr(m, "unit").is_some() {
+                        self.drop_field(qname, &format!("values[{name}].unit"), pad, body);
+                    }
+                } else if mstr(m, "unit").is_some() {
+                    self.drop_field(qname, &format!("values[{name}].unit"), pad, body);
+                }
+                if m.get(ykey("metadata")).is_some() {
+                    self.drop_field(qname, &format!("values[{name}].metadata"), pad, body);
+                }
+            }
+            body.push_str(&format!("{pad}{line};\n"));
+        }
+        f.take("values");
+    }
+
+    /// `parameters:` of an `ActionDef`/`Action`/`RequirementDef`/`Requirement` (constraints and
+    /// calculations write theirs in [`Self::push_behaviour_body`]).
+    fn push_parameters(&mut self, qname: &str, fm: &RawFrontmatter, ety: &ElementType, f: &mut Fields, pad: &str, body: &mut String) {
+        let is_action = matches!(ety, ElementType::ActionDef | ElementType::Action);
+        let is_req = matches!(ety, ElementType::RequirementDef | ElementType::Requirement);
+        if !is_action && !is_req {
+            return;
+        }
+        for (i, p) in fm.parameters.iter().flatten().enumerate() {
+            let Some(m) = p.as_mapping() else {
+                self.drop_field(qname, &format!("parameters[{i}] (not a mapping)"), pad, body);
+                continue;
+            };
+            let Some(pname) = mstr(m, "name") else {
+                self.drop_field(qname, &format!("parameters[{i}] (no name)"), pad, body);
+                continue;
+            };
+            let typed = mstr(m, "typedBy").map(|t| format!(" : {}", self.reference(t))).unwrap_or_default();
+            let mult = mscalar(m, "multiplicity").filter(|x| x != "1").map(|x| format!(" [{x}]")).unwrap_or_default();
+            if mbool(m, "isReadonly") {
+                self.drop_field(qname, &format!("parameters[{pname}].isReadonly"), pad, body);
+            }
+            if is_action {
+                // An action def has no `return` parameter (that is `calc`): it is written as `out`.
+                let (dir, note) = match mstr(m, "direction") {
+                    Some("out") => ("out", ""),
+                    Some("inout") => ("inout", ""),
+                    Some("return") => ("out", " // return parameter"),
+                    _ => ("in", ""),
+                };
+                body.push_str(&format!("{pad}{dir} {}{typed}{mult};{note}\n", sysml_ident(pname)));
+            } else {
+                // A requirement's parameters are plain attributes.
+                body.push_str(&format!("{pad}attribute {}{typed}{mult};\n", sysml_ident(pname)));
+            }
+        }
+        f.take("parameters");
+    }
+
+    /// `ends:` of a `ConnectionDef`/`InterfaceDef`/`FlowDef` (declarations) or of a usage that
+    /// declares rather than binds its ends.
+    #[allow(clippy::too_many_arguments)]
+    fn push_ends(
+        &mut self,
+        qname: &str,
+        fm: &RawFrontmatter,
+        ety: &ElementType,
+        consumed_by_header: bool,
+        f: &mut Fields,
+        pad: &str,
+        body: &mut String,
+    ) {
+        if consumed_by_header {
+            f.take("ends");
+            return;
+        }
+        let supported = matches!(
+            ety,
+            ElementType::ConnectionDef
+                | ElementType::InterfaceDef
+                | ElementType::Connection
+                | ElementType::Interface
+                | ElementType::FlowDef
+        );
+        if !supported {
+            return;
+        }
+        for (i, e) in fm.ends.iter().flatten().enumerate() {
+            let Some(m) = e.as_mapping() else {
+                self.drop_field(qname, &format!("ends[{i}] (not a mapping)"), pad, body);
+                continue;
+            };
+            let Some(en) = mstr(m, "name").or_else(|| mstr(m, "end")) else {
+                self.drop_field(qname, &format!("ends[{i}] (no name)"), pad, body);
+                continue;
+            };
+            let conj = mbool(m, "isConjugated");
+            let typed = mstr(m, "typedBy").map(|t| format!(" : {}", self.typed_ref(qname, t, conj))).unwrap_or_default();
+            let mult = mscalar(m, "multiplicity").filter(|x| x != "1").map(|x| format!(" [{x}]")).unwrap_or_default();
+            for k in ["direction", "isAbstract", "crossFeatures", "binds"] {
+                if m.get(ykey(k)).is_some_and(|v| !matches!(v, Y::Bool(false) | Y::Null)) {
+                    self.drop_field(qname, &format!("ends[{en}].{k}"), pad, body);
+                }
+            }
+            body.push_str(&format!("{pad}end {}{typed}{mult};\n", sysml_ident(en)));
+        }
+        f.take("ends");
+    }
+
+    /// `connect a to b` / `connect e1 ::> a to e2 ::> b` / `connect (e1 ::> a, e2 ::> b, e3 ::> c)`
+    /// from a list of end bindings (`{end, binds}`), or `None` when it has no bound end.
+    fn connect_clause_from_ends(&self, owner: &str, ends: &[Y]) -> Option<String> {
+        let mut parts: Vec<(Option<String>, String)> = Vec::new();
+        for e in ends {
+            let m = e.as_mapping()?;
+            let binds = mstr(m, "binds")?;
+            parts.push((mstr(m, "end").or_else(|| mstr(m, "name")).map(sysml_ident), self.chain_in(owner, binds)));
+        }
+        let fmt = |p: &(Option<String>, String)| match &p.0 {
+            Some(n) => format!("{n} ::> {}", p.1),
+            None => p.1.clone(),
+        };
+        match parts.len() {
+            0 | 1 => None,
+            2 => Some(format!("connect {} to {}", fmt(&parts[0]), fmt(&parts[1]))),
+            _ => Some(format!("connect ({})", parts.iter().map(fmt).collect::<Vec<_>>().join(", "))),
+        }
+    }
+
+    /// `connections:`, `bindingConnections:`, `flowConnections:`, `performs:`, `exhibitsStates:`.
+    #[allow(clippy::too_many_arguments)]
+    fn push_structural_links(
+        &mut self,
+        qname: &str,
+        node: &Node<'_>,
+        fm: &RawFrontmatter,
+        ety: &ElementType,
+        f: &mut Fields,
+        pad: &str,
+        body: &mut String,
+    ) {
+        let owner_ok = matches!(
+            ety,
+            ElementType::Part
+                | ElementType::PartDef
+                | ElementType::Item
+                | ElementType::ItemDef
+                | ElementType::Action
+                | ElementType::ActionDef
+                | ElementType::Occurrence
+                | ElementType::OccurrenceDef
+        );
+        if !owner_ok {
+            return;
+        }
+        let connectable = matches!(ety, ElementType::Part | ElementType::PartDef);
+        // connections:
+        if connectable {
+            let mut claimed: BTreeSet<String> = BTreeSet::new();
+            for (i, c) in fm.connections.iter().flatten().enumerate() {
+                let Some(m) = c.as_mapping() else {
+                    self.drop_field(qname, &format!("connections[{i}] (not a mapping)"), pad, body);
+                    continue;
+                };
+                let name = mstr(m, "name");
+                let typed = mstr(m, "typedBy");
+                let clause = if let (Some(a), Some(b)) = (mstr(m, "from"), mstr(m, "to")) {
+                    Some(format!("connect {} to {}", self.chain_in(qname, a), self.chain_in(qname, b)))
+                } else if let Some(Y::Sequence(ends)) = m.get(ykey("ends")) {
+                    self.connect_clause_from_ends(qname, ends)
+                } else {
+                    None
+                };
+                let Some(clause) = clause else {
+                    self.drop_field(qname, &format!("connections[{i}] (no from/to or bound ends)"), pad, body);
+                    continue;
+                };
+                for k in m.keys().filter_map(Y::as_str) {
+                    if !["name", "typedBy", "from", "to", "ends", "multiplicity"].contains(&k) {
+                        self.drop_field(qname, &format!("connections[{i}].{k}"), pad, body);
+                    }
+                }
+                // The same connection may also exist as a child element (ingestion makes both): merge.
+                let twin = node.children.iter().find(|(cn, cnode)| {
+                    !claimed.contains(*cn)
+                        && cnode.elem.is_some_and(|ce| {
+                            matches!(ce.frontmatter.element_type, Some(ElementType::Connection) | Some(ElementType::Interface))
+                                && ce.frontmatter.ends.as_ref().is_none_or(|e| e.is_empty())
+                                && match name {
+                                    Some(n) => n == cn.as_str(),
+                                    None => typed.is_some()
+                                        && ref_list(ce.frontmatter.typed_by.as_ref()).first().map(String::as_str) == typed,
+                                }
+                        })
+                });
+                if let Some((cn, _)) = twin {
+                    claimed.insert(cn.clone());
+                    self.connect_override.insert(format!("{qname}::{cn}"), clause);
+                    continue;
+                }
+                let mut s = String::from("connection");
+                if let Some(n) = name {
+                    s.push_str(&format!(" {}", sysml_ident(n)));
+                }
+                if let Some(t) = typed {
+                    s.push_str(&format!(" : {}", self.reference(t)));
+                }
+                if let Some(mu) = mscalar(m, "multiplicity").filter(|x| x != "1") {
+                    s.push_str(&format!(" [{mu}]"));
+                }
+                body.push_str(&format!("{pad}{s} {clause};\n"));
+            }
+            f.take("connections");
+        }
+        // bindingConnections:
+        for (i, b) in fm.binding_connections.iter().flatten().enumerate() {
+            let Some(m) = b.as_mapping() else {
+                self.drop_field(qname, &format!("bindingConnections[{i}] (not a mapping)"), pad, body);
+                continue;
+            };
+            let (Some(l), Some(r)) = (mstr(m, "left"), mstr(m, "right")) else {
+                self.drop_field(qname, &format!("bindingConnections[{i}] (needs left and right)"), pad, body);
+                continue;
+            };
+            let named = mstr(m, "name").map(|n| format!("binding {} ", sysml_ident(n))).unwrap_or_default();
+            body.push_str(&format!("{pad}{named}bind {} = {};\n", self.chain_in(qname, l), self.chain_in(qname, r)));
+        }
+        f.take("bindingConnections");
+        // flowConnections:
+        for (i, fl) in fm.flow_connections.iter().flatten().enumerate() {
+            let Some(m) = fl.as_mapping() else {
+                self.drop_field(qname, &format!("flowConnections[{i}] (not a mapping)"), pad, body);
+                continue;
+            };
+            let (Some(from), Some(to)) = (mstr(m, "from"), mstr(m, "to")) else {
+                self.drop_field(qname, &format!("flowConnections[{i}] (needs from and to)"), pad, body);
+                continue;
+            };
+            let kind = mstr(m, "kind").unwrap_or("streaming");
+            if kind == "succession" {
+                // `succession flow` is not in the grammar the parser implements.
+                self.drop_field(qname, &format!("flowConnections[{i}] (kind succession has no text form)"), pad, body);
+                continue;
+            }
+            let mut s = String::from(if kind == "message" { "message" } else { "flow" });
+            if let Some(n) = mstr(m, "name") {
+                s.push_str(&format!(" {}", sysml_ident(n)));
+            }
+            if let Some(t) = mstr(m, "typedBy") {
+                s.push_str(&format!(" : {}", self.reference(t)));
+            }
+            if let Some(mu) = mscalar(m, "multiplicity").filter(|x| x != "1") {
+                s.push_str(&format!(" [{mu}]"));
+            }
+            if let Some(item) = mstr(m, "item") {
+                s.push_str(&format!(" of {}", self.reference(item)));
+            }
+            body.push_str(&format!("{pad}{s} from {} to {};\n", self.chain_in(qname, from), self.chain_in(qname, to)));
+        }
+        f.take("flowConnections");
+        // performs:
+        for (i, p) in fm.performs.iter().flatten().enumerate() {
+            let (name, typed, mult, reds, rest) = match p {
+                Y::String(s) if !s.trim().is_empty() => (None, Some(s.trim().to_string()), None, Vec::new(), Vec::new()),
+                Y::Mapping(m) => (
+                    mstr(m, "name").map(str::to_string),
+                    mstr(m, "typedBy").map(str::to_string),
+                    mscalar(m, "multiplicity").filter(|x| x != "1"),
+                    mlist(m, "redefines"),
+                    m.keys().filter_map(Y::as_str).filter(|k| !["name", "typedBy", "multiplicity", "redefines"].contains(k)).map(str::to_string).collect::<Vec<_>>(),
+                ),
+                _ => {
+                    self.drop_field(qname, &format!("performs[{i}]"), pad, body);
+                    continue;
+                }
+            };
+            let Some(typed) = typed else {
+                self.drop_field(qname, &format!("performs[{i}] (no typedBy)"), pad, body);
+                continue;
+            };
+            let n = name.map(|n| sysml_ident(&n)).unwrap_or_else(|| lower_leaf(&typed));
+            let mut s = format!("perform action {n} : {}", self.reference(&typed));
+            if let Some(mu) = mult {
+                s.push_str(&format!(" [{mu}]"));
+            }
+            if !reds.is_empty() {
+                s.push_str(&format!(" :>> {}", reds.iter().map(|r| self.reference(r)).collect::<Vec<_>>().join(", ")));
+            }
+            for k in rest {
+                self.drop_field(qname, &format!("performs[{i}].{k}"), pad, body);
+            }
+            body.push_str(&format!("{pad}{s};\n"));
+        }
+        f.take("performs");
+        // exhibitsStates:
+        for s in fm.exhibits_states.iter().flatten() {
+            body.push_str(&format!("{pad}exhibit state {} : {};\n", lower_leaf(s), self.reference(s)));
+        }
+        f.take("exhibitsStates");
+    }
+
+    /// `subject`, `actors`, `stakeholders`, `concerns`, `framedConcerns`, `objectives`, `includes`,
+    /// `requires`, `assume` of requirement- and case-like elements.
+    fn push_case_members(&mut self, qname: &str, fm: &RawFrontmatter, ety: &ElementType, f: &mut Fields, pad: &str, body: &mut String) {
+        use ElementType as T;
+        let req_like = matches!(ety, T::RequirementDef | T::Requirement | T::ConcernDef | T::Concern);
+        let case_like = matches!(
+            ety,
+            T::UseCaseDef | T::UseCase | T::AnalysisCaseDef | T::AnalysisCase | T::VerificationCaseDef | T::VerificationCase | T::CaseDef | T::Case
+        );
+        let viewpoint_like = matches!(ety, T::ViewpointDef);
+        if !(req_like || case_like || viewpoint_like) {
+            return;
+        }
+        if !viewpoint_like {
+            if let Some(s) = fm.subject.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                body.push_str(&format!("{pad}subject : {};\n", self.reference(s)));
+                f.take("subject");
+            }
+            for a in fm.actors.iter().flatten() {
+                body.push_str(&format!("{pad}actor {} : {};\n", lower_leaf(a), self.reference(a)));
+            }
+            f.take("actors");
+        }
+        for s in fm.stakeholders.iter().flatten() {
+            body.push_str(&format!("{pad}stakeholder {} : {};\n", lower_leaf(s), self.reference(s)));
+        }
+        f.take("stakeholders");
+        for c in fm.concerns.iter().flatten().chain(fm.framed_concerns.iter().flatten()) {
+            body.push_str(&format!("{pad}frame concern {} : {};\n", lower_leaf(c), self.reference(c)));
+        }
+        f.take("concerns");
+        f.take("framedConcerns");
+        if case_like {
+            for o in fm.objectives.iter().flatten() {
+                let name = match o {
+                    Y::String(s) if !s.trim().is_empty() => Some(s.trim().to_string()),
+                    Y::Mapping(m) => mstr(m, "name").map(str::to_string),
+                    _ => None,
+                };
+                match name {
+                    Some(n) => body.push_str(&format!("{pad}objective {};\n", sysml_ident(&n))),
+                    None => self.drop_field(qname, "objectives (entry without a name)", pad, body),
+                }
+            }
+            f.take("objectives");
+            if matches!(ety, T::UseCaseDef | T::UseCase) {
+                for i in fm.includes.iter().flatten() {
+                    body.push_str(&format!("{pad}include use case {};\n", self.reference(i)));
+                }
+                f.take("includes");
+            }
+        }
+        if req_like {
+            for (key, kw, list) in [("requires", "require", fm.requires.as_deref()), ("assume", "assume", fm.assume.as_deref())] {
+                for (i, c) in list.unwrap_or(&[]).iter().enumerate() {
+                    let (typed, expr, asserted) = match c {
+                        Y::String(s) => (None, Some(s.trim().to_string()), true),
+                        Y::Mapping(m) => (
+                            mstr(m, "typedBy").map(str::to_string),
+                            mstr(m, "expression").map(str::to_string),
+                            m.get(ykey("isAsserted")).and_then(Y::as_bool).unwrap_or(kw == "require"),
+                        ),
+                        _ => {
+                            self.drop_field(qname, &format!("{key}[{i}]"), pad, body);
+                            continue;
+                        }
+                    };
+                    if !asserted && kw == "require" {
+                        self.drop_field(qname, &format!("{key}[{i}].isAsserted"), pad, body);
+                    }
+                    let cname = c
+                        .as_mapping()
+                        .and_then(|m| mstr(m, "name"))
+                        .map(sysml_ident)
+                        .or_else(|| typed.as_deref().map(lower_leaf))
+                        .unwrap_or_else(|| format!("{kw}{}", i + 1));
+                    let mut s = format!("{kw} constraint {cname}");
+                    if let Some(t) = &typed {
+                        s.push_str(&format!(" : {}", self.reference(t)));
+                    }
+                    match expr {
+                        Some(e) if super::ingest::expression_round_trips(false, &e) && !e.contains("expression>") => {
+                            body.push_str(&format!("{pad}{s} {{ {} }}\n", e.split_whitespace().collect::<Vec<_>>().join(" ")));
+                        }
+                        Some(e) => {
+                            body.push_str(&format!("{pad}{s};\n{pad}// expression (not valid SysML v2 text): {}\n", e.replace('\n', " ")));
+                            self.drop_field(qname, &format!("{key}[{i}].expression"), pad, body);
+                        }
+                        None => body.push_str(&format!("{pad}{s};\n")),
+                    }
+                }
+                f.take(key);
+            }
+        }
+    }
+
+    /// `constraints:` of an interface/connection: `assert constraint [n] [: T] { expr }`.
+    fn push_constraints(&mut self, qname: &str, fm: &RawFrontmatter, ety: &ElementType, f: &mut Fields, pad: &str, body: &mut String) {
+        if !matches!(
+            ety,
+            ElementType::InterfaceDef | ElementType::ConnectionDef | ElementType::Interface | ElementType::Connection
+        ) {
+            return;
+        }
+        for (i, c) in fm.constraints.iter().flatten().enumerate() {
+            let Some(m) = c.as_mapping() else {
+                self.drop_field(qname, &format!("constraints[{i}] (not a mapping)"), pad, body);
+                continue;
+            };
+            let asserted = m.get(ykey("isAsserted")).and_then(Y::as_bool).unwrap_or(true);
+            // An interface body takes a plain `constraint`, a connection body `assert constraint`.
+            let interface = matches!(ety, ElementType::InterfaceDef | ElementType::Interface);
+            let mut s = String::from(if asserted && !interface { "assert constraint" } else { "constraint" });
+            if let Some(n) = mstr(m, "name") {
+                s.push_str(&format!(" {}", sysml_ident(n)));
+            }
+            if let Some(t) = mstr(m, "typedBy") {
+                s.push_str(&format!(" : {}", self.reference(t)));
+            }
+            match mstr(m, "expression") {
+                Some(e) if super::ingest::expression_round_trips(false, e) && !e.contains("expression>") => {
+                    body.push_str(&format!("{pad}{s} {{ {} }}\n", e.split_whitespace().collect::<Vec<_>>().join(" ")));
+                }
+                Some(e) => {
+                    body.push_str(&format!("{pad}{s};\n{pad}// expression (not valid SysML v2 text): {}\n", e.replace('\n', " ")));
+                    self.drop_field(qname, &format!("constraints[{i}].expression"), pad, body);
+                }
+                None => body.push_str(&format!("{pad}{s};\n")),
+            }
+        }
+        f.take("constraints");
+    }
+
+    /// `expose`, `viewpoint`, `rendering` of views and view definitions; `rendering` of both.
+    fn push_view_members(&mut self, qname: &str, fm: &RawFrontmatter, ety: &ElementType, f: &mut Fields, pad: &str, body: &mut String) {
+        if !matches!(ety, ElementType::View | ElementType::ViewDef) {
+            return;
+        }
+        if let Some(vp) = fm.viewpoint.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            body.push_str(&format!("{pad}satisfy {};\n", self.reference(vp)));
+        }
+        f.take("viewpoint");
+        if let Some(r) = fm.rendering.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+            body.push_str(&format!("{pad}render {};\n", self.reference(r)));
+        }
+        f.take("rendering");
+        for (i, e) in fm.expose.iter().flatten().enumerate() {
+            let (target, filter) = match e {
+                Y::String(s) => (s.trim().to_string(), false),
+                Y::Mapping(m) => (
+                    mstr(m, "target").or_else(|| mstr(m, "expose")).unwrap_or_default().to_string(),
+                    m.get(ykey("filter")).is_some(),
+                ),
+                _ => (String::new(), false),
+            };
+            if target.is_empty() {
+                self.drop_field(qname, &format!("expose[{i}] (no target)"), pad, body);
+                continue;
+            }
+            let (base, suffix) = if let Some(b) = target.strip_suffix("::**") {
+                (b, "::**")
+            } else if let Some(b) = target.strip_suffix("::*") {
+                (b, "::*")
+            } else {
+                (target.as_str(), "")
+            };
+            body.push_str(&format!("{pad}expose {}{suffix};\n", self.reference(base)));
+            if filter {
+                self.drop_field(qname, &format!("expose[{i}].filter"), pad, body);
+            }
+        }
+        f.take("expose");
+    }
+
     /// `REQ-TRS-SYSMLV2-052`: `parameters:` and the opaque expression text of a
     /// constraint/calc, so ingestion's `expression:`/`body:` round-trips.
-    fn push_behaviour_body(&self, e: &RawElement, inner: &str, body: &mut String) {
+    fn push_behaviour_body(&mut self, qname: &str, e: &RawElement, f: &mut Fields, inner: &str, body: &mut String) {
         let fm = &e.frontmatter;
         let (is_constraint, is_calc) = match fm.element_type {
             Some(ElementType::ConstraintDef) | Some(ElementType::Constraint) => (true, false),
@@ -466,7 +1490,7 @@ impl Writer {
         };
         for p in fm.parameters.as_deref().unwrap_or(&[]) {
             let Some(m) = p.as_mapping() else { continue };
-            let get = |k: &str| m.get(serde_yaml::Value::String(k.to_string())).and_then(|v| v.as_str());
+            let get = |k: &str| m.get(ykey(k)).and_then(|v| v.as_str());
             let Some(pname) = get("name") else { continue };
             let dir = match get("direction") {
                 Some("return") if is_calc => "return",
@@ -480,6 +1504,13 @@ impl Writer {
             }
             body.push_str(&format!("{inner}{line};\n"));
         }
+        f.take("parameters");
+        if is_calc && fm.parameters.iter().flatten().all(|p| p.get("direction").and_then(Y::as_str) != Some("return")) {
+            if let Some(rt) = fm.return_type.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+                body.push_str(&format!("{inner}return : {};\n", self.reference(rt)));
+                f.take("returnType");
+            }
+        }
         let text = if is_constraint {
             fm.expression.as_deref()
         } else if is_calc && fm.body_language.as_deref().is_none_or(|l| l == "kerml") {
@@ -487,6 +1518,24 @@ impl Writer {
         } else {
             None
         };
+        if is_constraint {
+            f.take("expression");
+        }
+        if is_calc && fm.body_language.as_deref().is_none_or(|l| l == "kerml") {
+            f.take("body");
+            f.take("bodyLanguage");
+        }
+        // A calculation's `expression:` (an equation such as `y = a / b`) is not a calc body.
+        if is_calc && text.is_none_or(|t| t.trim().is_empty()) {
+            if let Some(e) = fm.expression.as_deref().map(str::trim).filter(|e| !e.is_empty()) {
+                for l in e.lines() {
+                    body.push_str(&format!("{inner}// expression (not valid SysML v2 text): {}\n", l.trim()));
+                }
+                self.drop_field(qname, "expression", inner, body);
+                f.take("expression");
+                return;
+            }
+        }
         let Some(text) = text.map(str::trim).filter(|t| !t.is_empty()) else { return };
         let printable = !text.contains("expression>") && super::ingest::expression_round_trips(is_calc, text);
         if printable {
@@ -497,6 +1546,7 @@ impl Writer {
             for l in text.lines() {
                 body.push_str(&format!("{inner}// expression (not valid SysML v2 text): {}\n", l.trim()));
             }
+            self.drop_field(qname, if is_constraint { "expression" } else { "body" }, inner, body);
         }
     }
 
@@ -533,14 +1583,14 @@ impl Writer {
         const RESERVED_KEYS: &[&str] = &["type", "apply", "def", "name", "about"];
         for entry in e.frontmatter.metadata.iter().flatten() {
             let m = match entry {
-                serde_yaml::Value::String(s) if !s.trim().is_empty() => {
+                Y::String(s) if !s.trim().is_empty() => {
                     body.push_str(&format!("{inner}@{};\n", self.reference(s.trim())));
                     continue;
                 }
-                serde_yaml::Value::Mapping(m) => m,
+                Y::Mapping(m) => m,
                 _ => continue,
             };
-            let get = |k: &str| m.get(serde_yaml::Value::String(k.to_string())).and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty());
+            let get = |k: &str| m.get(ykey(k)).and_then(|v| v.as_str()).map(str::trim).filter(|s| !s.is_empty());
             let Some(ty) = get("type").or_else(|| get("apply")).or_else(|| get("def")) else { continue };
             let mut head = match get("name") {
                 Some(n) => format!("@{} : {}", sysml_ident(n), self.reference(ty)),
@@ -565,59 +1615,210 @@ impl Writer {
         }
     }
 
-    /// One inline `features:` entry as an `attribute`/`port` member.
-    fn render_feature(&self, f: &serde_yaml::Value) -> Option<String> {
-        let m = f.as_mapping()?;
-        let get = |k: &str| m.get(serde_yaml::Value::String(k.to_string()));
-        let name = get("name")?.as_str()?;
-        let kind = match get("type").and_then(|v| v.as_str()) {
-            Some("Port") => "port",
-            Some("Item") => "item",
-            Some("Part") => "part",
-            _ => "attribute",
+    /// One inline `features:` (or `timeSlices:`/`snapshots:`) entry as a member. `force` overrides
+    /// the usage keyword.
+    fn render_feature(&mut self, scope: &str, owner: &str, f: &Y, force: Option<&str>, no_derived: bool, pad: &str, body: &mut String) {
+        let Some(m) = f.as_mapping() else {
+            self.drop_field(owner, "features (entry is not a mapping)", pad, body);
+            return;
         };
-        let mut s = format!("{kind} {}", sysml_ident(name));
-        if let Some(t) = get("typedBy").or_else(|| get("type_")).and_then(|v| v.as_str()) {
-            s.push_str(&format!(" : {}", self.reference(t)));
+        let Some(name) = mstr(m, "name") else {
+            self.drop_field(owner, "features (entry has no name)", pad, body);
+            return;
+        };
+        // A feature named `subject`/`actor` of a requirement or case is that role, not a part: the
+        // grammar has `subject : T;` / `actor a : T;` (and `subject` is reserved as a name).
+        let role_owner = matches!(
+            self.types.get(owner),
+            Some(
+                ElementType::UseCaseDef
+                    | ElementType::UseCase
+                    | ElementType::AnalysisCaseDef
+                    | ElementType::AnalysisCase
+                    | ElementType::VerificationCaseDef
+                    | ElementType::VerificationCase
+                    | ElementType::CaseDef
+                    | ElementType::Case
+                    | ElementType::RequirementDef
+                    | ElementType::Requirement
+                    | ElementType::ConcernDef
+                    | ElementType::Concern
+            )
+        );
+        if role_owner && matches!(name, "subject" | "actor") {
+            if let Some(t) = mstr(m, "typedBy").or_else(|| mstr(m, "type_")) {
+                let r = self.typed_ref(scope, t, false);
+                if name == "subject" {
+                    body.push_str(&format!("{pad}subject : {r};\n"));
+                } else {
+                    body.push_str(&format!("{pad}actor {} : {r};\n", lower_leaf(t)));
+                }
+                for k in m.keys().filter_map(Y::as_str) {
+                    if !["name", "type", "typedBy", "type_", "direction"].contains(&k) {
+                        self.drop_field(owner, &format!("features[{name}].{k}"), pad, body);
+                    }
+                }
+                return;
+            }
         }
-        if let Some(mu) = get("multiplicity").and_then(|v| v.as_str()).filter(|m| *m != "1" && !m.is_empty()) {
+        // An allocation edge (`allocatedFrom` + `allocatedTo`, the `Allocation` `features:`
+        // convention): `allocate a to b;`, one per pair. The edge's own name has no text form.
+        let (from, to) = (mlist(m, "allocatedFrom"), mlist(m, "allocatedTo"));
+        if !from.is_empty() && !to.is_empty() {
+            for a in &from {
+                for b in &to {
+                    body.push_str(&format!("{pad}allocate {} to {}; // edge {name}\n", self.reference(a), self.reference(b)));
+                }
+            }
+            for k in m.keys().filter_map(Y::as_str) {
+                if !["name", "type", "allocatedFrom", "allocatedTo"].contains(&k) {
+                    self.drop_field(owner, &format!("features[{name}].{k}"), pad, body);
+                }
+            }
+            return;
+        }
+        let mut keys: BTreeSet<String> = m.keys().filter_map(Y::as_str).map(str::to_string).collect();
+        for k in ["name", "type", "isEnd", "isComposite"] {
+            keys.remove(k);
+        }
+        let typed_by = mstr(m, "typedBy").or_else(|| mstr(m, "type_")).map(str::to_string);
+        keys.remove("typedBy");
+        keys.remove("type_");
+        // The usage keyword: forced, an explicit `type:`, inferred from the typing definition, or
+        // `attribute` as the last resort.
+        // A portion is a `timeslice` (the default) or a `snapshot`.
+        let portion = mbool(m, "isPortion").then(|| if mstr(m, "portionKind") == Some("snapshot") { "snapshot" } else { "timeslice" });
+        keys.remove("isPortion");
+        keys.remove("portionKind");
+        let kind = force
+            .or(portion)
+            .or_else(|| mstr(m, "type").and_then(usage_kw_for_name))
+            .or_else(|| typed_by.as_deref().and_then(|t| self.lookup_type(scope, t)).and_then(usage_kw_for_def))
+            .unwrap_or("attribute");
+        let mut mods = String::new();
+        keys.remove("direction");
+        if let Some(d) = mstr(m, "direction").filter(|d| matches!(*d, "in" | "out" | "inout")) {
+            mods.push_str(d);
+            mods.push(' ');
+        }
+        keys.remove("isAbstract");
+        if mbool(m, "isAbstract") {
+            mods.push_str("abstract ");
+        }
+        // A calc/constraint body takes no `derived` modifier in the grammar.
+        if no_derived {
+            if mbool(m, "isDerived") {
+                keys.insert("isDerived".to_string());
+            }
+        } else {
+            keys.remove("isDerived");
+            if mbool(m, "isDerived") {
+                mods.push_str("derived ");
+            }
+        }
+        keys.remove("isConstant");
+        if mbool(m, "isConstant") {
+            mods.push_str("constant ");
+        }
+        keys.remove("isReference");
+        if mbool(m, "isReference") && !kind.contains("exhibit") {
+            mods.push_str("ref ");
+        }
+        let mut s = format!("{mods}{kind} {}", sysml_ident(name));
+        if let Some(t) = &typed_by {
+            keys.remove("isConjugated");
+            let conj = mbool(m, "isConjugated") && kind == "port";
+            s.push_str(&format!(" : {}", self.typed_ref(scope, t, conj)));
+        }
+        keys.remove("multiplicity");
+        if let Some(mu) = mscalar(m, "multiplicity").filter(|x| x != "1") {
             s.push_str(&format!(" [{mu}]"));
         }
-        let unit = get("unit").and_then(|v| v.as_str()).map(str::trim).filter(|u| !u.is_empty());
+        keys.remove("isOrdered");
+        if mbool(m, "isOrdered") {
+            s.push_str(" ordered");
+        }
+        keys.remove("isNonunique");
+        if mbool(m, "isNonunique") {
+            s.push_str(" nonunique");
+        }
+        keys.remove("subsets");
+        let subs: Vec<String> = mlist(m, "subsets").iter().map(|x| self.reference(x)).collect();
+        if !subs.is_empty() {
+            s.push_str(&format!(" :> {}", subs.join(", ")));
+        }
+        keys.remove("redefines");
+        let reds: Vec<String> = mlist(m, "redefines").iter().map(|x| self.reference(x)).collect();
+        if !reds.is_empty() {
+            s.push_str(&format!(" :>> {}", reds.join(", ")));
+        }
+        let unit = mstr(m, "unit");
+        keys.remove("unit");
         let mut unit_used = false;
-        if kind == "attribute" {
-            if let Some(v) = get("value").and_then(render_value) {
-                s.push_str(&format!(" = {v}"));
-                // `REQ-TRS-SYSMLV2-050`: a numeric value carries its unit as a literal-with-unit.
-                if let Some(u) = unit.filter(|_| v.parse::<f64>().is_ok()) {
-                    s.push_str(&format!(" [{}]", sysml_unit(u)));
-                    unit_used = true;
+        keys.remove("value");
+        keys.remove("valueKind");
+        if let Some(v) = m.get(ykey("value")).and_then(render_value) {
+            s.push_str(&format!("{}{v}", value_operator(mstr(m, "valueKind"))));
+            // `REQ-TRS-SYSMLV2-050`: a numeric value carries its unit as a literal-with-unit.
+            if let Some(u) = unit.filter(|_| v.parse::<f64>().is_ok()) {
+                s.push_str(&format!(" [{}]", sysml_unit(u)));
+                unit_used = true;
+            }
+        }
+        // `bindingConnections:` of the feature become `bind l = r;` members of its body.
+        keys.remove("bindingConnections");
+        let mut binds = String::new();
+        for (i, b) in m.get(ykey("bindingConnections")).and_then(Y::as_sequence).into_iter().flatten().enumerate() {
+            match b.as_mapping().and_then(|bm| Some((mstr(bm, "left")?, mstr(bm, "right")?, mstr(bm, "name")))) {
+                Some((l, r, n)) => {
+                    let named = n.map(|n| format!("binding {} ", sysml_ident(n))).unwrap_or_default();
+                    binds.push_str(&format!("{pad}    {named}bind {} = {};\n", feature_chain(l), feature_chain(r)));
+                }
+                None => {
+                    keys.insert(format!("bindingConnections[{i}]"));
                 }
             }
         }
-        s.push(';');
-        if let Some(u) = unit.filter(|_| !unit_used) {
+        let unit_note = unit.filter(|_| !unit_used);
+        if unit_note.is_some() {
+            keys.insert("unit".to_string());
+        }
+        if binds.is_empty() {
+            s.push(';');
+        } else {
+            s.push_str(" {");
+        }
+        if let Some(u) = unit_note {
             s.push_str(&format!(" // unit: {u}"));
         }
-        Some(s)
+        body.push_str(&format!("{pad}{s}\n"));
+        if !binds.is_empty() {
+            body.push_str(&binds);
+            body.push_str(&format!("{pad}}}\n"));
+        }
+        // `readonly` has no SysML v2 text form; neither do these entry-level extras.
+        if mbool(m, "isReadonly") {
+            keys.insert("isReadonly".to_string());
+        } else {
+            keys.remove("isReadonly");
+        }
+        for k in keys {
+            // Falsy flags carry nothing to lose.
+            if matches!(m.get(ykey(&k)), Some(Y::Bool(false)) | Some(Y::Null)) {
+                continue;
+            }
+            self.drop_field(owner, &format!("features[{name}].{k}"), pad, body);
+        }
     }
+}
 
-    /// One `connections:` entry `{from, to, name?, typedBy?}`.
-    fn render_connection(&self, c: &serde_yaml::Value) -> Option<String> {
-        let m = c.as_mapping()?;
-        let get = |k: &str| m.get(serde_yaml::Value::String(k.to_string())).and_then(|v| v.as_str());
-        let from = get("from")?;
-        let to = get("to")?;
-        let end = |s: &str| s.split("::").map(sysml_ident).collect::<Vec<_>>().join(".");
-        let mut s = String::from("connection");
-        if let Some(n) = get("name") {
-            s.push_str(&format!(" {}", sysml_ident(n)));
-        }
-        if let Some(t) = get("typedBy") {
-            s.push_str(&format!(" : {}", self.reference(t)));
-        }
-        s.push_str(&format!(" connect {} to {};", end(from), end(to)));
-        Some(s)
+/// `=`, `:=`, `default =`, `default :=` for a `valueKind`.
+fn value_operator(kind: Option<&str>) -> &'static str {
+    match kind.map(str::trim) {
+        Some("initial") => " := ",
+        Some("default-bound") | Some("default") => " default = ",
+        Some("default-initial") => " default := ",
+        _ => " = ",
     }
 }
 
@@ -678,7 +1879,21 @@ fn render_meta_value(v: &serde_yaml::Value) -> Option<String> {
     }
 }
 
-/// A scalar `value:` as a SysML literal (numbers/bools bare, text double-quoted).
+/// Whether a string `value:` is an expression (`capacityWh * 0.5`, `Color::red`, `a.b`) rather than
+/// text: it must parse as a SysML expression and show an operator, parentheses, a qualified name or
+/// a feature chain. A plain word or a hyphenated token (`VIN-1234`) stays a string literal.
+fn is_expression_text(t: &str) -> bool {
+    let has_op = t.chars().any(|c| "()*/+<>=!&|?%^".contains(c))
+        || t.contains(" - ")
+        || t.contains("::")
+        || (!t.contains(char::is_whitespace)
+            && t.contains('.')
+            && t.split('.').all(|s| s.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_') && s.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')));
+    has_op && super::ingest::canonical_expression(t).is_some()
+}
+
+/// A scalar `value:` as SysML: numbers/bools bare, an already-quoted string as is, an expression
+/// unquoted, any other text as a double-quoted string literal.
 fn render_value(v: &serde_yaml::Value) -> Option<String> {
     match v {
         serde_yaml::Value::Bool(b) => Some(b.to_string()),
@@ -686,6 +1901,10 @@ fn render_value(v: &serde_yaml::Value) -> Option<String> {
         serde_yaml::Value::String(s) => {
             let t = s.trim();
             if t.parse::<f64>().is_ok() || t == "true" || t == "false" {
+                Some(t.to_string())
+            } else if t.len() >= 2 && t.starts_with('"') && t.ends_with('"') {
+                Some(t.to_string())
+            } else if is_expression_text(t) {
                 Some(t.to_string())
             } else {
                 Some(format!("\"{}\"", t.replace('\\', "\\\\").replace('"', "\\\"")))
