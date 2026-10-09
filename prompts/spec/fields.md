@@ -415,6 +415,7 @@ file at all) is always legal.
 |---|---|---|---|---|---|
 | *(top-level)* | `repo_root` (alias `repoRoot`) | No | string | auto-detected (walks up for `.git`) | Git repo root; `repo:`-prefixed `sourceFile:`/`implementedBy:`/evidence `path:` values resolve against it. |
 | `[ids]` | `max_digits` (alias `maxDigits`) | No | int | `8` | Max digits in a stable-ID numeric suffix (min `3`), §11, REQ-TRS-ID-005. |
+| `[ids]` | `check_file_names` (alias `checkFileNames`) | No | bool | `false` | Enable `W065`: an id-identified element whose file stem differs from its `id`, GH #185. |
 | `[ids.prefixes]` | `<TypeName> = [<prefix>, ...]` | No | map → list of strings | `{}` | Extra stable-ID prefixes per element type, additive to the built-in (`REQ`/`TC`/`ADR`/…). Each prefix must match `^[A-Z][A-Z0-9]{1,11}$`; a malformed prefix or unknown type key is `W046` and ignored. REQ-TRS-ID-007. |
 | `[repos.<alias>]` | `path` | **Yes**, once the alias is declared | string | — | Peer repo root, relative to `.syscribe.toml`. §14. |
 | `[repos.<alias>]` | `root` | No | string | `"model/"` | Path within the peer repo where its Syscribe model root lives. |

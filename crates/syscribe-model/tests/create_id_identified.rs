@@ -9,7 +9,6 @@ use serde_json::json;
 use syscribe_model::mutate::mv::move_element;
 use syscribe_model::mutate::{plan_create, plan_create_in, valid_move_dest, write_confined, CreateError};
 use syscribe_model::resolver::Resolver;
-use syscribe_model::validator::validate;
 use syscribe_model::walker::walk_model;
 
 fn write(root: &Path, rel: &str, content: &str) {
@@ -221,9 +220,29 @@ fn valid_move_dest_shapes() {
     assert!(!valid_move_dest(""));
 }
 
-fn w065(root: &Path) -> Vec<String> {
+fn w065_with(root: &Path, enabled: bool) -> Vec<String> {
+    let toml = root.join(".syscribe.toml");
+    if enabled {
+        std::fs::write(&toml, "[ids]\ncheck_file_names = true\n").unwrap();
+    } else {
+        let _ = std::fs::remove_file(&toml);
+    }
     let els = walk_model(root).unwrap();
-    validate(&els).findings.iter().filter(|f| f.code == "W065").map(|f| f.file.clone()).collect()
+    let cfg = syscribe_model::config::ValidateConfig::with_model_root(root);
+    syscribe_model::validator::validate_with_config(&els, &cfg)
+        .findings.iter().filter(|f| f.code == "W065").map(|f| f.file.clone()).collect()
+}
+
+fn w065(root: &Path) -> Vec<String> {
+    w065_with(root, true)
+}
+
+#[test]
+fn w065_is_off_unless_check_file_names_is_configured() {
+    let r = model();
+    std::fs::write(r.join("Wrong.md"), "---\ntype: Requirement\nid: REQ-XX-050\nname: x\nstatus: approved\n---\nbody\n").unwrap();
+    assert!(w065_with(&r, false).is_empty(), "opt-in: silent by default");
+    assert!(!w065_with(&r, true).is_empty(), "fires once enabled");
 }
 
 #[test]

@@ -1156,7 +1156,7 @@ resolve.
 | Code | Condition |
 |---|---|
 | W042 | A qualified-name segment — an element's own name or a package/directory name — is not a SysMLv2 basic name (`[A-Za-z_][A-Za-z0-9_]*`) and is not a stable id; rename using `_` or CamelCase. Hyphenated names cannot be referenced in `appliesWhen`/`parameterConstraints` (`-` is the subtraction operator). |
-| W065 | An id-identified element (`Requirement`, `TestCase`, `ADR`, `PlanningItem`, …) is stored in a file whose stem differs from its `id` (convention: `<id>.md`, so the element is findable by id in the file tree). Draft-suppressed; skipped for synthesized/plugin/annotation elements. Gate with `--deny W065`. MCP `create_element` writes `<id>.md` for these types. |
+| W065 | An id-identified element (`Requirement`, `TestCase`, `ADR`, `PlanningItem`, …) is stored in a file whose stem differs from its `id` (convention: `<id>.md`, so the element is findable by id in the file tree). Opt-in (`[ids] check_file_names = true` in `.syscribe.toml`); draft-suppressed; skipped for synthesized/plugin/annotation elements. Gate with `--deny W065`. MCP `create_element` writes `<id>.md` for these types. |
 
 ## Additional stable-ID prefixes (W046)
 

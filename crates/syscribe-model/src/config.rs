@@ -61,6 +61,10 @@ pub struct ValidateConfig {
     /// `[ids] max_digits` in `<model_root>/.syscribe.toml`; use [`Self::id_digit_max`].
     pub id_max_digits: Option<usize>,
 
+    /// `[ids] check_file_names = true` turns on `W065` (an id-identified element's
+    /// file stem differs from its `id`). Off by default (GH #185).
+    pub id_check_file_names: bool,
+
     /// REQ-TRS-MG-* — run the gated MagicGrid validation pass (actors, mg_cell,
     /// MoE, logical/physical layering). Off by default; set from a resolved
     /// `[profiles.<name>] magicgrid = true` profile by the CLI. The base-format
@@ -420,6 +424,8 @@ struct PathsToml {
 struct IdsToml {
     #[serde(default, alias = "maxDigits")]
     max_digits: Option<usize>,
+    #[serde(default, alias = "checkFileNames")]
+    check_file_names: bool,
     /// REQ-TRS-ID-007 — `[ids.prefixes]`: additional stable-ID prefixes per element
     /// type, keyed by type name (`Requirement`, `TestCase`, …).
     #[serde(default)]
@@ -571,6 +577,7 @@ impl ValidateConfig {
         let results = ResultsData::load_sidecar(&root);
         let repo_root = resolve_repo_root(&root);
         let id_max_digits = resolve_id_max_digits(&root);
+        let id_check_file_names = resolve_id_check_file_names(&root);
         let id_extra_prefixes = resolve_id_prefixes(&root);
         // REQ-TRS-ID-007 — install the well-formed additional prefixes into the
         // resolver so every `is_*_id` / `is_stable_id` check recognises them. An empty
@@ -593,6 +600,7 @@ impl ValidateConfig {
             // Remote fetching is opt-in (CLI `--fetch-remote`); never enabled here.
             remote_hook: None,
             id_max_digits,
+            id_check_file_names,
             magicgrid: false,
             links,
             scripts_dir,
@@ -887,6 +895,13 @@ fn resolve_scripts_dir(model_root: &Path) -> PathBuf {
 fn resolve_id_max_digits(model_root: &Path) -> Option<usize> {
     let text = std::fs::read_to_string(model_root.join(".syscribe.toml")).ok()?;
     toml::from_str::<PathsToml>(&text).ok()?.ids.max_digits
+}
+
+/// Read `[ids] check_file_names` (GH #185); `false` when unset.
+fn resolve_id_check_file_names(model_root: &Path) -> bool {
+    std::fs::read_to_string(model_root.join(".syscribe.toml")).ok()
+        .and_then(|t| toml::from_str::<PathsToml>(&t).ok())
+        .is_some_and(|c| c.ids.check_file_names)
 }
 
 /// Read `[ids.prefixes]` from `<model_root>/.syscribe.toml` (REQ-TRS-ID-007). Returns

@@ -2,6 +2,12 @@
 
 `RELEASES`
 
+## Unreleased
+
+- **New:** MCP/REST `create_element` takes `parent` and writes `<parent>/<id>.md` for id-identified types and `<dir>/_index.md` for packages; `move_element` accepts an id as the last destination segment (#185).
+- **New (opt-in):** `W065` — an id-identified element whose file stem differs from its `id`. Off by default; enable with `[ids] check_file_names = true` in `.syscribe.toml`, gate with `--deny W065`.
+- **Fixed:** feature editor keeps typed input across re-renders and drops stale fetches (#189); `removeParameter` refuses while a `[repos]` peer Configuration binds the parameter (#193); MCP guarded-write baseline is dropped after a post-refusal reload that read changed inputs (#196).
+
 ## 0.52.0 — 2026-10-09
 
 ### SysMLv2 modelling gaps (GH #198–#205)

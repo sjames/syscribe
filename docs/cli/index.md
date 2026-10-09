@@ -175,6 +175,7 @@ Every stable ID (REQ-*, TC-*, TP-*, ADR-*, …) ends in a numeric suffix of **3 
 # .syscribe.toml
 [ids]
 max_digits = 8   # default 8; e.g. 12 to allow wider counters, 4 to tighten
+check_file_names = false   # true enables W065 (file stem must equal the id)
 ```
 
 A suffix longer than the cap is error `E023`; a suffix shorter than 3 is `E006`. A reference to an over-long ID still resolves (the defect surfaces on the ID-bearing element, not as a dangling reference).

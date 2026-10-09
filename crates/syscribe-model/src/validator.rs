@@ -1532,11 +1532,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
         // W065 (GH #185): an id-identified element's file stem differs from its `id`.
         // The convention (spec §8) is `<id>.md` so a requirement is findable by id in
-        // the file tree. Gateable (`--deny W065`) and draft-suppressed. Skipped for
+        // the file tree. Opt-in (`[ids] check_file_names = true`), gateable
+        // (`--deny W065`) and draft-suppressed. Skipped for
         // synthesized/plugin/annotation elements, whose `file_path` is not their own
         // file (the file stem then differs from the qualified-name leaf).
         if let (Some(et), Some(id)) = (fm.element_type.as_ref(), fm.id.as_deref()) {
-            if et.is_id_identified() && is_stable_id(id) && fm.status.as_deref() != Some("draft") {
+            if config.id_check_file_names && et.is_id_identified() && is_stable_id(id) && fm.status.as_deref() != Some("draft") {
                 let fp = std::path::Path::new(&elem.file_path);
                 let stem = fp.file_stem().and_then(|s| s.to_str()).unwrap_or("");
                 let leaf = elem.qualified_name.rsplit("::").next().unwrap_or("");
