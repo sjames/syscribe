@@ -191,27 +191,73 @@ pub(crate) fn ingest_subtree_detailed(owner: &mut RawElement, pkg_qname: &str, d
                 continue;
             }
         };
-        match sysml_v2_parser::parse(&content) {
-            Ok(parsed) => {
-                let (doc, root) = split_document(parsed);
-                // `REQ-TRS-SYSMLV2-030`: surface what map-narrow ingestion drops.
-                let mut counts = BTreeMap::new();
-                with_doc(&doc, || count_unmapped_root(&root, &mut counts));
-                file_counts.push((file_path.clone(), counts));
-                with_doc(&doc, || merge_root(&mut merged, root, &file_path, &doc))
-            }
+        let parsed = match sysml_v2_parser::parse(&content) {
+            Ok(parsed) => Some(parsed),
             Err(e) => {
-                owner.derive_findings.push(finding(
-                    "W541",
-                    &file_path,
-                    &format!("SysML v2/KerML parse error in '{file_path}': {e}"),
-                ));
+                // GH #203: one unparsable member must not discard the whole file. The
+                // recovering parse yields a partial tree plus a diagnostic (with its line)
+                // per bad member; ingest what survived and raise `W541` for each bad one.
+                let recovered = sysml_v2_parser::parse_for_editor(&content);
+                let real: Vec<&sysml_v2_parser::ParseError> =
+                    recovered.errors.iter().filter(|d| d.is_cascade != Some(true)).collect();
+                // Recovery is only worth ingesting when something other than a lone error
+                // node survived (an unbalanced brace swallows the whole declaration).
+                let salvageable = recovered.document.root.elements.iter().any(|n| {
+                    !matches!(
+                        &n.value,
+                        sysml_v2_parser::RootElement::Member(m)
+                            if matches!(m.value, sysml_v2_parser::PackageBodyElement::Error(_))
+                    )
+                });
+                if real.is_empty() || !salvageable {
+                    owner.derive_findings.push(finding(
+                        "W541",
+                        &file_path,
+                        &format!("SysML v2/KerML parse error in '{file_path}': {e}"),
+                    ));
+                    None
+                } else {
+                    for d in &real {
+                        let at = match (d.line, d.column) {
+                            (Some(l), Some(c)) => format!(" at line {l}, column {c}"),
+                            (Some(l), None) => format!(" at line {l}"),
+                            _ => String::new(),
+                        };
+                        owner.derive_findings.push(finding(
+                            "W541",
+                            &file_path,
+                            &format!(
+                                "SysML v2/KerML parse error in '{file_path}'{at}: {} (the unparsable member was skipped; the rest of the file was ingested)",
+                                d.message
+                            ),
+                        ));
+                    }
+                    Some(recovered.document)
+                }
             }
+        };
+        if let Some(parsed) = parsed {
+            let (doc, root) = split_document(parsed);
+            // `REQ-TRS-SYSMLV2-030`: surface what map-narrow ingestion drops.
+            let mut counts = BTreeMap::new();
+            with_doc(&doc, || count_unmapped_root(&root, &mut counts));
+            file_counts.push((file_path.clone(), counts));
+            with_doc(&doc, || merge_root(&mut merged, root, &file_path, &doc))
         }
     }
 
     let mut out = Vec::new();
+    let _ = take_body_unmapped();
     convert_merged(&merged, pkg_qname, &mut out);
+    // GH #203: members dropped inside definition/usage bodies, by file.
+    for (file, kinds) in take_body_unmapped() {
+        if let Some((_, counts)) = file_counts.iter_mut().find(|(f, _)| *f == file) {
+            for (k, n) in kinds {
+                *counts.entry(k).or_insert(0) += n;
+            }
+        }
+    }
+    resolve_exhibit_states(&mut out);
     let unresolved = lift_package_satisfies(&merged, pkg_qname, &mut out);
     let unresolved_includes = resolve_includes(&mut out);
     resolve_dependency_ends(&mut out);
@@ -267,6 +313,26 @@ pub(crate) fn ingest_subtree_detailed(owner: &mut RawElement, pkg_qname: &str, d
         ));
     }
     IngestDetail { elements: out, file_counts: detailed }
+}
+
+/// GH #203: an `exhibit` of a state named relative to its owner (`exhibit state s : S;`,
+/// `exhibit s;`) -- qualify it against the ingested subtree so `exhibitsStates:` resolves.
+/// Names that resolve nowhere in the subtree stay as written (`W501` then reports them).
+fn resolve_exhibit_states(out: &mut [RawElement]) {
+    if !out.iter().any(|e| e.frontmatter.exhibits_states.is_some()) {
+        return;
+    }
+    let index: super::EndpointIndex = out.iter().map(|e| (e.qualified_name.clone(), (None, None))).collect();
+    for e in out.iter_mut() {
+        let scope = e.qualified_name.clone();
+        if let Some(list) = e.frontmatter.exhibits_states.as_mut() {
+            for s in list.iter_mut() {
+                if let Some(q) = super::lookup_scoped(&index, &scope, s) {
+                    *s = q;
+                }
+            }
+        }
+    }
 }
 
 /// `REQ-TRS-SYSMLV2-054`: replace each use case's raw `include X;` names by the qualified name
@@ -389,6 +455,14 @@ fn unmapped_kind(e: &sysml_v2_parser::PackageBodyElement) -> Option<&'static str
             "satisfy"
         }
         E::Actor(_) => "actor",
+        // GH #203: an `interface ... connect` has no owning part at package level to hold the
+        // wiring; the interface usage itself is still ingested when it is named.
+        E::InterfaceUsage(i) => {
+            if matches!(i.value, sysml_v2_parser::ast::InterfaceUsage::Declaration { .. }) {
+                return None;
+            }
+            "interface connect"
+        }
         // `REQ-TRS-SYSMLV2-083`/`-084`/`-093`/`-094`: mapped (every dependency, every named
         // occurrence usage). `REQ-TRS-SYSMLV2-086`/`-087`: a metadata usage is lifted; only an
         // unresolved `about` target is counted, after resolution.
@@ -710,6 +784,16 @@ struct Spec {
     portion_kind: Option<String>,
     /// `REQ-TRS-SYSMLV2-086` -- a `metadata def`'s attribute members as inline `features:`.
     features: Option<Vec<serde_yaml::Value>>,
+    /// GH #203 -- `ref` on a usage, `~Type` conjugated port typing, a feature's `in`/`out`/`inout`.
+    is_reference: Option<bool>,
+    is_conjugated: Option<bool>,
+    direction: Option<String>,
+    /// GH #203 -- an `interface def`/`connection def`'s `end` features.
+    ends: Option<Vec<serde_yaml::Value>>,
+    /// GH #203 -- `bind a = b;` on the owning part, `perform action ...;`, `exhibit state ...;`.
+    binding_connections: Option<Vec<serde_yaml::Value>>,
+    performs: Option<Vec<serde_yaml::Value>>,
+    exhibits_states: Option<Vec<String>>,
 }
 
 impl Spec {
@@ -887,6 +971,13 @@ fn push_synth(
             fm.metadata = spec.metadata;
             fm.is_portion = spec.is_portion;
             fm.portion_kind = spec.portion_kind;
+            fm.is_reference = spec.is_reference;
+            fm.is_conjugated = spec.is_conjugated;
+            fm.direction = spec.direction;
+            fm.ends = spec.ends;
+            fm.binding_connections = spec.binding_connections;
+            fm.performs = spec.performs;
+            fm.exhibits_states = spec.exhibits_states;
             fm
         },
         doc: spec.doc,
@@ -2689,7 +2780,21 @@ fn connection_usage_entry<'a>(
         .filter_map(|n| connection_end_display(&n.value.expression.value))
         .collect();
     let typed_by = typing_first(c.typing.as_ref()).and_then(nonempty);
+    build_connection_value(owning_qname, from, to, extras, typed_by, find_sibling, truncations)
+}
 
+/// The `connections:` entry for a resolved `from`/`to`(/extras) endpoint list -- shared by the
+/// named `connection` usage, the anonymous `connect` member and the `interface ... connect`
+/// usage (GH #203).
+fn build_connection_value<'a>(
+    owning_qname: &str,
+    from: String,
+    to: String,
+    extras: Vec<String>,
+    typed_by: Option<String>,
+    find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
+    truncations: &mut Vec<String>,
+) -> Option<serde_yaml::Value> {
     let (from_q, from_trunc) = qualify_connection_end(owning_qname, &from, find_sibling);
     let (to_q, to_trunc) = qualify_connection_end(owning_qname, &to, find_sibling);
     truncations.extend(from_trunc);
@@ -4247,6 +4352,345 @@ fn convert_package_body_element(
     }
 }
 
+// ---------------------------------------------------------------------------
+// GH #203 -- wiring/behaviour members of a part body (`connect`, `bind`, `perform`, `exhibit`,
+// `interface ... connect`), feature directions, `ref`, port conjugation, interface/connection
+// `end` features, and counting of every body member that still has no mapping.
+// ---------------------------------------------------------------------------
+
+thread_local! {
+    /// Body-level members dropped during one conversion, per source file, by kind. Drained into
+    /// the per-file `W543` counts by [`ingest_subtree_detailed`].
+    static BODY_UNMAPPED: std::cell::RefCell<BTreeMap<String, BTreeMap<&'static str, usize>>> =
+        const { std::cell::RefCell::new(BTreeMap::new()) };
+}
+
+fn note_unmapped(file: &str, kind: &'static str) {
+    BODY_UNMAPPED.with(|m| *m.borrow_mut().entry(file.to_string()).or_default().entry(kind).or_insert(0) += 1);
+}
+
+fn take_body_unmapped() -> BTreeMap<String, BTreeMap<&'static str, usize>> {
+    BODY_UNMAPPED.with(|m| std::mem::take(&mut *m.borrow_mut()))
+}
+
+/// `in`/`out`/`inout` written on a usage (`in item x : Real;`).
+fn usage_direction(prefix: &sysml_v2_parser::ast::OccurrenceUsagePrefix) -> Option<String> {
+    prefix
+        .basic()
+        .and_then(|b| b.ref_prefix.direction.as_ref())
+        .map(|d| direction_str(d.value).to_string())
+}
+
+/// `ref` written on a usage (`ref part helper : Eng;`).
+fn usage_is_reference(prefix: &sysml_v2_parser::ast::OccurrenceUsagePrefix) -> Option<bool> {
+    prefix.basic().and_then(|b| b.reference_span.as_ref()).map(|_| true)
+}
+
+/// `~Type` conjugated typing (`port inp : ~PP;`).
+fn typing_is_conjugated(t: Option<&sysml_v2_parser::Node<sysml_v2_parser::ast::TypingRelationship>>) -> Option<bool> {
+    t.is_some_and(|t| t.value.is_conjugated).then_some(true)
+}
+
+/// One wiring/behaviour member of a part body, borrowed from either body enum.
+enum Wire<'a> {
+    Connect(&'a sysml_v2_parser::ast::Connect),
+    Bind(&'a sysml_v2_parser::ast::Bind),
+    Perform(&'a sysml_v2_parser::ast::Perform),
+    Exhibit(&'a sysml_v2_parser::ast::ExhibitState),
+    Interface(&'a sysml_v2_parser::ast::InterfaceUsage),
+}
+
+fn part_def_wires(elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartDefBodyElement>]) -> Vec<Wire<'_>> {
+    use sysml_v2_parser::PartDefBodyElement as E;
+    elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            E::Connect(x) => Some(Wire::Connect(&x.value)),
+            E::Bind(x) => Some(Wire::Bind(&x.value)),
+            E::Perform(x) => Some(Wire::Perform(&x.value)),
+            E::ExhibitState(x) => Some(Wire::Exhibit(&x.value)),
+            E::InterfaceUsage(x) => Some(Wire::Interface(&x.value)),
+            _ => None,
+        })
+        .collect()
+}
+
+fn part_usage_wires(elements: &[sysml_v2_parser::Node<sysml_v2_parser::PartUsageBodyElement>]) -> Vec<Wire<'_>> {
+    use sysml_v2_parser::PartUsageBodyElement as E;
+    elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            E::Connect(x) => Some(Wire::Connect(&x.value)),
+            E::Bind(x) => Some(Wire::Bind(&x.value)),
+            E::Perform(x) => Some(Wire::Perform(&x.value)),
+            E::InterfaceUsage(x) => Some(Wire::Interface(&x.value)),
+            _ => None,
+        })
+        .collect()
+}
+
+#[derive(Default)]
+struct Wiring {
+    connections: Vec<serde_yaml::Value>,
+    bindings: Vec<serde_yaml::Value>,
+    performs: Vec<serde_yaml::Value>,
+    exhibits: Vec<String>,
+    /// `exhibit state name [: T]` usages that declare a state of their own: `(name, typedBy)`.
+    exhibit_states: Vec<(String, Option<String>)>,
+    truncations: Vec<String>,
+}
+
+impl Wiring {
+    /// Fold into `spec` (appending to any `connections:` it already carries); returns the
+    /// `W542` truncation messages and the states an `exhibit state name;` declares.
+    fn apply(self, mut spec: Spec) -> (Spec, Vec<String>, Vec<(String, Option<String>)>) {
+        let mut conns = spec.connections.take().unwrap_or_default();
+        conns.extend(self.connections);
+        spec.connections = nonempty_vec(conns);
+        spec.binding_connections = nonempty_vec(self.bindings);
+        spec.performs = nonempty_vec(self.performs);
+        spec.exhibits_states = nonempty_vec(self.exhibits);
+        (spec, self.truncations, self.exhibit_states)
+    }
+}
+
+fn collect_wiring<'a, 'b>(
+    owner: &str,
+    file: &str,
+    wires: Vec<Wire<'b>>,
+    find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
+) -> Wiring {
+    let mut w = Wiring::default();
+    for wire in wires {
+        match wire {
+            Wire::Connect(c) => {
+                let (Some(from), Some(to)) = (
+                    connection_end_display(&c.from.value.expression.value),
+                    connection_end_display(&c.to.value.expression.value),
+                ) else {
+                    note_unmapped(file, "connect");
+                    continue;
+                };
+                match build_connection_value(owner, from, to, Vec::new(), None, find_sibling, &mut w.truncations) {
+                    Some(v) => w.connections.push(v),
+                    None => note_unmapped(file, "connect"),
+                }
+            }
+            Wire::Bind(b) => {
+                let (Some(l), Some(r)) = (connection_end_display(&b.left.value), connection_end_display(&b.right.value)) else {
+                    note_unmapped(file, "bind");
+                    continue;
+                };
+                let (lq, lt) = qualify_connection_end(owner, &l, find_sibling);
+                let (rq, rt) = qualify_connection_end(owner, &r, find_sibling);
+                w.truncations.extend(lt);
+                w.truncations.extend(rt);
+                let mut m = serde_yaml::Mapping::new();
+                if let Some(n) = odn(b.binding_name).filter(|n| !n.is_empty()) {
+                    m.insert(ykey("name"), ykey(&n));
+                }
+                if let Some(t) = oqr(b.binding_type) {
+                    m.insert(ykey("typedBy"), ykey(&t));
+                }
+                m.insert(ykey("left"), ykey(&lq));
+                m.insert(ykey("right"), ykey(&rq));
+                w.bindings.push(serde_yaml::Value::Mapping(m));
+            }
+            Wire::Perform(p) => match perform_entry(p) {
+                Some(v) => w.performs.push(v),
+                None => note_unmapped(file, "perform"),
+            },
+            Wire::Exhibit(e) => {
+                let typing = typing_first(e.typing.as_ref()).and_then(nonempty);
+                match (odn(e.name).filter(|n| !n.is_empty()), e.state_reference) {
+                    (Some(n), _) => {
+                        w.exhibits.push(format!("{owner}::{n}"));
+                        w.exhibit_states.push((n, typing));
+                    }
+                    (None, Some(r)) => w.exhibits.push(qr(r)),
+                    (None, None) => match typing {
+                        Some(t) => w.exhibits.push(t),
+                        None => note_unmapped(file, "exhibit state"),
+                    },
+                }
+                if e.body.braced_elements().is_some_and(|b| !b.is_empty()) {
+                    note_unmapped(file, "exhibit state body");
+                }
+            }
+            Wire::Interface(i) => {
+                use sysml_v2_parser::ast::InterfaceUsage as I;
+                let (name, ty, part) = match i {
+                    I::TypedConnect { name, interface_type, part, .. } => (odn(*name), oqr(*interface_type), part),
+                    I::Connection { part, .. } => (None, None, part),
+                    I::Declaration { .. } => continue,
+                };
+                match interface_connection_entry(owner, name.filter(|n| !n.is_empty()), ty, &part.value, find_sibling, &mut w.truncations) {
+                    Some(v) => w.connections.push(v),
+                    None => note_unmapped(file, "interface connect"),
+                }
+            }
+        }
+    }
+    w
+}
+
+/// `perform action drive [: T];` / `perform Ref;` as a `performs:` entry -- the string shorthand
+/// when only a type is written, the map form otherwise.
+fn perform_entry(p: &sysml_v2_parser::ast::Perform) -> Option<serde_yaml::Value> {
+    use sysml_v2_parser::ast::PerformActionTarget as T;
+    let (name, typed_by, multiplicity, redefines) = match &p.target {
+        T::Action(decl) => {
+            let d = &decl.value;
+            (
+                ident_name(&d.identification),
+                typing_first(d.typing.as_ref()).and_then(nonempty),
+                d.multiplicity.as_ref().map(|m| multiplicity_text(&m.value)),
+                d.redefines.as_ref().map(|r| subsetting_targets(&r.value)).unwrap_or_default(),
+            )
+        }
+        T::Reference { action, redefines } => (
+            None,
+            Some(qr(*action)),
+            None,
+            redefines.as_ref().map(|r| subsetting_targets(&r.value)).unwrap_or_default(),
+        ),
+    };
+    if name.is_none() && typed_by.is_none() && redefines.is_empty() {
+        return None;
+    }
+    if name.is_none() && multiplicity.is_none() && redefines.is_empty() {
+        return typed_by.map(serde_yaml::Value::String);
+    }
+    let mut m = serde_yaml::Mapping::new();
+    if let Some(n) = name {
+        m.insert(ykey("name"), ykey(&n));
+    }
+    if let Some(t) = typed_by {
+        m.insert(ykey("typedBy"), ykey(&t));
+    }
+    if let Some(x) = multiplicity {
+        m.insert(ykey("multiplicity"), ykey(&x));
+    }
+    if !redefines.is_empty() {
+        m.insert(ykey("redefines"), serde_yaml::Value::Sequence(redefines.iter().map(|r| ykey(r)).collect()));
+    }
+    Some(serde_yaml::Value::Mapping(m))
+}
+
+/// One `InterfaceEnd` of an `interface ... connect` clause: `(end name, endpoint chain)`.
+fn interface_end(e: &sysml_v2_parser::ast::InterfaceEnd) -> (Option<String>, String) {
+    use sysml_v2_parser::ast::InterfaceEndTarget as T;
+    match &e.target {
+        T::Direct(r) => (None, qr(*r)),
+        T::Named { name, target, .. } => (Some(dn(*name)).filter(|n| !n.is_empty()), qr(*target)),
+    }
+}
+
+/// `interface i : PI connect a ::> e1.p to b ::> e2.q;` as a `connections:` entry on the owner:
+/// `typedBy` the interface def, the def's end names kept as `ends: [{end, binds}]` when written.
+fn interface_connection_entry<'a>(
+    owner: &str,
+    name: Option<String>,
+    typed_by: Option<String>,
+    part: &sysml_v2_parser::ast::InterfacePart,
+    find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
+    truncations: &mut Vec<String>,
+) -> Option<serde_yaml::Value> {
+    use sysml_v2_parser::ast::InterfacePart as P;
+    let ends: Vec<(Option<String>, String)> = match part {
+        P::Binary { from, to, .. } => vec![interface_end(&from.value), interface_end(&to.value)],
+        P::Nary { ends, .. } => ends.iter().map(|m| interface_end(&m.end.value)).collect(),
+    };
+    if ends.len() < 2 {
+        return None;
+    }
+    let mut value = if ends.len() == 2 && ends.iter().all(|(n, _)| n.is_none()) {
+        build_connection_value(owner, ends[0].1.clone(), ends[1].1.clone(), Vec::new(), typed_by.clone(), find_sibling, truncations)?
+    } else {
+        let entries: Vec<serde_yaml::Value> = ends
+            .iter()
+            .enumerate()
+            .map(|(i, (n, chain))| {
+                let (q, t) = qualify_connection_end(owner, chain, find_sibling);
+                truncations.extend(t);
+                let mut em = serde_yaml::Mapping::new();
+                em.insert(ykey("end"), ykey(&n.clone().unwrap_or_else(|| format!("end{}", i + 1))));
+                em.insert(ykey("binds"), ykey(&q));
+                serde_yaml::Value::Mapping(em)
+            })
+            .collect();
+        let mut m = serde_yaml::Mapping::new();
+        if let Some(tb) = &typed_by {
+            m.insert(ykey("typedBy"), ykey(tb));
+        }
+        m.insert(ykey("ends"), serde_yaml::Value::Sequence(entries));
+        serde_yaml::Value::Mapping(m)
+    };
+    if let (Some(n), serde_yaml::Value::Mapping(m)) = (name, &mut value) {
+        m.insert(ykey("name"), ykey(&n));
+    }
+    Some(value)
+}
+
+/// `end a : PP;` of an `interface def`/`connection def` as an inline `ends:` entry.
+fn end_decl_entry(e: &sysml_v2_parser::ast::EndDecl) -> serde_yaml::Value {
+    let mut m = serde_yaml::Mapping::new();
+    if let sysml_v2_parser::ast::EndIdentity::Declaration(n) = &e.identity {
+        let n = dn(*n);
+        if !n.is_empty() {
+            m.insert(ykey("name"), ykey(&n));
+        }
+    }
+    if let Some(t) = typing_first(e.typing.as_ref()).and_then(nonempty) {
+        m.insert(ykey("typedBy"), ykey(&t));
+    }
+    if typing_is_conjugated(e.typing.as_ref()).is_some() {
+        m.insert(ykey("isConjugated"), serde_yaml::Value::Bool(true));
+    }
+    if let Some(x) = &e.multiplicity {
+        m.insert(ykey("multiplicity"), ykey(&multiplicity_text(&x.value)));
+    }
+    m.insert(ykey("isEnd"), serde_yaml::Value::Bool(true));
+    serde_yaml::Value::Mapping(m)
+}
+
+/// Kind label of a `part def` body member that has no mapping (`None` for mapped or
+/// pure-plumbing members: comments, metadata, imports, parse-error nodes already reported as `W541`).
+fn part_def_unmapped_kind(e: &sysml_v2_parser::PartDefBodyElement) -> Option<&'static str> {
+    use sysml_v2_parser::PartDefBodyElement as E;
+    Some(match e {
+        E::Package(_) | E::LibraryPackage(_) => "nested package",
+        E::DefaultReferenceUsage(_) | E::Ref(_) => "reference usage",
+        E::Allocate(_) => "allocate",
+        E::UnsupportedMember(_) => "unsupported member",
+        E::ConstraintDef(_) => "constraint def",
+        E::AssertConstraint(_) | E::RequireConstraint(_) => "constraint member",
+        E::MetadataDef(_) => "metadata def",
+        E::CalcDef(_) => "calc def",
+        E::UseCaseDef(_) => "use case def",
+        E::ViewRendering(_) | E::VerifyRequirement(_) => "view/verify member",
+        E::KermlClassifier(_) => "KerML declaration",
+        E::AliasDef(_) => "alias",
+        _ => return None,
+    })
+}
+
+fn part_usage_unmapped_kind(e: &sysml_v2_parser::PartUsageBodyElement) -> Option<&'static str> {
+    use sysml_v2_parser::PartUsageBodyElement as E;
+    Some(match e {
+        E::EndDecl(_) => "end feature",
+        E::InOutDecl(_) => "directed parameter",
+        E::DefaultReferenceUsage(_) | E::Ref(_) => "reference usage",
+        E::Allocate(_) => "allocate",
+        E::ExtendedUsage(_) => "extended usage",
+        E::AssertConstraint(_) => "constraint member",
+        E::IncludeUseCase(_) => "include",
+        E::AliasDef(_) => "alias",
+        E::KermlClassifier(_) => "KerML declaration",
+        _ => return None,
+    })
+}
+
 fn convert_part_def(
     part: &sysml_v2_parser::PartDef,
     qname: &str,
@@ -4286,10 +4730,15 @@ fn convert_part_def(
     .with_metadata(body_metadata(elements))
     .with_connections(connections)
     .with_flow_connections(flow_connections);
+    let find_sibling = |head: &str| find_part_usage_in_part_def_body(elements, head);
+    let (spec, wire_truncations, exhibit_states) =
+        collect_wiring(&part_qname, file_path, part_def_wires(elements), &find_sibling).apply(spec);
     push_synth(out, &part_qname, file_path, ElementType::PartDef, &name, spec);
     push_connection_truncation_findings(out, file_path, truncations);
     push_connection_truncation_findings(out, file_path, flow_truncations);
+    push_connection_truncation_findings(out, file_path, wire_truncations);
     convert_body_with_prefixes(elements, out, |e, out| convert_part_def_body_element(e, &part_qname, file_path, out));
+    push_exhibit_states(out, &part_qname, file_path, exhibit_states);
 }
 
 fn convert_part_usage(
@@ -4320,6 +4769,8 @@ fn convert_part_usage(
     let spec = Spec {
         typed_by: typing_first(part.typing.as_ref()).filter(|t| !t.is_empty()),
         is_variation: usage_variation(&part.prefix).then_some(true),
+        is_reference: usage_is_reference(&part.prefix),
+        direction: usage_direction(&part.prefix),
         satisfies,
         applies_when: part_usage_syscribe_feature_id(elements),
         // `REQ-TRS-SYSMLV2-092`: structural successions between owned usages.
@@ -4336,9 +4787,13 @@ fn convert_part_usage(
     .with_metadata(with_prefix_keywords(&part.prefix, body_metadata(elements)))
     .with_connections(connections)
     .with_flow_connections(flow_connections);
+    let find_sibling = |head: &str| find_part_usage_in_part_usage_body(elements, head);
+    let (spec, wire_truncations, _) =
+        collect_wiring(&part_qname, file_path, part_usage_wires(elements), &find_sibling).apply(spec);
     push_synth(out, &part_qname, file_path, ElementType::Part, &part.name.s(), spec);
     push_connection_truncation_findings(out, file_path, truncations);
     push_connection_truncation_findings(out, file_path, flow_truncations);
+    push_connection_truncation_findings(out, file_path, wire_truncations);
     convert_body_with_prefixes(elements, out, |e, out| convert_part_usage_body_element(e, &part_qname, file_path, out));
 }
 
@@ -4416,7 +4871,12 @@ fn convert_part_def_body_element(
         E::OccurrenceDef(node) => convert_occurrence_def(&node.value, part_qname, file_path, out),
         E::OccurrenceUsage(node) => convert_occurrence_usage(&node.value, part_qname, file_path, out),
         E::Dependency(node) => convert_dependency(&node.value, part_qname, file_path, out),
-        _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
+        _ => {
+            // GH #203: never silent -- counted into the file's `W543`.
+            if let Some(k) = part_def_unmapped_kind(elem) {
+                note_unmapped(file_path, k);
+            }
+        }
     }
 }
 
@@ -4492,7 +4952,24 @@ fn convert_part_usage_body_element(
         E::AnalysisCaseUsage(node) => convert_analysis_case_usage(&node.value, part_qname, file_path, out),
         // `REQ-TRS-SYSMLV2-033`.
         E::ConstraintUsage(node) => convert_constraint_usage(&node.value, part_qname, file_path, out),
-        _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
+        _ => {
+            if let Some(k) = part_usage_unmapped_kind(elem) {
+                note_unmapped(file_path, k);
+            }
+        }
+    }
+}
+
+/// `exhibit state name [: T];` declares a state of its own: synthesize it (unless the body
+/// already declares a sibling of that name) so the owner's `exhibitsStates:` entry resolves.
+fn push_exhibit_states(out: &mut Vec<RawElement>, owner: &str, file_path: &str, states: Vec<(String, Option<String>)>) {
+    for (name, typed_by) in states {
+        let qname = format!("{owner}::{name}");
+        if out.iter().any(|e| e.qualified_name == qname) {
+            continue;
+        }
+        let spec = Spec { typed_by, ..Default::default() };
+        push_synth(out, &qname, file_path, ElementType::State, &name, spec);
     }
 }
 
@@ -4682,7 +5159,15 @@ fn convert_port_def_body_element(
         E::AttributeUsage(node) => convert_attribute_usage(&node.value, qname, file_path, out),
         E::ItemDef(node) => convert_item_def(&node.value, qname, file_path, out),
         E::ItemUsage(node) => convert_item_usage(&node.value, qname, file_path, out),
-        _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
+        E::PortUsage(node) => convert_port_usage(&node.value, qname, file_path, out),
+        E::PartUsage(node) => convert_part_usage(&node.value, qname, file_path, out),
+        E::EnumerationUsage(node) => convert_enum_usage(&node.value, qname, file_path, out),
+        E::InOutDecl(_) => note_unmapped(file_path, "directed parameter"),
+        E::RefDecl(_) => note_unmapped(file_path, "reference usage"),
+        E::VariantUsage(_) => note_unmapped(file_path, "variant"),
+        E::AliasDef(_) => note_unmapped(file_path, "alias"),
+        E::Unsupported(_) => note_unmapped(file_path, "unsupported member"),
+        _ => {}
     }
 }
 
@@ -4712,6 +5197,9 @@ fn convert_port_usage(
     };
     let spec = Spec {
         typed_by: p_type(p),
+        is_conjugated: typing_is_conjugated(p.typing.as_ref()),
+        is_reference: usage_is_reference(&p.prefix),
+        direction: usage_direction(&p.prefix),
         ..Default::default()
     }
     .with_usage_relations(
@@ -4722,6 +5210,21 @@ fn convert_port_usage(
     .with_doc(port_usage_doc(elements))
     .with_metadata(with_prefix_keywords(&p.prefix, body_metadata(elements)));
     push_synth(out, &elem_qname, file_path, ElementType::Port, &p.name.s(), spec);
+    // GH #203: a port usage's nested features were never walked.
+    for n in elements {
+        use sysml_v2_parser::PortBodyElement as E;
+        match &n.value {
+            E::PortUsage(x) => convert_port_usage(&x.value, &elem_qname, file_path, out),
+            E::AttributeUsage(x) => convert_attribute_usage(&x.value, &elem_qname, file_path, out),
+            E::ItemUsage(x) => convert_item_usage(&x.value, &elem_qname, file_path, out),
+            E::PartUsage(x) => convert_part_usage(&x.value, &elem_qname, file_path, out),
+            E::InOutDecl(_) => note_unmapped(file_path, "directed parameter"),
+            E::OccurrenceUsage(_) => note_unmapped(file_path, "occurrence"),
+            E::RefDecl(_) => note_unmapped(file_path, "reference usage"),
+            E::VariantUsage(_) => note_unmapped(file_path, "variant"),
+            _ => {}
+        }
+    }
 }
 
 fn convert_connection_def(
@@ -5176,8 +5679,10 @@ fn convert_interface_def(
     // variant, so @Syscribe* fields reach an interface def only via a
     // doc-comment directive, extracted from the already-lifted doc text.
     let (doc, meta) = extract_syscribe_doc_directives(&interface_def_doc(elements));
+    let ends = end_decl_entries(elements, file_path);
     let spec = Spec {
         supertype: i.specializes.as_ref().map(|t| refs_display(&t.value.target)),
+        ends,
         ..Default::default()
     }
     .with_doc(doc)
@@ -5203,8 +5708,34 @@ fn convert_interface_def_body_element(
         E::ItemUsage(node) => convert_item_usage(&node.value, qname, file_path, out),
         E::PortDef(node) => convert_port_def(&node.value, qname, file_path, out),
         E::PortUsage(node) => convert_port_usage(&node.value, qname, file_path, out),
-        _ => {} // outside REQ-TRS-SYSMLV2-007's fixed set
+        E::EndDecl(_) => {} // lifted onto the interface def's `ends:` by `end_decl_entries`
+        E::RefDecl(_) => note_unmapped(file_path, "reference usage"),
+        E::ConnectStmt(_) => note_unmapped(file_path, "connect"),
+        E::FlowUsage(_) => note_unmapped(file_path, "flow"),
+        E::ConstraintUsage(_) => note_unmapped(file_path, "constraint member"),
+        _ => {}
     }
+}
+
+/// `end` features of an `interface def` as `ends:` entries. A single declared end cannot stand
+/// alone (`E125`: a connection needs at least two, and the other may be inherited), so it is
+/// counted for `W543` instead of being emitted.
+fn end_decl_entries(
+    elements: &[sysml_v2_parser::Node<sysml_v2_parser::InterfaceDefBodyElement>],
+    file_path: &str,
+) -> Option<Vec<serde_yaml::Value>> {
+    let ends: Vec<serde_yaml::Value> = elements
+        .iter()
+        .filter_map(|n| match &n.value {
+            sysml_v2_parser::InterfaceDefBodyElement::EndDecl(e) => Some(end_decl_entry(&e.value)),
+            _ => None,
+        })
+        .collect();
+    if ends.len() == 1 {
+        note_unmapped(file_path, "interface end (fewer than two)");
+        return None;
+    }
+    nonempty_vec(ends)
 }
 
 /// Only the `Declaration` variant carries a name — `TypedConnect`/`Connection`
@@ -5216,12 +5747,9 @@ fn convert_interface_usage(
     file_path: &str,
     out: &mut Vec<RawElement>,
 ) {
-    if let sysml_v2_parser::InterfaceUsage::Declaration {
-        name: Some(name),
-        interface_type,
-        body,
-        ..
-    } = i
+    use sysml_v2_parser::InterfaceUsage as I;
+    if let I::Declaration { name: Some(name), interface_type, body, .. }
+    | I::TypedConnect { name: Some(name), interface_type, body, .. } = i
     {
         let name = dn(*name);
         if name.is_empty() {
@@ -5235,6 +5763,17 @@ fn convert_interface_usage(
         .with_doc(interface_usage_doc(body.braced_elements().unwrap_or(&[])))
         .with_metadata(body_metadata(body.braced_elements().unwrap_or(&[])));
         push_synth(out, &elem_qname, file_path, ElementType::Interface, &name, spec);
+        for n in body.braced_elements().unwrap_or(&[]) {
+            use sysml_v2_parser::InterfaceUsageBodyElement as B;
+            match &n.value {
+                B::RefRedef { .. } => note_unmapped(file_path, "reference usage"),
+                B::EndDecl(_) => note_unmapped(file_path, "end feature"),
+                B::PortUsage(_) => note_unmapped(file_path, "port"),
+                B::FlowUsage(_) => note_unmapped(file_path, "flow"),
+                B::Perform(_) => note_unmapped(file_path, "perform"),
+                _ => {}
+            }
+        }
     }
 }
 
@@ -5301,6 +5840,8 @@ fn convert_item_usage(
     };
     let spec = Spec {
         typed_by: oqr(i.type_name).or_else(|| None),
+        is_reference: usage_is_reference(&i.prefix),
+        direction: usage_direction(&i.prefix),
         ..Default::default()
     }
     .with_usage_relations(

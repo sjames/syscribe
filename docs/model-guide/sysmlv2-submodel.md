@@ -332,7 +332,7 @@ list below is exact as of `REQ-TRS-SYSMLV2-100`, checked line by line against th
 | a `textual representation` (`rep`) (`textual representation`) | No native field for an opaque representation in another language. |
 | an unresolved package-level `satisfy`/`include` (`satisfy`, `include`) | No resolvable subject/target (§24, §25). |
 | a `#T` prefix on a member that itself maps to nothing (`#T actor A;`) — *not counted* | The prefix is consumed by the member it precedes; the member is counted (as `actor`), the tag is not. A prefix on a usage that *does* map lifts onto it wherever it is declared (§32). |
-| members inside a mapped definition's body outside the mapped set — *not counted* | A `ref`/`end`/`in`/`out` declaration, `bind`, `assert constraint`, `exhibit`, a nested `package`/`alias`/`import`/`metadata def`/`calc def`/`constraint def`/`use case def`, a requirement's `require`/`frame` constraints and `subject;`, a view's `filter`, and the KerML forms a body admits are skipped silently: the format has no slot for them on the owning element, and counting body members would make `W543` fire on nearly every realistic submodel. This is the one place parse-broad/map-narrow stays silent. |
+| members inside a part/port/interface body outside the mapped set (GH #203) | Counted per kind in the file's `W543`: a nested `package`/`alias`, `ref`/default-reference usage, `allocate`, `constraint def`/`calc def`/`metadata def`/`use case def`, `assert`/`require` constraint, an `in`/`out` parameter declaration, a KerML declaration, an `exhibit state` body, an interface-usage `end`/`flow`/`perform` member, a `connect`/`bind`/`perform` whose shape cannot be mapped, and a lone `end` of an `interface def` (a connection needs two, `E125`; the other may be inherited). Members of other definition bodies (requirement `frame`/`require`, view `filter`, ...) are still skipped without a count. |
 | **Full SysML v2 static semantic validation** | Type-checking, multiplicity legality and standard-library-aware inheritance are a standards-compliant tool's job (e.g. `spec42`), not this AST-only ingestion; cross-boundary references resolve through Syscribe's own resolver. |
 | `extend` of use cases | SysML v2 has no `extend`; an `include X;` whose name resolves to an ingested use case maps to `includes:` (§25). |
 
@@ -1301,3 +1301,28 @@ members are not ingested, instead of vanishing; an anonymous `package`/`alias` t
 parse error in 0.57, so `alias` is no longer a listed kind. The §6 preamble no longer claims every
 body member has a native target: members inside a mapped definition's body that are outside the
 mapped set are skipped and not counted, and §6 says which.
+
+## 33. Body wiring, directions, `ref`, conjugation and per-member parse recovery (GH #203)
+
+Inside a `part def`/`part` body these members used to be dropped without a trace; they now map onto
+existing fields of the owning element:
+
+| SysML v2 | Native |
+|---|---|
+| `connect a.p to b.q;` (anonymous) | a `connections:` entry `{from, to}`, endpoints qualified exactly like a named `connection` usage (§8, §10; a tail inherited from the type is truncated to the head usage with `W542`) |
+| `bind a.p = b.q;` / `binding n : T bind ...` | a `bindingConnections:` entry `{name?, typedBy?, left, right}` |
+| `perform action drive;` / `perform action d : Drive;` / `perform Drive;` | a `performs:` entry — `{name}`, `{name, typedBy}`, or the string shorthand `Drive` |
+| `exhibit state s;` / `exhibit state s : Run;` / `exhibit Run;` | `exhibitsStates: [<owner>::s]` (a `State` child `s` is synthesized, `typedBy: Run`) / the referenced state qname |
+| `interface i : PI connect a ::> e1.p to b ::> e2.q;` | the `Interface` element `i` (`typedBy: PI`) **and** a named, typed `connections:` entry on the owner: `ends: [{end: a, binds: ...::e1}, {end: b, binds: ...::e2}]` (`from`/`to` when the ends are unnamed) |
+| `end a : PP;` in an `interface def` | `ends: [{name: a, typedBy: PP, isEnd: true}]` (needs two; see §6) |
+| `port p : ~PP;` / `end b : ~PP;` | `isConjugated: true` on the port / end entry; `typedBy: PP` |
+| `in item x : Real;` | `direction: in` on the `Item` (also `port`/`part` usages) |
+| `ref part helper : Eng;` | `isReference: true` |
+| nested `attribute`/`item`/`port`/`part` in a port usage or `port def` body | child elements (they were never walked before) |
+
+**Per-member parse recovery.** One unparsable member no longer discards the whole file. The strict
+parse is tried first; on failure the parser's recovering entry point supplies a partial tree and one
+diagnostic per bad member, and each becomes its own `W541` carrying the line and column
+(`... at line 3, column 14: ... (the unparsable member was skipped; the rest of the file was
+ingested)`). When nothing but a lone error node survives (an unbalanced brace swallows the whole
+declaration) the file is still reported as one `W541` and contributes nothing, as before.
