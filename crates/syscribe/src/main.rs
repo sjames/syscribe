@@ -1397,7 +1397,7 @@ fn main() {
                 let json = rest.iter().any(|a| a == "--json");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 let view = projected_elements(&elems, config);
-                cyberrisk::cmd_cyber_risk(&view, json);
+                cyberrisk::cmd_cyber_risk(&view, &syscribe_model::cyber_config::CyberConfig::load(model_root), json);
             }
             "safety-case" => {
                 // GSN safety-argument tree (issue #20). Read-only; reuses Resolver

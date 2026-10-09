@@ -35,6 +35,12 @@ Syscribe supports three functional safety standards on the same `HazardousEvent`
 
 All parameters are optional and independent — use the set that matches your domain. W801 fires when a `SafetyGoal` has none of `asilLevel`, `silLevel`, or `plLevel` set.
 
+**ASIL derivation.** For ISO 26262 the ASIL is computed from `severity`/`exposure`/`controllability` with the ISO 26262-3 Table 4 (S0, E0 or C0 gives QM; otherwise the sum S+E+C of 10/9/8/7 gives D/C/B/A, lower is QM). `syscribe show` prints it as `derivedASIL` on a `HazardousEvent` and, as the maximum over its `hazardousEvents:`, on a `SafetyGoal`. A `SafetyGoal` whose `asilLevel` is lower than the derived value raises W811. A `HazardousEvent` with only some of S/E/C raises W813 (cannot derive), and one mixing ISO 26262 and IEC 61508 parameters raises W814. A `SafetyGoal` at ASIL C/D or SIL 3/4 without `safeState:` or `ftti:` raises W812; `ftti:` must be a number plus unit (`ns`, `us`, `ms`, `s`, `min`, `h`), else E880.
+
+### ASIL decomposition
+
+`asilLevel` accepts `QM`, `A`, `B`, `C`, `D`. When requirements derived from one parent form a decomposition (every child lower, a `QM` channel, or `decomposedFrom:`), the channels must be an allowed ISO 26262-9 pair: D = C+A | B+B | D+QM, C = B+A | C+QM, B = A+A | B+QM, A = A+QM (E878), must be at least two (W860) and must satisfy distinct elements (E865) — at every level, not only D. Write the ISO notation directly: `asilLevel: D(D)` and `asilLevel: QM(D)` (quote the value if your editor objects), or the explicit field `decomposedFrom: D`; E879 flags an invalid original level.
+
 ### HazardousEvent
 
 ```yaml
@@ -201,6 +207,8 @@ Each `ThreatScenario` has a **computed risk level** derived from the severity of
 - **feasibility rank** — `very_low`=0, `low`=1, `medium`=2, `high`=3 (from `attackFeasibility`). Unknown if missing/invalid.
 - if either rank is unknown the risk is **unknown** (listed but never gated); otherwise `score = severity + feasibility` (0..6) maps to **low** (0–1), **medium** (2–3), **high** (4) or **critical** (5–6).
 
+> **Configurable (GH #222).** The rank-sum above is the default `simple` method. A `[cyber]` table in `.syscribe.toml` can select an `annex` method (built-in *example* tables modelled on the ISO/SAE 21434 informative annexes — not normative, verify against your copy of the standard), override matrix/CAL cells, derive `attackFeasibility` from attack-potential factors (`elapsedTime`, `expertise`, `knowledge`, `windowOfOpportunity`, `equipment`) and rate impact per category (`safetyImpact`, `financialImpact`, `operationalImpact`, `privacyImpact`; overall = max). See the [ISO/SAE 21434 guide](../guides/iso-21434.md#74a-configuring-the-risk-and-cal-method-cyber). Codes: `W640`, `W641`, `W642`, `E640`, `E641`.
+
 Record the risk-treatment decision on the threat:
 
 ```yaml
@@ -341,7 +349,7 @@ ccfBeta: 0.1
 
 The same analysis is a public library API (`syscribe_model::fta`) reused by `metrics` and by diagram tooling. A tree that has events but **no gates** is treated as an implicit OR of its events (legacy flat form).
 
-**Structural checks** (`validate`): a gate cycle or self-input is **E960**; `NOT` with more than one input, `XOR` with more than two, or an `inhibit` gate without a conditioning input is **E961**; a negative `failureRate` **E962**; a `probability` outside 0–1 **E963**; a `ccfBeta` outside 0–1 **E964**; a gate/event not reachable from the top node **W960**; one outside any `FaultTree` directory **W961**; a single-input `AND`/`OR` **W962**; a one-member `ccfGroup` **W963**; a `ccfGroup` with missing or inconsistent betas **W964**; an unparsable `missionTime` **W967**.
+**Structural checks** (`validate`): a gate cycle or self-input is **E980**; `NOT` with more than one input, `XOR` with more than two, or an `inhibit` gate without a conditioning input is **E981**; a negative `failureRate` **E982**; a `probability` outside 0–1 **E983**; a `ccfBeta` outside 0–1 **E984**; a gate/event not reachable from the top node **W980**; one outside any `FaultTree` directory **W981**; a single-input `AND`/`OR` **W982**; a one-member `ccfGroup` **W983**; a `ccfGroup` with missing or inconsistent betas **W984**; an unparsable `missionTime` **W987**.
 
 ---
 
@@ -361,9 +369,9 @@ For each `SafetyGoal`, the tool analyses the `FaultTree`(s) whose `topEvent` res
 PMHF    = λ_RF + λ_DPF  (/h)
 ```
 
-Cut sets of order ≥ 3 do not enter `λ_DPF`. Without a `missionTime`, `T` defaults to 10000 h and **W966** is raised.
+Cut sets of order ≥ 3 do not enter `λ_DPF`. Without a `missionTime`, `T` defaults to 10000 h and **W986** is raised.
 
-**Missing diagnostic data is conservative, not optimistic.** A contributing event with no `diagnosticCoverage`, or — once any event of the goal declares `latentDiagnosticCoverage` — no `latentDiagnosticCoverage`, is treated as coverage `0` and raises **W965** (one finding per event and field). LFM is reported only when at least one contributing event declares `latentDiagnosticCoverage`. A DC/DCl outside 0–1 (**E846**) is clamped, never extrapolated.
+**Missing diagnostic data is conservative, not optimistic.** A contributing event with no `diagnosticCoverage`, or — once any event of the goal declares `latentDiagnosticCoverage` — no `latentDiagnosticCoverage`, is treated as coverage `0` and raises **W985** (one finding per event and field). LFM is reported only when at least one contributing event declares `latentDiagnosticCoverage`. A DC/DCl outside 0–1 (**E846**) is clamped, never extrapolated.
 
 **Targets** by ASIL: SPFM ≥ {B 0.90, C 0.97, D 0.99}; LFM ≥ {B 0.60, C 0.80, D 0.90}; PMHF < {B/C 1e-7, D 1e-8} /h (ASIL A: not gated). SIL-only goals gate PMHF/PFH < {SIL1 1e-5, SIL2 1e-6, SIL3 1e-7, SIL4 1e-8} /h; SPFM/LFM are reported but not gated.
 
@@ -818,3 +826,10 @@ syscribe -m model/ refs CSG-SYS-001
 | W804 | Warning | CybersecurityGoal has no `Requirement` with `derivedFromCybersecurityGoal` |
 | W805 | Warning | SafetyGoal has no `Requirement` with `derivedFromSafetyGoal` |
 | W808 | Warning | Element's integrity level is lower than its source (`derivedFromSafetyGoal`, `derivedFrom`, or `satisfies`) but no `breakdownAdr` is set |
+| E878 | Error | Decomposition children are not an allowed ISO 26262-9 ASIL pair |
+| E879 | Error | `decomposedFrom:` is not A–D or is lower than the element's own `asilLevel` |
+| E880 | Error | `ftti:` is not a number with unit ns/us/ms/s/min/h |
+| W811 | Warning | SafetyGoal `asilLevel` is lower than the ASIL derived from its HazardousEvents |
+| W812 | Warning | SafetyGoal at ASIL C/D or SIL 3/4 lacks `safeState:` or `ftti:` |
+| W813 | Warning | HazardousEvent has a partial S/E/C set |
+| W814 | Warning | HazardousEvent mixes ISO 26262 and IEC 61508 parameters |

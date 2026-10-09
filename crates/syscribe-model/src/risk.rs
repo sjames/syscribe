@@ -13,9 +13,17 @@
 //! - if either rank is unknown → risk = **Unknown** (listed, never gated).
 //! - else `score = severity + feasibility` (0..6) → level:
 //!   0–1 `low`, 2–3 `medium`, 4 `high`, 5–6 `critical`.
+//!
+//! That is the `simple` method and the default. GH #222 adds an opt-in `[cyber]`
+//! table in `.syscribe.toml` ([`CyberConfig`]) selecting an `annex` method (EXAMPLE
+//! tables modelled on the informative annexes of ISO/SAE 21434 — never normative,
+//! verify against your own copy of the standard), overriding the risk matrix and
+//! CAL table, and scoring attack potential. With no `[cyber]` table every function
+//! here behaves exactly as before.
 
 use crate::element::{ElementType, RawElement};
 use crate::resolver::Resolver;
+pub use crate::cyber_config::CyberConfig;
 
 /// Computed cybersecurity risk level for a `ThreatScenario`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -83,8 +91,7 @@ pub fn threat_severity_rank(
     for r in refs {
         if let Some(ds) = resolver.resolve_ref(elements, r) {
             if ds.frontmatter.element_type == Some(ElementType::DamageScenario) {
-                if let Some(sev) = ds.frontmatter.damage_severity.as_deref().and_then(severity_rank)
-                {
+                if let Some(sev) = damage_impact_rank(&ds.frontmatter) {
                     best = Some(best.map_or(sev, |b| b.max(sev)));
                 }
             }
@@ -93,20 +100,74 @@ pub fn threat_severity_rank(
     best
 }
 
-/// Computed [`RiskLevel`] for a `ThreatScenario`, or `None` (= unknown, not
-/// gated) when severity or feasibility cannot be determined.
+/// Overall impact rank of a `DamageScenario`: the max of `damageSeverity` and the
+/// optional per-category ratings (`safetyImpact`, `financialImpact`,
+/// `operationalImpact`, `privacyImpact`). Invalid values are ignored here (E640 /
+/// E809 report them). With no category fields this is just `damageSeverity`.
+pub fn damage_impact_rank(fm: &crate::element::RawFrontmatter) -> Option<u8> {
+    [
+        fm.damage_severity.as_deref(),
+        fm.safety_impact.as_deref(),
+        fm.financial_impact.as_deref(),
+        fm.operational_impact.as_deref(),
+        fm.privacy_impact.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .filter_map(severity_rank)
+    .max()
+}
+
+/// Computed [`RiskLevel`] for a `ThreatScenario` with the default (`simple`)
+/// configuration, or `None` (= unknown, not gated) when severity or feasibility
+/// cannot be determined.
 pub fn threat_risk_level(
     threat: &RawElement,
     elements: &[RawElement],
     resolver: &Resolver,
 ) -> Option<RiskLevel> {
+    threat_risk_level_with(threat, elements, resolver, &CyberConfig::default())
+}
+
+/// [`threat_risk_level`] under an explicit [`CyberConfig`].
+pub fn threat_risk_level_with(
+    threat: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cfg: &CyberConfig,
+) -> Option<RiskLevel> {
+    threat_risk(threat, elements, resolver, cfg).map(|r| r.level)
+}
+
+/// A computed risk: the [`RiskLevel`] plus the matrix's numeric risk value (1..5 in
+/// the `annex` method) when the matrix cell carried one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Risk {
+    pub level: RiskLevel,
+    pub value: Option<u8>,
+}
+
+/// Full risk determination for one threat under `cfg`.
+pub fn threat_risk(
+    threat: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cfg: &CyberConfig,
+) -> Option<Risk> {
     let sev = threat_severity_rank(threat, elements, resolver)?;
-    let feas = threat
-        .frontmatter
-        .attack_feasibility
-        .as_deref()
-        .and_then(feasibility_rank)?;
-    Some(level_from_score(sev + feas))
+    let feas = threat_feasibility_rank(&threat.frontmatter, cfg)?;
+    Some(cfg.risk_cell(sev, feas))
+}
+
+/// Feasibility rank of a threat/attack step: an explicit, valid `attackFeasibility`
+/// wins; otherwise, when all five attack-potential factors are present and valid,
+/// the rank is derived from their summed points. An explicit but invalid value is
+/// uncomputable (it is never silently replaced).
+pub fn threat_feasibility_rank(fm: &crate::element::RawFrontmatter, cfg: &CyberConfig) -> Option<u8> {
+    match fm.attack_feasibility.as_deref() {
+        Some(f) => feasibility_rank(f),
+        None => cfg.attack_potential_feasibility(fm).and_then(|r| r.ok()),
+    }
 }
 
 /// Map a 0..6 score to a [`RiskLevel`]: 0–1 low, 2–3 medium, 4 high, 5–6 critical.
@@ -139,6 +200,20 @@ pub fn expected_cal_rank(level: RiskLevel) -> u8 {
         RiskLevel::High => 3,
         RiskLevel::Critical => 4,
     }
+}
+
+/// Expected CAL rank for one threat under `cfg`: the impact × attack-vector table
+/// cell when one is configured/built-in for the active method and the threat has
+/// a valid `attackVector`, else the risk → CAL map (default low→CAL1 … critical→CAL4).
+pub fn expected_cal_for_threat(
+    threat: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cfg: &CyberConfig,
+) -> Option<u8> {
+    let risk = threat_risk(threat, elements, resolver, cfg)?;
+    let impact = threat_severity_rank(threat, elements, resolver)?;
+    Some(cfg.cal_for(impact, threat.frontmatter.attack_vector.as_deref(), risk.level))
 }
 
 /// `CALn` label for an expected CAL rank (1..4).

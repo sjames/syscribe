@@ -64,12 +64,14 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E706–E723 | PlanningItem (§23) | ID/fields/status/itemType, parent resolution and cycle, top-level `achieves`, evidence, leaf-done-needs-evidence, `blockedBy`, `assignedTo`; E718 is a non-scalar `Argument.evidence` entry |
 | W701–W703 | Safety / ASPICE | verificationMethod on high-ASIL requirements, L5 test for ASIL D, mixed standards |
 | E800–E837, W800–W810 | Tier 2 safety and security | HARA/TARA element fields, ID patterns, enums, cross-references; coverage and traceability gaps, security test methods, assets |
-| E841–E865, E924, W860 | Integrity and assurance | Integrity-level propagation, safety↔security links, risk treatment, diagnostic coverage, confirmation measures (E924: status enum), GSN arguments and assumptions, assets, decomposition pairs |
+| E841–E865, E878–E880, E924, W811–W814, W860 | Integrity and assurance | Integrity-level propagation, safety↔security links, risk treatment, diagnostic coverage, confirmation measures (E924: status enum), GSN arguments and assumptions, assets, decomposition pairs |
 | E866–E877, W060–W064 | Budgets and trade studies (§22.2, §15) | Budget expressions and bounds; TradeStudy fields, criteria, scores, decision |
 | E900–E923, E927, W900–W905, W926–W928 | Tier 4 FTA / FMEA / attack trees | FaultTree, FMEA, TARA sheet and attack-tree fields, IDs, enums, inputs, RPN, cross-links |
 | E940–E941 | Tier 4 TARA container | TARASheet fields and ID pattern |
 | E950–E956, E925, E926, W950–W953 | IEC 62443 (§13) | Zone/Conduit fields, IDs, status (E926), SL range (E925), resolution, Security-Level gaps |
-| E960–E964, W960–W967 | Fault-tree analysis (GH #211–#213) | Gate cycles, arity, value ranges, reachability, stray nodes, CCF groups, `missionTime`; W965–W966 flag missing diagnostic data / exposure time in the cut-set driven `metrics` |
+| E980–E984, W980–W987 | Fault-tree analysis (GH #211–#213) | Gate cycles, arity, value ranges, reachability, stray nodes, CCF groups, `missionTime`; W985–W986 flag missing diagnostic data / exposure time in the cut-set driven `metrics` |
+| E640, E641, W640–W642 | Cyber risk configuration (GH #222) | `[cyber]` method/tables in `.syscribe.toml`, per-category impact ratings, attack-potential factors |
+| E960–E967, W960–W979 | Security-analysis completeness | TARA row integrity, risk inputs and treatment, attack-tree shape, zone/conduit consistency, `VulnerabilityReport` hygiene |
 
 See [Rule Reference](rules.md) for every code.
 

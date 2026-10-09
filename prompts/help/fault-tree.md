@@ -20,7 +20,7 @@ irrelevant, unreachable, house). An event's probability is its `probability:` or
 1 - exp(-failureRate * missionTime). House events are constants (TRUE only at
 probability 1). Events sharing `ccfGroup:` with `ccfBeta:` get a beta-factor
 common-cause event (CCF:<group>). A tree with events but no gates is an implicit OR.
-A gate cycle or a missing top node is an error (exit 1); see E960-E964, W960-W964.
+A gate cycle or a missing top node is an error (exit 1); see E980-E984, W980-W984.
 
 ## OPTIONS
     render <FaultTree-id>   Emit Mermaid flowchart for the named FaultTree.

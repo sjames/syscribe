@@ -24,7 +24,7 @@
 //!
 //! * `AND` and `inhibit` are conjunctions (an `inhibit` gate's last input is the
 //!   conditioning event). `OR` is a disjunction. `XOR` is parity. `NOT` negates
-//!   its single input (extra inputs are an `E961` error and are OR-ed first).
+//!   its single input (extra inputs are an `E981` error and are OR-ed first).
 //!   A gate with no inputs is constant FALSE.
 //! * `basic` and `undeveloped` events are variables. A `house` event is a
 //!   constant: TRUE when its `probability` is exactly `1`, otherwise FALSE.
@@ -1254,11 +1254,11 @@ fn issue(code: &'static str, file: &str, is_error: bool, message: String) -> Str
 }
 
 /// Structural checks of every fault tree and fault-tree node in the model:
-/// gate cycles `E960`, gate arity `E961`, `failureRate` `E962` / probability
-/// `E963` / `ccfBeta` `E964` ranges, unreachable nodes `W960`, stray nodes
-/// outside any `FaultTree` directory `W961`, degenerate single-input AND/OR
-/// `W962`, single-member CCF group `W963`, inconsistent betas `W964`, and an
-/// unparsable `missionTime` `W967`.
+/// gate cycles `E980`, gate arity `E981`, `failureRate` `E982` / probability
+/// `E983` / `ccfBeta` `E984` ranges, unreachable nodes `W980`, stray nodes
+/// outside any `FaultTree` directory `W981`, degenerate single-input AND/OR
+/// `W982`, single-member CCF group `W983`, inconsistent betas `W984`, and an
+/// unparsable `missionTime` `W987`.
 pub fn structural_issues(elements: &[RawElement], resolver: &Resolver) -> Vec<StructuralIssue> {
     let mut out = Vec::new();
     let tree_prefixes: Vec<String> = fault_trees(elements).map(|t| format!("{}::", t.qualified_name)).collect();
@@ -1271,23 +1271,23 @@ pub fn structural_issues(elements: &[RawElement], resolver: &Resolver) -> Vec<St
         if matches!(fm.element_type, Some(ElementType::FaultTreeEvent)) {
             if let Some(l) = fm.failure_rate {
                 if !l.is_finite() || l < 0.0 {
-                    out.push(issue("E962", file, true, format!("FaultTreeEvent '{label}' failureRate {l} must be a finite value ≥ 0")));
+                    out.push(issue("E982", file, true, format!("FaultTreeEvent '{label}' failureRate {l} must be a finite value ≥ 0")));
                 }
             }
             if let Some(b) = fm.ccf_beta {
                 if !b.is_finite() || !(0.0..=1.0).contains(&b) {
-                    out.push(issue("E964", file, true, format!("FaultTreeEvent '{label}' ccfBeta {b} is out of range 0.0–1.0")));
+                    out.push(issue("E984", file, true, format!("FaultTreeEvent '{label}' ccfBeta {b} is out of range 0.0–1.0")));
                 }
             }
         }
         if let Some(p) = fm.probability {
             if !p.is_finite() || !(0.0..=1.0).contains(&p) {
-                out.push(issue("E963", file, true, format!("'{label}' probability {p} is out of range 0.0–1.0")));
+                out.push(issue("E983", file, true, format!("'{label}' probability {p} is out of range 0.0–1.0")));
             }
         }
         // stray
         if is_ft_node(e) && !tree_prefixes.iter().any(|p| e.qualified_name.starts_with(p)) {
-            out.push(issue("W961", file, false, format!(
+            out.push(issue("W981", file, false, format!(
                 "{} '{label}' is not inside any FaultTree directory — it is ignored by fault-tree analysis and metrics",
                 fm.element_type.as_ref().map_or("fault-tree node", |t| t.name())
             )));
@@ -1296,18 +1296,18 @@ pub fn structural_issues(elements: &[RawElement], resolver: &Resolver) -> Vec<St
         if matches!(fm.element_type, Some(ElementType::FaultTreeGate)) {
             let n = fm.inputs.as_ref().map_or(0, |v| v.len());
             match fm.gate_type.as_deref().and_then(GateKind::parse) {
-                Some(GateKind::Not) if n > 1 => out.push(issue("E961", file, true, format!("NOT gate '{label}' has {n} inputs — it takes exactly 1"))),
-                Some(GateKind::Xor) if n > 2 => out.push(issue("E961", file, true, format!("XOR gate '{label}' has {n} inputs — it takes exactly 2"))),
-                Some(GateKind::Inhibit) if n >= 1 && n < 2 => out.push(issue("E961", file, true, format!(
+                Some(GateKind::Not) if n > 1 => out.push(issue("E981", file, true, format!("NOT gate '{label}' has {n} inputs — it takes exactly 1"))),
+                Some(GateKind::Xor) if n > 2 => out.push(issue("E981", file, true, format!("XOR gate '{label}' has {n} inputs — it takes exactly 2"))),
+                Some(GateKind::Inhibit) if n >= 1 && n < 2 => out.push(issue("E981", file, true, format!(
                     "inhibit gate '{label}' has no conditioning input — it needs the input event plus its condition (≥ 2 inputs)"))),
-                Some(GateKind::And) | Some(GateKind::Or) if n == 1 => out.push(issue("W962", file, false, format!(
+                Some(GateKind::And) | Some(GateKind::Or) if n == 1 => out.push(issue("W982", file, false, format!(
                     "{} gate '{label}' has a single input — it is a pass-through", fm.gate_type.as_deref().unwrap_or("")))),
                 _ => {}
             }
             // self-input (also covered by cycles, but name it directly)
             for r in fm.inputs.iter().flatten() {
                 if resolver.resolve_ref(elements, r).is_some_and(|t| t.qualified_name == e.qualified_name) {
-                    out.push(issue("E960", file, true, format!("gate '{label}' lists itself in `inputs`")));
+                    out.push(issue("E980", file, true, format!("gate '{label}' lists itself in `inputs`")));
                 }
             }
         }
@@ -1326,15 +1326,15 @@ pub fn structural_issues(elements: &[RawElement], resolver: &Resolver) -> Vec<St
         }
         for (g, ms) in groups {
             if ms.len() < 2 {
-                out.push(issue("W963", &ms[0].file_path, false, format!("ccfGroup '{g}' has a single member — a common-cause group needs ≥ 2 events")));
+                out.push(issue("W983", &ms[0].file_path, false, format!("ccfGroup '{g}' has a single member — a common-cause group needs ≥ 2 events")));
                 continue;
             }
             let betas: Vec<f64> = ms.iter().filter_map(|m| m.frontmatter.ccf_beta).collect();
             let consistent = betas.windows(2).all(|w| (w[0] - w[1]).abs() < 1e-12);
             if betas.is_empty() {
-                out.push(issue("W964", &ms[0].file_path, false, format!("ccfGroup '{g}' declares no ccfBeta — the group is not expanded")));
+                out.push(issue("W984", &ms[0].file_path, false, format!("ccfGroup '{g}' declares no ccfBeta — the group is not expanded")));
             } else if !consistent || betas.len() != ms.len() {
-                out.push(issue("W964", &ms[0].file_path, false, format!("ccfGroup '{g}' members disagree on ccfBeta (or some omit it) — the largest value is used")));
+                out.push(issue("W984", &ms[0].file_path, false, format!("ccfGroup '{g}' members disagree on ccfBeta (or some omit it) — the largest value is used")));
             }
         }
     }
@@ -1343,20 +1343,20 @@ pub fn structural_issues(elements: &[RawElement], resolver: &Resolver) -> Vec<St
     for t in fault_trees(elements) {
         if let Some(m) = t.frontmatter.mission_time.as_deref() {
             if parse_mission_time(m).is_none() {
-                out.push(issue("W967", &t.file_path, false, format!("FaultTree '{}' missionTime '{m}' is not a positive duration (e.g. \"8760 h\")", node_label(t))));
+                out.push(issue("W987", &t.file_path, false, format!("FaultTree '{}' missionTime '{m}' is not a positive duration (e.g. \"8760 h\")", node_label(t))));
             }
         }
         let st = FtStructure::build(elements, resolver, t);
         for c in &st.cycles {
             let first = &st.nodes[c[0]];
             let ids: Vec<&str> = c.iter().map(|&i| st.nodes[i].id.as_str()).collect();
-            out.push(issue("E960", &first.file_path, true, format!(
+            out.push(issue("E980", &first.file_path, true, format!(
                 "FaultTree '{}' has a gate cycle: {}", st.tree_id, ids.join(" -> "))));
         }
         if st.root.is_some() {
             for (i, n) in st.nodes.iter().enumerate() {
                 if n.in_tree && !st.reachable.contains(&i) {
-                    out.push(issue("W960", &n.file_path, false, format!(
+                    out.push(issue("W980", &n.file_path, false, format!(
                         "{} '{}' is not reachable from the top node '{}' of FaultTree '{}' — it does not affect the analysis",
                         if n.is_gate() { "gate" } else { "event" }, n.id, st.root.map_or("?", |r| st.nodes[r].id.as_str()), st.tree_id)));
                 }
@@ -1769,9 +1769,9 @@ mod tests {
             gate("001", "OR", &["FTG-XX-002", "FTE-XX-001"]),
             gate("002", "OR", &["FTG-XX-001"]),
         ];
-        assert!(codes_of(&cyc).contains(&"E960"));
+        assert!(codes_of(&cyc).contains(&"E980"));
         let selfl = vec![tree(""), ev("001", ""), gate("001", "OR", &["FTG-XX-001", "FTE-XX-001"])];
-        assert!(codes_of(&selfl).contains(&"E960"));
+        assert!(codes_of(&selfl).contains(&"E980"));
         let arity = vec![
             tree(""),
             ev("001", ""),
@@ -1780,14 +1780,14 @@ mod tests {
             gate("002", "inhibit", &["FTE-XX-001"]),
             gate("003", "XOR", &["FTE-XX-001", "FTE-XX-002", "FTG-XX-001"]),
         ];
-        assert_eq!(codes_of(&arity).iter().filter(|c| **c == "E961").count(), 3);
+        assert_eq!(codes_of(&arity).iter().filter(|c| **c == "E981").count(), 3);
         let range = vec![
             tree(""),
             ev("001", "failureRate: -1.0e-9\nprobability: 1.5\nccfBeta: 2\n"),
             gate("001", "OR", &["FTE-XX-001", "FTE-XX-001"]),
         ];
         let c = codes_of(&range);
-        for want in ["E962", "E963", "E964"] {
+        for want in ["E982", "E983", "E984"] {
             assert!(c.contains(&want), "{want} in {c:?}");
         }
     }
@@ -1798,9 +1798,9 @@ mod tests {
         assert!(codes_of(&ok).is_empty(), "{:?}", codes_of(&ok));
         let mut un = ok.clone();
         un.push(ev("003", ""));
-        assert_eq!(codes_of(&un), vec!["W960"]);
+        assert_eq!(codes_of(&un), vec!["W980"]);
         let mut stray = ok.clone();
         stray.push(el("Other::FTE-Z", "type: FaultTreeEvent\nid: FTE-ZZ-001\nname: z\neventKind: basic\n"));
-        assert_eq!(codes_of(&stray), vec!["W961"]);
+        assert_eq!(codes_of(&stray), vec!["W981"]);
     }
 }

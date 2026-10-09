@@ -16,8 +16,8 @@ tc_TRS_FTA_005() {
     assert_output_contains "pass"
     assert_exit_zero
 
-    run_scenario "missing latentDiagnosticCoverage raises W965" "$B/missing"
-    assert_has_code "W965"
+    run_scenario "missing latentDiagnosticCoverage raises W985" "$B/missing"
+    assert_has_code "W985"
     assert_output_contains "FTE-FM3-001"
 
     run_scenario "the passing AND model does not trip W033" "$B/and"

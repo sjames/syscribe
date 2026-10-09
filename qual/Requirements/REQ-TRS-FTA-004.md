@@ -7,7 +7,7 @@ reqDomain: software
 verificationMethod: test
 ---
 
-The validator **shall** report: a gate cycle or a gate listing itself in `inputs` (`E960`); a `NOT` gate with more than one input, an `XOR` gate with more than two, or an `inhibit` gate without a conditioning input (`E961`); a negative or non-finite `failureRate` (`E962`); a `probability` outside 0..1 (`E963`); a `ccfBeta` outside 0..1 (`E964`); a node not reachable from the tree's top node (`W960`); a gate/event outside any `FaultTree` directory (`W961`); a single-input `AND`/`OR` gate (`W962`); a single-member `ccfGroup` (`W963`); a `ccfGroup` with missing or inconsistent betas (`W964`); and an unparsable `missionTime` (`W967`).
+The validator **shall** report: a gate cycle or a gate listing itself in `inputs` (`E980`); a `NOT` gate with more than one input, an `XOR` gate with more than two, or an `inhibit` gate without a conditioning input (`E981`); a negative or non-finite `failureRate` (`E982`); a `probability` outside 0..1 (`E983`); a `ccfBeta` outside 0..1 (`E984`); a node not reachable from the tree's top node (`W980`); a gate/event outside any `FaultTree` directory (`W981`); a single-input `AND`/`OR` gate (`W982`); a single-member `ccfGroup` (`W983`); a `ccfGroup` with missing or inconsistent betas (`W984`); and an unparsable `missionTime` (`W987`).
 
 **Source:** GitHub issue #212.
 

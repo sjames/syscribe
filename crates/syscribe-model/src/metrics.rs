@@ -39,14 +39,14 @@
 //! ```
 //!
 //! `T` is the tree's `missionTime` (hours); when absent a default of
-//! [`DEFAULT_EXPOSURE_HOURS`] is used and `W966` is raised. Cut sets of order
+//! [`DEFAULT_EXPOSURE_HOURS`] is used and `W986` is raised. Cut sets of order
 //! ≥ 3 are not included in `λ_DPF` (their contribution is of higher order).
 //!
 //! # Missing diagnostic data (GH #213)
 //!
 //! A contributing event with no `diagnosticCoverage` (or, once any event of the
 //! goal declares `latentDiagnosticCoverage`, no `latentDiagnosticCoverage`) is
-//! treated as coverage **0** — the conservative choice — and reported as `W965`.
+//! treated as coverage **0** — the conservative choice — and reported as `W985`.
 //! `LFM` is `None` while no event of the goal declares DCl at all. DC/DCl
 //! outside `0.0`–`1.0` (already `E846`) are clamped.
 //!
@@ -66,7 +66,7 @@ pub const DEFAULT_EXPOSURE_HOURS: f64 = 10_000.0;
 
 /// One contributing failure: λ (/h), diagnostic coverage (DC), latent
 /// diagnostic coverage (DCl). `dc`/`dcl` are 0 when absent; `has_dc`/`has_dcl`
-/// track whether the value was *declared* (opt-in rule, LFM "n/a" case, `W965`).
+/// track whether the value was *declared* (opt-in rule, LFM "n/a" case, `W985`).
 #[derive(Debug, Clone, Copy)]
 pub struct Contribution {
     pub lambda: f64,
@@ -235,7 +235,7 @@ pub fn gate(metrics: &SafetyMetrics, targets: &Targets) -> GateResult {
     GateResult { misses }
 }
 
-/// A contributing event that lacks diagnostic data (`W965`).
+/// A contributing event that lacks diagnostic data (`W985`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct MissingDiagnostic {
     pub event_id: String,
@@ -286,10 +286,10 @@ pub struct GoalReport {
     pub targets: Option<Targets>,
     /// Gate result — `None` when metrics were not computed or no target applies.
     pub gate: Option<GateResult>,
-    /// Contributing events lacking DC/DCl (defaulted to 0) — `W965`.
+    /// Contributing events lacking DC/DCl (defaulted to 0) — `W985`.
     pub missing: Vec<MissingDiagnostic>,
     /// True when the dual-point term needed a mission time and used
-    /// [`DEFAULT_EXPOSURE_HOURS`] — `W966`.
+    /// [`DEFAULT_EXPOSURE_HOURS`] — `W986`.
     pub exposure_defaulted: bool,
     /// Fault trees of this goal whose analysis failed (cycle, no top node, …).
     pub analysis_errors: Vec<String>,
@@ -346,7 +346,7 @@ pub fn contributions_for_goal(
     let this_goal_keys = goal_keys(goal);
     let mut out = GoalContributions::default();
     let mut any_dcl = false;
-    // (event id, file, has_dc, has_dcl) per contributing event, for W965.
+    // (event id, file, has_dc, has_dcl) per contributing event, for W985.
     let mut declared: Vec<(String, String, bool, bool)> = Vec::new();
 
     for tree in fta::fault_trees(elements) {

@@ -15,7 +15,7 @@ logic matters (AND vs OR differ), only reachable non-house events with a
 non-negative failureRate in a cut set contribute, an order-1 event is single-point
 (residual lambda*(1-DC)), and PMHF = lambda_RF + lambda_DPF where lambda_DPF is the
 dual-point rate of order-2 cut sets over the tree's missionTime. Missing
-diagnosticCoverage / latentDiagnosticCoverage count as 0 and raise W965.
+diagnosticCoverage / latentDiagnosticCoverage count as 0 and raise W985.
 
 Verdicts: pass, fail, `no target` (computed but no recognised ASIL/SIL), n/a (not
 computed). SIL 1..4 gate PFH (1e-5..1e-8 /h). Exit status 2 when any goal fails.
@@ -36,4 +36,4 @@ Coverage. A goal below target also raises W033 in `validate`; `metrics` itself e
 when any goal fails (usage errors exit 1).
 
 ## SEE ALSO
-    validate (W033, W965, W966), fault-tree analyze, audit, spec safety
+    validate (W033, W985, W986), fault-tree analyze, audit, spec safety

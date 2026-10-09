@@ -116,6 +116,8 @@ residualRisk: "Low after MAC on torque frames"   # optional free text
 
 **Risk (ISO/SAE 21434 §15.8):** severity = max `damageSeverity` over `damageScenarios` (negligible=0…severe=3); feasibility from `attackFeasibility` (very_low=0…high=3); `score = severity + feasibility` → low (0–1), medium (2–3), high (4), critical (5–6); unknown if either is missing. A high/critical-risk threat with no `riskTreatment` and not listed by any `CybersecurityGoal.threatScenarios` warns **W031** (gateable `--deny W031`). View per-threat risk with `syscribe -m <root> cyber-risk`.
 
+**Configurable (GH #222):** a `[cyber]` table in `.syscribe.toml` selects `method = "simple"` (default, the rank-sum above) or `"annex"` (built-in EXAMPLE tables modelled on the ISO/SAE 21434 informative annexes — not normative; verify against your copy of the standard), overrides `[cyber.risk_matrix]`/`[cyber.cal_table]`/`[cyber.cal_by_risk]` cells, and scores attack potential (`elapsedTime`, `expertise`, `knowledge`, `windowOfOpportunity`, `equipment` → `attackFeasibility`, `[cyber.attack_potential]`). `DamageScenario` may add `safetyImpact`/`financialImpact`/`operationalImpact`/`privacyImpact` (overall = max with `damageSeverity`). Codes `W640` `W641` `W642` `E640` `E641`.
+
 ### CybersecurityGoal — `CSG-*`
 
 ```yaml
@@ -248,12 +250,12 @@ ref: Braking::HydraulicPump # optional; element whose failure this is (qname or 
 failureRate: 1.2e-7         # optional; per-hour failure rate (λ)
 diagnosticCoverage: 0.99        # optional; DC, 0.0–1.0 (E846 if out of range)
 latentDiagnosticCoverage: 0.90  # optional; DCl, 0.0–1.0 (E846 if out of range)
-probability: 1.0e-3         # optional; else 1−exp(−λ·missionTime) is used (E963 outside 0–1)
+probability: 1.0e-3         # optional; else 1−exp(−λ·missionTime) is used (E983 outside 0–1)
 ccfGroup: PUMPS             # optional; events sharing a group get a beta-factor CCF event
-ccfBeta: 0.1                # optional; β, 0.0–1.0 (E964 if out of range)
+ccfBeta: 0.1                # optional; β, 0.0–1.0 (E984 if out of range)
 ```
 
-Place in `FaultTreeName/` subdirectory. Gate rules: `NOT` takes 1 input, `XOR` 2, `inhibit` needs its conditioning event as a second input (E961); no gate cycles (E960); every gate/event must be reachable from the one top gate (W960). `syscribe -m model/ fault-tree analyze <FT>` prints minimal cut sets, top-event probability and importance.
+Place in `FaultTreeName/` subdirectory. Gate rules: `NOT` takes 1 input, `XOR` 2, `inhibit` needs its conditioning event as a second input (E981); no gate cycles (E980); every gate/event must be reachable from the one top gate (W980). `syscribe -m model/ fault-tree analyze <FT>` prints minimal cut sets, top-event probability and importance.
 
 ---
 
@@ -269,7 +271,7 @@ Per `SafetyGoal`, over the `FaultTreeEvent`s under the `FaultTree`(s) whose `top
 PMHF = λ_RF + λ_DPF  (/h)   λ_DPF = dual-point rate of order-2 cut sets over missionTime
 ```
 
-Driven by the fault tree's **minimal cut sets**: `λ_RF` sums only order-1 (single-point) events; events only in larger cut sets are multi-point; house/unreachable events are skipped. A contributing event with no DC/DCl counts as 0 and raises **W965**; dual-point sets without a `missionTime` raise **W966**.
+Driven by the fault tree's **minimal cut sets**: `λ_RF` sums only order-1 (single-point) events; events only in larger cut sets are multi-point; house/unreachable events are skipped. A contributing event with no DC/DCl counts as 0 and raises **W985**; dual-point sets without a `missionTime` raise **W986**.
 
 Targets — ASIL SPFM ≥ {B .90, C .97, D .99}; LFM ≥ {B .60, C .80, D .90}; PMHF < {B/C 1e-7, D 1e-8}/h. SIL gates PMHF/PFH < {SIL1 1e-5, SIL2 1e-6, SIL3 1e-7, SIL4 1e-8}/h only.
 

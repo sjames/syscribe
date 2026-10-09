@@ -3,7 +3,7 @@ id: TC-TRS-FTA-005
 type: TestCase
 testLevel: L3
 status: draft
-name: "Verify cut-set driven metrics: gate logic changes SPFM/PMHF, W965 on missing DCl, and metrics exits 2 on a failing goal."
+name: "Verify cut-set driven metrics: gate logic changes SPFM/PMHF, W985 on missing DCl, and metrics exits 2 on a failing goal."
 verifies:
   - REQ-TRS-FTA-005
 ---
@@ -26,7 +26,7 @@ Feature: Cut-set driven metrics
   Scenario: Missing latent coverage
     Given one event declares latentDiagnosticCoverage and the other does not
     When the tool validates the model
-    Then W965 names the event without it
+    Then W985 names the event without it
 
   Scenario: Exit code
     When metrics runs on the failing and the passing model
