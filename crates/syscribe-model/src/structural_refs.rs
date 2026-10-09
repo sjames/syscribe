@@ -501,13 +501,25 @@ pub fn unresolved_structural_ref_findings(
                     continue;
                 }
                 if let Err(seg) = ctx.walk_chain(elem, c) {
-                    report(
-                        "E127",
-                        "connection endpoint",
-                        file,
-                        c,
-                        format!(": '{seg}' is not a member of the element it is looked up in"),
-                    );
+                    let head = c.replace("::", ".");
+                    if head.split('.').next().map(str::trim) == Some(seg.as_str()) {
+                        report(
+                            "E127",
+                            "connection endpoint",
+                            file,
+                            c,
+                            format!(": '{seg}' is not a member of the element it is looked up in"),
+                        );
+                    } else {
+                        // The owning part exists but the port named after it is not found on
+                        // it: models often wire a sibling port loosely, so advise only.
+                        warns.push(Finding {
+                            code: "W056",
+                            file: file.to_string(),
+                            message: format!("connection endpoint '{c}': '{seg}' is not a member of the element it is looked up in"),
+                            severity: Severity::Warning,
+                        });
+                    }
                 }
             }
         }
@@ -746,8 +758,14 @@ pub fn behavior_ref_findings(
             unresolved("returnType", s);
         }
         // Endpoint chains: the first segment must name something the element owns.
+        // An element that declares no sub-actions, control nodes or parameters has no
+        // names to check against (steps may live only in its prose).
+        let has_names = !names.is_empty();
         let mut endpoint = |what: &str, chain: Option<&str>| {
             let Some(c) = chain else { return };
+            if !has_names {
+                return;
+            }
             let head = c.trim().split(['.', ':']).next().unwrap_or("").trim();
             if head.is_empty() || names.contains(head) || head == "self" || head == "this" {
                 return;
@@ -984,7 +1002,7 @@ mod tests {
                 "type: PartDef\nfeatures:\n  - {name: e, type: Part, typedBy: Eng}\nconnections:\n  - {from: e.out.tx, to: e.out}\n  - {from: e.nope, to: e.out}\n  - {from: ghost.p, to: e.out}\n  - {from: e.out.zz, to: e.out}\n",
             ),
         ];
-        assert_eq!(codes(&els), vec!["E127", "E127", "E127"]);
+        assert_eq!(codes(&els), vec!["E127", "W056", "W056"]);
     }
 
     #[test]

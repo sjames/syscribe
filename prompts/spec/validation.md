@@ -68,7 +68,7 @@
 | `E124` | A value `Enum::literal` names a literal the `EnumerationDef` does not declare |
 | `E125` | An `InterfaceDef` or `ConnectionDef` declares `ends:` with fewer than two entries |
 | `E126` | An `imports:` target, `aliases:` `for:` target or `dependsOn:` entry does not resolve (a library package or a name in a loaded peer repo is accepted) |
-| `E127` | A `connections:` endpoint feature chain names a first or later segment that is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
+| `E127` | A `connections:` endpoint feature chain whose first segment is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
 | `E310` | `Requirement` has `derivedFrom:` but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved or resolves to a non-`ADR` element |
 | `E312` | A parent `Requirement` (has `derivedChildren`) appears in a `satisfies:` list |
@@ -664,6 +664,7 @@ gives no coverage credit. The built-in fields themselves are never relaxed.
 | `W043` | warning | A type reference names a member of a **closed** auto-imported package (`ScalarValues`, `Base`) that the package does not declare (e.g. `ScalarValues::Flota`) — a likely typo; the message lists the known members. Recognised members resolve with no `W404`/`W043`. The **open** packages `ISQ`/`SI` are curated-recognised (clean) but lenient — an unrecognised `ISQ`/`SI` member is never flagged. |
 | `W044` | warning | An element/feature declares both a recognised `ISQ` quantity type and a recognised `SI` unit whose physical **dimensions differ** (e.g. `ISQ::MassValue` + `unit: SI::metre`); names both dimensions. Lenient when either side is unrecognised. |
 | `W057` | warning | An `ISQ::` quantity type or `SI::` unit is not known to this tool's tables (a subset of the SysML v2 library) — usually a typo; no dimensional check is possible for it |
+| `W056` | A `connections:` endpoint's later segment (the port after the part) is not found on the part it follows — advisory; models often wire a sibling port loosely |
 
 ## Stereotypes — metadata applications (E317, E318, W045)
 

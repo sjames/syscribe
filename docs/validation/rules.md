@@ -79,7 +79,7 @@ This page groups every finding code by feature area, with context. The same code
 | E124 | A value `Enum::literal` names a literal the `EnumerationDef` does not declare |
 | E125 | An `InterfaceDef` or `ConnectionDef` declares `ends:` with fewer than two entries |
 | E126 | An `imports:` target, `aliases:` `for:` target or `dependsOn:` entry does not resolve (a library package or a name in a loaded peer repo is accepted) |
-| E127 | A `connections:` endpoint feature chain names a first or later segment that is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
+| E127 | A `connections:` endpoint feature chain whose first segment is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
 
 `E110`–`E114` (REQ-TRS-XREF-007) use the §11.5 resolution order: id / qualified name / name,
 then the referencing element's enclosing-package scope chain, a `./` sibling, `imports:` and
@@ -1178,6 +1178,7 @@ TestCase    = ["QT"]
 | W043 | A type reference (`supertype`/`typedBy`/`returnType`/parameter `type`) names a member of a **closed** auto-imported package (`ScalarValues`, `Base`) that the package does not declare — e.g. `ScalarValues::Flota` — a likely typo; the message lists the package's known members. Recognised members (`ScalarValues::{Integer,Real,Natural,Boolean,String}`, `Base::{Anything,DataValue}`) resolve cleanly with no `W404`/`W043`. The **open** packages `ISQ`/`SI` are curated-recognised (clean, no `W404`) but **lenient** — an unrecognised `ISQ`/`SI` member is never flagged `W043`. |
 | W044 | An element/feature declares **both** a recognised `ISQ` quantity type (`typedBy:`/parameter `type`) **and** a recognised `SI` unit (`unit:`) whose **physical dimensions differ** — e.g. `typedBy: ISQ::MassValue` with `unit: SI::metre`. The message names both and their dimensions (over the seven SI base quantities). Lenient when either side is unrecognised (e.g. a domain unit like `USD`). |
 | W057 | An `ISQ::` quantity type or `SI::` unit is not known to this tool's tables (a subset of the SysML v2 library) — usually a typo; no dimensional check is possible for it |
+| W056 | A `connections:` endpoint's later segment (the port after the part) is not found on the part it follows — advisory; models often wire a sibling port loosely |
 
 ## Stereotypes — metadata applications (E317, E318, W045)
 

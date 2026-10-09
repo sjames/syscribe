@@ -5999,7 +5999,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E124` | A value `Enum::literal` names a literal the `EnumerationDef` does not declare |
 | `E125` | An `InterfaceDef` or `ConnectionDef` declares `ends:` with fewer than two entries |
 | `E126` | An `imports:` target, `aliases:` `for:` target or `dependsOn:` entry does not resolve (a library package or a name in a loaded peer repo is accepted) |
-| `E127` | A `connections:` endpoint feature chain names a first or later segment that is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
+| `E127` | A `connections:` endpoint feature chain whose first segment is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
 | `E310` | Native `Requirement` has `derivedFrom:` entries but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved, or resolves to an element that is not an `ADR` |
 | `E312` | A parent `Requirement` (one with `derivedChildren`) appears in a `satisfies:` list |
@@ -6047,6 +6047,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `W043` | A type reference names a member of a closed auto-imported package (`ScalarValues`, `Base`) that it does not declare — a likely typo |
 | `W044` | A recognised `ISQ` quantity type and a recognised `SI` unit on the same element/feature have different physical dimensions |
 | `W057` | An `ISQ::` quantity type or `SI::` unit is not known to this tool's tables (a subset of the SysML v2 library) — usually a typo |
+| `W056` | A `connections:` endpoint's later segment (the port after the part) is not found on the part it follows — advisory; models often wire a sibling port loosely |
 | `W045` | A tagged-value key in a `metadata:` application is not a declared feature of the `MetadataDef` (§8.15.2) |
 | `W046` | An `[ids.prefixes]` entry in `.syscribe.toml` is malformed (unknown id-identified type, or a prefix not matching `^[A-Z][A-Z0-9]{1,11}$`); the entry/prefix is ignored |
 | `W047` | A top-level frontmatter key is not a recognised schema field and is not `custom_fields:` (one finding per key; §3.17) |
