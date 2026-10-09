@@ -48,7 +48,7 @@ fn only_keys(m: &Mapping, allowed: &[&str]) -> bool {
 
 /// A dotted feature-chain name (`a.b`) with each segment quoted when needed.
 fn chain(name: &str) -> String {
-    name.split('.').map(sysml_ident).collect::<Vec<_>>().join(".")
+    super::export::qualified(name)
 }
 
 fn comment(pad: &str, what: &str, label: &str, reason: &str) -> String {
@@ -626,7 +626,7 @@ fn behaviour_lines(entry: Option<&Value>, doa: Option<&Value>, exit: Option<&Val
     for (kw, v) in [("entry", entry), ("do", doa), ("exit", exit)] {
         let Some(v) = v else { continue };
         let n = v.as_str().filter(|n| !n.is_empty()).ok_or_else(|| format!("{kw}Action is not a plain action name"))?;
-        s.push_str(&format!("{pad}{kw} action {};\n", sysml_ident(n)));
+        s.push_str(&format!("{pad}{kw} action {};\n", super::export::qualified(n)));
     }
     Ok(s)
 }

@@ -2644,7 +2644,7 @@ impl SyscribeMcp {
     #[tool(
         description = "Export the model (or the subtree of `package`) as SysML v2 textual \
         notation: one-way, lossy, export-only (ADR-SYS-SYSMLV2-002). Returns the SysML text \
-        (unsupported elements appear as `// skipped:` comments and a trailing summary); \
+        (unsupported elements appear as `// skipped:` comments, fields with no SysML v2 text form as `// dropped:` comments, and a trailing summary); \
         same text as `export-sysml [<package>]`. Never writes to disk.",
         annotations(read_only_hint = true)
     )]
