@@ -12528,6 +12528,22 @@ mod link_type_tests {
     }
 
     #[test]
+    fn prefixed_units_are_recognised_and_judged_by_dimension() {
+        // GH #209: kN/MHz/mm are known (no W057) and W044 compares dimensions.
+        let elements = vec![make_elem(
+            "Parts::Act",
+            "type: PartDef\nname: Act\nfeatures:\n  - {name: f, typedBy: ISQ::ForceValue, unit: SI::kN}\n  - {name: g, typedBy: ISQ::FrequencyValue, unit: MHz}\n  - {name: l, typedBy: ISQ::LengthValue, unit: SI::mm}\n  - {name: bad, typedBy: ISQ::ForceValue, unit: SI::mm}\n  - {name: bad2, typedBy: ISQ::LengthValue, unit: SI::MHz}\n  - {name: typo, typedBy: ISQ::ForceValue, unit: SI::kNN}",
+        )];
+        let result = validate_with_config(&elements, &ValidateConfig::default());
+        let w057: Vec<_> = result.findings.iter().filter(|f| f.code == "W057").map(|f| f.message.as_str()).collect();
+        assert_eq!(w057.len(), 1, "{w057:?}");
+        assert!(w057[0].contains("SI::kNN"));
+        let w044: Vec<_> = result.findings.iter().filter(|f| f.code == "W044").map(|f| f.message.as_str()).collect();
+        assert_eq!(w044.len(), 2, "{w044:?}");
+        assert!(w044.iter().any(|m| m.contains("'SI::mm'")) && w044.iter().any(|m| m.contains("'SI::MHz'")));
+    }
+
+    #[test]
     fn verifies_extension_relaxing_e104_feeds_verified_by() {
         let toml_text = "[linkTypes.checks]\nextends = \"verifies\"\nrelax = [\"E104\"]\n";
         let elements = vec![
