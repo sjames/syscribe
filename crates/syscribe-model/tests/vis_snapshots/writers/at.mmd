@@ -1,0 +1,23 @@
+flowchart TD
+  %% ref: Security::AT::Chain
+  s_security_at_chain(["AND<br/>Local path<br/>feasibility medium"])
+  %% ref: Security::AT::Root
+  s_security_at_root(["OR<br/>Either way in<br/>feasibility medium<br/>threat TS-DS-001 declares high<br/>[W035]"])
+  %% ref: Security::AT::S1
+  s_security_at_s1["Reach the port<br/>feasibility high"]
+  %% ref: Security::AT::S2
+  s_security_at_s2["Replay a frame<br/>feasibility medium"]
+  %% ref: Security::AT::S3
+  s_security_at_s3["Remote injection<br/>feasibility low"]
+
+  s_security_at_chain === s_security_at_s1
+  s_security_at_chain === s_security_at_s2
+  s_security_at_root === s_security_at_chain
+  s_security_at_root --- s_security_at_s3
+
+  classDef tone_ok fill:#e3f5e8,stroke:#1e8a3c,color:#222
+  class s_security_at_s3 tone_ok
+  classDef tone_warn fill:#fff4d6,stroke:#b7791f,color:#222
+  class s_security_at_chain,s_security_at_root,s_security_at_s2 tone_warn
+  classDef tone_bad fill:#fdecea,stroke:#b3261e,color:#222
+  class s_security_at_s1 tone_bad

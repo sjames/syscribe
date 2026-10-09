@@ -299,6 +299,11 @@ header .subtitle {
   margin-bottom: 16px;
   word-break: break-all;
 }
+.detail-diagram { margin: 12px 0; }
+.safety-diagram { margin: 12px 0; overflow: auto; max-height: 70vh; border: 1px solid #ddd; border-radius: 6px; padding: 8px; background: #fff; }
+.safety-diagram svg { max-width: 100%; height: auto; }
+.safety-diagram a { cursor: pointer; }
+.safety-diagram a:hover > * { filter: brightness(0.96); }
 .detail-doc { line-height: 1.65; color: #333; white-space: pre-wrap; }
 .detail-empty { color: #bbb; font-style: italic; padding: 8px 0; }
 

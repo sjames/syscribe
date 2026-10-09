@@ -122,6 +122,9 @@ pub struct TreeItemsTemplate {
 #[derive(Template)]
 #[template(path = "element_detail.html")]
 pub struct ElementDetailTemplate {
+    /// GH #223 — the element has a derived safety diagram (a fault tree, an
+    /// attack tree or a GSN argument) the panel embeds from `/ui/diagram/…`.
+    pub has_safety_diagram: bool,
     pub name: String,
     pub element_type: String,
     pub qualified_name: String,
@@ -348,6 +351,7 @@ pub async fn element_detail(
                 })
                 .collect();
             let tmpl = ElementDetailTemplate {
+                has_safety_diagram: !syscribe_model::vis::safety_kinds_of(e, &store.elements, &store.resolver).is_empty(),
                 name: e
                     .frontmatter
                     .name
@@ -547,6 +551,51 @@ pub async fn planning_board(State(state): State<SharedState>, Query(q): Query<Pl
     Html(PlanningBoardTemplate { board }.render().unwrap_or_default())
 }
 
+/// The heading of a safety diagram view.
+fn safety_kind_title(kind: syscribe_model::vis::DiagramKind) -> &'static str {
+    use syscribe_model::vis::DiagramKind as K;
+    match kind {
+        K::FaultTree => "Fault tree",
+        K::AttackTree => "Attack tree",
+        K::SafetyCase => "Safety case (GSN)",
+        _ => "Diagram",
+    }
+}
+
+/// The HTML fragment embedding the derived safety diagrams of `element`
+/// (`/ui/diagram/<element>` for a non-`Diagram`, GH #223): one titled static SVG
+/// per kind (the same IR and ELK layout the editor and `diagram export` use),
+/// each node an `<a href="/ui/detail/<qname>">` that the page's delegated click
+/// handler opens in the detail panel. A view with nothing to draw says why.
+fn safety_views(
+    store: &crate::state::ModelStore,
+    element: &syscribe_model::element::RawElement,
+    kinds: &[syscribe_model::vis::DiagramKind],
+) -> String {
+    use syscribe_model::vis;
+    let links = |r: &str| {
+        store
+            .resolver
+            .resolve_ref(&store.elements, r)
+            .map(|e| format!("/ui/detail/{}", e.qualified_name))
+    };
+    let mut out = String::new();
+    for &kind in kinds {
+        let (graph, issues) = vis::build_subject_graph(element, kind, &store.elements, &store.resolver);
+        let title = safety_kind_title(kind);
+        out.push_str(&format!(r#"<div class="safety-diagram" data-diagram-kind="{}"><div class="detail-section-label">{title}</div>"#, kind.as_str()));
+        match vis::render_svg(&graph, &links) {
+            Ok(svg) => out.push_str(&svg),
+            Err(e) => {
+                let why = issues.first().map(|i| format!("{}: {}", i.code, i.message)).unwrap_or_else(|| e.to_string());
+                out.push_str(&format!(r#"<p class="diagram-empty">Nothing to draw — {}</p>"#, html_escape(&why)));
+            }
+        }
+        out.push_str("</div>");
+    }
+    out
+}
+
 pub async fn diagram(
     State(state): State<SharedState>,
     Path(qname): Path<String>,
@@ -565,6 +614,13 @@ pub async fn diagram(
         .map(|t| format!("{:?}", t) == "Diagram")
         .unwrap_or(false);
     if !is_diagram {
+        // GH #223 — a fault tree, attack tree, safety goal or argument is drawn
+        // from the model itself: the derived diagram, laid out and embedded as
+        // static SVG with every node linking to its element.
+        let kinds = syscribe_model::vis::safety_kinds_of(element, &store.elements, &store.resolver);
+        if !kinds.is_empty() {
+            return Html(safety_views(&store, element, &kinds));
+        }
         return Html(
             r#"<p class="diagram-empty">No diagram for this element.</p>"#.to_string(),
         );

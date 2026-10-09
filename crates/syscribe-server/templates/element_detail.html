@@ -18,6 +18,11 @@
   {% else %}
   <p class="detail-empty">No documentation.</p>
   {% endif %}
+  {% if has_safety_diagram %}
+  <div class="detail-diagram" hx-get="/ui/diagram/{{ qualified_name }}" hx-trigger="load" hx-swap="innerHTML">
+    <p class="detail-empty">Loading diagram&hellip;</p>
+  </div>
+  {% endif %}
   {% if !custom_fields.is_empty() %}
   <div class="detail-custom-fields">
     <div class="detail-section-label">Custom Fields</div>

@@ -56,7 +56,7 @@ scenario('every offered kind has a generator-valid subject type list', () => {
 scenario('the safety kinds take their subjects from the safety elements and are derived only', () => {
     assert.deepEqual(kindInfo('FaultTree').subjectTypes, ['FaultTree', 'SafetyGoal']);
     assert.deepEqual(kindInfo('AttackTree').subjectTypes, ['AttackTree', 'ThreatScenario']);
-    assert.deepEqual(kindInfo('SafetyCase').subjectTypes, ['SafetyGoal', 'Package']);
+    assert.deepEqual(kindInfo('SafetyCase').subjectTypes, ['SafetyGoal', 'Argument', 'Package']);
     for (const k of ['FaultTree', 'AttackTree', 'SafetyCase']) {
         assert.equal(kindInfo(k).deriveOnly, true, k);
     }

@@ -30,7 +30,7 @@ export const DIAGRAM_KINDS: DiagramKindInfo[] = [
     { kind: 'Allocation', label: 'Allocation map', subjectTypes: ['Package', 'AllocationDef', 'Allocation'], hint: 'a package of allocations, or one allocation' },
     { kind: 'FaultTree', label: 'Fault tree', subjectTypes: ['FaultTree', 'SafetyGoal'], hint: 'a fault tree, or the safety goal it analyses', deriveOnly: true },
     { kind: 'AttackTree', label: 'Attack tree', subjectTypes: ['AttackTree', 'ThreatScenario'], hint: 'an attack tree, or the threat scenario it substantiates', deriveOnly: true },
-    { kind: 'SafetyCase', label: 'Safety case (GSN)', subjectTypes: ['SafetyGoal', 'Package'], hint: 'a safety goal, or a package of them', deriveOnly: true },
+    { kind: 'SafetyCase', label: 'Safety case (GSN)', subjectTypes: ['SafetyGoal', 'Argument', 'Package'], hint: 'a safety goal, an argument, or a package of goals', deriveOnly: true },
 ];
 
 export function kindInfo(kind: string): DiagramKindInfo | undefined {

@@ -369,6 +369,23 @@ mod tests {
     }
 
     #[test]
+    fn a_subject_view_needs_no_diagram_element() {
+        use crate::vis::{build_subject_graph, safety_kinds_of};
+        let elements = tree_model();
+        let resolver = Resolver::new(&elements);
+        let goal = elements.iter().find(|e| e.qualified_name == "Safety::SG1").unwrap();
+        let tree = elements.iter().find(|e| e.qualified_name == "Safety::FT").unwrap();
+        assert_eq!(safety_kinds_of(tree, &elements, &resolver), vec![DiagramKind::FaultTree]);
+        assert_eq!(safety_kinds_of(goal, &elements, &resolver), vec![DiagramKind::SafetyCase, DiagramKind::FaultTree]);
+        let pkg = elements.iter().find(|e| e.qualified_name == "Safety").unwrap();
+        assert!(safety_kinds_of(pkg, &elements, &resolver).is_empty());
+        let (g, issues) = build_subject_graph(tree, DiagramKind::FaultTree, &elements, &resolver);
+        assert!(issues.is_empty() && g.derived);
+        assert_eq!(g.nodes.len(), 5);
+        assert_eq!(g.subject.as_deref(), Some("Safety::FT"));
+    }
+
+    #[test]
     fn a_wrong_subject_is_w418_and_a_goal_without_a_tree_too() {
         let (g, issues) = derive_with(tree_model(), "Safety");
         assert!(g.nodes.is_empty());

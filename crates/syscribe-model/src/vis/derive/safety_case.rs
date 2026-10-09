@@ -1,7 +1,7 @@
 //! The SafetyCase (GSN) generator (GH #223).
 //!
-//! Subject: a `SafetyGoal` (its argument) or a package (the arguments of every
-//! goal under it). The structure is `syscribe_model::safety_case::build` — the
+//! Subject: a `SafetyGoal` (its argument), an `Argument` (the argument of every
+//! goal it belongs to) or a package (the arguments of every goal under it). The structure is `syscribe_model::safety_case::build` — the
 //! one traversal the `safety-case` report also renders — mapped onto GSN
 //! symbols: the goal and every claim / requirement a rectangle, a strategy a
 //! parallelogram, a solution (and a test case, the evidence) a circle, context
@@ -190,9 +190,10 @@ pub fn generate(
 ) {
     let Some(st) = subject.frontmatter.element_type.as_ref() else { return };
     let is_goal = matches!(st, ElementType::SafetyGoal);
-    if !(is_goal || is_package(st)) {
+    let is_argument = matches!(st, ElementType::Argument);
+    if !(is_goal || is_argument || is_package(st)) {
         issues.push(w418(format!(
-            "`subject` '{}' is a {} — a SafetyCase diagram subject must be a SafetyGoal or a Package",
+            "`subject` '{}' is a {} — a SafetyCase diagram subject must be a SafetyGoal, an Argument or a Package",
             subject.qualified_name,
             st.name()
         )));
@@ -209,6 +210,11 @@ pub fn generate(
             let q = g.root.qualified_name.as_deref().unwrap_or("");
             if is_goal {
                 q == subject.qualified_name
+            } else if is_argument {
+                // The goals whose argument contains this Argument.
+                let mut found = false;
+                g.root.walk(&mut |n| found |= n.qualified_name.as_deref() == Some(subject.qualified_name.as_str()));
+                found
             } else {
                 is_under(q, &subject.qualified_name)
             }
