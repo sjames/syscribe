@@ -47,6 +47,7 @@ mod stats;
 mod summarize;
 mod suspect;
 mod sysml_export;
+mod view_render;
 mod testplan;
 mod textstats;
 mod topics;
@@ -827,6 +828,14 @@ fn main() {
                 // REQ-TRS-SYSMLV2-031 — SysMLv2 submodel inspection. Read-only.
                 let json = subcommand_args.iter().any(|a| a == "--json");
                 linktypes::cmd_sysml(&elems, json);
+            }
+            "view" => {
+                // GH #205 — materialise a View: the elements its `expose:` selects.
+                let rest = subcommand_args.get(1..).unwrap_or(&[]);
+                let code = view_render::cmd_view(&elems, &resolver, rest);
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "export-sysml" => {
                 // REQ-TRS-SYSMLV2-037 — one-way SysML v2 textual export. Read-only on the model.

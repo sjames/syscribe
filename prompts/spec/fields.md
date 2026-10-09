@@ -257,7 +257,7 @@ requirement lacks the W002/W305 verification bar. `W311`: two active items overl
 |---|---|---|---|
 | `imports` | Package | list | Import declarations |
 | `aliases` | All | list | Alias declarations |
-| `filterCondition` | Package | string | KerML opaque package filter |
+| `filterCondition` | Package, View, ViewDef | string | KerML opaque package filter |
 | `dependsOn` | All | list | Dependency edges |
 | `sysmlSubmodel` | Package `_index.md` | bool | Ingest the package's `.sysml` files as a native SysMLv2 submodel |
 | `foreignFormat` | Package `_index.md` | string | Hand the package subtree to the stdio plugin `[plugins.<alias>]` in `.syscribe.toml` |

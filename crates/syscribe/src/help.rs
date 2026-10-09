@@ -41,6 +41,7 @@ const HELP: &[(&str, &[(&str, &str)])] = &[
             ("untyped", include_str!("../../../prompts/help/untyped.md")),
             ("connectivity", include_str!("../../../prompts/help/connectivity.md")),
             ("sysml", include_str!("../../../prompts/help/sysml.md")),
+            ("view", include_str!("../../../prompts/help/view.md")),
         ],
     ),
     (

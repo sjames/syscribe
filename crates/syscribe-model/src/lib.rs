@@ -35,5 +35,6 @@ pub mod testplan;
 pub mod units;
 pub mod validator;
 pub mod variability;
+pub mod view_exposure;
 pub mod vis;
 pub mod walker;

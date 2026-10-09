@@ -536,6 +536,14 @@ syscribe -m model/ export-reqif [--output <file>] [--scope <qname>] [--config <C
 
 Exports native `Requirement` elements (and their packages) as a **ReqIF 1.2** XML document (§21) for import into DOORS Next / Jama / Polarion / PTC. Each requirement → a `SPEC-OBJECT` (id/name/status/sil/asil/domain attributes + an XHTML `DESC` from the body); packages → a nested `SPEC-HIERARCHY`; `derivedFrom:` → `DERIVED_FROM` relations; `--include-tests` adds `TEST_CASE` objects + `VERIFIED_BY`. `--output` writes `<file>.reqif` (`.reqifz` with `--zip`). Export-only.
 
+## Views (`view render`)
+
+```bash
+syscribe -m model/ view render <View|ViewDef> [--format tree|table|json|mermaid]
+```
+
+Materialises a `View`: the elements its `expose:` entries select — a name, `Pkg::*` (direct members) or `Pkg::**` (subtree), a `{target, isRecursive, filter}` map — narrowed by `filterCondition:` / `filter:` (`@MetadataName`, `not`, `and`, `or`; other clauses are reported and treated as true) and inherited through the `typedBy:` ViewDef. The default format follows the view's `rendering:` (`asTreeDiagram` → tree, `asTableView`/`asElementTable` → table, `asInterconnectionDiagram` → mermaid). Read-only.
+
 ## SysML v2 export (`export-sysml`)
 
 ```bash

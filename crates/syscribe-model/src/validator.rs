@@ -3761,26 +3761,19 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             }
         }
 
-        // W502: expose entries on View must resolve to known elements
-        if matches!(fm.element_type, Some(ElementType::View)) {
-            if let Some(ref expose_vals) = fm.expose {
-                for exp_val in expose_vals {
-                    let ref_str = match exp_val {
-                        serde_yaml::Value::String(s) => Some(s.as_str()),
-                        serde_yaml::Value::Mapping(map) => map
-                            .get(serde_yaml::Value::String("ref".into()))
-                            .and_then(|v| v.as_str()),
-                        _ => None,
-                    };
-                    if let Some(r) = ref_str {
-                        if resolver.resolve_ref(elements, r).is_none() {
-                            findings.push(warning(
-                                "W502",
-                                &file,
-                                &format!("`expose` entry '{}' does not resolve to any known element", r),
-                            ));
-                        }
-                    }
+        // W502: expose entries on a View/ViewDef must resolve to known elements. An entry
+        // is a name, an import pattern (`Pkg::*`, `Pkg::**`) or a `{target|ref, ...}` map,
+        // resolved from the view's own scope (GH #205).
+        if matches!(fm.element_type, Some(ElementType::View) | Some(ElementType::ViewDef)) {
+            for entry in crate::view_exposure::expose_entries(elem) {
+                if crate::view_exposure::resolve_target(elements, &resolver, elem, &entry.target).is_none()
+                    && !config.peer_resolves(&entry.target)
+                {
+                    findings.push(warning(
+                        "W502",
+                        &file,
+                        &format!("`expose` entry '{}' does not resolve to any known element", entry.target),
+                    ));
                 }
             }
         }

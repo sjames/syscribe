@@ -3084,6 +3084,7 @@ Viewpoint addressing safety concerns from the safety engineer's perspective.
 | `satisfies` | list of strings | absent | Qualified names of ViewpointDefs satisfied by this view |
 | `expose` | list of expose maps | absent | Elements exposed by this view; see 8.14.3 |
 | `rendering` | string | absent | Qualified name of the RenderingDef applied to this view |
+| `filterCondition` | string | absent | Filter applied to everything the view exposes (`@MetadataName`, `not`, `and`, `or`) — the SysML `filter @M;` member; an `expose:` entry may add its own `filter:` |
 
 #### 8.14.3 Expose Schema
 
@@ -3091,7 +3092,7 @@ Each entry in `expose:`:
 
 | Sub-field | YAML type | Required | Description |
 |---|---|---|---|
-| `target` | string | **Required** | Qualified name or import pattern of exposed element(s) |
+| `target` | string | **Required** | Qualified name or import pattern of exposed element(s): `Pkg` (the element), `Pkg::*` (its direct members), `Pkg::**` (its whole subtree); resolved from the view's own scope. `syscribe view render <View>` materialises the selection. An entry may also be a bare string |
 | `isRecursive` | bool | optional | Whether sub-elements are recursively exposed |
 | `filter` | string | optional | Filter expression (opaque) |
 
