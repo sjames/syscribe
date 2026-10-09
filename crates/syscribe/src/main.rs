@@ -25,6 +25,7 @@ mod linktypes;
 mod lsp;
 mod matrix;
 mod mcp;
+mod fta_cmd;
 mod metrics_cmd;
 mod mgreport;
 mod mv;
@@ -1386,7 +1387,10 @@ fn main() {
                 let json = rest.iter().any(|a| a == "--json");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
                 let view = projected_elements(&elems, config);
-                metrics_cmd::cmd_metrics(&view, json);
+                let code = metrics_cmd::cmd_metrics(&view, json);
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "cyber-risk" => {
                 let rest = subcommand_args.get(1..).unwrap_or(&[]);
@@ -1925,8 +1929,23 @@ fn main() {
                         }
                         fmea_report::cmd_fault_tree_render(&elems, ft_id);
                     }
+                    "analyze" => {
+                        let args = match fta_cmd::parse_args(rest) {
+                            Ok(a) => a,
+                            Err(msg) => {
+                                eprintln!("Error: {msg}");
+                                eprintln!("{}", fta_cmd::USAGE);
+                                std::process::exit(1);
+                            }
+                        };
+                        let code = fta_cmd::cmd_fault_tree_analyze(&elems, &args);
+                        if code != 0 {
+                            std::process::exit(code);
+                        }
+                    }
                     _ => {
                         eprintln!("Usage: syscribe -m <model> fault-tree render <FaultTree-id>");
+                        eprintln!("       {}", fta_cmd::USAGE.trim_start_matches("Usage: "));
                         std::process::exit(1);
                     }
                 }

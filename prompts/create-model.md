@@ -124,7 +124,8 @@ Use these commands throughout the workflow. Run them in the project root.
 |---|---|
 | `syscribe -m model/ audit [--json] [--profile <p>]` | Safety-readiness dashboard: status split, SIL/ASIL distribution, coverage %, orphans, PASS/FAIL verdict (exit 2 on fail) |
 | `syscribe -m model/ verification-depth [--sil <v>] [--status <s>] [--min-levels N] [--json]` | Per-requirement distinct verification levels + depth flag (none/hil-only/single/ok); `--min-levels` gates |
-| `syscribe -m model/ metrics [--json]` | Quantitative HW safety metrics SPFM/LFM/PMHF per SafetyGoal vs ASIL/SIL target (needs `diagnosticCoverage`) |
+| `syscribe -m model/ metrics [--json]` | Quantitative HW safety metrics SPFM/LFM/PMHF per SafetyGoal vs ASIL/SIL target (needs `diagnosticCoverage`; cut-set driven; exits 2 when a goal fails) |
+| `syscribe -m model/ fault-tree analyze <FT> [--json]` | Fault-tree minimal cut sets, top-event probability over `missionTime`, Fussell-Vesely/Birnbaum importance, beta-factor CCF |
 | `syscribe -m model/ cyber-risk [--json]` | ISO/SAE 21434 risk per ThreatScenario (severity×feasibility) + treatment + untreated flag |
 | `syscribe -m model/ co-analysis [--json]` | Safety↔security: which cyber threats can violate each SafetyGoal (via `hazardRef`) |
 | `syscribe -m model/ safety-case [<SG>] [--json]` | GSN goal→argument→evidence tree (Argument/AssumptionOfUse + implicit goal→req→test) |

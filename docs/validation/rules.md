@@ -840,6 +840,8 @@ See `docs/model-guide/safety-analysis.md` and `syscribe -m <root> metrics`.
 |---|---|---|
 | E846 | Error | `diagnosticCoverage` or `latentDiagnosticCoverage` is outside `0.0`–`1.0` |
 | W033 | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF below/above its ASIL/SIL target (one finding naming the metric(s) and actual vs target). Gate with `--deny W033`; promotable via `[profiles]` |
+| W985 | Warning | A fault-tree event contributing to the goal's metrics declares no `diagnosticCoverage` (or, once any event declares it, no `latentDiagnosticCoverage`); treated as 0 — the conservative choice. One finding per event and field (GH #213) |
+| W986 | Warning | The goal's fault tree has dual-point (order-2) cut sets but no `missionTime`; PMHF uses a default exposure of 10000 h (GH #213) |
 
 ## Freedom From Interference / dependent-failure analysis (W034)
 
@@ -981,6 +983,24 @@ Once any element in the traceability chain carries `asilLevel` or `silLevel`, al
 | E908 | `id` does not match `FTE-*` pattern |
 | E909 | `eventKind` is not one of `basic · undeveloped · house` |
 | E927 | `ref` (the architecture element the event models; qualified name or id) does not resolve to a known element |
+
+### Fault-tree structure and analysis (E980–E984, W980–W984, W987)
+
+Checked once per `FaultTree` with the same graph builder `fault-tree analyze` and `metrics` use.
+
+| Code | Condition |
+|---|---|
+| E980 | A gate cycle (`G1 → G2 → G1`) or a gate listing itself in `inputs`; analysis refuses such a tree |
+| E981 | Gate arity: `NOT` with more than one input, `XOR` with more than two, or `inhibit` without a conditioning input (≥ 2 inputs: the event plus its condition) |
+| E982 | `FaultTreeEvent.failureRate` is negative or not finite |
+| E983 | `probability` on a `FaultTree`/`FaultTreeGate`/`FaultTreeEvent` is outside `0.0`–`1.0` |
+| E984 | `FaultTreeEvent.ccfBeta` is outside `0.0`–`1.0` |
+| W980 | A gate/event is not reachable from the tree's top node — it does not affect cut sets or metrics |
+| W981 | A gate/event is outside any `FaultTree` directory — ignored by analysis and metrics (`W900` only fires on an empty tree) |
+| W982 | An `AND`/`OR` gate has a single input |
+| W983 | A `ccfGroup` has a single member in its tree |
+| W984 | A `ccfGroup` declares no `ccfBeta`, or its members disagree on it (largest wins) |
+| W987 | `FaultTree.missionTime` is not a positive duration (e.g. `"8760 h"`) |
 
 ## Tier 4 — FMEA (E911–E914, E922, E923, W902–W904, W928)
 

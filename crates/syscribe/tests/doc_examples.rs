@@ -158,6 +158,8 @@ const TOLERATED: &[(&str, &str)] = &[
     ("W805", "SafetyGoal has no derived Requirement"),
     ("W810", "Asset not referenced by a DamageScenario"),
     ("W900", "FaultTree has no child gates/events"),
+    ("W980", "fault-tree node not referenced by a gate in the snippet"),
+    ("W981", "gate/event shown alone, outside its FaultTree directory"),
     ("W953", "Zone referenced by no Conduit"),
     ("W960", "ThreatScenario risk inputs (damage scenarios, feasibility) live outside the snippet"),
     ("W961", "DamageScenario referenced by no ThreatScenario"),

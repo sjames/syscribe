@@ -212,6 +212,8 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 |---|---|
 | `E846` | `diagnosticCoverage` or `latentDiagnosticCoverage` is outside `0.0`–`1.0` |
 | `W033` | A `SafetyGoal` with diagnostic-coverage data has a computed SPFM/LFM/PMHF below/above its ASIL/SIL target. Opt-in; gate with `--deny W033` |
+| `W985` | A fault-tree event contributing to a `SafetyGoal`'s metrics declares no `diagnosticCoverage` (or, once any event of the goal declares it, no `latentDiagnosticCoverage`) — treated as 0 (conservative); one finding per event and field (GH #213) |
+| `W986` | A `SafetyGoal`'s fault tree has dual-point (order-2) cut sets but declares no `missionTime` — PMHF uses a default exposure of 10000 h (GH #213) |
 
 ## Safety↔security co-engineering & cyber-risk (W028, W030, W031, W032)
 
@@ -495,6 +497,17 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W901` | `FaultTreeGate` has no `inputs` |
 | `W926` | `FaultTreeEvent.fmeaRef` does not resolve to a known `FMEAEntry` (FTA↔FMEA cross-link) |
 | `W927` | `FMEAEntry.ftaRef` does not resolve to a known `FaultTreeEvent` (FMEA↔FTA cross-link) |
+| `E980` | A `FaultTree` has a gate cycle (including a gate listing itself in `inputs`); the finding names the gates on the cycle. `fault-tree analyze` and `metrics` refuse to evaluate such a tree |
+| `E981` | Gate arity: a `NOT` gate with more than one input, an `XOR` gate with more than two, or an `inhibit` gate without a conditioning input (it needs the input event plus its condition, ≥ 2 inputs) |
+| `E982` | `FaultTreeEvent.failureRate` is negative or not finite |
+| `E983` | `probability:` on a `FaultTree`, `FaultTreeGate` or `FaultTreeEvent` is outside `0.0`–`1.0` |
+| `E984` | `FaultTreeEvent.ccfBeta` (beta-factor common-cause fraction) is outside `0.0`–`1.0` |
+| `W980` | A gate or event of a `FaultTree` is not reachable from the tree's top node (the unreferenced node reaching most nodes) — it does not affect cut sets or metrics |
+| `W981` | A `FaultTreeGate`/`FaultTreeEvent` lives outside any `FaultTree` directory — it is ignored by analysis and metrics |
+| `W982` | An `AND`/`OR` gate has a single input (a pass-through) |
+| `W983` | A `ccfGroup:` has a single member in its tree — a common-cause group needs ≥ 2 events |
+| `W984` | A `ccfGroup:` declares no `ccfBeta`, or its members disagree on it (the largest value is used) |
+| `W987` | `FaultTree.missionTime` is not a positive duration such as `"8760 h"` |
 
 ## Tier 4 — FMEA (E911–E914, E922, E923, W902–W904, W928)
 

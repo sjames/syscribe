@@ -10,7 +10,7 @@
 
 use serde_json::json;
 use syscribe_model::element::RawElement;
-use syscribe_model::metrics::{report_all, GoalReport};
+use syscribe_model::metrics::{report_all, GoalReport, Verdict};
 use syscribe_model::resolver::Resolver;
 
 fn fmt_opt(v: Option<f64>, prec: usize) -> String {
@@ -27,16 +27,10 @@ fn fmt_pmhf(v: Option<f64>) -> String {
     }
 }
 
-/// Overall pass/fail for a goal: `Some(true/false)` when gated, `None` when
-/// metrics were not computed (no DC data) or there is no recognised target.
-fn verdict(r: &GoalReport) -> Option<bool> {
-    match (r.metrics.as_ref(), r.gate.as_ref()) {
-        (Some(_), Some(g)) => Some(g.passed()),
-        _ => None,
-    }
-}
-
-pub fn cmd_metrics(elements: &[RawElement], json_out: bool) {
+/// Print the metrics table. Returns the process exit code: `2` when at least
+/// one goal misses its ASIL/SIL target (GH #213; `2`, the `audit` gate code,
+/// leaving `1` for usage errors), else `0`.
+pub fn cmd_metrics(elements: &[RawElement], json_out: bool) -> i32 {
     let resolver = Resolver::new(elements);
     let mut reports = report_all(elements, &resolver);
     reports.sort_by(|a, b| a.id.cmp(&b.id));
@@ -45,6 +39,17 @@ pub fn cmd_metrics(elements: &[RawElement], json_out: bool) {
         emit_json(&reports);
     } else {
         emit_text(&reports);
+    }
+    let failing: Vec<&str> = reports
+        .iter()
+        .filter(|r| r.verdict() == Verdict::Fail)
+        .map(|r| r.id.as_str())
+        .collect();
+    if failing.is_empty() {
+        0
+    } else {
+        eprintln!("metrics: {} goal(s) miss their target: {}", failing.len(), failing.join(", "));
+        2
     }
 }
 
@@ -60,7 +65,13 @@ fn emit_json(reports: &[GoalReport]) {
                 "spfm": m.and_then(|x| x.spfm),
                 "lfm": m.and_then(|x| x.lfm),
                 "pmhf": m.map(|x| x.pmhf),
-                "pass": verdict(r),
+                "lambdaDpf": m.map(|x| x.lambda_dpf),
+                "pass": match r.verdict() {
+                    Verdict::Pass => Some(true),
+                    Verdict::Fail => Some(false),
+                    _ => None,
+                },
+                "verdict": r.verdict().label(),
             })
         })
         .collect();
@@ -92,11 +103,7 @@ fn emit_text(reports: &[GoalReport]) {
                 "n/a".to_string(),
             ),
         };
-        let verdict_str = match verdict(r) {
-            Some(true) => "pass",
-            Some(false) => "fail",
-            None => "n/a",
-        };
+        let verdict_str = r.verdict().label();
         println!(
             "| {} | {} | {} | {} | {} | {} | {} |",
             r.id, asil, sil, spfm, lfm, pmhf, verdict_str
@@ -111,4 +118,13 @@ fn emit_text(reports: &[GoalReport]) {
              least one contributing FaultTreeEvent declares `diagnosticCoverage`)._"
         );
     }
+    if reports.iter().any(|r| r.verdict() == Verdict::NoTarget) {
+        println!("\n_`no target`: metrics are computed but the goal has no recognised `asilLevel`/`silLevel`._");
+    }
+    for r in reports {
+        for e in &r.analysis_errors {
+            println!("\n> {}: fault-tree analysis failed — {e}", r.id);
+        }
+    }
+    println!("\n_Exit status is 2 when any goal's verdict is `fail`._");
 }
