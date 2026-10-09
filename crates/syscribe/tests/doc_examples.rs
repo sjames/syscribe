@@ -78,6 +78,8 @@ const TOLERATED: &[(&str, &str)] = &[
     ("E111", "unresolved typedBy target"),
     ("E114", "unresolved satisfies target"),
     ("E115", "unresolved behavior-field target"),
+    ("W812", "snippet shows a high-integrity SafetyGoal without the safeState/ftti fields it is not illustrating"),
+    ("W814", "snippet shows the ISO 26262 and IEC 61508 parameter alternatives side by side"),
     ("W502", "unresolved expose target (a package declared outside the snippet)"),
     ("W057", "illustrative ISQ/SI names in a snippet that are not in the tool's library table"),
     ("E127", "unresolved connection endpoint (a sub-part declared outside the snippet)"),
