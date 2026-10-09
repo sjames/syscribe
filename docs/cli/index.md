@@ -626,7 +626,7 @@ syscribe -m model/ fmea report [--fmea-sheet <id>] [--json]
 syscribe -m model/ fault-tree render <FaultTree-id>
 ```
 
-`fmea report` rolls up the `FMEAEntry` rows (grouped by `FMEASheet`) — each entry's failure mode, severity/occurrence/detection ratings, computed **RPN**, and recommended actions. `--fmea-sheet <id>` restricts the report to a single sheet; `--json` emits the structured document. `fault-tree render <FaultTree-id>` prints one `FaultTree` as a Mermaid `flowchart TD` (gates with their AND/OR type, basic events with their ids and referenced elements, edges from each gate's `inputs`); the same λ/DC data feeds the quantitative `metrics` rollup. Both are read-only. See the [safety-analysis guide](../model-guide/safety-analysis.md).
+`fmea report` rolls up the `FMEAEntry` rows (grouped by `FMEASheet`) — each entry's failure mode, severity/occurrence/detection ratings, computed **RPN**, and recommended actions. `--fmea-sheet <id>` restricts the report to a single sheet (an unknown sheet exits 1); `--json` emits the structured document. `fault-tree render <FaultTree-id>` prints one `FaultTree` as a Mermaid `flowchart TD` (gates with their AND/OR type, basic events with their ids and referenced elements, edges from each gate's `inputs`); the same λ/DC data feeds the quantitative `metrics` rollup. Both are read-only. See the [safety-analysis guide](../model-guide/safety-analysis.md).
 
 ## Diagrams (`diagram export`, `render`, `plantuml`)
 
@@ -945,7 +945,7 @@ syscribe -m model/ build-config --all-configs [--format json] [--prefix <p>] [--
 
 ## Safety case (GSN argument tree)
 
-`safety-case [<SG-id>] [--json]` renders the goal→argument→evidence tree for each `SafetyGoal` (or one given). It follows the GSN argument layer — `Argument` nodes (`claim`/`strategy`/`solution`) that `supports:` a goal and cite `evidence:` (Requirements, TestCases, sub-Arguments, `AssumptionOfUse`) — and also folds in the implicit `SafetyGoal ← Requirement (derivedFromSafetyGoal) ← TestCase (verifies)` chain, so it works even on models with no explicit `Argument` nodes. TestCase leaves show their ingested verdict when a results sidecar is present.
+`safety-case [<SG-id>] [--json]` renders the goal→argument→evidence tree for each `SafetyGoal` (or one given). It follows the GSN argument layer — `Argument` nodes (`claim`/`strategy`/`solution`, plus `context`/`justification`/`assumption`/`undeveloped` GSN nodes) that `supports:` a goal and cite `evidence:` (Requirements, TestCases, sub-Arguments, `AssumptionOfUse`) — and **always** folds in the implicit `SafetyGoal ← Requirement (derivedFromSafetyGoal) ← derivedChildren* ← TestCase (verifies)` chain (a requirement an `Argument` already cites is shown once, under the `Argument`; `--no-implicit` turns the fold-in off). Nodes with no supporting evidence are marked `[UNDEVELOPED]`, each goal carries a `[SUPPORTED]`/`[INCOMPLETE]`/`[FAILING]` verdict, and a `Completeness:` summary closes the report (also in `--json` as `completeness`, per-node `status`/`undeveloped`, per-goal `verdict`). An unknown `<SG-id>` exits 1. TestCase leaves show their ingested verdict when a results sidecar is present.
 
 ```
 $ syscribe -m model/ safety-case SG-DEMO-001
@@ -975,23 +975,36 @@ $ syscribe -m model/ audit --all-configs       # gate every Configuration's vari
 
 **Variant scoping (`--config` / `--all-configs`).** Certification is scoped to a *variant*. `audit --config <CONF|features>` projects the entire dashboard — verdict, W306, orphans, coverage — onto the elements **active** in that configuration (per `appliesWhen`), exactly like `validate --config`; a requirement gated out of the variant no longer trips the verdict. `audit --all-configs` audits every stored `Configuration` and exits non-zero if any fails. (The same `--config` lens is available on `metrics`, `cyber-risk`, `co-analysis`, `verification-depth`, and `safety-case`.)
 
-The report (mirrored in `--json`) has five sections:
+The report (mirrored in `--json`) has seven sections:
 
 1. **Requirement status split** — counts of native `Requirement`s by `status:` (`draft` / `review` / `approved` / `implemented` / `verified`), **overall** and **per top-level package** (the first `::` segment of the qualified name).
 2. **SIL / ASIL distribution** — counts by `silLevel` and by `asilLevel`, plus a `QM/none` bucket for requirements that declare neither.
 3. **Per-configuration coverage %** — `covered / applicable` (N/A excluded) per `Configuration` and overall, computed by the same engine as `matrix`. With no feature model, it falls back to the flat requirement→TestCase coverage.
 4. **Orphans** — counts and ids of: requirements with no active verifying `TestCase`; requirements that no element `satisfies:`; `TestCase`s whose `verifies:` is empty or resolves to nothing; and requirements with neither `derivedFrom` nor `derivedChildren`.
-5. **Readiness verdict** — a single **PASS/FAIL** line that names *why* it failed.
+5. **Safety** — hazardous events; safety goals by integrity level (`ASIL x` / `SIL n` / `PL x`); goals with no derived requirement (`W805`), unreferenced hazards (`W800`), goals with no integrity level (`W801`); fault trees and events; FMEA sheets/rows with the max RPN, rows missing S/O/D (`W931`), `W903` and severity-priority (`W932`) gaps; the SPFM/LFM/PMHF hardware metrics per goal with a pass/fail/n-a result against the ASIL/SIL target; and freedom-from-interference gaps (`W034`).
+6. **Security** — assets, damage and threat scenarios, cybersecurity goals by CAL, security controls, goals not implemented by a control (`W802`) or with no derived requirement (`W804`), assets in no damage scenario (`W810`), vulnerability reports (total / open), attack trees, and IEC 62443 zones (with security-level gaps) and conduits.
+7. **Readiness verdict** — a single **PASS/FAIL** line that names *why* it failed.
 
 ### Verdict policy and exit code
 
 | Exit code | Meaning |
 |---|---|
-| `0` | **PASS** — no `Error`-severity findings, no `W306`, and (under `--profile`) nothing the profile promotes. |
-| `2` | **FAIL** — at least one `Error` finding, **or** at least one `W306` (the unsatisfied-safety-mechanism gate), **or** at least one finding promoted by `--profile <name>`. |
+| `0` | **PASS** — no `Error`-severity findings, no finding selected by the `[audit]` policy (default: `W306`, and `W033`/`W805` on an ASIL C/D goal), and (under `--profile`) nothing the profile promotes. |
+| `2` | **FAIL** — at least one `Error` finding, **or** at least one finding selected by the `[audit]` policy (default: `W306`, the unsatisfied-safety-mechanism gate; `W033`, a hardware safety metric below its target, and `W805`, a goal no requirement derives from, when the goal is ASIL C or D), **or** at least one finding promoted by `--profile <name>`. |
 | `1` | The `--profile <name>` is undefined (or no `.syscribe.toml` exists). |
 
-The default policy always fails on errors and on `W306`. Passing `--profile <name>` loads `[profiles.<name>]` from `<model_root>/.syscribe.toml` and additionally fails the audit if any finding that profile promotes is present, using the same promotion semantics as `validate --profile`. The JSON document has the shape `{ statusSplit, integrityDistribution, coverage, orphans, verdict: { pass, reasons } }`.
+The default policy always fails on errors, on `W306`, and on `W033`/`W805` for ASIL C/D goals (a model with an ASIL D goal whose metrics miss target or that no requirement derives from is not "ready"; this was a PASS before GH #216). **Configurable policy:** an `[audit]` table in `<model_root>/.syscribe.toml` replaces the defaults:
+
+```toml
+[audit]
+fail_on = ["W306", "W800"]      # codes that fail the verdict at any integrity level (default ["W306"])
+
+[audit.fail_on_asil]            # code -> ASIL levels at which it fails (default W033/W805 at C and D)
+W033 = ["B", "C", "D"]
+W805 = ["D"]
+```
+
+A present key replaces its default wholesale, so an empty `[audit.fail_on_asil]` table opts out of the ASIL-gated defaults and relaxes the audit to the previous behaviour. Error-severity findings always fail. A malformed entry is ignored and reported as `W934`. Passing `--profile <name>` loads `[profiles.<name>]` from `<model_root>/.syscribe.toml` and additionally fails the audit if any finding that profile promotes is present, using the same promotion semantics as `validate --profile`. The JSON document has the shape `{ statusSplit, integrityDistribution, coverage, orphans, safety, security, verdict: { pass, reasons } }`.
 
 ---
 

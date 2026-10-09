@@ -1,0 +1,5 @@
+# Opt out of the default "W033/W805 on ASIL C/D fail the audit verdict" policy.
+[audit]
+fail_on = ["W306"]
+
+[audit.fail_on_asil]

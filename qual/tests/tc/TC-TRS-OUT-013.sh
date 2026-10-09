@@ -36,6 +36,21 @@ tc_TRS_OUT_013() {
     [ "$keys" = "true" ] && pass "valid JSON with statusSplit/coverage/verdict" \
         || fail "audit --json is not valid JSON with the required keys"
 
+    # --- Scenario: W805 on an ASIL D goal fails by default (GH #216) ---
+    printf "  ▶ %s\n" "W805 on an ASIL D goal fails the verdict; ASIL B does not"
+    out=$("$SYSCRIBE" -m "$F/TC-TRS-OUT-013/asild" audit 2>/dev/null) && rc=0 || rc=$?
+    [ "$rc" -eq 2 ] && pass "ASIL D W805 audit exit 2" || fail "ASIL D W805 audit exit $rc (expected 2)"
+    echo "$out" | grep -q "W805" && pass "verdict names W805" || fail "verdict does not name W805"
+    "$SYSCRIBE" -m "$F/TC-TRS-OUT-013/asilb" audit >/dev/null 2>&1 && rc=0 || rc=$?
+    [ "$rc" -eq 0 ] && pass "ASIL B W805 audit exit 0" || fail "ASIL B W805 audit exit $rc (expected 0)"
+    json=$("$SYSCRIBE" -m "$F/TC-TRS-OUT-013/asild" audit --json 2>/dev/null) || true
+    keys=$(printf '%s' "$json" | jq -r 'has("safety") and has("security") and (.safety.safetyGoals == 1) and (.safety.goalsByIntegrity["ASIL D"] == 1)' 2>/dev/null)
+    [ "$keys" = "true" ] && pass "audit --json has safety/security sections counting the ASIL D goal" \
+        || fail "audit --json safety/security sections missing or wrong"
+    "$SYSCRIBE" -m "$F/TC-TRS-OUT-013/asild-relaxed" audit >/dev/null 2>&1 && rc=0 || rc=$?
+    [ "$rc" -eq 0 ] && pass "[audit] table relaxes the policy (exit 0)" \
+        || fail "relaxed audit exit $rc (expected 0)"
+
     # --- Scenario: --config projects the verdict onto a variant (GH #35) ---
     printf "  ▶ %s\n" "--config projects the audit onto a variant"
     local VAR="$F/TC-TRS-OUT-013/variant"

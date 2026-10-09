@@ -42,6 +42,22 @@ Feature: GSN argument layer and safety-case view
     When the tool validates the model
     Then a W040 finding is emitted
 
+  Scenario: safety-case rejects an unknown goal id
+    When the user runs safety-case with an id that names no SafetyGoal
+    Then the tool exits with a non-zero exit code
+
+  Scenario: a circular argument yields E878
+    Given two claim Arguments that cite each other as evidence
+    When the tool validates the model
+    Then an E878 finding is emitted
+    And safety-case marks the cycle and does not report the goal supported
+
+  Scenario: a solution with no evidence yields W861
+    Given a solution Argument with no evidence
+    When the tool validates the model
+    Then a W861 finding is emitted
+    And safety-case marks the solution undeveloped and prints a completeness summary
+
   Scenario: the implicit fold-in works without explicit Argument nodes
     Given a model with SafetyGoals, Requirements (derivedFromSafetyGoal) and verifying TestCases
     When the tool renders the safety-case view

@@ -5,18 +5,21 @@
 
 ## DESCRIPTION
 Renders the assurance argument for each SafetyGoal (or the one given): the
-Argument nodes (claim/strategy/solution) that support it and their evidence
+Argument nodes (claim/strategy/solution/context/justification/assumption/undeveloped) that support it and their evidence
 (Requirements, TestCases with ingested verdicts, sub-Arguments, AssumptionOfUse).
-It also folds in the implicit SafetyGoal ← Requirement (derivedFromSafetyGoal) ←
-TestCase (verifies) chain, so it is useful even without explicit Argument nodes.
+It always folds in the implicit SafetyGoal ← Requirement (derivedFromSafetyGoal) ←
+derivedChildren* ← TestCase (verifies) chain (even when a goal has Arguments; a
+requirement an Argument already cites is shown once). Nodes with no evidence are
+marked [UNDEVELOPED]; each goal gets a SUPPORTED/INCOMPLETE/FAILING verdict and a
+Completeness summary follows. An unknown <SG-id> exits 1.
 
 ## OPTIONS
     --config <C>   Project onto a Configuration (id/qname or 'Features::A,…') —
                    only goals and evidence active in that variant are assembled.
     --no-implicit  Drop the implicit SafetyGoal ← Requirement ← TestCase fold-in;
                    show only the explicit Argument/AssumptionOfUse structure.
-    --json         Emit {goals:[{id,title,arguments,requirements,assumptions}],
-                   verdictsUnknown}.
+    --json         Emit {goals:[{id,title,verdict,status,completeness,arguments,
+                   requirements,assumptions}], completeness, verdictsUnknown}.
 
 ## EXAMPLES
     # against the bundled automotive model (model_auto/)

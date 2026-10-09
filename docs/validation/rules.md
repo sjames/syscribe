@@ -914,10 +914,12 @@ nodes argue for a `SafetyGoal` or a parent `Argument`, discharged by `evidence`
 |---|---|---|
 | E852 | Error | `Argument` is missing `id`, `name`, or `status` |
 | E853 | Error | `Argument.id` does not match the `ARG-*` pattern |
-| E854 | Error | `Argument.argumentType` is not one of `claim · strategy · solution` (absent → treated as `claim`) |
+| E854 | Error | `Argument.argumentType` is not one of `claim · strategy · solution · context · justification · assumption · undeveloped` (absent → treated as `claim`) |
 | E855 | Error | an `Argument.supports` or `Argument.evidence` ref does not resolve to any model element |
 | E718 | Error | an `Argument.evidence` entry is not a scalar reference (a string id/qname is expected — e.g. a `PlanningItem`-style `{ref:, path:}` mapping was used on an `Argument`) |
 | W040 | Warning | a `claim`/`strategy` `Argument` has **both** an empty `supports` and an empty `evidence` (an orphan GSN node arguing nothing) |
+| E878 | Error | an `Argument` is part of a cycle: it (transitively) supports itself through `supports:` / `evidence:` links (circular reasoning) |
+| W861 | Warning | an `Argument` of `argumentType: solution` has no `evidence:` — a GSN solution must cite the Requirement/TestCase that discharges it (draft-suppressed) |
 
 ### AssumptionOfUse (E856–E859)
 
@@ -998,6 +1000,8 @@ FMEAEntry elements are synthesised at parse time from each row in a `FMEASheet.e
 | W904 | Entry `ref` field does not resolve to a known model element |
 | W926 | A `FaultTreeEvent.fmeaRef` does not resolve to a known `FMEAEntry` (FTA↔FMEA cross-link) |
 | W927 | An `FMEAEntry.ftaRef` does not resolve to a known `FaultTreeEvent` (FMEA↔FTA cross-link) |
+| W931 | Warning | the row declares no `fmeaSeverity`, `occurrence` and/or `detection` — the RPN cannot be computed and the row escapes the RPN/severity rules (draft-suppressed) |
+| W932 | Warning | `fmeaSeverity` ≥ 9 (and `occurrence` ≥ 2 or absent) with no `recommendedAction`, regardless of RPN — the severity-priority rule; skipped when `W903` already fires (draft-suppressed) |
 
 The canonical severity key is **`fmeaSeverity:`** (camelCase, integer 1–10). The deprecated alias `severity:` is accepted and silently mapped for backward compatibility. RPN is computed automatically as `fmeaSeverity × occurrence × detection` when `rpn:` is absent; an explicit `rpn:` overrides the computed value.
 
@@ -1192,3 +1196,9 @@ SysMLv2 has no UML stereotypes; a stereotype is a `MetadataDef` applied to an el
 | E317 | A `metadata:` application does not resolve to a `MetadataDef` (unresolved stereotype). The root-name hint applies. |
 | E318 | A `metadata:` application names a `MetadataDef` whose `annotates:` does not include the annotated element's type (directly or via the abstract `Element`/`Definition`/`Usage` metaclasses) — stereotype not applicable to this element kind. Standard-library metadata (`ModelingMetadata`, `RiskMetadata`) is recognised (no `E317`). |
 | W045 | A tagged-value key in a `metadata:` application is not a declared `features:` attribute of the referenced `MetadataDef` (likely typo / undeclared attribute). |
+
+## Audit policy configuration (W934)
+
+| Code | Severity | Condition |
+|---|---|---|
+| W934 | Warning | a malformed `[audit]` entry in `.syscribe.toml` (unknown key, a `fail_on` entry that is not a finding code, a `fail_on_asil` level outside A–D); the entry is ignored and the default policy kept |

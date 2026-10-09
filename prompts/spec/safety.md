@@ -335,7 +335,7 @@ type: Argument
 id: ARG-BRK-001
 name: "Argue over independent torque monitoring"
 status: approved
-argumentType: strategy   # claim | strategy | solution   (absent → claim; else E854)
+argumentType: strategy   # claim | strategy | solution | context | justification | assumption | undeveloped   (absent → claim; else E854)
 supports: SG-BRK-001     # SafetyGoal or parent Argument argued for (string or list; else E855)
 evidence:                # Requirement / TestCase / sub-Argument / AssumptionOfUse (string or list; else E855)
   - REQ-BRK-001

@@ -4455,7 +4455,7 @@ first-class, validated part of the model. It builds on the Tier-2 hazard/goal la
 
 | Element type | ID pattern | Description |
 |---|---|---|
-| `Argument` | `ARG-*` | A GSN node. `argumentType:` is `claim`, `strategy`, or `solution` (absent → `claim`; invalid → E854). `supports:` (string or list) names the `SafetyGoal` or parent `Argument` argued for; `evidence:` (string or list) names the supporting `Requirement` / `TestCase` / sub-`Argument` / `AssumptionOfUse`. Each `supports`/`evidence` ref resolves via the resolver (unresolved → E855). Missing `id`/`name`/`status` → E852; an `id` not matching `ARG-*` → E853. A `claim`/`strategy` Argument with empty `supports` **and** empty `evidence` is an orphan node → **W040**. |
+| `Argument` | `ARG-*` | A GSN node. `argumentType:` is `claim`, `strategy`, `solution`, `context`, `justification`, `assumption` or `undeveloped` (absent → `claim`; invalid → E854). `supports:` (string or list) names the `SafetyGoal` or parent `Argument` argued for; `evidence:` (string or list) names the supporting `Requirement` / `TestCase` / sub-`Argument` / `AssumptionOfUse`. Each `supports`/`evidence` ref resolves via the resolver (unresolved → E855). Missing `id`/`name`/`status` → E852; an `id` not matching `ARG-*` → E853. A `claim`/`strategy` Argument with empty `supports` **and** empty `evidence` is an orphan node → **W040**. |
 | `AssumptionOfUse` | `AOU-*` | A safety-related application condition (SRAC). `appliesTo:` (string or list) names the `SafetyGoal` / `Argument` / `Requirement` it constrains (each resolves; unresolved → E858). Missing `id`/`name`/`status` → E856; an `id` not matching `AOU-*` → E857. |
 
 The `safety-case [<SG-id>] [--json]` view renders, for each `SafetyGoal`, the
@@ -5929,7 +5929,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E560`–`E561`, `W560`–`W563` | Annotated-source ingestion (`annotationFormat:`) | `ADR-SYS-ANNOTATE-001`; catalogue |
 | `E600`–`E606`, `W610`–`W616` | Native `TestPlan` | §8.12.6 |
 | `E800`–`E837`, `E859`–`E864`, `W809`, `W810` | Tier 2 HARA/TARA elements, their cross-references, GSN assumption targets, confirmation targets, `Asset` | §8.18.1, §8.18.2, §8.18.6, §8.18.7 |
-| `E900`–`E923`, `E927`, `E940`, `E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928` | Tier 4 fault trees, FMEA, attack trees, TARA sheets | §8.18.3–§8.18.5 |
+| `E900`–`E923`, `E927`, `E940`, `E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`, `W931`, `W932` | Tier 4 fault trees, FMEA, attack trees, TARA sheets | §8.18.3–§8.18.5 |
 
 The remaining subsections tabulate the core codes; a few families (`W060`, `E865`, `E866`–`E877`, `E700`–`E705`, `E950`–`E956`, …) are repeated here from their own sections for convenience.
 
@@ -6332,12 +6332,17 @@ argue for a `SafetyGoal`/parent `Argument`, discharged by `evidence`; `Assumptio
 |---|---|---|
 | `E852` | Error | `Argument` is missing `id`, `name`, or `status` |
 | `E853` | Error | `Argument.id` does not match the `ARG-*` pattern |
-| `E854` | Error | `Argument.argumentType` is not `claim`/`strategy`/`solution` |
+| `E854` | Error | `Argument.argumentType` is not `claim`/`strategy`/`solution`/`context`/`justification`/`assumption`/`undeveloped` |
 | `E855` | Error | an `Argument.supports` or `Argument.evidence` ref does not resolve to any model element |
 | `E856` | Error | `AssumptionOfUse` is missing `id`, `name`, or `status` |
 | `E857` | Error | `AssumptionOfUse.id` does not match the `AOU-*` pattern |
 | `E858` | Error | an `AssumptionOfUse.appliesTo` ref does not resolve to any model element |
 | `W040` | Warning | a `claim`/`strategy` `Argument` has empty `supports` **and** empty `evidence` (an orphan GSN node) |
+| `E878` | Error | an `Argument` is part of a cycle (it transitively supports itself through `supports:`/`evidence:`) |
+| `W861` | Warning | an `Argument` of `argumentType: solution` has no `evidence:` (draft-suppressed) |
+| `W931` | Warning | an `FMEAEntry` row has no `fmeaSeverity`/`occurrence`/`detection` — its RPN cannot be computed (draft-suppressed) |
+| `W932` | Warning | an `FMEAEntry` with `fmeaSeverity` ≥ 9 has no `recommendedAction` regardless of RPN (severity-priority rule; skipped when `W903` fires; draft-suppressed) |
+| `W934` | Warning | a malformed `[audit]` entry in `.syscribe.toml`; the entry is ignored |
 
 The Tier 2 (`E800`–`E837`, `E859`–`E864`) and Tier 4 (`E900`–`E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928`) codes are listed in *Code families specified elsewhere* above; §8.18 defines the element schemas and `docs/validation/rules.md` groups every code by element type.
 
@@ -8213,7 +8218,7 @@ since `status: in_progress` alone already signals active work.
 | `measureType` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E849) — confirmation_review / functional_safety_audit / functional_safety_assessment / cybersecurity_assessment |
 | `independenceLevel` | ConfirmationMeasure | string | absent | 8.18.2, 11.12 (E850) — I1 / I2 / I3 |
 | `confirms` | ConfirmationMeasure | string or list | absent | 8.18.2, 11.12 (E851) — confirmed work-product ref(s) |
-| `argumentType` | Argument | enum (`claim`/`strategy`/`solution`) | `claim` | 8.18.6, 11.12 (E854) |
+| `argumentType` | Argument | enum (`claim`/`strategy`/`solution`/`context`/`justification`/`assumption`/`undeveloped`) | `claim` | 8.18.6, 11.12 (E854) |
 | `supports` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — SafetyGoal/parent Argument argued for |
 | `evidence` | Argument | string or list | absent | 8.18.6, 11.12 (E855) — Requirement/TestCase/sub-Argument/AssumptionOfUse refs |
 | `appliesTo` | AssumptionOfUse | string or list | absent | 8.18.6, 11.12 (E858) — SafetyGoal/Argument/Requirement constrained |

@@ -47,6 +47,25 @@ tc_TRS_SAFE_008() {
     run_scenario "badref: unresolved Argument.supports/evidence yields E855" "$D/badref"
     assert_has_code "E855"
 
+    # ── GH #217: unknown goal id exits non-zero ─────────────────────────────────
+    "$SYSCRIBE" -m "$D/main" safety-case SG-NOPE-999 >/dev/null 2>&1 && rc=0 || rc=$?
+    [ "$rc" -ne 0 ] && pass "safety-case <unknown id> exits $rc" || fail "unknown goal id exited 0"
+
+    # ── GH #217: a circular argument yields E878 and is cut in the tree ────────
+    run_scenario "cycle: Argument cycle yields E878" "$D/cycle"
+    assert_has_code "E878"
+    assert_exit_nonzero
+    out=$("$SYSCRIBE" -m "$D/cycle" safety-case 2>/dev/null) && rc=0 || rc=$?
+    echo "$out" | grep -qF "[CYCLE]" && pass "safety-case marks the cycle" || fail "cycle not marked"
+    echo "$out" | grep -qF "[INCOMPLETE]" && pass "cyclic goal is not reported supported" || fail "cyclic goal reported supported"
+
+    # ── GH #217: a solution with no evidence yields W861 and is undeveloped ────
+    run_scenario "solution: evidence-less solution yields W861" "$D/solution"
+    assert_has_code "W861"
+    out=$("$SYSCRIBE" -m "$D/solution" safety-case 2>/dev/null) && rc=0 || rc=$?
+    echo "$out" | grep -qF "[UNDEVELOPED]" && pass "undeveloped solution is marked" || fail "undeveloped solution not marked"
+    echo "$out" | grep -qF "Completeness:" && pass "completeness summary printed" || fail "completeness summary missing"
+
     # ── an orphan claim Argument yields W040 in orphan/ ────────────────────────
     run_scenario "orphan: claim Argument with no supports/evidence yields W040" "$D/orphan"
     assert_exit_zero

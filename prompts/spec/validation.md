@@ -241,7 +241,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 |---|---|
 | `E852` | `Argument` missing `id`, `name`, or `status` |
 | `E853` | `Argument.id` does not match `ARG-*` |
-| `E854` | `Argument.argumentType` not in `claim · strategy · solution` (absent → `claim`) |
+| `E854` | `Argument.argumentType` not in `claim · strategy · solution · context · justification · assumption · undeveloped` (absent → `claim`) |
 | `E855` | An `Argument.supports`/`evidence` ref does not resolve to any model element |
 | `E856` | `AssumptionOfUse` missing `id`, `name`, or `status` |
 | `E857` | `AssumptionOfUse.id` does not match `AOU-*` |
@@ -250,6 +250,8 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `E860` | `ConfirmationMeasure.confirms` resolves to a non-`SafetyGoal`/`CybersecurityGoal`/`HazardousEvent`/`Requirement` (REQ-TRS-SEC-005) |
 | `E718` | An `Argument.evidence` entry is not a scalar reference (expected a string id/qname — e.g. a `PlanningItem`-style `{ref:, path:}` mapping on an `Argument`) |
 | `W040` | A `claim`/`strategy` `Argument` has neither `supports` nor `evidence` (orphan GSN node) |
+| `E878` | An `Argument` is part of a cycle — it (transitively) supports itself through `supports:` / `evidence:` links (circular reasoning; GH #217) |
+| `W861` | An `Argument` of `argumentType: solution` has no `evidence:` — a GSN solution must cite what discharges it (draft-suppressed; GH #217) |
 
 ## Budget expression validation (E866–E868, W060)
 
@@ -501,6 +503,8 @@ The `lint-docs` command scans external `.md`/`.svg` docs for references that no 
 | `W903` | Computed RPN > 100 and no `recommendedAction` set. RPN is `fmeaSeverity × occurrence × detection` when all three are present (an explicit `rpn:` is used only when a factor is missing — see `W928`) |
 | `W904` | Entry `ref` does not resolve to a known model element |
 | `W928` | An `entries:` row declares `fmeaSeverity` (or `severity`), `occurrence`, `detection` **and** an explicit `rpn:` that differs from their product — the computed `S × O × D` is kept; the message names the row, the explicit and the computed value. Silent when `rpn:` equals the product or any factor is absent |
+| `W931` | An `FMEAEntry` row declares no `fmeaSeverity`, `occurrence` and/or `detection` — its RPN cannot be computed and it escapes the RPN/severity rules (draft-suppressed; GH #218) |
+| `W932` | An `FMEAEntry` with `fmeaSeverity` ≥ 9 (and `occurrence` ≥ 2 or absent) has no `recommendedAction`, regardless of RPN — severity-priority rule; not raised when `W903` already fires (draft-suppressed; GH #218) |
 
 ## Tier 4 — TARA container (E940–E941, W905)
 
@@ -737,3 +741,4 @@ A stereotype is a `MetadataDef` applied via an element's `metadata:` field (SysM
 | `W562` | `annotationFormat:` is set alongside `foreignFormat:`/`sysmlSubmodel:` on the same package; annotation scanning is skipped for that package |
 | `W563` | Informational warning: an annotated element's `implementedBy:` was auto-filled from the marker's own source location (set `implementedBy:` explicitly to silence) |
 | `W068` | A redefining feature declares a `multiplicity:` that is not contained in the multiplicity of the feature it redefines (a redefinition may only narrow, SysML v2 §7.3) — checked for element-level `redefines:` and inline `features:` entries whose redefined feature (inherited through `supertype:`/`typedBy:`, or `Owner::feat`) declares a numeric multiplicity (`N`, `N..M`, `N..*`, `*`, `[N]`); skipped when either side is undeclared or uses a named bound |
+| `W934` | A malformed `[audit]` entry in `.syscribe.toml` (unknown key, a `fail_on` entry that is not a finding code, a `fail_on_asil` level outside A–D); the entry is ignored and the default policy kept (GH #216) |

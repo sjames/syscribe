@@ -8,7 +8,9 @@
 Rolls up a top-level readiness picture: requirement status split (overall and
 per top-level package), SIL/ASIL distribution, per-configuration coverage %,
 orphans (requirements with no test / no satisfying element, dangling TestCases,
-no-trace requirements), and a single PASS/FAIL verdict.
+no-trace requirements), Safety (hazards, goals by integrity level, FTA, FMEA,
+hardware metrics) and Security (TARA, CAL, vulnerabilities, zones) sections,
+and a single PASS/FAIL verdict.
 
 ## OPTIONS
     --profile <name>  Use a .syscribe.toml [profiles.<name>] policy as the bar.
@@ -24,7 +26,14 @@ no-trace requirements), and a single PASS/FAIL verdict.
 
 ## DESCRIPTION (policy)
 The verdict FAILS when any Error finding exists, any W306 (unsatisfied safety
-mechanism) is present, or — with --profile — any finding the profile promotes.
+mechanism) is present, W033 (hardware metric below target) or W805 (no derived
+requirement) is present on an ASIL C/D goal, or — with --profile — any finding
+the profile promotes. Configure with an [audit] table in .syscribe.toml:
+    [audit]
+    fail_on = ["W306"]          # codes failing at any level
+    [audit.fail_on_asil]        # code = ASIL levels; empty table opts out
+    W033 = ["C", "D"]
+    W805 = ["C", "D"]
 
 ## EXAMPLES
     syscribe -m model/ audit

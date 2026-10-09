@@ -62,4 +62,16 @@ Feature: Safety-readiness audit dashboard
     And orphans.unverifiedRequirements.ids does not contain the parent id
     And validate emits no W300 or W002 finding for the parent
     And the audit and validate views agree (parent satisfied/verified transitively)
+
+  Scenario: W805 on an ASIL D goal fails the verdict by default, ASIL B does not (GH #216)
+    Given a model whose only finding is W805 on an ASIL D SafetyGoal
+    When audit is invoked
+    Then the verdict is FAIL (exit 2) naming W805
+    And the same finding on an ASIL B goal leaves the verdict PASS
+    And audit --json carries safety and security sections
+
+  Scenario: the [audit] table in .syscribe.toml relaxes the policy
+    Given the ASIL D model with an empty [audit.fail_on_asil] table
+    When audit is invoked
+    Then the verdict is PASS (exit 0)
 ```

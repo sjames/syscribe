@@ -14,7 +14,7 @@ Feature: fmea report and fault-tree render commands
   Scenario: fmea report prints Markdown table sorted by RPN descending
     Given a model with two FMEASheet entries: one with RPN 729 and one with RPN 56
     When the user runs fmea report
-    Then the output is a Markdown table with columns ID, Name, Failure Mode, Effect, Severity, Occurrence, Detection, RPN, Controls, Status
+    Then the output is a Markdown table with columns ID, Failure Mode, Effect, Severity, Occurrence, Detection, RPN, Recommended Action, Status
     And the row with RPN 729 appears before the row with RPN 56
 
   Scenario: fmea report --json emits a JSON array
@@ -26,6 +26,17 @@ Feature: fmea report and fault-tree render commands
     Given a model with two FMEASheet elements FM-KERN and FM-OTHER
     When the user runs fmea report --fmea-sheet FM-KERN
     Then only entries from FM-KERN appear in the output
+
+  Scenario: fmea report with an unknown sheet fails
+    Given no FMEASheet named NOPE in the model
+    When the user runs fmea report --fmea-sheet NOPE
+    Then the tool exits with a non-zero exit code
+
+  Scenario: FMEA row quality findings are reported once
+    Given a sheet with a severity-10 row (RPN 40, no action), a row with no severity/occurrence/detection, a row whose ref does not resolve, and a duplicate row id
+    When the user runs validate
+    Then W932, W931 and W904 are reported and E115 is not
+    And fmea report lists the duplicate id once and still lists the row with no scores
 
   Scenario: fault-tree render emits Mermaid flowchart
     Given a model with a FaultTree element FT-KERN-001 containing at least two events and a gate

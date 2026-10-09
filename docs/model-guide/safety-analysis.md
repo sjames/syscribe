@@ -577,9 +577,14 @@ For each `SafetyGoal` the view renders the GSN tree: the goal → the `Argument`
 results sidecar is present) → any `AssumptionOfUse` that `appliesTo` the goal/argument.
 
 It **also folds in the implicit chain** that already exists without explicit Argument
-nodes: `SafetyGoal ← Requirement` (`derivedFromSafetyGoal`) `← TestCase` (`verifies`).
-That makes the view immediately useful on models that have goals + requirements + tests
-but no `Argument` nodes yet. The view is read-only and exits 0 (a notice when there is
+nodes: `SafetyGoal ← Requirement` (`derivedFromSafetyGoal`) `← derivedChildren` (transitively)
+`← TestCase` (`verifies`) — for every goal, including goals that have Arguments (a requirement
+an Argument cites is shown once). That makes the view immediately useful on models that have
+goals + requirements + tests but no `Argument` nodes yet, and stops a partial argument from
+looking complete. Nodes with no supporting evidence are marked `[UNDEVELOPED]`, every goal
+shows a `SUPPORTED`/`INCOMPLETE`/`FAILING` verdict, and a `Completeness:` summary counts goals,
+requirements without tests, test verdicts and undeveloped nodes. An `Argument` cycle is `E878`;
+a `solution` with no `evidence:` is `W861`. The view is read-only and exits 0 (a notice when there is
 no `SafetyGoal`).
 
 ```

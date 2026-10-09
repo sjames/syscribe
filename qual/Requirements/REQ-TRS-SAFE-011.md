@@ -1,32 +1,36 @@
 ---
 id: REQ-TRS-SAFE-011
 type: Requirement
-name: "safety-case shall suppress implicit fold-in for goals that have explicit supporting Arguments"
+name: "safety-case shall fold in the implicit requirement chain for every goal and expose completeness"
 status: draft
 reqDomain: software
 verificationMethod: test
 ---
 
-When a `SafetyGoal` has at least one explicit `Argument` in its `support:` list, the
-`safety-case` command **shall** suppress the implicit fold-in of `derivedFromSafetyGoal`
-`Requirement` nodes (and their verifying `TestCase` children) directly under the goal.
+The `safety-case` command **shall** fold the implicit `SafetyGoal ← Requirement
+(derivedFromSafetyGoal) ← TestCase (verifies)` chain under every goal, including goals
+that have explicit supporting `Argument`s (GH #217; this supersedes the earlier rule that
+suppressed the chain whenever a goal had an `Argument`, which hid incomplete arguments).
 
-**Rationale**: when an explicit GSN argument layer exists, the implicit chain
-(`SafetyGoal → Requirement → TestCase`) is already expressed inside the argument's
-`evidence:` references. Printing both creates visually confusing duplicates.
+**Rationale**: an explicit GSN argument layer may cite only some of the requirements
+derived from the goal. Suppressing the rest made a partial argument look complete.
 
-The suppression **shall** apply per-goal: a goal with no supporting `Argument` still
-receives the implicit fold-in as before.
+A derived requirement that an `Argument` already cites under the same goal **shall** be
+shown once, under the `Argument`, and not repeated as implicit. Requirements **shall** be
+expanded through their `derivedChildren` transitively down to the verifying `TestCase`s.
 
-The `--no-implicit` flag, when passed to `safety-case`, **shall** additionally suppress
-the implicit fold-in for all goals regardless of whether they have explicit Arguments.
+The `--no-implicit` flag **shall** suppress the implicit fold-in for all goals.
+
+The command **shall** mark nodes that have no supporting evidence as undeveloped, print a
+per-goal verdict and a completeness summary (text and `--json`), and **shall** exit
+non-zero when a named goal id matches no `SafetyGoal`.
 
 **Acceptance criteria:**
 
-- A goal with supporting `Argument`(s) does **not** show the implicit
-  `[evidence:Requirement]` section directly under it.
-- A goal with **no** supporting `Arguments` **does** show the implicit fold-in
-  (existing behaviour preserved).
+- A goal with supporting `Argument`(s) still shows a derived requirement the `Argument`
+  does not cite, marked `(implicit)`; a requirement the `Argument` cites appears once.
+- A goal with no supporting `Arguments` shows the implicit fold-in (existing behaviour).
 - `--no-implicit` suppresses the fold-in for all goals.
-- The JSON output also omits `"requirements"` entries when the goal has explicit
-  Arguments (or `--no-implicit` is passed).
+- The JSON output lists the implicit requirements, per-goal `verdict`, per-node `status` and
+  `undeveloped`, and a `completeness` object.
+- `safety-case <unknown-id>` exits non-zero.
