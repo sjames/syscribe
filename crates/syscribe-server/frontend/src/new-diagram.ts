@@ -31,6 +31,9 @@ export const DIAGRAM_KINDS: DiagramKindInfo[] = [
     { kind: 'FaultTree', label: 'Fault tree', subjectTypes: ['FaultTree', 'SafetyGoal'], hint: 'a fault tree, or the safety goal it analyses', deriveOnly: true },
     { kind: 'AttackTree', label: 'Attack tree', subjectTypes: ['AttackTree', 'ThreatScenario'], hint: 'an attack tree, or the threat scenario it substantiates', deriveOnly: true },
     { kind: 'SafetyCase', label: 'Safety case (GSN)', subjectTypes: ['SafetyGoal', 'Argument', 'Package'], hint: 'a safety goal, an argument, or a package of goals', deriveOnly: true },
+    { kind: 'Traceability', label: 'Hazard-to-test traceability', subjectTypes: ['SafetyGoal', 'HazardousEvent', 'Requirement', 'Package'], hint: 'a safety goal, a hazardous event, a requirement, or a package of goals', deriveOnly: true },
+    { kind: 'ZoneConduit', label: 'Zones and conduits (IEC 62443)', subjectTypes: ['Package', 'Zone', 'Conduit'], hint: 'a package of zones, a zone, or a conduit', deriveOnly: true },
+    { kind: 'ThreatGraph', label: 'Threat graph (TARA)', subjectTypes: ['Package', 'TARASheet', 'ThreatScenario', 'DamageScenario', 'Asset', 'CybersecurityGoal', 'SecurityControl'], hint: 'a TARA sheet or package, or one threat, damage, asset, goal or control', deriveOnly: true },
 ];
 
 export function kindInfo(kind: string): DiagramKindInfo | undefined {

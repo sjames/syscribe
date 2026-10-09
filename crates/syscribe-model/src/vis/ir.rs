@@ -38,6 +38,15 @@ pub enum DiagramKind {
     /// `diagramKind: SafetyCase` (alias `GSN`) — a Goal Structuring Notation
     /// argument (GH #223).
     SafetyCase,
+    /// `diagramKind: Traceability` (alias `HazardTrace`) — the hazard-to-test
+    /// graph: HazardousEvent → SafetyGoal → Requirement → TestCase (GH #223).
+    Traceability,
+    /// `diagramKind: ZoneConduit` (alias `Zones`) — IEC 62443 zones as compound
+    /// nodes, conduits as edges (GH #223).
+    ZoneConduit,
+    /// `diagramKind: ThreatGraph` (alias `TARA`) — ThreatScenario → DamageScenario
+    /// → Asset → CybersecurityGoal → SecurityControl (GH #223).
+    ThreatGraph,
     /// `diagramKind: Custom`, the legacy `SVG` default, or no `diagramKind` at
     /// all: a manifest with no kind-specific conventions.
     Custom,
@@ -61,6 +70,9 @@ impl DiagramKind {
             Some("FaultTree") => Some(DiagramKind::FaultTree),
             Some("AttackTree") => Some(DiagramKind::AttackTree),
             Some("SafetyCase") | Some("GSN") => Some(DiagramKind::SafetyCase),
+            Some("Traceability") | Some("HazardTrace") => Some(DiagramKind::Traceability),
+            Some("ZoneConduit") | Some("Zones") => Some(DiagramKind::ZoneConduit),
+            Some("ThreatGraph") | Some("TARA") => Some(DiagramKind::ThreatGraph),
             _ => None,
         }
     }
@@ -80,6 +92,9 @@ impl DiagramKind {
             DiagramKind::FaultTree => "FaultTree",
             DiagramKind::AttackTree => "AttackTree",
             DiagramKind::SafetyCase => "SafetyCase",
+            DiagramKind::Traceability => "Traceability",
+            DiagramKind::ZoneConduit => "ZoneConduit",
+            DiagramKind::ThreatGraph => "ThreatGraph",
             DiagramKind::Custom => "Custom",
         }
     }
@@ -146,6 +161,8 @@ pub enum NodeKind {
     Context,
     Justification,
     Assumption,
+    // ZoneConduit (GH #223): an IEC 62443 zone, a compound node.
+    Zone,
 }
 
 impl NodeKind {
@@ -194,6 +211,7 @@ impl NodeKind {
             NodeKind::Context => "context",
             NodeKind::Justification => "justification",
             NodeKind::Assumption => "assumption",
+            NodeKind::Zone => "zone",
         }
     }
 
@@ -244,6 +262,7 @@ impl NodeKind {
             "context" => NodeKind::Context,
             "justification" => NodeKind::Justification,
             "assumption" => NodeKind::Assumption,
+            "zone" => NodeKind::Zone,
             _ => return None,
         })
     }
@@ -260,6 +279,7 @@ impl NodeKind {
                 | NodeKind::Fragment
                 | NodeKind::State
                 | NodeKind::Action
+                | NodeKind::Zone
         )
     }
 }
@@ -317,6 +337,19 @@ pub enum EdgeKind {
     SupportedBy,
     /// GSN InContextOf: a goal or strategy to its context, justification or assumption.
     InContextOf,
+    // ThreatGraph / ZoneConduit (GH #223)
+    /// A ThreatScenario to a DamageScenario it can cause.
+    Impacts,
+    /// A DamageScenario to an Asset it harms.
+    Affects,
+    /// An Asset to the CybersecurityGoal that protects it.
+    ProtectedBy,
+    /// A CybersecurityGoal to the SecurityControl that implements it.
+    ImplementedBy,
+    /// A conduit between two zones.
+    Conduit,
+    /// A conduit whose achieved security level is below the requirement of the zones it joins.
+    WeakConduit,
 }
 
 impl EdgeKind {
@@ -354,6 +387,12 @@ impl EdgeKind {
             EdgeKind::CriticalPath => "criticalPath",
             EdgeKind::SupportedBy => "supportedBy",
             EdgeKind::InContextOf => "inContextOf",
+            EdgeKind::Impacts => "impacts",
+            EdgeKind::Affects => "affects",
+            EdgeKind::ProtectedBy => "protectedBy",
+            EdgeKind::ImplementedBy => "implementedBy",
+            EdgeKind::Conduit => "conduit",
+            EdgeKind::WeakConduit => "weakConduit",
         }
     }
 
@@ -395,13 +434,19 @@ impl EdgeKind {
             "criticalpath" => EdgeKind::CriticalPath,
             "supportedby" => EdgeKind::SupportedBy,
             "incontextof" => EdgeKind::InContextOf,
+            "impacts" => EdgeKind::Impacts,
+            "affects" => EdgeKind::Affects,
+            "protectedby" => EdgeKind::ProtectedBy,
+            "implementedby" => EdgeKind::ImplementedBy,
+            "conduit" => EdgeKind::Conduit,
+            "weakconduit" => EdgeKind::WeakConduit,
             _ => return None,
         })
     }
 
     /// Whether the edge is drawn directed (has an arrowhead at the target).
     pub fn is_directed(&self) -> bool {
-        !matches!(self, EdgeKind::Connection | EdgeKind::Binding | EdgeKind::Association | EdgeKind::Containment | EdgeKind::FeatureChild | EdgeKind::Excludes | EdgeKind::GateInput | EdgeKind::CriticalPath)
+        !matches!(self, EdgeKind::Connection | EdgeKind::Binding | EdgeKind::Association | EdgeKind::Containment | EdgeKind::FeatureChild | EdgeKind::Excludes | EdgeKind::GateInput | EdgeKind::CriticalPath | EdgeKind::Conduit | EdgeKind::WeakConduit)
     }
 }
 
@@ -730,6 +775,32 @@ impl LayoutHints {
             DiagramKind::FaultTree | DiagramKind::AttackTree | DiagramKind::SafetyCase => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
                 direction: LayoutDirection::Down,
+                hierarchical: false,
+                port_constraints: PortConstraints::Free,
+                reversed_kinds: vec![],
+                overlay_kinds: vec![],
+            },
+            // Hazard to test reads left to right; the links point upstream
+            // (OSLC), so they are reversed for layering (GH #223).
+            DiagramKind::Traceability => LayoutHints {
+                algorithm: LayoutAlgorithm::Layered,
+                direction: LayoutDirection::Right,
+                hierarchical: false,
+                port_constraints: PortConstraints::Free,
+                reversed_kinds: vec![EdgeKind::Derive, EdgeKind::Verify, EdgeKind::Trace, EdgeKind::Satisfy],
+                overlay_kinds: vec![],
+            },
+            DiagramKind::ZoneConduit => LayoutHints {
+                algorithm: LayoutAlgorithm::Layered,
+                direction: LayoutDirection::Right,
+                hierarchical: true,
+                port_constraints: PortConstraints::Free,
+                reversed_kinds: vec![],
+                overlay_kinds: vec![],
+            },
+            DiagramKind::ThreatGraph => LayoutHints {
+                algorithm: LayoutAlgorithm::Layered,
+                direction: LayoutDirection::Right,
                 hierarchical: false,
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],

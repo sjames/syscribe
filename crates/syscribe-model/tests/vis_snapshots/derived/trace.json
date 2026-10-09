@@ -1,0 +1,197 @@
+{
+  "kind": "Traceability",
+  "qualifiedName": "Safety::SG",
+  "name": "Keep braking",
+  "subject": "Safety::SG",
+  "nodes": [
+    {
+      "id": "s-safety-sg",
+      "elementRef": "Safety::SG",
+      "resolved": true,
+      "elementType": "SafetyGoal",
+      "kind": "goal",
+      "label": "Keep braking",
+      "stereotype": "SG-DT-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "approved",
+        "value": "ASIL D",
+        "tone": "bad"
+      }
+    },
+    {
+      "id": "s-safety-he-a",
+      "elementRef": "Safety::HE-A",
+      "resolved": true,
+      "elementType": "HazardousEvent",
+      "kind": "block",
+      "label": "Loss of braking",
+      "stereotype": "HE-DT-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "approved",
+        "value": "ASIL D",
+        "tone": "bad"
+      }
+    },
+    {
+      "id": "s-safety-ft",
+      "elementRef": "Safety::FT",
+      "resolved": true,
+      "elementType": "FaultTree",
+      "kind": "block",
+      "label": "Braking tree",
+      "stereotype": "FT-DT-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "approved",
+        "value": "fault tree",
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": "s-safety-arg",
+      "elementRef": "Safety::ARG",
+      "resolved": true,
+      "elementType": "Argument",
+      "kind": "goal",
+      "label": "Argue over channels",
+      "stereotype": "ARG-DT-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "approved",
+        "value": "strategy",
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": "s-req-req-dt-001",
+      "elementRef": "Req::REQ-DT-001",
+      "resolved": true,
+      "elementType": "Requirement",
+      "kind": "requirement",
+      "label": "Brake on demand",
+      "stereotype": "REQ-DT-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "approved",
+        "value": "ASIL D",
+        "tone": "bad",
+        "badges": [
+          "W305 no integration test"
+        ]
+      }
+    },
+    {
+      "id": "s-req-req-dt-002",
+      "elementRef": "Req::REQ-DT-002",
+      "resolved": true,
+      "elementType": "Requirement",
+      "kind": "requirement",
+      "label": "Detect pedal",
+      "stereotype": "REQ-DT-002",
+      "isAbstract": false,
+      "mark": {
+        "status": "approved",
+        "tone": "warn"
+      }
+    },
+    {
+      "id": "s-verification-tc-dt-001",
+      "elementRef": "Verification::TC-DT-001",
+      "resolved": true,
+      "elementType": "TestCase",
+      "kind": "testCase",
+      "label": "Pedal test",
+      "stereotype": "TC-DT-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "unknown",
+        "value": "L2 · active",
+        "tone": "warn"
+      }
+    },
+    {
+      "id": "s-req-req-dt-003",
+      "elementRef": "Req::REQ-DT-003",
+      "resolved": true,
+      "elementType": "Requirement",
+      "kind": "requirement",
+      "label": "Apply pressure",
+      "stereotype": "REQ-DT-003",
+      "isAbstract": false,
+      "mark": {
+        "status": "approved",
+        "tone": "bad",
+        "badges": [
+          "W002 no test",
+          "W300 unsatisfied"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-trace-s-safety-sg-s-safety-he-a",
+      "elementRef": "Safety::SG",
+      "source": "s-safety-sg",
+      "target": "s-safety-he-a",
+      "kind": "trace"
+    },
+    {
+      "id": "e-trace-s-safety-ft-s-safety-sg",
+      "elementRef": "Safety::FT",
+      "source": "s-safety-ft",
+      "target": "s-safety-sg",
+      "kind": "trace"
+    },
+    {
+      "id": "e-trace-s-safety-arg-s-safety-sg",
+      "elementRef": "Safety::ARG",
+      "source": "s-safety-arg",
+      "target": "s-safety-sg",
+      "kind": "trace"
+    },
+    {
+      "id": "e-derive-s-req-req-dt-001-s-safety-sg",
+      "elementRef": "Req::REQ-DT-001",
+      "source": "s-req-req-dt-001",
+      "target": "s-safety-sg",
+      "kind": "derive"
+    },
+    {
+      "id": "e-derive-s-req-req-dt-002-s-req-req-dt-001",
+      "elementRef": "Req::REQ-DT-002",
+      "source": "s-req-req-dt-002",
+      "target": "s-req-req-dt-001",
+      "kind": "derive"
+    },
+    {
+      "id": "e-verify-s-verification-tc-dt-001-s-req-req-dt-002",
+      "elementRef": "Verification::TC-DT-001",
+      "source": "s-verification-tc-dt-001",
+      "target": "s-req-req-dt-002",
+      "kind": "verify"
+    },
+    {
+      "id": "e-derive-s-req-req-dt-003-s-req-req-dt-001",
+      "elementRef": "Req::REQ-DT-003",
+      "source": "s-req-req-dt-003",
+      "target": "s-req-req-dt-001",
+      "kind": "derive"
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "layered",
+    "direction": "right",
+    "hierarchical": false,
+    "portConstraints": "free",
+    "reversedKinds": [
+      "derive",
+      "verify",
+      "trace",
+      "satisfy"
+    ]
+  },
+  "derived": true
+}

@@ -101,7 +101,11 @@ pub fn render_mermaid(graph: &DiagramGraph, links: &dyn Fn(&str) -> Option<Strin
         DiagramKind::Ibd => render_flowchart(graph, "LR", links),
         DiagramKind::StateMachine => render_state(graph),
         DiagramKind::Sequence => render_sequence(graph),
-        DiagramKind::Allocation | DiagramKind::UseCase => render_flowchart(graph, "LR", links),
+        DiagramKind::Allocation
+        | DiagramKind::UseCase
+        | DiagramKind::Traceability
+        | DiagramKind::ZoneConduit
+        | DiagramKind::ThreatGraph => render_flowchart(graph, "LR", links),
         DiagramKind::Action
         | DiagramKind::Custom
         | DiagramKind::FeatureModel
@@ -231,7 +235,7 @@ fn flow_nodes(graph: &DiagramGraph, node: &Node, depth: usize, out: &mut String,
     ref_line(out, &indent, node);
     drawn.push(node.id.clone());
     if is_subgraph(graph, node) && depth < graph.nodes.len() {
-        out.push_str(&format!("{indent}subgraph {}[\"{}\"]\n", mermaid_id(&node.id), text(&node.label)));
+        out.push_str(&format!("{indent}subgraph {}[\"{}\"]\n", mermaid_id(&node.id), flow_label(node)));
         for child in graph.children_of(&node.id) {
             flow_nodes(graph, child, depth + 1, out, drawn);
         }
@@ -262,7 +266,8 @@ fn render_flowchart(graph: &DiagramGraph, direction: &str, links: &dyn Fn(&str) 
         let t = mermaid_id(&e.target);
         let connector = match e.kind {
             EdgeKind::Connection | EdgeKind::Association | EdgeKind::Containment | EdgeKind::FeatureChild | EdgeKind::GateInput => "---",
-            EdgeKind::CriticalPath => "===",
+            EdgeKind::CriticalPath | EdgeKind::WeakConduit => "===",
+            EdgeKind::Conduit => "---",
             EdgeKind::InContextOf => "-.->",
             EdgeKind::Excludes => "-.-",
             EdgeKind::Requires => "-.->",

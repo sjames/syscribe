@@ -42,7 +42,7 @@ const form = (over) => ({
 scenario('every offered kind has a generator-valid subject type list', () => {
     assert.deepEqual(
         DIAGRAM_KINDS.map(k => k.kind),
-        ['BDD', 'IBD', 'StateMachine', 'Action', 'Sequence', 'Requirement', 'FeatureModel', 'Allocation', 'FaultTree', 'AttackTree', 'SafetyCase'],
+        ['BDD', 'IBD', 'StateMachine', 'Action', 'Sequence', 'Requirement', 'FeatureModel', 'Allocation', 'FaultTree', 'AttackTree', 'SafetyCase', 'Traceability', 'ZoneConduit', 'ThreatGraph'],
     );
     assert.deepEqual(kindInfo('IBD').subjectTypes, ['PartDef', 'Part', 'ItemDef', 'Item']);
     assert.ok(kindInfo('Requirement').subjectTypes.includes('Package'));
@@ -61,6 +61,16 @@ scenario('the safety kinds take their subjects from the safety elements and are 
         assert.equal(kindInfo(k).deriveOnly, true, k);
     }
     assert.equal(kindInfo('IBD').deriveOnly, undefined);
+    // GH #223 phase 2: the analysis graphs.
+    assert.deepEqual(kindInfo('Traceability').subjectTypes, ['SafetyGoal', 'HazardousEvent', 'Requirement', 'Package']);
+    assert.deepEqual(kindInfo('ZoneConduit').subjectTypes, ['Package', 'Zone', 'Conduit']);
+    assert.ok(kindInfo('ThreatGraph').subjectTypes.includes('CybersecurityGoal'));
+    for (const k of ['Traceability', 'ZoneConduit', 'ThreatGraph']) {
+        assert.equal(kindInfo(k).deriveOnly, true, k);
+        const blank = buildCreateRequest(form({ kind: k, startFrom: 'blank', subject: '', candidates: [] }));
+        assert.equal(blank.ok, false, k);
+        assert.match(blank.error, /always derived/);
+    }
     const ok = buildCreateRequest(form({ kind: 'FaultTree', subject: 'Safety::FTA::FT', candidates: ['Safety::FTA::FT', 'Safety::SG'] }));
     assert.equal(ok.ok, true);
     assert.deepEqual(ok.request.fields, { diagramKind: 'FaultTree', subject: 'Safety::FTA::FT' });

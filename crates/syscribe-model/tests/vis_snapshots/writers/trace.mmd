@@ -1,0 +1,32 @@
+flowchart LR
+  %% ref: Safety::SG
+  s_safety_sg["Keep braking<br/>approved<br/>ASIL D"]
+  %% ref: Safety::HE-A
+  s_safety_he_a["Loss of braking<br/>approved<br/>ASIL D"]
+  %% ref: Safety::FT
+  s_safety_ft["Braking tree<br/>approved<br/>fault tree"]
+  %% ref: Safety::ARG
+  s_safety_arg["Argue over channels<br/>approved<br/>strategy"]
+  %% ref: Req::REQ-DT-001
+  s_req_req_dt_001["Brake on demand<br/>approved<br/>ASIL D<br/>[W305 no integration test]"]
+  %% ref: Req::REQ-DT-002
+  s_req_req_dt_002["Detect pedal<br/>approved"]
+  %% ref: Verification::TC-DT-001
+  s_verification_tc_dt_001["Pedal test<br/>unknown<br/>L2 · active"]
+  %% ref: Req::REQ-DT-003
+  s_req_req_dt_003["Apply pressure<br/>approved<br/>[W002 no test] [W300 unsatisfied]"]
+
+  s_safety_sg -.->|«trace»| s_safety_he_a
+  s_safety_ft -.->|«trace»| s_safety_sg
+  s_safety_arg -.->|«trace»| s_safety_sg
+  s_req_req_dt_001 -.->|«deriveReqt»| s_safety_sg
+  s_req_req_dt_002 -.->|«deriveReqt»| s_req_req_dt_001
+  s_verification_tc_dt_001 -.->|«verify»| s_req_req_dt_002
+  s_req_req_dt_003 -.->|«deriveReqt»| s_req_req_dt_001
+
+  classDef tone_warn fill:#fff4d6,stroke:#b7791f,color:#222
+  class s_req_req_dt_002,s_verification_tc_dt_001 tone_warn
+  classDef tone_bad fill:#fdecea,stroke:#b3261e,color:#222
+  class s_safety_sg,s_safety_he_a,s_req_req_dt_001,s_req_req_dt_003 tone_bad
+  classDef tone_neutral fill:#f1f2f4,stroke:#8a8f98,color:#222
+  class s_safety_ft,s_safety_arg tone_neutral

@@ -110,7 +110,7 @@ const MIN_NODE_WIDTH = 120;
 const MIN_NODE_HEIGHT = 40;
 
 export function isContainerKind(kind: string | undefined): boolean {
-    return kind === 'boundary' || kind === 'system-boundary' || kind === 'swimlane' || kind === 'fragment';
+    return kind === 'boundary' || kind === 'system-boundary' || kind === 'swimlane' || kind === 'fragment' || kind === 'zone';
 }
 
 /** A pseudostate or control-node glyph (`vis::size::glyph_size`): a fixed

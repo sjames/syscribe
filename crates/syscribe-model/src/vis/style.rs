@@ -135,6 +135,7 @@ fn by_node_kind(kind: NodeKind) -> (&'static str, &'static str, bool) {
         NodeKind::Solution => ("#f0fff4", "#1e6b2e", false),
         NodeKind::Context => ("#f5f5f5", "#666", false),
         NodeKind::Justification | NodeKind::Assumption => ("#fffde7", "#8d6e00", false),
+        NodeKind::Zone => ("#f6f9fd", "#1f497d", false),
         _ => ("#f5f5fa", "#666", false),
     }
 }
@@ -238,11 +239,17 @@ pub fn edge_style(kind: EdgeKind) -> EdgeStyle {
         K::CriticalPath => (EDGE_STROKE_CRITICAL, None, A::None, A::None, None),
         K::SupportedBy => (EDGE_STROKE, None, A::Filled, A::None, None),
         K::InContextOf => (EDGE_STROKE, None, A::HollowTriangle, A::None, None),
+        K::Impacts => (EDGE_STROKE, None, A::Filled, A::None, None),
+        K::Affects => (EDGE_STROKE, None, A::Filled, A::None, None),
+        K::ProtectedBy => (EDGE_STROKE, Some("6,3"), A::Open, A::None, Some("protectedBy")),
+        K::ImplementedBy => (EDGE_STROKE, Some("6,3"), A::Open, A::None, Some("implementedBy")),
+        K::Conduit => (EDGE_STROKE_ALLOCATION, None, A::None, A::None, None),
+        K::WeakConduit => (EDGE_STROKE_CRITICAL, Some("8,4"), A::None, A::None, None),
     };
     EdgeStyle {
         stroke: stroke.to_string(),
         dash: dash.map(str::to_string),
-        width: if kind == K::CriticalPath { EMPHASIS_WIDTH } else { EDGE_WIDTH },
+        width: if matches!(kind, K::CriticalPath | K::WeakConduit) { EMPHASIS_WIDTH } else { EDGE_WIDTH },
         arrow_target: target,
         arrow_source: source,
         keyword: keyword.map(str::to_string),

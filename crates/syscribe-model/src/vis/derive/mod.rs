@@ -14,6 +14,7 @@
 
 pub mod action;
 pub mod allocation;
+pub mod analysis;
 pub mod attack_tree;
 pub mod bdd;
 pub mod fault_tree;
@@ -23,6 +24,9 @@ pub mod requirement;
 pub mod safety_case;
 pub mod sequence;
 pub mod state;
+pub mod threat_graph;
+pub mod traceability;
+pub mod zone_conduit;
 
 use crate::element::{ElementType, RawElement};
 use crate::resolver::Resolver;
@@ -43,6 +47,9 @@ pub(crate) fn w418(message: String) -> Issue {
 pub struct Filters {
     pub include: Vec<String>,
     pub exclude: Vec<String>,
+    /// The project's `[cyber]` risk configuration, for the `ThreatGraph` tones
+    /// (GH #223); the `simple` default when the caller has none.
+    pub cyber: crate::cyber_config::CyberConfig,
 }
 
 impl Filters {
@@ -50,6 +57,7 @@ impl Filters {
         Filters {
             include: elem.frontmatter.include.clone().unwrap_or_default(),
             exclude: elem.frontmatter.exclude.clone().unwrap_or_default(),
+            cyber: Default::default(),
         }
     }
 
@@ -81,6 +89,17 @@ impl Filters {
 
 /// Derive the IR of `elem` (a `Diagram` with a `subject:` and no `shapes:`).
 pub fn derive(elem: &RawElement, kind: DiagramKind, elements: &[RawElement], resolver: &Resolver) -> (DiagramGraph, Vec<Issue>) {
+    derive_with(elem, kind, elements, resolver, &Default::default())
+}
+
+/// [`derive`] under the project's `[cyber]` configuration (the `ThreatGraph` risk tones).
+pub fn derive_with(
+    elem: &RawElement,
+    kind: DiagramKind,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cyber: &crate::cyber_config::CyberConfig,
+) -> (DiagramGraph, Vec<Issue>) {
     let fm = &elem.frontmatter;
     let name = fm
         .name
@@ -89,7 +108,8 @@ pub fn derive(elem: &RawElement, kind: DiagramKind, elements: &[RawElement], res
     let mut graph = DiagramGraph::empty(kind, &elem.qualified_name, &name, fm.subject.as_deref());
     graph.derived = true;
     let mut issues = Vec::new();
-    let filters = Filters::of(elem);
+    let mut filters = Filters::of(elem);
+    filters.cyber = cyber.clone();
 
     let subject = fm.subject.as_deref().and_then(|s| resolver.resolve_ref(elements, s));
     // An unresolved subject is `W401` (validator); nothing to derive from.
@@ -125,6 +145,9 @@ pub fn generate_into(
         DiagramKind::FaultTree => fault_tree::generate(graph, subject, elements, resolver, filters, issues),
         DiagramKind::AttackTree => attack_tree::generate(graph, subject, elements, resolver, filters, issues),
         DiagramKind::SafetyCase => safety_case::generate(graph, subject, elements, resolver, filters, issues),
+        DiagramKind::Traceability => traceability::generate(graph, subject, elements, resolver, filters, issues),
+        DiagramKind::ZoneConduit => zone_conduit::generate(graph, subject, elements, resolver, filters, issues),
+        DiagramKind::ThreatGraph => threat_graph::generate(graph, subject, elements, resolver, filters, issues),
         // UseCase and Custom have no generator.
         DiagramKind::UseCase | DiagramKind::Custom => {}
     }
@@ -490,7 +513,7 @@ mod tests {
 
     #[test]
     fn filters_match_qualified_or_short_names() {
-        let f = Filters { include: vec!["Sys::Engine".into(), "motor".into()], exclude: vec!["aux".into()] };
+        let f = Filters { include: vec!["Sys::Engine".into(), "motor".into()], exclude: vec!["aux".into()], ..Default::default() };
         assert!(f.keeps("Sys::Engine", "Engine"));
         assert!(f.keeps("Sys::PowerSystem::motor", "motor"));
         assert!(!f.keeps("Sys::Motor", "Motor"));

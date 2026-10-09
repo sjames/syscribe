@@ -1,0 +1,21 @@
+digraph "TARA" {
+  rankdir=LR;
+  node [fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=10];
+  s_sec_tara_ts_tg_001 [label="Spoof a command\nrisk medium\nfeasibility high", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Sec::TARA::TS-TG-001"];
+  s_sec_tara_ds_tg_001 [label="Hijack\nimpact negligible", shape=box, style="filled", fillcolor="#f1f2f4", color="#8a8f98", tooltip="Sec::TARA::DS-TG-001"];
+  s_sec_asset_tg_001 [label="Command link\napproved\nintegrity", shape=box, style="filled", fillcolor="#f1f2f4", color="#8a8f98", tooltip="Sec::ASSET-TG-001"];
+  s_sec_tara_csg_tg_001 [label="Authenticate commands\nCAL2\nintegrity", shape=box, style="filled", fillcolor="#e3f5e8", color="#1e8a3c", tooltip="Sec::TARA::CSG-TG-001"];
+  s_sec_tara_sc_tg_001 [label="Sign commands\nprevention\napproved", shape=box, style="filled", fillcolor="#e3f5e8", color="#1e8a3c", tooltip="Sec::TARA::SC-TG-001"];
+  s_sec_tara_ts_tg_002 [label="Jam the link\nrisk high\nfeasibility low", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Sec::TARA::TS-TG-002"];
+  s_sec_tara_ds_tg_002 [label="Noise\nimpact severe", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Sec::TARA::DS-TG-002"];
+  s_sec_tara_csg_tg_002 [label="Keep the link up\nCAL2\navailability\n[W802 no control]", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Sec::TARA::CSG-TG-002"];
+  s_sec_tara_ts_tg_003 [label="Untreated\nrisk high\nfeasibility low\n[no goal]", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Sec::TARA::TS-TG-003"];
+  s_sec_tara_ts_tg_001 -> s_sec_tara_ds_tg_001 [color="#555555", arrowhead=normal];
+  s_sec_tara_ds_tg_001 -> s_sec_asset_tg_001 [color="#555555", arrowhead=normal];
+  s_sec_asset_tg_001 -> s_sec_tara_csg_tg_001 [color="#555555", arrowhead=vee, style=dashed, label="protectedBy"];
+  s_sec_tara_csg_tg_001 -> s_sec_tara_sc_tg_001 [color="#555555", arrowhead=vee, style=dashed, label="implementedBy"];
+  s_sec_tara_ts_tg_002 -> s_sec_tara_ds_tg_002 [color="#555555", arrowhead=normal];
+  s_sec_tara_ds_tg_002 -> s_sec_tara_csg_tg_002 [color="#555555", arrowhead=vee, style=dashed, label="protectedBy"];
+  s_sec_tara_ts_tg_003 -> s_sec_tara_ds_tg_002 [color="#555555", arrowhead=normal];
+}

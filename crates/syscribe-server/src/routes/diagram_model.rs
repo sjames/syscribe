@@ -14,8 +14,8 @@
 //! has no `Diagram` element, but the model itself says what to draw: the
 //! endpoint then returns its derived safety diagram
 //! (`syscribe_model::vis::build_subject_graph`), the element's primary view or,
-//! with `?kind=FaultTree|AttackTree|SafetyCase`, the named one among
-//! `vis::safety_kinds_of`.
+//! with `?kind=FaultTree|AttackTree|SafetyCase|Traceability|ZoneConduit|ThreatGraph`, the named one among
+//! `vis::embedded_kinds_of`.
 //!
 //! `404` when `qname` is unknown, is neither a `Diagram` nor such an element, or
 //! is a hand-authored `Mermaid`/`PlantUML` diagram (no IR; the UI never requests those — it
@@ -68,16 +68,17 @@ pub async fn get_diagram_model(
     // `build_graph` is `None` for a non-`Diagram` and for the IR-less
     // `Mermaid`/`PlantUML` kinds alike. Manifest issues (`E405`/`W416`) are
     // the validator's to report; the client draws whatever survived them.
-    if let Some((graph, _issues)) = syscribe_model::vis::build_graph(element, &store.elements, &store.resolver) {
+    let cyber = syscribe_model::cyber_config::CyberConfig::load(&store.model_root);
+    if let Some((graph, _issues)) = syscribe_model::vis::build_graph_with(element, &store.elements, &store.resolver, &cyber) {
         return Ok(Json(to_sgraph(&graph)));
     }
     // Not a `Diagram`: a safety element is drawn from the model (GH #223).
-    let kinds = syscribe_model::vis::safety_kinds_of(element, &store.elements, &store.resolver);
+    let kinds = syscribe_model::vis::embedded_kinds_of(element, &store.elements, &store.resolver);
     let kind = match q.kind.as_deref() {
         Some(k) => DiagramKind::parse(Some(k)).filter(|k| kinds.contains(k)),
         None => kinds.first().copied(),
     }
     .ok_or(StatusCode::NOT_FOUND)?;
-    let (graph, _issues) = syscribe_model::vis::build_subject_graph(element, kind, &store.elements, &store.resolver);
+    let (graph, _issues) = syscribe_model::vis::build_subject_graph_with(element, kind, &store.elements, &store.resolver, &cyber);
     Ok(Json(to_sgraph(&graph)))
 }

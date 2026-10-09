@@ -99,6 +99,17 @@ pub fn has_ir(elem: &RawElement) -> bool {
 /// `None` when the element is not a `Diagram` or its kind has no IR
 /// (`Mermaid`, `PlantUML`).
 pub fn build_graph(elem: &RawElement, elements: &[RawElement], resolver: &Resolver) -> Option<(DiagramGraph, Vec<Issue>)> {
+    build_graph_with(elem, elements, resolver, &Default::default())
+}
+
+/// [`build_graph`] under the project's `[cyber]` configuration, which the
+/// `ThreatGraph` kind reads for its risk tones (GH #223).
+pub fn build_graph_with(
+    elem: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cyber: &crate::cyber_config::CyberConfig,
+) -> Option<(DiagramGraph, Vec<Issue>)> {
     if !matches!(elem.frontmatter.element_type, Some(ElementType::Diagram)) {
         return None;
     }
@@ -119,7 +130,7 @@ pub fn build_graph(elem: &RawElement, elements: &[RawElement], resolver: &Resolv
             }
             Some((graph, issues))
         }
-        Source::Derived => Some(derive::derive(elem, kind, elements, resolver)),
+        Source::Derived => Some(derive::derive_with(elem, kind, elements, resolver, cyber)),
         Source::Empty => {
             let name = elem
                 .frontmatter
@@ -169,6 +180,17 @@ pub fn safety_kinds_of(elem: &RawElement, elements: &[RawElement], resolver: &Re
 /// element ([`safety_kinds_of`] lists the kinds a subject supports). `W417`
 /// cannot arise (no filters); `W418` says the subject does not fit the kind.
 pub fn build_subject_graph(subject: &RawElement, kind: DiagramKind, elements: &[RawElement], resolver: &Resolver) -> (DiagramGraph, Vec<Issue>) {
+    build_subject_graph_with(subject, kind, elements, resolver, &Default::default())
+}
+
+/// [`build_subject_graph`] under the project's `[cyber]` configuration.
+pub fn build_subject_graph_with(
+    subject: &RawElement,
+    kind: DiagramKind,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cyber: &crate::cyber_config::CyberConfig,
+) -> (DiagramGraph, Vec<Issue>) {
     let name = subject
         .frontmatter
         .name
@@ -177,8 +199,29 @@ pub fn build_subject_graph(subject: &RawElement, kind: DiagramKind, elements: &[
     let mut graph = DiagramGraph::empty(kind, &subject.qualified_name, &name, Some(&subject.qualified_name));
     graph.derived = true;
     let mut issues = Vec::new();
-    derive::generate_into(&mut graph, subject, kind, elements, resolver, &derive::Filters::default(), &mut issues);
+    let filters = derive::Filters { cyber: cyber.clone(), ..Default::default() };
+    derive::generate_into(&mut graph, subject, kind, elements, resolver, &filters, &mut issues);
     (graph, issues)
+}
+
+/// Every diagram the web detail panel can embed for an element without a
+/// `Diagram` element behind it: [`safety_kinds_of`] (fault tree, attack tree,
+/// GSN argument) followed by the analysis graphs (GH #223) — `Traceability` for
+/// a hazardous event, a safety goal, or a requirement that traces to a goal;
+/// `ZoneConduit` for a zone or conduit; `ThreatGraph` for a threat scenario,
+/// damage scenario, asset, cybersecurity goal or security control.
+pub fn embedded_kinds_of(elem: &RawElement, elements: &[RawElement], resolver: &Resolver) -> Vec<DiagramKind> {
+    use crate::element::ElementType as T;
+    let mut kinds = safety_kinds_of(elem, elements, resolver);
+    let extra = match elem.frontmatter.element_type {
+        Some(T::HazardousEvent | T::SafetyGoal) => Some(DiagramKind::Traceability),
+        Some(T::Requirement) if derive::traceability::traces_to_goal(elem, elements, resolver) => Some(DiagramKind::Traceability),
+        Some(T::Zone | T::Conduit) => Some(DiagramKind::ZoneConduit),
+        Some(T::ThreatScenario | T::DamageScenario | T::Asset | T::CybersecurityGoal | T::SecurityControl) => Some(DiagramKind::ThreatGraph),
+        _ => None,
+    };
+    kinds.extend(extra);
+    kinds
 }
 
 #[cfg(test)]

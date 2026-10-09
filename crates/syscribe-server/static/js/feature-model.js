@@ -114192,7 +114192,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
   var MIN_NODE_WIDTH = 120;
   var MIN_NODE_HEIGHT = 40;
   function isContainerKind(kind) {
-    return kind === "boundary" || kind === "system-boundary" || kind === "swimlane" || kind === "fragment";
+    return kind === "boundary" || kind === "system-boundary" || kind === "swimlane" || kind === "fragment" || kind === "zone";
   }
   function isGlyphKind(kind) {
     return kind === "initial" || kind === "final" || kind === "fork" || kind === "join" || kind === "decision" || kind === "merge";

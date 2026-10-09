@@ -7,6 +7,8 @@ status: approved
 damageTable:
   - id: DS-ENG-001
     name: Unauthorised torque command causes unintended vehicle acceleration
+    assets:
+      - ASSET-ENG-001
     damageSeverity: severe
     impactCategories:
       - safety
@@ -14,6 +16,8 @@ damageTable:
 
   - id: DS-ENG-002
     name: Malicious ECU calibration enables persistent engine faults
+    assets:
+      - ASSET-ENG-002
     damageSeverity: major
     impactCategories:
       - safety
@@ -21,6 +25,8 @@ damageTable:
 
   - id: DS-ENG-003
     name: Firmware rollback exposes patched vulnerabilities — persistent remote exploit
+    assets:
+      - ASSET-ENG-003
     damageSeverity: major
     impactCategories:
       - safety
@@ -29,6 +35,8 @@ damageTable:
 
   - id: DS-ENG-004
     name: Diagnostic data exfiltration reveals proprietary calibration maps
+    assets:
+      - ASSET-ENG-002
     damageSeverity: moderate
     impactCategories:
       - financial

@@ -1,0 +1,206 @@
+{
+  "kind": "ThreatGraph",
+  "qualifiedName": "Sec::TARA",
+  "name": "TARA",
+  "subject": "Sec::TARA",
+  "nodes": [
+    {
+      "id": "s-sec-tara-ts-tg-001",
+      "elementRef": "Sec::TARA::TS-TG-001",
+      "resolved": true,
+      "elementType": "ThreatScenario",
+      "kind": "block",
+      "label": "Spoof a command",
+      "stereotype": "TS-TG-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "risk medium",
+        "value": "feasibility high",
+        "tone": "warn"
+      }
+    },
+    {
+      "id": "s-sec-tara-ds-tg-001",
+      "elementRef": "Sec::TARA::DS-TG-001",
+      "resolved": true,
+      "elementType": "DamageScenario",
+      "kind": "block",
+      "label": "Hijack",
+      "stereotype": "DS-TG-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "impact negligible",
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": "s-sec-asset-tg-001",
+      "elementRef": "Sec::ASSET-TG-001",
+      "resolved": true,
+      "elementType": "Asset",
+      "kind": "block",
+      "label": "Command link",
+      "stereotype": "ASSET-TG-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "approved",
+        "value": "integrity",
+        "tone": "neutral"
+      }
+    },
+    {
+      "id": "s-sec-tara-csg-tg-001",
+      "elementRef": "Sec::TARA::CSG-TG-001",
+      "resolved": true,
+      "elementType": "CybersecurityGoal",
+      "kind": "goal",
+      "label": "Authenticate commands",
+      "stereotype": "CSG-TG-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "CAL2",
+        "value": "integrity",
+        "tone": "ok"
+      }
+    },
+    {
+      "id": "s-sec-tara-sc-tg-001",
+      "elementRef": "Sec::TARA::SC-TG-001",
+      "resolved": true,
+      "elementType": "SecurityControl",
+      "kind": "block",
+      "label": "Sign commands",
+      "stereotype": "SC-TG-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "prevention",
+        "value": "approved",
+        "tone": "ok"
+      }
+    },
+    {
+      "id": "s-sec-tara-ts-tg-002",
+      "elementRef": "Sec::TARA::TS-TG-002",
+      "resolved": true,
+      "elementType": "ThreatScenario",
+      "kind": "block",
+      "label": "Jam the link",
+      "stereotype": "TS-TG-002",
+      "isAbstract": false,
+      "mark": {
+        "status": "risk high",
+        "value": "feasibility low",
+        "tone": "bad"
+      }
+    },
+    {
+      "id": "s-sec-tara-ds-tg-002",
+      "elementRef": "Sec::TARA::DS-TG-002",
+      "resolved": true,
+      "elementType": "DamageScenario",
+      "kind": "block",
+      "label": "Noise",
+      "stereotype": "DS-TG-002",
+      "isAbstract": false,
+      "mark": {
+        "status": "impact severe",
+        "tone": "bad"
+      }
+    },
+    {
+      "id": "s-sec-tara-csg-tg-002",
+      "elementRef": "Sec::TARA::CSG-TG-002",
+      "resolved": true,
+      "elementType": "CybersecurityGoal",
+      "kind": "goal",
+      "label": "Keep the link up",
+      "stereotype": "CSG-TG-002",
+      "isAbstract": false,
+      "mark": {
+        "status": "CAL2",
+        "value": "availability",
+        "tone": "bad",
+        "badges": [
+          "W802 no control"
+        ]
+      }
+    },
+    {
+      "id": "s-sec-tara-ts-tg-003",
+      "elementRef": "Sec::TARA::TS-TG-003",
+      "resolved": true,
+      "elementType": "ThreatScenario",
+      "kind": "block",
+      "label": "Untreated",
+      "stereotype": "TS-TG-003",
+      "isAbstract": false,
+      "mark": {
+        "status": "risk high",
+        "value": "feasibility low",
+        "tone": "bad",
+        "badges": [
+          "no goal"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-impacts-s-sec-tara-ts-tg-001-s-sec-tara-ds-tg-001",
+      "elementRef": "Sec::TARA::TS-TG-001",
+      "source": "s-sec-tara-ts-tg-001",
+      "target": "s-sec-tara-ds-tg-001",
+      "kind": "impacts"
+    },
+    {
+      "id": "e-affects-s-sec-tara-ds-tg-001-s-sec-asset-tg-001",
+      "elementRef": "Sec::TARA::DS-TG-001",
+      "source": "s-sec-tara-ds-tg-001",
+      "target": "s-sec-asset-tg-001",
+      "kind": "affects"
+    },
+    {
+      "id": "e-protectedBy-s-sec-asset-tg-001-s-sec-tara-csg-tg-001",
+      "elementRef": "Sec::TARA::CSG-TG-001",
+      "source": "s-sec-asset-tg-001",
+      "target": "s-sec-tara-csg-tg-001",
+      "kind": "protectedBy"
+    },
+    {
+      "id": "e-implementedBy-s-sec-tara-csg-tg-001-s-sec-tara-sc-tg-001",
+      "elementRef": "Sec::TARA::SC-TG-001",
+      "source": "s-sec-tara-csg-tg-001",
+      "target": "s-sec-tara-sc-tg-001",
+      "kind": "implementedBy"
+    },
+    {
+      "id": "e-impacts-s-sec-tara-ts-tg-002-s-sec-tara-ds-tg-002",
+      "elementRef": "Sec::TARA::TS-TG-002",
+      "source": "s-sec-tara-ts-tg-002",
+      "target": "s-sec-tara-ds-tg-002",
+      "kind": "impacts"
+    },
+    {
+      "id": "e-protectedBy-s-sec-tara-ds-tg-002-s-sec-tara-csg-tg-002",
+      "elementRef": "Sec::TARA::CSG-TG-002",
+      "source": "s-sec-tara-ds-tg-002",
+      "target": "s-sec-tara-csg-tg-002",
+      "kind": "protectedBy"
+    },
+    {
+      "id": "e-impacts-s-sec-tara-ts-tg-003-s-sec-tara-ds-tg-002",
+      "elementRef": "Sec::TARA::TS-TG-003",
+      "source": "s-sec-tara-ts-tg-003",
+      "target": "s-sec-tara-ds-tg-002",
+      "kind": "impacts"
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "layered",
+    "direction": "right",
+    "hierarchical": false,
+    "portConstraints": "free",
+    "reversedKinds": []
+  },
+  "derived": true
+}

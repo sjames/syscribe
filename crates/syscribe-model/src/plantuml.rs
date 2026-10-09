@@ -60,8 +60,19 @@ pub fn render_plantuml(
     elements: &[RawElement],
     cfg: Option<&PlantumlConfig>,
 ) -> Option<String> {
+    render_plantuml_with(element, elements, cfg, &Default::default())
+}
+
+/// [`render_plantuml`] under the project's `[cyber]` configuration (the
+/// `ThreatGraph` risk tones).
+pub fn render_plantuml_with(
+    element: &RawElement,
+    elements: &[RawElement],
+    cfg: Option<&PlantumlConfig>,
+    cyber: &crate::cyber_config::CyberConfig,
+) -> Option<String> {
     let resolver = Resolver::new(elements);
-    let (graph, _issues) = vis::build_graph(element, elements, &resolver)?;
+    let (graph, _issues) = vis::build_graph_with(element, elements, &resolver, cyber)?;
 
     // @startuml identifier / PlantUML output filename stem — must not contain
     // spaces so PlantUML names the .svg predictably.  Derive from the file stem.
@@ -83,6 +94,9 @@ pub fn render_plantuml(
         }
         DiagramKind::FaultTree | DiagramKind::AttackTree | DiagramKind::SafetyCase => {
             Some(render_safety(&graph, &file_stem, cfg))
+        }
+        DiagramKind::Traceability | DiagramKind::ZoneConduit | DiagramKind::ThreatGraph => {
+            Some(render_analysis(&graph, &file_stem, cfg))
         }
         DiagramKind::Custom => None,
     }
@@ -622,6 +636,64 @@ fn render_safety(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -
             _ => ("--", ""),
         };
         out.push_str(&format!("{} {} {}{}\n", sanitize_id(&e.source), connector, sanitize_id(&e.target), label));
+    }
+    out.push_str("@enduml\n");
+    out
+}
+
+/// The PlantUML text of an analysis graph (`Traceability`, `ZoneConduit`,
+/// `ThreatGraph`) built without a `Diagram` element.
+pub fn render_analysis_plantuml(graph: &DiagramGraph, id: &str) -> String {
+    render_analysis(graph, id, None)
+}
+
+/// PlantUML for the analysis graphs (GH #223): each node a rectangle filled in
+/// its mark's tone, its text the name followed by the mark's status, value and
+/// badges; a zone a `rectangle { … }` holding its members; links labelled with
+/// their role (a weak conduit a bold red dashed line).
+fn render_analysis(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> String {
+    fn decl(graph: &DiagramGraph, n: &vis::Node, depth: usize, cfg: Option<&PlantumlConfig>, out: &mut String) {
+        let pad = "  ".repeat(depth);
+        let url = element_url(&n.element_ref, cfg);
+        let mut text = n.label.replace('"', "'");
+        let mut fill = String::new();
+        if let Some(m) = &n.mark {
+            for line in [m.status.clone(), m.value.clone()].into_iter().flatten() {
+                text.push_str(&format!("\\n{}", line.replace('"', "'")));
+            }
+            if !m.badges.is_empty() {
+                text.push_str(&format!("\\n{}", m.badges.iter().map(|b| format!("[{b}]")).collect::<Vec<_>>().join(" ")));
+            }
+            fill = format!(" {}", vis::style::tone_colors(m.tone).0);
+        }
+        let kids: Vec<&vis::Node> = graph.children_of(&n.id).collect();
+        let nid = sanitize_id(&n.id);
+        if kids.is_empty() || depth >= graph.nodes.len() {
+            out.push_str(&format!("{pad}rectangle \"{text}\" as {nid}{fill} {url}\n"));
+        } else {
+            out.push_str(&format!("{pad}rectangle \"{text}\" as {nid}{fill} {url}{{\n"));
+            for k in kids {
+                decl(graph, k, depth + 1, cfg, out);
+            }
+            out.push_str(&format!("{pad}}}\n"));
+        }
+    }
+    let mut out = format!("@startuml {id}\n");
+    out.push_str(&style_preamble(cfg));
+    out.push('\n');
+    for n in graph.roots() {
+        decl(graph, n, 0, cfg, &mut out);
+    }
+    out.push('\n');
+    for e in &graph.edges {
+        let connector = match e.kind {
+            EdgeKind::WeakConduit => "-[bold,dashed,#B3261E]-",
+            EdgeKind::Conduit => "-[#7A3EA5]-",
+            EdgeKind::Derive | EdgeKind::Verify | EdgeKind::Trace | EdgeKind::ProtectedBy | EdgeKind::ImplementedBy => "..>",
+            _ => "-->",
+        };
+        let label = e.label.clone().unwrap_or_else(|| e.kind.as_str().to_string());
+        out.push_str(&format!("{} {} {} : {}\n", sanitize_id(&e.source), connector, sanitize_id(&e.target), label.replace('\n', " ")));
     }
     out.push_str("@enduml\n");
     out

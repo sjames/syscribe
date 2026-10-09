@@ -10,12 +10,21 @@
 //! colours of [`super::style`]. Output is deterministic: nodes then edges in
 //! IR order.
 
-use super::ir::{DiagramGraph, Edge, EdgeKind, Node, NodeKind};
+use super::ir::{DiagramGraph, Edge, EdgeKind, LayoutDirection, Node, NodeKind};
 use super::style::{edge_style, node_style, ArrowHead};
 
 /// A DOT-safe identifier: every character outside `[A-Za-z0-9_]` becomes `_`.
 fn dot_id(id: &str) -> String {
     id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect()
+}
+
+/// A DOT colour: Graphviz reads `#rrggbb` but not the `#rgb` shorthand the style
+/// table uses for some strokes.
+fn hex(c: &str) -> String {
+    match c.strip_prefix('#') {
+        Some(h) if h.len() == 3 && h.chars().all(|d| d.is_ascii_hexdigit()) => format!("#{}", h.chars().flat_map(|d| [d, d]).collect::<String>()),
+        _ => c.to_string(),
+    }
 }
 
 /// Text inside a double-quoted DOT string (`\n` stays the DOT line break).
@@ -73,8 +82,8 @@ fn node_line(node: &Node) -> String {
         format!("label=\"{}\"", label(node)),
         format!("shape={}", shape(node.kind)),
         "style=\"filled\"".to_string(),
-        format!("fillcolor=\"{}\"", style.fill),
-        format!("color=\"{}\"", style.stroke),
+        format!("fillcolor=\"{}\"", hex(&style.fill)),
+        format!("color=\"{}\"", hex(&style.stroke)),
     ];
     if node.kind == NodeKind::Context {
         attrs[2] = "style=\"filled,rounded\"".to_string();
@@ -104,8 +113,13 @@ fn arrow(a: ArrowHead) -> &'static str {
 }
 
 fn edge_line(edge: &Edge) -> String {
+    format!("  {} -> {} [{}];\n", dot_id(&edge.source), dot_id(&edge.target), edge_attrs(edge))
+}
+
+/// The attribute list of an edge.
+fn edge_attrs(edge: &Edge) -> String {
     let s = edge_style(edge.kind);
-    let mut attrs = vec![format!("color=\"{}\"", s.stroke), format!("arrowhead={}", arrow(s.arrow_target))];
+    let mut attrs = vec![format!("color=\"{}\"", hex(&s.stroke)), format!("arrowhead={}", arrow(s.arrow_target))];
     if s.arrow_source != ArrowHead::None {
         attrs.push(format!("arrowtail={}", arrow(s.arrow_source)));
         attrs.push("dir=both".to_string());
@@ -113,24 +127,93 @@ fn edge_line(edge: &Edge) -> String {
     if s.dash.is_some() {
         attrs.push("style=dashed".to_string());
     }
-    if edge.kind == EdgeKind::CriticalPath {
+    if matches!(edge.kind, EdgeKind::CriticalPath | EdgeKind::WeakConduit) {
         attrs.push(format!("penwidth={}", s.width));
     }
     if let Some(l) = edge.label.clone().or(s.keyword) {
         attrs.push(format!("label=\"{}\"", quote(&l)));
     }
-    format!("  {} -> {} [{}];\n", dot_id(&edge.source), dot_id(&edge.target), attrs.join(", "))
+    attrs.join(", ")
+}
+
+/// Whether `node` is drawn as a DOT `cluster`: a zone (GH #223) with something in it.
+fn is_cluster(graph: &DiagramGraph, node: &Node) -> bool {
+    node.kind == NodeKind::Zone && graph.children_of(&node.id).any(|c| !matches!(c.kind, NodeKind::Compartment | NodeKind::Label))
+}
+
+/// The first non-cluster node inside (or equal to) `node`: DOT cannot attach an
+/// edge to a cluster, so the edge goes to this node and `lhead`/`ltail` clips it
+/// at the cluster boundary.
+fn representative<'a>(graph: &'a DiagramGraph, node: &'a Node) -> &'a Node {
+    let mut cur = node;
+    for _ in 0..graph.nodes.len() {
+        if !is_cluster(graph, cur) {
+            return cur;
+        }
+        match graph.children_of(&cur.id).find(|c| !matches!(c.kind, NodeKind::Compartment | NodeKind::Label)) {
+            Some(c) => cur = c,
+            None => return cur,
+        }
+    }
+    cur
+}
+
+fn emit_node(graph: &DiagramGraph, node: &Node, depth: usize, out: &mut String) {
+    if matches!(node.kind, NodeKind::Compartment | NodeKind::Label) {
+        return;
+    }
+    let pad = "  ".repeat(depth + 1);
+    if is_cluster(graph, node) && depth < graph.nodes.len() {
+        let style = node_style(node);
+        out.push_str(&format!("{pad}subgraph cluster_{} {{\n", dot_id(&node.id)));
+        out.push_str(&format!(
+            "{pad}  label=\"{}\"; style=\"filled\"; fillcolor=\"{}\"; color=\"{}\"; fontname=\"Helvetica\";\n",
+            label(node),
+            hex(&style.fill),
+            hex(&style.stroke)
+        ));
+        for c in graph.children_of(&node.id) {
+            emit_node(graph, c, depth + 1, out);
+        }
+        out.push_str(&format!("{pad}}}\n"));
+    } else {
+        out.push_str(&format!("{pad}{}", node_line(node).trim_start()));
+    }
 }
 
 /// Render the graph as Graphviz DOT.
 pub fn render_dot(graph: &DiagramGraph) -> String {
     let mut out = format!("digraph \"{}\" {{\n", quote(&graph.name));
-    out.push_str("  rankdir=TB;\n  node [fontname=\"Helvetica\", fontsize=11];\n  edge [fontname=\"Helvetica\", fontsize=10];\n");
-    for n in graph.nodes.iter().filter(|n| !matches!(n.kind, NodeKind::Compartment | NodeKind::Label)) {
-        out.push_str(&node_line(n));
+    let rankdir = if graph.layout_hints.direction == LayoutDirection::Right { "LR" } else { "TB" };
+    out.push_str(&format!("  rankdir={rankdir};\n  node [fontname=\"Helvetica\", fontsize=11];\n  edge [fontname=\"Helvetica\", fontsize=10];\n"));
+    let clusters = graph.nodes.iter().any(|n| is_cluster(graph, n));
+    if clusters {
+        out.push_str("  compound=true;\n");
+    }
+    // A node nested in a cluster is emitted inside it; everything else flat
+    // (containment is otherwise ignored, as documented above).
+    let in_cluster = |n: &Node| n.parent.as_deref().and_then(|p| graph.node(p)).is_some_and(|p| is_cluster(graph, p));
+    for n in graph.nodes.iter().filter(|n| !in_cluster(n)) {
+        emit_node(graph, n, 0, &mut out);
     }
     for e in &graph.edges {
-        out.push_str(&edge_line(e));
+        let mut line = edge_line(e);
+        if clusters {
+            let (Some(s), Some(t)) = (graph.node(&e.source), graph.node(&e.target)) else {
+                out.push_str(&line);
+                continue;
+            };
+            let (rs, rt) = (representative(graph, s), representative(graph, t));
+            let mut extra = String::new();
+            if is_cluster(graph, s) {
+                extra.push_str(&format!(", ltail=\"cluster_{}\"", dot_id(&s.id)));
+            }
+            if is_cluster(graph, t) {
+                extra.push_str(&format!(", lhead=\"cluster_{}\"", dot_id(&t.id)));
+            }
+            line = format!("  {} -> {} [{}{extra}];\n", dot_id(&rs.id), dot_id(&rt.id), edge_attrs(e));
+        }
+        out.push_str(&line);
     }
     out.push_str("}\n");
     out
@@ -174,6 +257,6 @@ mod tests {
         assert!(dot.contains("fillcolor=\"#fff4d6\""), "warn tone fill: {dot}");
         assert!(dot.contains("penwidth=3"), "emphasis: {dot}");
         assert!(dot.contains("a_1 [label=\"A-1\", shape=ellipse"), "{dot}");
-        assert!(dot.contains("top -> a_1 [color=\"#555\", arrowhead=none];"), "{dot}");
+        assert!(dot.contains("top -> a_1 [color=\"#555555\", arrowhead=none];"), "{dot}");
     }
 }

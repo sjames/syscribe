@@ -1,0 +1,36 @@
+flowchart LR
+  %% ref: Sec::TARA::TS-TG-001
+  s_sec_tara_ts_tg_001["Spoof a command<br/>risk medium<br/>feasibility high"]
+  %% ref: Sec::TARA::DS-TG-001
+  s_sec_tara_ds_tg_001["Hijack<br/>impact negligible"]
+  %% ref: Sec::ASSET-TG-001
+  s_sec_asset_tg_001["Command link<br/>approved<br/>integrity"]
+  %% ref: Sec::TARA::CSG-TG-001
+  s_sec_tara_csg_tg_001["Authenticate commands<br/>CAL2<br/>integrity"]
+  %% ref: Sec::TARA::SC-TG-001
+  s_sec_tara_sc_tg_001["Sign commands<br/>prevention<br/>approved"]
+  %% ref: Sec::TARA::TS-TG-002
+  s_sec_tara_ts_tg_002["Jam the link<br/>risk high<br/>feasibility low"]
+  %% ref: Sec::TARA::DS-TG-002
+  s_sec_tara_ds_tg_002["Noise<br/>impact severe"]
+  %% ref: Sec::TARA::CSG-TG-002
+  s_sec_tara_csg_tg_002["Keep the link up<br/>CAL2<br/>availability<br/>[W802 no control]"]
+  %% ref: Sec::TARA::TS-TG-003
+  s_sec_tara_ts_tg_003["Untreated<br/>risk high<br/>feasibility low<br/>[no goal]"]
+
+  s_sec_tara_ts_tg_001 --> s_sec_tara_ds_tg_001
+  s_sec_tara_ds_tg_001 --> s_sec_asset_tg_001
+  s_sec_asset_tg_001 -->|protectedBy| s_sec_tara_csg_tg_001
+  s_sec_tara_csg_tg_001 -->|implementedBy| s_sec_tara_sc_tg_001
+  s_sec_tara_ts_tg_002 --> s_sec_tara_ds_tg_002
+  s_sec_tara_ds_tg_002 -->|protectedBy| s_sec_tara_csg_tg_002
+  s_sec_tara_ts_tg_003 --> s_sec_tara_ds_tg_002
+
+  classDef tone_ok fill:#e3f5e8,stroke:#1e8a3c,color:#222
+  class s_sec_tara_csg_tg_001,s_sec_tara_sc_tg_001 tone_ok
+  classDef tone_warn fill:#fff4d6,stroke:#b7791f,color:#222
+  class s_sec_tara_ts_tg_001 tone_warn
+  classDef tone_bad fill:#fdecea,stroke:#b3261e,color:#222
+  class s_sec_tara_ts_tg_002,s_sec_tara_ds_tg_002,s_sec_tara_csg_tg_002,s_sec_tara_ts_tg_003 tone_bad
+  classDef tone_neutral fill:#f1f2f4,stroke:#8a8f98,color:#222
+  class s_sec_tara_ds_tg_001,s_sec_asset_tg_001 tone_neutral

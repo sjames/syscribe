@@ -46,7 +46,65 @@ const KIND_NAMES: &[&str] = &[
     "allocatedFrom",
     "allocatedTo",
     "conditionalOn",
+    // Safety / security analysis links (GH #223).
+    "topEvent",
+    "faultTreeInput",
+    "faultTreeEventRef",
+    "hazardousEventRef",
+    "derivedFromSafetyGoal",
+    "damageScenarioRef",
+    "threatScenarioRef",
+    "implementsGoal",
+    "mitigatedBy",
+    "derivedFromSecurityGoal",
+    "threatRef",
+    "attackTreeInput",
 ];
+
+/// The analysis link kinds a walk from a safety / security analysis element
+/// follows by default (GH #223): a `SafetyGoal`'s `hazardousEvents:`, a
+/// `FaultTree`'s `topEvent:`, gate `inputs:` and event `ref:`, an
+/// `AttackTree`'s `threatRef:`, a `ThreatScenario`'s `damageScenarios:`, a
+/// `CybersecurityGoal`'s `threatScenarios:` and a `SecurityControl`'s
+/// `implementsGoals:`. Without them a walk from such an element stopped at the
+/// element itself, since none of these is a wiring or structure edge.
+const ANALYSIS_KINDS: &[&str] = &[
+    "topEvent",
+    "faultTreeInput",
+    "faultTreeEventRef",
+    "hazardousEventRef",
+    "derivedFromSafetyGoal",
+    "damageScenarioRef",
+    "threatScenarioRef",
+    "implementsGoal",
+    "mitigatedBy",
+    "derivedFromSecurityGoal",
+    "threatRef",
+    "attackTreeInput",
+];
+
+/// Whether `et` is a safety or security analysis element, whose default walk
+/// follows [`ANALYSIS_KINDS`].
+fn is_analysis_type(et: &ElementType) -> bool {
+    use ElementType::*;
+    matches!(
+        et,
+        SafetyGoal
+            | HazardousEvent
+            | FaultTree
+            | FaultTreeGate
+            | FaultTreeEvent
+            | AttackTree
+            | AttackTreeGate
+            | AttackStep
+            | ThreatScenario
+            | DamageScenario
+            | CybersecurityGoal
+            | SecurityControl
+            | VulnerabilityReport
+            | TARASheet
+    )
+}
 
 /// Canonicalise a user-supplied (case-insensitive) kind token to its stable
 /// `EdgeKind::name()` form.
@@ -89,7 +147,8 @@ struct Opts {
     root: String,
     depth: Option<usize>,
     format: Format,
-    kinds: HashSet<String>,
+    /// `--kinds`, or `None` for the default set (which depends on the root's type).
+    kinds: Option<HashSet<String>>,
     undirected: bool,
 }
 
@@ -191,7 +250,7 @@ fn parse_opts(args: &[String]) -> Option<Opts> {
         root,
         depth,
         format,
-        kinds: kinds.unwrap_or_else(default_kinds),
+        kinds,
         undirected,
     })
 }
@@ -520,9 +579,16 @@ pub fn cmd_connectivity(elements: &[RawElement], resolver: &Resolver, args: &[St
     };
     let root_qname = root_elem.qualified_name.clone();
 
+    let kinds = opts.kinds.clone().unwrap_or_else(|| {
+        let mut k = default_kinds();
+        if root_elem.frontmatter.element_type.as_ref().is_some_and(is_analysis_type) {
+            k.extend(ANALYSIS_KINDS.iter().map(|s| s.to_string()));
+        }
+        k
+    });
     let (graph, idx) = build_graph(elements);
     let Some(sub) =
-        connectivity_subgraph(&graph, &idx, &root_qname, &opts.kinds, opts.depth, opts.undirected)
+        connectivity_subgraph(&graph, &idx, &root_qname, &kinds, opts.depth, opts.undirected)
     else {
         eprintln!("connectivity: element '{root_qname}' is not in the model graph");
         return 1;

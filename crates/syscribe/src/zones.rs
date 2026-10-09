@@ -2,23 +2,14 @@
 //! their SL gap status, conduits with SL adequacy, and a Zone × SecurityControl coverage
 //! cross-table.
 
-use std::collections::BTreeSet;
 use syscribe_model::{
-    element::{ElementType, RawElement},
+    element::RawElement,
     resolver::Resolver,
+    zones::{conduit_required_sl, conduit_status, controls_by_zone, id_of, is_conduit, is_zone, zone_gap, zone_members, ConduitStatus},
 };
 
-fn is_zone(e: &RawElement) -> bool {
-    matches!(e.frontmatter.element_type, Some(ElementType::Zone))
-}
-fn is_conduit(e: &RawElement) -> bool {
-    matches!(e.frontmatter.element_type, Some(ElementType::Conduit))
-}
-fn id_of(e: &RawElement) -> &str {
-    e.frontmatter.id.as_deref().unwrap_or(&e.qualified_name)
-}
-
 pub fn cmd_zones(elements: &[RawElement], coverage: bool, json: bool) {
+    let resolver = Resolver::new(elements);
     if coverage {
         return zone_coverage(elements, json);
     }
@@ -33,8 +24,8 @@ pub fn cmd_zones(elements: &[RawElement], coverage: bool, json: bool) {
                 serde_json::json!({
                     "id": id_of(z), "name": fm.name, "status": fm.status,
                     "targetSL": fm.target_sl, "achievedSL": fm.achieved_sl,
-                    "members": fm.members.as_ref().map(|m| m.len()).unwrap_or(0),
-                    "gap": fm.achieved_sl.zip(fm.target_sl).map(|(a, t)| a < t).unwrap_or(false)
+                    "members": zone_members(z, elements, &resolver).len(),
+                    "gap": zone_gap(z).unwrap_or(false)
                 })
             })
             .collect();
@@ -49,17 +40,17 @@ pub fn cmd_zones(elements: &[RawElement], coverage: bool, json: bool) {
     println!("|---|---|---|---|---|");
     for z in &zones {
         let fm = &z.frontmatter;
-        let gap = match (fm.achieved_sl, fm.target_sl) {
-            (Some(a), Some(t)) if a < t => "⚠ SL gap",
-            (Some(_), Some(_)) => "✓",
-            _ => "—",
+        let gap = match zone_gap(z) {
+            Some(true) => "⚠ SL gap",
+            Some(false) => "✓",
+            None => "—",
         };
         println!(
             "| {} | {} | {} | {} | {} |",
             id_of(z),
             fm.target_sl.map(|v| v.to_string()).unwrap_or_else(|| "—".into()),
             fm.achieved_sl.map(|v| v.to_string()).unwrap_or_else(|| "—".into()),
-            fm.members.as_ref().map(|m| m.len()).unwrap_or(0),
+            zone_members(z, elements, &resolver).len(),
             gap,
         );
     }
@@ -70,14 +61,7 @@ pub fn cmd_conduits(elements: &[RawElement], json: bool) {
     let mut conduits: Vec<&RawElement> = elements.iter().filter(|e| is_conduit(e)).collect();
     conduits.sort_by(|a, b| id_of(a).cmp(id_of(b)));
 
-    // Required SL of a conduit = max targetSL of its connected zones.
-    let required_sl = |c: &RawElement| -> Option<u8> {
-        [&c.frontmatter.from_zone, &c.frontmatter.to_zone]
-            .into_iter()
-            .flatten()
-            .filter_map(|z| resolver.resolve_ref(elements, z).and_then(|t| t.frontmatter.target_sl))
-            .max()
-    };
+    let required_sl = |c: &RawElement| conduit_required_sl(c, elements, &resolver);
 
     if json {
         let arr: Vec<serde_json::Value> = conduits
@@ -87,9 +71,10 @@ pub fn cmd_conduits(elements: &[RawElement], json: bool) {
                 let req = required_sl(c);
                 // `null` = unknown (achievedSL or a zone targetSL is missing); never a
                 // silent pass on missing data (GH #220).
-                let pass: Option<bool> = match (fm.achieved_sl, req) {
-                    (Some(a), Some(r)) => Some(a >= r),
-                    _ => None,
+                let pass: Option<bool> = match conduit_status(c, req) {
+                    ConduitStatus::Weak => Some(false),
+                    ConduitStatus::Ok => Some(true),
+                    ConduitStatus::Unknown => None,
                 };
                 serde_json::json!({
                     "id": id_of(c), "name": fm.name, "fromZone": fm.from_zone, "toZone": fm.to_zone,
@@ -109,10 +94,10 @@ pub fn cmd_conduits(elements: &[RawElement], json: bool) {
     for c in &conduits {
         let fm = &c.frontmatter;
         let req = required_sl(c);
-        let status = match (fm.achieved_sl, req) {
-            (Some(a), Some(r)) if a < r => "⚠ weak",
-            (Some(_), Some(_)) => "✓",
-            _ => "—",
+        let status = match conduit_status(c, req) {
+            ConduitStatus::Weak => "⚠ weak",
+            ConduitStatus::Ok => "✓",
+            ConduitStatus::Unknown => "—",
         };
         println!(
             "| {} | {} | {} | {} | {} | {} |",
@@ -131,30 +116,10 @@ fn zone_coverage(elements: &[RawElement], json: bool) {
     let mut zones: Vec<&RawElement> = elements.iter().filter(|e| is_zone(e)).collect();
     zones.sort_by(|a, b| id_of(a).cmp(id_of(b)));
 
-    // For each zone, the SecurityControls contributing to it: conduit implementedBy of any
-    // conduit touching the zone, plus zone members that are SecurityControls.
-    let controls_for = |z: &RawElement| -> BTreeSet<String> {
-        let mut out = BTreeSet::new();
-        for c in elements.iter().filter(|e| is_conduit(e)) {
-            let touches = [&c.frontmatter.from_zone, &c.frontmatter.to_zone]
-                .into_iter()
-                .flatten()
-                .any(|zr| resolver.resolve_ref(elements, zr).map(|t| t.qualified_name == z.qualified_name).unwrap_or(false));
-            if touches {
-                for ib in c.frontmatter.implemented_by.as_deref().unwrap_or(&[]) {
-                    out.insert(ib.clone());
-                }
-            }
-        }
-        for m in z.frontmatter.members.as_deref().unwrap_or(&[]) {
-            if let Some(t) = resolver.resolve_ref(elements, m) {
-                if matches!(t.frontmatter.element_type, Some(ElementType::SecurityControl)) {
-                    out.insert(id_of(t).to_string());
-                }
-            }
-        }
-        out
-    };
+    // Controls allocated to a zone's parts / the zone / its conduits, plus conduit
+    // `implementedBy:` entries (`syscribe_model::zones::controls_by_zone`).
+    let by_zone = controls_by_zone(elements, &resolver);
+    let controls_for = |z: &RawElement| by_zone.get(&z.qualified_name).cloned().unwrap_or_default();
 
     if json {
         let arr: Vec<serde_json::Value> = zones

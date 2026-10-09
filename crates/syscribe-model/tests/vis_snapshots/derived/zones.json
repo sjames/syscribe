@@ -1,0 +1,148 @@
+{
+  "kind": "ZoneConduit",
+  "qualifiedName": "Sec",
+  "name": "Sec",
+  "subject": "Sec",
+  "nodes": [
+    {
+      "id": "s-sec-zn-zc-001",
+      "elementRef": "Sec::ZN-ZC-001",
+      "resolved": true,
+      "elementType": "Zone",
+      "kind": "zone",
+      "label": "Control",
+      "stereotype": "ZN-ZC-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "SL target 3 / achieved 3",
+        "value": "approved",
+        "tone": "ok"
+      }
+    },
+    {
+      "id": "s-sec-zn-zc-001-arch-fc",
+      "elementRef": "Arch::Fc",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "FlightController",
+      "stereotype": "part def",
+      "parent": "s-sec-zn-zc-001",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sec-zn-zc-001-ctl-sc-zc-001",
+      "elementRef": "Sec::SC-ZC-001",
+      "resolved": true,
+      "elementType": "SecurityControl",
+      "kind": "block",
+      "label": "SC-ZC-001",
+      "stereotype": "security control",
+      "parent": "s-sec-zn-zc-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "prevention",
+        "tone": "ok"
+      }
+    },
+    {
+      "id": "s-sec-zn-zc-002",
+      "elementRef": "Sec::ZN-ZC-002",
+      "resolved": true,
+      "elementType": "Zone",
+      "kind": "zone",
+      "label": "Link",
+      "stereotype": "ZN-ZC-002",
+      "isAbstract": false,
+      "mark": {
+        "status": "SL target 2 / achieved 1",
+        "value": "approved",
+        "tone": "bad",
+        "badges": [
+          "SL gap",
+          "no controls"
+        ],
+        "emphasis": true
+      }
+    },
+    {
+      "id": "s-sec-zn-zc-002-arch-gw",
+      "elementRef": "Arch::Gw",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "Gateway",
+      "stereotype": "part def",
+      "parent": "s-sec-zn-zc-002",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sec-zn-zc-003",
+      "elementRef": "Sec::ZN-ZC-003",
+      "resolved": true,
+      "elementType": "Zone",
+      "kind": "zone",
+      "label": "Ground",
+      "stereotype": "ZN-ZC-003",
+      "isAbstract": false,
+      "mark": {
+        "status": "SL target 2 / achieved ?",
+        "value": "draft",
+        "tone": "warn",
+        "badges": [
+          "no controls"
+        ]
+      }
+    },
+    {
+      "id": "s-sec-zn-zc-003-arch-tel",
+      "elementRef": "Arch::Tel",
+      "resolved": true,
+      "elementType": "PartDef",
+      "kind": "block",
+      "label": "Telemetry",
+      "stereotype": "part def",
+      "parent": "s-sec-zn-zc-003",
+      "isAbstract": false
+    },
+    {
+      "id": "s-sec-zn-zc-003-arch-missing",
+      "elementRef": "Arch::Missing",
+      "resolved": false,
+      "kind": "block",
+      "label": "Arch::Missing",
+      "parent": "s-sec-zn-zc-003",
+      "isAbstract": false,
+      "mark": {
+        "status": "unresolved",
+        "tone": "bad"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-weakConduit-s-sec-zn-zc-002-s-sec-zn-zc-001",
+      "elementRef": "Sec::CD-ZC-001",
+      "source": "s-sec-zn-zc-002",
+      "target": "s-sec-zn-zc-001",
+      "kind": "weakConduit",
+      "label": "CD-ZC-001 · SL 2/3 weak · MAVLink"
+    },
+    {
+      "id": "e-conduit-s-sec-zn-zc-003-s-sec-zn-zc-002",
+      "elementRef": "Sec::CD-ZC-002",
+      "source": "s-sec-zn-zc-003",
+      "target": "s-sec-zn-zc-002",
+      "kind": "conduit",
+      "label": "CD-ZC-002 · SL 2/2"
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "layered",
+    "direction": "right",
+    "hierarchical": true,
+    "portConstraints": "free",
+    "reversedKinds": []
+  },
+  "derived": true
+}

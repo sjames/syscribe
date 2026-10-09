@@ -351,7 +351,7 @@ pub async fn element_detail(
                 })
                 .collect();
             let tmpl = ElementDetailTemplate {
-                has_safety_diagram: !syscribe_model::vis::safety_kinds_of(e, &store.elements, &store.resolver).is_empty(),
+                has_safety_diagram: !syscribe_model::vis::embedded_kinds_of(e, &store.elements, &store.resolver).is_empty(),
                 name: e
                     .frontmatter
                     .name
@@ -558,6 +558,9 @@ fn safety_kind_title(kind: syscribe_model::vis::DiagramKind) -> &'static str {
         K::FaultTree => "Fault tree",
         K::AttackTree => "Attack tree",
         K::SafetyCase => "Safety case (GSN)",
+        K::Traceability => "Hazard-to-test traceability",
+        K::ZoneConduit => "Zones and conduits (IEC 62443)",
+        K::ThreatGraph => "Threat graph (TARA)",
         _ => "Diagram",
     }
 }
@@ -580,8 +583,9 @@ fn safety_views(
             .map(|e| format!("/ui/detail/{}", e.qualified_name))
     };
     let mut out = String::new();
+    let cyber = syscribe_model::cyber_config::CyberConfig::load(&store.model_root);
     for &kind in kinds {
-        let (graph, issues) = vis::build_subject_graph(element, kind, &store.elements, &store.resolver);
+        let (graph, issues) = vis::build_subject_graph_with(element, kind, &store.elements, &store.resolver, &cyber);
         let title = safety_kind_title(kind);
         out.push_str(&format!(r#"<div class="safety-diagram" data-diagram-kind="{}"><div class="detail-section-label">{title}</div>"#, kind.as_str()));
         match vis::render_svg(&graph, &links) {
@@ -617,7 +621,7 @@ pub async fn diagram(
         // GH #223 — a fault tree, attack tree, safety goal or argument is drawn
         // from the model itself: the derived diagram, laid out and embedded as
         // static SVG with every node linking to its element.
-        let kinds = syscribe_model::vis::safety_kinds_of(element, &store.elements, &store.resolver);
+        let kinds = syscribe_model::vis::embedded_kinds_of(element, &store.elements, &store.resolver);
         if !kinds.is_empty() {
             return Html(safety_views(&store, element, &kinds));
         }

@@ -7,8 +7,8 @@ digraph "FtD" {
   s_safety_ft_both [label="AND\nBoth channels fail", shape=house, style="filled", fillcolor="#eef3f8", color="#1f497d", tooltip="Safety::FT::Both"];
   s_safety_ft_c [label="Comparator fails\nsingle point of failure\nP 1.0e-6\n[1 MCS]", shape=ellipse, style="filled", fillcolor="#fdecea", color="#b3261e", penwidth=3, tooltip="Safety::FT::C"];
   s_safety_ft_top [label="OR\nHarm occurs\ntop event\nP 9.5e-4\n[2 MCS] [1 single point]", shape=invhouse, style="filled", fillcolor="#fff4d6", color="#b7791f", penwidth=3, tooltip="Safety::FT::Top"];
-  s_safety_ft_both -> s_safety_ft_a [color="#555", arrowhead=none];
-  s_safety_ft_both -> s_safety_ft_b [color="#555", arrowhead=none];
-  s_safety_ft_top -> s_safety_ft_both [color="#555", arrowhead=none];
-  s_safety_ft_top -> s_safety_ft_c [color="#555", arrowhead=none];
+  s_safety_ft_both -> s_safety_ft_a [color="#555555", arrowhead=none];
+  s_safety_ft_both -> s_safety_ft_b [color="#555555", arrowhead=none];
+  s_safety_ft_top -> s_safety_ft_both [color="#555555", arrowhead=none];
+  s_safety_ft_top -> s_safety_ft_c [color="#555555", arrowhead=none];
 }

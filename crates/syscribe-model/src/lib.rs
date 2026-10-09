@@ -43,5 +43,6 @@ pub mod stdlib_names;
 pub mod validator;
 pub mod variability;
 pub mod view_exposure;
+pub mod zones;
 pub mod vis;
 pub mod walker;

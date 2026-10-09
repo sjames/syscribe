@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn exclude_removes_a_feature_and_its_edges_and_unknown_entries_warn() {
         let els = model();
-        let f = Filters { include: vec![], exclude: vec!["FEAT-ELECTRIC".into(), "Nope".into()] };
+        let f = Filters { include: vec![], exclude: vec!["FEAT-ELECTRIC".into(), "Nope".into()], ..Default::default() };
         let (g, issues) = graph_for("Features", &els, &f);
         assert!(g.nodes.iter().all(|n| n.label != "Electric"));
         assert!(g.edges.iter().all(|e| e.kind != EdgeKind::Excludes && e.kind != EdgeKind::Requires));
