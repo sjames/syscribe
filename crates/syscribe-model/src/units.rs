@@ -117,6 +117,108 @@ fn unit_table(name: &str) -> Option<Dim> {
     })
 }
 
+/// SI prefixes (GH #209): (symbol, long name, decimal exponent). `µ` and `u` both mean micro.
+const SI_PREFIXES: &[(&str, &str, i32)] = &[
+    ("Y", "yotta", 24), ("Z", "zetta", 21), ("E", "exa", 18), ("P", "peta", 15),
+    ("T", "tera", 12), ("G", "giga", 9), ("M", "mega", 6), ("k", "kilo", 3),
+    ("h", "hecto", 2), ("da", "deca", 1), ("d", "deci", -1), ("c", "centi", -2),
+    ("m", "milli", -3), ("µ", "micro", -6), ("u", "micro", -6), ("n", "nano", -9),
+    ("p", "pico", -12), ("f", "femto", -15), ("a", "atto", -18), ("z", "zepto", -21),
+    ("y", "yocto", -24),
+];
+
+/// Prefixable SI base symbols (never `degC`, `min`, `h`, `rpm`...).
+fn prefixable_symbol(name: &str) -> Option<Dim> {
+    Some(match name {
+        "m" => d(1, 0, 0, 0, 0, 0, 0),
+        "g" => d(0, 1, 0, 0, 0, 0, 0),
+        "s" => d(0, 0, 1, 0, 0, 0, 0),
+        "A" => d(0, 0, 0, 1, 0, 0, 0),
+        "K" => d(0, 0, 0, 0, 1, 0, 0),
+        "mol" => d(0, 0, 0, 0, 0, 1, 0),
+        "cd" | "lm" => d(0, 0, 0, 0, 0, 0, 1),
+        "lx" => d(-2, 0, 0, 0, 0, 0, 1),
+        "N" => d(1, 1, -2, 0, 0, 0, 0),
+        "Pa" => d(-1, 1, -2, 0, 0, 0, 0),
+        "J" | "Wh" => d(2, 1, -2, 0, 0, 0, 0),
+        "W" => d(2, 1, -3, 0, 0, 0, 0),
+        "V" => d(2, 1, -3, -1, 0, 0, 0),
+        "Ohm" | "Ω" => d(2, 1, -3, -2, 0, 0, 0),
+        "F" => d(-2, -1, 4, 2, 0, 0, 0),
+        "H" => d(2, 1, -2, -2, 0, 0, 0),
+        "C" => d(0, 0, 1, 1, 0, 0, 0),
+        "Hz" | "Bq" => d(0, 0, -1, 0, 0, 0, 0),
+        "S" => d(-2, -1, 3, 2, 0, 0, 0),
+        "Wb" => d(2, 1, -2, -1, 0, 0, 0),
+        "T" => d(0, 1, -2, -1, 0, 0, 0),
+        "L" => d(3, 0, 0, 0, 0, 0, 0),
+        "Gy" | "Sv" => d(2, 0, -2, 0, 0, 0, 0),
+        "kat" => d(0, 0, -1, 0, 0, 1, 0),
+        "rad" | "sr" => d(0, 0, 0, 0, 0, 0, 0),
+        _ => return None,
+    })
+}
+
+/// Prefixable SI unit long names.
+fn prefixable_long(name: &str) -> Option<Dim> {
+    Some(match name {
+        "metre" | "meter" => d(1, 0, 0, 0, 0, 0, 0),
+        "gram" => d(0, 1, 0, 0, 0, 0, 0),
+        "second" => d(0, 0, 1, 0, 0, 0, 0),
+        "ampere" => d(0, 0, 0, 1, 0, 0, 0),
+        "kelvin" => d(0, 0, 0, 0, 1, 0, 0),
+        "mole" => d(0, 0, 0, 0, 0, 1, 0),
+        "candela" | "lumen" => d(0, 0, 0, 0, 0, 0, 1),
+        "lux" => d(-2, 0, 0, 0, 0, 0, 1),
+        "newton" => d(1, 1, -2, 0, 0, 0, 0),
+        "pascal" => d(-1, 1, -2, 0, 0, 0, 0),
+        "joule" | "wattHour" => d(2, 1, -2, 0, 0, 0, 0),
+        "watt" => d(2, 1, -3, 0, 0, 0, 0),
+        "volt" => d(2, 1, -3, -1, 0, 0, 0),
+        "ohm" => d(2, 1, -3, -2, 0, 0, 0),
+        "farad" => d(-2, -1, 4, 2, 0, 0, 0),
+        "henry" => d(2, 1, -2, -2, 0, 0, 0),
+        "coulomb" => d(0, 0, 1, 1, 0, 0, 0),
+        "hertz" | "becquerel" => d(0, 0, -1, 0, 0, 0, 0),
+        "siemens" => d(-2, -1, 3, 2, 0, 0, 0),
+        "weber" => d(2, 1, -2, -1, 0, 0, 0),
+        "tesla" => d(0, 1, -2, -1, 0, 0, 0),
+        "litre" | "liter" => d(3, 0, 0, 0, 0, 0, 0),
+        "gray" | "sievert" => d(2, 0, -2, 0, 0, 0, 0),
+        "katal" => d(0, 0, -1, 0, 0, 1, 0),
+        "radian" | "steradian" => d(0, 0, 0, 0, 0, 0, 0),
+        _ => return None,
+    })
+}
+
+/// Split an SI-prefixed unit into `(decimal exponent, dimension)`: `kN` -> `(3, force)`,
+/// `MHz` -> `(6, frequency)`, `micrometre` -> `(-6, length)`. An unprefixed table unit yields
+/// exponent 0. A symbol prefix applies to a symbol base and a long prefix to a long base
+/// (never mixed). Exact table entries win, so `m`, `min`, `mol`, `cd`, `Pa` keep their usual
+/// meaning.
+pub fn split_si_prefix(name: &str) -> Option<(i32, Dim)> {
+    if let Some(dim) = unit_table(name) {
+        return Some((0, dim));
+    }
+    if let Some(dim) = prefixable_symbol(name).or_else(|| prefixable_long(name)) {
+        return Some((0, dim));
+    }
+    for &(sym, long, exp) in SI_PREFIXES {
+        if let Some(dim) = name.strip_prefix(sym).and_then(prefixable_symbol) {
+            return Some((exp, dim));
+        }
+        if let Some(dim) = name.strip_prefix(long).and_then(prefixable_long) {
+            return Some((exp, dim));
+        }
+    }
+    None
+}
+
+/// Dimension of a unit name with optional `SI::` and SI prefix.
+fn unit_lookup(name: &str) -> Option<Dim> {
+    split_si_prefix(name).map(|(_, dim)| dim)
+}
+
 /// Dimension of a `typedBy:` quantity-type reference (`ISQ::MassValue`, or a bare name).
 pub fn quantity_dimension(s: &str) -> Option<Dim> {
     quantity_table(s.strip_prefix("ISQ::").unwrap_or(s))
@@ -127,7 +229,7 @@ pub fn quantity_dimension(s: &str) -> Option<Dim> {
 /// `kg*m/s^2`), evaluated left to right (REQ-TRS-SYSMLV2-064).
 pub fn unit_dimension(s: &str) -> Option<Dim> {
     let s = s.trim();
-    if let Some(d) = unit_table(s.strip_prefix("SI::").unwrap_or(s)) {
+    if let Some(d) = unit_lookup(s.strip_prefix("SI::").unwrap_or(s)) {
         return Some(d);
     }
     if !s.contains(['*', '/', '^']) {
@@ -141,7 +243,7 @@ pub fn unit_dimension(s: &str) -> Option<Dim> {
             Some((b, e)) => (b.trim(), e.trim().parse::<i8>().ok()?),
             None => (term.trim(), 1),
         };
-        let td = if base == "1" { Dim([0; 7]) } else { unit_table(base.strip_prefix("SI::").unwrap_or(base))? };
+        let td = if base == "1" { Dim([0; 7]) } else { unit_lookup(base.strip_prefix("SI::").unwrap_or(base))? };
         let sign = if op == '*' { 1i8 } else { -1i8 };
         for (a, t) in acc.0.iter_mut().zip(td.0) {
             *a = a.checked_add(sign.checked_mul(t.checked_mul(exp)?)?)?;
@@ -225,5 +327,89 @@ pub fn si_unit_known(s: &str) -> Option<bool> {
     if m.contains(['*', '/', '^', ' ']) || m.contains("::") {
         return None;
     }
-    Some(unit_table(m).is_some() || SI_EXTRA.contains(&m))
+    Some(unit_lookup(m).is_some() || SI_EXTRA.contains(&m))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dim(s: &str) -> Option<Dim> {
+        unit_dimension(s)
+    }
+
+    #[test]
+    fn prefixed_symbols_resolve_to_the_base_dimension() {
+        let force = dim("N").unwrap();
+        for u in ["kN", "MN", "mN", "µN", "uN", "nN", "GN", "SI::kN"] {
+            assert_eq!(dim(u), Some(force), "{u}");
+        }
+        assert_eq!(dim("mm"), dim("m"));
+        assert_eq!(dim("MHz"), dim("Hz"));
+        assert_eq!(dim("GHz"), dim("Hz"));
+        assert_eq!(dim("nF"), dim("F"));
+        assert_eq!(dim("kOhm"), dim("ohm"));
+        assert_eq!(dim("kΩ"), dim("ohm"));
+        assert_eq!(dim("hPa"), dim("Pa"));
+        assert_eq!(dim("daN"), dim("N"));
+        assert_eq!(dim("mol"), Some(Dim([0, 0, 0, 0, 0, 1, 0])));
+        assert_eq!(dim("mmol"), dim("mol"));
+        assert_eq!(dim("kcd"), dim("cd"));
+    }
+
+    #[test]
+    fn prefixed_long_names_resolve() {
+        assert_eq!(dim("SI::kilonewton"), dim("N"));
+        assert_eq!(dim("megahertz"), dim("Hz"));
+        assert_eq!(dim("micrometre"), dim("m"));
+        assert_eq!(dim("nanosecond"), dim("s"));
+        assert_eq!(dim("gigapascal"), dim("Pa"));
+        // a symbol prefix on a long base (or vice versa) is not a unit
+        assert_eq!(dim("kNewton"), None);
+        assert_eq!(dim("kilon"), None);
+    }
+
+    #[test]
+    fn ambiguous_strings_keep_their_table_meaning() {
+        // `min` is minutes (time), not milli-inch; `m` is the metre, not a bare prefix.
+        assert_eq!(dim("min"), dim("s"));
+        assert_eq!(dim("m"), Some(Dim([1, 0, 0, 0, 0, 0, 0])));
+        assert_eq!(dim("Pa"), Some(Dim([-1, 1, -2, 0, 0, 0, 0])));
+        assert_eq!(dim("cd"), Some(Dim([0, 0, 0, 0, 0, 0, 1])));
+        assert_eq!(dim("t"), dim("kg"));
+    }
+
+    #[test]
+    fn non_prefixable_and_bogus_units_are_rejected() {
+        for u in ["kdegC", "krpm", "mmin", "zorp", "k", "kk", "SI::kzorp"] {
+            assert_eq!(dim(u), None, "{u}");
+        }
+    }
+
+    #[test]
+    fn prefix_exponents() {
+        assert_eq!(split_si_prefix("kN").map(|x| x.0), Some(3));
+        assert_eq!(split_si_prefix("µs").map(|x| x.0), Some(-6));
+        assert_eq!(split_si_prefix("GHz").map(|x| x.0), Some(9));
+        assert_eq!(split_si_prefix("picofarad").map(|x| x.0), Some(-12));
+        assert_eq!(split_si_prefix("N").map(|x| x.0), Some(0));
+    }
+
+    #[test]
+    fn compound_expressions_accept_prefixed_terms() {
+        assert_eq!(dim("kN*m"), dim("Nm"));
+        assert_eq!(dim("mm/ms"), dim("m/s"));
+        assert_eq!(dim("MHz*s"), Some(Dim([0; 7])));
+        assert_eq!(dim("km/h"), dim("m/s"));
+        assert_eq!(dim("mm^2"), Some(Dim([2, 0, 0, 0, 0, 0, 0])));
+    }
+
+    #[test]
+    fn si_unit_known_accepts_prefixed_but_not_typos() {
+        assert_eq!(si_unit_known("SI::kN"), Some(true));
+        assert_eq!(si_unit_known("SI::terahertz"), Some(true));
+        assert_eq!(si_unit_known("SI::kNN"), Some(false));
+        assert_eq!(si_unit_known("SI::zorp"), Some(false));
+        assert_eq!(si_unit_known("kN"), None);
+    }
 }

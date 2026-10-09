@@ -664,7 +664,7 @@ gives no coverage credit. The built-in fields themselves are never relaxed.
 |---|---|---|
 | `W043` | warning | A type reference names a member of a **closed** auto-imported package (`ScalarValues`, `Base`) that the package does not declare (e.g. `ScalarValues::Flota`) — a likely typo; the message lists the known members. Recognised members resolve with no `W404`/`W043`. The **open** packages `ISQ`/`SI` are curated-recognised (clean) but lenient — an unrecognised `ISQ`/`SI` member is never flagged. |
 | `W044` | warning | An element/feature declares both a recognised `ISQ` quantity type and a recognised `SI` unit whose physical **dimensions differ** (e.g. `ISQ::MassValue` + `unit: SI::metre`); names both dimensions. Lenient when either side is unrecognised. |
-| `W057` | warning | An `ISQ::` quantity type or `SI::` unit is not known to this tool's tables (a subset of the SysML v2 library) — usually a typo; no dimensional check is possible for it |
+| `W057` | warning | An `ISQ::` quantity type or `SI::` unit is not known to this tool's tables (a subset of the SysML v2 library; SI-prefixed units such as `kN`, `mm`, `MHz` are parsed and known) — usually a typo; no dimensional check is possible for it |
 | `W056` | A `connections:` endpoint's later segment (the port after the part) is not found on the part it follows — advisory; models often wire a sibling port loosely |
 
 ## Stereotypes — metadata applications (E317, E318, W045)
