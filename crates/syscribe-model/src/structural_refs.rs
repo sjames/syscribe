@@ -260,12 +260,30 @@ impl<'a> Ctx<'a> {
         false
     }
 
+    /// Whether `head` is the first segment of a qualified name the model itself
+    /// declares. A wildcard import of a library package must not excuse a
+    /// reference into the model's own namespaces (it cannot enumerate those).
+    fn names_model_namespace(&self, head: &str) -> bool {
+        // A model package that reuses a standard-library package name keeps the
+        // library leniency (`Calculations::Calculation` under a model
+        // `Calculations/` directory), as it had before.
+        if STDLIB_PACKAGES.contains(&head) {
+            return false;
+        }
+        let prefix = format!("{head}::");
+        self.elements
+            .iter()
+            .any(|e| e.qualified_name == head || e.qualified_name.starts_with(&prefix))
+    }
+
     /// Whether one `imports:` entry `target`, declared in namespace `ns`, makes
     /// the reference `r` (whose first segment is `head`) visible.
     fn import_provides(&self, ns: &str, target: &str, head: &str, r: &str) -> bool {
         let target = target.trim();
         if let Some(pkg) = target.strip_suffix("::**") {
-            if self.is_library_ref(&format!("{pkg}::{r}")) || self.is_library_ref(pkg) {
+            if !self.names_model_namespace(head)
+                && (self.is_library_ref(&format!("{pkg}::{r}")) || self.is_library_ref(pkg))
+            {
                 return true;
             }
             let Some(p) = self.scoped(ns, pkg) else { return false };
@@ -278,7 +296,9 @@ impl<'a> Ctx<'a> {
         }
         if let Some(pkg) = target.strip_suffix("::*") {
             let full = format!("{pkg}::{r}");
-            if self.is_library_ref(&full) || self.is_library_ref(pkg) {
+            if !self.names_model_namespace(head)
+                && (self.is_library_ref(&full) || self.is_library_ref(pkg))
+            {
                 return true;
             }
             return self.scoped(ns, &full).is_some();
@@ -489,5 +509,17 @@ mod tests {
         ];
         // The D/E supertype cycle terminates and still reports the missing feature.
         assert_eq!(codes(&els), vec!["E113"]);
+    }
+
+    #[test]
+    fn library_wildcard_import_does_not_excuse_a_model_namespace_reference() {
+        // GH #198: `imports: [ISQ::*]` must not silence unresolved references
+        // into the model's own packages.
+        let els = vec![
+            elem("P", "type: Package\nimports:\n  - ISQ::*\n"),
+            elem("P::A", "type: PartDef\nsupertype: P::Nope\n"),
+            elem("P::B", "type: PartDef\nfeatures:\n  - name: m\n    typedBy: MassValue\n"),
+        ];
+        assert_eq!(codes(&els), vec!["E110"]);
     }
 }

@@ -1,7 +1,6 @@
 ---
 type: ViewpointDef
 name: SystemsEngineerViewpoint
-supertype: Viewpoints::Viewpoint
 stakeholders:
   - "Systems Engineer"
   - "Chief Engineer"

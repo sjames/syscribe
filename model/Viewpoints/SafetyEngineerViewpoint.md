@@ -1,7 +1,6 @@
 ---
 type: ViewpointDef
 name: SafetyEngineerViewpoint
-supertype: Viewpoints::Viewpoint
 stakeholders:
   - "Safety Engineer"
   - "Airworthiness Authority"
