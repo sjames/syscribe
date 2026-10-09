@@ -248,9 +248,12 @@ ref: Braking::HydraulicPump # optional; element whose failure this is (qname or 
 failureRate: 1.2e-7         # optional; per-hour failure rate (λ)
 diagnosticCoverage: 0.99        # optional; DC, 0.0–1.0 (E846 if out of range)
 latentDiagnosticCoverage: 0.90  # optional; DCl, 0.0–1.0 (E846 if out of range)
+probability: 1.0e-3         # optional; else 1−exp(−λ·missionTime) is used (E963 outside 0–1)
+ccfGroup: PUMPS             # optional; events sharing a group get a beta-factor CCF event
+ccfBeta: 0.1                # optional; β, 0.0–1.0 (E964 if out of range)
 ```
 
-Place in `FaultTreeName/` subdirectory.
+Place in `FaultTreeName/` subdirectory. Gate rules: `NOT` takes 1 input, `XOR` 2, `inhibit` needs its conditioning event as a second input (E961); no gate cycles (E960); every gate/event must be reachable from the one top gate (W960). `syscribe -m model/ fault-tree analyze <FT>` prints minimal cut sets, top-event probability and importance.
 
 ---
 
@@ -262,13 +265,15 @@ Per `SafetyGoal`, over the `FaultTreeEvent`s under the `FaultTree`(s) whose `top
 
 ```
 Σλ = Σ λ_i ; λ_RF = Σ λ_i·(1−DC_i) ; SPFM = 1 − λ_RF/Σλ
-λ_MPFL = Σ λ_i·DC_i·(1−DCl_i) (events declaring DCl) ; LFM = 1 − λ_MPFL/(Σλ−λ_RF)
-PMHF = λ_RF + λ_MPFL  (/h)
+λ_MPFL = Σ_single λ_i·DC_i·(1−DCl_i) + Σ_multi λ_i·(1−DCl_i) ; LFM = 1 − λ_MPFL/(Σλ−λ_RF)
+PMHF = λ_RF + λ_DPF  (/h)   λ_DPF = dual-point rate of order-2 cut sets over missionTime
 ```
 
-Targets — ASIL SPFM ≥ {B .90, C .97, D .99}; LFM ≥ {B .60, C .80, D .90}; PMHF < {B/C 1e-7, D 1e-8}/h. SIL gates PMHF/PFH < {SIL2 1e-6, SIL3 1e-7, SIL4 1e-8}/h only.
+Driven by the fault tree's **minimal cut sets**: `λ_RF` sums only order-1 (single-point) events; events only in larger cut sets are multi-point; house/unreachable events are skipped. A contributing event with no DC/DCl counts as 0 and raises **W965**; dual-point sets without a `missionTime` raise **W966**.
 
-**Opt-in:** metrics are computed/gated only when at least one contributing event declares `diagnosticCoverage`; otherwise `n/a`. A missed target raises **W033** (gate `--deny W033`). Inspect with `syscribe -m model/ metrics [--json]`.
+Targets — ASIL SPFM ≥ {B .90, C .97, D .99}; LFM ≥ {B .60, C .80, D .90}; PMHF < {B/C 1e-7, D 1e-8}/h. SIL gates PMHF/PFH < {SIL1 1e-5, SIL2 1e-6, SIL3 1e-7, SIL4 1e-8}/h only.
+
+**Opt-in:** metrics are computed/gated only when at least one contributing event declares `diagnosticCoverage`; otherwise `n/a`. A missed target raises **W033** (gate `--deny W033`). Inspect with `syscribe -m model/ metrics [--json]` (exit 2 when a goal's verdict is `fail`).
 
 ---
 

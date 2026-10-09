@@ -3,7 +3,7 @@ id: TC-TRS-FTA-005
 type: TestCase
 testLevel: L3
 status: draft
-name: "Verify cut-set driven metrics: gate logic changes SPFM/PMHF, W965 on missing DCl, and metrics exits 1 on a failing goal."
+name: "Verify cut-set driven metrics: gate logic changes SPFM/PMHF, W965 on missing DCl, and metrics exits 2 on a failing goal."
 verifies:
   - REQ-TRS-FTA-005
 ---
@@ -30,5 +30,5 @@ Feature: Cut-set driven metrics
 
   Scenario: Exit code
     When metrics runs on the failing and the passing model
-    Then it exits 1 and 0 respectively
+    Then it exits 2 and 0 respectively
 ```

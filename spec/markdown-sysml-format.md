@@ -4405,7 +4405,7 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 |---|---|---|
 | `FaultTree` | `FT-*` | Root of a fault tree; references a `SafetyGoal` via `topEvent:`. |
 | `FaultTreeGate` | `FTG-*` | Logic gate; `gateType:` is one of `AND`, `OR`, `XOR`, `NOT`, `inhibit`; `inputs:` lists child gate/event IDs. |
-| `FaultTreeEvent` | `FTE-*` | Leaf event; `eventKind:` is `basic`, `undeveloped`, or `house`; optional `failureRate:` (λ, /h), `diagnosticCoverage:` (DC), `latentDiagnosticCoverage:` (DCl) — DC/DCl in `0.0`–`1.0` (E846), inputs to the quantitative metrics roll-up (§ above); optional `ref:` — a single qualified name or stable id of the model element (typically a `Part`/`PartDef`) whose failure the event represents, resolved by the standard resolver (dangling → E927) and surfaced by `show`, `links` and `fault-tree render`. |
+| `FaultTreeEvent` | `FTE-*` | Leaf event; `eventKind:` is `basic`, `undeveloped`, or `house`; optional `failureRate:` (λ, /h), `diagnosticCoverage:` (DC), `latentDiagnosticCoverage:` (DCl) — DC/DCl in `0.0`–`1.0` (E846), inputs to the quantitative metrics roll-up (§ above); optional `ref:` — a single qualified name or stable id of the model element (typically a `Part`/`PartDef`) whose failure the event represents, resolved by the standard resolver (dangling → E927) and surfaced by `show`, `links` and `fault-tree render`; optional `probability:` (0–1), `ccfGroup:` (common-cause group name) and `ccfBeta:` (beta factor 0–1) used by `fault-tree analyze`. |
 
 **Nesting rule (W900):** `FaultTreeGate` and `FaultTreeEvent` elements must be placed in a subdirectory named after the `FaultTree` file so their qualified names are prefixed by the tree's qualified name:
 
@@ -5930,6 +5930,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E600`–`E606`, `W610`–`W616` | Native `TestPlan` | §8.12.6 |
 | `E800`–`E837`, `E859`–`E864`, `W809`, `W810` | Tier 2 HARA/TARA elements, their cross-references, GSN assumption targets, confirmation targets, `Asset` | §8.18.1, §8.18.2, §8.18.6, §8.18.7 |
 | `E900`–`E923`, `E927`, `E940`, `E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928` | Tier 4 fault trees, FMEA, attack trees, TARA sheets | §8.18.3–§8.18.5 |
+| `E960`–`E964`, `W960`–`W964`, `W967` | Fault-tree structure (cycles, arity, ranges, reachability, strays, CCF groups, `missionTime`) | below |
 
 The remaining subsections tabulate the core codes; a few families (`W060`, `E865`, `E866`–`E877`, `E700`–`E705`, `E950`–`E956`, …) are repeated here from their own sections for convenience.
 
@@ -6289,6 +6290,28 @@ ISO 26262-5 §8–9 hardware architectural metrics, rolled up per `SafetyGoal` f
 |---|---|---|
 | `E846` | Error | `diagnosticCoverage:` or `latentDiagnosticCoverage:` is outside `0.0`–`1.0` |
 | `W033` | Warning | A `SafetyGoal` with diagnosticCoverage data has a computed SPFM, LFM, or PMHF that misses its ASIL/SIL target. Gateable with `--deny W033`; promotable via `[profiles]` |
+| `W965` | Warning | A fault-tree event contributing to the goal's metrics declares no `diagnosticCoverage` (or, once any event declares it, no `latentDiagnosticCoverage`); treated as 0 |
+| `W966` | Warning | The goal's fault tree has dual-point cut sets but no `missionTime`; a default exposure of 10000 h is used |
+
+Since GH #211/#213 the roll-up is driven by the **minimal cut sets** of the goal's fault tree (§ Fault-tree analysis below): only reachable, non-`house` events in a cut set contribute; an event in an order-1 cut set is single-point (`λ_RF = Σ λ·(1−DC)`), an event only in higher-order sets adds no residual rate, `λ_MPFL` counts `λ·DC·(1−DCl)` for single-point and `λ·(1−DCl)` for multi-point events, and `PMHF = λ_RF + λ_DPF` with `λ_DPF = Σ_{order-2 {a,b}} Σ_{(x,y)} λ_x(1−DCl_x)·λ_y(1−DC_y)·T` over the tree's `missionTime` `T`. SIL 1 is gated (PFH < 1e-5/h). `metrics` exits `2` when any goal's verdict is `fail`.
+
+#### Fault-tree analysis and structure (E960–E964, W960–W964, W967)
+
+`syscribe fault-tree analyze <FT>` evaluates one `FaultTree`: it builds a reduced ordered BDD of the gate logic (`AND`/`inhibit` = conjunction, `OR`, `XOR` = parity, `NOT`; `house` events are constants, TRUE only at `probability: 1`), and reports the **minimal cut sets** (minimal sets of events that make the top event true with all others false), the exact **top-event probability**, the rare-event and min-cut-upper-bound approximations, and per-event **Fussell-Vesely**, **Birnbaum**, **RAW** importance and a role (`single_point`, `dual_point`, `multi_point`, `irrelevant`, `unreachable`, `house`). An event's probability is its explicit `probability:` else `1 − e^(−λ·t)` from `failureRate` and the tree's `missionTime` (`"8760 h"`, `"1e9 h"`, `"10 y"`). A `ccfGroup:` (≥ 2 events) with `ccfBeta:` β is expanded by the beta-factor model: each member becomes `OR(member_ind, CCF)` with `P(ind) = (1−β)p` and `P(CCF) = β·mean(p)`. The tree's top node is the node no other node references (the one reaching most nodes if several); a tree with events but no gates is an implicit OR (legacy flat form).
+
+| Code | Severity | Condition |
+|---|---|---|
+| `E960` | Error | A gate cycle, including a gate listing itself in `inputs` |
+| `E961` | Error | `NOT` with > 1 input, `XOR` with > 2, or `inhibit` without a conditioning input (≥ 2 inputs) |
+| `E962` | Error | `FaultTreeEvent.failureRate` negative or not finite |
+| `E963` | Error | `probability` on a fault-tree element outside `0.0`–`1.0` |
+| `E964` | Error | `FaultTreeEvent.ccfBeta` outside `0.0`–`1.0` |
+| `W960` | Warning | A gate/event is not reachable from the top node |
+| `W961` | Warning | A gate/event is outside any `FaultTree` directory |
+| `W962` | Warning | An `AND`/`OR` gate with a single input |
+| `W963` | Warning | A `ccfGroup` with a single member |
+| `W964` | Warning | A `ccfGroup` with no `ccfBeta`, or members disagreeing on it |
+| `W967` | Warning | `FaultTree.missionTime` is not a positive duration |
 
 #### Freedom From Interference (W034)
 

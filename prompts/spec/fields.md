@@ -348,7 +348,9 @@ Full narrative + rules: `syscribe spec safety`. Integrity levels (`asilLevel` A�
 | `gateType` | FaultTreeGate | string | `AND`·`OR`·`XOR`·`NOT`·`inhibit` |
 | `inputs` | FaultTreeGate | list | Input gate/event refs |
 | `eventKind` | FaultTreeEvent | string | `basic`·`undeveloped`·`house` |
-| `failureRate` | FaultTreeEvent | float | Failure rate /h |
+| `failureRate` | FaultTreeEvent | float | Failure rate /h (≥ 0, E962) |
+| `ccfGroup` | FaultTreeEvent | string | Common-cause group name (beta-factor CCF) |
+| `ccfBeta` | FaultTreeEvent | float | Beta factor `0.0`–`1.0` (E964) |
 | `probability` | FaultTree/Gate/Event | float | Cut-set or top-event probability |
 | `entries` | FMEASheet | list | Inline `FMEAEntry` rows |
 | `failureMode` | FMEAEntry | string | What fails |

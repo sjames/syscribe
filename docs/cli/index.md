@@ -422,12 +422,14 @@ Set `riskTreatment:` (`avoid`/`reduce`/`share`/`retain`; invalid → **E845**) a
 
 ```bash
 $ syscribe -m model/ metrics            # Markdown table: per-goal SPFM / LFM / PMHF + verdict
-$ syscribe -m model/ metrics --json     # JSON array {id, asil, sil, spfm, lfm, pmhf, pass}
+$ syscribe -m model/ metrics --json     # JSON array {id, asil, sil, spfm, lfm, pmhf, lambdaDpf, pass, verdict}
 ```
+
+`metrics` exits **2** when any goal's verdict is `fail` (usage errors exit 1), so it can gate CI directly. The verdict is `pass`, `fail`, `no target` (metrics computed but the goal has no recognised `asilLevel`/`silLevel`) or `n/a` (not computed).
 
 > **First-order FMEDA approximation** from user-supplied λ and diagnostic coverage — verify independently before use in a safety case.
 
-`SPFM = 1 − λ_RF/Σλ` with `λ_RF = Σ λ_i·(1−DC_i)`; `LFM = 1 − λ_MPFL/(Σλ−λ_RF)` (only when an event sets `latentDiagnosticCoverage`); `PMHF = λ_RF + λ_MPFL` (/h). Targets by ASIL — SPFM ≥ {B 0.90, C 0.97, D 0.99}, LFM ≥ {B 0.60, C 0.80, D 0.90}, PMHF < {B/C 1e-7, D 1e-8}/h; SIL gates PMHF/PFH only. **Opt-in:** metrics are computed and gated only for goals whose contributing events declare `diagnosticCoverage` (others show `n/a`). A goal that misses its target raises **W033** (gate with `validate --deny W033`). A `diagnosticCoverage`/`latentDiagnosticCoverage` outside `0.0`–`1.0` is **E846**. See the [safety-analysis guide](../model-guide/safety-analysis.md).
+The roll-up is driven by the **minimal cut sets** of the goal's fault tree (`fault-tree analyze`): only reachable, non-`house` events with a non-negative `failureRate` in a cut set contribute, so `AND(a,b)` and `OR(a,b)` differ. `SPFM = 1 − λ_RF/Σλ` with `λ_RF = Σ λ_i·(1−DC_i)` over single-point (order-1) events; `LFM = 1 − λ_MPFL/(Σλ−λ_RF)` (only when an event sets `latentDiagnosticCoverage`); `PMHF = λ_RF + λ_DPF` (/h), where `λ_DPF` is the dual-point rate of the order-2 cut sets over the tree's `missionTime`. A contributing event with no `diagnosticCoverage` (or, once any event sets it, no `latentDiagnosticCoverage`) counts as 0 and raises **W965**; dual-point cut sets without a `missionTime` raise **W966**. Targets by ASIL — SPFM ≥ {B 0.90, C 0.97, D 0.99}, LFM ≥ {B 0.60, C 0.80, D 0.90}, PMHF < {B/C 1e-7, D 1e-8}/h; SIL 1–4 gate PMHF/PFH only (< {SIL1 1e-5, SIL2 1e-6, SIL3 1e-7, SIL4 1e-8}/h). **Opt-in:** metrics are computed and gated only for goals whose contributing events declare `diagnosticCoverage` (others show `n/a`). A goal that misses its target raises **W033** (gate with `validate --deny W033`). A `diagnosticCoverage`/`latentDiagnosticCoverage` outside `0.0`–`1.0` is **E846**. See the [safety-analysis guide](../model-guide/safety-analysis.md).
 
 ---
 
@@ -624,9 +626,10 @@ syscribe -m model_mg/ magicgrid --audit
 ```bash
 syscribe -m model/ fmea report [--fmea-sheet <id>] [--json]
 syscribe -m model/ fault-tree render <FaultTree-id>
+syscribe -m model/ fault-tree analyze <FaultTree-id> [--json] [--max-order N] [--no-ccf]
 ```
 
-`fmea report` rolls up the `FMEAEntry` rows (grouped by `FMEASheet`) — each entry's failure mode, severity/occurrence/detection ratings, computed **RPN**, and recommended actions. `--fmea-sheet <id>` restricts the report to a single sheet; `--json` emits the structured document. `fault-tree render <FaultTree-id>` prints one `FaultTree` as a Mermaid `flowchart TD` (gates with their AND/OR type, basic events with their ids and referenced elements, edges from each gate's `inputs`); the same λ/DC data feeds the quantitative `metrics` rollup. Both are read-only. See the [safety-analysis guide](../model-guide/safety-analysis.md).
+`fmea report` rolls up the `FMEAEntry` rows (grouped by `FMEASheet`) — each entry's failure mode, severity/occurrence/detection ratings, computed **RPN**, and recommended actions. `--fmea-sheet <id>` restricts the report to a single sheet; `--json` emits the structured document. `fault-tree render <FaultTree-id>` prints one `FaultTree` as a Mermaid `flowchart TD` (gates with their AND/OR type, basic events with their ids and referenced elements, edges from each gate's `inputs`); the same λ/DC data feeds the quantitative `metrics` rollup. `fault-tree analyze <FT>` evaluates the gate logic: **minimal cut sets** (with order and probability), the exact **top-event probability** over the tree's `missionTime` (event probability = `probability:` or `1 − e^(−λt)`), rare-event and min-cut-upper-bound approximations, per-event **Fussell-Vesely / Birnbaum / RAW** importance and a role (`single_point`, `dual_point`, `multi_point`, `irrelevant`, `unreachable`, `house`), and **beta-factor common-cause** expansion for events sharing a `ccfGroup:` + `ccfBeta:`. `--json` emits the structured document, `--max-order N` discards larger cut sets (probabilities stay exact), `--no-ccf` ignores CCF groups; a gate cycle exits 1. All are read-only. See the [safety-analysis guide](../model-guide/safety-analysis.md).
 
 ## Diagrams (`diagram export`, `render`, `plantuml`)
 

@@ -27,8 +27,9 @@ fn fmt_pmhf(v: Option<f64>) -> String {
     }
 }
 
-/// Print the metrics table. Returns the process exit code: `1` when at least
-/// one goal misses its ASIL/SIL target (GH #213), else `0`.
+/// Print the metrics table. Returns the process exit code: `2` when at least
+/// one goal misses its ASIL/SIL target (GH #213; `2`, the `audit` gate code,
+/// leaving `1` for usage errors), else `0`.
 pub fn cmd_metrics(elements: &[RawElement], json_out: bool) -> i32 {
     let resolver = Resolver::new(elements);
     let mut reports = report_all(elements, &resolver);
@@ -48,7 +49,7 @@ pub fn cmd_metrics(elements: &[RawElement], json_out: bool) -> i32 {
         0
     } else {
         eprintln!("metrics: {} goal(s) miss their target: {}", failing.len(), failing.join(", "));
-        1
+        2
     }
 }
 
@@ -125,5 +126,5 @@ fn emit_text(reports: &[GoalReport]) {
             println!("\n> {}: fault-tree analysis failed — {e}", r.id);
         }
     }
-    println!("\n_Exit status is 1 when any goal's verdict is `fail`._");
+    println!("\n_Exit status is 2 when any goal's verdict is `fail`._");
 }

@@ -69,6 +69,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E900–E923, E927, W900–W905, W926–W928 | Tier 4 FTA / FMEA / attack trees | FaultTree, FMEA, TARA sheet and attack-tree fields, IDs, enums, inputs, RPN, cross-links |
 | E940–E941 | Tier 4 TARA container | TARASheet fields and ID pattern |
 | E950–E956, E925, E926, W950–W953 | IEC 62443 (§13) | Zone/Conduit fields, IDs, status (E926), SL range (E925), resolution, Security-Level gaps |
+| E960–E964, W960–W967 | Fault-tree analysis (GH #211–#213) | Gate cycles, arity, value ranges, reachability, stray nodes, CCF groups, `missionTime`; W965–W966 flag missing diagnostic data / exposure time in the cut-set driven `metrics` |
 
 See [Rule Reference](rules.md) for every code.
 

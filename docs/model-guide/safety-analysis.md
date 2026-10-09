@@ -312,29 +312,69 @@ The optional `ref:` field links the event to the model element whose failure it 
 
 ---
 
+## Fault-tree analysis — `fault-tree analyze`
+
+A `FaultTree` is a Boolean model: the **top node** (the one gate or event no other node references) occurs when its `inputs` combine per their `gateType`. `syscribe -m model/ fault-tree analyze <FT-id>` evaluates it:
+
+```bash
+syscribe -m model/ fault-tree analyze FT-BRAKE-001            # Markdown report
+syscribe -m model/ fault-tree analyze FT-BRAKE-001 --json     # cutSets, events, topProbability, …
+syscribe -m model/ fault-tree analyze FT-BRAKE-001 --max-order 3 --no-ccf
+```
+
+It reports:
+
+- **Minimal cut sets** — the smallest sets of basic events whose joint occurrence causes the top event, with their **order** (1 = single point of failure, 2 = dual point, …) and probability. `AND` and `inhibit` gates conjoin their inputs (an `inhibit` gate's last input is the conditioning event), `OR` disjoins, `XOR` is parity, `NOT` negates its single input. `house` events are constants (TRUE only at `probability: 1`); `basic` and `undeveloped` events are variables.
+- **Top-event probability** over the tree's `missionTime` — exact (computed from a reduced ordered BDD, so shared events are handled correctly) plus the rare-event and min-cut-upper-bound approximations. An event's probability is its explicit `probability:`, otherwise `1 − e^(−λ·t)` from `failureRate` (λ, /h) and `missionTime` (`"8760 h"`, `"1e9 h"`, `"10 y"`). If an event in the analysis has neither, the probability is `n/a` and the report says which events lack one. A gate's own `probability:` is informational and ignored.
+- **Importance** per event — Fussell-Vesely (share of the top-event probability involving the event), Birnbaum (`∂P/∂p`) and RAW (risk achievement worth) — and a **role**: `single_point`, `dual_point`, `multi_point`, `irrelevant` (in no cut set), `unreachable` (not below the top node) or `house`.
+- **Common-cause failure (beta factor).** Give two or more events the same `ccfGroup:` and a `ccfBeta:` (0.0–1.0). Each member is replaced by `OR(member_independent, CCF:<group>)` with `P(independent) = (1−β)·p` and `P(CCF) = β·mean(p)`, so a redundant `AND` pair shows the common-cause event as an order-1 cut set. `--no-ccf` switches the expansion off.
+
+```yaml
+type: FaultTreeEvent
+id: FTE-BRAKE-002
+name: "Redundant valve B stuck"
+eventKind: basic
+failureRate: 1.0e-7
+ccfGroup: VALVES      # shared with FTE-BRAKE-001
+ccfBeta: 0.1
+```
+
+The same analysis is a public library API (`syscribe_model::fta`) reused by `metrics` and by diagram tooling. A tree that has events but **no gates** is treated as an implicit OR of its events (legacy flat form).
+
+**Structural checks** (`validate`): a gate cycle or self-input is **E960**; `NOT` with more than one input, `XOR` with more than two, or an `inhibit` gate without a conditioning input is **E961**; a negative `failureRate` **E962**; a `probability` outside 0–1 **E963**; a `ccfBeta` outside 0–1 **E964**; a gate/event not reachable from the top node **W960**; one outside any `FaultTree` directory **W961**; a single-input `AND`/`OR` **W962**; a one-member `ccfGroup` **W963**; a `ccfGroup` with missing or inconsistent betas **W964**; an unparsable `missionTime` **W967**.
+
+---
+
 ## Quantitative HW safety metrics (ISO 26262-5 §8–9) — `metrics`
 
 > **First-order approximation.** This is a first-order, FMEDA-style roll-up driven entirely by your `failureRate` and diagnostic-coverage inputs. It is **not** a substitute for a full FMEDA and **must be independently verified** before use in a hardware safety case.
 
-For each `SafetyGoal`, the tool collects the contributing `FaultTreeEvent`s — the events under the `FaultTree`(s) whose `topEvent` resolves to that goal — and computes, over the events that declare a `failureRate` (λ, /h):
+For each `SafetyGoal`, the tool analyses the `FaultTree`(s) whose `topEvent` resolves to that goal (see [Fault-tree analysis](#fault-tree-analysis-fault-tree-analyze)) and uses the **minimal cut sets**, so gate logic matters: `AND(a,b)` and `OR(a,b)` over the same events give different metrics. Only **reachable, non-`house`** events that appear in a cut set and declare a non-negative `failureRate` (λ, /h) contribute. An event in an order-1 cut set is *single-point*; an event only in larger cut sets is *multi-point*:
 
 ```
 Σλ      = Σ λ_i
-λ_RF    = Σ λ_i · (1 − DC_i)              SPFM = 1 − λ_RF / Σλ
-λ_MPFL  = Σ λ_i · DC_i · (1 − DCl_i)      LFM  = 1 − λ_MPFL / (Σλ − λ_RF)
-PMHF    = λ_RF + λ_MPFL  (/h)
+λ_RF    = Σ_single λ_i · (1 − DC_i)                       SPFM = 1 − λ_RF / Σλ
+λ_MPFL  = Σ_single λ_i · DC_i · (1 − DCl_i)
+        + Σ_multi  λ_i · (1 − DCl_i)                      LFM  = 1 − λ_MPFL / (Σλ − λ_RF)
+λ_DPF   = Σ over order-2 cut sets {a,b}, both orders (x,y):
+              λ_x · (1 − DCl_x) · λ_y · (1 − DC_y) · T     T = the tree's missionTime (hours)
+PMHF    = λ_RF + λ_DPF  (/h)
 ```
 
-DC defaults to 0 when absent; LFM is reported only when at least one contributing event declares `latentDiagnosticCoverage`.
+Cut sets of order ≥ 3 do not enter `λ_DPF`. Without a `missionTime`, `T` defaults to 10000 h and **W966** is raised.
 
-**Targets** by ASIL: SPFM ≥ {B 0.90, C 0.97, D 0.99}; LFM ≥ {B 0.60, C 0.80, D 0.90}; PMHF < {B/C 1e-7, D 1e-8} /h (ASIL A: not gated). SIL-only goals gate PMHF/PFH < {SIL2 1e-6, SIL3 1e-7, SIL4 1e-8} /h; SPFM/LFM are reported but not gated.
+**Missing diagnostic data is conservative, not optimistic.** A contributing event with no `diagnosticCoverage`, or — once any event of the goal declares `latentDiagnosticCoverage` — no `latentDiagnosticCoverage`, is treated as coverage `0` and raises **W965** (one finding per event and field). LFM is reported only when at least one contributing event declares `latentDiagnosticCoverage`. A DC/DCl outside 0–1 (**E846**) is clamped, never extrapolated.
+
+**Targets** by ASIL: SPFM ≥ {B 0.90, C 0.97, D 0.99}; LFM ≥ {B 0.60, C 0.80, D 0.90}; PMHF < {B/C 1e-7, D 1e-8} /h (ASIL A: not gated). SIL-only goals gate PMHF/PFH < {SIL1 1e-5, SIL2 1e-6, SIL3 1e-7, SIL4 1e-8} /h; SPFM/LFM are reported but not gated.
 
 **Opt-in.** A goal's metrics are computed and gated **only** if at least one contributing event declares `diagnosticCoverage`. Goals without DC data are reported as `n/a` and never gated. A goal that misses its target raises **W033** (warning; gate with `--deny W033`, promote via `[profiles]`).
 
 ```bash
 syscribe -m model/ metrics            # table: per-goal SPFM / LFM / PMHF + pass/fail
-syscribe -m model/ metrics --json     # [{id, asil, sil, spfm, lfm, pmhf, pass}]
+syscribe -m model/ metrics --json     # [{id, asil, sil, spfm, lfm, pmhf, lambdaDpf, pass, verdict}]
 ```
+
+The verdict is `pass`, `fail`, `no target` (metrics computed but no recognised `asilLevel`/`silLevel`) or `n/a` (not computed). **`metrics` exits 2 when any goal's verdict is `fail`** (usage errors exit 1), so it can be used as a CI gate without `validate --deny W033`.
 
 ### Generating templates
 

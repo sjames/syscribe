@@ -4,6 +4,9 @@
 
 ## Unreleased
 
+- **New:** fault-tree analysis (#211) — `syscribe_model::fta` (BDD-based; cut sets, exact top-event probability over `missionTime`, Fussell-Vesely/Birnbaum/RAW importance, per-event roles, beta-factor CCF via `ccfGroup:`/`ccfBeta:`) and `fault-tree analyze <FT> [--json] [--max-order N] [--no-ccf]`.
+- **New:** fault-tree structural validation (#212) — `E960` gate cycle/self-input, `E961` gate arity (`NOT`/`XOR`/`inhibit`), `E962` negative `failureRate`, `E963` `probability` out of range, `E964` `ccfBeta` out of range, `W960` unreachable node, `W961` node outside a `FaultTree` directory, `W962` single-input `AND`/`OR`, `W963`/`W964` CCF group problems, `W967` unparsable `missionTime`.
+- **Changed:** `metrics` is driven by minimal cut sets (#211, #213) — gate logic now matters (`AND` vs `OR`), unreachable/house/negative-λ events are skipped, `PMHF = λ_RF + λ_DPF` (dual-point rate over `missionTime`) instead of adding the latent rate, missing DC/DCl count as 0 with `W965` (and `W966` for a missing `missionTime`), DC/DCl are clamped (no more LFM 2.0), SIL 1 is gated, a computed-but-untargeted goal shows `no target`, and `metrics` exits 2 when a goal fails.
 - **Changed:** SysML v2 ingest keeps the full dotted path of `connect`/`bind`/`flow` endpoints (`Owner::a::b::c`) instead of collapsing to the head part; `W542` no longer applies to `connect` (#206). Endpoints of ingested `.sysml` elements are now checked by `E127`/`W056`.
 - **New:** `E128` — unresolved `via`/`to` on send/accept actions and transition accepts; flow/succession endpoints on structural elements are checked like `connections:` endpoints (#207).
 - **New:** `W068` — a redefining feature's `multiplicity:` is not contained in the redefined feature's (#208).
