@@ -1,7 +1,7 @@
 # safety-case — GSN goal → argument → evidence tree
 
 ## SYNOPSIS
-    syscribe -m <root> safety-case [<SG-id>] [--config <C>] [--no-implicit] [--json]
+    syscribe -m <root> safety-case [<SG-id>] [--config <C>] [--no-implicit] [--json] [--format text|json|dot|mermaid]
 
 ## DESCRIPTION
 Renders the assurance argument for each SafetyGoal (or the one given): the
@@ -18,6 +18,9 @@ Completeness summary follows. An unknown <SG-id> exits 1.
                    only goals and evidence active in that variant are assembled.
     --no-implicit  Drop the implicit SafetyGoal ← Requirement ← TestCase fold-in;
                    show only the explicit Argument/AssumptionOfUse structure.
+    --format <f>   text (default), json, or a GSN diagram as dot or mermaid
+                   (goal/strategy/solution/context shapes, status tones, undeveloped
+                   diamonds, ingested test verdicts).
     --json         Emit {goals:[{id,title,verdict,status,completeness,arguments,
                    requirements,assumptions}], completeness, verdictsUnknown}.
 

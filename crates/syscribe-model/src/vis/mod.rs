@@ -14,11 +14,13 @@
 //! `shapes:` picks the manifest; a `subject:` alone picks derivation.
 
 pub mod derive;
+pub mod dot;
 pub mod ir;
 pub mod layout;
 pub mod manifest;
 pub mod mermaid;
 pub mod metrics;
+pub mod shape;
 pub mod size;
 pub mod sprotty;
 pub mod style;
@@ -27,9 +29,10 @@ pub mod svg;
 use crate::element::{ElementType, RawElement, RawFrontmatter};
 use crate::resolver::Resolver;
 
-pub use ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, LayoutHints, Node, NodeKind, Point, PortDirection, Rect, Side};
+pub use ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, LayoutHints, Node, NodeKind, NodeMark, Point, PortDirection, Rect, Side, Tone};
 pub use layout::{layout, Layout, LayoutError};
 pub use manifest::Issue;
+pub use dot::render_dot;
 pub use mermaid::render_mermaid;
 pub use metrics::TextMetrics;
 pub use size::{size_graph, Sizes};
@@ -129,6 +132,53 @@ pub fn build_graph(elem: &RawElement, elements: &[RawElement], resolver: &Resolv
             ))
         }
     }
+}
+
+/// The safety diagrams (GH #223) a model element can be viewed as without a
+/// `Diagram` element behind it, the first being the element's primary view: a
+/// `FaultTree` its fault tree, an `AttackTree` its attack tree, a `SafetyGoal`
+/// its GSN argument (and its fault tree when a `FaultTree` names it as
+/// `topEvent`), an `Argument` the argument it belongs to, a `ThreatScenario`
+/// the attack tree that substantiates it. Empty for every other element. The
+/// web detail panel embeds these in place of "no diagram".
+pub fn safety_kinds_of(elem: &RawElement, elements: &[RawElement], resolver: &Resolver) -> Vec<DiagramKind> {
+    use crate::element::ElementType as T;
+    let names = |ty: T, field: fn(&RawElement) -> Option<&str>| {
+        elements.iter().filter(|t| t.frontmatter.element_type.as_ref() == Some(&ty)).any(|t| {
+            field(t).and_then(|r| resolver.resolve_ref(elements, r)).is_some_and(|g| g.qualified_name == elem.qualified_name)
+        })
+    };
+    match elem.frontmatter.element_type {
+        Some(T::FaultTree) => vec![DiagramKind::FaultTree],
+        Some(T::AttackTree) => vec![DiagramKind::AttackTree],
+        Some(T::SafetyGoal) => {
+            let mut kinds = vec![DiagramKind::SafetyCase];
+            if names(T::FaultTree, |t| t.frontmatter.top_event.as_deref()) {
+                kinds.push(DiagramKind::FaultTree);
+            }
+            kinds
+        }
+        Some(T::Argument) => vec![DiagramKind::SafetyCase],
+        Some(T::ThreatScenario) if names(T::AttackTree, |t| t.frontmatter.threat_ref.as_deref()) => vec![DiagramKind::AttackTree],
+        _ => Vec::new(),
+    }
+}
+
+/// The derived diagram of `kind` with `subject` as its subject — what a
+/// `Diagram` element declaring that kind and subject would build, without the
+/// element ([`safety_kinds_of`] lists the kinds a subject supports). `W417`
+/// cannot arise (no filters); `W418` says the subject does not fit the kind.
+pub fn build_subject_graph(subject: &RawElement, kind: DiagramKind, elements: &[RawElement], resolver: &Resolver) -> (DiagramGraph, Vec<Issue>) {
+    let name = subject
+        .frontmatter
+        .name
+        .clone()
+        .unwrap_or_else(|| subject.qualified_name.rsplit("::").next().unwrap_or(&subject.qualified_name).to_string());
+    let mut graph = DiagramGraph::empty(kind, &subject.qualified_name, &name, Some(&subject.qualified_name));
+    graph.derived = true;
+    let mut issues = Vec::new();
+    derive::generate_into(&mut graph, subject, kind, elements, resolver, &derive::Filters::default(), &mut issues);
+    (graph, issues)
 }
 
 #[cfg(test)]

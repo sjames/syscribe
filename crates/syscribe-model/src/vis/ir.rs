@@ -29,6 +29,15 @@ pub enum DiagramKind {
     Action,
     /// `diagramKind: FeatureModel` — a feature diagram (`REQ-TRS-FMED-001`).
     FeatureModel,
+    /// `diagramKind: FaultTree` — a fault tree with gate symbols and the
+    /// quantitative overlay of `fta::analyze_fault_tree` (GH #223).
+    FaultTree,
+    /// `diagramKind: AttackTree` — an attack tree coloured by rolled-up
+    /// attack feasibility (GH #223).
+    AttackTree,
+    /// `diagramKind: SafetyCase` (alias `GSN`) — a Goal Structuring Notation
+    /// argument (GH #223).
+    SafetyCase,
     /// `diagramKind: Custom`, the legacy `SVG` default, or no `diagramKind` at
     /// all: a manifest with no kind-specific conventions.
     Custom,
@@ -49,6 +58,9 @@ impl DiagramKind {
             Some("UseCase") => Some(DiagramKind::UseCase),
             Some("Action") => Some(DiagramKind::Action),
             Some("FeatureModel") => Some(DiagramKind::FeatureModel),
+            Some("FaultTree") => Some(DiagramKind::FaultTree),
+            Some("AttackTree") => Some(DiagramKind::AttackTree),
+            Some("SafetyCase") | Some("GSN") => Some(DiagramKind::SafetyCase),
             _ => None,
         }
     }
@@ -65,6 +77,9 @@ impl DiagramKind {
             DiagramKind::UseCase => "UseCase",
             DiagramKind::Action => "Action",
             DiagramKind::FeatureModel => "FeatureModel",
+            DiagramKind::FaultTree => "FaultTree",
+            DiagramKind::AttackTree => "AttackTree",
+            DiagramKind::SafetyCase => "SafetyCase",
             DiagramKind::Custom => "Custom",
         }
     }
@@ -111,6 +126,26 @@ pub enum NodeKind {
     Merge,
     // FeatureModel (REQ-TRS-FMED-001)
     Feature,
+    // FaultTree / AttackTree (GH #223): gate symbols by function, events by
+    // `eventKind`, and the leaf step of an attack tree.
+    GateAnd,
+    GateOr,
+    GateXor,
+    GateNot,
+    GateInhibit,
+    EventBasic,
+    EventUndeveloped,
+    EventHouse,
+    Step,
+    // SafetyCase / GSN (GH #223)
+    Goal,
+    /// A goal declared (or found) undeveloped: the goal box with GSN's diamond.
+    UndevelopedGoal,
+    Strategy,
+    Solution,
+    Context,
+    Justification,
+    Assumption,
 }
 
 impl NodeKind {
@@ -143,6 +178,22 @@ impl NodeKind {
             NodeKind::Decision => "decision",
             NodeKind::Merge => "merge",
             NodeKind::Feature => "feature",
+            NodeKind::GateAnd => "gate-and",
+            NodeKind::GateOr => "gate-or",
+            NodeKind::GateXor => "gate-xor",
+            NodeKind::GateNot => "gate-not",
+            NodeKind::GateInhibit => "gate-inhibit",
+            NodeKind::EventBasic => "event-basic",
+            NodeKind::EventUndeveloped => "event-undeveloped",
+            NodeKind::EventHouse => "event-house",
+            NodeKind::Step => "step",
+            NodeKind::Goal => "goal",
+            NodeKind::UndevelopedGoal => "undeveloped-goal",
+            NodeKind::Strategy => "strategy",
+            NodeKind::Solution => "solution",
+            NodeKind::Context => "context",
+            NodeKind::Justification => "justification",
+            NodeKind::Assumption => "assumption",
         }
     }
 
@@ -177,6 +228,22 @@ impl NodeKind {
             "decision" | "decisionnode" => NodeKind::Decision,
             "merge" | "mergenode" => NodeKind::Merge,
             "feature" => NodeKind::Feature,
+            "gateand" => NodeKind::GateAnd,
+            "gateor" => NodeKind::GateOr,
+            "gatexor" => NodeKind::GateXor,
+            "gatenot" => NodeKind::GateNot,
+            "gateinhibit" => NodeKind::GateInhibit,
+            "eventbasic" => NodeKind::EventBasic,
+            "eventundeveloped" => NodeKind::EventUndeveloped,
+            "eventhouse" => NodeKind::EventHouse,
+            "step" => NodeKind::Step,
+            "goal" => NodeKind::Goal,
+            "undevelopedgoal" => NodeKind::UndevelopedGoal,
+            "strategy" => NodeKind::Strategy,
+            "solution" => NodeKind::Solution,
+            "context" => NodeKind::Context,
+            "justification" => NodeKind::Justification,
+            "assumption" => NodeKind::Assumption,
             _ => return None,
         })
     }
@@ -240,6 +307,16 @@ pub enum EdgeKind {
     Requires,
     /// A cross-tree `excludes:` constraint.
     Excludes,
+    // FaultTree / AttackTree (GH #223)
+    /// A gate to one of its `inputs:`.
+    GateInput,
+    /// A gate input on the easiest attack path (drawn heavier).
+    CriticalPath,
+    // SafetyCase / GSN (GH #223)
+    /// GSN SupportedBy: a goal or strategy to what supports it.
+    SupportedBy,
+    /// GSN InContextOf: a goal or strategy to its context, justification or assumption.
+    InContextOf,
 }
 
 impl EdgeKind {
@@ -273,6 +350,10 @@ impl EdgeKind {
             EdgeKind::FeatureChild => "child",
             EdgeKind::Requires => "requires",
             EdgeKind::Excludes => "excludes",
+            EdgeKind::GateInput => "input",
+            EdgeKind::CriticalPath => "criticalPath",
+            EdgeKind::SupportedBy => "supportedBy",
+            EdgeKind::InContextOf => "inContextOf",
         }
     }
 
@@ -310,13 +391,17 @@ impl EdgeKind {
             "child" | "featurechild" => EdgeKind::FeatureChild,
             "requires" => EdgeKind::Requires,
             "excludes" => EdgeKind::Excludes,
+            "input" | "gateinput" => EdgeKind::GateInput,
+            "criticalpath" => EdgeKind::CriticalPath,
+            "supportedby" => EdgeKind::SupportedBy,
+            "incontextof" => EdgeKind::InContextOf,
             _ => return None,
         })
     }
 
     /// Whether the edge is drawn directed (has an arrowhead at the target).
     pub fn is_directed(&self) -> bool {
-        !matches!(self, EdgeKind::Connection | EdgeKind::Binding | EdgeKind::Association | EdgeKind::Containment | EdgeKind::FeatureChild | EdgeKind::Excludes)
+        !matches!(self, EdgeKind::Connection | EdgeKind::Binding | EdgeKind::Association | EdgeKind::Containment | EdgeKind::FeatureChild | EdgeKind::Excludes | EdgeKind::GateInput | EdgeKind::CriticalPath)
     }
 }
 
@@ -422,6 +507,57 @@ pub struct Node {
     /// Feature notation state of a `FeatureModel` node (`REQ-TRS-FMED-001`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feature: Option<FeatureMark>,
+    /// The generic analysis overlay (GH #223): status text, a value, a tone
+    /// and badges drawn on the node by every writer. Absent on a node that
+    /// carries none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mark: Option<NodeMark>,
+}
+
+/// The tone of a [`NodeMark`]: how the node is coloured (`style::node_style`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Tone {
+    Ok,
+    Warn,
+    Bad,
+    /// Muted: out of the picture's story (an unreachable event, a context node).
+    #[default]
+    Neutral,
+}
+
+impl Tone {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Tone::Ok => "ok",
+            Tone::Warn => "warn",
+            Tone::Bad => "bad",
+            Tone::Neutral => "neutral",
+        }
+    }
+}
+
+/// A generic node overlay (GH #223): what an analysis says about the element
+/// the node stands for. Every field is optional text the writers draw as extra
+/// label lines under the name (status, then value, then badges) and the tone
+/// colours the node.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NodeMark {
+    /// A short status word (`single point`, `UNDEVELOPED`, `supported`, …).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// A value line (`P = 2.0e-9`, `feasibility high`, …).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+    #[serde(default)]
+    pub tone: Tone,
+    /// Short flags drawn on one line (`W035`, `CCF`, …).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub badges: Vec<String>,
+    /// Draw the outline heavier: the node is on the path or set the picture is about.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub emphasis: bool,
 }
 
 /// What a feature diagram draws on a feature beyond its name: whether it is a
@@ -588,6 +724,16 @@ impl LayoutHints {
                 port_constraints: PortConstraints::Free,
                 reversed_kinds: vec![],
                 overlay_kinds: vec![EdgeKind::Requires, EdgeKind::Excludes],
+            },
+            // Trees and arguments read top-down; the layered engine (not mrtree)
+            // because a shared event or sub-goal makes the structure a DAG.
+            DiagramKind::FaultTree | DiagramKind::AttackTree | DiagramKind::SafetyCase => LayoutHints {
+                algorithm: LayoutAlgorithm::Layered,
+                direction: LayoutDirection::Down,
+                hierarchical: false,
+                port_constraints: PortConstraints::Free,
+                reversed_kinds: vec![],
+                overlay_kinds: vec![],
             },
             DiagramKind::Custom => LayoutHints {
                 algorithm: LayoutAlgorithm::Layered,
@@ -797,6 +943,7 @@ mod tests {
             pin,
             banners: vec![],
             feature: None,
+            mark: None,
         };
         g.nodes.push(mk("a", None, Some(Rect { x: 0.0, y: 0.0, w: None, h: None })));
         g.nodes.push(mk("b", Some("a"), None));

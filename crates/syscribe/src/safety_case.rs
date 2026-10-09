@@ -19,8 +19,9 @@ use syscribe_model::{
 
 use crate::query::{tc_verdict, TcVerdict};
 
-/// Render the safety-case view. `goal_filter` is an optional SG id/qname; `json`
-/// switches between the GSN-style text tree and the JSON document.
+/// Render the safety-case view. `goal_filter` is an optional SG id/qname; `format`
+/// picks the GSN-style text tree (default), the JSON document, or a DOT / Mermaid
+/// GSN diagram.
 /// `no_implicit` suppresses the implicit SafetyGoal→Requirement→TestCase fold-in.
 /// `sidecar_loaded` indicates whether a results sidecar was ingested (suppresses the [unknown] footnote).
 ///
@@ -31,7 +32,7 @@ pub fn cmd_safety_case(
     resolver: &Resolver,
     goal_filter: &str,
     results: Option<&ResultsData>,
-    json: bool,
+    format: Format,
     no_implicit: bool,
     sidecar_loaded: bool,
 ) -> i32 {
@@ -63,12 +64,48 @@ pub fn cmd_safety_case(
         return 1;
     }
 
-    if json {
-        render_json(&case, sidecar_loaded);
-    } else {
-        render_text(&case, sidecar_loaded);
+    match format {
+        Format::Json => render_json(&case, sidecar_loaded),
+        Format::Text => render_text(&case, sidecar_loaded),
+        // GH #223: the same tree as a GSN diagram (the node shapes, status
+        // tones, undeveloped diamonds and test verdicts of the web view).
+        Format::Dot | Format::Mermaid => {
+            let name = if goal_filter.is_empty() { "Safety case" } else { goal_filter };
+            let graph = syscribe_model::vis::derive::safety_case::graph_of_case(&case, name);
+            if format == Format::Dot {
+                print!("{}", syscribe_model::vis::render_dot(&graph));
+            } else if let Some(text) = syscribe_model::vis::render_mermaid(&graph, &|_| None) {
+                print!("{text}");
+            }
+        }
     }
     0
+}
+
+/// The output format of `safety-case`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Format {
+    /// The GSN-style text tree (the default).
+    Text,
+    Json,
+    /// Graphviz DOT of the GSN diagram.
+    Dot,
+    /// A Mermaid flowchart of the GSN diagram.
+    Mermaid,
+}
+
+impl Format {
+    pub const VALUES: &'static [&'static str] = &["text", "json", "dot", "mermaid"];
+
+    pub fn parse(s: &str) -> Option<Format> {
+        Some(match s {
+            "text" => Format::Text,
+            "json" => Format::Json,
+            "dot" => Format::Dot,
+            "mermaid" => Format::Mermaid,
+            _ => return None,
+        })
+    }
 }
 
 // ── Text rendering ──────────────────────────────────────────────────────────

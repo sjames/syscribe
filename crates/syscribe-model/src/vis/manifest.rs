@@ -379,6 +379,7 @@ pub fn build(
             pin: None,
             banners: resolved.map(|e| super::banners_of(e, elements, resolver)).unwrap_or_default(),
             feature: None,
+            mark: None,
         });
     }
 

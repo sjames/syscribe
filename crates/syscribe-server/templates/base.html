@@ -223,6 +223,17 @@
       return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
     }
 
+    // A node of an embedded safety diagram (fault tree, attack tree, GSN; GH #223)
+    // is a link to its element: open that element in the detail panel instead of
+    // leaving the page.
+    document.addEventListener('click', ev => {
+      const a = ev.target.closest && ev.target.closest('.safety-diagram a');
+      if (!a) return;
+      ev.preventDefault();
+      const href = a.getAttribute('href') || a.getAttribute('xlink:href');
+      if (href && window.htmx) htmx.ajax('GET', href, { target: '#modal-content', swap: 'innerHTML' });
+    });
+
     // Open modal whenever #modal-content receives new content via HTMX
     document.body.addEventListener('htmx:afterSwap', e => {
       if (e.detail.target && e.detail.target.id === 'modal-content')

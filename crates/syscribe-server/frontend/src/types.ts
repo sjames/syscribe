@@ -35,6 +35,8 @@ export interface NodeStyle {
     headerFill?: string | null;
     text?: string;
     dashed?: boolean;
+    /** Outline width when it is not the default (an emphasised `mark`, GH #223). */
+    strokeWidth?: number;
 }
 
 export type PortGlyph = 'in' | 'out' | 'inout' | 'none';
@@ -105,6 +107,20 @@ export type ConfigState = 'selected' | 'deselected' | 'forcedOn' | 'forcedOff' |
 /** The SAT analysis state of a feature (`feature_model::analysis_json`). */
 export type FeatureState = 'normal' | 'core' | 'dead' | 'falseOptional';
 
+/** The tone of a `NodeMark` (`vis::ir::Tone`): already folded into `style`. */
+export type MarkTone = 'ok' | 'warn' | 'bad' | 'neutral';
+
+/** The analysis overlay of a safety-diagram node (`vis::ir::NodeMark`, GH #223).
+ * Its status, value and badges arrive as `status`/`value`/`badge` label
+ * children; the tone is in `style`. */
+export interface NodeMark {
+    status?: string;
+    value?: string;
+    tone: MarkTone;
+    badges?: string[];
+    emphasis?: boolean;
+}
+
 /** A container/block-like IR node (boundary, block, state, requirement, …). */
 export interface SysmlNodeSchema extends SNode, SysmlShapeFields {
     type: 'node';
@@ -113,6 +129,8 @@ export interface SysmlNodeSchema extends SNode, SysmlShapeFields {
     banners?: string[];
     /** A feature-diagram node's notation (`REQ-TRS-FMED-001`). */
     feature?: FeatureMark;
+    /** A safety-diagram node's analysis overlay (GH #223). */
+    mark?: NodeMark;
     /** Analysis state drawn on a feature (`REQ-TRS-FMED-002`), set client-side. */
     analysis?: FeatureState;
     /** Number of descendants hidden by collapsing this feature, client-side. */
@@ -141,7 +159,7 @@ export interface SysmlPortSchema extends SPort, SysmlShapeFields {
 
 /** What a label child stands for — set by `prepareForLayout` so the label
  * view picks the font, and the ELK configurator its placement. */
-export type LabelRole = 'name' | 'stereotype' | 'banner' | 'line' | 'free' | 'edge' | 'keyword';
+export type LabelRole = 'name' | 'stereotype' | 'banner' | 'line' | 'free' | 'edge' | 'keyword' | 'status' | 'value' | 'badge';
 
 /** A text label: the synthetic `<id>-label` child of every node/port, or a
  * free IR `kind: label` shape (which then also carries the shape fields). */

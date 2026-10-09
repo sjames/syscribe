@@ -857,3 +857,41 @@ syscribe -m model/ refs CSG-SYS-001
 | W812 | Warning | SafetyGoal at ASIL C/D or SIL 3/4 lacks `safeState:` or `ftti:` |
 | W813 | Warning | HazardousEvent has a partial S/E/C set |
 | W814 | Warning | HazardousEvent mixes ISO 26262 and IEC 61508 parameters |
+
+
+---
+
+## Safety diagrams — fault tree, attack tree and GSN
+
+Three `Diagram` kinds draw the safety analyses above straight from the model (GH #223). They are
+derive-only: give a `diagramKind:` and a `subject:` and nothing else.
+
+```yaml
+---
+type: Diagram
+name: FaultTreeEngine
+diagramKind: FaultTree          # FaultTree | AttackTree | SafetyCase (alias GSN)
+subject: Safety::FTA::FT-ENG-001
+---
+```
+
+| Kind | Subject | What it shows |
+|---|---|---|
+| `FaultTree` | a `FaultTree`, or the `SafetyGoal` it analyses | IEC 61025 gate symbols (AND, OR, XOR, NOT, inhibit), events by `eventKind` (basic circle, undeveloped diamond, house), λ and probability on every event, single points of failure (red) and dual-point cut-set members (amber), the minimal-cut-set count as a badge and the exact top-event probability on the root — the numbers of `fault-tree analyze`. A gate cycle still draws the structure, the root saying the analysis is unavailable. |
+| `AttackTree` | an `AttackTree`, or the `ThreatScenario` it substantiates | gates and steps coloured by rolled-up feasibility (high red, medium amber, low green, unscored grey), the easiest path drawn heavier, the root saying whether it matches the threat's declared feasibility (`W035` badge when not). |
+| `SafetyCase` | a `SafetyGoal`, an `Argument`, or a package of goals | the GSN argument of `safety-case`: goals, strategies, solutions (test cases), context, justification and assumption nodes, a diamond under every undeveloped claim, status tones, the goal verdict on the root. |
+
+A wrong subject type is `W418`; an `include:`/`exclude:` entry naming nothing is `W417`. Each node links to its
+element: in the web UI the detail panel of a `FaultTree`, `AttackTree`, `SafetyGoal`, `Argument` or `ThreatScenario`
+embeds the diagram itself (no `Diagram` element needed) and a click on a node opens that element. The *New diagram*
+dialog offers the three kinds.
+
+From the command line:
+
+```bash
+syscribe -m model/ diagram export Diagrams::FaultTreeEngine --format svg|mermaid|plantuml|dot
+syscribe -m model/ fault-tree render FT-ENG-001 --format mermaid|dot|svg|plantuml
+syscribe -m model/ safety-case SG-ENG-001 --format dot|mermaid     # with the ingested test verdicts
+```
+
+`fault-tree render` without `--format` and `safety-case` without `--format` keep their original text output.

@@ -14,10 +14,13 @@
 
 pub mod action;
 pub mod allocation;
+pub mod attack_tree;
 pub mod bdd;
+pub mod fault_tree;
 pub mod feature;
 pub mod ibd;
 pub mod requirement;
+pub mod safety_case;
 pub mod sequence;
 pub mod state;
 
@@ -91,23 +94,40 @@ pub fn derive(elem: &RawElement, kind: DiagramKind, elements: &[RawElement], res
     let subject = fm.subject.as_deref().and_then(|s| resolver.resolve_ref(elements, s));
     // An unresolved subject is `W401` (validator); nothing to derive from.
     if let Some(subject) = subject {
-        match kind {
-            DiagramKind::Bdd => bdd::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
-            DiagramKind::Ibd => ibd::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
-            // REQ-TRS-VIS-018..022 (the follow-on kinds of REQ-TRS-VIS-015).
-            DiagramKind::StateMachine => state::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
-            DiagramKind::Action => action::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
-            DiagramKind::Requirement => requirement::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
-            DiagramKind::Sequence => sequence::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
-            DiagramKind::Allocation => allocation::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
-            DiagramKind::FeatureModel => feature::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
-            // UseCase and Custom have no generator.
-            _ => {}
-        }
+        generate_into(&mut graph, subject, kind, elements, resolver, &filters, &mut issues);
     }
 
     apply_layout(&mut graph, fm.layout.as_ref(), &mut issues);
     (graph, issues)
+}
+
+/// Run the generator of `kind` over `subject`, adding to `graph`.
+pub fn generate_into(
+    graph: &mut DiagramGraph,
+    subject: &RawElement,
+    kind: DiagramKind,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    filters: &Filters,
+    issues: &mut Vec<Issue>,
+) {
+    match kind {
+        DiagramKind::Bdd => bdd::generate(graph, subject, elements, resolver, filters, issues),
+        DiagramKind::Ibd => ibd::generate(graph, subject, elements, resolver, filters, issues),
+        // REQ-TRS-VIS-018..022 (the follow-on kinds of REQ-TRS-VIS-015).
+        DiagramKind::StateMachine => state::generate(graph, subject, elements, resolver, filters, issues),
+        DiagramKind::Action => action::generate(graph, subject, elements, resolver, filters, issues),
+        DiagramKind::Requirement => requirement::generate(graph, subject, elements, resolver, filters, issues),
+        DiagramKind::Sequence => sequence::generate(graph, subject, elements, resolver, filters, issues),
+        DiagramKind::Allocation => allocation::generate(graph, subject, elements, resolver, filters, issues),
+        DiagramKind::FeatureModel => feature::generate(graph, subject, elements, resolver, filters, issues),
+        // GH #223: the safety diagram kinds.
+        DiagramKind::FaultTree => fault_tree::generate(graph, subject, elements, resolver, filters, issues),
+        DiagramKind::AttackTree => attack_tree::generate(graph, subject, elements, resolver, filters, issues),
+        DiagramKind::SafetyCase => safety_case::generate(graph, subject, elements, resolver, filters, issues),
+        // UseCase and Custom have no generator.
+        DiagramKind::UseCase | DiagramKind::Custom => {}
+    }
 }
 
 // ── helpers shared by the generators ───────────────────────────────────────
@@ -221,6 +241,7 @@ pub(crate) fn block_node(
         pin: None,
         banners: super::banners_of(e, elements, resolver),
         feature: None,
+        mark: None,
     }
 }
 
@@ -242,6 +263,7 @@ pub(crate) fn port_node(id: String, owner_qname: &str, f: &Feature, parent: &str
         pin: None,
         banners: Vec::new(),
         feature: None,
+        mark: None,
     }
 }
 

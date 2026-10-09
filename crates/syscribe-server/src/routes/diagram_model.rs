@@ -10,8 +10,15 @@
 //! children, `layoutOptions` (ELK option ids) and the `pinned` set. Nothing
 //! here reads `shapes:`/`edges:`/`layout:` frontmatter.
 //!
-//! `404` when `qname` is unknown, is not a `Diagram`, or is a hand-authored
-//! `Mermaid`/`PlantUML` diagram (no IR; the UI never requests those — it
+//! A fault tree, attack tree, safety goal, argument or threat scenario (GH #223)
+//! has no `Diagram` element, but the model itself says what to draw: the
+//! endpoint then returns its derived safety diagram
+//! (`syscribe_model::vis::build_subject_graph`), the element's primary view or,
+//! with `?kind=FaultTree|AttackTree|SafetyCase`, the named one among
+//! `vis::safety_kinds_of`.
+//!
+//! `404` when `qname` is unknown, is neither a `Diagram` nor such an element, or
+//! is a hand-authored `Mermaid`/`PlantUML` diagram (no IR; the UI never requests those — it
 //! fetches the `/ui/diagram` HTML fragment instead). A `Diagram` with a
 //! `subject:` and no `shapes:` returns `200` with the empty derived graph
 //! (the client needs a valid, mountable root either way).
@@ -28,19 +35,29 @@
 //! same catch-all-at-the-end shape — no routing conflict).
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
 
+use serde::Deserialize;
 use syscribe_model::vis::sprotty::{to_sgraph, SGraph};
+use syscribe_model::vis::DiagramKind;
 
 use crate::state::SharedState;
+
+#[derive(Deserialize)]
+pub struct ModelQuery {
+    /// For a non-`Diagram` safety element: which of its views (`FaultTree`,
+    /// `AttackTree`, `SafetyCase`).
+    pub kind: Option<String>,
+}
 
 /// `GET /api/diagrams/model/{*qname}` — see the module doc comment.
 pub async fn get_diagram_model(
     State(state): State<SharedState>,
     Path(qname): Path<String>,
+    Query(q): Query<ModelQuery>,
 ) -> Result<Json<SGraph>, StatusCode> {
     let store = state.read().await;
     let qname_norm = qname.replace('/', "::");
@@ -51,7 +68,16 @@ pub async fn get_diagram_model(
     // `build_graph` is `None` for a non-`Diagram` and for the IR-less
     // `Mermaid`/`PlantUML` kinds alike. Manifest issues (`E405`/`W416`) are
     // the validator's to report; the client draws whatever survived them.
-    let (graph, _issues) = syscribe_model::vis::build_graph(element, &store.elements, &store.resolver)
-        .ok_or(StatusCode::NOT_FOUND)?;
+    if let Some((graph, _issues)) = syscribe_model::vis::build_graph(element, &store.elements, &store.resolver) {
+        return Ok(Json(to_sgraph(&graph)));
+    }
+    // Not a `Diagram`: a safety element is drawn from the model (GH #223).
+    let kinds = syscribe_model::vis::safety_kinds_of(element, &store.elements, &store.resolver);
+    let kind = match q.kind.as_deref() {
+        Some(k) => DiagramKind::parse(Some(k)).filter(|k| kinds.contains(k)),
+        None => kinds.first().copied(),
+    }
+    .ok_or(StatusCode::NOT_FOUND)?;
+    let (graph, _issues) = syscribe_model::vis::build_subject_graph(element, kind, &store.elements, &store.resolver);
     Ok(Json(to_sgraph(&graph)))
 }

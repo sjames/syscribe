@@ -127,6 +127,7 @@ impl End<'_> {
                 pin: None,
                 banners: Vec::new(),
                 feature: None,
+                mark: None,
             },
         }
     }
@@ -149,6 +150,7 @@ fn lane(id: String, label: &str, subject: &RawElement) -> Node {
         pin: None,
         banners: Vec::new(),
         feature: None,
+        mark: None,
     }
 }
 

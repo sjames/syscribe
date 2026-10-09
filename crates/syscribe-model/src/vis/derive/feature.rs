@@ -125,6 +125,7 @@ fn emit(graph: &mut DiagramGraph, mut selected: Vec<&FeatureNode>, filters: &Fil
                 excludes: f.excludes.clone(),
                 parameters: f.parameter_decls.clone(),
             }),
+            mark: None,
         });
     }
 

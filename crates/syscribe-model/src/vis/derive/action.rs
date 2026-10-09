@@ -52,6 +52,7 @@ fn node(id: String, qname: &str, kind: NodeKind, label: String, stereotype: Opti
         pin: None,
         banners: Vec::new(),
         feature: None,
+        mark: None,
     }
 }
 

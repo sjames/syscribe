@@ -1,7 +1,7 @@
 # fault-tree — fault tree analysis commands
 
 ## SYNOPSIS
-    syscribe -m <root> fault-tree render <FaultTree-id>
+    syscribe -m <root> fault-tree render <FaultTree-id> [--format mermaid|dot|svg|plantuml]
     syscribe -m <root> fault-tree analyze <FaultTree-id> [--json] [--max-order N] [--no-ccf]
 
 ## DESCRIPTION
@@ -11,6 +11,11 @@ Sub-commands for FaultTree (IEC 61025 / ISO 26262-9) analysis.
 element. The diagram shows all FaultTreeGate and FaultTreeEvent children with their
 types and ids. Gate type (AND, OR, etc.) is shown in node labels; edges represent
 the gate `inputs` list.
+
+With `--format` the tree is drawn from the Diagram IR instead (the same picture as a
+`diagramKind: FaultTree` diagram): IEC 61025 gate symbols, event shapes by `eventKind`,
+λ/probability labels, single points of failure and dual-point cut-set members highlighted,
+and the top-event probability on the root; `svg` is laid out by the embedded ELK.
 
 `fault-tree analyze` evaluates the gate logic of the named FaultTree and reports its
 minimal cut sets (with order and probability), the exact top-event probability
@@ -24,6 +29,7 @@ A gate cycle or a missing top node is an error (exit 1); see E980-E984, W980-W98
 
 ## OPTIONS
     render <FaultTree-id>   Emit Mermaid flowchart for the named FaultTree.
+      --format <f>          Draw the analysed diagram as mermaid, dot, svg or plantuml.
     analyze <FaultTree-id>  Cut sets, top-event probability, importance, CCF.
       --json                Machine-readable document (cutSets, events, topProbability, ...).
       --max-order N         Discard cut sets of order > N (probabilities stay exact).

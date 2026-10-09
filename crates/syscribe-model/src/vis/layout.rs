@@ -266,6 +266,9 @@ impl Builder<'_> {
                 "[H_RIGHT, V_CENTER, OUTSIDE]"
             } else if container {
                 "[H_LEFT, V_TOP, INSIDE]"
+            } else if super::shape::is_symbol(node.kind) {
+                // A safety symbol's text sits in the middle of its outline (`layout.ts` `isSymbolKind`).
+                "[H_CENTER, V_CENTER, INSIDE]"
             } else {
                 "[H_CENTER, V_TOP, INSIDE]"
             }),
@@ -861,6 +864,7 @@ mod tests {
             pin: None,
             banners: vec![],
             feature: None,
+            mark: None,
         }
     }
 

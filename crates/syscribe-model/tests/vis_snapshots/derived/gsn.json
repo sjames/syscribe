@@ -1,0 +1,136 @@
+{
+  "kind": "SafetyCase",
+  "qualifiedName": "Diagrams::GsnD",
+  "name": "GsnD",
+  "subject": "SG-DS-001",
+  "nodes": [
+    {
+      "id": "s-safety-sg",
+      "elementRef": "Safety::SG",
+      "resolved": true,
+      "elementType": "SafetyGoal",
+      "kind": "goal",
+      "label": "Avoid harm",
+      "stereotype": "SG-DS-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "undeveloped",
+        "value": "verdict incomplete",
+        "tone": "warn",
+        "emphasis": true
+      }
+    },
+    {
+      "id": "s-safety-case-strategy",
+      "elementRef": "Safety::Case::Strategy",
+      "resolved": true,
+      "elementType": "Argument",
+      "kind": "strategy",
+      "label": "Argue over independent channels",
+      "stereotype": "ARG-DS-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "undeveloped",
+        "tone": "warn"
+      }
+    },
+    {
+      "id": "s-safety-req",
+      "elementRef": "Safety::REQ",
+      "resolved": true,
+      "elementType": "Requirement",
+      "kind": "goal",
+      "label": "Comparator shall trip",
+      "stereotype": "REQ-DS-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "unverified",
+        "tone": "warn"
+      }
+    },
+    {
+      "id": "s-safety-tc",
+      "elementRef": "Safety::TC",
+      "resolved": true,
+      "elementType": "TestCase",
+      "kind": "solution",
+      "label": "Trip test",
+      "stereotype": "TC-DS-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "unverified",
+        "value": "unknown",
+        "tone": "warn"
+      }
+    },
+    {
+      "id": "s-safety-case-claim",
+      "elementRef": "Safety::Case::Claim",
+      "resolved": true,
+      "elementType": "Argument",
+      "kind": "undevelopedGoal",
+      "label": "Channels fail independently",
+      "stereotype": "ARG-DS-003",
+      "isAbstract": false,
+      "mark": {
+        "status": "UNDEVELOPED",
+        "tone": "warn"
+      }
+    },
+    {
+      "id": "s-safety-case-context",
+      "elementRef": "Safety::Case::Context",
+      "resolved": true,
+      "elementType": "Argument",
+      "kind": "context",
+      "label": "Single vehicle",
+      "stereotype": "ARG-DS-002",
+      "isAbstract": false
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-supportedBy-s-safety-req-s-safety-tc",
+      "elementRef": "Safety::REQ",
+      "source": "s-safety-req",
+      "target": "s-safety-tc",
+      "kind": "supportedBy"
+    },
+    {
+      "id": "e-supportedBy-s-safety-case-strategy-s-safety-req",
+      "elementRef": "Safety::Case::Strategy",
+      "source": "s-safety-case-strategy",
+      "target": "s-safety-req",
+      "kind": "supportedBy"
+    },
+    {
+      "id": "e-supportedBy-s-safety-case-strategy-s-safety-case-claim",
+      "elementRef": "Safety::Case::Strategy",
+      "source": "s-safety-case-strategy",
+      "target": "s-safety-case-claim",
+      "kind": "supportedBy"
+    },
+    {
+      "id": "e-inContextOf-s-safety-case-strategy-s-safety-case-context",
+      "elementRef": "Safety::Case::Strategy",
+      "source": "s-safety-case-strategy",
+      "target": "s-safety-case-context",
+      "kind": "inContextOf"
+    },
+    {
+      "id": "e-supportedBy-s-safety-sg-s-safety-case-strategy",
+      "elementRef": "Safety::SG",
+      "source": "s-safety-sg",
+      "target": "s-safety-case-strategy",
+      "kind": "supportedBy"
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "layered",
+    "direction": "down",
+    "hierarchical": false,
+    "portConstraints": "free",
+    "reversedKinds": []
+  },
+  "derived": true
+}

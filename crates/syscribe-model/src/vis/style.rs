@@ -13,7 +13,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::ir::{EdgeKind, Node, NodeKind, PortDirection};
+use super::ir::{EdgeKind, Node, NodeKind, PortDirection, Tone};
 
 /// Text colour shared by every node.
 pub const TEXT: &str = "#222";
@@ -28,11 +28,15 @@ pub const EDGE_STROKE_FEATURE_REQUIRES: &str = "#1d6fb8";
 pub const EDGE_STROKE_FEATURE_EXCLUDES: &str = "#b3261e";
 /// Edge stroke for `«allocate»`.
 pub const EDGE_STROKE_ALLOCATION: &str = "#7a3ea5";
+/// Edge stroke of the easiest attack path.
+pub const EDGE_STROKE_CRITICAL: &str = "#b3261e";
+/// Stroke width of a critical-path edge and of an emphasised node outline.
+pub const EMPHASIS_WIDTH: f64 = 3.0;
 /// Edge stroke width shared by every kind.
 pub const EDGE_WIDTH: f64 = 1.4;
 
 /// Resolved colours of one node.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NodeStyle {
     pub fill: String,
@@ -43,6 +47,10 @@ pub struct NodeStyle {
     pub text: String,
     /// Dashed outline: the node's reference did not resolve.
     pub dashed: bool,
+    /// Outline width when it is not the writer's default (an emphasised
+    /// [`NodeMark`](super::ir::NodeMark)).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stroke_width: Option<f64>,
 }
 
 /// Arrowhead vocabulary, serialised camelCase (`hollowTriangle`, …).
@@ -116,24 +124,80 @@ fn by_node_kind(kind: NodeKind) -> (&'static str, &'static str, bool) {
         NodeKind::Fork | NodeKind::Join => ("#333", "#333", false),
         NodeKind::Decision | NodeKind::Merge => ("#fff", "#333", false),
         NodeKind::UseCase => ("#fff8e1", "#8d6e00", false),
+        // FaultTree / AttackTree / SafetyCase (GH #223).
+        NodeKind::GateAnd | NodeKind::GateOr | NodeKind::GateXor | NodeKind::GateNot | NodeKind::GateInhibit => ("#eef3f8", "#1f497d", false),
+        NodeKind::EventBasic => ("#ffffff", "#44546a", false),
+        NodeKind::EventUndeveloped => ("#fffdf5", "#8d6e00", false),
+        NodeKind::EventHouse => ("#f4f4f4", "#555", false),
+        NodeKind::Step => ("#fdf3f0", "#9c3b22", false),
+        NodeKind::Goal | NodeKind::UndevelopedGoal => ("#eef6ff", "#1d4e89", false),
+        NodeKind::Strategy => ("#f3eefa", "#5b2c8e", false),
+        NodeKind::Solution => ("#f0fff4", "#1e6b2e", false),
+        NodeKind::Context => ("#f5f5f5", "#666", false),
+        NodeKind::Justification | NodeKind::Assumption => ("#fffde7", "#8d6e00", false),
         _ => ("#f5f5fa", "#666", false),
+    }
+}
+
+/// Whether the node kind belongs to the safety diagrams, whose look is fixed
+/// by its role: the kind wins over the element type there.
+fn is_safety_kind(kind: NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::GateAnd
+            | NodeKind::GateOr
+            | NodeKind::GateXor
+            | NodeKind::GateNot
+            | NodeKind::GateInhibit
+            | NodeKind::EventBasic
+            | NodeKind::EventUndeveloped
+            | NodeKind::EventHouse
+            | NodeKind::Step
+            | NodeKind::Goal
+            | NodeKind::UndevelopedGoal
+            | NodeKind::Strategy
+            | NodeKind::Solution
+            | NodeKind::Context
+            | NodeKind::Justification
+            | NodeKind::Assumption
+    )
+}
+
+/// `(fill, stroke)` a [`Tone`] paints over a node's base colours.
+pub fn tone_colors(tone: Tone) -> (&'static str, &'static str) {
+    match tone {
+        Tone::Ok => ("#e3f5e8", "#1e8a3c"),
+        Tone::Warn => ("#fff4d6", "#b7791f"),
+        Tone::Bad => ("#fdecea", "#b3261e"),
+        Tone::Neutral => ("#f1f2f4", "#8a8f98"),
     }
 }
 
 /// The style of a node: by its resolved element type first, then by its
 /// [`NodeKind`] for an untyped node. Dashed when the reference is unresolved.
 pub fn node_style(node: &Node) -> NodeStyle {
-    let (fill, stroke, header) = node
-        .element_type
-        .as_deref()
-        .and_then(by_element_type)
-        .unwrap_or_else(|| by_node_kind(node.kind));
+    let (mut fill, mut stroke, header) = if is_safety_kind(node.kind) {
+        by_node_kind(node.kind)
+    } else {
+        node.element_type.as_deref().and_then(by_element_type).unwrap_or_else(|| by_node_kind(node.kind))
+    };
+    // A mark's tone repaints the node (GH #223); an emphasised mark draws it heavier.
+    let mut stroke_width = None;
+    if let Some(m) = &node.mark {
+        let (f, s) = tone_colors(m.tone);
+        fill = f;
+        stroke = s;
+        if m.emphasis {
+            stroke_width = Some(EMPHASIS_WIDTH);
+        }
+    }
     NodeStyle {
         fill: fill.to_string(),
         stroke: stroke.to_string(),
         header_fill: header.then(|| stroke.to_string()),
         text: TEXT.to_string(),
         dashed: !node.resolved,
+        stroke_width,
     }
 }
 
@@ -170,11 +234,15 @@ pub fn edge_style(kind: EdgeKind) -> EdgeStyle {
         K::FeatureChild => (EDGE_STROKE, None, A::None, A::None, None),
         K::Requires => (EDGE_STROKE_FEATURE_REQUIRES, Some("6,3"), A::Filled, A::None, Some("requires")),
         K::Excludes => (EDGE_STROKE_FEATURE_EXCLUDES, Some("6,3"), A::Open, A::Open, Some("excludes")),
+        K::GateInput => (EDGE_STROKE, None, A::None, A::None, None),
+        K::CriticalPath => (EDGE_STROKE_CRITICAL, None, A::None, A::None, None),
+        K::SupportedBy => (EDGE_STROKE, None, A::Filled, A::None, None),
+        K::InContextOf => (EDGE_STROKE, None, A::HollowTriangle, A::None, None),
     };
     EdgeStyle {
         stroke: stroke.to_string(),
         dash: dash.map(str::to_string),
-        width: EDGE_WIDTH,
+        width: if kind == K::CriticalPath { EMPHASIS_WIDTH } else { EDGE_WIDTH },
         arrow_target: target,
         arrow_source: source,
         keyword: keyword.map(str::to_string),
@@ -216,6 +284,7 @@ mod tests {
             pin: None,
             banners: vec![],
             feature: None,
+            mark: None,
         }
     }
 

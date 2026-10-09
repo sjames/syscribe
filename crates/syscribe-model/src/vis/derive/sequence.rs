@@ -237,6 +237,7 @@ pub fn generate(
             // block views, and would not fit the fixed header.
             banners: Vec::new(),
             feature: None,
+            mark: None,
         });
     }
     let tallest = kept.iter().map(header_h).fold(0.0, f64::max);
@@ -344,6 +345,7 @@ pub fn generate(
                                 pin: None,
                                 banners: Vec::new(),
                                 feature: None,
+                                mark: None,
                             },
                             Rect { x: 0.0, y: top, w: None, h: None },
                         ));
@@ -396,6 +398,7 @@ pub fn generate(
             pin: Some(Rect { x: (HEADER_W - ACTIVATION_W) / 2.0, y, w: Some(ACTIVATION_W), h: Some(last + ACTIVATION_PAD - y) }),
             banners: Vec::new(),
             feature: None,
+            mark: None,
         });
     }
 

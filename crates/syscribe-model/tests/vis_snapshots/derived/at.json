@@ -1,0 +1,124 @@
+{
+  "kind": "AttackTree",
+  "qualifiedName": "Diagrams::AtD",
+  "name": "AtD",
+  "subject": "Security::AT",
+  "nodes": [
+    {
+      "id": "s-security-at-chain",
+      "elementRef": "Security::AT::Chain",
+      "resolved": true,
+      "elementType": "AttackTreeGate",
+      "kind": "gateAnd",
+      "label": "Local path",
+      "stereotype": "ATG-DS-002",
+      "isAbstract": false,
+      "mark": {
+        "status": "feasibility medium",
+        "tone": "warn",
+        "emphasis": true
+      }
+    },
+    {
+      "id": "s-security-at-root",
+      "elementRef": "Security::AT::Root",
+      "resolved": true,
+      "elementType": "AttackTreeGate",
+      "kind": "gateOr",
+      "label": "Either way in",
+      "stereotype": "ATG-DS-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "feasibility medium",
+        "value": "threat TS-DS-001 declares high",
+        "tone": "warn",
+        "badges": [
+          "W035"
+        ],
+        "emphasis": true
+      }
+    },
+    {
+      "id": "s-security-at-s1",
+      "elementRef": "Security::AT::S1",
+      "resolved": true,
+      "elementType": "AttackStep",
+      "kind": "step",
+      "label": "Reach the port",
+      "stereotype": "ATS-DS-001",
+      "isAbstract": false,
+      "mark": {
+        "status": "feasibility high",
+        "tone": "bad",
+        "emphasis": true
+      }
+    },
+    {
+      "id": "s-security-at-s2",
+      "elementRef": "Security::AT::S2",
+      "resolved": true,
+      "elementType": "AttackStep",
+      "kind": "step",
+      "label": "Replay a frame",
+      "stereotype": "ATS-DS-002",
+      "isAbstract": false,
+      "mark": {
+        "status": "feasibility medium",
+        "tone": "warn",
+        "emphasis": true
+      }
+    },
+    {
+      "id": "s-security-at-s3",
+      "elementRef": "Security::AT::S3",
+      "resolved": true,
+      "elementType": "AttackStep",
+      "kind": "step",
+      "label": "Remote injection",
+      "stereotype": "ATS-DS-003",
+      "isAbstract": false,
+      "mark": {
+        "status": "feasibility low",
+        "tone": "ok"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e-input-s-security-at-chain-s-security-at-s1",
+      "elementRef": "Security::AT::Chain",
+      "source": "s-security-at-chain",
+      "target": "s-security-at-s1",
+      "kind": "criticalPath"
+    },
+    {
+      "id": "e-input-s-security-at-chain-s-security-at-s2",
+      "elementRef": "Security::AT::Chain",
+      "source": "s-security-at-chain",
+      "target": "s-security-at-s2",
+      "kind": "criticalPath"
+    },
+    {
+      "id": "e-input-s-security-at-root-s-security-at-chain",
+      "elementRef": "Security::AT::Root",
+      "source": "s-security-at-root",
+      "target": "s-security-at-chain",
+      "kind": "criticalPath"
+    },
+    {
+      "id": "e-input-s-security-at-root-s-security-at-s3",
+      "elementRef": "Security::AT::Root",
+      "source": "s-security-at-root",
+      "target": "s-security-at-s3",
+      "kind": "gateInput"
+    }
+  ],
+  "layoutHints": {
+    "algorithm": "layered",
+    "direction": "down",
+    "hierarchical": false,
+    "portConstraints": "free",
+    "reversedKinds": []
+  },
+  "derived": true
+}

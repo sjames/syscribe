@@ -1,0 +1,16 @@
+digraph "GsnD" {
+  rankdir=TB;
+  node [fontname="Helvetica", fontsize=11];
+  edge [fontname="Helvetica", fontsize=10];
+  s_safety_sg [label="Avoid harm\nundeveloped\nverdict incomplete", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", penwidth=3, tooltip="Safety::SG"];
+  s_safety_case_strategy [label="Argue over independent channels\nundeveloped", shape=parallelogram, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::Case::Strategy"];
+  s_safety_req [label="Comparator shall trip\nunverified", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::REQ"];
+  s_safety_tc [label="Trip test\nunverified\nunknown", shape=ellipse, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::TC"];
+  s_safety_case_claim [label="(undeveloped)\nChannels fail independently\nUNDEVELOPED", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::Case::Claim"];
+  s_safety_case_context [label="Single vehicle", shape=box, style="filled,rounded", fillcolor="#f5f5f5", color="#666", tooltip="Safety::Case::Context"];
+  s_safety_req -> s_safety_tc [color="#555", arrowhead=normal];
+  s_safety_case_strategy -> s_safety_req [color="#555", arrowhead=normal];
+  s_safety_case_strategy -> s_safety_case_claim [color="#555", arrowhead=normal];
+  s_safety_case_strategy -> s_safety_case_context [color="#555", arrowhead=empty];
+  s_safety_sg -> s_safety_case_strategy [color="#555", arrowhead=normal];
+}

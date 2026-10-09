@@ -119,6 +119,30 @@ export function isGlyphKind(kind: string | undefined): boolean {
     return kind === 'initial' || kind === 'final' || kind === 'fork' || kind === 'join' || kind === 'decision' || kind === 'merge';
 }
 
+/** The safety symbols (`vis::shape::is_symbol`): gates by function, events by
+ * kind, and the GSN strategy / solution / context / justification / assumption.
+ * Their label stack is centred inside the outline, not hung from the top. */
+export function isSymbolKind(kind: string | undefined): boolean {
+    switch (kind) {
+        case 'gate-and':
+        case 'gate-or':
+        case 'gate-xor':
+        case 'gate-not':
+        case 'gate-inhibit':
+        case 'event-basic':
+        case 'event-undeveloped':
+        case 'event-house':
+        case 'strategy':
+        case 'solution':
+        case 'context':
+        case 'justification':
+        case 'assumption':
+            return true;
+        default:
+            return false;
+    }
+}
+
 /** A placeholder size for a shape created locally before the next measuring
  * pass (`DiagramEditor.addNode`); the server reload replaces it. */
 export function defaultSize(kind: string): { width: number; height: number } {
@@ -423,7 +447,9 @@ export class SyscribeLayoutConfigurator implements ILayoutConfigurator {
                 ? '[H_RIGHT, V_CENTER, OUTSIDE]'
                 : container
                   ? '[H_LEFT, V_TOP, INSIDE]'
-                  : '[H_CENTER, V_TOP, INSIDE]',
+                  : isSymbolKind(node.kind)
+                    ? '[H_CENTER, V_CENTER, INSIDE]'
+                    : '[H_CENTER, V_TOP, INSIDE]',
             'elk.nodeLabels.padding': '[top=4,left=8,bottom=4,right=8]',
             'elk.portLabels.placement': 'OUTSIDE',
             'elk.portConstraints': anySide ? 'FIXED_SIDE' : 'FREE',

@@ -42,7 +42,7 @@ const form = (over) => ({
 scenario('every offered kind has a generator-valid subject type list', () => {
     assert.deepEqual(
         DIAGRAM_KINDS.map(k => k.kind),
-        ['BDD', 'IBD', 'StateMachine', 'Action', 'Sequence', 'Requirement', 'FeatureModel', 'Allocation'],
+        ['BDD', 'IBD', 'StateMachine', 'Action', 'Sequence', 'Requirement', 'FeatureModel', 'Allocation', 'FaultTree', 'AttackTree', 'SafetyCase'],
     );
     assert.deepEqual(kindInfo('IBD').subjectTypes, ['PartDef', 'Part', 'ItemDef', 'Item']);
     assert.ok(kindInfo('Requirement').subjectTypes.includes('Package'));
@@ -51,6 +51,22 @@ scenario('every offered kind has a generator-valid subject type list', () => {
     for (const k of DIAGRAM_KINDS) {
         assert.ok(k.subjectTypes.length > 0 && k.hint.length > 0, `${k.kind} has subject types and a hint`);
     }
+});
+
+scenario('the safety kinds take their subjects from the safety elements and are derived only', () => {
+    assert.deepEqual(kindInfo('FaultTree').subjectTypes, ['FaultTree', 'SafetyGoal']);
+    assert.deepEqual(kindInfo('AttackTree').subjectTypes, ['AttackTree', 'ThreatScenario']);
+    assert.deepEqual(kindInfo('SafetyCase').subjectTypes, ['SafetyGoal', 'Argument', 'Package']);
+    for (const k of ['FaultTree', 'AttackTree', 'SafetyCase']) {
+        assert.equal(kindInfo(k).deriveOnly, true, k);
+    }
+    assert.equal(kindInfo('IBD').deriveOnly, undefined);
+    const ok = buildCreateRequest(form({ kind: 'FaultTree', subject: 'Safety::FTA::FT', candidates: ['Safety::FTA::FT', 'Safety::SG'] }));
+    assert.equal(ok.ok, true);
+    assert.deepEqual(ok.request.fields, { diagramKind: 'FaultTree', subject: 'Safety::FTA::FT' });
+    const blank = buildCreateRequest(form({ kind: 'SafetyCase', startFrom: 'blank', subject: '', candidates: [] }));
+    assert.equal(blank.ok, false);
+    assert.match(blank.error, /always derived/);
 });
 
 scenario('names follow the basic-name grammar', () => {
