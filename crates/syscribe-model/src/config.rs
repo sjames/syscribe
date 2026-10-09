@@ -924,7 +924,7 @@ fn load_links(model_root: &Path) -> Option<LinkConfig> {
 /// exported stable IDs (so cross-repo references and `E514`/`E515` can be checked),
 /// and detect whether following its import chain leads back to this model (`E510`).
 /// Returns an empty vector when the file is absent, unparseable, or has no `[repos]`.
-fn load_repos(model_root: &Path) -> Vec<LoadedRepo> {
+pub fn load_repos(model_root: &Path) -> Vec<LoadedRepo> {
     let text = match std::fs::read_to_string(model_root.join(".syscribe.toml")) {
         Ok(t) => t,
         Err(_) => return Vec::new(),

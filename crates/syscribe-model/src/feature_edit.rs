@@ -780,6 +780,49 @@ fn binders(cx: &Ctx, q: &str, name: &str) -> Vec<(String, String)> {
             out.push((e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone()), rel_of(&cx.root, &e.file_path)));
         }
     }
+    out.extend(peer_binders(cx, q, name));
+    out
+}
+
+/// GH #193 — the `Configuration`s of `[repos]` peers (a consolidating tier, §14.7) that bind
+/// `name` of the feature `q`, either by its native qualified name or through their own
+/// `repoImports:` mount of this model (the key is then translated back to this model's native
+/// qualified name before comparing). Each hit is labelled
+/// `<id> (repo '<alias>')`. A peer that cannot be read is skipped (the check is advisory
+/// against files this model does not own, never a reason to fail the edit).
+fn peer_binders(cx: &Ctx, q: &str, name: &str) -> Vec<(String, String)> {
+    let mut out = Vec::new();
+    for repo in crate::config::load_repos(&cx.root).into_iter().filter(|r| r.exists) {
+        let Ok(peer_elems) = walk_model(&repo.model_root) else { continue };
+        let peer_repos = crate::config::load_repos(&repo.model_root);
+        let mounts = crate::config::repo_mounts(&peer_elems, &peer_repos);
+        // A bare key names a peer feature by its native qualified name (section 14.4: local
+        // first, then the first peer that knows it) unless the peer model has an element of
+        // that name itself.
+        let holds_q = peer_repos.iter().any(|r| r.qnames.contains(q));
+        let local_q = peer_elems.iter().any(|e| e.qualified_name == q);
+        for e in peer_elems.iter().filter(|e| e.frontmatter.element_type == Some(ElementType::Configuration)) {
+            let Some(b) = e.frontmatter.parameter_bindings.as_ref().and_then(|v| v.as_mapping()) else { continue };
+            let bound = b.keys().filter_map(|k| k.as_str()).filter_map(|k| k.rsplit_once('.')).any(|(f, p)| {
+                p == name
+                    && ((f == q && holds_q && !local_q)
+                        || mounts.iter().any(|m| {
+                        // The mount must point at a repo that really holds `q` (the candidate
+                        // copy of this model is a sibling directory, so compare by content).
+                        let native = if f == m.mount {
+                            Some(m.peer_qname.clone())
+                        } else {
+                            f.strip_prefix(m.mount.as_str()).and_then(|t| t.strip_prefix("::")).map(|rest| format!("{}::{}", m.peer_qname, rest))
+                        };
+                        native.as_deref() == Some(q) && peer_repos.iter().any(|r| r.alias == m.alias && r.qnames.contains(q))
+                        }))
+            });
+            if bound {
+                let id = e.frontmatter.id.clone().unwrap_or_else(|| e.qualified_name.clone());
+                out.push((format!("{id} (repo '{}')", repo.alias), rel_of(&repo.model_root, &e.file_path)));
+            }
+        }
+    }
     out
 }
 
