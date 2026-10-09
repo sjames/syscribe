@@ -201,7 +201,7 @@ fn succession_flow_kind_lifts_as_succession() {
 }
 
 #[test]
-fn a_genuinely_two_segment_truncated_flow_endpoint_raises_w542() {
+fn a_two_segment_flow_endpoint_keeps_its_full_path_without_w542() {
     let root = tempdir();
     base_model(&root);
     write(
@@ -219,5 +219,9 @@ fn a_genuinely_two_segment_truncated_flow_endpoint_raises_w542() {
 
     let elements = walk_model(&root).unwrap();
     let result = validate(&elements);
-    assert!(codes(&result.findings).contains(&"W542"), "{:#?}", result.findings);
+    assert!(!codes(&result.findings).contains(&"W542"), "{:#?}", result.findings);
+    let v = elements.iter().find(|e| e.qualified_name == "SysML2Legacy::Flows::V").unwrap();
+    let flows = v.frontmatter.flow_connections.as_deref().expect("flowConnections present");
+    let f = flows[0].as_mapping().unwrap();
+    assert_eq!(f.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::Flows::V::a::notARedeclaredFeature"));
 }

@@ -10,23 +10,23 @@ tc_TRS_SYSMLV2_013() {
     [ "$has_edge" -ge 1 ] && pass "real edge from a::fooProvider to b::fooClient" \
         || fail "no edge from a::fooProvider to b::fooClient found: $out"
 
-    # 2. an inherited-only feature falls back to head-only
-    _scn "an inherited-only feature falls back to head-only"
+    # 2. an inherited-only feature keeps its full path (GH #206)
+    _scn "an inherited-only feature keeps its full path"
     local eout; eout=$("$SYSCRIBE" -m "$M" export --ndjson 2>&1)
     local inh_conns; inh_conns=$(printf '%s' "$eout" | jq -c --arg q "SysML2::Demo::Inherited" \
         'select(.qname==$q) | .frontmatter.connections[0]')
     local inh_from; inh_from=$(printf '%s' "$inh_conns" | jq -r '.from')
     local inh_to; inh_to=$(printf '%s' "$inh_conns" | jq -r '.to')
-    [ "$inh_from" = "SysML2::Demo::Inherited::a" ] && [ "$inh_to" = "SysML2::Demo::Inherited::b" ] \
-        && pass "Inherited's connection is head-only (a -> b, .p1 dropped)" \
+    [ "$inh_from" = "SysML2::Demo::Inherited::a::p1" ] && [ "$inh_to" = "SysML2::Demo::Inherited::b::p1" ] \
+        && pass "Inherited's connection keeps the full path (a::p1 -> b::p1)" \
         || fail "Inherited's connection was: from=$inh_from to=$inh_to"
 
-    # 3. a three-segment chain always falls back to head-only
-    _scn "a three-segment chain always falls back to head-only"
+    # 3. a three-segment chain keeps its full path
+    _scn "a three-segment chain keeps its full path"
     local three_conns; three_conns=$(printf '%s' "$eout" | jq -c --arg q "SysML2::Demo::ThreeSegment" \
         'select(.qname==$q) | .frontmatter.connections[0]')
     local three_from; three_from=$(printf '%s' "$three_conns" | jq -r '.from')
-    [ "$three_from" = "SysML2::Demo::ThreeSegment::a" ] \
-        && pass "ThreeSegment's connection is head-only (a.fooProvider.deep -> a)" \
-        || fail "ThreeSegment's connection from was: $three_from (expected head-only fallback)"
+    [ "$three_from" = "SysML2::Demo::ThreeSegment::a::fooProvider::deep" ] \
+        && pass "ThreeSegment's connection keeps the full path (a.fooProvider.deep)" \
+        || fail "ThreeSegment's connection from was: $three_from (expected the full path)"
 }

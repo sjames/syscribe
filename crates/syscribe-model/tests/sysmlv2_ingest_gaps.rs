@@ -76,10 +76,10 @@ fn anonymous_connect_lifts_onto_the_owner_connections() {
     let conns = field(car, "connections");
     let conns = conns.as_sequence().expect("connections");
     assert_eq!(conns.len(), 1);
-    assert_eq!(conns[0]["from"].as_str(), Some("Sys::P::Car::eng"));
-    assert_eq!(conns[0]["to"].as_str(), Some("Sys::P::Car::wheel"));
-    // The inherited-port tail is truncated to the head usage, never silently: W542.
-    assert!(findings(&els, "W542").iter().any(|m| m.contains("eng.pwr")));
+    // GH #206: the dotted endpoint keeps its full path rather than collapsing to the head part.
+    assert_eq!(conns[0]["from"].as_str(), Some("Sys::P::Car::eng::pwr"));
+    assert_eq!(conns[0]["to"].as_str(), Some("Sys::P::Car::wheel::inp"));
+    assert!(findings(&els, "W542").is_empty());
 }
 
 #[test]
@@ -88,8 +88,8 @@ fn bind_lifts_onto_binding_connections() {
     let b = field(get(&els, "Sys::P::Car"), "bindingConnections");
     let b = b.as_sequence().expect("bindingConnections");
     assert_eq!(b.len(), 1);
-    assert_eq!(b[0]["left"].as_str(), Some("Sys::P::Car::eng"));
-    assert_eq!(b[0]["right"].as_str(), Some("Sys::P::Car::wheel"));
+    assert_eq!(b[0]["left"].as_str(), Some("Sys::P::Car::eng::pwr"));
+    assert_eq!(b[0]["right"].as_str(), Some("Sys::P::Car::wheel::pwr"));
 }
 
 #[test]
@@ -141,9 +141,9 @@ fn interface_usage_with_connect_becomes_a_typed_named_connection() {
     assert_eq!(conns[0]["typedBy"].as_str(), Some("PI"));
     let ends = conns[0]["ends"].as_sequence().unwrap();
     assert_eq!(ends[0]["end"].as_str(), Some("a"));
-    assert_eq!(ends[0]["binds"].as_str(), Some("Sys::P::Sys2::e1"));
+    assert_eq!(ends[0]["binds"].as_str(), Some("Sys::P::Sys2::e1::pwr"));
     assert_eq!(ends[1]["end"].as_str(), Some("b"));
-    assert_eq!(ends[1]["binds"].as_str(), Some("Sys::P::Sys2::e2"));
+    assert_eq!(ends[1]["binds"].as_str(), Some("Sys::P::Sys2::e2::inp"));
     // ... and the interface usage itself is an element.
     assert_eq!(field(get(&els, "Sys::P::Sys2::i1"), "typedBy").as_str(), Some("PI"));
 }
@@ -226,4 +226,24 @@ fn one_bad_member_does_not_discard_the_file() {
 fn a_clean_file_raises_no_parse_findings() {
     let els = ingest(PROBE);
     assert!(findings(&els, "W541").is_empty());
+}
+
+#[test]
+fn dotted_connect_endpoints_resolve_in_validation_through_inherited_ports() {
+    // GH #206: `connect eng.pwr to wheel.inp` -- `pwr`/`inp` are ports of `Eng`, inherited by the
+    // `eng`/`wheel` usages through `typedBy:`; the full path validates clean.
+    let src = "package P {\n\
+        port def PP;\n\
+        part def Eng { port pwr : PP; port inp : PP; }\n\
+        part def Car { part eng : Eng; part wheel : Eng; connect eng.pwr to wheel.inp; }\n\
+        }\n";
+    let els = ingest(src);
+    let result = syscribe_model::validator::validate(&els);
+    let bad: Vec<_> = result.findings.iter().filter(|f| matches!(f.code, "E127" | "W056" | "W542")).collect();
+    assert!(bad.is_empty(), "{bad:#?}");
+
+    // ... and a tail that is not a member of the head's type is reported, not silently dropped.
+    let els = ingest(&src.replace("wheel.inp", "wheel.nope"));
+    let result = syscribe_model::validator::validate(&els);
+    assert!(result.findings.iter().any(|f| f.code == "W056" && f.message.contains("nope")), "{:#?}", result.findings);
 }
