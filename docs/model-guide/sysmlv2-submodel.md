@@ -280,7 +280,7 @@ the parser to add real support was considered and rejected.
 |---|---|
 | `W540` | A `_index.md` found anywhere inside a `sysmlSubmodel: true` package's subtree, other than that package's own anchor `_index.md` |
 | `W541` | Either a `.sysml`/`.kerml` file failed to read (e.g. invalid UTF-8), or `sysml-v2-parser` failed to parse its contents |
-| `W542` | A `connect` endpoint's genuinely two-segment chain fell back to a head-only edge because the tail isn't a locally-redeclared feature (§8's redeclaration lookahead didn't match) — identifies the dropped segment. Also raised when an `allocation` usage's `allocate` endpoint chain is truncated (§20) |
+| `W542` | Raised when an `allocation` usage's `allocate` endpoint chain is truncated (§20). `connect` endpoints no longer raise it: a dotted endpoint (`eng.pwr`) keeps its full `::` path (`Owner::eng::pwr`, GH #206), and an unresolvable tail is `W056`/`E127` |
 | `W543` | Advisory: a `.sysml`/`.kerml` file in a `sysmlSubmodel:` subtree contains parsed constructs with no Syscribe mapping (`actor`, package-level `filter`, a KerML declaration, a `metadata` application whose `about` target does not resolve, a package declared with a qualified name, an `other package member` such as a package-level `connect`/`ref`/`succession`, an unresolved package-level `satisfy`/`include`, …; the full list with reasons is §6); raised once per file with per-kind counts, and the constructs are not ingested (REQ-TRS-SYSMLV2-030/-097/-098/-100). Example: `actor x2, filter x1`. It does not cover members nested inside a mapped definition's body (e.g. a requirement's `frame`/constraint body); gate it with `--deny W543` |
 | `W544` | Advisory: an ingested usage's multiplicity has integer bounds with lower greater than upper, a negative bound, or a non-integer numeric literal bound (REQ-TRS-SYSMLV2-066); name or expression bounds are not evaluated |
 
@@ -499,7 +499,7 @@ element list, no inheritance reasoning of any kind. Whenever that lookahead does
 a head that isn't itself a `part` usage in the same body), the endpoint falls back to §8's
 existing head-only qualification exactly as before — a strict widening, never a new failure mode.
 
-## 11. `W542` — a truncated `connect` endpoint is no longer silent
+## 11. `W542` — a truncated `connect` endpoint (superseded by GH #206: full path kept, resolved by `W056`/`E127`)
 
 §10's redeclaration lookahead only reaches a feature *explicitly redeclared* on the usage — the
 far more common case (a feature *inherited* from the head's type, e.g. `part carDisplayService :

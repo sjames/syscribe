@@ -513,3 +513,31 @@ fn newly_exported_kinds_are_read_back_as_the_same_kinds() {
     let wiring = els.iter().find(|e| e.qualified_name == "Imp::M::Wiring").unwrap();
     assert_eq!(wiring.frontmatter.allocated_from.as_deref(), Some(&["Imp::M::Car".to_string()][..]));
 }
+
+/// GH #206: a dotted `connect eng.pwr to wheel.inp` is ingested as the full `::` path and
+/// exported back as the same dotted chain.
+#[test]
+fn dotted_connect_endpoints_round_trip() {
+    let r = tempdir();
+    write(&r, "_index.md", "---\ntype: Package\nname: Root\n---\n");
+    write(&r, "Sys/_index.md", "---\ntype: Package\nname: Sys\nsysmlSubmodel: true\n---\n");
+    write(
+        &r,
+        "Sys/m.sysml",
+        "package P {\n port def PP;\n part def Eng { port pwr : PP; port inp : PP; }\n part def Car { part eng : Eng; part wheel : Eng; connect eng.pwr to wheel.inp; }\n}\n",
+    );
+    let els = walk_model(&r).unwrap();
+    let car = els.iter().find(|e| e.qualified_name == "Sys::P::Car").unwrap();
+    let conns = car.frontmatter.connections.as_ref().expect("connections");
+    let c = conns[0].as_mapping().unwrap();
+    assert_eq!(c.get("from").and_then(|v| v.as_str()), Some("Sys::P::Car::eng::pwr"));
+    assert_eq!(c.get("to").and_then(|v| v.as_str()), Some("Sys::P::Car::wheel::inp"));
+
+    let out = export_sysml(&els, None).unwrap();
+    has(&out, "connect eng.pwr to wheel.inp");
+    let back = assert_parses(&out.text);
+    let car = back.iter().find(|e| e.qualified_name.ends_with("::Car")).expect("Car re-ingested");
+    let c = car.frontmatter.connections.as_ref().expect("connections after round trip")[0].as_mapping().unwrap().clone();
+    assert!(c.get("from").and_then(|v| v.as_str()).is_some_and(|f| f.ends_with("::Car::eng::pwr")), "{c:?}");
+    assert!(c.get("to").and_then(|v| v.as_str()).is_some_and(|f| f.ends_with("::Car::wheel::inp")), "{c:?}");
+}

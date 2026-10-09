@@ -544,7 +544,7 @@ pub fn unresolved_structural_ref_findings(
             )
         );
         let mut chains: Vec<String> = Vec::new();
-        if file.ends_with(".md") {
+        {
             for entry in fm.connections.iter().flatten() {
                 let Some(parsed) = crate::connections::parse_entry(entry) else { continue };
                 chains.extend(parsed.endpoints.into_iter().map(|ep| ep.chain));
@@ -565,8 +565,12 @@ pub fn unresolved_structural_ref_findings(
             if c.is_empty() || ctx.resolves(elem, c) {
                 continue;
             }
-            if let Err(seg) = ctx.walk_chain(elem, c) {
-                let head = c.replace("::", ".");
+            // An ingested endpoint is owner-qualified (`Owner::a::b::c`, GH #206); the walk
+            // starts at the owner, so drop that prefix.
+            let owner_prefix = format!("{}::", elem.qualified_name);
+            let rel = c.strip_prefix(owner_prefix.as_str()).unwrap_or(c);
+            if let Err(seg) = ctx.walk_chain(elem, rel) {
+                let head = rel.replace("::", ".");
                 if head.split('.').next().map(str::trim) == Some(seg.as_str()) {
                     report(
                         "E127",

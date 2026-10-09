@@ -3,17 +3,17 @@ id: TC-TRS-SYSMLV2-015
 type: TestCase
 testLevel: L3
 status: active
-name: "Verify a genuinely two-segment, non-redeclared connect endpoint raises W542 for each truncated end, while a redeclared endpoint, a bare endpoint, and a three-segment endpoint all raise none."
+name: "Verify a dotted connect endpoint keeps its full path and raises no W542 (truncation retired by GH #206), resolving an inherited tail without a finding."
 verifies:
   - REQ-TRS-SYSMLV2-015
 ---
 
 ```gherkin
-Feature: W542 connect-endpoint truncation warning
-  Scenario: a non-redeclared two-segment endpoint raises W542 for each truncated end
+Feature: dotted connect endpoints are not truncated
+  Scenario: a non-redeclared two-segment endpoint raises no W542 and resolves
     Given a connect clause whose two-segment endpoints are not redeclared on either head
     When the model is validated
-    Then W542 fires exactly twice, one per truncated endpoint
+    Then no W542 fires and the inherited port tail resolves
 
   Scenario: a redeclared two-segment endpoint raises no W542
     Given a connect clause whose two-segment endpoints are redeclared on both heads

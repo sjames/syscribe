@@ -13,7 +13,7 @@ testFunctions:
   - an_anonymous_flow_nested_in_a_part_def_becomes_a_flow_connections_entry_only
   - a_named_flow_nested_in_a_part_usage_produces_both_an_element_and_an_entry
   - succession_flow_kind_lifts_as_succession
-  - a_genuinely_two_segment_truncated_flow_endpoint_raises_w542
+  - a_two_segment_flow_endpoint_keeps_its_full_path_without_w542
 tags:
   - sysmlv2
 ---
@@ -36,5 +36,5 @@ Feature: an ingested SysMLv2 flow def/flow becomes a native FlowDef/Flow (TC-TRS
   Scenario: succession flows and truncated endpoints
     Given a succession flow and a flow whose endpoint chain is unresolvable
     When the tool ingests and validates the model
-    Then the kind is succession and the unresolvable tail raises W542
+    Then the kind is succession and the full dotted path is kept and no W542 is raised (#206)
 ```

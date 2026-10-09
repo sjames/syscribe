@@ -367,7 +367,24 @@ pub fn build_graph(elements: &[RawElement]) -> (ModelGraph, HashMap<String, Node
                 }
             }
             // otherwise treat the whole chain as a qname/id.
-            resolve_to_idx(chain)
+            if let Some(n) = resolve_to_idx(chain) {
+                return Some(n);
+            }
+            // GH #206: an ingested endpoint is the full `Owner::a::b::c` path; when its tail is an
+            // inherited feature (no element of its own) the edge lands on the deepest prefix that
+            // is one — the head part at worst — never on the owner itself.
+            let owner_prefix = format!("{}::", elem.qualified_name);
+            let mut prefix = chain;
+            while let Some((p, _)) = prefix.rsplit_once("::") {
+                if !p.starts_with(owner_prefix.as_str()) {
+                    break;
+                }
+                if let Some(n) = resolve_to_idx(p) {
+                    return Some(n);
+                }
+                prefix = p;
+            }
+            None
         };
 
         // Add wiring edges from a resolved endpoint list (binary or n-ary star).

@@ -73,11 +73,11 @@ fn a_binary_connect_lifts_onto_the_owning_part_and_produces_a_real_edge() {
     let m = conns[0].as_mapping().unwrap();
     assert_eq!(
         m.get("from").and_then(|v| v.as_str()),
-        Some("SysML2Legacy::CarOS::Holder::a")
+        Some("SysML2Legacy::CarOS::Holder::a::p1")
     );
     assert_eq!(
         m.get("to").and_then(|v| v.as_str()),
-        Some("SysML2Legacy::CarOS::Holder::b")
+        Some("SysML2Legacy::CarOS::Holder::b::p1")
     );
     assert_eq!(m.get("typedBy").and_then(|v| v.as_str()), Some("SomeConnDef"));
 
@@ -126,9 +126,9 @@ fn an_nary_connect_lifts_to_the_ends_shape_and_every_end_resolves() {
     assert_eq!(
         binds,
         vec![
-            "SysML2Legacy::CarOS::Holder::a",
-            "SysML2Legacy::CarOS::Holder::b",
-            "SysML2Legacy::CarOS::Holder::c",
+            "SysML2Legacy::CarOS::Holder::a::p1",
+            "SysML2Legacy::CarOS::Holder::b::p1",
+            "SysML2Legacy::CarOS::Holder::c::p1",
         ]
     );
 
@@ -203,16 +203,14 @@ fn a_connect_on_a_part_usage_also_lifts() {
     let m = conns[0].as_mapping().unwrap();
     assert_eq!(
         m.get("from").and_then(|v| v.as_str()),
-        Some("SysML2Legacy::CarOS::holder::a")
+        Some("SysML2Legacy::CarOS::holder::a::p1")
     );
 }
 
 #[test]
-fn a_trailing_segment_past_the_head_is_discarded_not_a_resolution_attempt() {
-    // Deliberate granularity choice, not best-effort: even if the "p1"
-    // suffix were somehow separately redeclared, connections: only ever
-    // carries the head. This test pins that the *entry itself* always
-    // reads "Holder::a"/"Holder::b", regardless of what follows the dot.
+fn a_trailing_segment_past_the_head_is_kept_in_the_endpoint_path() {
+    // GH #206: the whole dotted path is kept (`Holder::a::p1`), whether or not the tail is
+    // redeclared on the usage.
     let root = tempdir();
     base_model(&root);
     write(
@@ -241,8 +239,9 @@ fn a_trailing_segment_past_the_head_is_discarded_not_a_resolution_attempt() {
     assert_eq!(conns.len(), 2, "both connection usages should each contribute an entry");
     for entry in conns {
         let m = entry.as_mapping().unwrap();
-        assert_eq!(m.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Holder::a"));
-        assert_eq!(m.get("to").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Holder::b"));
+        let (f, t) = (m.get("from").and_then(|v| v.as_str()).unwrap(), m.get("to").and_then(|v| v.as_str()).unwrap());
+        assert!(f.starts_with("SysML2Legacy::CarOS::Holder::a::p"), "{f}");
+        assert!(t.starts_with("SysML2Legacy::CarOS::Holder::b::p"), "{t}");
     }
 }
 
@@ -323,9 +322,9 @@ fn a_connect_endpoint_with_no_matching_sibling_writes_a_non_resolving_entry_not_
     let has_edge = graph.edges(a).any(|e| *e.weight() == EdgeKind::Connection);
     assert!(!has_edge, "expected no edge for an unresolvable endpoint, found one");
 
-    // Doesn't crash validate either.
+    // Doesn't crash validate; the dangling endpoint is reported as E127.
     let result = validate(&elements);
-    assert_eq!(result.errors().count(), 0, "unexpected errors: {:#?}", result.findings);
+    assert!(result.findings.iter().any(|f| f.code == "E127" && f.message.contains("nonexistent")), "{:#?}", result.findings);
 }
 
 #[test]
@@ -437,10 +436,9 @@ fn a_two_segment_endpoint_resolves_to_the_redeclared_nested_feature() {
 }
 
 #[test]
-fn a_two_segment_endpoint_with_no_matching_redeclaration_falls_back_to_head_only() {
-    // The common, inherited-feature case REQ-TRS-SYSMLV2-010 already
-    // handled: `a`'s own body doesn't redeclare `noSuchThing`, so the
-    // endpoint falls back to head-only exactly as before this requirement.
+fn a_two_segment_endpoint_with_no_matching_redeclaration_keeps_the_full_path() {
+    // The common, inherited-feature case: `p1` is inherited from `a`'s type, not redeclared on
+    // the usage; the endpoint keeps the full path (GH #206) and validation resolves it.
     let root = tempdir();
     base_model(&root);
     write(
@@ -465,12 +463,14 @@ fn a_two_segment_endpoint_with_no_matching_redeclaration_falls_back_to_head_only
         .unwrap();
     let conns = top.frontmatter.connections.as_ref().unwrap();
     let m = conns[0].as_mapping().unwrap();
-    assert_eq!(m.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::a"));
-    assert_eq!(m.get("to").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::b"));
+    assert_eq!(m.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::a::p1"));
+    assert_eq!(m.get("to").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::b::p1"));
+    let result = validate(&elements);
+    assert!(!result.findings.iter().any(|f| matches!(f.code, "E127" | "W056" | "W542")), "{:#?}", result.findings);
 }
 
 #[test]
-fn a_three_segment_endpoint_falls_back_to_head_only() {
+fn a_three_segment_endpoint_keeps_the_full_path() {
     let root = tempdir();
     base_model(&root);
     write(
@@ -499,8 +499,8 @@ fn a_three_segment_endpoint_falls_back_to_head_only() {
     let m = conns[0].as_mapping().unwrap();
     assert_eq!(
         m.get("from").and_then(|v| v.as_str()),
-        Some("SysML2Legacy::CarOS::Top::a"),
-        "a three-segment chain should fall back to head-only, not attempt any deeper resolution"
+        Some("SysML2Legacy::CarOS::Top::a::fooProvider::deep"),
+        "a three-segment chain maps to the full `::` path"
     );
 }
 
@@ -533,7 +533,7 @@ fn a_bare_endpoint_is_still_unaffected_by_the_two_segment_resolution_logic() {
 }
 
 #[test]
-fn a_head_that_is_not_a_part_usage_sibling_falls_back_to_head_only() {
+fn a_head_that_is_not_a_part_usage_sibling_keeps_the_full_path() {
     // The head resolves to something other than a `part` usage in the same
     // body (here, a's own connect target is a port sibling directly, no
     // enclosing part usage named "p1") -- find_sibling correctly finds
@@ -560,13 +560,13 @@ fn a_head_that_is_not_a_part_usage_sibling_falls_back_to_head_only() {
         .unwrap();
     let conns = top.frontmatter.connections.as_ref().unwrap();
     let m = conns[0].as_mapping().unwrap();
-    assert_eq!(m.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::p1"));
+    assert_eq!(m.get("from").and_then(|v| v.as_str()), Some("SysML2Legacy::CarOS::Top::p1::deep"));
 }
 
-// ── REQ-TRS-SYSMLV2-015: W542 truncation warning (#104) ──────────────────────
+// ── GH #206: dotted endpoints keep the full path; no connect truncation (formerly W542, #104) ──────────────────────
 
 #[test]
-fn a_two_segment_endpoint_with_no_redeclaration_raises_w542_for_both_ends() {
+fn a_two_segment_endpoint_with_no_redeclaration_resolves_without_findings() {
     let root = tempdir();
     base_model(&root);
     write(
@@ -586,10 +586,11 @@ fn a_two_segment_endpoint_with_no_redeclaration_raises_w542_for_both_ends() {
 
     let elements = walk_model(&root).unwrap();
     let result = validate(&elements);
-    let w542: Vec<_> = result.findings.iter().filter(|f| f.code == "W542").collect();
-    assert_eq!(w542.len(), 2, "expected one W542 per truncated endpoint: {:#?}", result.findings);
-    assert!(w542[0].message.contains("a.p1"), "{:#?}", w542);
-    assert!(w542[1].message.contains("b.p1"), "{:#?}", w542);
+    assert!(
+        !result.findings.iter().any(|f| matches!(f.code, "W542" | "E127" | "W056")),
+        "inherited-port endpoints must resolve: {:#?}",
+        result.findings
+    );
 }
 
 #[test]
@@ -647,10 +648,7 @@ fn a_bare_undotted_endpoint_raises_no_w542() {
 }
 
 #[test]
-fn a_three_segment_endpoint_raises_no_w542_its_own_deliberate_unwarned_fallback() {
-    // REQ-TRS-SYSMLV2-013's own documented scope: a three-plus-segment chain
-    // always falls back to head-only, silently -- that's a separate,
-    // deliberate design decision this requirement doesn't touch.
+fn a_three_segment_endpoint_raises_no_w542() {
     let root = tempdir();
     base_model(&root);
     write(
@@ -676,7 +674,7 @@ fn a_three_segment_endpoint_raises_no_w542_its_own_deliberate_unwarned_fallback(
 }
 
 #[test]
-fn a_truncated_endpoint_inside_a_part_usage_body_also_raises_w542() {
+fn a_truncated_endpoint_inside_a_part_usage_body_also_resolves_without_w542() {
     // The part-usage call site (convert_part_usage), not the part-def one
     // the tests above exercise -- push_connection_truncation_findings must
     // be wired at all three call sites, not just the first one.
@@ -701,11 +699,11 @@ fn a_truncated_endpoint_inside_a_part_usage_body_also_raises_w542() {
     let elements = walk_model(&root).unwrap();
     let result = validate(&elements);
     let w542_count = result.findings.iter().filter(|f| f.code == "W542").count();
-    assert_eq!(w542_count, 2, "{:#?}", result.findings);
+    assert_eq!(w542_count, 0, "{:#?}", result.findings);
 }
 
 #[test]
-fn a_truncated_endpoint_inside_a_variant_part_usage_also_raises_w542() {
+fn a_truncated_endpoint_inside_a_variant_part_usage_also_resolves_without_w542() {
     // The variant-part-usage call site (convert_variant_usage), the third
     // and last of the three connection-entry call sites.
     let root = tempdir();
@@ -730,11 +728,11 @@ fn a_truncated_endpoint_inside_a_variant_part_usage_also_raises_w542() {
     let elements = walk_model(&root).unwrap();
     let result = validate(&elements);
     let w542_count = result.findings.iter().filter(|f| f.code == "W542").count();
-    assert_eq!(w542_count, 2, "{:#?}", result.findings);
+    assert_eq!(w542_count, 0, "{:#?}", result.findings);
 }
 
 #[test]
-fn an_nary_connect_endpoint_that_truncates_also_raises_w542() {
+fn an_nary_connect_endpoint_that_truncates_also_resolves_without_w542() {
     let root = tempdir();
     base_model(&root);
     write(
@@ -756,5 +754,32 @@ fn an_nary_connect_endpoint_that_truncates_also_raises_w542() {
     let elements = walk_model(&root).unwrap();
     let result = validate(&elements);
     let w542_count = result.findings.iter().filter(|f| f.code == "W542").count();
-    assert_eq!(w542_count, 3, "one W542 per n-ary end that truncates: {:#?}", result.findings);
+    assert_eq!(w542_count, 0, "{:#?}", result.findings);
+}
+
+#[test]
+fn a_dotted_endpoint_whose_tail_is_neither_declared_nor_inherited_is_reported() {
+    let root = tempdir();
+    base_model(&root);
+    write(
+        &root,
+        "SysML2Legacy/CarOS.sysml",
+        "package CarOS {\n\
+         part def Ecu {\n\
+         port p1 : SomePort;\n\
+         }\n\
+         part def Top {\n\
+         part a : Ecu;\n\
+         part b : Ecu;\n\
+         connection c : Link connect a.nope to b.p1;\n\
+         }\n\
+         }\n",
+    );
+    let elements = walk_model(&root).unwrap();
+    let result = validate(&elements);
+    assert!(
+        result.findings.iter().any(|f| f.code == "W056" && f.message.contains("a::nope") && f.message.contains("'nope'")),
+        "{:#?}",
+        result.findings
+    );
 }

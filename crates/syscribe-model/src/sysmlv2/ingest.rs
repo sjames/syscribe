@@ -2697,29 +2697,6 @@ fn find_part_usage_in_part_usage_body<'a>(
     })
 }
 
-/// Whether `pu`'s own body declares a direct child named `tail` — a
-/// `port`/`attribute`/`interface` usage, or a nested `part` usage —
-/// `REQ-TRS-SYSMLV2-013`'s local lookahead, step 2. No `item` usage arm:
-/// `PartUsageBodyElement` (a `part` *usage*'s own body-element enum, unlike
-/// `part def`'s) carries no `ItemUsage` variant in this grammar at all, so a
-/// `part` usage cannot declare a nested `item` usage to begin with —
-/// confirmed against the parser's own enum definition, not an oversight.
-fn part_usage_has_named_child(pu: PartUsageSibling<'_>, tail: &str) -> bool {
-    let sysml_v2_parser::PartUsageBody::Brace { elements, .. } = &pu.body else {
-        return false;
-    };
-    elements.iter().any(|n| match &n.value {
-        sysml_v2_parser::PartUsageBodyElement::PortUsage(p) => name_is(p.value.name, tail),
-        sysml_v2_parser::PartUsageBodyElement::AttributeUsage(a) => name_is(a.value.name, tail),
-        sysml_v2_parser::PartUsageBodyElement::PartUsage(p) => name_is(p.value.name, tail),
-        sysml_v2_parser::PartUsageBodyElement::InterfaceUsage(iface) => matches!(
-            &iface.value,
-            sysml_v2_parser::InterfaceUsage::Declaration { name: Some(n), .. } if dn(*n) == tail
-        ),
-        _ => false,
-    })
-}
-
 /// Rewrite a `connect`-clause endpoint's dotted chain text into the
 /// qualified qname `REQ-TRS-SYSMLV2-010`'s `connections:` lift actually
 /// needs — see the `ADR-SYS-SYSMLV2-001` addendum for the full
@@ -2759,28 +2736,13 @@ fn part_usage_has_named_child(pu: PartUsageSibling<'_>, tail: &str) -> bool {
 fn qualify_connection_end<'a>(
     owning_qname: &str,
     chain: &str,
-    find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
+    _find_sibling: &impl Fn(&str) -> Option<PartUsageSibling<'a>>,
 ) -> (String, Option<String>) {
-    let mut segments = chain.splitn(2, '.');
-    let head = segments.next().unwrap_or(chain);
-    if let Some(tail) = segments.next() {
-        if !tail.contains('.') {
-            if let Some(pu) = find_sibling(head) {
-                if part_usage_has_named_child(pu, tail) {
-                    return (format!("{owning_qname}::{head}::{tail}"), None);
-                }
-            }
-            let qname = format!("{owning_qname}::{head}");
-            let message = format!(
-                "connect endpoint '{chain}' has no locally-redeclared '{tail}' feature on \
-                 '{head}' -- truncated to the head-only edge '{qname}' (a feature inherited from \
-                 '{head}'s type, rather than redeclared on the usage, cannot be verified without \
-                 a full-model resolver; see REQ-TRS-SYSMLV2-013/-015)"
-            );
-            return (qname, Some(message));
-        }
-    }
-    (format!("{owning_qname}::{head}"), None)
+    // GH #206: the whole dotted chain maps to a `::` path under the owner. Whether each tail
+    // segment is declared or inherited is the validator's job (`structural_refs`' `member_type`/
+    // `walk_chain`, which follow `typedBy:`/`supertype:`), not something ingestion can see.
+    let path = chain.split('.').map(str::trim).filter(|s| !s.is_empty()).collect::<Vec<_>>().join("::");
+    (format!("{owning_qname}::{path}"), None)
 }
 
 /// One `connections:`-shaped YAML entry for a single named `connection name
