@@ -468,7 +468,7 @@ fn diagram_embed(elem: &RawElement, elements: &[RawElement], resolver: &Resolver
     let md_path = Path::new(&elem.file_path);
     let md_dir = md_path.parent().unwrap_or(Path::new("."));
 
-    if let Some((graph, _issues)) = syscribe_model::vis::build_graph(elem, elements, resolver) {
+    if let Some((graph, _issues)) = syscribe_model::vis::build_graph_with(elem, elements, resolver, &config.cyber) {
         if !graph.nodes.is_empty() {
             let links = crate::diagram_export::link_resolver(elements, resolver, config);
             match syscribe_model::vis::render_svg(&graph, &links) {
