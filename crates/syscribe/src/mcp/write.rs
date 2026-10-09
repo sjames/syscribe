@@ -114,15 +114,33 @@ where
     let (outcome, inspected, candidate) =
         guarded_write_cached(&store.model_root, &baseline, &store.config, dry_run, gate, allow_new_errors, apply, inspect, proceed);
     if !outcome.written {
-        if released {
-            // Nothing changed on disk: put the model back as it was.
-            if let Err(e) = store.reload() {
-                tracing_warn(&format!("rebuilding the model after a refused write failed: {e}"));
-            }
-        }
-        store.baseline = Some(baseline);
+        settle_after_refusal(store, baseline, released);
     }
     (outcome, inspected, candidate)
+}
+
+/// Put the store back as it was after a write that changed nothing on disk, and decide
+/// whether the baseline taken out for it is still the live model's (GH #196).
+///
+/// A model that was released for the candidate build is reloaded from disk. The kept
+/// baseline describes the model as it stood *before*; it is restored only when the reload
+/// read the same inputs (same fingerprint). If something else edited the model meanwhile,
+/// or the reload failed, the reloaded model no longer matches that baseline: it is dropped,
+/// so the next write recomputes it rather than reporting a delta against a stale one.
+fn settle_after_refusal(store: &mut McpStore, baseline: Baseline, released: bool) {
+    if !released {
+        store.baseline = Some(baseline);
+        return;
+    }
+    let fingerprint_before = store.fingerprint;
+    match store.reload() {
+        Ok(()) if store.fingerprint == fingerprint_before => store.baseline = Some(baseline),
+        Ok(()) => store.baseline = None,
+        Err(e) => {
+            tracing_warn(&format!("rebuilding the model after a refused write failed: {e}"));
+            store.baseline = None;
+        }
+    }
 }
 
 fn tracing_warn(msg: &str) {
@@ -219,4 +237,51 @@ pub fn feature_edit(store: &mut McpStore, op: syscribe_model::feature_edit::Edit
         return result(&obj, true, delta, &outcome.diff, Some(&format!("written, but reload failed: {e}")));
     }
     result(&obj, true, delta, &outcome.diff, None)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn model() -> std::path::PathBuf {
+        static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let r = std::env::temp_dir().join(format!("syscribe-mcp-settle-{}-{}", std::process::id(), N.fetch_add(1, std::sync::atomic::Ordering::Relaxed)));
+        std::fs::create_dir_all(&r).unwrap();
+        std::fs::write(r.join("_index.md"), "---\ntype: Package\nname: Root\n---\n").unwrap();
+        std::fs::write(r.join("A.md"), "---\ntype: PartDef\nname: A\n---\n").unwrap();
+        r
+    }
+
+    fn marker() -> Baseline {
+        Baseline { errors: vec![("E999".into(), "f".into(), "kept".into())], warnings: Vec::new() }
+    }
+
+    #[test]
+    fn a_large_model_keeps_its_baseline_when_the_post_refusal_reload_read_the_same_inputs() {
+        let r = model();
+        let mut store = McpStore::load(&r).unwrap();
+        settle_after_refusal(&mut store, marker(), true);
+        let b = store.baseline.expect("baseline restored");
+        assert_eq!(b.errors[0].2, "kept");
+    }
+
+    #[test]
+    fn a_post_refusal_reload_that_saw_an_outside_edit_drops_the_stale_baseline() {
+        let r = model();
+        let mut store = McpStore::load(&r).unwrap();
+        std::fs::write(r.join("B.md"), "---\ntype: PartDef\nname: B\n---\n").unwrap();
+        settle_after_refusal(&mut store, marker(), true);
+        assert!(store.baseline.is_none(), "a baseline of the pre-edit model must not outlive the reload");
+        assert!(store.elements.iter().any(|e| e.qualified_name == "B"), "the reload picked the edit up");
+    }
+
+    #[test]
+    fn a_small_model_is_not_reloaded_and_keeps_its_baseline() {
+        let r = model();
+        let mut store = McpStore::load(&r).unwrap();
+        std::fs::write(r.join("B.md"), "---\ntype: PartDef\nname: B\n---\n").unwrap();
+        settle_after_refusal(&mut store, marker(), false);
+        assert!(store.baseline.is_some());
+        assert!(!store.elements.iter().any(|e| e.qualified_name == "B"), "no reload happened");
+    }
 }
