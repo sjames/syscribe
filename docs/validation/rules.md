@@ -1096,6 +1096,7 @@ under `custom_fields:` (which is exempt). Advisory; gate with `--deny W047`.
 | W059 | A `visibility: private` element is referenced (`supertype:`/`typedBy:`) from outside the namespace that owns it |
 | W051 | A §3.10 locale variant is partly ignored: its target already has documentation for that locale (an earlier variant, or the element's own `locale:` — the first wins), its `type:` differs from the target's, or it declares fields other than `type`/`name`/`locale`/`qualifiedName` (a variant never redefines the element's structure) (§3.10) |
 | W052 | A §3.10 `about:` comment is partly ignored: it declares fields other than `type`/`name`/`about`/`locale` (a comment defines no element), an `about:` entry is not a non-empty string, or `about:` lists nothing; or `about:` is set on a package `_index.md`, which defines its package and is never a comment (§3.10) |
+| W068 | A redefining feature declares a `multiplicity:` not contained in the redefined feature's multiplicity (a redefinition may only narrow, SysML v2 §7.3) — element-level `redefines:` and inline `features:` entries; the redefined feature is found via `Owner::feat` or inherited through `supertype:`/`typedBy:`. Skipped when either side declares no multiplicity or uses a named bound. Warning: implicit/default multiplicities are not modelled, so only explicit numeric widening is flagged. |
 
 ## MagicGrid overlay (E316, W307, MG010–MG070)
 
