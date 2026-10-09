@@ -5985,6 +5985,9 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E112` | A `subsets:` reference cannot be resolved by any §11.5 form |
 | `E113` | A `redefines:` reference cannot be resolved by any §11.5 form |
 | `E114` | A `satisfies:` reference cannot be resolved (no element with matching id, qualified name or name) |
+| `E115` | A behavior-field reference cannot be resolved (sub-action/parameter `typedBy`, `payload`, `includes`, `extends[].target`, `subject`, `result`, `returnType`) |
+| `E116` | A succession/binding/flow endpoint names no sub-action, control node or parameter of the element |
+| `E117` | A behavior field is outside its closed vocabulary (sub-action or control-node `kind`, `loopKind`, parameter `direction`) |
 | `E310` | Native `Requirement` has `derivedFrom:` entries but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved, or resolves to an element that is not an `ADR` |
 | `E312` | A parent `Requirement` (one with `derivedChildren`) appears in a `satisfies:` list |

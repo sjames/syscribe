@@ -7720,6 +7720,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // hint annotates them too.
     findings.extend(crate::structural_refs::unresolved_structural_ref_findings(elements, &resolver, config));
 
+    findings.extend(crate::structural_refs::behavior_ref_findings(elements, &resolver, config));
+
     annotate_root_name_hints(&mut findings, elements, &resolver);
 
     // §9.9 — Build-system integration: E050 (conflicting buildExports var names
@@ -7990,7 +7992,7 @@ fn link_type_findings(elements: &[RawElement], config: &ValidateConfig) -> Vec<F
 /// findings: traceability, refinement, allocation, and the structural
 /// supertype/typedBy/subsets/redefines/connection resolution errors).
 const ROOT_HINT_CODES: &[&str] = &[
-    "E102", "E103", "E110", "E111", "E112", "E113", "E114", "E311", "E316", "E502", "E503", "E506", "E632",
+    "E102", "E103", "E110", "E111", "E112", "E113", "E114", "E115", "E311", "E316", "E502", "E503", "E506", "E632",
 ];
 
 /// REQ-TRS-XREF-006 — append a "did you mean" hint to any unresolved-reference

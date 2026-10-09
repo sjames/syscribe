@@ -56,6 +56,9 @@
 | `E112` | `subsets:` reference cannot be resolved |
 | `E113` | `redefines:` reference cannot be resolved |
 | `E114` | `satisfies:` reference cannot be resolved |
+| `E115` | A behavior-field reference cannot be resolved: sub-action or parameter `typedBy`, `payload`, `includes`, `extends[].target`, `subject`, `result`, `returnType` |
+| `E116` | A `successionConnections`/`bindingConnections`/`flowConnections` endpoint (or `after`/`before`) names no sub-action, control node or parameter of the element |
+| `E117` | A behavior field holds a value outside its closed vocabulary: sub-action or control-node `kind`, `loopKind`, parameter `direction` |
 | `E310` | `Requirement` has `derivedFrom:` but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved or resolves to a non-`ADR` element |
 | `E312` | A parent `Requirement` (has `derivedChildren`) appears in a `satisfies:` list |

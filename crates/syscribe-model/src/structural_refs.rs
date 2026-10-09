@@ -422,6 +422,219 @@ pub fn unresolved_structural_ref_findings(
     out
 }
 
+/// Closed vocabularies of the behavior schema (spec §8.7).
+const SUB_ACTION_KINDS: &[&str] = &[
+    "Action", "PerformAction", "SendAction", "AcceptAction", "AssignmentAction", "IfAction",
+    "LoopAction", "TerminateAction", "DecisionNode", "ForkNode", "JoinNode", "MergeNode",
+];
+const CONTROL_NODE_KINDS: &[&str] = &["DecisionNode", "ForkNode", "JoinNode", "MergeNode"];
+const LOOP_KINDS: &[&str] = &["while", "until", "for"];
+const PARAM_DIRECTIONS: &[&str] = &["in", "out", "inout", "return"];
+
+/// Every sub-action mapping reachable from `list` through `then:`/`else:`/
+/// `body:`/`subActions:`.
+fn walk_sub_actions<'v>(list: &'v [serde_yaml::Value], out: &mut Vec<&'v serde_yaml::Mapping>) {
+    for v in list {
+        let serde_yaml::Value::Mapping(m) = v else { continue };
+        out.push(m);
+        for key in ["then", "else", "body", "subActions"] {
+            if let Some(serde_yaml::Value::Sequence(inner)) = m.get(serde_yaml::Value::String(key.into())) {
+                walk_sub_actions(inner, out);
+            }
+        }
+    }
+}
+
+fn map_seq<'a>(m: &'a serde_yaml::Mapping, k: &str) -> &'a [serde_yaml::Value] {
+    match m.get(serde_yaml::Value::String(k.to_string())) {
+        Some(serde_yaml::Value::Sequence(s)) => s,
+        _ => &[],
+    }
+}
+
+/// `E115` — an unresolved reference in a behavior field (sub-action/parameter
+/// `typedBy`, `payload`, `includes`, `extends[].target`, `subject`, `result`,
+/// `returnType`); `E116` — a succession/binding/flow endpoint whose first
+/// segment names no sub-action, control node or parameter of the element;
+/// `E117` — a value outside a behavior field's closed vocabulary (sub-action
+/// or control-node `kind`, `loopKind`, parameter `direction`). GH #199.
+pub fn behavior_ref_findings(
+    elements: &[RawElement],
+    resolver: &Resolver,
+    config: &ValidateConfig,
+) -> Vec<Finding> {
+    let ctx = Ctx {
+        elements,
+        resolver,
+        config,
+        top_level: elements
+            .iter()
+            .filter(|e| !e.qualified_name.is_empty())
+            .map(|e| e.qualified_name.split("::").next().unwrap_or(""))
+            .collect(),
+    };
+    let mut out = Vec::new();
+    for elem in elements {
+        let fm = &elem.frontmatter;
+        let file = elem.file_path.as_str();
+        let empty: Vec<serde_yaml::Value> = Vec::new();
+        let subs_list = fm.sub_actions.as_ref().unwrap_or(&empty);
+        let nodes = fm.control_nodes.as_ref().unwrap_or(&empty);
+        let params = fm.parameters.as_ref().unwrap_or(&empty);
+        let has_refs = fm.includes.is_some()
+            || fm.extends.is_some()
+            || fm.subject.is_some()
+            || fm.result_type.is_some()
+            || fm.return_type.is_some();
+        if subs_list.is_empty() && nodes.is_empty() && params.is_empty() && !has_refs
+            && fm.succession_connections.is_none()
+            && fm.binding_connections.is_none()
+        {
+            continue;
+        }
+        let mut unresolved = |what: &str, r: &str| {
+            let r = r.trim();
+            if !r.is_empty() && !ctx.resolves(elem, r) {
+                let mut msg = format!("unresolved {what} reference '{r}'");
+                if config.has_repos() {
+                    msg = format!("cross-repo {what} reference '{r}' resolves neither locally nor in any loaded repo");
+                    out.push(error("E512", file, msg));
+                } else {
+                    out.push(error("E115", file, msg));
+                }
+            }
+        };
+        let mut subs: Vec<&serde_yaml::Mapping> = Vec::new();
+        walk_sub_actions(subs_list, &mut subs);
+        let mut names: HashSet<&str> = HashSet::new();
+        let mut bad: Vec<String> = Vec::new();
+        let check_param = |m: &serde_yaml::Mapping, owner: &str, unresolved: &mut dyn FnMut(&str, &str), bad: &mut Vec<String>| {
+            if let Some(t) = map_str(m, "typedBy") {
+                unresolved(&format!("{owner} parameter typedBy"), t);
+            }
+            if let Some(d) = map_str(m, "direction") {
+                if !PARAM_DIRECTIONS.contains(&d) {
+                    bad.push(format!("parameter direction '{d}' on {owner} (expected in, out, inout or return)"));
+                }
+            }
+        };
+        for v in params {
+            if let serde_yaml::Value::Mapping(m) = v {
+                if let Some(n) = map_str(m, "name") {
+                    names.insert(n);
+                }
+                check_param(m, "element", &mut unresolved, &mut bad);
+            }
+        }
+        for v in nodes {
+            let serde_yaml::Value::Mapping(m) = v else { continue };
+            let n = map_str(m, "name").unwrap_or("?");
+            names.insert(n);
+            match map_str(m, "kind") {
+                Some(k) if CONTROL_NODE_KINDS.contains(&k) => {}
+                Some(k) => bad.push(format!("control node '{n}' kind '{k}' (expected {})", CONTROL_NODE_KINDS.join(", "))),
+                None => {}
+            }
+            for p in map_seq(m, "parameters") {
+                if let serde_yaml::Value::Mapping(pm) = p {
+                    check_param(pm, &format!("control node '{n}'"), &mut unresolved, &mut bad);
+                }
+            }
+        }
+        for m in &subs {
+            let n = map_str(m, "name").unwrap_or("?");
+            names.insert(n);
+            if let Some(t) = map_str(m, "typedBy") {
+                unresolved(&format!("sub-action '{n}' typedBy"), t);
+            }
+            if let Some(t) = map_str(m, "payload") {
+                unresolved(&format!("sub-action '{n}' payload"), t);
+            }
+            if let Some(k) = map_str(m, "kind") {
+                if !SUB_ACTION_KINDS.contains(&k) {
+                    bad.push(format!("sub-action '{n}' kind '{k}' (expected {})", SUB_ACTION_KINDS.join(", ")));
+                }
+            }
+            if let Some(k) = map_str(m, "loopKind") {
+                if !LOOP_KINDS.contains(&k) {
+                    bad.push(format!("sub-action '{n}' loopKind '{k}' (expected while, until or for)"));
+                }
+            }
+            for p in map_seq(m, "parameters") {
+                if let serde_yaml::Value::Mapping(pm) = p {
+                    // Invocation bindings (`{name, value}`) carry no typedBy/direction.
+                    check_param(pm, &format!("sub-action '{n}'"), &mut unresolved, &mut bad);
+                }
+            }
+        }
+        for s in fm.includes.iter().flatten() {
+            unresolved("includes", s);
+        }
+        for e in fm.extends.iter().flatten() {
+            if let serde_yaml::Value::Mapping(m) = e {
+                if let Some(t) = map_str(m, "target") {
+                    unresolved("extends target", t);
+                }
+            }
+        }
+        if let Some(s) = &fm.subject {
+            unresolved("subject", s);
+        }
+        if let Some(s) = &fm.result_type {
+            unresolved("result", s);
+        }
+        if let Some(s) = &fm.return_type {
+            unresolved("returnType", s);
+        }
+        // Endpoint chains: the first segment must name something the element owns.
+        let mut endpoint = |what: &str, chain: Option<&str>| {
+            let Some(c) = chain else { return };
+            let head = c.trim().split(['.', ':']).next().unwrap_or("").trim();
+            if head.is_empty() || names.contains(head) || head == "self" || head == "this" {
+                return;
+            }
+            out.push(error(
+                "E116",
+                file,
+                format!("{what} '{c}' names no sub-action, control node or parameter of this element"),
+            ));
+        };
+        use crate::element::ElementType as T;
+        let behavioral = matches!(
+            fm.element_type,
+            Some(T::ActionDef | T::Action | T::UseCaseDef | T::UseCase | T::CaseDef | T::Case
+                | T::AnalysisCaseDef | T::AnalysisCase | T::VerificationCaseDef | T::VerificationCase)
+        );
+        for v in fm.succession_connections.iter().flatten().filter(|_| behavioral) {
+            if let serde_yaml::Value::Mapping(m) = v {
+                endpoint("succession `after`", map_str(m, "after"));
+                endpoint("succession `before`", map_str(m, "before"));
+            }
+        }
+        for v in fm.binding_connections.iter().flatten().filter(|_| behavioral) {
+            if let serde_yaml::Value::Mapping(m) = v {
+                endpoint("binding `left`", map_str(m, "left"));
+                endpoint("binding `right`", map_str(m, "right"));
+            }
+        }
+        if matches!(
+            fm.element_type,
+            Some(crate::element::ElementType::ActionDef) | Some(crate::element::ElementType::Action)
+        ) {
+            for v in fm.flow_connections.iter().flatten() {
+                if let serde_yaml::Value::Mapping(m) = v {
+                    endpoint("flow `from`", map_str(m, "from"));
+                    endpoint("flow `to`", map_str(m, "to"));
+                }
+            }
+        }
+        for b in bad {
+            out.push(error("E117", file, format!("invalid value: {b}")));
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -521,5 +734,70 @@ mod tests {
             elem("P::B", "type: PartDef\nfeatures:\n  - name: m\n    typedBy: MassValue\n"),
         ];
         assert_eq!(codes(&els), vec!["E110"]);
+    }
+
+    fn behavior_codes(elements: &[RawElement]) -> Vec<&'static str> {
+        let resolver = Resolver::new(elements);
+        let mut c: Vec<_> = behavior_ref_findings(elements, &resolver, &ValidateConfig::default())
+            .into_iter()
+            .map(|f| f.code)
+            .collect();
+        c.sort();
+        c
+    }
+
+    #[test]
+    fn behavior_fields_resolve_and_valid_model_is_clean() {
+        let els = vec![
+            elem("B", "type: Package"),
+            elem("B::Move", "type: ActionDef"),
+            elem("T", "type: Package"),
+            elem("T::Sig", "type: ItemDef"),
+            elem("S", "type: PartDef"),
+            elem(
+                "B::Serve",
+                "type: ActionDef\nparameters:\n  - {name: p, typedBy: T::Sig, direction: in}\n\
+                 subActions:\n  - {name: a, kind: PerformAction, typedBy: B::Move}\n  - {name: s, kind: SendAction, payload: T::Sig, via: port}\n  - name: l\n    kind: LoopAction\n    loopKind: while\n    body:\n      - {name: inner, kind: Action}\n\
+                 controlNodes:\n  - {name: f, kind: ForkNode}\nsuccessionConnections:\n  - {after: a, before: f}\n  - {after: f, before: inner}\nbindingConnections:\n  - {left: a.x, right: p}\n",
+            ),
+            elem("B::UC", "type: UseCaseDef\nsubject: S\nincludes: [B::Move]\nextends:\n  - {target: B::Move}\n"),
+        ];
+        assert!(behavior_codes(&els).is_empty(), "{:?}", behavior_codes(&els));
+    }
+
+    #[test]
+    fn dangling_behavior_references_are_e115() {
+        let els = vec![
+            elem(
+                "A",
+                "type: ActionDef\nparameters:\n  - {name: p, typedBy: Nope::P, direction: in}\nsubActions:\n  - {name: a, typedBy: Nope::X}\n  - {name: s, kind: SendAction, payload: Nope::Y}\n",
+            ),
+            elem("U", "type: UseCaseDef\nsubject: Nope::S\nincludes: [Nope::I]\nextends:\n  - {target: Nope::T}\nresult: Nope::R\n"),
+        ];
+        assert_eq!(behavior_codes(&els), vec!["E115"; 7]);
+    }
+
+    #[test]
+    fn dangling_succession_and_binding_endpoints_are_e116() {
+        let els = vec![elem(
+            "A",
+            "type: ActionDef\nsubActions:\n  - {name: a}\nsuccessionConnections:\n  - {after: a, before: ghost}\nbindingConnections:\n  - {left: nothing.x, right: a}\n",
+        )];
+        assert_eq!(behavior_codes(&els), vec!["E116", "E116"]);
+    }
+
+    #[test]
+    fn closed_vocabularies_are_e117() {
+        let els = vec![elem(
+            "A",
+            "type: ActionDef\nparameters:\n  - {name: p, direction: sideways}\nsubActions:\n  - {name: a, kind: Bogus}\n  - {name: l, kind: LoopAction, loopKind: whilst}\ncontrolNodes:\n  - {name: n, kind: Flibber}\n",
+        )];
+        assert_eq!(behavior_codes(&els), vec!["E117"; 4]);
+    }
+
+    #[test]
+    fn part_binding_connections_are_not_behavior_endpoints() {
+        let els = vec![elem("P", "type: PartDef\nbindingConnections:\n  - {left: a.x, right: y}\n")];
+        assert!(behavior_codes(&els).is_empty());
     }
 }
