@@ -2412,7 +2412,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                 }
             }
             // E817: securityProperty enum
-            if let Some(ref sp) = fm.security_property {
+            for sp in fm.security_property.iter().flatten() {
                 if !["confidentiality","integrity","availability","authenticity"].contains(&sp.as_str()) {
                     findings.push(error("E817", &file, &format!("CybersecurityGoal.securityProperty '{}' must be confidentiality, integrity, availability, or authenticity", sp)));
                 }
@@ -5102,7 +5102,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         let non_empty = |s: &Option<String>| s.as_deref().is_some_and(|v| !v.trim().is_empty());
         let has_parent = elem.frontmatter.derived_from.as_ref().is_some_and(|v| !v.is_empty())
             || non_empty(&elem.frontmatter.derived_from_safety_goal)
-            || non_empty(&elem.frontmatter.derived_from_cybersecurity_goal);
+            || elem.frontmatter.derived_from_cybersecurity_goal.iter().flatten().any(|v| !v.trim().is_empty());
         let has_children = derived_children.get(req_id).is_some_and(|v| !v.is_empty());
         if !has_parent && !has_children {
             findings.push(warning(
@@ -5562,6 +5562,15 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     "file does not begin with '---' (missing frontmatter delimiter)",
                 ));
             }
+            Some(ParseIssue::YamlError(msg)) if msg.contains("must be a string or a list of strings") => {
+                // E960: a typed-field mismatch is not a YAML syntax error; the
+                // message already names the field.
+                findings.push(error(
+                    "E960",
+                    &elem.file_path,
+                    &format!("frontmatter field type mismatch: {}", msg),
+                ));
+            }
             Some(ParseIssue::YamlError(msg)) => {
                 findings.push(error(
                     "E002",
@@ -5964,6 +5973,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
             // E830: affectedElements must resolve to known model elements
             if let Some(ref refs) = fm.affected_elements {
                 for r in refs {
+                    // A package URL (`pkg:...`) names an SBOM component, not a model element.
+                    if r.starts_with("pkg:") { continue; }
                     if resolver.resolve_ref(elements, r).is_none() {
                         findings.push(error("E830", &elem.file_path,
                             &format!("`affectedElements` '{}' does not resolve to any element", r)));
@@ -5973,7 +5984,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
 
         // E831: derivedFromCybersecurityGoal must resolve to a CybersecurityGoal
-        if let Some(ref goal_ref) = fm.derived_from_cybersecurity_goal {
+        for goal_ref in fm.derived_from_cybersecurity_goal.iter().flatten() {
             match resolver.resolve_ref(elements, goal_ref) {
                 None => findings.push(error("E831", &elem.file_path,
                     &format!("`derivedFromCybersecurityGoal` '{}' does not resolve to any element", goal_ref))),
@@ -7989,6 +8000,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
     findings.extend(crate::structural_refs::behavior_ref_findings(elements, &resolver, config));
     findings.extend(crate::structure_checks::structure_findings(elements, &resolver));
+    findings.extend(crate::security_checks::security_findings(elements, &resolver));
 
     annotate_root_name_hints(&mut findings, elements, &resolver);
 

@@ -4386,8 +4386,8 @@ Used in Threat Analysis and Risk Assessment (TARA) per ISO/SAE 21434.
 | `ThreatScenario` | `TS-*` | A potential attack scenario; carries `attackFeasibility:` and `attackVector:`. References `damageScenarios:`. May carry a direct `hazardRef:` (string or list) to a `HazardousEvent`/`SafetyGoal`, a `riskTreatment:` (`avoid`/`reduce`/`share`/`retain`), and a free-text `residualRisk:`. |
 | `CybersecurityGoal` | `CSG-*` | A high-level security requirement; carries `securityProperty:` (`confidentiality`, `integrity`, `availability`, `authenticity`), `calLevel:` (`CAL1`–`CAL4`), and `threatScenarios:` (the `TS-*` threats it counters). |
 | `SecurityControl` | `SC-*` | A concrete countermeasure; carries `controlType:` and `implementsGoals:`. |
-| `VulnerabilityReport` | `VR-*` | A tracked vulnerability; carries `cvssScore:`, `mitigatedBy:`, and `affectedElements:`. |
-| `TARASheet` | `TARA-*` | An Option-B container: a single file whose `damageTable:`, `threatTable:`, `goalTable:`, and `controlTable:` sections are exploded at parse time into the individual Tier 2 element types above. |
+| `VulnerabilityReport` | `VR-*` | A tracked vulnerability; carries `cvssScore:`, `mitigatedBy:`, and `affectedElements:` (model qualified names or `pkg:` package URLs of SBOM components). Optional `cveId:`, `cvssVector:`, `cvssSeverity:`, `fixedIn:`, `threatScenarios:` (the threats it realises) and `rationale:` (required for `accepted`/`wont_fix`). `sbom` emits each report as a CycloneDX `vulnerabilities` (VEX) entry. |
+| `TARASheet` | `TARA-*` | An Option-B container: a single file whose `assetTable:`, `damageTable:`, `threatTable:`, `goalTable:`, and `controlTable:` sections are exploded at parse time into the individual Tier 2 element types above. |
 
 **Cross-reference rules:** A `Requirement` motivated by a cybersecurity goal should set `derivedFromCybersecurityGoal:` to the `CSG-*` ID, and must set `verificationMethod:` (W807). The OSLC link direction applies: the downstream element holds the reference.
 
@@ -5932,6 +5932,7 @@ A finding code's first letter is its severity: `E` = error, `W` = warning, `I` =
 | `E600`–`E606`, `W610`–`W616` | Native `TestPlan` | §8.12.6 |
 | `E800`–`E837`, `E859`–`E864`, `W809`, `W810` | Tier 2 HARA/TARA elements, their cross-references, GSN assumption targets, confirmation targets, `Asset` | §8.18.1, §8.18.2, §8.18.6, §8.18.7 |
 | `E900`–`E923`, `E927`, `E940`, `E941`, `W036`, `W037`, `W900`–`W905`, `W926`–`W928` | Tier 4 fault trees, FMEA, attack trees, TARA sheets | §8.18.3–§8.18.5 |
+| `E960`–`E967`, `W960`–`W979` | Security-analysis completeness: TARA rows, risk inputs, attack-tree shape, zones/conduits, `VulnerabilityReport` | §13.6 |
 
 The remaining subsections tabulate the core codes; a few families (`W060`, `E865`, `E866`–`E877`, `E700`–`E705`, `E950`–`E956`, …) are repeated here from their own sections for convenience.
 
@@ -6206,6 +6207,40 @@ Active only when the model uses `[linkTypes]` in `.syscribe.toml` or a `links:` 
 | `W951` | `Conduit.achievedSL` < max(`fromZone.targetSL`, `toZone.targetSL`) — the conduit is below the higher connected zone's target (opt-in) |
 | `W952` | `PartDef`/`Part` has `targetSL:` but no zone membership (opt-in) |
 | `W953` | Approved `Zone` with `targetSL >= 2` has no referencing `Conduit` |
+
+#### Security-analysis completeness (E960–E967, W960–W979, §13.6)
+
+Beyond the per-type checks above, the validator checks the TARA/attack-tree/zone/vulnerability data for completeness and internal consistency. `TARASheet` accepts an `assetTable:` (rows become `Asset` elements) alongside the other four tables; `securityProperty:` and `derivedFromCybersecurityGoal:` accept a string or a list. `draft` elements are exempt from the completeness warnings. An `AND` attack-tree gate rolls up as the MIN of its inputs, an `OR` gate as the MAX.
+
+| Code | Condition |
+|---|---|
+| `E960` | A typed security field has the wrong YAML shape — `securityProperty` / `derivedFromCybersecurityGoal` is neither a string nor a list of strings (a mapping, number, ...); the message names the field (previously a misleading E002 "not valid YAML"). Both fields now accept a string or a list |
+| `E961` | A `TARASheet` section-table row (`assetTable`/`damageTable`/`threatTable`/`goalTable`/`controlTable`) is not a mapping or has no `id:` — it is silently dropped from validation and the risk views (mirrors FMEA `E923`) |
+| `E962` | A `TARASheet` row has an unknown key or does not deserialize as an element — the field would be silently ignored (mirrors FMEA `E922`) |
+| `E963` | `Asset.assetOwner` does not resolve to a model element |
+| `E964` | `Asset.relatedSafetyGoal` does not resolve, or resolves to something other than a `SafetyGoal` |
+| `E965` | Cycle (including a gate listing itself) in an attack tree's `AttackTreeGate.inputs` — the feasibility roll-up is undefined |
+| `E967` | `VulnerabilityReport.threatScenarios` does not resolve to a `ThreatScenario` |
+| `W960` | Non-draft `ThreatScenario` whose risk cannot be determined (no resolvable `damageScenarios`, no linked `damageSeverity`, or no `attackFeasibility`) — `cyber-risk` reports risk=unknown |
+| `W961` | Non-draft `DamageScenario` listed in no `ThreatScenario.damageScenarios` (orphan; contributes to no risk) |
+| `W962` | Non-draft `DamageScenario` with no `assets` (ISO/SAE 21434 §15.3) |
+| `W963` | `ThreatScenario` with `riskTreatment: reduce` that no `CybersecurityGoal.threatScenarios` lists — the reduction is realised by no goal/control |
+| `W964` | `ThreatScenario` with `riskTreatment: retain` on a computed high/critical risk and no `residualRisk` rationale |
+| `W965` | `ThreatScenario` declares `residualRisk` but no `riskTreatment` |
+| `W966` | An attack tree has more than one root node (no single top gate/step) — its feasibility is not computed |
+| `W967` | An `AttackStep` has no `attackFeasibility` — the tree cannot be rolled up and `W035` is silently skipped |
+| `W968` | An `AttackTreeGate` lists the same input more than once |
+| `W969` | Non-draft `SecurityControl` with no `implementsGoals` |
+| `W970` | Non-draft `CybersecurityGoal` with no `threatScenarios` |
+| `W971` | A `PartDef`/`Part` belongs to more than one `Zone` (`Zone.members` / `inZone`) |
+| `W972` | A `Conduit` has `fromZone` and `toZone` naming the same zone |
+| `W973` | An `approved` `Zone` or `Conduit` declares no `achievedSL` |
+| `W974` | `VulnerabilityReport.cveId` is not of the form `CVE-YYYY-NNNN...` |
+| `W975` | `VulnerabilityReport.status` is not in the documented vocabulary (`draft`, `open`, `triaged`, `investigating`, `in_progress`, `mitigated`, `resolved`, `fixed`, `accepted`, `wont_fix`, `closed`, `not_affected`, `false_positive`, `deprecated`) |
+| `W976` | `VulnerabilityReport` is `mitigated`/`resolved`/`fixed`/`closed` but names neither `mitigatedBy` nor `fixedIn` |
+| `W977` | `VulnerabilityReport` is `accepted`/`wont_fix` with no `rationale:` (frontmatter or a Rationale section) |
+| `W978` | `VulnerabilityReport.cvssVector` is not a CVSS vector string, `cvssSeverity` is not `none`/`low`/`medium`/`high`/`critical`, or it disagrees with the bucket of `cvssScore` (0 none, <4 low, <7 medium, <9 high, else critical) |
+| `W979` | Unresolved `VulnerabilityReport` (open/triaged/investigating/in_progress) with `cvssScore >= 7.0` and no `threatScenarios` link |
 
 #### MagicGrid gate (`MG###`, REQ-TRS-MG-002..011)
 

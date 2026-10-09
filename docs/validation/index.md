@@ -70,6 +70,7 @@ Ranges are inclusive and name the codes actually in use; gaps inside a range are
 | E940–E941 | Tier 4 TARA container | TARASheet fields and ID pattern |
 | E950–E956, E925, E926, W950–W953 | IEC 62443 (§13) | Zone/Conduit fields, IDs, status (E926), SL range (E925), resolution, Security-Level gaps |
 | E640, E641, W640–W642 | Cyber risk configuration (GH #222) | `[cyber]` method/tables in `.syscribe.toml`, per-category impact ratings, attack-potential factors |
+| E960–E967, W960–W979 | Security-analysis completeness | TARA row integrity, risk inputs and treatment, attack-tree shape, zone/conduit consistency, `VulnerabilityReport` hygiene |
 
 See [Rule Reference](rules.md) for every code.
 
