@@ -334,7 +334,7 @@ Level ranking: `asilLevel` A < B < C < D; `silLevel` 1 < 2 < 3 < 4.
 | `W415` | `[plantuml] style_file` path in `.syscribe.toml` does not exist (REQ-TRS-PUML-042) |
 | `W416` | A `layout:` key names no shape or edge of the diagram (stale pin) (REQ-TRS-VIS-002) |
 | `W417` | `include:`/`exclude:` on a manifest diagram (ignored), or an entry that names no member of the subject (REQ-TRS-VIS-003) |
-| `W418` | A derived diagram's `subject:` type is not valid for its `diagramKind:` (§8.16.8 valid subject types); the diagram is drawn empty (REQ-TRS-VIS-003) |
+| `W418` | A derived diagram's `subject:` type is not valid for its `diagramKind:` (§8.16.8 valid subject types, incl. `FaultTree`/`AttackTree`/`SafetyCase`, GH #223); the diagram is drawn empty (REQ-TRS-VIS-003) |
 
 ## Build-system integration (E050, W050, §9.9)
 

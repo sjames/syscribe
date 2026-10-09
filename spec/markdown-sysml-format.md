@@ -3235,7 +3235,7 @@ A `Diagram` file (`type: Diagram`) depicts part of the model. Its `diagramKind:`
 
 A `shapes:` key with a null value does not select the manifest. Only kinds that build an IR (everything but `Mermaid` and `PlantUML`) have a source at all.
 
-**Derived diagrams.** A derived diagram is two lines of frontmatter — `diagramKind:` and `subject:` — and follows the model: adding a part, a port or a `supertype:` changes the picture without editing the diagram. Generators exist for `BDD` (§8.16.8.1), `IBD` (§8.16.8.2), `Sequence` (§8.16.8.3), `StateMachine` (§8.16.8.4), `Requirement` (§8.16.8.5), `Allocation` (§8.16.8.6), `Action` (§8.16.8.8) and `FeatureModel` (§8.16.8.9); a derived `UseCase` or `Custom` diagram yields an empty picture (`REQ-TRS-VIS-015`). Every generated shape has a **deterministic id** — `s-` followed by the depicted element's qualified name lower-cased with `::` and every other non-alphanumeric run replaced by `-` (`UAV::Power::PowerSystem::pdu` → `s-uav-power-powersystem-pdu`; a compartment is `<block id>-compartment`) — so `layout:` pins (§8.16.2) apply to a derived diagram unchanged, survive regeneration, and a renamed element merely loses its pin. `include:`/`exclude:` (§8.16.2) narrow the content; `W417`/`W418` (§8.16.7) report a filter that names nothing and a subject of the wrong type.
+**Derived diagrams.** A derived diagram is two lines of frontmatter — `diagramKind:` and `subject:` — and follows the model: adding a part, a port or a `supertype:` changes the picture without editing the diagram. Generators exist for `BDD` (§8.16.8.1), `IBD` (§8.16.8.2), `Sequence` (§8.16.8.3), `StateMachine` (§8.16.8.4), `Requirement` (§8.16.8.5), `Allocation` (§8.16.8.6), `Action` (§8.16.8.8), `FeatureModel` (§8.16.8.9) and the safety diagrams `FaultTree`, `AttackTree` and `SafetyCase` (§8.16.8.10); a derived `UseCase` or `Custom` diagram yields an empty picture (`REQ-TRS-VIS-015`). Every generated shape has a **deterministic id** — `s-` followed by the depicted element's qualified name lower-cased with `::` and every other non-alphanumeric run replaced by `-` (`UAV::Power::PowerSystem::pdu` → `s-uav-power-powersystem-pdu`; a compartment is `<block id>-compartment`) — so `layout:` pins (§8.16.2) apply to a derived diagram unchanged, survive regeneration, and a renamed element merely loses its pin. `include:`/`exclude:` (§8.16.2) narrow the content; `W417`/`W418` (§8.16.7) report a filter that names nothing and a subject of the wrong type.
 
 The rest of this section specifies the manifest and the hand-authored SVG conventions. In the manifest the frontmatter is the canonical source of traceability and the SVG is the visual geometry, so a parser can validate the diagram from the frontmatter without touching the SVG. The SVG uses a `sysml:` XML namespace (`urn:syscribe:1.0`) on shapes for redundant inline traceability, so the SVG can be opened standalone in any viewer.
 
@@ -3256,7 +3256,7 @@ Choose **inline** when GitHub rendering is not required and keeping everything i
 |---|---|---|---|---|
 | `type` | string | **Required** | — | `Diagram` |
 | `name` | string | optional | filename stem | Display name for the diagram |
-| `diagramKind` | string | recommended | — | Diagram kind: `BDD`, `IBD`, `StateMachine`, `Action`, `Sequence`, `Requirement`, `FeatureModel`, `Mermaid`, `PlantUML`; `Allocation`, `UseCase` and `Custom` are accepted for hand-authored SVG (no generator). Absent → warning `W400` (suppressed when `svgMode: companion`). The field is `diagramKind`, not `kind` (an unknown `kind:` key is `W047`). |
+| `diagramKind` | string | recommended | — | Diagram kind: `BDD`, `IBD`, `StateMachine`, `Action`, `Sequence`, `Requirement`, `FeatureModel`, `FaultTree`, `AttackTree`, `SafetyCase` (alias `GSN`), `Mermaid`, `PlantUML`; `Allocation`, `UseCase` and `Custom` are accepted for hand-authored SVG (no generator). Absent → warning `W400` (suppressed when `svgMode: companion`). The field is `diagramKind`, not `kind` (an unknown `kind:` key is `W047`). |
 | `subject` | string | recommended | — | Qualified name of the model element this diagram depicts. An unresolved subject is warning `W401`. |
 | `svgMode` | string | optional | `inline` | Storage mode: `inline` (fenced block in body) or `companion` (separate `.svg` file) |
 | `svgFile` | string | optional | `<stem>.svg` | Companion file path relative to the `.md` file; only used when `svgMode: companion` |
@@ -4255,6 +4255,43 @@ diagramKind: FeatureModel
 name: CarFeatures
 subject: Features
 ```
+
+##### 8.16.8.10 FaultTree, AttackTree and SafetyCase (GH #223)
+
+The safety diagrams are **derive-only**: a `Diagram` with one of these kinds and a `subject:` and no `shapes:` is generated from the model; there is no hand-listed manifest form. They draw the element graphs the safety analyses already compute, so the picture and the numbers cannot disagree. A node may carry a generic **mark** — a status word, a value line, badges and a tone (`ok`, `warn`, `bad`, `neutral`) — which every writer draws (the tone colours the node, the text is stacked under its name) and an `emphasis` flag that draws its outline heavier. Layout is layered, top-down.
+
+**Valid `subject:` types (otherwise `W418`):**
+
+| `diagramKind` | Subject |
+|---|---|
+| `FaultTree` | a `FaultTree`, or a `SafetyGoal` (every `FaultTree` naming it as `topEvent:`) |
+| `AttackTree` | an `AttackTree`, or a `ThreatScenario` (every `AttackTree` naming it as `threatRef:`) |
+| `SafetyCase` (alias `GSN`) | a `SafetyGoal`, an `Argument` (the goals whose argument contains it) or a `Package` (every goal under it) |
+
+**Shape kinds** (shapes follow the standard notation):
+
+| `kind` value | Notation |
+|---|---|
+| `gate-and`, `gate-or`, `gate-xor`, `gate-not`, `gate-inhibit` | the IEC 61025 gate symbols for `gateType` `AND`/`OR`/`XOR`/`NOT`/`inhibit` (an attack-tree gate is `gate-and`/`gate-or`) |
+| `event-basic`, `event-undeveloped`, `event-house` | circle, diamond and house for `eventKind` `basic`/`undeveloped`/`house` |
+| `step` | an attack step: a rounded box |
+| `goal`, `undeveloped-goal` | a GSN goal (a claim or requirement is one); the undeveloped goal carries GSN's diamond |
+| `strategy`, `solution`, `context`, `justification`, `assumption` | parallelogram, circle (a test case is the evidence), rounded box, and ellipses marked `J` / `A` |
+
+**Edge kinds:** `input` (a gate to one of its `inputs:`, a plain line), `criticalPath` (an input on the easiest attack path, drawn heavier), `supportedBy` (GSN, a filled arrowhead), `inContextOf` (GSN, a hollow arrowhead).
+
+**Derived content.** *FaultTree:* one node per gate and event of the tree, one `input` edge per gate input; the overlay is `fault-tree analyze` — each event shows λ and probability, its role as status and tone (single point of failure `bad`, a member of a dual-point cut set `warn`, a deeper cut set `ok`, no cut set or unreachable `neutral`), the number of minimal cut sets it is in as a badge, and the root shows the exact top-event probability, the cut-set count and the single-point count. If the analysis fails (a gate cycle) the structure is still drawn and the root says why. *AttackTree:* gates and steps tinted by their rolled-up feasibility (the weakest-link roll-up of §15.7 that `W035` uses: high `bad`, medium `warn`, low and very low `ok`, unscored `neutral`), the easiest path emphasised with `criticalPath` edges, and the root carrying the `W035` badge when its computed feasibility differs from its `ThreatScenario`'s declared one. *SafetyCase:* the traversal of `syscribe safety-case` (including the implicit goal–requirement–test chain), each node toned by its rolled-up status, `UNDEVELOPED` on the node that originates a gap, the goal verdict on the root and the test verdict on a test case (`unknown` in a derived diagram, which has no results sidecar; `safety-case --format dot|mermaid` uses the ingested verdicts). `include:`/`exclude:` match by qualified name, stable id or short name; an entry matching nothing is `W417`.
+
+**Minimal example:**
+
+```yaml
+type: Diagram
+diagramKind: FaultTree
+name: FaultTreeEngine
+subject: Safety::FTA::FT-ENG-001
+```
+
+The web detail panel of a `FaultTree`, `AttackTree`, `SafetyGoal`, `Argument` or `ThreatScenario` embeds the same diagram, each node linking to its element; `GET /api/diagrams/model/<qname>[?kind=…]` serves it to the editor without a `Diagram` element.
 
 ### 8.17 Architecture Decision Records (ADR)
 

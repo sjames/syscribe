@@ -1,7 +1,7 @@
 # diagram — export one Diagram element as PlantUML, Mermaid or static SVG
 
 ## SYNOPSIS
-    syscribe -m <root> diagram export <qname> [--format plantuml|mermaid|svg] [--out <file>]
+    syscribe -m <root> diagram export <qname> [--format plantuml|mermaid|svg|dot] [--out <file>]
 
 ## DESCRIPTION
 Writes one `Diagram` element's picture source, generated from its Diagram IR
@@ -20,6 +20,10 @@ is ELK, in the browser and embedded in this executable alike.
                preceded by `%% ref: <QualifiedName>`, so the `W408`/`W409`
                lints apply to the generated text exactly as to a hand-written
                block.
+    dot        Graphviz DOT (a node per shape coloured by its tone, an edge per
+               edge), written for the FaultTree / AttackTree / SafetyCase
+               diagrams (`diagramKind:` of the safety analyses, derived from
+               their `subject:`) but total over every kind.
     svg        A standalone SVG per spec §8.16.5 (`sysml:ref` on every shape,
                `sysml:ref`/`sysml:source`/`sysml:target` on every edge) for
                any diagram with an IR. A fully pinned diagram is drawn from
@@ -35,7 +39,7 @@ is wrapped in `<a xlink:href="<url>" href="<url>" target="_blank" rel="noopener"
 (REQ-TRS-LINK-002); without `[links]` both are inert.
 
 ## OPTIONS
-    --format <plantuml|mermaid|svg>   Output format (default: plantuml). Any
+    --format <plantuml|mermaid|svg|dot>   Output format (default: plantuml). Any
                                       other value is a usage error.
     --out <file>                      Write to <file> (parent directories are
                                       created) instead of stdout.
