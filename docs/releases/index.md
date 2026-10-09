@@ -9,6 +9,7 @@
 - **New:** `W068` — a redefining feature's `multiplicity:` is not contained in the redefined feature's (#208).
 - **Changed:** `W057`/`W044` understand SI prefixes (`kN`, `mm`, `MHz`) and judge prefixed units by dimension (#209).
 - **Changed:** complete ISQ/SI/SIPrefixes/USCustomaryUnits/ScalarValues/Base name tables; an unknown bare name or membership import under a library wildcard (`import ISQ::*`) is now reported (#210).
+- **New:** configurable ISO/SAE 21434 risk and CAL (#222) — a `[cyber]` table in `.syscribe.toml` selects `method = "simple"` (default, unchanged) or `"annex"` (built-in *example* tables modelled on the standard's informative annexes; not normative, verify against your copy), overrides risk-matrix / CAL / risk→CAL cells, and scores attack potential (`elapsedTime`, `expertise`, `knowledge`, `windowOfOpportunity`, `equipment` on `ThreatScenario`/`AttackStep`, configurable thresholds); optional per-category impact ratings on `DamageScenario` (overall = max). `cyber-risk`, `W031`, `W032` and attack-tree roll-up follow the configuration. New `W640` (malformed `[cyber]` entry), `W641`, `W642`, `E640`, `E641`. With no `[cyber]` table nothing changes.
 
 ## 0.53.0 — 2026-10-09
 

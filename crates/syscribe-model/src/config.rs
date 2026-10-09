@@ -135,6 +135,12 @@ pub struct ValidateConfig {
     /// installs it as the process-wide active vocabulary
     /// (`crate::link_types::install`) for graph building and suspect scanning.
     pub link_types: crate::link_types::LinkTypeRegistry,
+
+    /// GH #222 — ISO/SAE 21434 risk/CAL configuration from the `[cyber]` table of
+    /// `<model_root>/.syscribe.toml`. The default (no table) is the historical
+    /// `simple` rank-sum method, so existing models validate byte-identically.
+    /// Malformed entries are dropped and reported as `W640`.
+    pub cyber: crate::cyber_config::CyberConfig,
 }
 
 /// One entry in the `[repos]` table of `.syscribe.toml` (§14.2, REQ-TRS-TYPE-021).
@@ -592,6 +598,7 @@ impl ValidateConfig {
         // vocabulary (an absent table installs the empty one, clearing any prior).
         let link_types = crate::link_types::LinkTypeRegistry::load(&root);
         crate::link_types::install(&link_types);
+        let root_for_cyber = root.clone();
         Self {
             model_root: Some(root),
             repo_root,
@@ -611,6 +618,7 @@ impl ValidateConfig {
             id_extra_prefixes,
             users,
             link_types,
+            cyber: crate::cyber_config::CyberConfig::load(&root_for_cyber),
         }
     }
 

@@ -201,6 +201,8 @@ Each `ThreatScenario` has a **computed risk level** derived from the severity of
 - **feasibility rank** — `very_low`=0, `low`=1, `medium`=2, `high`=3 (from `attackFeasibility`). Unknown if missing/invalid.
 - if either rank is unknown the risk is **unknown** (listed but never gated); otherwise `score = severity + feasibility` (0..6) maps to **low** (0–1), **medium** (2–3), **high** (4) or **critical** (5–6).
 
+> **Configurable (GH #222).** The rank-sum above is the default `simple` method. A `[cyber]` table in `.syscribe.toml` can select an `annex` method (built-in *example* tables modelled on the ISO/SAE 21434 informative annexes — not normative, verify against your copy of the standard), override matrix/CAL cells, derive `attackFeasibility` from attack-potential factors (`elapsedTime`, `expertise`, `knowledge`, `windowOfOpportunity`, `equipment`) and rate impact per category (`safetyImpact`, `financialImpact`, `operationalImpact`, `privacyImpact`; overall = max). See the [ISO/SAE 21434 guide](../guides/iso-21434.md#74a-configuring-the-risk-and-cal-method-cyber). Codes: `W640`, `W641`, `W642`, `E640`, `E641`.
+
 Record the risk-treatment decision on the threat:
 
 ```yaml

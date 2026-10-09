@@ -20,6 +20,12 @@ riskTreatment, whether it is addressed by a CybersecurityGoal, and a flag
     syscribe -m <root> cyber-risk --config <CONF-id>   # variant-scoped (needs a product line)
 
 ## NOTES
+Configurable via [cyber] in .syscribe.toml (method simple|annex, risk_matrix,
+cal_table, cal_by_risk, attack_potential); the annex tables are EXAMPLE tables,
+not normative - verify against your copy of ISO/SAE 21434. With a [cyber] table the
+output adds Vector / Risk value / Expected CAL (JSON: method, attackVector,
+riskValue, expectedCal). Malformed entries -> W640, defaults apply.
+
 An untreated high/critical threat raises W031, and a CybersecurityGoal with a
 CAL below its threats' risk raises W032, both in `validate`.
 

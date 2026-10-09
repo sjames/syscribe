@@ -1055,6 +1055,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // W640: malformed `[cyber]` config (GH #222) — reported once against
+    // `.syscribe.toml`, same posture as W046/W630. Each defective entry was
+    // dropped and the default for that entry is in effect.
+    for msg in config.cyber.defects() {
+        let cfg_file = config
+            .model_root
+            .as_ref()
+            .map(|r| r.join(".syscribe.toml").display().to_string())
+            .unwrap_or_else(|| ".syscribe.toml".to_string());
+        findings.push(warning("W640", &cfg_file, msg));
+    }
+
     // E630–E636/W631: `links:` instances against their declarations
     // (REQ-TRS-LINKTYPE-002..005). Always computed on the authored elements.
     findings.extend(link_type_findings(elements, config));
@@ -2192,6 +2204,19 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(error("E809", &file, &format!("DamageScenario.damageSeverity '{}' must be severe, major, moderate, or negligible", s)));
                 }
             }
+            // E640: per-category impact ratings (GH #222) — same enum as damageSeverity.
+            for (fname, val) in [
+                ("safetyImpact", &fm.safety_impact),
+                ("financialImpact", &fm.financial_impact),
+                ("operationalImpact", &fm.operational_impact),
+                ("privacyImpact", &fm.privacy_impact),
+            ] {
+                if let Some(v) = val {
+                    if !["severe","major","moderate","negligible"].contains(&v.as_str()) {
+                        findings.push(error("E640", &file, &format!("DamageScenario.{} '{}' must be severe, major, moderate, or negligible", fname, v)));
+                    }
+                }
+            }
             // E810: impactCategories enum
             if let Some(ref cats) = fm.impact_categories {
                 for cat in cats {
@@ -2241,6 +2266,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(error("E813", &file, &format!("ThreatScenario.attackFeasibility '{}' must be high, medium, low, or very_low", f)));
                 }
             }
+            attack_potential_findings(&mut findings, &file, "ThreatScenario", fm, &config.cyber);
             // E814: attackVector enum
             if let Some(ref v) = fm.attack_vector {
                 if !["network","adjacent","local","physical"].contains(&v.as_str()) {
@@ -3960,6 +3986,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
                     findings.push(error("E921", &file, &format!("`id` '{}' does not match ATS-* pattern", id)));
                 }
             }
+            attack_potential_findings(&mut findings, &file, "AttackStep", fm, &config.cyber);
             // attackFeasibility enum (high|medium|low|very_low)
             if let Some(ref f) = fm.attack_feasibility {
                 if !["high","medium","low","very_low"].contains(&f.as_str()) {
@@ -6006,8 +6033,16 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         let Some(ref tr) = elem.frontmatter.threat_ref else { continue };
         let Some(threat) = resolver.resolve_ref(elements, tr) else { continue };
         if !Resolver::is_threat_scenario(threat) { continue; }
-        let Some(declared) = threat.frontmatter.attack_feasibility.as_deref() else { continue };
-        let Some(computed) = crate::attack_tree::tree_feasibility(elem, elements, &resolver) else { continue };
+        // Declared = explicit attackFeasibility, else the one the threat's own
+        // attack-potential factors compute to (GH #222).
+        let declared: &str = match threat.frontmatter.attack_feasibility.as_deref() {
+            Some(d) => d,
+            None => match crate::risk::threat_feasibility_rank(&threat.frontmatter, &config.cyber) {
+                Some(r) => crate::attack_tree::feasibility_label(r),
+                None => continue,
+            },
+        };
+        let Some(computed) = crate::attack_tree::tree_feasibility_with(elem, elements, &resolver, &config.cyber) else { continue };
         if computed != declared {
             let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
             findings.push(warning("W035", &elem.file_path,
@@ -6129,7 +6164,8 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // warnings (cf. W306/W029/W030) so bundled-model exit codes stay 0; both are
     // gateable via `--deny` and promotable via [profiles].
     {
-        use crate::risk::{self, threat_risk_level, RiskLevel};
+        use crate::risk::{self, threat_risk_level_with, RiskLevel};
+        let cyber = &config.cyber;
 
         // Set of threat keys (qname + id) addressed by some CybersecurityGoal.
         let mut addressed: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -6150,7 +6186,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
 
         // W031: untreated high/critical-risk ThreatScenario.
         for ts in elements.iter().filter(|e| Resolver::is_threat_scenario(e)) {
-            let level = match threat_risk_level(ts, elements, &resolver) {
+            let level = match threat_risk_level_with(ts, elements, &resolver, cyber) {
                 Some(l) => l,
                 None => continue, // unknown risk → listed, not gated
             };
@@ -6183,17 +6219,21 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         for csg in elements.iter().filter(|e| Resolver::is_cybersecurity_goal(e)) {
             let Some(ref refs) = csg.frontmatter.threat_scenarios else { continue };
             let mut max_level: Option<RiskLevel> = None;
+            let mut max_cal: Option<u8> = None;
             for r in refs {
                 if let Some(ts) = resolver.resolve_ref(elements, r) {
                     if Resolver::is_threat_scenario(ts) {
-                        if let Some(l) = threat_risk_level(ts, elements, &resolver) {
+                        if let Some(l) = threat_risk_level_with(ts, elements, &resolver, cyber) {
                             max_level = Some(max_level.map_or(l, |m| m.max(l)));
+                        }
+                        if let Some(c) = risk::expected_cal_for_threat(ts, elements, &resolver, cyber) {
+                            max_cal = Some(max_cal.map_or(c, |m| m.max(c)));
                         }
                     }
                 }
             }
             let Some(level) = max_level else { continue }; // no computable risk
-            let expected = risk::expected_cal_rank(level);
+            let expected = max_cal.unwrap_or_else(|| risk::expected_cal_rank(level));
             // calLevel absent → rank 0, treated as below any expected rank ≥1.
             let actual = csg
                 .frontmatter
@@ -12831,5 +12871,55 @@ mod e927_fault_tree_event_ref_tests {
             .edges_connecting(src, dst)
             .any(|e| *e.weight() == EdgeKind::FaultTreeEventRef));
         assert_eq!(EdgeKind::FaultTreeEventRef.name(), "faultTreeEventRef");
+    }
+}
+
+/// GH #222 — attack-potential factor checks shared by `ThreatScenario` and
+/// `AttackStep`: `E641` (a factor value is neither a known label nor a non-negative
+/// integer), `W641` (some but not all of the five factor fields supplied — the
+/// partial set is ignored) and `W642` (declared `attackFeasibility` differs from the
+/// one the factors compute to; the declared value wins).
+fn attack_potential_findings(
+    findings: &mut Vec<Finding>,
+    file: &str,
+    kind: &str,
+    fm: &crate::element::RawFrontmatter,
+    cyber: &crate::cyber_config::CyberConfig,
+) {
+    use crate::cyber_config::ApError;
+    let Some(res) = cyber.attack_potential_feasibility(fm) else { return };
+    match res {
+        Err(ApError::Incomplete(missing)) => findings.push(warning(
+            "W641",
+            file,
+            &format!(
+                "{} supplies some attack-potential factors but not all five — missing {}; the factors are ignored",
+                kind,
+                missing.join(", ")
+            ),
+        )),
+        Err(ApError::Invalid { factor, value, allowed }) => findings.push(error(
+            "E641",
+            file,
+            &format!("{}.{} '{}' is not a recognised attack-potential value (expected {})", kind, factor, value, allowed),
+        )),
+        Ok(rank) => {
+            if let Some(decl) = fm.attack_feasibility.as_deref() {
+                if let Some(drank) = crate::risk::feasibility_rank(decl) {
+                    if drank != rank {
+                        findings.push(warning(
+                            "W642",
+                            file,
+                            &format!(
+                                "{} declares attackFeasibility '{}' but its attack-potential factors compute to '{}' — the declared value is used",
+                                kind,
+                                decl,
+                                crate::attack_tree::feasibility_label(rank)
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
     }
 }
