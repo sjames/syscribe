@@ -2,7 +2,7 @@
 
 `RELEASES`
 
-## Unreleased
+## 0.51.0 — 2026-10-09
 
 ### Review fixes
 
