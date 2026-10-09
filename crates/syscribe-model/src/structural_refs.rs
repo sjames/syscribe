@@ -41,7 +41,7 @@
 use std::collections::HashSet;
 
 use crate::config::ValidateConfig;
-use crate::element::RawElement;
+use crate::element::{ElementType, RawElement};
 use crate::members::parent_qname;
 use crate::resolver::{builtin_type_kind, BuiltinType, Resolver};
 use crate::validator::{Finding, Severity};
@@ -408,6 +408,21 @@ impl<'a> Ctx<'a> {
         self.is_library_ref(&full) || self.is_library_ref(target) || self.scoped(ns, &full).is_some()
     }
 
+    /// E128 — a `via:`/`to:` port or receiver chain on a send/accept step. The step
+    /// is written in an action that is performed by some part, so its chain may
+    /// name a port or part the action itself does not own: it resolves when it
+    /// resolves as a reference, walks as a feature chain from the element, or its
+    /// first segment names any element or inline member in the model (`known`).
+    fn port_chain_resolves(&self, elem: &'a RawElement, chain: &str, known: &HashSet<String>) -> bool {
+        let c = chain.trim();
+        if c.is_empty() || self.resolves(elem, c) || self.walk_chain(elem, c).is_ok() {
+            return true;
+        }
+        let head = c.replace("::", ".");
+        let head = head.split('.').next().unwrap_or("").trim().to_string();
+        head.is_empty() || head == "self" || head == "this" || known.contains(&head)
+    }
+
     fn resolves(&self, elem: &RawElement, r: &str) -> bool {
         let r = r.trim();
         if r.is_empty() {
@@ -517,33 +532,58 @@ pub fn unresolved_structural_ref_findings(
                 }
             }
         }
-        for entry in fm.connections.iter().flatten().filter(|_| file.ends_with(".md")) {
-            let Some(parsed) = crate::connections::parse_entry(entry) else { continue };
-            for ep in parsed.endpoints {
-                let c = ep.chain.trim();
-                if c.is_empty() || ctx.resolves(elem, c) {
-                    continue;
-                }
-                if let Err(seg) = ctx.walk_chain(elem, c) {
-                    let head = c.replace("::", ".");
-                    if head.split('.').next().map(str::trim) == Some(seg.as_str()) {
-                        report(
-                            "E127",
-                            "connection endpoint",
-                            file,
-                            c,
-                            format!(": '{seg}' is not a member of the element it is looked up in"),
-                        );
-                    } else {
-                        // The owning part exists but the port named after it is not found on
-                        // it: models often wire a sibling port loosely, so advise only.
-                        warns.push(Finding {
-                            code: "W056",
-                            file: file.to_string(),
-                            message: format!("connection endpoint '{c}': '{seg}' is not a member of the element it is looked up in"),
-                            severity: Severity::Warning,
-                        });
+        // `connections:` endpoints, plus the `from`/`to` of `flowConnections:` and the
+        // `after`/`before` of `successionConnections:` on a structural element (a
+        // behavioral element's own flow/succession endpoints are E116's, GH #207).
+        let behavioral_owner = matches!(
+            fm.element_type,
+            Some(
+                ElementType::ActionDef | ElementType::Action | ElementType::UseCaseDef | ElementType::UseCase
+                    | ElementType::CaseDef | ElementType::Case | ElementType::AnalysisCaseDef
+                    | ElementType::AnalysisCase | ElementType::VerificationCaseDef | ElementType::VerificationCase
+            )
+        );
+        let mut chains: Vec<String> = Vec::new();
+        if file.ends_with(".md") {
+            for entry in fm.connections.iter().flatten() {
+                let Some(parsed) = crate::connections::parse_entry(entry) else { continue };
+                chains.extend(parsed.endpoints.into_iter().map(|ep| ep.chain));
+            }
+            if !behavioral_owner {
+                for (list, keys) in [
+                    (fm.flow_connections.as_deref(), ["from", "to"]),
+                    (fm.succession_connections.as_deref(), ["after", "before"]),
+                ] {
+                    for v in list.unwrap_or(&[]) {
+                        let serde_yaml::Value::Mapping(m) = v else { continue };
+                        chains.extend(keys.iter().filter_map(|k| map_str(m, k)).map(str::to_string));
                     }
+                }
+            }
+        }
+        for c in chains.iter().map(|c| c.trim()) {
+            if c.is_empty() || ctx.resolves(elem, c) {
+                continue;
+            }
+            if let Err(seg) = ctx.walk_chain(elem, c) {
+                let head = c.replace("::", ".");
+                if head.split('.').next().map(str::trim) == Some(seg.as_str()) {
+                    report(
+                        "E127",
+                        "connection endpoint",
+                        file,
+                        c,
+                        format!(": '{seg}' is not a member of the element it is looked up in"),
+                    );
+                } else {
+                    // The owning part exists but the port named after it is not found on
+                    // it: models often wire a sibling port loosely, so advise only.
+                    warns.push(Finding {
+                        code: "W056",
+                        file: file.to_string(),
+                        message: format!("connection endpoint '{c}': '{seg}' is not a member of the element it is looked up in"),
+                        severity: Severity::Warning,
+                    });
                 }
             }
         }
@@ -644,6 +684,17 @@ fn walk_sub_actions<'v>(list: &'v [serde_yaml::Value], out: &mut Vec<&'v serde_y
     }
 }
 
+/// Every state mapping reachable from `list` through nested `subStates:`.
+fn walk_states<'v>(list: &'v [serde_yaml::Value], out: &mut Vec<&'v serde_yaml::Mapping>) {
+    for v in list {
+        let serde_yaml::Value::Mapping(m) = v else { continue };
+        out.push(m);
+        if let Some(serde_yaml::Value::Sequence(inner)) = m.get(serde_yaml::Value::String("subStates".into())) {
+            walk_states(inner, out);
+        }
+    }
+}
+
 fn map_seq<'a>(m: &'a serde_yaml::Mapping, k: &str) -> &'a [serde_yaml::Value] {
     match m.get(serde_yaml::Value::String(k.to_string())) {
         Some(serde_yaml::Value::Sequence(s)) => s,
@@ -673,12 +724,79 @@ pub fn behavior_ref_findings(
             .collect(),
     };
     let mut out = Vec::new();
+    // Every name a send/accept `via:`/`to:` chain may start with: any element's own
+    // name or any inline member name (ports, parts, features) anywhere in the model.
+    let mut known_names: HashSet<String> = HashSet::new();
+    for e in elements {
+        if let Some(last) = e.qualified_name.rsplit("::").next().filter(|l| !l.is_empty()) {
+            known_names.insert(last.to_string());
+        }
+        for v in inline_member_lists(e) {
+            if let serde_yaml::Value::Mapping(m) = v {
+                if let Some(n) = map_str(m, "name") {
+                    known_names.insert(n.to_string());
+                }
+            }
+        }
+    }
     for elem in elements {
         let fm = &elem.frontmatter;
         let file = elem.file_path.as_str();
         // A Diagram's `subject:` is checked by the diagram rules (it may name a bare directory).
         if matches!(fm.element_type, Some(crate::element::ElementType::Diagram)) {
             continue;
+        }
+        // GH #207 — `via:`/`to:` chains of send/accept steps and of state-transition
+        // `accept:` triggers must name something that exists.
+        {
+            let mut chains: Vec<(String, String)> = Vec::new();
+            let mut all_subs: Vec<&serde_yaml::Mapping> = Vec::new();
+            walk_sub_actions(fm.sub_actions.as_deref().unwrap_or(&[]), &mut all_subs);
+            for m in &all_subs {
+                let n = map_str(m, "name").unwrap_or("?");
+                let keys: &[&str] = match map_str(m, "kind") {
+                    Some("SendAction") => &["via", "to"],
+                    Some("AcceptAction") => &["via"],
+                    _ => &[],
+                };
+                for k in keys {
+                    if let Some(c) = map_str(m, k) {
+                        chains.push((format!("sub-action '{n}' `{k}`"), c.to_string()));
+                    }
+                }
+            }
+            let mut states: Vec<&serde_yaml::Mapping> = Vec::new();
+            walk_states(fm.sub_states.as_deref().unwrap_or(&[]), &mut states);
+            let mut transitions: Vec<&serde_yaml::Value> = fm.transitions.iter().flatten().collect();
+            for st in &states {
+                transitions.extend(map_seq(st, "transitions"));
+            }
+            for t in transitions {
+                let serde_yaml::Value::Mapping(tm) = t else { continue };
+                if let Some(serde_yaml::Value::Mapping(acc)) = tm.get(serde_yaml::Value::String("accept".into())) {
+                    if let Some(c) = map_str(acc, "via") {
+                        chains.push(("transition accept `via`".to_string(), c.to_string()));
+                    }
+                }
+            }
+            for (what, c) in chains {
+                if ctx.port_chain_resolves(elem, &c, &known_names) {
+                    continue;
+                }
+                if config.has_repos() {
+                    out.push(error(
+                        "E512",
+                        file,
+                        format!("cross-repo {what} reference '{c}' resolves neither locally nor in any loaded repo"),
+                    ));
+                } else {
+                    out.push(error(
+                        "E128",
+                        file,
+                        format!("{what} chain '{c}' names no port, part or feature in the model"),
+                    ));
+                }
+            }
         }
         let empty: Vec<serde_yaml::Value> = Vec::new();
         let subs_list = fm.sub_actions.as_ref().unwrap_or(&empty);
@@ -1039,7 +1157,7 @@ mod tests {
             elem("B::Move", "type: ActionDef"),
             elem("T", "type: Package"),
             elem("T::Sig", "type: ItemDef"),
-            elem("S", "type: PartDef"),
+            elem("S", "type: PartDef\nfeatures:\n  - {name: port, type: Port}\n"),
             elem(
                 "B::Serve",
                 "type: ActionDef\nparameters:\n  - {name: p, typedBy: T::Sig, direction: in}\n\
@@ -1112,6 +1230,74 @@ mod tests {
             ),
         ];
         assert_eq!(codes(&els), vec!["E127", "W056", "W056"]);
+    }
+
+    fn behavior_codes_of(els: &[RawElement]) -> Vec<&'static str> {
+        let resolver = Resolver::new(els);
+        let mut c: Vec<_> = behavior_ref_findings(els, &resolver, &ValidateConfig::default())
+            .into_iter()
+            .map(|f| f.code)
+            .collect();
+        c.sort();
+        c
+    }
+
+    #[test]
+    fn flow_and_succession_endpoints_on_structural_elements_are_walked() {
+        // GH #207.
+        let els = vec![
+            elem("PD", "type: PortDef\nfeatures:\n  - {name: tx}\n"),
+            elem("Eng", "type: PartDef\nfeatures:\n  - {name: out, type: Port, typedBy: PD}\n"),
+            elem(
+                "Sys",
+                "type: PartDef\nfeatures:\n  - {name: e, type: Part, typedBy: Eng}\nflowConnections:\n  - {from: e.out, to: e.out.tx}\n  - {from: ghost.p, to: e.out}\n  - {from: e.out, to: e.nope}\nsuccessionConnections:\n  - {after: e, before: e}\n  - {after: ghost, before: e}\n",
+            ),
+        ];
+        assert_eq!(codes(&els), vec!["E127", "E127", "W056"]);
+    }
+
+    #[test]
+    fn behavioral_flow_endpoints_are_left_to_e116() {
+        let els = vec![elem(
+            "A",
+            "type: ActionDef\nsubActions:\n  - {name: a}\nflowConnections:\n  - {from: a, to: ghost}\nsuccessionConnections:\n  - {after: a, before: ghost}\n",
+        )];
+        assert!(codes(&els).is_empty());
+    }
+
+    #[test]
+    fn send_accept_via_and_to_chains_are_e128() {
+        let els = vec![
+            elem("Ctl", "type: PartDef\nfeatures:\n  - {name: cmdPort, type: Port}\n"),
+            elem(
+                "Act",
+                "type: ActionDef\nsubActions:\n  - {name: s1, kind: SendAction, via: cmdPort, to: Ctl}\n  - {name: s2, kind: SendAction, via: cmdPort.x, to: nobody}\n  - {name: a1, kind: AcceptAction, via: ghostPort}\n  - {name: a2, kind: AcceptAction, via: cmdPort}\n  - name: i\n    kind: IfAction\n    condition: c\n    then:\n      - {name: s3, kind: SendAction, via: missing}\n  - {name: p, kind: PerformAction, via: ignoredHere}\n",
+            ),
+        ];
+        // s2.to=nobody, a1.via=ghostPort, s3.via=missing; `cmdPort.x` has a known head.
+        assert_eq!(behavior_codes_of(&els), vec!["E128", "E128", "E128"]);
+    }
+
+    #[test]
+    fn transition_accept_via_is_checked() {
+        let els = vec![
+            elem("P", "type: PartDef\nfeatures:\n  - {name: ctl, type: Port}\n"),
+            elem(
+                "SM",
+                "type: StateDef\nsubStates:\n  - name: off\n    transitions:\n      - {target: on, accept: {payload: X, via: ctl}}\n      - {target: on, accept: {payload: X, via: nowhere}}\n  - name: on\ntransitions:\n  - {source: on, target: off, accept: {payload: X, via: alsoMissing}}\n",
+            ),
+        ];
+        assert_eq!(behavior_codes_of(&els), vec!["E128", "E128"]);
+    }
+
+    #[test]
+    fn via_resolves_to_a_port_element_by_qualified_name() {
+        let els = vec![
+            elem("Pk", "type: Package"),
+            elem("Pk::Port1", "type: Port"),
+            elem("Act", "type: ActionDef\nsubActions:\n  - {name: s, kind: SendAction, via: Pk::Port1}\n"),
+        ];
+        assert!(behavior_codes_of(&els).is_empty());
     }
 
     #[test]

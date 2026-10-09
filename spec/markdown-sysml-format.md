@@ -6001,6 +6001,7 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E125` | An `InterfaceDef` or `ConnectionDef` declares `ends:` with fewer than two entries |
 | `E126` | An `imports:` target, `aliases:` `for:` target or `dependsOn:` entry does not resolve (a library package or a name in a loaded peer repo is accepted) |
 | `E127` | A `connections:` endpoint feature chain whose first segment is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
+| `E128` | A send/accept `via:`/`to:` chain (sub-action or state-transition `accept: {via:}`) whose first segment names no port, part, element or inline feature in the model; `flowConnections:`/`successionConnections:` endpoints on a structural element are walked like `connections:` endpoints (`E127`/`W056`) |
 | `E310` | Native `Requirement` has `derivedFrom:` entries but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved, or resolves to an element that is not an `ADR` |
 | `E312` | A parent `Requirement` (one with `derivedChildren`) appears in a `satisfies:` list |
