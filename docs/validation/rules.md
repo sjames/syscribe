@@ -1199,3 +1199,15 @@ SysMLv2 has no UML stereotypes; a stereotype is a `MetadataDef` applied to an el
 | E317 | A `metadata:` application does not resolve to a `MetadataDef` (unresolved stereotype). The root-name hint applies. |
 | E318 | A `metadata:` application names a `MetadataDef` whose `annotates:` does not include the annotated element's type (directly or via the abstract `Element`/`Definition`/`Usage` metaclasses) — stereotype not applicable to this element kind. Standard-library metadata (`ModelingMetadata`, `RiskMetadata`) is recognised (no `E317`). |
 | W045 | A tagged-value key in a `metadata:` application is not a declared `features:` attribute of the referenced `MetadataDef` (likely typo / undeclared attribute). |
+
+## Cyber risk configuration (E640, E641, W640–W642)
+
+GH #222. The `[cyber]` table of `.syscribe.toml` selects and tunes the ISO/SAE 21434 risk/CAL method (see the [ISO/SAE 21434 guide](../guides/iso-21434.md)). The built-in `annex` tables are *example* tables, not normative.
+
+| Code | Severity | Condition |
+|---|---|---|
+| W640 | Warning | A `[cyber]` entry in `.syscribe.toml` is malformed (unknown key, bad `method`, unknown impact/feasibility/vector key, non-integer points, non-increasing attack-potential thresholds, bad `CALn`/level/value); that entry is ignored and the default applies |
+| W641 | Warning | A `ThreatScenario`/`AttackStep` supplies some but not all five attack-potential factors (`elapsedTime`, `expertise`, `knowledge`, `windowOfOpportunity`, `equipment`); the partial set is ignored |
+| W642 | Warning | A `ThreatScenario`/`AttackStep` declares an `attackFeasibility` that differs from the one its attack-potential factors compute to; the declared value is used |
+| E640 | Error | A per-category impact rating (`safetyImpact`, `financialImpact`, `operationalImpact`, `privacyImpact`) on a `DamageScenario` is not one of `severe · major · moderate · negligible` |
+| E641 | Error | An attack-potential factor value is neither a known label of its (configurable) table nor a non-negative integer |

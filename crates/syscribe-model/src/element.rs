@@ -1033,6 +1033,17 @@ pub struct ColdFrontmatter {
     // §T2 — ThreatScenario (ISO/SAE 21434 §15)
     pub attack_feasibility: Option<String>,     // high|medium|low|very_low
     pub attack_vector: Option<String>,          // network|adjacent|local|physical
+    // GH #222 — ISO/SAE 21434 attack-potential factors (ThreatScenario / AttackStep)
+    // and per-category impact ratings (DamageScenario). All optional; see `risk.rs`.
+    pub elapsed_time: Option<serde_yaml::Value>,
+    pub expertise: Option<serde_yaml::Value>,
+    pub knowledge: Option<serde_yaml::Value>,
+    pub window_of_opportunity: Option<serde_yaml::Value>,
+    pub equipment: Option<serde_yaml::Value>,
+    pub safety_impact: Option<String>,
+    pub financial_impact: Option<String>,
+    pub operational_impact: Option<String>,
+    pub privacy_impact: Option<String>,
     pub damage_scenarios: Option<Vec<String>>,  // DamageScenario id/qname refs
 
     // §T2 — CybersecurityGoal (ISO/SAE 21434 §15)
@@ -1561,6 +1572,17 @@ struct ColdWire {
     // §T2 — ThreatScenario (ISO/SAE 21434 §15)
     pub attack_feasibility: Option<String>,     // high|medium|low|very_low
     pub attack_vector: Option<String>,          // network|adjacent|local|physical
+    // GH #222 — ISO/SAE 21434 attack-potential factors (ThreatScenario / AttackStep)
+    // and per-category impact ratings (DamageScenario). All optional; see `risk.rs`.
+    pub elapsed_time: Option<serde_yaml::Value>,
+    pub expertise: Option<serde_yaml::Value>,
+    pub knowledge: Option<serde_yaml::Value>,
+    pub window_of_opportunity: Option<serde_yaml::Value>,
+    pub equipment: Option<serde_yaml::Value>,
+    pub safety_impact: Option<String>,
+    pub financial_impact: Option<String>,
+    pub operational_impact: Option<String>,
+    pub privacy_impact: Option<String>,
     pub damage_scenarios: Option<Vec<String>>,  // DamageScenario id/qname refs
 
     // §T2 — CybersecurityGoal (ISO/SAE 21434 §15)
@@ -1917,6 +1939,15 @@ impl ColdWire {
             hazard_ref: w.hazard_ref,
             attack_feasibility: w.attack_feasibility,
             attack_vector: w.attack_vector,
+            elapsed_time: w.elapsed_time,
+            expertise: w.expertise,
+            knowledge: w.knowledge,
+            window_of_opportunity: w.window_of_opportunity,
+            equipment: w.equipment,
+            safety_impact: w.safety_impact,
+            financial_impact: w.financial_impact,
+            operational_impact: w.operational_impact,
+            privacy_impact: w.privacy_impact,
             damage_scenarios: w.damage_scenarios,
             cal_level: w.cal_level,
             security_property: w.security_property,
