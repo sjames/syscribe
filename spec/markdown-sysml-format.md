@@ -4575,6 +4575,7 @@ Variation point for engine selection in the vehicle family.
 
 Each variant is declared with `isVariant: true` and must be a direct usage member of the variation:
 
+<!-- syscribe-example: expect E121 reason="the variation this variant belongs to is defined outside the snippet" -->
 ```yaml
 ---
 type: Part
@@ -5219,6 +5220,7 @@ This lets a project adopt variability incrementally without disturbing existing 
 
 ### Usage across layers
 
+<!-- syscribe-example: expect E121 reason="the variation this variant belongs to is defined outside the snippet" -->
 ```yaml
 # Requirement — only applies to hex-rotor products
 type: Requirement
@@ -5988,6 +5990,14 @@ The remaining subsections tabulate the core codes; a few families (`W060`, `E865
 | `E115` | A behavior-field reference cannot be resolved (sub-action/parameter `typedBy`, `payload`, `includes`, `extends[].target`, `subject`, `result`, `returnType`) |
 | `E116` | A succession/binding/flow endpoint names no sub-action, control node or parameter of the element |
 | `E117` | A behavior field is outside its closed vocabulary (sub-action or control-node `kind`, `loopKind`, parameter `direction`) |
+| `E118` | `multiplicity:` is malformed (not `N`, `N..M`, `N..*`, `*` or names) or its lower bound exceeds its upper bound — on an element or an inline `features:` entry |
+| `E119` | `visibility:` is not `public`, `protected` or `private` |
+| `E120` | `supertype:` is declared on a usage (`Part`, `Port`, `Attribute`, …) — type it with `typedBy:` and specialize with `subsets:` |
+| `E121` | `isVariant: true` on an element that is neither a member of an `isVariation: true` element nor names one in `variantOf:` |
+| `E122` | An `EnumerationDef` has no `values:`, or specializes another `EnumerationDef` |
+| `E123` | A usage is typed by a definition of the wrong kind (`Part` by a `PortDef`, `Port` by a `PartDef`, …), or `conjugates:` is not a `PortDef` naming a `PortDef` |
+| `E124` | A value `Enum::literal` names a literal the `EnumerationDef` does not declare |
+| `E125` | An `InterfaceDef` or `ConnectionDef` declares `ends:` with fewer than two entries |
 | `E310` | Native `Requirement` has `derivedFrom:` entries but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved, or resolves to an element that is not an `ADR` |
 | `E312` | A parent `Requirement` (one with `derivedChildren`) appears in a `satisfies:` list |

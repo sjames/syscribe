@@ -59,6 +59,14 @@
 | `E115` | A behavior-field reference cannot be resolved: sub-action or parameter `typedBy`, `payload`, `includes`, `extends[].target`, `subject`, `result`, `returnType` |
 | `E116` | A `successionConnections`/`bindingConnections`/`flowConnections` endpoint (or `after`/`before`) names no sub-action, control node or parameter of the element |
 | `E117` | A behavior field holds a value outside its closed vocabulary: sub-action or control-node `kind`, `loopKind`, parameter `direction` |
+| `E118` | `multiplicity:` is malformed (not `N`, `N..M`, `N..*`, `*` or names) or its lower bound exceeds its upper bound — on an element or an inline `features:` entry |
+| `E119` | `visibility:` is not `public`, `protected` or `private` |
+| `E120` | `supertype:` is declared on a usage (`Part`, `Port`, `Attribute`, …) — type it with `typedBy:` and specialize with `subsets:` |
+| `E121` | `isVariant: true` on an element that is neither a member of an `isVariation: true` element nor names one in `variantOf:` |
+| `E122` | An `EnumerationDef` has no `values:`, or specializes another `EnumerationDef` |
+| `E123` | A usage is typed by a definition of the wrong kind (`Part` by a `PortDef`, `Port` by a `PartDef`, …), or `conjugates:` is not a `PortDef` naming a `PortDef` |
+| `E124` | A value `Enum::literal` names a literal the `EnumerationDef` does not declare |
+| `E125` | An `InterfaceDef` or `ConnectionDef` declares `ends:` with fewer than two entries |
 | `E310` | `Requirement` has `derivedFrom:` but no `breakdownAdr:` |
 | `E311` | `breakdownAdr:` cannot be resolved or resolves to a non-`ADR` element |
 | `E312` | A parent `Requirement` (has `derivedChildren`) appears in a `satisfies:` list |

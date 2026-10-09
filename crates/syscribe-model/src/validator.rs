@@ -7721,6 +7721,7 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     findings.extend(crate::structural_refs::unresolved_structural_ref_findings(elements, &resolver, config));
 
     findings.extend(crate::structural_refs::behavior_ref_findings(elements, &resolver, config));
+    findings.extend(crate::structure_checks::structure_findings(elements, &resolver));
 
     annotate_root_name_hints(&mut findings, elements, &resolver);
 

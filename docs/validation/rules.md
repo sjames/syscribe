@@ -52,7 +52,7 @@ This page groups every finding code by feature area, with context. The same code
 | W010 | An `active` TestCase's `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
 | I010 | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`. Never affects the exit status unless selected with `--deny I010` |
 
-## Cross-reference errors (E101–E106, E110–E117)
+## Cross-reference errors (E101–E106, E110–E125)
 
 | Code | Condition |
 |---|---|
@@ -70,6 +70,14 @@ This page groups every finding code by feature area, with context. The same code
 | E115 | A behavior-field reference does not resolve: sub-action or parameter `typedBy`, `payload`, `includes`, `extends[].target`, `subject`, `result`, `returnType` |
 | E116 | A succession, binding or flow endpoint (`after`/`before`/`left`/`right`/`from`/`to`) names no sub-action, control node or parameter of the element (first segment of a feature chain is checked) |
 | E117 | A behavior field is outside its closed vocabulary: sub-action or control-node `kind`, `loopKind`, parameter `direction` |
+| E118 | `multiplicity:` is malformed (not `N`, `N..M`, `N..*`, `*` or names) or its lower bound exceeds its upper bound — on an element or an inline `features:` entry |
+| E119 | `visibility:` is not `public`, `protected` or `private` |
+| E120 | `supertype:` is declared on a usage (`Part`, `Port`, `Attribute`, …) — type it with `typedBy:` and specialize with `subsets:` |
+| E121 | `isVariant: true` on an element that is neither a member of an `isVariation: true` element nor names one in `variantOf:` |
+| E122 | An `EnumerationDef` has no `values:`, or specializes another `EnumerationDef` |
+| E123 | A usage is typed by a definition of the wrong kind (`Part` by a `PortDef`, `Port` by a `PartDef`, …), or `conjugates:` is not a `PortDef` naming a `PortDef` |
+| E124 | A value `Enum::literal` names a literal the `EnumerationDef` does not declare |
+| E125 | An `InterfaceDef` or `ConnectionDef` declares `ends:` with fewer than two entries |
 
 `E110`–`E114` (REQ-TRS-XREF-007) use the §11.5 resolution order: id / qualified name / name,
 then the referencing element's enclosing-package scope chain, a `./` sibling, `imports:` and
