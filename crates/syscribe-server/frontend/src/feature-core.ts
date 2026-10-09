@@ -778,3 +778,96 @@ export class SerialQueue {
         return result;
     }
 }
+
+// ---------------------------------------------------------------------
+// Preserving typed input across a re-render (GH #189)
+// ---------------------------------------------------------------------
+
+/** The part of a form control the panels read and write; a fake in tests. */
+export interface FieldLike {
+    id: string;
+    value?: string;
+    checked?: boolean;
+    type?: string;
+    options?: ArrayLike<{ value: string }>;
+}
+
+/** Anything that can find controls by id. */
+export interface FieldRoot {
+    querySelector(selector: string): FieldLike | null;
+}
+
+export interface SavedField {
+    value?: string;
+    checked?: boolean;
+}
+
+/** Ids of the edit panel controls that hold in-progress input rather than model state. */
+export const EDIT_DRAFT_FIELDS = [
+    'fm-e-root-name',
+    'fm-e-name',
+    'fm-e-child',
+    'fm-e-ckind',
+    'fm-e-ctarget',
+    'fm-e-parent',
+    'fm-p-name',
+    'fm-p-type',
+    'fm-p-range',
+    'fm-p-default',
+    'fm-p-required',
+];
+
+/** The configurator panel's in-progress input. */
+export const CONFIG_DRAFT_FIELDS = ['fm-conf-name'];
+
+/** Read the current value of each listed control that exists in `root`. */
+export function captureFields(root: FieldRoot, ids: readonly string[]): Map<string, SavedField> {
+    const out = new Map<string, SavedField>();
+    for (const id of ids) {
+        const el = root.querySelector('#' + id);
+        if (!el) {
+            continue;
+        }
+        out.set(id, el.type === 'checkbox' ? { checked: !!el.checked } : { value: el.value ?? '' });
+    }
+    return out;
+}
+
+/** Put saved values back into the controls of a freshly built panel. A select keeps
+ * its new value when the saved one is no longer one of its options. */
+export function restoreFields(root: FieldRoot, saved: ReadonlyMap<string, SavedField>): void {
+    for (const [id, s] of saved) {
+        const el = root.querySelector('#' + id);
+        if (!el) {
+            continue;
+        }
+        if (s.checked !== undefined) {
+            el.checked = s.checked;
+        } else if (s.value !== undefined) {
+            if (el.options && !Array.from(el.options).some(o => o.value === s.value)) {
+                continue;
+            }
+            el.value = s.value;
+        }
+    }
+}
+
+/** Latest-wins sequencing for overlapping fetches: starting a new request aborts the
+ * previous one, and a response whose ticket is stale reports `current() === false`. */
+export class LatestWins {
+    private seq = 0;
+    private ctl: AbortController | null = null;
+
+    begin(): { signal: AbortSignal; current: () => boolean } {
+        this.ctl?.abort();
+        const ctl = new AbortController();
+        this.ctl = ctl;
+        const mine = ++this.seq;
+        return { signal: ctl.signal, current: () => mine === this.seq };
+    }
+}
+
+/** Whether Save may be offered: the choices are a valid product and the model can be analysed. */
+export function canSaveConfiguration(analysis: FeatureAnalysis | null, config: ConfigureResult | null): boolean {
+    return !!config && config.satisfiable && !!analysis && analysis.hasFeatureModel && !analysis.skipped;
+}

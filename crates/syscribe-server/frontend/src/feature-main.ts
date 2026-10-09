@@ -21,6 +21,12 @@ import {
     configurationFields,
     configurationPackage,
     buildParameter,
+    canSaveConfiguration,
+    captureFields,
+    CONFIG_DRAFT_FIELDS,
+    EDIT_DRAFT_FIELDS,
+    LatestWins,
+    restoreFields,
     deltaLines,
     describeConflict,
     descendantIds,
@@ -330,6 +336,10 @@ class FeaturePage {
     }
 
     private async replaceChoices(next: Record<string, boolean>): Promise<void> {
+        return this.chooseQueue.run(() => this.replaceChoicesNow(next));
+    }
+
+    private async replaceChoicesNow(next: Record<string, boolean>): Promise<void> {
         const result = await this.configure(next);
         this.choices = next;
         this.config = result;
@@ -338,12 +348,18 @@ class FeaturePage {
         await this.render();
     }
 
-    private renderConfigPanel(): void {
+    private renderConfigPanel(keepTyped = true): void {
         const pane = byId('fm-config');
         if (!this.configMode) {
             pane.innerHTML = '';
             return;
         }
+        const typed = keepTyped ? captureFields(pane, CONFIG_DRAFT_FIELDS) : new Map();
+        this.buildConfigPanel(pane);
+        restoreFields(pane, typed);
+    }
+
+    private buildConfigPanel(pane: HTMLElement): void {
         const r = this.config;
         const c = configCounts(r, new Set(this.full ? featureNodes(this.full).filter(n => n.isAbstract).map(n => n.ref) : []));
         const options = ['<option value="">(start from nothing)</option>']
@@ -361,7 +377,7 @@ class FeaturePage {
           </div>
           <div class="fm-config-row">
             <input id="fm-conf-name" type="text" placeholder="Name for a new Configuration" autocomplete="off">
-            <button class="canvas-btn" id="fm-conf-save"${r && r.satisfiable ? '' : ' disabled'}>Save</button>
+            <button class="canvas-btn" id="fm-conf-save"${canSaveConfiguration(this.analysis, r) ? '' : ' disabled'}>Save</button>
           </div>
           <div class="fm-config-hint">Click a feature to select it, again to deselect it, again to leave it open. Features the model forces are shown as rings.</div>`;
     }
@@ -393,13 +409,9 @@ class FeaturePage {
         if (!r || !r.satisfiable) {
             return;
         }
-        // The panel is rebuilt to show a message; the typed name is put back so a refusal does not erase it.
-        const typed = input.value;
-        const rerender = (): void => {
-            this.renderConfigPanel();
-            byId<HTMLInputElement>('fm-conf-name').value = typed;
-        };
-        if (!this.analysis?.hasFeatureModel || this.analysis.skipped) {
+        // The panel is rebuilt to show a message; renderConfigPanel keeps the typed name so a refusal does not erase it.
+        const rerender = (): void => this.renderConfigPanel();
+        if (!canSaveConfiguration(this.analysis, r)) {
             this.message = 'There is no analysable feature model to save a configuration of.';
             rerender();
             return;
@@ -416,11 +428,7 @@ class FeaturePage {
         this.message = resp.written
             ? `Saved ${qname}.`
             : (resp.reason ?? resp.newErrors.map(f => `${f.code}: ${f.message}`).join('; ')) || 'The model refused the configuration.';
-        if (resp.written) {
-            this.renderConfigPanel();
-        } else {
-            rerender();
-        }
+        this.renderConfigPanel(!resp.written);
     }
 
     // -----------------------------------------------------------------
@@ -525,6 +533,8 @@ class FeaturePage {
         if (res.feature) {
             this.selected = shapeId(res.feature);
         }
+        // The input was consumed by the write: the next panel starts clean.
+        this.editScope = null;
         this.updateHistoryButtons();
         await this.load();
         return res;
@@ -590,10 +600,30 @@ class FeaturePage {
         return this.full && this.selected ? featureNodes(this.full).find(n => n.id === this.selected) : undefined;
     }
 
+    /** Rebuild the edit panel. What the user has typed survives while the same feature stays selected
+     * (a live reload or a refused edit must not wipe it); a different selection starts clean. */
     private renderEditPanel(): void {
         const pane = byId('fm-edit-panel');
         if (!this.editMode || !this.full) {
             pane.innerHTML = '';
+            this.editScope = null;
+            return;
+        }
+        const scope = this.selectedNode()?.id ?? '';
+        const draft = scope === this.editScope ? captureFields(pane, EDIT_DRAFT_FIELDS) : new Map();
+        const focused = scope === this.editScope && document.activeElement && pane.contains(document.activeElement) ? document.activeElement.id : '';
+        this.editScope = scope;
+        this.buildEditPanel(pane);
+        restoreFields(pane, draft);
+        if (focused) {
+            document.getElementById(focused)?.focus();
+        }
+    }
+    /** The selection the edit panel was last built for; null forces a clean panel. */
+    private editScope: string | null = null;
+
+    private buildEditPanel(pane: HTMLElement): void {
+        if (!this.full) {
             return;
         }
         const all = featureNodes(this.full);
@@ -969,9 +999,8 @@ class FeaturePage {
         pane.innerHTML = `${rows.join('')}<div id="fm-card"></div>`;
         // Each call replaces the pane, so a response that belongs to an earlier call is dropped:
         // two overlapping renders must not insert the Impact block twice.
-        const mine = ++this.selectedSeq;
-        const current = (): boolean => mine === this.selectedSeq;
-        void fetch('/api/feature-model/impact?feature=' + encodeURIComponent(node.ref))
+        const { signal, current } = this.selectedFetch.begin();
+        void fetch('/api/feature-model/impact?feature=' + encodeURIComponent(node.ref), { signal })
             .then(r => r.json() as Promise<ImpactResult>)
             .then(impact => {
                 const card = document.getElementById('fm-card');
@@ -982,7 +1011,7 @@ class FeaturePage {
             })
             .catch(() => undefined);
         const url = '/ui/element-card/' + node.ref.split('::').map(encodeURIComponent).join('/');
-        void fetch(url)
+        void fetch(url, { signal })
             .then(r => (r.ok ? r.text() : Promise.reject(new Error(`HTTP ${r.status}`))))
             .then(html => {
                 const card = document.getElementById('fm-card');
@@ -992,7 +1021,7 @@ class FeaturePage {
             })
             .catch(() => undefined);
     }
-    private selectedSeq = 0;
+    private readonly selectedFetch = new LatestWins();
 }
 
 window.addEventListener('DOMContentLoaded', () => {

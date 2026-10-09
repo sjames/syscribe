@@ -115888,6 +115888,63 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       return result;
     }
   };
+  var EDIT_DRAFT_FIELDS = [
+    "fm-e-root-name",
+    "fm-e-name",
+    "fm-e-child",
+    "fm-e-ckind",
+    "fm-e-ctarget",
+    "fm-e-parent",
+    "fm-p-name",
+    "fm-p-type",
+    "fm-p-range",
+    "fm-p-default",
+    "fm-p-required"
+  ];
+  var CONFIG_DRAFT_FIELDS = ["fm-conf-name"];
+  function captureFields(root, ids) {
+    const out = /* @__PURE__ */ new Map();
+    for (const id of ids) {
+      const el = root.querySelector("#" + id);
+      if (!el) {
+        continue;
+      }
+      out.set(id, el.type === "checkbox" ? { checked: !!el.checked } : { value: el.value ?? "" });
+    }
+    return out;
+  }
+  function restoreFields(root, saved) {
+    for (const [id, s3] of saved) {
+      const el = root.querySelector("#" + id);
+      if (!el) {
+        continue;
+      }
+      if (s3.checked !== void 0) {
+        el.checked = s3.checked;
+      } else if (s3.value !== void 0) {
+        if (el.options && !Array.from(el.options).some((o3) => o3.value === s3.value)) {
+          continue;
+        }
+        el.value = s3.value;
+      }
+    }
+  }
+  var LatestWins = class {
+    constructor() {
+      this.seq = 0;
+      this.ctl = null;
+    }
+    begin() {
+      this.ctl?.abort();
+      const ctl = new AbortController();
+      this.ctl = ctl;
+      const mine = ++this.seq;
+      return { signal: ctl.signal, current: () => mine === this.seq };
+    }
+  };
+  function canSaveConfiguration(analysis, config) {
+    return !!config && config.satisfiable && !!analysis && analysis.hasFeatureModel && !analysis.skipped;
+  }
 
   // src/new-diagram.ts
   var BASIC_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -115956,7 +116013,9 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       this.toastTimer = 0;
       this.firstRender = true;
       this.chooseQueue = new SerialQueue();
-      this.selectedSeq = 0;
+      /** The selection the edit panel was last built for; null forces a clean panel. */
+      this.editScope = null;
+      this.selectedFetch = new LatestWins();
       const container = createDiagramContainer(HOST, {
         // The diagram is a view of the model; a dragged feature snaps back.
         onMoveFinished: (moves) => void this.onMoved(moves.map((m3) => ({ id: m3.elementId, x: m3.toPosition.x, y: m3.toPosition.y }))),
@@ -116161,6 +116220,9 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       await this.render();
     }
     async replaceChoices(next) {
+      return this.chooseQueue.run(() => this.replaceChoicesNow(next));
+    }
+    async replaceChoicesNow(next) {
       const result = await this.configure(next);
       this.choices = next;
       this.config = result;
@@ -116168,12 +116230,17 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       this.renderConfigPanel();
       await this.render();
     }
-    renderConfigPanel() {
+    renderConfigPanel(keepTyped = true) {
       const pane = byId("fm-config");
       if (!this.configMode) {
         pane.innerHTML = "";
         return;
       }
+      const typed = keepTyped ? captureFields(pane, CONFIG_DRAFT_FIELDS) : /* @__PURE__ */ new Map();
+      this.buildConfigPanel(pane);
+      restoreFields(pane, typed);
+    }
+    buildConfigPanel(pane) {
       const r3 = this.config;
       const c3 = configCounts(r3, new Set(this.full ? featureNodes(this.full).filter((n) => n.isAbstract).map((n) => n.ref) : []));
       const options = ['<option value="">(start from nothing)</option>'].concat(this.stored.map((s3) => `<option value="${esc(s3.qname)}"${s3.qname === this.loaded ? " selected" : ""}>${esc(s3.name)}${s3.id ? ` (${esc(s3.id)})` : ""}</option>`)).join("");
@@ -116189,7 +116256,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
           </div>
           <div class="fm-config-row">
             <input id="fm-conf-name" type="text" placeholder="Name for a new Configuration" autocomplete="off">
-            <button class="canvas-btn" id="fm-conf-save"${r3 && r3.satisfiable ? "" : " disabled"}>Save</button>
+            <button class="canvas-btn" id="fm-conf-save"${canSaveConfiguration(this.analysis, r3) ? "" : " disabled"}>Save</button>
           </div>
           <div class="fm-config-hint">Click a feature to select it, again to deselect it, again to leave it open. Features the model forces are shown as rings.</div>`;
     }
@@ -116218,12 +116285,8 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       if (!r3 || !r3.satisfiable) {
         return;
       }
-      const typed = input.value;
-      const rerender = () => {
-        this.renderConfigPanel();
-        byId("fm-conf-name").value = typed;
-      };
-      if (!this.analysis?.hasFeatureModel || this.analysis.skipped) {
+      const rerender = () => this.renderConfigPanel();
+      if (!canSaveConfiguration(this.analysis, r3)) {
         this.message = "There is no analysable feature model to save a configuration of.";
         rerender();
         return;
@@ -116238,11 +116301,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       const qname = joinQname(configurationPackage(this.stored), name);
       const resp = await createElement({ qname, type: "Configuration", fields: configurationFields(r3, name, new Set(this.full ? featureNodes(this.full).filter((n) => n.isAbstract).map((n) => n.ref) : [])) });
       this.message = resp.written ? `Saved ${qname}.` : (resp.reason ?? resp.newErrors.map((f3) => `${f3.code}: ${f3.message}`).join("; ")) || "The model refused the configuration.";
-      if (resp.written) {
-        this.renderConfigPanel();
-      } else {
-        rerender();
-      }
+      this.renderConfigPanel(!resp.written);
     }
     // -----------------------------------------------------------------
     // Editing (REQ-TRS-FMED-004)
@@ -116338,6 +116397,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
       if (res.feature) {
         this.selected = shapeId(res.feature);
       }
+      this.editScope = null;
       this.updateHistoryButtons();
       await this.load();
       return res;
@@ -116397,10 +116457,27 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
     selectedNode() {
       return this.full && this.selected ? featureNodes(this.full).find((n) => n.id === this.selected) : void 0;
     }
+    /** Rebuild the edit panel. What the user has typed survives while the same feature stays selected
+     * (a live reload or a refused edit must not wipe it); a different selection starts clean. */
     renderEditPanel() {
       const pane = byId("fm-edit-panel");
       if (!this.editMode || !this.full) {
         pane.innerHTML = "";
+        this.editScope = null;
+        return;
+      }
+      const scope = this.selectedNode()?.id ?? "";
+      const draft = scope === this.editScope ? captureFields(pane, EDIT_DRAFT_FIELDS) : /* @__PURE__ */ new Map();
+      const focused = scope === this.editScope && document.activeElement && pane.contains(document.activeElement) ? document.activeElement.id : "";
+      this.editScope = scope;
+      this.buildEditPanel(pane);
+      restoreFields(pane, draft);
+      if (focused) {
+        document.getElementById(focused)?.focus();
+      }
+    }
+    buildEditPanel(pane) {
+      if (!this.full) {
         return;
       }
       const all = featureNodes(this.full);
@@ -116740,9 +116817,8 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         rows.push(`<div class="fm-meta">excludes ${ex.map(esc).join(", ")}</div>`);
       }
       pane.innerHTML = `${rows.join("")}<div id="fm-card"></div>`;
-      const mine = ++this.selectedSeq;
-      const current = () => mine === this.selectedSeq;
-      void fetch("/api/feature-model/impact?feature=" + encodeURIComponent(node.ref)).then((r3) => r3.json()).then((impact) => {
+      const { signal, current } = this.selectedFetch.begin();
+      void fetch("/api/feature-model/impact?feature=" + encodeURIComponent(node.ref), { signal }).then((r3) => r3.json()).then((impact) => {
         const card = document.getElementById("fm-card");
         if (card && current() && impact.found) {
           card.insertAdjacentHTML("beforebegin", this.renderImpact(impact, node));
@@ -116750,7 +116826,7 @@ Trying to resolve bindings for "${k2(e3.serviceIdentifier)}"`), new Error(s4);
         }
       }).catch(() => void 0);
       const url = "/ui/element-card/" + node.ref.split("::").map(encodeURIComponent).join("/");
-      void fetch(url).then((r3) => r3.ok ? r3.text() : Promise.reject(new Error(`HTTP ${r3.status}`))).then((html) => {
+      void fetch(url, { signal }).then((r3) => r3.ok ? r3.text() : Promise.reject(new Error(`HTTP ${r3.status}`))).then((html) => {
         const card = document.getElementById("fm-card");
         if (card && current()) {
           card.innerHTML = html;
