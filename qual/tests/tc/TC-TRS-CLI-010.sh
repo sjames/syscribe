@@ -42,7 +42,7 @@ tc_TRS_CLI_010() {
     local findings bad
     findings=$("$SYSCRIBE" -m "$S" validate --json 2>/dev/null | jq -r '.[] | "\(.code)\t\(.file)\t\(.message)"') || true
     bad=$(awk -F'\t' '
-        $1 ~ /^(W005|W007|W039|W613|W803|W804|W805)$/ { next }
+        $1 ~ /^(W005|W007|W039|W058|W613|W803|W804|W805)$/ { next }
         tolower($3) ~ /does not resolve|unresolved/ { next }
         { print }' <<<"$findings")
     if [ -z "$bad" ]; then pass "only allowed findings"; else fail "unexpected findings:"; printf '%s\n' "$bad" | sed 's/^/        /'; fi

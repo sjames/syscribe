@@ -648,6 +648,10 @@ pub fn behavior_ref_findings(
     for elem in elements {
         let fm = &elem.frontmatter;
         let file = elem.file_path.as_str();
+        // A Diagram's `subject:` is checked by the diagram rules (it may name a bare directory).
+        if matches!(fm.element_type, Some(crate::element::ElementType::Diagram)) {
+            continue;
+        }
         let empty: Vec<serde_yaml::Value> = Vec::new();
         let subs_list = fm.sub_actions.as_ref().unwrap_or(&empty);
         let nodes = fm.control_nodes.as_ref().unwrap_or(&empty);
