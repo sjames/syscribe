@@ -88,7 +88,15 @@ pub fn ftti_millis(s: &str) -> Option<f64> {
     let split = t.find(|c: char| !(c.is_ascii_digit() || c == '.'))?;
     let (num, unit) = t.split_at(split);
     let n: f64 = num.parse().ok()?;
-    let factor = match unit.trim() {
+    // Trailing commentary after the value is tolerated (`200 ms — bounded by …`):
+    // the unit is the leading alphabetic run and must not run into more letters.
+    let unit = unit.trim_start();
+    let end = unit.find(|c: char| !(c.is_alphabetic() || c == '\u{b5}')).unwrap_or(unit.len());
+    let (unit, rest) = unit.split_at(end);
+    if rest.starts_with(|c: char| c.is_alphanumeric()) {
+        return None;
+    }
+    let factor = match unit {
         "ns" => 1e-6,
         "us" | "\u{b5}s" => 1e-3,
         "ms" => 1.0,
@@ -146,5 +154,7 @@ mod tests {
         assert!(ftti_millis("banana").is_none());
         assert!(ftti_millis("50").is_none());
         assert!(ftti_millis("5 parsecs").is_none());
+        assert_eq!(ftti_millis("200 ms — bounded by the ESD circuit"), Some(200.0));
+        assert_eq!(ftti_millis("10 ms, at 100 Hz tick"), Some(10.0));
     }
 }
