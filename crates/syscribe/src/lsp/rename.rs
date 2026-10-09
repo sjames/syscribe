@@ -164,9 +164,11 @@ pub(super) fn compute(store: &LspStore, path: &Path, position: Position, new_nam
     // genuinely new. The file path itself is stable across an id rename (only the
     // `id:` value changes, not the file), so (code, file) identifies "the same
     // underlying issue, before and after" precisely enough for this gate.
+    // W065 (file stem vs id) is exempt: an id rename edits `id:` only, never the
+    // file name, so it is the expected, advisory side effect of this operation.
     let before = validate_with_config(&store.elements, &store.config).findings;
     let after = validate_with_config(&candidate, &store.config).findings;
-    if let Some(new_finding) = after.iter().find(|f| !before.iter().any(|b| b.code == f.code && b.file == f.file)) {
+    if let Some(new_finding) = after.iter().find(|f| f.code != "W065" && !before.iter().any(|b| b.code == f.code && b.file == f.file)) {
         return Err(format!("rename refused: it would introduce {} in {}: {}", new_finding.code, new_finding.file, new_finding.message));
     }
 

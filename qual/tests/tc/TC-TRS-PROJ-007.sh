@@ -42,9 +42,9 @@ tc_TRS_PROJ_007() {
     _p7_run "$G" --config "$NOWDT" --profile wdt;        _p7_exit 0 "--config $NOWDT --profile wdt"
 
     SCENARIO_NAME="--config honours --file"; printf "  ▶ %s\n" "$SCENARIO_NAME"
-    _p7_run "$G" --config "$WDT" --file Reqs/Wdt.md
-    grep -qF "Reqs/Wdt.md" <<<"$SCENARIO_OUTPUT" && pass "findings for the filtered file are reported" || fail "no findings for Reqs/Wdt.md"
-    grep -qF "Reqs/Core.md" <<<"$SCENARIO_OUTPUT" && fail "--file did not filter (Core.md present)" || pass "other files' findings are filtered out"
+    _p7_run "$G" --config "$WDT" --file Reqs/REQ-PROJ7-WDT-001.md
+    grep -qF "Reqs/REQ-PROJ7-WDT-001.md" <<<"$SCENARIO_OUTPUT" && pass "findings for the filtered file are reported" || fail "no findings for Reqs/Wdt.md"
+    grep -qF "Reqs/REQ-PROJ7-CORE-001.md" <<<"$SCENARIO_OUTPUT" && fail "--file did not filter (Core.md present)" || pass "other files' findings are filtered out"
 
     SCENARIO_NAME="usage errors exit 1"; printf "  ▶ %s\n" "$SCENARIO_NAME"
     local o e rc
