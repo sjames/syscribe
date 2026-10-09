@@ -1,7 +1,7 @@
 use syscribe_model::{
     element::{ElementType, RawElement},
     resolver::Resolver,
-    results::{FnVerdict, ResultsData},
+    results::ResultsData,
     validator::ValidationResult,
 };
 
@@ -22,24 +22,6 @@ pub enum TcVerdict {
     Unknown,
 }
 
-/// The `function` strings declared under a TestCase's `testFunctions:`.
-fn tc_function_refs(tc: &RawElement) -> Vec<String> {
-    let func_key = serde_yaml::Value::String("function".into());
-    tc.frontmatter
-        .test_functions
-        .as_deref()
-        .unwrap_or(&[])
-        .iter()
-        .filter_map(|tf| match tf {
-            serde_yaml::Value::Mapping(map) => match map.get(&func_key) {
-                Some(serde_yaml::Value::String(f)) => Some(f.clone()),
-                _ => None,
-            },
-            _ => None,
-        })
-        .collect()
-}
-
 /// Aggregate a TestCase's ingested verdict. `None` results → `Unknown`.
 ///
 /// A TestCase with `testFunctions:` is scored against those (automated,
@@ -50,41 +32,10 @@ fn tc_function_refs(tc: &RawElement) -> Vec<String> {
 /// "covered by a recorded session that actually passed" there too, instead of
 /// this always reading `Unknown` for want of a `testFunctions:` entry.
 pub fn tc_verdict(tc: &RawElement, results: Option<&ResultsData>) -> TcVerdict {
-    let Some(results) = results else {
-        return TcVerdict::Unknown;
-    };
-    let funcs = tc_function_refs(tc);
-    if !funcs.is_empty() {
-        let mut all_pass = true;
-        for f in &funcs {
-            match results.verdict_for(f) {
-                FnVerdict::Fail => return TcVerdict::Fail,
-                FnVerdict::Pass => {}
-                FnVerdict::Ignored | FnVerdict::Missing => all_pass = false,
-            }
-        }
-        return if all_pass { TcVerdict::Pass } else { TcVerdict::Unknown };
-    }
-
-    let Some(tc_id) = tc.frontmatter.id.as_deref() else {
-        return TcVerdict::Unknown;
-    };
-    let scenarios = gherkin_scenario_titles(&tc.doc);
-    if scenarios.is_empty() {
-        return TcVerdict::Unknown;
-    }
-    let mut all_pass = true;
-    for s in &scenarios {
-        match results.scenario_verdict(tc_id, s) {
-            FnVerdict::Fail => return TcVerdict::Fail,
-            FnVerdict::Pass => {}
-            FnVerdict::Ignored | FnVerdict::Missing => all_pass = false,
-        }
-    }
-    if all_pass {
-        TcVerdict::Pass
-    } else {
-        TcVerdict::Unknown
+    match syscribe_model::results::testcase_verdict(tc, results) {
+        syscribe_model::safety_case::Verdict::Pass => TcVerdict::Pass,
+        syscribe_model::safety_case::Verdict::Fail => TcVerdict::Fail,
+        syscribe_model::safety_case::Verdict::Unknown => TcVerdict::Unknown,
     }
 }
 
@@ -311,20 +262,6 @@ fn gherkin_count(doc: &str) -> usize {
             t.starts_with("Scenario:") || t.starts_with("Scenario Outline:")
         })
         .count()
-}
-
-/// The exact `Scenario:`/`Scenario Outline:` titles declared in a TestCase's
-/// body, in document order — the identity a `session-log` record's `scenario`
-/// field names (issue #113).
-fn gherkin_scenario_titles(doc: &str) -> Vec<String> {
-    doc.lines()
-        .filter_map(|l| {
-            let t = l.trim();
-            t.strip_prefix("Scenario Outline:")
-                .or_else(|| t.strip_prefix("Scenario:"))
-                .map(|title| title.trim().to_string())
-        })
-        .collect()
 }
 
 /// Resolve by exact qname, then exact stable ID, then fuzzy best-match.

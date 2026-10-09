@@ -1,13 +1,17 @@
 digraph "GsnD" {
   rankdir=TB;
+  nodesep=0.4;
+  ranksep=0.55;
   node [fontname="Helvetica", fontsize=11];
   edge [fontname="Helvetica", fontsize=10];
-  s_safety_sg [label="Avoid harm\nundeveloped\nverdict incomplete", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", penwidth=3, tooltip="Safety::SG"];
-  s_safety_case_strategy [label="Argue over independent channels\nundeveloped", shape=parallelogram, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::Case::Strategy"];
-  s_safety_req [label="Comparator shall trip\nunverified", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::REQ"];
-  s_safety_tc [label="Trip test\nunverified\nunknown", shape=ellipse, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::TC"];
-  s_safety_case_claim [label="(undeveloped)\nChannels fail independently\nUNDEVELOPED", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::Case::Claim"];
-  s_safety_case_context [label="Single vehicle", shape=box, style="filled,rounded", fillcolor="#f5f5f5", color="#666666", tooltip="Safety::Case::Context"];
+  s_safety_sg [label="SG-DS-001\nAvoid harm\nundeveloped\nverdict incomplete", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", penwidth=3, tooltip="Safety::SG"];
+  s_safety_case_strategy [label="ARG-DS-001\nArgue over independent\nchannels\nundeveloped", shape=parallelogram, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::Case::Strategy"];
+  s_safety_req [label="REQ-DS-001\nComparator shall trip\nunverified", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::REQ"];
+  s_safety_tc [label="TC-DS-001\nTrip test\nunverified\nunknown", shape=ellipse, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::TC"];
+  s_safety_case_claim [label="ARG-DS-003\nChannels fail independently\nUNDEVELOPED", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Safety::Case::Claim"];
+  s_safety_case_claim__undeveloped [label="", shape=diamond, width=0.3, height=0.2, fixedsize=true, style="filled", fillcolor="#ffffff", color="#b7791f"];
+  s_safety_case_claim -> s_safety_case_claim__undeveloped [arrowhead=none, color="#b7791f"];
+  s_safety_case_context [label="ARG-DS-002\nSingle vehicle", shape=box, style="filled,rounded", fillcolor="#f5f5f5", color="#666666", tooltip="Safety::Case::Context"];
   s_safety_req -> s_safety_tc [color="#555555", arrowhead=normal];
   s_safety_case_strategy -> s_safety_req [color="#555555", arrowhead=normal];
   s_safety_case_strategy -> s_safety_case_claim [color="#555555", arrowhead=normal];

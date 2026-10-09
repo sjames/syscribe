@@ -271,7 +271,7 @@ fn a_cyclic_fault_tree_still_draws_without_numbers() {
     let top = d.graph.node("s-safety-ft-top").unwrap().mark.clone().unwrap();
     assert_eq!(top.status.as_deref(), Some("analysis unavailable"));
     assert!(top.value.as_deref().unwrap().contains("cycle"), "{top:?}");
-    assert!(d.graph.node("s-safety-ft-c").unwrap().mark.is_none());
+    assert!(d.graph.node("s-safety-ft-c").unwrap().mark.as_ref().is_none_or(|m| m.is_detail_only()));
     assert!(render_svg(&d.graph, &no_links).is_ok(), "ELK copes with the cycle");
 }
 
@@ -346,7 +346,7 @@ fn derived_safety_case_matches_its_golden_ir() {
     assert_eq!(mark("s-safety-case-claim").status.as_deref(), Some("UNDEVELOPED"));
     assert_eq!((mark("s-safety-tc").value.as_deref(), mark("s-safety-tc").tone), (Some("unknown"), Tone::Warn));
     assert_eq!(mark("s-safety-sg").value.as_deref(), Some("verdict incomplete"));
-    assert!(g.node("s-safety-case-context").unwrap().mark.is_none());
+    assert!(g.node("s-safety-case-context").unwrap().mark.as_ref().is_none_or(|m| m.is_detail_only()));
     assert_snapshot("gsn", g);
 }
 
@@ -382,15 +382,15 @@ fn writers_accept_the_safety_graphs() {
     // Mermaid: a top-down flowchart with shapes, mark text and tone classes.
     let m = render_mermaid(&ft.graph, &no_links).unwrap();
     assert!(m.starts_with("flowchart TD\n"), "{m}");
-    assert!(m.contains("s_safety_ft_top([\"OR<br/>Harm occurs<br/>top event<br/>P "), "{m}");
-    assert!(m.contains("s_safety_ft_both([\"AND<br/>Both channels fail\"])") || m.contains("s_safety_ft_both([\"AND<br/>Both channels fail<br/>"), "{m}");
+    assert!(m.contains("s_safety_ft_top([\"OR<br/>FTG-DS-001<br/>Harm occurs<br/>top event<br/>P "), "{m}");
+    assert!(m.contains("s_safety_ft_both([\"AND<br/>FTG-DS-002<br/>Both channels fail\"])") || m.contains("s_safety_ft_both([\"AND<br/>FTG-DS-002<br/>Both channels fail<br/>"), "{m}");
     assert!(m.contains("s_safety_ft_top --- s_safety_ft_c"), "{m}");
     assert!(m.contains("classDef tone_bad fill:#fdecea,stroke:#b3261e,color:#222") && m.contains("class s_safety_ft_c tone_bad"), "{m}");
     let m = render_mermaid(&at.graph, &no_links).unwrap();
     assert!(m.contains("s_security_at_chain ===") || m.contains("===") , "{m}");
     let m = render_mermaid(&gsn.graph, &no_links).unwrap();
     assert!(m.contains("-.-> s_safety_case_context"), "InContextOf is dashed: {m}");
-    assert!(m.contains("[/\"Argue over independent channels"), "strategy is a parallelogram: {m}");
+    assert!(m.contains("[/\"ARG-DS-001<br/>Argue over independent channels"), "strategy is a parallelogram: {m}");
 
     // DOT.
     let dot = render_dot(&at.graph);
@@ -399,13 +399,13 @@ fn writers_accept_the_safety_graphs() {
 
     // PlantUML.
     let p = render_plantuml(&ft.diagram, &ft.elements, None).expect("PlantUML maps the FaultTree kind");
-    assert!(p.starts_with("@startuml FtD\n") && p.contains("hexagon \"<b>OR</b>\\nHarm occurs"), "{p}");
-    assert!(p.contains("usecase \"Channel A fails"), "{p}");
+    assert!(p.starts_with("@startuml FtD\n") && p.contains("hexagon \"<b>OR</b>\\nFTG-DS-001\\nHarm occurs"), "{p}");
+    assert!(p.contains("usecase \"FTE-DS-001\\nChannel A fails"), "{p}");
     assert!(render_plantuml(&gsn.diagram, &gsn.elements, None).unwrap().contains("-->"), "GSN SupportedBy");
 
     // SVG: ELK-laid-out, symbols and the tone fills.
     let s = render_svg(&ft.graph, &no_links).expect("SVG via the embedded ELK");
-    assert!(s.contains("class=\"gate-or FaultTreeGate\"") && s.contains("<ellipse") && s.contains("fill=\"#fdecea\""), "{s}");
+    assert!(s.contains("class=\"gate-or FaultTreeGate\"") && s.contains("A 14,14 0 1 0") && s.contains("fill=\"#fdecea\""), "{s}");
     assert!(s.contains("single point of failure") && s.contains("top event"), "{s}");
     let s = render_svg(&at.graph, &no_links).unwrap();
     assert!(s.contains("class=\"edge criticalPath\"") && s.contains("stroke=\"#b3261e\""), "{s}");
@@ -420,7 +420,7 @@ fn writers_accept_the_safety_graphs() {
     assert_eq!(node["mark"]["tone"], "bad");
     assert_eq!(node["style"]["strokeWidth"], 3.0);
     let roles: Vec<&str> = node["children"].as_array().unwrap().iter().filter_map(|c| c["role"].as_str()).collect();
-    assert_eq!(roles, vec!["stereotype", "name", "status", "value", "badge"], "{node}");
+    assert_eq!(roles, vec!["name", "line", "status", "value", "badge"], "{node}");
     let edge = j["children"].as_array().unwrap().iter().find(|c| c["type"] == "edge").unwrap();
     assert_eq!(edge["kind"], "input");
 }
@@ -437,14 +437,19 @@ fn layout_runs_top_down_with_inputs_below_their_gate_and_symbols_sized_for_their
         assert!(l.nodes[input].y >= top.y + top.h, "{input} sits below the top gate: {:?} vs {top:?}", l.nodes[input]);
     }
     assert!(l.nodes["s-safety-ft-a"].y > l.nodes["s-safety-ft-both"].y);
-    // The ellipse is bigger than its label stack, so the text sits inside the outline.
+    // An event is its text box with the symbol hung beneath it: the box is
+    // taller than the label stack by the symbol and its stub, and the text
+    // stays above the symbol.
     let a = d.graph.node("s-safety-ft-a").unwrap();
-    let label_w = sizes.node(&a.id).unwrap().labels.iter().map(|x| x.w).fold(0.0, f64::max);
-    assert!(sizes.size_of(&a.id).w >= (label_w * 1.4).floor(), "{} vs {label_w}", sizes.size_of(&a.id).w);
-    // Labels are centred vertically in a symbol (ELK `V_CENTER`).
+    let stack: f64 = sizes.node(&a.id).unwrap().labels.iter().map(|x| x.h + 1.0).sum();
+    let extent = syscribe_model::vis::shape::glyph_extent(a.kind).unwrap();
+    assert!(sizes.size_of(&a.id).h >= stack + extent, "{} vs {stack} + {extent}", sizes.size_of(&a.id).h);
     let box_ = l.nodes["s-safety-ft-a"];
     let name = l.labels["s-safety-ft-a-label"];
-    assert!(name.y > box_.y + 4.0 && name.y + name.h < box_.bottom() - 4.0, "{name:?} in {box_:?}");
+    assert!(name.y >= box_.y + 4.0 && name.y + name.h <= box_.bottom() - extent, "{name:?} in {box_:?}");
+    // A gate input sits under its gate in a bus: one trunk out of the gate's bottom centre.
+    let route = &l.edges["e-input-s-safety-ft-top-s-safety-ft-c"];
+    assert_eq!((route.points[0].x, route.points[0].y), (top.cx(), top.bottom()), "{route:?}");
     // No two nodes overlap.
     let ids: Vec<&String> = l.nodes.keys().collect();
     for (i, a) in ids.iter().enumerate() {

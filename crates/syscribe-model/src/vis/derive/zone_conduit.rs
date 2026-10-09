@@ -156,10 +156,7 @@ pub fn generate(
                     if !keeps_keys(filters, &keys_of(c)) {
                         continue;
                     }
-                    // The id, not the (long) name: a zone holds many controls and the
-                    // element's own page has the name.
                     let mut n = node_for(c, NodeKind::Block, Some(mark(c.frontmatter.control_type.clone().unwrap_or_else(|| "control".to_string()), None, Tone::Ok, Vec::new())));
-                    n.label = id_of(c).to_string();
                     n.stereotype = Some("security control".to_string());
                     n
                 }

@@ -1,15 +1,17 @@
 digraph "Keep braking" {
   rankdir=LR;
+  nodesep=0.4;
+  ranksep=0.55;
   node [fontname="Helvetica", fontsize=11];
   edge [fontname="Helvetica", fontsize=10];
-  s_safety_sg [label="Keep braking\napproved\nASIL D", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Safety::SG"];
-  s_safety_he_a [label="Loss of braking\napproved\nASIL D", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Safety::HE-A"];
-  s_safety_ft [label="Braking tree\napproved\nfault tree", shape=box, style="filled", fillcolor="#f1f2f4", color="#8a8f98", tooltip="Safety::FT"];
-  s_safety_arg [label="Argue over channels\napproved\nstrategy", shape=box, style="filled", fillcolor="#f1f2f4", color="#8a8f98", tooltip="Safety::ARG"];
-  s_req_req_dt_001 [label="Brake on demand\napproved\nASIL D\n[W305 no integration test]", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Req::REQ-DT-001"];
-  s_req_req_dt_002 [label="Detect pedal\napproved", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Req::REQ-DT-002"];
-  s_verification_tc_dt_001 [label="Pedal test\nunknown\nL2 · active", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Verification::TC-DT-001"];
-  s_req_req_dt_003 [label="Apply pressure\napproved\n[W002 no test] [W300 unsatisfied]", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Req::REQ-DT-003"];
+  s_safety_sg [label="SG-DT-001\nKeep braking\napproved\nASIL D", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Safety::SG"];
+  s_safety_he_a [label="HE-DT-001\nLoss of braking\napproved\nASIL D", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Safety::HE-A"];
+  s_safety_ft [label="FT-DT-001\nBraking tree\napproved\nfault tree", shape=box, style="filled", fillcolor="#f1f2f4", color="#8a8f98", tooltip="Safety::FT"];
+  s_safety_arg [label="ARG-DT-001\nArgue over channels\napproved\nstrategy", shape=box, style="filled", fillcolor="#f1f2f4", color="#8a8f98", tooltip="Safety::ARG"];
+  s_req_req_dt_001 [label="REQ-DT-001\nBrake on demand\napproved\nASIL D\n[W305 no integration test]", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Req::REQ-DT-001"];
+  s_req_req_dt_002 [label="REQ-DT-002\nDetect pedal\napproved", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Req::REQ-DT-002"];
+  s_verification_tc_dt_001 [label="TC-DT-001\nPedal test\nunknown\nL2 · active", shape=box, style="filled", fillcolor="#fff4d6", color="#b7791f", tooltip="Verification::TC-DT-001"];
+  s_req_req_dt_003 [label="REQ-DT-003\nApply pressure\napproved\n[W002 no test] [W300 unsatisfied]", shape=box, style="filled", fillcolor="#fdecea", color="#b3261e", tooltip="Req::REQ-DT-003"];
   s_safety_sg -> s_safety_he_a [color="#555555", arrowhead=vee, style=dashed, label="«trace»"];
   s_safety_ft -> s_safety_sg [color="#555555", arrowhead=vee, style=dashed, label="«trace»"];
   s_safety_arg -> s_safety_sg [color="#555555", arrowhead=vee, style=dashed, label="«trace»"];

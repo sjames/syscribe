@@ -611,13 +611,15 @@ fn render_safety(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -
         }
         let mut fill = String::new();
         if let Some(m) = &n.mark {
-            for line in [m.status.clone(), m.value.clone()].into_iter().flatten() {
+            for line in [m.detail.clone(), m.status.clone(), m.value.clone()].into_iter().flatten() {
                 text.push_str(&format!("\\n{}", line.replace('"', "'")));
             }
             if !m.badges.is_empty() {
                 text.push_str(&format!("\\n{}", m.badges.iter().map(|b| format!("[{b}]")).collect::<Vec<_>>().join(" ")));
             }
-            fill = format!(" {}", vis::style::tone_colors(m.tone).0);
+            if !m.is_detail_only() {
+                fill = format!(" {}", vis::style::tone_colors(m.tone).0);
+            }
         }
         let keyword = match n.kind {
             NodeKind::GateAnd | NodeKind::GateOr | NodeKind::GateXor | NodeKind::GateNot | NodeKind::GateInhibit | NodeKind::EventUndeveloped => "hexagon",

@@ -195,7 +195,14 @@ pub fn generate(
         )));
         return;
     }
-    let cfg = &filters.cyber;
+    // An explicit configuration wins; otherwise the registered model root's `[cyber]`.
+    let ctx_cfg;
+    let cfg = if filters.cyber.is_default() {
+        ctx_cfg = super::context::cyber_config();
+        &ctx_cfg
+    } else {
+        &filters.cyber
+    };
     let sq = subject.qualified_name.as_str();
     let all = chains(elements, resolver);
     let controls_of = |goal: &str| -> Vec<&RawElement> {

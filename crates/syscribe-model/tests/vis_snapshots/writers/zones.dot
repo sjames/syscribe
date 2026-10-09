@@ -1,19 +1,21 @@
 digraph "Sec" {
   rankdir=LR;
+  nodesep=0.4;
+  ranksep=0.55;
   node [fontname="Helvetica", fontsize=11];
   edge [fontname="Helvetica", fontsize=10];
   compound=true;
   subgraph cluster_s_sec_zn_zc_001 {
-    label="Control\nSL target 3 / achieved 3\napproved"; style="filled"; fillcolor="#e3f5e8"; color="#1e8a3c"; fontname="Helvetica";
+    label="ZN-ZC-001\nControl\nSL target 3 / achieved 3\napproved"; style="filled"; fillcolor="#e3f5e8"; color="#1e8a3c"; fontname="Helvetica";
     s_sec_zn_zc_001_arch_fc [label="FlightController", shape=box, style="filled", fillcolor="#f5f5fa", color="#3a3a4a", tooltip="Arch::Fc"];
-    s_sec_zn_zc_001_ctl_sc_zc_001 [label="SC-ZC-001\nprevention", shape=box, style="filled", fillcolor="#e3f5e8", color="#1e8a3c", tooltip="Sec::SC-ZC-001"];
+    s_sec_zn_zc_001_ctl_sc_zc_001 [label="SC-ZC-001\nAuthenticate commands\nprevention", shape=box, style="filled", fillcolor="#e3f5e8", color="#1e8a3c", tooltip="Sec::SC-ZC-001"];
   }
   subgraph cluster_s_sec_zn_zc_002 {
-    label="Link\nSL target 2 / achieved 1\napproved\n[SL gap] [no controls]"; style="filled"; fillcolor="#fdecea"; color="#b3261e"; fontname="Helvetica";
+    label="ZN-ZC-002\nLink\nSL target 2 / achieved 1\napproved\n[SL gap] [no controls]"; style="filled"; fillcolor="#fdecea"; color="#b3261e"; fontname="Helvetica";
     s_sec_zn_zc_002_arch_gw [label="Gateway", shape=box, style="filled", fillcolor="#f5f5fa", color="#3a3a4a", tooltip="Arch::Gw"];
   }
   subgraph cluster_s_sec_zn_zc_003 {
-    label="Ground\nSL target 2 / achieved ?\ndraft\n[no controls]"; style="filled"; fillcolor="#fff4d6"; color="#b7791f"; fontname="Helvetica";
+    label="ZN-ZC-003\nGround\nSL target 2 / achieved ?\ndraft\n[no controls]"; style="filled"; fillcolor="#fff4d6"; color="#b7791f"; fontname="Helvetica";
     s_sec_zn_zc_003_arch_tel [label="Telemetry", shape=box, style="filled", fillcolor="#f5f5fa", color="#3a3a4a", tooltip="Arch::Tel"];
     s_sec_zn_zc_003_arch_missing [label="Arch::Missing\nunresolved", shape=box, style="filled,dashed", fillcolor="#fdecea", color="#b3261e"];
   }

@@ -1,16 +1,16 @@
 flowchart TD
   %% ref: Safety::SG
-  s_safety_sg["Avoid harm<br/>undeveloped<br/>verdict incomplete"]
+  s_safety_sg["SG-DS-001<br/>Avoid harm<br/>undeveloped<br/>verdict incomplete"]
   %% ref: Safety::Case::Strategy
-  s_safety_case_strategy[/"Argue over independent channels<br/>undeveloped"/]
+  s_safety_case_strategy[/"ARG-DS-001<br/>Argue over independent channels<br/>undeveloped"/]
   %% ref: Safety::REQ
-  s_safety_req["Comparator shall trip<br/>unverified"]
+  s_safety_req["REQ-DS-001<br/>Comparator shall trip<br/>unverified"]
   %% ref: Safety::TC
-  s_safety_tc(("Trip test<br/>unverified<br/>unknown"))
+  s_safety_tc(("TC-DS-001<br/>Trip test<br/>unverified<br/>unknown"))
   %% ref: Safety::Case::Claim
-  s_safety_case_claim["Channels fail independently<br/>UNDEVELOPED"]
+  s_safety_case_claim["ARG-DS-003<br/>Channels fail independently<br/>UNDEVELOPED"]
   %% ref: Safety::Case::Context
-  s_safety_case_context(["Single vehicle"])
+  s_safety_case_context(["ARG-DS-002<br/>Single vehicle"])
 
   s_safety_req --> s_safety_tc
   s_safety_case_strategy --> s_safety_req
@@ -20,3 +20,5 @@ flowchart TD
 
   classDef tone_warn fill:#fff4d6,stroke:#b7791f,color:#222
   class s_safety_sg,s_safety_case_strategy,s_safety_req,s_safety_tc,s_safety_case_claim tone_warn
+  classDef tone_neutral fill:#f1f2f4,stroke:#8a8f98,color:#222
+  class s_safety_case_context tone_neutral

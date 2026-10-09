@@ -1,18 +1,18 @@
 flowchart LR
   %% ref: Sec::ZN-ZC-001
-  subgraph s_sec_zn_zc_001["Control<br/>SL target 3 / achieved 3<br/>approved"]
+  subgraph s_sec_zn_zc_001["ZN-ZC-001<br/>Control<br/>SL target 3 / achieved 3<br/>approved"]
     %% ref: Arch::Fc
     s_sec_zn_zc_001_arch_fc["FlightController"]
     %% ref: Sec::SC-ZC-001
-    s_sec_zn_zc_001_ctl_sc_zc_001["SC-ZC-001<br/>prevention"]
+    s_sec_zn_zc_001_ctl_sc_zc_001["SC-ZC-001<br/>Authenticate commands<br/>prevention"]
   end
   %% ref: Sec::ZN-ZC-002
-  subgraph s_sec_zn_zc_002["Link<br/>SL target 2 / achieved 1<br/>approved<br/>[SL gap] [no controls]"]
+  subgraph s_sec_zn_zc_002["ZN-ZC-002<br/>Link<br/>SL target 2 / achieved 1<br/>approved<br/>[SL gap] [no controls]"]
     %% ref: Arch::Gw
     s_sec_zn_zc_002_arch_gw["Gateway"]
   end
   %% ref: Sec::ZN-ZC-003
-  subgraph s_sec_zn_zc_003["Ground<br/>SL target 2 / achieved ?<br/>draft<br/>[no controls]"]
+  subgraph s_sec_zn_zc_003["ZN-ZC-003<br/>Ground<br/>SL target 2 / achieved ?<br/>draft<br/>[no controls]"]
     %% ref: Arch::Tel
     s_sec_zn_zc_003_arch_tel["Telemetry"]
     %% ref: Arch::Missing

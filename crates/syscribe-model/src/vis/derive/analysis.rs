@@ -43,17 +43,33 @@ pub(crate) fn keys_of(e: &RawElement) -> Vec<String> {
     super::requirement::element_keys(e)
 }
 
-/// A node standing for the resolved element `e`. The stereotype is its stable
-/// id (as in the GSN generator), the element type its type name.
+/// A node standing for the resolved element `e`, labelled the way the polished
+/// safety diagrams are: the concise stable `id` is the label and the element's
+/// name hangs under it, wrapped (`NodeMark::detail`); an element with no `id`
+/// is labelled by its name.
 pub(crate) fn node_for(e: &RawElement, kind: NodeKind, mark: Option<NodeMark>) -> Node {
+    let name = display_name(e);
+    let (label, mut mark) = match e.frontmatter.id.as_deref() {
+        Some(id) if id != name => {
+            let mut m = mark;
+            m.get_or_insert_with(NodeMark::default).detail = Some(name);
+            (id.to_string(), m)
+        }
+        _ => (name, mark),
+    };
+    if let Some(m) = mark.as_mut() {
+        if m.detail.is_none() && m.is_detail_only() {
+            mark = None;
+        }
+    }
     Node {
         id: derived_shape_id(&e.qualified_name),
         element_ref: e.qualified_name.clone(),
         resolved: true,
         element_type: e.frontmatter.element_type.as_ref().map(|t| t.name().to_string()),
         kind,
-        label: display_name(e),
-        stereotype: e.frontmatter.id.clone(),
+        label,
+        stereotype: None,
         parent: None,
         direction: None,
         side: None,
@@ -84,7 +100,7 @@ pub(crate) fn unresolved_node(text: &str, kind: NodeKind) -> Node {
         pin: None,
         banners: Vec::new(),
         feature: None,
-        mark: Some(NodeMark { status: Some("unresolved".to_string()), value: None, tone: Tone::Bad, badges: Vec::new(), emphasis: false }),
+        mark: Some(NodeMark { detail: None, status: Some("unresolved".to_string()), value: None, tone: Tone::Bad, badges: Vec::new(), emphasis: false }),
     }
 }
 
@@ -122,7 +138,7 @@ pub(crate) fn roll(tones: impl IntoIterator<Item = Tone>) -> Tone {
 
 /// A mark with the given status, value, tone and badges.
 pub(crate) fn mark(status: impl Into<String>, value: Option<String>, tone: Tone, badges: Vec<String>) -> NodeMark {
-    NodeMark { status: Some(status.into()), value, tone, badges, emphasis: false }
+    NodeMark { detail: None, status: Some(status.into()), value, tone, badges, emphasis: false }
 }
 
 #[cfg(test)]

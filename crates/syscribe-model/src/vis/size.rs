@@ -237,6 +237,27 @@ pub fn label_size(metrics: &dyn TextMetrics, text: &str, role: LabelRole) -> Siz
     Size { w: (advance * (1.0 + WIDTH_MARGIN) + WIDTH_PAD).ceil(), h: (font * LINE_FACTOR).ceil() }
 }
 
+/// `text` broken at spaces into lines whose boxes ([`label_size`]) are at most
+/// `max_w` wide, greedily; a single word wider than `max_w` stays on a line of
+/// its own. Never empty: blank text is one empty line.
+pub fn wrap_text(metrics: &dyn TextMetrics, text: &str, role: LabelRole, max_w: f64) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    let mut cur = String::new();
+    for word in text.split_whitespace() {
+        let candidate = if cur.is_empty() { word.to_string() } else { format!("{cur} {word}") };
+        if cur.is_empty() || label_size(metrics, &candidate, role).w <= max_w {
+            cur = candidate;
+        } else {
+            lines.push(std::mem::take(&mut cur));
+            cur = word.to_string();
+        }
+    }
+    if !cur.is_empty() || lines.is_empty() {
+        lines.push(cur);
+    }
+    lines
+}
+
 fn label(metrics: &dyn TextMetrics, id: String, text: String, role: LabelRole) -> LabelBox {
     let s = label_size(metrics, &text, role);
     LabelBox { id, text, role, x: 0.0, y: 0.0, w: s.w, h: s.h }
@@ -337,7 +358,22 @@ fn node_sizing(metrics: &dyn TextMetrics, graph: &DiagramGraph, node: &Node, siz
     for (i, b) in node.banners.iter().enumerate() {
         labels.push(label(metrics, format!("{}-banner-{i}", node.id), format!("«{b}»"), LabelRole::Banner));
     }
-    labels.push(label(metrics, format!("{}-label", node.id), node.label.clone(), LabelRole::Name));
+    // A safety node's text wraps (`shape::wrap_width`): the name line by line,
+    // then the mark's `detail` (the full name) in the regular face.
+    let wrap = super::shape::wrap_width(node.kind);
+    let name_lines = match wrap {
+        Some(w) => wrap_text(metrics, &node.label, LabelRole::Name, w),
+        None => vec![node.label.clone()],
+    };
+    for (i, line) in name_lines.into_iter().enumerate() {
+        let id = if i == 0 { format!("{}-label", node.id) } else { format!("{}-label-{i}", node.id) };
+        labels.push(label(metrics, id, line, LabelRole::Name));
+    }
+    if let Some(d) = node.mark.as_ref().and_then(|m| m.detail.as_deref()).filter(|d| !d.is_empty()) {
+        for (i, line) in wrap_text(metrics, d, LabelRole::Line, wrap.unwrap_or(150.0)).into_iter().enumerate() {
+            labels.push(label(metrics, format!("{}-mark-detail-{i}", node.id), line, LabelRole::Line));
+        }
+    }
     // A mark's status, value and badges stack under the name (GH #223).
     if let Some(m) = &node.mark {
         if let Some(t) = m.status.as_deref().filter(|t| !t.is_empty()) {
@@ -401,6 +437,11 @@ fn node_sizing(metrics: &dyn TextMetrics, graph: &DiagramGraph, node: &Node, siz
         if let Some((fw, fh)) = super::shape::text_scale(node.kind) {
             size.w = (size.w * fw).ceil();
             size.h = (size.h * fh).ceil();
+        }
+        // A fault-tree gate or event hangs its symbol under the text box.
+        if let Some(extent) = super::shape::glyph_extent(node.kind) {
+            size.h += extent;
+            size.w = size.w.max(super::shape::glyph_min_width(node.kind));
         }
     }
     for (c, (x, y)) in order.iter().zip(positions) {
@@ -646,5 +687,18 @@ mod tests {
         let mut g = DiagramGraph::empty(DiagramKind::Bdd, "D", "D", None);
         g.nodes.push(node("a", NodeKind::Block, None, "A"));
         assert_eq!(size_graph(&g, &m), size_graph(&g, &m));
+    }
+
+    #[test]
+    fn wrap_text_breaks_at_spaces_within_the_width_and_keeps_long_words() {
+        let m = ApproxMetrics;
+        let one = wrap_text(&m, "short text", LabelRole::Line, 500.0);
+        assert_eq!(one, vec!["short text".to_string()]);
+        let lines = wrap_text(&m, "Throttle actuator mechanically stuck open above 20 percent of travel", LabelRole::Line, 120.0);
+        assert!(lines.len() >= 3, "{lines:?}");
+        assert!(lines.iter().all(|l| label_size(&m, l, LabelRole::Line).w <= 120.0), "{lines:?}");
+        assert_eq!(lines.join(" "), "Throttle actuator mechanically stuck open above 20 percent of travel");
+        assert_eq!(wrap_text(&m, "Unbreakable_identifier_that_is_far_too_long", LabelRole::Line, 40.0).len(), 1);
+        assert_eq!(wrap_text(&m, "", LabelRole::Line, 40.0), vec![String::new()]);
     }
 }

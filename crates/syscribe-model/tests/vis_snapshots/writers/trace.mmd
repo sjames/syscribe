@@ -1,20 +1,20 @@
 flowchart LR
   %% ref: Safety::SG
-  s_safety_sg["Keep braking<br/>approved<br/>ASIL D"]
+  s_safety_sg["SG-DT-001<br/>Keep braking<br/>approved<br/>ASIL D"]
   %% ref: Safety::HE-A
-  s_safety_he_a["Loss of braking<br/>approved<br/>ASIL D"]
+  s_safety_he_a["HE-DT-001<br/>Loss of braking<br/>approved<br/>ASIL D"]
   %% ref: Safety::FT
-  s_safety_ft["Braking tree<br/>approved<br/>fault tree"]
+  s_safety_ft["FT-DT-001<br/>Braking tree<br/>approved<br/>fault tree"]
   %% ref: Safety::ARG
-  s_safety_arg["Argue over channels<br/>approved<br/>strategy"]
+  s_safety_arg["ARG-DT-001<br/>Argue over channels<br/>approved<br/>strategy"]
   %% ref: Req::REQ-DT-001
-  s_req_req_dt_001["Brake on demand<br/>approved<br/>ASIL D<br/>[W305 no integration test]"]
+  s_req_req_dt_001["REQ-DT-001<br/>Brake on demand<br/>approved<br/>ASIL D<br/>[W305 no integration test]"]
   %% ref: Req::REQ-DT-002
-  s_req_req_dt_002["Detect pedal<br/>approved"]
+  s_req_req_dt_002["REQ-DT-002<br/>Detect pedal<br/>approved"]
   %% ref: Verification::TC-DT-001
-  s_verification_tc_dt_001["Pedal test<br/>unknown<br/>L2 · active"]
+  s_verification_tc_dt_001["TC-DT-001<br/>Pedal test<br/>unknown<br/>L2 · active"]
   %% ref: Req::REQ-DT-003
-  s_req_req_dt_003["Apply pressure<br/>approved<br/>[W002 no test] [W300 unsatisfied]"]
+  s_req_req_dt_003["REQ-DT-003<br/>Apply pressure<br/>approved<br/>[W002 no test] [W300 unsatisfied]"]
 
   s_safety_sg -.->|«trace»| s_safety_he_a
   s_safety_ft -.->|«trace»| s_safety_sg

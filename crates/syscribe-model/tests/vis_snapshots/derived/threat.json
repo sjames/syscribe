@@ -10,10 +10,10 @@
       "resolved": true,
       "elementType": "ThreatScenario",
       "kind": "block",
-      "label": "Spoof a command",
-      "stereotype": "TS-TG-001",
+      "label": "TS-TG-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Spoof a command",
         "status": "risk medium",
         "value": "feasibility high",
         "tone": "warn"
@@ -25,10 +25,10 @@
       "resolved": true,
       "elementType": "DamageScenario",
       "kind": "block",
-      "label": "Hijack",
-      "stereotype": "DS-TG-001",
+      "label": "DS-TG-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Hijack",
         "status": "impact negligible",
         "tone": "neutral"
       }
@@ -39,10 +39,10 @@
       "resolved": true,
       "elementType": "Asset",
       "kind": "block",
-      "label": "Command link",
-      "stereotype": "ASSET-TG-001",
+      "label": "ASSET-TG-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Command link",
         "status": "approved",
         "value": "integrity",
         "tone": "neutral"
@@ -54,10 +54,10 @@
       "resolved": true,
       "elementType": "CybersecurityGoal",
       "kind": "goal",
-      "label": "Authenticate commands",
-      "stereotype": "CSG-TG-001",
+      "label": "CSG-TG-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Authenticate commands",
         "status": "CAL2",
         "value": "integrity",
         "tone": "ok"
@@ -69,10 +69,10 @@
       "resolved": true,
       "elementType": "SecurityControl",
       "kind": "block",
-      "label": "Sign commands",
-      "stereotype": "SC-TG-001",
+      "label": "SC-TG-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Sign commands",
         "status": "prevention",
         "value": "approved",
         "tone": "ok"
@@ -84,10 +84,10 @@
       "resolved": true,
       "elementType": "ThreatScenario",
       "kind": "block",
-      "label": "Jam the link",
-      "stereotype": "TS-TG-002",
+      "label": "TS-TG-002",
       "isAbstract": false,
       "mark": {
+        "detail": "Jam the link",
         "status": "risk high",
         "value": "feasibility low",
         "tone": "bad"
@@ -99,10 +99,10 @@
       "resolved": true,
       "elementType": "DamageScenario",
       "kind": "block",
-      "label": "Noise",
-      "stereotype": "DS-TG-002",
+      "label": "DS-TG-002",
       "isAbstract": false,
       "mark": {
+        "detail": "Noise",
         "status": "impact severe",
         "tone": "bad"
       }
@@ -113,10 +113,10 @@
       "resolved": true,
       "elementType": "CybersecurityGoal",
       "kind": "goal",
-      "label": "Keep the link up",
-      "stereotype": "CSG-TG-002",
+      "label": "CSG-TG-002",
       "isAbstract": false,
       "mark": {
+        "detail": "Keep the link up",
         "status": "CAL2",
         "value": "availability",
         "tone": "bad",
@@ -131,10 +131,10 @@
       "resolved": true,
       "elementType": "ThreatScenario",
       "kind": "block",
-      "label": "Untreated",
-      "stereotype": "TS-TG-003",
+      "label": "TS-TG-003",
       "isAbstract": false,
       "mark": {
+        "detail": "Untreated",
         "status": "risk high",
         "value": "feasibility low",
         "tone": "bad",

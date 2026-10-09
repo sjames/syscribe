@@ -729,6 +729,9 @@ fn main() {
         std::process::exit(1);
     }
 
+    // The derived safety diagrams read `[cyber]` and the results sidecar from here.
+    syscribe_model::vis::derive::context::set_model_root(model_root);
+
     // `mcp` and `lsp` each own model loading (they build a long-lived, reloadable
     // store), so dispatch them before the eager `walk_model` below to avoid loading
     // the model twice.

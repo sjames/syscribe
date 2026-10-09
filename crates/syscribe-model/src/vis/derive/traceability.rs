@@ -265,8 +265,7 @@ impl<'a> Emitter<'a, '_, '_> {
         let tone = self.tones.requirement(r, 0);
         let gaps = requirement_gaps(self.ix, r);
         let status = r.frontmatter.status.clone().unwrap_or_else(|| "no status".to_string());
-        let mut node = node_for(r, NodeKind::Requirement, Some(mark(status, asil_text(&r.frontmatter), tone, gaps)));
-        node.stereotype = r.frontmatter.id.clone();
+        let node = node_for(r, NodeKind::Requirement, Some(mark(status, asil_text(&r.frontmatter), tone, gaps)));
         add_node(self.graph, node);
         for t in self.ix.tests_for.get(&r.qualified_name).cloned().unwrap_or_default() {
             if !self.allowed(t) {
@@ -278,8 +277,7 @@ impl<'a> Emitter<'a, '_, '_> {
             let level = t.frontmatter.test_level.clone().unwrap_or_default();
             let value = [level, t.frontmatter.status.clone().unwrap_or_default()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · ");
             let badges = if active { Vec::new() } else { vec!["inactive".to_string()] };
-            let mut tn = node_for(t, NodeKind::TestCase, Some(mark(v.as_str(), (!value.is_empty()).then_some(value), tc_tone, badges)));
-            tn.stereotype = t.frontmatter.id.clone();
+            let tn = node_for(t, NodeKind::TestCase, Some(mark(v.as_str(), (!value.is_empty()).then_some(value), tc_tone, badges)));
             let tid = add_node(self.graph, tn);
             add_edge(self.graph, EdgeKind::Verify, &tid, &id, Some(t.qualified_name.clone()), None);
         }
@@ -448,7 +446,9 @@ pub fn generate(
     filters: &Filters,
     issues: &mut Vec<Issue>,
 ) {
-    generate_with(graph, subject, elements, resolver, filters, issues, &|_| Verdict::Unknown);
+    // Verdicts come from the results sidecar of the registered model root (`unknown` without one).
+    let results = super::context::results();
+    generate_with(graph, subject, elements, resolver, filters, issues, &|tc| crate::results::testcase_verdict(tc, results.as_ref()));
 }
 
 /// The traceability diagram of `subject` with real test verdicts, without a

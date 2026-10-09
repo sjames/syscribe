@@ -184,7 +184,7 @@ pub fn node_style(node: &Node) -> NodeStyle {
     };
     // A mark's tone repaints the node (GH #223); an emphasised mark draws it heavier.
     let mut stroke_width = None;
-    if let Some(m) = &node.mark {
+    if let Some(m) = node.mark.as_ref().filter(|m| !m.is_detail_only()) {
         let (f, s) = tone_colors(m.tone);
         fill = f;
         stroke = s;
@@ -235,8 +235,9 @@ pub fn edge_style(kind: EdgeKind) -> EdgeStyle {
         K::FeatureChild => (EDGE_STROKE, None, A::None, A::None, None),
         K::Requires => (EDGE_STROKE_FEATURE_REQUIRES, Some("6,3"), A::Filled, A::None, Some("requires")),
         K::Excludes => (EDGE_STROKE_FEATURE_EXCLUDES, Some("6,3"), A::Open, A::Open, Some("excludes")),
-        K::GateInput => (EDGE_STROKE, None, A::None, A::None, None),
-        K::CriticalPath => (EDGE_STROKE_CRITICAL, None, A::None, A::None, None),
+        // The arrow sits on the gate end and points into the gate: a fault propagates up.
+        K::GateInput => (EDGE_STROKE, None, A::None, A::Filled, None),
+        K::CriticalPath => (EDGE_STROKE_CRITICAL, None, A::None, A::Filled, None),
         K::SupportedBy => (EDGE_STROKE, None, A::Filled, A::None, None),
         K::InContextOf => (EDGE_STROKE, None, A::HollowTriangle, A::None, None),
         K::Impacts => (EDGE_STROKE, None, A::Filled, A::None, None),

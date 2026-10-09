@@ -1,39 +1,55 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 377.33 409" width="377.33" height="409" class="syscribe-diagram AttackTree" sysml:ref="Diagrams::AtD">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 347.33 528" width="347.33" height="528" class="syscribe-diagram AttackTree" sysml:ref="Diagrams::AtD">
   <title>AtD</title>
+  <defs>
+    <marker id="arrow-filled" viewBox="0 0 10 8" refX="10" refY="4" markerWidth="10" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0,0 L 10,4 L 0,8 z" fill="#555" stroke="#555" stroke-width="1.2"/></marker>
+  </defs>
   <g id="s-security-at-chain" class="gate-and AttackTreeGate" sysml:ref="Security::AT::Chain">
-    <path d="M 40.33,279 L 40.33,241.5 A 69,37.5 0 0 1 178.33,241.5 L 178.33,279 Z" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
-    <text x="109.33" y="229.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«ATG-DS-002»</text>
-    <text x="109.33" y="245.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Local path</text>
-    <text x="109.33" y="259.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">feasibility medium</text>
+    <path d="M 36.33,216 L 167.33,216 L 167.33,267 L 36.33,267 Z M 73.83,325 L 73.83,301 A 28,24 0 0 1 129.83,301 L 129.83,325 Z" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
+    <path d="M 101.83,267 L 101.83,277" fill="none" stroke="#b7791f" stroke-width="3"/>
+    <text x="101.83" y="314.44" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#b7791f" font-weight="bold">AND</text>
+    <text x="101.83" y="233" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">ATG-DS-002</text>
+    <text x="69.33" y="247" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">Local path</text>
+    <text x="101.83" y="261" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">feasibility medium</text>
   </g>
   <g id="s-security-at-root" class="gate-or AttackTreeGate" sysml:ref="Security::AT::Root">
-    <path d="M 20,144 Q 154,109.28 288,144 C 288,82 207.6,34.88 154,20 C 100.4,34.88 20,82 20,144 Z" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
-    <text x="154" y="56.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«ATG-DS-001»</text>
-    <text x="154" y="72.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Either way in</text>
-    <text x="154" y="86.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">feasibility medium</text>
-    <text x="154" y="100.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">threat TS-DS-001 declares high</text>
-    <text x="154" y="113.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[W035]</text>
+    <path d="M 33.17,20 L 239.17,20 L 239.17,98 L 33.17,98 Z M 108.17,156 Q 136.17,142.56 164.17,156 C 164.17,132 147.37,113.76 136.17,108 C 124.97,113.76 108.17,132 108.17,156 Z" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
+    <path d="M 136.17,98 L 136.17,108" fill="none" stroke="#b7791f" stroke-width="3"/>
+    <text x="136.17" y="142.56" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#b7791f" font-weight="bold">OR</text>
+    <text x="136.17" y="37" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">ATG-DS-001</text>
+    <text x="94.17" y="51" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">Either way in</text>
+    <text x="136.17" y="65" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">feasibility medium</text>
+    <text x="136.17" y="79" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">threat TS-DS-001 declares high</text>
+    <text x="136.17" y="92" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[W035]</text>
   </g>
   <g id="s-security-at-s1" class="step AttackStep" sysml:ref="Security::AT::S1">
-    <rect x="24.33" y="339" width="124" height="50" rx="3" fill="#fdecea" stroke="#b3261e" stroke-width="3"/>
-    <text x="86.33" y="353" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b3261e">«ATS-DS-001»</text>
-    <text x="86.33" y="369" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Reach the port</text>
-    <text x="86.33" y="383" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b3261e">feasibility high</text>
+    <rect x="20" y="385" width="120" height="51" rx="3" fill="#fdecea" stroke="#b3261e" stroke-width="3"/>
+    <text x="80" y="402" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">ATS-DS-001</text>
+    <text x="35" y="416" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">Reach the port</text>
+    <text x="80" y="430" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b3261e">feasibility high</text>
   </g>
   <g id="s-security-at-s2" class="step AttackStep" sysml:ref="Security::AT::S2">
-    <rect x="188.33" y="339" width="131" height="50" rx="3" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
-    <text x="253.83" y="353" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«ATS-DS-002»</text>
-    <text x="253.83" y="369" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Replay a frame</text>
-    <text x="253.83" y="383" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">feasibility medium</text>
+    <rect x="180" y="385" width="131" height="51" rx="3" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
+    <text x="245.5" y="402" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">ATS-DS-002</text>
+    <text x="200.5" y="416" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">Replay a frame</text>
+    <text x="245.5" y="430" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">feasibility medium</text>
   </g>
   <g id="s-security-at-s3" class="step AttackStep" sysml:ref="Security::AT::S3">
-    <rect x="218.33" y="204" width="139" height="50" rx="3" fill="#e3f5e8" stroke="#1e8a3c" stroke-width="1.4"/>
-    <text x="287.83" y="218" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#1e8a3c">«ATS-DS-003»</text>
-    <text x="287.83" y="234" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Remote injection</text>
-    <text x="287.83" y="248" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#1e8a3c">feasibility low</text>
+    <rect x="207.33" y="216" width="120" height="51" rx="3" fill="#e3f5e8" stroke="#1e8a3c" stroke-width="1.4"/>
+    <text x="267.33" y="233" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">ATS-DS-003</text>
+    <text x="215.83" y="247" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">Remote injection</text>
+    <text x="267.33" y="261" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#1e8a3c">feasibility low</text>
   </g>
-  <path id="e-input-s-security-at-chain-s-security-at-s1" class="edge criticalPath" sysml:ref="Security::AT::Chain" sysml:source="s-security-at-chain" sysml:target="s-security-at-s1" d="M 86.33,279 L 86.33,339" fill="none" stroke="#b3261e" stroke-width="3"/>
-  <path id="e-input-s-security-at-chain-s-security-at-s2" class="edge criticalPath" sysml:ref="Security::AT::Chain" sysml:source="s-security-at-chain" sysml:target="s-security-at-s2" d="M 132.33,279 L 132.33,309 L 253.83,309 L 253.83,339" fill="none" stroke="#b3261e" stroke-width="3"/>
-  <path id="e-input-s-security-at-root-s-security-at-chain" class="edge criticalPath" sysml:ref="Security::AT::Root" sysml:source="s-security-at-root" sysml:target="s-security-at-chain" d="M 109.33,144 L 109.33,204" fill="none" stroke="#b3261e" stroke-width="3"/>
-  <path id="e-input-s-security-at-root-s-security-at-s3" class="edge input" sysml:ref="Security::AT::Root" sysml:source="s-security-at-root" sysml:target="s-security-at-s3" d="M 198.67,144 L 198.67,174 L 287.83,174 L 287.83,204" fill="none" stroke="#555" stroke-width="1.4"/>
+  <path id="e-input-s-security-at-chain-s-security-at-s1" class="edge criticalPath" sysml:ref="Security::AT::Chain" sysml:source="s-security-at-chain" sysml:target="s-security-at-s1" marker-start="url(#arrow-filled)" d="M 101.83,325 L 101.83,345 L 80,345 L 80,385" fill="none" stroke="#b3261e" stroke-width="3"/>
+  <path id="e-input-s-security-at-chain-s-security-at-s2" class="edge criticalPath" sysml:ref="Security::AT::Chain" sysml:source="s-security-at-chain" sysml:target="s-security-at-s2" marker-start="url(#arrow-filled)" d="M 101.83,325 L 101.83,345 L 245.5,345 L 245.5,385" fill="none" stroke="#b3261e" stroke-width="3"/>
+  <path id="e-input-s-security-at-root-s-security-at-chain" class="edge criticalPath" sysml:ref="Security::AT::Root" sysml:source="s-security-at-root" sysml:target="s-security-at-chain" marker-start="url(#arrow-filled)" d="M 136.17,156 L 136.17,176 L 101.83,176 L 101.83,216" fill="none" stroke="#b3261e" stroke-width="3"/>
+  <path id="e-input-s-security-at-root-s-security-at-s3" class="edge input" sysml:ref="Security::AT::Root" sysml:source="s-security-at-root" sysml:target="s-security-at-s3" marker-start="url(#arrow-filled)" d="M 136.17,156 L 136.17,176 L 267.33,176 L 267.33,216" fill="none" stroke="#555" stroke-width="1.4"/>
+  <g class="legend">
+    <rect x="20" y="456" width="16" height="10" rx="2" fill="#fdecea" stroke="#b3261e" stroke-width="1.4"/>
+    <text x="44" y="465" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">high attack feasibility</text>
+    <rect x="20" y="472" width="16" height="10" rx="2" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4"/>
+    <text x="44" y="481" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">medium attack feasibility</text>
+    <rect x="20" y="488" width="16" height="10" rx="2" fill="#e3f5e8" stroke="#1e8a3c" stroke-width="1.4"/>
+    <text x="44" y="497" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">low or very low attack feasibility</text>
+    <text x="20" y="513" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" font-style="italic">Heavy red edges follow the easiest attack path. Arrows point toward the goal.</text>
+  </g>
 </svg>

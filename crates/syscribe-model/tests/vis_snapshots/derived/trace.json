@@ -10,10 +10,10 @@
       "resolved": true,
       "elementType": "SafetyGoal",
       "kind": "goal",
-      "label": "Keep braking",
-      "stereotype": "SG-DT-001",
+      "label": "SG-DT-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Keep braking",
         "status": "approved",
         "value": "ASIL D",
         "tone": "bad"
@@ -25,10 +25,10 @@
       "resolved": true,
       "elementType": "HazardousEvent",
       "kind": "block",
-      "label": "Loss of braking",
-      "stereotype": "HE-DT-001",
+      "label": "HE-DT-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Loss of braking",
         "status": "approved",
         "value": "ASIL D",
         "tone": "bad"
@@ -40,10 +40,10 @@
       "resolved": true,
       "elementType": "FaultTree",
       "kind": "block",
-      "label": "Braking tree",
-      "stereotype": "FT-DT-001",
+      "label": "FT-DT-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Braking tree",
         "status": "approved",
         "value": "fault tree",
         "tone": "neutral"
@@ -55,10 +55,10 @@
       "resolved": true,
       "elementType": "Argument",
       "kind": "goal",
-      "label": "Argue over channels",
-      "stereotype": "ARG-DT-001",
+      "label": "ARG-DT-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Argue over channels",
         "status": "approved",
         "value": "strategy",
         "tone": "neutral"
@@ -70,10 +70,10 @@
       "resolved": true,
       "elementType": "Requirement",
       "kind": "requirement",
-      "label": "Brake on demand",
-      "stereotype": "REQ-DT-001",
+      "label": "REQ-DT-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Brake on demand",
         "status": "approved",
         "value": "ASIL D",
         "tone": "bad",
@@ -88,10 +88,10 @@
       "resolved": true,
       "elementType": "Requirement",
       "kind": "requirement",
-      "label": "Detect pedal",
-      "stereotype": "REQ-DT-002",
+      "label": "REQ-DT-002",
       "isAbstract": false,
       "mark": {
+        "detail": "Detect pedal",
         "status": "approved",
         "tone": "warn"
       }
@@ -102,10 +102,10 @@
       "resolved": true,
       "elementType": "TestCase",
       "kind": "testCase",
-      "label": "Pedal test",
-      "stereotype": "TC-DT-001",
+      "label": "TC-DT-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Pedal test",
         "status": "unknown",
         "value": "L2 · active",
         "tone": "warn"
@@ -117,10 +117,10 @@
       "resolved": true,
       "elementType": "Requirement",
       "kind": "requirement",
-      "label": "Apply pressure",
-      "stereotype": "REQ-DT-003",
+      "label": "REQ-DT-003",
       "isAbstract": false,
       "mark": {
+        "detail": "Apply pressure",
         "status": "approved",
         "tone": "bad",
         "badges": [

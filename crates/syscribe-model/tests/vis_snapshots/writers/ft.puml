@@ -135,11 +135,11 @@ skinparam sequence {
 }
 skinparam linetype ortho
 
-usecase "Channel A fails\ndual-point\nλ 1.0e-4/h · P 9.5e-2\n[1 MCS]" as s_safety_ft_a #fff4d6 
-hexagon "Channel B fails\ndual-point\nP 1.0e-2\n[1 MCS]" as s_safety_ft_b #fff4d6 
-hexagon "<b>AND</b>\nBoth channels fail" as s_safety_ft_both 
-usecase "Comparator fails\nsingle point of failure\nP 1.0e-6\n[1 MCS]" as s_safety_ft_c #fdecea 
-hexagon "<b>OR</b>\nHarm occurs\ntop event\nP 9.5e-4\n[2 MCS] [1 single point]" as s_safety_ft_top #fff4d6 
+usecase "FTE-DS-001\nChannel A fails\ndual-point\nλ 1.0e-4/h · P 9.5e-2\n[1 MCS]" as s_safety_ft_a #fff4d6 
+hexagon "FTE-DS-002\nChannel B fails\ndual-point\nP 1.0e-2\n[1 MCS]" as s_safety_ft_b #fff4d6 
+hexagon "<b>AND</b>\nFTG-DS-002\nBoth channels fail" as s_safety_ft_both 
+usecase "FTE-DS-003\nComparator fails\nsingle point of failure\nP 1.0e-6\n[1 MCS]" as s_safety_ft_c #fdecea 
+hexagon "<b>OR</b>\nFTG-DS-001\nHarm occurs\ntop event\nP 9.5e-4\n[2 MCS] [1 single point]" as s_safety_ft_top #fff4d6 
 
 s_safety_ft_both -- s_safety_ft_a
 s_safety_ft_both -- s_safety_ft_b

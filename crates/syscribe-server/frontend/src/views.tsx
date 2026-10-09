@@ -507,6 +507,10 @@ export class SysmlNodeView extends ShapeView implements IView {
                     <circle cx={x.cx} cy={x.cy} r={x.r} fill="#fff" stroke={outline} stroke-width={sw} />
                 ) : x.type === 'diamond' ? (
                     <path d={x.d} fill="#fff" stroke={outline} stroke-width={sw} />
+                ) : x.type === 'word' ? (
+                    <text x={x.x} y={x.y} text-anchor="middle" font-size={9} font-weight="bold" fill={outline} font-family="Helvetica, Arial, sans-serif">
+                        {x.text}
+                    </text>
                 ) : (
                     <text x={x.x} y={x.y} font-size={10} font-weight="bold" fill={outline} font-family="Helvetica, Arial, sans-serif">
                         {x.text}

@@ -129,7 +129,7 @@ pub fn generate(
         issues.push(w418(format!("`subject` '{}' is named as `threatRef` by no AttackTree — nothing to draw", subject.qualified_name)));
         return;
     }
-    let cfg = CyberConfig::default();
+    let cfg = super::context::cyber_config();
 
     let mut candidates: Vec<Vec<String>> = Vec::new();
     let mut staged: Vec<(Vec<Node>, Vec<Edge>)> = Vec::new();
@@ -174,7 +174,10 @@ pub fn generate(
                     let _ = r;
                 }
             }
+            let name = e.frontmatter.name.clone().or_else(|| e.frontmatter.id.clone()).unwrap_or_else(|| super::short_name(&e.qualified_name).to_string());
+            let short = e.frontmatter.id.clone().unwrap_or_else(|| super::short_name(&e.qualified_name).to_string());
             let mut mark = NodeMark {
+                detail: Some(name).filter(|d| *d != short),
                 status: Some(match rank {
                     Some(r) => format!("feasibility {}", feasibility_label(r)),
                     None => "unscored".to_string(),
@@ -200,8 +203,8 @@ pub fn generate(
                 resolved: true,
                 element_type: e.frontmatter.element_type.as_ref().map(|t| t.name().to_string()),
                 kind,
-                label: e.frontmatter.name.clone().or_else(|| e.frontmatter.id.clone()).unwrap_or_else(|| super::short_name(&e.qualified_name).to_string()),
-                stereotype: e.frontmatter.id.clone(),
+                label: short,
+                stereotype: None,
                 parent: None,
                 direction: None,
                 side: None,
@@ -240,7 +243,7 @@ pub fn generate(
             .into_iter()
             .filter(|n| {
                 let mut keys = vec![n.element_ref.clone(), super::short_name(&n.element_ref).to_string()];
-                keys.extend(n.stereotype.clone());
+                keys.push(n.label.clone());
                 keeps_keys(filters, &keys)
             })
             .collect();

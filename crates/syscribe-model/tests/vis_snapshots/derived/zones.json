@@ -10,10 +10,10 @@
       "resolved": true,
       "elementType": "Zone",
       "kind": "zone",
-      "label": "Control",
-      "stereotype": "ZN-ZC-001",
+      "label": "ZN-ZC-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Control",
         "status": "SL target 3 / achieved 3",
         "value": "approved",
         "tone": "ok"
@@ -41,6 +41,7 @@
       "parent": "s-sec-zn-zc-001",
       "isAbstract": false,
       "mark": {
+        "detail": "Authenticate commands",
         "status": "prevention",
         "tone": "ok"
       }
@@ -51,10 +52,10 @@
       "resolved": true,
       "elementType": "Zone",
       "kind": "zone",
-      "label": "Link",
-      "stereotype": "ZN-ZC-002",
+      "label": "ZN-ZC-002",
       "isAbstract": false,
       "mark": {
+        "detail": "Link",
         "status": "SL target 2 / achieved 1",
         "value": "approved",
         "tone": "bad",
@@ -82,10 +83,10 @@
       "resolved": true,
       "elementType": "Zone",
       "kind": "zone",
-      "label": "Ground",
-      "stereotype": "ZN-ZC-003",
+      "label": "ZN-ZC-003",
       "isAbstract": false,
       "mark": {
+        "detail": "Ground",
         "status": "SL target 2 / achieved ?",
         "value": "draft",
         "tone": "warn",

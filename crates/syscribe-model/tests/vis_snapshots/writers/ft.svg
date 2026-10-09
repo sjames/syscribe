@@ -1,44 +1,61 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 526.5 516" width="526.5" height="516" class="syscribe-diagram FaultTree" sysml:ref="Diagrams::FtD">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:sysml="urn:syscribe:1.0" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 405.33 584" width="405.33" height="584" class="syscribe-diagram FaultTree" sysml:ref="Diagrams::FtD">
   <title>FtD</title>
+  <defs>
+    <marker id="arrow-filled" viewBox="0 0 10 8" refX="10" refY="4" markerWidth="10" markerHeight="8" markerUnits="userSpaceOnUse" orient="auto-start-reverse"><path d="M 0,0 L 10,4 L 0,8 z" fill="#555" stroke="#555" stroke-width="1.2"/></marker>
+  </defs>
   <g id="s-safety-ft-a" class="event-basic FaultTreeEvent" sysml:ref="Safety::FT::A">
-    <ellipse cx="126.5" cy="438" rx="106.5" ry="58" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
-    <text x="126.5" y="412.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«FTE-DS-001»</text>
-    <text x="126.5" y="428.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Channel A fails</text>
-    <text x="126.5" y="442.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">dual-point</text>
-    <text x="126.5" y="456.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">λ 1.0e-4/h · P 9.5e-2</text>
-    <text x="126.5" y="469.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[1 MCS]</text>
+    <path d="M 20,392 L 170,392 L 170,470 L 20,470 Z M 81,494 A 14,14 0 1 0 109,494 A 14,14 0 1 0 81,494 Z" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
+    <path d="M 95,470 L 95,480" fill="none" stroke="#b7791f" stroke-width="3"/>
+    <text x="95" y="409" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">FTE-DS-001</text>
+    <text x="47" y="423" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">Channel A fails</text>
+    <text x="95" y="437" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">dual-point</text>
+    <text x="95" y="451" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">λ 1.0e-4/h · P 9.5e-2</text>
+    <text x="95" y="464" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[1 MCS]</text>
   </g>
   <g id="s-safety-ft-b" class="event-undeveloped FaultTreeEvent" sysml:ref="Safety::FT::B">
-    <path d="M 325,380 L 372,380 L 424,432 L 372,484 L 325,484 L 273,432 Z" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
-    <text x="348.5" y="406.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«FTE-DS-002»</text>
-    <text x="348.5" y="422.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Channel B fails</text>
-    <text x="348.5" y="436.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">dual-point</text>
-    <text x="348.5" y="450.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">P 1.0e-2</text>
-    <text x="348.5" y="463.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[1 MCS]</text>
+    <path d="M 210,392 L 330,392 L 330,470 L 210,470 Z M 270,480 L 290,493 L 270,506 L 250,493 Z" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
+    <path d="M 270,470 L 270,480" fill="none" stroke="#b7791f" stroke-width="3"/>
+    <text x="270" y="409" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">FTE-DS-002</text>
+    <text x="222" y="423" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">Channel B fails</text>
+    <text x="270" y="437" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">dual-point</text>
+    <text x="270" y="451" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">P 1.0e-2</text>
+    <text x="270" y="464" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[1 MCS]</text>
   </g>
   <g id="s-safety-ft-both" class="gate-and FaultTreeGate" sysml:ref="Safety::FT::Both">
-    <path d="M 72.5,301.33 L 72.5,271.33 A 81,30 0 0 1 234.5,271.33 L 234.5,301.33 Z" fill="#eef3f8" stroke="#1f497d" stroke-width="1.4"/>
-    <text x="153.5" y="266.33" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#1f497d">«FTG-DS-002»</text>
-    <text x="153.5" y="282.33" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Both channels fail</text>
+    <path d="M 51.33,228 L 182.33,228 L 182.33,268 L 51.33,268 Z M 88.83,326 L 88.83,302 A 28,24 0 0 1 144.83,302 L 144.83,326 Z" fill="#eef3f8" stroke="#1f497d" stroke-width="1.4"/>
+    <path d="M 116.83,268 L 116.83,278" fill="none" stroke="#1f497d" stroke-width="1.4"/>
+    <text x="116.83" y="315.44" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#1f497d" font-weight="bold">AND</text>
+    <text x="116.83" y="245" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">FTG-DS-002</text>
+    <text x="59.33" y="259" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">Both channels fail</text>
   </g>
   <g id="s-safety-ft-c" class="event-basic FaultTreeEvent" sysml:ref="Safety::FT::C">
-    <ellipse cx="390.5" cy="262" rx="116" ry="58" fill="#fdecea" stroke="#b3261e" stroke-width="3"/>
-    <text x="390.5" y="236.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b3261e">«FTE-DS-003»</text>
-    <text x="390.5" y="252.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Comparator fails</text>
-    <text x="390.5" y="266.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b3261e">single point of failure</text>
-    <text x="390.5" y="280.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">P 1.0e-6</text>
-    <text x="390.5" y="293.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b3261e">[1 MCS]</text>
+    <path d="M 222.33,216 L 385.33,216 L 385.33,294 L 222.33,294 Z M 289.83,318 A 14,14 0 1 0 317.83,318 A 14,14 0 1 0 289.83,318 Z" fill="#fdecea" stroke="#b3261e" stroke-width="3"/>
+    <path d="M 303.83,294 L 303.83,304" fill="none" stroke="#b3261e" stroke-width="3"/>
+    <text x="303.83" y="233" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">FTE-DS-003</text>
+    <text x="252.33" y="247" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">Comparator fails</text>
+    <text x="303.83" y="261" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b3261e">single point of failure</text>
+    <text x="303.83" y="275" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">P 1.0e-6</text>
+    <text x="303.83" y="288" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b3261e">[1 MCS]</text>
   </g>
   <g id="s-safety-ft-top" class="gate-or FaultTreeGate" sysml:ref="Safety::FT::Top">
-    <path d="M 86.5,144 Q 187,109.28 287.5,144 C 287.5,82 227.2,34.88 187,20 C 146.8,34.88 86.5,82 86.5,144 Z" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
-    <text x="187" y="56.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">«FTG-DS-001»</text>
-    <text x="187" y="72.5" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">Harm occurs</text>
-    <text x="187" y="86.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">top event</text>
-    <text x="187" y="100.5" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">P 9.5e-4</text>
-    <text x="187" y="113.5" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[2 MCS] [1 single point]</text>
+    <path d="M 65.5,20 L 219.5,20 L 219.5,98 L 65.5,98 Z M 114.5,156 Q 142.5,142.56 170.5,156 C 170.5,132 153.7,113.76 142.5,108 C 131.3,113.76 114.5,132 114.5,156 Z" fill="#fff4d6" stroke="#b7791f" stroke-width="3"/>
+    <path d="M 142.5,98 L 142.5,108" fill="none" stroke="#b7791f" stroke-width="3"/>
+    <text x="142.5" y="142.56" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#b7791f" font-weight="bold">OR</text>
+    <text x="142.5" y="37" text-anchor="middle" font-size="12" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#222">FTG-DS-001</text>
+    <text x="107" y="51" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">Harm occurs</text>
+    <text x="142.5" y="65" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-weight="bold" fill="#b7791f">top event</text>
+    <text x="142.5" y="79" text-anchor="middle" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">P 9.5e-4</text>
+    <text x="142.5" y="92" text-anchor="middle" font-size="9" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" font-style="italic" fill="#b7791f">[2 MCS] [1 single point]</text>
   </g>
-  <path id="e-input-s-safety-ft-both-s-safety-ft-a" class="edge input" sysml:ref="Safety::FT::Both" sysml:source="s-safety-ft-both" sysml:target="s-safety-ft-a" d="M 126.5,301.33 L 126.5,380" fill="none" stroke="#555" stroke-width="1.4"/>
-  <path id="e-input-s-safety-ft-both-s-safety-ft-b" class="edge input" sysml:ref="Safety::FT::Both" sysml:source="s-safety-ft-both" sysml:target="s-safety-ft-b" d="M 180.5,301.33 L 180.5,350 L 348.5,350 L 348.5,380" fill="none" stroke="#555" stroke-width="1.4"/>
-  <path id="e-input-s-safety-ft-top-s-safety-ft-both" class="edge input" sysml:ref="Safety::FT::Top" sysml:source="s-safety-ft-top" sysml:target="s-safety-ft-both" d="M 153.5,144 L 153.5,241.33" fill="none" stroke="#555" stroke-width="1.4"/>
-  <path id="e-input-s-safety-ft-top-s-safety-ft-c" class="edge input" sysml:ref="Safety::FT::Top" sysml:source="s-safety-ft-top" sysml:target="s-safety-ft-c" d="M 220.5,144 L 220.5,174 L 390.5,174 L 390.5,204" fill="none" stroke="#555" stroke-width="1.4"/>
+  <path id="e-input-s-safety-ft-both-s-safety-ft-a" class="edge input" sysml:ref="Safety::FT::Both" sysml:source="s-safety-ft-both" sysml:target="s-safety-ft-a" marker-start="url(#arrow-filled)" d="M 116.83,326 L 116.83,346 L 95,346 L 95,392" fill="none" stroke="#555" stroke-width="1.4"/>
+  <path id="e-input-s-safety-ft-both-s-safety-ft-b" class="edge input" sysml:ref="Safety::FT::Both" sysml:source="s-safety-ft-both" sysml:target="s-safety-ft-b" marker-start="url(#arrow-filled)" d="M 116.83,326 L 116.83,346 L 270,346 L 270,392" fill="none" stroke="#555" stroke-width="1.4"/>
+  <path id="e-input-s-safety-ft-top-s-safety-ft-both" class="edge input" sysml:ref="Safety::FT::Top" sysml:source="s-safety-ft-top" sysml:target="s-safety-ft-both" marker-start="url(#arrow-filled)" d="M 142.5,156 L 142.5,176 L 116.83,176 L 116.83,228" fill="none" stroke="#555" stroke-width="1.4"/>
+  <path id="e-input-s-safety-ft-top-s-safety-ft-c" class="edge input" sysml:ref="Safety::FT::Top" sysml:source="s-safety-ft-top" sysml:target="s-safety-ft-c" marker-start="url(#arrow-filled)" d="M 142.5,156 L 142.5,176 L 303.83,176 L 303.83,216" fill="none" stroke="#555" stroke-width="1.4"/>
+  <g class="legend">
+    <rect x="20" y="528" width="16" height="10" rx="2" fill="#fdecea" stroke="#b3261e" stroke-width="1.4"/>
+    <text x="44" y="537" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">single point of failure</text>
+    <rect x="20" y="544" width="16" height="10" rx="2" fill="#fff4d6" stroke="#b7791f" stroke-width="1.4"/>
+    <text x="44" y="553" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#333">dual-point event, or a top event with a single point</text>
+    <text x="20" y="569" text-anchor="start" font-size="10" font-family="Helvetica, Arial, Liberation Sans, DejaVu Sans, sans-serif" fill="#555" font-style="italic">Arrows point in the direction a fault propagates, toward the top event.</text>
+  </g>
 </svg>

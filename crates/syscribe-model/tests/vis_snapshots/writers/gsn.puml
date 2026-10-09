@@ -135,12 +135,12 @@ skinparam sequence {
 }
 skinparam linetype ortho
 
-rectangle "Avoid harm\nundeveloped\nverdict incomplete" as s_safety_sg #fff4d6 
-rectangle "Argue over independent channels\nundeveloped" as s_safety_case_strategy #fff4d6 
-rectangle "Comparator shall trip\nunverified" as s_safety_req #fff4d6 
-usecase "Trip test\nunverified\nunknown" as s_safety_tc #fff4d6 
-rectangle "Channels fail independently\nUNDEVELOPED" as s_safety_case_claim #fff4d6 
-card "Single vehicle" as s_safety_case_context 
+rectangle "SG-DS-001\nAvoid harm\nundeveloped\nverdict incomplete" as s_safety_sg #fff4d6 
+rectangle "ARG-DS-001\nArgue over independent channels\nundeveloped" as s_safety_case_strategy #fff4d6 
+rectangle "REQ-DS-001\nComparator shall trip\nunverified" as s_safety_req #fff4d6 
+usecase "TC-DS-001\nTrip test\nunverified\nunknown" as s_safety_tc #fff4d6 
+rectangle "ARG-DS-003\nChannels fail independently\nUNDEVELOPED" as s_safety_case_claim #fff4d6 
+card "ARG-DS-002\nSingle vehicle" as s_safety_case_context 
 
 s_safety_req --> s_safety_tc
 s_safety_case_strategy --> s_safety_req

@@ -18,18 +18,32 @@ fn dot_id(id: &str) -> String {
     id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect()
 }
 
-/// A DOT colour: Graphviz reads `#rrggbb` but not the `#rgb` shorthand the style
-/// table uses for some strokes.
-fn hex(c: &str) -> String {
+/// Text inside a double-quoted DOT string (`\n` stays the DOT line break).
+fn quote(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', " ")
+}
+
+/// Graphviz reads only `#rgb`-less colours (`#rrggbb`): widen a three-digit hex.
+fn color(c: &str) -> String {
     match c.strip_prefix('#') {
-        Some(h) if h.len() == 3 && h.chars().all(|d| d.is_ascii_hexdigit()) => format!("#{}", h.chars().flat_map(|d| [d, d]).collect::<String>()),
+        Some(h) if h.len() == 3 => format!("#{}", h.chars().flat_map(|c| [c, c]).collect::<String>()),
         _ => c.to_string(),
     }
 }
 
-/// Text inside a double-quoted DOT string (`\n` stays the DOT line break).
-fn quote(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', " ")
+/// `text` broken at spaces into lines of at most `max` characters.
+fn wrap(text: &str, max: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for word in text.split_whitespace() {
+        match lines.last_mut() {
+            Some(l) if l.chars().count() + 1 + word.chars().count() <= max => {
+                l.push(' ');
+                l.push_str(word);
+            }
+            _ => lines.push(word.to_string()),
+        }
+    }
+    lines
 }
 
 fn shape(kind: NodeKind) -> &'static str {
@@ -38,7 +52,8 @@ fn shape(kind: NodeKind) -> &'static str {
         NodeKind::GateOr => "invhouse",
         NodeKind::GateXor | NodeKind::GateInhibit => "hexagon",
         NodeKind::GateNot => "invtriangle",
-        NodeKind::EventBasic | NodeKind::Solution | NodeKind::Justification | NodeKind::Assumption => "ellipse",
+        NodeKind::EventBasic => "circle",
+        NodeKind::Solution | NodeKind::Justification | NodeKind::Assumption => "ellipse",
         NodeKind::EventUndeveloped => "diamond",
         NodeKind::EventHouse => "pentagon",
         NodeKind::Strategy => "parallelogram",
@@ -62,11 +77,12 @@ fn label(node: &Node) -> String {
     let mut lines: Vec<String> = Vec::new();
     if let Some(w) = gate_word(node.kind) {
         lines.push(w.to_string());
-    } else if node.kind == NodeKind::UndevelopedGoal {
-        lines.push("(undeveloped)".to_string());
     }
     lines.push(node.label.clone());
     if let Some(m) = &node.mark {
+        if let Some(d) = &m.detail {
+            lines.extend(wrap(d, 30));
+        }
         lines.extend(m.status.clone());
         lines.extend(m.value.clone());
         if !m.badges.is_empty() {
@@ -82,8 +98,8 @@ fn node_line(node: &Node) -> String {
         format!("label=\"{}\"", label(node)),
         format!("shape={}", shape(node.kind)),
         "style=\"filled\"".to_string(),
-        format!("fillcolor=\"{}\"", hex(&style.fill)),
-        format!("color=\"{}\"", hex(&style.stroke)),
+        format!("fillcolor=\"{}\"", color(&style.fill)),
+        format!("color=\"{}\"", color(&style.stroke)),
     ];
     if node.kind == NodeKind::Context {
         attrs[2] = "style=\"filled,rounded\"".to_string();
@@ -97,7 +113,18 @@ fn node_line(node: &Node) -> String {
     if node.resolved {
         attrs.push(format!("tooltip=\"{}\"", quote(&node.element_ref)));
     }
-    format!("  {} [{}];\n", dot_id(&node.id), attrs.join(", "))
+    let mut line = format!("  {} [{}];\n", dot_id(&node.id), attrs.join(", "));
+    // GSN's undeveloped diamond hangs under the goal.
+    if node.kind == NodeKind::UndevelopedGoal {
+        let d = format!("{}__undeveloped", dot_id(&node.id));
+        line.push_str(&format!(
+            "  {d} [label=\"\", shape=diamond, width=0.3, height=0.2, fixedsize=true, style=\"filled\", fillcolor=\"#ffffff\", color=\"{}\"];\n  {} -> {d} [arrowhead=none, color=\"{}\"];\n",
+            color(&style.stroke),
+            dot_id(&node.id),
+            color(&style.stroke)
+        ));
+    }
+    line
 }
 
 fn arrow(a: ArrowHead) -> &'static str {
@@ -119,7 +146,7 @@ fn edge_line(edge: &Edge) -> String {
 /// The attribute list of an edge.
 fn edge_attrs(edge: &Edge) -> String {
     let s = edge_style(edge.kind);
-    let mut attrs = vec![format!("color=\"{}\"", hex(&s.stroke)), format!("arrowhead={}", arrow(s.arrow_target))];
+    let mut attrs = vec![format!("color=\"{}\"", color(&s.stroke)), format!("arrowhead={}", arrow(s.arrow_target))];
     if s.arrow_source != ArrowHead::None {
         attrs.push(format!("arrowtail={}", arrow(s.arrow_source)));
         attrs.push("dir=both".to_string());
@@ -169,8 +196,8 @@ fn emit_node(graph: &DiagramGraph, node: &Node, depth: usize, out: &mut String) 
         out.push_str(&format!(
             "{pad}  label=\"{}\"; style=\"filled\"; fillcolor=\"{}\"; color=\"{}\"; fontname=\"Helvetica\";\n",
             label(node),
-            hex(&style.fill),
-            hex(&style.stroke)
+            color(&style.fill),
+            color(&style.stroke)
         ));
         for c in graph.children_of(&node.id) {
             emit_node(graph, c, depth + 1, out);
@@ -185,13 +212,12 @@ fn emit_node(graph: &DiagramGraph, node: &Node, depth: usize, out: &mut String) 
 pub fn render_dot(graph: &DiagramGraph) -> String {
     let mut out = format!("digraph \"{}\" {{\n", quote(&graph.name));
     let rankdir = if graph.layout_hints.direction == LayoutDirection::Right { "LR" } else { "TB" };
-    out.push_str(&format!("  rankdir={rankdir};\n  node [fontname=\"Helvetica\", fontsize=11];\n  edge [fontname=\"Helvetica\", fontsize=10];\n"));
+    out.push_str(&format!("  rankdir={rankdir};\n  nodesep=0.4;\n  ranksep=0.55;\n  node [fontname=\"Helvetica\", fontsize=11];\n  edge [fontname=\"Helvetica\", fontsize=10];\n"));
     let clusters = graph.nodes.iter().any(|n| is_cluster(graph, n));
     if clusters {
         out.push_str("  compound=true;\n");
     }
-    // A node nested in a cluster is emitted inside it; everything else flat
-    // (containment is otherwise ignored, as documented above).
+    // A node nested in a cluster is emitted inside it; everything else flat.
     let in_cluster = |n: &Node| n.parent.as_deref().and_then(|p| graph.node(p)).is_some_and(|p| is_cluster(graph, p));
     for n in graph.nodes.iter().filter(|n| !in_cluster(n)) {
         emit_node(graph, n, 0, &mut out);
@@ -248,7 +274,7 @@ mod tests {
     #[test]
     fn nodes_edges_marks_and_tones_are_written() {
         let mut g = DiagramGraph::empty(DiagramKind::FaultTree, "M::FT", "FT", None);
-        g.nodes.push(node("top", NodeKind::GateOr, Some(NodeMark { status: Some("top event".into()), value: Some("P 1.0e-6".into()), tone: Tone::Warn, badges: vec!["2 MCS".into()], emphasis: true })));
+        g.nodes.push(node("top", NodeKind::GateOr, Some(NodeMark { detail: None, status: Some("top event".into()), value: Some("P 1.0e-6".into()), tone: Tone::Warn, badges: vec!["2 MCS".into()], emphasis: true })));
         g.nodes.push(node("a-1", NodeKind::EventBasic, None));
         g.edges.push(Edge { id: "e".into(), element_ref: None, source: "top".into(), target: "a-1".into(), kind: EdgeKind::GateInput, label: None, waypoints: None });
         let dot = render_dot(&g);
@@ -256,7 +282,7 @@ mod tests {
         assert!(dot.contains("top [label=\"OR\\nTOP\\ntop event\\nP 1.0e-6\\n[2 MCS]\", shape=invhouse"), "{dot}");
         assert!(dot.contains("fillcolor=\"#fff4d6\""), "warn tone fill: {dot}");
         assert!(dot.contains("penwidth=3"), "emphasis: {dot}");
-        assert!(dot.contains("a_1 [label=\"A-1\", shape=ellipse"), "{dot}");
-        assert!(dot.contains("top -> a_1 [color=\"#555555\", arrowhead=none];"), "{dot}");
+        assert!(dot.contains("a_1 [label=\"A-1\", shape=circle"), "{dot}");
+        assert!(dot.contains("top -> a_1 [color=\"#555555\", arrowhead=none, arrowtail=normal, dir=both];"), "{dot}");
     }
 }
