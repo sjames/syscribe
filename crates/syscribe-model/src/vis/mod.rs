@@ -19,6 +19,7 @@ pub mod layout;
 pub mod manifest;
 pub mod mermaid;
 pub mod metrics;
+pub mod shape;
 pub mod size;
 pub mod sprotty;
 pub mod style;
@@ -27,7 +28,7 @@ pub mod svg;
 use crate::element::{ElementType, RawElement, RawFrontmatter};
 use crate::resolver::Resolver;
 
-pub use ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, LayoutHints, Node, NodeKind, Point, PortDirection, Rect, Side};
+pub use ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, LayoutHints, Node, NodeKind, NodeMark, Point, PortDirection, Rect, Side, Tone};
 pub use layout::{layout, Layout, LayoutError};
 pub use manifest::Issue;
 pub use mermaid::render_mermaid;

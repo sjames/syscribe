@@ -81,6 +81,9 @@ pub fn render_plantuml(
         DiagramKind::Allocation | DiagramKind::UseCase | DiagramKind::Action => {
             Some(render_generic(&graph, &file_stem, cfg))
         }
+        DiagramKind::FaultTree | DiagramKind::AttackTree | DiagramKind::SafetyCase => {
+            Some(render_safety(&graph, &file_stem, cfg))
+        }
         DiagramKind::Custom => None,
     }
 }
@@ -561,6 +564,61 @@ fn requirement_connector(e: &Edge) -> (&'static str, &'static str) {
         EdgeKind::Containment => ("--", "contains"),
         other => ("-->", other.as_str()),
     }
+}
+
+/// PlantUML for the safety diagrams (GH #223): a fault tree, an attack tree or
+/// a GSN argument. Each node is a symbol-shaped element filled in its mark's
+/// tone, its text the name followed by the mark's status, value and badges;
+/// gate inputs are plain lines (the easiest attack path a bold red one),
+/// GSN `SupportedBy` a solid arrow and `InContextOf` a dashed one.
+fn render_safety(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> String {
+    let mut out = format!("@startuml {id}\n");
+    out.push_str(&style_preamble(cfg));
+    out.push_str("skinparam linetype ortho\n\n");
+    for n in &graph.nodes {
+        let url = element_url(&n.element_ref, cfg);
+        let mut text = n.label.replace('"', "'");
+        let gate = match n.kind {
+            NodeKind::GateAnd => Some("AND"),
+            NodeKind::GateOr => Some("OR"),
+            NodeKind::GateXor => Some("XOR"),
+            NodeKind::GateNot => Some("NOT"),
+            NodeKind::GateInhibit => Some("INHIBIT"),
+            _ => None,
+        };
+        if let Some(g) = gate {
+            text = format!("<b>{g}</b>\\n{text}");
+        }
+        let mut fill = String::new();
+        if let Some(m) = &n.mark {
+            for line in [m.status.clone(), m.value.clone()].into_iter().flatten() {
+                text.push_str(&format!("\\n{}", line.replace('"', "'")));
+            }
+            if !m.badges.is_empty() {
+                text.push_str(&format!("\\n{}", m.badges.iter().map(|b| format!("[{b}]")).collect::<Vec<_>>().join(" ")));
+            }
+            fill = format!(" {}", vis::style::tone_colors(m.tone).0);
+        }
+        let keyword = match n.kind {
+            NodeKind::GateAnd | NodeKind::GateOr | NodeKind::GateXor | NodeKind::GateNot | NodeKind::GateInhibit | NodeKind::EventUndeveloped => "hexagon",
+            NodeKind::EventBasic | NodeKind::Solution | NodeKind::Justification | NodeKind::Assumption => "usecase",
+            NodeKind::Context => "card",
+            _ => "rectangle",
+        };
+        out.push_str(&format!("{keyword} \"{text}\" as {}{fill} {url}\n", sanitize_id(&n.id)));
+    }
+    out.push('\n');
+    for e in &graph.edges {
+        let (connector, label) = match e.kind {
+            EdgeKind::CriticalPath => ("-[bold,#B3261E]-", ""),
+            EdgeKind::SupportedBy => ("-->", ""),
+            EdgeKind::InContextOf => ("..>", " : in context of"),
+            _ => ("--", ""),
+        };
+        out.push_str(&format!("{} {} {}{}\n", sanitize_id(&e.source), connector, sanitize_id(&e.target), label));
+    }
+    out.push_str("@enduml\n");
+    out
 }
 
 /// The PlantUML text of a feature diagram built without a `Diagram` element

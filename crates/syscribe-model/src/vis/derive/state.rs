@@ -158,6 +158,7 @@ fn state_node(id: String, qname: &str, label: String, parent: Option<String>) ->
         pin: None,
         banners: Vec::new(),
         feature: None,
+        mark: None,
     }
 }
 
@@ -178,6 +179,7 @@ fn pseudo_node(id: String, qname: &str, kind: NodeKind, parent: Option<String>) 
         pin: None,
         banners: Vec::new(),
         feature: None,
+        mark: None,
     }
 }
 
@@ -242,6 +244,7 @@ fn emit_region(
                 pin: None,
                 banners: Vec::new(),
                 feature: None,
+                mark: None,
             });
         }
         if bool_of(m, "isInitial") {

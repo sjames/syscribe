@@ -16,8 +16,8 @@
 //! flowcharts (the two Mermaid grammars that accept it); other kinds carry no
 //! links.
 
-use super::ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, Node, NodeKind};
-use super::style::edge_style;
+use super::ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, Node, NodeKind, Tone};
+use super::style::{edge_style, tone_colors};
 
 /// A Mermaid-safe node id: the IR id with every character outside
 /// `[A-Za-z0-9_]` replaced by `_`.
@@ -102,7 +102,12 @@ pub fn render_mermaid(graph: &DiagramGraph, links: &dyn Fn(&str) -> Option<Strin
         DiagramKind::StateMachine => render_state(graph),
         DiagramKind::Sequence => render_sequence(graph),
         DiagramKind::Allocation | DiagramKind::UseCase => render_flowchart(graph, "LR", links),
-        DiagramKind::Action | DiagramKind::Custom | DiagramKind::FeatureModel => render_flowchart(graph, "TD", links),
+        DiagramKind::Action
+        | DiagramKind::Custom
+        | DiagramKind::FeatureModel
+        | DiagramKind::FaultTree
+        | DiagramKind::AttackTree
+        | DiagramKind::SafetyCase => render_flowchart(graph, "TD", links),
     })
 }
 
@@ -166,10 +171,37 @@ fn render_class(graph: &DiagramGraph, links: &dyn Fn(&str) -> Option<String>) ->
 
 /// A flowchart node's shape by role: ports are small circles, use cases
 /// stadiums, actors trapezoids, everything else a box.
+/// A node's text with its mark (status, value, badges) on following lines
+/// (`<br/>`, which Mermaid renders inside a quoted label).
+fn flow_label(node: &Node) -> String {
+    let mut label = text(&node.label);
+    if let Some(m) = &node.mark {
+        let badges = (!m.badges.is_empty()).then(|| m.badges.iter().map(|b| format!("[{b}]")).collect::<Vec<_>>().join(" "));
+        for line in [m.status.clone(), m.value.clone(), badges].into_iter().flatten() {
+            label.push_str("<br/>");
+            label.push_str(&text(&line));
+        }
+    }
+    label
+}
+
 fn flow_node(node: &Node) -> String {
     let id = mermaid_id(&node.id);
-    let label = text(&node.label);
+    let label = flow_label(node);
     match node.kind {
+        // Safety diagrams (GH #223): the closest Mermaid shape to each symbol.
+        NodeKind::GateAnd => format!("{id}([\"AND<br/>{label}\"])"),
+        NodeKind::GateOr => format!("{id}([\"OR<br/>{label}\"])"),
+        NodeKind::GateXor => format!("{id}([\"XOR<br/>{label}\"])"),
+        NodeKind::GateNot => format!("{id}([\"NOT<br/>{label}\"])"),
+        NodeKind::GateInhibit => format!("{id}{{{{\"INHIBIT<br/>{label}\"}}}}"),
+        NodeKind::EventBasic | NodeKind::Solution => format!("{id}((\"{label}\"))"),
+        NodeKind::EventUndeveloped => format!("{id}{{\"{label}\"}}"),
+        NodeKind::EventHouse => format!("{id}[/\"{label}\"\\]"),
+        NodeKind::Strategy => format!("{id}[/\"{label}\"/]"),
+        NodeKind::Context => format!("{id}([\"{label}\"])"),
+        NodeKind::Justification => format!("{id}((\"J: {label}\"))"),
+        NodeKind::Assumption => format!("{id}((\"A: {label}\"))"),
         NodeKind::Port => format!("{id}(({label}))"),
         NodeKind::UseCase => format!("{id}([\"{label}\"])"),
         NodeKind::Actor => format!("{id}[/\"{label}\"/]"),
@@ -229,7 +261,9 @@ fn render_flowchart(graph: &DiagramGraph, direction: &str, links: &dyn Fn(&str) 
         let s = mermaid_id(&e.source);
         let t = mermaid_id(&e.target);
         let connector = match e.kind {
-            EdgeKind::Connection | EdgeKind::Association | EdgeKind::Containment | EdgeKind::FeatureChild => "---",
+            EdgeKind::Connection | EdgeKind::Association | EdgeKind::Containment | EdgeKind::FeatureChild | EdgeKind::GateInput => "---",
+            EdgeKind::CriticalPath => "===",
+            EdgeKind::InContextOf => "-.->",
             EdgeKind::Excludes => "-.-",
             EdgeKind::Requires => "-.->",
             EdgeKind::Binding => "-.-",
@@ -250,8 +284,29 @@ fn render_flowchart(graph: &DiagramGraph, direction: &str, links: &dyn Fn(&str) 
         out.push_str(&format!(" {t}\n"));
     }
     let nodes: Vec<&Node> = drawn.iter().filter_map(|id| graph.node(id)).collect();
+    tone_classes(&mut out, &nodes);
     click_lines(&mut out, &nodes, links);
     out
+}
+
+/// `classDef`/`class` lines painting every marked node in its tone's colours
+/// (GH #223), so the flowchart carries the same status colouring as the other
+/// writers. Emitted only for the tones in use, in tone order.
+fn tone_classes(out: &mut String, nodes: &[&Node]) {
+    let mut any = false;
+    for tone in [Tone::Ok, Tone::Warn, Tone::Bad, Tone::Neutral] {
+        let ids: Vec<String> = nodes.iter().filter(|n| n.mark.as_ref().is_some_and(|m| m.tone == tone)).map(|n| mermaid_id(&n.id)).collect();
+        if ids.is_empty() {
+            continue;
+        }
+        if !any {
+            out.push('\n');
+            any = true;
+        }
+        let (fill, stroke) = tone_colors(tone);
+        out.push_str(&format!("  classDef tone_{} fill:{fill},stroke:{stroke},color:#222\n", tone.as_str()));
+        out.push_str(&format!("  class {} tone_{}\n", ids.join(","), tone.as_str()));
+    }
 }
 
 // ── stateDiagram-v2 ──────────────────────────────────────────────────────────
@@ -358,6 +413,7 @@ mod tests {
             pin: None,
             banners: vec![],
             feature: None,
+            mark: None,
         }
     }
 

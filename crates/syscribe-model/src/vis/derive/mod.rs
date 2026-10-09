@@ -14,10 +14,13 @@
 
 pub mod action;
 pub mod allocation;
+pub mod attack_tree;
 pub mod bdd;
+pub mod fault_tree;
 pub mod feature;
 pub mod ibd;
 pub mod requirement;
+pub mod safety_case;
 pub mod sequence;
 pub mod state;
 
@@ -101,6 +104,10 @@ pub fn derive(elem: &RawElement, kind: DiagramKind, elements: &[RawElement], res
             DiagramKind::Sequence => sequence::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
             DiagramKind::Allocation => allocation::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
             DiagramKind::FeatureModel => feature::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
+            // GH #223: the safety diagram kinds.
+            DiagramKind::FaultTree => fault_tree::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
+            DiagramKind::AttackTree => attack_tree::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
+            DiagramKind::SafetyCase => safety_case::generate(&mut graph, subject, elements, resolver, &filters, &mut issues),
             // UseCase and Custom have no generator.
             _ => {}
         }
@@ -221,6 +228,7 @@ pub(crate) fn block_node(
         pin: None,
         banners: super::banners_of(e, elements, resolver),
         feature: None,
+        mark: None,
     }
 }
 
@@ -242,6 +250,7 @@ pub(crate) fn port_node(id: String, owner_qname: &str, f: &Feature, parent: &str
         pin: None,
         banners: Vec::new(),
         feature: None,
+        mark: None,
     }
 }
 

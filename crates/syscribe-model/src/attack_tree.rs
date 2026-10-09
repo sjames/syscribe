@@ -121,6 +121,65 @@ pub fn tree_root<'a>(
     Some(root)
 }
 
+/// The rolled-up feasibility rank of one node (gate or step) of an attack
+/// tree, under `cfg`: the same recursion [`tree_feasibility_rank_with`] runs
+/// from the root, exposed so a diagram can colour every node of the tree
+/// (GH #223). `None` when the node is not computable.
+pub fn node_feasibility_rank(
+    node: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cfg: &CyberConfig,
+) -> Option<u8> {
+    node_rank(node, elements, resolver, cfg, 0)
+}
+
+/// How a tree's computed feasibility compares with its linked threat's
+/// declared one (the W035 reconciliation).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Reconciliation {
+    /// The `threatRef:` as written.
+    pub threat_ref: String,
+    /// The threat's declared (or attack-potential-derived) feasibility.
+    pub declared: String,
+    /// The tree's computed feasibility.
+    pub computed: &'static str,
+}
+
+impl Reconciliation {
+    /// Whether the two disagree (W035).
+    pub fn mismatch(&self) -> bool {
+        self.computed != self.declared
+    }
+}
+
+/// The W035 reconciliation of `tree`: `Some` only when its `threatRef`
+/// resolves to a `ThreatScenario` and both feasibilities are computable. The
+/// validator's W035 and the attack-tree diagram both read this one definition.
+pub fn reconcile(
+    tree: &RawElement,
+    elements: &[RawElement],
+    resolver: &Resolver,
+    cfg: &CyberConfig,
+) -> Option<Reconciliation> {
+    if tree.frontmatter.element_type != Some(ElementType::AttackTree) {
+        return None;
+    }
+    let tr = tree.frontmatter.threat_ref.as_ref()?;
+    let threat = resolver.resolve_ref(elements, tr)?;
+    if !Resolver::is_threat_scenario(threat) {
+        return None;
+    }
+    // Declared = explicit attackFeasibility, else the one the threat's own
+    // attack-potential factors compute to (GH #222).
+    let declared: String = match threat.frontmatter.attack_feasibility.as_deref() {
+        Some(d) => d.to_string(),
+        None => feasibility_label(threat_feasibility_rank(&threat.frontmatter, cfg)?).to_string(),
+    };
+    let computed = tree_feasibility_with(tree, elements, resolver, cfg)?;
+    Some(Reconciliation { threat_ref: tr.clone(), declared, computed })
+}
+
 /// Computed feasibility **rank** (0..=3) of an `AttackTree`: the value of its
 /// root node ([`tree_root`] — the gate/step no other gate of the tree lists as
 /// an input). `None` when the tree has no unique root or the roll-up is not

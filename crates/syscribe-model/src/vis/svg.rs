@@ -26,6 +26,7 @@ use std::collections::BTreeMap;
 use super::ir::{DiagramGraph, Edge, EdgeKind, Node, NodeKind, Point};
 use super::layout::{self, Bounds, EdgeRoute, Layout, LayoutError};
 use super::metrics::DIAGRAM_FAMILIES;
+use super::shape;
 use super::size::{carried_size, size_graph_default, LabelRole, Sizes};
 use super::style::{edge_style, node_style, port_style, ArrowHead, NodeStyle, EDGE_STROKE};
 
@@ -385,7 +386,9 @@ impl Drawer<'_> {
             let (fill, bold, italic) = match l.role {
                 LabelRole::Name => (style.text.as_str(), true, node.is_abstract),
                 LabelRole::Stereotype | LabelRole::Banner => (style.stroke.as_str(), false, false),
-                LabelRole::Line => ("#333", false, false),
+                LabelRole::Line | LabelRole::Value => ("#333", false, false),
+                LabelRole::Status => (style.stroke.as_str(), true, false),
+                LabelRole::Badge => (style.stroke.as_str(), false, false),
                 LabelRole::PortName => (style.text.as_str(), false, false),
                 _ => (style.text.as_str(), false, false),
             };
@@ -584,6 +587,35 @@ impl Drawer<'_> {
                             style.fill,
                             style.stroke
                         ));
+                    }
+                }
+                self.labels_of(node, &style, out);
+            }
+            _ if shape::shape_of(node.kind, r.x, r.y, r.w, r.h).is_some() => {
+                // A safety-diagram symbol (GH #223): the outline from `vis::shape`.
+                let sh = shape::shape_of(node.kind, r.x, r.y, r.w, r.h).unwrap_or(shape::Shape { outline: shape::Outline::Rect { rx: 0.0 }, extras: vec![] });
+                let sw = style.stroke_width.unwrap_or(1.4);
+                let paint = format!("fill=\"{}\" stroke=\"{}\" stroke-width=\"{}\"{dash}", style.fill, style.stroke, num(sw));
+                match &sh.outline {
+                    shape::Outline::Rect { rx } => out.push_str(&format!(
+                        "    <rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" rx=\"{}\" {paint}/>\n",
+                        num(r.x), num(r.y), num(r.w), num(r.h), num(*rx)
+                    )),
+                    shape::Outline::Ellipse => out.push_str(&format!(
+                        "    <ellipse cx=\"{}\" cy=\"{}\" rx=\"{}\" ry=\"{}\" {paint}/>\n",
+                        num(r.cx()), num(r.cy()), num(r.w / 2.0), num(r.h / 2.0)
+                    )),
+                    shape::Outline::Path(d) => out.push_str(&format!("    <path d=\"{d}\" {paint}/>\n")),
+                }
+                for extra in &sh.extras {
+                    match extra {
+                        shape::Extra::Stroke(d) => out.push_str(&format!("    <path d=\"{d}\" fill=\"none\" stroke=\"{}\" stroke-width=\"{}\"/>\n", style.stroke, num(sw))),
+                        shape::Extra::Circle { cx, cy, r } => out.push_str(&format!(
+                            "    <circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"#fff\" stroke=\"{}\" stroke-width=\"{}\"/>\n",
+                            num(*cx), num(*cy), num(*r), style.stroke, num(sw)
+                        )),
+                        shape::Extra::Diamond(d) => out.push_str(&format!("    <path d=\"{d}\" fill=\"#fff\" stroke=\"{}\" stroke-width=\"{}\"/>\n", style.stroke, num(sw))),
+                        shape::Extra::Letter { x, y, text } => out.push_str(&text_el(*x, *y, "start", 10.0, &format!(" fill=\"{}\" font-weight=\"bold\"", style.stroke), text)),
                     }
                 }
                 self.labels_of(node, &style, out);
@@ -830,6 +862,7 @@ mod tests {
             pin: pin.map(|(x, y, w, h)| Rect { x, y, w: Some(w), h: Some(h) }),
             banners: vec![],
             feature: None,
+            mark: None,
         }
     }
 

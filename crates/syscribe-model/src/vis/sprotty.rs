@@ -71,6 +71,19 @@
 //! with [`super::style::ArrowHead`] values spelled camelCase. The client's
 //! views read these and hold no colour table of their own.
 //!
+//! ## Safety diagrams (GH #223)
+//!
+//! The `FaultTree`, `AttackTree` and `SafetyCase` kinds add node roles
+//! (`gate-and`, `gate-or`, `gate-xor`, `gate-not`, `gate-inhibit`,
+//! `event-basic`, `event-undeveloped`, `event-house`, `step`, `goal`,
+//! `undeveloped-goal`, `strategy`, `solution`, `context`, `justification`,
+//! `assumption`) and edge roles (`input`, `criticalPath`, `supportedBy`,
+//! `inContextOf`). A node may carry `mark: { status?, value?, tone,
+//! badges?, emphasis? }`: its status, value and badges arrive as extra sized
+//! label children after the name (roles `status`, `value`, `badge`), its tone
+//! is folded into `style.fill`/`style.stroke`, and an emphasised mark sets
+//! `style.strokeWidth`.
+//!
 //! ## Ordering
 //!
 //! Output order is the IR's declaration order throughout (nodes, their
@@ -277,6 +290,12 @@ pub struct SNode {
     /// `node` elements of a feature diagram only: mandatory mark and child grouping.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub feature: Option<super::ir::FeatureMark>,
+    /// `node` elements of a safety diagram only (GH #223): the analysis
+    /// overlay. Its text is already in the sized `status` / `value` / `badge`
+    /// label children and its tone in `style`; the client reads this for
+    /// anything beyond that.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mark: Option<super::ir::NodeMark>,
     pub children: Vec<SNodeChild>,
 }
 
@@ -417,6 +436,7 @@ fn build_node(graph: &DiagramGraph, sizes: &Sizes, node: &Node, depth: usize) ->
         },
         banners: if element_type_ == TYPE_NODE { node.banners.clone() } else { Vec::new() },
         feature: if element_type_ == TYPE_NODE { node.feature.clone() } else { None },
+        mark: if element_type_ == TYPE_NODE { node.mark.clone() } else { None },
         children,
     }
 }
@@ -503,6 +523,7 @@ mod tests {
             pin: None,
             banners: vec![],
             feature: None,
+            mark: None,
         }
     }
 
@@ -775,6 +796,7 @@ mod tests {
             pin: Some(Rect { x: 0.0, y: 0.0, w: Some(120.0), h: Some(40.0) }),
             banners: vec![],
             feature: None,
+            mark: None,
         });
         assert_eq!(to_sgraph_json(&seq)["layoutOptions"]["elk.algorithm"], "fixed");
     }

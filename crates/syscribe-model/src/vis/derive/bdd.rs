@@ -98,6 +98,7 @@ pub fn generate(
                 pin: None,
                 banners: Vec::new(),
                 feature: None,
+                mark: None,
             });
         }
     }

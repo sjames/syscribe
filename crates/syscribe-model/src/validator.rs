@@ -6259,24 +6259,12 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         if !matches!(elem.frontmatter.element_type, Some(ElementType::AttackTree)) {
             continue;
         }
-        let Some(ref tr) = elem.frontmatter.threat_ref else { continue };
-        let Some(threat) = resolver.resolve_ref(elements, tr) else { continue };
-        if !Resolver::is_threat_scenario(threat) { continue; }
-        // Declared = explicit attackFeasibility, else the one the threat's own
-        // attack-potential factors compute to (GH #222).
-        let declared: &str = match threat.frontmatter.attack_feasibility.as_deref() {
-            Some(d) => d,
-            None => match crate::risk::threat_feasibility_rank(&threat.frontmatter, &config.cyber) {
-                Some(r) => crate::attack_tree::feasibility_label(r),
-                None => continue,
-            },
-        };
-        let Some(computed) = crate::attack_tree::tree_feasibility_with(elem, elements, &resolver, &config.cyber) else { continue };
-        if computed != declared {
+        let Some(rec) = crate::attack_tree::reconcile(elem, elements, &resolver, &config.cyber) else { continue };
+        if rec.mismatch() {
             let id = elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name);
             findings.push(warning("W035", &elem.file_path,
                 &format!("AttackTree '{}' computed feasibility '{}' does not match linked ThreatScenario '{}' declared attackFeasibility '{}'",
-                    id, computed, tr, declared)));
+                    id, rec.computed, rec.threat_ref, rec.declared)));
         }
     }
 

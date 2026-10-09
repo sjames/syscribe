@@ -861,6 +861,7 @@ mod tests {
             pin: None,
             banners: vec![],
             feature: None,
+            mark: None,
         }
     }
 

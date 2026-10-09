@@ -113,6 +113,12 @@ pub enum LabelRole {
     EdgeLabel,
     /// A free IR label (12px).
     Free,
+    /// A node mark's status word (10px bold, GH #223).
+    Status,
+    /// A node mark's value line (10px).
+    Value,
+    /// A node mark's badge line (9px italic).
+    Badge,
 }
 
 impl LabelRole {
@@ -126,6 +132,9 @@ impl LabelRole {
             LabelRole::EdgeKeyword => (10.0, false, true),
             LabelRole::EdgeLabel => (10.0, false, false),
             LabelRole::Free => (12.0, false, false),
+            LabelRole::Status => (10.0, true, false),
+            LabelRole::Value => (10.0, false, false),
+            LabelRole::Badge => (9.0, false, true),
         }
     }
 
@@ -140,6 +149,9 @@ impl LabelRole {
             LabelRole::EdgeKeyword => "keyword",
             LabelRole::EdgeLabel => "edge",
             LabelRole::Free => "free",
+            LabelRole::Status => "status",
+            LabelRole::Value => "value",
+            LabelRole::Badge => "badge",
         }
     }
 }
@@ -326,6 +338,18 @@ fn node_sizing(metrics: &dyn TextMetrics, graph: &DiagramGraph, node: &Node, siz
         labels.push(label(metrics, format!("{}-banner-{i}", node.id), format!("«{b}»"), LabelRole::Banner));
     }
     labels.push(label(metrics, format!("{}-label", node.id), node.label.clone(), LabelRole::Name));
+    // A mark's status, value and badges stack under the name (GH #223).
+    if let Some(m) = &node.mark {
+        if let Some(t) = m.status.as_deref().filter(|t| !t.is_empty()) {
+            labels.push(label(metrics, format!("{}-mark-status", node.id), t.to_string(), LabelRole::Status));
+        }
+        if let Some(t) = m.value.as_deref().filter(|t| !t.is_empty()) {
+            labels.push(label(metrics, format!("{}-mark-value", node.id), t.to_string(), LabelRole::Value));
+        }
+        if !m.badges.is_empty() {
+            labels.push(label(metrics, format!("{}-mark-badges", node.id), m.badges.iter().map(|b| format!("[{b}]")).collect::<Vec<_>>().join(" "), LabelRole::Badge));
+        }
+    }
     // The children in declaration order: compartments and free labels stack;
     // ports and nested nodes do not.
     enum Child {
@@ -475,6 +499,7 @@ mod tests {
             pin: None,
             banners: vec![],
             feature: None,
+            mark: None,
         }
     }
 
