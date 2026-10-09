@@ -1294,6 +1294,8 @@ pub struct ColdFrontmatter3 {
     pub mission_time: Option<String>,           // e.g. "1e9 h" (YAML: missionTime)
     pub probability: Option<f64>,               // cut-set or top-event probability (YAML: probability)
     pub latent_diagnostic_coverage: Option<f64>,  // DCl, 0.0–1.0 (YAML: latentDiagnosticCoverage)
+    pub ccf_group: Option<String>,               // FaultTreeEvent common-cause group name (YAML: ccfGroup, GH #211)
+    pub ccf_beta: Option<f64>,                   // FaultTreeEvent beta factor 0.0–1.0 (YAML: ccfBeta, GH #211)
     pub recommended_action: Option<String>,      // FMEAEntry mitigation (YAML: recommendedAction)
     pub fta_ref: Option<String>,                 // FMEAEntry → reconciling FaultTreeEvent (YAML: ftaRef)
     #[serde(skip)]
@@ -1803,6 +1805,8 @@ struct ColdWire {
     pub mission_time: Option<String>,           // e.g. "1e9 h" (YAML: missionTime)
     pub probability: Option<f64>,               // cut-set or top-event probability (YAML: probability)
     pub latent_diagnostic_coverage: Option<f64>,  // DCl, 0.0–1.0 (YAML: latentDiagnosticCoverage)
+    pub ccf_group: Option<String>,               // FaultTreeEvent common-cause group name (YAML: ccfGroup, GH #211)
+    pub ccf_beta: Option<f64>,                   // FaultTreeEvent beta factor 0.0–1.0 (YAML: ccfBeta, GH #211)
     pub recommended_action: Option<String>,      // FMEAEntry mitigation (YAML: recommendedAction)
     pub fta_ref: Option<String>,                 // FMEAEntry → reconciling FaultTreeEvent (YAML: ftaRef)
     #[serde(skip)]
@@ -2028,6 +2032,8 @@ impl ColdWire {
                     mission_time: w.mission_time,
                     probability: w.probability,
                     latent_diagnostic_coverage: w.latent_diagnostic_coverage,
+                    ccf_group: w.ccf_group,
+                    ccf_beta: w.ccf_beta,
                     recommended_action: w.recommended_action,
                     fta_ref: w.fta_ref,
                     unknown_fmea_keys: w.unknown_fmea_keys,

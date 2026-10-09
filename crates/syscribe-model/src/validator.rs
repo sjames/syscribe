@@ -5974,6 +5974,18 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
         }
     }
 
+    // GH #212: fault-tree structure — gate cycles/self-inputs (E960), gate arity
+    // (E961, W962), value ranges (E962-E964), unreachable (W960) and stray (W961)
+    // nodes, CCF groups (W963-W964), unparsable missionTime (W967). One shared
+    // graph builder with the analysis (`fta::structural_issues`).
+    for i in crate::fta::structural_issues(elements, &resolver) {
+        findings.push(if i.is_error {
+            error(i.code, &i.file_path, &i.message)
+        } else {
+            warning(i.code, &i.file_path, &i.message)
+        });
+    }
+
     // W036: AttackTree with no AttackTreeGate or AttackStep children (ISO/SAE
     // 21434 §15.7) — the empty-tree warning, analog of FTA's W900.
     for elem in elements {
@@ -6050,6 +6062,30 @@ pub fn validate_with_config(elements: &[RawElement], config: &ValidateConfig) ->
     // Warning (not error) by codebase convention; gateable via `--deny W033` and
     // profile-promotable. Shares the formula module with the `metrics` command.
     for report in crate::metrics::report_all(elements, &resolver) {
+        // W965 (GH #213): a contributing event with no diagnosticCoverage /
+        // latentDiagnosticCoverage is treated as coverage 0 — say so.
+        for m in &report.missing {
+            findings.push(warning(
+                "W965",
+                &m.file_path,
+                &format!(
+                    "FaultTreeEvent '{}' contributes to SafetyGoal '{}' but declares no `{}` — treated as 0 (conservative) in the SPFM/LFM/PMHF metrics",
+                    m.event_id, report.id, m.field
+                ),
+            ));
+        }
+        // W966: dual-point (order-2) cut sets need an exposure time.
+        if report.exposure_defaulted {
+            findings.push(warning(
+                "W966",
+                &report.file_path,
+                &format!(
+                    "SafetyGoal '{}' has dual-point cut sets but its FaultTree declares no `missionTime` — PMHF uses a default exposure of {:.0} h",
+                    report.id,
+                    crate::metrics::DEFAULT_EXPOSURE_HOURS
+                ),
+            ));
+        }
         let (Some(_metrics), Some(gate)) = (report.metrics.as_ref(), report.gate.as_ref())
         else {
             continue;

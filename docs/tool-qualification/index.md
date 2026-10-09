@@ -217,6 +217,9 @@ The test cases cover (a representative excerpt — `qual/TestCases/` is authorit
 | Cybersecurity elements E815–E824, E827–E832, W802–W804, W807 | REQ-TRS-SAFE-004 | TC-TRS-SAFE-004 |
 | FaultTree / FaultTreeGate / FaultTreeEvent E900–E909, W900–W901 | REQ-TRS-FTA-001 | TC-TRS-FTA-001 |
 | FaultTreeEvent `ref:` link (E927; show / links / fault-tree render) | REQ-TRS-FTA-002 | TC-TRS-FTA-002 |
+| Fault-tree analysis: cut sets, top probability, importance, CCF (`fault-tree analyze`) | REQ-TRS-FTA-003 | TC-TRS-FTA-003 |
+| Fault-tree structure E960–E964, W960–W964, W967 | REQ-TRS-FTA-004 | TC-TRS-FTA-004 |
+| Cut-set driven safety metrics, W965–W966, `metrics` exit code | REQ-TRS-FTA-005 | TC-TRS-FTA-005 |
 | FMEASheet / FMEAEntry E911–E914, W902–W904 | REQ-TRS-FMEA-001 | TC-TRS-FMEA-001 |
 | TARASheet E940–E941, W905 | REQ-TRS-TARA-001 | TC-TRS-TARA-001 |
 | Output format and exit codes | REQ-TRS-OUT-001–005 | TC-TRS-OUT-001–005 |
