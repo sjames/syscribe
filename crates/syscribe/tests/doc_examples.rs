@@ -81,6 +81,7 @@ const TOLERATED: &[(&str, &str)] = &[
     ("W502", "unresolved expose target (a package declared outside the snippet)"),
     ("W057", "illustrative ISQ/SI names in a snippet that are not in the tool's library table"),
     ("E127", "unresolved connection endpoint (a sub-part declared outside the snippet)"),
+    ("E128", "unresolved send/accept via/to chain (a port or part declared outside the snippet)"),
     ("E027", "unresolved about: comment entry"),
     ("E209", "unresolved appliesWhen feature"),
     ("E234", "Configuration derivedFrom base not in the snippet"),

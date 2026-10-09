@@ -52,7 +52,7 @@ This page groups every finding code by feature area, with context. The same code
 | W010 | An `active` TestCase's `testFunctions[].function` last failed, was ignored/skipped, or was absent in the ingested test results (`ingest-results` sidecar or `validate --results`). Inert unless results have been ingested; gate with `--deny W010`. (The product-line unbound-required-parameter warning is `W017`.) |
 | I010 | Informational: a **planned** `TestCase` (`status: draft`/`review`/`approved`) has a `sourceFile:` or `testFunctions[].function` that is not present yet — the planned-verification counterpart of `W004`/`W009`. Never affects the exit status unless selected with `--deny I010` |
 
-## Cross-reference errors (E101–E106, E110–E127)
+## Cross-reference errors (E101–E106, E110–E128)
 
 | Code | Condition |
 |---|---|
@@ -80,6 +80,7 @@ This page groups every finding code by feature area, with context. The same code
 | E125 | An `InterfaceDef` or `ConnectionDef` declares `ends:` with fewer than two entries |
 | E126 | An `imports:` target, `aliases:` `for:` target or `dependsOn:` entry does not resolve (a library package or a name in a loaded peer repo is accepted) |
 | E127 | A `connections:` endpoint feature chain whose first segment is not a member of the element it is looked up in (the chain is followed through `typedBy:`/`supertype:`; an untyped, library or unresolved type ends the walk) |
+| E128 | A send/accept `via:`/`to:` chain (a `SendAction`/`AcceptAction` sub-action, or a state transition's `accept: {via:}`) whose first segment names no port, part, element or inline feature anywhere in the model; `flowConnections:` `from`/`to` and `successionConnections:` `after`/`before` endpoints on a structural element are walked like `connections:` endpoints (`E127`/`W056`) |
 
 `E110`–`E114` (REQ-TRS-XREF-007) use the §11.5 resolution order: id / qualified name / name,
 then the referencing element's enclosing-package scope chain, a `./` sibling, `imports:` and
