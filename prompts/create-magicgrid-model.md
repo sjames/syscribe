@@ -140,7 +140,7 @@ Target: `magicgrid --audit` reports **`Verdict: PASS`** with zero findings.
 ## 8. Worked micro-example (a smart thermostat)
 
 ```
-# Problem/BlackBox/Needs/ComfortNeed.md
+# Problem/BlackBox/Needs/REQ-TH-NEED-001.md
 type: Requirement
 id: REQ-TH-NEED-001
 name: The occupant shall stay comfortable

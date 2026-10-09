@@ -14,7 +14,7 @@ use syscribe_model::mutate::MoveReport;
 use syscribe_model::resolver::Resolver;
 
 /// True when `q` is a syntactically valid qualified name (`Seg(::Seg)*`).
-pub use syscribe_model::mutate::valid_qname;
+pub use syscribe_model::mutate::valid_move_dest;
 
 /// Plan and (unless `dry_run`) apply a move of `source_key` to `dest`, rewriting
 /// every qualified-name reference. Thin wrapper over

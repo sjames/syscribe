@@ -38,7 +38,7 @@ use tokio::sync::RwLock;
 
 use syscribe_model::element::{ElementType, RawElement};
 use syscribe_model::graph::{children_of, EdgeKind};
-use syscribe_model::mutate::{plan_create, write_confined};
+use syscribe_model::mutate::{plan_create_in, write_confined};
 use syscribe_model::resolver::{Resolver, STABLE_ID_KINDS};
 use syscribe_model::validator::validate_with_config;
 use syscribe_model::walker::walk_model;
@@ -256,7 +256,13 @@ struct RunReportArgs {
 
 #[derive(Debug, Deserialize, schemars::JsonSchema)]
 struct CreateElementArgs {
-    qname: String,
+    /// Qualified name. For id-identified types it may end in the id
+    /// (`Requirements::REQ-X-001` -> `Requirements/REQ-X-001.md`); `Package` writes
+    /// `<qname>/_index.md`. Optional when `parent` is given.
+    qname: Option<String>,
+    /// Parent package for an id-identified type (`""` = model root): writes
+    /// `<parent>/<id>.md`, the id being `fields.id` or auto-allocated.
+    parent: Option<String>,
     r#type: String,
     #[schemars(schema_with = "fields_schema")]
     fields: Option<Value>,
@@ -368,6 +374,8 @@ struct BaselineVerifyArgs {
 struct BatchOp {
     op: String,
     qname: Option<String>,
+    /// create: parent package for an id-identified type (see `create_element`).
+    parent: Option<String>,
     r#type: Option<String>,
     #[schemars(schema_with = "fields_schema")]
     fields: Option<Value>,
@@ -859,10 +867,12 @@ fn refuse_synthesized(root: &Path, target: &syscribe_model::element::RawElement,
 fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
     match op.op.as_str() {
         "create" => {
-            let qname = op.qname.as_deref().ok_or("create op missing `qname`")?;
+            if op.qname.is_none() && op.parent.is_none() {
+                return Err("create op needs `qname` or `parent`".to_string());
+            }
             let ty = op.r#type.as_deref().ok_or("create op missing `type`")?;
             let elems = walk_model(root).map_err(|e| e.to_string())?;
-            let plan = plan_create(&elems, qname, ty, op.fields.as_ref(), op.doc.as_deref())
+            let plan = plan_create_in(&elems, op.parent.as_deref(), op.qname.as_deref(), ty, op.fields.as_ref(), op.doc.as_deref())
                 .map_err(|e| e.to_string())?;
             write_confined(root, &plan.rel, &plan.content).map_err(|e| e.to_string())
         }
@@ -879,7 +889,7 @@ fn apply_op(root: &Path, op: &BatchOp) -> Result<(), String> {
             let r = op.r#ref.as_deref().ok_or("move op missing `ref`")?;
             let dest = op.dest.as_deref().ok_or("move op missing `dest`")?;
             let dest_n = dest.replace('/', "::");
-            if !mv::valid_qname(&dest_n) {
+            if !mv::valid_move_dest(&dest_n) {
                 return Err(format!("invalid destination qualified name: {dest}"));
             }
             let elems = walk_model(root).map_err(|e| e.to_string())?;
@@ -2383,7 +2393,7 @@ impl SyscribeMcp {
     }
 
     #[tool(
-        description = "Create a new element file. dry_run defaults to true (preview only).",
+        description = "Create a new element file. Id-identified types (Requirement, TestCase, ADR, PlanningItem, ...) are written as <parent>/<id>.md: give `parent` (+ optional fields.id, else auto-allocated) or a `qname` ending in the id. Package writes <qname>/_index.md; other types <qname>.md. dry_run defaults to true (preview only).",
         annotations(read_only_hint = false, destructive_hint = false)
     )]
     async fn create_element(
@@ -2392,12 +2402,15 @@ impl SyscribeMcp {
         peer: Peer<RoleServer>,
     ) -> Result<CallToolResult, ErrorData> {
         let mut store = self.store.write().await;
-        let qname = args.qname.replace('/', "::");
-        let mut extra = extra_map(json!({ "qname": qname }));
+        let mut extra = extra_map(json!({
+            "qname": args.qname.as_deref().map(|q| q.replace('/', "::")),
+            "parent": args.parent,
+        }));
 
-        let plan = match plan_create(
+        let plan = match plan_create_in(
             &store.elements,
-            &args.qname,
+            args.parent.as_deref(),
+            args.qname.as_deref(),
             &args.r#type,
             args.fields.as_ref(),
             args.doc.as_deref(),
@@ -2406,6 +2419,8 @@ impl SyscribeMcp {
             Err(e) => return ok(refuse(extra, &e.to_string())),
         };
         extra.insert("id".into(), plan.id.clone());
+        extra.insert("qname".into(), Value::String(plan.qname.clone()));
+        extra.insert("path".into(), Value::String(plan.rel.clone()));
 
         let rel = plan.rel.clone();
         let content = plan.content.clone();
@@ -2491,7 +2506,7 @@ impl SyscribeMcp {
         let mut store = self.store.write().await;
         let dest = args.dest.replace('/', "::");
         let extra = extra_map(json!({ "ref": args.r#ref, "dest": dest }));
-        if !mv::valid_qname(&dest) {
+        if !mv::valid_move_dest(&dest) {
             return ok(refuse(extra, "not a valid basic destination qualified name"));
         }
         // `mv::move_element` itself refuses a synthesized source (an FMEA/TARA

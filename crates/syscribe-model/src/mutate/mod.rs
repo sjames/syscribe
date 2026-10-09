@@ -14,11 +14,11 @@ pub mod guard;
 pub mod mv;
 pub mod update;
 
-pub use create::{plan_create, CreateError, CreatePlan};
+pub use create::{plan_create, plan_create_in,CreateError, CreatePlan};
 pub use diff::{file_unified_diff, tree_unified_diff};
 pub use guard::{
     compute_baseline, element_ref_strings, guarded_write, guarded_write_cached, guarded_write_inspect, Baseline, is_gating_error, ref_errors, referrers, validator_warnings,
     write_confined, Entry, GuardedWriteOutcome, WriteConfinedError,
 };
-pub use mv::{apply_edits, move_element, reference_edits, valid_qname, MoveError, MoveReport};
+pub use mv::{apply_edits, move_element, reference_edits, valid_move_dest, valid_qname, MoveError, MoveReport};
 pub use update::apply_update_fields;

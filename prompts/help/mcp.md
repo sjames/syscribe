@@ -198,7 +198,14 @@ system temp dir if the parent is not writable), so paths relative to the model
 root that leave it (`style_file = "../…"`, `sourceFile: ../tests/…`) resolve as
 they do in the real tree.
 
-- `create_element {qname, type, fields?, doc?, dry_run?}`
+- `create_element {qname?, parent?, type, fields?, doc?, dry_run?}` — file placement follows
+  the element's identity. **Id-identified types** (`Requirement`, `TestCase`, `ADR`,
+  `PlanningItem`, …) are written as `<parent>/<id>.md` (qname `Parent::<id>`): pass
+  `parent` (a package qname, `""` for the model root) and either `fields.id` or nothing
+  (a `<PREFIX>-GEN-nnn` id is auto-allocated); or pass `qname` whose last segment is the
+  id (`Requirements::Safety::REQ-ENG-SAFE-006`). The id must be a valid stable id; the
+  hyphen is fine in the file stem. **Name-identified types** use `qname` as before
+  (`Pkg::Name` -> `Pkg/Name.md`). `type: Package` writes `<qname>/_index.md`.
 - `update_element {ref, fields?, doc?, dry_run?}`
 - `edit_feature {edit, dry_run?, accept_worse?}` — one semantic feature-model edit
   (`add`, `remove`, `rename`, `setGroup`, `setMandatory`, `setAbstract`, `move`, `addConstraint`,
@@ -208,11 +215,11 @@ they do in the real tree.
   makes it worse is not written without `accept_worse:true` (`needsConfirmation`). A
   commit returns `undo`, the edit that reverses it. A parameter that a configuration binds is not removed until `removeBinding` has removed its bindings. A rename or move rewrites every
   reference including the keys of a `Configuration`'s `features:`.
-- `move_element {ref, dest, dry_run?}`
+- `move_element {ref, dest, dry_run?}` — `dest` may end in a stable id (`Pkg::REQ-X-001`) to relocate an id-identified file as `Pkg/REQ-X-001.md`.
 - `delete_element {ref, force?, dry_run?}` — refuses if other elements reference
   the target unless `force:true`.
 - `apply_changes {operations:[…], dry_run?}` — an ordered create/update/move/delete
-  batch applied atomically (all-or-nothing).
+  batch applied atomically (all-or-nothing). A `create` op takes the same `qname`/`parent` as `create_element`.
 - `ingest_results {format?, path?, content?, dry_run?}` — parse a `cargo-json` or
   `junit` report and merge it into the `.syscribe/results.json` verdict sidecar
   (replaces the function-level verdicts, keeps any session-log ones); dry-run
