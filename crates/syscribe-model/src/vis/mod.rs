@@ -14,6 +14,7 @@
 //! `shapes:` picks the manifest; a `subject:` alone picks derivation.
 
 pub mod derive;
+pub mod dot;
 pub mod ir;
 pub mod layout;
 pub mod manifest;
@@ -31,6 +32,7 @@ use crate::resolver::Resolver;
 pub use ir::{DiagramGraph, DiagramKind, Edge, EdgeKind, LayoutHints, Node, NodeKind, NodeMark, Point, PortDirection, Rect, Side, Tone};
 pub use layout::{layout, Layout, LayoutError};
 pub use manifest::Issue;
+pub use dot::render_dot;
 pub use mermaid::render_mermaid;
 pub use metrics::TextMetrics;
 pub use size::{size_graph, Sizes};

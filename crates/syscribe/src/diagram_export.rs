@@ -18,8 +18,8 @@ use syscribe_model::plantuml::render_plantuml;
 use syscribe_model::resolver::Resolver;
 use syscribe_model::vis;
 
-const FORMATS: &[&str] = &["plantuml", "mermaid", "svg"];
-const USAGE: &str = "Usage: syscribe -m <model> diagram export <qname> [--format plantuml|mermaid|svg] [--out <file>]";
+const FORMATS: &[&str] = &["plantuml", "mermaid", "svg", "dot"];
+const USAGE: &str = "Usage: syscribe -m <model> diagram export <qname> [--format plantuml|mermaid|svg|dot] [--out <file>]";
 
 /// Entry point for `syscribe -m <root> diagram <sub> …`. Returns the exit code.
 pub fn cmd_diagram(
@@ -77,7 +77,7 @@ pub fn export_diagram(
             render_plantuml(elem, elements, Some(&cfg))
                 .ok_or_else(|| format!("'{qname}' has a diagramKind with no PlantUML mapping — export mermaid instead"))
         }
-        "mermaid" | "svg" => {
+        "mermaid" | "svg" | "dot" => {
             let Some((graph, _issues)) = vis::build_graph(elem, elements, resolver) else {
                 return Err(format!(
                     "'{qname}' is a hand-authored {} diagram — its body is the source; use `render`",
@@ -87,6 +87,8 @@ pub fn export_diagram(
             let links = link_resolver(elements, resolver, config);
             if format == "mermaid" {
                 vis::render_mermaid(&graph, &links).ok_or_else(|| format!("'{qname}' has no Mermaid mapping"))
+            } else if format == "dot" {
+                Ok(vis::render_dot(&graph))
             } else {
                 // REQ-TRS-VIS-016: drawn from pins when fully pinned, else
                 // laid out by the embedded ELK first.

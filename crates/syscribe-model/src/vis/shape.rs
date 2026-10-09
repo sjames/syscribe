@@ -81,6 +81,31 @@ fn or_path(x: f64, y: f64, w: f64, h: f64) -> String {
     )
 }
 
+/// How much larger than its label stack a symbol's box must be for the text to
+/// sit inside the outline: `(width factor, height factor)`, or `None` for a kind
+/// drawn as a plain box. The labels are centred in the symbol
+/// ([`is_symbol`]; `frontend/src/layout.ts` `isSymbolKind` mirrors this).
+pub fn text_scale(kind: NodeKind) -> Option<(f64, f64)> {
+    Some(match kind {
+        // The text box inscribed in an ellipse is 1/sqrt(2) of its axes.
+        NodeKind::EventBasic | NodeKind::Solution | NodeKind::Justification | NodeKind::Assumption => (1.42, 1.5),
+        NodeKind::EventUndeveloped => (1.15, 1.35),
+        NodeKind::EventHouse => (1.05, 1.5),
+        NodeKind::GateOr | NodeKind::GateXor => (1.3, 1.6),
+        NodeKind::GateAnd => (1.05, 1.5),
+        NodeKind::GateNot => (1.05, 1.3),
+        NodeKind::GateInhibit => (1.25, 1.3),
+        NodeKind::Strategy => (1.25, 1.1),
+        NodeKind::Context => (1.1, 1.15),
+        _ => return None,
+    })
+}
+
+/// Whether the kind's label stack is centred inside an outline narrower than its box.
+pub fn is_symbol(kind: NodeKind) -> bool {
+    text_scale(kind).is_some()
+}
+
 /// The symbol of a safety-diagram node kind inside the box `(x, y, w, h)`,
 /// or `None` for every other kind (drawn as a plain box).
 pub fn shape_of(kind: NodeKind, x: f64, y: f64, w: f64, h: f64) -> Option<Shape> {
@@ -187,6 +212,27 @@ mod tests {
             assert!(shape_of(k, 0.0, 0.0, 120.0, 40.0).is_some(), "{k:?}");
         }
         assert!(shape_of(NodeKind::Block, 0.0, 0.0, 120.0, 40.0).is_none());
+    }
+
+    /// The same literals `frontend/test/safety-shape.test.mjs` pins, so the
+    /// editor's `safety-shape.ts` and this writer cannot drift apart.
+    #[test]
+    fn outlines_match_the_clients_literals() {
+        let d = |k| match shape_of(k, 0.0, 0.0, 100.0, 50.0).unwrap().outline {
+            Outline::Path(d) => d,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(d(NodeKind::GateOr), "M 0,50 Q 50,36 100,50 C 100,25 70,6 50,0 C 30,6 0,25 0,50 Z");
+        assert_eq!(d(NodeKind::GateAnd), "M 0,50 L 0,25 A 50,25 0 0 1 100,25 L 100,50 Z");
+        assert_eq!(d(NodeKind::GateInhibit), "M 12,0 L 88,0 L 100,25 L 88,50 L 12,50 L 0,25 Z");
+        assert_eq!(d(NodeKind::EventUndeveloped), "M 25,0 L 75,0 L 100,25 L 75,50 L 25,50 L 0,25 Z");
+        assert_eq!(d(NodeKind::EventHouse), "M 0,14 L 50,0 L 100,14 L 100,50 L 0,50 Z");
+        assert_eq!(d(NodeKind::Strategy), "M 10,0 L 100,0 L 90,50 L 0,50 Z");
+        let x = shape_of(NodeKind::GateXor, 0.0, 0.0, 100.0, 50.0).unwrap();
+        assert_eq!(x.extras, vec![Extra::Stroke("M 0,43 Q 50,29 100,43".to_string())]);
+        let u = shape_of(NodeKind::UndevelopedGoal, 0.0, 0.0, 100.0, 50.0).unwrap();
+        assert_eq!(u.extras, vec![Extra::Diamond("M 50,50 L 58,58 L 50,66 L 42,58 Z".to_string())]);
+        assert!(is_symbol(NodeKind::Context) && !is_symbol(NodeKind::Goal) && !is_symbol(NodeKind::Step));
     }
 
     #[test]

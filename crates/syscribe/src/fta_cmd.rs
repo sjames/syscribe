@@ -26,6 +26,53 @@ fn fix(v: Option<f64>) -> String {
     v.map_or_else(|| "n/a".to_string(), |x| format!("{x:.4}"))
 }
 
+pub const RENDER_USAGE: &str =
+    "Usage: syscribe -m <model> fault-tree render <FaultTree-id> [--format mermaid|dot|svg|plantuml]";
+
+/// `fault-tree render <FT> --format mermaid|dot|svg|plantuml` (GH #223): the
+/// analysed fault tree as a diagram — gate symbols by `gateType`, event shapes
+/// by `eventKind`, probabilities, single-point events and the top-event
+/// probability — from the same Diagram IR the web view and `diagram export`
+/// draw. Returns the process exit code.
+pub fn cmd_fault_tree_render_diagram(elements: &[RawElement], ft_id: &str, format: &str) -> i32 {
+    use syscribe_model::vis;
+    const FORMATS: &[&str] = &["mermaid", "dot", "svg", "plantuml"];
+    if !FORMATS.contains(&format) {
+        eprintln!("Error: invalid value '{format}' for --format; valid values: {}", FORMATS.join(", "));
+        return 1;
+    }
+    let Some(tree) = find_fault_tree(elements, ft_id) else {
+        eprintln!("Error: no FaultTree element found with id or qualified name '{ft_id}'");
+        return 1;
+    };
+    let resolver = Resolver::new(elements);
+    let graph = vis::derive::fault_tree::tree_diagram(elements, &resolver, tree);
+    if graph.nodes.is_empty() {
+        eprintln!("Error: fault tree '{ft_id}' has no gates or events to draw");
+        return 1;
+    }
+    let no_links = |_: &str| None;
+    let text = match format {
+        "dot" => Some(vis::render_dot(&graph)),
+        "mermaid" => vis::render_mermaid(&graph, &no_links),
+        "plantuml" => Some(syscribe_model::plantuml::render_safety_plantuml(&graph, "FaultTree")),
+        _ => match vis::render_svg(&graph, &no_links) {
+            Ok(svg) => Some(svg),
+            Err(e) => {
+                eprintln!("Error: fault tree '{ft_id}': {e}");
+                return 1;
+            }
+        },
+    };
+    match text {
+        Some(t) => {
+            print!("{t}");
+            0
+        }
+        None => 1,
+    }
+}
+
 /// Parsed command line of `fault-tree analyze`.
 pub struct AnalyzeArgs {
     pub tree: String,

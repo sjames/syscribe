@@ -60,6 +60,17 @@ async function refreshSubjects(): Promise<void> {
 }
 
 function updateMode(): void {
+    // The safety kinds are derived only (GH #223): the blank choice is off for them.
+    const deriveOnly = !!kindInfo(el<HTMLSelectElement>('nd-kind').value)?.deriveOnly;
+    const radios = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="nd-start"]'));
+    for (const r of radios) {
+        if (r.value === 'blank') {
+            r.disabled = deriveOnly;
+        }
+        if (deriveOnly && r.value === 'derive') {
+            r.checked = true;
+        }
+    }
     const derive = (document.querySelector('input[name="nd-start"]:checked') as HTMLInputElement).value === 'derive';
     el('nd-subject-label').firstChild!.textContent = derive ? 'Subject ' : 'Subject (optional) ';
 }
@@ -156,7 +167,10 @@ export function installNewDiagramDialog(): void {
             return;
         }
         form.addEventListener('submit', ev => void submit(ev));
-        el('nd-kind').addEventListener('change', () => void refreshSubjects());
+        el('nd-kind').addEventListener('change', () => {
+            updateMode();
+            void refreshSubjects();
+        });
         document.querySelectorAll('input[name="nd-start"]').forEach(r => r.addEventListener('change', updateMode));
         el('nd-cancel').addEventListener('click', () => el<HTMLDialogElement>('new-diagram-dialog').close());
     });

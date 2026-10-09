@@ -1406,11 +1406,27 @@ fn main() {
                 let json = rest.iter().any(|a| a == "--json");
                 let no_implicit = rest.iter().any(|a| a == "--no-implicit");
                 let config = rest.windows(2).find(|w| w[0] == "--config").map(|w| w[1].as_str());
+                // `--format text|json|dot|mermaid` (GH #223); `--json` stays the JSON shorthand.
+                let format = match rest.windows(2).find(|w| w[0] == "--format") {
+                    Some(w) => match safety_case::Format::parse(&w[1]) {
+                        Some(f) => f,
+                        None => {
+                            eprintln!(
+                                "Error: invalid value '{}' for --format; valid values: {}",
+                                w[1],
+                                safety_case::Format::VALUES.join(", ")
+                            );
+                            std::process::exit(1);
+                        }
+                    },
+                    None if json => safety_case::Format::Json,
+                    None => safety_case::Format::Text,
+                };
                 // optional positional <SG-id> = first non-flag arg that is not a flag value.
                 let mut goal = "";
                 let mut gi = 0;
                 while gi < rest.len() {
-                    if rest[gi] == "--config" {
+                    if rest[gi] == "--config" || rest[gi] == "--format" {
                         gi += 2;
                         continue;
                     }
@@ -1425,7 +1441,7 @@ fn main() {
                 let sidecar_loaded = results.is_some();
                 let view = projected_elements(&elems, config);
                 let view_resolver = Resolver::new(&view);
-                let code = safety_case::cmd_safety_case(&view, &view_resolver, goal, results.as_ref(), json, no_implicit, sidecar_loaded);
+                let code = safety_case::cmd_safety_case(&view, &view_resolver, goal, results.as_ref(), format, no_implicit, sidecar_loaded);
                 if code != 0 {
                     std::process::exit(code);
                 }
@@ -1920,14 +1936,40 @@ fn main() {
             "fault-tree" => {
                 let sub = subcommand_args.get(1).map(|s| s.as_str()).unwrap_or("");
                 let rest = subcommand_args.get(2..).unwrap_or(&[]);
-                let ft_id = rest.iter().find(|a| !a.starts_with("--")).map(|s| s.as_str()).unwrap_or("");
+                let ft_id = {
+                    // First positional that is not the value of `--format`.
+                    let mut found = "";
+                    let mut i = 0;
+                    while i < rest.len() {
+                        if rest[i] == "--format" {
+                            i += 2;
+                            continue;
+                        }
+                        if !rest[i].starts_with("--") {
+                            found = rest[i].as_str();
+                            break;
+                        }
+                        i += 1;
+                    }
+                    found
+                };
                 match sub {
                     "render" => {
                         if ft_id.is_empty() {
-                            eprintln!("Usage: syscribe -m <model> fault-tree render <FaultTree-id>");
+                            eprintln!("{}", fta_cmd::RENDER_USAGE);
                             std::process::exit(1);
                         }
-                        fmea_report::cmd_fault_tree_render(&elems, ft_id);
+                        match rest.windows(2).find(|w| w[0] == "--format").map(|w| w[1].as_str()) {
+                            // GH #223: the analysed diagram (gate symbols, cut sets,
+                            // probabilities) from the Diagram IR.
+                            Some(format) => {
+                                let code = fta_cmd::cmd_fault_tree_render_diagram(&elems, ft_id, format);
+                                if code != 0 {
+                                    std::process::exit(code);
+                                }
+                            }
+                            None => fmea_report::cmd_fault_tree_render(&elems, ft_id),
+                        }
                     }
                     "analyze" => {
                         let args = match fta_cmd::parse_args(rest) {
@@ -1944,7 +1986,7 @@ fn main() {
                         }
                     }
                     _ => {
-                        eprintln!("Usage: syscribe -m <model> fault-tree render <FaultTree-id>");
+                        eprintln!("{}", fta_cmd::RENDER_USAGE);
                         eprintln!("       {}", fta_cmd::USAGE.trim_start_matches("Usage: "));
                         std::process::exit(1);
                     }

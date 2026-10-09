@@ -14,6 +14,9 @@ export interface DiagramKindInfo {
     subjectTypes: string[];
     /** What a subject of this kind is, for the dialog's hint line. */
     hint: string;
+    /** The kind is only ever derived from the model (the safety diagrams,
+     * GH #223): there is no hand-built manifest to start blank. */
+    deriveOnly?: boolean;
 }
 
 export const DIAGRAM_KINDS: DiagramKindInfo[] = [
@@ -25,6 +28,9 @@ export const DIAGRAM_KINDS: DiagramKindInfo[] = [
     { kind: 'Requirement', label: 'Requirement tree', subjectTypes: ['Package', 'RequirementDef', 'Requirement'], hint: 'a package of requirements, or one requirement' },
     { kind: 'FeatureModel', label: 'Feature model', subjectTypes: ['Package', 'FeatureDef', 'FeatureModel'], hint: 'a package of features, a feature, or a feature-model sheet' },
     { kind: 'Allocation', label: 'Allocation map', subjectTypes: ['Package', 'AllocationDef', 'Allocation'], hint: 'a package of allocations, or one allocation' },
+    { kind: 'FaultTree', label: 'Fault tree', subjectTypes: ['FaultTree', 'SafetyGoal'], hint: 'a fault tree, or the safety goal it analyses', deriveOnly: true },
+    { kind: 'AttackTree', label: 'Attack tree', subjectTypes: ['AttackTree', 'ThreatScenario'], hint: 'an attack tree, or the threat scenario it substantiates', deriveOnly: true },
+    { kind: 'SafetyCase', label: 'Safety case (GSN)', subjectTypes: ['SafetyGoal', 'Package'], hint: 'a safety goal, or a package of them', deriveOnly: true },
 ];
 
 export function kindInfo(kind: string): DiagramKindInfo | undefined {
@@ -102,6 +108,9 @@ export function buildCreateRequest(form: NewDiagramForm): BuildResult {
         return { ok: false, error: `Choose one of the diagram kinds (${DIAGRAM_KINDS.map(k => k.kind).join(', ')}).` };
     }
     const subject = form.subject.trim();
+    if (info.deriveOnly && form.startFrom === 'blank') {
+        return { ok: false, error: `A ${info.kind} diagram is always derived from the model: choose a subject (${info.hint}).` };
+    }
     if (form.startFrom === 'derive') {
         if (subject === '') {
             return { ok: false, error: `A derived ${info.kind} diagram needs a subject: ${info.hint}.` };

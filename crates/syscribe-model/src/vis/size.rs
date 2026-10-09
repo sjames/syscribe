@@ -397,6 +397,11 @@ fn node_sizing(metrics: &dyn TextMetrics, graph: &DiagramGraph, node: &Node, siz
         // give the stack that room so a label never overhangs its box.
         size.w = (size.w + 2.0 * NODE_LABELS_PADDING_H).max(MIN_NODE_WIDTH).max(ports_extent(ns));
         size.h = size.h.max(MIN_NODE_HEIGHT).max(ports_extent(ew));
+        // A safety symbol keeps its text inside its outline (GH #223).
+        if let Some((fw, fh)) = super::shape::text_scale(node.kind) {
+            size.w = (size.w * fw).ceil();
+            size.h = (size.h * fh).ceil();
+        }
     }
     for (c, (x, y)) in order.iter().zip(positions) {
         match c {

@@ -191,6 +191,11 @@ pub fn pinned_layout(graph: &DiagramGraph, sizes: &Sizes) -> Layout {
                 // when it nests nothing (`REQ-TRS-VIS-021`).
                 let top_left = compound || n.kind == NodeKind::Fragment;
                 let mut y = 4.0;
+                if super::shape::is_symbol(n.kind) {
+                    // Centred in the symbol, as ELK places them (`V_CENTER`).
+                    let stack: f64 = sizing.labels.iter().filter(|l| l.role != LabelRole::Free).map(|l| l.h + 1.0).sum::<f64>() - 1.0;
+                    y = ((b.h - stack) / 2.0).max(4.0);
+                }
                 for l in sizing.labels.iter().filter(|l| l.role != LabelRole::Free) {
                     let x = if top_left { 8.0 } else { ((b.w - l.w) / 2.0).max(0.0) };
                     out.labels.insert(l.id.clone(), Bounds { x: b.x + x, y: b.y + y, w: l.w, h: l.h });

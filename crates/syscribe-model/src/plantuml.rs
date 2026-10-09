@@ -566,6 +566,12 @@ fn requirement_connector(e: &Edge) -> (&'static str, &'static str) {
     }
 }
 
+/// The PlantUML text of a safety diagram built without a `Diagram` element
+/// (`fault-tree render --format plantuml`).
+pub fn render_safety_plantuml(graph: &DiagramGraph, id: &str) -> String {
+    render_safety(graph, id, None)
+}
+
 /// PlantUML for the safety diagrams (GH #223): a fault tree, an attack tree or
 /// a GSN argument. Each node is a symbol-shaped element filled in its mark's
 /// tone, its text the name followed by the mark's status, value and badges;

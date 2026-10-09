@@ -32,7 +32,8 @@ import {
 
 import { Point } from 'sprotty-protocol';
 import { isContainerKind, PORT_SIZE } from './layout';
-import { ArrowHead, ConfigState, EdgeStyle, FeatureMark, FeatureState, LabelRole, NodeStyle, PortStyle } from './types';
+import { ArrowHead, ConfigState, EdgeStyle, FeatureMark, FeatureState, LabelRole, NodeMark, NodeStyle, PortStyle } from './types';
+import { safetySymbol } from './safety-shape';
 
 /** Extra fields sprotty's `SModelFactory` copies onto the instance verbatim
  * from the schemas in `types.ts` — not part of the `S*Impl` classes
@@ -52,6 +53,7 @@ type SysmlNode = SNodeImpl &
         style?: NodeStyle;
         banners?: string[];
         feature?: FeatureMark;
+        mark?: NodeMark;
         analysis?: FeatureState;
         collapsedCount?: number;
         matched?: boolean;
@@ -480,6 +482,46 @@ export class SysmlNodeView extends ShapeView implements IView {
         }
         const container = isContainerKind(n.kind);
         const style = n.style ?? fallbackNodeStyle(n.elementType, n.kind);
+
+        // Fault-tree / attack-tree / GSN symbols (GH #223): the outline from
+        // `safety-shape.ts` (the path-for-path mirror of `vis::shape`), the
+        // fill and stroke from the resolved style (tone folded in).
+        const symbol = safetySymbol(n.kind, width, height);
+        if (symbol) {
+            const outline = n.selected ? '#1d4ed8' : style.stroke;
+            const sw = n.selected ? 2.5 : (style.strokeWidth ?? 1.4);
+            const dash = n.resolved === false || style.dashed ? '4,3' : undefined;
+            const o = symbol.outline;
+            const shape =
+                o.type === 'rect' ? (
+                    <rect x={0} y={0} width={width} height={height} rx={o.rx} fill={style.fill} stroke={outline} stroke-width={sw} stroke-dasharray={dash} />
+                ) : o.type === 'ellipse' ? (
+                    <ellipse cx={width / 2} cy={height / 2} rx={width / 2} ry={height / 2} fill={style.fill} stroke={outline} stroke-width={sw} stroke-dasharray={dash} />
+                ) : (
+                    <path d={o.d} fill={style.fill} stroke={outline} stroke-width={sw} stroke-dasharray={dash} />
+                );
+            const extras = symbol.extras.map(x =>
+                x.type === 'stroke' ? (
+                    <path d={x.d} fill="none" stroke={outline} stroke-width={sw} />
+                ) : x.type === 'circle' ? (
+                    <circle cx={x.cx} cy={x.cy} r={x.r} fill="#fff" stroke={outline} stroke-width={sw} />
+                ) : x.type === 'diamond' ? (
+                    <path d={x.d} fill="#fff" stroke={outline} stroke-width={sw} />
+                ) : (
+                    <text x={x.x} y={x.y} font-size={10} font-weight="bold" fill={outline} font-family="Helvetica, Arial, sans-serif">
+                        {x.text}
+                    </text>
+                ),
+            );
+            const snode = (
+                <g class-sysml-node={true} class-selected={!!n.selected} class-unresolved={n.resolved === false} data-sysml-ref={n.ref} data-mark-tone={n.mark?.tone}>
+                    {shape}
+                    {extras}
+                    {context.renderChildren(node)}
+                </g>
+            );
+            return addClasses(snode, [`kind-${n.kind}`, n.elementType ?? '']);
+        }
         // `selected` also doubles as the connect-mode "pending source" highlight
         // (`ConnectMouseListener` dispatches a plain `SelectAction`).
         const selected = !!n.selected;
@@ -652,9 +694,21 @@ export class SysmlLabelView extends ShapeView implements IView {
                 fill = nodeStyle?.stroke ?? '#444';
                 break;
             case 'line':
+            case 'value':
                 fontSize = 10;
                 weight = 'normal';
                 fill = '#333';
+                break;
+            case 'status':
+                fontSize = 10;
+                weight = 'bold';
+                fill = nodeStyle?.stroke ?? '#444';
+                break;
+            case 'badge':
+                fontSize = 9;
+                weight = 'normal';
+                italic = true;
+                fill = nodeStyle?.stroke ?? '#444';
                 break;
             case 'edge':
             case 'keyword':

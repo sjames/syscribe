@@ -150,6 +150,16 @@ fn root_mark(result: &Result<FaultTreeAnalysis, crate::fta::FtaError>) -> NodeMa
     }
 }
 
+/// The diagram of one `FaultTree` without a `Diagram` element behind it (the
+/// `fault-tree render --format` command): the same derivation, no filters.
+pub fn tree_diagram(elements: &[RawElement], resolver: &Resolver, tree: &RawElement) -> DiagramGraph {
+    let name = tree.frontmatter.name.clone().unwrap_or_else(|| short_name(&tree.qualified_name).to_string());
+    let mut graph = DiagramGraph::empty(super::super::ir::DiagramKind::FaultTree, "", &name, Some(&tree.qualified_name));
+    graph.derived = true;
+    generate(&mut graph, tree, elements, resolver, &Filters::default(), &mut Vec::new());
+    graph
+}
+
 pub fn generate(
     graph: &mut DiagramGraph,
     subject: &RawElement,
