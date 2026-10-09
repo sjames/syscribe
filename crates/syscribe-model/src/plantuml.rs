@@ -54,8 +54,7 @@ fn class_stereotype(node: &Node) -> String {
 
 /// Generate a PlantUML `.puml` source string from a `Diagram` element.
 /// Returns `None` when the element is not a `Diagram` or its `diagramKind`
-/// has no PlantUML mapping (`Mermaid`, `PlantUML`, `Allocation`, `UseCase`,
-/// `Custom`/absent).
+/// has no PlantUML mapping (`Mermaid`, `PlantUML`, `Custom`/absent).
 pub fn render_plantuml(
     element: &RawElement,
     elements: &[RawElement],
@@ -79,7 +78,10 @@ pub fn render_plantuml(
         DiagramKind::Sequence => Some(render_sequence(&graph, &file_stem, cfg)),
         DiagramKind::Requirement => Some(render_requirement(&graph, &file_stem, cfg)),
         DiagramKind::FeatureModel => Some(render_feature_model(&graph, &file_stem, cfg)),
-        DiagramKind::Allocation | DiagramKind::UseCase | DiagramKind::Action | DiagramKind::Custom => None,
+        DiagramKind::Allocation | DiagramKind::UseCase | DiagramKind::Action => {
+            Some(render_generic(&graph, &file_stem, cfg))
+        }
+        DiagramKind::Custom => None,
     }
 }
 
@@ -385,6 +387,59 @@ fn render_ibd(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> S
         out.push_str(&format!("{} {} {} : {}\n", sanitize_id(&src), connector, sanitize_id(&tgt), e.kind.as_str()));
     }
 
+    out.push_str("\n@enduml\n");
+    out
+}
+
+// ── Allocation / UseCase / Action ─────────────────────────────────────────────
+
+/// A nested-box rendering shared by the kinds without a bespoke PlantUML form:
+/// actors as `actor`, use cases as `usecase`, control nodes as small
+/// `rectangle`s, everything else as a (possibly nested) `rectangle`; every edge
+/// is an arrow labelled by its label, else its kind keyword.
+fn render_generic(graph: &DiagramGraph, id: &str, cfg: Option<&PlantumlConfig>) -> String {
+    fn decl(graph: &DiagramGraph, n: &vis::Node, depth: usize, cfg: Option<&PlantumlConfig>, out: &mut String) {
+        let pad = "  ".repeat(depth);
+        let nid = sanitize_id(&n.id);
+        let url = element_url(&n.element_ref, cfg);
+        let label = n.label.replace('"', "'");
+        let kids: Vec<&vis::Node> = graph.children_of(&n.id).collect();
+        match n.kind {
+            NodeKind::Actor => out.push_str(&format!("{pad}actor \"{label}\" as {nid} {url}\n")),
+            NodeKind::UseCase => out.push_str(&format!("{pad}usecase \"{label}\" as {nid} {url}\n")),
+            NodeKind::Fork | NodeKind::Join => out.push_str(&format!("{pad}rectangle \"{label}\" as {nid} #1F497D\n")),
+            NodeKind::Decision | NodeKind::Merge => out.push_str(&format!("{pad}diamond \"{label}\" as {nid}\n")),
+            _ if kids.is_empty() || depth >= graph.nodes.len() => {
+                out.push_str(&format!("{pad}rectangle \"{label}\" as {nid} {url}\n"))
+            }
+            _ => {
+                out.push_str(&format!("{pad}rectangle \"{label}\" as {nid} {url}{{\n"));
+                for k in kids {
+                    decl(graph, k, depth + 1, cfg, out);
+                }
+                out.push_str(&format!("{pad}}}\n"));
+            }
+        }
+    }
+    let mut out = format!("@startuml {id}\n");
+    out.push_str(&style_preamble(cfg));
+    out.push('\n');
+    for n in graph.roots() {
+        decl(graph, n, 0, cfg, &mut out);
+    }
+    out.push('\n');
+    for e in &graph.edges {
+        let connector = match e.kind {
+            EdgeKind::Allocation | EdgeKind::Dependency | EdgeKind::Include | EdgeKind::Extend | EdgeKind::Binding => "..>",
+            _ => "-->",
+        };
+        let label = e.label.clone().unwrap_or_else(|| match e.kind {
+            EdgeKind::Include => "<<include>>".to_string(),
+            EdgeKind::Extend => "<<extend>>".to_string(),
+            k => k.as_str().to_string(),
+        });
+        out.push_str(&format!("{} {} {} : {}\n", sanitize_id(&e.source), connector, sanitize_id(&e.target), label.replace('\n', " ")));
+    }
     out.push_str("\n@enduml\n");
     out
 }

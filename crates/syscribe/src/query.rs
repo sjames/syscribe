@@ -1045,6 +1045,51 @@ pub fn cmd_show(
         }
     }
 
+    // Structural and behavioral content authored in the frontmatter (GH #205): shown so an
+    // author can confirm what was parsed.
+    {
+        let mut sections: Vec<(&str, Vec<String>)> = Vec::new();
+        let one = |v: &serde_yaml::Value| -> String {
+            serde_yaml::to_string(v).unwrap_or_default().trim().replace('\n', "; ")
+        };
+        let mut add = |name: &'static str, list: Option<&Vec<serde_yaml::Value>>| {
+            if let Some(l) = list.filter(|l| !l.is_empty()) {
+                sections.push((name, l.iter().map(&one).collect()));
+            }
+        };
+        add("ends", fm.ends.as_ref());
+        add("connections", fm.connections.as_ref());
+        add("bindingConnections", fm.binding_connections.as_ref());
+        add("flowConnections", fm.flow_connections.as_ref());
+        add("successionConnections", fm.succession_connections.as_ref());
+        add("parameters", fm.parameters.as_ref());
+        add("subActions", fm.sub_actions.as_ref());
+        add("controlNodes", fm.control_nodes.as_ref());
+        add("performs", fm.performs.as_ref());
+        add("timeSlices", fm.time_slices.as_ref());
+        add("snapshots", fm.snapshots.as_ref());
+        add("imports", fm.imports.as_ref());
+        add("aliases", fm.aliases.as_ref());
+        add("expose", fm.expose.as_ref());
+        if let Some(es) = fm.exhibits_states.as_ref().filter(|e| !e.is_empty()) {
+            sections.push(("exhibitsStates", es.clone()));
+        }
+        if let Some(c) = &fm.conjugates {
+            sections.push(("conjugates", vec![c.clone()]));
+        }
+        if fm.is_conjugated == Some(true) {
+            sections.push(("isConjugated", vec!["true".to_string()]));
+        }
+        for (name, items) in sections {
+            println!();
+            println!("## {name}");
+            println!();
+            for i in items {
+                println!("- {i}");
+            }
+        }
+    }
+
     // Doc
     let doc = elem.doc.trim();
     if !doc.is_empty() {

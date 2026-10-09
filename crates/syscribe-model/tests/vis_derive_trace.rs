@@ -345,5 +345,6 @@ fn allocation_writers_accept_the_derived_graph() {
     assert!(s.contains("<g id=\"s-allocations-logical\" class=\"swimlane\""), "{s}");
     assert!(s.contains("class=\"edge allocation\"") && s.contains("stroke-dasharray=\"8,4\"") && s.contains("«allocate»"), "{s}");
     assert!(s.contains("<g id=\"s-hw-ghost\" class=\"block unresolved\"") && s.contains("stroke-dasharray=\"4,3\""), "{s}");
-    assert!(render_plantuml(&d.diagram, &d.elements, None).is_none(), "the Allocation kind has no PlantUML mapping");
+    let puml = render_plantuml(&d.diagram, &d.elements, None).expect("Allocation renders to PlantUML");
+    assert!(puml.starts_with("@startuml") && puml.contains("..>") && puml.trim_end().ends_with("@enduml"), "{puml}");
 }

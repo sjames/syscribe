@@ -440,5 +440,6 @@ fn the_writers_accept_a_derived_action_diagram() {
     assert!(svg.contains("[then]") && svg.contains("[ok]"));
     let elements = walk_model(&root).unwrap();
     let d = elements.iter().find(|e| e.qualified_name == "Diagrams::MissionAction").unwrap();
-    assert!(render_plantuml(d, &elements, None).is_none(), "the PlantUML writer declines the Action kind");
+    let puml = render_plantuml(d, &elements, None).expect("the PlantUML writer renders the Action kind");
+    assert!(puml.starts_with("@startuml") && puml.contains("-->"), "{puml}");
 }

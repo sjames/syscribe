@@ -103,7 +103,7 @@ fn kinds_without_a_plantuml_mapping_render_nothing() {
     let elements = walk_model(&model).expect("walk the demo model");
     for e in elements.iter().filter(|e| e.frontmatter.element_type == Some(ElementType::Diagram)) {
         let kind = e.frontmatter.diagram_kind.as_deref();
-        let mapped = matches!(kind, Some("BDD" | "IBD" | "StateMachine" | "Sequence" | "Requirement"));
+        let mapped = matches!(kind, Some("BDD" | "IBD" | "StateMachine" | "Sequence" | "Requirement" | "Action" | "Allocation" | "UseCase"));
         assert_eq!(
             render_plantuml(e, &elements, None).is_some(),
             mapped,
