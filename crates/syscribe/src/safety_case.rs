@@ -1,81 +1,31 @@
 //! `safety-case` — renders the GSN (Goal Structuring Notation) safety-argument
-//! tree for issue #20.
+//! tree (issues #20, #217).
 //!
-//! For each top `SafetyGoal` (or only the one named on the command line) the view
-//! walks:
-//!   Goal
-//!     → the `Argument`s whose `supports` names it (recursing into sub-Arguments)
-//!         → each Argument's `evidence` (Requirements / TestCases as leaves)
-//!     → the implicit chain `SafetyGoal ← Requirement (derivedFromSafetyGoal)
-//!       ← TestCase (verifies)` so the view is useful even with no Argument nodes
-//!     → any `AssumptionOfUse` whose `appliesTo` names the goal or an argument
-//!       under it.
+//! The traversal, node/status/verdict types and the completeness analysis live
+//! in [`syscribe_model::safety_case`] so other renderers (diagram derivers) can
+//! reuse them; this module only formats that tree as text or JSON and maps the
+//! results-sidecar TestCase verdict onto the model-crate [`Verdict`].
 //!
-//! Read-only: reuses `Resolver`; reuses `tc_verdict` (issue #21) to annotate
-//! TestCase leaves with their ingested verdict when a results sidecar is present.
+//! Read-only: reuses `Resolver` and `tc_verdict` (issue #21).
 
-use std::collections::HashSet;
 use syscribe_model::{
-    element::{ElementType, RawElement},
+    element::RawElement,
     resolver::Resolver,
     results::ResultsData,
+    safety_case::{
+        self, BuildOptions, Completeness, GoalTree, NodeKind, SafetyCase, SafetyCaseNode, Verdict,
+    },
 };
 
 use crate::query::{tc_verdict, TcVerdict};
 
-/// What kind of node a resolved reference is, for prefixing.
-enum NodeKind {
-    Argument,
-    Requirement,
-    TestCase,
-    Assumption,
-    Other(String),
-}
-
-fn classify(elem: &RawElement) -> NodeKind {
-    match elem.frontmatter.element_type {
-        Some(ElementType::Argument) => NodeKind::Argument,
-        Some(ElementType::Requirement) => NodeKind::Requirement,
-        Some(ElementType::TestCase) => NodeKind::TestCase,
-        Some(ElementType::AssumptionOfUse) => NodeKind::Assumption,
-        Some(ref t) => NodeKind::Other(format!("{:?}", t)),
-        None => NodeKind::Other("Unknown".into()),
-    }
-}
-
-/// Best display id for an element (stable id, else qualified name).
-fn disp_id(elem: &RawElement) -> &str {
-    elem.frontmatter.id.as_deref().unwrap_or(&elem.qualified_name)
-}
-
-fn disp_title(elem: &RawElement) -> &str {
-    elem.frontmatter.name.as_deref().unwrap_or("")
-}
-
-/// ` [decomposition: <kind>]` suffix when a requirement declares `decompositionKind` (§22.3).
-fn decomp_suffix(elem: &RawElement) -> String {
-    elem.frontmatter
-        .decomposition_kind
-        .as_deref()
-        .map(|k| format!(" [decomposition: {}]", k))
-        .unwrap_or_default()
-}
-
-/// Verdict suffix for a TestCase leaf (`[pass]` / `[fail]` / `[unknown]`).
-fn verdict_suffix(tc: &RawElement, results: Option<&ResultsData>) -> &'static str {
-    match tc_verdict(tc, results) {
-        TcVerdict::Pass => " [pass]",
-        TcVerdict::Fail => " [fail]",
-        TcVerdict::Unknown => " [unknown]",
-    }
-}
-
-// ── Entry point ─────────────────────────────────────────────────────────────
-
 /// Render the safety-case view. `goal_filter` is an optional SG id/qname; `json`
 /// switches between the GSN-style text tree and the JSON document.
-/// `no_implicit` suppresses the implicit SafetyGoal→Requirement→TestCase fold-in for all goals.
+/// `no_implicit` suppresses the implicit SafetyGoal→Requirement→TestCase fold-in.
 /// `sidecar_loaded` indicates whether a results sidecar was ingested (suppresses the [unknown] footnote).
+///
+/// Returns the process exit code: 0 on success, 1 when `goal_filter` names no
+/// `SafetyGoal` (the message goes to stderr).
 pub fn cmd_safety_case(
     elements: &[RawElement],
     resolver: &Resolver,
@@ -84,404 +34,217 @@ pub fn cmd_safety_case(
     json: bool,
     no_implicit: bool,
     sidecar_loaded: bool,
-) {
+) -> i32 {
     // REQ-TRS-LINKTYPE-006 — a `coverage = true` user-defined link extending
     // verifies/derivedFrom counts as that base link in the argument tree
     // (read-only report). Same element order, so `resolver` stays valid.
     let cov = syscribe_model::link_types::coverage_view(elements, &syscribe_model::link_types::active());
     let elements: &[RawElement] = &cov;
-    // Collect the top SafetyGoals (all of them, or only the named one).
-    let goals: Vec<&RawElement> = elements
-        .iter()
-        .filter(|e| Resolver::is_safety_goal(e))
-        .filter(|e| {
-            goal_filter.is_empty()
-                || disp_id(e) == goal_filter
-                || e.qualified_name == goal_filter
-                || e.frontmatter.id.as_deref() == Some(goal_filter)
-        })
-        .collect();
 
-    if goals.is_empty() {
+    let verdict_of = |tc: &RawElement| match tc_verdict(tc, results) {
+        TcVerdict::Pass => Verdict::Pass,
+        TcVerdict::Fail => Verdict::Fail,
+        TcVerdict::Unknown => Verdict::Unknown,
+    };
+    let case = safety_case::build(
+        elements,
+        resolver,
+        goal_filter,
+        BuildOptions { include_implicit: !no_implicit },
+        &verdict_of,
+    );
+
+    if case.goals.is_empty() {
         if goal_filter.is_empty() {
             println!("No SafetyGoal elements found — nothing to render.");
-        } else {
-            println!("No SafetyGoal matching '{}' found.", goal_filter);
+            return 0;
         }
-        return;
+        eprintln!("Error: no SafetyGoal matching '{}' found.", goal_filter);
+        return 1;
     }
 
     if json {
-        render_json(elements, resolver, &goals, results, no_implicit, sidecar_loaded);
+        render_json(&case, sidecar_loaded);
     } else {
-        render_text(elements, resolver, &goals, results, no_implicit, sidecar_loaded);
+        render_text(&case, sidecar_loaded);
     }
-}
-
-// ── Argument / evidence walking ─────────────────────────────────────────────
-
-/// The Arguments whose `supports` names `target_id`/`target_qname`.
-fn supporting_arguments<'a>(
-    elements: &'a [RawElement],
-    target_id: &str,
-    target_qname: &str,
-) -> Vec<&'a RawElement> {
-    elements
-        .iter()
-        .filter(|e| Resolver::is_argument(e))
-        .filter(|e| {
-            e.frontmatter
-                .supports
-                .as_deref()
-                .unwrap_or(&[])
-                .iter()
-                .any(|s| s == target_id || s == target_qname)
-        })
-        .collect()
-}
-
-/// The AssumptionsOfUse whose `appliesTo` names `target_id`/`target_qname`.
-fn assumptions_for<'a>(
-    elements: &'a [RawElement],
-    target_id: &str,
-    target_qname: &str,
-) -> Vec<&'a RawElement> {
-    elements
-        .iter()
-        .filter(|e| Resolver::is_assumption_of_use(e))
-        .filter(|e| {
-            e.frontmatter
-                .applies_to
-                .as_deref()
-                .unwrap_or(&[])
-                .iter()
-                .any(|s| s == target_id || s == target_qname)
-        })
-        .collect()
-}
-
-/// Requirements directly derived from the goal (`derivedFromSafetyGoal`).
-fn derived_requirements<'a>(
-    elements: &'a [RawElement],
-    goal_id: &str,
-) -> Vec<&'a RawElement> {
-    elements
-        .iter()
-        .filter(|e| Resolver::is_native_requirement(e))
-        .filter(|e| e.frontmatter.derived_from_safety_goal.as_deref() == Some(goal_id))
-        .collect()
-}
-
-/// TestCases that `verifies` the given requirement id.
-fn verifying_testcases<'a>(elements: &'a [RawElement], req_id: &str) -> Vec<&'a RawElement> {
-    elements
-        .iter()
-        .filter(|e| Resolver::is_native_testcase(e))
-        .filter(|e| {
-            e.frontmatter
-                .verifies
-                .as_deref()
-                .unwrap_or(&[])
-                .iter()
-                .any(|v| v == req_id)
-        })
-        .collect()
+    0
 }
 
 // ── Text rendering ──────────────────────────────────────────────────────────
 
-fn render_text(
-    elements: &[RawElement],
-    resolver: &Resolver,
-    goals: &[&RawElement],
-    results: Option<&ResultsData>,
-    no_implicit: bool,
-    sidecar_loaded: bool,
-) {
-    let mut any_unknown = false;
+fn node_line(n: &SafetyCaseNode) -> String {
+    let mut s = match n.kind {
+        NodeKind::Unresolved => format!("[unresolved] {}", n.id),
+        _ => format!("[{}] {} — {}", n.kind.label(), n.id, n.title),
+    };
+    if let Some(k) = n.decomposition_kind.as_deref() {
+        s.push_str(&format!(" [decomposition: {k}]"));
+    }
+    if let Some(v) = n.verdict {
+        s.push_str(&format!(" [{}]", v.as_str()));
+    }
+    if n.implicit {
+        s.push_str(" (implicit)");
+    }
+    if n.cycle {
+        s.push_str(" [CYCLE]");
+    }
+    if n.undeveloped {
+        s.push_str(" [UNDEVELOPED]");
+    }
+    s
+}
 
-    for goal in goals {
-        let gid = disp_id(goal);
-        println!("[SafetyGoal] {} — {}", gid, disp_title(goal));
+fn print_children(children: &[SafetyCaseNode], indent: &str) {
+    let total = children.len();
+    for (i, c) in children.iter().enumerate() {
+        let last = i + 1 == total;
+        let conn = if last { "└──" } else { "├──" };
+        println!("{}{} {}", indent, conn, node_line(c));
+        let child_indent = format!("{}{}", indent, if last { "    " } else { "│   " });
+        print_children(&c.children, &child_indent);
+    }
+}
 
-        let args = supporting_arguments(elements, gid, &goal.qualified_name);
-        // Suppress implicit fold-in when --no-implicit OR goal has explicit Arguments.
-        let suppress_implicit = no_implicit || !args.is_empty();
-        let dreqs = if suppress_implicit {
-            vec![]
-        } else {
-            derived_requirements(elements, gid)
-        };
-        let assumps = assumptions_for(elements, gid, &goal.qualified_name);
-
-        let total = args.len() + dreqs.len() + assumps.len();
-        let mut idx = 0usize;
-        let mut guard: HashSet<String> = HashSet::new();
-
-        for arg in &args {
-            idx += 1;
-            let last = idx == total;
-            print_argument(elements, resolver, arg, "", last, results, &mut guard, &mut any_unknown);
-        }
-        for req in &dreqs {
-            idx += 1;
-            let last = idx == total;
-            let conn = if last { "└──" } else { "├──" };
-            println!("{} [evidence:Requirement] {} — {}{}", conn, disp_id(req), disp_title(req), decomp_suffix(req));
-            let child_indent = if last { "    " } else { "│   " };
-            let tcs = verifying_testcases(elements, disp_id(req));
-            let tcn = tcs.len();
-            for (i, tc) in tcs.iter().enumerate() {
-                let tlast = i + 1 == tcn;
-                let tconn = if tlast { "└──" } else { "├──" };
-                let vs = verdict_suffix(tc, results);
-                if vs == " [unknown]" { any_unknown = true; }
-                println!(
-                    "{}{} [evidence:TestCase] {} — {}{}",
-                    child_indent, tconn, disp_id(tc), disp_title(tc), vs
-                );
-            }
-        }
-        for aou in &assumps {
-            idx += 1;
-            let last = idx == total;
-            let conn = if last { "└──" } else { "├──" };
-            println!("{} [AoU] {} — {}", conn, disp_id(aou), disp_title(aou));
-        }
+fn render_text(case: &SafetyCase, sidecar_loaded: bool) {
+    for g in &case.goals {
+        println!(
+            "[SafetyGoal] {} — {} [{}]{}",
+            g.root.id,
+            g.root.title,
+            g.verdict.as_str().to_uppercase(),
+            if g.root.undeveloped { " [UNDEVELOPED]" } else { "" }
+        );
+        print_children(&g.root.children, "");
         println!();
     }
-
-    if any_unknown && !sidecar_loaded {
+    print_completeness(&case.completeness);
+    if case.any_unknown() && !sidecar_loaded {
         println!("(verdicts unknown — run `syscribe ingest-results` to populate)");
     }
 }
 
-/// Recursively print an Argument node and its evidence children.
-#[allow(clippy::too_many_arguments)]
-fn print_argument(
-    elements: &[RawElement],
-    resolver: &Resolver,
-    arg: &RawElement,
-    indent: &str,
-    last: bool,
-    results: Option<&ResultsData>,
-    guard: &mut HashSet<String>,
-    any_unknown: &mut bool,
-) {
-    let conn = if last { "└──" } else { "├──" };
-    let kind = arg.frontmatter.argument_type.as_deref().unwrap_or("claim");
-    println!("{}{} [{}] {} — {}", indent, conn, kind, disp_id(arg), disp_title(arg));
-
-    let aid = disp_id(arg).to_string();
-    if !guard.insert(aid) {
-        return;
+fn print_completeness(c: &Completeness) {
+    println!("Completeness:");
+    println!(
+        "  goals: {} ({} supported, {} incomplete, {} failing)",
+        c.goals, c.goals_supported, c.goals_incomplete, c.goals_failing
+    );
+    println!(
+        "  requirements: {} ({} leaf without a verifying test)",
+        c.requirements, c.requirements_without_tests
+    );
+    println!(
+        "  test cases: {} ({} pass, {} fail, {} unknown)",
+        c.testcases, c.tests_pass, c.tests_fail, c.tests_unknown
+    );
+    println!("  undeveloped nodes: {}", c.undeveloped_nodes);
+    for id in &c.undeveloped_ids {
+        println!("    - {id}");
     }
-
-    let child_indent = format!("{}{}", indent, if last { "    " } else { "│   " });
-
-    let ev: Vec<&str> = arg
-        .frontmatter
-        .evidence
-        .as_deref()
-        .unwrap_or(&[])
-        .iter()
-        .filter_map(|s| s.as_str())
-        .collect();
-    let assumps = assumptions_for(elements, disp_id(arg), &arg.qualified_name);
-    let total = ev.len() + assumps.len();
-    let mut idx = 0usize;
-
-    for r in &ev {
-        idx += 1;
-        let elast = idx == total;
-        match resolver.resolve_ref(elements, r) {
-            None => {
-                let c = if elast { "└──" } else { "├──" };
-                println!("{}{} [unresolved] {}", child_indent, c, r);
-            }
-            Some(target) => match classify(target) {
-                NodeKind::Argument => {
-                    print_argument(elements, resolver, target, &child_indent, elast, results, guard, any_unknown);
-                }
-                NodeKind::Requirement => {
-                    let c = if elast { "└──" } else { "├──" };
-                    println!("{}{} [evidence:Requirement] {} — {}{}", child_indent, c, disp_id(target), disp_title(target), decomp_suffix(target));
-                }
-                NodeKind::TestCase => {
-                    let c = if elast { "└──" } else { "├──" };
-                    let vs = verdict_suffix(target, results);
-                    if vs == " [unknown]" { *any_unknown = true; }
-                    println!(
-                        "{}{} [evidence:TestCase] {} — {}{}",
-                        child_indent, c, disp_id(target), disp_title(target), vs
-                    );
-                }
-                NodeKind::Assumption => {
-                    let c = if elast { "└──" } else { "├──" };
-                    println!("{}{} [AoU] {} — {}", child_indent, c, disp_id(target), disp_title(target));
-                }
-                NodeKind::Other(t) => {
-                    let c = if elast { "└──" } else { "├──" };
-                    println!("{}{} [evidence:{}] {} — {}", child_indent, c, t, disp_id(target), disp_title(target));
-                }
-            },
-        }
-    }
-    for aou in &assumps {
-        idx += 1;
-        let elast = idx == total;
-        let c = if elast { "└──" } else { "├──" };
-        println!("{}{} [AoU] {} — {}", child_indent, c, disp_id(aou), disp_title(aou));
+    if c.unresolved_refs > 0 || c.cycles > 0 {
+        println!("  unresolved references: {}  cycles: {}", c.unresolved_refs, c.cycles);
     }
 }
 
 // ── JSON rendering ──────────────────────────────────────────────────────────
 
-fn render_json(
-    elements: &[RawElement],
-    resolver: &Resolver,
-    goals: &[&RawElement],
-    results: Option<&ResultsData>,
-    no_implicit: bool,
-    sidecar_loaded: bool,
-) {
-    let mut any_unknown = false;
-
-    let goals_json: Vec<serde_json::Value> = goals
-        .iter()
-        .map(|goal| {
-            let gid = disp_id(goal);
-            let args = supporting_arguments(elements, gid, &goal.qualified_name);
-            let suppress_implicit = no_implicit || !args.is_empty();
-            let mut guard: HashSet<String> = HashSet::new();
-            let args_json: Vec<serde_json::Value> = args
-                .iter()
-                .map(|a| argument_json(elements, resolver, a, results, &mut guard, &mut any_unknown))
-                .collect();
-
-            // Implicit fold-in: derived requirements with their verifying tests.
-            let reqs_json: Vec<serde_json::Value> = if suppress_implicit {
-                vec![]
-            } else {
-                derived_requirements(elements, gid)
-                    .iter()
-                    .map(|req| {
-                        let tcs: Vec<serde_json::Value> = verifying_testcases(elements, disp_id(req))
-                            .iter()
-                            .map(|tc| {
-                                let v = testcase_json(tc, results);
-                                if v["verdict"] == "unknown" { any_unknown = true; }
-                                v
-                            })
-                            .collect();
-                        let mut r = serde_json::json!({
-                            "id": disp_id(req),
-                            "title": disp_title(req),
-                            "testCases": tcs,
-                        });
-                        if let Some(k) = req.frontmatter.decomposition_kind.as_deref() {
-                            r["decompositionKind"] = serde_json::json!(k);
-                        }
-                        r
-                    })
-                    .collect()
-            };
-
-            let assumps_json: Vec<serde_json::Value> = assumptions_for(elements, gid, &goal.qualified_name)
-                .iter()
-                .map(|a| serde_json::json!({ "id": disp_id(a), "title": disp_title(a) }))
-                .collect();
-
-            serde_json::json!({
-                "id": gid,
-                "title": disp_title(goal),
-                "arguments": args_json,
-                "requirements": reqs_json,
-                "assumptions": assumps_json,
-            })
-        })
-        .collect();
-
-    let mut doc = serde_json::json!({ "goals": goals_json });
-    if any_unknown && !sidecar_loaded {
-        doc.as_object_mut().unwrap().insert("verdictsUnknown".into(), serde_json::json!(true));
-    }
-    println!("{}", serde_json::to_string_pretty(&doc).unwrap());
-}
-
-fn argument_json(
-    elements: &[RawElement],
-    resolver: &Resolver,
-    arg: &RawElement,
-    results: Option<&ResultsData>,
-    guard: &mut HashSet<String>,
-    any_unknown: &mut bool,
-) -> serde_json::Value {
-    let kind = arg.frontmatter.argument_type.clone().unwrap_or_else(|| "claim".into());
-    let aid = disp_id(arg).to_string();
-
-    if !guard.insert(aid.clone()) {
-        return serde_json::json!({
-            "id": aid, "argumentType": kind, "title": disp_title(arg), "cycle": true,
-        });
-    }
-
-    let mut sub_args: Vec<serde_json::Value> = Vec::new();
-    let mut reqs: Vec<serde_json::Value> = Vec::new();
-    let mut tcs: Vec<serde_json::Value> = Vec::new();
-    let mut others: Vec<serde_json::Value> = Vec::new();
-
-    for r in arg.frontmatter.evidence.as_deref().unwrap_or(&[]).iter().filter_map(|v| v.as_str()) {
-        match resolver.resolve_ref(elements, r) {
-            None => others.push(serde_json::json!({ "ref": r, "resolved": false })),
-            Some(target) => match classify(target) {
-                NodeKind::Argument => {
-                    sub_args.push(argument_json(elements, resolver, target, results, guard, any_unknown))
-                }
-                NodeKind::Requirement => {
-                    let mut r = serde_json::json!({ "id": disp_id(target), "title": disp_title(target) });
-                    if let Some(k) = target.frontmatter.decomposition_kind.as_deref() {
-                        r["decompositionKind"] = serde_json::json!(k);
-                    }
-                    reqs.push(r)
-                }
-                NodeKind::TestCase => {
-                    let v = testcase_json(target, results);
-                    if v["verdict"] == "unknown" { *any_unknown = true; }
-                    tcs.push(v);
-                }
-                NodeKind::Assumption => {
-                    others.push(serde_json::json!({ "id": disp_id(target), "kind": "AssumptionOfUse" }))
-                }
-                NodeKind::Other(t) => {
-                    others.push(serde_json::json!({ "id": disp_id(target), "kind": t }))
-                }
-            },
-        }
-    }
-
-    let assumps: Vec<serde_json::Value> = assumptions_for(elements, disp_id(arg), &arg.qualified_name)
-        .iter()
-        .map(|a| serde_json::json!({ "id": disp_id(a), "title": disp_title(a) }))
-        .collect();
-
+fn completeness_json(c: &Completeness) -> serde_json::Value {
     serde_json::json!({
-        "id": aid,
-        "argumentType": kind,
-        "title": disp_title(arg),
-        "arguments": sub_args,
-        "requirements": reqs,
-        "testCases": tcs,
-        "assumptions": assumps,
-        "other": others,
+        "goals": c.goals,
+        "goalsSupported": c.goals_supported,
+        "goalsIncomplete": c.goals_incomplete,
+        "goalsFailing": c.goals_failing,
+        "requirements": c.requirements,
+        "requirementsWithoutTests": c.requirements_without_tests,
+        "testCases": c.testcases,
+        "testsPass": c.tests_pass,
+        "testsFail": c.tests_fail,
+        "testsUnknown": c.tests_unknown,
+        "undevelopedNodes": c.undeveloped_nodes,
+        "undevelopedIds": c.undeveloped_ids,
+        "unresolvedRefs": c.unresolved_refs,
+        "cycles": c.cycles,
     })
 }
 
-fn testcase_json(tc: &RawElement, results: Option<&ResultsData>) -> serde_json::Value {
-    let verdict = match tc_verdict(tc, results) {
-        TcVerdict::Pass => "pass",
-        TcVerdict::Fail => "fail",
-        TcVerdict::Unknown => "unknown",
-    };
-    serde_json::json!({ "id": disp_id(tc), "title": disp_title(tc), "verdict": verdict })
+/// A node as JSON. Children are bucketed by kind (`arguments`, `requirements`,
+/// `testCases`, `assumptions`, `other`) — the long-standing shape — alongside
+/// the status fields.
+fn node_json(n: &SafetyCaseNode) -> serde_json::Value {
+    let mut arguments = Vec::new();
+    let mut requirements = Vec::new();
+    let mut test_cases = Vec::new();
+    let mut assumptions = Vec::new();
+    let mut other = Vec::new();
+    for c in &n.children {
+        match &c.kind {
+            k if k.is_argument() => arguments.push(node_json(c)),
+            NodeKind::Requirement => requirements.push(node_json(c)),
+            NodeKind::TestCase => test_cases.push(node_json(c)),
+            NodeKind::AssumptionOfUse => {
+                assumptions.push(serde_json::json!({ "id": c.id, "title": c.title }))
+            }
+            NodeKind::Unresolved => other.push(serde_json::json!({ "ref": c.id, "resolved": false })),
+            NodeKind::Other(t) => other.push(serde_json::json!({ "id": c.id, "kind": t })),
+            _ => {}
+        }
+    }
+    let mut v = serde_json::json!({
+        "id": n.id,
+        "title": n.title,
+        "status": n.status.as_str(),
+        "undeveloped": n.undeveloped,
+    });
+    let o = v.as_object_mut().unwrap();
+    match &n.kind {
+        k if k.is_argument() => {
+            o.insert("argumentType".into(), serde_json::json!(k.label()));
+        }
+        NodeKind::TestCase => {
+            o.insert("verdict".into(), serde_json::json!(n.verdict.unwrap_or(Verdict::Unknown).as_str()));
+        }
+        NodeKind::Requirement => {
+            o.insert("implicit".into(), serde_json::json!(n.implicit));
+            if let Some(k) = &n.decomposition_kind {
+                o.insert("decompositionKind".into(), serde_json::json!(k));
+            }
+        }
+        _ => {}
+    }
+    if n.cycle {
+        o.insert("cycle".into(), serde_json::json!(true));
+    }
+    if n.kind != NodeKind::TestCase {
+        o.insert("arguments".into(), serde_json::Value::Array(arguments));
+        o.insert("requirements".into(), serde_json::Value::Array(requirements));
+        o.insert("testCases".into(), serde_json::Value::Array(test_cases));
+        o.insert("assumptions".into(), serde_json::Value::Array(assumptions));
+        o.insert("other".into(), serde_json::Value::Array(other));
+    }
+    v
+}
+
+fn goal_json(g: &GoalTree) -> serde_json::Value {
+    let mut v = node_json(&g.root);
+    let o = v.as_object_mut().unwrap();
+    o.insert("verdict".into(), serde_json::json!(g.verdict.as_str()));
+    o.insert("completeness".into(), completeness_json(&g.completeness));
+    // A goal has no direct TestCases / other evidence; keep the legacy keys only.
+    o.remove("testCases");
+    o.remove("other");
+    v
+}
+
+fn render_json(case: &SafetyCase, sidecar_loaded: bool) {
+    let goals: Vec<serde_json::Value> = case.goals.iter().map(goal_json).collect();
+    let mut doc = serde_json::json!({
+        "goals": goals,
+        "completeness": completeness_json(&case.completeness),
+    });
+    if case.any_unknown() && !sidecar_loaded {
+        doc.as_object_mut().unwrap().insert("verdictsUnknown".into(), serde_json::json!(true));
+    }
+    println!("{}", serde_json::to_string_pretty(&doc).unwrap());
 }

@@ -1421,7 +1421,10 @@ fn main() {
                 let sidecar_loaded = results.is_some();
                 let view = projected_elements(&elems, config);
                 let view_resolver = Resolver::new(&view);
-                safety_case::cmd_safety_case(&view, &view_resolver, goal, results.as_ref(), json, no_implicit, sidecar_loaded);
+                let code = safety_case::cmd_safety_case(&view, &view_resolver, goal, results.as_ref(), json, no_implicit, sidecar_loaded);
+                if code != 0 {
+                    std::process::exit(code);
+                }
             }
             "testplan" => {
                 // Read-only TestPlan surface (GH #38 / REQ-TRS-PLAN-005).
@@ -1898,7 +1901,12 @@ fn main() {
                 let json = rest.iter().any(|a| a == "--json");
                 let sheet_filter = rest.windows(2).find(|w| w[0] == "--fmea-sheet").map(|w| w[1].as_str());
                 match sub {
-                    "report" => fmea_report::cmd_fmea_report(&elems, sheet_filter, json),
+                    "report" => {
+                        let code = fmea_report::cmd_fmea_report(&elems, sheet_filter, json);
+                        if code != 0 {
+                            std::process::exit(code);
+                        }
+                    }
                     _ => {
                         eprintln!("Usage: syscribe -m <model> fmea report [--fmea-sheet <id>] [--json]");
                         std::process::exit(1);

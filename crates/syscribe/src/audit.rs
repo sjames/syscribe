@@ -13,11 +13,14 @@
 //!   3. Per-configuration coverage % (matrix coverage; flat fallback when no FM).
 //!   4. Orphans — unverified / unsatisfied requirements, dangling TestCases,
 //!      requirements with neither derivedFrom nor derivedChildren.
-//!   5. Readiness verdict — PASS/FAIL naming the triggering codes/counts.
+//!   5. Safety — hazards, goals by integrity level, FTA, FMEA, HW metrics (GH #216).
+//!   6. Security — TARA, CAL, vulnerabilities, IEC 62443 zones (GH #216).
+//!   7. Readiness verdict — PASS/FAIL naming the triggering codes/counts.
 //!
-//! Policy: FAIL (exit 2) when any Error-severity finding exists, OR any W306
-//! finding exists (default gate), OR — under `--profile <name>` — any finding the
-//! profile promotes is present. PASS → exit 0.
+//! Policy: FAIL (exit 2) when any Error-severity finding exists, OR any finding
+//! selected by the `[audit]` table of `.syscribe.toml` (default: `W306`; `W033` and
+//! `W805` on an ASIL C/D goal — GH #216), OR — under `--profile <name>` — any
+//! finding the profile promotes is present. PASS → exit 0.
 
 use std::collections::BTreeMap;
 
@@ -105,36 +108,50 @@ impl StatusCounts {
     }
 }
 
-/// The audit command. Returns the process exit code (0 PASS · 2 FAIL).
-/// The readiness verdict over `elements`: `(pass, reasons)`. FAIL when any
-/// error-severity finding, any `W306`, or any profile-promoted finding is present.
-/// Shared by `cmd_audit` and `cmd_audit_all_configs` so the policy is defined once.
+/// Normalised ASIL letter (`"ASIL C"` / `"c"` → `"C"`).
+fn asil_letter(a: &str) -> String {
+    a.trim().trim_start_matches("ASIL").trim_start_matches("asil").trim().to_ascii_uppercase()
+}
+
+/// The finding set the audit counts: projection-aware validation, narrowed to
+/// the plan scope when given.
 ///
 /// When `sel` is `Some`, findings are computed via the **projection-aware**
 /// validator (`projection::validate_projected`) — exactly as `validate --config`
 /// does — so cross-reference-resolution codes (E102–E106) for references into the
 /// projected-out part are suppressed, and `audit --config` agrees with
 /// `validate --config` on error-severity findings (GH #36).
-pub fn audit_verdict(
+///
+/// `audit --plan` (GH #40): validate the FULL model (so every reference resolves —
+/// no escaping-reference artifacts), then count only findings whose element lies in
+/// the plan's scope. Without a plan, all findings count.
+pub fn audit_findings(
     elements: &[RawElement],
     config: &ValidateConfig,
-    profile: Option<&Profile>,
     sel: Option<&syscribe_model::projection::Selection>,
     plan_scope: Option<&std::collections::HashSet<String>>,
-) -> (bool, Vec<String>) {
+) -> Vec<validator::Finding> {
     let raw: Vec<validator::Finding> = match sel {
         Some(s) => syscribe_model::projection::validate_projected(elements, config, s),
         None => validator::validate_with_config(elements, config).findings,
     };
-    // `audit --plan` (GH #40): validate the FULL model (so every reference resolves —
-    // no escaping-reference artifacts), then count only findings whose element lies in
-    // the plan's scope. Without a plan, all findings count.
-    let findings: Vec<validator::Finding> = match plan_scope {
+    match plan_scope {
         Some(scope) => raw.into_iter().filter(|f| scope.contains(&f.file)).collect(),
         None => raw,
-    };
+    }
+}
+
+/// The readiness verdict over an already-computed finding set: `(pass, reasons)`.
+/// FAIL when any error-severity finding, any code in `[audit] fail_on` (default
+/// `W306`), any `[audit.fail_on_asil]` code on an element of a listed ASIL
+/// (default `W033`/`W805` at C/D), or any profile-promoted finding is present.
+pub fn verdict_from_findings(
+    findings: &[validator::Finding],
+    elements: &[RawElement],
+    config: &ValidateConfig,
+    profile: Option<&Profile>,
+) -> (bool, Vec<String>) {
     let errors = findings.iter().filter(|f| f.severity == Severity::Error).count();
-    let w306 = findings.iter().filter(|f| f.code == "W306").count();
     let candidates: Vec<&validator::Finding> =
         findings.iter().filter(|f| f.severity != Severity::Error).collect();
     let promoted = match profile {
@@ -145,8 +162,33 @@ pub fn audit_verdict(
     if errors > 0 {
         reasons.push(format!("{errors} error-severity finding(s)"));
     }
-    if w306 > 0 {
-        reasons.push(format!("{w306} W306 finding(s) (unsatisfied safety mechanism)"));
+    let audit = &config.audit;
+    for code in &audit.fail_on {
+        let n = candidates.iter().filter(|f| f.code == code.as_str()).count();
+        if n > 0 {
+            let note = if code == "W306" { " (unsatisfied safety mechanism)" } else { "" };
+            reasons.push(format!("{n} {code} finding(s){note}"));
+        }
+    }
+    for (code, levels) in &audit.fail_on_asil {
+        if audit.fail_on.contains(code) {
+            continue; // already failing at every level
+        }
+        let mut by_level: BTreeMap<String, u32> = BTreeMap::new();
+        for f in candidates.iter().filter(|f| f.code == code.as_str()) {
+            let asil = elements
+                .iter()
+                .find(|e| e.file_path == f.file && e.frontmatter.asil_level.is_some())
+                .and_then(|e| e.frontmatter.asil_level.as_deref().map(asil_letter));
+            if let Some(a) = asil.filter(|a| levels.contains(a)) {
+                *by_level.entry(a).or_insert(0) += 1;
+            }
+        }
+        let n: u32 = by_level.values().sum();
+        if n > 0 {
+            let lv: Vec<String> = by_level.iter().map(|(a, c)| format!("ASIL {a}: {c}")).collect();
+            reasons.push(format!("{n} {code} finding(s) on high-integrity goals ({})", lv.join(", ")));
+        }
     }
     if !promoted.is_empty() {
         let codes: std::collections::BTreeSet<&str> = promoted.iter().map(|f| f.code).collect();
@@ -157,6 +199,19 @@ pub fn audit_verdict(
         ));
     }
     (reasons.is_empty(), reasons)
+}
+
+/// The readiness verdict over `elements`: `(pass, reasons)`. Shared by
+/// `cmd_audit` and `cmd_audit_all_configs` so the policy is defined once.
+pub fn audit_verdict(
+    elements: &[RawElement],
+    config: &ValidateConfig,
+    profile: Option<&Profile>,
+    sel: Option<&syscribe_model::projection::Selection>,
+    plan_scope: Option<&std::collections::HashSet<String>>,
+) -> (bool, Vec<String>) {
+    let findings = audit_findings(elements, config, sel, plan_scope);
+    verdict_from_findings(&findings, elements, config, profile)
 }
 
 /// `audit --all-configs`: audit each stored `Configuration`'s projected variant;
@@ -244,7 +299,8 @@ pub fn cmd_audit(
     };
 
     // ---- Readiness verdict (shared policy, projection-aware) --------------
-    let (pass, reasons) = audit_verdict(elements, config, profile, sel, plan_scope);
+    let findings = audit_findings(elements, config, sel, plan_scope);
+    let (pass, reasons) = verdict_from_findings(&findings, elements, config, profile);
 
     // REQ-TRS-LINKTYPE-006 — every dashboard section below reads the *reporting*
     // view: a `coverage = true` user-defined link extending satisfies/verifies/
@@ -369,7 +425,11 @@ pub fn cmd_audit(
     untraced.sort();
     dangling_tcs.sort();
 
-    // ---- Section 5: verdict (computed above via audit_verdict) ------------
+    // ---- Sections 5/6: safety & security (GH #216) -------------------------
+    let safety = safety_section(view, &resolver, &findings, &in_scope);
+    let security = security_section(view, &findings, &in_scope);
+
+    // ---- Section 7: verdict (computed above via verdict_from_findings) -----
     let exit_code = if pass { 0 } else { 2 };
 
     // ---- Output ----------------------------------------------------------
@@ -395,6 +455,8 @@ pub fn cmd_audit(
                 "danglingTestCases": orphan_json(&dangling_tcs),
                 "untracedRequirements": orphan_json(&untraced),
             },
+            "safety": safety,
+            "security": security,
             "verdict": { "pass": pass, "reasons": reasons },
         });
         println!("{}", serde_json::to_string_pretty(&doc).unwrap());
@@ -471,11 +533,15 @@ pub fn cmd_audit(
     print_orphans("Requirements with neither derivedFrom nor derivedChildren", &untraced);
     println!();
 
-    // 5. Verdict
+    // 5./6. Safety and security
+    print_safety(&safety);
+    print_security(&security);
+
+    // 7. Verdict
     println!("## Readiness Verdict");
     println!();
     if pass {
-        println!("Verdict: **PASS** — no errors, no W306, no profile-promoted findings.");
+        println!("Verdict: **PASS** — no errors and no finding selected by the [audit] policy or a profile.");
     } else {
         println!("Verdict: **FAIL** — {}", reasons.join("; "));
     }
@@ -537,4 +603,227 @@ fn print_orphans(label: &str, ids: &[String]) {
     for id in ids {
         println!("  - {id}");
     }
+}
+
+// ── Safety & security sections (GH #216) ─────────────────────────────────────
+
+/// Ids of the elements carrying a finding with `code` (stable id, else qname).
+fn finding_ids(findings: &[validator::Finding], code: &str, elements: &[RawElement]) -> Vec<String> {
+    let mut ids: Vec<String> = findings
+        .iter()
+        .filter(|f| f.code == code)
+        .map(|f| {
+            elements
+                .iter()
+                .find(|e| e.file_path == f.file && !is_type(e, ElementType::FMEAEntry))
+                .map(disp_id)
+                .unwrap_or_else(|| f.file.clone())
+        })
+        .collect();
+    ids.sort();
+    ids.dedup();
+    ids
+}
+
+fn count_code(findings: &[validator::Finding], code: &str) -> usize {
+    findings.iter().filter(|f| f.code == code).count()
+}
+
+fn integrity_label(e: &RawElement) -> String {
+    let fm = &e.frontmatter;
+    if let Some(a) = &fm.asil_level {
+        format!("ASIL {}", asil_letter(a))
+    } else if let Some(s) = fm.sil_level {
+        format!("SIL {s}")
+    } else if let Some(p) = &fm.pl_level {
+        format!("PL {p}")
+    } else {
+        "none".to_string()
+    }
+}
+
+/// Safety block: hazards, goals by integrity level, FTA, FMEA, HW metrics, FFI.
+fn safety_section(
+    view: &[RawElement],
+    resolver: &Resolver,
+    findings: &[validator::Finding],
+    in_scope: &dyn Fn(&RawElement) -> bool,
+) -> serde_json::Value {
+    let of = |t: ElementType| view.iter().filter(|e| is_type(e, t.clone()) && in_scope(e)).count();
+    let goals: Vec<&RawElement> =
+        view.iter().filter(|e| Resolver::is_safety_goal(e) && in_scope(e)).collect();
+    let mut by_integrity: BTreeMap<String, u32> = BTreeMap::new();
+    for g in &goals {
+        *by_integrity.entry(integrity_label(g)).or_insert(0) += 1;
+    }
+    let fmea_rows: Vec<&RawElement> =
+        view.iter().filter(|e| is_type(e, ElementType::FMEAEntry) && in_scope(e)).collect();
+    let max_rpn = fmea_rows.iter().filter_map(|e| e.frontmatter.rpn).max();
+
+    let mut metrics = Vec::new();
+    let mut failing = 0u32;
+    for r in syscribe_model::metrics::report_all(view, resolver) {
+        if !goals.iter().any(|g| g.file_path == r.file_path) {
+            continue;
+        }
+        let integrity = r
+            .asil
+            .as_deref()
+            .map(|a| format!("ASIL {}", asil_letter(a)))
+            .or_else(|| r.sil.map(|s| format!("SIL {s}")))
+            .unwrap_or_else(|| "none".into());
+        let result = match (&r.metrics, &r.gate) {
+            (Some(_), Some(g)) if g.passed() => "pass",
+            (Some(_), Some(_)) => "fail",
+            (Some(_), None) => "no-target",
+            _ => "n/a",
+        };
+        if result == "fail" {
+            failing += 1;
+        }
+        metrics.push(json!({
+            "goal": r.id,
+            "integrity": integrity,
+            "spfm": r.metrics.as_ref().and_then(|m| m.spfm),
+            "lfm": r.metrics.as_ref().and_then(|m| m.lfm),
+            "pmhf": r.metrics.as_ref().map(|m| m.pmhf),
+            "result": result,
+        }));
+    }
+
+    json!({
+        "hazardousEvents": of(ElementType::HazardousEvent),
+        "safetyGoals": goals.len(),
+        "goalsByIntegrity": map_json(&by_integrity),
+        "goalsWithoutRequirements": orphan_json(&finding_ids(findings, "W805", view)),
+        "unreferencedHazards": orphan_json(&finding_ids(findings, "W800", view)),
+        "goalsWithoutIntegrityLevel": orphan_json(&finding_ids(findings, "W801", view)),
+        "faultTrees": of(ElementType::FaultTree),
+        "faultTreeEvents": of(ElementType::FaultTreeEvent),
+        "fmea": {
+            "sheets": of(ElementType::FMEASheet),
+            "entries": fmea_rows.len(),
+            "maxRpn": max_rpn,
+            "rowsMissingSOD": count_code(findings, "W931"),
+            "highRpnWithoutAction": count_code(findings, "W903"),
+            "severityPriorityGaps": count_code(findings, "W932"),
+        },
+        "metrics": metrics,
+        "metricsFailing": failing,
+        "ffiGaps": count_code(findings, "W034"),
+    })
+}
+
+/// Security block: TARA artefacts, CAL distribution, vulnerabilities, IEC 62443 zones.
+fn security_section(
+    view: &[RawElement],
+    findings: &[validator::Finding],
+    in_scope: &dyn Fn(&RawElement) -> bool,
+) -> serde_json::Value {
+    let of = |t: ElementType| view.iter().filter(|e| is_type(e, t.clone()) && in_scope(e)).count();
+    let mut by_cal: BTreeMap<String, u32> = BTreeMap::new();
+    for g in view.iter().filter(|e| Resolver::is_cybersecurity_goal(e) && in_scope(e)) {
+        let cal = g.frontmatter.cal_level.clone().unwrap_or_else(|| "none".into());
+        *by_cal.entry(cal).or_insert(0) += 1;
+    }
+    let vulns: Vec<&RawElement> =
+        view.iter().filter(|e| is_type(e, ElementType::VulnerabilityReport) && in_scope(e)).collect();
+    let open = vulns.iter().filter(|e| e.frontmatter.status.as_deref() == Some("open")).count();
+    let zones: Vec<&RawElement> =
+        view.iter().filter(|e| is_type(e, ElementType::Zone) && in_scope(e)).collect();
+    let sl_gap = zones
+        .iter()
+        .filter(|z| matches!((z.frontmatter.achieved_sl, z.frontmatter.target_sl), (Some(a), Some(t)) if a < t))
+        .count();
+    json!({
+        "assets": of(ElementType::Asset),
+        "damageScenarios": of(ElementType::DamageScenario),
+        "threatScenarios": of(ElementType::ThreatScenario),
+        "cybersecurityGoals": by_cal.values().sum::<u32>(),
+        "goalsByCal": map_json(&by_cal),
+        "securityControls": of(ElementType::SecurityControl),
+        "goalsNotImplemented": orphan_json(&finding_ids(findings, "W802", view)),
+        "goalsWithoutRequirements": orphan_json(&finding_ids(findings, "W804", view)),
+        "assetsWithoutDamageScenario": orphan_json(&finding_ids(findings, "W810", view)),
+        "attackTrees": of(ElementType::AttackTree),
+        "vulnerabilities": { "total": vulns.len(), "open": open },
+        "zones": { "count": zones.len(), "withSlGap": sl_gap },
+        "conduits": of(ElementType::Conduit),
+    })
+}
+
+fn print_id_list(label: &str, v: &serde_json::Value) {
+    let n = v["count"].as_u64().unwrap_or(0);
+    println!("{label}: {n}");
+    for id in v["ids"].as_array().into_iter().flatten().filter_map(|x| x.as_str()) {
+        println!("  - {id}");
+    }
+}
+
+fn print_map(label: &str, v: &serde_json::Value) {
+    let parts: Vec<String> = v
+        .as_object()
+        .map(|m| m.iter().map(|(k, c)| format!("{k}={c}")).collect())
+        .unwrap_or_default();
+    println!("{label}: {}", if parts.is_empty() { "(none)".to_string() } else { parts.join("  ") });
+}
+
+fn print_safety(s: &serde_json::Value) {
+    println!("## Safety");
+    println!();
+    println!("Hazardous events: {}   Safety goals: {}", s["hazardousEvents"], s["safetyGoals"]);
+    print_map("Goals by integrity level", &s["goalsByIntegrity"]);
+    print_id_list("Goals with no derived Requirement (W805)", &s["goalsWithoutRequirements"]);
+    print_id_list("Hazardous events not referenced by a goal (W800)", &s["unreferencedHazards"]);
+    print_id_list("Goals without an integrity level (W801)", &s["goalsWithoutIntegrityLevel"]);
+    println!("Fault trees: {}   events: {}", s["faultTrees"], s["faultTreeEvents"]);
+    let f = &s["fmea"];
+    println!(
+        "FMEA: {} sheet(s), {} row(s), max RPN {}; rows missing S/O/D (W931): {}; RPN>100 without action (W903): {}; severity>=9 without action (W932): {}",
+        f["sheets"], f["entries"], f["maxRpn"].as_u64().map_or("n/a".to_string(), |v| v.to_string()), f["rowsMissingSOD"], f["highRpnWithoutAction"], f["severityPriorityGaps"]
+    );
+    println!("Hardware metrics ({} failing):", s["metricsFailing"]);
+    let rows = s["metrics"].as_array().cloned().unwrap_or_default();
+    if rows.is_empty() {
+        println!("  (no safety goals)");
+    }
+    let fmt = |v: &serde_json::Value, sci: bool| -> String {
+        match v.as_f64() {
+            Some(x) if sci => format!("{x:.2e}"),
+            Some(x) => format!("{x:.4}"),
+            None => "n/a".to_string(),
+        }
+    };
+    for m in &rows {
+        println!(
+            "  {} ({}): SPFM {}  LFM {}  PMHF {}  -> {}",
+            m["goal"].as_str().unwrap_or("?"),
+            m["integrity"].as_str().unwrap_or("?"),
+            fmt(&m["spfm"], false),
+            fmt(&m["lfm"], false),
+            fmt(&m["pmhf"], true),
+            m["result"].as_str().unwrap_or("?")
+        );
+    }
+    println!("Freedom-from-interference gaps (W034): {}", s["ffiGaps"]);
+    println!();
+}
+
+fn print_security(s: &serde_json::Value) {
+    println!("## Security");
+    println!();
+    println!(
+        "Assets: {}   Damage scenarios: {}   Threat scenarios: {}   Cybersecurity goals: {}   Controls: {}   Attack trees: {}",
+        s["assets"], s["damageScenarios"], s["threatScenarios"], s["cybersecurityGoals"], s["securityControls"], s["attackTrees"]
+    );
+    print_map("Cybersecurity goals by CAL", &s["goalsByCal"]);
+    print_id_list("Goals not implemented by a control (W802)", &s["goalsNotImplemented"]);
+    print_id_list("Goals with no derived Requirement (W804)", &s["goalsWithoutRequirements"]);
+    print_id_list("Assets not in any damage scenario (W810)", &s["assetsWithoutDamageScenario"]);
+    println!("Vulnerabilities: {} total, {} open (W803)", s["vulnerabilities"]["total"], s["vulnerabilities"]["open"]);
+    println!(
+        "IEC 62443 zones: {} ({} with a security-level gap)   conduits: {}",
+        s["zones"]["count"], s["zones"]["withSlGap"], s["conduits"]
+    );
+    println!();
 }

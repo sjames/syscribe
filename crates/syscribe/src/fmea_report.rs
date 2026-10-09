@@ -5,18 +5,34 @@ use syscribe_model::element::{ElementType, RawElement};
 
 // ── fmea report ──────────────────────────────────────────────────────────────
 
-pub fn cmd_fmea_report(elements: &[RawElement], sheet_filter: Option<&str>, json: bool) {
+/// Returns the process exit code: 0 on success, 1 when `sheet_filter` names no
+/// `FMEASheet` (GH #218 — a typo must not look like an empty, clean report).
+pub fn cmd_fmea_report(elements: &[RawElement], sheet_filter: Option<&str>, json: bool) -> i32 {
+    // Resolve the sheet (by id or qualified name) and scope rows to its subtree.
+    let prefix: Option<String> = match sheet_filter {
+        None => None,
+        Some(sf) => {
+            let sheet = elements.iter().find(|e| {
+                matches!(e.frontmatter.element_type, Some(ElementType::FMEASheet))
+                    && (e.frontmatter.id.as_deref() == Some(sf) || e.qualified_name == sf)
+            });
+            match sheet {
+                Some(sh) => Some(format!("{}::", sh.qualified_name)),
+                None => {
+                    eprintln!("Error: no FMEASheet found with id or qualified name '{sf}'");
+                    return 1;
+                }
+            }
+        }
+    };
+    // A duplicate row id inside a sheet synthesises two elements with one qualified
+    // name (E108 reports it); list the first only so the table is not inflated.
+    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
     let mut entries: Vec<&RawElement> = elements
         .iter()
         .filter(|e| matches!(e.frontmatter.element_type, Some(ElementType::FMEAEntry)))
-        .filter(|e| {
-            // If a sheet filter is given, keep only entries whose qualified name
-            // starts with "<sheet-id>::" or "<sheet-qname>::".
-            sheet_filter.is_none_or(|sf| {
-                e.qualified_name.contains(&format!("{}::", sf))
-                    || e.qualified_name.starts_with(&format!("{}::", sf))
-            })
-        })
+        .filter(|e| prefix.as_deref().is_none_or(|p| e.qualified_name.starts_with(p)))
+        .filter(|e| seen.insert(e.qualified_name.as_str()))
         .collect();
 
     // Sort by RPN descending (highest risk first), then by id for stability.
@@ -33,46 +49,65 @@ pub fn cmd_fmea_report(elements: &[RawElement], sheet_filter: Option<&str>, json
                 let fm = &e.frontmatter;
                 serde_json::json!({
                     "id": fm.id,
-                    "name": fm.name,
                     "failureMode": fm.failure_mode,
                     "effect": fm.effect,
+                    "cause": fm.cause,
                     "fmeaSeverity": fm.fmea_severity,
                     "occurrence": fm.occurrence,
                     "detection": fm.detection,
                     "rpn": fm.rpn,
                     "recommendedAction": fm.recommended_action,
+                    "failureRate": fm.failure_rate,
+                    "diagnosticCoverage": fm.diagnostic_coverage,
+                    "latentDiagnosticCoverage": fm.latent_diagnostic_coverage,
                     "status": fm.status,
                 })
             })
             .collect();
         println!("{}", serde_json::to_string_pretty(&items).unwrap());
-        return;
+        return 0;
     }
 
     if entries.is_empty() {
         let scope = sheet_filter.map(|s| format!(" in sheet '{s}'")).unwrap_or_default();
         println!("No FMEAEntry elements found{}.", scope);
-        return;
+        return 0;
     }
 
-    println!("| ID | Name | Failure Mode | Effect | Severity | Occurrence | Detection | RPN | Controls | Status |");
-    println!("|---|---|---|---|---|---|---|---|---|---|");
+    let fmeda = entries.iter().any(|e| {
+        e.frontmatter.failure_rate.is_some() || e.frontmatter.diagnostic_coverage.is_some()
+    });
+    let dash = || "—".to_string();
+    if fmeda {
+        println!("| ID | Failure Mode | Effect | Severity | Occurrence | Detection | RPN | Recommended Action | λ (/h) | DC | Status |");
+        println!("|---|---|---|---|---|---|---|---|---|---|---|");
+    } else {
+        println!("| ID | Failure Mode | Effect | Severity | Occurrence | Detection | RPN | Recommended Action | Status |");
+        println!("|---|---|---|---|---|---|---|---|---|");
+    }
     for e in &entries {
         let fm = &e.frontmatter;
         let id = fm.id.as_deref().unwrap_or("—");
-        let name = fm.name.as_deref().unwrap_or("—");
-        let failure_mode = fm.failure_mode.as_deref().unwrap_or("—");
+        // `name` is the failure-mode label for a row; fall back to it only when
+        // `failureMode` is absent.
+        let failure_mode = fm.failure_mode.as_deref().or(fm.name.as_deref()).unwrap_or("—");
         let effect = fm.effect.as_deref().unwrap_or("—");
-        let sev = fm.fmea_severity.map(|n| n.to_string()).unwrap_or_else(|| "—".into());
-        let occ = fm.occurrence.map(|n| n.to_string()).unwrap_or_else(|| "—".into());
-        let det = fm.detection.map(|n| n.to_string()).unwrap_or_else(|| "—".into());
-        let rpn = fm.rpn.map(|n| n.to_string()).unwrap_or_else(|| "—".into());
-        let controls = fm.recommended_action.as_deref().unwrap_or("—");
+        let sev = fm.fmea_severity.map(|n| n.to_string()).unwrap_or_else(dash);
+        let occ = fm.occurrence.map(|n| n.to_string()).unwrap_or_else(dash);
+        let det = fm.detection.map(|n| n.to_string()).unwrap_or_else(dash);
+        let rpn = fm.rpn.map(|n| n.to_string()).unwrap_or_else(dash);
+        let action = fm.recommended_action.as_deref().unwrap_or("—");
         let status = fm.status.as_deref().unwrap_or("—");
-        println!("| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |",
-            id, name, failure_mode, effect, sev, occ, det, rpn, controls, status);
+        if fmeda {
+            let lam = fm.failure_rate.map(|v| format!("{v:.2e}")).unwrap_or_else(dash);
+            let dc = fm.diagnostic_coverage.map(|v| format!("{v}")).unwrap_or_else(dash);
+            println!("| {id} | {failure_mode} | {effect} | {sev} | {occ} | {det} | {rpn} | {action} | {lam} | {dc} | {status} |");
+        } else {
+            println!("| {id} | {failure_mode} | {effect} | {sev} | {occ} | {det} | {rpn} | {action} | {status} |");
+        }
     }
     println!();
+    0
 }
 
 // ── fault-tree render ─────────────────────────────────────────────────────────
